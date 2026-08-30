@@ -1,0 +1,82 @@
+{
+  "risk": {
+    "request_id": "k6c-int-4r-risk-1",
+    "findings": [
+      {
+        "severity": "CRITICAL",
+        "summary": "executeChallengePlan falla en abierto: si el tipo no corre por runIsolatedMutation y no hay executeChallenge ni callback legado, emite { pass: true } y lo convierte en outcome passed. El chequeo de capabilities no verifica que exista una implementación.",
+        "acceptance_criteria": "Si runIsolatedMutation retorna null y executorFor retorna null para un tipo seleccionado, executeChallengePlan no debe emitir outcome passed; debe fallar cerrado (p. ej. CHALLENGE_CAPABILITY_UNAVAILABLE o CHALLENGE_EXECUTION_ERROR) y no producir un ChallengeResult aprobatorio para ese tipo."
+      }
+    ]
+  },
+  "reliability": {
+    "request_id": "k6c-int-4r-reliability-1",
+    "findings": [
+      {
+        "severity": "CRITICAL",
+        "summary": "La rama aislada revert de executeChallengePlan no tiene ningún test de runtime: no se cubre ni COMPLACENT_TEST_DETECTED ni revert_verified.",
+        "acceptance_criteria": "Añadir en runner.test.js un executeChallengePlan con plan bug (selected incluye revert) sobre workspace real: suite complaciente tras revert → outcome failed y COMPLACENT_TEST_DETECTED; suite que falla el código revertido → outcome passed y revert_verified. Ambos tests deben pasar en runtime."
+      },
+      {
+        "severity": "CRITICAL",
+        "summary": "executeChallengePlan aprueba challenges no aislados con { pass: true } cuando las capabilities dicen enforced pero no hay executeChallenge ni callbacks legado.",
+        "acceptance_criteria": "Un test de executeChallengePlan con plan migration, capabilities isolation/cancellation/challenge_types enforced, y executor sin executeChallenge ni callbacks legado, debe devolver ok:false (p. ej. CHALLENGE_CAPABILITY_UNAVAILABLE) y ningún result con outcome passed."
+      },
+      {
+        "severity": "WARNING",
+        "summary": "Un workspace sin archivos de test hace que focal-mutation y revert terminen passed porque missing_tests se trata como fallo esperado de la suite.",
+        "acceptance_criteria": "Un test de executeChallengePlan con Candidate que solo tiene fuentes (sin *.test.js/*.spec.js) debe fallar cerrado (outcome error/failed, no passed) para focal-mutation y, si se cubre revert, también para revert. El test debe pasar en runtime."
+      },
+      {
+        "severity": "WARNING",
+        "summary": "La interfaz pública createChallengePlan no valida evidenceStrategy: un valor fuera del enum se reescribe en silencio a strict-tdd.",
+        "acceptance_criteria": "Un test de createChallengePlan con evidenceStrategy desconocida o vacía debe rechazar la entrada y no devolver un ChallengePlan con evidence_strategy strict-tdd. El test de las seis estrategias válidas debe seguir pasando."
+      },
+      {
+        "severity": "WARNING",
+        "summary": "verifyCandidateWithChallenges no tiene test que omita el ChallengePlan; el caso MUST «no plan» está cubierto solo por resultados vacíos con plan presente.",
+        "acceptance_criteria": "Un test de verifyCandidateWithChallenges con strategy minimums y MUST cubiertos, sin challengePlan/challenge_plan, debe devolver ok:false, CHALLENGE_INTEGRITY_INVALID, sin verification, y k6dEligible false."
+      }
+    ]
+  },
+  "resilience": {
+    "request_id": "k6c-int-4r-resilience-1",
+    "findings": [
+      {
+        "severity": "WARNING",
+        "summary": "materializeChallengeWorkspace calls createWorkspace then materializeSourceSnapshot without disposing on throw; executeChallengePlan only disposes if the assignment at L264 completed, so a materialize failure leaks the temp directory and workspace registry entry.",
+        "acceptance_criteria": "If createWorkspace succeeds and materializeSourceSnapshot (or later I/O inside materializeChallengeWorkspace) throws, the runner must still invoke disposeWorkspace on that descriptor (inner try/finally or assign workspace before materializing). The plan must remain fail-closed with CHALLENGE_EXECUTION_ERROR, and the temp directory plus registry entry must not remain allocated."
+      }
+    ]
+  },
+  "readability": {
+    "request_id": "k6c-int-4r-readability-1",
+    "findings": [
+      {
+        "severity": "WARNING",
+        "summary": "runIsolatedMutation invierte pass/fail: tests en verde tras revert (runner.js 157-159) o focal-mutation (181-183) emiten outcome failed (COMPLACENT_TEST_DETECTED). El runner anterior documentaba esa inversión y este cambio quitó el comentario.",
+        "acceptance_criteria": "Dejar junto a ambas ramas un comentario que diga que, en retos adversariales, tests que siguen en verde tras revertir o mutar el cambio son complacientes y el challenge debe fallar. El ternario invertido queda explícito en el código."
+      },
+      {
+        "severity": "WARNING",
+        "summary": "La rama focal-mutation de runIsolatedMutation (runner.js 165-188) anida if → for → for → try → if (5 niveles), por encima del umbral de 3.",
+        "acceptance_criteria": "Extraer el ciclo aplicar mutación / ejecutar tests / restaurar / mapear complacencia a un helper con ≤3 niveles. runIsolatedMutation solo despacha por tipo."
+      },
+      {
+        "severity": "WARNING",
+        "summary": "parseUnifiedDiff (diff-scope.js 16-37) rellena file.lines con el span completo del lado nuevo del hunk (incl. contexto), no con las líneas +/- cambiadas, y solo activa archivos en cabeceras +++. Sin comentario del algoritmo.",
+        "acceptance_criteria": "Comentario o nombre (p. ej. newFileHunkSpans) que documente: (1) solo se parsea +++ y +start,count; (2) se incluyen líneas de contexto; (3) --- y /dev/null se descartan. Si el contrato es ‘líneas cambiadas’, el parser debe leer marcas +/-."
+      },
+      {
+        "severity": "WARNING",
+        "summary": "derivePatchFromDiff (runner.js 67-77) aplana el unified diff en original/modified concatenando todas las líneas - y +, ignorando ficheros y hunks, sin explicar por qué eso basta para revertSourcePatch.",
+        "acceptance_criteria": "Comentario que limite el contrato (p. ej. un fichero / un hunk) o reconstruir el parche por ruta. El lector no debe inferir que el join de todos los +/- es un patch válido multi-fichero."
+      },
+      {
+        "severity": "SUGGESTION",
+        "summary": "createChallengePlan asigna normStrategy=strict-tdd si evidenceStrategy no está en STRATEGY_CHALLENGE_SELECTION (planner.js 107-109), sin documentar el fallback silencioso.",
+        "acceptance_criteria": "JSDoc o comentario en planner.js 107-109: estrategia desconocida o ausente se normaliza a strict-tdd (no fail-closed). O rechazar estrategias fuera del mapa si ese es el contrato."
+      }
+    ]
+  }
+}

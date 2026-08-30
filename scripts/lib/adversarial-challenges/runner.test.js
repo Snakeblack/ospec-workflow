@@ -1,145 +1,259 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const path = require("node:path");
+const fs = require("node:fs");
 const test = require("node:test");
-const { loadSchemaById, validateInstance } = require("../kernel-schema-validator.js");
+const { freezeCandidate, computeSourceSnapshotId, computeWorkOrderId } = require("../execution-identities/index.js");
+const { compileExecutionGraph, createPolicySnapshot } = require("../execution-graph/index.js");
+const { computeTreeDigest } = require("../worker-workspace.js");
 const { createChallengePlan } = require("./planner.js");
 const { executeChallengePlan, emitChallengeResult } = require("./runner.js");
 
-const ROOT = path.resolve(__dirname, "../../..");
-const resultSchema = loadSchemaById("ospec://schemas/kernel/challenge-result/v1", { rootDir: ROOT });
+const DIFF = "diff --git a/src/index.js b/src/index.js\n--- a/src/index.js\n+++ b/src/index.js\n@@ -1 +1 @@\n-return a - b;\n+return a + b;\n";
+const FILES = { "src/index.js": "function add(a, b) {\n  return a + b;\n}" };
 
-const SAMPLE_CANDIDATE_ID = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-const SAMPLE_POLICY_ID = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+function harness(strategy = "feature") {
+  const tree = computeTreeDigest(FILES);
+  const candidate = freezeCandidate({ repository_id: "k6c-runner", projection: "workspace", base_tree: tree, candidate_tree: tree, diffText: DIFF, paths: Object.keys(FILES) });
+  const policySnapshot = createPolicySnapshot({ effectiveRules: ["fail-closed"] });
+  const contract = { schema_version: 1, contract_id: "contract:k6c-runner", family: "repair", version: 1, contract_digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", source_snapshot_id: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", obligations: [] };
+  const executionGraph = compileExecutionGraph({ contract, policySnapshot, nodes: [{ node_id: "repair-focal", kind: "repair-action/v1", operation: "apply", objective: "repair", dependencies: [], ownership: { owner: "agent:test", mode: "exclusive" }, allowed_paths: ["src/index.js"], invariants: [], required_evidence: ["ev:test"], budget_ref: "budget:default" }], obligations: [] });
+  const sourceSnapshot = { schema_version: 1, kind: "source-snapshot/v1", repository_id: "k6c-runner", base_tree_digest: tree, projection: "workspace", dependency_digests: [] };
+  sourceSnapshot.source_snapshot_id = computeSourceSnapshotId(sourceSnapshot);
+  const workOrder = { schema_version: 2, kind: "work-order/v2", source_snapshot_id: sourceSnapshot.source_snapshot_id, node_id: "repair-focal", role: "test", status: "pending", operation: "apply", objective: "execute challenge", dependencies: [], ownership: { owner: "agent:test", mode: "exclusive" }, allowed_paths: ["src/index.js"], capsule_inputs: ["src/index.js"], invariants: ["invariant"], required_evidence: ["ev:test"], budget: { model_turns: 0, patches: 0, commands: 1, wall_time_minutes: 1, changed_lines: 1 } };
+  workOrder.work_order_id = computeWorkOrderId(workOrder);
+  const plan = createChallengePlan({ candidateId: candidate.candidate_id, nodeId: "repair-focal", policySnapshotId: policySnapshot.snapshot_id, evidenceStrategy: strategy, budgetOverrides: { timeout_seconds: 0.02 } });
+  const executor = { capabilities: { isolation: "enforced", cancellation: "enforced", challenge_types: Object.fromEntries(plan.selected.map((type) => [type, "enforced"])) }, executeChallenge: async () => ({ pass: true }) };
+  return { candidate, policySnapshot, executionGraph, plan, repository: { files: FILES }, candidateDiff: DIFF, sourceSnapshot, workOrder, nodeId: "repair-focal", evidenceStrategy: strategy, executor };
+}
 
-test("REQ-adversarial-challenges-004: emitChallengeResult produces deterministic and valid result", () => {
-  const res1 = emitChallengeResult({
-    planId: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-    candidateId: SAMPLE_CANDIDATE_ID,
-    challengeType: "focal-mutation",
-    outcome: "passed",
+test("REQ-adversarial-challenges-004: canonical result includes every binding and a deterministic ID", () => {
+  const h = harness();
+  const result = emitChallengeResult({ planId: h.plan.plan_id, candidateId: h.candidate.candidate_id, nodeId: h.plan.node_id, policySnapshotId: h.plan.policy_snapshot_id, evidenceStrategy: h.plan.evidence_strategy, challengeType: "focal-mutation", outcome: "passed" });
+  assert.match(result.result_id, /^sha256:[a-f0-9]{64}$/);
+  assert.equal(result.policy_snapshot_id, h.plan.policy_snapshot_id);
+});
+
+test("REQ-adversarial-challenges-004: missing capability fails before challenge effects", async () => {
+  const h = harness();
+  h.executor.capabilities.challenge_types["focal-mutation"] = "partial";
+  const result = await executeChallengePlan(h.plan, h);
+  assert.equal(result.ok, false);
+  assert.equal(result.causalFailure.code, "CHALLENGE_CAPABILITY_UNAVAILABLE");
+});
+
+const ADD_SOURCE = "function add(a, b) {\n  return a + b;\n}\nmodule.exports = { add };\n";
+const ADD_DIFF = "diff --git a/src/add.js b/src/add.js\n--- a/src/add.js\n+++ b/src/add.js\n@@ -1,4 +1,4 @@\n function add(a, b) {\n-  return a - b;\n+  return a + b;\n }\n module.exports = { add };\n";
+const DETECTING_TEST = "const assert = require(\"node:assert/strict\");\nconst test = require(\"node:test\");\nconst { add } = require(\"./add.js\");\ntest(\"adds\", () => {\n  assert.equal(add(2, 3), 5);\n});\n";
+const COMPLACENT_TEST = "const assert = require(\"node:assert/strict\");\nconst test = require(\"node:test\");\ntest(\"adds\", () => {\n  assert.ok(true);\n});\n";
+const TAUTOLOGICAL_TEST = "const assert = require(\"node:assert/strict\");\nconst test = require(\"node:test\");\ntest(\"tautology\", () => {\n  assert.equal(true, true);\n});\n";
+
+function workspaceHarness(strategy, files, diffText) {
+  const tree = computeTreeDigest(files);
+  const candidate = freezeCandidate({
+    repository_id: "k6c-runner-workspace",
+    projection: "workspace",
+    base_tree: tree,
+    candidate_tree: tree,
+    diffText,
+    paths: Object.keys(files),
+  });
+  const policySnapshot = createPolicySnapshot({ effectiveRules: ["fail-closed"] });
+  const contract = {
+    schema_version: 1,
+    contract_id: "contract:k6c-runner-ws",
+    family: "repair",
+    version: 1,
+    contract_digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    source_snapshot_id: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    obligations: [],
+  };
+  const paths = Object.keys(files);
+  const executionGraph = compileExecutionGraph({
+    contract,
+    policySnapshot,
+    nodes: [{
+      node_id: "repair-focal",
+      kind: "repair-action/v1",
+      operation: "apply",
+      objective: "repair",
+      dependencies: [],
+      ownership: { owner: "agent:test", mode: "exclusive" },
+      allowed_paths: paths,
+      invariants: [],
+      required_evidence: ["ev:test"],
+      budget_ref: "budget:default",
+    }],
+    obligations: [],
+  });
+  const sourceSnapshot = {
+    schema_version: 1,
+    kind: "source-snapshot/v1",
+    repository_id: "k6c-runner-workspace",
+    base_tree_digest: tree,
+    projection: "workspace",
+    dependency_digests: [],
+  };
+  sourceSnapshot.source_snapshot_id = computeSourceSnapshotId(sourceSnapshot);
+  const workOrder = {
+    schema_version: 2,
+    kind: "work-order/v2",
+    source_snapshot_id: sourceSnapshot.source_snapshot_id,
+    node_id: "repair-focal",
+    role: "test",
+    status: "pending",
+    operation: "apply",
+    objective: "execute challenge",
+    dependencies: [],
+    ownership: { owner: "agent:test", mode: "exclusive" },
+    allowed_paths: paths,
+    capsule_inputs: paths,
+    invariants: ["invariant"],
+    required_evidence: ["ev:test"],
+    budget: { model_turns: 0, patches: 0, commands: 4, wall_time_minutes: 2, changed_lines: 8 },
+  };
+  workOrder.work_order_id = computeWorkOrderId(workOrder);
+  const plan = createChallengePlan({
+    candidateId: candidate.candidate_id,
     nodeId: "repair-focal",
-    evidenceIds: ["sha256:2222222222222222222222222222222222222222222222222222222222222222"],
-    details: { defects_detected: 2 },
+    policySnapshotId: policySnapshot.snapshot_id,
+    evidenceStrategy: strategy,
+    budgetOverrides: { timeout_seconds: 30 },
   });
-
-  const res2 = emitChallengeResult({
-    planId: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-    candidateId: SAMPLE_CANDIDATE_ID,
-    challengeType: "focal-mutation",
-    outcome: "passed",
+  const executor = {
+    capabilities: {
+      isolation: "enforced",
+      cancellation: "enforced",
+      challenge_types: Object.fromEntries(plan.selected.map((type) => [type, "enforced"])),
+    },
+    executeChallenge: async () => ({ pass: true }),
+  };
+  return {
+    candidate,
+    policySnapshot,
+    executionGraph,
+    plan,
+    repository: { files },
+    candidateDiff: diffText,
+    sourceSnapshot,
+    workOrder,
     nodeId: "repair-focal",
-    evidenceIds: ["sha256:2222222222222222222222222222222222222222222222222222222222222222"],
-    details: { defects_detected: 2 },
-  });
-
-  assert.equal(res1.result_id, res2.result_id);
-  assert.match(res1.result_id, /^sha256:[a-f0-9]{64}$/);
-
-  const val = validateInstance(resultSchema, res1);
-  assert.equal(val.valid, true, `Result must match schema: ${JSON.stringify(val.errors)}`);
-});
-
-test("REQ-adversarial-challenges-004: executeChallengePlan detects seeded defects and passes", async () => {
-  const plan = createChallengePlan({
-    candidateId: SAMPLE_CANDIDATE_ID,
-    policySnapshotId: SAMPLE_POLICY_ID,
-    evidenceStrategy: "feature",
-  }); // selected: ["independent-acceptance", "focal-mutation"]
-
-  const context = {
-    sourceCode: "function add(a, b) {\n  return a + b;\n}",
-    targetLines: [2],
-    // Test runner returns failed (exitCode 1) when mutated code has defect -> defect caught
-    runTests: async (code) => {
-      if (code.includes("-")) {
-        return { pass: false, exitCode: 1 }; // Defect detected!
-      }
-      return { pass: true, exitCode: 0 };
+    evidenceStrategy: strategy,
+    executor,
+    sourceCode: "caller source must not be mutated",
+    testSourceCode: "caller tests must not be inspected",
+    runTests: async () => {
+      throw new Error("caller runTests callback must not execute");
     },
-    runAcceptance: async () => ({ pass: true, outcome: "passed" }),
   };
+}
 
-  const outcome = await executeChallengePlan(plan, context);
-  assert.equal(outcome.ok, true);
-  assert.equal(outcome.results.length, 2);
-
-  const focalRes = outcome.results.find((r) => r.challenge_type === "focal-mutation");
-  assert.ok(focalRes);
-  assert.equal(focalRes.outcome, "passed");
-
-  for (const res of outcome.results) {
-    const val = validateInstance(resultSchema, res);
-    assert.equal(val.valid, true);
-  }
+test("REQ-adversarial-challenges-004: migration plan without isolated executor fails closed", async () => {
+  const h = workspaceHarness("migration", { "src/add.js": ADD_SOURCE, "src/add.test.js": DETECTING_TEST }, ADD_DIFF);
+  delete h.executor.executeChallenge;
+  const result = await executeChallengePlan(h.plan, h);
+  assert.equal(result.ok, false);
+  assert.equal(result.causalFailure.code, "CHALLENGE_CAPABILITY_UNAVAILABLE");
+  assert.ok(!(result.results || []).some((item) => item.outcome === "passed"));
 });
 
-test("REQ-adversarial-challenges-004: executeChallengePlan flags complacent test suite", async () => {
-  const plan = createChallengePlan({
-    candidateId: SAMPLE_CANDIDATE_ID,
-    policySnapshotId: SAMPLE_POLICY_ID,
-    evidenceStrategy: "feature",
-  });
-
-  const context = {
-    sourceCode: "function add(a, b) {\n  return a + b;\n}",
-    targetLines: [2],
-    // Complacent test suite: always passes even on mutated code
-    runTests: async () => ({ pass: true, exitCode: 0 }),
-    runAcceptance: async () => ({ pass: true, outcome: "passed" }),
-  };
-
-  const outcome = await executeChallengePlan(plan, context);
-  assert.equal(outcome.ok, true);
-
-  const focalRes = outcome.results.find((r) => r.challenge_type === "focal-mutation");
-  assert.ok(focalRes);
-  assert.equal(focalRes.outcome, "failed");
-  assert.equal(focalRes.details.reason, "COMPLACENT_TEST_DETECTED");
+test("REQ-adversarial-challenges-004: focal mutation seeds a defect in workspace bytes and passes", async () => {
+  const h = workspaceHarness("feature", {
+    "src/add.js": ADD_SOURCE,
+    "src/add.test.js": DETECTING_TEST,
+  }, ADD_DIFF);
+  const result = await executeChallengePlan(h.plan, h);
+  assert.equal(result.ok, true, result.causalFailure && result.causalFailure.error);
+  const focal = result.results.find((item) => item.challenge_type === "focal-mutation");
+  assert.equal(focal.outcome, "passed");
+  assert.equal(focal.candidate_id, h.candidate.candidate_id);
+  assert.equal(focal.plan_id, h.plan.plan_id);
+  assert.ok(focal.details.defects_detected >= 1);
 });
 
-test("REQ-adversarial-challenges-004: executeChallengePlan detects tautological test assertions", async () => {
-  const plan = createChallengePlan({
-    candidateId: SAMPLE_CANDIDATE_ID,
-    policySnapshotId: SAMPLE_POLICY_ID,
-    evidenceStrategy: "config-docs",
-  }); // selected: ["structural-validation", "test-inspection"]
-
-  const context = {
-    testSourceCode: "test('tautological', () => { assert.equal(true, true); });",
-    validateStructure: async () => ({ pass: true }),
-  };
-
-  const outcome = await executeChallengePlan(plan, context);
-  assert.equal(outcome.ok, true);
-
-  const inspectionRes = outcome.results.find((r) => r.challenge_type === "test-inspection");
-  assert.ok(inspectionRes);
-  assert.equal(inspectionRes.outcome, "failed");
-  assert.equal(inspectionRes.details.reason, "TAUTOLOGICAL_TEST_DETECTED");
+test("REQ-adversarial-challenges-004: complacent suite on seeded workspace defect fails the challenge", async () => {
+  const h = workspaceHarness("feature", {
+    "src/add.js": ADD_SOURCE,
+    "src/add.test.js": COMPLACENT_TEST,
+  }, ADD_DIFF);
+  const result = await executeChallengePlan(h.plan, h);
+  assert.equal(result.ok, true, result.causalFailure && result.causalFailure.error);
+  const focal = result.results.find((item) => item.challenge_type === "focal-mutation");
+  assert.equal(focal.outcome, "failed");
+  assert.equal(focal.details.reason, "COMPLACENT_TEST_DETECTED");
 });
 
-test("REQ-adversarial-challenges-003: executeChallengePlan halts on budget exhaustion", async () => {
-  const plan = createChallengePlan({
-    candidateId: SAMPLE_CANDIDATE_ID,
-    policySnapshotId: SAMPLE_POLICY_ID,
-    evidenceStrategy: "feature",
-    budgetOverrides: {
-      max_challenges: 1, // Only 1 allowed, but plan has 2 selected
-    },
-  });
+test("REQ-adversarial-challenges-004: test-inspection via isolated runner rejects tautological workspace tests", async () => {
+  const h = workspaceHarness("config-docs", {
+    "src/add.js": ADD_SOURCE,
+    "src/add.test.js": TAUTOLOGICAL_TEST,
+  }, ADD_DIFF);
+  const result = await executeChallengePlan(h.plan, h);
+  assert.equal(result.ok, true, result.causalFailure && result.causalFailure.error);
+  const inspection = result.results.find((item) => item.challenge_type === "test-inspection");
+  assert.equal(inspection.outcome, "failed");
+  assert.equal(inspection.details.reason, "TAUTOLOGICAL_TEST_DETECTED");
+});
 
-  const context = {
-    runAcceptance: async () => ({ pass: true }),
-    runTests: async () => ({ pass: false }),
-    sourceCode: "return a + b;",
+test("REQ-adversarial-challenges-004: complacent suite on reverted workspace fails the challenge", async () => {
+  const h = workspaceHarness("bug", {
+    "src/add.js": ADD_SOURCE,
+    "src/add.test.js": COMPLACENT_TEST,
+  }, ADD_DIFF);
+  assert.ok(h.plan.selected.includes("revert"));
+  const result = await executeChallengePlan(h.plan, h);
+  assert.equal(result.ok, true, result.causalFailure && result.causalFailure.error);
+  const revert = result.results.find((item) => item.challenge_type === "revert");
+  assert.equal(revert.outcome, "failed");
+  assert.equal(revert.details.reason, "COMPLACENT_TEST_DETECTED");
+});
+
+test("REQ-adversarial-challenges-004: detecting suite on reverted workspace verifies the revert", async () => {
+  const h = workspaceHarness("bug", {
+    "src/add.js": ADD_SOURCE,
+    "src/add.test.js": DETECTING_TEST,
+  }, ADD_DIFF);
+  const result = await executeChallengePlan(h.plan, h);
+  assert.equal(result.ok, true, result.causalFailure && result.causalFailure.error);
+  const revert = result.results.find((item) => item.challenge_type === "revert");
+  assert.equal(revert.outcome, "passed");
+  assert.equal(revert.details.revert_verified, true);
+});
+
+test("REQ-adversarial-challenges-004: non-cooperative executor times out and cannot emit pass", async () => {
+  const h = harness("migration");
+  let workspaceRoot;
+  h.executor.executeChallenge = async ({ workspace }) => {
+    workspaceRoot = workspace.root_path;
+    return new Promise(() => {});
   };
+  const result = await executeChallengePlan(h.plan, h);
+  assert.equal(result.ok, false);
+  assert.equal(result.causalFailure.code, "CHALLENGE_TIMEOUT");
+  assert.equal(result.results[0].outcome, "error");
+  assert.equal(result.results[0].details.reason, "CHALLENGE_TIMEOUT");
+  assert.equal(fs.existsSync(workspaceRoot), false, "workspace is disposed after timeout");
+});
 
-  const outcome = await executeChallengePlan(plan, context);
-  assert.equal(outcome.ok, false);
-  assert.ok(outcome.causalFailure);
-  assert.equal(outcome.causalFailure.code, "CHALLENGE_BUDGET_EXHAUSTED");
-  assert.equal(outcome.causalFailure.category, "validation_gap");
-  assert.equal(outcome.causalFailure.details.exhausted_dimension, "max_challenges");
+test("REQ-adversarial-challenges-004: Candidate tree mutation after a run invalidates the plan", async () => {
+  const h = harness("migration");
+  h.executor.executeChallenge = async () => {
+    h.repository.files["src/index.js"] = "tampered";
+    return { pass: true };
+  };
+  const result = await executeChallengePlan(h.plan, h);
+  assert.equal(result.ok, false);
+  assert.equal(result.causalFailure.code, "CHALLENGE_INTEGRITY_INVALID");
+});
+
+test("REQ-adversarial-challenges-004: Candidate identity mutation after a run fails closed with unchanged repo bytes", async () => {
+  const h = harness("migration");
+  h.executor.executeChallenge = async () => {
+    h.candidate.candidate_id = "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+    return { pass: true };
+  };
+  const result = await executeChallengePlan(h.plan, h);
+  assert.equal(result.ok, false);
+  assert.equal(result.causalFailure.code, "CHALLENGE_INTEGRITY_INVALID");
+  assert.equal(h.repository.files["src/index.js"], FILES["src/index.js"]);
 });

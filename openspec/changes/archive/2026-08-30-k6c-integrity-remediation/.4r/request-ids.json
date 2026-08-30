@@ -1,0 +1,6 @@
+{
+  "risk": "k6c-int-4r-risk-1",
+  "reliability": "k6c-int-4r-reliability-1",
+  "resilience": "k6c-int-4r-resilience-1",
+  "readability": "k6c-int-4r-readability-1"
+}

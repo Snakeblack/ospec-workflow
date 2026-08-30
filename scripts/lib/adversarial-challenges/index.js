@@ -5,6 +5,8 @@ const planner = require("./planner.js");
 const budget = require("./budget.js");
 const mutator = require("./mutator.js");
 const runner = require("./runner.js");
+const integrity = require("./integrity.js");
+const diffScope = require("./diff-scope.js");
 
 /**
  * Rejects any attempt to use challenge outputs as delivery or lifecycle authority.
@@ -45,6 +47,15 @@ module.exports = {
   // Runner
   emitChallengeResult: runner.emitChallengeResult,
   executeChallengePlan: runner.executeChallengePlan,
+
+  // Canonical integrity boundary
+  computeChallengePlanId: integrity.computeChallengePlanId,
+  computeChallengeResultId: integrity.computeChallengeResultId,
+  validateChallengePlan: integrity.validateChallengePlan,
+  validateChallengeResult: integrity.validateChallengeResult,
+  validateChallengeResultSet: integrity.validateChallengeResultSet,
+  deriveVerifiedDiffScope: diffScope.deriveVerifiedDiffScope,
+  parseUnifiedDiff: diffScope.parseUnifiedDiff,
 
   // Authority Guard
   rejectDeliveryAuthorityMisuse,

@@ -8,6 +8,7 @@ const { emitVerification } = require("./verdict.js");
 const { walkMustObligations } = require("./obligation-coverage.js");
 const { readRunnerReceiptChannel } = require("./runner-receipt.js");
 const assuranceGraph = require("../assurance-graph/index.js");
+const { evaluateChallengeEvidence } = require("./challenge-evidence.js");
 
 function fail(reason_code, error) {
   return { ok: false, reason_code, error: error || reason_code };
@@ -78,41 +79,7 @@ function evaluateChallenges(input, bound) {
     return fail("CHALLENGE_BUDGET_EXHAUSTED", "challenge budget was exhausted during execution");
   }
 
-  const plan = input.challengePlan || input.challenge_plan;
-  if (!plan) return { ok: true };
-
-  if (plan.candidate_id !== bound.candidate.candidate_id) {
-    return fail("BINDING_MISMATCH", "challenge plan candidate_id does not match bound candidate");
-  }
-
-  const results = Array.isArray(input.challengeResults)
-    ? input.challengeResults
-    : (Array.isArray(input.challenge_results) ? input.challenge_results : []);
-
-  const resultsMap = new Map();
-  for (const res of results) {
-    if (res && res.challenge_type) {
-      resultsMap.set(res.challenge_type, res);
-    }
-  }
-
-  for (const selectedType of plan.selected || []) {
-    const res = resultsMap.get(selectedType);
-    if (!res) {
-      return fail(
-        "CHALLENGE_VERIFICATION_FAILED",
-        `missing result for selected challenge ${selectedType}`
-      );
-    }
-    if (res.outcome !== "passed") {
-      return fail(
-        "CHALLENGE_VERIFICATION_FAILED",
-        `challenge ${selectedType} failed with outcome ${res.outcome}`
-      );
-    }
-  }
-
-  return { ok: true };
+  return evaluateChallengeEvidence(input, bound, { required: Boolean(input.requireChallengeVerification || input.require_challenge_verification) });
 }
 
 function getRunnerReceipts(input) {
@@ -262,6 +229,7 @@ function verifyCandidate(input) {
     verdict,
   });
 
+  const requiredK6c = Boolean(input.requireChallengeVerification || input.require_challenge_verification);
   const projected = assuranceGraph.projectAssuranceGraph({
     canonicalInputs: input.canonicalInputs || {
       contract: input.contract,
@@ -272,21 +240,33 @@ function verifyCandidate(input) {
     evidence: classified,
     assessments: coverage.assessments,
     verification,
+    ...(challengeGate.replay_challenges ? {
+      challengePlan: challengeGate.replay_challenges.plan,
+      challengeResults: challengeGate.replay_challenges.results,
+    } : {}),
+    requireChallengeVerification: requiredK6c,
+    policySnapshot: input.policySnapshot,
   });
   if (!projected.ok) {
     return mapProjectionFailure(projected);
   }
 
-  return {
+  const payload = {
     ok: true,
     strategy,
     evidence: evidenceRecords,
     replay_evidence: replayEvidence,
     assessments: coverage.assessments,
     verification,
+    challengePlan: challengeGate.replay_challenges && challengeGate.replay_challenges.plan,
+    challengeResults: challengeGate.replay_challenges && challengeGate.replay_challenges.results,
     assurance_graph: projected.graph,
     equivalence_manifest: assuranceGraph.emitEquivalenceManifest(projected.graph),
   };
+  if (requiredK6c && challengeGate.challenge_verification) {
+    payload.challenge_verification = challengeGate.challenge_verification;
+  }
+  return payload;
 }
 
 module.exports = {
@@ -296,4 +276,7 @@ module.exports = {
   evaluateStrategy: require("./strategy-policy.js").evaluateStrategy,
   normalizeEvidence: require("./evidence.js").normalizeEvidence,
   emitVerification,
+  verifyCandidateWithChallenges(input) {
+    return verifyCandidate({ ...input, requireChallengeVerification: true });
+  },
 };

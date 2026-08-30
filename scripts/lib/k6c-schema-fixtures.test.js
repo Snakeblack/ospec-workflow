@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 const { validateInstance, loadSchemaById } = require("./kernel-schema-validator.js");
+const { validateChallengeResult, validateChallengeResultSet } = require("./adversarial-challenges/integrity.js");
 const {
   assertK1SchemasUnchanged,
   digestFile,
@@ -46,6 +47,7 @@ test("K6c contract claims: challenge families list required fields and enums", (
     "kind",
     "plan_id",
     "candidate_id",
+    "node_id",
     "policy_snapshot_id",
     "evidence_strategy",
     "selected",
@@ -69,6 +71,9 @@ test("K6c contract claims: challenge families list required fields and enums", (
     "result_id",
     "plan_id",
     "candidate_id",
+    "node_id",
+    "policy_snapshot_id",
+    "evidence_strategy",
     "challenge_type",
     "outcome",
     "node_id",
@@ -107,6 +112,9 @@ test("K6c challenge-plan/v1: valid fixtures pass; missing budget and unknown typ
   const unknownType = readJson("schemas/kernel/challenge-plan/fixtures/invalid/unknown-type.json");
   const utRes = validateInstance(schema, unknownType);
   assert.equal(utRes.valid, false, "challenge-plan with unknown challenge type must fail");
+
+  assert.equal(validateInstance(schema, readJson("schemas/kernel/challenge-plan/fixtures/invalid/missing-node-id.json")).valid, false, "challenge-plan missing node binding must fail");
+  assert.equal(validateInstance(schema, readJson("schemas/kernel/challenge-plan/fixtures/invalid/duplicate-selected.json")).valid, false, "challenge-plan duplicate selections must fail");
 });
 
 test("K6c challenge-result/v1: valid fixtures pass; invalid outcome and invalid type fail closed", () => {
@@ -123,6 +131,24 @@ test("K6c challenge-result/v1: valid fixtures pass; invalid outcome and invalid 
   const invalidOutcome = readJson("schemas/kernel/challenge-result/fixtures/invalid/invalid-outcome.json");
   const ioRes = validateInstance(schema, invalidOutcome);
   assert.equal(ioRes.valid, false, "challenge-result with invalid outcome must fail");
+  assert.equal(validateInstance(schema, readJson("schemas/kernel/challenge-result/fixtures/invalid/missing-policy-snapshot-id.json")).valid, false, "challenge-result missing policy binding must fail");
+});
+
+test("K6c malformed-hash fixtures and cross-bound pair fail closed", () => {
+  const planSchema = loadSchemaById("ospec://schemas/kernel/challenge-plan/v1", { rootDir: ROOT });
+  const resultSchema = loadSchemaById("ospec://schemas/kernel/challenge-result/v1", { rootDir: ROOT });
+
+  const malformedPlan = readJson("schemas/kernel/challenge-plan/fixtures/invalid/malformed-hash.json");
+  const malformedResult = readJson("schemas/kernel/challenge-result/fixtures/invalid/malformed-hash.json");
+  assert.equal(validateInstance(planSchema, malformedPlan).valid, false, "malformed plan_id hash must fail schema validation");
+  assert.equal(validateInstance(resultSchema, malformedResult).valid, false, "malformed result_id hash must fail schema validation");
+
+  const pairPlan = readJson("schemas/kernel/challenge-plan/fixtures/pairs/cross-bound-plan.json");
+  const pairResult = readJson("schemas/kernel/challenge-result/fixtures/pairs/cross-bound-result.json");
+  assert.equal(validateInstance(planSchema, pairPlan).valid, true, `cross-bound plan must be schema-valid: ${JSON.stringify(validateInstance(planSchema, pairPlan).errors)}`);
+  assert.equal(validateInstance(resultSchema, pairResult).valid, true, `cross-bound result must be schema-valid: ${JSON.stringify(validateInstance(resultSchema, pairResult).errors)}`);
+  assert.equal(validateChallengeResult(pairResult, pairPlan).ok, false, "cross-bound result must fail pair integrity");
+  assert.equal(validateChallengeResultSet(pairPlan, [pairResult]).ok, false, "cross-bound pair must fail set integrity");
 });
 
 test("K6c cross-family substitution fails closed", () => {
@@ -152,8 +178,6 @@ test("K6c: K1 and K6b schemas and pins remain byte-identical", () => {
       "sha256:fad66198ac48f47109041e45017e77227268610cddbb929e4dfcc3e0c5ec4910",
     "schemas/kernel/verification/v2.schema.json":
       "sha256:441ee351d7c094558818a3af0cfcac8b823818e5562c341d3595f2305cc4396b",
-    "schemas/kernel/assurance-graph/v1.schema.json":
-      "sha256:2de36e5119559eec53e5102153ade42c0a7d118138856fabae93366dcc07163a",
     "schemas/kernel/assessment/v1.schema.json":
       "sha256:67aef041ff0581ffc553ef10232f4e14e0106359c45dcc1ce29380ef469e1887",
     "schemas/kernel/assessment/v2.schema.json":

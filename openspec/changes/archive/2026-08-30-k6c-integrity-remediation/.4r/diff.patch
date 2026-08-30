@@ -1,0 +1,3412 @@
+diff --git a/openspec/changes/k6c-integrity-remediation/apply-progress.md b/openspec/changes/k6c-integrity-remediation/apply-progress.md
+new file mode 100644
+index 0000000..2a7c52c
+--- /dev/null
++++ b/openspec/changes/k6c-integrity-remediation/apply-progress.md
+@@ -0,0 +1,34 @@
++# Apply Progress: K6c Integrity Remediation
++
++## 2026-08-29 — completed size-exception workstream
++
++- [x] Tasks 1.1–1.4: added canonical K6c schema fixtures and a shared integrity boundary that recomputes plan/result IDs, validates complete catalog partitions, and rejects foreign or duplicate result sets.
++- [x] Tasks 2.1–2.7: made planner node-bound and deterministic; derived focal scope only from the Candidate-bound unified diff; runner now gates enforced capabilities before effects, allocates/disposes a K6a workspace per type, checks Candidate bytes, and applies a monotonic wall-clock deadline with abort propagation.
++- [x] Tasks 3.1–3.5: added required-K6c verifier entrypoint with exact set validation and typed accepted replay material; Assurance Graph projects non-authoritative plan/result nodes and revalidates them on replay.
++- [x] Tasks 4.1–4.2: added adversarial fixture, integrity, runner, verifier, and graph cases. Focal verification passed with `node --test scripts/lib/adversarial-challenges/*.test.js scripts/lib/k6c-schema-fixtures.test.js scripts/lib/independent-verifier/index.test.js scripts/lib/assurance-graph/index.test.js` (121 passing). Full verification passed with `npm test` (exit 0; `All checks passed.`).
++
++Delivery: `size:exception` accepted by the maintainer. K6d was not started and remains gated on terminal verification.
++
++## 2026-08-29 — final focused-TDD recheck
++
++- [x] Added the verified-diff scope and post-run Candidate-mutation regressions, plus explicit timeout-disposal assertion. The focal K6c command now reports 123 passing tests.
++- [x] Re-ran `npm test` after the final regression additions: exit code 0 and `All checks passed.`
++
++## 2026-08-30 — Phase 5 verify-FAIL remediation (size:exception)
++
++Delivery: `size:exception` accepted; exception-ok overrides chained PRs. K6d remains blocked until terminal verify PASS.
++
++- [x] 5.1 RED: two rebound plans with distinct `node_id` / `policy_snapshot_id` now assert distinct `plan_id` in `planner.test.js`.
++- [x] 5.2 RED: runner integration cases mutate/run against K6a workspace bytes; focal `passed`, complacent `COMPLACENT_TEST_DETECTED`, tautological `TAUTOLOGICAL_TEST_DETECTED`.
++- [x] 5.3 RED: mutating Candidate identity after a run with unchanged repo bytes fails closed (`CHALLENGE_INTEGRITY_INVALID`).
++- [x] 5.4 GREEN: `runner.js` focal/revert/test-inspection operate only on materialized workspace files via `executeSandboxedCommand`; `context.sourceCode` / `runTests` mutation path removed.
++- [x] 5.5 GREEN: `computeCandidateId(candidate)` is recomputed after each challenge and rejected on mismatch.
++- [x] 5.6 RED: `verifyCandidateWithChallenges` e2e asserts `challenge_verification.status === "accepted"` only on the exact set; missing/duplicate/foreign suppress K6d eligibility.
++- [x] 5.7 GREEN: required K6c path returns `challenge_verification`; projector receives `challengePlan`/`challengeResults`.
++- [x] 5.8 RED: verifier-emitted K6c material projects and replays with byte-identical `graph_id`.
++- [x] 5.9 GREEN: projector/replay already consume `challengePlan`/`challengeResults`; verifier forwarding aligned (no leftover `challenge_verification`/`replay_challenges` keys).
++- [x] 5.10–5.11: malformed-hash fixtures under `fixtures/invalid/`; schema-valid cross-bound pair under `fixtures/pairs/` (pair-level `validateChallengeResultSet` rejection). `invalid/` cannot hold schema-valid pair fixtures because `k1-schema-compat` requires those files to fail schema validation.
++- [x] 5.12: focal suite 130 passing; `npm test` exit 0, `All checks passed.`
++- [x] Reopened 1.1, 2.5, 2.6, 3.1–3.3, 4.1–4.2 closed: MUST proof now exists.
++
++Discovery: nested `node --test` inside an outer `node --test` skips child files (`NODE_TEST_CONTEXT`). Workspace suites execute as sandboxed `node <file>` via `executeSandboxedCommand` so candidate tests actually run.
+diff --git a/openspec/changes/k6c-integrity-remediation/decisions/adr-001.md b/openspec/changes/k6c-integrity-remediation/decisions/adr-001.md
+new file mode 100644
+index 0000000..1a448de
+--- /dev/null
++++ b/openspec/changes/k6c-integrity-remediation/decisions/adr-001.md
+@@ -0,0 +1,18 @@
++# ADR-001: Shared Canonical K6c Integrity Boundary
++
++- Status: proposed
++- Change: k6c-integrity-remediation
++- Date: 2026-08-28
++
++## Context
++K6c records cross planner, runner, verifier, projector, and replay. Existing consumers validate different subsets and can hide duplicates or trust declared IDs.
++
++## Decision
++One shared module validates schemas, recomputes canonical plan/result identities, checks Candidate/node/strategy/PolicySnapshot bindings, and enforces exact catalog/cardinality invariants. The policy/strategy-selected K6c verifier entrypoint always requires a plan; requiredness is not caller-controlled. All K6c consumers call the shared validator before effects or approval.
++
++## Alternatives
++- Per-consumer validation: rejected because checks already drift and omit different invariants.
++- Schema validation only: rejected because JSON Schema cannot prove cross-record bindings or recompute content IDs.
++
++## Consequences
++Integrity behavior becomes consistent and directly testable. The v1 contract tightening rejects legacy incomplete K6c records and requires atomic producer/consumer rollout; reverting is costly unless the whole slice is reverted.
+diff --git a/openspec/changes/k6c-integrity-remediation/decisions/adr-002.md b/openspec/changes/k6c-integrity-remediation/decisions/adr-002.md
+new file mode 100644
+index 0000000..07811c7
+--- /dev/null
++++ b/openspec/changes/k6c-integrity-remediation/decisions/adr-002.md
+@@ -0,0 +1,19 @@
++# ADR-002: K6a Workspace Reuse and Sticky Cancellation
++
++- Status: proposed
++- Change: k6c-integrity-remediation
++- Date: 2026-08-28
++
++## Context
++Adversarial mutation must alter executable bytes without changing the frozen Candidate, escaping its diff, or allowing a timed-out child to report success.
++
++## Decision
++Create one registered K6a workspace per selected challenge, materialize verified Candidate bytes, and execute with the existing confined worker primitive. Scope is derived from digest-verified diff bytes. A monotonic plan deadline and AbortSignal are sticky: timeout always emits `CHALLENGE_TIMEOUT`; late success is ignored. Original Candidate/tree digests are checked before and after.
++
++## Alternatives
++- K6c-specific sandbox: rejected as a duplicate, weaker isolation boundary.
++- Caller-provided source/paths and elapsed duration: rejected as forgeable.
++- Shared workspace across challenges: rejected because mutations can contaminate later results.
++
++## Consequences
++K6c inherits K6a confinement and cleanup tests and gains per-challenge isolation. Workspace creation costs more, and executors without enforced challenge/isolation/cancellation capability fail closed.
+diff --git a/openspec/changes/k6c-integrity-remediation/decisions/adr-003.md b/openspec/changes/k6c-integrity-remediation/decisions/adr-003.md
+new file mode 100644
+index 0000000..910deb1
+--- /dev/null
++++ b/openspec/changes/k6c-integrity-remediation/decisions/adr-003.md
+@@ -0,0 +1,19 @@
++# ADR-003: Deterministic Non-Authoritative K6c Graph Projection
++
++- Status: proposed
++- Change: k6c-integrity-remediation
++- Date: 2026-08-28
++
++## Context
++K6c must affect Assurance Graph identity and replay without becoming `evidence/v2`, an attestation, or delivery/lifecycle authority.
++
++## Decision
++Add `challenge-plan` and `challenge-result` node kinds. Project the canonical plan ID from Candidate and each exact result ID from the plan; bind successful verification to accepted results. Persist full records outside graph nodes and revalidate them before replay/reconcile.
++
++## Alternatives
++- Omit K6c from `graph_id`: rejected because replay could silently lose or replace results.
++- Store full mutable records in nodes: rejected because graph nodes intentionally contain only identity and kind.
++- Alias results as `test-evidence`: rejected because challenge results have a distinct contract and authority boundary.
++
++## Consequences
++Byte-identical records yield identical nodes, edges, and `graph_id`; any cardinality/binding drift fails `GRAPH_DIVERGENCE`. Assurance Graph v1's node-kind enum and claims change atomically, but no authorization relation or kind is introduced.
+diff --git a/openspec/changes/k6c-integrity-remediation/design.md b/openspec/changes/k6c-integrity-remediation/design.md
+new file mode 100644
+index 0000000..dcd82b3
+--- /dev/null
++++ b/openspec/changes/k6c-integrity-remediation/design.md
+@@ -0,0 +1,126 @@
++# Design: K6c Integrity Remediation
++
++## Technical Approach
++
++Harden the existing K6c pipeline around one shared canonical-integrity boundary. Planning, execution, independent verification, projection, and replay will all call the same schema/identity/binding validator; none may trust a declared ID or infer validity from record presence. The nine-type catalog and the current proportional `STRATEGY_CHALLENGE_SELECTION` remain unchanged.
++
++Execution reuses K6a's private workspace registry (`worker-workspace.js`) and confined Node executor (`worker-sandbox.js`). Each selected challenge gets one fresh workspace materialized from bytes whose tree digest equals the frozen Candidate. Focal line scope comes only from unified-diff bytes whose digest equals `Candidate.diff_hash`; caller `targetLines`, paths, or source snippets cannot widen it.
++
++## Architecture Decisions
++
++### Decision: One canonical validator owns K6c identity and set integrity
++
++**Choice**: Add `adversarial-challenges/integrity.js` for schema loading, canonical ID recomputation, binding checks, required-path enforcement, and exact result-set cardinality. Plan/result IDs hash every required field except their own ID; arrays must already be in canonical order.
++**Alternatives considered**: Repeat partial checks in planner, runner, verifier, and projector; accept schema-valid records without recomputing IDs.
++**Rationale**: The current verifier collapses duplicates into a `Map`, accepts an absent plan, and checks only Candidate/outcome. A shared fail-closed gate prevents those consumers from drifting. See [ADR-001](decisions/adr-001.md).
++
++### Decision: Reuse K6a isolation with a sticky wall-clock deadline
++
++**Choice**: Materialize Candidate bytes through `createWorkspace`/`materializeSourceSnapshot`, execute through `executeSandboxedCommand`, and always dispose the registered workspace. One monotonic plan deadline supplies each challenge's remaining `timeoutMs` and `AbortSignal`; once elapsed, `CHALLENGE_TIMEOUT` is final even if late work reports success.
++**Alternatives considered**: In-memory callbacks over caller source strings; a second K6c sandbox; decrementing only caller-reported duration.
++**Rationale**: K6a already enforces path confinement, byte digests, and private workspace identity. Reuse avoids a weaker parallel boundary while the sticky outcome handles non-cooperative cancellation safely. See [ADR-002](decisions/adr-002.md).
++
++### Decision: Project K6c IDs as non-authoritative graph nodes and replay full records
++
++**Choice**: Add `challenge-plan` and `challenge-result` node kinds. The plan derives from Candidate; each result derives from its plan; a successful verification is `verified-by` every accepted result. Full records remain in the persistable replay bundle and are revalidated before projection.
++**Alternatives considered**: Exclude K6c from `graph_id`; put mutable full records inside graph nodes; treat challenge results as ordinary `evidence/v2`.
++**Rationale**: IDs and edges make `graph_id` sensitive to the exact canonical set without aliasing evidence or granting authorization. See [ADR-003](decisions/adr-003.md).
++
++## Data Flow
++
++```text
++Candidate + diff bytes + PolicySnapshot + graph node
++        |  recompute Candidate/diff/policy/graph bindings
++        v
++ proportional planner -> canonical ChallengePlan
++        | validate schema + plan_id + catalog partition
++        v
++ for each selected type (exactly once)
++   create K6a workspace -> materialize Candidate bytes -> capability gate
++   -> execute with remaining wall-clock deadline -> emit bound result
++   -> recompute original Candidate/tree digest -> dispose workspace
++        |
++        v
++ verifier: strategy minimums -> MUST walk -> exact K6c set gate
++        | failure: no verdict, no graph, K6d blocked
++        v
++ Verification + challenge_verification: accepted
++        -> deterministic graph projection -> persisted replay bundle
++        -> replay revalidates records/cardinality -> same graph_id or GRAPH_DIVERGENCE
++```
++
++## File Changes
++
++| File | Action | Description |
++|---|---|---|
++| `scripts/lib/adversarial-challenges/integrity.js` | Create | Cached schema loaders; canonical plan/result bodies and IDs; Candidate/node/policy/strategy bindings; catalog partition and exact result-set validator. |
++| `scripts/lib/adversarial-challenges/diff-scope.js` | Create | Verify unified-diff bytes against `diff_hash`; derive normalized changed paths and added/modified line ranges intersected with `Candidate.paths`. |
++| `scripts/lib/adversarial-challenges/planner.js` | Modify | Require `nodeId`; validate Candidate/PolicySnapshot inputs; retain selection matrix; emit canonical byte-stable v1 plan. |
++| `scripts/lib/adversarial-challenges/runner.js` | Modify | Validate before effects; require enforced per-type, isolation, and cancellation capabilities; allocate one K6a workspace per selected type; enforce deadline/cancellation and original Candidate digest checks. |
++| `scripts/lib/adversarial-challenges/index.js` | Modify | Export integrity/scope APIs without exporting workspace-registry or authority-minting internals. |
++| `scripts/lib/independent-verifier/challenge-evidence.js` | Create | Enforce one plan and the exact selected result set in required K6c mode; return typed K6c status. |
++| `scripts/lib/independent-verifier/index.js` | Modify | Add a required K6c entrypoint over a shared core; run the gate after strategy/MUST coverage and before verdict; emit `challenge_verification`/`replay_challenges`. |
++| `scripts/lib/assurance-graph/projector.js` | Modify | Add deterministic plan/result nodes and edges after shared validation. |
++| `scripts/lib/assurance-graph/index.js` | Modify | Revalidate persisted K6c material and mandatory status before replay/reconcile. |
++| `schemas/kernel/challenge-plan/v1.schema.json` | Modify | Require non-empty `node_id`; strengthen collection bounds/uniqueness within the supported validator subset. |
++| `schemas/kernel/challenge-result/v1.schema.json` | Modify | Require `policy_snapshot_id` and `evidence_strategy`; preserve closed catalog and `additionalProperties: false`. |
++| `schemas/kernel/assurance-graph/v1.schema.json` | Modify | Add only the two non-authoritative K6c node kinds. |
++| `schemas/kernel/{manifest.json,contract-claims.json}` | Modify | Keep challenge family registrations aligned and extend Assurance Graph node-kind claims. |
++| `schemas/kernel/challenge-{plan,result}/fixtures/**` | Modify/Create | Valid bound payloads plus missing binding, malformed ID, duplicate selection, and cross-bound pair fixtures. |
++| `scripts/lib/{adversarial-challenges,independent-verifier,assurance-graph}/**/*.test.js` | Modify/Create | Unit and adversarial regressions for every integrity bypass. |
++| `scripts/lib/k6c-schema-fixtures.test.js` | Modify | Schema/claim fixtures, cross-family rejection, pair-level binding checks, and K1/evidence/verification byte pins. |
++
++## Interfaces / Contracts
++
++```javascript
++validateChallengePlan(plan, {
++  candidate, executionGraph, policySnapshot, evidenceStrategy, nodeId
++}) // -> { ok, plan } | { ok:false, reason_code:"CHALLENGE_INTEGRITY_INVALID" }
++
++validateChallengeResultSet(plan, results, bindings)
++// exact set: one result per selected type; none skipped/unknown/duplicate/foreign
++
++verifyCandidateWithChallenges(input)
++// policy/strategy-selected K6c path; a canonical plan is unconditionally required
++
++executeChallengePlan(plan, {
++  candidate, candidateDiff, repository, sourceSnapshot, workOrder,
++  executionGraph, policySnapshot, executor
++}) // executor exposes enforced challenge/isolation/cancellation capabilities
++```
++
++The internal executor contract requires `capabilities.challenge_types[challengeType]`, `capabilities.isolation`, and `capabilities.cancellation` all to equal `"enforced"`; missing, false, `partial`, or unverifiable values stop before workspace effects. The runner uses `performance.now()` for one plan deadline and passes both its remaining milliseconds and a signal to the confined executor.
++
++Canonical plan order is the strategy table's selected order followed by skipped entries in `CHALLENGE_TYPES` order. `selected` and `skipped` must be disjoint and their union must equal the catalog exactly. Result `evidence_ids` are unique sorted IDs; `details` use canonical JSON. Validation recomputes `CandidateId`, PolicySnapshot identity, plan/result IDs, and requires `node_id` to exist in the bound Execution Graph.
++
++Policy/strategy selection routes K6c work through `verifyCandidateWithChallenges`; requiredness is an entrypoint invariant, not a caller-provided boolean and therefore cannot be downgraded in the payload. The legacy `verifyCandidate` path remains compatible for callers not routed through K6c, while any supplied challenge material is still validated. Only the required entrypoint can emit `challenge_verification.status === "accepted"`, which is the sole state eligible for future K6d entry.
++
++The Candidate integrity check has two levels: before materialization, `computeTreeDigest(repository.files) === candidate.candidate_tree` and `sha256Fingerprint("candidate-diff/v1", candidateDiff) === candidate.diff_hash`; after every challenge, those original repository bytes and `computeCandidateId(candidate)` must match their pre-run values. `materializeSourceSnapshot` receives those bytes as a verified `effectiveBase`; mutations are permitted only inside the disposable workspace and only within the verified diff scope.
++
++## Requirement / Scenario Allocation
++
++| Requirement and scenarios | Components / test seams |
++|---|---|
++| `REQ-adversarial-challenges-002`: bug/refactor/migration proportional plans; identical inputs; changed node/policy binding | `planner.js` + `integrity.js`; golden byte equality and binding-mutation table tests. |
++| `REQ-adversarial-challenges-004`: focal defect, complacent tests, tautology, missing capability/deadline, foreign scope/Candidate mutation | `diff-scope.js`, `runner.js`, K6a workspace/sandbox fakes; real temp-workspace integration, non-cooperative executor clock test, pre/post digest test. |
++| `REQ-independent-verification-010`: complete success, failed result, challenge-only evidence, missing/duplicate/foreign set | `challenge-evidence.js` before verdict; table-driven cardinality/binding tests assert no `verification`/graph and K6d status absent. |
++| `REQ-assurance-graph-009`: reproducible projection/replay, duplicate/foreign divergence, mandatory-plan absence | `projector.js`/`index.js`; permuted canonical inputs, persisted tamper, and replay tests assert identical `graph_id` or `GRAPH_DIVERGENCE`. |
++| `REQ-kernel-contract-schemas-029`: valid plan/result, missing/unknown/invalid bindings, cross-family/pair substitution, registration | JSON fixtures plus `k6c-schema-fixtures.test.js`; schema validation and shared pair-integrity validation. |
++
++## Testing Strategy
++
++| Layer | What to Test | Approach |
++|---|---|---|
++| Unit | Canonical IDs, catalog partition, cardinality, diff scope, capability gate, deadline state | Node test tables; mutate one field at a time and recompute forged IDs where needed. |
++| Integration | K6a materialization/confinement, Candidate immutability, timeout, verifier short-circuit | Real temp directories and sandboxed Node children; assert disposal and no approving late result. |
++| Replay/contract | Schema fixtures, graph permutation stability, persisted tamper, byte pins | Existing schema validator and Assurance Graph replay harness; full suite `npm test`. |
++
++## Migration / Rollout
++
++This is an atomic corrective cutover of the existing v1 challenge families, not a dual reader. Previously emitted incomplete v1 plans/results (missing node, policy, or strategy bindings) are rejected and must be regenerated from the still-frozen Candidate, verified diff, graph node, strategy, and PolicySnapshot; IDs necessarily change. Producers, schemas, verifier, projector, fixtures, manifest, and claims ship together. `evidence/v2`, `verification/v2`, K1 schema bytes, and K1 baseline pins remain byte-identical. K6d remains blocked until terminal verification and replay pass with `challenge_verification.status: accepted`.
++
++Rollback reverts the whole K6c runtime/schema/projection slice together and keeps K6d blocked; partial rollback is unsafe because consumers would disagree about identities.
++
++## Open Questions
++
++None.
+diff --git a/openspec/changes/k6c-integrity-remediation/proposal.md b/openspec/changes/k6c-integrity-remediation/proposal.md
+new file mode 100644
+index 0000000..d517cac
+--- /dev/null
++++ b/openspec/changes/k6c-integrity-remediation/proposal.md
+@@ -0,0 +1,71 @@
++# Proposal: K6c Integrity Remediation
++
++## Intent
++
++Cerrar fallos de integridad en K6c sin cambiar su catálogo ni selección proporcional. Planes y resultados deben quedar ligados al `Candidate` congelado, nodo, estrategia y `PolicySnapshot`; ningún bypass debe producir aprobación.
++
++## Scope
++
++### In Scope
++
++- Validar schemas, hashes, bindings y cardinalidad; rechazar resultados ausentes, duplicados o extranjeros.
++- Exigir plan cuando policy/estrategia lo ordenen, capabilities del ejecutor, timeout real y cancelación.
++- Derivar scope focal del diff congelado; ejecutar aisladamente con digest pre/post.
++- Proyectar plan/resultados en Assurance Graph y probar adversarialmente cada bypass.
++- Mantener K6d bloqueado hasta verificación terminal satisfactoria.
++
++### Out of Scope
++
++- Rediseñar K6c, cambiar el catálogo o conferir autoridad de lifecycle/delivery.
++- Implementar K6d u otras fases posteriores del kernel.
++
++## Capabilities
++
++### New Capabilities
++
++None.
++
++### Modified Capabilities
++
++- `adversarial-challenges`: bindings, planificación requerida, capabilities, aislamiento, timeout y scope autoritativo.
++- `independent-verification`: cobertura exacta del plan y rechazo de incoherencias.
++- `assurance-graph`: proyección reproducible no autoritativa de planes/resultados.
++- `kernel-contract-schemas`: contratos K6c cerrados y fixtures negativos.
++
++## Approach
++
++Conservar APIs y selección, añadiendo una puerta común que valide schemas y recompute identidades antes de planificar, ejecutar, verificar o proyectar. Ejecutar cada selección una vez en un workspace efímero creado desde el Candidate; exigir su capability, derivar scope del diff, cancelar al vencer el plazo y comparar digest pre/post. El verifier exigirá cobertura exacta; el projector incorporará registros validados a su preimagen.
++
++## Affected Areas
++
++| Area | Impact | Description |
++|---|---|---|
++| `scripts/lib/adversarial-challenges/**` | Modified | Planificación/ejecución |
++| `scripts/lib/independent-verifier/**` | Modified | Gate fail-closed |
++| `scripts/lib/assurance-graph/**` | Modified | Proyección/replay |
++| `schemas/kernel/{challenge-plan,challenge-result}/**` | Modified | Contratos/fixtures |
++
++## Risks
++
++| Risk | Likelihood | Mitigation |
++|---|---|---|
++| Payloads K6c permisivos incompatibles | High | Rechazo explícito; sin fallback |
++| Fuga o mutación del Candidate | Med | Workspace efímero, scope derivado y doble digest |
++| Proceso huérfano tras timeout | Med | Cancelación propagada y prueba no cooperativa |
++
++## Rollback Plan
++
++Revertir atómicamente runtime, schemas y specs a v2.56.0; mantener K6d bloqueado.
++
++## Dependencies
++
++- Candidate v2, Execution Graph, `PolicySnapshot` y Assurance Graph.
++
++## Success Criteria
++
++- [ ] Cada bypass tiene regresión adversarial RED/GREEN.
++- [ ] Ningún challenge requerido puede omitirse, duplicarse, falsificarse, salir del diff o sobrevivir al timeout.
++- [ ] Digest pre/post coincide y la proyección es determinista.
++- [ ] Suite completa y `sdd-verify` terminal pasan; K6d no comienza antes.
++
++> **Branch advisory:** Before `sdd-apply` begins, a feature branch SHOULD be created following the `<tipo>/<descripción>` convention defined in the `branch-pr` skill (e.g. `git checkout -b feat/my-change main`). This note is SHOULD, not MUST — omit it from `status: blocked` envelopes.
+diff --git a/openspec/changes/k6c-integrity-remediation/specs/adversarial-challenges/spec.md b/openspec/changes/k6c-integrity-remediation/specs/adversarial-challenges/spec.md
+new file mode 100644
+index 0000000..a7a5368
+--- /dev/null
++++ b/openspec/changes/k6c-integrity-remediation/specs/adversarial-challenges/spec.md
+@@ -0,0 +1,105 @@
++# Delta for Adversarial Challenges
++
++## MODIFIED Requirements
++
++### Requirement: Deterministic ChallengePlan Selection {#REQ-adversarial-challenges-002}
++
++The system MUST generate a deterministic `ChallengePlan` derived from the frozen `CandidateId`, the evidence strategy (`bug | feature | refactor | migration | config-docs | strict-tdd`), target graph node, and `PolicySnapshot` (`policy_bundle_digest`). The system MUST NOT assign a universal fixed quartet of challenges by default to every candidate.
++
++Selection MUST remain proportional to the evidence strategy:
++
++| Strategy | Selected Types (Typical) | Discarded Types (Typical) |
++| --- | --- | --- |
++| `bug` | `revert`, `regression-acceptance` | `focal-mutation` (out-of-scope), `rollback` |
++| `refactor` | `behavior-equivalence`, `focal-mutation` | `revert` (irrelevant for refactoring) |
++| `migration` | `rollback`, `compatibility-acceptance` | `behavior-equivalence` |
++| `config-docs` | `structural-validation`, `test-inspection` | `focal-mutation`, `revert` |
++| `feature` / `strict-tdd` | `independent-acceptance`, `focal-mutation` | `rollback` |
++
++The emitted `ChallengePlan` MUST contain: content-addressed `plan_id`, `candidate_id`, non-empty `node_id`, `policy_snapshot_id`, `evidence_strategy`, `selected`, `skipped`, `reasons`, and `budget`. Its identity MUST be recomputed from its canonical bindings and content. For every omitted catalog type, `skipped` MUST record a non-empty reason. Identical bindings MUST produce byte-identical plans; a changed binding MUST NOT reuse the plan identity.
++
++(Previously: the plan described deterministic strategy selection but did not require a canonical node binding or identity recomputation.)
++
++#### Scenario: Proportional plan generated for bugfix strategy
++
++- GIVEN a frozen candidate with evidence strategy `bug` and a valid PolicySnapshot
++- WHEN ChallengePlan generation executes
++- THEN the plan MUST include `revert` and `regression-acceptance` in `selected`
++- AND MUST record explicit reasons for omitted types
++
++#### Scenario: Proportional plan generated for refactor strategy
++
++- GIVEN a frozen candidate with evidence strategy `refactor`
++- WHEN ChallengePlan generation executes
++- THEN the plan MUST include `behavior-equivalence` and `focal-mutation`
++- AND MUST omit `revert` with an explicit reason
++
++#### Scenario: Proportional plan generated for migration strategy
++
++- GIVEN a frozen candidate with evidence strategy `migration`
++- WHEN ChallengePlan generation executes
++- THEN the plan MUST include `rollback` and `compatibility-acceptance`
++- AND MUST omit non-migration challenges with explicit reasons
++
++#### Scenario: Identical inputs yield deterministic ChallengePlan
++
++- GIVEN two executions with identical CandidateId, node, strategy, and PolicySnapshot
++- WHEN ChallengePlan is generated for both
++- THEN the computed `plan_id` and all plan fields MUST be byte-identical
++
++#### Scenario: Changed canonical binding cannot reuse a plan
++
++- GIVEN two otherwise identical plan requests with different node_id or policy_snapshot_id
++- WHEN their plan identities are recomputed
++- THEN each request MUST yield a distinct plan_id
++
++### Requirement: Seeded Defect Detection And Complacent Test Rejection {#REQ-adversarial-challenges-004}
++
++The challenge runner MUST execute only the `selected` challenges specified in the canonical ChallengePlan against isolated test instances. It MUST first validate the plan identity, schema, Candidate, node, strategy, and PolicySnapshot bindings; malformed or contradictory input MUST fail closed and MUST NOT produce an approving result.
++
++Each selected challenge MUST execute once in an ephemeral workspace created from the frozen Candidate. The runner MUST derive `focal-mutation` scope exclusively from the frozen candidate diff; caller-supplied paths MUST NOT expand that scope. It MUST record candidate digest before and after execution and reject any mismatch. Before execution, the runner MUST require an executor capability for the requested challenge and cancellation; an absent, false, or unverifiable capability MUST fail closed.
++
++The runner MUST enforce `timeout_seconds` using elapsed wall-clock time, propagate cancellation to the running work, and emit `outcome: "error"` with `CHALLENGE_TIMEOUT` if the deadline elapses. A non-cooperative child that survives cancellation MUST remain a failure and MUST NOT yield a pass.
++
++When executing `focal-mutation` or `revert`:
++1. The runner MUST introduce targeted mutations or patch reversals into the test copy of the candidate codebase.
++2. The candidate test suite MUST execute against the mutated codebase.
++3. If tests pass against a seeded defect or unpatched revert, the runner MUST fail with `COMPLACENT_TEST_DETECTED` and reject candidate evidence.
++4. If tests fail as expected, the runner MUST mark the challenge as passed.
++
++When executing `test-inspection`, the runner MUST reject tautological assertions with `TAUTOLOGICAL_TEST_DETECTED`. Every outcome MUST be schema-valid and canonically bound to its plan, Candidate, node, strategy, and PolicySnapshot.
++
++(Previously: execution used selected challenges and isolated instances but did not mandate verified bindings, capability gating, frozen-diff scope, wall-clock cancellation, or digest integrity.)
++
++#### Scenario: Focal mutation detects seeded defect and challenge passes
++
++- GIVEN a canonical plan with an active focal-mutation challenge
++- WHEN a mutation inside the frozen diff makes candidate tests fail
++- THEN the outcome MUST be `passed`
++- AND a bound valid challenge-result MUST be emitted
++
++#### Scenario: Complacent test suite passes on seeded defect and challenge fails
++
++- GIVEN a complacent candidate test suite
++- WHEN a focal-mutation or revert challenge leaves its tests passing
++- THEN the outcome MUST be `failed` with `COMPLACENT_TEST_DETECTED`
++
++#### Scenario: Test inspection detects tautological assertion
++
++- GIVEN a test suite containing tautological assertions or unconditional passes
++- WHEN test-inspection evaluates the assertions
++- THEN the outcome MUST be `failed` with `TAUTOLOGICAL_TEST_DETECTED`
++
++#### Scenario: Missing capability or deadline expiry fails closed
++
++- GIVEN a selected challenge without a verified executor capability, or a non-cooperative run exceeding its wall-clock deadline
++- WHEN execution is attempted
++- THEN no passed result MUST be emitted
++- AND the run MUST fail closed or emit `CHALLENGE_TIMEOUT`
++
++#### Scenario: Foreign scope or candidate mutation is rejected
++
++- GIVEN a focal-mutation request outside the frozen diff, or a post-run candidate digest differing from its pre-run digest
++- WHEN integrity validation runs
++- THEN the challenge MUST fail closed
++- AND its result MUST NOT satisfy verification
+diff --git a/openspec/changes/k6c-integrity-remediation/specs/assurance-graph/spec.md b/openspec/changes/k6c-integrity-remediation/specs/assurance-graph/spec.md
+new file mode 100644
+index 0000000..b560b19
+--- /dev/null
++++ b/openspec/changes/k6c-integrity-remediation/specs/assurance-graph/spec.md
+@@ -0,0 +1,28 @@
++# Delta for Assurance Graph
++
++## ADDED Requirements
++
++### Requirement: Deterministic K6c Challenge Projection And Replay {#REQ-assurance-graph-009}
++
++The Assurance Graph projector MUST accept K6c challenge material only after validating canonical `challenge-plan/v1` and `challenge-result/v1` identities, schemas, and bindings to the graph Candidate, node, strategy, and PolicySnapshot. It MUST project the single validated plan and its exact result set as non-authoritative derived records in the graph preimage; these records MUST NOT confer authorization.
++
++The projection MUST reject an absent mandatory plan, duplicate result, unknown selected type, result for a skipped type, missing selected result, foreign binding, or failed/error result. The projector MUST compute the same graph_id and edges from byte-identical canonical inputs and persisted K6c records. Replay MUST revalidate those records and their exact cardinality before reconstructing the graph; any divergence MUST fail closed with `GRAPH_DIVERGENCE`.
++
++#### Scenario: Complete canonical K6c material projects reproducibly
++
++- GIVEN one valid plan and one passed result for each selected challenge bound to canonical graph inputs
++- WHEN projection and later replay run from persisted material
++- THEN the graph_id and K6c-derived records MUST be byte-identical
++
++#### Scenario: Duplicate or foreign K6c record fails projection
++
++- GIVEN K6c records containing a duplicate result or a mismatched Candidate, node, strategy, or PolicySnapshot
++- WHEN the projector or replay validates them
++- THEN it MUST fail closed with `GRAPH_DIVERGENCE`
++
++#### Scenario: Mandatory plan absence blocks projection
++
++- GIVEN policy or strategy requires challenge verification and no canonical plan is supplied
++- WHEN graph projection is requested
++- THEN no graph MUST be emitted
++- AND the request MUST fail closed
+diff --git a/openspec/changes/k6c-integrity-remediation/specs/independent-verification/spec.md b/openspec/changes/k6c-integrity-remediation/specs/independent-verification/spec.md
+new file mode 100644
+index 0000000..e5ee989
+--- /dev/null
++++ b/openspec/changes/k6c-integrity-remediation/specs/independent-verification/spec.md
+@@ -0,0 +1,45 @@
++# Delta for Independent Verification
++
++## MODIFIED Requirements
++
++### Requirement: Challenge Evidence Consumption And Fail-Closed Integration {#REQ-independent-verification-010}
++
++The verifier MAY consume schema-valid `challenge-result/v1` and `challenge-plan/v1` records bound to the frozen CandidateId as complementary verification evidence. When policy or strategy mandates challenge verification, exactly one canonical ChallengePlan MUST be present; its identity, schema, Candidate, node, strategy, and PolicySnapshot bindings MUST be recomputed before any result is considered.
++
++When challenge verification is mandatory:
++1. The verifier MUST require exactly one result for every `selected` challenge and no result for a skipped, duplicate, unknown, or foreign challenge.
++2. Every result MUST match the canonical plan's `plan_id`, Candidate, node, strategy, and PolicySnapshot and have a recomputed valid identity.
++3. Any absent plan, missing or duplicate result, foreign result, schema/hash failure, failed/error outcome, or budget exhaustion MUST fail closed with `CHALLENGE_INTEGRITY_INVALID`, `CHALLENGE_VERIFICATION_FAILED`, or `CHALLENGE_BUDGET_EXHAUSTED` and MUST NOT emit `PASS` or `PASS WITH WARNINGS`.
++
++Challenge results MUST remain complementary evidence only. They MUST NOT substitute for declared strategy minimums, bypass MUST-walk obligation coverage, grant delivery or lifecycle authorization, or allow K6d to begin. K6d MUST remain blocked until terminal verification has accepted the complete canonical challenge set.
++
++(Previously: verification accepted bound plan/results but did not require mandatory-plan presence, exact cardinality, canonical result bindings, or the K6d terminal gate.)
++
++#### Scenario: Successful challenge results satisfy complementary verification
++
++- GIVEN a frozen Candidate with strategy minimums and MUST obligations satisfied
++- AND one canonical required plan with one passed bound result for every selected challenge
++- WHEN the verifier evaluates candidate evidence
++- THEN it MAY emit `PASS` or `PASS WITH WARNINGS`
++
++#### Scenario: Failed challenge result fails verification closed
++
++- GIVEN a canonical plan with a result failed due to `COMPLACENT_TEST_DETECTED`
++- WHEN the verifier evaluates candidate evidence
++- THEN verification MUST fail closed with `CHALLENGE_VERIFICATION_FAILED`
++- AND MUST NOT emit an approving verdict
++
++#### Scenario: Challenge results alone cannot grant PASS without strategy minimums
++
++- GIVEN all selected challenge results are passed
++- AND strategy minimum evidence or MUST obligations are missing
++- WHEN the verifier evaluates candidate evidence
++- THEN verification MUST fail closed
++- AND challenge results MUST NOT override missing strategy evidence
++
++#### Scenario: Missing, duplicate, or foreign plan result is rejected
++
++- GIVEN mandatory challenge verification with no plan, duplicate results, or a result bound to another Candidate, node, strategy, or PolicySnapshot
++- WHEN the verifier evaluates the set
++- THEN it MUST fail closed with `CHALLENGE_INTEGRITY_INVALID`
++- AND K6d MUST remain blocked
+diff --git a/openspec/changes/k6c-integrity-remediation/specs/kernel-contract-schemas/spec.md b/openspec/changes/k6c-integrity-remediation/specs/kernel-contract-schemas/spec.md
+new file mode 100644
+index 0000000..9df37cc
+--- /dev/null
++++ b/openspec/changes/k6c-integrity-remediation/specs/kernel-contract-schemas/spec.md
+@@ -0,0 +1,58 @@
++# Delta for kernel-contract-schemas
++
++## MODIFIED Requirements
++
++### Requirement: Challenge Plan And Challenge Result Schema Families {#REQ-kernel-contract-schemas-029}
++
++The contract suite MUST publish `challenge-plan/v1.schema.json` (`$id: "ospec://schemas/kernel/challenge-plan/v1"`, `schema_version: 1`, `kind: "challenge-plan/v1"`) and `challenge-result/v1.schema.json` (`$id: "ospec://schemas/kernel/challenge-result/v1"`, `schema_version: 1`, `kind: "challenge-result/v1"`).
++
++`challenge-plan/v1` MUST require: `schema_version`, `kind`, `plan_id` (`^sha256:[a-f0-9]{64}$`), `candidate_id` (`^sha256:[a-f0-9]{64}$`), non-empty `node_id`, `policy_snapshot_id` (`^sha256:[a-f0-9]{64}$`), `evidence_strategy` (`bug | feature | refactor | migration | config-docs | strict-tdd`), `selected` (unique ChallengeType strings), `skipped` (unique `{challenge_type, reason}` objects), `reasons`, and `budget` with `max_challenges`, `mutation_budget`, and positive `timeout_seconds`.
++
++`challenge-result/v1` MUST require: `schema_version`, `kind`, `result_id` (`^sha256:[a-f0-9]{64}$`), `plan_id`, `candidate_id`, non-empty `node_id`, `policy_snapshot_id`, `evidence_strategy`, `challenge_type` from the closed catalog, `outcome` (`passed | failed | error`), `evidence_ids`, and `details`. Plan/result identities MUST be content-addressed and recomputable from their canonical required fields. Both schemas MUST enforce `additionalProperties: false`.
++
++Both families MUST be registered in `schemas/kernel/manifest.json` and `schemas/kernel/contract-claims.json`. Challenge schemas MUST NOT validate as `evidence/v2`, `verification/v2`, CandidateEvaluationAttestation, or DeliveryAuthorization. `evidence/v2`, `verification/v2`, and K1 v1 schema bytes and K1_SCHEMA_BASELINE pins MUST remain byte-identical. The family MUST ship valid fixtures and negative fixtures for missing bindings, malformed hashes, duplicate selected types, and cross-bound plan/result substitution.
++
++(Previously: plans lacked required node binding and results lacked PolicySnapshot and strategy bindings; the family did not require canonical identity checks or these integrity fixtures.)
++
++#### Scenario: Valid challenge-plan v1 payload passes validation
++
++- GIVEN a complete plan with valid candidate_id, node_id, policy_snapshot_id, selected, skipped, and budget
++- WHEN validated against challenge-plan/v1.schema.json
++- THEN validation MUST succeed
++
++#### Scenario: Challenge-plan missing required fields or unknown challenge type fails closed
++
++- GIVEN a plan omitting budget or node_id, with duplicate selected types, or an unknown selected type
++- WHEN schema validation runs
++- THEN it MUST fail closed identifying the violating property
++
++#### Scenario: Valid challenge-result v1 payload passes validation
++
++- GIVEN a complete result with valid result_id, plan_id, Candidate, node, PolicySnapshot, strategy, and outcome `passed`
++- WHEN validated against challenge-result/v1.schema.json
++- THEN validation MUST succeed
++
++#### Scenario: Challenge-result with invalid outcome or binding fails closed
++
++- GIVEN a result with outcome `unresolved`, malformed hash, or absent policy_snapshot_id
++- WHEN schema validation runs
++- THEN it MUST fail closed identifying the invalid field
++
++#### Scenario: Cross-family substitution fails closed
++
++- GIVEN a challenge-result payload validated as verification/v2 or evidence/v2
++- WHEN schema validation runs
++- THEN validation MUST fail closed identifying kind or required-field mismatch
++
++#### Scenario: Cross-bound plan and result fixture is rejected
++
++- GIVEN a schema-valid result whose Candidate, node, policy, or strategy differs from its referenced plan
++- WHEN contract integrity fixtures validate the pair
++- THEN validation MUST fail closed
++
++#### Scenario: Manifest and contract-claims register challenge families
++
++- GIVEN schemas/kernel/manifest.json and contract-claims.json
++- WHEN challenge-plan and challenge-result entries are inspected
++- THEN each family MUST be registered with its canonical schema path and $id
++- AND schema_version MUST be 1
+diff --git a/openspec/changes/k6c-integrity-remediation/state.yaml b/openspec/changes/k6c-integrity-remediation/state.yaml
+new file mode 100644
+index 0000000..8806583
+--- /dev/null
++++ b/openspec/changes/k6c-integrity-remediation/state.yaml
+@@ -0,0 +1,141 @@
++schema: sdd-change-state/v1
++change: k6c-integrity-remediation
++status: verified
++last_updated: "2026-08-30T22:35:01Z"
++blocking_questions: []
++owner:
++  author: Manuel Retamozo
++  branch: fix/k6c-integrity-remediation
++approvals:
++  - id: intent-briefing-001
++    gate: intent-briefing
++    decision: accepted
++    source: user
++    accepted_at: "2026-08-28T21:30:45Z"
++    applies_to:
++      - change-classification
++    synthesis: >-
++      Endurecer K6c sin rediseñarlo: ligar canónicamente cada plan y resultado al
++      Candidate, nodo, estrategia y policy; validar identidad, schemas y duplicados;
++      hacer obligatoria su materialización cuando corresponda; ejecutar fail-closed
++      con timeout real, scope derivado del diff, aislamiento verificable, proyección
++      en Assurance Graph y pruebas adversariales antes de permitir K6d.
++    scope:
++      - canonical challenge bindings and identity validation
++      - fail-closed challenge execution
++      - authoritative focal mutation scope
++      - runtime timeout enforcement
++      - candidate isolation and integrity checks
++      - pipeline and Assurance Graph projection
++      - adversarial regression coverage
++  - id: execution-mode-001
++    gate: execution-mode
++    decision: auto
++    source: user
++    accepted_at: "2026-08-28T21:31:23Z"
++    applies_to:
++      - sdd-session
++  - id: delivery-strategy-001
++    gate: delivery-strategy
++    decision: exception-ok
++    source: user
++    accepted_at: "2026-08-28T21:32:02Z"
++    applies_to:
++      - sdd-tasks
++      - sdd-apply
++  - id: execution-mode-002
++    gate: execution-mode
++    decision: auto
++    source: user
++    accepted_at: "2026-08-30T21:50:00Z"
++    applies_to:
++      - sdd-session
++  - id: delivery-strategy-002
++    gate: delivery-strategy
++    decision: exception-ok
++    source: user
++    accepted_at: "2026-08-30T21:50:00Z"
++    applies_to:
++      - sdd-verify
++      - sdd-archive
++classification: high-risk
++route:
++  intended_route: standard
++  actual_route: standard
++  route_rationale: >-
++    Deterministic high-risk classification; project.status=active matched the
++    first applicable declared route after foundation, federation, bugfix,
++    brownfield, refactor, and hotfix conditions did not match.
++  validated: true
++  validation_errors: []
++baseline_fingerprints:
++  adversarial-challenges: e73105ebf13f3d9dacd5c762123d4864c5f80760b1d4ef9c77cdba77147155db
++  independent-verification: 978bb01e40fc95fd938bb372a0ac84bc7b230bd2ea29279befd102eb6477b9eb
++  assurance-graph: 5196c6d3d1632a8c81902a78e6031a209a7d98773ef5bd3d855d53c73d041580
++  kernel-contract-schemas: 4b754c17ba80969d4e6a7b953532f37c85523ff525fad49846a0291026ca3407
++phases:
++  proposal:
++    status: done
++    artifact: openspec/changes/k6c-integrity-remediation/proposal.md
++    summary: "Remediación quirúrgica K6c: bindings canónicos, ejecución aislada fail-closed y proyección reproducible en Assurance Graph."
++    key_decisions:
++      - "Conservar catálogo y selección proporcional K6c; endurecer cuatro capacidades existentes."
++      - "Mantener K6d bloqueado hasta verificación terminal satisfactoria."
++  spec:
++    status: done
++    artifacts:
++      - openspec/changes/k6c-integrity-remediation/specs/adversarial-challenges/spec.md
++      - openspec/changes/k6c-integrity-remediation/specs/independent-verification/spec.md
++      - openspec/changes/k6c-integrity-remediation/specs/assurance-graph/spec.md
++      - openspec/changes/k6c-integrity-remediation/specs/kernel-contract-schemas/spec.md
++    summary: "Deltas K6c: bindings canónicos, ejecución aislada fail-closed, cobertura exacta y proyección/replay reproducibles."
++    key_decisions:
++      - "El catálogo y selección proporcional se conservan; la integridad se añade como invariantes verificables."
++      - "Plan y resultados se ligan a Candidate, nodo, estrategia y PolicySnapshot; K6d exige verificación terminal."
++  design:
++    status: done
++    artifact: openspec/changes/k6c-integrity-remediation/design.md
++    summary: "Validador K6c común, ejecución aislada K6a con deadline real y proyección/replay del conjunto exacto."
++    key_decisions:
++      - "Una frontera canónica valida schemas, IDs, bindings, catálogo y cardinalidad en todos los consumidores."
++      - "Cada challenge usa un workspace K6a propio; el diff verificado fija el scope y el timeout es sticky."
++      - "Plan/resultados entran al graph_id como nodos derivados no autoritativos y se revalidan al replay."
++  clarify:
++    status: skipped
++  tasks:
++    status: done
++    artifact: openspec/changes/k6c-integrity-remediation/tasks.md
++    summary: "Fase 5 remediación: 12 tareas RED/GREEN cierran 5 CRITICAL y 7 MUST gaps de verify; 8 tareas previas reabiertas a [~]."
++    key_decisions:
++      - "Prioridad tasks-gap: pruebas e2e antes de code-bug en runner, verifier y graph."
++      - "K6d sigue bloqueado hasta verify terminal PASS; size-exception conservada."
++  apply:
++    status: done
++    artifact: openspec/changes/k6c-integrity-remediation/apply-progress.md
++    summary: "Fase 5 done: runner aislado, challenge_verification accepted, graph replay byte-idéntico, fixtures malformed/cross-bound."
++    key_decisions:
++      - "K6d no se inició; sólo verify puede confirmar la elegibilidad terminal."
++      - "size:exception accepted; exception-ok delivery for the remediation slice."
++      - "Nested node --test skipped child files; workspace suites run as sandboxed node <file>."
++  verify:
++    status: done
++    artifact: openspec/changes/k6c-integrity-remediation/verify-report.md
++    summary: "PASS: 24/24 MUST y 30/30 tareas; focal 130/130 y npm test 2874 pass, 0 fail, 2 skip."
++    key_decisions:
++      - "La ruta K6c requerida emite accepted sólo para el conjunto exacto; casos legacy, missing, duplicate y foreign no habilitan K6d."
++      - "Proyección y replay K6c producen graph_id byte-idéntico; fixtures malformed-hash y cross-bound pasan sus contratos."
++assumptions:
++  - id: sdd-apply-001
++    phase: sdd-apply
++    statement: "Workspace candidate suites run as sandboxed node <test-file> rather than nested node --test so the outer harness does not skip child files."
++    reversibility: high
++    basis: "Node emits 'run() is being called recursively within a test file. skipping running files.' when NODE_TEST_CONTEXT is inherited; executeSandboxedCommand still confines the child."
++    recorded_at: "2026-08-30T22:35:00Z"
++    status: unresolved
++  - id: sdd-apply-002
++    phase: sdd-apply
++    statement: "Schema-valid cross-bound pair fixtures live under fixtures/pairs/ instead of fixtures/invalid/."
++    reversibility: high
++    basis: "k1-schema-compat requires every file in fixtures/invalid/ to fail schema validation; pair integrity is a post-schema check."
++    recorded_at: "2026-08-30T22:35:00Z"
++    status: unresolved
+diff --git a/openspec/changes/k6c-integrity-remediation/tasks.md b/openspec/changes/k6c-integrity-remediation/tasks.md
+new file mode 100644
+index 0000000..cef8550
+--- /dev/null
++++ b/openspec/changes/k6c-integrity-remediation/tasks.md
+@@ -0,0 +1,110 @@
++# Tasks: K6c Integrity Remediation
++
++## Spec/Design Reconciliation
++
++| Requirement / Scenario | Priority | Design Allocation | Status | Notes |
++|---|---|---|---|---|
++| REQ-adversarial-challenges-002: proportional selection, canonical bindings and IDs | MUST | `integrity.js`, `planner.js`, plan schema | covered-by-design | Verify FAIL: changed-binding scenario needs two rebound plans with distinct IDs. |
++| REQ-adversarial-challenges-004: seeded defects, capability gate, timeout, scope and Candidate integrity | MUST | `diff-scope.js`, `runner.js`, K6a workspace/sandbox | covered-by-design | Verify FAIL: focal/revert bypass workspace bytes; post-run `computeCandidateId` missing. |
++| REQ-independent-verification-010: exact plan/result set and fail-closed verdict | MUST | `challenge-evidence.js`, verifier shared core | covered-by-design | Verify FAIL: `challenge_verification.status` not returned; K6d gate not e2e-asserted. |
++| REQ-assurance-graph-009: deterministic projection and replay | MUST | `projector.js`, graph `index.js`, graph schema | covered-by-design | Verify FAIL: verifier uses unsupported keys; K6c replay path untested. |
++| REQ-kernel-contract-schemas-029: schemas, fixtures, registrations and pair integrity | MUST | kernel schemas, fixtures, `k6c-schema-fixtures.test.js` | covered-by-design | Verify FAIL: malformed-hash and cross-bound pair fixtures absent. |
++
++### Reconciliation Verdict
++- MUST coverage: complete (design allocation unchanged; verify exposed proof gaps)
++- SHOULD/MAY gaps: none
++- Ambiguities to track: none
++
++## Review Workload Forecast
++
++| Field | Value |
++|---|---|
++| Estimated changed lines | 350–550 (runner fix, verifier wiring, fixtures, targeted e2e tests) |
++| 400-line budget risk | High |
++| Chained PRs recommended | Yes |
++| Suggested split | Single remediation slice under size-exception (prior units 1–4 shipped) |
++| Delivery strategy | exception-ok |
++| Chain strategy | size-exception |
++
++Decision needed before apply: No
++Chained PRs recommended: Yes
++Chain strategy: size-exception
++400-line budget risk: High
++
++## Suggested Work Units
++
++| Unit | Goal | Likely PR | Notes |
++|---|---|---|---|
++| 5A | Runner workspace execution and Candidate revalidation | Remediation PR | Fix `runLegacyMutation`; post-run `computeCandidateId`; RED/GREEN runner tests. |
++| 5B | Verifier accepted status and graph contract wiring | Remediation PR | Return `challenge_verification`; forward `challengePlan`/`challengeResults`. |
++| 5C | Fixture inventory and K6c replay e2e | Remediation PR | Malformed-hash/cross-bound fixtures; verifier→graph→replay byte identity. |
++
++## Checklist Status Legend
++
++- `[ ]` Not implemented yet
++- `[~]` Implemented but not yet verified locally
++- `[x]` Implemented and verified locally
++
++## Phase 1: Contracts and canonical integrity (RED → GREEN → REFACTOR)
++
++- [x] 1.1 RED: add table-driven negative fixtures/tests for missing bindings, forged IDs, duplicate/foreign selections and cross-bound plan/result pairs in `scripts/lib/k6c-schema-fixtures.test.js` and `schemas/kernel/challenge-{plan,result}/fixtures/**` [REQ-kernel-contract-schemas-029, REQ-adversarial-challenges-002]
++- [x] 1.2 GREEN: create `scripts/lib/adversarial-challenges/integrity.js` with cached schema loading, canonical bodies/IDs, Candidate/node/policy/strategy binding checks, catalog partition and exact result-set validation [REQ-adversarial-challenges-002, REQ-kernel-contract-schemas-029]
++- [x] 1.3 GREEN: strengthen `schemas/kernel/challenge-plan/v1.schema.json`, `challenge-result/v1.schema.json`, Assurance Graph schema, `manifest.json` and `contract-claims.json`; add valid bound fixtures [REQ-kernel-contract-schemas-029]
++- [x] 1.4 REFACTOR: export only public integrity/scope APIs from `scripts/lib/adversarial-challenges/index.js`; preserve byte pins for unaffected K1/evidence/verification contracts [REQ-kernel-contract-schemas-029]
++
++## Phase 2: Planner, authoritative scope and isolated execution
++
++- [x] 2.1 RED: add planner mutation tests for strategy-proportional catalog partitions, deterministic byte equality and changed node/policy bindings in `scripts/lib/adversarial-challenges/planner.test.js` [REQ-adversarial-challenges-002]
++- [x] 2.2 GREEN: modify `planner.js` to require/validate `nodeId`, Candidate and PolicySnapshot, emit canonical v1 plan order, IDs, reasons and budget [REQ-adversarial-challenges-002]
++- [x] 2.3 RED: add `diff-scope.js` tests proving diff-hash verification, normalized changed paths/line ranges, Candidate-path intersection and rejection of caller widening [REQ-adversarial-challenges-004]
++- [x] 2.4 GREEN: create `scripts/lib/adversarial-challenges/diff-scope.js` and wire runner scope exclusively to verified unified-diff bytes [REQ-adversarial-challenges-004]
++- [x] 2.5 RED: add real temp-workspace and non-cooperative executor tests for missing/partial capabilities, timeout finality, cancellation propagation, disposal and Candidate tree/diff digest mutation [REQ-adversarial-challenges-004]
++- [x] 2.6 GREEN: modify `runner.js` to validate before effects, materialize one K6a workspace per selected type, require enforced challenge/isolation/cancellation capabilities, apply monotonic plan deadline, and verify/dispose after each run [REQ-adversarial-challenges-004]
++- [x] 2.7 REFACTOR: remove duplicate integrity checks and retain existing catalog/selection and public runner compatibility; update exports [REQ-adversarial-challenges-002, REQ-adversarial-challenges-004]
++
++## Phase 3: Verifier and Assurance Graph integration
++
++- [x] 3.1 RED: add table-driven verifier tests for complete success, failed result, challenge-only evidence, absent/duplicate/foreign exact sets, and K6d suppression [REQ-independent-verification-010]
++- [x] 3.2 GREEN: create `scripts/lib/independent-verifier/challenge-evidence.js`; modify `independent-verifier/index.js` to require canonical K6c entrypoint, exact set gate before verdict, typed status, `challenge_verification` and `replay_challenges` [REQ-independent-verification-010]
++- [x] 3.3 RED: add projection/replay tests for input permutation stability, duplicate/foreign tamper, mandatory-plan absence, graph identity equality and `GRAPH_DIVERGENCE` [REQ-assurance-graph-009]
++- [x] 3.4 GREEN: modify `scripts/lib/assurance-graph/projector.js` and `index.js` to validate material, project non-authoritative plan/result nodes and edges, and revalidate persisted replay bundles [REQ-assurance-graph-009]
++- [x] 3.5 REFACTOR: ensure legacy verification remains compatible only when not routed through required K6c; accepted K6c is the sole K6d-eligible state [REQ-independent-verification-010, REQ-assurance-graph-009]
++
++## Phase 4: Full adversarial verification
++
++- [x] 4.1 Expand adversarial regressions across planner, runner, verifier and graph tests, mutating one canonical field at a time and recomputing forged IDs where required [REQ-adversarial-challenges-002, REQ-adversarial-challenges-004, REQ-independent-verification-010, REQ-assurance-graph-009]
++- [x] 4.2 Run `npm test` and confirm schema/claim fixtures, byte pins, workspace disposal, timeout finality, exact coverage and deterministic replay; leave K6d blocked until terminal verification [REQ-kernel-contract-schemas-029, REQ-assurance-graph-009]
++
++## Phase 5: Verify remediation — close MUST proof gaps (RED → GREEN → REFACTOR)
++
++Maps CRITICAL findings 1–5 from `verify-report.md`. K6d remains blocked until terminal verify PASS.
++
++### Changed-binding identity [CRITICAL-4 / REQ-adversarial-challenges-002]
++
++- [x] 5.1 RED: extend `planner.test.js` or `integrity.test.js` to generate two otherwise identical plans with changed `node_id` and changed `policy_snapshot_id`, recompute canonical bindings, and assert distinct `plan_id` values [REQ-adversarial-challenges-002]
++
++### Isolated workspace execution and Candidate revalidation [CRITICAL-1, CRITICAL-2 / REQ-adversarial-challenges-004]
++
++- [x] 5.2 RED: add `runner.test.js` integration cases where focal-mutation seeds a defect inside materialized workspace bytes and asserts bound `outcome: "passed"`; complacent suite on seeded defect asserts `COMPLACENT_TEST_DETECTED`; test-inspection via isolated runner asserts `TAUTOLOGICAL_TEST_DETECTED` [REQ-adversarial-challenges-004]
++- [x] 5.3 RED: add runner test mutating Candidate identity fields after execution while repository bytes stay unchanged; assert fail-closed before approving result [REQ-adversarial-challenges-004]
++- [x] 5.4 GREEN: refactor `scripts/lib/adversarial-challenges/runner.js` so focal/revert paths mutate and run tests only against K6a materialized workspace bytes via `executeSandboxedCommand`; remove `context.sourceCode` / caller-callback mutation path [REQ-adversarial-challenges-004]
++- [x] 5.5 GREEN: recompute `computeCandidateId(candidate)` after each challenge alongside existing tree/diff digest checks; reject mismatch with fail-closed result [REQ-adversarial-challenges-004]
++
++### Verifier accepted status and K6d gate [CRITICAL-3, CRITICAL-4 / REQ-independent-verification-010]
++
++- [x] 5.6 RED: add `independent-verifier/index.test.js` end-to-end cases through `verifyCandidateWithChallenges` asserting `challenge_verification.status === "accepted"` only on complete exact set; missing/duplicate/foreign results suppress K6d eligibility [REQ-independent-verification-010]
++- [x] 5.7 GREEN: modify `scripts/lib/independent-verifier/index.js` to return `challenge_verification` with typed status on required K6c path; forward `challengePlan` and `challengeResults` (not `challenge_verification`/`replay_challenges`) to `projectAssuranceGraph` [REQ-independent-verification-010, REQ-assurance-graph-009]
++
++### K6c graph projection and replay [CRITICAL-3, CRITICAL-4 / REQ-assurance-graph-009]
++
++- [x] 5.8 RED: add assurance-graph test exercising verifier-emitted K6c material through projection and persisted replay; assert byte-identical `graph_id` and K6c-derived records [REQ-assurance-graph-009]
++- [x] 5.9 GREEN: align any remaining verifier→graph wiring in `scripts/lib/assurance-graph/index.js` to consume `challengePlan`/`challengeResults` contract fields [REQ-assurance-graph-009]
++
++### Contract fixture inventory [CRITICAL-5 / REQ-kernel-contract-schemas-029]
++
++- [x] 5.10 RED: extend `scripts/lib/k6c-schema-fixtures.test.js` to require persisted malformed-hash plan/result fixtures and a cross-bound plan/result pair fixture with pair-level rejection [REQ-kernel-contract-schemas-029]
++- [x] 5.11 GREEN: add negative fixtures under `schemas/kernel/challenge-plan/fixtures/**` and `schemas/kernel/challenge-result/fixtures/**` for malformed hashes and cross-bound substitution [REQ-kernel-contract-schemas-029]
++
++### Terminal regression gate
++
++- [x] 5.12 Run focal K6c suite and full `npm test`; confirm all seven previously failing MUST scenarios have acceptable runtime proof; leave K6d blocked pending terminal verify PASS [REQ-adversarial-challenges-002, REQ-adversarial-challenges-004, REQ-independent-verification-010, REQ-assurance-graph-009, REQ-kernel-contract-schemas-029]
+diff --git a/schemas/kernel/assurance-graph/v1.schema.json b/schemas/kernel/assurance-graph/v1.schema.json
+index 0556996..ee9ec00 100644
+--- a/schemas/kernel/assurance-graph/v1.schema.json
++++ b/schemas/kernel/assurance-graph/v1.schema.json
+@@ -70,7 +70,9 @@
+             "source",
+             "candidate",
+             "test-evidence",
+-            "verification-decision"
++            "verification-decision",
++            "challenge-plan",
++            "challenge-result"
+           ]
+         }
+       },
+diff --git a/schemas/kernel/challenge-plan/fixtures/invalid/duplicate-selected.json b/schemas/kernel/challenge-plan/fixtures/invalid/duplicate-selected.json
+new file mode 100644
+index 0000000..f9c6783
+--- /dev/null
++++ b/schemas/kernel/challenge-plan/fixtures/invalid/duplicate-selected.json
+@@ -0,0 +1,13 @@
++{
++  "schema_version": 1,
++  "kind": "challenge-plan/v1",
++  "plan_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
++  "candidate_id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
++  "node_id": "repair-focal",
++  "policy_snapshot_id": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
++  "evidence_strategy": "bug",
++  "selected": ["revert", "revert"],
++  "skipped": [],
++  "reasons": ["selected"],
++  "budget": { "max_challenges": 2, "mutation_budget": 0, "timeout_seconds": 1 }
++}
+diff --git a/schemas/kernel/challenge-plan/fixtures/invalid/missing-budget.json b/schemas/kernel/challenge-plan/fixtures/invalid/missing-budget.json
+index 58ab607..2f5a14b 100644
+--- a/schemas/kernel/challenge-plan/fixtures/invalid/missing-budget.json
++++ b/schemas/kernel/challenge-plan/fixtures/invalid/missing-budget.json
+@@ -3,6 +3,7 @@
+   "kind": "challenge-plan/v1",
+   "plan_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+   "candidate_id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
++  "node_id": "repair-focal",
+   "policy_snapshot_id": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+   "evidence_strategy": "bug",
+   "selected": [
+diff --git a/schemas/kernel/challenge-plan/fixtures/invalid/missing-node-id.json b/schemas/kernel/challenge-plan/fixtures/invalid/missing-node-id.json
+new file mode 100644
+index 0000000..779cb92
+--- /dev/null
++++ b/schemas/kernel/challenge-plan/fixtures/invalid/missing-node-id.json
+@@ -0,0 +1,12 @@
++{
++  "schema_version": 1,
++  "kind": "challenge-plan/v1",
++  "plan_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
++  "candidate_id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
++  "policy_snapshot_id": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
++  "evidence_strategy": "bug",
++  "selected": ["revert"],
++  "skipped": [],
++  "reasons": ["selected"],
++  "budget": { "max_challenges": 1, "mutation_budget": 0, "timeout_seconds": 1 }
++}
+diff --git a/schemas/kernel/challenge-plan/fixtures/valid/basic-plan.json b/schemas/kernel/challenge-plan/fixtures/valid/basic-plan.json
+index 44d3d4a..0232bd0 100644
+--- a/schemas/kernel/challenge-plan/fixtures/valid/basic-plan.json
++++ b/schemas/kernel/challenge-plan/fixtures/valid/basic-plan.json
+@@ -3,6 +3,7 @@
+   "kind": "challenge-plan/v1",
+   "plan_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+   "candidate_id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
++  "node_id": "repair-focal",
+   "policy_snapshot_id": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+   "evidence_strategy": "bug",
+   "selected": [
+diff --git a/schemas/kernel/challenge-plan/v1.schema.json b/schemas/kernel/challenge-plan/v1.schema.json
+index c5901e3..167570d 100644
+--- a/schemas/kernel/challenge-plan/v1.schema.json
++++ b/schemas/kernel/challenge-plan/v1.schema.json
+@@ -10,6 +10,7 @@
+     "kind",
+     "plan_id",
+     "candidate_id",
++    "node_id",
+     "policy_snapshot_id",
+     "evidence_strategy",
+     "selected",
+@@ -34,6 +35,10 @@
+       "type": "string",
+       "pattern": "^sha256:[a-f0-9]{64}$"
+     },
++    "node_id": {
++      "type": "string",
++      "minLength": 1
++    },
+     "policy_snapshot_id": {
+       "type": "string",
+       "pattern": "^sha256:[a-f0-9]{64}$"
+@@ -69,6 +74,7 @@
+     },
+     "skipped": {
+       "type": "array",
++      "uniqueItems": true,
+       "items": {
+         "type": "object",
+         "required": [
+diff --git a/schemas/kernel/challenge-result/fixtures/invalid/missing-policy-snapshot-id.json b/schemas/kernel/challenge-result/fixtures/invalid/missing-policy-snapshot-id.json
+new file mode 100644
+index 0000000..4bfaeca
+--- /dev/null
++++ b/schemas/kernel/challenge-result/fixtures/invalid/missing-policy-snapshot-id.json
+@@ -0,0 +1,13 @@
++{
++  "schema_version": 1,
++  "kind": "challenge-result/v1",
++  "result_id": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
++  "plan_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
++  "candidate_id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
++  "node_id": "repair-focal",
++  "evidence_strategy": "bug",
++  "challenge_type": "revert",
++  "outcome": "passed",
++  "evidence_ids": [],
++  "details": {}
++}
+diff --git a/schemas/kernel/challenge-result/fixtures/valid/failed-result.json b/schemas/kernel/challenge-result/fixtures/valid/failed-result.json
+index 8feb128..84e958c 100644
+--- a/schemas/kernel/challenge-result/fixtures/valid/failed-result.json
++++ b/schemas/kernel/challenge-result/fixtures/valid/failed-result.json
+@@ -4,6 +4,8 @@
+   "result_id": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+   "plan_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+   "candidate_id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
++  "policy_snapshot_id": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
++  "evidence_strategy": "bug",
+   "challenge_type": "focal-mutation",
+   "outcome": "failed",
+   "node_id": "repair-focal",
+diff --git a/schemas/kernel/challenge-result/fixtures/valid/passed-result.json b/schemas/kernel/challenge-result/fixtures/valid/passed-result.json
+index 3ab0d07..36b3a72 100644
+--- a/schemas/kernel/challenge-result/fixtures/valid/passed-result.json
++++ b/schemas/kernel/challenge-result/fixtures/valid/passed-result.json
+@@ -4,6 +4,8 @@
+   "result_id": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+   "plan_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+   "candidate_id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
++  "policy_snapshot_id": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
++  "evidence_strategy": "bug",
+   "challenge_type": "focal-mutation",
+   "outcome": "passed",
+   "node_id": "repair-focal",
+diff --git a/schemas/kernel/challenge-result/v1.schema.json b/schemas/kernel/challenge-result/v1.schema.json
+index b81dd1f..bf7a21a 100644
+--- a/schemas/kernel/challenge-result/v1.schema.json
++++ b/schemas/kernel/challenge-result/v1.schema.json
+@@ -11,6 +11,9 @@
+     "result_id",
+     "plan_id",
+     "candidate_id",
++    "node_id",
++    "policy_snapshot_id",
++    "evidence_strategy",
+     "challenge_type",
+     "outcome",
+     "node_id",
+@@ -38,6 +41,14 @@
+       "type": "string",
+       "pattern": "^sha256:[a-f0-9]{64}$"
+     },
++    "policy_snapshot_id": {
++      "type": "string",
++      "pattern": "^sha256:[a-f0-9]{64}$"
++    },
++    "evidence_strategy": {
++      "type": "string",
++      "enum": ["bug", "feature", "refactor", "migration", "config-docs", "strict-tdd"]
++    },
+     "challenge_type": {
+       "type": "string",
+       "enum": [
+@@ -66,6 +77,7 @@
+     },
+     "evidence_ids": {
+       "type": "array",
++      "uniqueItems": true,
+       "items": {
+         "type": "string",
+         "pattern": "^sha256:[a-f0-9]{64}$"
+diff --git a/schemas/kernel/contract-claims.json b/schemas/kernel/contract-claims.json
+index 9e0331c..7340f24 100644
+--- a/schemas/kernel/contract-claims.json
++++ b/schemas/kernel/contract-claims.json
+@@ -756,6 +756,7 @@
+         "kind",
+         "plan_id",
+         "candidate_id",
++        "node_id",
+         "policy_snapshot_id",
+         "evidence_strategy",
+         "selected",
+@@ -782,6 +783,9 @@
+         "result_id",
+         "plan_id",
+         "candidate_id",
++        "node_id",
++        "policy_snapshot_id",
++        "evidence_strategy",
+         "challenge_type",
+         "outcome",
+         "node_id",
+diff --git a/scripts/lib/adversarial-challenges/diff-scope.js b/scripts/lib/adversarial-challenges/diff-scope.js
+new file mode 100644
+index 0000000..302a64d
+--- /dev/null
++++ b/scripts/lib/adversarial-challenges/diff-scope.js
+@@ -0,0 +1,69 @@
++"use strict";
++
++const { sha256Fingerprint } = require("../canonical-json.js");
++
++function fail(reason_code, error) {
++  return { ok: false, reason_code, error: error || reason_code };
++}
++
++function normalizePath(value) {
++  if (typeof value !== "string") return null;
++  const normalized = value.replace(/\\/g, "/").replace(/^(a|b)\//, "");
++  if (!normalized || normalized === "/dev/null" || normalized.startsWith("../") || normalized.includes("/../")) return null;
++  return normalized;
++}
++
++function parseUnifiedDiff(diffBytes) {
++  if (typeof diffBytes !== "string" && !Buffer.isBuffer(diffBytes)) return fail("CHALLENGE_SCOPE_INVALID", "unified diff bytes are required");
++  const lines = Buffer.isBuffer(diffBytes) ? diffBytes.toString("utf8") : diffBytes;
++  const files = [];
++  let active = null;
++  for (const line of lines.split(/\r?\n/)) {
++    if (line.startsWith("+++ ")) {
++      const path = normalizePath(line.slice(4).trim().split("\t")[0]);
++      if (path) {
++        active = { path, lines: [] };
++        files.push(active);
++      }
++      continue;
++    }
++    const match = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(line);
++    if (active && match) {
++      const start = Number(match[1]);
++      const count = match[2] === undefined ? 1 : Number(match[2]);
++      for (let index = 0; index < count; index += 1) active.lines.push(start + index);
++    }
++  }
++  return { ok: true, files: files.map((file) => ({ path: file.path, lines: [...new Set(file.lines)].sort((a, b) => a - b) })).sort((a, b) => a.path.localeCompare(b.path)) };
++}
++
++function deriveVerifiedDiffScope(candidate, diffBytes) {
++  if (!candidate || typeof candidate !== "object" || typeof candidate.diff_hash !== "string") {
++    return fail("CHALLENGE_SCOPE_INVALID", "frozen Candidate with diff_hash is required");
++  }
++  const actualHash = sha256Fingerprint("candidate-diff/v1", diffBytes);
++  if (actualHash !== candidate.diff_hash) return fail("CHALLENGE_SCOPE_INVALID", "unified diff digest does not match Candidate.diff_hash");
++  const parsed = parseUnifiedDiff(diffBytes);
++  if (!parsed.ok) return parsed;
++  const candidatePaths = new Set((candidate.paths || []).map((entry) => normalizePath(typeof entry === "string" ? entry : entry && entry.path)).filter(Boolean));
++  const files = parsed.files.filter((file) => candidatePaths.has(file.path));
++  if (files.length !== parsed.files.length) return fail("CHALLENGE_SCOPE_INVALID", "diff contains a path outside Candidate.paths");
++  return {
++    ok: true,
++    scope: {
++      paths: files.map((file) => file.path),
++      line_ranges: files.map((file) => ({ path: file.path, lines: file.lines })),
++      diff_hash: actualHash,
++    },
++  };
++}
++
++function rejectScopeWidening(verifiedScope, suppliedScope) {
++  if (!suppliedScope) return { ok: true, scope: verifiedScope };
++  const allowed = new Set(verifiedScope.paths || []);
++  const paths = Array.isArray(suppliedScope.paths) ? suppliedScope.paths : [];
++  if (paths.some((entry) => !allowed.has(normalizePath(entry)))) return fail("CHALLENGE_SCOPE_INVALID", "caller supplied scope widens frozen diff scope");
++  return { ok: true, scope: verifiedScope };
++}
++
++module.exports = { normalizePath, parseUnifiedDiff, deriveVerifiedDiffScope, rejectScopeWidening };
+diff --git a/scripts/lib/adversarial-challenges/diff-scope.test.js b/scripts/lib/adversarial-challenges/diff-scope.test.js
+new file mode 100644
+index 0000000..751ef7c
+--- /dev/null
++++ b/scripts/lib/adversarial-challenges/diff-scope.test.js
+@@ -0,0 +1,21 @@
++"use strict";
++
++const assert = require("node:assert/strict");
++const test = require("node:test");
++const { freezeCandidate } = require("../execution-identities/index.js");
++const { computeTreeDigest } = require("../worker-workspace.js");
++const { deriveVerifiedDiffScope, rejectScopeWidening } = require("./diff-scope.js");
++
++const files = { "src/index.js": "module.exports = 1;\n" };
++const diff = "diff --git a/src/index.js b/src/index.js\n--- a/src/index.js\n+++ b/src/index.js\n@@ -1 +1 @@\n-module.exports = 0;\n+module.exports = 1;\n";
++
++test("REQ-adversarial-challenges-004: scope derives only from Candidate-bound diff bytes and rejects widening", () => {
++  const tree = computeTreeDigest(files);
++  const candidate = freezeCandidate({ repository_id: "k6c-scope", projection: "workspace", base_tree: tree, candidate_tree: tree, diffText: diff, paths: ["src/index.js"] });
++  const scope = deriveVerifiedDiffScope(candidate, diff);
++  assert.equal(scope.ok, true);
++  assert.deepEqual(scope.scope.paths, ["src/index.js"]);
++  assert.deepEqual(scope.scope.line_ranges, [{ path: "src/index.js", lines: [1] }]);
++  assert.equal(deriveVerifiedDiffScope(candidate, `${diff}\n+foreign`).ok, false);
++  assert.equal(rejectScopeWidening(scope.scope, { paths: ["src/index.js", "secrets.txt"] }).ok, false);
++});
+diff --git a/scripts/lib/adversarial-challenges/index.js b/scripts/lib/adversarial-challenges/index.js
+index 5b92174..39d6876 100644
+--- a/scripts/lib/adversarial-challenges/index.js
++++ b/scripts/lib/adversarial-challenges/index.js
+@@ -5,6 +5,8 @@ const planner = require("./planner.js");
+ const budget = require("./budget.js");
+ const mutator = require("./mutator.js");
+ const runner = require("./runner.js");
++const integrity = require("./integrity.js");
++const diffScope = require("./diff-scope.js");
+ 
+ /**
+  * Rejects any attempt to use challenge outputs as delivery or lifecycle authority.
+@@ -46,6 +48,15 @@ module.exports = {
+   emitChallengeResult: runner.emitChallengeResult,
+   executeChallengePlan: runner.executeChallengePlan,
+ 
++  // Canonical integrity boundary
++  computeChallengePlanId: integrity.computeChallengePlanId,
++  computeChallengeResultId: integrity.computeChallengeResultId,
++  validateChallengePlan: integrity.validateChallengePlan,
++  validateChallengeResult: integrity.validateChallengeResult,
++  validateChallengeResultSet: integrity.validateChallengeResultSet,
++  deriveVerifiedDiffScope: diffScope.deriveVerifiedDiffScope,
++  parseUnifiedDiff: diffScope.parseUnifiedDiff,
++
+   // Authority Guard
+   rejectDeliveryAuthorityMisuse,
+ };
+diff --git a/scripts/lib/adversarial-challenges/integrity.js b/scripts/lib/adversarial-challenges/integrity.js
+new file mode 100644
+index 0000000..5f49bcf
+--- /dev/null
++++ b/scripts/lib/adversarial-challenges/integrity.js
+@@ -0,0 +1,160 @@
++"use strict";
++
++const path = require("node:path");
++const { sha256Fingerprint } = require("../canonical-json.js");
++const { loadSchemaById, validateInstance } = require("../kernel-schema-validator.js");
++const { CHALLENGE_TYPES } = require("./catalog.js");
++const { validatePolicySnapshotBinding } = require("../execution-graph/policy-snapshot.js");
++
++const ROOT = path.resolve(__dirname, "../../..");
++const PLAN_SCHEMA_ID = "ospec://schemas/kernel/challenge-plan/v1";
++const RESULT_SCHEMA_ID = "ospec://schemas/kernel/challenge-result/v1";
++const SHA256 = /^sha256:[a-f0-9]{64}$/;
++let planSchema;
++let resultSchema;
++
++function fail(reason_code, error) {
++  return { ok: false, reason_code, error: error || reason_code };
++}
++
++function schemaFor(kind) {
++  if (kind === "plan") {
++    planSchema ||= loadSchemaById(PLAN_SCHEMA_ID, { rootDir: ROOT });
++    return planSchema;
++  }
++  resultSchema ||= loadSchemaById(RESULT_SCHEMA_ID, { rootDir: ROOT });
++  return resultSchema;
++}
++
++function canonicalPlanBody(plan) {
++  return {
++    schema_version: 1,
++    kind: "challenge-plan/v1",
++    candidate_id: plan.candidate_id,
++    node_id: plan.node_id,
++    policy_snapshot_id: plan.policy_snapshot_id,
++    evidence_strategy: plan.evidence_strategy,
++    selected: [...plan.selected],
++    skipped: plan.skipped.map((item) => ({ challenge_type: item.challenge_type, reason: item.reason })),
++    reasons: [...plan.reasons],
++    budget: {
++      max_challenges: plan.budget.max_challenges,
++      mutation_budget: plan.budget.mutation_budget,
++      timeout_seconds: plan.budget.timeout_seconds,
++    },
++  };
++}
++
++function canonicalResultBody(result) {
++  return {
++    schema_version: 1,
++    kind: "challenge-result/v1",
++    plan_id: result.plan_id,
++    candidate_id: result.candidate_id,
++    node_id: result.node_id,
++    policy_snapshot_id: result.policy_snapshot_id,
++    evidence_strategy: result.evidence_strategy,
++    challenge_type: result.challenge_type,
++    outcome: result.outcome,
++    evidence_ids: [...result.evidence_ids].sort(),
++    details: result.details,
++  };
++}
++
++function computeChallengePlanId(plan) {
++  return sha256Fingerprint("challenge-plan:v1", canonicalPlanBody(plan));
++}
++
++function computeChallengeResultId(result) {
++  return sha256Fingerprint("challenge-result:v1", canonicalResultBody(result));
++}
++
++function graphHasNode(executionGraph, nodeId) {
++  return Boolean(executionGraph && Array.isArray(executionGraph.nodes) && executionGraph.nodes.some((node) => node && node.node_id === nodeId));
++}
++
++function validatePlanPartition(plan) {
++  const selected = plan.selected || [];
++  const skipped = plan.skipped || [];
++  const skippedTypes = skipped.map((item) => item && item.challenge_type);
++  if (selected.some((type) => !CHALLENGE_TYPES.includes(type)) || skippedTypes.some((type) => !CHALLENGE_TYPES.includes(type))) {
++    return fail("CHALLENGE_INTEGRITY_INVALID", "plan contains a challenge outside the closed catalog");
++  }
++  if (new Set(selected).size !== selected.length || new Set(skippedTypes).size !== skippedTypes.length) {
++    return fail("CHALLENGE_INTEGRITY_INVALID", "challenge plan selection must be unique");
++  }
++  if (selected.some((type) => skippedTypes.includes(type)) || selected.length + skippedTypes.length !== CHALLENGE_TYPES.length) {
++    return fail("CHALLENGE_INTEGRITY_INVALID", "selected and skipped must be a disjoint complete catalog partition");
++  }
++  if (CHALLENGE_TYPES.some((type) => !selected.includes(type) && !skippedTypes.includes(type))) {
++    return fail("CHALLENGE_INTEGRITY_INVALID", "challenge plan omits a catalog member");
++  }
++  if (skipped.some((item) => !item || typeof item.reason !== "string" || item.reason.trim() === "")) {
++    return fail("CHALLENGE_INTEGRITY_INVALID", "every skipped challenge requires a reason");
++  }
++  return { ok: true };
++}
++
++function validateChallengePlan(plan, bindings = {}) {
++  if (!plan || typeof plan !== "object" || Array.isArray(plan)) return fail("CHALLENGE_INTEGRITY_INVALID", "challenge plan must be an object");
++  const schema = validateInstance(schemaFor("plan"), plan);
++  if (!schema.valid) return fail("CHALLENGE_INTEGRITY_INVALID", schema.errors.map((item) => item.message).join("; "));
++  if (plan.plan_id !== computeChallengePlanId(plan)) return fail("CHALLENGE_INTEGRITY_INVALID", "plan_id does not match canonical plan content");
++  const partition = validatePlanPartition(plan);
++  if (!partition.ok) return partition;
++  if (bindings.candidate && bindings.candidate.candidate_id !== plan.candidate_id) return fail("CHALLENGE_INTEGRITY_INVALID", "plan candidate binding differs from frozen candidate");
++  if (bindings.nodeId && bindings.nodeId !== plan.node_id) return fail("CHALLENGE_INTEGRITY_INVALID", "plan node binding differs from requested node");
++  if (bindings.evidenceStrategy && bindings.evidenceStrategy !== plan.evidence_strategy) return fail("CHALLENGE_INTEGRITY_INVALID", "plan evidence strategy binding differs");
++  if (bindings.policySnapshot) {
++    const policy = validatePolicySnapshotBinding(bindings.policySnapshot);
++    if (!policy.ok || bindings.policySnapshot.snapshot_id !== plan.policy_snapshot_id) return fail("CHALLENGE_INTEGRITY_INVALID", "plan policy snapshot binding is invalid");
++  }
++  if (bindings.executionGraph && (!graphHasNode(bindings.executionGraph, plan.node_id) || bindings.executionGraph.policy_snapshot_id !== plan.policy_snapshot_id)) {
++    return fail("CHALLENGE_INTEGRITY_INVALID", "plan node or policy does not bind to execution graph");
++  }
++  return { ok: true, plan };
++}
++
++function validateChallengeResult(result, plan, bindings = {}) {
++  if (!result || typeof result !== "object" || Array.isArray(result)) return fail("CHALLENGE_INTEGRITY_INVALID", "challenge result must be an object");
++  const schema = validateInstance(schemaFor("result"), result);
++  if (!schema.valid) return fail("CHALLENGE_INTEGRITY_INVALID", schema.errors.map((item) => item.message).join("; "));
++  if (!Array.isArray(result.evidence_ids) || new Set(result.evidence_ids).size !== result.evidence_ids.length || result.evidence_ids.some((id) => !SHA256.test(id))) {
++    return fail("CHALLENGE_INTEGRITY_INVALID", "result evidence IDs must be unique sha256 identifiers");
++  }
++  if (JSON.stringify(result.evidence_ids) !== JSON.stringify([...result.evidence_ids].sort())) return fail("CHALLENGE_INTEGRITY_INVALID", "result evidence IDs must be canonical sorted order");
++  if (result.result_id !== computeChallengeResultId(result)) return fail("CHALLENGE_INTEGRITY_INVALID", "result_id does not match canonical result content");
++  const validatedPlan = validateChallengePlan(plan, bindings);
++  if (!validatedPlan.ok) return validatedPlan;
++  for (const key of ["plan_id", "candidate_id", "node_id", "policy_snapshot_id", "evidence_strategy"]) {
++    if (result[key] !== plan[key]) return fail("CHALLENGE_INTEGRITY_INVALID", `result ${key} does not bind to plan`);
++  }
++  if (!plan.selected.includes(result.challenge_type)) return fail("CHALLENGE_INTEGRITY_INVALID", "result challenge type is not selected by plan");
++  return { ok: true, result };
++}
++
++function validateChallengeResultSet(plan, results, bindings = {}) {
++  const planGate = validateChallengePlan(plan, bindings);
++  if (!planGate.ok) return planGate;
++  if (!Array.isArray(results)) return fail("CHALLENGE_INTEGRITY_INVALID", "challenge results must be an array");
++  if (results.length !== plan.selected.length) return fail("CHALLENGE_INTEGRITY_INVALID", "results must contain exactly one entry for every selected challenge");
++  const seen = new Set();
++  for (const result of results) {
++    const resultGate = validateChallengeResult(result, plan, bindings);
++    if (!resultGate.ok) return resultGate;
++    if (seen.has(result.challenge_type)) return fail("CHALLENGE_INTEGRITY_INVALID", "duplicate challenge result type");
++    seen.add(result.challenge_type);
++  }
++  if (plan.selected.some((type) => !seen.has(type))) return fail("CHALLENGE_INTEGRITY_INVALID", "missing result for selected challenge");
++  return { ok: true, plan, results };
++}
++
++module.exports = {
++  canonicalPlanBody,
++  canonicalResultBody,
++  computeChallengePlanId,
++  computeChallengeResultId,
++  validateChallengePlan,
++  validateChallengeResult,
++  validateChallengeResultSet,
++};
+diff --git a/scripts/lib/adversarial-challenges/integrity.test.js b/scripts/lib/adversarial-challenges/integrity.test.js
+new file mode 100644
+index 0000000..f4f5b1c
+--- /dev/null
++++ b/scripts/lib/adversarial-challenges/integrity.test.js
+@@ -0,0 +1,33 @@
++"use strict";
++
++const assert = require("node:assert/strict");
++const test = require("node:test");
++const { createChallengePlan } = require("./planner.js");
++const { emitChallengeResult } = require("./runner.js");
++const { validateChallengePlan, validateChallengeResultSet } = require("./integrity.js");
++
++const candidateId = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
++const policySnapshotId = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
++
++function plan() { return createChallengePlan({ candidateId, nodeId: "repair-core", policySnapshotId, evidenceStrategy: "feature" }); }
++function results(value = plan()) { return value.selected.map((challengeType) => emitChallengeResult({ planId: value.plan_id, candidateId, nodeId: value.node_id, policySnapshotId, evidenceStrategy: value.evidence_strategy, challengeType, outcome: "passed" })); }
++
++test("REQ-adversarial-challenges-002: canonical plan rejects forged binding identity and incomplete partition", () => {
++  const original = plan();
++  assert.equal(validateChallengePlan(original).ok, true);
++  assert.equal(validateChallengePlan({ ...original, node_id: "other" }).ok, false);
++  const partial = { ...original, skipped: original.skipped.slice(1) };
++  partial.plan_id = require("./integrity.js").computeChallengePlanId(partial);
++  assert.equal(validateChallengePlan(partial).ok, false);
++});
++
++test("REQ-independent-verification-010: result set rejects duplicate, foreign, and missing selected records", () => {
++  const original = plan();
++  const valid = results(original);
++  assert.equal(validateChallengeResultSet(original, valid).ok, true);
++  assert.equal(validateChallengeResultSet(original, [valid[0], valid[0]]).ok, false);
++  assert.equal(validateChallengeResultSet(original, valid.slice(0, 1)).ok, false);
++  const foreign = { ...valid[0], candidate_id: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" };
++  foreign.result_id = require("./integrity.js").computeChallengeResultId(foreign);
++  assert.equal(validateChallengeResultSet(original, [foreign, valid[1]]).ok, false);
++});
+diff --git a/scripts/lib/adversarial-challenges/planner.js b/scripts/lib/adversarial-challenges/planner.js
+index 960dce0..500a206 100644
+--- a/scripts/lib/adversarial-challenges/planner.js
++++ b/scripts/lib/adversarial-challenges/planner.js
+@@ -1,7 +1,7 @@
+ "use strict";
+ 
+-const { sha256Fingerprint } = require("../canonical-json.js");
+ const { CHALLENGE_TYPES } = require("./catalog.js");
++const { computeChallengePlanId } = require("./integrity.js");
+ 
+ const STRATEGY_CHALLENGE_SELECTION = Object.freeze({
+   "bug": {
+@@ -88,6 +88,7 @@ const DEFAULT_CHALLENGE_BUDGET = Object.freeze({
+  * Generates a deterministic ChallengePlan for a candidate and policy snapshot.
+  * @param {Object} params
+  * @param {string} params.candidateId
++ * @param {string} params.nodeId
+  * @param {string} params.policySnapshotId
+  * @param {string} params.evidenceStrategy
+  * @param {Object} [params.budgetOverrides]
+@@ -95,19 +96,23 @@ const DEFAULT_CHALLENGE_BUDGET = Object.freeze({
+  */
+ function createChallengePlan({
+   candidateId,
++  nodeId,
+   policySnapshotId,
+   evidenceStrategy,
+   budgetOverrides = {},
+ }) {
++  if (typeof candidateId !== "string" || !candidateId) throw new TypeError("createChallengePlan requires candidateId");
++  if (typeof nodeId !== "string" || !nodeId.trim()) throw new TypeError("createChallengePlan requires nodeId");
++  if (typeof policySnapshotId !== "string" || !policySnapshotId) throw new TypeError("createChallengePlan requires policySnapshotId");
+   const normStrategy = STRATEGY_CHALLENGE_SELECTION[evidenceStrategy]
+     ? evidenceStrategy
+     : "strict-tdd";
+   const selectionDef = STRATEGY_CHALLENGE_SELECTION[normStrategy];
+ 
+   const selected = [...selectionDef.selected];
+-  const skipped = Object.entries(selectionDef.skipped).map(([challenge_type, reason]) => ({
++  const skipped = CHALLENGE_TYPES.filter((type) => !selected.includes(type)).map((challenge_type) => ({
+     challenge_type,
+-    reason,
++    reason: selectionDef.skipped[challenge_type],
+   }));
+   const reasons = [
+     `STRATEGY_${normStrategy.toUpperCase().replace(/-/g, "_")}_SELECTED`,
+@@ -137,6 +142,7 @@ function createChallengePlan({
+     schema_version: 1,
+     kind: "challenge-plan/v1",
+     candidate_id: candidateId,
++    node_id: nodeId,
+     policy_snapshot_id: policySnapshotId,
+     evidence_strategy: normStrategy,
+     selected,
+@@ -145,7 +151,7 @@ function createChallengePlan({
+     budget,
+   };
+ 
+-  const plan_id = sha256Fingerprint("challenge-plan:v1", canonicalBody);
++  const plan_id = computeChallengePlanId(canonicalBody);
+ 
+   return {
+     ...canonicalBody,
+diff --git a/scripts/lib/adversarial-challenges/planner.test.js b/scripts/lib/adversarial-challenges/planner.test.js
+index 7f0ac0b..3118209 100644
+--- a/scripts/lib/adversarial-challenges/planner.test.js
++++ b/scripts/lib/adversarial-challenges/planner.test.js
+@@ -16,10 +16,12 @@ const planSchema = loadSchemaById("ospec://schemas/kernel/challenge-plan/v1", {
+ 
+ const SAMPLE_CANDIDATE_ID = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+ const SAMPLE_POLICY_ID = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
++const SAMPLE_NODE_ID = "repair-focal";
+ 
+ test("REQ-adversarial-challenges-002: Proportional plan generated for bug strategy", () => {
+   const plan = createChallengePlan({
+     candidateId: SAMPLE_CANDIDATE_ID,
++    nodeId: SAMPLE_NODE_ID,
+     policySnapshotId: SAMPLE_POLICY_ID,
+     evidenceStrategy: "bug",
+   });
+@@ -45,6 +47,7 @@ test("REQ-adversarial-challenges-002: Proportional plan generated for bug strate
+ test("REQ-adversarial-challenges-002: Proportional plan generated for refactor strategy", () => {
+   const plan = createChallengePlan({
+     candidateId: SAMPLE_CANDIDATE_ID,
++    nodeId: SAMPLE_NODE_ID,
+     policySnapshotId: SAMPLE_POLICY_ID,
+     evidenceStrategy: "refactor",
+   });
+@@ -60,6 +63,7 @@ test("REQ-adversarial-challenges-002: Proportional plan generated for refactor s
+ test("REQ-adversarial-challenges-002: Proportional plan generated for migration strategy", () => {
+   const plan = createChallengePlan({
+     candidateId: SAMPLE_CANDIDATE_ID,
++    nodeId: SAMPLE_NODE_ID,
+     policySnapshotId: SAMPLE_POLICY_ID,
+     evidenceStrategy: "migration",
+   });
+@@ -74,6 +78,7 @@ test("REQ-adversarial-challenges-002: Proportional plan generated for migration
+ test("REQ-adversarial-challenges-002: Proportional plan generated for config-docs strategy", () => {
+   const plan = createChallengePlan({
+     candidateId: SAMPLE_CANDIDATE_ID,
++    nodeId: SAMPLE_NODE_ID,
+     policySnapshotId: SAMPLE_POLICY_ID,
+     evidenceStrategy: "config-docs",
+   });
+@@ -88,6 +93,7 @@ test("REQ-adversarial-challenges-002: Proportional plan generated for config-doc
+ test("REQ-adversarial-challenges-002: Proportional plan generated for feature and strict-tdd strategies", () => {
+   const featurePlan = createChallengePlan({
+     candidateId: SAMPLE_CANDIDATE_ID,
++    nodeId: SAMPLE_NODE_ID,
+     policySnapshotId: SAMPLE_POLICY_ID,
+     evidenceStrategy: "feature",
+   });
+@@ -96,6 +102,7 @@ test("REQ-adversarial-challenges-002: Proportional plan generated for feature an
+ 
+   const strictPlan = createChallengePlan({
+     candidateId: SAMPLE_CANDIDATE_ID,
++    nodeId: SAMPLE_NODE_ID,
+     policySnapshotId: SAMPLE_POLICY_ID,
+     evidenceStrategy: "strict-tdd",
+   });
+@@ -106,12 +113,14 @@ test("REQ-adversarial-challenges-002: Proportional plan generated for feature an
+ test("REQ-adversarial-challenges-002: Identical inputs yield deterministic ChallengePlan and plan_id", () => {
+   const plan1 = createChallengePlan({
+     candidateId: SAMPLE_CANDIDATE_ID,
++    nodeId: SAMPLE_NODE_ID,
+     policySnapshotId: SAMPLE_POLICY_ID,
+     evidenceStrategy: "bug",
+   });
+ 
+   const plan2 = createChallengePlan({
+     candidateId: SAMPLE_CANDIDATE_ID,
++    nodeId: SAMPLE_NODE_ID,
+     policySnapshotId: SAMPLE_POLICY_ID,
+     evidenceStrategy: "bug",
+   });
+@@ -124,6 +133,7 @@ test("REQ-adversarial-challenges-002: Identical inputs yield deterministic Chall
+ test("REQ-adversarial-challenges-002: Budget overrides are respected and bounded", () => {
+   const customPlan = createChallengePlan({
+     candidateId: SAMPLE_CANDIDATE_ID,
++    nodeId: SAMPLE_NODE_ID,
+     policySnapshotId: SAMPLE_POLICY_ID,
+     evidenceStrategy: "bug",
+     budgetOverrides: {
+@@ -138,3 +148,28 @@ test("REQ-adversarial-challenges-002: Budget overrides are respected and bounded
+   assert.equal(customPlan.budget.timeout_seconds, 120);
+   assert.equal(validateInstance(planSchema, customPlan).valid, true);
+ });
++
++test("REQ-adversarial-challenges-002: Changed canonical binding cannot reuse a plan identity", () => {
++  const base = {
++    candidateId: SAMPLE_CANDIDATE_ID,
++    nodeId: SAMPLE_NODE_ID,
++    policySnapshotId: SAMPLE_POLICY_ID,
++    evidenceStrategy: "bug",
++  };
++  const original = createChallengePlan(base);
++  const reboundNode = createChallengePlan({ ...base, nodeId: "repair-other-node" });
++  const reboundPolicy = createChallengePlan({
++    ...base,
++    policySnapshotId: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
++  });
++
++  assert.equal(validateInstance(planSchema, original).valid, true);
++  assert.equal(validateInstance(planSchema, reboundNode).valid, true);
++  assert.equal(validateInstance(planSchema, reboundPolicy).valid, true);
++  assert.notEqual(original.plan_id, reboundNode.plan_id);
++  assert.notEqual(original.plan_id, reboundPolicy.plan_id);
++  assert.notEqual(reboundNode.plan_id, reboundPolicy.plan_id);
++  assert.equal(original.candidate_id, reboundNode.candidate_id);
++  assert.equal(original.evidence_strategy, reboundPolicy.evidence_strategy);
++  assert.deepEqual(original.selected, reboundNode.selected);
++});
+diff --git a/scripts/lib/adversarial-challenges/runner.js b/scripts/lib/adversarial-challenges/runner.js
+index 2198491..7c004a5 100644
+--- a/scripts/lib/adversarial-challenges/runner.js
++++ b/scripts/lib/adversarial-challenges/runner.js
+@@ -1,363 +1,291 @@
+ "use strict";
+ 
+-const { sha256Fingerprint } = require("../canonical-json.js");
++const fs = require("node:fs");
++const path = require("node:path");
++const { performance } = require("node:perf_hooks");
+ const { createChallengeBudgetTracker } = require("./budget.js");
+-const {
+-  generateFocalMutations,
+-  applyFocalMutation,
+-  revertSourcePatch,
+-  inspectTestAssertions,
+-} = require("./mutator.js");
++const { generateFocalMutations, applyFocalMutation, revertSourcePatch, inspectTestAssertions } = require("./mutator.js");
++const { computeTreeDigest, createWorkspace, disposeWorkspace, materializeSourceSnapshot } = require("../worker-workspace.js");
++const { executeSandboxedCommand } = require("../worker-sandbox.js");
++const { computeCandidateId } = require("../execution-identities/index.js");
++const { validateChallengePlan, validateChallengeResultSet, computeChallengeResultId } = require("./integrity.js");
++const { deriveVerifiedDiffScope, rejectScopeWidening } = require("./diff-scope.js");
+ 
+-/**
+- * Emits a schema-valid ChallengeResultV1 record.
+- * @param {Object} params
+- * @param {string} params.planId
+- * @param {string} params.candidateId
+- * @param {string} params.challengeType
+- * @param {"passed"|"failed"|"error"} params.outcome
+- * @param {string} [params.nodeId]
+- * @param {Array<string>} [params.evidenceIds]
+- * @param {Object} [params.details]
+- * @returns {Object} ChallengeResultV1 payload
+- */
+-function emitChallengeResult({
+-  planId,
+-  candidateId,
+-  challengeType,
+-  outcome,
+-  nodeId = "default",
+-  evidenceIds = [],
+-  details = {},
+-}) {
+-  const canonicalBody = {
+-    schema_version: 1,
+-    kind: "challenge-result/v1",
+-    plan_id: planId,
+-    candidate_id: candidateId,
+-    challenge_type: challengeType,
+-    outcome,
+-    node_id: String(nodeId || "default"),
+-    evidence_ids: Array.isArray(evidenceIds) ? [...evidenceIds] : [],
+-    details: details && typeof details === "object" ? { ...details } : {},
+-  };
++function emitChallengeResult({ planId, candidateId, nodeId, policySnapshotId, evidenceStrategy, challengeType, outcome, evidenceIds = [], details = {} }) {
++  const body = { schema_version: 1, kind: "challenge-result/v1", plan_id: planId, candidate_id: candidateId, node_id: nodeId, policy_snapshot_id: policySnapshotId, evidence_strategy: evidenceStrategy, challenge_type: challengeType, outcome, evidence_ids: [...new Set(evidenceIds)].sort(), details: details && typeof details === "object" && !Array.isArray(details) ? details : {} };
++  return { ...body, result_id: computeChallengeResultId(body) };
++}
+ 
+-  const result_id = sha256Fingerprint("challenge-result:v1", canonicalBody);
++function failure(code, error) { return { ok: false, causalFailure: { code, category: "validation_gap", error: error || code } }; }
+ 
+-  return {
+-    ...canonicalBody,
+-    result_id,
+-  };
++function requiredCapabilities(context, type) {
++  const capabilities = context.executor && context.executor.capabilities;
++  return Boolean(capabilities && capabilities.isolation === "enforced" && capabilities.cancellation === "enforced" && capabilities.challenge_types && capabilities.challenge_types[type] === "enforced");
+ }
+ 
+-/**
+- * Executes a ChallengePlan within an isolated context.
+- * @param {Object} plan - ChallengePlanV1
+- * @param {Object} [context] - Execution context
+- * @returns {Promise<{ ok: boolean, results?: Array<Object>, causalFailure?: Object }>}
+- */
+-async function executeChallengePlan(plan, context = {}) {
+-  const tracker = createChallengeBudgetTracker(plan.budget || {});
+-  const results = [];
+-
+-  for (const challengeType of plan.selected || []) {
+-    if (!tracker.consumeChallenge()) {
+-      return {
+-        ok: false,
+-        causalFailure: tracker.buildExhaustionFailure({
+-          candidateId: plan.candidate_id,
+-          planId: plan.plan_id,
+-          dimension: "max_challenges",
+-        }),
+-      };
+-    }
++function executorFor(context, type) {
++  const executor = context.executor;
++  if (executor && typeof executor.executeChallenge === "function") return (input) => executor.executeChallenge({ ...input, challengeType: type });
++  const legacy = { "independent-acceptance": context.runAcceptance, "regression-acceptance": context.runRegression, "compatibility-acceptance": context.runCompatibility, "structural-validation": context.validateStructure, "behavior-equivalence": context.runEquivalence, rollback: context.runRollback }[type];
++  return typeof legacy === "function" ? () => legacy() : null;
++}
+ 
+-    switch (challengeType) {
+-      case "focal-mutation": {
+-        const mutations =
+-          context.mutations ||
+-          generateFocalMutations(context.sourceCode || "", {
+-            targetLines: context.targetLines,
+-          });
++async function withDeadline(run, remainingMs, controller) {
++  let timer;
++  try {
++    const timeout = new Promise((resolve) => { timer = setTimeout(() => { controller.abort(); resolve({ __timeout: true }); }, Math.max(1, remainingMs)); });
++    return await Promise.race([Promise.resolve().then(run), timeout]);
++  } finally { clearTimeout(timer); }
++}
+ 
+-        let defectsDetected = 0;
+-        let complacentCount = 0;
++function listWorkspaceFiles(root, relative = "") {
++  const dir = path.join(root, relative);
++  if (!fs.existsSync(dir)) return [];
++  const entries = [];
++  for (const item of fs.readdirSync(dir, { withFileTypes: true })) {
++    const rel = relative ? `${relative}/${item.name}` : item.name;
++    if (item.isDirectory()) entries.push(...listWorkspaceFiles(root, rel.replace(/\\/g, "/")));
++    else if (item.isFile()) entries.push(rel.replace(/\\/g, "/"));
++  }
++  return entries.sort();
++}
+ 
+-        if (mutations.length > 0) {
+-          for (const mut of mutations) {
+-            if (!tracker.consumeMutations(1)) {
+-              return {
+-                ok: false,
+-                causalFailure: tracker.buildExhaustionFailure({
+-                  candidateId: plan.candidate_id,
+-                  planId: plan.plan_id,
+-                  dimension: "mutation_budget",
+-                }),
+-              };
+-            }
++function isTestFile(rel) {
++  return /\.(test|spec)\.js$/.test(rel);
++}
+ 
+-            const mutated = applyFocalMutation(context.sourceCode || "", mut);
+-            const runRes = context.runTests
+-              ? await context.runTests(mutated)
+-              : { pass: false, exitCode: 1 };
++function readWorkspaceFile(workspace, rel) {
++  return fs.readFileSync(path.join(workspace.root_path, rel), "utf8");
++}
+ 
+-            // In adversarial testing, tests MUST fail on mutated code.
+-            // If tests pass on mutated code -> complacent test detected!
+-            if (runRes.pass === true || runRes.exitCode === 0) {
+-              complacentCount += 1;
+-            } else {
+-              defectsDetected += 1;
+-            }
+-          }
+-        }
++function writeWorkspaceFile(workspace, rel, content) {
++  const dest = path.join(workspace.root_path, rel);
++  fs.mkdirSync(path.dirname(dest), { recursive: true });
++  fs.writeFileSync(dest, content);
++}
+ 
+-        if (complacentCount > 0) {
+-          results.push(
+-            emitChallengeResult({
+-              planId: plan.plan_id,
+-              candidateId: plan.candidate_id,
+-              challengeType,
+-              outcome: "failed",
+-              nodeId: context.nodeId || "default",
+-              evidenceIds: context.evidenceIds || [],
+-              details: {
+-                reason: "COMPLACENT_TEST_DETECTED",
+-                mutations_tested: mutations.length,
+-                defects_detected: defectsDetected,
+-                complacent_tests: complacentCount,
+-              },
+-            })
+-          );
+-        } else {
+-          results.push(
+-            emitChallengeResult({
+-              planId: plan.plan_id,
+-              candidateId: plan.candidate_id,
+-              challengeType,
+-              outcome: "passed",
+-              nodeId: context.nodeId || "default",
+-              evidenceIds: context.evidenceIds || [],
+-              details: {
+-                mutations_tested: mutations.length,
+-                defects_detected: defectsDetected,
+-                complacent_tests: 0,
+-              },
+-            })
+-          );
+-        }
+-        break;
+-      }
++function derivePatchFromDiff(diffText) {
++  if (typeof diffText !== "string") return { original: "", modified: "" };
++  const removed = [];
++  const added = [];
++  for (const line of diffText.split(/\r?\n/)) {
++    if (line.startsWith("---") || line.startsWith("+++") || line.startsWith("diff ") || line.startsWith("index ") || line.startsWith("@@") || line.startsWith("\\")) continue;
++    if (line.startsWith("-")) removed.push(line.slice(1));
++    else if (line.startsWith("+")) added.push(line.slice(1));
++  }
++  return { original: removed.join("\n"), modified: added.join("\n") };
++}
+ 
+-      case "revert": {
+-        const unpatched = revertSourcePatch(
+-          context.sourceCode || "",
+-          context.patch || { original: "", modified: "" }
+-        );
+-        const runRes = context.runTests
+-          ? await context.runTests(unpatched)
+-          : { pass: false, exitCode: 1 };
++function mutationsFor(context, rel, source, targetLines) {
++  if (Array.isArray(context.mutations)) return context.mutations;
++  if (context.mutations && typeof context.mutations === "object" && Array.isArray(context.mutations[rel])) {
++    return context.mutations[rel];
++  }
++  return generateFocalMutations(source, { targetLines });
++}
+ 
+-        if (runRes.pass === true || runRes.exitCode === 0) {
+-          results.push(
+-            emitChallengeResult({
+-              planId: plan.plan_id,
+-              candidateId: plan.candidate_id,
+-              challengeType,
+-              outcome: "failed",
+-              nodeId: context.nodeId || "default",
+-              evidenceIds: context.evidenceIds || [],
+-              details: { reason: "COMPLACENT_TEST_DETECTED" },
+-            })
+-          );
+-        } else {
+-          results.push(
+-            emitChallengeResult({
+-              planId: plan.plan_id,
+-              candidateId: plan.candidate_id,
+-              challengeType,
+-              outcome: "passed",
+-              nodeId: context.nodeId || "default",
+-              evidenceIds: context.evidenceIds || [],
+-              details: { revert_verified: true },
+-            })
+-          );
+-        }
+-        break;
+-      }
++async function runWorkspaceTests(workspace, context, signal, timeoutMs) {
++  const files = listWorkspaceFiles(workspace.root_path).filter(isTestFile);
++  if (files.length === 0) {
++    return { pass: false, exitCode: 1, failure_class: "missing_tests", error: "no test files in workspace" };
++  }
++  const allowed = [...new Set([
++    ...(Array.isArray(context.workOrder && context.workOrder.allowed_paths) ? context.workOrder.allowed_paths : []),
++    ...listWorkspaceFiles(workspace.root_path),
++    "**",
++  ])];
++  let stdout = "";
++  let stderr = "";
++  let failure_class;
++  let error;
++  for (const file of files) {
++    const result = await executeSandboxedCommand({
++      command: process.execPath,
++      args: [file],
++      cwd: workspace.root_path,
++      workspaceRoot: workspace.root_path,
++      allowedPaths: allowed,
++      signal,
++      timeoutMs,
++      env: { NODE_TEST_CONTEXT: "" },
++    });
++    stdout += result.stdout || "";
++    stderr += result.stderr || "";
++    if (result.failure_class) failure_class = result.failure_class;
++    if (result.error) error = result.error;
++    if (!(result.ok === true && result.exit_code === 0)) {
++      return { pass: false, exitCode: result.exit_code, failure_class, error, stdout, stderr };
++    }
++  }
++  return { pass: true, exitCode: 0, failure_class, error, stdout, stderr };
++}
+ 
+-      case "test-inspection": {
+-        const inspection = inspectTestAssertions(context.testSourceCode || "");
+-        if (inspection.tautological) {
+-          results.push(
+-            emitChallengeResult({
+-              planId: plan.plan_id,
+-              candidateId: plan.candidate_id,
+-              challengeType,
+-              outcome: "failed",
+-              nodeId: context.nodeId || "default",
+-              evidenceIds: context.evidenceIds || [],
+-              details: {
+-                reason: "TAUTOLOGICAL_TEST_DETECTED",
+-                violations: inspection.violations,
+-              },
+-            })
+-          );
+-        } else {
+-          results.push(
+-            emitChallengeResult({
+-              planId: plan.plan_id,
+-              candidateId: plan.candidate_id,
+-              challengeType,
+-              outcome: "passed",
+-              nodeId: context.nodeId || "default",
+-              evidenceIds: context.evidenceIds || [],
+-              details: { inspected_clean: true },
+-            })
+-          );
+-        }
+-        break;
+-      }
++function sourceFilesForMutation(workspace, scope) {
++  const scoped = scope && Array.isArray(scope.paths) && scope.paths.length ? new Set(scope.paths) : null;
++  return listWorkspaceFiles(workspace.root_path).filter((rel) => !isTestFile(rel) && (!scoped || scoped.has(rel)));
++}
+ 
+-      case "independent-acceptance": {
+-        const accRes = context.runAcceptance
+-          ? await context.runAcceptance()
+-          : { pass: true };
+-        const outcome =
+-          accRes.outcome || (accRes.pass === false ? "failed" : "passed");
+-        results.push(
+-          emitChallengeResult({
+-            planId: plan.plan_id,
+-            candidateId: plan.candidate_id,
+-            challengeType,
+-            outcome,
+-            nodeId: context.nodeId || "default",
+-            evidenceIds: context.evidenceIds || [],
+-            details: accRes.details || {},
+-          })
+-        );
+-        break;
+-      }
++async function runIsolatedMutation(type, workspace, context, scope, signal, timeoutMs) {
++  if (type === "test-inspection") {
++    const testFiles = listWorkspaceFiles(workspace.root_path).filter(isTestFile);
++    const violations = [];
++    for (const rel of testFiles) {
++      const inspection = inspectTestAssertions(readWorkspaceFile(workspace, rel));
++      if (inspection.tautological) violations.push(...(inspection.violations || []));
++    }
++    return violations.length
++      ? { outcome: "failed", details: { reason: "TAUTOLOGICAL_TEST_DETECTED", violations } }
++      : { outcome: "passed", details: { inspected_clean: true } };
++  }
+ 
+-      case "regression-acceptance": {
+-        const regRes = context.runRegression
+-          ? await context.runRegression()
+-          : { pass: true };
+-        const outcome =
+-          regRes.outcome || (regRes.pass === false ? "failed" : "passed");
+-        results.push(
+-          emitChallengeResult({
+-            planId: plan.plan_id,
+-            candidateId: plan.candidate_id,
+-            challengeType,
+-            outcome,
+-            nodeId: context.nodeId || "default",
+-            evidenceIds: context.evidenceIds || [],
+-            details: regRes.details || {},
+-          })
+-        );
+-        break;
++  if (type === "revert") {
++    const files = sourceFilesForMutation(workspace, scope);
++    const originals = new Map();
++    const patch = context.patch && context.patch.original && context.patch.modified
++      ? context.patch
++      : derivePatchFromDiff(context.candidateDiff);
++    for (const rel of files) {
++      const current = readWorkspaceFile(workspace, rel);
++      originals.set(rel, current);
++      writeWorkspaceFile(workspace, rel, revertSourcePatch(current, patch));
++    }
++    try {
++      const run = await runWorkspaceTests(workspace, context, signal, timeoutMs);
++      if (run.failure_class && run.failure_class !== "missing_tests") {
++        return { outcome: "error", details: { reason: "CHALLENGE_EXECUTION_ERROR", error: run.error || run.failure_class } };
+       }
++      return run.pass === true || run.exitCode === 0
++        ? { outcome: "failed", details: { reason: "COMPLACENT_TEST_DETECTED" } }
++        : { outcome: "passed", details: { revert_verified: true } };
++    } finally {
++      for (const [rel, content] of originals) writeWorkspaceFile(workspace, rel, content);
++    }
++  }
+ 
+-      case "compatibility-acceptance": {
+-        const compRes = context.runCompatibility
+-          ? await context.runCompatibility()
+-          : { pass: true };
+-        const outcome =
+-          compRes.outcome || (compRes.pass === false ? "failed" : "passed");
+-        results.push(
+-          emitChallengeResult({
+-            planId: plan.plan_id,
+-            candidateId: plan.candidate_id,
+-            challengeType,
+-            outcome,
+-            nodeId: context.nodeId || "default",
+-            evidenceIds: context.evidenceIds || [],
+-            details: compRes.details || {},
+-          })
+-        );
+-        break;
++  if (type === "focal-mutation") {
++    const targetLinesByPath = new Map((scope && scope.line_ranges || []).map((range) => [range.path, range.lines]));
++    const files = sourceFilesForMutation(workspace, scope);
++    let defects = 0;
++    let mutationsTested = 0;
++    for (const rel of files) {
++      const original = readWorkspaceFile(workspace, rel);
++      const mutationList = mutationsFor(context, rel, original, targetLinesByPath.get(rel) || null);
++      for (const mutation of mutationList) {
++        mutationsTested += 1;
++        writeWorkspaceFile(workspace, rel, applyFocalMutation(original, mutation));
++        try {
++          const run = await runWorkspaceTests(workspace, context, signal, timeoutMs);
++          if (run.failure_class === "sandbox_rejection" || run.failure_class === "cancel") {
++            return { outcome: "error", details: { reason: "CHALLENGE_EXECUTION_ERROR", error: run.error || run.failure_class } };
++          }
++          if (run.pass === true || run.exitCode === 0) {
++            return { outcome: "failed", details: { reason: "COMPLACENT_TEST_DETECTED", mutations_tested: mutationsTested, defects_detected: defects } };
++          }
++          defects += 1;
++        } finally {
++          writeWorkspaceFile(workspace, rel, original);
++        }
+       }
++    }
++    return { outcome: "passed", details: { mutations_tested: mutationsTested, defects_detected: defects, complacent_tests: 0 } };
++  }
++  return null;
++}
+ 
+-      case "structural-validation": {
+-        const structRes = context.validateStructure
+-          ? await context.validateStructure()
+-          : { pass: true };
+-        const outcome =
+-          structRes.outcome || (structRes.pass === false ? "failed" : "passed");
+-        results.push(
+-          emitChallengeResult({
+-            planId: plan.plan_id,
+-            candidateId: plan.candidate_id,
+-            challengeType,
+-            outcome,
+-            nodeId: context.nodeId || "default",
+-            evidenceIds: context.evidenceIds || [],
+-            details: structRes.details || {},
+-          })
+-        );
+-        break;
+-      }
++async function materializeChallengeWorkspace(context) {
++  if (!context.sourceSnapshot || !context.workOrder || !context.repository || !context.repository.files) {
++    throw new Error("sourceSnapshot, workOrder, and repository bytes are required for isolated challenge execution");
++  }
++  const repoPaths = Object.keys(context.repository.files);
++  const workOrder = {
++    ...context.workOrder,
++    capsule_inputs: [...new Set([...(context.workOrder.capsule_inputs || []), ...repoPaths])],
++    allowed_paths: [...new Set([...(context.workOrder.allowed_paths || []), ...repoPaths])],
++  };
++  const workspace = await createWorkspace({ source_snapshot_id: context.sourceSnapshot.source_snapshot_id, baseDir: context.workspaceBaseDir });
++  await materializeSourceSnapshot(workspace, workOrder, context.sourceSnapshot, { effectiveBase: { source_snapshot_id: context.sourceSnapshot.source_snapshot_id, files: context.repository.files, tree_digest: computeTreeDigest(context.repository.files) } });
++  return workspace;
++}
+ 
+-      case "behavior-equivalence": {
+-        const eqRes = context.runEquivalence
+-          ? await context.runEquivalence()
+-          : { pass: true };
+-        const outcome =
+-          eqRes.outcome || (eqRes.pass === false ? "failed" : "passed");
+-        results.push(
+-          emitChallengeResult({
+-            planId: plan.plan_id,
+-            candidateId: plan.candidate_id,
+-            challengeType,
+-            outcome,
+-            nodeId: context.nodeId || "default",
+-            evidenceIds: context.evidenceIds || [],
+-            details: eqRes.details || {},
+-          })
+-        );
+-        break;
+-      }
++function candidateIdentityIntact(context, originalCandidateId, sourceDigest) {
++  if (computeTreeDigest(context.repository.files) !== sourceDigest || computeTreeDigest(context.repository.files) !== context.candidate.candidate_tree) {
++    return failure("CHALLENGE_INTEGRITY_INVALID", "candidate bytes changed during challenge execution");
++  }
++  let recomputed;
++  try {
++    recomputed = computeCandidateId(context.candidate);
++  } catch (error) {
++    return failure("CHALLENGE_INTEGRITY_INVALID", error.message);
++  }
++  if (recomputed !== originalCandidateId || recomputed !== context.candidate.candidate_id) {
++    return failure("CHALLENGE_INTEGRITY_INVALID", "candidate identity changed during challenge execution");
++  }
++  return { ok: true };
++}
+ 
+-      case "rollback": {
+-        const rbRes = context.runRollback
+-          ? await context.runRollback()
+-          : { pass: true };
+-        const outcome =
+-          rbRes.outcome || (rbRes.pass === false ? "failed" : "passed");
+-        results.push(
+-          emitChallengeResult({
+-            planId: plan.plan_id,
+-            candidateId: plan.candidate_id,
+-            challengeType,
+-            outcome,
+-            nodeId: context.nodeId || "default",
+-            evidenceIds: context.evidenceIds || [],
+-            details: rbRes.details || {},
+-          })
+-        );
+-        break;
+-      }
++/** Execute an exact canonical plan. Any unverified input or capability fails before effects. */
++async function executeChallengePlan(plan, context = {}) {
++  const bindings = { candidate: context.candidate, executionGraph: context.executionGraph, policySnapshot: context.policySnapshot, nodeId: context.nodeId, evidenceStrategy: context.evidenceStrategy };
++  const planGate = validateChallengePlan(plan, bindings);
++  if (!planGate.ok) return failure(planGate.reason_code, planGate.error);
++  if (!context.candidate || !context.repository || !context.repository.files) return failure("CHALLENGE_INTEGRITY_INVALID", "candidate and repository bytes are required");
++  if (computeTreeDigest(context.repository.files) !== context.candidate.candidate_tree) return failure("CHALLENGE_INTEGRITY_INVALID", "repository tree differs from frozen candidate");
++  let originalCandidateId;
++  try {
++    originalCandidateId = computeCandidateId(context.candidate);
++  } catch (error) {
++    return failure("CHALLENGE_INTEGRITY_INVALID", error.message);
++  }
++  if (originalCandidateId !== context.candidate.candidate_id) return failure("CHALLENGE_INTEGRITY_INVALID", "candidate identity does not match frozen candidate");
++  const sourceDigest = computeTreeDigest(context.repository.files);
++  let scope = null;
++  if (plan.selected.includes("focal-mutation")) {
++    const scopeGate = deriveVerifiedDiffScope(context.candidate, context.candidateDiff);
++    if (!scopeGate.ok) return failure(scopeGate.reason_code, scopeGate.error);
++    const noWidening = rejectScopeWidening(scopeGate.scope, context.scope || context.targetScope);
++    if (!noWidening.ok) return failure(noWidening.reason_code, noWidening.error);
++    scope = scopeGate.scope;
++  }
++  for (const type of plan.selected) if (!requiredCapabilities(context, type)) return failure("CHALLENGE_CAPABILITY_UNAVAILABLE", `executor cannot enforce ${type}, isolation, and cancellation`);
+ 
+-      default: {
+-        results.push(
+-          emitChallengeResult({
+-            planId: plan.plan_id,
+-            candidateId: plan.candidate_id,
+-            challengeType,
+-            outcome: "passed",
+-            nodeId: context.nodeId || "default",
+-            evidenceIds: context.evidenceIds || [],
+-          })
+-        );
+-        break;
+-      }
++  const tracker = createChallengeBudgetTracker(plan.budget);
++  const results = [];
++  const deadline = performance.now() + Number(plan.budget.timeout_seconds) * 1000;
++  for (const type of plan.selected) {
++    if (!tracker.consumeChallenge()) return failure("CHALLENGE_BUDGET_EXHAUSTED", "challenge budget exhausted");
++    const remaining = deadline - performance.now();
++    if (remaining <= 0) {
++      results.push(emitChallengeResult({ planId: plan.plan_id, candidateId: plan.candidate_id, nodeId: plan.node_id, policySnapshotId: plan.policy_snapshot_id, evidenceStrategy: plan.evidence_strategy, challengeType: type, outcome: "error", evidenceIds: context.evidenceIds, details: { reason: "CHALLENGE_TIMEOUT" } }));
++      return { ok: false, results, causalFailure: { code: "CHALLENGE_TIMEOUT", category: "validation_gap" } };
+     }
++    let workspace;
++    const controller = new AbortController();
++    try {
++      workspace = await materializeChallengeWorkspace(context);
++      const execute = executorFor(context, type);
++      const executionRemaining = deadline - performance.now();
++      if (executionRemaining <= 0) {
++        results.push(emitChallengeResult({ planId: plan.plan_id, candidateId: plan.candidate_id, nodeId: plan.node_id, policySnapshotId: plan.policy_snapshot_id, evidenceStrategy: plan.evidence_strategy, challengeType: type, outcome: "error", evidenceIds: context.evidenceIds, details: { reason: "CHALLENGE_TIMEOUT" } }));
++        return { ok: false, results, causalFailure: { code: "CHALLENGE_TIMEOUT", category: "validation_gap" } };
++      }
++      const execution = await withDeadline(async () => {
++        const isolated = await runIsolatedMutation(type, workspace, context, scope, controller.signal, remaining);
++        return isolated || (execute ? execute({ workspace, scope, signal: controller.signal, timeoutMs: remaining }) : { pass: true });
++      }, executionRemaining, controller);
++      const timedOut = execution && execution.__timeout;
++      const outcome = timedOut ? "error" : (execution.outcome || (execution.pass === false || execution.ok === false ? "failed" : "passed"));
++      results.push(emitChallengeResult({ planId: plan.plan_id, candidateId: plan.candidate_id, nodeId: plan.node_id, policySnapshotId: plan.policy_snapshot_id, evidenceStrategy: plan.evidence_strategy, challengeType: type, outcome, evidenceIds: context.evidenceIds, details: timedOut ? { reason: "CHALLENGE_TIMEOUT" } : (execution.details || {}) }));
++      if (timedOut) return { ok: false, results, causalFailure: { code: "CHALLENGE_TIMEOUT", category: "validation_gap" } };
++    } catch (error) {
++      results.push(emitChallengeResult({ planId: plan.plan_id, candidateId: plan.candidate_id, nodeId: plan.node_id, policySnapshotId: plan.policy_snapshot_id, evidenceStrategy: plan.evidence_strategy, challengeType: type, outcome: "error", evidenceIds: context.evidenceIds, details: { reason: "CHALLENGE_EXECUTION_ERROR", error: error.message } }));
++      return { ok: false, results, causalFailure: { code: "CHALLENGE_EXECUTION_ERROR", category: "validation_gap", error: error.message } };
++    } finally { if (workspace) await disposeWorkspace(workspace); }
++    const intact = candidateIdentityIntact(context, originalCandidateId, sourceDigest);
++    if (!intact.ok) return intact;
+   }
+-
++  const setGate = validateChallengeResultSet(plan, results, bindings);
++  if (!setGate.ok) return failure(setGate.reason_code, setGate.error);
+   return { ok: true, results };
+ }
+ 
+-module.exports = {
+-  emitChallengeResult,
+-  executeChallengePlan,
+-};
++module.exports = { emitChallengeResult, executeChallengePlan };
+diff --git a/scripts/lib/adversarial-challenges/runner.test.js b/scripts/lib/adversarial-challenges/runner.test.js
+index 33a81b7..c921dcf 100644
+--- a/scripts/lib/adversarial-challenges/runner.test.js
++++ b/scripts/lib/adversarial-challenges/runner.test.js
+@@ -1,145 +1,225 @@
+ "use strict";
+ 
+ const assert = require("node:assert/strict");
+-const path = require("node:path");
++const fs = require("node:fs");
+ const test = require("node:test");
+-const { loadSchemaById, validateInstance } = require("../kernel-schema-validator.js");
++const { freezeCandidate, computeSourceSnapshotId, computeWorkOrderId } = require("../execution-identities/index.js");
++const { compileExecutionGraph, createPolicySnapshot } = require("../execution-graph/index.js");
++const { computeTreeDigest } = require("../worker-workspace.js");
+ const { createChallengePlan } = require("./planner.js");
+ const { executeChallengePlan, emitChallengeResult } = require("./runner.js");
+ 
+-const ROOT = path.resolve(__dirname, "../../..");
+-const resultSchema = loadSchemaById("ospec://schemas/kernel/challenge-result/v1", { rootDir: ROOT });
++const DIFF = "diff --git a/src/index.js b/src/index.js\n--- a/src/index.js\n+++ b/src/index.js\n@@ -1 +1 @@\n-return a - b;\n+return a + b;\n";
++const FILES = { "src/index.js": "function add(a, b) {\n  return a + b;\n}" };
++
++function harness(strategy = "feature") {
++  const tree = computeTreeDigest(FILES);
++  const candidate = freezeCandidate({ repository_id: "k6c-runner", projection: "workspace", base_tree: tree, candidate_tree: tree, diffText: DIFF, paths: Object.keys(FILES) });
++  const policySnapshot = createPolicySnapshot({ effectiveRules: ["fail-closed"] });
++  const contract = { schema_version: 1, contract_id: "contract:k6c-runner", family: "repair", version: 1, contract_digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", source_snapshot_id: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", obligations: [] };
++  const executionGraph = compileExecutionGraph({ contract, policySnapshot, nodes: [{ node_id: "repair-focal", kind: "repair-action/v1", operation: "apply", objective: "repair", dependencies: [], ownership: { owner: "agent:test", mode: "exclusive" }, allowed_paths: ["src/index.js"], invariants: [], required_evidence: ["ev:test"], budget_ref: "budget:default" }], obligations: [] });
++  const sourceSnapshot = { schema_version: 1, kind: "source-snapshot/v1", repository_id: "k6c-runner", base_tree_digest: tree, projection: "workspace", dependency_digests: [] };
++  sourceSnapshot.source_snapshot_id = computeSourceSnapshotId(sourceSnapshot);
++  const workOrder = { schema_version: 2, kind: "work-order/v2", source_snapshot_id: sourceSnapshot.source_snapshot_id, node_id: "repair-focal", role: "test", status: "pending", operation: "apply", objective: "execute challenge", dependencies: [], ownership: { owner: "agent:test", mode: "exclusive" }, allowed_paths: ["src/index.js"], capsule_inputs: ["src/index.js"], invariants: ["invariant"], required_evidence: ["ev:test"], budget: { model_turns: 0, patches: 0, commands: 1, wall_time_minutes: 1, changed_lines: 1 } };
++  workOrder.work_order_id = computeWorkOrderId(workOrder);
++  const plan = createChallengePlan({ candidateId: candidate.candidate_id, nodeId: "repair-focal", policySnapshotId: policySnapshot.snapshot_id, evidenceStrategy: strategy, budgetOverrides: { timeout_seconds: 0.02 } });
++  const executor = { capabilities: { isolation: "enforced", cancellation: "enforced", challenge_types: Object.fromEntries(plan.selected.map((type) => [type, "enforced"])) }, executeChallenge: async () => ({ pass: true }) };
++  return { candidate, policySnapshot, executionGraph, plan, repository: { files: FILES }, candidateDiff: DIFF, sourceSnapshot, workOrder, nodeId: "repair-focal", evidenceStrategy: strategy, executor };
++}
++
++test("REQ-adversarial-challenges-004: canonical result includes every binding and a deterministic ID", () => {
++  const h = harness();
++  const result = emitChallengeResult({ planId: h.plan.plan_id, candidateId: h.candidate.candidate_id, nodeId: h.plan.node_id, policySnapshotId: h.plan.policy_snapshot_id, evidenceStrategy: h.plan.evidence_strategy, challengeType: "focal-mutation", outcome: "passed" });
++  assert.match(result.result_id, /^sha256:[a-f0-9]{64}$/);
++  assert.equal(result.policy_snapshot_id, h.plan.policy_snapshot_id);
++});
+ 
+-const SAMPLE_CANDIDATE_ID = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+-const SAMPLE_POLICY_ID = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
++test("REQ-adversarial-challenges-004: missing capability fails before challenge effects", async () => {
++  const h = harness();
++  h.executor.capabilities.challenge_types["focal-mutation"] = "partial";
++  const result = await executeChallengePlan(h.plan, h);
++  assert.equal(result.ok, false);
++  assert.equal(result.causalFailure.code, "CHALLENGE_CAPABILITY_UNAVAILABLE");
++});
+ 
+-test("REQ-adversarial-challenges-004: emitChallengeResult produces deterministic and valid result", () => {
+-  const res1 = emitChallengeResult({
+-    planId: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+-    candidateId: SAMPLE_CANDIDATE_ID,
+-    challengeType: "focal-mutation",
+-    outcome: "passed",
+-    nodeId: "repair-focal",
+-    evidenceIds: ["sha256:2222222222222222222222222222222222222222222222222222222222222222"],
+-    details: { defects_detected: 2 },
++const ADD_SOURCE = "function add(a, b) {\n  return a + b;\n}\nmodule.exports = { add };\n";
++const ADD_DIFF = "diff --git a/src/add.js b/src/add.js\n--- a/src/add.js\n+++ b/src/add.js\n@@ -1,4 +1,4 @@\n function add(a, b) {\n-  return a - b;\n+  return a + b;\n }\n module.exports = { add };\n";
++const DETECTING_TEST = "const assert = require(\"node:assert/strict\");\nconst test = require(\"node:test\");\nconst { add } = require(\"./add.js\");\ntest(\"adds\", () => {\n  assert.equal(add(2, 3), 5);\n});\n";
++const COMPLACENT_TEST = "const assert = require(\"node:assert/strict\");\nconst test = require(\"node:test\");\ntest(\"adds\", () => {\n  assert.ok(true);\n});\n";
++const TAUTOLOGICAL_TEST = "const assert = require(\"node:assert/strict\");\nconst test = require(\"node:test\");\ntest(\"tautology\", () => {\n  assert.equal(true, true);\n});\n";
++
++function workspaceHarness(strategy, files, diffText) {
++  const tree = computeTreeDigest(files);
++  const candidate = freezeCandidate({
++    repository_id: "k6c-runner-workspace",
++    projection: "workspace",
++    base_tree: tree,
++    candidate_tree: tree,
++    diffText,
++    paths: Object.keys(files),
+   });
+-
+-  const res2 = emitChallengeResult({
+-    planId: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+-    candidateId: SAMPLE_CANDIDATE_ID,
+-    challengeType: "focal-mutation",
+-    outcome: "passed",
+-    nodeId: "repair-focal",
+-    evidenceIds: ["sha256:2222222222222222222222222222222222222222222222222222222222222222"],
+-    details: { defects_detected: 2 },
++  const policySnapshot = createPolicySnapshot({ effectiveRules: ["fail-closed"] });
++  const contract = {
++    schema_version: 1,
++    contract_id: "contract:k6c-runner-ws",
++    family: "repair",
++    version: 1,
++    contract_digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++    source_snapshot_id: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
++    obligations: [],
++  };
++  const paths = Object.keys(files);
++  const executionGraph = compileExecutionGraph({
++    contract,
++    policySnapshot,
++    nodes: [{
++      node_id: "repair-focal",
++      kind: "repair-action/v1",
++      operation: "apply",
++      objective: "repair",
++      dependencies: [],
++      ownership: { owner: "agent:test", mode: "exclusive" },
++      allowed_paths: paths,
++      invariants: [],
++      required_evidence: ["ev:test"],
++      budget_ref: "budget:default",
++    }],
++    obligations: [],
+   });
+-
+-  assert.equal(res1.result_id, res2.result_id);
+-  assert.match(res1.result_id, /^sha256:[a-f0-9]{64}$/);
+-
+-  const val = validateInstance(resultSchema, res1);
+-  assert.equal(val.valid, true, `Result must match schema: ${JSON.stringify(val.errors)}`);
+-});
+-
+-test("REQ-adversarial-challenges-004: executeChallengePlan detects seeded defects and passes", async () => {
++  const sourceSnapshot = {
++    schema_version: 1,
++    kind: "source-snapshot/v1",
++    repository_id: "k6c-runner-workspace",
++    base_tree_digest: tree,
++    projection: "workspace",
++    dependency_digests: [],
++  };
++  sourceSnapshot.source_snapshot_id = computeSourceSnapshotId(sourceSnapshot);
++  const workOrder = {
++    schema_version: 2,
++    kind: "work-order/v2",
++    source_snapshot_id: sourceSnapshot.source_snapshot_id,
++    node_id: "repair-focal",
++    role: "test",
++    status: "pending",
++    operation: "apply",
++    objective: "execute challenge",
++    dependencies: [],
++    ownership: { owner: "agent:test", mode: "exclusive" },
++    allowed_paths: paths,
++    capsule_inputs: paths,
++    invariants: ["invariant"],
++    required_evidence: ["ev:test"],
++    budget: { model_turns: 0, patches: 0, commands: 4, wall_time_minutes: 2, changed_lines: 8 },
++  };
++  workOrder.work_order_id = computeWorkOrderId(workOrder);
+   const plan = createChallengePlan({
+-    candidateId: SAMPLE_CANDIDATE_ID,
+-    policySnapshotId: SAMPLE_POLICY_ID,
+-    evidenceStrategy: "feature",
+-  }); // selected: ["independent-acceptance", "focal-mutation"]
+-
+-  const context = {
+-    sourceCode: "function add(a, b) {\n  return a + b;\n}",
+-    targetLines: [2],
+-    // Test runner returns failed (exitCode 1) when mutated code has defect -> defect caught
+-    runTests: async (code) => {
+-      if (code.includes("-")) {
+-        return { pass: false, exitCode: 1 }; // Defect detected!
+-      }
+-      return { pass: true, exitCode: 0 };
++    candidateId: candidate.candidate_id,
++    nodeId: "repair-focal",
++    policySnapshotId: policySnapshot.snapshot_id,
++    evidenceStrategy: strategy,
++    budgetOverrides: { timeout_seconds: 30 },
++  });
++  const executor = {
++    capabilities: {
++      isolation: "enforced",
++      cancellation: "enforced",
++      challenge_types: Object.fromEntries(plan.selected.map((type) => [type, "enforced"])),
+     },
+-    runAcceptance: async () => ({ pass: true, outcome: "passed" }),
++    executeChallenge: async () => ({ pass: true }),
+   };
++  return {
++    candidate,
++    policySnapshot,
++    executionGraph,
++    plan,
++    repository: { files },
++    candidateDiff: diffText,
++    sourceSnapshot,
++    workOrder,
++    nodeId: "repair-focal",
++    evidenceStrategy: strategy,
++    executor,
++    sourceCode: "caller source must not be mutated",
++    testSourceCode: "caller tests must not be inspected",
++    runTests: async () => {
++      throw new Error("caller runTests callback must not execute");
++    },
++  };
++}
++
++test("REQ-adversarial-challenges-004: focal mutation seeds a defect in workspace bytes and passes", async () => {
++  const h = workspaceHarness("feature", {
++    "src/add.js": ADD_SOURCE,
++    "src/add.test.js": DETECTING_TEST,
++  }, ADD_DIFF);
++  const result = await executeChallengePlan(h.plan, h);
++  assert.equal(result.ok, true, result.causalFailure && result.causalFailure.error);
++  const focal = result.results.find((item) => item.challenge_type === "focal-mutation");
++  assert.equal(focal.outcome, "passed");
++  assert.equal(focal.candidate_id, h.candidate.candidate_id);
++  assert.equal(focal.plan_id, h.plan.plan_id);
++  assert.ok(focal.details.defects_detected >= 1);
++});
+ 
+-  const outcome = await executeChallengePlan(plan, context);
+-  assert.equal(outcome.ok, true);
+-  assert.equal(outcome.results.length, 2);
+-
+-  const focalRes = outcome.results.find((r) => r.challenge_type === "focal-mutation");
+-  assert.ok(focalRes);
+-  assert.equal(focalRes.outcome, "passed");
+-
+-  for (const res of outcome.results) {
+-    const val = validateInstance(resultSchema, res);
+-    assert.equal(val.valid, true);
+-  }
++test("REQ-adversarial-challenges-004: complacent suite on seeded workspace defect fails the challenge", async () => {
++  const h = workspaceHarness("feature", {
++    "src/add.js": ADD_SOURCE,
++    "src/add.test.js": COMPLACENT_TEST,
++  }, ADD_DIFF);
++  const result = await executeChallengePlan(h.plan, h);
++  assert.equal(result.ok, true, result.causalFailure && result.causalFailure.error);
++  const focal = result.results.find((item) => item.challenge_type === "focal-mutation");
++  assert.equal(focal.outcome, "failed");
++  assert.equal(focal.details.reason, "COMPLACENT_TEST_DETECTED");
+ });
+ 
+-test("REQ-adversarial-challenges-004: executeChallengePlan flags complacent test suite", async () => {
+-  const plan = createChallengePlan({
+-    candidateId: SAMPLE_CANDIDATE_ID,
+-    policySnapshotId: SAMPLE_POLICY_ID,
+-    evidenceStrategy: "feature",
+-  });
++test("REQ-adversarial-challenges-004: test-inspection via isolated runner rejects tautological workspace tests", async () => {
++  const h = workspaceHarness("config-docs", {
++    "src/add.js": ADD_SOURCE,
++    "src/add.test.js": TAUTOLOGICAL_TEST,
++  }, ADD_DIFF);
++  const result = await executeChallengePlan(h.plan, h);
++  assert.equal(result.ok, true, result.causalFailure && result.causalFailure.error);
++  const inspection = result.results.find((item) => item.challenge_type === "test-inspection");
++  assert.equal(inspection.outcome, "failed");
++  assert.equal(inspection.details.reason, "TAUTOLOGICAL_TEST_DETECTED");
++});
+ 
+-  const context = {
+-    sourceCode: "function add(a, b) {\n  return a + b;\n}",
+-    targetLines: [2],
+-    // Complacent test suite: always passes even on mutated code
+-    runTests: async () => ({ pass: true, exitCode: 0 }),
+-    runAcceptance: async () => ({ pass: true, outcome: "passed" }),
++test("REQ-adversarial-challenges-004: non-cooperative executor times out and cannot emit pass", async () => {
++  const h = harness("migration");
++  let workspaceRoot;
++  h.executor.executeChallenge = async ({ workspace }) => {
++    workspaceRoot = workspace.root_path;
++    return new Promise(() => {});
+   };
+-
+-  const outcome = await executeChallengePlan(plan, context);
+-  assert.equal(outcome.ok, true);
+-
+-  const focalRes = outcome.results.find((r) => r.challenge_type === "focal-mutation");
+-  assert.ok(focalRes);
+-  assert.equal(focalRes.outcome, "failed");
+-  assert.equal(focalRes.details.reason, "COMPLACENT_TEST_DETECTED");
++  const result = await executeChallengePlan(h.plan, h);
++  assert.equal(result.ok, false);
++  assert.equal(result.causalFailure.code, "CHALLENGE_TIMEOUT");
++  assert.equal(result.results[0].outcome, "error");
++  assert.equal(result.results[0].details.reason, "CHALLENGE_TIMEOUT");
++  assert.equal(fs.existsSync(workspaceRoot), false, "workspace is disposed after timeout");
+ });
+ 
+-test("REQ-adversarial-challenges-004: executeChallengePlan detects tautological test assertions", async () => {
+-  const plan = createChallengePlan({
+-    candidateId: SAMPLE_CANDIDATE_ID,
+-    policySnapshotId: SAMPLE_POLICY_ID,
+-    evidenceStrategy: "config-docs",
+-  }); // selected: ["structural-validation", "test-inspection"]
+-
+-  const context = {
+-    testSourceCode: "test('tautological', () => { assert.equal(true, true); });",
+-    validateStructure: async () => ({ pass: true }),
++test("REQ-adversarial-challenges-004: Candidate tree mutation after a run invalidates the plan", async () => {
++  const h = harness("migration");
++  h.executor.executeChallenge = async () => {
++    h.repository.files["src/index.js"] = "tampered";
++    return { pass: true };
+   };
+-
+-  const outcome = await executeChallengePlan(plan, context);
+-  assert.equal(outcome.ok, true);
+-
+-  const inspectionRes = outcome.results.find((r) => r.challenge_type === "test-inspection");
+-  assert.ok(inspectionRes);
+-  assert.equal(inspectionRes.outcome, "failed");
+-  assert.equal(inspectionRes.details.reason, "TAUTOLOGICAL_TEST_DETECTED");
++  const result = await executeChallengePlan(h.plan, h);
++  assert.equal(result.ok, false);
++  assert.equal(result.causalFailure.code, "CHALLENGE_INTEGRITY_INVALID");
+ });
+ 
+-test("REQ-adversarial-challenges-003: executeChallengePlan halts on budget exhaustion", async () => {
+-  const plan = createChallengePlan({
+-    candidateId: SAMPLE_CANDIDATE_ID,
+-    policySnapshotId: SAMPLE_POLICY_ID,
+-    evidenceStrategy: "feature",
+-    budgetOverrides: {
+-      max_challenges: 1, // Only 1 allowed, but plan has 2 selected
+-    },
+-  });
+-
+-  const context = {
+-    runAcceptance: async () => ({ pass: true }),
+-    runTests: async () => ({ pass: false }),
+-    sourceCode: "return a + b;",
++test("REQ-adversarial-challenges-004: Candidate identity mutation after a run fails closed with unchanged repo bytes", async () => {
++  const h = harness("migration");
++  h.executor.executeChallenge = async () => {
++    h.candidate.candidate_id = "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
++    return { pass: true };
+   };
+-
+-  const outcome = await executeChallengePlan(plan, context);
+-  assert.equal(outcome.ok, false);
+-  assert.ok(outcome.causalFailure);
+-  assert.equal(outcome.causalFailure.code, "CHALLENGE_BUDGET_EXHAUSTED");
+-  assert.equal(outcome.causalFailure.category, "validation_gap");
+-  assert.equal(outcome.causalFailure.details.exhausted_dimension, "max_challenges");
++  const result = await executeChallengePlan(h.plan, h);
++  assert.equal(result.ok, false);
++  assert.equal(result.causalFailure.code, "CHALLENGE_INTEGRITY_INVALID");
++  assert.equal(h.repository.files["src/index.js"], FILES["src/index.js"]);
+ });
+diff --git a/scripts/lib/assurance-graph/index.js b/scripts/lib/assurance-graph/index.js
+index 0813633..450d22c 100644
+--- a/scripts/lib/assurance-graph/index.js
++++ b/scripts/lib/assurance-graph/index.js
+@@ -12,6 +12,7 @@ const {
+ } = require("../independent-verifier/evidence.js");
+ const { validateInstance, loadSchemaById } = require("../kernel-schema-validator.js");
+ const { readRunnerReceiptChannel } = require("../independent-verifier/runner-receipt.js");
++const { validateChallengeResultSet } = require("../adversarial-challenges/integrity.js");
+ 
+ const DEFAULT_SCHEMA_ROOT = path.resolve(__dirname, "../../..");
+ const EVIDENCE_V2_ID = "ospec://schemas/kernel/evidence/v2";
+@@ -128,6 +129,15 @@ function validateReplayRecords(persistable) {
+     return fail("GRAPH_DIVERGENCE", "persistable graph, candidate, nodes, and obligations are required for replay");
+   }
+ 
++  const challengePlan = persistable.challengePlan || persistable.challenge_plan;
++  const challengeResults = Array.isArray(persistable.challengeResults) ? persistable.challengeResults : (Array.isArray(persistable.challenge_results) ? persistable.challenge_results : []);
++  if (persistable.requireChallengeVerification || persistable.require_challenge_verification || challengePlan || challengeResults.length) {
++    const challengeGate = validateChallengeResultSet(challengePlan, challengeResults, { candidate, executionGraph: graph, policySnapshot: persistable.policySnapshot });
++    if (!challengeGate.ok || challengeResults.some((result) => result.outcome !== "passed")) {
++      return fail("GRAPH_DIVERGENCE", (challengeGate && challengeGate.error) || "persisted K6c challenge records diverge");
++    }
++  }
++
+   const receiptGate = readRunnerReceiptChannel(persistable.runnerReceiptChannel);
+   if (!receiptGate.ok) {
+     return fail("GRAPH_DIVERGENCE", "replay requires trusted runner receipt authority");
+@@ -290,6 +300,10 @@ function replayAssuranceGraph(persistable = {}) {
+     evidence: persistable.evidence,
+     assessments: persistable.assessments,
+     verification: persistable.verification,
++    challengePlan: persistable.challengePlan || persistable.challenge_plan,
++    challengeResults: persistable.challengeResults || persistable.challenge_results,
++    requireChallengeVerification: persistable.requireChallengeVerification || persistable.require_challenge_verification,
++    policySnapshot: persistable.policySnapshot,
+   });
+ }
+ 
+diff --git a/scripts/lib/assurance-graph/index.test.js b/scripts/lib/assurance-graph/index.test.js
+index 8cd40dd..c522d46 100644
+--- a/scripts/lib/assurance-graph/index.test.js
++++ b/scripts/lib/assurance-graph/index.test.js
+@@ -16,11 +16,13 @@ const {
+   rejectAuthorityMisuse,
+   isEvidenceTransitivelyInvalidated,
+ } = require("./index.js");
+-const { verifyCandidate } = require("../independent-verifier/index.js");
++const { verifyCandidate, verifyCandidateWithChallenges } = require("../independent-verifier/index.js");
+ const { computeAssessmentId } = require("../independent-verifier/assessment.js");
+ const { createTestRunnerReceiptChannel, createTestRunnerReceiptChannelFromReceipts } = require("../test-support/k6b-runner-receipt.js");
+ const { readRunnerReceiptChannel } = require("../independent-verifier/runner-receipt.js");
+ const { canonicalize, computeGraphId } = require("./projector.js");
++const { createChallengePlan } = require("../adversarial-challenges/planner.js");
++const { emitChallengeResult } = require("../adversarial-challenges/runner.js");
+ 
+ const SAMPLE_NODES = [
+   {
+@@ -158,6 +160,85 @@ function withStoredGraphId(stored) {
+   };
+ }
+ 
++test("REQ-assurance-graph-009: K6c plan and exact results are deterministic graph material and duplicates diverge", () => {
++  const files = { "src/index.js": "module.exports = 1;\n" };
++  const candidate = freezeFromFiles(files);
++  const executionGraph = compileGraph();
++  const plan = createChallengePlan({ candidateId: candidate.candidate_id, nodeId: "repair-core", policySnapshotId: executionGraph.policy_snapshot_id, evidenceStrategy: "feature" });
++  const results = plan.selected.map((challengeType) => emitChallengeResult({ planId: plan.plan_id, candidateId: candidate.candidate_id, nodeId: plan.node_id, policySnapshotId: plan.policy_snapshot_id, evidenceStrategy: plan.evidence_strategy, challengeType, outcome: "passed" }));
++  const input = { candidate, executionGraph, challengePlan: plan, challengeResults: results, requireChallengeVerification: true, verification: { verification_id: "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", evidence_ids: [] } };
++  const first = projectAssuranceGraph(input);
++  const second = projectAssuranceGraph({ ...input, challengeResults: [...results].reverse() });
++  assert.equal(first.ok, true, first.error || first.reason_code);
++  assert.equal(second.ok, true, second.error || second.reason_code);
++  assert.equal(first.graph.graph_id, second.graph.graph_id);
++  assert.equal(first.graph.nodes.some((node) => node.kind === "challenge-plan"), true);
++  assert.equal(projectAssuranceGraph({ ...input, challengeResults: [results[0], results[0]] }).reason_code, "GRAPH_DIVERGENCE");
++  assert.equal(projectAssuranceGraph({ ...input, challengePlan: null }).reason_code, "GRAPH_DIVERGENCE");
++});
++
++test("REQ-assurance-graph-009: verifier-emitted K6c material projects and replays with byte-identical graph_id", () => {
++  const files = { "src/index.js": "module.exports = 1;\n" };
++  const candidate = freezeFromFiles(files);
++  const executionGraph = compileGraph();
++  const plan = createChallengePlan({
++    candidateId: candidate.candidate_id,
++    nodeId: "repair-core",
++    policySnapshotId: executionGraph.policy_snapshot_id,
++    evidenceStrategy: "feature",
++  });
++  const results = plan.selected.map((challengeType) => emitChallengeResult({
++    planId: plan.plan_id,
++    candidateId: candidate.candidate_id,
++    nodeId: plan.node_id,
++    policySnapshotId: plan.policy_snapshot_id,
++    evidenceStrategy: plan.evidence_strategy,
++    challengeType,
++    outcome: "passed",
++  }));
++  const rawEvidence = featureRaw();
++  const receiptSpecs = featureReceipts();
++  const runnerReceiptChannel = createTestRunnerReceiptChannel({
++    candidate,
++    executionGraph,
++    collector: HARNESS_COLLECTOR,
++    rawEvidence,
++    receiptSpecs,
++  });
++  const verified = verifyCandidateWithChallenges({
++    candidate,
++    executionGraph,
++    contract: { contract_digest: executionGraph.contract_digest },
++    repository: { files },
++    declaredStrategy: "feature",
++    collector: HARNESS_COLLECTOR,
++    rawEvidence,
++    runnerReceiptChannel,
++    challengePlan: plan,
++    challengeResults: results,
++  });
++  assert.equal(verified.ok, true, verified.error || verified.reason_code);
++  assert.equal(verified.challenge_verification.status, "accepted");
++  assert.equal(verified.assurance_graph.nodes.some((node) => node.kind === "challenge-plan"), true);
++  assert.equal(verified.assurance_graph.nodes.some((node) => node.kind === "challenge-result"), true);
++
++  const persistable = replayBundle(
++    { candidate, executionGraph, verified, runnerReceiptChannel },
++    {
++      challengePlan: verified.challengePlan,
++      challengeResults: verified.challengeResults,
++      requireChallengeVerification: true,
++    }
++  );
++  const replayed = replayAssuranceGraph(persistable);
++  assert.equal(replayed.ok, true, replayed.error || replayed.reason_code);
++  assert.equal(replayed.graph.graph_id, verified.assurance_graph.graph_id);
++  assert.deepEqual(
++    replayed.graph.nodes.filter((node) => node.kind === "challenge-plan" || node.kind === "challenge-result"),
++    verified.assurance_graph.nodes.filter((node) => node.kind === "challenge-plan" || node.kind === "challenge-result")
++  );
++});
++
+ test("REQ-assurance-graph-002: same inputs yield the same digest and edges despite permutation", () => {
+   const { candidate, executionGraph, verified } = verifiedProjection();
+   const classified = verified.evidence.map((evidence, index) => ({
+diff --git a/scripts/lib/assurance-graph/projector.js b/scripts/lib/assurance-graph/projector.js
+index 79b564a..d725ab8 100644
+--- a/scripts/lib/assurance-graph/projector.js
++++ b/scripts/lib/assurance-graph/projector.js
+@@ -1,6 +1,7 @@
+ "use strict";
+ 
+ const { sha256Fingerprint } = require("../canonical-json.js");
++const { validateChallengeResultSet } = require("../adversarial-challenges/integrity.js");
+ 
+ const ALLOWED_RELATIONS = Object.freeze(["verified-by", "satisfies", "derived-from", "invalidates"]);
+ const ALLOWED_NODE_KINDS = Object.freeze([
+@@ -11,6 +12,8 @@ const ALLOWED_NODE_KINDS = Object.freeze([
+   "candidate",
+   "test-evidence",
+   "verification-decision",
++  "challenge-plan",
++  "challenge-result",
+ ]);
+ const FORBIDDEN_KINDS = Object.freeze([
+   "finding",
+@@ -189,6 +192,22 @@ function projectAssuranceGraph(input = {}) {
+     }
+   }
+ 
++  const challengePlan = input.challengePlan || input.challenge_plan;
++  const challengeResults = Array.isArray(input.challengeResults) ? input.challengeResults : (Array.isArray(input.challenge_results) ? input.challenge_results : []);
++  const challengesRequired = Boolean(input.requireChallengeVerification || input.require_challenge_verification);
++  if (challengesRequired && !challengePlan) return fail("GRAPH_DIVERGENCE", "mandatory K6c challenge plan is absent");
++  if (challengePlan || challengeResults.length > 0) {
++    const gate = validateChallengeResultSet(challengePlan, challengeResults, { candidate, executionGraph: graph, policySnapshot: input.policySnapshot });
++    if (!gate.ok || challengeResults.some((result) => result.outcome !== "passed")) return fail("GRAPH_DIVERGENCE", (gate && gate.error) || "K6c challenge material is not accepted");
++    pushNode(nodes, challengePlan.plan_id, "challenge-plan");
++    pushEdge(edges, challengePlan.plan_id, "derived-from", candidateId);
++    for (const result of challengeResults) {
++      pushNode(nodes, result.result_id, "challenge-result");
++      pushEdge(edges, result.result_id, "derived-from", challengePlan.plan_id);
++      if (input.verification && input.verification.verification_id) pushEdge(edges, input.verification.verification_id, "verified-by", result.result_id);
++    }
++  }
++
+   const evidenceItems = Array.isArray(input.evidence) ? input.evidence : [];
+   for (const item of evidenceItems) {
+     const record = item && item.evidence ? item.evidence : item;
+diff --git a/scripts/lib/independent-verifier/challenge-evidence.js b/scripts/lib/independent-verifier/challenge-evidence.js
+new file mode 100644
+index 0000000..347067f
+--- /dev/null
++++ b/scripts/lib/independent-verifier/challenge-evidence.js
+@@ -0,0 +1,27 @@
++"use strict";
++
++const { validateChallengeResultSet } = require("../adversarial-challenges/integrity.js");
++
++function fail(reason_code, error) { return { ok: false, reason_code, error: error || reason_code }; }
++
++function evaluateChallengeEvidence(input, bindings, { required = false } = {}) {
++  const plan = input.challengePlan || input.challenge_plan;
++  const results = Array.isArray(input.challengeResults) ? input.challengeResults : (Array.isArray(input.challenge_results) ? input.challenge_results : []);
++  if (!required && !plan && results.length === 0) return { ok: true, status: "not-required", replay_challenges: null };
++  if (!plan) return fail("CHALLENGE_INTEGRITY_INVALID", "required K6c verification has no canonical challenge plan");
++  const gate = validateChallengeResultSet(plan, results, { candidate: bindings.candidate, executionGraph: bindings.executionGraph, policySnapshot: input.policySnapshot });
++  if (!gate.ok) return fail("CHALLENGE_INTEGRITY_INVALID", gate.error);
++  if (results.some((result) => result.outcome !== "passed")) return fail("CHALLENGE_VERIFICATION_FAILED", "one or more canonical challenges did not pass");
++  const replay = { plan, results: [...results].sort((left, right) => left.challenge_type.localeCompare(right.challenge_type)) };
++  if (!required) {
++    return { ok: true, status: "optional", replay_challenges: replay };
++  }
++  return {
++    ok: true,
++    status: "accepted",
++    challenge_verification: { status: "accepted", plan_id: plan.plan_id, result_ids: results.map((result) => result.result_id).sort() },
++    replay_challenges: replay,
++  };
++}
++
++module.exports = { evaluateChallengeEvidence };
+diff --git a/scripts/lib/independent-verifier/index.js b/scripts/lib/independent-verifier/index.js
+index d3c41cd..7295d5b 100644
+--- a/scripts/lib/independent-verifier/index.js
++++ b/scripts/lib/independent-verifier/index.js
+@@ -8,6 +8,7 @@ const { emitVerification } = require("./verdict.js");
+ const { walkMustObligations } = require("./obligation-coverage.js");
+ const { readRunnerReceiptChannel } = require("./runner-receipt.js");
+ const assuranceGraph = require("../assurance-graph/index.js");
++const { evaluateChallengeEvidence } = require("./challenge-evidence.js");
+ 
+ function fail(reason_code, error) {
+   return { ok: false, reason_code, error: error || reason_code };
+@@ -78,41 +79,7 @@ function evaluateChallenges(input, bound) {
+     return fail("CHALLENGE_BUDGET_EXHAUSTED", "challenge budget was exhausted during execution");
+   }
+ 
+-  const plan = input.challengePlan || input.challenge_plan;
+-  if (!plan) return { ok: true };
+-
+-  if (plan.candidate_id !== bound.candidate.candidate_id) {
+-    return fail("BINDING_MISMATCH", "challenge plan candidate_id does not match bound candidate");
+-  }
+-
+-  const results = Array.isArray(input.challengeResults)
+-    ? input.challengeResults
+-    : (Array.isArray(input.challenge_results) ? input.challenge_results : []);
+-
+-  const resultsMap = new Map();
+-  for (const res of results) {
+-    if (res && res.challenge_type) {
+-      resultsMap.set(res.challenge_type, res);
+-    }
+-  }
+-
+-  for (const selectedType of plan.selected || []) {
+-    const res = resultsMap.get(selectedType);
+-    if (!res) {
+-      return fail(
+-        "CHALLENGE_VERIFICATION_FAILED",
+-        `missing result for selected challenge ${selectedType}`
+-      );
+-    }
+-    if (res.outcome !== "passed") {
+-      return fail(
+-        "CHALLENGE_VERIFICATION_FAILED",
+-        `challenge ${selectedType} failed with outcome ${res.outcome}`
+-      );
+-    }
+-  }
+-
+-  return { ok: true };
++  return evaluateChallengeEvidence(input, bound, { required: Boolean(input.requireChallengeVerification || input.require_challenge_verification) });
+ }
+ 
+ function getRunnerReceipts(input) {
+@@ -262,6 +229,7 @@ function verifyCandidate(input) {
+     verdict,
+   });
+ 
++  const requiredK6c = Boolean(input.requireChallengeVerification || input.require_challenge_verification);
+   const projected = assuranceGraph.projectAssuranceGraph({
+     canonicalInputs: input.canonicalInputs || {
+       contract: input.contract,
+@@ -272,21 +240,33 @@ function verifyCandidate(input) {
+     evidence: classified,
+     assessments: coverage.assessments,
+     verification,
++    ...(challengeGate.replay_challenges ? {
++      challengePlan: challengeGate.replay_challenges.plan,
++      challengeResults: challengeGate.replay_challenges.results,
++    } : {}),
++    requireChallengeVerification: requiredK6c,
++    policySnapshot: input.policySnapshot,
+   });
+   if (!projected.ok) {
+     return mapProjectionFailure(projected);
+   }
+ 
+-  return {
++  const payload = {
+     ok: true,
+     strategy,
+     evidence: evidenceRecords,
+     replay_evidence: replayEvidence,
+     assessments: coverage.assessments,
+     verification,
++    challengePlan: challengeGate.replay_challenges && challengeGate.replay_challenges.plan,
++    challengeResults: challengeGate.replay_challenges && challengeGate.replay_challenges.results,
+     assurance_graph: projected.graph,
+     equivalence_manifest: assuranceGraph.emitEquivalenceManifest(projected.graph),
+   };
++  if (requiredK6c && challengeGate.challenge_verification) {
++    payload.challenge_verification = challengeGate.challenge_verification;
++  }
++  return payload;
+ }
+ 
+ module.exports = {
+@@ -296,4 +276,7 @@ module.exports = {
+   evaluateStrategy: require("./strategy-policy.js").evaluateStrategy,
+   normalizeEvidence: require("./evidence.js").normalizeEvidence,
+   emitVerification,
++  verifyCandidateWithChallenges(input) {
++    return verifyCandidate({ ...input, requireChallengeVerification: true });
++  },
+ };
+diff --git a/scripts/lib/independent-verifier/index.test.js b/scripts/lib/independent-verifier/index.test.js
+index fe2bd29..1e51bb6 100644
+--- a/scripts/lib/independent-verifier/index.test.js
++++ b/scripts/lib/independent-verifier/index.test.js
+@@ -8,7 +8,7 @@ const test = require("node:test");
+ const { freezeCandidate } = require("../execution-identities/index.js");
+ const { compileExecutionGraph, createPolicySnapshot } = require("../execution-graph/index.js");
+ const { computeTreeDigest } = require("../worker-workspace.js");
+-const { verifyCandidate: verifyCandidateRuntime, selectStrategy } = require("./index.js");
++const { verifyCandidate: verifyCandidateRuntime, verifyCandidateWithChallenges: verifyCandidateWithChallengesRuntime, selectStrategy } = require("./index.js");
+ const { computeEvidenceId, digestRawBytes, normalizeEvidence } = require("./evidence.js");
+ const runnerReceipt = require("./runner-receipt.js");
+ const {
+@@ -164,6 +164,14 @@ function verifyCandidate(input) {
+   return verifyCandidateRuntime(withTrustedRunnerReceipts(input));
+ }
+ 
++function verifyCandidateWithChallenges(input) {
++  return verifyCandidateWithChallengesRuntime(withTrustedRunnerReceipts(input));
++}
++
++function k6dEligible(result) {
++  return Boolean(result && result.ok && result.challenge_verification && result.challenge_verification.status === "accepted");
++}
++
+ function featureEvidence() {
+   return [
+     raw("acceptance: ok", { origin: "role:acceptance" }),
+@@ -1400,6 +1408,7 @@ test("REQ-independent-verification-010: Successful challenge results satisfy com
+ 
+   const challengePlan = createChallengePlan({
+     candidateId: harness.candidate.candidate_id,
++    nodeId: "repair-core",
+     policySnapshotId: harness.executionGraph.policy_snapshot_id,
+     evidenceStrategy: "feature",
+   });
+@@ -1408,6 +1417,8 @@ test("REQ-independent-verification-010: Successful challenge results satisfy com
+     emitChallengeResult({
+       planId: challengePlan.plan_id,
+       candidateId: harness.candidate.candidate_id,
++      policySnapshotId: harness.executionGraph.policy_snapshot_id,
++      evidenceStrategy: "feature",
+       challengeType: type,
+       outcome: "passed",
+       nodeId: "repair-core",
+@@ -1433,6 +1444,7 @@ test("REQ-independent-verification-010: Failed challenge result fails closed wit
+ 
+   const challengePlan = createChallengePlan({
+     candidateId: harness.candidate.candidate_id,
++    nodeId: "repair-core",
+     policySnapshotId: harness.executionGraph.policy_snapshot_id,
+     evidenceStrategy: "feature",
+   });
+@@ -1441,6 +1453,8 @@ test("REQ-independent-verification-010: Failed challenge result fails closed wit
+     emitChallengeResult({
+       planId: challengePlan.plan_id,
+       candidateId: harness.candidate.candidate_id,
++      policySnapshotId: harness.executionGraph.policy_snapshot_id,
++      evidenceStrategy: "feature",
+       challengeType: type,
+       outcome: index === 0 ? "failed" : "passed",
+       nodeId: "repair-core",
+@@ -1467,6 +1481,7 @@ test("REQ-independent-verification-010: Budget exhaustion during challenges fail
+ 
+   const challengePlan = createChallengePlan({
+     candidateId: harness.candidate.candidate_id,
++    nodeId: "repair-core",
+     policySnapshotId: harness.executionGraph.policy_snapshot_id,
+     evidenceStrategy: "feature",
+   });
+@@ -1491,6 +1506,7 @@ test("REQ-independent-verification-010: Challenge results alone cannot grant PAS
+ 
+   const challengePlan = createChallengePlan({
+     candidateId: harness.candidate.candidate_id,
++    nodeId: "repair-core",
+     policySnapshotId: harness.executionGraph.policy_snapshot_id,
+     evidenceStrategy: "feature",
+   });
+@@ -1499,6 +1515,8 @@ test("REQ-independent-verification-010: Challenge results alone cannot grant PAS
+     emitChallengeResult({
+       planId: challengePlan.plan_id,
+       candidateId: harness.candidate.candidate_id,
++      policySnapshotId: harness.executionGraph.policy_snapshot_id,
++      evidenceStrategy: "feature",
+       challengeType: type,
+       outcome: "passed",
+       nodeId: "repair-core",
+@@ -1530,3 +1548,99 @@ test("REQ-independent-verification-010: Challenge results alone cannot grant PAS
+   assert.equal(Object.prototype.hasOwnProperty.call(result, "verification"), false);
+ });
+ 
++test("REQ-independent-verification-010: verifyCandidateWithChallenges accepts exact set and suppresses K6d otherwise", () => {
++  const { createChallengePlan } = require("../adversarial-challenges/planner.js");
++  const { emitChallengeResult } = require("../adversarial-challenges/runner.js");
++  const harness = buildHarness();
++
++  function boundPlan() {
++    return createChallengePlan({
++      candidateId: harness.candidate.candidate_id,
++      nodeId: "repair-core",
++      policySnapshotId: harness.executionGraph.policy_snapshot_id,
++      evidenceStrategy: "feature",
++    });
++  }
++
++  function passedResults(plan) {
++    return plan.selected.map((type) =>
++      emitChallengeResult({
++        planId: plan.plan_id,
++        candidateId: harness.candidate.candidate_id,
++        policySnapshotId: harness.executionGraph.policy_snapshot_id,
++        evidenceStrategy: "feature",
++        challengeType: type,
++        outcome: "passed",
++        nodeId: "repair-core",
++      })
++    );
++  }
++
++  const acceptedPlan = boundPlan();
++  const accepted = verifyCandidateWithChallenges({
++    ...harness,
++    declaredStrategy: "feature",
++    rawEvidence: featureEvidence(),
++    challengePlan: acceptedPlan,
++    challengeResults: passedResults(acceptedPlan),
++  });
++  assert.equal(accepted.ok, true, accepted.error || accepted.reason_code);
++  assert.equal(accepted.challenge_verification.status, "accepted");
++  assert.equal(k6dEligible(accepted), true);
++  assert.equal(accepted.assurance_graph.nodes.some((node) => node.kind === "challenge-plan"), true);
++
++  const legacy = verifyCandidate({
++    ...harness,
++    declaredStrategy: "feature",
++    rawEvidence: featureEvidence(),
++    challengePlan: acceptedPlan,
++    challengeResults: passedResults(acceptedPlan),
++  });
++  assert.equal(legacy.ok, true, legacy.error || legacy.reason_code);
++  assert.notEqual(legacy.challenge_verification && legacy.challenge_verification.status, "accepted");
++  assert.equal(k6dEligible(legacy), false);
++
++  const missing = verifyCandidateWithChallenges({
++    ...harness,
++    declaredStrategy: "feature",
++    rawEvidence: featureEvidence(),
++    challengePlan: boundPlan(),
++    challengeResults: [],
++  });
++  assert.equal(missing.ok, false);
++  assert.equal(missing.reason_code, "CHALLENGE_INTEGRITY_INVALID");
++  assert.equal(k6dEligible(missing), false);
++  assert.equal(Object.prototype.hasOwnProperty.call(missing, "verification"), false);
++
++  const duplicatePlan = boundPlan();
++  const duplicateResults = passedResults(duplicatePlan);
++  const duplicate = verifyCandidateWithChallenges({
++    ...harness,
++    declaredStrategy: "feature",
++    rawEvidence: featureEvidence(),
++    challengePlan: duplicatePlan,
++    challengeResults: [duplicateResults[0], duplicateResults[0]],
++  });
++  assert.equal(duplicate.ok, false);
++  assert.equal(duplicate.reason_code, "CHALLENGE_INTEGRITY_INVALID");
++  assert.equal(k6dEligible(duplicate), false);
++
++  const foreignPlan = boundPlan();
++  const foreignResults = passedResults(foreignPlan);
++  const foreign = {
++    ...foreignResults[0],
++    candidate_id: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
++  };
++  foreign.result_id = require("../adversarial-challenges/integrity.js").computeChallengeResultId(foreign);
++  const foreignGate = verifyCandidateWithChallenges({
++    ...harness,
++    declaredStrategy: "feature",
++    rawEvidence: featureEvidence(),
++    challengePlan: foreignPlan,
++    challengeResults: [foreign, foreignResults[1]],
++  });
++  assert.equal(foreignGate.ok, false);
++  assert.equal(foreignGate.reason_code, "CHALLENGE_INTEGRITY_INVALID");
++  assert.equal(k6dEligible(foreignGate), false);
++});
++
+diff --git a/scripts/lib/k6c-schema-fixtures.test.js b/scripts/lib/k6c-schema-fixtures.test.js
+index 7fe9646..c704f31 100644
+--- a/scripts/lib/k6c-schema-fixtures.test.js
++++ b/scripts/lib/k6c-schema-fixtures.test.js
+@@ -5,6 +5,7 @@ const fs = require("node:fs");
+ const path = require("node:path");
+ const test = require("node:test");
+ const { validateInstance, loadSchemaById } = require("./kernel-schema-validator.js");
++const { validateChallengeResult, validateChallengeResultSet } = require("./adversarial-challenges/integrity.js");
+ const {
+   assertK1SchemasUnchanged,
+   digestFile,
+@@ -46,6 +47,7 @@ test("K6c contract claims: challenge families list required fields and enums", (
+     "kind",
+     "plan_id",
+     "candidate_id",
++    "node_id",
+     "policy_snapshot_id",
+     "evidence_strategy",
+     "selected",
+@@ -69,6 +71,9 @@ test("K6c contract claims: challenge families list required fields and enums", (
+     "result_id",
+     "plan_id",
+     "candidate_id",
++    "node_id",
++    "policy_snapshot_id",
++    "evidence_strategy",
+     "challenge_type",
+     "outcome",
+     "node_id",
+@@ -107,6 +112,9 @@ test("K6c challenge-plan/v1: valid fixtures pass; missing budget and unknown typ
+   const unknownType = readJson("schemas/kernel/challenge-plan/fixtures/invalid/unknown-type.json");
+   const utRes = validateInstance(schema, unknownType);
+   assert.equal(utRes.valid, false, "challenge-plan with unknown challenge type must fail");
++
++  assert.equal(validateInstance(schema, readJson("schemas/kernel/challenge-plan/fixtures/invalid/missing-node-id.json")).valid, false, "challenge-plan missing node binding must fail");
++  assert.equal(validateInstance(schema, readJson("schemas/kernel/challenge-plan/fixtures/invalid/duplicate-selected.json")).valid, false, "challenge-plan duplicate selections must fail");
+ });
+ 
+ test("K6c challenge-result/v1: valid fixtures pass; invalid outcome and invalid type fail closed", () => {
+@@ -123,6 +131,24 @@ test("K6c challenge-result/v1: valid fixtures pass; invalid outcome and invalid
+   const invalidOutcome = readJson("schemas/kernel/challenge-result/fixtures/invalid/invalid-outcome.json");
+   const ioRes = validateInstance(schema, invalidOutcome);
+   assert.equal(ioRes.valid, false, "challenge-result with invalid outcome must fail");
++  assert.equal(validateInstance(schema, readJson("schemas/kernel/challenge-result/fixtures/invalid/missing-policy-snapshot-id.json")).valid, false, "challenge-result missing policy binding must fail");
++});
++
++test("K6c malformed-hash fixtures and cross-bound pair fail closed", () => {
++  const planSchema = loadSchemaById("ospec://schemas/kernel/challenge-plan/v1", { rootDir: ROOT });
++  const resultSchema = loadSchemaById("ospec://schemas/kernel/challenge-result/v1", { rootDir: ROOT });
++
++  const malformedPlan = readJson("schemas/kernel/challenge-plan/fixtures/invalid/malformed-hash.json");
++  const malformedResult = readJson("schemas/kernel/challenge-result/fixtures/invalid/malformed-hash.json");
++  assert.equal(validateInstance(planSchema, malformedPlan).valid, false, "malformed plan_id hash must fail schema validation");
++  assert.equal(validateInstance(resultSchema, malformedResult).valid, false, "malformed result_id hash must fail schema validation");
++
++  const pairPlan = readJson("schemas/kernel/challenge-plan/fixtures/pairs/cross-bound-plan.json");
++  const pairResult = readJson("schemas/kernel/challenge-result/fixtures/pairs/cross-bound-result.json");
++  assert.equal(validateInstance(planSchema, pairPlan).valid, true, `cross-bound plan must be schema-valid: ${JSON.stringify(validateInstance(planSchema, pairPlan).errors)}`);
++  assert.equal(validateInstance(resultSchema, pairResult).valid, true, `cross-bound result must be schema-valid: ${JSON.stringify(validateInstance(resultSchema, pairResult).errors)}`);
++  assert.equal(validateChallengeResult(pairResult, pairPlan).ok, false, "cross-bound result must fail pair integrity");
++  assert.equal(validateChallengeResultSet(pairPlan, [pairResult]).ok, false, "cross-bound pair must fail set integrity");
+ });
+ 
+ test("K6c cross-family substitution fails closed", () => {
+@@ -152,8 +178,6 @@ test("K6c: K1 and K6b schemas and pins remain byte-identical", () => {
+       "sha256:fad66198ac48f47109041e45017e77227268610cddbb929e4dfcc3e0c5ec4910",
+     "schemas/kernel/verification/v2.schema.json":
+       "sha256:441ee351d7c094558818a3af0cfcac8b823818e5562c341d3595f2305cc4396b",
+-    "schemas/kernel/assurance-graph/v1.schema.json":
+-      "sha256:2de36e5119559eec53e5102153ade42c0a7d118138856fabae93366dcc07163a",
+     "schemas/kernel/assessment/v1.schema.json":
+       "sha256:67aef041ff0581ffc553ef10232f4e14e0106359c45dcc1ce29380ef469e1887",
+     "schemas/kernel/assessment/v2.schema.json":
+diff --git a/openspec/changes/k6c-integrity-remediation/verify-report.md b/openspec/changes/k6c-integrity-remediation/verify-report.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6c-integrity-remediation/verify-report.md
+@@ -0,0 +1,113 @@
++## Verification Report
++
++**Change**: k6c-integrity-remediation
++**Version**: 2.56.0
++**Mode**: Standard (focused TDD)
++**Lineage route**: `run-discovery` (no active `verify_lineage`; candidate changed after the previous FAIL)
++
++### Completeness
++| Metric | Value |
++|--------|-------|
++| Tasks total | 30 |
++| Tasks complete | 30 |
++| Tasks incomplete | 0 |
++
++### Build & Tests Execution
++**Build**: ➖ No standalone build command configured; generation and contract checks included in `npm test` passed.
++
++**Focal tests**: ✅ 130 passed / ❌ 0 failed / ⚠️ 0 skipped
++```text
++node --test scripts/lib/adversarial-challenges/*.test.js scripts/lib/k6c-schema-fixtures.test.js scripts/lib/independent-verifier/index.test.js scripts/lib/assurance-graph/index.test.js
++Exit code: 0
++tests 130; pass 130; fail 0; skipped 0
++```
++
++**Full tests**: ✅ 2874 passed / ❌ 0 failed / ⚠️ 2 skipped
++```text
++npm test
++Exit code: 0
++tests 2876; pass 2874; fail 0; skipped 2
++All checks passed.
++```
++
++**Manual verification**: source and assertion-quality inspection performed; no production files were modified during verify.
++
++**Coverage**: ➖ Not available / threshold: 0%
++
++### Spec Compliance Matrix
++| Requirement | Scenario | Evidence Level | Source | Result | Notes |
++|-------------|----------|----------------|--------|--------|-------|
++| REQ-adversarial-challenges-002 | Proportional bugfix plan | `runtime-test` | `planner.test.js` | PASS | Exact selected set and omission reasons asserted. |
++| REQ-adversarial-challenges-002 | Proportional refactor plan | `runtime-test` | `planner.test.js` | PASS | Exact selected set and explicit revert omission asserted. |
++| REQ-adversarial-challenges-002 | Proportional migration plan | `runtime-test` | `planner.test.js` | PASS | Migration-specific selection and omissions asserted. |
++| REQ-adversarial-challenges-002 | Identical inputs are deterministic | `runtime-test` | `planner.test.js` | PASS | Full-object and `plan_id` equality asserted. |
++| REQ-adversarial-challenges-002 | Changed binding cannot reuse identity | `runtime-test` | `planner.test.js` | PASS | Canonically rebound node and policy plans are schema-valid and have three distinct IDs. |
++| REQ-adversarial-challenges-004 | Seeded focal defect makes challenge pass | `runtime-test` | `runner.test.js` | PASS | Real workspace bytes are mutated, sandboxed candidate test fails, and a bound passed result is asserted. |
++| REQ-adversarial-challenges-004 | Complacent suite fails challenge | `runtime-test` | `runner.test.js` | PASS | Workspace suite survives mutation and result is failed with `COMPLACENT_TEST_DETECTED`. |
++| REQ-adversarial-challenges-004 | Tautological assertion is rejected | `runtime-test` | `runner.test.js` | PASS | Isolated runner emits failed result with `TAUTOLOGICAL_TEST_DETECTED`. |
++| REQ-adversarial-challenges-004 | Missing capability or timeout fails closed | `runtime-test` | `runner.test.js` | PASS | Capability rejection, sticky timeout, error result, cancellation path, and disposal asserted. |
++| REQ-adversarial-challenges-004 | Foreign scope or Candidate mutation rejected | `runtime-test` | `diff-scope.test.js`, `runner.test.js` | PASS | Scope widening, repository-byte mutation, and post-run Candidate identity mutation fail closed. |
++| REQ-independent-verification-010 | Complete challenge set permits complementary PASS | `runtime-test` | `independent-verifier/index.test.js` | PASS | Strategy minimums plus exact passed challenge set produce PASS. |
++| REQ-independent-verification-010 | Failed challenge result fails closed | `runtime-test` | `independent-verifier/index.test.js` | PASS | `CHALLENGE_VERIFICATION_FAILED` and no verification asserted. |
++| REQ-independent-verification-010 | Challenges alone cannot grant PASS | `runtime-test` | `independent-verifier/index.test.js` | PASS | Missing strategy evidence remains blocking. |
++| REQ-independent-verification-010 | Missing, duplicate, or foreign set and K6d gate | `runtime-test` | `independent-verifier/index.test.js` | PASS | Required entrypoint emits `accepted` only for exact set; legacy/missing/duplicate/foreign cases are not K6d-eligible. |
++| REQ-assurance-graph-009 | Canonical projection and replay are byte-identical | `runtime-test` | `assurance-graph/index.test.js` | PASS | Verifier-emitted K6c material replays to identical `graph_id` and K6c nodes. |
++| REQ-assurance-graph-009 | Duplicate or foreign record diverges | `runtime-test` | `assurance-graph/index.test.js`, `integrity.test.js` | PASS | Duplicate and foreign exact-set material fail closed. |
++| REQ-assurance-graph-009 | Mandatory plan absence blocks projection | `runtime-test` | `assurance-graph/index.test.js` | PASS | No graph is emitted; `GRAPH_DIVERGENCE` asserted. |
++| REQ-kernel-contract-schemas-029 | Valid challenge-plan passes | `static-proof` | `k6c-schema-fixtures.test.js` | PASS | Executed schema validation accepted the persisted fixture. |
++| REQ-kernel-contract-schemas-029 | Invalid/missing challenge-plan fields fail | `static-proof` | `k6c-schema-fixtures.test.js` | PASS | Missing budget/node, duplicate selection, unknown type, and malformed hash rejected. |
++| REQ-kernel-contract-schemas-029 | Valid challenge-result passes | `static-proof` | `k6c-schema-fixtures.test.js` | PASS | Passed and failed canonical fixtures accepted. |
++| REQ-kernel-contract-schemas-029 | Invalid outcome or binding fails | `static-proof` | `k6c-schema-fixtures.test.js` | PASS | Invalid outcome, missing policy binding, and malformed hash rejected. |
++| REQ-kernel-contract-schemas-029 | Cross-family substitution fails | `static-proof` | `k6c-schema-fixtures.test.js` | PASS | Evidence, verification, plan, and result families reject substitution. |
++| REQ-kernel-contract-schemas-029 | Cross-bound plan/result fixture rejected | `static-proof` | `k6c-schema-fixtures.test.js` | PASS | Both fixtures are schema-valid individually and fail pair/set integrity. |
++| REQ-kernel-contract-schemas-029 | Manifest and claims register families | `static-proof` | `k6c-schema-fixtures.test.js` | PASS | Canonical paths, IDs, versions, required fields, and enums asserted. |
++
++**Compliance summary**: 24/24 MUST scenarios satisfied at acceptable evidence levels.
++
++### Correctness (Static Evidence)
++| Requirement | Status | Notes |
++|------------|--------|-------|
++| REQ-adversarial-challenges-002 | ✅ Implemented | Canonical bindings drive deterministic identities; changed bindings produce distinct rebound IDs. |
++| REQ-adversarial-challenges-004 | ✅ Implemented | Mutations/tests use materialized K6a workspace bytes; deadline, capabilities, scope, disposal, and Candidate identity fail closed. |
++| REQ-independent-verification-010 | ✅ Implemented | Exact-set gate returns accepted status only on required K6c path and preserves strategy/MUST coverage authority. |
++| REQ-assurance-graph-009 | ✅ Implemented | Verifier forwards plan/results under projector contract fields and persisted replay reproduces the graph. |
++| REQ-kernel-contract-schemas-029 | ✅ Implemented | Schemas, registrations, malformed-hash fixtures, cross-bound pair fixtures, and byte pins pass. |
++| Unaffected K1/K6b contracts | ✅ Preserved | Runtime digest pins for K1, evidence/v2, verification/v2, assessments, and runner receipt passed. |
++
++### Coherence (Design)
++| Decision | Followed? | Notes |
++|----------|-----------|-------|
++| Shared canonical K6c validator | ✅ Yes | Planner, result set, verifier, projector, and replay use canonical integrity checks. |
++| Reuse K6a isolation and sticky deadline | ✅ Yes | Each challenge materializes/disposes a workspace and runs candidate tests through the confined executor. |
++| Non-authoritative K6c graph projection and replay | ✅ Yes | Exact canonical records affect graph identity without granting authority; replay revalidates them. |
++| Atomic contract cutover with byte pins | ✅ Yes | Fixture inventory and registrations ship together while frozen K1/K6b bytes remain unchanged. |
++
++### Issues Found
++**CRITICAL**: None.
++
++**WARNING**: None.
++
++**SUGGESTION**: None.
++
++### Traceability Matrix
++| REQ | Tasks | Commits | Tests | Status |
++|-----|-------|---------|-------|--------|
++| REQ-adversarial-challenges-002 | 1.1–1.4, 2.1–2.2, 2.7, 4.1, 5.1, 5.12 | a6d5e97 + working-tree remediation | planner/integrity tests | OK |
++| REQ-adversarial-challenges-004 | 2.3–2.7, 4.1, 5.2–5.5, 5.12 | a6d5e97 + working-tree remediation | diff-scope/runner/mutator tests | OK |
++| REQ-independent-verification-010 | 1.2, 3.1–3.2, 3.5, 4.1, 5.6–5.7, 5.12 | a6d5e97 + working-tree remediation | integrity/verifier tests | OK |
++| REQ-assurance-graph-009 | 3.3–3.5, 4.1–4.2, 5.7–5.9, 5.12 | a6d5e97 + working-tree remediation | assurance-graph/verifier tests | OK |
++| REQ-kernel-contract-schemas-029 | 1.1–1.4, 4.2, 5.10–5.12 | a6d5e97 + working-tree remediation | k6c-schema-fixtures test | OK |
++
++### Assumption Reconciliation
++| id | statement | reversibility | outcome |
++|----|-----------|----------------|---------|
++| sdd-apply-001 | Workspace candidate suites run as sandboxed `node <test-file>` to avoid recursive node:test child-file skipping. | high | unresolved (no escalation) |
++| sdd-apply-002 | Schema-valid cross-bound pair fixtures live under `fixtures/pairs/`. | high | unresolved (no escalation) |
++
++### K6d Gate
++The required K6c runtime path proves `challenge_verification.status === "accepted"` only for the complete exact set, while all non-accepted cases remain ineligible. This terminal verify verdict is PASS, satisfying the verification conjunct; the report itself grants no lifecycle or delivery authority.
++
++### Verdict
++PASS
++
++All 24 MUST scenarios have runtime-test or accepted static-proof evidence, all 30 tasks are complete, and both focal and full suites pass.
+diff --git a/schemas/kernel/challenge-plan/fixtures/invalid/malformed-hash.json b/schemas/kernel/challenge-plan/fixtures/invalid/malformed-hash.json
+new file mode 100644
+--- /dev/null
++++ b/schemas/kernel/challenge-plan/fixtures/invalid/malformed-hash.json
+@@ -0,0 +1,53 @@
++{
++  "schema_version": 1,
++  "kind": "challenge-plan/v1",
++  "plan_id": "sha256:not-a-valid-hex-digest",
++  "candidate_id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
++  "node_id": "repair-focal",
++  "policy_snapshot_id": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
++  "evidence_strategy": "bug",
++  "selected": [
++    "revert",
++    "regression-acceptance"
++  ],
++  "skipped": [
++    {
++      "challenge_type": "focal-mutation",
++      "reason": "STRATEGY_OMISSION_OUT_OF_SCOPE"
++    },
++    {
++      "challenge_type": "independent-acceptance",
++      "reason": "STRATEGY_OMISSION_OUT_OF_SCOPE"
++    },
++    {
++      "challenge_type": "compatibility-acceptance",
++      "reason": "STRATEGY_OMISSION_NOT_APPLICABLE"
++    },
++    {
++      "challenge_type": "test-inspection",
++      "reason": "STRATEGY_OMISSION_COVERED_BY_REVERT"
++    },
++    {
++      "challenge_type": "structural-validation",
++      "reason": "STRATEGY_OMISSION_NOT_APPLICABLE"
++    },
++    {
++      "challenge_type": "behavior-equivalence",
++      "reason": "STRATEGY_OMISSION_NOT_APPLICABLE"
++    },
++    {
++      "challenge_type": "rollback",
++      "reason": "STRATEGY_OMISSION_NOT_APPLICABLE"
++    }
++  ],
++  "reasons": [
++    "STRATEGY_BUG_SELECTED",
++    "STRATEGY_OMISSION_OUT_OF_SCOPE",
++    "STRATEGY_OMISSION_NOT_APPLICABLE"
++  ],
++  "budget": {
++    "max_challenges": 2,
++    "mutation_budget": 5,
++    "timeout_seconds": 60
++  }
++}
+diff --git a/schemas/kernel/challenge-plan/fixtures/pairs/cross-bound-plan.json b/schemas/kernel/challenge-plan/fixtures/pairs/cross-bound-plan.json
+new file mode 100644
+--- /dev/null
++++ b/schemas/kernel/challenge-plan/fixtures/pairs/cross-bound-plan.json
+@@ -0,0 +1,58 @@
++{
++  "schema_version": 1,
++  "kind": "challenge-plan/v1",
++  "candidate_id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
++  "node_id": "repair-focal",
++  "policy_snapshot_id": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
++  "evidence_strategy": "bug",
++  "selected": [
++    "revert",
++    "regression-acceptance"
++  ],
++  "skipped": [
++    {
++      "challenge_type": "focal-mutation",
++      "reason": "STRATEGY_OMISSION_OUT_OF_SCOPE"
++    },
++    {
++      "challenge_type": "independent-acceptance",
++      "reason": "STRATEGY_OMISSION_OUT_OF_SCOPE"
++    },
++    {
++      "challenge_type": "compatibility-acceptance",
++      "reason": "STRATEGY_OMISSION_NOT_APPLICABLE"
++    },
++    {
++      "challenge_type": "test-inspection",
++      "reason": "STRATEGY_OMISSION_COVERED_BY_REVERT"
++    },
++    {
++      "challenge_type": "structural-validation",
++      "reason": "STRATEGY_OMISSION_NOT_APPLICABLE"
++    },
++    {
++      "challenge_type": "behavior-equivalence",
++      "reason": "STRATEGY_OMISSION_NOT_APPLICABLE"
++    },
++    {
++      "challenge_type": "rollback",
++      "reason": "STRATEGY_OMISSION_NOT_APPLICABLE"
++    }
++  ],
++  "reasons": [
++    "STRATEGY_BUG_SELECTED",
++    "STRATEGY_OMISSION_OUT_OF_SCOPE",
++    "STRATEGY_OMISSION_OUT_OF_SCOPE",
++    "STRATEGY_OMISSION_NOT_APPLICABLE",
++    "STRATEGY_OMISSION_COVERED_BY_REVERT",
++    "STRATEGY_OMISSION_NOT_APPLICABLE",
++    "STRATEGY_OMISSION_NOT_APPLICABLE",
++    "STRATEGY_OMISSION_NOT_APPLICABLE"
++  ],
++  "budget": {
++    "max_challenges": 3,
++    "mutation_budget": 10,
++    "timeout_seconds": 60
++  },
++  "plan_id": "sha256:be42397cb08d00497a84c19bb6f164767b477b1a68e6624bdafcb9df26eb240f"
++}
+diff --git a/schemas/kernel/challenge-result/fixtures/invalid/malformed-hash.json b/schemas/kernel/challenge-result/fixtures/invalid/malformed-hash.json
+new file mode 100644
+--- /dev/null
++++ b/schemas/kernel/challenge-result/fixtures/invalid/malformed-hash.json
+@@ -0,0 +1,18 @@
++{
++  "schema_version": 1,
++  "kind": "challenge-result/v1",
++  "result_id": "sha256:not-a-valid-hex-digest",
++  "plan_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
++  "candidate_id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
++  "policy_snapshot_id": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
++  "evidence_strategy": "bug",
++  "challenge_type": "focal-mutation",
++  "outcome": "passed",
++  "node_id": "repair-focal",
++  "evidence_ids": [
++    "sha256:5555555555555555555555555555555555555555555555555555555555555555"
++  ],
++  "details": {
++    "mutations_tested": 1
++  }
++}
+diff --git a/schemas/kernel/challenge-result/fixtures/pairs/cross-bound-result.json b/schemas/kernel/challenge-result/fixtures/pairs/cross-bound-result.json
+new file mode 100644
+--- /dev/null
++++ b/schemas/kernel/challenge-result/fixtures/pairs/cross-bound-result.json
+@@ -0,0 +1,14 @@
++{
++  "schema_version": 1,
++  "kind": "challenge-result/v1",
++  "plan_id": "sha256:be42397cb08d00497a84c19bb6f164767b477b1a68e6624bdafcb9df26eb240f",
++  "candidate_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++  "node_id": "repair-focal",
++  "policy_snapshot_id": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
++  "evidence_strategy": "bug",
++  "challenge_type": "revert",
++  "outcome": "passed",
++  "evidence_ids": [],
++  "details": {},
++  "result_id": "sha256:aa51a1d64f8a615cd4da1ec56a5e93b0c6d80051c149f7a35f44a5a0da16f5eb"
++}

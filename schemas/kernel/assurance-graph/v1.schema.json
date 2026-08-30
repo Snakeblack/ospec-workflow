@@ -70,7 +70,9 @@
             "source",
             "candidate",
             "test-evidence",
-            "verification-decision"
+            "verification-decision",
+            "challenge-plan",
+            "challenge-result"
           ]
         }
       },

@@ -1,0 +1,229 @@
+{
+  "schema_version": 1,
+  "classification": "high-risk",
+  "evidence": {
+    "schema_version": 1,
+    "fingerprint": "sha256:6d0b94a01cb9f1be2c5b35ff5c3b6292bcda107bb10d8b9a847f877a1d70d8a3",
+    "sources": {
+      "paths": [
+        "openspec/changes/k6c-integrity-remediation/apply-progress.md",
+        "openspec/changes/k6c-integrity-remediation/decisions/adr-001.md",
+        "openspec/changes/k6c-integrity-remediation/decisions/adr-002.md",
+        "openspec/changes/k6c-integrity-remediation/decisions/adr-003.md",
+        "openspec/changes/k6c-integrity-remediation/design.md",
+        "openspec/changes/k6c-integrity-remediation/proposal.md",
+        "openspec/changes/k6c-integrity-remediation/specs/adversarial-challenges/spec.md",
+        "openspec/changes/k6c-integrity-remediation/specs/assurance-graph/spec.md",
+        "openspec/changes/k6c-integrity-remediation/specs/independent-verification/spec.md",
+        "openspec/changes/k6c-integrity-remediation/specs/kernel-contract-schemas/spec.md",
+        "openspec/changes/k6c-integrity-remediation/state.yaml",
+        "openspec/changes/k6c-integrity-remediation/tasks.md",
+        "openspec/changes/k6c-integrity-remediation/verify-report.md",
+        "schemas/kernel/assurance-graph/v1.schema.json",
+        "schemas/kernel/challenge-plan/fixtures/invalid/duplicate-selected.json",
+        "schemas/kernel/challenge-plan/fixtures/invalid/malformed-hash.json",
+        "schemas/kernel/challenge-plan/fixtures/invalid/missing-budget.json",
+        "schemas/kernel/challenge-plan/fixtures/invalid/missing-node-id.json",
+        "schemas/kernel/challenge-plan/fixtures/pairs/cross-bound-plan.json",
+        "schemas/kernel/challenge-plan/fixtures/valid/basic-plan.json",
+        "schemas/kernel/challenge-plan/v1.schema.json",
+        "schemas/kernel/challenge-result/fixtures/invalid/malformed-hash.json",
+        "schemas/kernel/challenge-result/fixtures/invalid/missing-policy-snapshot-id.json",
+        "schemas/kernel/challenge-result/fixtures/pairs/cross-bound-result.json",
+        "schemas/kernel/challenge-result/fixtures/valid/failed-result.json",
+        "schemas/kernel/challenge-result/fixtures/valid/passed-result.json",
+        "schemas/kernel/challenge-result/v1.schema.json",
+        "schemas/kernel/contract-claims.json",
+        "scripts/lib/adversarial-challenges/diff-scope.js",
+        "scripts/lib/adversarial-challenges/diff-scope.test.js",
+        "scripts/lib/adversarial-challenges/index.js",
+        "scripts/lib/adversarial-challenges/integrity.js",
+        "scripts/lib/adversarial-challenges/integrity.test.js",
+        "scripts/lib/adversarial-challenges/planner.js",
+        "scripts/lib/adversarial-challenges/planner.test.js",
+        "scripts/lib/adversarial-challenges/runner.js",
+        "scripts/lib/adversarial-challenges/runner.test.js",
+        "scripts/lib/assurance-graph/index.js",
+        "scripts/lib/assurance-graph/index.test.js",
+        "scripts/lib/assurance-graph/projector.js",
+        "scripts/lib/independent-verifier/challenge-evidence.js",
+        "scripts/lib/independent-verifier/index.js",
+        "scripts/lib/independent-verifier/index.test.js",
+        "scripts/lib/k6c-schema-fixtures.test.js"
+      ],
+      "capabilities": [
+        "runtime"
+      ],
+      "operation_types": [
+        "add",
+        "modify"
+      ],
+      "dependencies": [],
+      "facts": [
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "fail-closed isolation timeout and candidate digest"
+        },
+        {
+          "code": "metadata-runtime",
+          "source": "metadata",
+          "detail": "runtime"
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/lib/adversarial-challenges/planner.js,scripts/lib/adversarial-challenges/runner.js"
+        },
+        {
+          "code": "diff-global-config-write",
+          "source": "real-diff",
+          "detail": "scripts/lib/adversarial-challenges/runner.js"
+        },
+        {
+          "code": "diff-process-execution",
+          "source": "real-diff",
+          "detail": "scripts/lib/adversarial-challenges/diff-scope.js"
+        }
+      ]
+    }
+  },
+  "generalist": {
+    "status": "needs-specialist",
+    "specialists": [
+      "risk",
+      "reliability",
+      "resilience",
+      "readability"
+    ],
+    "reason": "signals=design-risk,diff-error-flow,diff-global-config-write,diff-process-execution,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability"
+  },
+  "depth": {
+    "review": "strict"
+  },
+  "escalation_reason": null,
+  "dimensions": {
+    "risk": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        },
+        {
+          "code": "diff-global-config-write",
+          "source": "real-diff",
+          "detail": "scripts/lib/adversarial-challenges/runner.js",
+          "precedence": 2
+        },
+        {
+          "code": "diff-process-execution",
+          "source": "real-diff",
+          "detail": "scripts/lib/adversarial-challenges/diff-scope.js",
+          "precedence": 2
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=design-risk,diff-error-flow,diff-global-config-write,diff-process-execution,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability",
+          "precedence": 3
+        },
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "fail-closed isolation timeout and candidate digest",
+          "precedence": 4
+        }
+      ]
+    },
+    "reliability": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/lib/adversarial-challenges/planner.js,scripts/lib/adversarial-challenges/runner.js",
+          "precedence": 2
+        },
+        {
+          "code": "diff-global-config-write",
+          "source": "real-diff",
+          "detail": "scripts/lib/adversarial-challenges/runner.js",
+          "precedence": 2
+        },
+        {
+          "code": "diff-process-execution",
+          "source": "real-diff",
+          "detail": "scripts/lib/adversarial-challenges/diff-scope.js",
+          "precedence": 2
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=design-risk,diff-error-flow,diff-global-config-write,diff-process-execution,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability",
+          "precedence": 3
+        },
+        {
+          "code": "metadata-runtime",
+          "source": "metadata",
+          "detail": "runtime",
+          "precedence": 5
+        }
+      ]
+    },
+    "resilience": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/lib/adversarial-challenges/planner.js,scripts/lib/adversarial-challenges/runner.js",
+          "precedence": 2
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=design-risk,diff-error-flow,diff-global-config-write,diff-process-execution,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability",
+          "precedence": 3
+        }
+      ]
+    },
+    "readability": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "high-risk-override",
+          "source": "override",
+          "detail": "Classification requires full 4R",
+          "precedence": 0
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=design-risk,diff-error-flow,diff-global-config-write,diff-process-execution,diff-structural-complexity,metadata-runtime;dimensions=risk,reliability,resilience,readability",
+          "precedence": 3
+        }
+      ]
+    }
+  },
+  "selected_specialists": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ]
+}

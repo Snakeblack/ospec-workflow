@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "kind": "challenge-result/v1",
+  "plan_id": "sha256:be42397cb08d00497a84c19bb6f164767b477b1a68e6624bdafcb9df26eb240f",
+  "candidate_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "node_id": "repair-focal",
+  "policy_snapshot_id": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "evidence_strategy": "bug",
+  "challenge_type": "revert",
+  "outcome": "passed",
+  "evidence_ids": [],
+  "details": {},
+  "result_id": "sha256:aa51a1d64f8a615cd4da1ec56a5e93b0c6d80051c149f7a35f44a5a0da16f5eb"
+}

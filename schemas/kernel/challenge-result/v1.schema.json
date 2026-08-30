@@ -11,6 +11,9 @@
     "result_id",
     "plan_id",
     "candidate_id",
+    "node_id",
+    "policy_snapshot_id",
+    "evidence_strategy",
     "challenge_type",
     "outcome",
     "node_id",
@@ -37,6 +40,14 @@
     "candidate_id": {
       "type": "string",
       "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "policy_snapshot_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "evidence_strategy": {
+      "type": "string",
+      "enum": ["bug", "feature", "refactor", "migration", "config-docs", "strict-tdd"]
     },
     "challenge_type": {
       "type": "string",
@@ -66,6 +77,7 @@
     },
     "evidence_ids": {
       "type": "array",
+      "uniqueItems": true,
       "items": {
         "type": "string",
         "pattern": "^sha256:[a-f0-9]{64}$"

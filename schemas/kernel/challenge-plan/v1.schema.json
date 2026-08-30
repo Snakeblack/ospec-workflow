@@ -10,6 +10,7 @@
     "kind",
     "plan_id",
     "candidate_id",
+    "node_id",
     "policy_snapshot_id",
     "evidence_strategy",
     "selected",
@@ -33,6 +34,10 @@
     "candidate_id": {
       "type": "string",
       "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "node_id": {
+      "type": "string",
+      "minLength": 1
     },
     "policy_snapshot_id": {
       "type": "string",
@@ -69,6 +74,7 @@
     },
     "skipped": {
       "type": "array",
+      "uniqueItems": true,
       "items": {
         "type": "object",
         "required": [

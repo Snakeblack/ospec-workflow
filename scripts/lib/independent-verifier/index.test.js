@@ -8,7 +8,7 @@ const test = require("node:test");
 const { freezeCandidate } = require("../execution-identities/index.js");
 const { compileExecutionGraph, createPolicySnapshot } = require("../execution-graph/index.js");
 const { computeTreeDigest } = require("../worker-workspace.js");
-const { verifyCandidate: verifyCandidateRuntime, selectStrategy } = require("./index.js");
+const { verifyCandidate: verifyCandidateRuntime, verifyCandidateWithChallenges: verifyCandidateWithChallengesRuntime, selectStrategy } = require("./index.js");
 const { computeEvidenceId, digestRawBytes, normalizeEvidence } = require("./evidence.js");
 const runnerReceipt = require("./runner-receipt.js");
 const {
@@ -162,6 +162,14 @@ function withTrustedRunnerReceipts(input) {
 
 function verifyCandidate(input) {
   return verifyCandidateRuntime(withTrustedRunnerReceipts(input));
+}
+
+function verifyCandidateWithChallenges(input) {
+  return verifyCandidateWithChallengesRuntime(withTrustedRunnerReceipts(input));
+}
+
+function k6dEligible(result) {
+  return Boolean(result && result.ok && result.challenge_verification && result.challenge_verification.status === "accepted");
 }
 
 function featureEvidence() {
@@ -1400,6 +1408,7 @@ test("REQ-independent-verification-010: Successful challenge results satisfy com
 
   const challengePlan = createChallengePlan({
     candidateId: harness.candidate.candidate_id,
+    nodeId: "repair-core",
     policySnapshotId: harness.executionGraph.policy_snapshot_id,
     evidenceStrategy: "feature",
   });
@@ -1408,6 +1417,8 @@ test("REQ-independent-verification-010: Successful challenge results satisfy com
     emitChallengeResult({
       planId: challengePlan.plan_id,
       candidateId: harness.candidate.candidate_id,
+      policySnapshotId: harness.executionGraph.policy_snapshot_id,
+      evidenceStrategy: "feature",
       challengeType: type,
       outcome: "passed",
       nodeId: "repair-core",
@@ -1433,6 +1444,7 @@ test("REQ-independent-verification-010: Failed challenge result fails closed wit
 
   const challengePlan = createChallengePlan({
     candidateId: harness.candidate.candidate_id,
+    nodeId: "repair-core",
     policySnapshotId: harness.executionGraph.policy_snapshot_id,
     evidenceStrategy: "feature",
   });
@@ -1441,6 +1453,8 @@ test("REQ-independent-verification-010: Failed challenge result fails closed wit
     emitChallengeResult({
       planId: challengePlan.plan_id,
       candidateId: harness.candidate.candidate_id,
+      policySnapshotId: harness.executionGraph.policy_snapshot_id,
+      evidenceStrategy: "feature",
       challengeType: type,
       outcome: index === 0 ? "failed" : "passed",
       nodeId: "repair-core",
@@ -1467,6 +1481,7 @@ test("REQ-independent-verification-010: Budget exhaustion during challenges fail
 
   const challengePlan = createChallengePlan({
     candidateId: harness.candidate.candidate_id,
+    nodeId: "repair-core",
     policySnapshotId: harness.executionGraph.policy_snapshot_id,
     evidenceStrategy: "feature",
   });
@@ -1491,6 +1506,7 @@ test("REQ-independent-verification-010: Challenge results alone cannot grant PAS
 
   const challengePlan = createChallengePlan({
     candidateId: harness.candidate.candidate_id,
+    nodeId: "repair-core",
     policySnapshotId: harness.executionGraph.policy_snapshot_id,
     evidenceStrategy: "feature",
   });
@@ -1499,6 +1515,8 @@ test("REQ-independent-verification-010: Challenge results alone cannot grant PAS
     emitChallengeResult({
       planId: challengePlan.plan_id,
       candidateId: harness.candidate.candidate_id,
+      policySnapshotId: harness.executionGraph.policy_snapshot_id,
+      evidenceStrategy: "feature",
       challengeType: type,
       outcome: "passed",
       nodeId: "repair-core",
@@ -1528,5 +1546,101 @@ test("REQ-independent-verification-010: Challenge results alone cannot grant PAS
   assert.equal(result.ok, false);
   assert.equal(result.reason_code, "MISSING_NEGATIVE");
   assert.equal(Object.prototype.hasOwnProperty.call(result, "verification"), false);
+});
+
+test("REQ-independent-verification-010: verifyCandidateWithChallenges accepts exact set and suppresses K6d otherwise", () => {
+  const { createChallengePlan } = require("../adversarial-challenges/planner.js");
+  const { emitChallengeResult } = require("../adversarial-challenges/runner.js");
+  const harness = buildHarness();
+
+  function boundPlan() {
+    return createChallengePlan({
+      candidateId: harness.candidate.candidate_id,
+      nodeId: "repair-core",
+      policySnapshotId: harness.executionGraph.policy_snapshot_id,
+      evidenceStrategy: "feature",
+    });
+  }
+
+  function passedResults(plan) {
+    return plan.selected.map((type) =>
+      emitChallengeResult({
+        planId: plan.plan_id,
+        candidateId: harness.candidate.candidate_id,
+        policySnapshotId: harness.executionGraph.policy_snapshot_id,
+        evidenceStrategy: "feature",
+        challengeType: type,
+        outcome: "passed",
+        nodeId: "repair-core",
+      })
+    );
+  }
+
+  const acceptedPlan = boundPlan();
+  const accepted = verifyCandidateWithChallenges({
+    ...harness,
+    declaredStrategy: "feature",
+    rawEvidence: featureEvidence(),
+    challengePlan: acceptedPlan,
+    challengeResults: passedResults(acceptedPlan),
+  });
+  assert.equal(accepted.ok, true, accepted.error || accepted.reason_code);
+  assert.equal(accepted.challenge_verification.status, "accepted");
+  assert.equal(k6dEligible(accepted), true);
+  assert.equal(accepted.assurance_graph.nodes.some((node) => node.kind === "challenge-plan"), true);
+
+  const legacy = verifyCandidate({
+    ...harness,
+    declaredStrategy: "feature",
+    rawEvidence: featureEvidence(),
+    challengePlan: acceptedPlan,
+    challengeResults: passedResults(acceptedPlan),
+  });
+  assert.equal(legacy.ok, true, legacy.error || legacy.reason_code);
+  assert.notEqual(legacy.challenge_verification && legacy.challenge_verification.status, "accepted");
+  assert.equal(k6dEligible(legacy), false);
+
+  const missing = verifyCandidateWithChallenges({
+    ...harness,
+    declaredStrategy: "feature",
+    rawEvidence: featureEvidence(),
+    challengePlan: boundPlan(),
+    challengeResults: [],
+  });
+  assert.equal(missing.ok, false);
+  assert.equal(missing.reason_code, "CHALLENGE_INTEGRITY_INVALID");
+  assert.equal(k6dEligible(missing), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(missing, "verification"), false);
+
+  const duplicatePlan = boundPlan();
+  const duplicateResults = passedResults(duplicatePlan);
+  const duplicate = verifyCandidateWithChallenges({
+    ...harness,
+    declaredStrategy: "feature",
+    rawEvidence: featureEvidence(),
+    challengePlan: duplicatePlan,
+    challengeResults: [duplicateResults[0], duplicateResults[0]],
+  });
+  assert.equal(duplicate.ok, false);
+  assert.equal(duplicate.reason_code, "CHALLENGE_INTEGRITY_INVALID");
+  assert.equal(k6dEligible(duplicate), false);
+
+  const foreignPlan = boundPlan();
+  const foreignResults = passedResults(foreignPlan);
+  const foreign = {
+    ...foreignResults[0],
+    candidate_id: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  };
+  foreign.result_id = require("../adversarial-challenges/integrity.js").computeChallengeResultId(foreign);
+  const foreignGate = verifyCandidateWithChallenges({
+    ...harness,
+    declaredStrategy: "feature",
+    rawEvidence: featureEvidence(),
+    challengePlan: foreignPlan,
+    challengeResults: [foreign, foreignResults[1]],
+  });
+  assert.equal(foreignGate.ok, false);
+  assert.equal(foreignGate.reason_code, "CHALLENGE_INTEGRITY_INVALID");
+  assert.equal(k6dEligible(foreignGate), false);
 });
 

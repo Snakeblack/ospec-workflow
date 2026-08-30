@@ -1,7 +1,7 @@
 "use strict";
 
-const { sha256Fingerprint } = require("../canonical-json.js");
 const { CHALLENGE_TYPES } = require("./catalog.js");
+const { computeChallengePlanId } = require("./integrity.js");
 
 const STRATEGY_CHALLENGE_SELECTION = Object.freeze({
   "bug": {
@@ -88,6 +88,7 @@ const DEFAULT_CHALLENGE_BUDGET = Object.freeze({
  * Generates a deterministic ChallengePlan for a candidate and policy snapshot.
  * @param {Object} params
  * @param {string} params.candidateId
+ * @param {string} params.nodeId
  * @param {string} params.policySnapshotId
  * @param {string} params.evidenceStrategy
  * @param {Object} [params.budgetOverrides]
@@ -95,19 +96,23 @@ const DEFAULT_CHALLENGE_BUDGET = Object.freeze({
  */
 function createChallengePlan({
   candidateId,
+  nodeId,
   policySnapshotId,
   evidenceStrategy,
   budgetOverrides = {},
 }) {
+  if (typeof candidateId !== "string" || !candidateId) throw new TypeError("createChallengePlan requires candidateId");
+  if (typeof nodeId !== "string" || !nodeId.trim()) throw new TypeError("createChallengePlan requires nodeId");
+  if (typeof policySnapshotId !== "string" || !policySnapshotId) throw new TypeError("createChallengePlan requires policySnapshotId");
   const normStrategy = STRATEGY_CHALLENGE_SELECTION[evidenceStrategy]
     ? evidenceStrategy
     : "strict-tdd";
   const selectionDef = STRATEGY_CHALLENGE_SELECTION[normStrategy];
 
   const selected = [...selectionDef.selected];
-  const skipped = Object.entries(selectionDef.skipped).map(([challenge_type, reason]) => ({
+  const skipped = CHALLENGE_TYPES.filter((type) => !selected.includes(type)).map((challenge_type) => ({
     challenge_type,
-    reason,
+    reason: selectionDef.skipped[challenge_type],
   }));
   const reasons = [
     `STRATEGY_${normStrategy.toUpperCase().replace(/-/g, "_")}_SELECTED`,
@@ -137,6 +142,7 @@ function createChallengePlan({
     schema_version: 1,
     kind: "challenge-plan/v1",
     candidate_id: candidateId,
+    node_id: nodeId,
     policy_snapshot_id: policySnapshotId,
     evidence_strategy: normStrategy,
     selected,
@@ -145,7 +151,7 @@ function createChallengePlan({
     budget,
   };
 
-  const plan_id = sha256Fingerprint("challenge-plan:v1", canonicalBody);
+  const plan_id = computeChallengePlanId(canonicalBody);
 
   return {
     ...canonicalBody,

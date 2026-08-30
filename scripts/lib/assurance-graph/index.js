@@ -12,6 +12,7 @@ const {
 } = require("../independent-verifier/evidence.js");
 const { validateInstance, loadSchemaById } = require("../kernel-schema-validator.js");
 const { readRunnerReceiptChannel } = require("../independent-verifier/runner-receipt.js");
+const { validateChallengeResultSet } = require("../adversarial-challenges/integrity.js");
 
 const DEFAULT_SCHEMA_ROOT = path.resolve(__dirname, "../../..");
 const EVIDENCE_V2_ID = "ospec://schemas/kernel/evidence/v2";
@@ -126,6 +127,15 @@ function validateReplayRecords(persistable) {
 
   if (!graph || !candidate || !Array.isArray(graph.obligations) || !Array.isArray(graph.nodes)) {
     return fail("GRAPH_DIVERGENCE", "persistable graph, candidate, nodes, and obligations are required for replay");
+  }
+
+  const challengePlan = persistable.challengePlan || persistable.challenge_plan;
+  const challengeResults = Array.isArray(persistable.challengeResults) ? persistable.challengeResults : (Array.isArray(persistable.challenge_results) ? persistable.challenge_results : []);
+  if (persistable.requireChallengeVerification || persistable.require_challenge_verification || challengePlan || challengeResults.length) {
+    const challengeGate = validateChallengeResultSet(challengePlan, challengeResults, { candidate, executionGraph: graph, policySnapshot: persistable.policySnapshot });
+    if (!challengeGate.ok || challengeResults.some((result) => result.outcome !== "passed")) {
+      return fail("GRAPH_DIVERGENCE", (challengeGate && challengeGate.error) || "persisted K6c challenge records diverge");
+    }
   }
 
   const receiptGate = readRunnerReceiptChannel(persistable.runnerReceiptChannel);
@@ -290,6 +300,10 @@ function replayAssuranceGraph(persistable = {}) {
     evidence: persistable.evidence,
     assessments: persistable.assessments,
     verification: persistable.verification,
+    challengePlan: persistable.challengePlan || persistable.challenge_plan,
+    challengeResults: persistable.challengeResults || persistable.challenge_results,
+    requireChallengeVerification: persistable.requireChallengeVerification || persistable.require_challenge_verification,
+    policySnapshot: persistable.policySnapshot,
   });
 }
 
