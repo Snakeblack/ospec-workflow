@@ -1,10 +1,15 @@
 package tui
 
 import (
+	"context"
 	"fmt"
+	"os/exec"
+	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/snakeblack/ospec-workflow/internal/config"
 	"github.com/snakeblack/ospec-workflow/internal/tui/header"
 	"github.com/snakeblack/ospec-workflow/internal/tui/theme"
 )
@@ -35,20 +40,77 @@ func (t TabID) Title() string {
 }
 
 type AppModel struct {
-	activeTab TabID
-	width     int
-	height    int
-	header    header.Model
-	quitting  bool
-	ready     bool
+	activeTab     TabID
+	width         int
+	height        int
+	header        header.Model
+	quitting      bool
+	ready         bool
+	repoRoot      string
+	version       string
+	activePreset  string
+	branch        string
+	modelsMgr     *config.ModelsManager
+	openspecMgr   *config.OpenSpecManager
 }
 
-// NewAppModel creates a new root Elm AppModel initialized to the Dashboard tab.
+// NewAppModel creates a new root Elm AppModel with default working directory.
 func NewAppModel() AppModel {
-	return AppModel{
-		activeTab: TabDashboard,
-		header:    header.New("v2.56.0", "Default", "main"),
+	return NewAppModelWithRoot(".")
+}
+
+// NewAppModelWithRoot creates a new root Elm AppModel configured for a specific repository root directory.
+func NewAppModelWithRoot(repoRoot string) AppModel {
+	om := config.NewOpenSpecManager(repoRoot)
+	mm := config.NewModelsManager(repoRoot)
+
+	// Resolve project version
+	version := "v2.57.0"
+	if ver, err := om.GetProjectVersion(); err == nil && ver != "" {
+		if !strings.HasPrefix(ver, "v") {
+			version = "v" + ver
+		} else {
+			version = ver
+		}
 	}
+
+	// Resolve active preset
+	preset := "Default"
+	if p, err := mm.GetActivePreset(); err == nil && p != "" {
+		if len(p) > 0 {
+			preset = strings.ToUpper(p[:1]) + strings.ToLower(p[1:])
+		}
+	}
+
+	// Resolve git branch
+	branch := resolveGitBranch(repoRoot)
+
+	return AppModel{
+		activeTab:    TabDashboard,
+		header:       header.New(version, preset, branch),
+		repoRoot:     repoRoot,
+		version:      version,
+		activePreset: preset,
+		branch:       branch,
+		modelsMgr:    mm,
+		openspecMgr:  om,
+	}
+}
+
+func resolveGitBranch(dir string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "git", "branch", "--show-current")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err == nil {
+		b := strings.TrimSpace(string(out))
+		if b != "" {
+			return b
+		}
+	}
+	return "main"
 }
 
 func (m AppModel) Init() tea.Cmd {
@@ -73,6 +135,26 @@ func (m AppModel) IsQuitting() bool {
 
 func (m AppModel) IsReady() bool {
 	return m.ready
+}
+
+func (m AppModel) Version() string {
+	return m.version
+}
+
+func (m AppModel) ActivePreset() string {
+	return m.activePreset
+}
+
+func (m AppModel) Branch() string {
+	return m.branch
+}
+
+func (m AppModel) ModelsManager() *config.ModelsManager {
+	return m.modelsMgr
+}
+
+func (m AppModel) OpenSpecManager() *config.OpenSpecManager {
+	return m.openspecMgr
 }
 
 func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -112,7 +194,7 @@ func (m AppModel) renderViewContent() string {
 
 	desc := lipgloss.NewStyle().
 		Foreground(theme.ColorFgMuted).
-		Render(fmt.Sprintf("Interactive view for %s (Milestone 1 Scaffolding)", m.activeTab.Title()))
+		Render(fmt.Sprintf("Interactive view for %s (Milestone 2 Declarative Persistence Active)", m.activeTab.Title()))
 
 	content := lipgloss.JoinVertical(lipgloss.Left, title, "\n", desc)
 

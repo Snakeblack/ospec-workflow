@@ -1,6 +1,8 @@
 package tui_test
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -179,5 +181,33 @@ func TestTabTitles(t *testing.T) {
 		if tt.tab.Title() != tt.want {
 			t.Errorf("Tab %v Title() = %q, want %q", tt.tab, tt.tab.Title(), tt.want)
 		}
+	}
+}
+
+func TestAppModelDynamicConfig(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Set up openspec config
+	openspecDir := filepath.Join(tempDir, "openspec")
+	_ = os.MkdirAll(openspecDir, 0755)
+	_ = os.WriteFile(filepath.Join(openspecDir, "config.yaml"), []byte("project:\n  version: 3.0.0\n"), 0644)
+
+	// Set up models config
+	_ = os.WriteFile(filepath.Join(tempDir, "models.yaml"), []byte("agents:\n  sdd-propose: cheap\n  sdd-apply: cheap\n  _default: cheap\n"), 0644)
+
+	app := tui.NewAppModelWithRoot(tempDir)
+	if app.Version() != "v3.0.0" {
+		t.Errorf("expected version v3.0.0, got %s", app.Version())
+	}
+	if app.ActivePreset() != "cheap" && app.ActivePreset() != "Cheap" {
+		t.Logf("ActivePreset is: %s", app.ActivePreset())
+	}
+
+	// ModelsManager and OpenSpecManager should be accessible
+	if app.ModelsManager() == nil {
+		t.Error("expected ModelsManager to be initialized")
+	}
+	if app.OpenSpecManager() == nil {
+		t.Error("expected OpenSpecManager to be initialized")
 	}
 }

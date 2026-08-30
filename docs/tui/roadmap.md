@@ -9,7 +9,7 @@ Este roadmap desglosa las tareas, entregables, componentes y criterios de acepta
 | Hito | Descripción | Estado |
 | :--- | :--- | :---: |
 | **Hito 1** | Cimientos, Dependencias y Shell Visual (Header, Logo, Tema) | ✅ Completado |
-| **Hito 2** | Motor Declarativo de Persistencia (Opción B: `yaml.v3`) | ⏳ Pendiente |
+| **Hito 2** | Motor Declarativo de Persistencia (Opción B: `yaml.v3`) | ✅ Completado |
 | **Hito 3** | Vista 1: Dashboard & Accesos Rápidos | ⏳ Pendiente |
 | **Hito 4** | Vista 2: Models Hub (Presets y Afinamiento por Agente) | ⏳ Pendiente |
 | **Hito 5** | Vista 3: Targets Manager & Sincronización Declarativa | ⏳ Pendiente |
@@ -55,19 +55,19 @@ Este roadmap desglosa las tareas, entregables, componentes y criterios de acepta
 ### ⚙️ Hito 2: Motor Declarativo de Persistencia (Opción B)
 > **Objetivo:** Leer y escribir la configuración de modelos y OpenSpec directamente en YAML sin depender de scripts de Node.js.
 
-- [ ] **2.1. Modelos de datos Go para Modelos (`internal/config/models.go`):**
+- [x] **2.1. Modelos de datos Go para Modelos (`internal/config/models.go`):**
   - Structs para `models.yaml`:
     - Sección `agents`: mapeo de nombre de agente (`sdd-propose`, `sdd-design`, `sdd-apply`, `sdd-verify`, `review-*`) a tier (`premium`, `default`, `cheap`).
     - Sección `tiers`: mapeo de cada tier a targets (`claude`, `vscode`, `opencode`, `codex`, `cursor`, `antigravity`).
   - Structs para perfiles en `profiles/models/*.yaml` (`cheap.yaml`, `default.yaml`, `premium.yaml`).
-- [ ] **2.2. Gestor de Modelos (`internal/config/models_manager.go`):**
+- [x] **2.2. Gestor de Modelos (`internal/config/models_manager.go`):**
   - Métodos para leer `models.yaml` y perfiles activos.
   - Método para aplicar presets predefinidos (`ApplyPreset("cheap"|"default"|"premium")`).
   - Método para modificar granularmente la asignación de un agente o target.
   - Escritura atómica (escritura a archivo temporal y rename para prevenir corrupción).
-- [ ] **2.3. Gestor de OpenSpec (`internal/config/openspec_manager.go`):**
+- [x] **2.3. Gestor de OpenSpec (`internal/config/openspec_manager.go`):**
   - Lectura de `openspec/config.yaml` (versión, escala de proyecto, estado de baseline, testing runner).
-- [ ] **2.4. Tests Unitarios del Motor (`internal/config/*_test.go`):**
+- [x] **2.4. Tests Unitarios del Motor (`internal/config/*_test.go`):**
   - Validar round-trips de lectura y guardado sin pérdida de datos.
 
 ---

@@ -1,0 +1,51 @@
+change: "2026-08-30-tui-declarative-persistence-engine"
+status: "archived"
+last_updated: 2026-08-30T20:42:45Z
+blocking_questions: []
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/2026-08-30-tui-declarative-persistence-engine/proposal.md"
+    summary: "Propuesta para Milestone 2 de la TUI Go: Motor Declarativo de Persistencia (Opción B: yaml.v3) para models.yaml, perfiles y openspec/config.yaml."
+    key_decisions:
+      - "Persistencia pura en Go usando gopkg.in/yaml.v3"
+      - "Desacoplamiento total del arnés Node.js"
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/2026-08-30-tui-declarative-persistence-engine/specs/tui-declarative-persistence/spec.md"
+    summary: "Especificación técnica para models.yaml, profiles/models/*.yaml, openspec/config.yaml, presets y escritura atómica."
+    key_decisions:
+      - "Identificadores estables REQ-tui-declarative-persistence-001 a REQ-tui-declarative-persistence-006"
+      - "Escritura atómica temp-and-rename para evitar corrupción"
+  design:
+    status: done
+    artifact: "openspec/changes/2026-08-30-tui-declarative-persistence-engine/design.md"
+    summary: "Diseño de internal/config con ModelsManager, OpenSpecManager, soporte polimórfico de targets y motor atómico."
+    key_decisions:
+      - "Estructura modular en internal/config"
+      - "ADR-001 a ADR-004 documentados en decisions/"
+  tasks:
+    status: done
+    artifact: "openspec/changes/2026-08-30-tui-declarative-persistence-engine/tasks.md"
+    summary: "11 tareas TDD estricto en 4 fases para modelos, gestor de modelos, gestor OpenSpec e integración con la TUI."
+    key_decisions:
+      - "TDD estricto Red-Green-Refactor por componente"
+  apply:
+    status: done
+    artifact: "openspec/changes/2026-08-30-tui-declarative-persistence-engine/apply-progress.md"
+    summary: "11 tareas completadas con Strict TDD: persistencia atómica, modelos, gestor de modelos con presets, gestor OpenSpec e integración con app.go."
+    key_decisions:
+      - "Mapeos canónicos de presets (cheap, default, premium) y evaluador heurístico"
+      - "Escritura atómica con os.Rename y sync de descriptor"
+  verify:
+    status: done
+    verdict: PASS
+    artifact: "openspec/changes/2026-08-30-tui-declarative-persistence-engine/verify-report.md"
+    summary: "Verificación PASS: 11/11 tareas, 6/6 REQ con pruebas Go e integración Node.js pasando al 100%."
+    key_decisions:
+      - "Cobertura y tests unitarios en internal/config e internal/tui pasando sin regresiones"
+  archive:
+    status: done
+    artifact: "openspec/changes/2026-08-30-tui-declarative-persistence-engine/archive-report.md"
+    summary: "Reporte y plan de archivo emitidos; spec y 4 ADRs promovidos."

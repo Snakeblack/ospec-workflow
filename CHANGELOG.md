@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.58.0] - 2026-08-30
+
+### Added
+- **TUI Interactiva `ospec` — Hito 2: Motor Declarativo de Persistencia (Opción B: `yaml.v3`)**:
+  - **Estructuras de Datos y Codecs YAML**: Implementación en `internal/config/models.go` y `internal/config/openspec.go` de modelos tipados para `models.yaml`, perfiles de enrutamiento (`profiles/models/*.yaml`) y `openspec/config.yaml`.
+  - **Soporte Polimórfico de Targets**: Soporte sin pérdidas (`yaml.Node`) para targets con formatos variables como `vscode` (cadenas y listas de modelos), `codex` (configuración estructurada con `model_reasoning_effort` y `model_verbosity`) y targets arbitrarios adicionales.
+  - **Gestor de Modelos (`ModelsManager`)**: Módulo `internal/config/models_manager.go` con lectura en caché segura para concurrencia (`sync.RWMutex`), consulta y asignación granular de tiers por agente (`GetAgentTier` con fallback automático a `_default` y `SetAgentTier`), listado y carga de perfiles, aplicación de presets (`cheap`, `default`, `premium`) y evaluador heurístico del preset activo (`GetActivePreset`).
+  - **Gestor OpenSpec (`OpenSpecManager`)**: Módulo `internal/config/openspec_manager.go` para inspección rápida de metadatos del proyecto (`version`, `name`), configuración de testing y estado de baseline.
+  - **Motor de Persistencia Atómica**: Utilidad `internal/config/atomic.go` con escritura mediante archivo temporal en el mismo directorio, sincronización de descriptor (`file.Sync()`), preservación de permisos y reemplazo atómico mediante `os.Rename`.
+  - **Integración con la Shell Visual TUI**: Conexión de `internal/tui/app.go` con `OpenSpecManager` y `ModelsManager` para alimentar dinámicamente la versión y perfil activo en la cabecera de la TUI.
+  - **Suite de Pruebas Go**: Pruebas unitarias de concurrencia, tolerancia a fallos, mutación y round-trip sin pérdida de datos en `internal/config/*_test.go` con 100% de éxito y aislamiento total del arnés Node.js.
+  - **Especificaciones y ADRs**: Especificación de dominio `openspec/specs/tui-declarative-persistence/spec.md` (REQ-001 a REQ-006) y decisiones arquitectónicas `docs/adr/adr-20260830-005` a `008`.
+
+### Changed
+- Hito 2 del roadmap de la TUI (`docs/tui/roadmap.md`) actualizado a `✅ Completado`.
+- Ciclo SDD completo `2026-08-30-tui-declarative-persistence-engine` verificado con `PASS` y archivado en `openspec/changes/archive/2026-08-30-tui-declarative-persistence-engine/`.
+
 ## [2.57.0] - 2026-08-30
 
 ### Added

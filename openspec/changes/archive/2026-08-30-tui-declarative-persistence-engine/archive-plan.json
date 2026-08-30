@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "change": "2026-08-30-tui-declarative-persistence-engine",
+  "spec_writes": [
+    {
+      "domain": "tui-declarative-persistence",
+      "source_delta": "specs/tui-declarative-persistence/spec.md",
+      "target": "openspec/specs/tui-declarative-persistence/spec.md"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260830-005-go-declarative-configuration-parsing-via-yaml-v3.md"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260830-006-polymorphic-target-mapping-with-custom-yaml-codecs.md"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260830-007-atomic-temp-and-rename-file-persistence-strategy.md"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260830-008-preset-resolution-and-active-profile-detection-heuristics.md"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-plan.json",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "design.md",
+    "proposal.md",
+    "specs/tui-declarative-persistence/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}
