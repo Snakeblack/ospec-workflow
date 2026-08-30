@@ -1,133 +1,84 @@
-# ospec-workflow quickstart
+# Guía Rápida: ospec-workflow
 
-`ospec-workflow` es un arnés de Spec-Driven Development (SDD) llave en mano. Usa
-**OpenSpec** como única fuente de verdad versionable y un orquestador que
-coordina agentes de fase (`propose → spec → design → tasks → apply → verify →
-archive`), aplicando Strict TDD, control de tamaño de revisión y gates de
-seguridad activos en cada commit. El mismo árbol fuente se distribuye a **cinco**
-targets de chat/IDE (`claude`, `vscode`, `github-copilot`, `opencode`, `codex`)
-mediante un generador puro.
+> **En pocas palabras:** `ospec-workflow` es un sistema que ayuda a los desarrolladores y a los asistentes de Inteligencia Artificial a construir software de forma ordenada, segura y con pruebas reales. Transforma una simple idea en una especificación clara, diseña la solución, escribe el código mediante TDD estricto y verifica todo antes de hacer commit. Funciona de manera idéntica en 7 herramientas y editores distintos (como Claude Code, Cursor, Copilot o VS Code).
 
-## Qué hace este repositorio
+---
 
-- Define un **orquestador** (`agents/sdd-orchestrator.agent.md`) que clasifica
-  cada cambio, elige una ruta declarativa en `openspec/config.yaml` y delega en
-  sub-agentes de fase (`sdd-propose`, `sdd-spec`, `sdd-design`, `sdd-tasks`,
-  `sdd-apply`, `sdd-verify`, `sdd-archive`, y fases especiales como
-  `sdd-baseline`, `sdd-workspace`, `sdd-foundation`, `sdd-document`).
-- Persiste todo el estado del cambio (propuesta, specs, diseño, tareas,
-  progreso, verificación) como archivos en `openspec/changes/{change}/`, nunca
-  en el historial de chat.
-- Ejecuta cinco **hooks de ciclo de vida** (`SessionStart`, `PreToolUse`,
-  `PreCompact`, `SubagentStop`, `Stop`) implementados dos veces — Node.js
-  (`scripts/hooks/`) y Go (`internal/hooks/`, `cmd/ospec-hooks/`) — con
-  paridad de comportamiento verificada por tests compartidos.
-- Aplica salvaguardas activas: **AgentShield** (secretos/credenciales),
-  **Token Budget Advisor** (presupuesto de contexto), **git-collaboration-guard**
-  (confirmaciones antes de commits riesgosos) y un hook `pre-commit` que valida
-  el estado de OpenSpec y Strict TDD.
-- Compila el árbol canónico (formato VS Code) a **cinco** distribuciones nativas
-  en `dist/<target>/` mediante `scripts/configure/cli.js`, con validadores por
-  target y fixtures golden. El quinto target `codex` tiene sandbox de grano fino
-  y políticas de aprobación configurables.
-- Aplica un **sistema de revisión 4R selectivo**: tras `sdd-verify`, una
-  compuerta generalista clasifica el cambio y despacha solo los sub-agentes
-  revisores necesarios (`review-risk`, `review-readability`, `review-reliability`,
-  `review-resilience`) — cambios normales activan máximo dos; alto riesgo activa
-  los cuatro. Los módulos `review-dimensions`, `review-gate-state` y
-  `review-lineage` gestionan evidencia, decisiones y trazabilidad.
-- Incluye una **suite de evals golden** (`scripts/evals/`) con escenarios
-  reproducibles para el orquestador y benchmark O2 para regresión continua.
-- Registra **telemetría detallada de costes de fase** por cada dispatch SDD,
-  preservando el artefacto de progreso entre sesiones.
-- Soporta workspaces multi-repo federados (`sdd-workspace`) con un atlas de
-  miembros, baseline federado resumible y marcadores de metadatos por repo.
+## ¿Cómo funciona el flujo de trabajo?
 
-## Empieza aquí
+El desarrollo sigue un ciclo de fases coordinadas paso a paso:
 
-- [Arquitectura y generador multi-target](architecture/overview.md) — cómo se construye `dist/<target>/` desde el árbol fuente único.
-- [Orquestación de fases SDD](orchestration/routing.md) — routing declarativo, agentes, skills y gates.
-- [Agentes y Habilidades (Skills)](agents-skills/agents-and-skills.md) — prompts de fase, reglas compactas y resolución de skills.
-- [Generador Multi-Target](generator/multi-target-generator.md) — compilación y perfiles nativos por asistente de IA.
-- [Model Routing (Ruteo de Modelos)](model-routing/routing-profiles.md) — asignación de modelos de lenguaje por fase o perfil.
-- [Instalación de Objetivos (Target Installation)](installation/target-installation.md) — instaladores, sincronización e idempotencia en cada asistente de IA.
-- [Lint de Contratos y Reglas de Validación](contract-lint/validation-rules.md) — TDD estricto, 4R selectivo y compuertas del repositorio.
-- [Runtime de hooks de ciclo de vida](hooks-runtime/lifecycle.md) — los cinco eventos, la arquitectura y el despachador.
-- [Hooks en Go (Implementación nativa)](hooks-runtime/go-implementation.md) — despachador de eventos ultrarrápido y paridad con Node.
-- [Sistema de Reglas de Agentes](rules-system/agent-rules.md) — restricciones e instrucciones inyectables de TDD y atribución de IA.
-- [Guardrails de seguridad](security/guardrails.md) — AgentShield, Token Budget Advisor, git-collaboration-guard, pre-commit/commit-msg.
-- [Persistencia y estado](state-management/persistence.md) — OpenSpec como fuente de verdad, artifact-store, memoria operativa.
-- [Runtime del kernel](kernel-runtime/kernel-runtime.md) — Authority Store CAS, permisos/receipts de operación y presupuestos de ejecución.
-- [Testing y calidad](testing-quality/verification.md) — Strict TDD, `sdd-verify`, quality gates declarativos.
-- [Federación de workspaces multi-repo](workspace-federation/multi-repo.md) — atlas, baseline federado, markers.
+```mermaid
+flowchart LR
+    A["1. Propuesta\n(Qué queremos hacer)"] --> B["2. Especificación\n(Reglas y casos de uso)"]
+    B --> C["3. Diseño\n(Decisiones técnicas)"]
+    C --> D["4. Tareas\n(Lista de pasos)"]
+    D --> E["5. Aplicación\n(Código con TDD)"]
+    E --> F["6. Verificación\n(Pruebas reales)"]
+    F --> G["7. Archivo\n(Registro histórico)"]
+```
 
-## Archivos fuente clave
+1. **Propuesta (`propose`):** Define el objetivo, el alcance y los riesgos del cambio.
+2. **Especificación (`spec`):** Escribe los requerimientos en lenguaje claro y estructurado con OpenSpec.
+3. **Diseño (`design`):** Planifica la arquitectura técnica, los archivos afectados y la estrategia de pruebas.
+4. **Tareas (`tasks`):** Divide el trabajo en unidades pequeñas y manejables (máximo 400 líneas por revisión).
+5. **Aplicación (`apply`):** Los agentes escriben primero los tests (RED) y luego el código necesario (GREEN).
+6. **Verificación (`verify`):** Un agente independiente comprueba que todos los tests pasen en la consola real.
+7. **Archivo (`archive`):** Guarda un registro histórico inmutable del cambio para futuras auditorías.
 
-| Archivo | Rol |
+---
+
+## ¿Qué ventajas ofrece a tu equipo?
+
+- **Cero alucinaciones sin pruebas:** La IA no puede dar un cambio por bueno si no aporta un recibo de consola real con las pruebas en verde.
+- **La memoria vive en archivos:** Todo el progreso y las decisiones se guardan en la carpeta `openspec/` de tu repositorio, no en el chat efímero. Si cierras la ventana, no pierdes nada.
+- **Un solo código para 7 plataformas:** Escribes tus agentes y reglas una sola vez y el generador los distribuye a Claude Code, VS Code, GitHub Copilot, OpenCode, Codex, Cursor y Antigravity.
+- **Seguridad y ahorro:** Filtra automáticamente credenciales secretas y controla el consumo de tokens para evitar gastos imprevistos.
+
+---
+
+## Mapa de la Documentación
+
+Explora los temas organizados de menor a mayor profundidad técnica:
+
+### 1. Primeros Pasos
+- [Instalación por Asistente o IDE](installation/target-installation.md) — Cómo instalar y sincronizar el plugin en tu herramienta favorita.
+
+### 2. Visión y Futuro
+- [Evolución del Harness](evolution/harness-evolution.md) — Por qué el sistema evoluciona hacia un kernel determinista con grafos de evidencia.
+- [Roadmap de Hitos K1 a K12](evolution/roadmap.md) — Las etapas de desarrollo, su estado actual y el plan futuro.
+
+### 3. Arquitectura y Funcionamiento
+- [Visión General de Arquitectura](architecture/overview.md) — Cómo se distribuye un árbol fuente único a 7 plataformas sin duplicar trabajo.
+- [Orquestación de Fases y Rutas](orchestration/routing.md) — Cómo el sistema elige la ruta más eficiente (hotfix rápido o ciclo completo).
+- [El Runtime del Kernel](kernel-runtime/kernel-runtime.md) — Almacén seguro CAS, permisos de operación y control de presupuestos.
+
+### 4. Agentes y Habilidades
+- [Catálogo de Agentes y Skills](agents-skills/agents-and-skills.md) — Los roles especializados y sus manuales de instrucciones paso a paso.
+- [Sistema de Reglas de Comportamiento](rules-system/agent-rules.md) — Restricciones obligatorias para que la IA nunca cometa abusos.
+- [Ruteo Inteligente de Modelos](model-routing/routing-profiles.md) — Usar modelos rápidos y económicos para tareas simples y avanzados para arquitectura.
+
+### 5. Ciclo de Vida y Seguridad
+- [Ciclo de Vida de los Hooks](hooks-runtime/lifecycle.md) — Qué ocurre al iniciar sesión, antes de usar herramientas o al hacer commit.
+- [Implementación de Hooks en Go](hooks-runtime/go-implementation.md) — Ejecución instantánea y paridad total con Node.js.
+- [Guardrails de Seguridad y Costes](security/guardrails.md) — Detección de secretos, control de tokens y protección de Git.
+- [Validación de Contratos y Lint](contract-lint/validation-rules.md) — Reglas automáticas para que nadie rompa la estructura del proyecto.
+
+### 6. Calidad, Estado y Distribución
+- [Persistencia y Gestión del Estado](state-management/persistence.md) — OpenSpec como fuente única de verdad en disco.
+- [Testing y Strict TDD](testing-quality/verification.md) — Por qué el código debe nacer con tests y cómo se valida la evidencia.
+- [Generador Multi-Target](generator/multi-target-generator.md) — El motor que traduce el código a cada asistente de IA.
+- [Federación Multi-Repositorio](workspace-federation/multi-repo.md) — Coordinar cambios que afectan a varios repositorios a la vez.
+
+---
+
+## Archivos Clave del Repositorio
+
+| Archivo | ¿Para qué sirve? |
 | --- | --- |
-| `/openspec/config.yaml` | Tabla de routing, reglas por fase, políticas opcionales (quality gates, hooks declarativos, traceability). |
-| `/scripts/configure/cli.js` | CLI del generador multi-target; capa de IO sobre `target-transform.js`. |
-| `/scripts/lib/target-transform.js` | Transformación pura árbol-fuente → árbol-target. |
-| `/scripts/lib/target-profiles/codex.js` | Perfil del quinto target (Codex/OpenAI); sandbox, políticas de aprobación. |
-| `/scripts/lib/route-dispatcher.js` | Resuelve qué ruta/fases ejecutar dado un cambio clasificado. |
-| `/scripts/lib/review-dimensions.js` | Normaliza evidencia de review y despacha selectivamente dimensiones 4R. |
-| `/scripts/lib/review-gate-state.js` | Gestiona el estado de la compuerta de revisión 4R. |
-| `/scripts/lib/review-lineage.js` | Congela y valida la linaje de revisión (candidato, findings, presupuesto). |
-| `/hooks/hooks.json` | Registro de los cinco eventos de ciclo de vida del plugin. |
-| `/scripts/hooks/ospec-hooks-launch.js` | Launcher que prefiere el binario Go y cae a Node.js cuando corresponde. |
-| `/scripts/lib/artifact-store.js` | Abstracción de persistencia de artefactos (`openspec` / federado). |
-| `/scripts/check.js` | Comando único de verificación local/CI (`npm test`). |
-| `/agents/sdd-orchestrator.agent.md` | Definición del orquestador. |
-| `/skills/_shared/sdd-phase-common.md` | Protocolo compartido por todos los agentes de fase (envelope, memoria, gates). |
-| `/scripts/evals/` | Suite de evals golden del orquestador and benchmark O2. |
-
-## Mapa de documentación
-
-- [quickstart.md](quickstart.md) (este archivo)
-- [architecture/overview.md](architecture/overview.md)
-- [orchestration/routing.md](orchestration/routing.md)
-- [agents-skills/agents-and-skills.md](agents-skills/agents-and-skills.md)
-- [generator/multi-target-generator.md](generator/multi-target-generator.md)
-- [model-routing/routing-profiles.md](model-routing/routing-profiles.md)
-- [installation/target-installation.md](installation/target-installation.md)
-- [contract-lint/validation-rules.md](contract-lint/validation-rules.md)
-- [hooks-runtime/lifecycle.md](hooks-runtime/lifecycle.md)
-- [hooks-runtime/go-implementation.md](hooks-runtime/go-implementation.md)
-- [rules-system/agent-rules.md](rules-system/agent-rules.md)
-- [security/guardrails.md](security/guardrails.md)
-- [state-management/persistence.md](state-management/persistence.md)
-- [kernel-runtime/kernel-runtime.md](kernel-runtime/kernel-runtime.md)
-- [testing-quality/verification.md](testing-quality/verification.md)
-- [workspace-federation/multi-repo.md](workspace-federation/multi-repo.md)
-
-## Notas para futuros agentes
-
-- **OpenSpec es la fuente de verdad**, no el historial de chat. Antes de
-  continuar cualquier cambio, lee `openspec/changes/{change-name}/state.yaml`
-  y los artefactos de fase — nunca asumas contexto de la conversación.
-- El árbol **canónico** vive en formato VS Code en la raíz del repo. `dist/`
-  es generado y no se edita a mano; los cambios de comportamiento van en
-  `agents/`, `skills/`, `commands/`, `rules/`, `hooks/`, `scripts/lib/`,
-  `scripts/configure/` o `scripts/hooks/`.
-- Los hooks tienen **dos implementaciones** (Node.js y Go) que deben mantener
-  paridad de comportamiento; un cambio de contrato en uno normalmente exige el
-  espejo en el otro (ver `scripts/hooks/parity-contract.test.js`).
-- No documentes ni expongas secretos, `.env` reales, ni credenciales — ni en
-  código ni en wiki. AgentShield y este generador respetan ese límite.
-- Este wiki fue generado por el agente `sdd-document` bajo la Opción D
-  (OpenWiki + Starlight): el contenido canónico vive en `openwiki/`, y
-  `web-doc/` es un sitio estático Starlight que se sincroniza desde
-  `openwiki/` en tiempo de build (`scripts/sync-openwiki.mjs`), nunca al
-  revés. No escribas directamente en `web-doc/src/content/docs/`.
-
-## Mapa de fuentes
-
-- `/README.md`, `/package.json`, `/openspec/config.yaml`
-- `/scripts/configure/cli.js`, `/scripts/lib/target-transform.js`, `/models.yaml`
-- `/scripts/lib/route-dispatcher.js`, `/agents/`, `/skills/`, `/commands/`, `/rules/`
-- `/hooks/hooks.json`, `/scripts/hooks/`, `/internal/hooks/`, `/cmd/ospec-hooks/`
-- `/scripts/lib/artifact-store.js`, `/scripts/lib/ospec-state.js`, `/openspec/memory/`
-- `/scripts/check.js`, `/openspec/specs/quality-gates/spec.md`
-- `/openspec/specs/workspace-explore/spec.md`, `/openspec/specs/federated-baseline-orchestration/spec.md`
-
-Evidencia git: HEAD `2dc830a` (v2.30.0).
+| `openspec/config.yaml` | Archivo de configuración central: define rutas, reglas y herramientas activas. |
+| `agents/` | Definición de los agentes especializados (orquestador, evaluadores, aplicadores). |
+| `skills/` | Guías de procedimientos paso a paso que ejecutan los agentes. |
+| `scripts/configure/cli.js` | Generador que compila el código fuente para los 7 asistentes de IA. |
+| `scripts/hooks/` e `internal/hooks/` | Hooks de ciclo de vida en JavaScript y Go para máxima velocidad. |
+| `scripts/check.js` | Suite de pruebas y validación del repositorio (`npm test`). |

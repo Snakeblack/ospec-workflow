@@ -1,49 +1,24 @@
-# Generador Multi-Target
+# Generador Multi-Target en Profundidad
 
-El generador multi-target es el núcleo responsable de compilar el árbol fuente canónico de OSpec (agentes, comandos, reglas, skills) hacia múltiples plataformas de asistentes de IA (VS Code, Claude Code, GitHub Copilot, OpenCode, Codex). Su rol es garantizar que una única base de código genere artefactos nativos para cada asistente, aplicando las adaptaciones estructurales necesarias.
+> **En pocas palabras:** El generador multi-target es el compilador que transforma las definiciones universales de agentes y habilidades en los formatos específicos que demandan las **7 plataformas de IA soportadas**, sin duplicación de código.
 
-> **Orientación:** la matriz completa por target y los flujos de instalación viven en las páginas canónicas [Arquitectura y generador multi-target](../architecture/overview.md) e [Instalación de Objetivos](../installation/target-installation.md). Esta página se centra en el **motor de transformación**: pureza funcional, perfiles declarativos, IO segura y compuerta de validación.
+---
 
-## Flujo principal
+## Proceso de Transformación Interno
 
-El proceso inicia mediante los scripts definidos en `package.json` (ej. `npm run build:claude`, `build:codex`).
-El orquestador (`cli.js`) lee el código fuente canónico y lo envía al motor de transformación pura (`target-transform.js`).
-La transformación remodela manifiestos, hooks, y reasigna agentes/comandos basándose en perfiles declarativos (`target-profiles/*.js`).
-El resultado en memoria se escribe de forma determinista y segura en `dist/<target>/`. Finalmente, se ejecuta una compuerta de calidad (validador) específica del target.
+```mermaid
+flowchart TD
+    A["Directorio Fuente Canónico
+(agents/, skills/, rules/, hooks/)"] --> B["target-transform.js
+(Lógica Pura de Transformación)"]
+    B --> C["Perfil Específico
+(scripts/lib/target-profiles/*.js)"]
+    C --> D["Validación con Golden Fixtures"]
+    D --> E["Distribución Lista en dist/<target>/"]
+```
 
-## Detalles técnicos
-
-- **Perfiles (Capability Matrix):**
-  - **vscode:** Formato base nativo sin reescrituras agresivas.
-  - **claude:** Genera un `marketplace.json` local. El agente orquestador se emite como un *skill* para invocar dinámicamente el workflow.
-  - **copilot:** Reestructura los hooks al formato de proyecto de Copilot (`.github/hooks/hooks.json`).
-  - **opencode:** Sintetiza la configuración en `opencode.json` (instrucciones, mcp, schema). Variables de comandos pasan a ser posicionales.
-  - **codex:** Convierte agentes a formato `.toml`, consolida reglas en un `AGENTS.md` sintetizado, y transforma comandos en skills invocables (`skills/commands/`).
-  - **cursor:** Layout `.cursor`: agentes `.agent.md` → `.md`, comandos `.prompt.md` → `.md`, reglas a `.mdc` con `alwaysApply: true`, y sintetiza un `agents-protocol.mdc` desde `AGENTS.md`. Modelos en formato alias; los agentes de revisión se emiten como readonly.
-  - **antigravity:** Conserva las extensiones `.agent.md`/`.prompt.md`. Hooks en formato nativo antigravity con placeholder `__OSPEC_ANTIGRAVITY_ROOT__`, y tool map renombrado (`ask_question`, `view_file`, `run_command`). Reglas convertidas a instructions con `applyTo: "**"`.
-- **Validación:** Se ejecuta tras la compilación mediante comandos CLI nativos o scripts (ej. `validate-codex.js`). Cualquier error o advertencia en la salida falla la compilación de forma estricta (a menos que se omita con `--no-validate`).
-
-## Decisiones de diseño (Por qué es así)
-
-- **Transformación pura:** El archivo `target-transform.js` no tiene dependencias de red o sistema de archivos. Esto facilita realizar pruebas deterministas y hace el código seguro.
-- **Parsers sin dependencias:** Se implementan parsers ligeros (`parseModels`, serialización TOML manual) para mantener el sistema libre de dependencias pesadas, encajando en scripts puros de Node (CommonJS).
-- **Escritura segura (Safe IO):** El proceso de escritura solo elimina artefactos obsoletos que están dentro de las raíces administradas, evitando destruir directorios ajenos.
-
-## Puntos de extensión mayores
-
-- **Nuevos Targets:** Para soportar un nuevo asistente, simplemente crea un nuevo perfil en `/scripts/lib/target-profiles/` y regístralo en el diccionario `PROFILES` de `/scripts/configure/cli.js`.
-- **Estrategias de inyección de Reglas:** Puedes añadir nuevas estrategias a `isAccumulateStrategy` o funciones dedicadas en el transformador para acomodar asistentes con manejos únicos de contexto.
-
-## Aspectos a tener en cuenta al editar (Gotchas)
-
-- **Invariante Pura:** Nunca introduzcas operaciones de sistema de archivos (`fs`, `path`) dentro de `target-transform.js`. Toda la entrada/salida debe ocurrir en `cli.js`.
-- **Exclusión de código:** Los scripts de prueba (`*.test.js`) y generadores están excluidos de las ramas de ejecución en producción de forma incondicional.
-- **Advertencias como errores:** La función `validatorFailed` considera advertencias (warnings) como fallos. Asegúrate de que los validadores propios no emitan logs ruidosos en ejecuciones exitosas.
-
-## Source Map
-
-- `/package.json` - Define los targets de compilación y comandos de configuración (`build:*`, `setup:*`, `validate:*`).
-- `/scripts/configure/cli.js` - Orquestador IO: lee archivos, despacha el transformador, escribe resultados en disco y lanza la validación.
-- `/scripts/configure/claude-marketplace.js` - Envoltura especializada de compilación que genera metadatos de marketplace locales para Claude Code.
-- `/scripts/lib/target-transform.js` - Motor de transformación in-memory puro.
-- `/scripts/lib/target-profiles/` - Carpeta de perfiles declarativos que especifican el mapeo de capacidades y reglas de transformación para cada target.
+### Transformaciones Realizadas
+1. **Reescritura de Frontmatter:** Adapta las cabeceras YAML a las claves requeridas por cada plataforma.
+2. **Mapeo de Herramientas:** Convierte nombres de herramientas genéricas a los identificadores nativos (por ejemplo, `ask_question` en Antigravity o `ask_user` en Copilot).
+3. **Conversión de Reglas:** Transforma instrucciones markdown en reglas `.mdc` para Cursor o directivas de instrucciones para Copilot.
+4. **Resolución de Modelos:** Traduce los tiers abstractos (`cheap`, `default`, `premium`) a los identificadores exactos de los proveedores.

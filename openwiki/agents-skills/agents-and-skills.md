@@ -1,41 +1,58 @@
-# Agentes y Skills
+# Agentes y Habilidades (Skills)
 
-Este dominio define el núcleo de ejecución de tareas y capacidades del sistema ospec-workflow. Los **agentes** representan roles o fases específicas del ciclo de desarrollo (ej. proponer, aplicar, verificar), mientras que las **skills** (habilidades) son conjuntos de reglas, patrones y herramientas inyectables que dotan a los agentes del contexto necesario para trabajar con tecnologías o flujos particulares.
+> **En pocas palabras:** En `ospec-workflow`, un **Agente** es el rol profesional que asume la IA (como un arquitecto de software o un auditor de seguridad), y una **Skill** es el manual de instrucciones exacto que le enseña paso a paso cómo realizar su trabajo con excelencia.
 
-## Flujo principal
-1. El orquestador determina la tarea a realizar y lanza el agente correspondiente (ej. `sdd-apply.agent.md`).
-2. Antes de lanzar al sub-agente, el orquestador usa el mecanismo de resolución de skills (`skill-resolver`) para emparejar la tarea y los archivos afectados con las skills relevantes.
-3. Se extraen reglas compactas (5-15 líneas) del caché del registro de skills (`skill-registry.cache.json`) y se inyectan en el prompt del sub-agente bajo la sección "Project Standards".
-4. El agente ejecuta su fase con este contexto inyectado y reporta su estado, incluyendo cómo resolvió sus skills en su sobre de retorno (`envelope`).
+---
 
-## Detalles técnicos
-- **Agentes (`/agents/`)**: Archivos Markdown que definen el prompt del sistema, las restricciones de la fase y el formato estricto de salida esperado (ej. sobres de respuesta con `status`, `artifacts`, `skill_resolution`).
-- **Skills (`/skills/`)**: Directorios que contienen un archivo `SKILL.md` principal con metadatos (YAML frontmatter con nombre y triggers) e instrucciones detalladas.
-- **Skill Resolver (`/skills/_shared/skill-resolver.md`)**: Protocolo universal que define el orden de resolución (contexto > caché > fallback) y cómo filtrar un máximo de 5 bloques de skills para evitar sobrecargar el prompt.
-- **Skill Registry (`/skills/skill-registry/SKILL.md`)**: Es una skill especial encargada de escanear todas las skills globales y del proyecto, omitiendo aquellas de la arquitectura base (`sdd-*`, `_shared`), para generar un archivo JSON con reglas pre-digeridas y listas para inyectar.
-- **Ciclo de vida de la caché (hook `SessionStart`)**: El hook `SessionStart` (`scripts/hooks/session-start.js`) calcula un fingerprint SHA-256 sobre las rutas y contenidos ordenados de todos los archivos de skills y reglas (`scripts/lib/skill-registry.js`). Si la caché existente en `.ospec/cache/skill-registry.cache.json` coincide en versión y fingerprint, se **reutiliza** sin escritura; si cambió algún archivo de entrada, se **regenera**. Así se evita releer decenas de `SKILL.md` en cada sesión, controlando el presupuesto de tokens.
+## Estructura de Roles Especializados
 
-## Decisiones de diseño (Por qué es así)
-- **Aislamiento sin pérdida de contexto**: Los sub-agentes nacen "en blanco" para ahorrar tokens y mantener el foco, recibiendo sólo el conocimiento técnico estrictamente necesario mediante las reglas compactas.
-- **Compaction Safety (Seguridad de compactación)**: Leer múltiples archivos `SKILL.md` en tiempo de ejecución saturaría la ventana de contexto del LLM. Por ello, el registro pre-calcula resúmenes accionables (compact rules) de 5 a 15 líneas, logrando inyecciones baratas y rápidas.
-- **Resolución explícita**: Al forzar a los agentes a reportar su estado de `skill_resolution`, el orquestador puede detectar fallas en el contexto y rehidratar el caché antes de futuras delegaciones.
+En lugar de tener una sola IA que intente hacerlo todo, el sistema divide el trabajo entre agentes con responsabilidades muy claras:
 
-## Puntos de extensión mayores
-- **Añadir nuevas skills**: Crear una nueva carpeta en `/skills/` con un `SKILL.md` (idealmente usando `skill-creator`) para soportar nuevos frameworks o convenciones de equipo.
-- **Nuevas fases SDD**: Definir nuevos roles en `/agents/` si el flujo de trabajo requiere pasos intermedios (ej. un agente de auditoría de seguridad).
+```mermaid
+flowchart TD
+    Orch["sdd-orchestrator
+(Coordinador del flujo)"] --> P["sdd-propose (Propuestas)"]
+    Orch --> S["sdd-spec (Especificaciones)"]
+    Orch --> D["sdd-design (Arquitectura)"]
+    Orch --> T["sdd-tasks (Plan de tareas)"]
+    Orch --> A["sdd-apply (Programador TDD)"]
+    Orch --> V["sdd-verify (Verificador de tests)"]
+    Orch --> Arc["sdd-archive (Historiador)"]
+    
+    V --> R1["review-risk (Seguridad)"]
+    V --> R2["review-readability (Legibilidad)"]
+    V --> R3["review-reliability (Fiabilidad)"]
+    V --> R4["review-resilience (Resiliencia)"]
+```
 
-## Consideraciones al editar (Gotchas)
-- **Actualizar el caché**: Si se modifica un `SKILL.md`, se DEBE ejecutar la skill `skill-registry` para que el orquestador vea los cambios en el archivo `.ospec/cache/skill-registry.cache.json`.
-- **Sobres de respuesta**: Los agentes definidos en `/agents/` están obligados a devolver una estructura JSON o formato específico que incluya `skill_resolution`. Romper este contrato bloqueará el orquestador.
-- **Límite de inyección**: Nunca inyectar skills del stack tecnológico en fases puramente administrativas como `sdd-archive` o `sdd-init`.
+---
 
-## Source Map
-- `/agents/`: Directorio que contiene los prompts y contratos de cada fase (ej. `sdd-apply.agent.md`, `sdd-verify.agent.md`).
-- `/skills/_shared/skill-resolver.md`: Protocolo que dicta cómo se descubren e inyectan las reglas en los prompts de los sub-agentes.
-- `/skills/skill-registry/SKILL.md`: Instrucciones para compilar y actualizar el caché de habilidades.
-- `/scripts/lib/skill-registry.js`: Descubre skills y calcula el fingerprint SHA-256 de la caché.
-- `/scripts/hooks/session-start.js`: Hook que decide si la caché se reutiliza (fingerprint coincidente) o se regenera.
-- `/.ospec/cache/skill-registry.cache.json`: Archivo generado automáticamente que contiene los triggers y las reglas compactas listas para consumo.
+## Catálogo de Agentes Principales
 
-## Ver también
-- [Orquestación de fases SDD](../orchestration/routing.md) — cómo el orquestador despacha las fases que consumen estos agentes y skills.
+| Agente | Rol y Responsabilidad |
+|---|---|
+| **`sdd-orchestrator`** | El director de orquesta. Evalúa la solicitud, elige la ruta y delega en el especialista correspondiente. |
+| **`sdd-propose`** | Redacta la propuesta inicial con el objetivo, alcance y análisis de riesgos. |
+| **`sdd-spec`** | Define los requerimientos y escenarios de prueba utilizando el estándar OpenSpec. |
+| **`sdd-design`** | Diseña la arquitectura técnica, estructuras de datos y estrategia de archivos. |
+| **`sdd-tasks`** | Desglosa la solución en tareas concretas y estima el impacto en líneas de código. |
+| **`sdd-apply`** | Implementa el código siguiendo estrictamente TDD (primero el test que falla, luego el código). |
+| **`sdd-verify`** | Ejecuta las pruebas en consola real y audita que la evidencia sea sólida y sin trampas. |
+| **`sdd-archive`** | Registra el cambio terminado en el historial de archivo inmutable de la empresa. |
+
+---
+
+## Las Habilidades (*Skills*): Procedimientos Paso a Paso
+
+Cada agente cuenta con un documento `SKILL.md` que define su procedimiento operativo estándar. Existen 4 tipos de habilidades en el repositorio:
+
+1. **Habilidades de Fase SDD (`skills/sdd-*`):** El procedimiento formal para cada una de las etapas de desarrollo.
+2. **Protocolo Compartido (`skills/_shared/`):** Reglas universales para todos los agentes (formato de respuesta, memoria operativa y estilo de comunicación).
+3. **Habilidades de Stack Tecnológico (`skills/stack-*`):** Buenas prácticas específicas para React, Go, Python, Spring Boot, Astro Starlight, Angular, etc.
+4. **Habilidades de Utilidad (`skills/chained-pr`, `skills/branch-pr`, etc.):** Herramientas para dividir Pull Requests grandes, crear ramas o generar notas de versión.
+
+---
+
+## Registro Ultrarrápido en Caché
+
+Para que los asistentes no pierdan tiempo buscando archivos en el disco, el sistema compila todo el catálogo de habilidades en un archivo JSON indexado (`.ospec/cache/skill-registry.cache.json`). Al iniciar la sesión, los agentes acceden a sus instrucciones en milisegundos.
