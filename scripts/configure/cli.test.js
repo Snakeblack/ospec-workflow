@@ -43,6 +43,20 @@ function withoutModelPolicy(tree) {
   return Object.fromEntries(Object.entries(tree).map(([file, content]) => [file, file === "models.yaml" ? "<model-policy>" : content.replace(/^model(?:_reasoning_effort|_verbosity)?\s*[:=].*\r?\n/gm, "")]));
 }
 
+function unlinkIfPresent(targetPath) {
+  try {
+    const stat = fs.lstatSync(targetPath);
+    if (stat.isSymbolicLink() || stat.isFile()) {
+      fs.unlinkSync(targetPath);
+      return;
+    }
+  } catch (error) {
+    if (error.code === "ENOENT") return;
+    throw error;
+  }
+  fs.rmSync(targetPath, { recursive: true, force: true });
+}
+
 // ---------------------------------------------------------------------------
 // Requirement: writes a dist/<target>/ tree from a source fixture
 // ---------------------------------------------------------------------------
@@ -321,7 +335,11 @@ test("runConfigure aborts before writing on a structural model policy error", (t
 test("RED: evidence authorization rejects a symlinked change root", (t) => {
   const outside = fs.mkdtempSync(path.join(os.tmpdir(), "evidence-outside-"));
   const link = path.join(process.cwd(), "openspec", "changes", "evidence-link");
-  t.after(() => { fs.rmSync(link, { force: true }); fs.rmSync(outside, { recursive: true, force: true }); });
+  unlinkIfPresent(link);
+  t.after(() => {
+    unlinkIfPresent(link);
+    fs.rmSync(outside, { recursive: true, force: true });
+  });
   fs.writeFileSync(path.join(outside, "apply-progress.md"), "evidence");
   fs.symlinkSync(outside, link, "junction");
   assert.equal(rootedEvidencePath(process.cwd(), "openspec/changes/evidence-link/apply-progress.md", "evidence-link"), null);
