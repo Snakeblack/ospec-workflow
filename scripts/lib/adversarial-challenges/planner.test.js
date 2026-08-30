@@ -148,3 +148,28 @@ test("REQ-adversarial-challenges-002: Budget overrides are respected and bounded
   assert.equal(customPlan.budget.timeout_seconds, 120);
   assert.equal(validateInstance(planSchema, customPlan).valid, true);
 });
+
+test("REQ-adversarial-challenges-002: Changed canonical binding cannot reuse a plan identity", () => {
+  const base = {
+    candidateId: SAMPLE_CANDIDATE_ID,
+    nodeId: SAMPLE_NODE_ID,
+    policySnapshotId: SAMPLE_POLICY_ID,
+    evidenceStrategy: "bug",
+  };
+  const original = createChallengePlan(base);
+  const reboundNode = createChallengePlan({ ...base, nodeId: "repair-other-node" });
+  const reboundPolicy = createChallengePlan({
+    ...base,
+    policySnapshotId: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  });
+
+  assert.equal(validateInstance(planSchema, original).valid, true);
+  assert.equal(validateInstance(planSchema, reboundNode).valid, true);
+  assert.equal(validateInstance(planSchema, reboundPolicy).valid, true);
+  assert.notEqual(original.plan_id, reboundNode.plan_id);
+  assert.notEqual(original.plan_id, reboundPolicy.plan_id);
+  assert.notEqual(reboundNode.plan_id, reboundPolicy.plan_id);
+  assert.equal(original.candidate_id, reboundNode.candidate_id);
+  assert.equal(original.evidence_strategy, reboundPolicy.evidence_strategy);
+  assert.deepEqual(original.selected, reboundNode.selected);
+});

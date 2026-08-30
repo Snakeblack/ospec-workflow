@@ -42,14 +42,182 @@ test("REQ-adversarial-challenges-004: missing capability fails before challenge 
   assert.equal(result.causalFailure.code, "CHALLENGE_CAPABILITY_UNAVAILABLE");
 });
 
-test("REQ-adversarial-challenges-004: focal mutation uses verified diff scope and detects complacent tests", async () => {
-  const h = harness();
-  h.runAcceptance = async () => ({ pass: true });
-  h.runTests = async () => ({ pass: true, exitCode: 0 });
-  h.mutations = [{ line: 2, col: 11, original: "+", replacement: "-" }];
+const ADD_SOURCE = "function add(a, b) {\n  return a + b;\n}\nmodule.exports = { add };\n";
+const ADD_DIFF = "diff --git a/src/add.js b/src/add.js\n--- a/src/add.js\n+++ b/src/add.js\n@@ -1,4 +1,4 @@\n function add(a, b) {\n-  return a - b;\n+  return a + b;\n }\n module.exports = { add };\n";
+const DETECTING_TEST = "const assert = require(\"node:assert/strict\");\nconst test = require(\"node:test\");\nconst { add } = require(\"./add.js\");\ntest(\"adds\", () => {\n  assert.equal(add(2, 3), 5);\n});\n";
+const COMPLACENT_TEST = "const assert = require(\"node:assert/strict\");\nconst test = require(\"node:test\");\ntest(\"adds\", () => {\n  assert.ok(true);\n});\n";
+const TAUTOLOGICAL_TEST = "const assert = require(\"node:assert/strict\");\nconst test = require(\"node:test\");\ntest(\"tautology\", () => {\n  assert.equal(true, true);\n});\n";
+
+function workspaceHarness(strategy, files, diffText) {
+  const tree = computeTreeDigest(files);
+  const candidate = freezeCandidate({
+    repository_id: "k6c-runner-workspace",
+    projection: "workspace",
+    base_tree: tree,
+    candidate_tree: tree,
+    diffText,
+    paths: Object.keys(files),
+  });
+  const policySnapshot = createPolicySnapshot({ effectiveRules: ["fail-closed"] });
+  const contract = {
+    schema_version: 1,
+    contract_id: "contract:k6c-runner-ws",
+    family: "repair",
+    version: 1,
+    contract_digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    source_snapshot_id: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    obligations: [],
+  };
+  const paths = Object.keys(files);
+  const executionGraph = compileExecutionGraph({
+    contract,
+    policySnapshot,
+    nodes: [{
+      node_id: "repair-focal",
+      kind: "repair-action/v1",
+      operation: "apply",
+      objective: "repair",
+      dependencies: [],
+      ownership: { owner: "agent:test", mode: "exclusive" },
+      allowed_paths: paths,
+      invariants: [],
+      required_evidence: ["ev:test"],
+      budget_ref: "budget:default",
+    }],
+    obligations: [],
+  });
+  const sourceSnapshot = {
+    schema_version: 1,
+    kind: "source-snapshot/v1",
+    repository_id: "k6c-runner-workspace",
+    base_tree_digest: tree,
+    projection: "workspace",
+    dependency_digests: [],
+  };
+  sourceSnapshot.source_snapshot_id = computeSourceSnapshotId(sourceSnapshot);
+  const workOrder = {
+    schema_version: 2,
+    kind: "work-order/v2",
+    source_snapshot_id: sourceSnapshot.source_snapshot_id,
+    node_id: "repair-focal",
+    role: "test",
+    status: "pending",
+    operation: "apply",
+    objective: "execute challenge",
+    dependencies: [],
+    ownership: { owner: "agent:test", mode: "exclusive" },
+    allowed_paths: paths,
+    capsule_inputs: paths,
+    invariants: ["invariant"],
+    required_evidence: ["ev:test"],
+    budget: { model_turns: 0, patches: 0, commands: 4, wall_time_minutes: 2, changed_lines: 8 },
+  };
+  workOrder.work_order_id = computeWorkOrderId(workOrder);
+  const plan = createChallengePlan({
+    candidateId: candidate.candidate_id,
+    nodeId: "repair-focal",
+    policySnapshotId: policySnapshot.snapshot_id,
+    evidenceStrategy: strategy,
+    budgetOverrides: { timeout_seconds: 30 },
+  });
+  const executor = {
+    capabilities: {
+      isolation: "enforced",
+      cancellation: "enforced",
+      challenge_types: Object.fromEntries(plan.selected.map((type) => [type, "enforced"])),
+    },
+    executeChallenge: async () => ({ pass: true }),
+  };
+  return {
+    candidate,
+    policySnapshot,
+    executionGraph,
+    plan,
+    repository: { files },
+    candidateDiff: diffText,
+    sourceSnapshot,
+    workOrder,
+    nodeId: "repair-focal",
+    evidenceStrategy: strategy,
+    executor,
+    sourceCode: "caller source must not be mutated",
+    testSourceCode: "caller tests must not be inspected",
+    runTests: async () => {
+      throw new Error("caller runTests callback must not execute");
+    },
+  };
+}
+
+test("REQ-adversarial-challenges-004: migration plan without isolated executor fails closed", async () => {
+  const h = workspaceHarness("migration", { "src/add.js": ADD_SOURCE, "src/add.test.js": DETECTING_TEST }, ADD_DIFF);
+  delete h.executor.executeChallenge;
   const result = await executeChallengePlan(h.plan, h);
-  assert.equal(result.ok, true);
-  assert.equal(result.results.find((item) => item.challenge_type === "focal-mutation").details.reason, "COMPLACENT_TEST_DETECTED");
+  assert.equal(result.ok, false);
+  assert.equal(result.causalFailure.code, "CHALLENGE_CAPABILITY_UNAVAILABLE");
+  assert.ok(!(result.results || []).some((item) => item.outcome === "passed"));
+});
+
+test("REQ-adversarial-challenges-004: focal mutation seeds a defect in workspace bytes and passes", async () => {
+  const h = workspaceHarness("feature", {
+    "src/add.js": ADD_SOURCE,
+    "src/add.test.js": DETECTING_TEST,
+  }, ADD_DIFF);
+  const result = await executeChallengePlan(h.plan, h);
+  assert.equal(result.ok, true, result.causalFailure && result.causalFailure.error);
+  const focal = result.results.find((item) => item.challenge_type === "focal-mutation");
+  assert.equal(focal.outcome, "passed");
+  assert.equal(focal.candidate_id, h.candidate.candidate_id);
+  assert.equal(focal.plan_id, h.plan.plan_id);
+  assert.ok(focal.details.defects_detected >= 1);
+});
+
+test("REQ-adversarial-challenges-004: complacent suite on seeded workspace defect fails the challenge", async () => {
+  const h = workspaceHarness("feature", {
+    "src/add.js": ADD_SOURCE,
+    "src/add.test.js": COMPLACENT_TEST,
+  }, ADD_DIFF);
+  const result = await executeChallengePlan(h.plan, h);
+  assert.equal(result.ok, true, result.causalFailure && result.causalFailure.error);
+  const focal = result.results.find((item) => item.challenge_type === "focal-mutation");
+  assert.equal(focal.outcome, "failed");
+  assert.equal(focal.details.reason, "COMPLACENT_TEST_DETECTED");
+});
+
+test("REQ-adversarial-challenges-004: test-inspection via isolated runner rejects tautological workspace tests", async () => {
+  const h = workspaceHarness("config-docs", {
+    "src/add.js": ADD_SOURCE,
+    "src/add.test.js": TAUTOLOGICAL_TEST,
+  }, ADD_DIFF);
+  const result = await executeChallengePlan(h.plan, h);
+  assert.equal(result.ok, true, result.causalFailure && result.causalFailure.error);
+  const inspection = result.results.find((item) => item.challenge_type === "test-inspection");
+  assert.equal(inspection.outcome, "failed");
+  assert.equal(inspection.details.reason, "TAUTOLOGICAL_TEST_DETECTED");
+});
+
+test("REQ-adversarial-challenges-004: complacent suite on reverted workspace fails the challenge", async () => {
+  const h = workspaceHarness("bug", {
+    "src/add.js": ADD_SOURCE,
+    "src/add.test.js": COMPLACENT_TEST,
+  }, ADD_DIFF);
+  assert.ok(h.plan.selected.includes("revert"));
+  const result = await executeChallengePlan(h.plan, h);
+  assert.equal(result.ok, true, result.causalFailure && result.causalFailure.error);
+  const revert = result.results.find((item) => item.challenge_type === "revert");
+  assert.equal(revert.outcome, "failed");
+  assert.equal(revert.details.reason, "COMPLACENT_TEST_DETECTED");
+});
+
+test("REQ-adversarial-challenges-004: detecting suite on reverted workspace verifies the revert", async () => {
+  const h = workspaceHarness("bug", {
+    "src/add.js": ADD_SOURCE,
+    "src/add.test.js": DETECTING_TEST,
+  }, ADD_DIFF);
+  const result = await executeChallengePlan(h.plan, h);
+  assert.equal(result.ok, true, result.causalFailure && result.causalFailure.error);
+  const revert = result.results.find((item) => item.challenge_type === "revert");
+  assert.equal(revert.outcome, "passed");
+  assert.equal(revert.details.revert_verified, true);
 });
 
 test("REQ-adversarial-challenges-004: non-cooperative executor times out and cannot emit pass", async () => {
@@ -76,4 +244,16 @@ test("REQ-adversarial-challenges-004: Candidate tree mutation after a run invali
   const result = await executeChallengePlan(h.plan, h);
   assert.equal(result.ok, false);
   assert.equal(result.causalFailure.code, "CHALLENGE_INTEGRITY_INVALID");
+});
+
+test("REQ-adversarial-challenges-004: Candidate identity mutation after a run fails closed with unchanged repo bytes", async () => {
+  const h = harness("migration");
+  h.executor.executeChallenge = async () => {
+    h.candidate.candidate_id = "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+    return { pass: true };
+  };
+  const result = await executeChallengePlan(h.plan, h);
+  assert.equal(result.ok, false);
+  assert.equal(result.causalFailure.code, "CHALLENGE_INTEGRITY_INVALID");
+  assert.equal(h.repository.files["src/index.js"], FILES["src/index.js"]);
 });

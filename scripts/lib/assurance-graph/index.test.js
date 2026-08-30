@@ -16,7 +16,7 @@ const {
   rejectAuthorityMisuse,
   isEvidenceTransitivelyInvalidated,
 } = require("./index.js");
-const { verifyCandidate } = require("../independent-verifier/index.js");
+const { verifyCandidate, verifyCandidateWithChallenges } = require("../independent-verifier/index.js");
 const { computeAssessmentId } = require("../independent-verifier/assessment.js");
 const { createTestRunnerReceiptChannel, createTestRunnerReceiptChannelFromReceipts } = require("../test-support/k6b-runner-receipt.js");
 const { readRunnerReceiptChannel } = require("../independent-verifier/runner-receipt.js");
@@ -175,6 +175,68 @@ test("REQ-assurance-graph-009: K6c plan and exact results are deterministic grap
   assert.equal(first.graph.nodes.some((node) => node.kind === "challenge-plan"), true);
   assert.equal(projectAssuranceGraph({ ...input, challengeResults: [results[0], results[0]] }).reason_code, "GRAPH_DIVERGENCE");
   assert.equal(projectAssuranceGraph({ ...input, challengePlan: null }).reason_code, "GRAPH_DIVERGENCE");
+});
+
+test("REQ-assurance-graph-009: verifier-emitted K6c material projects and replays with byte-identical graph_id", () => {
+  const files = { "src/index.js": "module.exports = 1;\n" };
+  const candidate = freezeFromFiles(files);
+  const executionGraph = compileGraph();
+  const plan = createChallengePlan({
+    candidateId: candidate.candidate_id,
+    nodeId: "repair-core",
+    policySnapshotId: executionGraph.policy_snapshot_id,
+    evidenceStrategy: "feature",
+  });
+  const results = plan.selected.map((challengeType) => emitChallengeResult({
+    planId: plan.plan_id,
+    candidateId: candidate.candidate_id,
+    nodeId: plan.node_id,
+    policySnapshotId: plan.policy_snapshot_id,
+    evidenceStrategy: plan.evidence_strategy,
+    challengeType,
+    outcome: "passed",
+  }));
+  const rawEvidence = featureRaw();
+  const receiptSpecs = featureReceipts();
+  const runnerReceiptChannel = createTestRunnerReceiptChannel({
+    candidate,
+    executionGraph,
+    collector: HARNESS_COLLECTOR,
+    rawEvidence,
+    receiptSpecs,
+  });
+  const verified = verifyCandidateWithChallenges({
+    candidate,
+    executionGraph,
+    contract: { contract_digest: executionGraph.contract_digest },
+    repository: { files },
+    declaredStrategy: "feature",
+    collector: HARNESS_COLLECTOR,
+    rawEvidence,
+    runnerReceiptChannel,
+    challengePlan: plan,
+    challengeResults: results,
+  });
+  assert.equal(verified.ok, true, verified.error || verified.reason_code);
+  assert.equal(verified.challenge_verification.status, "accepted");
+  assert.equal(verified.assurance_graph.nodes.some((node) => node.kind === "challenge-plan"), true);
+  assert.equal(verified.assurance_graph.nodes.some((node) => node.kind === "challenge-result"), true);
+
+  const persistable = replayBundle(
+    { candidate, executionGraph, verified, runnerReceiptChannel },
+    {
+      challengePlan: verified.challengePlan,
+      challengeResults: verified.challengeResults,
+      requireChallengeVerification: true,
+    }
+  );
+  const replayed = replayAssuranceGraph(persistable);
+  assert.equal(replayed.ok, true, replayed.error || replayed.reason_code);
+  assert.equal(replayed.graph.graph_id, verified.assurance_graph.graph_id);
+  assert.deepEqual(
+    replayed.graph.nodes.filter((node) => node.kind === "challenge-plan" || node.kind === "challenge-result"),
+    verified.assurance_graph.nodes.filter((node) => node.kind === "challenge-plan" || node.kind === "challenge-result")
+  );
 });
 
 test("REQ-assurance-graph-002: same inputs yield the same digest and edges despite permutation", () => {

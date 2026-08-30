@@ -12,11 +12,15 @@ function evaluateChallengeEvidence(input, bindings, { required = false } = {}) {
   const gate = validateChallengeResultSet(plan, results, { candidate: bindings.candidate, executionGraph: bindings.executionGraph, policySnapshot: input.policySnapshot });
   if (!gate.ok) return fail("CHALLENGE_INTEGRITY_INVALID", gate.error);
   if (results.some((result) => result.outcome !== "passed")) return fail("CHALLENGE_VERIFICATION_FAILED", "one or more canonical challenges did not pass");
+  const replay = { plan, results: [...results].sort((left, right) => left.challenge_type.localeCompare(right.challenge_type)) };
+  if (!required) {
+    return { ok: true, status: "optional", replay_challenges: replay };
+  }
   return {
     ok: true,
     status: "accepted",
     challenge_verification: { status: "accepted", plan_id: plan.plan_id, result_ids: results.map((result) => result.result_id).sort() },
-    replay_challenges: { plan, results: [...results].sort((left, right) => left.challenge_type.localeCompare(right.challenge_type)) },
+    replay_challenges: replay,
   };
 }
 

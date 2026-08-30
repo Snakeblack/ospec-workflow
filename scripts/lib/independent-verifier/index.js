@@ -229,6 +229,7 @@ function verifyCandidate(input) {
     verdict,
   });
 
+  const requiredK6c = Boolean(input.requireChallengeVerification || input.require_challenge_verification);
   const projected = assuranceGraph.projectAssuranceGraph({
     canonicalInputs: input.canonicalInputs || {
       contract: input.contract,
@@ -239,14 +240,18 @@ function verifyCandidate(input) {
     evidence: classified,
     assessments: coverage.assessments,
     verification,
-    challenge_verification: challengeGate.challenge_verification,
-    replay_challenges: challengeGate.replay_challenges,
+    ...(challengeGate.replay_challenges ? {
+      challengePlan: challengeGate.replay_challenges.plan,
+      challengeResults: challengeGate.replay_challenges.results,
+    } : {}),
+    requireChallengeVerification: requiredK6c,
+    policySnapshot: input.policySnapshot,
   });
   if (!projected.ok) {
     return mapProjectionFailure(projected);
   }
 
-  return {
+  const payload = {
     ok: true,
     strategy,
     evidence: evidenceRecords,
@@ -258,6 +263,10 @@ function verifyCandidate(input) {
     assurance_graph: projected.graph,
     equivalence_manifest: assuranceGraph.emitEquivalenceManifest(projected.graph),
   };
+  if (requiredK6c && challengeGate.challenge_verification) {
+    payload.challenge_verification = challengeGate.challenge_verification;
+  }
+  return payload;
 }
 
 module.exports = {

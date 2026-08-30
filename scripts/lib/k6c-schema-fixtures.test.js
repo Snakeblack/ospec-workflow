@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 const { validateInstance, loadSchemaById } = require("./kernel-schema-validator.js");
+const { validateChallengeResult, validateChallengeResultSet } = require("./adversarial-challenges/integrity.js");
 const {
   assertK1SchemasUnchanged,
   digestFile,
@@ -131,6 +132,23 @@ test("K6c challenge-result/v1: valid fixtures pass; invalid outcome and invalid 
   const ioRes = validateInstance(schema, invalidOutcome);
   assert.equal(ioRes.valid, false, "challenge-result with invalid outcome must fail");
   assert.equal(validateInstance(schema, readJson("schemas/kernel/challenge-result/fixtures/invalid/missing-policy-snapshot-id.json")).valid, false, "challenge-result missing policy binding must fail");
+});
+
+test("K6c malformed-hash fixtures and cross-bound pair fail closed", () => {
+  const planSchema = loadSchemaById("ospec://schemas/kernel/challenge-plan/v1", { rootDir: ROOT });
+  const resultSchema = loadSchemaById("ospec://schemas/kernel/challenge-result/v1", { rootDir: ROOT });
+
+  const malformedPlan = readJson("schemas/kernel/challenge-plan/fixtures/invalid/malformed-hash.json");
+  const malformedResult = readJson("schemas/kernel/challenge-result/fixtures/invalid/malformed-hash.json");
+  assert.equal(validateInstance(planSchema, malformedPlan).valid, false, "malformed plan_id hash must fail schema validation");
+  assert.equal(validateInstance(resultSchema, malformedResult).valid, false, "malformed result_id hash must fail schema validation");
+
+  const pairPlan = readJson("schemas/kernel/challenge-plan/fixtures/pairs/cross-bound-plan.json");
+  const pairResult = readJson("schemas/kernel/challenge-result/fixtures/pairs/cross-bound-result.json");
+  assert.equal(validateInstance(planSchema, pairPlan).valid, true, `cross-bound plan must be schema-valid: ${JSON.stringify(validateInstance(planSchema, pairPlan).errors)}`);
+  assert.equal(validateInstance(resultSchema, pairResult).valid, true, `cross-bound result must be schema-valid: ${JSON.stringify(validateInstance(resultSchema, pairResult).errors)}`);
+  assert.equal(validateChallengeResult(pairResult, pairPlan).ok, false, "cross-bound result must fail pair integrity");
+  assert.equal(validateChallengeResultSet(pairPlan, [pairResult]).ok, false, "cross-bound pair must fail set integrity");
 });
 
 test("K6c cross-family substitution fails closed", () => {

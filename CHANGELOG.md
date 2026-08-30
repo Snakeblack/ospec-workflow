@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.56.1] - 2026-08-31
+
+### Fixed
+- **Integridad K6c (`k6c-integrity-remediation`)**:
+  - Frontera canónica compartida: schemas, IDs, bindings Candidate/nodo/estrategia/`PolicySnapshot` y cardinalidad exacta en planner, runner, verifier y proyección.
+  - Ejecución aislada fail-closed: cada challenge muta y corre sobre un workspace K6a; timeout sticky; tipos sin executor emiten `CHALLENGE_CAPABILITY_UNAVAILABLE` (no `{ pass: true }`).
+  - El verifier exige el conjunto exacto de plan/resultados y emite `challenge_verification`; casos missing, duplicate y foreign no habilitan K6d.
+  - Assurance Graph proyecta plan/resultados como nodos derivados no autoritativos; el replay produce `graph_id` byte-idéntico.
+  - Fixtures `malformed-hash` y pares cross-bound; tests de revert complaciente vs `revert_verified`.
+  - Verify PASS 24/24 MUST, 30/30 tareas; 4R approved (3 CRITICAL remediados). Archivado en `openspec/changes/archive/2026-08-30-k6c-integrity-remediation/`.
+
+### Changed
+- K6c permanece `done` con la integridad cerrada; K6d queda `next-eligible`.
+- Specs `adversarial-challenges` (REQ-002, REQ-004), `independent-verification` (REQ-010), `assurance-graph` (REQ-009) y `kernel-contract-schemas` (REQ-029).
+- ADRs `docs/adr/adr-20260830-001` a `003`.
+
 ## [2.56.0] - 2026-08-28
 
 ### Added

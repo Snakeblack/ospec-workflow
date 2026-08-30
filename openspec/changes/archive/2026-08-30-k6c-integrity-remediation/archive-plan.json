@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "change": "k6c-integrity-remediation",
+  "source_fingerprint": "sha256:f409df76edb781e301151ef54c3de9001f336626af1341a13072fe72362653bd",
+  "spec_writes": [
+    {
+      "domain": "adversarial-challenges",
+      "source_delta": "prepared-specs/adversarial-challenges/spec.md",
+      "target": "openspec/specs/adversarial-challenges/spec.md",
+      "target_before_sha256": "sha256:e73105ebf13f3d9dacd5c762123d4864c5f80760b1d4ef9c77cdba77147155db",
+      "content_sha256": "sha256:13c15dc2a124e9219ad943c543a27dd0b1c7dd3dfa0f917fe117ea8f81c16036"
+    },
+    {
+      "domain": "independent-verification",
+      "source_delta": "prepared-specs/independent-verification/spec.md",
+      "target": "openspec/specs/independent-verification/spec.md",
+      "target_before_sha256": "sha256:978bb01e40fc95fd938bb372a0ac84bc7b230bd2ea29279befd102eb6477b9eb",
+      "content_sha256": "sha256:df2f44d99e0fcb7b624880efdb58b75f29dfde54c631890b1a9497f466e69bf2"
+    },
+    {
+      "domain": "assurance-graph",
+      "source_delta": "prepared-specs/assurance-graph/spec.md",
+      "target": "openspec/specs/assurance-graph/spec.md",
+      "target_before_sha256": "sha256:5196c6d3d1632a8c81902a78e6031a209a7d98773ef5bd3d855d53c73d041580",
+      "content_sha256": "sha256:4a664c924fce52cb27e00c842be67dcafa9ee63fc848dd75ea0c0985e4aee459"
+    },
+    {
+      "domain": "kernel-contract-schemas",
+      "source_delta": "prepared-specs/kernel-contract-schemas/spec.md",
+      "target": "openspec/specs/kernel-contract-schemas/spec.md",
+      "target_before_sha256": "sha256:4b754c17ba80969d4e6a7b953532f37c85523ff525fad49846a0291026ca3407",
+      "content_sha256": "sha256:6300b5919fa223dd0901211b2bc454f71954865f8eee3a588328bbdac902809c"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260830-001-shared-canonical-k6c-integrity-boundary.md",
+      "content_sha256": "sha256:3307c1f77ffcd39b45f30c0eba3ad7c5ced2cd0ef6a3cd440f16f496910d86c4"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260830-002-k6a-workspace-reuse-sticky-cancellation.md",
+      "content_sha256": "sha256:c6b82b7bc65459df45b57ad2b1d3b0d170da22c06baa6741627de77bbe89041a"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260830-003-deterministic-non-authoritative-k6c-graph-projection.md",
+      "content_sha256": "sha256:39e1388ce93552ad8f320ff03bef651048a9ab4e3d8322799d50407ed1f19a87"
+    }
+  ],
+  "archive_inventory": [
+    ".4r/candidate.json",
+    ".4r/corrected-s1.json",
+    ".4r/decision.json",
+    ".4r/diff.patch",
+    ".4r/evidence.json",
+    ".4r/lens-results.json",
+    ".4r/lineage.json",
+    ".4r/next-action.json",
+    ".4r/request-ids.json",
+    ".4r/summary.json",
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "design.md",
+    "prepared-specs/adversarial-challenges/spec.md",
+    "prepared-specs/assurance-graph/spec.md",
+    "prepared-specs/independent-verification/spec.md",
+    "prepared-specs/kernel-contract-schemas/spec.md",
+    "proposal.md",
+    "specs/adversarial-challenges/spec.md",
+    "specs/assurance-graph/spec.md",
+    "specs/independent-verification/spec.md",
+    "specs/kernel-contract-schemas/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

@@ -1,7 +1,7 @@
 # Roadmap general — kernel, grafo y evidencia
 
 > **Autoridad:** única fuente operativa del backlog transversal.
-> **Versión de referencia:** v2.56.0, 2026-08-28.
+> **Versión de referencia:** v2.56.1, 2026-08-31.
 > **Arquitectura:** [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md).
 > **Investigación no normativa:** [`../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md`](../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md) (P0–P27). Proporcionalidad de proceso y Change Program: [`../architecture/research/proportional-process-and-change-program.md`](../architecture/research/proportional-process-and-change-program.md).
 > **Regla de estado:** los hechos se contrastan con código/OpenSpec; este roadmap no cambia el estado de un change ni sustituye sus artefactos.
@@ -79,8 +79,8 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 | `done` | **K6a** | Worker isolation y work-order capsule; primitivas de ejecución aislada, integración con WorkerTransport, contención de filesystem y WorkResult canónico; archivado en v2.46.0, frontera de procesos cerrada en v2.47.1 y endurecida en v2.47.2 |
 | `done` | **K4b** | Repair shadow execution (WO→WR→integrate→Candidate); despacho exclusivo K6a, integración estricta, cápsula mínima, base derivada y registro 1:N; remediación de invariantes en v2.48.2 y cierre mode-only/baseline en v2.48.3 (`2026-08-26-k4b-mode-only-and-baseline-projection`) |
 | `done` | **K6b** | Verifier + provenance + Assurance Graph; persistencia durable de `runner-receipt/v1` en CAS `runner_receipts`, canal reemitido tras restart y bind de role en replay; archivado y publicado en v2.55.0 |
-| `done` | **K6c** | ChallengePlan policy-selected; catálogo de 9 tipos, mutaciones focales y control de budget; archivado y publicado en v2.56.0 |
-| `next-eligible` | **K6d** | Complexity delta; desbloqueado tras archive de `k6c-policy-selected-challenges` |
+| `done` | **K6c** | ChallengePlan policy-selected; catálogo de 9 tipos, mutaciones focales y control de budget (v2.56.0); integridad canónica/fail-closed cerrada en v2.56.1 (`k6c-integrity-remediation`) |
+| `next-eligible` | **K6d** | Complexity delta; desbloqueado tras archive de `k6c-integrity-remediation` |
 | `pending` | K7–K8 | Review authority, **Evaluation Attestation** |
 | `pending` | K9 | Gate de promoción shadow/replay/A-B (checkpoints intermedios ya validados) |
 | `pending` | K10-delivery | `DeliveryAuthorization` **acotada al profile K9**; relación Candidate por etapas; fixed/deferred para el resto |
@@ -187,11 +187,11 @@ Campo canónico de binding al candidato: **`candidate_id`** (no `candidate_diges
 Entregado:
 G0/G0.1 ─ O2A ─ O3 ─ O4+O5/O4.1 ─ O4.2 ─ O6A ─ O2B → K1 → K2 → K2.1 → K2a → K3 → K4a → K5 → K6a → K4b
                                                                                                       ↓
-Done:                                                                                                K6b
+Done:                                                                                                K6b → K6c
                                                                                                       ↓
-Next-eligible:                                                                                       K6c
+Next-eligible:                                                                                       K6d
                                                                                                       ↓
-Pending:     K6d → K7 → K8
+Pending:     K7 → K8
                                                                    ↓
 Promoción:                                                       K9
                                                                    ↓
@@ -1184,7 +1184,7 @@ K6c ataca la **evidencia/implementación** del candidato. La refutación adversa
 - no se introduce un segundo stack de “refuter de review” paralelo a K7;
 - coste de challenges no crece por “correr todo el catálogo”.
 
-**Gate terminal:** cerrado en v2.56.0. ChallengePlan determinista proporcional con 9 tipos de challenges, control estricto de ChallengeBudget con fallo causal tipado, mutador focal y rechazo de tests complacientes/tautológicos, integrado en independent-verifier sin autoridad de delivery (`k6c-policy-selected-challenges`). Desbloquea K6d.
+**Gate terminal:** cerrado en v2.56.0 (`k6c-policy-selected-challenges`). Integridad canónica, ejecución aislada fail-closed, conjunto exacto en el verifier y proyección/replay no autoritativa cerradas en v2.56.1 (`k6c-integrity-remediation`). Desbloquea K6d.
 
 ### K6d — complexity y architecture delta — **next-eligible**
 
@@ -2080,3 +2080,4 @@ Un Change Program (objetivo → children OpenSpec + cursor, ver investigación `
 - 2026-08-28: remediación focal publicada en v2.54.0: `runner-receipt/v1` por canal opaco con EvidenceId obligatorio y outcome coherente; causal chain completa; replay exige bytes o blob content-addressed. Dominios K6b enrolados y reconciliados. Pendiente terminal review, sin promover aún K6b ni iniciar K6c.
 - 2026-08-28: `k6b-durable-replay-receipt-authority` aplica persistencia CAS `runner_receipts`, rehidratación/reemisión de canal y bind de role en replay. K6b sigue `revise`; K6c permanece `blocked` hasta archive de este change.
 - 2026-08-28: K6b (`k6b-durable-replay-receipt-authority`) cierra con verify PASS WITH WARNINGS, 4R approved (CRITICAL de type-confusion remediado) y archive transaccional; publicado en v2.55.0. K6b pasa a `done`; K6c queda `next-eligible`.
+- 2026-08-31: K6c (`k6c-integrity-remediation`) cierra con verify PASS, 4R approved (3 CRITICAL remediados) y archive transaccional; publicado en v2.56.1. K6c permanece `done` con integridad cerrada; K6d queda `next-eligible`.
