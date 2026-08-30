@@ -42,7 +42,32 @@
           annotations: t.annotations
         }));
       },
+      getTool: async (name) => {
+        const t = localToolsMap.get(name);
+        if (!t) return null;
+        return {
+          name: t.name,
+          title: t.title,
+          description: t.description,
+          inputSchema: t.inputSchema,
+          annotations: t.annotations
+        };
+      },
+      listTools: async () => {
+        return Array.from(localToolsMap.values()).map((t) => ({
+          name: t.name,
+          title: t.title,
+          description: t.description,
+          inputSchema: t.inputSchema,
+          annotations: t.annotations
+        }));
+      },
       executeTool: async (name, args, context) => {
+        const tool = localToolsMap.get(name);
+        if (!tool) throw new Error(`WebMCP Tool "${name}" not found.`);
+        return await tool.execute(args || {}, context);
+      },
+      executeTools: async (name, args, context) => {
         const tool = localToolsMap.get(name);
         if (!tool) throw new Error(`WebMCP Tool "${name}" not found.`);
         return await tool.execute(args || {}, context);
