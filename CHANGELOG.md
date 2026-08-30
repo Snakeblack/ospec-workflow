@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.57.0] - 2026-08-30
+
+### Added
+- **TUI Interactiva `ospec` — Hito 1: Cimientos, Dependencias y Shell Visual**:
+  - **Dependencias Oficiales Charmbracelet**: Integración en `go.mod` de `bubbletea` v1.3.10, `lipgloss` v1.1.0, `bubbles` v1.0.0, `huh` v1.0.0 y `gopkg.in/yaml.v3`.
+  - **Sistema de Diseño y Tokens Lipgloss**: Módulo `internal/tui/theme/` con paleta Gentle-AI / Scandinavian (Cyan primario `#00D7D7`, Magenta acento `#D946EF`, Esmeralda éxito `#10B981`, Ámbar advertencia `#F59E0B` y Pizarra tenue `#64748B`), estilos reutilizables para cajas, bordes redondeados, badges y barras de pestañas.
+  - **Cabecera Responsiva**: Componente `internal/tui/header/` con banner de arte ASCII `OSPEC`, breakpoint de ancho (80 columnas) para conmutación fluida entre modo estándar y modo compacto, y badges dinámicos con versión del proyecto, perfil activo y estado del repositorio.
+  - **Esqueleto del App Model Elm**: Módulo `internal/tui/app.go` implementando la arquitectura TEA (`Init`, `Update`, `View`), soporte de redimensionamiento (`tea.WindowSizeMsg`), navegación cíclica por 4 pestañas (`1-4`, `Tab`, `Shift+Tab`) y atajos globales (`q`, `ctrl+c`).
+  - **Punto de Entrada Standalone**: Binario standalone `cmd/ospec/main.go` inicializado en buffer de pantalla alternativo (`tea.WithAltScreen`).
+  - **Suite de Pruebas Go**: Pruebas unitarias directas sobre `Model.Update`, helpers de renderizado de Lipgloss y pruebas de comparación de archivos golden (`header_standard.golden` y `header_compact.golden`) con 100% de cobertura de declaraciones en paquetes `internal/tui`.
+  - **Especificaciones y ADRs**: Especificación de dominio `openspec/specs/tui-visual-shell/spec.md` (REQ-001 a REQ-006) y decisiones arquitectónicas `docs/adr/adr-20260830-001` a `004`.
+
+### Changed
+- Hito 1 del roadmap de la TUI (`docs/tui/roadmap.md`) actualizado a `✅ Completado`.
+- Ciclo SDD completo `2026-08-30-tui-scaffolding-and-visual-shell` verificado con `PASS` y archivado en `openspec/changes/archive/2026-08-30-2026-08-30-tui-scaffolding-and-visual-shell/`.
+
 ## [2.56.0] - 2026-08-28
 
 ### Added

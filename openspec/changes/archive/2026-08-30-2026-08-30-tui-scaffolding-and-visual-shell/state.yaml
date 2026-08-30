@@ -1,0 +1,62 @@
+change: "2026-08-30-tui-scaffolding-and-visual-shell"
+status: "archived"
+last_updated: 2026-08-30T20:29:45Z
+blocking_questions: []
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/2026-08-30-tui-scaffolding-and-visual-shell/proposal.md"
+    summary: "Propuesta para Milestone 1 de la TUI Go: dependencias Charmbracelet, tema Lipgloss, cabecera ASCII con badges y esqueleto TEA con navegación por pestañas."
+    key_decisions:
+      - "Ecosistema Charmbracelet (bubbletea, lipgloss, bubbles, huh) para la TUI en Go"
+      - "Desacoplamiento total del arnés Node.js"
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/2026-08-30-tui-scaffolding-and-visual-shell/specs/tui-visual-shell/spec.md"
+    summary: "Especificación completa para la shell visual de la TUI: ciclo de vida Bubble Tea, tema Lipgloss, cabecera responsiva con badges, navegación de 4 pestañas y desacoplamiento de Go."
+    key_decisions:
+      - "Identificadores estables REQ-tui-visual-shell-001 a REQ-tui-visual-shell-006"
+      - "Modo responsivo en cabecera para terminales < 80 columnas"
+  design:
+    status: done
+    artifact: "openspec/changes/2026-08-30-tui-scaffolding-and-visual-shell/design.md"
+    summary: "Arquitectura TEA Elm en Go, tokens Lipgloss estilo Gentle-AI, cabecera responsiva con ASCII y navegación por 4 pestañas."
+    key_decisions:
+      - "Charmbracelet Bubble Tea para el bucle Elm de la aplicación"
+      - "Sistema de diseño y tokens Lipgloss en internal/tui/theme/"
+      - "Cabecera responsiva (breakpoint 80 columnas) con badges dinámicos"
+  tasks:
+    status: done
+    artifact: "openspec/changes/2026-08-30-tui-scaffolding-and-visual-shell/tasks.md"
+    summary: "12 tareas TDD estricto (Red-Green-Refactor) en 4 fases para tema Lipgloss, cabecera ASCII, modelo TEA y punto de entrada binario."
+    key_decisions:
+      - "Estructura TDD estricto Red-Green-Refactor para cada componente visual y de modelo"
+      - "Pronóstico de carga de revisión bajo (~320 líneas, PR único recomendado)"
+  apply:
+    status: done
+    artifact: "openspec/changes/2026-08-30-tui-scaffolding-and-visual-shell/apply-progress.md"
+    summary: "12 tareas completadas con Strict TDD: tema Lipgloss, cabecera responsiva ASCII y badges, modelo Elm TEA y punto de entrada binario."
+    key_decisions:
+      - "Esquema Gentle-AI en Lipgloss (Cyan, Magenta, Emerald, Amber, Slate)"
+      - "Breakpoint responsivo de 80 columnas para cabecera ASCII vs compacta"
+      - "Navegación cíclica por 4 pestañas con atajos 1-4, Tab y Shift+Tab"
+  verify:
+    status: done
+    verdict: PASS
+    artifact: "openspec/changes/2026-08-30-tui-scaffolding-and-visual-shell/verify-report.md"
+    summary: "Verificación PASS: 12/12 tareas, 6/6 REQ (11 escenarios) con pruebas Go y arnés Node.js pasando con 0 regresiones."
+    key_decisions:
+      - "100% de cobertura de código en paquetes internal/tui, internal/tui/header e internal/tui/theme"
+      - "Compilación binaria standalone validada y suite completa npm test aprobada"
+gates:
+  quality-gates:
+    status: passed
+  archive:
+    status: done
+    artifact: "openspec/changes/2026-08-30-tui-scaffolding-and-visual-shell/archive-report.md"
+    summary: "Reporte y plan de archivo emitidos bajo Plan-and-Report; spec preparada y 4 ADRs propuestos para commit determinista."
+    key_decisions:
+      - "Plan-and-Report: emision de archive-plan.json y delegacion del commit al runtime determinista"
+      - "Fusion de tui-visual-shell como nueva especificacion de dominio en openspec/specs/"
+      - "Promocion de 4 ADRs de decisiones visuales y de ciclo de vida a docs/adr/"

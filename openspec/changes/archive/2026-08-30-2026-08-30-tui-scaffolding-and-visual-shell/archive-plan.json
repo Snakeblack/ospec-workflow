@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "change": "2026-08-30-tui-scaffolding-and-visual-shell",
+  "source_fingerprint": "sha256:c34e811d53a75dff95ebdf97ed12a62d747b24c1e64bd077f10cfb2f95acbc44",
+  "spec_writes": [
+    {
+      "domain": "tui-visual-shell",
+      "source_delta": "specs/tui-visual-shell/spec.md",
+      "target": "openspec/specs/tui-visual-shell/spec.md",
+      "target_before_sha256": null,
+      "content_sha256": "sha256:e04625e42b27da640278d8eeb6c6e2330ae01698cf3e9c2d6d8a764ef871564a"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260830-001-bubble-tea-elm-loop-for-root-application-dispatch.md",
+      "content_sha256": "sha256:e573c5ea88e59007dc2d9f6b029fa847072520f72162c68b6354d986761d0ad6"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260830-002-lipgloss-gentle-ai-scandinavian-design-token-hierarchy.md",
+      "content_sha256": "sha256:416a99d04cebd7674ded239bbf0f67dd91d7aaec8921a77bc607349761cf75a7"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260830-003-responsive-viewport-header-with-width-breakpoint.md",
+      "content_sha256": "sha256:33d7096dfe77fad3cc2f1ba163c7c389b8d0d33484276ff3ad4e81f502f8e8cc"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260830-004-tab-navigation-route-dispatch-model.md",
+      "content_sha256": "sha256:a05290e97fd5b8b3e02c6bd6ece5b47f8e78192889ea67caae1e635169a09490"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "design.md",
+    "proposal.md",
+    "specs/tui-visual-shell/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}
