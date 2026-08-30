@@ -48,7 +48,7 @@ function resolveSidebar() {
       ...manifest.topLinks.map((t) => ({ label: t.label, link: t.link })),
       ...manifest.groups.map((g) => ({
         label: g.label,
-        autogenerate: { directory: g.directory },
+        items: [{ autogenerate: { directory: g.directory } }],
       })),
     ];
   } catch {

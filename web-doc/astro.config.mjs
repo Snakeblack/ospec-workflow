@@ -48,7 +48,7 @@ function resolveSidebar() {
       ...manifest.topLinks.map((t) => ({ label: t.label, link: t.link })),
       ...manifest.groups.map((g) => ({
         label: g.label,
-        autogenerate: { directory: g.directory },
+        items: [{ autogenerate: { directory: g.directory } }],
       })),
     ];
   } catch {
@@ -57,6 +57,7 @@ function resolveSidebar() {
 }
 
 export default defineConfig({
+  site: "https://snakeblack.github.io/ospec-workflow",
   redirects: {
     "/": "/quickstart",
   },
@@ -64,13 +65,122 @@ export default defineConfig({
     mermaid(),
     starlight({
       title: resolveSiteTitle(),
+      description:
+        "Spec-Driven Development (SDD) workflow with OpenSpec, strict TDD, lifecycle hooks, and multi-target code generation.",
       favicon: "/favicon.png",
       logo: {
         src: "./src/assets/ospec-logo.png",
         alt: "Ospec-Workflow",
       },
       sidebar: resolveSidebar(),
+      social: [
+        {
+          icon: "github",
+          label: "GitHub",
+          href: "https://github.com/snakeblack/ospec-workflow",
+        },
+      ],
       customCss: ["./src/styles/custom.css"],
+      tableOfContents: {
+        minHeadingLevel: 2,
+        maxHeadingLevel: 4,
+      },
+      expressiveCode: {
+        themes: ["github-dark-dimmed", "github-light"],
+        styleOverrides: {
+          borderRadius: "0.75rem",
+          codeFontFamily:
+            "'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+          uiFontFamily:
+            "'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+          codeFontSize: "0.875rem",
+          codeLineHeight: "1.7",
+        },
+      },
+      head: [
+        {
+          tag: "meta",
+          attrs: {
+            name: "robots",
+            content:
+              "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+          },
+        },
+        {
+          tag: "meta",
+          attrs: {
+            name: "keywords",
+            content:
+              "OpenSpec, SDD, Spec-Driven Development, AI Agents, TDD, Claude, Copilot, VS Code, Codex, Architecture",
+          },
+        },
+        {
+          tag: "meta",
+          attrs: {
+            property: "og:type",
+            content: "website",
+          },
+        },
+        {
+          tag: "meta",
+          attrs: {
+            property: "og:site_name",
+            content: "Ospec-Workflow Documentation",
+          },
+        },
+        {
+          tag: "meta",
+          attrs: {
+            property: "og:image",
+            content: "https://snakeblack.github.io/ospec-workflow/favicon.png",
+          },
+        },
+        {
+          tag: "meta",
+          attrs: {
+            name: "twitter:card",
+            content: "summary_large_image",
+          },
+        },
+        {
+          tag: "meta",
+          attrs: {
+            name: "theme-color",
+            content: "#080a10",
+            media: "(prefers-color-scheme: dark)",
+          },
+        },
+        {
+          tag: "meta",
+          attrs: {
+            name: "theme-color",
+            content: "#ffffff",
+            media: "(prefers-color-scheme: light)",
+          },
+        },
+        {
+          tag: "link",
+          attrs: {
+            rel: "preconnect",
+            href: "https://fonts.googleapis.com",
+          },
+        },
+        {
+          tag: "link",
+          attrs: {
+            rel: "preconnect",
+            href: "https://fonts.gstatic.com",
+            crossorigin: "",
+          },
+        },
+        {
+          tag: "link",
+          attrs: {
+            rel: "stylesheet",
+            href: "https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap",
+          },
+        },
+      ],
     }),
   ],
 });

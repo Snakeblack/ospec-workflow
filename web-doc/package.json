@@ -5,15 +5,15 @@
   "version": "0.0.1",
   "scripts": {
     "predev": "node scripts/sync-openwiki.mjs",
-    "dev": "astro dev",
+    "dev": "node scripts/sync-openwiki.mjs && astro dev",
     "prebuild": "node scripts/sync-openwiki.mjs",
-    "build": "astro build",
+    "build": "node scripts/sync-openwiki.mjs && astro build",
     "preview": "astro preview"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.34.0",
-    "astro": "^5.0.0",
+    "@astrojs/starlight": "^0.41.10",
+    "astro": "^7.2.9",
     "astro-mermaid": "^2.1.0",
-    "mermaid": "^11.16.0"
+    "mermaid": "^11.17.2"
   }
 }

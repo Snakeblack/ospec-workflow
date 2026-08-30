@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "scandinavian-design": {
+      "source": "ericzakariasson/scandinavian-design",
+      "sourceType": "github",
+      "skillPath": "skills/scandinavian-design/SKILL.md",
+      "computedHash": "30398f7ebd90133d295d8e36db1add77d47be52de4b4a533f839da25967debd8"
+    }
+  }
+}
