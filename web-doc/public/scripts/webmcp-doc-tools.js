@@ -22,12 +22,40 @@
     { command: "/sdd-archive", phase: "archive", description: "Archives verified change and initiates release publication flow." }
   ];
 
+  const localToolsMap = new Map();
+
+  // If browser does not have native document.modelContext, provide progressive polyfill
+  if (!document.modelContext && (!navigator || !navigator.modelContext || typeof navigator.modelContext.registerTool !== "function")) {
+    document.modelContext = {
+      registerTool: async (tool) => {
+        localToolsMap.set(tool.name, tool);
+      },
+      unregisterTool: async (name) => {
+        localToolsMap.delete(name);
+      },
+      getTools: async () => {
+        return Array.from(localToolsMap.values()).map((t) => ({
+          name: t.name,
+          title: t.title,
+          description: t.description,
+          inputSchema: t.inputSchema,
+          annotations: t.annotations
+        }));
+      },
+      executeTool: async (name, args, context) => {
+        const tool = localToolsMap.get(name);
+        if (!tool) throw new Error(`WebMCP Tool "${name}" not found.`);
+        return await tool.execute(args || {}, context);
+      }
+    };
+    window.webMCP = document.modelContext;
+  }
+
   async function registerWebMCPTools() {
     // Feature detection: check document.modelContext (W3C standard draft) and navigator.modelContext (legacy)
     const modelContext = (document && document.modelContext) || (navigator && navigator.modelContext);
 
     if (!modelContext || typeof modelContext.registerTool !== "function") {
-      // Not supported natively yet in this browser session
       return;
     }
 
