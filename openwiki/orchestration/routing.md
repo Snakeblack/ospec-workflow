@@ -1,139 +1,55 @@
-# Orquestación de fases SDD
+# Orquestación de Fases y Rutas SDD
 
-Este dominio cubre cómo el orquestador decide qué secuencia de fases ejecutar
-para un cambio dado, cómo esas fases se implementan como agentes/skills
-delegables, y cómo el catálogo de skills se resuelve en tiempo de sesión.
+> **En pocas palabras:** No todos los cambios en un proyecto son iguales: arreglar una errata no requiere el mismo proceso que diseñar una arquitectura desde cero. El **orquestador** analiza lo que quieres hacer y elige automáticamente la ruta más rápida y segura para tu caso, asegurando que solo se ejecuten los pasos necesarios.
 
-## El ciclo SDD completo
+---
 
-```text
-propose → spec → design → tasks → apply → verify → archive
+## El Ciclo Completo de Desarrollo (SDD)
+
+El ciclo de desarrollo guiado por especificaciones (Spec-Driven Development) consta de 7 fases fundamentales:
+
+```mermaid
+flowchart LR
+    A["propose
+(Propuesta)"] --> B["spec
+(Especificación)"]
+    B --> C["design
+(Diseño técnico)"]
+    C --> D["tasks
+(Plan de tareas)"]
+    D --> E["apply
+(Código TDD)"]
+    E --> F["verify
+(Verificación)"]
+    F --> G["archive
+(Archivo histórico)"]
 ```
 
-No todo cambio necesita el ciclo entero. El orquestador (`agents/sdd-orchestrator.agent.md`)
-evalúa la tabla `routing` de `openspec/config.yaml` de arriba a abajo y activa
-la **primera ruta que coincide** con la clasificación del cambio y el estado
-del proyecto.
+---
 
-## Cómo funciona el despachador de rutas
+## Catálogo de Rutas Inteligentes
 
-`scripts/lib/route-dispatcher.js` es el corazón puro (sin IO) de esta lógica:
-exporta funciones puras y listas de constantes conocidas (`KNOWN_PHASES`,
-`KNOWN_GATES`, `KNOWN_REVIEWERS`, `KNOWN_CLASSES`, `KNOWN_COSTS`) que actúan
-como allowlist de validación para `openspec/config.yaml`.
+El orquestador consulta la tabla de rutas de `openspec/config.yaml` y activa la primera ruta que coincide con tu necesidad:
 
-| Concepto | Definición |
-| --- | --- |
-| **Route** | Perfil de flujo con una lista ordenada de fases y gates. Representa una intención de usuario distinta. |
-| **Phase** | Sub-agente SDD delegado que produce un artefacto. Corre en el orden declarado dentro de la ruta. |
-| **Gate** | Chequeo o advertencia en un punto específico de la ruta; no produce artefacto principal, registra su resultado en `state.yaml.gates`. |
-| **Context (ctx)** | Objeto con señales del entorno del cambio actual, provisto por el orquestador. |
-| **Derived signal** | Clave booleana de ctx calculada determinísticamente (p. ej. `specs_empty_with_code`). |
+| Ruta | ¿Cuándo se utiliza? | Fases que ejecuta |
+|---|---|---|
+| **standard** | Desarrollo normal de nuevas funcionalidades en proyectos activos. | `propose → spec → design → tasks → apply → verify → archive` |
+| **lite** | Cambios pequeños y directos de bajo riesgo. | `propose → tasks → apply → verify → archive` |
+| **hotfix** | Corrección urgente de emergencia que debe aplicarse ya. | `apply → verify → archive` |
+| **bugfix** | Corrección de un fallo tras investigar la causa raíz. | `explore → tasks → apply → verify → archive` |
+| **refactor** | Reestructuración de código sin alterar el comportamiento externo. | `design → tasks → apply → verify → archive` |
+| **foundation** | Creación inicial de un proyecto desde cero. | `sdd-foundation` (construye la base antes de programar) |
+| **brownfield** | Proyectos existentes con código pero sin especificaciones. | `sdd-baseline` (genera especificaciones por dominios) |
+| **federated** | Cambios coordinados en múltiples repositorios a la vez. | `sdd-workspace → propose → spec → design → ...` |
 
-### Rutas canónicas
+---
 
-| Ruta | Clasificación | Cuándo | Fases |
-| --- | --- | --- | --- |
-| **foundation** | normal, high-risk | Proyecto vacío | `sdd-foundation` |
-| **federated** | normal, high-risk | Workspace multi-repo | `sdd-workspace` → propose → spec → design → tasks → apply → verify → archive |
-| **bugfix** | small, normal | Intención explícita de bugfix | `sdd-explore` → tasks → apply → verify → archive |
-| **brownfield** | normal, high-risk | Código sin specs | `sdd-baseline` (en tandas por dominio) |
-| **refactor** | small, normal | Intención explícita de refactor | design → tasks → apply → verify → archive |
-| **hotfix** | trivial, small | Parche de emergencia | apply → verify → archive |
-| **standard** | normal, high-risk | Proyecto activo (default) | propose → spec → design → tasks → apply → verify → archive |
-| **lite** | trivial, small | Cambio pequeño, bajo riesgo | propose → tasks → apply → verify → archive |
+## Compuertas de Control y Seguridad (*Gates*)
 
-Una ruta NUNCA debe agregarse para variar un solo toggle de configuración —
-para eso existen los gates o las opciones de fase.
+En puntos críticos de la ruta, el orquestador aplica compuertas de calidad automáticas:
 
-### Gates
-
-- **clarify** — el orquestador detecta ambigüedad **con señales estructuradas** (preguntas abiertas, falta de scope, cambios contraditorios) antes de continuar. Solo activa cuando hay evidencia real de ambigüedad; no a la primera duda.
-- **4r-review-gate** — tras un `sdd-verify` exitoso, el flujo selectivo 4R:
-  1. La **compuerta generalista** (`review-change`) normaliza la evidencia del cambio (diff, paths, capabilities, findings) mediante `review-dimensions.js`.
-  2. Despacha solo los sub-agentes revisores justificados: cambios *normales* activan **máximo dos** (`review-risk`, `review-readability`, `review-reliability`, `review-resilience`); cambios *high-risk* activan los **cuatro**.
-  3. `review-gate-state.js` gestiona el estado de la compuerta; `review-lineage.js` congela linaje, findings inmutables y presupuesto de correcciones.
-- **impact** — en rutas federadas, evalúa impacto cross-repo antes de implementar.
-- **brownfield-advisory** — informa sobre el estado de baseline antes de ejecutar `sdd-baseline`.
-- **review-workload** — guarda el presupuesto de revisión de ~400 líneas por PR.
-
-## Agentes y skills: dos capas de la misma unidad de trabajo
-
-Cada fase SDD tiene dos artefactos fuente (el detalle completo del dominio
-vive en [Agentes y Skills](../agents-skills/agents-and-skills.md)):
-
-- `agents/{phase}.agent.md` — definición del agente (frontmatter + comportamiento).
-- `skills/{phase}/SKILL.md` — el procedimiento detallado que el agente ejecutor debe seguir al pie de la letra.
-- `commands/{phase}.prompt.md` — comando slash visible que rutea al orquestador.
-
-Todos los agentes son artefactos fuente para el generador (dominio
-[Arquitectura y generador multi-target](../architecture/overview.md)): se
-transforman al layout nativo de cada target sin reescribir su contenido de
-comportamiento.
-
-El catálogo de skills se organiza en tiers bajo `skills/`:
-
-1. **Skills de fase SDD** (`skills/sdd-{phase}/SKILL.md`) — un procedimiento por fase.
-2. **`skills/_shared/`** — protocolo común (`sdd-phase-common.md`) que todo agente de fase carga: envelope de retorno, contrato de memoria operativa, guardas de revisión, idioma/mentoría.
-3. **Skills de stack** (`stack-react`, `stack-go`, `stack-python`, etc.) — reglas compactas inyectadas cuando el proyecto declara esas capacidades.
-4. **Skills de utilidad** (`caveman-*`, `chained-pr`, `branch-pr`, `gh-release-notes`, `harness-audit`, etc.) — herramientas invocables bajo demanda, no atadas a una fase SDD.
-
-### Frontera ejecutor/orquestador
-
-Toda skill de fase SDD (`skills/sdd-*`) declara un **ORCHESTRATOR GATE**: si el
-orquestador carga la skill directamente, debe detenerse y delegar a un
-sub-agente ejecutor en vez de ejecutar las instrucciones inline. Cada
-sub-agente ejecutor sigue su propia skill sin lanzar más sub-agentes.
-
-## Registro de skills (skill-registry)
-
-El árbol `skills/` se compila en un artefacto JSON compacto
-(`.ospec/cache/skill-registry.cache.json`) que agentes y hooks leen sin
-reescanear el sistema de archivos. El detalle de su compilación, su ciclo de
-vida y el mecanismo de fingerprint que gestiona `SessionStart` vive en
-[Agentes y Skills](../agents-skills/agents-and-skills.md).
-
-## Por qué la arquitectura está diseñada así
-
-Separar el **routing declarativo** (`openspec/config.yaml`) de su
-**motor de evaluación puro** (`route-dispatcher.js`) permite testear cada
-ruta con fixtures de configuración sin montar un orquestador completo, y
-permite que un usuario agregue/edite rutas propias sin tocar código. Las
-constantes `KNOWN_*` actúan como contrato de validación temprana: una ruta con
-un nombre de fase o gate no reconocido falla rápido en vez de comportarse de
-forma impredecible en producción.
-
-## Principales puntos de extensión
-
-- Agregar una ruta: añadir una entrada en `openspec/config.yaml::routing` con
-  `name`, `classification`, `conditions`, `phases`, `gates`, `description`,
-  `cost` — usando solo nombres de `KNOWN_PHASES`/`KNOWN_GATES`.
-- Agregar una fase nueva: crear `agents/{phase}.agent.md`,
-  `skills/{phase}/SKILL.md`, y añadir el nombre a `KNOWN_PHASES` en
-  `route-dispatcher.js`.
-- Agregar un gate: implementarlo como módulo evaluado en el hook point
-  correspondiente y registrarlo en `KNOWN_GATES`.
-
-## Cosas a vigilar al editar
-
-- El orden de evaluación de rutas importa: la primera coincidencia gana. Rutas
-  más específicas deben ir antes que rutas genéricas como `standard`.
-- Cambiar el contrato del envelope de retorno (`skills/_shared/sdd-phase-common.md`)
-  afecta a **todos** los agentes de fase simultáneamente — requiere revisar
-  `scripts/lib/result-envelope.js` y su espejo Go (`internal/resultenvelope`).
-- Los agentes de fase son ejecutores, no orquestadores: no deben delegar en
-  más sub-agentes salvo instrucción explícita del skill.
-- Cambiar el esquema de evidencia de `review-dimensions.js` invalida el
-  fingerprint de evidencias previas — requiere versionado del schema.
-
-## Mapa de fuentes
-
-- `/scripts/lib/route-dispatcher.js` — `git log`: `1814f01` (4R selectivo + generalista), `f902f13` (clarify condicionado)
-- `/openspec/config.yaml` (bloque `routing`)
-- `/agents/sdd-orchestrator.agent.md`, `/agents/*.agent.md`
-- `/skills/_shared/sdd-phase-common.md`, `/skills/sdd-*/SKILL.md`
-- `/scripts/lib/review-dimensions.js` — normaliza evidencia y deriva especialistas 4R
-- `/scripts/lib/review-gate-state.js` — estado de la compuerta de revisión
-- `/scripts/lib/review-lineage.js` — linaje, findings inmutables, presupuesto correcciones
-- `/scripts/lib/skill-registry.js`, `/scripts/hooks/session-start.js`
-- `/openspec/specs/routing/spec.md`, `/openspec/specs/agents/spec.md`, `/openspec/specs/skills/spec.md`, `/openspec/specs/skill-registry/spec.md`
+1. **Gate de Aclaración (`clarify`):** Si la especificación tiene contradicciones o ambigüedades graves, el sistema se detiene y realiza preguntas puntuales al usuario antes de permitir el diseño técnico.
+2. **Gate de Revisión 4R (`4r-review-gate`):** Tras verificar el código, un evaluador generalista examina el cambio y convoca a los especialistas necesarios:
+   - *Cambios normales:* Hasta **2 revisores** enfocados.
+   - *Cambios de alto riesgo (seguridad, pagos, auth):* Los **4 revisores especializados** (Riesgo, Legibilidad, Fiabilidad y Resiliencia).
+3. **Límite de Carga de Revisión (`review-workload`):** Advierte si un cambio supera las **400 líneas modificadas**, recomendando dividirlo en entregas encadenadas para proteger la atención del revisor humano.

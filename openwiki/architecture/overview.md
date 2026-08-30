@@ -1,162 +1,83 @@
-# Arquitectura y generador multi-target
+# Arquitectura y Generador Multi-Target
 
-Este dominio cubre cómo `ospec-workflow` se distribuye a **siete** herramientas de
-chat/IDE distintas (`claude`, `vscode`, `github-copilot`, `opencode`, `codex`,
-`cursor`, `antigravity`)
-a partir de **un único árbol fuente canónico**, sin duplicar contenido a mano ni
-mantener siete repositorios sincronizados manualmente.
+> **En pocas palabras:** Mantener agentes, prompts y reglas para múltiples asistentes de IA (Claude, Copilot, Cursor, etc.) suele significar copiar y pegar archivos en carpetas distintas. `ospec-workflow` soluciona esto con una **fuente única de verdad**: escribes tus agentes una sola vez en formato canónico y un generador automático los adapta y empaqueta para **7 plataformas distintas** de forma instantánea y sin errores.
 
-## El árbol canónico y por qué existe un generador
+---
 
-El origen canónico está en **formato VS Code** y se carga tal cual — VS Code
-no necesita transformación. Los otros seis targets requieren layouts, nombres
-de archivo, esquemas de manifiesto y convenciones de herramientas distintos
-(por ejemplo, Claude Code espera `.claude-plugin/`, agentes con extensión
-`.agent.md` y el orquestador expuesto como *skill*; GitHub Copilot espera
-`.github/agents/*.agent.md` con `target: github-copilot` y herramientas
-`vscode/askQuestions` reescritas a `ask_user`; opencode espera `.opencode/`
-con `tools:` como mapa y modelos en formato `provider/model`; **codex** espera
-una estructura de agentes plana con sandbox de grano fino, políticas de aprobación
-configurables y modelo tier de la jerarquía `codex/provider`; **cursor** espera
-un layout `.cursor` con reglas `.mdc` (`alwaysApply`) y modelos alias;
-**antigravity** espera el árbol en `~/.gemini/config/` con hooks de formato
-propio y tool map renombrado).
+## ¿Por qué existe un generador multi-target?
 
-En vez de mantener cuatro copias del contenido, el generador (`scripts/configure/cli.js`)
-lee el árbol fuente una sola vez y produce cada distribución en `dist/<target>/`.
+Cada asistente de IA y cada editor de código espera que los agentes y las instrucciones se organicen de una forma completamente diferente:
 
-## Flujo principal
+- **Claude Code** espera una carpeta `.claude-plugin/` con manifiestos JSON específicos y expone al orquestador como una *skill*.
+- **GitHub Copilot** espera `.github/agents/*.agent.md` con nombres de herramientas específicos (`ask_user`).
+- **Cursor** necesita archivos de reglas `.mdc` en `.cursor/rules/` con propiedades `alwaysApply`.
+- **Codex (OpenAI)** utiliza una jerarquía plana con configuraciones de sandbox de grano fino.
+- **Antigravity** requiere despliegues en `~/.gemini/config/` con mapeos de herramientas propios.
+- **OpenCode** organiza sus agentes con un mapa de herramientas y plugins en Javascript.
+- **VS Code** utiliza el formato canónico directamente sin necesidad de transformación.
+
+En lugar de actualizar a mano 7 carpetas diferentes cada vez que mejoras un agente, el generador toma la carpeta fuente y crea automáticamente cada versión lista para usar.
 
 ```mermaid
 flowchart LR
-    A["Árbol fuente canónico\nagents/, skills/, commands/, rules/, hooks/"] --> B["target-transform.js\n(pura, sin IO)"]
-    B --> C{Perfil de target}
-    C --> D[claude.js]
-    C --> E[vscode.js]
-    C --> F[github-copilot.js]
-    C --> G[opencode.js]
-    C --> H[codex.js]
-    C --> X[cursor.js]
-    C --> Y[antigravity.js]
-    D --> I["dist/claude/"]
-    E --> J["identidad — sin dist/"]
-    F --> K["dist/github-copilot/"]
-    G --> L["dist/opencode/"]
-    H --> M["dist/codex/"]
-    X --> P["dist/cursor/"]
-    Y --> Q["dist/antigravity/"]
-    I --> N[Validador por target]
-    K --> N
-    L --> N
-    M --> N
-    P --> N
-    Q --> N
+    A["Árbol Fuente Canónico\n(agents, skills, rules, hooks)"] --> B["Generador Puro\n(target-transform.js)"]
+    B --> C["1. Claude Code (.claude-plugin)"]
+    B --> D["2. GitHub Copilot (.github/agents)"]
+    B --> E["3. Cursor (.cursor/rules .mdc)"]
+    B --> F["4. Codex (~/.codex)"]
+    B --> G["5. Antigravity (~/.gemini/config)"]
+    B --> H["6. OpenCode (.opencode)"]
+    B --> I["7. VS Code (Formato nativo)"]
 ```
 
-1. `scripts/configure/cli.js` (capa de IO) carga el árbol fuente, invoca la
-   transformación pura y escribe la salida.
-2. `scripts/lib/target-transform.js` reestructura archivos según el
-   `target-profile` seleccionado (`scripts/lib/target-profiles/{claude,vscode,github-copilot,opencode,codex,cursor,antigravity}.js`).
-3. `scripts/lib/frontmatter.js` parsea y serializa el frontmatter YAML-lite de
-   cada archivo (`.agent.md`, `SKILL.md`, `.prompt.md`).
-4. `scripts/lib/model-resolver.js` resuelve el tier de modelo (`default`,
-   `cheap`, `premium`) declarado en `models.yaml` al formato nativo del target.
-5. Cada árbol generado se valida: `claude plugin validate --strict` para
-   Claude, y los validadores dedicados (`validate-github-copilot.js`,
-   `validate-opencode.js`, `validate-codex.js`, `validate-cursor.js`,
-   `validate-antigravity.js`) para los demás, contra fixtures golden.
+---
 
-## Detalles técnicos
+## Cómo Funciona el Proceso de Generación
 
-| Target | Salida | Transformaciones clave |
+El proceso de generación es **puro, determinista y seguro**:
+
+1. **Lectura del árbol canónico:** Lee los archivos de agentes (`.agent.md`), habilidades (`SKILL.md`) e instrucciones.
+2. **Transformación sin efectos secundarios:** La lógica de transformación (`scripts/lib/target-transform.js`) convierte nombres de herramientas, cabeceras YAML y rutas a la convención que cada editor espera.
+3. **Resolución de modelos de IA:** Traduce los niveles de modelos (`default`, `cheap`, `premium`) declarados en `models.yaml` a los nombres de modelos nativos de cada proveedor.
+4. **Validación estricta:** Antes de dar por buena la salida, un validador específico por plataforma comprueba que la estructura cumpla al 100% las especificaciones del fabricante.
+
+---
+
+## Tabla de Plataformas Soportadas
+
+| Asistente / IDE | Carpeta de Salida | Adaptaciones Clave |
 | --- | --- | --- |
-| `vscode` | Identidad — sin `dist/` | Ninguna; es el formato canónico. |
-| `claude` | `dist/claude/` (vía `.claude-plugin`) | Renombra archivos, reestructura el manifiesto, sustituye herramientas context-aware, reescribe variables de comando, incorpora `rules/`, emite el orquestador como skill. |
-| `github-copilot` | `dist/github-copilot/` | Agentes → `.github/agents/*.agent.md`; comandos → `.github/prompts/*.prompt.md`; reglas → `.github/instructions/*.instructions.md` (`applyTo: "**"`); hooks → `.github/hooks/hooks.json` (schema Copilot). |
-| `opencode` | `dist/opencode/` | Agentes → `.opencode/agents/*.md` (`mode: primary\|subagent`, `tools:` mapa, modelo `provider/model`); comandos → `.opencode/commands/*.md`; reglas referenciadas en `opencode.json`; hooks puenteados vía plugin JS `.opencode/plugins/ospec.js` (opencode no tiene hooks de shell nativos). |
-| `codex` | `dist/codex/` | Agentes planos con sandbox de grano fino; `approval_policy` configurable por herramienta; modelos en tier `codex/provider`; hooks puenteados al launcher Node. Instalador dedicado `install-codex.js`. |
-| `cursor` | `dist/cursor/` | Layout `.cursor`: agentes `.agent.md`→`.md`, comandos `.prompt.md`→`.md`, reglas → `.mdc` (`alwaysApply`), sintetiza `agents-protocol.mdc` desde `AGENTS.md`; modelos en formato alias; agentes de revisión como readonly. Instalador dedicado `install-cursor.js` (global `~/.cursor/`). |
-| `antigravity` | `dist/antigravity/` | Conserva extensiones `.agent.md`/`.prompt.md`; hooks con formato nativo antigravity (placeholder `__OSPEC_ANTIGRAVITY_ROOT__`); tool map propio (`ask_question`, `view_file`, `run_command`, ...); reglas → instructions (`applyTo: "**"`). Instalador dedicado `install-antigravity.js` (global `~/.gemini/config/` con manifiesto transaccional). |
+| **VS Code** | *(Formato Canónico)* | Es la fuente original; no requiere transformación. |
+| **Claude Code** | `dist/claude/` | Estructura `.claude-plugin/`, orquestador como skill y adaptación de herramientas de contexto. |
+| **GitHub Copilot** | `dist/github-copilot/` | Agentes en `.github/agents/`, comandos en `.github/prompts/` y reglas en `.github/instructions/`. |
+| **Cursor** | `dist/cursor/` | Reglas en formato `.mdc`, agentes adaptados y archivo global `agents-protocol.mdc`. |
+| **Codex (OpenAI)** | `dist/codex/` | Formato plano de agentes con políticas de aprobación y sandbox estricto. |
+| **Antigravity** | `dist/antigravity/` | Despliegue en `~/.gemini/config/` con mapa de herramientas nativo (`ask_question`, `view_file`, etc.). |
+| **OpenCode** | `dist/opencode/` | Formato `.opencode/` con mapeo de herramientas y puente de hooks en JavaScript. |
 
-Cada árbol generado es **autocontenido**: el generador sigue los `require`
-desde los hooks e incluye su runtime (`scripts/hooks/` + dependencias de
-`scripts/lib/`), sin arrastrar tests ni el propio generador.
+---
 
-```powershell
+## Comandos para Generar Distribuciones
+
+Puedes generar una distribución específica o todas a la vez con un solo comando:
+
+```bash
+# Compilar para una plataforma específica
 node scripts/configure/cli.js --target claude          --out dist/claude
 node scripts/configure/cli.js --target github-copilot  --out dist/github-copilot
-node scripts/configure/cli.js --target opencode         --out dist/opencode
-node scripts/configure/cli.js --target codex            --out dist/codex
 node scripts/configure/cli.js --target cursor           --out dist/cursor
+node scripts/configure/cli.js --target codex            --out dist/codex
 node scripts/configure/cli.js --target antigravity      --out dist/antigravity
+node scripts/configure/cli.js --target opencode         --out dist/opencode
+
+# O compilar todas las distribuciones simultáneamente
+npm run build:targets
 ```
 
-### Instalación por target
+---
 
-Cada target tiene un mecanismo de distribución distinto (ver
-`openspec/specs/install/spec.md`):
+## Ventajas Principales
 
-- **Claude Code**: `npm run setup:claude` compila, valida estrictamente e
-  instala como plugin persistente; `npm run reload:claude` reconstruye rápido
-  en desarrollo.
-- **GitHub Copilot CLI**: `npm run setup:copilot` copia agentes/instrucciones/
-  comandos a `~/.copilot/` globalmente.
-- **opencode**: `npm run setup:opencode` instala en `~/.config/opencode/` y
-  renombra el agente principal a `ospec-workflow` para autocompletado.
-- **codex**: `npm run setup:codex` compila el target y lo instala con sandbox
-  de grano fino activado; `scripts/configure/install-codex.js` gestiona rutas
-  seguras y valida el manifiesto.
-- **VS Code**: sin instalador — se añade la raíz del repo clonado a
-  `chat.pluginLocations`, o se compila con `npm run setup:vscode` para
-  ruteo de modelos.
-- **Cursor**: `npm run setup:cursor` compila `dist/cursor`, sincroniza a
-  `~/.cursor/`, traduce `.mcp.json` y preserva los hooks de usuario;
-  `npm run reload:cursor` reconstruye rápido.
-- **Antigravity**: `npm run setup:antigravity` compila con perfiles y
-  validación y despliega en `~/.gemini/config/` mediante manifiesto
-  transaccional; `npm run reload:antigravity` reconstruye rápido.
-
-## Por qué la arquitectura está diseñada así
-
-Separar transformación pura (`target-transform.js`, testeada bajo Strict TDD
-sin tocar el sistema de archivos) de la capa de IO (`cli.js`) permite testear
-exhaustivamente la lógica de reshape con fixtures en memoria, y mantener el
-IO — la parte más propensa a bugs de entorno (rutas Windows/POSIX, permisos)
-— aislado y delgado. Los perfiles por target encapsulan el conocimiento
-específico de cada herramienta detrás de una interfaz uniforme, así agregar un
-octavo target no debería tocar `cli.js` ni los otros perfiles.
-
-## Principales puntos de extensión
-
-- Agregar un target nuevo: crear `scripts/lib/target-profiles/{target}.js` que
-  implemente la interfaz de perfil, un instalador `scripts/configure/install-{target}.js`,
-  y un validador dedicado si el target lo requiere.
-- Agregar un tier de modelo: editar `models.yaml`; `model-resolver.js` ya
-  soporta el mapeo.
-- Cambiar el layout de un target existente: modificar solo su perfil — nunca
-  `target-transform.js` core a menos que el cambio sea genuinamente
-  cross-target.
-
-## Cosas a vigilar al editar
-
-- `.plugin.json` (raíz) es el manifiesto canónico; `.claude-plugin/plugin.json`
-  es una copia de compatibilidad que además lee el generador. Deben coincidir
-  — `scripts/manifest-sync.test.js` lo verifica en CI.
-- No editar `dist/` a mano: es completamente generado y se sobrescribe en
-  cada build.
-- Los perfiles de target son puros (sin IO); si necesitas leer/escribir
-  archivos, esa lógica va en `cli.js`, no en el perfil.
-
-## Mapa de fuentes
-
-- `/scripts/configure/cli.js` — `git log`: `59ad860` (telemetría fases), `d1a3e0e` (sandbox codex)
-- `/scripts/lib/target-transform.js` — `git log`: `5b84062`, `07e1000`
-- `/scripts/lib/target-profiles/` — incluye `codex.js` (grano fino, aprobaciones)
-- `/scripts/configure/install-codex.js`, `/scripts/configure/validate-codex.js`
-- `/scripts/lib/target-profiles/cursor.js`, `/scripts/lib/target-profiles/antigravity.js`
-- `/scripts/configure/install-cursor.js`, `/scripts/configure/validate-cursor.js`
-- `/scripts/configure/install-antigravity.js`, `/scripts/configure/validate-antigravity.js`
-- `/scripts/lib/frontmatter.js`, `/scripts/lib/model-resolver.js`
-- `/scripts/configure/validate-github-copilot.js`, `/scripts/configure/validate-opencode.js`
-- `/models.yaml`, `/.plugin.json`, `/.claude-plugin/plugin.json`
-- `/openspec/specs/generator/spec.md`, `/openspec/specs/install/spec.md`
+- **Consistencia Garantizada:** Si ajustas una regla de seguridad o un prompt de prueba, el cambio se aplica de inmediato y de forma idéntica en todas las herramientas del equipo.
+- **Sin Dependencias Pesadas:** Los paquetes generados son ligeros y autocontenidos; incluyen únicamente el código necesario para funcionar sin arrastrar tests ni archivos temporales.
+- **Validado Automáticamente:** Cada compilación se compara contra pruebas de referencia (*golden fixtures*) para evitar regresiones.

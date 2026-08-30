@@ -1,47 +1,80 @@
-# Instalación de Objetivos
+# Instalación y Configuración por Asistente de IA
 
-La instalación de plataformas objetivo se encarga de la distribución del plugin `ospec-workflow` a cada herramienta soportada (Claude Code, GitHub Copilot, OpenCode, Codex, Cursor y Antigravity). Gestiona cómo cada plataforma recibe su árbol de archivos generado, los comandos npm utilizados, y las validaciones de seguridad e idempotencia que previenen escrituras destructivas o corrupción de repositorios. La matriz completa de transformaciones por target vive en [architecture/overview.md](../architecture/overview.md).
+> **En pocas palabras:** `ospec-workflow` se adapta automáticamente a tu entorno de trabajo favorito. Con un solo comando puedes compilar, instalar y sincronizar las habilidades y agentes en Claude Code, GitHub Copilot, Cursor, Codex, Antigravity, OpenCode o VS Code, garantizando que nunca se sobrescriban tus configuraciones personales.
 
-## Flujo principal
+---
 
-1. **Claude Code**: Se instala a través de un registro de marketplace local. `npm run setup:claude` construye el árbol en `dist/claude-marketplace/`, registra el marketplace e instala el plugin usando el CLI de `claude`. Para iteración rápida, `npm run reload:claude` solo reconstruye el artefacto para aplicarlo con `/reload-plugins` en una sesión activa.
-2. **GitHub Copilot y OpenCode**: Operan mediante sincronización en el sistema de archivos hacia el repositorio destino. `npm run install:copilot -- <destRepo>` y `npm run install:opencode -- <destRepo>` generan el árbol y lo copian recursivamente en la raíz del proyecto para su auto-descubrimiento.
-3. **Codex**: Utiliza instalación global nativa. `npm run setup:codex` instala agentes TOML, el runtime nativo y registra servidores MCP a nivel global en `~/.codex/`. Alternativamente, su versión local copia la configuración al repositorio destino sin sobrescribir el archivo `config.toml`.
-4. **VSCode**: No dispone de un comando público de instalación. El árbol se genera exclusivamente para pruebas de regresión en tiempo de ejecución.
-5. **Cursor**: `npm run setup:cursor` compila `dist/cursor`, sincroniza a `~/.cursor/`, traduce `.mcp.json` al CLI nativo y preserva los hooks de usuario en `hooks.json`; `npm run reload:cursor` reconstruye rápido en desarrollo.
-6. **Antigravity**: `npm run setup:antigravity` compila `dist/antigravity` con perfiles y validación, y despliega skills, agentes y hooks adaptados en `~/.gemini/config/` mediante manifiesto transaccional; `npm run reload:antigravity` reconstruye rápido.
+## Métodos de Instalación Rápida
 
-## Detalles técnicos
+Elige tu asistente o editor de código habitual y ejecuta el comando correspondiente en la raíz del repositorio:
 
-- **Validación de destino seguro**: Las funciones de seguridad como `assertSafeOutDir` y `assertSafeDest` impiden instalaciones destructivas en la raíz del sistema de archivos, el directorio home o el propio repositorio del harness.
-- **Integración de binarios**: Los scripts de instalación integran el binario precompilado de Go (`ospec-hooks`) en la estructura correspondiente de cada plataforma destino, otorgando los permisos ejecutables requeridos.
-- **Detección de CLI**: La resolución del binario CLI se realiza buscando en el PATH y localizaciones adicionales, intentando múltiples extensiones (como `.cmd` y `.exe`) para esquivar problemas de resolución de PowerShell en Windows.
-- **Idempotencia**: Todos los comandos de instalación garantizan que las ejecuciones sucesivas alcancen el mismo estado seguro sin duplicar recursos ni dejar restos del estado anterior.
+```bash
+# 1. Claude Code (Registro en marketplace local)
+npm run setup:claude
 
-## Decisiones de diseño
+# 2. Cursor (Instalación global en ~/.cursor/)
+npm run setup:cursor
 
-- **División de mecanismos**: Claude Code demanda un registro en el marketplace porque usa un modelo centralizado de plugins. Copilot y OpenCode esperan configuraciones directamente dentro del proyecto local. Codex exige un formato descentralizado y herramientas CLI globales para registrar su servidor MCP.
-- **Validadores Node puros**: GitHub Copilot y OpenCode incluyen validadores internos que no dependen de comandos externos, permitiendo verificar los artefactos construidos incluso cuando la herramienta final no está instalada localmente.
-- **Módulos desacoplados**: Los instaladores separan la generación de código (en `dist/`) de la instalación final (escritura final o registro). Esto facilita pruebas de regresión limpias y seguras sin efectos secundarios destructivos.
+# 3. Antigravity (Despliegue transaccional en ~/.gemini/config/)
+npm run setup:antigravity
 
-## Puntos de extensión
+# 4. Codex / OpenAI (Instalación global en ~/.codex/)
+npm run setup:codex
 
-- **Añadir nuevos targets de sincronización**: Modificando el script unificado `install-target.js` se puede dar soporte a nuevas plataformas basadas en archivos.
-- **Soporte de binarios externos**: Las rutinas de búsqueda como `resolveClaudeBin` y `findCodexBin` ofrecen patrones probados para buscar nuevas rutas y manejadores empaquetados en múltiples sistemas operativos.
-- **Hooks personalizados para Codex**: La lógica de agregación en Codex facilita extender o añadir nuevos grupos de hooks conservando intacta cualquier configuración local del usuario.
+# 5. GitHub Copilot (Sincronización al repositorio destino)
+npm run install:copilot -- /ruta/a/tu/proyecto
 
-## Consideraciones importantes
+# 6. OpenCode (Sincronización al repositorio destino)
+npm run install:opencode -- /ruta/a/tu/proyecto
+```
 
-- **Fallos silenciosos en CLI**: La ausencia del binario externo (`claude`, `codex`) no bloquea ni falla la compilación; los scripts simplemente dejan los artefactos listos en `dist/` e informan de la ausencia de la herramienta.
-- **No sobrescribir config en Codex**: La instalación a nivel de repositorio local de Codex NUNCA debe modificar el archivo de configuración `.codex/config.toml` pre-existente del usuario.
-- **Evasión de seguridad mediante symlinks**: Las validaciones de destino usan siempre rutas canónicas reales (`fs.realpathSync`) para evitar engaños de anidamiento a través de enlaces simbólicos.
+---
 
-## Mapa de fuentes
+## Cómo Funciona la Instalación en Cada Plataforma
 
-- `/openspec/specs/install/spec.md` - Especificación de los modelos de instalación, contratos de seguridad, y pruebas requeridas.
-- `/scripts/configure/claude-marketplace.js` - Lógica de compilación para la estructura de plugin de Claude Code.
-- `/scripts/configure/install-claude.js` - Script que orquesta la compilación y ejecución de comandos en el CLI de `claude`.
-- `/scripts/configure/install-target.js` - Lógica de sincronización en sistema de ficheros para GitHub Copilot y OpenCode.
-- `/scripts/configure/install-codex.js` - Instalador global y local estructurado para el ecosistema descentralizado de Codex.
-- `/scripts/configure/install-cursor.js` - Instalador global para el layout `.cursor` (`~/.cursor/`) con preservación de hooks.
-- `/scripts/configure/install-antigravity.js` - Instalador global para `~/.gemini/config/` con manifiesto transaccional.
+```mermaid
+flowchart TD
+    A["Árbol Canónico"] --> B{"Plataforma Destino"}
+    B -->|"Claude Code"| C["dist/claude-marketplace/
+Registro de plugin CLI"]
+    B -->|"Cursor"| D["~/.cursor/rules/*.mdc
+Preservación de hooks.json"]
+    B -->|"Antigravity"| E["~/.gemini/config/
+Manifiesto transaccional"]
+    B -->|"Codex"| F["~/.codex/ y config.toml
+Sandbox configurado"]
+    B -->|"Copilot / OpenCode"| G["Copia sincronizada
+en raíz del proyecto"]
+```
+
+### 1. Claude Code
+- Compila el plugin en `dist/claude-marketplace/`.
+- Registra el marketplace local e instala el plugin usando el CLI oficial de `claude`.
+- Para iteraciones rápidas durante el desarrollo, puedes ejecutar `npm run reload:claude` y recargar en la sesión con `/reload-plugins`.
+
+### 2. Cursor
+- Compila la distribución en `dist/cursor/` y la sincroniza en tu directorio global `~/.cursor/`.
+- Traduce las instrucciones a reglas nativas `.mdc` (`alwaysApply: true`) para que Cursor las aplique en todo momento.
+- Si ya tienes configuraciones personales en `hooks.json`, el instalador las respeta y fusiona sin borrar nada.
+
+### 3. Antigravity
+- Compila los perfiles de agentes y skills para Antigravity.
+- Despliega los archivos en `~/.gemini/config/` mediante un manifiesto transaccional que asegura que la instalación sea limpia y reversible.
+
+### 4. Codex (OpenAI)
+- Registra las definiciones de agentes, el runtime nativo y los servidores MCP en `~/.codex/`.
+- Respeta estrictamente tu archivo `config.toml` preexistente para evitar sobrescribir claves o ajustes propios.
+
+### 5. GitHub Copilot y OpenCode
+- Operan mediante sincronización directa en el sistema de archivos hacia el repositorio donde estés trabajando.
+- Copian de forma recursiva los agentes y reglas en `.github/` o `.opencode/` para su autodescubrimiento automático.
+
+---
+
+## Garantías de Seguridad e Idempotencia
+
+Todos los instaladores incluyen salvaguardas automáticas:
+
+- **Protección de rutas:** Verifican mediante `assertSafeDest` que nunca se instale en la raíz del sistema de archivos, en directorios del sistema o en rutas destructivas.
+- **Idempotencia total:** Puedes ejecutar el comando de instalación tantas veces como quieras; el resultado siempre será un estado limpio, consistente y sin duplicar recursos.
+- **Resolución inteligente de CLI:** En Windows, el sistema detecta ejecutables con extensiones `.cmd` y `.exe` para evitar problemas comunes de resolución en PowerShell.
