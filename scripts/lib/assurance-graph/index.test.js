@@ -21,6 +21,8 @@ const { computeAssessmentId } = require("../independent-verifier/assessment.js")
 const { createTestRunnerReceiptChannel, createTestRunnerReceiptChannelFromReceipts } = require("../test-support/k6b-runner-receipt.js");
 const { readRunnerReceiptChannel } = require("../independent-verifier/runner-receipt.js");
 const { canonicalize, computeGraphId } = require("./projector.js");
+const { createChallengePlan } = require("../adversarial-challenges/planner.js");
+const { emitChallengeResult } = require("../adversarial-challenges/runner.js");
 
 const SAMPLE_NODES = [
   {
@@ -157,6 +159,23 @@ function withStoredGraphId(stored) {
     }),
   };
 }
+
+test("REQ-assurance-graph-009: K6c plan and exact results are deterministic graph material and duplicates diverge", () => {
+  const files = { "src/index.js": "module.exports = 1;\n" };
+  const candidate = freezeFromFiles(files);
+  const executionGraph = compileGraph();
+  const plan = createChallengePlan({ candidateId: candidate.candidate_id, nodeId: "repair-core", policySnapshotId: executionGraph.policy_snapshot_id, evidenceStrategy: "feature" });
+  const results = plan.selected.map((challengeType) => emitChallengeResult({ planId: plan.plan_id, candidateId: candidate.candidate_id, nodeId: plan.node_id, policySnapshotId: plan.policy_snapshot_id, evidenceStrategy: plan.evidence_strategy, challengeType, outcome: "passed" }));
+  const input = { candidate, executionGraph, challengePlan: plan, challengeResults: results, requireChallengeVerification: true, verification: { verification_id: "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", evidence_ids: [] } };
+  const first = projectAssuranceGraph(input);
+  const second = projectAssuranceGraph({ ...input, challengeResults: [...results].reverse() });
+  assert.equal(first.ok, true, first.error || first.reason_code);
+  assert.equal(second.ok, true, second.error || second.reason_code);
+  assert.equal(first.graph.graph_id, second.graph.graph_id);
+  assert.equal(first.graph.nodes.some((node) => node.kind === "challenge-plan"), true);
+  assert.equal(projectAssuranceGraph({ ...input, challengeResults: [results[0], results[0]] }).reason_code, "GRAPH_DIVERGENCE");
+  assert.equal(projectAssuranceGraph({ ...input, challengePlan: null }).reason_code, "GRAPH_DIVERGENCE");
+});
 
 test("REQ-assurance-graph-002: same inputs yield the same digest and edges despite permutation", () => {
   const { candidate, executionGraph, verified } = verifiedProjection();

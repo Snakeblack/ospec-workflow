@@ -1,6 +1,7 @@
 "use strict";
 
 const { sha256Fingerprint } = require("../canonical-json.js");
+const { validateChallengeResultSet } = require("../adversarial-challenges/integrity.js");
 
 const ALLOWED_RELATIONS = Object.freeze(["verified-by", "satisfies", "derived-from", "invalidates"]);
 const ALLOWED_NODE_KINDS = Object.freeze([
@@ -11,6 +12,8 @@ const ALLOWED_NODE_KINDS = Object.freeze([
   "candidate",
   "test-evidence",
   "verification-decision",
+  "challenge-plan",
+  "challenge-result",
 ]);
 const FORBIDDEN_KINDS = Object.freeze([
   "finding",
@@ -186,6 +189,22 @@ function projectAssuranceGraph(input = {}) {
       if (obligation && obligation.id) {
         pushNode(nodes, obligation.id, "requirement");
       }
+    }
+  }
+
+  const challengePlan = input.challengePlan || input.challenge_plan;
+  const challengeResults = Array.isArray(input.challengeResults) ? input.challengeResults : (Array.isArray(input.challenge_results) ? input.challenge_results : []);
+  const challengesRequired = Boolean(input.requireChallengeVerification || input.require_challenge_verification);
+  if (challengesRequired && !challengePlan) return fail("GRAPH_DIVERGENCE", "mandatory K6c challenge plan is absent");
+  if (challengePlan || challengeResults.length > 0) {
+    const gate = validateChallengeResultSet(challengePlan, challengeResults, { candidate, executionGraph: graph, policySnapshot: input.policySnapshot });
+    if (!gate.ok || challengeResults.some((result) => result.outcome !== "passed")) return fail("GRAPH_DIVERGENCE", (gate && gate.error) || "K6c challenge material is not accepted");
+    pushNode(nodes, challengePlan.plan_id, "challenge-plan");
+    pushEdge(edges, challengePlan.plan_id, "derived-from", candidateId);
+    for (const result of challengeResults) {
+      pushNode(nodes, result.result_id, "challenge-result");
+      pushEdge(edges, result.result_id, "derived-from", challengePlan.plan_id);
+      if (input.verification && input.verification.verification_id) pushEdge(edges, input.verification.verification_id, "verified-by", result.result_id);
     }
   }
 

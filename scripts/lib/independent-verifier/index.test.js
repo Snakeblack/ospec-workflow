@@ -1400,6 +1400,7 @@ test("REQ-independent-verification-010: Successful challenge results satisfy com
 
   const challengePlan = createChallengePlan({
     candidateId: harness.candidate.candidate_id,
+    nodeId: "repair-core",
     policySnapshotId: harness.executionGraph.policy_snapshot_id,
     evidenceStrategy: "feature",
   });
@@ -1408,6 +1409,8 @@ test("REQ-independent-verification-010: Successful challenge results satisfy com
     emitChallengeResult({
       planId: challengePlan.plan_id,
       candidateId: harness.candidate.candidate_id,
+      policySnapshotId: harness.executionGraph.policy_snapshot_id,
+      evidenceStrategy: "feature",
       challengeType: type,
       outcome: "passed",
       nodeId: "repair-core",
@@ -1433,6 +1436,7 @@ test("REQ-independent-verification-010: Failed challenge result fails closed wit
 
   const challengePlan = createChallengePlan({
     candidateId: harness.candidate.candidate_id,
+    nodeId: "repair-core",
     policySnapshotId: harness.executionGraph.policy_snapshot_id,
     evidenceStrategy: "feature",
   });
@@ -1441,6 +1445,8 @@ test("REQ-independent-verification-010: Failed challenge result fails closed wit
     emitChallengeResult({
       planId: challengePlan.plan_id,
       candidateId: harness.candidate.candidate_id,
+      policySnapshotId: harness.executionGraph.policy_snapshot_id,
+      evidenceStrategy: "feature",
       challengeType: type,
       outcome: index === 0 ? "failed" : "passed",
       nodeId: "repair-core",
@@ -1467,6 +1473,7 @@ test("REQ-independent-verification-010: Budget exhaustion during challenges fail
 
   const challengePlan = createChallengePlan({
     candidateId: harness.candidate.candidate_id,
+    nodeId: "repair-core",
     policySnapshotId: harness.executionGraph.policy_snapshot_id,
     evidenceStrategy: "feature",
   });
@@ -1491,6 +1498,7 @@ test("REQ-independent-verification-010: Challenge results alone cannot grant PAS
 
   const challengePlan = createChallengePlan({
     candidateId: harness.candidate.candidate_id,
+    nodeId: "repair-core",
     policySnapshotId: harness.executionGraph.policy_snapshot_id,
     evidenceStrategy: "feature",
   });
@@ -1499,6 +1507,8 @@ test("REQ-independent-verification-010: Challenge results alone cannot grant PAS
     emitChallengeResult({
       planId: challengePlan.plan_id,
       candidateId: harness.candidate.candidate_id,
+      policySnapshotId: harness.executionGraph.policy_snapshot_id,
+      evidenceStrategy: "feature",
       challengeType: type,
       outcome: "passed",
       nodeId: "repair-core",

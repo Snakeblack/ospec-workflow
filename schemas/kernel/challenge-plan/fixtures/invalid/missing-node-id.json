@@ -3,14 +3,10 @@
   "kind": "challenge-plan/v1",
   "plan_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
   "candidate_id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
-  "node_id": "repair-focal",
   "policy_snapshot_id": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
   "evidence_strategy": "bug",
-  "selected": [
-    "revert"
-  ],
+  "selected": ["revert"],
   "skipped": [],
-  "reasons": [
-    "STRATEGY_BUG_SELECTED"
-  ]
+  "reasons": ["selected"],
+  "budget": { "max_challenges": 1, "mutation_budget": 0, "timeout_seconds": 1 }
 }

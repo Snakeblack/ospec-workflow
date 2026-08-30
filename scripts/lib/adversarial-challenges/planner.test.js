@@ -16,10 +16,12 @@ const planSchema = loadSchemaById("ospec://schemas/kernel/challenge-plan/v1", { 
 
 const SAMPLE_CANDIDATE_ID = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const SAMPLE_POLICY_ID = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const SAMPLE_NODE_ID = "repair-focal";
 
 test("REQ-adversarial-challenges-002: Proportional plan generated for bug strategy", () => {
   const plan = createChallengePlan({
     candidateId: SAMPLE_CANDIDATE_ID,
+    nodeId: SAMPLE_NODE_ID,
     policySnapshotId: SAMPLE_POLICY_ID,
     evidenceStrategy: "bug",
   });
@@ -45,6 +47,7 @@ test("REQ-adversarial-challenges-002: Proportional plan generated for bug strate
 test("REQ-adversarial-challenges-002: Proportional plan generated for refactor strategy", () => {
   const plan = createChallengePlan({
     candidateId: SAMPLE_CANDIDATE_ID,
+    nodeId: SAMPLE_NODE_ID,
     policySnapshotId: SAMPLE_POLICY_ID,
     evidenceStrategy: "refactor",
   });
@@ -60,6 +63,7 @@ test("REQ-adversarial-challenges-002: Proportional plan generated for refactor s
 test("REQ-adversarial-challenges-002: Proportional plan generated for migration strategy", () => {
   const plan = createChallengePlan({
     candidateId: SAMPLE_CANDIDATE_ID,
+    nodeId: SAMPLE_NODE_ID,
     policySnapshotId: SAMPLE_POLICY_ID,
     evidenceStrategy: "migration",
   });
@@ -74,6 +78,7 @@ test("REQ-adversarial-challenges-002: Proportional plan generated for migration 
 test("REQ-adversarial-challenges-002: Proportional plan generated for config-docs strategy", () => {
   const plan = createChallengePlan({
     candidateId: SAMPLE_CANDIDATE_ID,
+    nodeId: SAMPLE_NODE_ID,
     policySnapshotId: SAMPLE_POLICY_ID,
     evidenceStrategy: "config-docs",
   });
@@ -88,6 +93,7 @@ test("REQ-adversarial-challenges-002: Proportional plan generated for config-doc
 test("REQ-adversarial-challenges-002: Proportional plan generated for feature and strict-tdd strategies", () => {
   const featurePlan = createChallengePlan({
     candidateId: SAMPLE_CANDIDATE_ID,
+    nodeId: SAMPLE_NODE_ID,
     policySnapshotId: SAMPLE_POLICY_ID,
     evidenceStrategy: "feature",
   });
@@ -96,6 +102,7 @@ test("REQ-adversarial-challenges-002: Proportional plan generated for feature an
 
   const strictPlan = createChallengePlan({
     candidateId: SAMPLE_CANDIDATE_ID,
+    nodeId: SAMPLE_NODE_ID,
     policySnapshotId: SAMPLE_POLICY_ID,
     evidenceStrategy: "strict-tdd",
   });
@@ -106,12 +113,14 @@ test("REQ-adversarial-challenges-002: Proportional plan generated for feature an
 test("REQ-adversarial-challenges-002: Identical inputs yield deterministic ChallengePlan and plan_id", () => {
   const plan1 = createChallengePlan({
     candidateId: SAMPLE_CANDIDATE_ID,
+    nodeId: SAMPLE_NODE_ID,
     policySnapshotId: SAMPLE_POLICY_ID,
     evidenceStrategy: "bug",
   });
 
   const plan2 = createChallengePlan({
     candidateId: SAMPLE_CANDIDATE_ID,
+    nodeId: SAMPLE_NODE_ID,
     policySnapshotId: SAMPLE_POLICY_ID,
     evidenceStrategy: "bug",
   });
@@ -124,6 +133,7 @@ test("REQ-adversarial-challenges-002: Identical inputs yield deterministic Chall
 test("REQ-adversarial-challenges-002: Budget overrides are respected and bounded", () => {
   const customPlan = createChallengePlan({
     candidateId: SAMPLE_CANDIDATE_ID,
+    nodeId: SAMPLE_NODE_ID,
     policySnapshotId: SAMPLE_POLICY_ID,
     evidenceStrategy: "bug",
     budgetOverrides: {
