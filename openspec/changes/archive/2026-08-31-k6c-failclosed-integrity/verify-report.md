@@ -1,7 +1,7 @@
 ## Verification Report
 
 **Change**: k6c-failclosed-integrity
-**Version**: 2.56.1
+**Version**: 2.56.2
 **Mode**: Standard (focused TDD)
 **Lineage route**: `run-discovery` (no `verify_lineage`; assumption reconciliation applied, then full discovery)
 
