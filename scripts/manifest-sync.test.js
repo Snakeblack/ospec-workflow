@@ -85,19 +85,31 @@ test("release version matches changelog, roadmap, architecture, verify report, a
     nextReleaseOffset === -1 ? changelogText.length : nextReleaseOffset
   );
   const archiveMatch = latestSection.match(/`(openspec\/changes\/archive\/[^`/]+)\/`/);
-  assert.ok(archiveMatch, "latest changelog release must reference its archived change");
-  const verifyReport = fs.readFileSync(
-    path.join(ROOT, ...archiveMatch[1].split("/"), "verify-report.md"),
-    "utf8"
+  const directVerification = latestSection.match(
+    /\*\*Verificación directa\*\*:\s*`node scripts\/check\.js`\s*\((\d+) tests pasando, 0 fallos y (\d+) omitido(?:s)?\)/,
   );
-  const reportVersion = verifyReport.match(/^\*\*Version\*\*:\s*(\d+\.\d+\.\d+)\s*$/m);
-  assert.ok(reportVersion, "release verify-report must declare Version");
+  assert.ok(
+    archiveMatch || directVerification,
+    "latest changelog release must reference an archived change or declare direct full-suite verification",
+  );
+
+  let reportVersion = null;
+  if (archiveMatch) {
+    const verifyReport = fs.readFileSync(
+      path.join(ROOT, ...archiveMatch[1].split("/"), "verify-report.md"),
+      "utf8"
+    );
+    reportVersion = verifyReport.match(/^\*\*Version\*\*:\s*(\d+\.\d+\.\d+)\s*$/m);
+    assert.ok(reportVersion, "release verify-report must declare Version");
+  }
 
   const roadmapVersion = roadmapText.match(/^> \*\*Versión de referencia:\*\* v(\d+\.\d+\.\d+),/m);
   const architectureVersion = architectureText.match(/^> \*\*Corte documental:\*\* v(\d+\.\d+\.\d+),/m);
   assert.ok(roadmapVersion, "roadmap must declare its reference version");
   assert.ok(architectureVersion, "architecture must declare its document version");
-  assert.equal(reportVersion[1], packageVersion, "release verify-report version must match package.json");
+  if (reportVersion) {
+    assert.equal(reportVersion[1], packageVersion, "release verify-report version must match package.json");
+  }
   assert.equal(roadmapVersion[1], packageVersion, "roadmap reference must match package.json");
   assert.equal(architectureVersion[1], packageVersion, "architecture cut must match package.json");
 
@@ -151,6 +163,100 @@ test("canonical specs in openspec/specs/**/spec.md contain valid content and no 
       `canonical adversarial-challenges spec must retain ${req}`,
     );
   }
+});
+
+function getRequirementBlock(spec, reqId) {
+  const requirementStart = spec.indexOf(`{#${reqId}}`);
+  assert.notEqual(requirementStart, -1, `${reqId} must exist in the canonical spec`);
+
+  const nextRequirement = spec.indexOf("### Requirement:", requirementStart + reqId.length);
+  return spec.slice(requirementStart, nextRequirement === -1 ? spec.length : nextRequirement);
+}
+
+function validateK6cInventory(spec) {
+  const inventory = {
+    "REQ-adversarial-challenges-003": {
+        scenarios: [
+          "Monotonic budget consumption during challenge execution",
+          "Mutation budget exhaustion halts focal mutation and emits causal failure",
+          "Budget exhaustion triggers causal failure transition without blind restart",
+        ],
+        clauses: [
+          ["ChallengeBudgetTracker", /`ChallengeBudgetTracker`/],
+          ["consumeMutations(1)", /`consumeMutations\(1\)`/],
+          ["consumption before each mutation", /consume 1 mutation budget unit prior to evaluating each individual mutation/i],
+          ["validation_gap", /`validation_gap`/],
+          ["exhausted mutation_budget dimension", /exhausted dimension `mutation_budget`/i],
+          ["no mutation evaluation without budget", /MUST NOT evaluate further mutations without available budget/i],
+          ["no passed outcome on exhaustion", /MUST NOT emit a passed outcome upon budget exhaustion/i],
+        ],
+    },
+    "REQ-adversarial-challenges-004": {
+        scenarios: [
+          "Focal mutation detects seeded defect and challenge passes",
+          "Complacent test suite passes on seeded defect and challenge fails",
+          "Test inspection detects tautological assertion",
+          "Missing capability or deadline expiry fails closed",
+          "Foreign scope or candidate mutation is rejected",
+          "Missing tests fail closed without a passed outcome",
+          "Zero mutations or no-op revert/mutation fail closed",
+          "Spawn error or infrastructure failure emits error and never increments defects",
+          "Timeout or sandbox rejection emits error outcome without passed result",
+          "executeChallengePlan ignores caller context test runner seam",
+        ],
+        clauses: [
+          ["plan/Candidate/node/strategy/PolicySnapshot validation", /validate the plan identity,\s*schema,\s*Candidate,\s*node,\s*strategy,\s*and PolicySnapshot bindings/i],
+          ["scope from frozen candidate diff", /derive `focal-mutation` scope exclusively from the frozen candidate diff/i],
+          ["pre/post candidate digest", /record candidate digest before and after execution/i],
+          ["capability and cancellation", /require an executor capability for the requested challenge and cancellation/i],
+          ["wall-clock deadline", /enforce `timeout_seconds` using elapsed wall-clock time/i],
+          ["non-cooperative child failure", /non-cooperative child that survives cancellation MUST remain a failure/i],
+          ["CHALLENGE_EXECUTION_ERROR", /`CHALLENGE_EXECUTION_ERROR`/],
+          ["CHALLENGE_TIMEOUT", /`CHALLENGE_TIMEOUT`/],
+          ["infrastructure does not increment defects_detected", /Infrastructure and tooling errors MUST NOT increment `defects_detected`/i],
+          ["missing_tests", /`missing_tests`/],
+          ["mutations_tested === 0", /`mutations_tested === 0`/],
+          ["NO_MUTATION_APPLIED", /`NO_MUTATION_APPLIED`/],
+          ["CHALLENGE_NOOP", /`CHALLENGE_NOOP`/],
+          ["canonical result bindings", /canonically bound to its plan,\s*Candidate,\s*node,\s*strategy,\s*and PolicySnapshot/i],
+          ["context.runWorkspaceTests ignored", /MUST NOT expose or respect any caller-controllable test runner seam \(such as `context\.runWorkspaceTests`\)/i],
+        ],
+    },
+  };
+
+  for (const [reqId, expected] of Object.entries(inventory)) {
+    const requirementBlock = getRequirementBlock(spec, reqId);
+    const actualScenarios = new Set(
+      [...requirementBlock.matchAll(/^#### Scenario:\s*(.+?)\s*$/gm)].map((match) => match[1]),
+    );
+
+    for (const scenario of expected.scenarios) {
+      assert.ok(
+        actualScenarios.has(scenario),
+        `${reqId} must retain K6c scenario anchor: ${scenario}`,
+      );
+    }
+
+    for (const [clause, pattern] of expected.clauses) {
+      assert.match(requirementBlock, pattern, `${reqId} must retain K6c clause/marker: ${clause}`);
+    }
+  }
+}
+
+test("canonical adversarial-challenges spec retains K6c critical scenario anchors and clauses", () => {
+  const specPath = path.join(ROOT, "openspec", "specs", "adversarial-challenges", "spec.md");
+  validateK6cInventory(fs.readFileSync(specPath, "utf8"));
+});
+
+test("K6c inventory rejects weakened requirements even when scenario headings remain", () => {
+  const specPath = path.join(ROOT, "openspec", "specs", "adversarial-challenges", "spec.md");
+  const canonicalSpec = fs.readFileSync(specPath, "utf8");
+  const weakenedSpec = canonicalSpec.replaceAll("`consumeMutations(1)`", "`consumeBudget(1)`");
+
+  assert.throws(
+    () => validateK6cInventory(weakenedSpec),
+    /REQ-adversarial-challenges-003 must retain K6c clause\/marker: consumeMutations\(1\)/,
+  );
 });
 
 
