@@ -3,6 +3,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
+const fs = require("node:fs");
+const os = require("node:os");
 
 const {
   main,
@@ -90,3 +92,61 @@ test("renderHooksValue expands placeholder", () => {
     "node /home/user/.gemini/config/scripts/hooks/ospec-hooks-launch.js session-start",
   );
 });
+
+test("pruneStaleFiles exhaustion diagnosis specifies target: antigravity", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "antigravity-prune-exhaust-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  const sourceDir = path.join(root, "source");
+  const destDir = path.join(root, "dest");
+  fs.mkdirSync(sourceDir, { recursive: true });
+  fs.mkdirSync(destDir, { recursive: true });
+
+  fs.writeFileSync(path.join(sourceDir, "package.json"), JSON.stringify({ name: "test", version: "1.0.0" }));
+  fs.writeFileSync(path.join(sourceDir, "hooks.json"), JSON.stringify({ hooks: {} }));
+  fs.writeFileSync(path.join(destDir, "stale-file.txt"), "stale");
+  fs.writeFileSync(
+    path.join(destDir, ".ospec-workflow-install.json"),
+    JSON.stringify({ target: "antigravity", files: ["stale-file.txt"] }),
+  );
+
+  const stderr = [];
+  const delays = [];
+  const fsImpl = new Proxy(fs, {
+    get(target, property) {
+      if (property === "rmSync") {
+        return (p, ...args) => {
+          if (typeof p === "string" && p.includes("stale-file.txt")) {
+            const err = new Error("locked stale file");
+            err.code = "EPERM";
+            throw err;
+          }
+          return target[property](p, ...args);
+        };
+      }
+      return target[property];
+    },
+  });
+
+  const exitCode = main(["--dest", destDir], {
+    sourceDir,
+    fs: fsImpl,
+    outDir: sourceDir,
+    runConfigure: () => ({ exitCode: 0, validation: { errors: [] } }),
+    validateInstalled: () => ({ errors: [] }),
+    copyBinaryToTree: () => {},
+    syncTargetTree: () => ({ updated: [], unchanged: [], ownedFiles: [] }),
+    installHooksJson: () => {},
+    stdout: { write() {} },
+    stderr: { write: (chunk) => stderr.push(chunk) },
+    retryOptions: { maxRetries: 2, sleep: (d) => delays.push(d) },
+  });
+
+  assert.equal(exitCode, 1);
+  const errOutput = stderr.join("");
+  assert.match(errOutput, /antigravity:/i);
+  assert.match(errOutput, /remove stale file failed/i);
+  assert.match(errOutput, /after 3 attempts/i);
+  assert.match(errOutput, /close the application/i);
+});
+

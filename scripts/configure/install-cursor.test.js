@@ -621,3 +621,61 @@ test("sanitizeCursorMcpServers resolves or strips ${input:...} placeholders", ()
   assert.equal(sanitizedSet.context7.env.STATIC_VAR, "literal_value");
 });
 
+test("pruneStaleFiles exhaustion diagnosis specifies target: cursor", (t) => {
+  const root = makeTempDir(t, "cursor-prune-exhaust-");
+  const sourceDir = path.join(root, "source");
+  const homeDir = path.join(root, "home");
+  const cursorRoot = path.join(homeDir, ".cursor");
+  fs.mkdirSync(sourceDir, { recursive: true });
+  fs.mkdirSync(cursorRoot, { recursive: true });
+
+  fs.writeFileSync(path.join(sourceDir, "package.json"), JSON.stringify({ name: "test", version: "1.0.0" }));
+  fs.writeFileSync(path.join(cursorRoot, "stale-file.txt"), "stale");
+  fs.writeFileSync(
+    path.join(cursorRoot, ".ospec-workflow-install.json"),
+    JSON.stringify({ target: "cursor", files: ["stale-file.txt"] }),
+  );
+
+  const stderr = [];
+  const delays = [];
+  const fsImpl = new Proxy(fs, {
+    get(target, property) {
+      if (property === "rmSync") {
+        return (p, ...args) => {
+          if (typeof p === "string" && p.includes("stale-file.txt")) {
+            const err = new Error("locked stale file");
+            err.code = "EPERM";
+            throw err;
+          }
+          return target[property](p, ...args);
+        };
+      }
+      return target[property];
+    },
+  });
+
+  const exitCode = main([], {
+    sourceDir,
+    homedir: () => homeDir,
+    fs: fsImpl,
+    outDir: sourceDir,
+    runConfigure: () => ({ exitCode: 0, validation: { errors: [] } }),
+    validateInstalled: () => ({ errors: [] }),
+    copyBinaryToTree: () => {},
+    syncTreeByContent: () => ({ updated: [], unchanged: [] }),
+    installHooksJson: () => {},
+    installMcpJson: () => {},
+    stdout: { write() {} },
+    stderr: { write: (chunk) => stderr.push(chunk) },
+    retryOptions: { maxRetries: 2, sleep: (d) => delays.push(d) },
+  });
+
+  assert.equal(exitCode, 1);
+  const errOutput = stderr.join("");
+  assert.match(errOutput, /cursor:/i);
+  assert.match(errOutput, /remove stale file failed/i);
+  assert.match(errOutput, /after 3 attempts/i);
+  assert.match(errOutput, /close the application/i);
+});
+
+

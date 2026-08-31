@@ -13,7 +13,7 @@ const os = require("node:os");
 
 const { runConfigure } = require("./cli.js");
 const { copyBinaryToTree } = require("./install-target.js");
-const { safeParseJsonc, mergeJsoncFile } = require("./install-engine.js");
+const { safeParseJsonc, mutateFs } = require("./install-engine.js");
 
 function getSettingsPaths(deps = {}) {
   const home = deps.homedir ? deps.homedir() : os.homedir();
@@ -216,7 +216,12 @@ function main(argv = process.argv.slice(2), deps = {}) {
 
   for (const writeItem of preparedWrites) {
     if (writeItem.updated) {
-      fsImpl.writeFileSync(writeItem.file.path, writeItem.content, "utf8");
+      mutateFs(
+        "write settings",
+        writeItem.file.path,
+        () => fsImpl.writeFileSync(writeItem.file.path, writeItem.content, "utf8"),
+        { target: "vscode", ...(deps.retryOptions || {}) },
+      );
       stdout.write(`  + ${writeItem.exists ? "Updated" : "Created"} ${writeItem.file.name} settings.json\n`);
     } else {
       stdout.write(`  · ${writeItem.file.name} settings.json already configured\n`);

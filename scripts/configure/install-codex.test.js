@@ -21,6 +21,7 @@ const {
   gatherCodexOwnedFiles,
   transformLegacyServiceTier,
   repairCodexConfig,
+  createFilesystemTransaction,
   main,
 } = require("./install-codex.js");
 
@@ -1965,5 +1966,61 @@ test("setup:codex maintains skills ownership manifest and prunes stale skills", 
   assert.ok(skillsManifest.files.includes("sdd-apply/SKILL.md"));
   assert.ok(!skillsManifest.files.includes("old-skill/SKILL.md"));
 });
+
+for (const code of ["EPERM", "EACCES", "EBUSY"]) {
+  test(`createFilesystemTransaction.rollback() recovers from transient ${code} during restoration`, (t) => {
+    const root = makeTempDir(t, `codex-tx-rollback-${code}-`);
+    const filePath = path.join(root, "file.txt");
+    const subDirPath = path.join(root, "subdir");
+    const subFilePath = path.join(subDirPath, "sub.txt");
+
+    fs.writeFileSync(filePath, "original file content\n");
+    fs.mkdirSync(subDirPath, { recursive: true });
+    fs.writeFileSync(subFilePath, "original sub content\n");
+
+    const delays = [];
+    let rollingBack = false;
+    let transientFailuresRemaining = 0;
+
+    const fsImpl = new Proxy(fs, {
+      get(target, property) {
+        if (property === "writeFileSync" || property === "rmSync" || property === "mkdirSync" || property === "chmodSync" || property === "rmdirSync") {
+          return (p, ...args) => {
+            if (rollingBack && transientFailuresRemaining > 0 && typeof p === "string" && p.startsWith(root)) {
+              transientFailuresRemaining -= 1;
+              const err = new Error(`simulated ${code}`);
+              err.code = code;
+              throw err;
+            }
+            return target[property](p, ...args);
+          };
+        }
+        return target[property];
+      },
+    });
+
+    const tx = createFilesystemTransaction(fsImpl, {
+      sleep: (d) => delays.push(d),
+      retryDelay: 15,
+      maxRetries: 3,
+    });
+
+    tx.fs.writeFileSync(filePath, "mutated file\n");
+    tx.fs.writeFileSync(subFilePath, "mutated sub\n");
+    const newFilePath = path.join(root, "created.txt");
+    tx.fs.writeFileSync(newFilePath, "new file\n");
+
+    rollingBack = true;
+    transientFailuresRemaining = 2;
+    const errors = tx.rollback();
+
+    assert.deepEqual(errors, [], `rollback must recover from transient ${code}`);
+    assert.equal(fs.readFileSync(filePath, "utf8"), "original file content\n");
+    assert.equal(fs.readFileSync(subFilePath, "utf8"), "original sub content\n");
+    assert.equal(fs.existsSync(newFilePath), false);
+    assert.ok(delays.length >= 2, `sleep must be called for retries, got ${delays.length}`);
+  });
+}
+
 
 

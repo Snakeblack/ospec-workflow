@@ -17,6 +17,8 @@ const {
   pruneStaleFiles,
   mergeHooksDoc,
   syncTargetTree,
+  withTransientFsRetries,
+  mutateFs,
 } = require("./install-engine.js");
 
 function usage() {
@@ -175,8 +177,8 @@ function installHooksJson(outDir, antigravityRoot, deps = {}) {
   }
 
   const merged = mergeHooksDoc(existing, rendered, "antigravity");
-  fsImpl.mkdirSync(antigravityRoot, { recursive: true });
-  fsImpl.writeFileSync(destPath, JSON.stringify(merged, null, 2) + "\n", "utf8");
+  mutateFs("mkdir", antigravityRoot, () => fsImpl.mkdirSync(antigravityRoot, { recursive: true }), deps.retryOptions);
+  mutateFs("write hooks.json", destPath, () => fsImpl.writeFileSync(destPath, JSON.stringify(merged, null, 2) + "\n", "utf8"), deps.retryOptions);
 }
 
 function installAntigravityRoot(antigravityRoot, outDir, sourceDir, args, deps) {
@@ -184,6 +186,7 @@ function installAntigravityRoot(antigravityRoot, outDir, sourceDir, args, deps) 
   const stdout = deps.stdout || process.stdout;
   const stderr = deps.stderr || process.stderr;
   const copyBinary = deps.copyBinaryToTree || copyBinaryToTree;
+  const installHooks = deps.installHooksJson || installHooksJson;
   const validateInstalled = deps.validateInstalled || validateInstalledAntigravity;
 
   try {
@@ -202,7 +205,8 @@ function installAntigravityRoot(antigravityRoot, outDir, sourceDir, args, deps) 
 
   let journal = null;
   try {
-    journal = createRollbackJournal(antigravityRoot, fsImpl);
+    const retryOptions = { target: "antigravity", ...(deps.retryOptions || {}) };
+    journal = createRollbackJournal(antigravityRoot, fsImpl, retryOptions);
     const previousManifest = readOwnershipManifest(antigravityRoot, fsImpl);
 
     copyBinary(outDir, "antigravity", sourceDir, {
@@ -220,18 +224,21 @@ function installAntigravityRoot(antigravityRoot, outDir, sourceDir, args, deps) 
       new Set(["hooks.json"]),
       antigravityRoot,
       journal,
+      "",
+      retryOptions,
     );
 
     const antigravityRootPosix = getHooksRootPosix(antigravityRoot);
-    installHooksJson(outDir, antigravityRoot, {
+    installHooks(outDir, antigravityRoot, {
       fs: fsImpl,
       dryRun: false,
       journal,
       antigravityRootPosix,
+      retryOptions,
     });
 
     const allOwned = Array.from(new Set([...syncResult.ownedFiles, "hooks.json", MANIFEST_FILENAME]));
-    const pruneResult = pruneStaleFiles(antigravityRoot, previousManifest, allOwned, fsImpl, journal);
+    const pruneResult = pruneStaleFiles(antigravityRoot, previousManifest, allOwned, fsImpl, journal, retryOptions);
 
     let version = "0.0.0";
     if (fsImpl.existsSync(path.join(sourceDir, "package.json"))) {
@@ -243,7 +250,7 @@ function installAntigravityRoot(antigravityRoot, outDir, sourceDir, args, deps) 
       installedAt: new Date().toISOString(),
       files: allOwned,
     };
-    writeOwnershipManifest(antigravityRoot, manifest, fsImpl, journal);
+    writeOwnershipManifest(antigravityRoot, manifest, fsImpl, journal, retryOptions);
 
     const installedValidation = validateInstalled(antigravityRoot, { fs: fsImpl });
     if (installedValidation.errors.length > 0) {
@@ -285,8 +292,8 @@ function main(argv = process.argv.slice(2), deps = {}) {
     return 2;
   }
 
-  const sourceDir = path.resolve(args.source || cwd);
-  const outDir = path.join(sourceDir, "dist", "antigravity");
+  const sourceDir = path.resolve(args.source || deps.sourceDir || cwd);
+  const outDir = deps.outDir || path.join(sourceDir, "dist", "antigravity");
   const targetRoots = getDestinationRoots(args.dest, deps);
 
   const result = runConfigureImpl({

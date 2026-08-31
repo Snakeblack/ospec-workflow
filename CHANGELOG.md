@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.56.3] - 2026-08-31
+
+### Fixed
+- **Endurecimiento de recuperación en instaladores ante errores transitorios de filesystem (`harden-installer-fs-recovery`)**:
+  - **Primitiva centralizada de reintentos**: Implementada `withTransientFsRetries` y `mutateFs` en `scripts/configure/install-engine.js` para reintentar de forma acotada (0-5 intentos, backoff con `sleep` inyectable) exclusivamente ante errores transitorios de filesystem (`EPERM`, `EACCES`, `EBUSY`), fallando de inmediato ante errores permanentes como `ENOENT`.
+  - **Rollback resiliente**: Integrada la política de reintentos en cada paso individual de restauración de `createRollbackJournal` y en `createFilesystemTransaction.rollback()` (`restorePath` y `removePathIfPresent` en `scripts/configure/install-codex.js`), garantizando recuperación consistente frente a locks temporales en Windows/POSIX.
+  - **Preservación de identidad de target en poda**: Propagadas las opciones de reintento (`retryOptions`) a `pruneStaleFiles` en Antigravity y Cursor, asegurando diagnósticos enriquecidos que identifican explícitamente el instalador afectado ante agotamiento de reintentos.
+  - **Migración transversal de targets**: Aplicada la tolerancia transitoria a Antigravity, Cursor, Codex, VS Code, GitHub Copilot, OpenCode y sincronizaciones de repositorio en `install-target.js`.
+  - **Especificación y ADRs**: Actualizada la especificación `install` (`REQ-install-016`, `REQ-install-017`, `REQ-install-018`) y promovidos los ADRs `docs/adr/adr-20260831-001` a `003`.
+  - Verify PASS 8/8 MUST, 16/16 tareas; archivado en `openspec/changes/archive/2026-08-31-harden-installer-fs-recovery/`.
+
 ## [2.56.2] - 2026-08-31
 
 ### Fixed
