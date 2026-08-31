@@ -1,0 +1,31 @@
+{
+  "risk": {
+    "findings": []
+  },
+  "reliability": {
+    "findings": []
+  },
+  "resilience": {
+    "findings": []
+  },
+  "readability": {
+    "findings": [
+      {
+        "severity": "WARNING",
+        "summary": "La rama focal-mutation de runIsolatedMutation anida if → for → for → try → if (5 niveles). Los nuevos fail-closed CHALLENGE_NOOP y MISSING_TESTS quedan dentro de ese nido.",
+        "acceptance_criteria": "Extraer el ciclo aplicar mutación / ejecutar tests / restaurar / mapear MISSING_TESTS, CHALLENGE_NOOP, COMPLACENT y error de ejecución a un helper con ≤3 niveles. runIsolatedMutation solo despacha por tipo."
+      },
+      {
+        "severity": "WARNING",
+        "summary": "CHALLENGE_NOOP no usa el mismo flujo en revert y focal-mutation: revert acumula bytesChanged y falla después; focal retorna en la primera mutación identidad.",
+        "acceptance_criteria": "Unificar o extraer helpers que dejen explícitas las dos políticas (any-file-changed vs abort-on-first-noop) de modo que un lector no infiera que ambas ramas terminan el trabajo igual."
+      }
+    ]
+  },
+  "request_ids": {
+    "risk": "k6c-fc-4r-risk-1",
+    "reliability": "k6c-fc-4r-reliability-1",
+    "resilience": "k6c-fc-4r-resilience-1",
+    "readability": "k6c-fc-4r-readability-1"
+  }
+}

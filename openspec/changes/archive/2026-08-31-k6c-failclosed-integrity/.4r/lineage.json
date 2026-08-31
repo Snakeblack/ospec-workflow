@@ -1,0 +1,236 @@
+{
+  "schema_version": 1,
+  "lineage_id": "sha256:2bedd553e4ccbb908a9f7fb40f322a18ff960e35c2e22aa3034b98e2e2a6f719",
+  "generation": 1,
+  "predecessor_lineage_id": null,
+  "recovery": null,
+  "revision": 9,
+  "status": "approved",
+  "genesis": {
+    "candidate": {
+      "projection": "workspace",
+      "base_tree": "64eb5a555aa860195d408efd5b67aee2314f2b7b",
+      "candidate_tree": "workspace:9baa6c07fa2631742408b60750a1bec8acbea48e0626b71ad1dca1ad4f35fe6b",
+      "paths": [
+        "openspec/changes/k6c-failclosed-integrity/apply-progress.md",
+        "openspec/changes/k6c-failclosed-integrity/decisions/adr-001.md",
+        "openspec/changes/k6c-failclosed-integrity/decisions/adr-002.md",
+        "openspec/changes/k6c-failclosed-integrity/decisions/adr-003.md",
+        "openspec/changes/k6c-failclosed-integrity/decisions/adr-004.md",
+        "openspec/changes/k6c-failclosed-integrity/design.md",
+        "openspec/changes/k6c-failclosed-integrity/proposal.md",
+        "openspec/changes/k6c-failclosed-integrity/specs/adversarial-challenges/spec.md",
+        "openspec/changes/k6c-failclosed-integrity/specs/assurance-graph/spec.md",
+        "openspec/changes/k6c-failclosed-integrity/specs/independent-verification/spec.md",
+        "openspec/changes/k6c-failclosed-integrity/specs/kernel-contract-schemas/spec.md",
+        "openspec/changes/k6c-failclosed-integrity/state.yaml",
+        "openspec/changes/k6c-failclosed-integrity/tasks.md",
+        "openspec/changes/k6c-failclosed-integrity/verify-report.md",
+        "openspec/memory/known-issues.md",
+        "schemas/kernel/challenge-result/v1.schema.json",
+        "schemas/kernel/contract-claims.json",
+        "scripts/lib/adversarial-challenges/integrity.js",
+        "scripts/lib/adversarial-challenges/integrity.test.js",
+        "scripts/lib/adversarial-challenges/planner.js",
+        "scripts/lib/adversarial-challenges/planner.test.js",
+        "scripts/lib/adversarial-challenges/runner.js",
+        "scripts/lib/adversarial-challenges/runner.test.js",
+        "scripts/lib/assurance-graph/index.js",
+        "scripts/lib/assurance-graph/index.test.js",
+        "scripts/lib/assurance-graph/projector.js",
+        "scripts/lib/contract-checkers/k1-schema-compat.js",
+        "scripts/lib/independent-verifier/challenge-evidence.js",
+        "scripts/lib/independent-verifier/index.js",
+        "scripts/lib/independent-verifier/index.test.js",
+        "scripts/lib/k6c-schema-fixtures.test.js",
+        "scripts/lib/kernel-schema-validator.js",
+        "scripts/lib/kernel-schema-validator.test.js"
+      ],
+      "diff_hash": "sha256:9baa6c07fa2631742408b60750a1bec8acbea48e0626b71ad1dca1ad4f35fe6b",
+      "paths_digest": "sha256:707a2002b20d47a21cbd1cbf019dde65fe46ebb0887a5252e42cac1aec679894",
+      "authored_lines": 1293,
+      "original_changed_lines": 1321
+    },
+    "candidate_id": "sha256:4074b854fcb854d1a12568cf4e51c18eba49237c091b24617f3be14e221ea2bb",
+    "paths": [
+      "openspec/changes/k6c-failclosed-integrity/apply-progress.md",
+      "openspec/changes/k6c-failclosed-integrity/decisions/adr-001.md",
+      "openspec/changes/k6c-failclosed-integrity/decisions/adr-002.md",
+      "openspec/changes/k6c-failclosed-integrity/decisions/adr-003.md",
+      "openspec/changes/k6c-failclosed-integrity/decisions/adr-004.md",
+      "openspec/changes/k6c-failclosed-integrity/design.md",
+      "openspec/changes/k6c-failclosed-integrity/proposal.md",
+      "openspec/changes/k6c-failclosed-integrity/specs/adversarial-challenges/spec.md",
+      "openspec/changes/k6c-failclosed-integrity/specs/assurance-graph/spec.md",
+      "openspec/changes/k6c-failclosed-integrity/specs/independent-verification/spec.md",
+      "openspec/changes/k6c-failclosed-integrity/specs/kernel-contract-schemas/spec.md",
+      "openspec/changes/k6c-failclosed-integrity/state.yaml",
+      "openspec/changes/k6c-failclosed-integrity/tasks.md",
+      "openspec/changes/k6c-failclosed-integrity/verify-report.md",
+      "openspec/memory/known-issues.md",
+      "schemas/kernel/challenge-result/v1.schema.json",
+      "schemas/kernel/contract-claims.json",
+      "scripts/lib/adversarial-challenges/integrity.js",
+      "scripts/lib/adversarial-challenges/integrity.test.js",
+      "scripts/lib/adversarial-challenges/planner.js",
+      "scripts/lib/adversarial-challenges/planner.test.js",
+      "scripts/lib/adversarial-challenges/runner.js",
+      "scripts/lib/adversarial-challenges/runner.test.js",
+      "scripts/lib/assurance-graph/index.js",
+      "scripts/lib/assurance-graph/index.test.js",
+      "scripts/lib/assurance-graph/projector.js",
+      "scripts/lib/contract-checkers/k1-schema-compat.js",
+      "scripts/lib/independent-verifier/challenge-evidence.js",
+      "scripts/lib/independent-verifier/index.js",
+      "scripts/lib/independent-verifier/index.test.js",
+      "scripts/lib/k6c-schema-fixtures.test.js",
+      "scripts/lib/kernel-schema-validator.js",
+      "scripts/lib/kernel-schema-validator.test.js"
+    ],
+    "classification": "normal",
+    "selected_dimensions": [
+      "risk",
+      "reliability",
+      "resilience",
+      "readability"
+    ],
+    "evidence_fingerprint": "sha256:08c0ce9f4ce087ceacc332c88627555edecba5df3234385edbb22ec39475db77",
+    "original_changed_lines": 1321,
+    "authored_lines": 1293
+  },
+  "current_candidate_id": "sha256:4074b854fcb854d1a12568cf4e51c18eba49237c091b24617f3be14e221ea2bb",
+  "current_candidate": {
+    "projection": "workspace",
+    "base_tree": "64eb5a555aa860195d408efd5b67aee2314f2b7b",
+    "candidate_tree": "workspace:9baa6c07fa2631742408b60750a1bec8acbea48e0626b71ad1dca1ad4f35fe6b",
+    "paths": [
+      "openspec/changes/k6c-failclosed-integrity/apply-progress.md",
+      "openspec/changes/k6c-failclosed-integrity/decisions/adr-001.md",
+      "openspec/changes/k6c-failclosed-integrity/decisions/adr-002.md",
+      "openspec/changes/k6c-failclosed-integrity/decisions/adr-003.md",
+      "openspec/changes/k6c-failclosed-integrity/decisions/adr-004.md",
+      "openspec/changes/k6c-failclosed-integrity/design.md",
+      "openspec/changes/k6c-failclosed-integrity/proposal.md",
+      "openspec/changes/k6c-failclosed-integrity/specs/adversarial-challenges/spec.md",
+      "openspec/changes/k6c-failclosed-integrity/specs/assurance-graph/spec.md",
+      "openspec/changes/k6c-failclosed-integrity/specs/independent-verification/spec.md",
+      "openspec/changes/k6c-failclosed-integrity/specs/kernel-contract-schemas/spec.md",
+      "openspec/changes/k6c-failclosed-integrity/state.yaml",
+      "openspec/changes/k6c-failclosed-integrity/tasks.md",
+      "openspec/changes/k6c-failclosed-integrity/verify-report.md",
+      "openspec/memory/known-issues.md",
+      "schemas/kernel/challenge-result/v1.schema.json",
+      "schemas/kernel/contract-claims.json",
+      "scripts/lib/adversarial-challenges/integrity.js",
+      "scripts/lib/adversarial-challenges/integrity.test.js",
+      "scripts/lib/adversarial-challenges/planner.js",
+      "scripts/lib/adversarial-challenges/planner.test.js",
+      "scripts/lib/adversarial-challenges/runner.js",
+      "scripts/lib/adversarial-challenges/runner.test.js",
+      "scripts/lib/assurance-graph/index.js",
+      "scripts/lib/assurance-graph/index.test.js",
+      "scripts/lib/assurance-graph/projector.js",
+      "scripts/lib/contract-checkers/k1-schema-compat.js",
+      "scripts/lib/independent-verifier/challenge-evidence.js",
+      "scripts/lib/independent-verifier/index.js",
+      "scripts/lib/independent-verifier/index.test.js",
+      "scripts/lib/k6c-schema-fixtures.test.js",
+      "scripts/lib/kernel-schema-validator.js",
+      "scripts/lib/kernel-schema-validator.test.js"
+    ],
+    "diff_hash": "sha256:9baa6c07fa2631742408b60750a1bec8acbea48e0626b71ad1dca1ad4f35fe6b",
+    "paths_digest": "sha256:707a2002b20d47a21cbd1cbf019dde65fe46ebb0887a5252e42cac1aec679894",
+    "authored_lines": 1293,
+    "original_changed_lines": 1321
+  },
+  "lenses": {
+    "risk": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "k6c-fc-4r-risk-1",
+      "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+      "result": {
+        "findings": []
+      },
+      "operation": null,
+      "result_request_id": "k6c-fc-4r-risk-1"
+    },
+    "reliability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "k6c-fc-4r-reliability-1",
+      "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+      "result": {
+        "findings": []
+      },
+      "operation": null,
+      "result_request_id": "k6c-fc-4r-reliability-1"
+    },
+    "resilience": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "k6c-fc-4r-resilience-1",
+      "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+      "result": {
+        "findings": []
+      },
+      "operation": null,
+      "result_request_id": "k6c-fc-4r-resilience-1"
+    },
+    "readability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "k6c-fc-4r-readability-1",
+      "result_digest": "sha256:ff2de34e63abcc709dc328c50e2a053546aeb7969261c155b181a981946c6131",
+      "result": {
+        "findings": [
+          {
+            "severity": "WARNING",
+            "summary": "La rama focal-mutation de runIsolatedMutation anida if → for → for → try → if (5 niveles). Los nuevos fail-closed CHALLENGE_NOOP y MISSING_TESTS quedan dentro de ese nido.",
+            "acceptance_criteria": "Extraer el ciclo aplicar mutación / ejecutar tests / restaurar / mapear MISSING_TESTS, CHALLENGE_NOOP, COMPLACENT y error de ejecución a un helper con ≤3 niveles. runIsolatedMutation solo despacha por tipo."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "CHALLENGE_NOOP no usa el mismo flujo en revert y focal-mutation: revert acumula bytesChanged y falla después; focal retorna en la primera mutación identidad.",
+            "acceptance_criteria": "Unificar o extraer helpers que dejen explícitas las dos políticas (any-file-changed vs abort-on-first-noop) de modo que un lector no infiera que ambas ramas terminan el trabajo igual."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "k6c-fc-4r-readability-1"
+    }
+  },
+  "findings": [
+    {
+      "id": "F-18269a599e0c7bb8",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "La rama focal-mutation de runIsolatedMutation anida if → for → for → try → if (5 niveles). Los nuevos fail-closed CHALLENGE_NOOP y MISSING_TESTS quedan dentro de ese nido.",
+      "acceptance_criteria": "Extraer el ciclo aplicar mutación / ejecutar tests / restaurar / mapear MISSING_TESTS, CHALLENGE_NOOP, COMPLACENT y error de ejecución a un helper con ≤3 niveles. runIsolatedMutation solo despacha por tipo.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-d014622245a8b2bf",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "CHALLENGE_NOOP no usa el mismo flujo en revert y focal-mutation: revert acumula bytesChanged y falla después; focal retorna en la primera mutación identidad.",
+      "acceptance_criteria": "Unificar o extraer helpers que dejen explícitas las dos políticas (any-file-changed vs abort-on-first-noop) de modo que un lector no infiera que ambas ramas terminan el trabajo igual.",
+      "blocking": false,
+      "resolution": "advisory"
+    }
+  ],
+  "findings_digest": "sha256:9a4e3c7416261abf0575c55437beabe7850252b2037e471089a407bb50515d72",
+  "correction_budget": {
+    "limit_lines": 200,
+    "used_lines": 0,
+    "failed_attempts": 0,
+    "max_failed_attempts": 3
+  },
+  "correction_history": [],
+  "validation_history": [],
+  "follow_ups": [],
+  "pending_operation": null,
+  "pending_correction": null,
+  "terminal_reason": "no-unresolved-blocking-findings"
+}

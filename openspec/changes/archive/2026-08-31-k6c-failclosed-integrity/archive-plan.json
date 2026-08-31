@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "change": "k6c-failclosed-integrity",
+  "source_fingerprint": "sha256:3da8dcaf3eed47e62610d4a7bda70c6602d1e50a90d7a84c0572130abba7a56b",
+  "spec_writes": [
+    {
+      "domain": "adversarial-challenges",
+      "source_delta": "prepared-specs/adversarial-challenges/spec.md",
+      "target": "openspec/specs/adversarial-challenges/spec.md",
+      "target_before_sha256": "sha256:d0304135fb98c6402ec301a1d209529ea571febffac52c4d34c16d0fe9c80361",
+      "content_sha256": "sha256:2de45224deb54da3c3cb87f24fd41d8be1cca549b293cad692743a7fedaa2409"
+    },
+    {
+      "domain": "independent-verification",
+      "source_delta": "prepared-specs/independent-verification/spec.md",
+      "target": "openspec/specs/independent-verification/spec.md",
+      "target_before_sha256": "sha256:274c3d3e7c135cb7e4aee9a61e2ad1995ba3b326f827f6cc1aff375feca712b8",
+      "content_sha256": "sha256:bb4367b45d23c8cc4a4d22840a40a978672164a405d8b5ba4f0a2ed9155f864a"
+    },
+    {
+      "domain": "assurance-graph",
+      "source_delta": "prepared-specs/assurance-graph/spec.md",
+      "target": "openspec/specs/assurance-graph/spec.md",
+      "target_before_sha256": "sha256:0aba79cad7e517afd4e6089bdbc2190edb46d514b8a84f7504d9886d22ad774b",
+      "content_sha256": "sha256:7b5e1fdb349fd54eb6dfd5dc5075e4d4bb785fa2625fd2f129767e3949cf5b54"
+    },
+    {
+      "domain": "kernel-contract-schemas",
+      "source_delta": "prepared-specs/kernel-contract-schemas/spec.md",
+      "target": "openspec/specs/kernel-contract-schemas/spec.md",
+      "target_before_sha256": "sha256:f4787efc0a7302d47ebd1c42d527e1476213210035d69acce994a47415a50ce6",
+      "content_sha256": "sha256:33ec7b355ed81c320cc23a381976cfb574390d62ad0975cfc583b900e0484a29"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260831-001-planner-rejects-invalid-strategy-with-typeerror.md",
+      "content_sha256": "sha256:78f37040278b4d9434e110de420dcb9843925f856c3ea67f6ac9946bc588b6f3"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260831-002-no-evidence-challenges-emit-outcome-error.md",
+      "content_sha256": "sha256:ebf2bfc743e5cc1a74bb53e3c1ad30421a2a5b76d2c9898da3e970b12440e3ca"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260831-003-evaluation-requires-the-selected-strategy-binding.md",
+      "content_sha256": "sha256:912921fa6a969d44cc3aa14044a49e6bcba9681b0dc61ed050faa0335809c282"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260831-004-constrained-draft-2020-12-metaschema-without-ajv.md",
+      "content_sha256": "sha256:cec9b5f37b58ddb73ebd54dd67d6f5bece5e79d1a857065f3c28c9eba5a07834"
+    }
+  ],
+  "archive_inventory": [
+    ".4r/candidate.json",
+    ".4r/decision.json",
+    ".4r/diff.patch",
+    ".4r/evidence.json",
+    ".4r/generalist.json",
+    ".4r/lens-results.json",
+    ".4r/lineage.json",
+    ".4r/next-action.json",
+    ".4r/request-ids.json",
+    ".4r/summary.json",
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "design.md",
+    "prepared-specs/adversarial-challenges/spec.md",
+    "prepared-specs/assurance-graph/spec.md",
+    "prepared-specs/independent-verification/spec.md",
+    "prepared-specs/kernel-contract-schemas/spec.md",
+    "proposal.md",
+    "specs/adversarial-challenges/spec.md",
+    "specs/assurance-graph/spec.md",
+    "specs/independent-verification/spec.md",
+    "specs/kernel-contract-schemas/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [
+    {
+      "id": "verify-cli-eisdir",
+      "source": "verify-report.md",
+      "severity": "WARNING",
+      "origin": "code-bug harness",
+      "summary": "Pre-existing scripts/configure/cli.test.js after-hook EISDIR on leftover openspec/changes/evidence-link. Not caused by this change. Documented in openspec/memory/known-issues.md.",
+      "disposition": "accepted-follow-up"
+    },
+    {
+      "id": "F-18269a599e0c7bb8",
+      "source": "4r-review-gate",
+      "severity": "WARNING",
+      "owner": "readability",
+      "summary": "runIsolatedMutation focal-mutation nesting (if→for→for→try→if). New fail-closed CHALLENGE_NOOP and MISSING_TESTS sit inside that nest.",
+      "disposition": "advisory-follow-up"
+    },
+    {
+      "id": "F-d014622245a8b2bf",
+      "source": "4r-review-gate",
+      "severity": "WARNING",
+      "owner": "readability",
+      "summary": "CHALLENGE_NOOP dual flow: revert accumulates bytesChanged then fails; focal returns on first identity mutation.",
+      "disposition": "advisory-follow-up"
+    }
+  ],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

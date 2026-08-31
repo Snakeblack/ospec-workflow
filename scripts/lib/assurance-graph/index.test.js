@@ -166,7 +166,15 @@ test("REQ-assurance-graph-009: K6c plan and exact results are deterministic grap
   const executionGraph = compileGraph();
   const plan = createChallengePlan({ candidateId: candidate.candidate_id, nodeId: "repair-core", policySnapshotId: executionGraph.policy_snapshot_id, evidenceStrategy: "feature" });
   const results = plan.selected.map((challengeType) => emitChallengeResult({ planId: plan.plan_id, candidateId: candidate.candidate_id, nodeId: plan.node_id, policySnapshotId: plan.policy_snapshot_id, evidenceStrategy: plan.evidence_strategy, challengeType, outcome: "passed" }));
-  const input = { candidate, executionGraph, challengePlan: plan, challengeResults: results, requireChallengeVerification: true, verification: { verification_id: "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", evidence_ids: [] } };
+  const input = {
+    candidate,
+    executionGraph,
+    challengePlan: plan,
+    challengeResults: results,
+    requireChallengeVerification: true,
+    evidenceStrategy: "feature",
+    verification: { verification_id: "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", evidence_ids: [] },
+  };
   const first = projectAssuranceGraph(input);
   const second = projectAssuranceGraph({ ...input, challengeResults: [...results].reverse() });
   assert.equal(first.ok, true, first.error || first.reason_code);
@@ -228,6 +236,7 @@ test("REQ-assurance-graph-009: verifier-emitted K6c material projects and replay
       challengePlan: verified.challengePlan,
       challengeResults: verified.challengeResults,
       requireChallengeVerification: true,
+      evidenceStrategy: verified.strategy,
     }
   );
   const replayed = replayAssuranceGraph(persistable);
@@ -237,6 +246,93 @@ test("REQ-assurance-graph-009: verifier-emitted K6c material projects and replay
     replayed.graph.nodes.filter((node) => node.kind === "challenge-plan" || node.kind === "challenge-result"),
     verified.assurance_graph.nodes.filter((node) => node.kind === "challenge-plan" || node.kind === "challenge-result")
   );
+});
+
+test("REQ-assurance-graph-009: wrong-strategy canonical K6c plan fails projection and replay", () => {
+  const files = { "src/index.js": "module.exports = 1;\n" };
+  const candidate = freezeFromFiles(files);
+  const executionGraph = compileGraph();
+  const selectedStrategy = "feature";
+  const bugPlan = createChallengePlan({
+    candidateId: candidate.candidate_id,
+    nodeId: "repair-core",
+    policySnapshotId: executionGraph.policy_snapshot_id,
+    evidenceStrategy: "bug",
+  });
+  const bugResults = bugPlan.selected.map((challengeType) => emitChallengeResult({
+    planId: bugPlan.plan_id,
+    candidateId: candidate.candidate_id,
+    nodeId: bugPlan.node_id,
+    policySnapshotId: bugPlan.policy_snapshot_id,
+    evidenceStrategy: "bug",
+    challengeType,
+    outcome: "passed",
+  }));
+  const projected = projectAssuranceGraph({
+    candidate,
+    executionGraph,
+    challengePlan: bugPlan,
+    challengeResults: bugResults,
+    requireChallengeVerification: true,
+    evidenceStrategy: selectedStrategy,
+    verification: { verification_id: "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", evidence_ids: [] },
+  });
+  assert.equal(projected.ok, false);
+  assert.equal(projected.reason_code, "GRAPH_DIVERGENCE");
+  assert.equal(Object.prototype.hasOwnProperty.call(projected, "graph"), false);
+
+  const plan = createChallengePlan({
+    candidateId: candidate.candidate_id,
+    nodeId: "repair-core",
+    policySnapshotId: executionGraph.policy_snapshot_id,
+    evidenceStrategy: selectedStrategy,
+  });
+  const results = plan.selected.map((challengeType) => emitChallengeResult({
+    planId: plan.plan_id,
+    candidateId: candidate.candidate_id,
+    nodeId: plan.node_id,
+    policySnapshotId: plan.policy_snapshot_id,
+    evidenceStrategy: selectedStrategy,
+    challengeType,
+    outcome: "passed",
+  }));
+  const rawEvidence = featureRaw();
+  const receiptSpecs = featureReceipts();
+  const runnerReceiptChannel = createTestRunnerReceiptChannel({
+    candidate,
+    executionGraph,
+    collector: HARNESS_COLLECTOR,
+    rawEvidence,
+    receiptSpecs,
+  });
+  const verified = verifyCandidateWithChallenges({
+    candidate,
+    executionGraph,
+    contract: { contract_digest: executionGraph.contract_digest },
+    repository: { files },
+    declaredStrategy: selectedStrategy,
+    collector: HARNESS_COLLECTOR,
+    rawEvidence,
+    runnerReceiptChannel,
+    challengePlan: plan,
+    challengeResults: results,
+  });
+  assert.equal(verified.strategy, selectedStrategy);
+  const persistable = replayBundle(
+    { candidate, executionGraph, verified, runnerReceiptChannel },
+    {
+      challengePlan: bugPlan,
+      challengeResults: bugResults,
+      requireChallengeVerification: true,
+      evidenceStrategy: verified.strategy,
+    }
+  );
+  assert.equal(persistable.evidenceStrategy, verified.strategy);
+  assert.notEqual(persistable.evidenceStrategy, bugPlan.evidence_strategy);
+  const replayed = replayAssuranceGraph(persistable);
+  assert.equal(replayed.ok, false);
+  assert.equal(replayed.reason_code, "GRAPH_DIVERGENCE");
+  assert.equal(Object.prototype.hasOwnProperty.call(replayed, "graph"), false);
 });
 
 test("REQ-assurance-graph-002: same inputs yield the same digest and edges despite permutation", () => {

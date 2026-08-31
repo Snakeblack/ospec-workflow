@@ -173,3 +173,41 @@ test("REQ-adversarial-challenges-002: Changed canonical binding cannot reuse a p
   assert.equal(original.evidence_strategy, reboundPolicy.evidence_strategy);
   assert.deepEqual(original.selected, reboundNode.selected);
 });
+
+test("REQ-adversarial-challenges-002: omitted empty or unknown planner strategy is rejected", () => {
+  const base = {
+    candidateId: SAMPLE_CANDIDATE_ID,
+    nodeId: SAMPLE_NODE_ID,
+    policySnapshotId: SAMPLE_POLICY_ID,
+  };
+
+  assert.throws(
+    () => createChallengePlan(base),
+    (error) => error instanceof TypeError && /requires evidenceStrategy/.test(error.message)
+  );
+  assert.throws(
+    () => createChallengePlan({ ...base, evidenceStrategy: "" }),
+    (error) => error instanceof TypeError && /requires evidenceStrategy/.test(error.message)
+  );
+  assert.throws(
+    () => createChallengePlan({ ...base, evidenceStrategy: "   " }),
+    (error) => error instanceof TypeError && /requires evidenceStrategy/.test(error.message)
+  );
+  assert.throws(
+    () => createChallengePlan({ ...base, evidenceStrategy: 1 }),
+    (error) => error instanceof TypeError && /requires evidenceStrategy/.test(error.message)
+  );
+
+  let unknownPlan;
+  assert.throws(
+    () => {
+      unknownPlan = createChallengePlan({ ...base, evidenceStrategy: "not-a-strategy" });
+    },
+    (error) => error instanceof TypeError && /rejects unknown evidenceStrategy/.test(error.message)
+  );
+  assert.equal(unknownPlan, undefined);
+
+  const valid = createChallengePlan({ ...base, evidenceStrategy: "strict-tdd" });
+  assert.equal(valid.evidence_strategy, "strict-tdd");
+  assert.equal(validateInstance(planSchema, valid).valid, true);
+});

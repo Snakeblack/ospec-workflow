@@ -220,6 +220,51 @@ test("REQ-adversarial-challenges-004: detecting suite on reverted workspace veri
   assert.equal(revert.details.revert_verified, true);
 });
 
+test("REQ-adversarial-challenges-004: missing tests, zero mutations, and no-op apply fail closed as errors", async () => {
+  const missingFocalHarness = workspaceHarness("feature", { "src/add.js": ADD_SOURCE }, ADD_DIFF);
+  const missingFocalRun = await executeChallengePlan(missingFocalHarness.plan, missingFocalHarness);
+  const missingFocal = (missingFocalRun.results || []).find((item) => item.challenge_type === "focal-mutation");
+  assert.ok(missingFocal);
+  assert.equal(missingFocal.outcome, "error");
+  assert.equal(missingFocal.details.reason, "MISSING_TESTS");
+  assert.notEqual(missingFocal.details.reason, "COMPLACENT_TEST_DETECTED");
+
+  const missingRevertHarness = workspaceHarness("bug", { "src/add.js": ADD_SOURCE }, ADD_DIFF);
+  const missingRevertRun = await executeChallengePlan(missingRevertHarness.plan, missingRevertHarness);
+  const missingRevert = (missingRevertRun.results || []).find((item) => item.challenge_type === "revert");
+  assert.ok(missingRevert);
+  assert.equal(missingRevert.outcome, "error");
+  assert.equal(missingRevert.details.reason, "MISSING_TESTS");
+  assert.notEqual(missingRevert.outcome, "passed");
+
+  const emptyMutations = workspaceHarness("feature", { "src/add.js": ADD_SOURCE, "src/add.test.js": DETECTING_TEST }, ADD_DIFF);
+  emptyMutations.mutations = [];
+  const emptyRun = await executeChallengePlan(emptyMutations.plan, emptyMutations);
+  const emptyFocal = (emptyRun.results || []).find((item) => item.challenge_type === "focal-mutation");
+  assert.ok(emptyFocal);
+  assert.equal(emptyFocal.outcome, "error");
+  assert.equal(emptyFocal.details.reason, "NO_MUTATION_APPLIED");
+  assert.notEqual(emptyFocal.details.reason, "COMPLACENT_TEST_DETECTED");
+
+  const noopFocalHarness = workspaceHarness("feature", { "src/add.js": ADD_SOURCE, "src/add.test.js": DETECTING_TEST }, ADD_DIFF);
+  noopFocalHarness.mutations = [{ line: 1, col: 0, original: "function", replacement: "function" }];
+  const noopFocalRun = await executeChallengePlan(noopFocalHarness.plan, noopFocalHarness);
+  const noopFocal = (noopFocalRun.results || []).find((item) => item.challenge_type === "focal-mutation");
+  assert.ok(noopFocal);
+  assert.equal(noopFocal.outcome, "error");
+  assert.equal(noopFocal.details.reason, "CHALLENGE_NOOP");
+  assert.notEqual(noopFocal.details.reason, "COMPLACENT_TEST_DETECTED");
+
+  const noopRevertHarness = workspaceHarness("bug", { "src/add.js": ADD_SOURCE, "src/add.test.js": DETECTING_TEST }, ADD_DIFF);
+  noopRevertHarness.patch = { original: "not-in-file", modified: "also-not-in-file" };
+  const noopRevertRun = await executeChallengePlan(noopRevertHarness.plan, noopRevertHarness);
+  const noopRevert = (noopRevertRun.results || []).find((item) => item.challenge_type === "revert");
+  assert.ok(noopRevert);
+  assert.equal(noopRevert.outcome, "error");
+  assert.equal(noopRevert.details.reason, "CHALLENGE_NOOP");
+  assert.notEqual(noopRevert.outcome, "passed");
+});
+
 test("REQ-adversarial-challenges-004: non-cooperative executor times out and cannot emit pass", async () => {
   const h = harness("migration");
   let workspaceRoot;

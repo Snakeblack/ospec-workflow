@@ -1,49 +1,6 @@
-# Adversarial Challenges Specification
+# Delta for Adversarial Challenges
 
-## Purpose
-
-Define the adversarial challenge catalog, deterministic policy-selected `ChallengePlan` generation, `ChallengeBudget` monotonicity with causal failure transitions, and execution of adversarial challenges against frozen candidates to detect seeded defects and reject complacent test suites.
-
-## Requirements
-
-### Requirement: Challenge Catalog And Supported Types {#REQ-adversarial-challenges-001}
-
-The system MUST maintain a closed catalog of supported `ChallengeType` identifiers:
-`revert | focal-mutation | independent-acceptance | regression-acceptance | compatibility-acceptance | test-inspection | structural-validation | behavior-equivalence | rollback`.
-
-Each challenge type MUST declare a defined adversarial verification objective:
-
-| ChallengeType | Objective |
-| --- | --- |
-| `revert` | Revert candidate patch to verify that original tests fail on unpatched codebase. |
-| `focal-mutation` | Apply AST or code mutations to changed files to verify tests fail on seeded defects. |
-| `independent-acceptance` | Execute independently generated acceptance assertions against candidate outputs. |
-| `regression-acceptance` | Execute baseline regression test suites against candidate modifications. |
-| `compatibility-acceptance` | Validate backward and forward compatibility against historical fixtures. |
-| `test-inspection` | Inspect test assertions to detect tautological, empty, or complacent checks. |
-| `structural-validation` | Validate schema, syntax, and structural integrity of non-code or config assets. |
-| `behavior-equivalence` | Validate identical observable behavior across refactored components. |
-| `rollback` | Execute dry-run and reverse migration operations to ensure safe rollback. |
-
-Any unsupported challenge type MUST fail validation fail-closed. Challenge execution MUST NOT mutate the frozen candidate repository bytes or approved candidate state.
-
-#### Scenario: Known challenge types validate successfully
-
-- GIVEN a challenge descriptor declaring `challenge_type: "focal-mutation"`
-- WHEN the challenge type is validated against the catalog
-- THEN validation MUST succeed
-
-#### Scenario: Unsupported challenge type fails closed
-
-- GIVEN a challenge descriptor declaring `challenge_type: "fuzz-chaos-injection"`
-- WHEN the challenge type is validated against the catalog
-- THEN validation MUST fail closed identifying the unknown type
-
-#### Scenario: Challenge execution does not mutate frozen candidate
-
-- GIVEN a frozen candidate and an executing `revert` or `focal-mutation` challenge
-- WHEN the challenge executes in its isolated workspace
-- THEN the frozen candidate repository state MUST remain byte-identical and unmodified
+## MODIFIED Requirements
 
 ### Requirement: Deterministic ChallengePlan Selection {#REQ-adversarial-challenges-002}
 
@@ -104,26 +61,6 @@ ChallengePlan generation MUST reject an `evidenceStrategy` that is omitted, empt
 - WHEN plan generation executes
 - THEN no ChallengePlan MUST be emitted
 - AND the strategy MUST NOT be coerced to `strict-tdd`
-
-### Requirement: ChallengeBudget Monotonicity And Causal Exhaustion {#REQ-adversarial-challenges-003}
-
-Every `ChallengePlan` MUST carry a strictly bounded `budget` (`ChallengeBudget`) specifying execution quotas: `max_challenges` (integer > 0), `mutation_budget` (integer >= 0), and `timeout_seconds` (number > 0).
-
-During challenge execution, budget counters MUST be decremented monotonically. If the budget is exhausted before all selected challenges complete, the executor MUST immediately halt and transition to a typed causal failure (`causal-failure/v1`) with category `validation_gap` or `environment_tooling` and reason code `CHALLENGE_BUDGET_EXHAUSTED`. The system MUST NOT perform identical blind restarts when a challenge run exhausts its budget.
-
-#### Scenario: Monotonic budget consumption during challenge execution
-
-- GIVEN a `ChallengePlan` with `max_challenges: 3` and `mutation_budget: 10`
-- WHEN each challenge and mutation executes
-- THEN budget counters MUST decrement monotonically after each operation
-
-#### Scenario: Budget exhaustion triggers causal failure transition without blind restart
-
-- GIVEN an executing `ChallengePlan` whose `mutation_budget` reaches zero before all selected challenges pass
-- WHEN the exhaustion occurs
-- THEN challenge execution MUST halt immediately
-- AND MUST emit a typed causal failure with reason `CHALLENGE_BUDGET_EXHAUSTED`
-- AND MUST NOT retry the identical challenge execution loop
 
 ### Requirement: Seeded Defect Detection And Complacent Test Rejection {#REQ-adversarial-challenges-004}
 

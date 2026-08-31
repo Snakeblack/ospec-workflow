@@ -104,10 +104,13 @@ function createChallengePlan({
   if (typeof candidateId !== "string" || !candidateId) throw new TypeError("createChallengePlan requires candidateId");
   if (typeof nodeId !== "string" || !nodeId.trim()) throw new TypeError("createChallengePlan requires nodeId");
   if (typeof policySnapshotId !== "string" || !policySnapshotId) throw new TypeError("createChallengePlan requires policySnapshotId");
-  const normStrategy = STRATEGY_CHALLENGE_SELECTION[evidenceStrategy]
-    ? evidenceStrategy
-    : "strict-tdd";
-  const selectionDef = STRATEGY_CHALLENGE_SELECTION[normStrategy];
+  if (typeof evidenceStrategy !== "string" || evidenceStrategy.trim() === "") {
+    throw new TypeError("createChallengePlan requires evidenceStrategy");
+  }
+  if (!STRATEGY_CHALLENGE_SELECTION[evidenceStrategy]) {
+    throw new TypeError("createChallengePlan rejects unknown evidenceStrategy");
+  }
+  const selectionDef = STRATEGY_CHALLENGE_SELECTION[evidenceStrategy];
 
   const selected = [...selectionDef.selected];
   const skipped = CHALLENGE_TYPES.filter((type) => !selected.includes(type)).map((challenge_type) => ({
@@ -115,7 +118,7 @@ function createChallengePlan({
     reason: selectionDef.skipped[challenge_type],
   }));
   const reasons = [
-    `STRATEGY_${normStrategy.toUpperCase().replace(/-/g, "_")}_SELECTED`,
+    `STRATEGY_${evidenceStrategy.toUpperCase().replace(/-/g, "_")}_SELECTED`,
     ...skipped.map((s) => s.reason),
   ];
 
@@ -144,7 +147,7 @@ function createChallengePlan({
     candidate_id: candidateId,
     node_id: nodeId,
     policy_snapshot_id: policySnapshotId,
-    evidence_strategy: normStrategy,
+    evidence_strategy: evidenceStrategy,
     selected,
     skipped,
     reasons,

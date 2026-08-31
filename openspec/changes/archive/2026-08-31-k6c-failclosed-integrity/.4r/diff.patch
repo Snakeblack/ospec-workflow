@@ -1,0 +1,2017 @@
+diff --git a/openspec/memory/known-issues.md b/openspec/memory/known-issues.md
+index b50b747..d87f65b 100644
+--- a/openspec/memory/known-issues.md
++++ b/openspec/memory/known-issues.md
+@@ -1,8 +1,15 @@
+ ---
+ title: Known Issues
+-last_updated: 2026-08-28
++last_updated: 2026-08-31
+ ---
+ 
++## Pre-existing cli.test.js after-hook EISDIR on evidence-link leftover
++- severity: WARNING
++- area: scripts/configure/cli.test.js (t.after fs.rmSync without recursive on openspec/changes/evidence-link)
++- workaround: rmSync with recursive true or unlink the symlink; do not treat as a K6c defect; leftover symlink may remain after npm test
++- change: k6c-failclosed-integrity
++- date: 2026-08-31
++
+ ## Inherited AG-006 receipt-token attestation lacks a dedicated runtime test
+ - severity: WARNING
+ - area: scripts/lib/assurance-graph/index.test.js (validateReplayRecords satisfied_tokens branch)
+diff --git a/schemas/kernel/challenge-result/v1.schema.json b/schemas/kernel/challenge-result/v1.schema.json
+index bf7a21a..e433a8f 100644
+--- a/schemas/kernel/challenge-result/v1.schema.json
++++ b/schemas/kernel/challenge-result/v1.schema.json
+@@ -16,7 +16,6 @@
+     "evidence_strategy",
+     "challenge_type",
+     "outcome",
+-    "node_id",
+     "evidence_ids",
+     "details"
+   ],
+diff --git a/schemas/kernel/contract-claims.json b/schemas/kernel/contract-claims.json
+index 7340f24..c902afd 100644
+--- a/schemas/kernel/contract-claims.json
++++ b/schemas/kernel/contract-claims.json
+@@ -788,7 +788,6 @@
+         "evidence_strategy",
+         "challenge_type",
+         "outcome",
+-        "node_id",
+         "evidence_ids",
+         "details"
+       ],
+diff --git a/scripts/lib/adversarial-challenges/integrity.js b/scripts/lib/adversarial-challenges/integrity.js
+index 5f49bcf..5938bc8 100644
+--- a/scripts/lib/adversarial-challenges/integrity.js
++++ b/scripts/lib/adversarial-challenges/integrity.js
+@@ -73,6 +73,21 @@ function graphHasNode(executionGraph, nodeId) {
+   return Boolean(executionGraph && Array.isArray(executionGraph.nodes) && executionGraph.nodes.some((node) => node && node.node_id === nodeId));
+ }
+ 
++const EVALUATION_BINDING_KEYS = Object.freeze(["candidate", "nodeId", "evidenceStrategy", "policySnapshot", "executionGraph"]);
++
++function hasEvaluationBindings(bindings) {
++  if (!bindings || typeof bindings !== "object") return false;
++  return EVALUATION_BINDING_KEYS.some((key) => Object.prototype.hasOwnProperty.call(bindings, key));
++}
++
++function assertEvidenceStrategyBinding(bindings, plan) {
++  const selected = bindings && bindings.evidenceStrategy;
++  if (typeof selected !== "string" || selected.length === 0 || selected !== plan.evidence_strategy) {
++    return fail("CHALLENGE_INTEGRITY_INVALID", "plan evidence strategy binding differs");
++  }
++  return { ok: true };
++}
++
+ function validatePlanPartition(plan) {
+   const selected = plan.selected || [];
+   const skipped = plan.skipped || [];
+@@ -102,9 +117,12 @@ function validateChallengePlan(plan, bindings = {}) {
+   if (plan.plan_id !== computeChallengePlanId(plan)) return fail("CHALLENGE_INTEGRITY_INVALID", "plan_id does not match canonical plan content");
+   const partition = validatePlanPartition(plan);
+   if (!partition.ok) return partition;
++  if (hasEvaluationBindings(bindings)) {
++    const strategyGate = assertEvidenceStrategyBinding(bindings, plan);
++    if (!strategyGate.ok) return strategyGate;
++  }
+   if (bindings.candidate && bindings.candidate.candidate_id !== plan.candidate_id) return fail("CHALLENGE_INTEGRITY_INVALID", "plan candidate binding differs from frozen candidate");
+   if (bindings.nodeId && bindings.nodeId !== plan.node_id) return fail("CHALLENGE_INTEGRITY_INVALID", "plan node binding differs from requested node");
+-  if (bindings.evidenceStrategy && bindings.evidenceStrategy !== plan.evidence_strategy) return fail("CHALLENGE_INTEGRITY_INVALID", "plan evidence strategy binding differs");
+   if (bindings.policySnapshot) {
+     const policy = validatePolicySnapshotBinding(bindings.policySnapshot);
+     if (!policy.ok || bindings.policySnapshot.snapshot_id !== plan.policy_snapshot_id) return fail("CHALLENGE_INTEGRITY_INVALID", "plan policy snapshot binding is invalid");
+@@ -136,6 +154,8 @@ function validateChallengeResult(result, plan, bindings = {}) {
+ function validateChallengeResultSet(plan, results, bindings = {}) {
+   const planGate = validateChallengePlan(plan, bindings);
+   if (!planGate.ok) return planGate;
++  const strategyGate = assertEvidenceStrategyBinding(bindings, plan);
++  if (!strategyGate.ok) return strategyGate;
+   if (!Array.isArray(results)) return fail("CHALLENGE_INTEGRITY_INVALID", "challenge results must be an array");
+   if (results.length !== plan.selected.length) return fail("CHALLENGE_INTEGRITY_INVALID", "results must contain exactly one entry for every selected challenge");
+   const seen = new Set();
+@@ -154,6 +174,7 @@ module.exports = {
+   canonicalResultBody,
+   computeChallengePlanId,
+   computeChallengeResultId,
++  assertEvidenceStrategyBinding,
+   validateChallengePlan,
+   validateChallengeResult,
+   validateChallengeResultSet,
+diff --git a/scripts/lib/adversarial-challenges/integrity.test.js b/scripts/lib/adversarial-challenges/integrity.test.js
+index f4f5b1c..b650b4d 100644
+--- a/scripts/lib/adversarial-challenges/integrity.test.js
++++ b/scripts/lib/adversarial-challenges/integrity.test.js
+@@ -22,12 +22,29 @@ test("REQ-adversarial-challenges-002: canonical plan rejects forged binding iden
+ });
+ 
+ test("REQ-independent-verification-010: result set rejects duplicate, foreign, and missing selected records", () => {
++  const selectedStrategy = "feature";
+   const original = plan();
+   const valid = results(original);
+-  assert.equal(validateChallengeResultSet(original, valid).ok, true);
+-  assert.equal(validateChallengeResultSet(original, [valid[0], valid[0]]).ok, false);
+-  assert.equal(validateChallengeResultSet(original, valid.slice(0, 1)).ok, false);
++  const evaluationBindings = { evidenceStrategy: selectedStrategy };
++  assert.equal(validateChallengeResultSet(original, valid, evaluationBindings).ok, true);
++  assert.equal(validateChallengeResultSet(original, [valid[0], valid[0]], evaluationBindings).ok, false);
++  assert.equal(validateChallengeResultSet(original, valid.slice(0, 1), evaluationBindings).ok, false);
+   const foreign = { ...valid[0], candidate_id: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" };
+   foreign.result_id = require("./integrity.js").computeChallengeResultId(foreign);
+-  assert.equal(validateChallengeResultSet(original, [foreign, valid[1]]).ok, false);
++  assert.equal(validateChallengeResultSet(original, [foreign, valid[1]], evaluationBindings).ok, false);
++});
++
++test("REQ-independent-verification-010: evaluation requires selected evidenceStrategy binding", () => {
++  const selectedStrategy = "feature";
++  const original = createChallengePlan({ candidateId, nodeId: "repair-core", policySnapshotId, evidenceStrategy: selectedStrategy });
++  const valid = results(original);
++  const omitted = validateChallengeResultSet(original, valid);
++  assert.equal(omitted.ok, false);
++  assert.equal(omitted.reason_code, "CHALLENGE_INTEGRITY_INVALID");
++  assert.equal(validateChallengePlan(original).ok, true);
++  const mismatched = validateChallengeResultSet(original, valid, { evidenceStrategy: "bug" });
++  assert.equal(mismatched.ok, false);
++  assert.equal(mismatched.reason_code, "CHALLENGE_INTEGRITY_INVALID");
++  const matching = validateChallengeResultSet(original, valid, { evidenceStrategy: selectedStrategy });
++  assert.equal(matching.ok, true);
+ });
+diff --git a/scripts/lib/adversarial-challenges/planner.js b/scripts/lib/adversarial-challenges/planner.js
+index 500a206..0379699 100644
+--- a/scripts/lib/adversarial-challenges/planner.js
++++ b/scripts/lib/adversarial-challenges/planner.js
+@@ -104,10 +104,13 @@ function createChallengePlan({
+   if (typeof candidateId !== "string" || !candidateId) throw new TypeError("createChallengePlan requires candidateId");
+   if (typeof nodeId !== "string" || !nodeId.trim()) throw new TypeError("createChallengePlan requires nodeId");
+   if (typeof policySnapshotId !== "string" || !policySnapshotId) throw new TypeError("createChallengePlan requires policySnapshotId");
+-  const normStrategy = STRATEGY_CHALLENGE_SELECTION[evidenceStrategy]
+-    ? evidenceStrategy
+-    : "strict-tdd";
+-  const selectionDef = STRATEGY_CHALLENGE_SELECTION[normStrategy];
++  if (typeof evidenceStrategy !== "string" || evidenceStrategy.trim() === "") {
++    throw new TypeError("createChallengePlan requires evidenceStrategy");
++  }
++  if (!STRATEGY_CHALLENGE_SELECTION[evidenceStrategy]) {
++    throw new TypeError("createChallengePlan rejects unknown evidenceStrategy");
++  }
++  const selectionDef = STRATEGY_CHALLENGE_SELECTION[evidenceStrategy];
+ 
+   const selected = [...selectionDef.selected];
+   const skipped = CHALLENGE_TYPES.filter((type) => !selected.includes(type)).map((challenge_type) => ({
+@@ -115,7 +118,7 @@ function createChallengePlan({
+     reason: selectionDef.skipped[challenge_type],
+   }));
+   const reasons = [
+-    `STRATEGY_${normStrategy.toUpperCase().replace(/-/g, "_")}_SELECTED`,
++    `STRATEGY_${evidenceStrategy.toUpperCase().replace(/-/g, "_")}_SELECTED`,
+     ...skipped.map((s) => s.reason),
+   ];
+ 
+@@ -144,7 +147,7 @@ function createChallengePlan({
+     candidate_id: candidateId,
+     node_id: nodeId,
+     policy_snapshot_id: policySnapshotId,
+-    evidence_strategy: normStrategy,
++    evidence_strategy: evidenceStrategy,
+     selected,
+     skipped,
+     reasons,
+diff --git a/scripts/lib/adversarial-challenges/planner.test.js b/scripts/lib/adversarial-challenges/planner.test.js
+index 3118209..0c21d2a 100644
+--- a/scripts/lib/adversarial-challenges/planner.test.js
++++ b/scripts/lib/adversarial-challenges/planner.test.js
+@@ -173,3 +173,41 @@ test("REQ-adversarial-challenges-002: Changed canonical binding cannot reuse a p
+   assert.equal(original.evidence_strategy, reboundPolicy.evidence_strategy);
+   assert.deepEqual(original.selected, reboundNode.selected);
+ });
++
++test("REQ-adversarial-challenges-002: omitted empty or unknown planner strategy is rejected", () => {
++  const base = {
++    candidateId: SAMPLE_CANDIDATE_ID,
++    nodeId: SAMPLE_NODE_ID,
++    policySnapshotId: SAMPLE_POLICY_ID,
++  };
++
++  assert.throws(
++    () => createChallengePlan(base),
++    (error) => error instanceof TypeError && /requires evidenceStrategy/.test(error.message)
++  );
++  assert.throws(
++    () => createChallengePlan({ ...base, evidenceStrategy: "" }),
++    (error) => error instanceof TypeError && /requires evidenceStrategy/.test(error.message)
++  );
++  assert.throws(
++    () => createChallengePlan({ ...base, evidenceStrategy: "   " }),
++    (error) => error instanceof TypeError && /requires evidenceStrategy/.test(error.message)
++  );
++  assert.throws(
++    () => createChallengePlan({ ...base, evidenceStrategy: 1 }),
++    (error) => error instanceof TypeError && /requires evidenceStrategy/.test(error.message)
++  );
++
++  let unknownPlan;
++  assert.throws(
++    () => {
++      unknownPlan = createChallengePlan({ ...base, evidenceStrategy: "not-a-strategy" });
++    },
++    (error) => error instanceof TypeError && /rejects unknown evidenceStrategy/.test(error.message)
++  );
++  assert.equal(unknownPlan, undefined);
++
++  const valid = createChallengePlan({ ...base, evidenceStrategy: "strict-tdd" });
++  assert.equal(valid.evidence_strategy, "strict-tdd");
++  assert.equal(validateInstance(planSchema, valid).valid, true);
++});
+diff --git a/scripts/lib/adversarial-challenges/runner.js b/scripts/lib/adversarial-challenges/runner.js
+index 1423c0e..b36c21c 100644
+--- a/scripts/lib/adversarial-challenges/runner.js
++++ b/scripts/lib/adversarial-challenges/runner.js
+@@ -144,14 +144,23 @@ async function runIsolatedMutation(type, workspace, context, scope, signal, time
+     const patch = context.patch && context.patch.original && context.patch.modified
+       ? context.patch
+       : derivePatchFromDiff(context.candidateDiff);
++    let bytesChanged = false;
+     for (const rel of files) {
+       const current = readWorkspaceFile(workspace, rel);
+       originals.set(rel, current);
+-      writeWorkspaceFile(workspace, rel, revertSourcePatch(current, patch));
++      const reverted = revertSourcePatch(current, patch);
++      if (reverted !== current) bytesChanged = true;
++      writeWorkspaceFile(workspace, rel, reverted);
+     }
+     try {
++      if (!bytesChanged) {
++        return { outcome: "error", details: { reason: "CHALLENGE_NOOP" } };
++      }
+       const run = await runWorkspaceTests(workspace, context, signal, timeoutMs);
+-      if (run.failure_class && run.failure_class !== "missing_tests") {
++      if (run.failure_class === "missing_tests") {
++        return { outcome: "error", details: { reason: "MISSING_TESTS" } };
++      }
++      if (run.failure_class) {
+         return { outcome: "error", details: { reason: "CHALLENGE_EXECUTION_ERROR", error: run.error || run.failure_class } };
+       }
+       return run.pass === true || run.exitCode === 0
+@@ -171,10 +180,17 @@ async function runIsolatedMutation(type, workspace, context, scope, signal, time
+       const original = readWorkspaceFile(workspace, rel);
+       const mutationList = mutationsFor(context, rel, original, targetLinesByPath.get(rel) || null);
+       for (const mutation of mutationList) {
++        const mutated = applyFocalMutation(original, mutation);
++        if (mutated === original) {
++          return { outcome: "error", details: { reason: "CHALLENGE_NOOP", mutations_tested: mutationsTested, defects_detected: defects } };
++        }
+         mutationsTested += 1;
+-        writeWorkspaceFile(workspace, rel, applyFocalMutation(original, mutation));
++        writeWorkspaceFile(workspace, rel, mutated);
+         try {
+           const run = await runWorkspaceTests(workspace, context, signal, timeoutMs);
++          if (run.failure_class === "missing_tests") {
++            return { outcome: "error", details: { reason: "MISSING_TESTS", mutations_tested: mutationsTested, defects_detected: defects } };
++          }
+           if (run.failure_class === "sandbox_rejection" || run.failure_class === "cancel") {
+             return { outcome: "error", details: { reason: "CHALLENGE_EXECUTION_ERROR", error: run.error || run.failure_class } };
+           }
+@@ -187,6 +203,9 @@ async function runIsolatedMutation(type, workspace, context, scope, signal, time
+         }
+       }
+     }
++    if (mutationsTested === 0) {
++      return { outcome: "error", details: { reason: "NO_MUTATION_APPLIED", mutations_tested: 0, defects_detected: defects } };
++    }
+     return { outcome: "passed", details: { mutations_tested: mutationsTested, defects_detected: defects, complacent_tests: 0 } };
+   }
+   return null;
+diff --git a/scripts/lib/adversarial-challenges/runner.test.js b/scripts/lib/adversarial-challenges/runner.test.js
+index fdeba84..09efec9 100644
+--- a/scripts/lib/adversarial-challenges/runner.test.js
++++ b/scripts/lib/adversarial-challenges/runner.test.js
+@@ -220,6 +220,51 @@ test("REQ-adversarial-challenges-004: detecting suite on reverted workspace veri
+   assert.equal(revert.details.revert_verified, true);
+ });
+ 
++test("REQ-adversarial-challenges-004: missing tests, zero mutations, and no-op apply fail closed as errors", async () => {
++  const missingFocalHarness = workspaceHarness("feature", { "src/add.js": ADD_SOURCE }, ADD_DIFF);
++  const missingFocalRun = await executeChallengePlan(missingFocalHarness.plan, missingFocalHarness);
++  const missingFocal = (missingFocalRun.results || []).find((item) => item.challenge_type === "focal-mutation");
++  assert.ok(missingFocal);
++  assert.equal(missingFocal.outcome, "error");
++  assert.equal(missingFocal.details.reason, "MISSING_TESTS");
++  assert.notEqual(missingFocal.details.reason, "COMPLACENT_TEST_DETECTED");
++
++  const missingRevertHarness = workspaceHarness("bug", { "src/add.js": ADD_SOURCE }, ADD_DIFF);
++  const missingRevertRun = await executeChallengePlan(missingRevertHarness.plan, missingRevertHarness);
++  const missingRevert = (missingRevertRun.results || []).find((item) => item.challenge_type === "revert");
++  assert.ok(missingRevert);
++  assert.equal(missingRevert.outcome, "error");
++  assert.equal(missingRevert.details.reason, "MISSING_TESTS");
++  assert.notEqual(missingRevert.outcome, "passed");
++
++  const emptyMutations = workspaceHarness("feature", { "src/add.js": ADD_SOURCE, "src/add.test.js": DETECTING_TEST }, ADD_DIFF);
++  emptyMutations.mutations = [];
++  const emptyRun = await executeChallengePlan(emptyMutations.plan, emptyMutations);
++  const emptyFocal = (emptyRun.results || []).find((item) => item.challenge_type === "focal-mutation");
++  assert.ok(emptyFocal);
++  assert.equal(emptyFocal.outcome, "error");
++  assert.equal(emptyFocal.details.reason, "NO_MUTATION_APPLIED");
++  assert.notEqual(emptyFocal.details.reason, "COMPLACENT_TEST_DETECTED");
++
++  const noopFocalHarness = workspaceHarness("feature", { "src/add.js": ADD_SOURCE, "src/add.test.js": DETECTING_TEST }, ADD_DIFF);
++  noopFocalHarness.mutations = [{ line: 1, col: 0, original: "function", replacement: "function" }];
++  const noopFocalRun = await executeChallengePlan(noopFocalHarness.plan, noopFocalHarness);
++  const noopFocal = (noopFocalRun.results || []).find((item) => item.challenge_type === "focal-mutation");
++  assert.ok(noopFocal);
++  assert.equal(noopFocal.outcome, "error");
++  assert.equal(noopFocal.details.reason, "CHALLENGE_NOOP");
++  assert.notEqual(noopFocal.details.reason, "COMPLACENT_TEST_DETECTED");
++
++  const noopRevertHarness = workspaceHarness("bug", { "src/add.js": ADD_SOURCE, "src/add.test.js": DETECTING_TEST }, ADD_DIFF);
++  noopRevertHarness.patch = { original: "not-in-file", modified: "also-not-in-file" };
++  const noopRevertRun = await executeChallengePlan(noopRevertHarness.plan, noopRevertHarness);
++  const noopRevert = (noopRevertRun.results || []).find((item) => item.challenge_type === "revert");
++  assert.ok(noopRevert);
++  assert.equal(noopRevert.outcome, "error");
++  assert.equal(noopRevert.details.reason, "CHALLENGE_NOOP");
++  assert.notEqual(noopRevert.outcome, "passed");
++});
++
+ test("REQ-adversarial-challenges-004: non-cooperative executor times out and cannot emit pass", async () => {
+   const h = harness("migration");
+   let workspaceRoot;
+diff --git a/scripts/lib/assurance-graph/index.js b/scripts/lib/assurance-graph/index.js
+index 450d22c..e404927 100644
+--- a/scripts/lib/assurance-graph/index.js
++++ b/scripts/lib/assurance-graph/index.js
+@@ -132,7 +132,12 @@ function validateReplayRecords(persistable) {
+   const challengePlan = persistable.challengePlan || persistable.challenge_plan;
+   const challengeResults = Array.isArray(persistable.challengeResults) ? persistable.challengeResults : (Array.isArray(persistable.challenge_results) ? persistable.challenge_results : []);
+   if (persistable.requireChallengeVerification || persistable.require_challenge_verification || challengePlan || challengeResults.length) {
+-    const challengeGate = validateChallengeResultSet(challengePlan, challengeResults, { candidate, executionGraph: graph, policySnapshot: persistable.policySnapshot });
++    const challengeGate = validateChallengeResultSet(challengePlan, challengeResults, {
++      candidate,
++      executionGraph: graph,
++      policySnapshot: persistable.policySnapshot,
++      evidenceStrategy: persistable.evidenceStrategy,
++    });
+     if (!challengeGate.ok || challengeResults.some((result) => result.outcome !== "passed")) {
+       return fail("GRAPH_DIVERGENCE", (challengeGate && challengeGate.error) || "persisted K6c challenge records diverge");
+     }
+@@ -304,6 +309,7 @@ function replayAssuranceGraph(persistable = {}) {
+     challengeResults: persistable.challengeResults || persistable.challenge_results,
+     requireChallengeVerification: persistable.requireChallengeVerification || persistable.require_challenge_verification,
+     policySnapshot: persistable.policySnapshot,
++    evidenceStrategy: persistable.evidenceStrategy,
+   });
+ }
+ 
+diff --git a/scripts/lib/assurance-graph/index.test.js b/scripts/lib/assurance-graph/index.test.js
+index c522d46..3a16c90 100644
+--- a/scripts/lib/assurance-graph/index.test.js
++++ b/scripts/lib/assurance-graph/index.test.js
+@@ -166,7 +166,15 @@ test("REQ-assurance-graph-009: K6c plan and exact results are deterministic grap
+   const executionGraph = compileGraph();
+   const plan = createChallengePlan({ candidateId: candidate.candidate_id, nodeId: "repair-core", policySnapshotId: executionGraph.policy_snapshot_id, evidenceStrategy: "feature" });
+   const results = plan.selected.map((challengeType) => emitChallengeResult({ planId: plan.plan_id, candidateId: candidate.candidate_id, nodeId: plan.node_id, policySnapshotId: plan.policy_snapshot_id, evidenceStrategy: plan.evidence_strategy, challengeType, outcome: "passed" }));
+-  const input = { candidate, executionGraph, challengePlan: plan, challengeResults: results, requireChallengeVerification: true, verification: { verification_id: "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", evidence_ids: [] } };
++  const input = {
++    candidate,
++    executionGraph,
++    challengePlan: plan,
++    challengeResults: results,
++    requireChallengeVerification: true,
++    evidenceStrategy: "feature",
++    verification: { verification_id: "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", evidence_ids: [] },
++  };
+   const first = projectAssuranceGraph(input);
+   const second = projectAssuranceGraph({ ...input, challengeResults: [...results].reverse() });
+   assert.equal(first.ok, true, first.error || first.reason_code);
+@@ -228,6 +236,7 @@ test("REQ-assurance-graph-009: verifier-emitted K6c material projects and replay
+       challengePlan: verified.challengePlan,
+       challengeResults: verified.challengeResults,
+       requireChallengeVerification: true,
++      evidenceStrategy: verified.strategy,
+     }
+   );
+   const replayed = replayAssuranceGraph(persistable);
+@@ -239,6 +248,93 @@ test("REQ-assurance-graph-009: verifier-emitted K6c material projects and replay
+   );
+ });
+ 
++test("REQ-assurance-graph-009: wrong-strategy canonical K6c plan fails projection and replay", () => {
++  const files = { "src/index.js": "module.exports = 1;\n" };
++  const candidate = freezeFromFiles(files);
++  const executionGraph = compileGraph();
++  const selectedStrategy = "feature";
++  const bugPlan = createChallengePlan({
++    candidateId: candidate.candidate_id,
++    nodeId: "repair-core",
++    policySnapshotId: executionGraph.policy_snapshot_id,
++    evidenceStrategy: "bug",
++  });
++  const bugResults = bugPlan.selected.map((challengeType) => emitChallengeResult({
++    planId: bugPlan.plan_id,
++    candidateId: candidate.candidate_id,
++    nodeId: bugPlan.node_id,
++    policySnapshotId: bugPlan.policy_snapshot_id,
++    evidenceStrategy: "bug",
++    challengeType,
++    outcome: "passed",
++  }));
++  const projected = projectAssuranceGraph({
++    candidate,
++    executionGraph,
++    challengePlan: bugPlan,
++    challengeResults: bugResults,
++    requireChallengeVerification: true,
++    evidenceStrategy: selectedStrategy,
++    verification: { verification_id: "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", evidence_ids: [] },
++  });
++  assert.equal(projected.ok, false);
++  assert.equal(projected.reason_code, "GRAPH_DIVERGENCE");
++  assert.equal(Object.prototype.hasOwnProperty.call(projected, "graph"), false);
++
++  const plan = createChallengePlan({
++    candidateId: candidate.candidate_id,
++    nodeId: "repair-core",
++    policySnapshotId: executionGraph.policy_snapshot_id,
++    evidenceStrategy: selectedStrategy,
++  });
++  const results = plan.selected.map((challengeType) => emitChallengeResult({
++    planId: plan.plan_id,
++    candidateId: candidate.candidate_id,
++    nodeId: plan.node_id,
++    policySnapshotId: plan.policy_snapshot_id,
++    evidenceStrategy: selectedStrategy,
++    challengeType,
++    outcome: "passed",
++  }));
++  const rawEvidence = featureRaw();
++  const receiptSpecs = featureReceipts();
++  const runnerReceiptChannel = createTestRunnerReceiptChannel({
++    candidate,
++    executionGraph,
++    collector: HARNESS_COLLECTOR,
++    rawEvidence,
++    receiptSpecs,
++  });
++  const verified = verifyCandidateWithChallenges({
++    candidate,
++    executionGraph,
++    contract: { contract_digest: executionGraph.contract_digest },
++    repository: { files },
++    declaredStrategy: selectedStrategy,
++    collector: HARNESS_COLLECTOR,
++    rawEvidence,
++    runnerReceiptChannel,
++    challengePlan: plan,
++    challengeResults: results,
++  });
++  assert.equal(verified.strategy, selectedStrategy);
++  const persistable = replayBundle(
++    { candidate, executionGraph, verified, runnerReceiptChannel },
++    {
++      challengePlan: bugPlan,
++      challengeResults: bugResults,
++      requireChallengeVerification: true,
++      evidenceStrategy: verified.strategy,
++    }
++  );
++  assert.equal(persistable.evidenceStrategy, verified.strategy);
++  assert.notEqual(persistable.evidenceStrategy, bugPlan.evidence_strategy);
++  const replayed = replayAssuranceGraph(persistable);
++  assert.equal(replayed.ok, false);
++  assert.equal(replayed.reason_code, "GRAPH_DIVERGENCE");
++  assert.equal(Object.prototype.hasOwnProperty.call(replayed, "graph"), false);
++});
++
+ test("REQ-assurance-graph-002: same inputs yield the same digest and edges despite permutation", () => {
+   const { candidate, executionGraph, verified } = verifiedProjection();
+   const classified = verified.evidence.map((evidence, index) => ({
+diff --git a/scripts/lib/assurance-graph/projector.js b/scripts/lib/assurance-graph/projector.js
+index d725ab8..c7af878 100644
+--- a/scripts/lib/assurance-graph/projector.js
++++ b/scripts/lib/assurance-graph/projector.js
+@@ -197,7 +197,12 @@ function projectAssuranceGraph(input = {}) {
+   const challengesRequired = Boolean(input.requireChallengeVerification || input.require_challenge_verification);
+   if (challengesRequired && !challengePlan) return fail("GRAPH_DIVERGENCE", "mandatory K6c challenge plan is absent");
+   if (challengePlan || challengeResults.length > 0) {
+-    const gate = validateChallengeResultSet(challengePlan, challengeResults, { candidate, executionGraph: graph, policySnapshot: input.policySnapshot });
++    const gate = validateChallengeResultSet(challengePlan, challengeResults, {
++      candidate,
++      executionGraph: graph,
++      policySnapshot: input.policySnapshot,
++      evidenceStrategy: input.evidenceStrategy,
++    });
+     if (!gate.ok || challengeResults.some((result) => result.outcome !== "passed")) return fail("GRAPH_DIVERGENCE", (gate && gate.error) || "K6c challenge material is not accepted");
+     pushNode(nodes, challengePlan.plan_id, "challenge-plan");
+     pushEdge(edges, challengePlan.plan_id, "derived-from", candidateId);
+diff --git a/scripts/lib/contract-checkers/k1-schema-compat.js b/scripts/lib/contract-checkers/k1-schema-compat.js
+index c445e52..6069809 100644
+--- a/scripts/lib/contract-checkers/k1-schema-compat.js
++++ b/scripts/lib/contract-checkers/k1-schema-compat.js
+@@ -2,7 +2,7 @@
+ 
+ const fs = require("node:fs");
+ const path = require("node:path");
+-const { validateInstance } = require("../kernel-schema-validator.js");
++const { validateInstance, validateSchemaDocument } = require("../kernel-schema-validator.js");
+ 
+ const CHECKER = "k1-schema-compat";
+ const MANIFEST_REL = "schemas/kernel/manifest.json";
+@@ -532,6 +532,19 @@ function check(ctx) {
+     const schema = readConfinedSchema(root, family, entry, offenders);
+     if (!schema) continue;
+ 
++    const documentGate = validateSchemaDocument(schema);
++    if (!documentGate.valid) {
++      const detail = documentGate.errors.map((error) => `${error.path}:${error.rule}`).join(", ");
++      offenders.push(
++        offender(
++          entry.path,
++          "uniqueItems on every required array",
++          detail || "duplicate required",
++          `${entry.path} failed Draft 2020-12 uniqueItems on required: ${detail}`
++        )
++      );
++    }
++
+     if (!claimFamilies || !Object.prototype.hasOwnProperty.call(claimFamilies, family)) {
+       offenders.push(
+         offender(`${CLAIMS_REL}#families/${family}`, "mandatory family contract claim", "missing", `${CLAIMS_REL} is missing required claims for ${family}`)
+diff --git a/scripts/lib/independent-verifier/challenge-evidence.js b/scripts/lib/independent-verifier/challenge-evidence.js
+index 347067f..e1729fe 100644
+--- a/scripts/lib/independent-verifier/challenge-evidence.js
++++ b/scripts/lib/independent-verifier/challenge-evidence.js
+@@ -4,12 +4,17 @@ const { validateChallengeResultSet } = require("../adversarial-challenges/integr
+ 
+ function fail(reason_code, error) { return { ok: false, reason_code, error: error || reason_code }; }
+ 
+-function evaluateChallengeEvidence(input, bindings, { required = false } = {}) {
++function evaluateChallengeEvidence(input, bindings, { required = false, evidenceStrategy } = {}) {
+   const plan = input.challengePlan || input.challenge_plan;
+   const results = Array.isArray(input.challengeResults) ? input.challengeResults : (Array.isArray(input.challenge_results) ? input.challenge_results : []);
+   if (!required && !plan && results.length === 0) return { ok: true, status: "not-required", replay_challenges: null };
+   if (!plan) return fail("CHALLENGE_INTEGRITY_INVALID", "required K6c verification has no canonical challenge plan");
+-  const gate = validateChallengeResultSet(plan, results, { candidate: bindings.candidate, executionGraph: bindings.executionGraph, policySnapshot: input.policySnapshot });
++  const gate = validateChallengeResultSet(plan, results, {
++    candidate: bindings.candidate,
++    executionGraph: bindings.executionGraph,
++    policySnapshot: input.policySnapshot,
++    evidenceStrategy,
++  });
+   if (!gate.ok) return fail("CHALLENGE_INTEGRITY_INVALID", gate.error);
+   if (results.some((result) => result.outcome !== "passed")) return fail("CHALLENGE_VERIFICATION_FAILED", "one or more canonical challenges did not pass");
+   const replay = { plan, results: [...results].sort((left, right) => left.challenge_type.localeCompare(right.challenge_type)) };
+diff --git a/scripts/lib/independent-verifier/index.js b/scripts/lib/independent-verifier/index.js
+index 7295d5b..43d4f4f 100644
+--- a/scripts/lib/independent-verifier/index.js
++++ b/scripts/lib/independent-verifier/index.js
+@@ -70,7 +70,7 @@ function rejectStaleEvidence(input, bound, evidence, rawBytes) {
+   return { ok: true };
+ }
+ 
+-function evaluateChallenges(input, bound) {
++function evaluateChallenges(input, bound, evidenceStrategy) {
+   if (
+     input.challenge_budget_exhausted ||
+     (input.challengeCausalFailure &&
+@@ -79,7 +79,10 @@ function evaluateChallenges(input, bound) {
+     return fail("CHALLENGE_BUDGET_EXHAUSTED", "challenge budget was exhausted during execution");
+   }
+ 
+-  return evaluateChallengeEvidence(input, bound, { required: Boolean(input.requireChallengeVerification || input.require_challenge_verification) });
++  return evaluateChallengeEvidence(input, bound, {
++    required: Boolean(input.requireChallengeVerification || input.require_challenge_verification),
++    evidenceStrategy,
++  });
+ }
+ 
+ function getRunnerReceipts(input) {
+@@ -206,7 +209,7 @@ function verifyCandidate(input) {
+   });
+   if (!coverage.ok) return coverage;
+ 
+-  const challengeGate = evaluateChallenges(input, bound);
++  const challengeGate = evaluateChallenges(input, bound, strategy);
+   if (!challengeGate.ok) return challengeGate;
+ 
+   const evidenceRecords = classified.map((item) => item.evidence);
+@@ -246,6 +249,7 @@ function verifyCandidate(input) {
+     } : {}),
+     requireChallengeVerification: requiredK6c,
+     policySnapshot: input.policySnapshot,
++    evidenceStrategy: strategy,
+   });
+   if (!projected.ok) {
+     return mapProjectionFailure(projected);
+diff --git a/scripts/lib/independent-verifier/index.test.js b/scripts/lib/independent-verifier/index.test.js
+index 1e51bb6..f151be2 100644
+--- a/scripts/lib/independent-verifier/index.test.js
++++ b/scripts/lib/independent-verifier/index.test.js
+@@ -355,6 +355,7 @@ test("REQ-independent-verification-002: missing strategy falls back to Strict TD
+   const before = fs.readFileSync(CONFIG_PATH, "utf8");
+   assert.match(before, /tdd_mode:\s*focused/);
+   assert.equal(selectStrategy(undefined), "strict-tdd");
++  assert.equal(selectStrategy("not-a-strategy"), "strict-tdd");
+ 
+   const harness = buildHarness();
+   const result = verifyCandidate({
+@@ -1644,3 +1645,57 @@ test("REQ-independent-verification-010: verifyCandidateWithChallenges accepts ex
+   assert.equal(k6dEligible(foreignGate), false);
+ });
+ 
++test("REQ-independent-verification-010: selected strategy mismatch fails even when the plan is internally canonical", () => {
++  const { createChallengePlan } = require("../adversarial-challenges/planner.js");
++  const { emitChallengeResult } = require("../adversarial-challenges/runner.js");
++  const harness = buildHarness();
++
++  function boundResults(plan) {
++    return plan.selected.map((type) =>
++      emitChallengeResult({
++        planId: plan.plan_id,
++        candidateId: harness.candidate.candidate_id,
++        policySnapshotId: harness.executionGraph.policy_snapshot_id,
++        evidenceStrategy: plan.evidence_strategy,
++        challengeType: type,
++        outcome: "passed",
++        nodeId: "repair-core",
++      })
++    );
++  }
++
++  const bugPlan = createChallengePlan({
++    candidateId: harness.candidate.candidate_id,
++    nodeId: "repair-core",
++    policySnapshotId: harness.executionGraph.policy_snapshot_id,
++    evidenceStrategy: "bug",
++  });
++  const mismatched = verifyCandidate({
++    ...harness,
++    declaredStrategy: "feature",
++    rawEvidence: featureEvidence(),
++    challengePlan: bugPlan,
++    challengeResults: boundResults(bugPlan),
++  });
++  assert.equal(mismatched.ok, false);
++  assert.equal(mismatched.reason_code, "CHALLENGE_INTEGRITY_INVALID");
++  assert.equal(Object.prototype.hasOwnProperty.call(mismatched, "verification"), false);
++  assert.notEqual(mismatched.verification && mismatched.verification.verdict, "PASS");
++
++  const featurePlan = createChallengePlan({
++    candidateId: harness.candidate.candidate_id,
++    nodeId: "repair-core",
++    policySnapshotId: harness.executionGraph.policy_snapshot_id,
++    evidenceStrategy: "feature",
++  });
++  const matched = verifyCandidate({
++    ...harness,
++    declaredStrategy: "feature",
++    rawEvidence: featureEvidence(),
++    challengePlan: featurePlan,
++    challengeResults: boundResults(featurePlan),
++  });
++  assert.equal(matched.ok, true, matched.error || matched.reason_code);
++  assert.equal(matched.verification.verdict, "PASS");
++});
++
+diff --git a/scripts/lib/k6c-schema-fixtures.test.js b/scripts/lib/k6c-schema-fixtures.test.js
+index c704f31..9586589 100644
+--- a/scripts/lib/k6c-schema-fixtures.test.js
++++ b/scripts/lib/k6c-schema-fixtures.test.js
+@@ -76,7 +76,6 @@ test("K6c contract claims: challenge families list required fields and enums", (
+     "evidence_strategy",
+     "challenge_type",
+     "outcome",
+-    "node_id",
+     "evidence_ids",
+     "details",
+   ]);
+@@ -148,7 +147,11 @@ test("K6c malformed-hash fixtures and cross-bound pair fail closed", () => {
+   assert.equal(validateInstance(planSchema, pairPlan).valid, true, `cross-bound plan must be schema-valid: ${JSON.stringify(validateInstance(planSchema, pairPlan).errors)}`);
+   assert.equal(validateInstance(resultSchema, pairResult).valid, true, `cross-bound result must be schema-valid: ${JSON.stringify(validateInstance(resultSchema, pairResult).errors)}`);
+   assert.equal(validateChallengeResult(pairResult, pairPlan).ok, false, "cross-bound result must fail pair integrity");
+-  assert.equal(validateChallengeResultSet(pairPlan, [pairResult]).ok, false, "cross-bound pair must fail set integrity");
++  assert.equal(
++    validateChallengeResultSet(pairPlan, [pairResult], { evidenceStrategy: "bug" }).ok,
++    false,
++    "cross-bound pair must fail set integrity"
++  );
+ });
+ 
+ test("K6c cross-family substitution fails closed", () => {
+@@ -191,3 +194,24 @@ test("K6c: K1 and K6b schemas and pins remain byte-identical", () => {
+     assert.equal(actual, expected, `${rel} bytes must remain frozen`);
+   }
+ });
++
++test("REQ-kernel-contract-schemas-029: challenge-result required is unique and published schemas pass metaschema uniqueItems", () => {
++  const { validateSchemaDocument } = require("./kernel-schema-validator.js");
++  const resultSchema = loadSchemaById("ospec://schemas/kernel/challenge-result/v1", { rootDir: ROOT });
++  const required = resultSchema.required;
++  assert.ok(Array.isArray(required));
++  assert.equal(new Set(required).size, required.length);
++  assert.equal(required.filter((name) => name === "node_id").length, 1);
++
++  const claims = readJson("schemas/kernel/contract-claims.json");
++  const claimed = claims.families["challenge-result"].required_fields;
++  assert.equal(new Set(claimed).size, claimed.length);
++  assert.equal(claimed.filter((name) => name === "node_id").length, 1);
++
++  const manifest = readJson("schemas/kernel/manifest.json");
++  for (const entry of Object.values(manifest.families)) {
++    const schema = JSON.parse(fs.readFileSync(path.join(ROOT, entry.path), "utf8"));
++    const document = validateSchemaDocument(schema);
++    assert.equal(document.valid, true, `${entry.path} must pass required uniqueItems: ${JSON.stringify(document.errors)}`);
++  }
++});
+diff --git a/scripts/lib/kernel-schema-validator.js b/scripts/lib/kernel-schema-validator.js
+index 7fadc80..a47420a 100644
+--- a/scripts/lib/kernel-schema-validator.js
++++ b/scripts/lib/kernel-schema-validator.js
+@@ -539,9 +539,53 @@ function validateById(id, instance, opts = {}) {
+   return validateInstance(schema, instance, { rootSchema: schema });
+ }
+ 
++const REQUIRED_UNIQUE_ITEMS_SCHEMA = Object.freeze({
++  type: "array",
++  uniqueItems: true,
++  items: { type: "string" },
++});
++
++function collectRequiredUniqueItemsErrors(node, instancePath, errors) {
++  if (Array.isArray(node)) {
++    for (let i = 0; i < node.length; i += 1) {
++      collectRequiredUniqueItemsErrors(node[i], `${instancePath}/${i}`, errors);
++    }
++    return;
++  }
++  if (!isPlainObject(node)) return;
++  if (Array.isArray(node.required)) {
++    const unique = validateInstance(REQUIRED_UNIQUE_ITEMS_SCHEMA, node.required);
++    if (!unique.valid) {
++      for (const error of unique.errors) {
++        errors.push({
++          path: `${instancePath || ""}/required`,
++          rule: error.rule,
++          message: error.message,
++        });
++      }
++    }
++  }
++  for (const [key, value] of Object.entries(node)) {
++    collectRequiredUniqueItemsErrors(value, joinPath(instancePath, key), errors);
++  }
++}
++
++function validateSchemaDocument(schema) {
++  if (!isPlainObject(schema)) {
++    return {
++      valid: false,
++      errors: [{ path: "/", rule: "schema", message: "schema document must be an object" }],
++    };
++  }
++  const errors = [];
++  collectRequiredUniqueItemsErrors(schema, "", errors);
++  return { valid: errors.length === 0, errors };
++}
++
+ module.exports = {
+   validateInstance,
+   validateById,
++  validateSchemaDocument,
+   loadSchemaById,
+   META_KEYS,
+ };
+diff --git a/scripts/lib/kernel-schema-validator.test.js b/scripts/lib/kernel-schema-validator.test.js
+index b7afdf3..d4dea39 100644
+--- a/scripts/lib/kernel-schema-validator.test.js
++++ b/scripts/lib/kernel-schema-validator.test.js
+@@ -9,6 +9,7 @@ const test = require("node:test");
+ const {
+   validateInstance,
+   loadSchemaById,
++  validateSchemaDocument,
+ } = require("./kernel-schema-validator.js");
+ 
+ test("validateInstance accepts matching type/properties/required", () => {
+@@ -369,3 +370,32 @@ test("loadSchemaById rejects malformed public loader inputs deterministically",
+     /not found in schemas map/
+   );
+ });
++
++test("REQ-kernel-contract-schemas-029: validateSchemaDocument rejects duplicate required even with Draft 2020-12 URI", () => {
++  const fixtureSchema = {
++    $schema: "https://json-schema.org/draft/2020-12/schema",
++    $id: "ospec://schemas/test/duplicate-required/v1",
++    type: "object",
++    properties: {
++      a: { type: "string" },
++      nested: {
++        type: "object",
++        properties: { x: { type: "string" } },
++        required: ["x", "x"],
++      },
++    },
++    required: ["a", "a"],
++  };
++  const result = validateSchemaDocument(fixtureSchema);
++  assert.equal(result.valid, false);
++  assert.ok(result.errors.some((error) => error.rule === "uniqueItems"));
++  assert.equal(fixtureSchema.$schema, "https://json-schema.org/draft/2020-12/schema");
++
++  const unique = validateSchemaDocument({
++    $schema: "https://json-schema.org/draft/2020-12/schema",
++    type: "object",
++    required: ["a", "b"],
++    properties: { nested: { type: "object", required: ["x"] } },
++  });
++  assert.equal(unique.valid, true);
++});
+diff --git a/openspec/changes/k6c-failclosed-integrity/apply-progress.md b/openspec/changes/k6c-failclosed-integrity/apply-progress.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6c-failclosed-integrity/apply-progress.md
+@@ -0,0 +1,45 @@
++# Apply Progress: K6c Fail-Closed Integrity
++
++Delivery: `size:exception` accepted (exception-ok). First apply batch implements all 15 tasks (Phases 1–7). Working branch: `fix/k6c-failclosed-integrity`. K6d remains blocked. `strategy-policy.js`, catalog, and selection tables were not modified.
++
++## 2026-08-31 — Phases 1–7 (focused TDD)
++
++- [x] 1.1 RED: `integrity.test.js` omitted `bindings.evidenceStrategy` currently returned `ok: true`; identity-only `validateChallengePlan(plan)` stayed ok. Matching binding uses selected constant `"feature"`, not `plan.evidence_strategy`.
++- [x] 1.2 GREEN: `assertEvidenceStrategyBinding` requires non-empty equality; result-set always gated; `validateChallengePlan` gated when any evaluation key is present. Truthy skip removed. Success callers pass `{ evidenceStrategy: "feature" }`. `node --test scripts/lib/adversarial-challenges/integrity.test.js` — 3 pass.
++- [x] 2.1 RED: `declaredStrategy: "feature"` + canonical `bug` plan still accepted until the selected strategy was threaded.
++- [x] 2.2 GREEN: `evaluateChallengeEvidence` forwards `opts.evidenceStrategy`; `verifyCandidate` passes `selectStrategy(...)` into eval and `projectAssuranceGraph`.
++- [x] 2.3 Pin: `strategy-policy.js` unmodified; `selectStrategy(undefined)` and `selectStrategy("not-a-strategy")` still `"strict-tdd"`.
++- [x] 3.1 RED: projector/replay ignored Candidate strategy, so `feature` vs canonical `bug` plan still projected.
++- [x] 3.2 GREEN: projector uses `input.evidenceStrategy`; replay uses `persistable.evidenceStrategy` (from `verified.strategy`) and maps integrity failure to `GRAPH_DIVERGENCE`. Existing K6c project/replay callers pass selected `"feature"` / `verified.strategy`.
++- [x] 4.1 RED: omitted/empty/`not-a-strategy` still coerced to `strict-tdd`.
++- [x] 4.2 GREEN: `createChallengePlan` TypeError (`requires evidenceStrategy` vs `rejects unknown evidenceStrategy`); no `{ok, reason_code}` envelope. `node --test scripts/lib/adversarial-challenges/planner.test.js` — 9 pass (proportional + determinism intact).
++- [x] 5.1 RED: missing tests / empty mutations / no-op apply emitted `passed` or `COMPLACENT_TEST_DETECTED`.
++- [x] 5.2 GREEN: `missing_tests` → `MISSING_TESTS`; `mutations_tested===0` → `NO_MUTATION_APPLIED`; unchanged bytes → `CHALLENGE_NOOP`; COMPLACENT only after a real byte change. `node --test scripts/lib/adversarial-challenges/runner.test.js` — 12 pass (COMPLACENT, tautology, capability, timeout, scope intact).
++- [x] 6.1 RED: duplicate `node_id` in `challenge-result` `required` and claims; `validateSchemaDocument` absent.
++- [x] 6.2 GREEN: unique `node_id`; `validateSchemaDocument` walks every `required` with existing `uniqueItems`; `k1-schema-compat` invokes it. Walk found no other uniqueness offenders. K1/K6b/`K1_SCHEMA_BASELINE` pins pass. Cross-bound `validateChallengeResultSet` uses `{ evidenceStrategy: "bug" }`.
++- [x] 7.1 No leftover `bindings.evidenceStrategy &&` skip; catalog/selection/`strategy-policy.js` untouched; K6d still gated on `challenge_verification.status === "accepted"`.
++- [x] 7.2 Focal suites: 156 pass (`integrity`, `planner`, `runner`, `independent-verifier/index`, `assurance-graph/index`, `kernel-schema-validator`, `k6c-schema-fixtures`, `k1-schema-compat`).
++
++### TDD evidence (focused)
++
++| Task | Test file | RED | GREEN | RUN |
++| ---- | --- | --- | ----- | --- |
++| 1.1–1.2 | `scripts/lib/adversarial-challenges/integrity.test.js` | omitted binding `ok: true` | require binding | 3 pass |
++| 2.1–2.3 | `scripts/lib/independent-verifier/index.test.js` | mismatch still PASS | thread `selectStrategy` | mismatch + matching PASS |
++| 3.1–3.2 | `scripts/lib/assurance-graph/index.test.js` | wrong-strategy still projected | `input`/`persistable.evidenceStrategy` | GRAPH_DIVERGENCE, no graph |
++| 4.1–4.2 | `scripts/lib/adversarial-challenges/planner.test.js` | no throw | TypeError requires/rejects unknown | 9 pass |
++| 5.1–5.2 | `scripts/lib/adversarial-challenges/runner.test.js` | `passed` on missing tests | error reasons | 12 pass |
++| 6.1–6.2 | `kernel-schema-validator.test.js`, `k6c-schema-fixtures.test.js` | duplicate required / missing helper | unique + `validateSchemaDocument` | published families pass |
++
++### `npm test`
++
++`npm test` (`node scripts/check.js`) reported 2881 pass, 1 fail, 3 skipped. The failure is outside this change: `scripts/configure/cli.test.js` `"RED: evidence authorization rejects a symlinked change root"` — `t.after` calls `fs.rmSync(link, { force: true })` without `recursive` and throws `ERR_FS_EISDIR` on the junction/symlink. Assertion of `rootedEvidencePath(...) === null` is unrelated to K6c. Leftover `openspec/changes/evidence-link` was removed after the run. No K6c, planner, runner, verifier, graph, or schema test failed.
++
++### Discoveries
++
++- `k1-schema-compat` uniqueness walk over published families found only the known `challenge-result` duplicate `node_id`; no other uniqueness-only schema edits.
++- Projector/replay callers that already passed `candidate`/`executionGraph` became evaluation bindings after 1.2, so they needed the selected strategy threaded (phases 2–3) rather than a self-copy of `plan.evidence_strategy`.
++
++### Deviations from design
++
++None — implementation matches design.
+diff --git a/openspec/changes/k6c-failclosed-integrity/decisions/adr-001.md b/openspec/changes/k6c-failclosed-integrity/decisions/adr-001.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6c-failclosed-integrity/decisions/adr-001.md
+@@ -0,0 +1,22 @@
++# ADR-001: Planner Rejects Invalid Strategy With TypeError
++
++- Status: proposed
++- Change: k6c-failclosed-integrity
++- Date: 2026-08-31
++
++## Context
++
++`createChallengePlan` coerces omitted, empty, or unknown `evidenceStrategy` to `strict-tdd` and still emits a plan. REQ-adversarial-challenges-002 now forbids that coercion. The planner is a synchronous constructor that already throws `TypeError` for missing `candidateId`, `nodeId`, and `policySnapshotId`.
++
++## Decision
++
++Throw `TypeError` for omitted, empty/non-string, and unknown non-empty `evidenceStrategy`. Do not return a plan. Distinguish missing vs unknown only in the message. Do not introduce a `{ ok, reason_code }` envelope.
++
++## Alternatives
++
++- Result envelope with `CHALLENGE_STRATEGY_UNKNOWN`: rejected because it changes the constructor contract for every caller.
++- TypeError for empty, reason_code for unknown: rejected because two observables split catch paths for one invariant.
++
++## Consequences
++
++Callers that already catch `TypeError` fail closed uniformly. Verifier REQ-002 fallback remains in `selectStrategy`, not here. Reverting restores silent coercion.
+diff --git a/openspec/changes/k6c-failclosed-integrity/decisions/adr-002.md b/openspec/changes/k6c-failclosed-integrity/decisions/adr-002.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6c-failclosed-integrity/decisions/adr-002.md
+@@ -0,0 +1,22 @@
++# ADR-002: No-Evidence Challenges Emit Outcome Error
++
++- Status: proposed
++- Change: k6c-failclosed-integrity
++- Date: 2026-08-31
++
++## Context
++
++`runWorkspaceTests` reports `failure_class: "missing_tests"`. The revert path excludes that class from `CHALLENGE_EXECUTION_ERROR` and then treats a non-zero exit as defect detection (`passed`). Zero mutations and no-op byte applies also emit `passed`. Spec forbids `passed` and forbids treating `missing_tests` as COMPLACENT.
++
++## Decision
++
++Emit schema-valid results with `outcome: "error"` and `details.reason` of `MISSING_TESTS`, `NO_MUTATION_APPLIED`, or `CHALLENGE_NOOP`. Keep `failed`/`COMPLACENT_TEST_DETECTED` only when tests pass against a mutation or revert that actually changed isolated candidate-copy bytes.
++
++## Alternatives
++
++- `failed` + COMPLACENT for missing tests: rejected; it inverts meaning (no suite existed to miss a defect).
++- Collapse all three into `CHALLENGE_EXECUTION_ERROR`: rejected; that code already means sandbox/cancel/throw.
++
++## Consequences
++
++Verifier already fail-closes any non-`passed` outcome (`CHALLENGE_VERIFICATION_FAILED`). `details` stays an open object; no schema bump. Operators can distinguish “no tests” from “no mutation” from “apply was a no-op”.
+diff --git a/openspec/changes/k6c-failclosed-integrity/decisions/adr-003.md b/openspec/changes/k6c-failclosed-integrity/decisions/adr-003.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6c-failclosed-integrity/decisions/adr-003.md
+@@ -0,0 +1,22 @@
++# ADR-003: Evaluation Requires The Selected Strategy Binding
++
++- Status: proposed
++- Change: k6c-failclosed-integrity
++- Date: 2026-08-31
++
++## Context
++
++The shared integrity gate compares `bindings.evidenceStrategy` to `plan.evidence_strategy` only when the binding is truthy. `verifyCandidate` computes `selectStrategy(...)` and never passes it, so a canonical plan for another strategy is accepted. Projector and replay have the same hole. Binding with `plan.evidence_strategy` would be a self-comparison.
++
++## Decision
++
++`validateChallengeResultSet` always requires a non-empty string `bindings.evidenceStrategy` equal to `plan.evidence_strategy`. `validateChallengePlan` requires it when any evaluation binding is present. Callers pass the already-selected strategy (`verifyCandidate().strategy`, never the plan’s own field). Integrity failures stay `CHALLENGE_INTEGRITY_INVALID`; projector/replay still map them to `GRAPH_DIVERGENCE`. Identity-only `validateChallengePlan(plan)` without bindings remains schema/identity validation.
++
++## Alternatives
++
++- Keep the truthy skip: rejected; it is the defect.
++- Require the field on every `validateChallengePlan` call: rejected; identity tests validate plans without a selected-strategy context.
++
++## Consequences
++
++Optional K6c material is still gated when a plan or results are present. Replay bundles must include `evidenceStrategy` from the verifier-selected value. `strategy-policy.js` is unchanged.
+diff --git a/openspec/changes/k6c-failclosed-integrity/decisions/adr-004.md b/openspec/changes/k6c-failclosed-integrity/decisions/adr-004.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6c-failclosed-integrity/decisions/adr-004.md
+@@ -0,0 +1,22 @@
++# ADR-004: Constrained Draft 2020-12 Metaschema Without Ajv
++
++- Status: proposed
++- Change: k6c-failclosed-integrity
++- Date: 2026-08-31
++
++## Context
++
++K1 only asserts that published schemas declare the Draft 2020-12 `$schema` URI, so duplicate `required` members (challenge-result lists `node_id` twice) still load. The official 2020-12 metaschema uses `$vocabulary`, `$dynamicRef`, and remote `allOf`, which `kernel-schema-validator.js` ignores. The repo has no Ajv or other runtime JSON Schema dependency.
++
++## Decision
++
++Validate each published schema document with a new `validateSchemaDocument` that recursively checks every `required` array using the interpreter’s existing `uniqueItems` keyword, in addition to the URI check. Invoke it from `k1-schema-compat`. Fix uniqueness offenders only; do not add Ajv.
++
++## Alternatives
++
++- Add Ajv 8 for the official metaschema: rejected unless the subset cannot fail the specified duplicate-`required` scenario (it can).
++- URI-only check: rejected by REQ-kernel-contract-schemas-029.
++
++## Consequences
++
++Duplicate `required` fails even when `$schema` is the 2020-12 URI. Nested `required` arrays are covered. Full 2020-12 vocabulary beyond the interpreter subset is not enforced. K1/K6b schema bytes stay frozen unless a uniqueness walk finds a duplicate (then uniqueness-only).
+diff --git a/openspec/changes/k6c-failclosed-integrity/design.md b/openspec/changes/k6c-failclosed-integrity/design.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6c-failclosed-integrity/design.md
+@@ -0,0 +1,160 @@
++# Design: K6c Fail-Closed Integrity
++
++## Technical Approach
++
++Surgical follow-up to archived `k6c-integrity-remediation`. The integrity gate compares `bindings.evidenceStrategy` to `plan.evidence_strategy` only when the binding is truthy; `verifyCandidate` computes `selectStrategy(...)` and never passes it. Thread that selected value into the gate, reject unknown planner strategies without emitting a plan, fail-close runner no-evidence paths as `outcome: "error"`, and validate published schemas as Draft 2020-12 metaschema instances via the in-house interpreter. Catalog, selection tables, isolation, and REQ-002 fallback stay untouched. Covers REQ-independent-verification-010, REQ-adversarial-challenges-002/004, REQ-assurance-graph-009, REQ-kernel-contract-schemas-029.
++
++## Architecture Decisions
++
++| Decision | Options | Choice | Tradeoff |
++| --- | --- | --- | --- |
++| Planner reject observable | TypeError for all; `{ok:false, reason_code}`; mix TypeError + reason_code | **TypeError** for omitted, empty, and unknown non-empty | One catch path; missing vs unknown only in the message. [ADR-001](decisions/adr-001.md) |
++| Runner no-evidence outcome | `failed`+COMPLACENT; `error`+`CHALLENGE_EXECUTION_ERROR`; `error`+dedicated reason | **`outcome: "error"`** with `MISSING_TESTS`, `NO_MUTATION_APPLIED`, `CHALLENGE_NOOP` | Distinct diagnosis; never invert COMPLACENT. [ADR-002](decisions/adr-002.md) |
++| Integrity strategy binding | Keep truthy skip; require on result-set evaluation; require even for `validateChallengePlan({})` | **Require non-empty equality** on result-set and when any evaluation binding is present | Identity-only schema checks stay optional. Never self-compare `plan.evidence_strategy`. [ADR-003](decisions/adr-003.md) |
++| Metaschema engine | New Ajv; URI-only `$schema`; in-house `uniqueItems` subset | **Local subset + recursive `required` uniqueItems**; no new dependency | Official remote metaschema uses `$dynamicRef`/`allOf` the interpreter ignores. [ADR-004](decisions/adr-004.md) |
++
++`selectStrategy` unknown declared strings remain REQ-002 fallback. Do not modify `strategy-policy.js`.
++
++### Decision: TypeError is the single planner reject observable
++
++**Choice**: `TypeError` for omitted, empty/non-string, and unknown `evidenceStrategy` (`requires` vs `rejects unknown` messages; `strict-tdd` remains a valid key).
++**Alternatives considered**: `{ok, reason_code}` envelope; mixed observables.
++**Rationale**: Matches existing required-field errors. Spec only forbids emitting a plan. [ADR-001](decisions/adr-001.md).
++
++### Decision: Runner no-evidence paths emit `outcome: "error"`, never COMPLACENT
++
++**Choice**: `MISSING_TESTS` / `NO_MUTATION_APPLIED` / `CHALLENGE_NOOP` as `outcome: "error"`. COMPLACENT stays only for tests that pass against a real byte change.
++**Alternatives considered**: COMPLACENT for missing tests; reuse `CHALLENGE_EXECUTION_ERROR`.
++**Rationale**: Missing tests and no-ops never seeded a defect. [ADR-002](decisions/adr-002.md).
++
++### Decision: Evaluation requires `bindings.evidenceStrategy`
++
++**Choice**: `assertEvidenceStrategyBinding` on every result-set and on `validateChallengePlan` when any evaluation key is present. Callers pass `verifyCandidate().strategy`. Projector/replay map failures to `GRAPH_DIVERGENCE`. Identity-only `validateChallengePlan(plan)` stays optional.
++**Alternatives considered**: Truthy skip; require the field with empty bindings.
++**Rationale**: Omitted binding is the match-all hole; self-comparing `plan.evidence_strategy` would hide it. [ADR-003](decisions/adr-003.md).
++
++### Decision: Draft 2020-12 metaschema via the existing interpreter
++
++**Choice**: `validateSchemaDocument` walks every `required` array with `uniqueItems`. K1 checker invokes it. Fix `challenge-result` duplicate `node_id`; uniqueness-only elsewhere if the walk fails. No Ajv.
++**Alternatives considered**: Ajv 8; URI-only check.
++**Rationale**: Official meta uses keywords this interpreter ignores; `uniqueItems` is the specified fail-closed rule. [ADR-004](decisions/adr-004.md).
++
++## Data Flow
++
++```mermaid
++sequenceDiagram
++  participant VC as verifyCandidate
++  participant SP as selectStrategy
++  participant CE as evaluateChallengeEvidence
++  participant IG as validateChallengeResultSet
++  participant PJ as projectAssuranceGraph
++  VC->>SP: declaredStrategy (may be absent)
++  SP-->>VC: selected (REQ-002 fallback allowed here)
++  VC->>CE: evidenceStrategy = selected
++  CE->>IG: bindings.evidenceStrategy = selected
++  alt omitted or mismatch vs plan.evidence_strategy
++    IG-->>CE: CHALLENGE_INTEGRITY_INVALID
++    CE-->>VC: no PASS
++  else match and all outcomes passed
++    IG-->>CE: ok
++    VC->>PJ: evidenceStrategy = selected
++    PJ->>IG: same binding
++    Note over PJ: replay passes persistable.evidenceStrategy not plan.evidence_strategy
++  end
++```
++
++```mermaid
++sequenceDiagram
++  participant PL as createChallengePlan
++  participant RN as runIsolatedMutation
++  alt evidenceStrategy omitted/empty/unknown
++    PL-->>PL: TypeError, no plan
++  else closed-enum strategy
++    PL-->>RN: canonical plan
++    alt missing_tests
++      RN-->>RN: error MISSING_TESTS
++    else mutations_tested===0
++      RN-->>RN: error NO_MUTATION_APPLIED
++    else bytes unchanged after apply
++      RN-->>RN: error CHALLENGE_NOOP
++    else tests pass on real byte change
++      RN-->>RN: failed COMPLACENT_TEST_DETECTED
++    else tests fail on real byte change
++      RN-->>RN: passed
++    end
++  end
++```
++
++Verifier fallback vs planner reject: `selectStrategy(undefined|"not-a-strategy")` still returns `strict-tdd`. `createChallengePlan` with those values throws. Planner never performs REQ-002 fallback.
++
++## File Changes
++
++| File | Action | Description |
++| --- | --- | --- |
++| `scripts/lib/adversarial-challenges/planner.js` | Modify | TypeError instead of `strict-tdd` coercion. |
++| `scripts/lib/adversarial-challenges/integrity.js` | Modify | Require evaluation strategy binding. |
++| `scripts/lib/adversarial-challenges/runner.js` | Modify | Error reasons + pre/post byte compare. |
++| `scripts/lib/independent-verifier/challenge-evidence.js` | Modify | Pass `opts.evidenceStrategy`. |
++| `scripts/lib/independent-verifier/index.js` | Modify | Thread `strategy` into eval and projection. |
++| `scripts/lib/assurance-graph/projector.js` | Modify | Pass `input.evidenceStrategy`. |
++| `scripts/lib/assurance-graph/index.js` | Modify | Replay with `persistable.evidenceStrategy`. |
++| `scripts/lib/kernel-schema-validator.js` | Modify | Add `validateSchemaDocument`. |
++| `scripts/lib/contract-checkers/k1-schema-compat.js` | Modify | Metaschema check on published families. |
++| `schemas/kernel/challenge-result/v1.schema.json` | Modify | Unique `node_id` in `required`. |
++| `schemas/kernel/contract-claims.json` | Modify | Unique `challenge-result.required_fields`. |
++| `scripts/lib/adversarial-challenges/{planner,runner,integrity}.test.js` | Modify | TypeError / error-outcome / binding negatives. |
++| `scripts/lib/independent-verifier/index.test.js` | Modify | `feature` + canonical `bug` plan → `CHALLENGE_INTEGRITY_INVALID`. |
++| `scripts/lib/assurance-graph/index.test.js` | Modify | Same pair → `GRAPH_DIVERGENCE`; replay `verified.strategy`. |
++| `scripts/lib/{k6c-schema-fixtures,kernel-schema-validator}.test.js` | Modify | Unique `required`; duplicate-required fixture schema. |
++| `scripts/lib/independent-verifier/strategy-policy.js` | None | REQ-002 fallback stays. |
++
++## Interfaces / Contracts
++
++```javascript
++createChallengePlan({ candidateId, nodeId, policySnapshotId, evidenceStrategy })
++// TypeError if omitted, empty, non-string, or not in STRATEGY_CHALLENGE_SELECTION
++
++assertEvidenceStrategyBinding(bindings, plan)
++// CHALLENGE_INTEGRITY_INVALID unless non-empty string === plan.evidence_strategy
++
++evaluateChallengeEvidence(input, bound, { required, evidenceStrategy })
++projectAssuranceGraph({ …, evidenceStrategy })
++replayAssuranceGraph({ …, evidenceStrategy }) // === verifyCandidate().strategy
++
++// runner details.reason (outcome "error"):
++//   MISSING_TESTS | NO_MUTATION_APPLIED | CHALLENGE_NOOP
++```
++
++No-op: snapshot isolated file bytes before `revertSourcePatch` / `applyFocalMutation`; equal post-apply → `CHALLENGE_NOOP`. Count `mutations_tested` only for byte-changing mutations; stay at 0 → `NO_MUTATION_APPLIED`. Handle `failure_class === "missing_tests"` before the pass/fail branch so revert no longer maps “no tests” to `passed`.
++
++## Requirement / Scenario Allocation
++
++| Requirement and MUST scenarios | Allocation |
++| --- | --- |
++| REQ-010 success / failed COMPLACENT / missing strategy minimums / missing-duplicate-foreign set | Existing `challenge-evidence.js` + `index.js`; thread `strategy` only. |
++| REQ-010 selected strategy mismatch (`feature` vs canonical `bug` plan) | `index.js` → `evaluateChallengeEvidence` → `assertEvidenceStrategyBinding`; `index.test.js`. |
++| REQ-002 proportional bug/refactor/migration; identical inputs; changed node/policy identity | Unchanged selection table + `planner.test.js`. |
++| REQ-002 unknown/omitted/empty planner strategy | `createChallengePlan` TypeError; `planner.test.js`. |
++| REQ-004 focal pass, COMPLACENT, tautology, capability/timeout, foreign scope | Unchanged runner paths. |
++| REQ-004 missing tests | `runIsolatedMutation` + `runner.test.js` workspace without `*.test.js`. |
++| REQ-004 `mutations_tested===0` / no-op revert or mutation | Pre/post byte compare + empty `context.mutations`; `runner.test.js`. |
++| REQ-009 reproducible project/replay; duplicate/foreign; mandatory plan absent | Existing projector/replay; add `evidenceStrategy` to K6c input/persistable. |
++| REQ-009 wrong-strategy canonical plan | Gate with selected strategy; `GRAPH_DIVERGENCE`; no graph. |
++| REQ-029 valid/invalid plan/result, cross-family, cross-bound pair, manifest/claims | `k6c-schema-fixtures.test.js`; unique claims list. |
++| REQ-029 unique `required`; duplicate `required` fails metaschema; published schemas pass | Schema fix + `validateSchemaDocument` + K1 checker + validator/k6c tests. Fixture schema must not live under `fixtures/invalid/` (those are payload instances). |
++
++## Testing Strategy
++
++| Layer | What to Test | Approach |
++| --- | --- | --- |
++| Unit | Planner TypeError matrix; binding required vs identity-only; uniqueItems on `required` | Node `--test`; `"not-a-strategy"` must not emit a `strict-tdd` plan. |
++| Integration | `feature`+`bug` plan; projector/replay same pair; missing tests; empty mutations; no-op revert | Existing harnesses; `CHALLENGE_INTEGRITY_INVALID` / `GRAPH_DIVERGENCE` / `outcome!=="passed"`. |
++| Contract | Published families vs `validateSchemaDocument`; K1/K6b byte pins | `k1-schema-compat` + `assertK1SchemasUnchanged`. |
++
++## Migration / Rollout
++
++Atomic PR: runtime, schemas, claims, tests. Omitted strategy bindings now fail closed. `required` uniqueness does not change payload shape or IDs. `evidence/v2`, `verification/v2`, K1 schema bytes, and `K1_SCHEMA_BASELINE` stay byte-identical. K6d remains blocked until terminal verify accepts the negatives. No feature flag. Rollback reverts the PR atomically.
++
++## Open Questions
++
++None.
+diff --git a/openspec/changes/k6c-failclosed-integrity/proposal.md b/openspec/changes/k6c-failclosed-integrity/proposal.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6c-failclosed-integrity/proposal.md
+@@ -0,0 +1,77 @@
++# Proposal: K6c Fail-Closed Integrity
++
++## Intent
++
++Cerrar cuatro defectos verificados de K6c que aún permiten aprobar challenges incoherentes. Remediación quirúrgica: sin rediseño ni K6d. Hasta tests negativos, K6c permanece revise / NO-GO para K6d.
++
++## Scope
++
++### In Scope
++
++- Pasar la strategy seleccionada a `validateChallengeResultSet(..., { evidenceStrategy })` (verifier, projector, replay).
++- Adversarial: verifier `feature` + ChallengePlan canónico `bug` → `CHALLENGE_INTEGRITY_INVALID`.
++- Fail-closed (REQ-004): `missing_tests`, `mutations_tested === 0`, revert/mutación no-op nunca `passed`.
++- Planner rechaza `evidenceStrategy` fuera del enum; no reinterpretar a `strict-tdd`.
++- `required` único en `challenge-result/v1`; metaschema Draft 2020-12 sobre schemas publicados.
++
++### Out of Scope
++
++- K6d, rediseño K6c, catálogo/selección, follow-ups 4R ajenos.
++- Alterar REQ-independent-verification-002 (verifier MAY usar `strict-tdd` si no hay estrategia declarada).
++
++## Capabilities
++
++### New Capabilities
++
++None.
++
++### Modified Capabilities
++
++- `adversarial-challenges`: REQ-002 rechaza estrategia de planner desconocida; REQ-004 `missing_tests` / cero mutaciones / no-op fail-closed.
++- `independent-verification`: REQ-010 inyecta la strategy del verifier en el integrity gate; plan de otra estrategia → `CHALLENGE_INTEGRITY_INVALID`. Conservar fallback ausente de REQ-002.
++- `assurance-graph`: REQ-009 projector/replay ligan `evidenceStrategy` igual.
++- `kernel-contract-schemas`: REQ-029 `required` único; metaschema Draft 2020-12.
++
++## Approach
++
++`integrity.js` ya compara `bindings.evidenceStrategy` vs `plan.evidence_strategy`. El hueco es cableado: callers no pasan el campo; `verifyCandidate()` calcula `selectStrategy(...)` y no lo entrega a `evaluateChallengeEvidence`.
++
++Runner: `missing_tests` no es fallo adversarial esperado; revert/`focal-mutation` sin cambio de bytes o `mutations_tested === 0` no incrementan defectos ni emiten `passed`. Planner: valor fuera de `bug | feature | refactor | migration | config-docs | strict-tdd` se rechaza (string desconocida y omitido/vacío), distinto del fallback del verifier por ausencia.
++
++Schema: quitar `node_id` duplicado en `required`. Validar schemas publicados contra el metaschema 2020-12 (el chequeo de URI `$schema` en K1 no lo sustituye).
++
++## Affected Areas
++
++| Area | Impact | Description |
++|------|--------|-------------|
++| `scripts/lib/independent-verifier/{challenge-evidence,index}.js` | Modified | Strategy al gate |
++| `scripts/lib/assurance-graph/{projector,index}.js` | Modified | Binding en project/replay |
++| `scripts/lib/adversarial-challenges/{runner,planner}.js` | Modified | Fail-closed y reject enum |
++| `schemas/kernel/challenge-result/v1.schema.json` | Modified | `required` único |
++| Schema tests (`kernel-schema-validator`, `k6c-schema-fixtures`, contract-checkers) | Modified | Metaschema 2020-12 |
++| Tests verifier / challenges / assurance-graph | Modified | Casos negativos |
++
++## Risks
++
++| Risk | Likelihood | Mitigation |
++|------|------------|------------|
++| Suites sin tests o mutación vacía que hoy “pasan” fallarán | High | Fail-closed + tests negativos |
++| Metaschema revela `required` duplicados en otras familias | Med | Corregir unicidad; no rediseñar |
++| Confundir reject del planner con fallback del verifier | Low | Ausencia → REQ-002; unknown planner → reject |
++
++## Rollback Plan
++
++Revertir atómicamente el commit/PR (runtime, schemas, tests, deltas). Restaurar comportamiento previo. K6d permanece bloqueado. Sin migración de datos.
++
++## Dependencies
++
++- Gate existente en `scripts/lib/adversarial-challenges/integrity.js`.
++- Archivado `2026-08-30-k6c-integrity-remediation` (bindings; no reabrir).
++
++## Success Criteria
++
++- [ ] Verifier `feature` + plan canónico `bug` → `CHALLENGE_INTEGRITY_INVALID`; projector/replay con el mismo binding.
++- [ ] `missing_tests`, `mutations_tested === 0`, o revert/mutación no-op no emiten `outcome: "passed"`.
++- [ ] `createChallengePlan` con estrategia desconocida rechaza; verifier sin estrategia declarada sigue MAY `strict-tdd`.
++- [ ] `required` de challenge-result sin duplicados; schemas publicados validan contra metaschema Draft 2020-12.
++- [ ] K6d no comienza; `sdd-verify` terminal PASS con esos negativos.
+diff --git a/openspec/changes/k6c-failclosed-integrity/specs/adversarial-challenges/spec.md b/openspec/changes/k6c-failclosed-integrity/specs/adversarial-challenges/spec.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6c-failclosed-integrity/specs/adversarial-challenges/spec.md
+@@ -0,0 +1,130 @@
++# Delta for Adversarial Challenges
++
++## MODIFIED Requirements
++
++### Requirement: Deterministic ChallengePlan Selection {#REQ-adversarial-challenges-002}
++
++The system MUST generate a deterministic `ChallengePlan` derived from the frozen `CandidateId`, the evidence strategy (`bug | feature | refactor | migration | config-docs | strict-tdd`), target graph node, and `PolicySnapshot` (`policy_bundle_digest`). The system MUST NOT assign a universal fixed quartet of challenges by default to every candidate.
++
++Selection MUST remain proportional to the evidence strategy:
++
++| Strategy | Selected Types (Typical) | Discarded Types (Typical) |
++| --- | --- | --- |
++| `bug` | `revert`, `regression-acceptance` | `focal-mutation` (out-of-scope), `rollback` |
++| `refactor` | `behavior-equivalence`, `focal-mutation` | `revert` (irrelevant for refactoring) |
++| `migration` | `rollback`, `compatibility-acceptance` | `behavior-equivalence` |
++| `config-docs` | `structural-validation`, `test-inspection` | `focal-mutation`, `revert` |
++| `feature` / `strict-tdd` | `independent-acceptance`, `focal-mutation` | `rollback` |
++
++The emitted `ChallengePlan` MUST contain: content-addressed `plan_id`, `candidate_id`, non-empty `node_id`, `policy_snapshot_id`, `evidence_strategy`, `selected`, `skipped`, `reasons`, and `budget`. Its identity MUST be recomputed from its canonical bindings and content. For every omitted catalog type, `skipped` MUST record a non-empty reason. Identical bindings MUST produce byte-identical plans; a changed binding MUST NOT reuse the plan identity.
++
++ChallengePlan generation MUST reject an `evidenceStrategy` that is omitted, empty, or not a member of that closed enum. It MUST NOT emit a ChallengePlan and MUST NOT coerce the value to `strict-tdd`. This planner rejection is distinct from independent-verification REQ-002, which still applies Strict TDD fallback when the verifier has no declared strategy; the planner MUST receive an already-selected closed-enum value and MUST NOT perform that fallback.
++
++(Previously: unknown, omitted, or empty planner evidenceStrategy was coerced to strict-tdd and still emitted a ChallengePlan.)
++
++#### Scenario: Proportional plan generated for bugfix strategy
++
++- GIVEN a frozen candidate with evidence strategy `bug` and a valid PolicySnapshot
++- WHEN ChallengePlan generation executes
++- THEN the plan MUST include `revert` and `regression-acceptance` in `selected`
++- AND MUST record explicit reasons for omitted types
++
++#### Scenario: Proportional plan generated for refactor strategy
++
++- GIVEN a frozen candidate with evidence strategy `refactor`
++- WHEN ChallengePlan generation executes
++- THEN the plan MUST include `behavior-equivalence` and `focal-mutation`
++- AND MUST omit `revert` with an explicit reason
++
++#### Scenario: Proportional plan generated for migration strategy
++
++- GIVEN a frozen candidate with evidence strategy `migration`
++- WHEN ChallengePlan generation executes
++- THEN the plan MUST include `rollback` and `compatibility-acceptance`
++- AND MUST omit non-migration challenges with explicit reasons
++
++#### Scenario: Identical inputs yield deterministic ChallengePlan
++
++- GIVEN two executions with identical CandidateId, node, strategy, and PolicySnapshot
++- WHEN ChallengePlan is generated for both
++- THEN the computed `plan_id` and all plan fields MUST be byte-identical
++
++#### Scenario: Changed canonical binding cannot reuse a plan
++
++- GIVEN two otherwise identical plan requests with different node_id or policy_snapshot_id
++- WHEN their plan identities are recomputed
++- THEN each request MUST yield a distinct plan_id
++
++#### Scenario: Unknown or omitted planner strategy is rejected
++
++- GIVEN ChallengePlan generation is requested with `evidenceStrategy` omitted, empty, or a string outside the closed enum
++- WHEN plan generation executes
++- THEN no ChallengePlan MUST be emitted
++- AND the strategy MUST NOT be coerced to `strict-tdd`
++
++### Requirement: Seeded Defect Detection And Complacent Test Rejection {#REQ-adversarial-challenges-004}
++
++The challenge runner MUST execute only the `selected` challenges specified in the canonical ChallengePlan against isolated test instances. It MUST first validate the plan identity, schema, Candidate, node, strategy, and PolicySnapshot bindings; malformed or contradictory input MUST fail closed and MUST NOT produce an approving result.
++
++Each selected challenge MUST execute once in an ephemeral workspace created from the frozen Candidate. The runner MUST derive `focal-mutation` scope exclusively from the frozen candidate diff; caller-supplied paths MUST NOT expand that scope. It MUST record candidate digest before and after execution and reject any mismatch. Before execution, the runner MUST require an executor capability for the requested challenge and cancellation; an absent, false, or unverifiable capability MUST fail closed.
++
++The runner MUST enforce `timeout_seconds` using elapsed wall-clock time, propagate cancellation to the running work, and emit `outcome: "error"` with `CHALLENGE_TIMEOUT` if the deadline elapses. A non-cooperative child that survives cancellation MUST remain a failure and MUST NOT yield a pass.
++
++When executing `focal-mutation` or `revert`:
++1. The runner MUST introduce targeted mutations or patch reversals into the test copy of the candidate codebase.
++2. The candidate test suite MUST execute against the mutated codebase.
++3. If tests pass against a seeded defect or unpatched revert, the runner MUST fail with `COMPLACENT_TEST_DETECTED` and reject candidate evidence.
++4. If tests fail as expected against a mutation or revert that actually changed candidate-copy bytes, and candidate tests were present, the runner MUST mark the challenge as passed.
++
++Absence of candidate tests (`missing_tests`), a `focal-mutation` execution with `mutations_tested === 0`, or a `revert` or `focal-mutation` that does not modify the isolated candidate-copy bytes MUST fail closed. The runner MUST NOT emit `outcome: "passed"` for those conditions. `missing_tests` MUST NOT be treated as expected adversarial detection that proves tests found a seeded defect.
++
++When executing `test-inspection`, the runner MUST reject tautological assertions with `TAUTOLOGICAL_TEST_DETECTED`. Every outcome MUST be schema-valid and canonically bound to its plan, Candidate, node, strategy, and PolicySnapshot.
++
++(Previously: missing_tests, zero mutations, and no-op revert/mutation could still emit outcome passed as if tests detected a seeded defect.)
++
++#### Scenario: Focal mutation detects seeded defect and challenge passes
++
++- GIVEN a canonical plan with an active focal-mutation challenge
++- WHEN a mutation inside the frozen diff makes candidate tests fail
++- THEN the outcome MUST be `passed`
++- AND a bound valid challenge-result MUST be emitted
++
++#### Scenario: Complacent test suite passes on seeded defect and challenge fails
++
++- GIVEN a complacent candidate test suite
++- WHEN a focal-mutation or revert challenge leaves its tests passing
++- THEN the outcome MUST be `failed` with `COMPLACENT_TEST_DETECTED`
++
++#### Scenario: Test inspection detects tautological assertion
++
++- GIVEN a test suite containing tautological assertions or unconditional passes
++- WHEN test-inspection evaluates the assertions
++- THEN the outcome MUST be `failed` with `TAUTOLOGICAL_TEST_DETECTED`
++
++#### Scenario: Missing capability or deadline expiry fails closed
++
++- GIVEN a selected challenge without a verified executor capability, or a non-cooperative run exceeding its wall-clock deadline
++- WHEN execution is attempted
++- THEN no passed result MUST be emitted
++- AND the run MUST fail closed or emit `CHALLENGE_TIMEOUT`
++
++#### Scenario: Foreign scope or candidate mutation is rejected
++
++- GIVEN a focal-mutation request outside the frozen diff, or a post-run candidate digest differing from its pre-run digest
++- WHEN integrity validation runs
++- THEN the challenge MUST fail closed
++- AND its result MUST NOT satisfy verification
++
++#### Scenario: Missing tests fail closed without a passed outcome
++
++- GIVEN a selected `revert` or `focal-mutation` challenge and an isolated candidate copy with no test files
++- WHEN the challenge executes
++- THEN the runner MUST fail closed
++- AND MUST NOT emit `outcome: "passed"`
++
++#### Scenario: Zero mutations or no-op revert/mutation fail closed
++
++- GIVEN a selected `focal-mutation` that applies no mutation (`mutations_tested === 0`), or a `revert`/`focal-mutation` that leaves candidate-copy bytes unchanged
++- WHEN the challenge executes
++- THEN the runner MUST fail closed
++- AND MUST NOT emit `outcome: "passed"`
+diff --git a/openspec/changes/k6c-failclosed-integrity/specs/assurance-graph/spec.md b/openspec/changes/k6c-failclosed-integrity/specs/assurance-graph/spec.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6c-failclosed-integrity/specs/assurance-graph/spec.md
+@@ -0,0 +1,40 @@
++# Delta for Assurance Graph
++
++## MODIFIED Requirements
++
++### Requirement: Deterministic K6c Challenge Projection And Replay {#REQ-assurance-graph-009}
++
++The Assurance Graph projector MUST accept K6c challenge material only after validating canonical `challenge-plan/v1` and `challenge-result/v1` identities, schemas, and bindings to the graph Candidate, node, strategy, and PolicySnapshot. It MUST project the single validated plan and its exact result set as non-authoritative derived records in the graph preimage; these records MUST NOT confer authorization.
++
++The projector and replay MUST supply the Candidate's selected evidence strategy as the evidence-strategy binding of that integrity check, matching the verifier's binding for the same Candidate. Omitting the binding MUST NOT be treated as matching every plan strategy. A ChallengePlan that is internally canonical for a different strategy MUST fail closed with `GRAPH_DIVERGENCE`.
++
++The projection MUST reject an absent mandatory plan, duplicate result, unknown selected type, result for a skipped type, missing selected result, foreign binding, or failed/error result. The projector MUST compute the same graph_id and edges from byte-identical canonical inputs and persisted K6c records. Replay MUST revalidate those records and their exact cardinality before reconstructing the graph; any divergence MUST fail closed with `GRAPH_DIVERGENCE`.
++
++(Previously: projector and replay validated plan/result bindings to each other but did not require the Candidate's selected evidenceStrategy as an integrity-gate binding.)
++
++#### Scenario: Complete canonical K6c material projects reproducibly
++
++- GIVEN one valid plan and one passed result for each selected challenge bound to canonical graph inputs
++- WHEN projection and later replay run from persisted material
++- THEN the graph_id and K6c-derived records MUST be byte-identical
++
++#### Scenario: Duplicate or foreign K6c record fails projection
++
++- GIVEN K6c records containing a duplicate result or a mismatched Candidate, node, strategy, or PolicySnapshot
++- WHEN the projector or replay validates them
++- THEN it MUST fail closed with `GRAPH_DIVERGENCE`
++
++#### Scenario: Mandatory plan absence blocks projection
++
++- GIVEN policy or strategy requires challenge verification and no canonical plan is supplied
++- WHEN graph projection is requested
++- THEN no graph MUST be emitted
++- AND the request MUST fail closed
++
++#### Scenario: Wrong-strategy canonical K6c plan fails projection and replay
++
++- GIVEN graph projection or replay whose Candidate selected evidence strategy is `feature`
++- AND a schema-valid ChallengePlan whose `evidence_strategy` is `bug` with internally canonical passed results
++- WHEN the projector or replay validates K6c material
++- THEN it MUST fail closed with `GRAPH_DIVERGENCE`
++- AND MUST NOT emit a graph
+diff --git a/openspec/changes/k6c-failclosed-integrity/specs/independent-verification/spec.md b/openspec/changes/k6c-failclosed-integrity/specs/independent-verification/spec.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6c-failclosed-integrity/specs/independent-verification/spec.md
+@@ -0,0 +1,55 @@
++# Delta for Independent Verification
++
++## MODIFIED Requirements
++
++### Requirement: Challenge Evidence Consumption And Fail-Closed Integration {#REQ-independent-verification-010}
++
++The verifier MAY consume schema-valid `challenge-result/v1` and `challenge-plan/v1` records bound to the frozen CandidateId as complementary verification evidence. When policy or strategy mandates challenge verification, exactly one canonical ChallengePlan MUST be present; its identity, schema, Candidate, node, strategy, and PolicySnapshot bindings MUST be recomputed before any result is considered.
++
++The verifier MUST supply the strategy it selected for the Candidate — including the Strict TDD fallback required by REQ-independent-verification-002 when no strategy is declared — as the evidence-strategy binding of the challenge integrity gate. That binding MUST be compared against the plan's `evidence_strategy`. Omitting the binding MUST NOT be treated as matching every plan strategy. A ChallengePlan that is internally canonical for a different strategy MUST fail closed with `CHALLENGE_INTEGRITY_INVALID` even if plan identity, result cardinality, and results are internally canonical. REQ-independent-verification-002 itself is unchanged: when no strategy is declared, the verifier MUST still use Strict TDD fallback; that fallback MUST NOT be performed by ChallengePlan generation.
++
++When challenge verification is mandatory:
++1. The verifier MUST require exactly one result for every `selected` challenge and no result for a skipped, duplicate, unknown, or foreign challenge.
++2. Every result MUST match the canonical plan's `plan_id`, Candidate, node, strategy, and PolicySnapshot and have a recomputed valid identity.
++3. Any absent plan, missing or duplicate result, foreign result, schema/hash failure, failed/error outcome, or budget exhaustion MUST fail closed with `CHALLENGE_INTEGRITY_INVALID`, `CHALLENGE_VERIFICATION_FAILED`, or `CHALLENGE_BUDGET_EXHAUSTED` and MUST NOT emit `PASS` or `PASS WITH WARNINGS`.
++
++Challenge results MUST remain complementary evidence only. They MUST NOT substitute for declared strategy minimums, bypass MUST-walk obligation coverage, grant delivery or lifecycle authorization, or allow K6d to begin. K6d MUST remain blocked until terminal verification has accepted the complete canonical challenge set.
++
++(Previously: challenge integrity compared plan/result strategy to each other but did not require the verifier-selected strategy as a binding, so a canonical plan for another strategy could still be accepted.)
++
++#### Scenario: Successful challenge results satisfy complementary verification
++
++- GIVEN a frozen Candidate with strategy minimums and MUST obligations satisfied
++- AND one canonical required plan with one passed bound result for every selected challenge
++- WHEN the verifier evaluates candidate evidence
++- THEN it MAY emit `PASS` or `PASS WITH WARNINGS`
++
++#### Scenario: Failed challenge result fails verification closed
++
++- GIVEN a canonical plan with a result failed due to `COMPLACENT_TEST_DETECTED`
++- WHEN the verifier evaluates candidate evidence
++- THEN verification MUST fail closed with `CHALLENGE_VERIFICATION_FAILED`
++- AND MUST NOT emit an approving verdict
++
++#### Scenario: Challenge results alone cannot grant PASS without strategy minimums
++
++- GIVEN all selected challenge results are passed
++- AND strategy minimum evidence or MUST obligations are missing
++- WHEN the verifier evaluates candidate evidence
++- THEN verification MUST fail closed
++- AND challenge results MUST NOT override missing strategy evidence
++
++#### Scenario: Missing, duplicate, or foreign plan result is rejected
++
++- GIVEN mandatory challenge verification with no plan, duplicate results, or a result bound to another Candidate, node, strategy, or PolicySnapshot
++- WHEN the verifier evaluates the set
++- THEN it MUST fail closed with `CHALLENGE_INTEGRITY_INVALID`
++- AND K6d MUST remain blocked
++
++#### Scenario: Selected strategy mismatch fails even when the plan is internally canonical
++
++- GIVEN the verifier selected strategy `feature` for the Candidate
++- AND a schema-valid ChallengePlan whose `evidence_strategy` is `bug` with internally canonical passed results for that plan
++- WHEN the verifier evaluates challenge evidence
++- THEN it MUST fail closed with `CHALLENGE_INTEGRITY_INVALID`
++- AND MUST NOT emit `PASS` or `PASS WITH WARNINGS`
+diff --git a/openspec/changes/k6c-failclosed-integrity/specs/kernel-contract-schemas/spec.md b/openspec/changes/k6c-failclosed-integrity/specs/kernel-contract-schemas/spec.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6c-failclosed-integrity/specs/kernel-contract-schemas/spec.md
+@@ -0,0 +1,80 @@
++# Delta for Kernel Contract Schemas
++
++## MODIFIED Requirements
++
++### Requirement: Challenge Plan And Challenge Result Schema Families {#REQ-kernel-contract-schemas-029}
++
++The contract suite MUST publish `challenge-plan/v1.schema.json` (`$id: "ospec://schemas/kernel/challenge-plan/v1"`, `schema_version: 1`, `kind: "challenge-plan/v1"`) and `challenge-result/v1.schema.json` (`$id: "ospec://schemas/kernel/challenge-result/v1"`, `schema_version: 1`, `kind: "challenge-result/v1"`).
++
++`challenge-plan/v1` MUST require: `schema_version`, `kind`, `plan_id` (`^sha256:[a-f0-9]{64}$`), `candidate_id` (`^sha256:[a-f0-9]{64}$`), non-empty `node_id`, `policy_snapshot_id` (`^sha256:[a-f0-9]{64}$`), `evidence_strategy` (`bug | feature | refactor | migration | config-docs | strict-tdd`), `selected` (unique ChallengeType strings), `skipped` (unique `{challenge_type, reason}` objects), `reasons`, and `budget` with `max_challenges`, `mutation_budget`, and positive `timeout_seconds`.
++
++`challenge-result/v1` MUST require, listing each name exactly once: `schema_version`, `kind`, `result_id` (`^sha256:[a-f0-9]{64}$`), `plan_id`, `candidate_id`, non-empty `node_id`, `policy_snapshot_id`, `evidence_strategy`, `challenge_type` from the closed catalog, `outcome` (`passed | failed | error`), `evidence_ids`, and `details`. The schema `required` array MUST NOT contain duplicate members (including a repeated `node_id`). Plan/result identities MUST be content-addressed and recomputable from their canonical required fields. Both schemas MUST enforce `additionalProperties: false`.
++
++Every published kernel schema, including `challenge-result/v1`, MUST validate as an instance of the JSON Schema Draft 2020-12 metaschema. Checking only that the schema document's `$schema` URI equals the Draft 2020-12 identifier is insufficient.
++
++Both families MUST be registered in `schemas/kernel/manifest.json` and `schemas/kernel/contract-claims.json`. Challenge schemas MUST NOT validate as `evidence/v2`, `verification/v2`, CandidateEvaluationAttestation, or DeliveryAuthorization. `evidence/v2`, `verification/v2`, and K1 v1 schema bytes and K1_SCHEMA_BASELINE pins MUST remain byte-identical. The family MUST ship valid fixtures and negative fixtures for missing bindings, malformed hashes, duplicate selected types, and cross-bound plan/result substitution.
++
++(Previously: challenge-result/v1 required listed node_id twice, and suite checks treated a Draft 2020-12 $schema URI as sufficient without metaschema instance validation.)
++
++#### Scenario: Valid challenge-plan v1 payload passes validation
++
++- GIVEN a complete plan with valid candidate_id, node_id, policy_snapshot_id, selected, skipped, and budget
++- WHEN validated against challenge-plan/v1.schema.json
++- THEN validation MUST succeed
++
++#### Scenario: Challenge-plan missing required fields or unknown challenge type fails closed
++
++- GIVEN a plan omitting budget or node_id, with duplicate selected types, or an unknown selected type
++- WHEN schema validation runs
++- THEN it MUST fail closed identifying the violating property
++
++#### Scenario: Valid challenge-result v1 payload passes validation
++
++- GIVEN a complete result with valid result_id, plan_id, Candidate, node, PolicySnapshot, strategy, and outcome `passed`
++- WHEN validated against challenge-result/v1.schema.json
++- THEN validation MUST succeed
++
++#### Scenario: Challenge-result with invalid outcome or binding fails closed
++
++- GIVEN a result with outcome `unresolved`, malformed hash, or absent policy_snapshot_id
++- WHEN schema validation runs
++- THEN it MUST fail closed identifying the invalid field
++
++#### Scenario: Cross-family substitution fails closed
++
++- GIVEN a challenge-result payload validated as verification/v2 or evidence/v2
++- WHEN schema validation runs
++- THEN validation MUST fail closed identifying kind or required-field mismatch
++
++#### Scenario: Cross-bound plan and result fixture is rejected
++
++- GIVEN a schema-valid result whose Candidate, node, policy, or strategy differs from its referenced plan
++- WHEN contract integrity fixtures validate the pair
++- THEN validation MUST fail closed
++
++#### Scenario: Manifest and contract-claims register challenge families
++
++- GIVEN schemas/kernel/manifest.json and contract-claims.json
++- WHEN challenge-plan and challenge-result entries are inspected
++- THEN each family MUST be registered with its canonical schema path and $id
++- AND schema_version MUST be 1
++
++#### Scenario: Challenge-result required array lists each field once
++
++- GIVEN schemas/kernel/challenge-result/v1.schema.json
++- WHEN its `required` array is inspected
++- THEN each required field name MUST appear exactly once
++- AND `node_id` MUST NOT be duplicated
++
++#### Scenario: Duplicate required member fails metaschema even with a Draft 2020-12 URI
++
++- GIVEN a published kernel schema, or a fixture schema, whose `$schema` is the Draft 2020-12 URI and whose `required` array repeats a field name
++- WHEN it is validated as an instance of the JSON Schema Draft 2020-12 metaschema
++- THEN validation MUST fail closed
++- AND success MUST NOT be inferred solely from that `$schema` URI
++
++#### Scenario: Published kernel schemas validate against Draft 2020-12 metaschema
++
++- GIVEN the published kernel schema suite
++- WHEN each schema is validated as an instance of the JSON Schema Draft 2020-12 metaschema
++- THEN validation MUST succeed
+diff --git a/openspec/changes/k6c-failclosed-integrity/state.yaml b/openspec/changes/k6c-failclosed-integrity/state.yaml
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6c-failclosed-integrity/state.yaml
+@@ -0,0 +1,201 @@
++schema: sdd-change-state/v1
++change: k6c-failclosed-integrity
++status: verified
++last_updated: "2026-08-31T07:25:00Z"
++blocking_questions: []
++owner:
++  author: Manuel Retamozo
++  branch: fix/k6c-failclosed-integrity
++approvals:
++  - id: intent-briefing-001
++    gate: intent-briefing
++    decision: accepted
++    source: vscode/askQuestions
++    accepted_at: "2026-08-31T00:07:00Z"
++    applies_to:
++      - change-classification
++    synthesis: >-
++      Cerrar K6c con remediación quirúrgica, sin rediseño ni arranque de K6d.
++      La estrategia elegida por verifyCandidate() y projector/replay debe
++      llegar a validateChallengeResultSet. Un ChallengePlan canónico de otra
++      estrategia debe fallar con CHALLENGE_INTEGRITY_INVALID. missing_tests,
++      mutations_tested === 0 o revert/mutación sin cambio real son fail-closed.
++      Estrategia desconocida se rechaza. Schema challenge-result corrige
++      node_id duplicado y se valida contra Draft 2020-12. K6c permanece
++      revise / NO-GO para K6d hasta esos tests negativos.
++    scope:
++      - evidenceStrategy binding from verifier and projector/replay into integrity gate
++      - adversarial test feature verifier + canonical bug ChallengePlan
++      - missing_tests, mutations_tested === 0, and no-op revert/mutation fail-closed
++      - reject unknown evidence strategy instead of strict-tdd fallback
++      - challenge-result schema required uniqueness and Draft 2020-12 metaschema check
++      - out of scope: K6d, K6c redesign, unrelated 4R follow-ups
++  - id: execution-mode-001
++    gate: execution-mode
++    decision: auto
++    source: vscode/askQuestions
++    accepted_at: "2026-08-31T00:10:00Z"
++    applies_to:
++      - sdd-session
++  - id: delivery-strategy-001
++    gate: delivery-strategy
++    decision: exception-ok
++    source: vscode/askQuestions
++    accepted_at: "2026-08-31T00:10:00Z"
++    applies_to:
++      - sdd-tasks
++      - sdd-apply
++  - id: assumption-reconciliation-001
++    gate: assumption-reconciliation
++    decision: confirm sdd-design-001,sdd-design-002,sdd-design-003,sdd-design-004
++    source: vscode/askQuestions
++    accepted_at: "2026-08-31T07:19:00Z"
++    applies_to:
++      - sdd-verify
++classification: normal
++route:
++  intended_route: standard
++  actual_route: standard
++  route_rationale: >-
++    Deterministic classification=normal; project.status=active matched the
++    first applicable declared route after foundation, federation, bugfix,
++    brownfield, refactor, and hotfix conditions did not match. Spec deltas are
++    required so K6c DONE aligns OpenSpec with the fail-closed guarantees.
++  validated: true
++  validation_errors: []
++baseline_fingerprints:
++  adversarial-challenges: d0304135fb98c6402ec301a1d209529ea571febffac52c4d34c16d0fe9c80361
++  independent-verification: 274c3d3e7c135cb7e4aee9a61e2ad1995ba3b326f827f6cc1aff375feca712b8
++  assurance-graph: 0aba79cad7e517afd4e6089bdbc2190edb46d514b8a84f7504d9886d22ad774b
++  kernel-contract-schemas: f4787efc0a7302d47ebd1c42d527e1476213210035d69acce994a47415a50ce6
++assumptions:
++  - id: sdd-propose-001
++    phase: sdd-propose
++    statement: "El planner rechaza cualquier evidenceStrategy fuera del enum cerrado, incluida omitida o vacía, no solo un string desconocido no vacío."
++    reversibility: high
++    basis: "REQ-adversarial-challenges-002 fija el enum cerrado; el briefing prohíbe reinterpretar a strict-tdd; createChallengePlan hoy mapea undefined a strict-tdd y eso es coerción silenciosa."
++    recorded_at: "2026-08-31T00:12:00Z"
++    status: resolved
++    resolved_by: sdd-design-001
++    resolved_at: "2026-08-31T00:26:00Z"
++  - id: sdd-spec-001
++    phase: sdd-spec
++    statement: "El planner rechaza estrategia omitida/vacía/desconocida sin emitir ChallengePlan; el mecanismo (TypeError vs reason_code) queda para design."
++    reversibility: high
++    basis: "createChallengePlan ya lanza TypeError en campos requeridos; el contrato observable es no emitir plan ni coerción a strict-tdd."
++    recorded_at: "2026-08-31T00:25:00Z"
++    status: resolved
++    resolved_by: sdd-design-001
++    resolved_at: "2026-08-31T00:26:00Z"
++  - id: sdd-spec-002
++    phase: sdd-spec
++    statement: "missing_tests, mutations_tested === 0 y revert/mutación no-op fallan cerrado sin outcome passed; failed vs error queda para design."
++    reversibility: high
++    basis: "Los success criteria del proposal prohiben passed; el catálogo existente ya distingue failed (COMPLACENT_TEST_DETECTED) y error (timeout)."
++    recorded_at: "2026-08-31T00:25:00Z"
++    status: resolved
++    resolved_by: sdd-design-002
++    resolved_at: "2026-08-31T00:26:00Z"
++  - id: sdd-design-001
++    phase: sdd-design
++    statement: "createChallengePlan lanza TypeError para evidenceStrategy omitida, vacía o desconocida; no emite plan ni envelope reason_code."
++    reversibility: high
++    basis: "Mismo constructor TypeError que candidateId/nodeId/policySnapshotId; el spec solo exige no emitir plan ni coerción a strict-tdd."
++    recorded_at: "2026-08-31T00:26:00Z"
++    status: confirmed
++    resolution:
++      action: confirm
++      note: "User continuation after interrupted confirmation gate; matches ADR-001 TypeError planner."
++      resolved_at: "2026-08-31T07:19:00Z"
++  - id: sdd-design-002
++    phase: sdd-design
++    statement: "missing_tests, mutations_tested===0 y no-op de bytes emiten outcome error con MISSING_TESTS, NO_MUTATION_APPLIED o CHALLENGE_NOOP; no COMPLACENT."
++    reversibility: high
++    basis: "outcome error ya existe en challenge-result/v1; COMPLACENT invertiría el significado; details es objeto abierto."
++    recorded_at: "2026-08-31T00:26:00Z"
++    status: confirmed
++    resolution:
++      action: confirm
++      note: "Matches ADR-002 outcome error MISSING_TESTS / NO_MUTATION_APPLIED / CHALLENGE_NOOP."
++      resolved_at: "2026-08-31T07:19:00Z"
++  - id: sdd-design-003
++    phase: sdd-design
++    statement: "validateChallengeResultSet exige bindings.evidenceStrategy no vacío e igual al plan; validateChallengePlan solo si hay bindings de evaluación."
++    reversibility: high
++    basis: "El hueco es el skip truthy; auto-comparar plan.evidence_strategy ocultaría el mismatch; identity-only usa bindings vacíos."
++    recorded_at: "2026-08-31T00:26:00Z"
++    status: confirmed
++    resolution:
++      action: confirm
++      note: "Matches ADR-003 required selected evidenceStrategy binding on evaluation."
++      resolved_at: "2026-08-31T07:19:00Z"
++  - id: sdd-design-004
++    phase: sdd-design
++    statement: "Metaschema Draft 2020-12 vía validateSchemaDocument (uniqueItems recursivo en required) sin Ajv; challenge-result es el único duplicado conocido."
++    reversibility: high
++    basis: "package.json no tiene Ajv; el intérprete ignora $dynamicRef/allOf del metaschema oficial; uniqueItems ya está implementado."
++    recorded_at: "2026-08-31T00:26:00Z"
++    status: confirmed
++    resolution:
++      action: confirm
++      note: "Matches ADR-004 local uniqueItems metaschema walk without Ajv."
++      resolved_at: "2026-08-31T07:19:00Z"
++phases:
++  proposal:
++    status: done
++    artifact: openspec/changes/k6c-failclosed-integrity/proposal.md
++    summary: "Cierra 4 defectos K6c: binding de strategy al gate, fail-closed missing_tests/no-op, planner rechaza enum desconocido, schema unique+metaschema."
++    key_decisions:
++      - "Ninguna capability nueva; deltas en adversarial-challenges, independent-verification, assurance-graph y kernel-contract-schemas."
++      - "Planner rechaza estrategia fuera del enum (incluida omitida/vacía); verifier REQ-002 sigue MAY strict-tdd si no hay estrategia declarada."
++      - "K6c permanece revise/NO-GO para K6d hasta tests negativos."
++  spec:
++    status: done
++    artifacts:
++      - openspec/changes/k6c-failclosed-integrity/specs/adversarial-challenges/spec.md
++      - openspec/changes/k6c-failclosed-integrity/specs/independent-verification/spec.md
++      - openspec/changes/k6c-failclosed-integrity/specs/assurance-graph/spec.md
++      - openspec/changes/k6c-failclosed-integrity/specs/kernel-contract-schemas/spec.md
++    summary: "Deltas: planner rechaza enum desconocido; runner fail-closed missing_tests/no-op; verifier/projector ligan strategy; required único + metaschema 2020-12."
++    key_decisions:
++      - "Planner rechaza evidenceStrategy omitida/vacía/fuera de enum; REQ-002 del verifier (fallback Strict TDD) no se modifica."
++      - "Integrity gate exige la strategy seleccionada; plan canónico de otra strategy falla cerrado."
++      - "challenge-result required sin duplicados; schemas publicados validan contra metaschema Draft 2020-12."
++  clarify:
++    status: skipped
++    summary: "Clarify omitido: residual_ambiguity false y arrays de ambigüedad vacíos."
++  design:
++    status: done
++    artifact: openspec/changes/k6c-failclosed-integrity/design.md
++    summary: "TypeError en planner; runner error MISSING_TESTS/NO_MUTATION_APPLIED/CHALLENGE_NOOP; binding strategy obligatorio; metaschema uniqueItems sin Ajv."
++    key_decisions:
++      - "TypeError único observable del planner (omitida/vacía/desconocida); selectStrategy REQ-002 intacto."
++      - "outcome error con razones dedicadas; COMPLACENT solo si hay cambio real de bytes."
++      - "evidenceStrategy obligatorio en evaluate/project/replay; metaschema local uniqueItems, no Ajv."
++  tasks:
++    status: done
++    artifact: openspec/changes/k6c-failclosed-integrity/tasks.md
++    summary: "RED/GREEN tasks for strategy binding, planner TypeError, runner fail-closed, unique required+metaschema; size-exception single PR."
++    key_decisions:
++      - "Decision needed before apply: No; chain strategy size-exception; ~600–800 lines."
++      - "Order: integrity require-binding → verifier/graph thread → planner TypeError → runner error reasons → schema uniqueItems."
++      - "strategy-policy.js unmodified; REQ-002 pin stays in verifier tests."
++  apply:
++    status: done
++    artifact: openspec/changes/k6c-failclosed-integrity/apply-progress.md
++    summary: "Threaded selected evidenceStrategy into integrity/eval/graph; planner TypeError; runner MISSING_TESTS/NO_MUTATION_APPLIED/CHALLENGE_NOOP; unique required + validateSchemaDocument."
++    key_decisions:
++      - "size:exception single batch; strategy-policy.js unmodified; K6d remains blocked."
++      - "validateChallengeResultSet always requires selected strategy; identity-only validateChallengePlan stays optional."
++      - "Metaschema uniqueItems walk found no uniqueness offenders besides challenge-result node_id."
++  verify:
++    status: done
++    artifact: openspec/changes/k6c-failclosed-integrity/verify-report.md
++    summary: "PASS WITH WARNINGS: 33/33 MUST proven; npm test EISDIR is pre-existing cli.test.js after-hook, not K6c."
++    key_decisions:
++      - "sdd-design-001..004 confirmed; ADR-001..004 followed; strategy-policy.js unmodified."
++      - "feature+bug plan → CHALLENGE_INTEGRITY_INVALID / GRAPH_DIVERGENCE; K6d stays blocked."
++      - "cli.test.js EISDIR WARNING only; not caused by this 18-file working tree."
++  archive:
++    status: pending
++    artifact: openspec/changes/k6c-failclosed-integrity/archive-report.md
+diff --git a/openspec/changes/k6c-failclosed-integrity/tasks.md b/openspec/changes/k6c-failclosed-integrity/tasks.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6c-failclosed-integrity/tasks.md
+@@ -0,0 +1,90 @@
++# Tasks: K6c Fail-Closed Integrity
++
++## Spec/Design Reconciliation
++
++| Requirement / Scenario | Priority | Design Allocation | Status | Notes |
++| --- | --- | --- | --- | --- |
++| REQ-010 success / failed COMPLACENT / missing strategy minimums / missing-duplicate-foreign set | MUST | Existing `challenge-evidence.js` + `index.js`; thread `selectStrategy()` only | covered-by-design | Do not self-compare `plan.evidence_strategy`. |
++| REQ-010 selected strategy mismatch (`feature` vs canonical `bug` plan) | MUST | `index.js` → `evaluateChallengeEvidence` → `assertEvidenceStrategyBinding`; `index.test.js` | covered-by-design | `CHALLENGE_INTEGRITY_INVALID`; no PASS. |
++| REQ-002 undeclared/unknown verifier strategy still Strict TDD | MUST | Do not modify `strategy-policy.js`; pin in `index.test.js` | covered-by-design | Planner MUST NOT perform this fallback. |
++| REQ-adversarial-challenges-002 proportional bug/refactor/migration; identical inputs; changed node/policy identity | MUST | Unchanged selection table + existing `planner.test.js` | covered-by-design | No catalog edits. |
++| REQ-adversarial-challenges-002 unknown/omitted/empty planner strategy | MUST | `createChallengePlan` TypeError; `planner.test.js` | covered-by-design | ADR-001: `requires` vs `rejects unknown` messages. |
++| REQ-004 focal pass, COMPLACENT, tautology, capability/timeout, foreign scope | MUST | Unchanged runner paths | covered-by-design | COMPLACENT only after real byte change. |
++| REQ-004 missing tests | MUST | `runIsolatedMutation` + `runner.test.js` workspace without `*.test.js` | covered-by-design | `outcome: "error"`, `MISSING_TESTS`. |
++| REQ-004 `mutations_tested===0` / no-op revert or mutation | MUST | Pre/post byte compare + empty `context.mutations`; `runner.test.js` | covered-by-design | `NO_MUTATION_APPLIED` / `CHALLENGE_NOOP`; never `passed`. |
++| REQ-009 reproducible project/replay; duplicate/foreign; mandatory plan absent | MUST | Existing projector/replay; add `evidenceStrategy` to K6c input/persistable | covered-by-design | Replay uses `persistable.evidenceStrategy`. |
++| REQ-009 wrong-strategy canonical plan | MUST | Gate with selected strategy; `GRAPH_DIVERGENCE`; no graph | covered-by-design | Same `feature`+`bug` pair as verifier. |
++| REQ-029 valid/invalid plan/result, cross-family, cross-bound pair, manifest/claims | MUST | `k6c-schema-fixtures.test.js`; unique claims list | covered-by-design | Pass `evidenceStrategy` on set checks so pair rejection is not omitted-binding. |
++| REQ-029 unique `required`; duplicate `required` fails metaschema; published schemas pass | MUST | Schema fix + `validateSchemaDocument` + K1 checker + validator/k6c tests | covered-by-design | Fixture schema must not live under `fixtures/invalid/`. ADR-004: no Ajv. |
++
++### Reconciliation Verdict
++- MUST coverage: complete
++- SHOULD/MAY gaps: none
++- Ambiguities to track: none
++
++## Review Workload Forecast
++
++| Field | Value |
++| --- | --- |
++| Estimated changed lines | 600–800 (binding thread, runner no-evidence, metaschema walk, negatives) |
++| 400-line budget risk | High |
++| Chained PRs recommended | Yes |
++| Suggested split | Single PR under size-exception (delivery strategy already approved) |
++| Delivery strategy | exception-ok |
++| Chain strategy | size-exception |
++
++Decision needed before apply: No
++Chained PRs recommended: Yes
++Chain strategy: size-exception
++400-line budget risk: High
++
++### Suggested Work Units
++
++| Unit | Goal | Likely PR | Notes |
++| --- | --- | --- | --- |
++| 1 | Integrity require-binding + verifier `selectStrategy()` thread + `feature`/`bug` adversarial + REQ-002 pin | Single PR | Tests/docs with code; `strategy-policy.js` untouched. |
++| 2 | Projector + replay same binding (`GRAPH_DIVERGENCE`) | Same PR | After unit 1 gate; persistable carries verifier `strategy`. |
++| 3 | Planner TypeError + runner `MISSING_TESTS` / `NO_MUTATION_APPLIED` / `CHALLENGE_NOOP` | Same PR | Independent of 1–2; ships together via size-exception. |
++| 4 | Unique `required` + `validateSchemaDocument` uniqueItems + claims/k6c pins | Same PR | Uniqueness-only; K1/K6b schema bytes frozen. |
++
++### Checklist Status Legend
++
++- `[ ]` Not implemented yet
++- `[~]` Implemented but not yet verified locally
++- `[x]` Implemented and verified locally
++
++## Phase 1: Integrity binding (RED → GREEN)
++
++- [x] 1.1 RED: in `scripts/lib/adversarial-challenges/integrity.test.js`, assert `validateChallengeResultSet` without `bindings.evidenceStrategy` is `CHALLENGE_INTEGRITY_INVALID`; identity-only `validateChallengePlan(plan)` still ok; mismatch vs `plan.evidence_strategy` fails; binding must not equal a self-copied plan field in the test setup [REQ-independent-verification-010]
++- [x] 1.2 GREEN: add `assertEvidenceStrategyBinding` in `scripts/lib/adversarial-challenges/integrity.js`; require non-empty equality on every result-set and on `validateChallengePlan` when any evaluation key is present; replace the truthy skip; update this file's success callers to pass a matching selected strategy [REQ-independent-verification-010]
++
++## Phase 2: Verifier selected strategy (RED → GREEN)
++
++- [x] 2.1 RED: in `scripts/lib/independent-verifier/index.test.js`, `declaredStrategy: "feature"` plus a canonical `bug` ChallengePlan with internally canonical passed results MUST yield `CHALLENGE_INTEGRITY_INVALID` and no PASS; matching `feature` plan still PASSes [REQ-independent-verification-010]
++- [x] 2.2 GREEN: `evaluateChallengeEvidence` in `scripts/lib/independent-verifier/challenge-evidence.js` forwards `opts.evidenceStrategy` into the gate; `verifyCandidate` in `scripts/lib/independent-verifier/index.js` passes `selectStrategy(...)` (never `plan.evidence_strategy`) into eval and `projectAssuranceGraph` [REQ-independent-verification-010]
++- [x] 2.3 Pin: keep `scripts/lib/independent-verifier/strategy-policy.js` unmodified; extend `index.test.js` so `selectStrategy(undefined)` and `selectStrategy("not-a-strategy")` still return `strict-tdd` [REQ-independent-verification-002]
++
++## Phase 3: Assurance graph binding (RED → GREEN)
++
++- [x] 3.1 RED: in `scripts/lib/assurance-graph/index.test.js`, project and replay with Candidate strategy `feature` and a canonical `bug` plan MUST be `GRAPH_DIVERGENCE` and emit no graph; replay bundle uses `verified.strategy`, not `plan.evidence_strategy` [REQ-assurance-graph-009]
++- [x] 3.2 GREEN: `scripts/lib/assurance-graph/projector.js` passes `input.evidenceStrategy`; `index.js` replay uses `persistable.evidenceStrategy` on the gate and when calling `projectAssuranceGraph`; map integrity failures to `GRAPH_DIVERGENCE` [REQ-assurance-graph-009]
++
++## Phase 4: Planner reject (RED → GREEN)
++
++- [x] 4.1 RED: in `scripts/lib/adversarial-challenges/planner.test.js`, omitted, empty/non-string, and `"not-a-strategy"` throw `TypeError` and emit no plan; `"not-a-strategy"` MUST NOT produce `evidence_strategy: "strict-tdd"`; valid `strict-tdd` still emits [REQ-adversarial-challenges-002]
++- [x] 4.2 GREEN: `createChallengePlan` in `scripts/lib/adversarial-challenges/planner.js` throws TypeError (`requires` vs `rejects unknown` per ADR-001); remove `strict-tdd` coercion; do not add a `{ok, reason_code}` envelope [REQ-adversarial-challenges-002]
++
++## Phase 5: Runner no-evidence fail-closed (RED → GREEN)
++
++- [x] 5.1 RED: in `scripts/lib/adversarial-challenges/runner.test.js`, (a) revert/focal workspace with no `*.test.js` → `outcome: "error"`, `details.reason: "MISSING_TESTS"`; (b) `focal-mutation` with empty `context.mutations` → `NO_MUTATION_APPLIED`; (c) revert/focal apply that leaves isolated bytes unchanged → `CHALLENGE_NOOP`; none emit `passed` or `COMPLACENT_TEST_DETECTED` [REQ-adversarial-challenges-004]
++- [x] 5.2 GREEN: in `scripts/lib/adversarial-challenges/runner.js` `runIsolatedMutation`, handle `failure_class === "missing_tests"` before the pass/fail branch; snapshot bytes before `revertSourcePatch`/`applyFocalMutation`; count `mutations_tested` only for byte-changing applies; emit `outcome: "error"` with the three reasons; keep COMPLACENT only after a real byte change [REQ-adversarial-challenges-004]
++
++## Phase 6: Unique required + metaschema (RED → GREEN)
++
++- [x] 6.1 RED: in `scripts/lib/kernel-schema-validator.test.js` and `scripts/lib/k6c-schema-fixtures.test.js`, assert `challenge-result` `required` lists each name once; inline fixture schema (not under `schemas/kernel/**/fixtures/invalid/`) with Draft 2020-12 `$schema` and duplicate `required` fails `validateSchemaDocument`; published kernel schemas pass; unique `contract-claims` `challenge-result.required_fields` [REQ-kernel-contract-schemas-029]
++- [x] 6.2 GREEN: unique `node_id` in `schemas/kernel/challenge-result/v1.schema.json` and `schemas/kernel/contract-claims.json`; add `validateSchemaDocument` (recursive `uniqueItems` on every `required`) in `scripts/lib/kernel-schema-validator.js`; invoke from `scripts/lib/contract-checkers/k1-schema-compat.js`; uniqueness-only if another family fails the walk; keep K1/K6b/`K1_SCHEMA_BASELINE` byte-identical; pass `evidenceStrategy` on the cross-bound `validateChallengeResultSet` call so it still proves pair rejection [REQ-kernel-contract-schemas-029]
++
++## Phase 7: Cleanup / regression
++
++- [x] 7.1 REFACTOR: no leftover truthy skip; no edits to catalog, selection tables, or `strategy-policy.js`; K6d remains blocked [REQ-independent-verification-002, REQ-independent-verification-010]
++- [x] 7.2 Run focal suites then `npm test`; confirm existing planner proportional/determinism tests and runner COMPLACENT/tautology/capability/timeout/scope tests still pass [REQ-adversarial-challenges-002, REQ-adversarial-challenges-004, REQ-assurance-graph-009, REQ-kernel-contract-schemas-029]
+diff --git a/openspec/changes/k6c-failclosed-integrity/verify-report.md b/openspec/changes/k6c-failclosed-integrity/verify-report.md
+new file mode 100644
+--- /dev/null
++++ b/openspec/changes/k6c-failclosed-integrity/verify-report.md
+@@ -0,0 +1,151 @@
++## Verification Report
++
++**Change**: k6c-failclosed-integrity
++**Version**: 2.56.1
++**Mode**: Standard (focused TDD)
++**Lineage route**: `run-discovery` (no `verify_lineage`; assumption reconciliation applied, then full discovery)
++
++### Completeness
++| Metric | Value |
++|--------|-------|
++| Tasks total | 15 |
++| Tasks complete | 15 |
++| Tasks incomplete | 0 |
++
++### Build & Tests Execution
++**Build**: ➖ No standalone build command configured; generation and contract checks included in `npm test`.
++
++**Tests**: ✅ 2881 passed / ❌ 1 failed / ⚠️ 3 skipped
++```text
++npm test
++Exit code: 1
++tests 2885; pass 2881; fail 1; skipped 3; duration_ms 45464
++
++Failing test (not in this change's working tree):
++  scripts/configure/cli.test.js:321
++  "RED: evidence authorization rejects a symlinked change root"
++  Error: Path is a directory: .../openspec/changes/evidence-link
++  code: ERR_FS_EISDIR
++  at t.after → fs.rmSync(link, { force: true }) without recursive
++```
++
++Causation check for the EISDIR failure:
++- It still fails on this run (after-hook only; stack is `cli.test.js:324`).
++- This change did **not** cause it. `git diff --stat HEAD` lists 18 files (K6c runtime, schemas, and their tests). `scripts/configure/cli.test.js` is unmodified versus HEAD/`main` (last touch `13a1dd3`).
++- Leftover untracked symlink remains: `openspec/changes/evidence-link` → `/tmp/evidence-outside-y3Khlb`.
++- Not treated as a K6c CRITICAL finding.
++
++K6c focal tests that must prove the fail-closed contract all passed inside the same `npm test` run, including:
++`selected strategy mismatch` → `CHALLENGE_INTEGRITY_INVALID`;
++`wrong-strategy canonical K6c plan` → `GRAPH_DIVERGENCE`;
++planner TypeError (`requires` / `rejects unknown`);
++`selectStrategy(undefined)` / `selectStrategy("not-a-strategy")` → `strict-tdd`;
++runner `MISSING_TESTS` / `NO_MUTATION_APPLIED` / `CHALLENGE_NOOP`;
++`challenge-result required is unique and published schemas pass metaschema uniqueItems`;
++K6d suppression without an accepted complete set.
++
++**Manual verification**: source and assertion-quality inspection performed; no production files were modified during verify.
++
++**Coverage**: ➖ Not available / threshold: 0%
++
++### Spec Compliance Matrix
++| Requirement | Scenario | Evidence Level | Source | Result | Notes |
++|-------------|----------|----------------|--------|--------|-------|
++| REQ-adversarial-challenges-002 | Proportional bugfix plan | `runtime-test` | `planner.test.js` | PASS | `revert` + `regression-acceptance` selected; omitted types carry reasons. |
++| REQ-adversarial-challenges-002 | Proportional refactor plan | `runtime-test` | `planner.test.js` | PASS | `behavior-equivalence` + `focal-mutation`; `revert` omitted with reason. |
++| REQ-adversarial-challenges-002 | Proportional migration plan | `runtime-test` | `planner.test.js` | PASS | `rollback` + `compatibility-acceptance`; non-migration types omitted. |
++| REQ-adversarial-challenges-002 | Identical inputs are deterministic | `runtime-test` | `planner.test.js` | PASS | Byte-identical plan and `plan_id`. |
++| REQ-adversarial-challenges-002 | Changed binding cannot reuse identity | `runtime-test` | `planner.test.js` | PASS | Rebound node/policy yield distinct `plan_id`. |
++| REQ-adversarial-challenges-002 | Unknown or omitted planner strategy is rejected | `runtime-test` | `planner.test.js` | PASS | Omitted/empty/non-string → TypeError `requires evidenceStrategy`; `"not-a-strategy"` → TypeError `rejects unknown`; no plan emitted; valid `strict-tdd` still emits. |
++| REQ-adversarial-challenges-004 | Seeded focal defect makes challenge pass | `runtime-test` | `runner.test.js` | PASS | Detecting suite fails on mutated bytes; outcome `passed`. |
++| REQ-adversarial-challenges-004 | Complacent suite fails challenge | `runtime-test` | `runner.test.js` | PASS | Focal and revert paths emit `failed` + `COMPLACENT_TEST_DETECTED` after a real byte change. |
++| REQ-adversarial-challenges-004 | Tautological assertion is rejected | `runtime-test` | `runner.test.js` | PASS | `TAUTOLOGICAL_TEST_DETECTED`. |
++| REQ-adversarial-challenges-004 | Missing capability or timeout fails closed | `runtime-test` | `runner.test.js` | PASS | Capability rejection and sticky timeout emit error, never `passed`. |
++| REQ-adversarial-challenges-004 | Foreign scope or Candidate mutation rejected | `runtime-test` | `diff-scope.test.js`, `runner.test.js` | PASS | Widened scope and post-run identity/byte mutation fail closed. |
++| REQ-adversarial-challenges-004 | Missing tests fail closed without a passed outcome | `runtime-test` | `runner.test.js` | PASS | Focal and revert workspaces without `*.test.js` → `outcome: "error"`, `MISSING_TESTS`; not `passed` or COMPLACENT. |
++| REQ-adversarial-challenges-004 | Zero mutations or no-op revert/mutation fail closed | `runtime-test` | `runner.test.js` | PASS | Empty `context.mutations` → `NO_MUTATION_APPLIED`; identity replacement / unmatched patch → `CHALLENGE_NOOP`. |
++| REQ-independent-verification-010 | Complete challenge set permits complementary PASS | `runtime-test` | `independent-verifier/index.test.js` | PASS | Matching `feature` plan + passed results → PASS. |
++| REQ-independent-verification-010 | Failed challenge result fails closed | `runtime-test` | `independent-verifier/index.test.js` | PASS | `CHALLENGE_VERIFICATION_FAILED`; no approving verdict. |
++| REQ-independent-verification-010 | Challenges alone cannot grant PASS | `runtime-test` | `independent-verifier/index.test.js` | PASS | Missing strategy minimums still block. |
++| REQ-independent-verification-010 | Missing, duplicate, or foreign set and K6d gate | `runtime-test` | `independent-verifier/index.test.js` | PASS | Exact set + `requireChallengeVerification` → `accepted`; missing/duplicate/foreign → `CHALLENGE_INTEGRITY_INVALID` and `k6dEligible === false`. |
++| REQ-independent-verification-010 | Selected strategy mismatch fails even when the plan is internally canonical | `runtime-test` | `independent-verifier/index.test.js` | PASS | `declaredStrategy: "feature"` + canonical `bug` plan/results → `CHALLENGE_INTEGRITY_INVALID`; no PASS; matching `feature` plan still PASSes. Binding is `selectStrategy(...)`, not `plan.evidence_strategy`. |
++| REQ-independent-verification-002 | Undeclared/unknown verifier strategy still Strict TDD | `runtime-test` | `independent-verifier/index.test.js` | PASS | `selectStrategy(undefined)` and `selectStrategy("not-a-strategy")` return `strict-tdd`; `strategy-policy.js` unmodified. |
++| REQ-assurance-graph-009 | Canonical projection and replay are byte-identical | `runtime-test` | `assurance-graph/index.test.js` | PASS | Verifier-emitted K6c material replays to identical `graph_id` and K6c nodes. |
++| REQ-assurance-graph-009 | Duplicate or foreign record diverges | `runtime-test` | `assurance-graph/index.test.js`, `integrity.test.js` | PASS | Duplicate results and omitted plan fail closed. |
++| REQ-assurance-graph-009 | Mandatory plan absence blocks projection | `runtime-test` | `assurance-graph/index.test.js` | PASS | `challengePlan: null` → `GRAPH_DIVERGENCE`; no graph. |
++| REQ-assurance-graph-009 | Wrong-strategy canonical K6c plan fails projection and replay | `runtime-test` | `assurance-graph/index.test.js` | PASS | Candidate strategy `feature` + canonical `bug` plan → `GRAPH_DIVERGENCE`, no graph; replay uses `persistable.evidenceStrategy === verified.strategy`, not `plan.evidence_strategy`. |
++| REQ-kernel-contract-schemas-029 | Valid challenge-plan passes | `static-proof` | `k6c-schema-fixtures.test.js` | PASS | Valid fixture accepted. |
++| REQ-kernel-contract-schemas-029 | Invalid/missing challenge-plan fields fail | `static-proof` | `k6c-schema-fixtures.test.js` | PASS | Missing budget/node, duplicate selection, unknown type, malformed hash rejected. |
++| REQ-kernel-contract-schemas-029 | Valid challenge-result passes | `static-proof` | `k6c-schema-fixtures.test.js` | PASS | Canonical fixtures accepted. |
++| REQ-kernel-contract-schemas-029 | Invalid outcome or binding fails | `static-proof` | `k6c-schema-fixtures.test.js` | PASS | Invalid outcome, missing policy, malformed hash rejected. |
++| REQ-kernel-contract-schemas-029 | Cross-family substitution fails | `static-proof` | `k6c-schema-fixtures.test.js` | PASS | Evidence/verification/plan/result reject substitution. |
++| REQ-kernel-contract-schemas-029 | Cross-bound plan/result fixture rejected | `static-proof` | `k6c-schema-fixtures.test.js` | PASS | Pair/set integrity fails with `{ evidenceStrategy: "bug" }` so rejection is not omitted-binding. |
++| REQ-kernel-contract-schemas-029 | Manifest and claims register families | `static-proof` | `k6c-schema-fixtures.test.js` | PASS | Canonical paths, `$id`, `schema_version: 1`, required fields, enums. |
++| REQ-kernel-contract-schemas-029 | Challenge-result required array lists each field once | `static-proof` | `k6c-schema-fixtures.test.js` | PASS | Schema and `contract-claims` `required_fields` each list `node_id` once. |
++| REQ-kernel-contract-schemas-029 | Duplicate required member fails metaschema even with a Draft 2020-12 URI | `static-proof` | `kernel-schema-validator.test.js` | PASS | Inline fixture (`$schema` Draft 2020-12 URI, duplicate `required`) fails `validateSchemaDocument` with `uniqueItems`; URI alone is not treated as success. |
++| REQ-kernel-contract-schemas-029 | Published kernel schemas validate against Draft 2020-12 metaschema | `static-proof` | `k6c-schema-fixtures.test.js`, `k1-schema-compat.js` | PASS | Every published family passes `validateSchemaDocument` (ADR-004 local uniqueItems walk; no Ajv). |
++
++**Compliance summary**: 33/33 MUST scenarios satisfied at acceptable evidence levels (32 delta scenarios + REQ-002 pin).
++
++### Correctness (Static Evidence)
++| Requirement | Status | Notes |
++|------------|--------|-------|
++| REQ-adversarial-challenges-002 | ✅ Implemented | `createChallengePlan` TypeError for omitted/empty/unknown; no `strict-tdd` coercion; closed-enum paths unchanged. |
++| REQ-adversarial-challenges-004 | ✅ Implemented | `missing_tests` handled before pass/fail; byte snapshot before revert/mutation; `mutations_tested` only for byte-changing applies; COMPLACENT only after a real byte change. |
++| REQ-independent-verification-010 | ✅ Implemented | `verifyCandidate` threads `selectStrategy(...)` into `evaluateChallengeEvidence` and `projectAssuranceGraph`; omitted binding is `CHALLENGE_INTEGRITY_INVALID`. |
++| REQ-independent-verification-002 | ✅ Preserved | `strategy-policy.js` not in the working-tree diff; fallback still `strict-tdd`. |
++| REQ-assurance-graph-009 | ✅ Implemented | Projector passes `input.evidenceStrategy`; replay uses `persistable.evidenceStrategy` and maps integrity failure to `GRAPH_DIVERGENCE`. |
++| REQ-kernel-contract-schemas-029 | ✅ Implemented | Unique `node_id` in schema and claims; `validateSchemaDocument` recursive uniqueItems; K1 checker invokes it; K1/K6b pins intact. |
++| K6d eligibility | ✅ Blocked without accepted set | `challenge_verification.status === "accepted"` only on required exact-set path; mismatch/missing/duplicate/foreign are ineligible. No K6d implementation started. |
++
++### Coherence (Design)
++| Decision | Followed? | Notes |
++|----------|-----------|-------|
++| ADR-001 TypeError planner reject | ✅ Yes | Single TypeError observable; `requires` vs `rejects unknown`; no `{ok, reason_code}` envelope. |
++| ADR-002 outcome error + dedicated reasons | ✅ Yes | `MISSING_TESTS` / `NO_MUTATION_APPLIED` / `CHALLENGE_NOOP`; COMPLACENT reserved for real byte change. |
++| ADR-003 required selected evidenceStrategy binding | ✅ Yes | `assertEvidenceStrategyBinding` on every result-set; `validateChallengePlan` only when evaluation keys present; callers pass selected strategy, never self-copy `plan.evidence_strategy`. |
++| ADR-004 local uniqueItems metaschema walk, no Ajv | ✅ Yes | `validateSchemaDocument` walks every `required`; K1 checker invokes it. |
++| Do not modify `strategy-policy.js` | ✅ Yes | File absent from this change's diff. |
++| K6d remains blocked | ✅ Yes | No K6d code; eligibility helper stays false without accepted complete set. |
++
++### Issues Found
++**CRITICAL**: None.
++
++**WARNING**: Pre-existing `scripts/configure/cli.test.js` after-hook throws `ERR_FS_EISDIR` when removing `openspec/changes/evidence-link` (`fs.rmSync` without `recursive`). `npm test` therefore exits 1. This change did not modify that file. origin: `code-bug` (pre-existing harness; not a K6c defect).
++
++**SUGGESTION**: After the failing after-hook, an untracked leftover symlink `openspec/changes/evidence-link` remains. Clean it before commit; do not add it to the change. Implementation is still uncommitted working tree (no `Ospec-Change` / `Ospec-Task` trailers yet).
++
++### Traceability Matrix
++| REQ | Tasks | Commits | Tests | Status |
++|-----|-------|---------|-------|--------|
++| REQ-adversarial-challenges-002 | 4.1–4.2, 7.2 | uncommitted working tree | `planner.test.js` | OK |
++| REQ-adversarial-challenges-004 | 5.1–5.2, 7.2 | uncommitted working tree | `runner.test.js` | OK |
++| REQ-independent-verification-010 | 1.1–1.2, 2.1–2.2, 7.1 | uncommitted working tree | `integrity.test.js`, `independent-verifier/index.test.js` | OK |
++| REQ-independent-verification-002 | 2.3, 7.1 | uncommitted working tree | `independent-verifier/index.test.js` (`selectStrategy` pin) | OK |
++| REQ-assurance-graph-009 | 3.1–3.2, 7.2 | uncommitted working tree | `assurance-graph/index.test.js` | OK |
++| REQ-kernel-contract-schemas-029 | 6.1–6.2, 7.2 | uncommitted working tree | `k6c-schema-fixtures.test.js`, `kernel-schema-validator.test.js` | OK |
++
++### Assumption Reconciliation
++| id | statement | reversibility | outcome |
++|----|-----------|----------------|---------|
++| sdd-propose-001 | Planner rejects any evidenceStrategy outside the closed enum, including omitted/empty. | high | resolved (by sdd-design-001) |
++| sdd-spec-001 | Planner rejects omitted/empty/unknown without emitting a ChallengePlan. | high | resolved (by sdd-design-001) |
++| sdd-spec-002 | missing_tests / mutations_tested===0 / no-op fail closed without outcome passed. | high | resolved (by sdd-design-002) |
++| sdd-design-001 | createChallengePlan throws TypeError for omitted, empty, or unknown evidenceStrategy. | high | confirmed |
++| sdd-design-002 | missing_tests / mutations_tested===0 / no-op emit outcome error with dedicated reasons. | high | confirmed |
++| sdd-design-003 | validateChallengeResultSet requires non-empty selected evidenceStrategy equal to the plan. | high | confirmed |
++| sdd-design-004 | Metaschema Draft 2020-12 via validateSchemaDocument uniqueItems walk without Ajv. | high | confirmed |
++
++### K6d Gate
++Required K6c path emits `challenge_verification.status === "accepted"` only for the complete exact set. Mismatch (`feature` vs canonical `bug`), missing, duplicate, and foreign sets are not eligible. This report grants no lifecycle or delivery authority. K6d remains blocked.
++
++### Discoveries
++- `scripts/lib/independent-verifier/index.js` computes `const strategy = selectStrategy(input.declaredStrategy)` and passes that value into `evaluateChallenges` and `projectAssuranceGraph({ evidenceStrategy: strategy })`. Projector uses `input.evidenceStrategy`; replay uses `persistable.evidenceStrategy`. That is the required binding, not `plan.evidence_strategy`.
++- `strategy-policy.js` has a zero-byte diff versus HEAD.
++- `validateSchemaDocument` is uniqueness-only (ADR-004). Official remote metaschema `$dynamicRef`/`allOf` are not interpreted. User confirmed this assumption; not recorded as a spec gap.
++- After `npm test`, leftover `openspec/changes/evidence-link` exists because the after-hook never completed.
++
++### Verdict
++PASS WITH WARNINGS
++
++All 33 MUST rows have runtime-test or accepted static-proof. The suite exit code 1 is a pre-existing `cli.test.js` after-hook EISDIR, not caused by this change and not a K6c CRITICAL.

@@ -355,6 +355,7 @@ test("REQ-independent-verification-002: missing strategy falls back to Strict TD
   const before = fs.readFileSync(CONFIG_PATH, "utf8");
   assert.match(before, /tdd_mode:\s*focused/);
   assert.equal(selectStrategy(undefined), "strict-tdd");
+  assert.equal(selectStrategy("not-a-strategy"), "strict-tdd");
 
   const harness = buildHarness();
   const result = verifyCandidate({
@@ -1642,5 +1643,59 @@ test("REQ-independent-verification-010: verifyCandidateWithChallenges accepts ex
   assert.equal(foreignGate.ok, false);
   assert.equal(foreignGate.reason_code, "CHALLENGE_INTEGRITY_INVALID");
   assert.equal(k6dEligible(foreignGate), false);
+});
+
+test("REQ-independent-verification-010: selected strategy mismatch fails even when the plan is internally canonical", () => {
+  const { createChallengePlan } = require("../adversarial-challenges/planner.js");
+  const { emitChallengeResult } = require("../adversarial-challenges/runner.js");
+  const harness = buildHarness();
+
+  function boundResults(plan) {
+    return plan.selected.map((type) =>
+      emitChallengeResult({
+        planId: plan.plan_id,
+        candidateId: harness.candidate.candidate_id,
+        policySnapshotId: harness.executionGraph.policy_snapshot_id,
+        evidenceStrategy: plan.evidence_strategy,
+        challengeType: type,
+        outcome: "passed",
+        nodeId: "repair-core",
+      })
+    );
+  }
+
+  const bugPlan = createChallengePlan({
+    candidateId: harness.candidate.candidate_id,
+    nodeId: "repair-core",
+    policySnapshotId: harness.executionGraph.policy_snapshot_id,
+    evidenceStrategy: "bug",
+  });
+  const mismatched = verifyCandidate({
+    ...harness,
+    declaredStrategy: "feature",
+    rawEvidence: featureEvidence(),
+    challengePlan: bugPlan,
+    challengeResults: boundResults(bugPlan),
+  });
+  assert.equal(mismatched.ok, false);
+  assert.equal(mismatched.reason_code, "CHALLENGE_INTEGRITY_INVALID");
+  assert.equal(Object.prototype.hasOwnProperty.call(mismatched, "verification"), false);
+  assert.notEqual(mismatched.verification && mismatched.verification.verdict, "PASS");
+
+  const featurePlan = createChallengePlan({
+    candidateId: harness.candidate.candidate_id,
+    nodeId: "repair-core",
+    policySnapshotId: harness.executionGraph.policy_snapshot_id,
+    evidenceStrategy: "feature",
+  });
+  const matched = verifyCandidate({
+    ...harness,
+    declaredStrategy: "feature",
+    rawEvidence: featureEvidence(),
+    challengePlan: featurePlan,
+    challengeResults: boundResults(featurePlan),
+  });
+  assert.equal(matched.ok, true, matched.error || matched.reason_code);
+  assert.equal(matched.verification.verdict, "PASS");
 });
 
