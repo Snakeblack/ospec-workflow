@@ -152,12 +152,14 @@ async function executeSandboxedCommand(options = {}) {
       child.stderr?.on("data", (d) => (stderr += d.toString("utf8")));
 
       child.on("error", (err) => {
+        const msg = err && err.message ? err.message : String(err);
         finish({
           ok: false,
+          failure_class: "spawn_error",
           exit_code: 1,
           stdout,
-          stderr: stderr ? `${stderr}\n${err.message}` : err.message,
-          error: err.message,
+          stderr: stderr ? `${stderr}\n${msg}` : msg,
+          error: msg,
         });
       });
 
@@ -171,12 +173,14 @@ async function executeSandboxedCommand(options = {}) {
         });
       });
     } catch (err) {
+      const msg = err && err.message ? err.message : String(err);
       finish({
         ok: false,
+        failure_class: "spawn_error",
         exit_code: 1,
         stdout: "",
-        stderr: err.message,
-        error: err.message,
+        stderr: msg,
+        error: msg,
       });
     }
   });

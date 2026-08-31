@@ -7,7 +7,7 @@ const { freezeCandidate, computeSourceSnapshotId, computeWorkOrderId } = require
 const { compileExecutionGraph, createPolicySnapshot } = require("../execution-graph/index.js");
 const { computeTreeDigest } = require("../worker-workspace.js");
 const { createChallengePlan } = require("./planner.js");
-const { executeChallengePlan, emitChallengeResult } = require("./runner.js");
+const { executeChallengePlan, emitChallengeResult, runIsolatedMutation, runWorkspaceTests } = require("./runner.js");
 
 const DIFF = "diff --git a/src/index.js b/src/index.js\n--- a/src/index.js\n+++ b/src/index.js\n@@ -1 +1 @@\n-return a - b;\n+return a + b;\n";
 const FILES = { "src/index.js": "function add(a, b) {\n  return a + b;\n}" };
@@ -301,4 +301,178 @@ test("REQ-adversarial-challenges-004: Candidate identity mutation after a run fa
   assert.equal(result.ok, false);
   assert.equal(result.causalFailure.code, "CHALLENGE_INTEGRITY_INVALID");
   assert.equal(h.repository.files["src/index.js"], FILES["src/index.js"]);
+});
+
+test("REQ-adversarial-challenges-003: focal-mutation with exhausted mutation_budget halts immediately with causal failure", async () => {
+  const h = workspaceHarness("feature", {
+    "src/add.js": ADD_SOURCE,
+    "src/add.test.js": DETECTING_TEST,
+  }, ADD_DIFF);
+  h.plan = createChallengePlan({
+    candidateId: h.candidate.candidate_id,
+    nodeId: "repair-focal",
+    policySnapshotId: h.policySnapshot.snapshot_id,
+    evidenceStrategy: "feature",
+    budgetOverrides: { timeout_seconds: 30, mutation_budget: 0 },
+  });
+
+  const result = await executeChallengePlan(h.plan, h);
+  assert.equal(result.ok, false);
+  assert.ok(result.causalFailure);
+  assert.equal(result.causalFailure.code, "CHALLENGE_BUDGET_EXHAUSTED");
+  assert.equal(result.causalFailure.category, "validation_gap");
+  assert.equal(result.causalFailure.details.exhausted_dimension, "mutation_budget");
+  assert.equal(result.causalFailure.details.plan_id, h.plan.plan_id);
+  assert.equal(result.causalFailure.details.candidate_id, h.candidate.candidate_id);
+});
+
+test("REQ-adversarial-challenges-003: focal-mutation with multiple mutations consumes budget monotonically and halts upon exhaustion", async () => {
+  const h = workspaceHarness("feature", {
+    "src/add.js": ADD_SOURCE,
+    "src/add.test.js": DETECTING_TEST,
+  }, ADD_DIFF);
+  h.mutations = [
+    { line: 2, col: 2, original: "return a + b;", replacement: "return a - b;" },
+    { line: 2, col: 2, original: "return a + b;", replacement: "return a * b;" },
+  ];
+  h.plan = createChallengePlan({
+    candidateId: h.candidate.candidate_id,
+    nodeId: "repair-focal",
+    policySnapshotId: h.policySnapshot.snapshot_id,
+    evidenceStrategy: "feature",
+    budgetOverrides: { timeout_seconds: 30, mutation_budget: 1 },
+  });
+
+  const result = await executeChallengePlan(h.plan, h);
+  assert.equal(result.ok, false);
+  assert.ok(result.causalFailure);
+  assert.equal(result.causalFailure.code, "CHALLENGE_BUDGET_EXHAUSTED");
+  assert.equal(result.causalFailure.details.exhausted_dimension, "mutation_budget");
+});
+
+test("REQ-adversarial-challenges-004: focal-mutation with command timeout emits CHALLENGE_TIMEOUT and never increments defects", async () => {
+  const TIMEOUT_TEST = "const test = require('node:test');\ntest('hangs', async () => {\n  await new Promise((r) => setTimeout(r, 20000));\n});\n";
+  const h = workspaceHarness("feature", {
+    "src/add.js": ADD_SOURCE,
+    "src/add.test.js": TIMEOUT_TEST,
+  }, ADD_DIFF);
+  h.plan = createChallengePlan({
+    candidateId: h.candidate.candidate_id,
+    nodeId: "repair-focal",
+    policySnapshotId: h.policySnapshot.snapshot_id,
+    evidenceStrategy: "feature",
+    budgetOverrides: { timeout_seconds: 0.1 },
+  });
+
+  const result = await executeChallengePlan(h.plan, h);
+  const focal = (result.results || []).find((item) => item.challenge_type === "focal-mutation");
+  assert.ok(focal);
+  assert.equal(focal.outcome, "error");
+  assert.equal(focal.details.reason, "CHALLENGE_TIMEOUT");
+  assert.equal(focal.details.defects_detected || 0, 0);
+  assert.notEqual(focal.outcome, "passed");
+});
+
+test("REQ-adversarial-challenges-004: revert with command timeout emits CHALLENGE_TIMEOUT and fails closed", async () => {
+  const TIMEOUT_TEST = "const test = require('node:test');\ntest('hangs', async () => {\n  await new Promise((r) => setTimeout(r, 20000));\n});\n";
+  const h = workspaceHarness("bug", {
+    "src/add.js": ADD_SOURCE,
+    "src/add.test.js": TIMEOUT_TEST,
+  }, ADD_DIFF);
+  h.plan = createChallengePlan({
+    candidateId: h.candidate.candidate_id,
+    nodeId: "repair-focal",
+    policySnapshotId: h.policySnapshot.snapshot_id,
+    evidenceStrategy: "bug",
+    budgetOverrides: { timeout_seconds: 0.1 },
+  });
+
+  const result = await executeChallengePlan(h.plan, h);
+  const revert = (result.results || []).find((item) => item.challenge_type === "revert");
+  assert.ok(revert);
+  assert.equal(revert.outcome, "error");
+  assert.equal(revert.details.reason, "CHALLENGE_TIMEOUT");
+  assert.notEqual(revert.outcome, "passed");
+});
+
+test("REQ-adversarial-challenges-004: spawn_error during focal-mutation emits CHALLENGE_EXECUTION_ERROR and never increments defects", async () => {
+  const h = workspaceHarness("feature", {
+    "src/add.js": ADD_SOURCE,
+    "src/add.test.js": DETECTING_TEST,
+  }, ADD_DIFF);
+  h.runWorkspaceTests = async () => ({
+    pass: false,
+    exitCode: 1,
+    failure_class: "spawn_error",
+    error: "spawn ENOENT",
+  });
+
+  const result = await executeChallengePlan(h.plan, h);
+  const focal = (result.results || []).find((item) => item.challenge_type === "focal-mutation");
+  assert.ok(focal);
+  assert.equal(focal.outcome, "error");
+  assert.equal(focal.details.reason, "CHALLENGE_EXECUTION_ERROR");
+  assert.equal(focal.details.defects_detected || 0, 0);
+  assert.notEqual(focal.outcome, "passed");
+});
+
+test("REQ-adversarial-challenges-004: test-level timeout during focal-mutation emits CHALLENGE_TIMEOUT and never increments defects", async () => {
+  const h = workspaceHarness("feature", {
+    "src/add.js": ADD_SOURCE,
+    "src/add.test.js": DETECTING_TEST,
+  }, ADD_DIFF);
+  h.runWorkspaceTests = async () => ({
+    pass: false,
+    exitCode: 1,
+    failure_class: "timeout",
+    error: "ETIMEDOUT",
+  });
+
+  const result = await executeChallengePlan(h.plan, h);
+  const focal = (result.results || []).find((item) => item.challenge_type === "focal-mutation");
+  assert.ok(focal);
+  assert.equal(focal.outcome, "error");
+  assert.equal(focal.details.reason, "CHALLENGE_TIMEOUT");
+  assert.equal(focal.details.defects_detected || 0, 0);
+  assert.notEqual(focal.outcome, "passed");
+});
+
+test("REQ-adversarial-challenges-004: spawn_error during revert emits CHALLENGE_EXECUTION_ERROR and fails closed", async () => {
+  const h = workspaceHarness("bug", {
+    "src/add.js": ADD_SOURCE,
+    "src/add.test.js": DETECTING_TEST,
+  }, ADD_DIFF);
+  h.runWorkspaceTests = async () => ({
+    pass: false,
+    exitCode: 1,
+    failure_class: "spawn_error",
+    error: "spawn ENOENT",
+  });
+
+  const result = await executeChallengePlan(h.plan, h);
+  const revert = (result.results || []).find((item) => item.challenge_type === "revert");
+  assert.ok(revert);
+  assert.equal(revert.outcome, "error");
+  assert.equal(revert.details.reason, "CHALLENGE_EXECUTION_ERROR");
+  assert.notEqual(revert.outcome, "passed");
+});
+
+test("REQ-adversarial-challenges-004: test-level timeout during revert emits CHALLENGE_TIMEOUT and fails closed", async () => {
+  const h = workspaceHarness("bug", {
+    "src/add.js": ADD_SOURCE,
+    "src/add.test.js": DETECTING_TEST,
+  }, ADD_DIFF);
+  h.runWorkspaceTests = async () => ({
+    pass: false,
+    exitCode: 1,
+    failure_class: "timeout",
+    error: "ETIMEDOUT",
+  });
+
+  const result = await executeChallengePlan(h.plan, h);
+  const revert = (result.results || []).find((item) => item.challenge_type === "revert");
+  assert.ok(revert);
+  assert.equal(revert.outcome, "error");
+  assert.equal(revert.details.reason, "CHALLENGE_TIMEOUT");
+  assert.notEqual(revert.outcome, "passed");
 });

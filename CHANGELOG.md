@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.56.4] - 2026-08-31
+
+### Fixed
+- **Integridad fail-closed y control de presupuesto en K6c (`k6c-budget-execution-failclosed`)**:
+  - **Enforcement monotónico de `mutation_budget`**: Propagación estricta de `ChallengeBudgetTracker` y consumo unitario (`consumeMutations(1)`) antes de cada mutación evaluada en `focal-mutation` (`scripts/lib/adversarial-challenges/runner.js`), deteniendo la ejecución inmediatamente con `causal-failure/v1` tipado `CHALLENGE_BUDGET_EXHAUSTED` (dimensión `mutation_budget`, categoría `validation_gap`) ante agotamiento de cuota (`REQ-adversarial-challenges-003`).
+  - **Clasificación estricta de errores de infraestructura vs test failures**: Asignación explícita de `failure_class: "spawn_error"` en `child.on("error")` y bloque `catch` de `scripts/lib/worker-sandbox.js`. En `runner.js`, cualquier error de spawn, timeout (`failure_class: "timeout"`), rechazo de sandbox (`sandbox_rejection`) o cancelación (`cancel`) emite `outcome: "error"` (`CHALLENGE_EXECUTION_ERROR` o `CHALLENGE_TIMEOUT`) sin incrementar bajo ninguna circunstancia `defects_detected` ni producir falsos aprobados (`REQ-adversarial-challenges-004`).
+  - **Tests adversariales y de regresión**: Batería exhaustiva de tests negativos para `mutation_budget: 1` ($\ge 2$ mutaciones), `mutation_budget: 0`, errores de spawn en procesos hijos y timeouts en `scripts/lib/adversarial-challenges/runner.test.js` y `scripts/lib/worker-sandbox.test.js`.
+  - **Especificación y ADRs**: Actualizada la especificación normativa `adversarial-challenges` (`REQ-003`, `REQ-004`) y promovidos los ADRs `docs/adr/adr-20260831-005` y `docs/adr/adr-20260831-006`.
+  - Verify PASS 12/12 MUST, 43/43 tests focalizados, 11/11 tareas completadas, 4R review aprobado (0 hallazgos bloqueantes); archivado transaccional en `openspec/changes/archive/2026-08-31-k6c-budget-execution-failclosed/`.
+
+### Changed
+- K6c queda cerrado en su totalidad con enforcement real de presupuesto y discriminación estricta de errores de tooling; K6d permanece `next-eligible`.
+
 ## [2.56.3] - 2026-08-31
 
 ### Fixed
