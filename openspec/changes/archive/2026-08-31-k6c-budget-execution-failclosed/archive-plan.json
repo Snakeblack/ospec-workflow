@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "change": "k6c-budget-execution-failclosed",
+  "source_fingerprint": "sha256:8825c238d45d8cad01e2eeda55120574c503e69c6f2abfdbac99d19768bb75e2",
+  "spec_writes": [
+    {
+      "domain": "adversarial-challenges",
+      "source_delta": "prepared-specs/adversarial-challenges/spec.md",
+      "target": "openspec/specs/adversarial-challenges/spec.md",
+      "target_before_sha256": "sha256:0fae07ff8e3a1c859999dfdcf72fcb87171fc2b380bf6545eb9b2bc27317a034",
+      "content_sha256": "sha256:d42c6adddfef7ed7e6cac9e6451aad90c60d299ff9c51b049e076f4947bc3b1e"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260831-005-monotonic-inline-mutation-budget-consumption.md",
+      "content_sha256": "sha256:54dbe866658eb9021a234bf897b9c9f5c4b9c70788b1c94288f3fe215ad16fcf"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260831-006-fail-closed-sandbox-infrastructure-error-classification-and-runner-gating.md",
+      "content_sha256": "sha256:4434414b804ab8964ea69f2d0591840aed478bc9f758b138b07f22ab7e409d27"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "design.md",
+    "prepared-specs/adversarial-challenges/spec.md",
+    "proposal.md",
+    "specs/adversarial-challenges/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

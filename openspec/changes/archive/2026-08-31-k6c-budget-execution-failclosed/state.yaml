@@ -1,0 +1,50 @@
+change: "k6c-budget-execution-failclosed"
+status: "archived"
+last_updated: "2026-08-31T16:51:00Z"
+blocking_questions: []
+phases:
+  proposal:
+    status: "done"
+    artifact: "openspec/changes/k6c-budget-execution-failclosed/proposal.md"
+    summary: "Remediación fail-closed para K6c: enforcement de mutation_budget y distinción de fallos de aserción vs errores de ejecución."
+  spec:
+    status: "done"
+    artifacts:
+      - "openspec/changes/k6c-budget-execution-failclosed/specs/adversarial-challenges/spec.md"
+    summary: "Delta spec para adversarial-challenges: enforcement monotónico de mutation_budget (REQ-003) y distinción estricta de aserciones vs errores de tooling (REQ-004)."
+  design:
+    status: "done"
+    artifact: "openspec/changes/k6c-budget-execution-failclosed/design.md"
+    summary: "Diseño técnico fail-closed para runner.js y worker-sandbox.js: consumo monotónico de mutation_budget y clasificación estricta de errores de spawn/tooling."
+    key_decisions:
+      - "Consumo inline monotónico de mutation_budget con causal-failure CHALLENGE_BUDGET_EXHAUSTED inmediato."
+      - "failure_class spawn_error en worker-sandbox y gating estricto de errores de ejecución sin incrementar defects_detected."
+  tasks:
+    status: "done"
+    artifact: "openspec/changes/k6c-budget-execution-failclosed/tasks.md"
+    summary: "Desglose TDD en 4 fases para enforcement de mutation_budget y clasificación fail-closed de errores de spawn/tooling."
+    key_decisions:
+      - "Estructura TDD RED-GREEN-REFACTOR por unidad de trabajo."
+      - "Presupuesto bajo control (<120 líneas) en un único PR con estrategia size-exception."
+  apply:
+    status: "done"
+    artifact: "openspec/changes/k6c-budget-execution-failclosed/apply-progress.md"
+    summary: "Implementado enforcement monotónico de mutation_budget con fallo causal inmediato y clasificación estricta de failure_class spawn_error/timeout."
+    key_decisions:
+      - "Consumo unitario de mutation_budget antes de aplicar cada mutación focal con salida causal directa."
+      - "Gating de run.failure_class antes de conteo de defects_detected impidiendo falsos positivos por errores de spawn/timeout."
+  verify:
+    status: "done"
+    verdict: "PASS"
+    artifact: "openspec/changes/k6c-budget-execution-failclosed/verify-report.md"
+    summary: "Verificación completa PASS: 12/12 escenarios validados con tests runtime, 11/11 tareas completadas y cero regresiones en npm test."
+    key_decisions:
+      - "100% de cumplimiento con evidencia de tipo runtime-test en REQ-003 y REQ-004."
+      - "Validación de aserciones estricta sin bucles fantasma ni tests tautológicos."
+  archive:
+    status: "done"
+    artifact: "openspec/changes/k6c-budget-execution-failclosed/archive-report.md"
+    summary: "Reporte de archivo y plan de transacción preparados: spec sincronizado, 2 ADRs propuestos para promoción y verificación PASS confirmada."
+    key_decisions:
+      - "Sincronización de REQ-003 y REQ-004 en adversarial-challenges spec."
+      - "Promoción de ADR-001 y ADR-002 hacia docs/adr."

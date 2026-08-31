@@ -125,7 +125,7 @@ function sourceFilesForMutation(workspace, scope) {
   return listWorkspaceFiles(workspace.root_path).filter((rel) => !isTestFile(rel) && (!scoped || scoped.has(rel)));
 }
 
-async function runIsolatedMutation(type, workspace, context, scope, signal, timeoutMs) {
+async function runIsolatedMutation(type, workspace, context, scope, signal, timeoutMs, tracker, plan) {
   if (type === "test-inspection") {
     const testFiles = listWorkspaceFiles(workspace.root_path).filter(isTestFile);
     const violations = [];
@@ -156,9 +156,13 @@ async function runIsolatedMutation(type, workspace, context, scope, signal, time
       if (!bytesChanged) {
         return { outcome: "error", details: { reason: "CHALLENGE_NOOP" } };
       }
-      const run = await runWorkspaceTests(workspace, context, signal, timeoutMs);
+      const testRunner = (context && context.runWorkspaceTests) || runWorkspaceTests;
+      const run = await testRunner(workspace, context, signal, timeoutMs);
       if (run.failure_class === "missing_tests") {
         return { outcome: "error", details: { reason: "MISSING_TESTS" } };
+      }
+      if (run.failure_class === "timeout") {
+        return { outcome: "error", details: { reason: "CHALLENGE_TIMEOUT" } };
       }
       if (run.failure_class) {
         return { outcome: "error", details: { reason: "CHALLENGE_EXECUTION_ERROR", error: run.error || run.failure_class } };
@@ -180,6 +184,21 @@ async function runIsolatedMutation(type, workspace, context, scope, signal, time
       const original = readWorkspaceFile(workspace, rel);
       const mutationList = mutationsFor(context, rel, original, targetLinesByPath.get(rel) || null);
       for (const mutation of mutationList) {
+        if (tracker) {
+          if (!tracker.consumeMutations(1)) {
+            const candidateId = (plan && plan.candidate_id) || (context.candidate && context.candidate.candidate_id);
+            const planId = plan && plan.plan_id;
+            const causalFailure = typeof tracker.buildExhaustionFailure === "function"
+              ? tracker.buildExhaustionFailure({ candidateId, planId, dimension: "mutation_budget" })
+              : {
+                  schema_version: 1,
+                  category: "validation_gap",
+                  code: "CHALLENGE_BUDGET_EXHAUSTED",
+                  details: { candidate_id: candidateId, plan_id: planId, exhausted_dimension: "mutation_budget" },
+                };
+            return { ok: false, causalFailure };
+          }
+        }
         const mutated = applyFocalMutation(original, mutation);
         if (mutated === original) {
           return { outcome: "error", details: { reason: "CHALLENGE_NOOP", mutations_tested: mutationsTested, defects_detected: defects } };
@@ -187,12 +206,16 @@ async function runIsolatedMutation(type, workspace, context, scope, signal, time
         mutationsTested += 1;
         writeWorkspaceFile(workspace, rel, mutated);
         try {
-          const run = await runWorkspaceTests(workspace, context, signal, timeoutMs);
+          const testRunner = (context && context.runWorkspaceTests) || runWorkspaceTests;
+          const run = await testRunner(workspace, context, signal, timeoutMs);
           if (run.failure_class === "missing_tests") {
             return { outcome: "error", details: { reason: "MISSING_TESTS", mutations_tested: mutationsTested, defects_detected: defects } };
           }
-          if (run.failure_class === "sandbox_rejection" || run.failure_class === "cancel") {
-            return { outcome: "error", details: { reason: "CHALLENGE_EXECUTION_ERROR", error: run.error || run.failure_class } };
+          if (run.failure_class === "timeout") {
+            return { outcome: "error", details: { reason: "CHALLENGE_TIMEOUT", mutations_tested: mutationsTested, defects_detected: defects } };
+          }
+          if (run.failure_class) {
+            return { outcome: "error", details: { reason: "CHALLENGE_EXECUTION_ERROR", error: run.error || run.failure_class, mutations_tested: mutationsTested, defects_detected: defects } };
           }
           if (run.pass === true || run.exitCode === 0) {
             return { outcome: "failed", details: { reason: "COMPLACENT_TEST_DETECTED", mutations_tested: mutationsTested, defects_detected: defects } };
@@ -288,7 +311,7 @@ async function executeChallengePlan(plan, context = {}) {
         return { ok: false, results, causalFailure: { code: "CHALLENGE_TIMEOUT", category: "validation_gap" } };
       }
       const execution = await withDeadline(async () => {
-        const isolated = await runIsolatedMutation(type, workspace, context, scope, controller.signal, remaining);
+        const isolated = await runIsolatedMutation(type, workspace, context, scope, controller.signal, remaining, tracker, plan);
         if (isolated) return isolated;
         if (execute) return execute({ workspace, scope, signal: controller.signal, timeoutMs: remaining });
         return failure("CHALLENGE_CAPABILITY_UNAVAILABLE", `executor cannot execute ${type}`);
@@ -310,4 +333,4 @@ async function executeChallengePlan(plan, context = {}) {
   return { ok: true, results };
 }
 
-module.exports = { emitChallengeResult, executeChallengePlan };
+module.exports = { emitChallengeResult, executeChallengePlan, runIsolatedMutation, runWorkspaceTests };

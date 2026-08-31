@@ -686,3 +686,17 @@ test("worker-sandbox: ESM import of node:fs cannot write outside declared allowe
   assert.equal(fs.existsSync(extTarget), false, "External file must not be created via ESM import");
 });
 
+test("worker-sandbox: child process launch error returns explicit failure_class: 'spawn_error'", async () => {
+  const nonExistentDir = path.join(os.tmpdir(), "non-existent-dir-" + Date.now() + "-" + Math.random().toString(36).slice(2));
+  const result = await executeSandboxedCommand({
+    command: process.execPath,
+    args: ["-e", "process.exit(0)"],
+    cwd: nonExistentDir,
+    workspaceRoot: nonExistentDir,
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.failure_class, "spawn_error");
+  assert.ok(result.error);
+});
+
