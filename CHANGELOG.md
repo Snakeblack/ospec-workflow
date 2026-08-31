@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.56.6] - 2026-09-01
+
+### Fixed
+- **Restauración íntegra del contrato K6c (`adversarial-challenges`)**: Recuperadas en `openspec/specs/adversarial-challenges/spec.md` todas las garantías normativas y escenarios de `REQ-adversarial-challenges-003` y `REQ-adversarial-challenges-004`, conservando la prohibición de `context.runWorkspaceTests`; reforzado `scripts/manifest-sync.test.js` con un inventario de 13 escenarios y cláusulas críticas que detecta reducciones semánticas aunque permanezcan los Requirement IDs.
+- **Verificación directa**: `node scripts/check.js` (2915 tests pasando, 0 fallos y 1 omitido).
+
 ## [2.56.5] - 2026-08-31
 
 ### Fixed

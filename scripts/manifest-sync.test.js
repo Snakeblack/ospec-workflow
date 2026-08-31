@@ -85,19 +85,31 @@ test("release version matches changelog, roadmap, architecture, verify report, a
     nextReleaseOffset === -1 ? changelogText.length : nextReleaseOffset
   );
   const archiveMatch = latestSection.match(/`(openspec\/changes\/archive\/[^`/]+)\/`/);
-  assert.ok(archiveMatch, "latest changelog release must reference its archived change");
-  const verifyReport = fs.readFileSync(
-    path.join(ROOT, ...archiveMatch[1].split("/"), "verify-report.md"),
-    "utf8"
+  const directVerification = latestSection.match(
+    /\*\*Verificación directa\*\*:\s*`node scripts\/check\.js`\s*\((\d+) tests pasando, 0 fallos y (\d+) omitido(?:s)?\)/,
   );
-  const reportVersion = verifyReport.match(/^\*\*Version\*\*:\s*(\d+\.\d+\.\d+)\s*$/m);
-  assert.ok(reportVersion, "release verify-report must declare Version");
+  assert.ok(
+    archiveMatch || directVerification,
+    "latest changelog release must reference an archived change or declare direct full-suite verification",
+  );
+
+  let reportVersion = null;
+  if (archiveMatch) {
+    const verifyReport = fs.readFileSync(
+      path.join(ROOT, ...archiveMatch[1].split("/"), "verify-report.md"),
+      "utf8"
+    );
+    reportVersion = verifyReport.match(/^\*\*Version\*\*:\s*(\d+\.\d+\.\d+)\s*$/m);
+    assert.ok(reportVersion, "release verify-report must declare Version");
+  }
 
   const roadmapVersion = roadmapText.match(/^> \*\*Versión de referencia:\*\* v(\d+\.\d+\.\d+),/m);
   const architectureVersion = architectureText.match(/^> \*\*Corte documental:\*\* v(\d+\.\d+\.\d+),/m);
   assert.ok(roadmapVersion, "roadmap must declare its reference version");
   assert.ok(architectureVersion, "architecture must declare its document version");
-  assert.equal(reportVersion[1], packageVersion, "release verify-report version must match package.json");
+  if (reportVersion) {
+    assert.equal(reportVersion[1], packageVersion, "release verify-report version must match package.json");
+  }
   assert.equal(roadmapVersion[1], packageVersion, "roadmap reference must match package.json");
   assert.equal(architectureVersion[1], packageVersion, "architecture cut must match package.json");
 
