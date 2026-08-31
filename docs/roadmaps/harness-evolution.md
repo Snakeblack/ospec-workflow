@@ -48,12 +48,13 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 
 | Orden | Acción | Gate de salida |
 | ---: | --- | --- |
-| 1 | Ejecutar K3 (correctivos K2.1b + k2a-1 cerrados) | Cuatro identidades + Candidate freeze + relación básica |
-| 2 | Ejecutar K4a → K5 → K6a → K4b | Graph + Obligation Manifest + budgets (autoridad/efectos) + aislamiento + shadow con Candidate |
-| 3 | Ejecutar K6c→K6d → K7 → K8 | Challenges/review authority + Candidate Evaluation Attestation |
-| 4 | Ejecutar K9 | Calidad no inferior, replay y fallback fixed (checkpoints intermedios ya emitidos) |
-| 5 | Ejecutar K10-delivery | `DeliveryAuthorization` **solo** del profile promovido por K9; relación Candidate por etapas; resto fixed/deferred |
-| 6 | Expandir K10, K11a→K11d y K12 | Rutas/targets de uno en uno, luego corpus/longitudinal (runner mínimo ya en K2) |
+| 1 | Ejecutar K6d | Complexity/architecture delta reproducible |
+| 2 | Ejecutar K7 → K8 | Review authority + Candidate Evaluation Attestation |
+| 3 | Ejecutar K9 | Calidad no inferior, replay y fallback fixed (checkpoints intermedios ya emitidos) |
+| 4 | Ejecutar K10-delivery | `DeliveryAuthorization` **solo** del profile promovido por K9; relación Candidate por etapas; resto fixed/deferred |
+| 5 | Expandir K10, K11a→K11d y K12 | Rutas/targets de uno en uno, luego corpus/longitudinal (runner mínimo ya en K2) |
+
+La lane CX es subordinada y no aparece en este diagrama crítico: CX0 puede avanzar en paralelo a K6d, sin cambiar que `K6d → K7 → K8 → K9 → K10-delivery → K10 → K11a–d → K12` gobierna la promoción del harness.
 
 ## Estado ejecutivo
 
@@ -1251,6 +1252,8 @@ Invalidar “todo el review anterior” sigue siendo correcto para el **receipt*
 
 **Ventaja absorbida (comparativo Gentle AI, 2026-08):** no se porta RDD/CLI/`review-integration` ni un ledger markdown paralelo. Se absorbe solo lo que mejora el kernel de review ya entregado: criterios de lente más densos, *precision gate*, y refutación acotada de findings severos. La machinery (selector determinista, lineage, remediation-v2, fail-closed) permanece la de ospec y se considera superior al triage 3-tier / convergence genérico de Gentle. No hace falta importar RDD.
 
+**Interacción CX5b (no bloqueante):** K7 entrega primero la autoridad y el lineage. CX5b depende de K7 para proyectar inputs congelados por lens/correction; no reduce reviewers, no reabre discovery y no bloquea K7 ni K8.
+
 #### Alcance
 
 - separar `ReviewAdapter` (invocación/presentación) de `ReviewReducer` (congelación, findings, budget, successor, finalize);
@@ -1918,6 +1921,42 @@ Reglas:
 - paridad con mismo input contra el adapter de referencia;
 - ningún target cambia defaults globales.
 
+### CX — eficiencia de contexto (no bloqueante)
+
+Lane subordinada para reducir amplificación sin mover autoridades, defaults ni ruta crítica. K4a sigue siendo el único `ExecutionGraphCompiler`; `InputProjectionBuilder` solo deriva `ContextProjection` desde Graph/`capsule_inputs` y referencias canónicas. CX0 puede iniciar en paralelo a K6d.
+
+| Slice | Estado / dependencia | Entrega y gate |
+| --- | --- | --- |
+| CX0 — medición | `pending`, elegible en paralelo a K6d | Tokens input/cached/uncached/output, artifact read/write, tool output, contexto único/duplicado, amplification y fallback; cada dato con schema/version, fuente y cobertura; P50/P90 por fase, clasificación, profile y host. |
+| CX1 — envelope/state mecánico | `pending`, tras CX0 + K2/K2.1 | Migración gradual a envelope JSON-only + renderer humano y `PhaseCompletionReducer`; schemas versionados, legacy adapter, CAS/replay y fallback. Approvals, assumptions, gates, lineage y decisiones no se infieren ni cambian de autoridad. |
+| CX2 — views/archive renderer | `pending`, tras CX0/CX1 | Reconciliation/compliance/traceability como vistas derivadas; inventario, hashes, fechas y status de archive desde `archive-plan` + receipt. El agente conserva summary, riesgos y decisiones semánticas. |
+| CX3 — proyección shadow | `pending`, tras CX0 + K4a/K6a | `ContextProjection` content-addressed, reproducible, descartable y read-only; comparación `full` vs `compiled-shadow`, sin dispatch compacto todavía. |
+| CX4 — protocolos/bootstrap | `pending`, tras CX3 | Reglas compactas y módulos on-demand validados contra la proyección; no retirar compatibilidad full hasta promoción por fase/profile. |
+| CX5a — verify/evidence | `pending`, tras CX3/CX4 + K6b/K6c | Proyección para verify reutilizando collectors, receipts, provenance y Assurance Graph; ningún evidence store ni verdict nuevo. |
+| CX5b — review | `pending`, **después de K7** + CX3/CX4 | Inputs por lens/correction sobre candidate/findings/paths/slices congelados; no reduce reviewers, no relanza discovery, no crea `.review`; no bloquea K7/K8. |
+| CX6 — spec deltas | `pending` (deferred), tras IDs estables + evidencia de CX3–CX5 | `base_hash`, merge canónico, loss validation, round-trip y fallback full-copy antes de habilitar deltas quirúrgicos. |
+
+#### Promoción, rollback y DoD
+
+`full → compiled-shadow → compiled` es un modo de input por **fase/profile**, no una route nueva. `compiled-shadow` calcula y compara cobertura/digests pero despacha `full`; `compiled` despacha la proyección solo tras equivalencia. Cualquier mismatch, stale source, overflow sin partición dependency-closed o hard floor ausente revierte a `full` compatible o termina fail-closed con causa tipada; nunca trunca contexto. Los attempts/budgets K5 siguen siendo monótonos.
+
+Done exige cero obligaciones o señales materiales perdidas, cero regresión de integridad/assurance/trazabilidad y ningún aumento demostrado de escaped defects en los fixtures aplicables. Todo fallback queda reason-coded y medido; rollback a `full` no altera state semántico, Candidate, evidence, review lineage ni delivery.
+
+Encaje no bloqueante: K9 incorpora a su A/B las señales CX disponibles; K10 deriva budgets de classification/risk con hard floors; K11b puede comparar coste/calidad del model routing sobre la misma proyección; K12 valida amplification, fallback e integridad longitudinal. CX no adelanta ni se vuelve prerequisite de esos slices.
+
+#### Hipótesis iniciales para CX0
+
+No son compromisos ni evidencia actual: CX0 debe ratificarlas o corregirlas antes de convertirlas en gates.
+
+| Cohorte/KPI | Hipótesis inicial |
+| --- | ---: |
+| Normal median / P90 input | `-45 %` / `-30 %` |
+| Lite median | `-60 %` |
+| High-risk median | `-25 %` |
+| Bootstrap / duplicación / amplification / fallback full | `≤4k tokens` / `≤15 %` / `≤3x` / `≤10 %` |
+
+El registro histórico de K4a (`5.478.420` prompt tokens; `70,9 %` en review registrado) sirve para detectar patología, no como baseline del 4R actual ni como prueba causal: `artifact_tokens` y `tool_output_tokens` aparecen a cero y la cobertura es insuficiente.
+
 ### R2 — Foundation + OpenWiki
 
 R2 sigue subordinado al core. Puede avanzar por slice solo si no toca lifecycle, Execution Graph, Candidate/evidence authority ni defaults adaptive.
@@ -1955,7 +1994,9 @@ Un Change Program (objetivo → children OpenSpec + cursor, ver investigación `
 - Candidate/receipt mismatches;
 - recoveries ejecutadas, fallidas y terminales;
 - budgets agotados;
-- invocaciones, tokens, tools, tiempo y coste;
+- invocaciones, tokens input/cached/uncached/output, tools, tiempo y coste;
+- artifact read/write y tool-output tokens con schema/version, fuente y cobertura;
+- contexto único/duplicado, ratio de duplicación, amplification y fallback `compiled → full`;
 - defectos antes/después de verify;
 - challenges y mutantes detectados;
 - findings/correcciones/retries;
@@ -1996,6 +2037,10 @@ Un Change Program (objetivo → children OpenSpec + cursor, ver investigación `
 | Eventos como autoridad | Store separado y state-derived |
 | Model escalation arbitraria | Cause code + clamp |
 | Métricas como límites ciegos | Architecture delta advisory, riesgo por impacto |
+| Proyección como segunda autoridad | `InputProjectionBuilder` read-only; source digests + cobertura; divergencia fail-closed; Graph/OpenSpec/state/Candidate/evidence/lineage/delivery conservan ownership |
+| Budget recorta garantías | Cierre completo, partición dependency-closed o fallback/stop; nunca truncado; hard floors y attempts K5 intactos |
+| Migrar envelope/state de golpe | CX1 versiona, ejecuta shadow, conserva legacy/CAS/replay y retira solo tras equivalencia |
+| Optimizar desde telemetría histórica incompleta | CX0 separa observado/derivado/estimado y cobertura; targets numéricos permanecen hipótesis |
 | First-match `active` = ciclo completo | Tabla viva: clase + hard floors antes que `project.status`; no esperar a Direct K10 ni meterlo en K6b |
 | Objetivo grande = un change + PRs | Change Program (nombrado, sin slice); no R4, no `delivery_strategy`, no segundo orquestador |
 | Compact resetea linaje | Sesión nueva + `/sdd-continue {nombre}`; candidate/budgets/findings persisten |
@@ -2034,6 +2079,9 @@ Un Change Program (objetivo → children OpenSpec + cursor, ver investigación `
 - No reabrir K1 ni mutar `receipt/v1` para expresar Attestation/Authorization; schemas propios en K8/K10-delivery.
 - No inventar `candidate_digest`; el campo canónico es `candidate_id`.
 - No tratar `commit` como `Candidate.projection`; solo `workspace|staged`.
+- No introducir un segundo Context Compiler, evidence store o review ledger; CX solo deriva proyecciones.
+- No crear rutas Nano/Lite/Medium/Full para budgets de contexto ni sacrificar hard floors por tokens.
+- No activar CX6 sin stable IDs, `base_hash`, merge/loss validation, round-trip y fallback full-copy.
 
 ## Historial consolidado
 
@@ -2082,3 +2130,4 @@ Un Change Program (objetivo → children OpenSpec + cursor, ver investigación `
 - 2026-08-28: K6b (`k6b-durable-replay-receipt-authority`) cierra con verify PASS WITH WARNINGS, 4R approved (CRITICAL de type-confusion remediado) y archive transaccional; publicado en v2.55.0. K6b pasa a `done`; K6c queda `next-eligible`.
 - 2026-08-31: K6c (`k6c-integrity-remediation`) cierra con verify PASS, 4R approved (3 CRITICAL remediados) y archive transaccional; publicado en v2.56.1. K6c permanece `done` con integridad cerrada; K6d queda `next-eligible`.
 - 2026-08-31: K6c (`k6c-failclosed-integrity`) cierra el NO-GO residual: strategy binding en verifier/projector, `missing_tests`/no-op fail-closed, planner TypeError y `required` único + metaschema. Verify PASS WITH WARNINGS; 4R approved. Publicado en v2.56.2. K6c permanece `done`; K6d sigue `next-eligible`.
+- 2026-08-31: se añade la lane subordinada CX para medir y reducir amplificación de contexto mediante proyecciones derivadas, sin mover `K6d` ni la ruta crítica; targets numéricos quedan como hipótesis hasta CX0.

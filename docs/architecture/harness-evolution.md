@@ -81,14 +81,27 @@ El review terminal de v2.53.1 no cambia la dirección del kernel, pero obliga a 
 | Integridad | Plan y resultados se ligan canónicamente a Candidate, nodo, estrategia y PolicySnapshot; la ejecución es aislada y fail-closed; el verifier exige el conjunto exacto; la proyección/replay no es autoridad. |
 | Gate | K6c `done` en v2.56.0; integridad cerrada en v2.56.1 (`k6c-integrity-remediation`); fail-closed residual cerrado en v2.56.2 (`k6c-failclosed-integrity`). K6d es `next-eligible`. |
 
+### Corte propuesto 2026-08-31 (eficiencia de contexto, no bloqueante)
+
+El diagnóstico cambia el **transporte y la proyección** del contexto, no las autoridades ni la ruta crítica. La ejecución se planifica en la [lane CX del roadmap](../roadmaps/harness-evolution.md#cx--eficiencia-de-contexto-no-bloqueante).
+
+| Madurez | Conclusión |
+| --- | --- |
+| Confirmado | Existe amplificación por relectura de contexto, la telemetría no separa con cobertura fiable tokens cached/uncached, artefactos y tools, y los contratos actuales repiten salida humana/JSON y matrices equivalentes como vistas. |
+| Capacidad parcial | K4a ya aporta el único `ExecutionGraphCompiler` autoritativo y produce `capsule_inputs`; K6a los materializa. K6b/K6c ya aportan collectors, receipts, provenance y Assurance Graph. Faltan proyección por consumidor, medición completa y reducción mecánica de salida/state end-to-end. |
+| Hipótesis | Los porcentajes de ahorro y umbrales de contexto propuestos son objetivos iniciales que CX0 debe ratificar o corregir; no son resultados demostrados ni justifican reducir assurance. |
+
+El histórico de K4a registró `5.478.420` prompt tokens y `3.883.947` en la familia review/4R/correction (`70,9 %`). Confirma una **patología histórica** de consumo, no una baseline del protocolo 4R actual: con `artifact_tokens` y `tool_output_tokens` registrados como cero no permite atribuir causalidad ni cuantificar ahorro por intervención.
+
 ## Ruta rápida
 
 1. [Modelo de autoridad](#modelo-de-autoridad).
 2. [Cadena canónica](#cadena-canónica-del-change).
 3. [Kernel y Execution Graph](#kernel-determinista-y-execution-graph).
-4. [Rutas y capacidades](#clasificación-rutas-y-capacidades).
-5. [Migración sin big bang](#estrategia-de-migración).
-6. [Qué es hecho, target o hipótesis](#registro-de-madurez).
+4. [Proyecciones y budgets de contexto](#proyecciones-de-entrada-y-budgets-de-contexto-propuesta-cx).
+5. [Rutas y capacidades](#clasificación-rutas-y-capacidades).
+6. [Migración sin big bang](#estrategia-de-migración).
+7. [Qué es hecho, target o hipótesis](#registro-de-madurez).
 
 ## Propósito del producto
 
@@ -490,6 +503,45 @@ Cuando una aclaración o fallo cambia una premisa:
 
 No se reinicia el workflow completo ni se reutiliza evidencia cuya dependencia sea desconocida.
 
+### Proyecciones de entrada y budgets de contexto (propuesta CX)
+
+K4a conserva el **único compilador autoritativo**. `InputProjectionBuilder` no es un segundo “Context Compiler”: deriva una `ContextProjection` desde el Execution Graph, sus `capsule_inputs` y referencias canónicas para un consumidor concreto.
+
+```text
+ExecutionGraphCompiler (K4a; graph + capsule_inputs)
+  → InputProjectionBuilder (ContextProjection derivada)
+  → Phase Agent (trabajo semántico; K6a materializa la cápsula aplicable)
+  → PhaseCompletionReducer (migración contractual gradual)
+  → renderers humanos + telemetría no autoritativa
+```
+
+| Componente | Posee | No posee |
+| --- | --- | --- |
+| `ExecutionGraphCompiler` | Graph, obligations, dependencias y `capsule_inputs` | state, Candidate, evidencia o review lineage |
+| `InputProjectionBuilder` | Selección reproducible, digest y cobertura por fase/profile/lens | Obligaciones, decisiones, budgets, evidence store ni transiciones |
+| Phase Agent | Juicio semántico y artefacto/envelope de su fase | Actualización mecánica de state una vez migrada |
+| `PhaseCompletionReducer` | Validación de envelope, CAS/replay y actualización mecánica versionada | Inferir approvals, assumptions, gates, lineage o decisiones semánticas |
+| Renderers/telemetría | Vistas humanas y medición | Autoridad de transición o delivery |
+
+La `ContextProjection` es **content-addressed, reproducible, descartable y read-only**. Declara schema/version, fase/profile, source digests, selección y cobertura de obligations/hard floors. OpenSpec/Git/state, Execution Graph, Candidate/WorkOrder, Assurance Graph/evidence, review lineage y delivery conservan sus autoridades actuales. Si una proyección diverge, queda stale o no demuestra cierre de dependencias, el runtime falla cerrado; nunca “arregla” la divergencia aceptando la vista.
+
+La proyección de evidencia reutiliza collectors K6b/K6c, `runner-receipt/v1`, provenance y Assurance Graph. No crea otro evidence store ni otra fuente de verdict. De igual modo, las tablas de reconciliación, compliance, traceability y archive pasan gradualmente a ser renderers de relaciones estructuradas, no nuevos ledgers.
+
+#### Budgets y overflow seguro
+
+Los budgets de contexto son policies derivadas de la clasificación y del riesgo existentes, sujetas a los hard floors K1. No crean rutas `Nano`/`Lite`/`Medium`/`Full` ni reducen reviewers o evidencia obligatoria para cumplir un número de tokens.
+
+Ante overflow:
+
+1. construir el cierre completo de obligations, decisiones, dependencias y evidencia requeridas;
+2. si no cabe, particionar únicamente en unidades **dependency-closed** con identidad y cobertura explícitas;
+3. si la partición no conserva garantías, usar fallback al input `full` compatible o detener con causa tipada;
+4. nunca truncar silenciosamente ni reiniciar los intentos monótonos de K5.
+
+#### Salida y estado: migración contractual, no quick win
+
+El envelope JSON-only con renderer humano y `PhaseCompletionReducer` runtime-owned son targets graduales. Requieren schema/versionado, compatibilidad con envelopes legacy, CAS/replay, shadow y fallback antes de retirar la doble emisión o la escritura de state por fase. Approvals, assumptions, gates, lineage y decisiones mantienen autoridad explícita; el reducer solo persiste transiciones mecánicas validadas y nunca las infiere de prosa.
+
 ### Schemas versionados
 
 La suite objetivo cubre:
@@ -516,6 +568,10 @@ Reglas:
 - ninguna operación de autoridad tiene fallback silencioso a prosa;
 - docs y fixtures no pueden nombrar campo, operación o comando que el código no emita;
 - proyección humana y envelope negociado de la misma condición preservan código, causa y siguiente acción.
+
+#### Deltas quirúrgicos de specs (diferidos)
+
+Los deltas de escenario/requisito no se habilitan hasta disponer de IDs estables, `base_hash`, merge canónico determinista, validación de pérdida, round-trip y fallback a copia canónica completa. La optimización puede reducir transporte; no rebaja la semántica fail-closed de `MODIFIED` ni cambia la autoridad de las specs.
 
 ## Clasificación, rutas y capacidades
 
@@ -761,14 +817,15 @@ Calidad de descubrimiento (roadmap K7), sin cambiar la machinery:
 - severity floor: WARNING/SUGGESTION no abren correction;
 - lineage OpenSpec permanece el ledger canónico; no se adopta un store/CLI de review externo ni RDD de Gentle.
 
-El cambio arquitectónico de input sigue siendo: el linaje consumirá Candidate ID universal, Graph/evidence digests y classification reasons.
+El cambio arquitectónico de input sigue siendo: el linaje consumirá Candidate ID universal, Graph/evidence digests y classification reasons. CX5b, **después de K7**, podrá derivar una proyección por lens y una proyección de correction limitada a findings, paths, hunks, obligations y evidencia congelados. No reduce reviewers, no reabre discovery y no crea `.review` ni otro ledger; el lineage OpenSpec y los budgets existentes siguen mandando.
 
 ### Archive
 
 O6A sigue separando:
 
-- agente: interpretación semántica, specs resultantes, ADRs, warnings y `archive-plan`;
-- runtime: hashes, staging, inventario, comparación de bytes, commit/rename, rollback, recovery y receipt.
+- agente: summary, riesgos, decisiones semánticas, specs resultantes, ADRs, warnings y `archive-plan`;
+- runtime: hashes, staging, inventario, comparación de bytes, commit/rename, rollback, recovery y receipt;
+- renderer derivado: fechas, status, hashes e inventario a partir de `archive-plan` + `ArchiveTransactionReceipt`, sin pedir al agente que los reconstruya.
 
 El DeliveryAuthorization no sustituye el ArchiveTransactionReceipt ni la CandidateEvaluationAttestation. Comparten primitives de identidad/validación, pero kinds y scopes distintos.
 
@@ -841,7 +898,7 @@ delivery.blocked
 recovery.executed
 ```
 
-Los eventos registran IDs, timestamps, digests, target, costes y outcomes. La telemetría vive fuera de los artefactos semánticos y puede reconstruirse/reconciliarse; no decide transiciones.
+Los eventos registran IDs, timestamps, digests, target, costes y outcomes. Para contexto incluyen, cuando el host lo permita, tokens input/cached/uncached/output, lecturas y escrituras de artefactos, output de tools, contexto único/duplicado, amplification y fallback. Cada medida declara versión de schema, fuente (`host-observed|runtime-derived|estimated`) y cobertura; un cero sin cobertura no prueba ausencia. La telemetría vive fuera de los artefactos semánticos y puede reconstruirse/reconciliarse; no decide transiciones.
 
 ### Headless
 
@@ -955,6 +1012,7 @@ Un **Change Program** (objetivo humano → children OpenSpec con `depends_on` y 
 - {implemented} Claude Code reference adapter (`claude`) (K2a; adapters are not semantic authority).
 - {implemented} K3 cuatro identidades + Candidate freeze básico y relación `exact\|changed\|ambiguous\|unknown` (v2.42.3; gobernar apply→verify→review→delivery completo sigue en slices posteriores).
 - {implemented} K4a Execution Graph compiler + Obligation Manifest + replay determinista (reconciliado v2.45.7).
+- {implemented} K4a produce `capsule_inputs`; K6a materializa la cápsula aplicable. No existe ni se necesita un segundo compilador autoritativo.
 - {implemented} K5 budgets (incl. autoridad/efectos), failures y recovery; no se reinician budgets por retry (v2.45.13).
 - {implemented} K6a worker isolation y work-order capsule (v2.46.0–v2.47.2).
 - {implemented} K4b Repair shadow execution (v2.48.0–v2.48.3).
@@ -972,7 +1030,7 @@ Un **Change Program** (objetivo humano → children OpenSpec con `depends_on` y 
 - {target} Paridad material entre proyección humana y envelope negociado.
 - {target} Candidate freeze gobierna apply → verify → review → delivery (identidades y freeze básico ya en K3; attestation/authorization en K8/K10-delivery).
 - {target} Consumo de Execution Graph + Obligation Manifest por recetas y federación (compiler/replay ya en K4a; no es autoridad independiente).
-- {target} Assurance Graph as independent authority (never implemented by K6b; projection only).
+- {target} Assurance Graph as independent authority (never implemented by K6b; projection only). CX lo consume como proyección derivada content-addressed, nunca como autoridad independiente.
 - {target} Clasificación por impacto + incertidumbre; hard floors no degradables por tamaño **y cableados a la ruta efectiva** (schema K1 hecho; enforcement de receta en K10; clamp de la tabla viva es compatibilidad).
 - {target} Rutas como recetas y fases como capacidades (K10). La tabla lite/standard permanece como producto hasta promoción.
 - {target} Clarify con invalidación parcial.
@@ -984,6 +1042,9 @@ Un **Change Program** (objetivo humano → children OpenSpec con `depends_on` y 
 - {target} Medición de fricción de bloqueos (`in_band`/`out_of_band`/`dead_end`/…).
 - {target} Shadow/A-B antes de promoción; checkpoints intermedios `continue|revise|reject`.
 - {target} Corpus/longitudinal (K12) sobre runner mínimo de K2.
+- {target} `InputProjectionBuilder`/`ContextProjection` derivado, content-addressed, reproducible, descartable y read-only, promovido por fase/profile con fallback `full`.
+- {target} `PhaseCompletionReducer`, envelope JSON-only y renderers humanos como migración contractual versionada con CAS/replay y compatibilidad legacy.
+- {target} Vistas de trazabilidad/archive derivadas de relaciones y receipts canónicos, conservando en el agente summary, riesgos y decisiones semánticas.
 
 ### Hipótesis experimentales
 
@@ -1003,6 +1064,8 @@ Un **Change Program** (objetivo humano → children OpenSpec con `depends_on` y 
 - {experimental} Relación `compatible-base-advance` (tras fixtures K9; no default).
 - {experimental} Corrección por closure en review (solo shadow; no default — riesgo de loops).
 - {experimental} `provable-contraction` (diferida hasta evidencia/findings/delivery completos).
+- {experimental} Objetivos de reducción, bootstrap, duplicación, amplification y fallback; CX0 debe ratificarlos o corregirlos antes de usarlos como gate.
+- {experimental} Deltas quirúrgicos de specs; diferidos hasta IDs estables, `base_hash`, merge canónico, loss validation, round-trip y fallback full-copy.
 
 ## Métricas de éxito
 
@@ -1038,7 +1101,11 @@ La métrica privilegia reducir `dead_end` y `out_of_band`, no “parar menos”.
 
 ### Eficiencia
 
-- coste, tokens, tiempo, tools y retries por nodo/candidato;
+- tokens input, cached, uncached y output por fase/profile/candidato;
+- tokens leídos/escritos de artefactos y output de tools, con fuente y cobertura;
+- contexto único/duplicado, ratio de duplicación y Artifact Amplification Factor;
+- frecuencia y causa de fallback `compiled → full`;
+- coste, tiempo, tools y retries por nodo/candidato;
 - reparaciones dirigidas frente a reruns completos;
 - tiempo hasta candidate/verdicto;
 - coste del propio compiler/kernel;
@@ -1076,6 +1143,9 @@ La métrica privilegia reducir `dead_end` y `out_of_band`, no “parar menos”.
 14. ~~CAS / permits / effect semantics~~ — **cerrado en K2.1** (v2.39.0); no reabrir como decisión abierta de diseño.
 15. Cuándo promocionar `compatible-base-advance` tras fixtures K9 (experimental hasta entonces).
 16. Cuándo materializar Change Program (orquestador vs espera a R4) y si el first-match de la tabla viva se corrige como change de compatibilidad **antes** de K10. No bloquea K6b. No es un slice nuevo.
+17. Schema y granularidad de `ContextProjection`, más criterios de promoción `full → compiled-shadow → compiled` por fase/profile.
+18. Cobertura mínima de telemetría para convertir los objetivos CX en gates, sin confundir estimaciones con observaciones del host.
+19. Orden de retirada del envelope/prose legacy y de la escritura de state por agentes tras probar `PhaseCompletionReducer` con CAS/replay.
 
 ## Decisiones fuera de alcance
 
@@ -1095,3 +1165,7 @@ La métrica privilegia reducir `dead_end` y `out_of_band`, no “parar menos”.
 - Introducir agentes espejo `*-cheap` en lugar de omitir capacidades no obligadas o usar K11b.
 - Meter first-match, Change Program o Quality Attributes como identidades dentro de K6b.
 - Resetear candidate, findings, budgets o attempts al compactar o abrir sesión.
+- Introducir un segundo compiler, evidence store, review ledger o state semántico bajo el nombre de optimización de contexto.
+- Crear rutas `Nano`/`Medium`/`Full`; los budgets de contexto son policy derivada de clasificación/riesgo con hard floors.
+- Truncar obligations, evidence, approvals o dependencias para cumplir un budget.
+- Activar deltas quirúrgicos de specs sin IDs estables, merge/loss validation, round-trip y fallback full-copy.
