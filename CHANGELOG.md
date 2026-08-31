@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.56.2] - 2026-08-31
+
+### Fixed
+- **Fail-closed K6c (`k6c-failclosed-integrity`)**:
+  - El verifier y el projector/replay pasan la `evidenceStrategy` seleccionada (`selectStrategy`) a `validateChallengeResultSet`; un ChallengePlan canónico de otra estrategia (p. ej. verifier `feature` + plan `bug`) falla con `CHALLENGE_INTEGRITY_INVALID` / `GRAPH_DIVERGENCE`.
+  - `missing_tests`, `mutations_tested === 0` y revert/mutación sin cambio de bytes emiten `outcome: "error"` (`MISSING_TESTS` / `NO_MUTATION_APPLIED` / `CHALLENGE_NOOP`), nunca `passed` ni `COMPLACENT_TEST_DETECTED`.
+  - `createChallengePlan` rechaza estrategia omitida, vacía o desconocida con `TypeError` (sin coerción a `strict-tdd`). El verifier conserva el fallback Strict TDD de REQ-002 cuando no hay estrategia declarada.
+  - `challenge-result/v1` deja de duplicar `node_id` en `required`; `validateSchemaDocument` recorre `uniqueItems` de `required` (Draft 2020-12, sin Ajv).
+  - Archivos: `scripts/lib/independent-verifier/{index,challenge-evidence}.js`, `scripts/lib/assurance-graph/{projector,index}.js`, `scripts/lib/adversarial-challenges/{integrity,planner,runner}.js`, `scripts/lib/kernel-schema-validator.js`, `schemas/kernel/challenge-result/v1.schema.json`.
+  - Ciclo SDD completo (ruta standard, TDD focused, 4R approved). Verify PASS WITH WARNINGS (33/33 MUST; el exit 1 de `npm test` es un after-hook EISDIR preexistente en `scripts/configure/cli.test.js`, no causado por este cambio). 4R: 0 BLOCKER/CRITICAL, 2 WARNING de readability (advisory). Archivado en `openspec/changes/archive/2026-08-31-k6c-failclosed-integrity/`.
+
+### Changed
+- K6c permanece `done` con el fail-closed de strategy/missing_tests cerrado; K6d sigue `next-eligible` y no se inicia.
+- Specs `adversarial-challenges` (REQ-002, REQ-004), `independent-verification` (REQ-010), `assurance-graph` (REQ-009) y `kernel-contract-schemas` (REQ-029).
+- ADRs `docs/adr/adr-20260831-001` a `004`.
+
 ## [2.56.1] - 2026-08-31
 
 ### Fixed

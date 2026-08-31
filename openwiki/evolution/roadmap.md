@@ -101,7 +101,7 @@ flowchart LR
 | **K6a** | Aislamiento de workers y cápsula de trabajo | `Cerrado (done)` | v2.46.0 |
 | **K4b** | Ejecución shadow de reparaciones | `Cerrado (done)` | v2.48.3 |
 | **K6b** | Verificador, procedencia y Assurance Graph | `Cerrado (done)` | v2.55.0 |
-| **K6c** | Retos adversariales contra tests complacientes | `Cerrado (done)` | v2.56.0 |
+| **K6c** | Retos adversariales contra tests complacientes | `Cerrado (done)` | v2.56.2 |
 | **K6d** | Análisis de delta de complejidad | `Próximo (next-eligible)` | Planificado |
 | **K7 – K8** | Autoridad de review y atestación de candidato | `Planificado (pending)` | Planificado |
 | **K9** | Comparación A/B en la sombra | `Planificado (pending)` | Planificado |
