@@ -70,7 +70,7 @@ function rejectStaleEvidence(input, bound, evidence, rawBytes) {
   return { ok: true };
 }
 
-function evaluateChallenges(input, bound) {
+function evaluateChallenges(input, bound, evidenceStrategy) {
   if (
     input.challenge_budget_exhausted ||
     (input.challengeCausalFailure &&
@@ -79,7 +79,10 @@ function evaluateChallenges(input, bound) {
     return fail("CHALLENGE_BUDGET_EXHAUSTED", "challenge budget was exhausted during execution");
   }
 
-  return evaluateChallengeEvidence(input, bound, { required: Boolean(input.requireChallengeVerification || input.require_challenge_verification) });
+  return evaluateChallengeEvidence(input, bound, {
+    required: Boolean(input.requireChallengeVerification || input.require_challenge_verification),
+    evidenceStrategy,
+  });
 }
 
 function getRunnerReceipts(input) {
@@ -206,7 +209,7 @@ function verifyCandidate(input) {
   });
   if (!coverage.ok) return coverage;
 
-  const challengeGate = evaluateChallenges(input, bound);
+  const challengeGate = evaluateChallenges(input, bound, strategy);
   if (!challengeGate.ok) return challengeGate;
 
   const evidenceRecords = classified.map((item) => item.evidence);
@@ -246,6 +249,7 @@ function verifyCandidate(input) {
     } : {}),
     requireChallengeVerification: requiredK6c,
     policySnapshot: input.policySnapshot,
+    evidenceStrategy: strategy,
   });
   if (!projected.ok) {
     return mapProjectionFailure(projected);

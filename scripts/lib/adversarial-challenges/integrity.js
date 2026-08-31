@@ -73,6 +73,21 @@ function graphHasNode(executionGraph, nodeId) {
   return Boolean(executionGraph && Array.isArray(executionGraph.nodes) && executionGraph.nodes.some((node) => node && node.node_id === nodeId));
 }
 
+const EVALUATION_BINDING_KEYS = Object.freeze(["candidate", "nodeId", "evidenceStrategy", "policySnapshot", "executionGraph"]);
+
+function hasEvaluationBindings(bindings) {
+  if (!bindings || typeof bindings !== "object") return false;
+  return EVALUATION_BINDING_KEYS.some((key) => Object.prototype.hasOwnProperty.call(bindings, key));
+}
+
+function assertEvidenceStrategyBinding(bindings, plan) {
+  const selected = bindings && bindings.evidenceStrategy;
+  if (typeof selected !== "string" || selected.length === 0 || selected !== plan.evidence_strategy) {
+    return fail("CHALLENGE_INTEGRITY_INVALID", "plan evidence strategy binding differs");
+  }
+  return { ok: true };
+}
+
 function validatePlanPartition(plan) {
   const selected = plan.selected || [];
   const skipped = plan.skipped || [];
@@ -102,9 +117,12 @@ function validateChallengePlan(plan, bindings = {}) {
   if (plan.plan_id !== computeChallengePlanId(plan)) return fail("CHALLENGE_INTEGRITY_INVALID", "plan_id does not match canonical plan content");
   const partition = validatePlanPartition(plan);
   if (!partition.ok) return partition;
+  if (hasEvaluationBindings(bindings)) {
+    const strategyGate = assertEvidenceStrategyBinding(bindings, plan);
+    if (!strategyGate.ok) return strategyGate;
+  }
   if (bindings.candidate && bindings.candidate.candidate_id !== plan.candidate_id) return fail("CHALLENGE_INTEGRITY_INVALID", "plan candidate binding differs from frozen candidate");
   if (bindings.nodeId && bindings.nodeId !== plan.node_id) return fail("CHALLENGE_INTEGRITY_INVALID", "plan node binding differs from requested node");
-  if (bindings.evidenceStrategy && bindings.evidenceStrategy !== plan.evidence_strategy) return fail("CHALLENGE_INTEGRITY_INVALID", "plan evidence strategy binding differs");
   if (bindings.policySnapshot) {
     const policy = validatePolicySnapshotBinding(bindings.policySnapshot);
     if (!policy.ok || bindings.policySnapshot.snapshot_id !== plan.policy_snapshot_id) return fail("CHALLENGE_INTEGRITY_INVALID", "plan policy snapshot binding is invalid");
@@ -136,6 +154,8 @@ function validateChallengeResult(result, plan, bindings = {}) {
 function validateChallengeResultSet(plan, results, bindings = {}) {
   const planGate = validateChallengePlan(plan, bindings);
   if (!planGate.ok) return planGate;
+  const strategyGate = assertEvidenceStrategyBinding(bindings, plan);
+  if (!strategyGate.ok) return strategyGate;
   if (!Array.isArray(results)) return fail("CHALLENGE_INTEGRITY_INVALID", "challenge results must be an array");
   if (results.length !== plan.selected.length) return fail("CHALLENGE_INTEGRITY_INVALID", "results must contain exactly one entry for every selected challenge");
   const seen = new Set();
@@ -154,6 +174,7 @@ module.exports = {
   canonicalResultBody,
   computeChallengePlanId,
   computeChallengeResultId,
+  assertEvidenceStrategyBinding,
   validateChallengePlan,
   validateChallengeResult,
   validateChallengeResultSet,

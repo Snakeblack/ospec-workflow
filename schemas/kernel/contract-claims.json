@@ -788,7 +788,6 @@
         "evidence_strategy",
         "challenge_type",
         "outcome",
-        "node_id",
         "evidence_ids",
         "details"
       ],

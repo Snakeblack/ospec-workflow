@@ -1,7 +1,14 @@
 ---
 title: Known Issues
-last_updated: 2026-08-28
+last_updated: 2026-08-31
 ---
+
+## Pre-existing cli.test.js after-hook EISDIR on evidence-link leftover
+- severity: WARNING
+- area: scripts/configure/cli.test.js (t.after fs.rmSync without recursive on openspec/changes/evidence-link)
+- workaround: rmSync with recursive true or unlink the symlink; do not treat as a K6c defect; leftover symlink may remain after npm test
+- change: k6c-failclosed-integrity
+- date: 2026-08-31
 
 ## Inherited AG-006 receipt-token attestation lacks a dedicated runtime test
 - severity: WARNING

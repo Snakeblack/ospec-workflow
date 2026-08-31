@@ -1,0 +1,192 @@
+{
+  "schema_version": 1,
+  "classification": "normal",
+  "evidence": {
+    "schema_version": 1,
+    "fingerprint": "sha256:08c0ce9f4ce087ceacc332c88627555edecba5df3234385edbb22ec39475db77",
+    "sources": {
+      "paths": [
+        "openspec/changes/k6c-failclosed-integrity/apply-progress.md",
+        "openspec/changes/k6c-failclosed-integrity/decisions/adr-001.md",
+        "openspec/changes/k6c-failclosed-integrity/decisions/adr-002.md",
+        "openspec/changes/k6c-failclosed-integrity/decisions/adr-003.md",
+        "openspec/changes/k6c-failclosed-integrity/decisions/adr-004.md",
+        "openspec/changes/k6c-failclosed-integrity/design.md",
+        "openspec/changes/k6c-failclosed-integrity/proposal.md",
+        "openspec/changes/k6c-failclosed-integrity/specs/adversarial-challenges/spec.md",
+        "openspec/changes/k6c-failclosed-integrity/specs/assurance-graph/spec.md",
+        "openspec/changes/k6c-failclosed-integrity/specs/independent-verification/spec.md",
+        "openspec/changes/k6c-failclosed-integrity/specs/kernel-contract-schemas/spec.md",
+        "openspec/changes/k6c-failclosed-integrity/state.yaml",
+        "openspec/changes/k6c-failclosed-integrity/tasks.md",
+        "openspec/changes/k6c-failclosed-integrity/verify-report.md",
+        "openspec/memory/known-issues.md",
+        "schemas/kernel/challenge-result/v1.schema.json",
+        "schemas/kernel/contract-claims.json",
+        "scripts/lib/adversarial-challenges/integrity.js",
+        "scripts/lib/adversarial-challenges/integrity.test.js",
+        "scripts/lib/adversarial-challenges/planner.js",
+        "scripts/lib/adversarial-challenges/planner.test.js",
+        "scripts/lib/adversarial-challenges/runner.js",
+        "scripts/lib/adversarial-challenges/runner.test.js",
+        "scripts/lib/assurance-graph/index.js",
+        "scripts/lib/assurance-graph/index.test.js",
+        "scripts/lib/assurance-graph/projector.js",
+        "scripts/lib/contract-checkers/k1-schema-compat.js",
+        "scripts/lib/independent-verifier/challenge-evidence.js",
+        "scripts/lib/independent-verifier/index.js",
+        "scripts/lib/independent-verifier/index.test.js",
+        "scripts/lib/k6c-schema-fixtures.test.js",
+        "scripts/lib/kernel-schema-validator.js",
+        "scripts/lib/kernel-schema-validator.test.js"
+      ],
+      "capabilities": [
+        "runtime"
+      ],
+      "operation_types": [
+        "add",
+        "modify"
+      ],
+      "dependencies": [],
+      "facts": [
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "fail-closed K6c integrity: strategy binding, missing_tests, unknown strategy reject"
+        },
+        {
+          "code": "metadata-runtime",
+          "source": "metadata",
+          "detail": "runtime"
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/lib/adversarial-challenges/planner.js"
+        },
+        {
+          "code": "verify-reliability",
+          "source": "verify",
+          "detail": "pre-existing cli.test.js after-hook EISDIR on evidence-link; npm test exit 1; not caused by this change"
+        }
+      ]
+    }
+  },
+  "generalist": {
+    "status": "needs-specialist",
+    "specialists": [
+      "risk",
+      "reliability",
+      "resilience"
+    ],
+    "reason": "signals=design-risk,diff-error-flow,metadata-runtime,verify-reliability;dimensions=risk,reliability,resilience"
+  },
+  "depth": {
+    "review": "strict"
+  },
+  "escalation_reason": {
+    "code": "normal-signal-overflow",
+    "positive_dimensions": 3,
+    "detail": "Normal review has 3 positive dimensions; strict full 4R required"
+  },
+  "dimensions": {
+    "risk": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "signal-overflow-override",
+          "source": "override",
+          "detail": "Normal review has 3 positive dimensions; strict full 4R required",
+          "precedence": 0
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=design-risk,diff-error-flow,metadata-runtime,verify-reliability;dimensions=risk,reliability,resilience",
+          "precedence": 3
+        },
+        {
+          "code": "design-risk",
+          "source": "design",
+          "detail": "fail-closed K6c integrity: strategy binding, missing_tests, unknown strategy reject",
+          "precedence": 4
+        }
+      ]
+    },
+    "reliability": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "signal-overflow-override",
+          "source": "override",
+          "detail": "Normal review has 3 positive dimensions; strict full 4R required",
+          "precedence": 0
+        },
+        {
+          "code": "verify-reliability",
+          "source": "verify",
+          "detail": "pre-existing cli.test.js after-hook EISDIR on evidence-link; npm test exit 1; not caused by this change",
+          "precedence": 1
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/lib/adversarial-challenges/planner.js",
+          "precedence": 2
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=design-risk,diff-error-flow,metadata-runtime,verify-reliability;dimensions=risk,reliability,resilience",
+          "precedence": 3
+        },
+        {
+          "code": "metadata-runtime",
+          "source": "metadata",
+          "detail": "runtime",
+          "precedence": 5
+        }
+      ]
+    },
+    "resilience": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "signal-overflow-override",
+          "source": "override",
+          "detail": "Normal review has 3 positive dimensions; strict full 4R required",
+          "precedence": 0
+        },
+        {
+          "code": "diff-error-flow",
+          "source": "real-diff",
+          "detail": "scripts/lib/adversarial-challenges/planner.js",
+          "precedence": 2
+        },
+        {
+          "code": "generalist-escalation",
+          "source": "generalist",
+          "detail": "signals=design-risk,diff-error-flow,metadata-runtime,verify-reliability;dimensions=risk,reliability,resilience",
+          "precedence": 3
+        }
+      ]
+    },
+    "readability": {
+      "selected": true,
+      "reasons": [
+        {
+          "code": "signal-overflow-override",
+          "source": "override",
+          "detail": "Normal review has 3 positive dimensions; strict full 4R required",
+          "precedence": 0
+        }
+      ]
+    }
+  },
+  "selected_specialists": [
+    "risk",
+    "reliability",
+    "resilience",
+    "readability"
+  ]
+}

@@ -2,7 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const { validateInstance } = require("../kernel-schema-validator.js");
+const { validateInstance, validateSchemaDocument } = require("../kernel-schema-validator.js");
 
 const CHECKER = "k1-schema-compat";
 const MANIFEST_REL = "schemas/kernel/manifest.json";
@@ -531,6 +531,19 @@ function check(ctx) {
     }
     const schema = readConfinedSchema(root, family, entry, offenders);
     if (!schema) continue;
+
+    const documentGate = validateSchemaDocument(schema);
+    if (!documentGate.valid) {
+      const detail = documentGate.errors.map((error) => `${error.path}:${error.rule}`).join(", ");
+      offenders.push(
+        offender(
+          entry.path,
+          "uniqueItems on every required array",
+          detail || "duplicate required",
+          `${entry.path} failed Draft 2020-12 uniqueItems on required: ${detail}`
+        )
+      );
+    }
 
     if (!claimFamilies || !Object.prototype.hasOwnProperty.call(claimFamilies, family)) {
       offenders.push(

@@ -197,7 +197,12 @@ function projectAssuranceGraph(input = {}) {
   const challengesRequired = Boolean(input.requireChallengeVerification || input.require_challenge_verification);
   if (challengesRequired && !challengePlan) return fail("GRAPH_DIVERGENCE", "mandatory K6c challenge plan is absent");
   if (challengePlan || challengeResults.length > 0) {
-    const gate = validateChallengeResultSet(challengePlan, challengeResults, { candidate, executionGraph: graph, policySnapshot: input.policySnapshot });
+    const gate = validateChallengeResultSet(challengePlan, challengeResults, {
+      candidate,
+      executionGraph: graph,
+      policySnapshot: input.policySnapshot,
+      evidenceStrategy: input.evidenceStrategy,
+    });
     if (!gate.ok || challengeResults.some((result) => result.outcome !== "passed")) return fail("GRAPH_DIVERGENCE", (gate && gate.error) || "K6c challenge material is not accepted");
     pushNode(nodes, challengePlan.plan_id, "challenge-plan");
     pushEdge(edges, challengePlan.plan_id, "derived-from", candidateId);

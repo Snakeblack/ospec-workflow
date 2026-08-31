@@ -144,14 +144,23 @@ async function runIsolatedMutation(type, workspace, context, scope, signal, time
     const patch = context.patch && context.patch.original && context.patch.modified
       ? context.patch
       : derivePatchFromDiff(context.candidateDiff);
+    let bytesChanged = false;
     for (const rel of files) {
       const current = readWorkspaceFile(workspace, rel);
       originals.set(rel, current);
-      writeWorkspaceFile(workspace, rel, revertSourcePatch(current, patch));
+      const reverted = revertSourcePatch(current, patch);
+      if (reverted !== current) bytesChanged = true;
+      writeWorkspaceFile(workspace, rel, reverted);
     }
     try {
+      if (!bytesChanged) {
+        return { outcome: "error", details: { reason: "CHALLENGE_NOOP" } };
+      }
       const run = await runWorkspaceTests(workspace, context, signal, timeoutMs);
-      if (run.failure_class && run.failure_class !== "missing_tests") {
+      if (run.failure_class === "missing_tests") {
+        return { outcome: "error", details: { reason: "MISSING_TESTS" } };
+      }
+      if (run.failure_class) {
         return { outcome: "error", details: { reason: "CHALLENGE_EXECUTION_ERROR", error: run.error || run.failure_class } };
       }
       return run.pass === true || run.exitCode === 0
@@ -171,10 +180,17 @@ async function runIsolatedMutation(type, workspace, context, scope, signal, time
       const original = readWorkspaceFile(workspace, rel);
       const mutationList = mutationsFor(context, rel, original, targetLinesByPath.get(rel) || null);
       for (const mutation of mutationList) {
+        const mutated = applyFocalMutation(original, mutation);
+        if (mutated === original) {
+          return { outcome: "error", details: { reason: "CHALLENGE_NOOP", mutations_tested: mutationsTested, defects_detected: defects } };
+        }
         mutationsTested += 1;
-        writeWorkspaceFile(workspace, rel, applyFocalMutation(original, mutation));
+        writeWorkspaceFile(workspace, rel, mutated);
         try {
           const run = await runWorkspaceTests(workspace, context, signal, timeoutMs);
+          if (run.failure_class === "missing_tests") {
+            return { outcome: "error", details: { reason: "MISSING_TESTS", mutations_tested: mutationsTested, defects_detected: defects } };
+          }
           if (run.failure_class === "sandbox_rejection" || run.failure_class === "cancel") {
             return { outcome: "error", details: { reason: "CHALLENGE_EXECUTION_ERROR", error: run.error || run.failure_class } };
           }
@@ -186,6 +202,9 @@ async function runIsolatedMutation(type, workspace, context, scope, signal, time
           writeWorkspaceFile(workspace, rel, original);
         }
       }
+    }
+    if (mutationsTested === 0) {
+      return { outcome: "error", details: { reason: "NO_MUTATION_APPLIED", mutations_tested: 0, defects_detected: defects } };
     }
     return { outcome: "passed", details: { mutations_tested: mutationsTested, defects_detected: defects, complacent_tests: 0 } };
   }
