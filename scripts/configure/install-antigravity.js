@@ -186,6 +186,7 @@ function installAntigravityRoot(antigravityRoot, outDir, sourceDir, args, deps) 
   const stdout = deps.stdout || process.stdout;
   const stderr = deps.stderr || process.stderr;
   const copyBinary = deps.copyBinaryToTree || copyBinaryToTree;
+  const installHooks = deps.installHooksJson || installHooksJson;
   const validateInstalled = deps.validateInstalled || validateInstalledAntigravity;
 
   try {
@@ -228,7 +229,7 @@ function installAntigravityRoot(antigravityRoot, outDir, sourceDir, args, deps) 
     );
 
     const antigravityRootPosix = getHooksRootPosix(antigravityRoot);
-    installHooksJson(outDir, antigravityRoot, {
+    installHooks(outDir, antigravityRoot, {
       fs: fsImpl,
       dryRun: false,
       journal,
@@ -291,8 +292,8 @@ function main(argv = process.argv.slice(2), deps = {}) {
     return 2;
   }
 
-  const sourceDir = path.resolve(args.source || cwd);
-  const outDir = path.join(sourceDir, "dist", "antigravity");
+  const sourceDir = path.resolve(args.source || deps.sourceDir || cwd);
+  const outDir = deps.outDir || path.join(sourceDir, "dist", "antigravity");
   const targetRoots = getDestinationRoots(args.dest, deps);
 
   const result = runConfigureImpl({
