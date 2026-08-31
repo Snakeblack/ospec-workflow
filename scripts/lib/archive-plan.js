@@ -14,7 +14,10 @@ const PLAN_REJECTION_CODES = Object.freeze([
   "hash-mismatch",
   "inventory-mismatch",
   "change-name-mismatch",
+  "corrupted-spec-content",
+  "dropped-requirement-id",
 ]);
+
 
 const KNOWN_CODES = new Set(PLAN_REJECTION_CODES);
 
@@ -255,6 +258,31 @@ function validatePlanShape(plan, options) {
   return emptyResult();
 }
 
+function extractRequirementIds(markdownText) {
+  if (typeof markdownText !== "string") return new Set();
+  const matches = markdownText.match(/\{#(REQ-[a-zA-Z0-9_-]+)\}/g) || [];
+  return new Set(matches.map((m) => m.slice(2, -1)));
+}
+
+function extractRemovedRequirementIds(markdownText) {
+  if (typeof markdownText !== "string") return new Set();
+  const removedMatch = markdownText.match(/(?:^|\n)## REMOVED Requirements([\s\S]*?)(?=(?:\n## )|$)/);
+  if (!removedMatch) return new Set();
+  const text = removedMatch[1];
+  const ids = new Set();
+  for (const m of text.matchAll(/\{#(REQ-[a-zA-Z0-9_-]+)\}/g)) ids.add(m[1]);
+  for (const m of text.matchAll(/\b(REQ-[a-zA-Z0-9_-]+)\b/g)) ids.add(m[1]);
+  return ids;
+}
+
+
+function hasCorruptedSpecContent(text) {
+  if (typeof text !== "string") return false;
+  if (/^\s*undefined\s*$/m.test(text)) return true;
+  if (/\[object Object\]/.test(text)) return true;
+  return false;
+}
+
 /**
  * @param {object} plan - already shape-validated (or still checked lightly)
  * @param {object} snapshot
@@ -313,7 +341,13 @@ function validatePlanAgainstSnapshot(plan, snapshot) {
   const preparedContent = isPlainObject(snapshot.preparedContent)
     ? snapshot.preparedContent
     : {};
+  const preparedTexts = isPlainObject(snapshot.preparedTexts)
+    ? snapshot.preparedTexts
+    : {};
   const targets = isPlainObject(snapshot.targets) ? snapshot.targets : {};
+  const targetTexts = isPlainObject(snapshot.targetTexts)
+    ? snapshot.targetTexts
+    : {};
   const adrSources = isPlainObject(snapshot.adrSources) ? snapshot.adrSources : {};
 
   const specWrites = Array.isArray(plan.spec_writes) ? plan.spec_writes : [];
@@ -339,6 +373,34 @@ function validatePlanAgainstSnapshot(plan, snapshot) {
         "hash-mismatch",
         `content_sha256 mismatch for ${preparedKey}`,
       );
+    }
+
+    const prepText = preparedTexts[preparedKey];
+    if (typeof prepText === "string") {
+      if (hasCorruptedSpecContent(prepText)) {
+        pushCode(
+          codes,
+          errors,
+          "corrupted-spec-content",
+          `prepared content for ${preparedKey} contains corrupted spec content`,
+        );
+      }
+      const targetText = targetTexts[entry.target];
+      if (typeof targetText === "string") {
+        const targetReqs = extractRequirementIds(targetText);
+        const prepReqs = extractRequirementIds(prepText);
+        const removedReqs = extractRemovedRequirementIds(prepText);
+        for (const reqId of targetReqs) {
+          if (!prepReqs.has(reqId) && !removedReqs.has(reqId)) {
+            pushCode(
+              codes,
+              errors,
+              "dropped-requirement-id",
+              `requirement ID ${reqId} dropped in ${preparedKey} without REMOVED declaration`,
+            );
+          }
+        }
+      }
     }
 
     const targetHash = Object.prototype.hasOwnProperty.call(targets, entry.target)
@@ -410,9 +472,13 @@ module.exports = {
   parsePlan,
   validatePlanShape,
   validatePlanAgainstSnapshot,
+  extractRequirementIds,
+  extractRemovedRequirementIds,
+  hasCorruptedSpecContent,
   isKnownRejectionCode,
   hasTraversalOrAbsolute,
   isRelativeUnder,
   isSafeChangeName,
   isSafeDomain,
 };
+

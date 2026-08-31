@@ -109,12 +109,149 @@ test("PLAN_SCHEMA_VERSION is 1 and PLAN_REJECTION_CODES is frozen allowlist", ()
     "hash-mismatch",
     "inventory-mismatch",
     "change-name-mismatch",
+    "corrupted-spec-content",
+    "dropped-requirement-id",
   ];
   for (const code of expected) {
     assert.ok(PLAN_REJECTION_CODES.includes(code), `missing ${code}`);
   }
   assert.equal(PLAN_REJECTION_CODES.length, expected.length);
 });
+
+test("validatePlanAgainstSnapshot: corrupted prepared spec with undefined token → corrupted-spec-content", () => {
+  const contentKey = "specs/routing/spec.md";
+  const prepText = "# Routing\n\n### Requirement: Foo {#REQ-routing-001}\n\nundefined\n";
+  const prepared = sha256Hex(Buffer.from(prepText));
+  const plan = minimalPlan({
+    spec_writes: [
+      {
+        domain: "routing",
+        source_delta: "specs/routing/spec.md",
+        target: "openspec/specs/routing/spec.md",
+        target_before_sha256: null,
+        content_sha256: prepared,
+      },
+    ],
+  });
+  const snapshot = {
+    changeName: "hybrid-archive-transaction-runtime",
+    sourceFingerprint: plan.source_fingerprint,
+    originInventory: [
+      { path: "proposal.md", sha256: sha256Hex(Buffer.from("p")) },
+      { path: "state.yaml", sha256: sha256Hex(Buffer.from("s")) },
+    ],
+    targets: { "openspec/specs/routing/spec.md": null },
+    preparedContent: { [contentKey]: prepared },
+    preparedTexts: { [contentKey]: prepText },
+    adrSources: {},
+  };
+  const result = validatePlanAgainstSnapshot(plan, snapshot);
+  assert.equal(result.valid, false);
+  assert.ok(result.codes.includes("corrupted-spec-content"));
+});
+
+test("validatePlanAgainstSnapshot: corrupted prepared spec with [object Object] → corrupted-spec-content", () => {
+  const contentKey = "specs/routing/spec.md";
+  const prepText = "# Routing\n\n[object Object]\n";
+  const prepared = sha256Hex(Buffer.from(prepText));
+  const plan = minimalPlan({
+    spec_writes: [
+      {
+        domain: "routing",
+        source_delta: "specs/routing/spec.md",
+        target: "openspec/specs/routing/spec.md",
+        target_before_sha256: null,
+        content_sha256: prepared,
+      },
+    ],
+  });
+  const snapshot = {
+    changeName: "hybrid-archive-transaction-runtime",
+    sourceFingerprint: plan.source_fingerprint,
+    originInventory: [
+      { path: "proposal.md", sha256: sha256Hex(Buffer.from("p")) },
+      { path: "state.yaml", sha256: sha256Hex(Buffer.from("s")) },
+    ],
+    targets: { "openspec/specs/routing/spec.md": null },
+    preparedContent: { [contentKey]: prepared },
+    preparedTexts: { [contentKey]: prepText },
+    adrSources: {},
+  };
+  const result = validatePlanAgainstSnapshot(plan, snapshot);
+  assert.equal(result.valid, false);
+  assert.ok(result.codes.includes("corrupted-spec-content"));
+});
+
+test("validatePlanAgainstSnapshot: dropped requirement ID without REMOVED declaration → dropped-requirement-id", () => {
+  const contentKey = "specs/routing/spec.md";
+  const targetText = "# Routing\n\n### Requirement: One {#REQ-routing-001}\n\n### Requirement: Two {#REQ-routing-002}\n";
+  const prepText = "# Routing\n\n### Requirement: One {#REQ-routing-001}\n"; // silently dropped REQ-routing-002
+  const targetSha = sha256Hex(Buffer.from(targetText));
+  const prepSha = sha256Hex(Buffer.from(prepText));
+  const plan = minimalPlan({
+    spec_writes: [
+      {
+        domain: "routing",
+        source_delta: "specs/routing/spec.md",
+        target: "openspec/specs/routing/spec.md",
+        target_before_sha256: targetSha,
+        content_sha256: prepSha,
+      },
+    ],
+  });
+  const snapshot = {
+    changeName: "hybrid-archive-transaction-runtime",
+    sourceFingerprint: plan.source_fingerprint,
+    originInventory: [
+      { path: "proposal.md", sha256: sha256Hex(Buffer.from("p")) },
+      { path: "state.yaml", sha256: sha256Hex(Buffer.from("s")) },
+    ],
+    targets: { "openspec/specs/routing/spec.md": targetSha },
+    targetTexts: { "openspec/specs/routing/spec.md": targetText },
+    preparedContent: { [contentKey]: prepSha },
+    preparedTexts: { [contentKey]: prepText },
+    adrSources: {},
+  };
+  const result = validatePlanAgainstSnapshot(plan, snapshot);
+  assert.equal(result.valid, false);
+  assert.ok(result.codes.includes("dropped-requirement-id"));
+});
+
+test("validatePlanAgainstSnapshot: removed requirement ID declared in REMOVED section is allowed", () => {
+  const contentKey = "specs/routing/spec.md";
+  const targetText = "# Routing\n\n### Requirement: One {#REQ-routing-001}\n\n### Requirement: Two {#REQ-routing-002}\n";
+  const prepText = "# Routing\n\n### Requirement: One {#REQ-routing-001}\n\n## REMOVED Requirements\n\n- REQ-routing-002: Deprecated in favor of 001\n";
+  const targetSha = sha256Hex(Buffer.from(targetText));
+  const prepSha = sha256Hex(Buffer.from(prepText));
+  const plan = minimalPlan({
+    spec_writes: [
+      {
+        domain: "routing",
+        source_delta: "specs/routing/spec.md",
+        target: "openspec/specs/routing/spec.md",
+        target_before_sha256: targetSha,
+        content_sha256: prepSha,
+      },
+    ],
+  });
+  const snapshot = {
+    changeName: "hybrid-archive-transaction-runtime",
+    sourceFingerprint: plan.source_fingerprint,
+    originInventory: [
+      { path: "proposal.md", sha256: sha256Hex(Buffer.from("p")) },
+      { path: "state.yaml", sha256: sha256Hex(Buffer.from("s")) },
+    ],
+    targets: { "openspec/specs/routing/spec.md": targetSha },
+    targetTexts: { "openspec/specs/routing/spec.md": targetText },
+    preparedContent: { [contentKey]: prepSha },
+    preparedTexts: { [contentKey]: prepText },
+    adrSources: {},
+  };
+  const result = validatePlanAgainstSnapshot(plan, snapshot);
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.codes, []);
+});
+
 
 test("isKnownRejectionCode: unknown future code fails closed", () => {
   assert.equal(isKnownRejectionCode("hash-mismatch"), true);

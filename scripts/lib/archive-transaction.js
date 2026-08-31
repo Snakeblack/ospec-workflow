@@ -527,7 +527,9 @@ async function buildSnapshot(workspace, changeName, plan, fsx) {
   const sourceFingerprint = fingerprintInventory(originInventory);
 
   const targets = {};
+  const targetTexts = {};
   const preparedContent = {};
+  const preparedTexts = {};
   const adrSources = {};
 
   for (const sw of plan.spec_writes || []) {
@@ -535,6 +537,7 @@ async function buildSnapshot(workspace, changeName, plan, fsx) {
     try {
       const buf = await fsx.readFile(targetAbs);
       targets[sw.target] = digestBytes(buf);
+      targetTexts[sw.target] = buf.toString("utf8");
     } catch (err) {
       if (err.code === "ENOENT") targets[sw.target] = null;
       else throw err;
@@ -543,6 +546,7 @@ async function buildSnapshot(workspace, changeName, plan, fsx) {
     try {
       const buf = await fsx.readFile(prepAbs);
       preparedContent[sw.source_delta] = digestBytes(buf);
+      preparedTexts[sw.source_delta] = buf.toString("utf8");
     } catch (err) {
       if (err.code === "ENOENT") {
         // leave missing — validator will emit missing-reference
@@ -565,10 +569,13 @@ async function buildSnapshot(workspace, changeName, plan, fsx) {
     sourceFingerprint,
     originInventory,
     targets,
+    targetTexts,
     preparedContent,
+    preparedTexts,
     adrSources,
   };
 }
+
 
 async function copyInventoryToStaging(origin, stagingArchive, inventory, fsx) {
   await fsx.mkdir(stagingArchive, { recursive: true });

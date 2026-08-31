@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "change": "k6c-spec-integrity-and-runner-seam-remediation",
+  "source_fingerprint": "sha256:40d1101dc5b70cae99f23c827a1286fad6bc8e827eaf4ec1147abd9c482ffbf7",
+  "spec_writes": [
+    {
+      "domain": "adversarial-challenges",
+      "source_delta": "prepared-specs/adversarial-challenges/spec.md",
+      "target": "openspec/specs/adversarial-challenges/spec.md",
+      "target_before_sha256": "sha256:41ca3aefcfc3eb4b39d60d9b2445e52e02cf08ed7cb5e0f9e5b57d1edbf7ede8",
+      "content_sha256": "sha256:91357578fec28b3db1efd0b81eb32f22f3eabd2f501a3cac71f7d804a7f8d275"
+    },
+    {
+      "domain": "archive-plan-contract",
+      "source_delta": "prepared-specs/archive-plan-contract/spec.md",
+      "target": "openspec/specs/archive-plan-contract/spec.md",
+      "target_before_sha256": "sha256:e5da33258561c74640f61b7f566d06eb16246ad42257717ca106104fde1d3672",
+      "content_sha256": "sha256:39a605fc653a918b2fa0d409ff98637db012aeaa25b1aed88d7b5f9fafbacb38"
+    },
+    {
+      "domain": "archive-transaction-runtime",
+      "source_delta": "prepared-specs/archive-transaction-runtime/spec.md",
+      "target": "openspec/specs/archive-transaction-runtime/spec.md",
+      "target_before_sha256": "sha256:360a7de94d17d30bd9adc731337092206705fd1a1feb0c5a255c777f6f78c3ab",
+      "content_sha256": "sha256:36a6ea84c174f03d4308c6f8bf76b15ced1f8d9315ebb203bfa4d9843a4d1dc4"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260831-007-confinamiento-de-ejecucion-sandboxed-y-eliminacion-del-seam-de-contexto.md",
+      "content_sha256": "sha256:1eb83ba0bb8acb0e8f71ec368ab84956df64d5ce6314b73eafbbbc03f10ed06b"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260831-008-validacion-fail-closed-de-integridad-sintactica-y-retencion-de-req-ids-en-archive.md",
+      "content_sha256": "sha256:545f6c4e726021098737423dbe455a238dc68dd38c78dc266b6362bde40c66ef"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "design.md",
+    "prepared-specs/adversarial-challenges/spec.md",
+    "prepared-specs/archive-plan-contract/spec.md",
+    "prepared-specs/archive-transaction-runtime/spec.md",
+    "proposal.md",
+    "specs/adversarial-challenges/spec.md",
+    "specs/archive-plan-contract/spec.md",
+    "specs/archive-transaction-runtime/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}
