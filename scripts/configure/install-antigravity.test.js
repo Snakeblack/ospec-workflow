@@ -103,6 +103,7 @@ test("pruneStaleFiles exhaustion diagnosis specifies target: antigravity", (t) =
   fs.mkdirSync(destDir, { recursive: true });
 
   fs.writeFileSync(path.join(sourceDir, "package.json"), JSON.stringify({ name: "test", version: "1.0.0" }));
+  fs.writeFileSync(path.join(sourceDir, "hooks.json"), JSON.stringify({ hooks: {} }));
   fs.writeFileSync(path.join(destDir, "stale-file.txt"), "stale");
   fs.writeFileSync(
     path.join(destDir, ".ospec-workflow-install.json"),
