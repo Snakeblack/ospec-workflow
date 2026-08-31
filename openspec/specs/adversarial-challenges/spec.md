@@ -109,17 +109,27 @@ ChallengePlan generation MUST reject an `evidenceStrategy` that is omitted, empt
 
 Every `ChallengePlan` MUST carry a strictly bounded `budget` (`ChallengeBudget`) specifying execution quotas: `max_challenges` (integer > 0), `mutation_budget` (integer >= 0), and `timeout_seconds` (number > 0).
 
-During challenge execution, budget counters MUST be decremented monotonically. If the budget is exhausted before all selected challenges complete, the executor MUST immediately halt and transition to a typed causal failure (`causal-failure/v1`) with category `validation_gap` or `environment_tooling` and reason code `CHALLENGE_BUDGET_EXHAUSTED`. The system MUST NOT perform identical blind restarts when a challenge run exhausts its budget.
+During challenge execution, budget counters MUST be decremented monotonically. Specifically, during `focal-mutation` execution, the runner MUST invoke `ChallengeBudgetTracker` to consume 1 mutation budget unit prior to evaluating each individual mutation. If `mutation_budget` is exhausted (or `consumeMutations(1)` returns `false`), the executor MUST immediately halt execution and transition to a typed causal failure (`causal-failure/v1`) with category `validation_gap`, reason code `CHALLENGE_BUDGET_EXHAUSTED`, and exhausted dimension `mutation_budget`. The system MUST NOT perform identical blind restarts when a challenge run exhausts its budget, MUST NOT evaluate further mutations without available budget, and MUST NOT emit a passed outcome upon budget exhaustion.
+
+(Previously: mutation_budget was not strictly verified or consumed per individual mutation during focal-mutation runner execution.)
 
 #### Scenario: Monotonic budget consumption during challenge execution
 
 - GIVEN a `ChallengePlan` with `max_challenges: 3` and `mutation_budget: 10`
-- WHEN each challenge and mutation executes
-- THEN budget counters MUST decrement monotonically after each operation
+- WHEN each challenge and focal mutation executes
+- THEN budget counters MUST decrement monotonically prior to each operation
+
+#### Scenario: Mutation budget exhaustion halts focal mutation and emits causal failure
+
+- GIVEN an executing `focal-mutation` challenge with bounded `mutation_budget`
+- WHEN evaluating candidate mutations and `consumeMutations(1)` returns `false` due to exhausted budget
+- THEN execution of the mutation loop MUST halt immediately
+- AND MUST emit a typed causal failure with reason `CHALLENGE_BUDGET_EXHAUSTED` and dimension `mutation_budget`
+- AND MUST NOT evaluate subsequent mutations nor retry blindly
 
 #### Scenario: Budget exhaustion triggers causal failure transition without blind restart
 
-- GIVEN an executing `ChallengePlan` whose `mutation_budget` reaches zero before all selected challenges pass
+- GIVEN an executing `ChallengePlan` whose budget counters (`max_challenges`, `mutation_budget`, or `timeout_seconds`) reach zero before all selected challenges pass
 - WHEN the exhaustion occurs
 - THEN challenge execution MUST halt immediately
 - AND MUST emit a typed causal failure with reason `CHALLENGE_BUDGET_EXHAUSTED`
@@ -127,36 +137,90 @@ During challenge execution, budget counters MUST be decremented monotonically. I
 
 ### Requirement: Seeded Defect Detection And Complacent Test Rejection {#REQ-adversarial-challenges-004}
 
-The challenge runner MUST execute only the `selected` challenges specified in the `ChallengePlan` against isolated test instances in ephemeral sandboxes. `executeChallengePlan` MUST execute candidate tests strictly via the isolated sandboxed command runner (`executeSandboxedCommand`) and MUST NOT expose or respect any caller-controllable test runner seam (such as `context.runWorkspaceTests`) passed in the execution context. Caller-supplied mock runners MUST NOT bypass the isolated worker sandbox during plan execution.
+The challenge runner MUST execute only the `selected` challenges specified in the canonical ChallengePlan against isolated test instances. It MUST first validate the plan identity, schema, Candidate, node, strategy, and PolicySnapshot bindings; malformed or contradictory input MUST fail closed and MUST NOT produce an approving result.
+
+Each selected challenge MUST execute once in an ephemeral workspace created from the frozen Candidate. The runner MUST derive `focal-mutation` scope exclusively from the frozen candidate diff; caller-supplied paths MUST NOT expand that scope. It MUST record candidate digest before and after execution and reject any mismatch. Before execution, the runner MUST require an executor capability for the requested challenge and cancellation; an absent, false, or unverifiable capability MUST fail closed. `executeChallengePlan` MUST execute candidate tests strictly via the isolated sandboxed command runner (`executeSandboxedCommand`) and MUST NOT expose or respect any caller-controllable test runner seam (such as `context.runWorkspaceTests`) passed in the execution context. Caller-supplied mock runners MUST NOT bypass the isolated worker sandbox during plan execution.
+
+The runner MUST enforce `timeout_seconds` using elapsed wall-clock time, propagate cancellation to the running work, and emit `outcome: "error"` with `CHALLENGE_TIMEOUT` if the deadline elapses. A non-cooperative child that survives cancellation MUST remain a failure and MUST NOT yield a pass.
 
 When executing `focal-mutation` or `revert`:
-1. The runner MUST introduce targeted mutations or patch reversals into the test copy of the candidate codebase in the isolated workspace.
-2. The candidate test suite MUST be executed in the isolated sandbox against the mutated codebase.
-3. If the candidate tests pass against a seeded defect or unpatched revert, the challenge runner MUST fail the challenge with reason code `COMPLACENT_TEST_DETECTED` and reject the candidate evidence.
-4. If the candidate tests fail as expected against the seeded defect or revert, the challenge runner MUST mark the challenge as passed.
+1. The runner MUST introduce targeted mutations or patch reversals into the test copy of the candidate codebase.
+2. The candidate test suite MUST execute against the mutated codebase in the confined sandbox environment.
+3. The runner MUST strictly distinguish between test assertion failures and infrastructure/spawn/tooling errors:
+   - If candidate tests fail due to test assertion failure (`exit_code !== 0` with no infrastructure error, spawn error, sandbox rejection, cancellation, or timeout), the seeded defect or revert is confirmed detected and `defects_detected` is incremented.
+   - If candidate tests pass against a seeded defect or unpatched revert (`exit_code === 0`), the runner MUST mark the challenge with `outcome: "failed"` and reason `COMPLACENT_TEST_DETECTED`.
+   - If command execution encounters an infrastructure error, spawn failure (`failure_class: "spawn_error"` or child process error), sandbox rejection (`failure_class: "sandbox_rejection"`), cancellation (`failure_class: "cancel"`), or runtime execution error, the runner MUST emit `outcome: "error"` with reason `CHALLENGE_EXECUTION_ERROR`. Infrastructure and tooling errors MUST NOT increment `defects_detected` and MUST NOT produce `outcome: "passed"` or `outcome: "failed"`.
+   - If command execution elapses past the deadline or returns `failure_class: "timeout"`, the runner MUST emit `outcome: "error"` with reason `CHALLENGE_TIMEOUT` without incrementing `defects_detected`.
+4. If tests fail as expected against a mutation or revert that actually changed candidate-copy bytes, candidate tests were present, and no infrastructure/tooling error occurred, the runner MUST mark the challenge as passed.
 
-When executing `test-inspection`, the runner MUST evaluate test assertions and reject tautological assertions (e.g. constant equality, empty assertions, or unconditional passes) with reason code `TAUTOLOGICAL_TEST_DETECTED`.
+Absence of candidate tests (`missing_tests`), a `focal-mutation` execution with `mutations_tested === 0`, or a `revert` or `focal-mutation` that does not modify the isolated candidate-copy bytes MUST fail closed. The runner MUST NOT emit `outcome: "passed"` for those conditions. `missing_tests` MUST NOT be treated as expected adversarial detection that proves tests found a seeded defect.
 
-All challenge execution outcomes MUST be recorded in a schema-valid `challenge-result/v1` record containing `result_id`, `plan_id`, `candidate_id`, `challenge_type`, `outcome` (`passed | failed | error`), `node_id`, `evidence_ids`, and `details`.
+When executing `test-inspection`, the runner MUST reject tautological assertions with `TAUTOLOGICAL_TEST_DETECTED`. Every outcome MUST be schema-valid and canonically bound to its plan, Candidate, node, strategy, and PolicySnapshot.
+
+(Previously: test assertion failures and infrastructure/tooling/spawn errors were not strictly distinguished, allowing execution errors to potentially count as detected defects or produce invalid pass outcomes.)
 
 #### Scenario: Focal mutation detects seeded defect and challenge passes
 
-- GIVEN a candidate test suite and an active `focal-mutation` challenge
-- WHEN a seeded mutation is introduced into the changed code and tests fail
-- THEN the challenge outcome MUST be `passed`
-- AND a valid `challenge-result/v1` record MUST be emitted
+- GIVEN a canonical plan with an active focal-mutation challenge
+- WHEN a mutation inside the frozen diff makes candidate tests fail due to test assertion failure
+- THEN `defects_detected` MUST be incremented
+- AND the outcome MUST be `passed`
+- AND a bound valid challenge-result MUST be emitted
 
 #### Scenario: Complacent test suite passes on seeded defect and challenge fails
 
-- GIVEN a complacent test suite that does not assert over the modified behavior
-- WHEN a `focal-mutation` or `revert` is introduced and the candidate tests still pass
-- THEN the challenge outcome MUST be `failed` with reason `COMPLACENT_TEST_DETECTED`
+- GIVEN a complacent candidate test suite
+- WHEN a focal-mutation or revert challenge leaves its tests passing (`exit_code === 0`)
+- THEN the outcome MUST be `failed` with `COMPLACENT_TEST_DETECTED`
 
 #### Scenario: Test inspection detects tautological assertion
 
-- GIVEN a test suite containing tautological assertions or unconditional pass statements
-- WHEN `test-inspection` challenge evaluates the assertions
-- THEN the challenge outcome MUST be `failed` with reason `TAUTOLOGICAL_TEST_DETECTED`
+- GIVEN a test suite containing tautological assertions or unconditional passes
+- WHEN test-inspection evaluates the assertions
+- THEN the outcome MUST be `failed` with `TAUTOLOGICAL_TEST_DETECTED`
+
+#### Scenario: Missing capability or deadline expiry fails closed
+
+- GIVEN a selected challenge without a verified executor capability, or a non-cooperative run exceeding its wall-clock deadline
+- WHEN execution is attempted
+- THEN no passed result MUST be emitted
+- AND the run MUST fail closed or emit `CHALLENGE_TIMEOUT` with `outcome: "error"`
+
+#### Scenario: Foreign scope or candidate mutation is rejected
+
+- GIVEN a focal-mutation request outside the frozen diff, or a post-run candidate digest differing from its pre-run digest
+- WHEN integrity validation runs
+- THEN the challenge MUST fail closed
+- AND its result MUST NOT satisfy verification
+
+#### Scenario: Missing tests fail closed without a passed outcome
+
+- GIVEN a selected `revert` or `focal-mutation` challenge and an isolated candidate copy with no test files
+- WHEN the challenge executes
+- THEN the runner MUST fail closed with `outcome: "error"` and reason `MISSING_TESTS`
+- AND MUST NOT emit `outcome: "passed"`
+
+#### Scenario: Zero mutations or no-op revert/mutation fail closed
+
+- GIVEN a selected `focal-mutation` that applies no mutation (`mutations_tested === 0`), or a `revert`/`focal-mutation` that leaves candidate-copy bytes unchanged
+- WHEN the challenge executes
+- THEN the runner MUST fail closed with `outcome: "error"` and reason `NO_MUTATION_APPLIED` or `CHALLENGE_NOOP`
+- AND MUST NOT emit `outcome: "passed"`
+
+#### Scenario: Spawn error or infrastructure failure emits error and never increments defects
+
+- GIVEN a `focal-mutation` or `revert` challenge where sandboxed test execution encounters a spawn failure (`failure_class: "spawn_error"` or process execution error)
+- WHEN the test command fails with an infrastructure error
+- THEN the runner MUST emit `outcome: "error"` with reason `CHALLENGE_EXECUTION_ERROR`
+- AND `defects_detected` MUST NOT be incremented
+- AND the challenge MUST NOT pass
+
+#### Scenario: Timeout or sandbox rejection emits error outcome without passed result
+
+- GIVEN a `focal-mutation` or `revert` challenge where sandboxed execution times out or violates sandbox path policy
+- WHEN the command returns `failure_class: "timeout"` or `failure_class: "sandbox_rejection"`
+- THEN the runner MUST emit `outcome: "error"` with `CHALLENGE_TIMEOUT` or `CHALLENGE_EXECUTION_ERROR`
+- AND MUST NOT increment `defects_detected` nor mark the challenge as passed
 
 #### Scenario: executeChallengePlan ignores caller context test runner seam
 
