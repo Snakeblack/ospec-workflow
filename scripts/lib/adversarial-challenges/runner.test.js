@@ -5,9 +5,11 @@ const fs = require("node:fs");
 const test = require("node:test");
 const { freezeCandidate, computeSourceSnapshotId, computeWorkOrderId } = require("../execution-identities/index.js");
 const { compileExecutionGraph, createPolicySnapshot } = require("../execution-graph/index.js");
-const { computeTreeDigest } = require("../worker-workspace.js");
+const { computeTreeDigest, createWorkspace, disposeWorkspace, materializeSourceSnapshot } = require("../worker-workspace.js");
+const { createChallengeBudgetTracker } = require("./budget.js");
 const { createChallengePlan } = require("./planner.js");
 const { executeChallengePlan, emitChallengeResult, runIsolatedMutation, runWorkspaceTests } = require("./runner.js");
+
 
 const DIFF = "diff --git a/src/index.js b/src/index.js\n--- a/src/index.js\n+++ b/src/index.js\n@@ -1 +1 @@\n-return a - b;\n+return a + b;\n";
 const FILES = { "src/index.js": "function add(a, b) {\n  return a + b;\n}" };
@@ -395,25 +397,53 @@ test("REQ-adversarial-challenges-004: revert with command timeout emits CHALLENG
   assert.notEqual(revert.outcome, "passed");
 });
 
+async function withWorkspace(h, fn) {
+  const workspace = await createWorkspace({ source_snapshot_id: h.sourceSnapshot.source_snapshot_id });
+  await materializeSourceSnapshot(workspace, h.workOrder, h.sourceSnapshot, {
+    effectiveBase: {
+      source_snapshot_id: h.sourceSnapshot.source_snapshot_id,
+      files: h.repository.files,
+      tree_digest: computeTreeDigest(h.repository.files),
+    },
+  });
+  try {
+    return await fn(workspace);
+  } finally {
+    await disposeWorkspace(workspace);
+  }
+}
+
 test("REQ-adversarial-challenges-004: spawn_error during focal-mutation emits CHALLENGE_EXECUTION_ERROR and never increments defects", async () => {
   const h = workspaceHarness("feature", {
     "src/add.js": ADD_SOURCE,
     "src/add.test.js": DETECTING_TEST,
   }, ADD_DIFF);
-  h.runWorkspaceTests = async () => ({
+  const mockRunner = async () => ({
     pass: false,
     exitCode: 1,
     failure_class: "spawn_error",
     error: "spawn ENOENT",
   });
 
-  const result = await executeChallengePlan(h.plan, h);
-  const focal = (result.results || []).find((item) => item.challenge_type === "focal-mutation");
-  assert.ok(focal);
-  assert.equal(focal.outcome, "error");
-  assert.equal(focal.details.reason, "CHALLENGE_EXECUTION_ERROR");
-  assert.equal(focal.details.defects_detected || 0, 0);
-  assert.notEqual(focal.outcome, "passed");
+  await withWorkspace(h, async (workspace) => {
+    const tracker = createChallengeBudgetTracker(h.plan.budget);
+    const result = await runIsolatedMutation(
+      "focal-mutation",
+      workspace,
+      h,
+      null,
+      undefined,
+      30000,
+      tracker,
+      h.plan,
+      mockRunner,
+    );
+    assert.ok(result);
+    assert.equal(result.outcome, "error");
+    assert.equal(result.details.reason, "CHALLENGE_EXECUTION_ERROR");
+    assert.equal(result.details.defects_detected || 0, 0);
+    assert.notEqual(result.outcome, "passed");
+  });
 });
 
 test("REQ-adversarial-challenges-004: test-level timeout during focal-mutation emits CHALLENGE_TIMEOUT and never increments defects", async () => {
@@ -421,20 +451,32 @@ test("REQ-adversarial-challenges-004: test-level timeout during focal-mutation e
     "src/add.js": ADD_SOURCE,
     "src/add.test.js": DETECTING_TEST,
   }, ADD_DIFF);
-  h.runWorkspaceTests = async () => ({
+  const mockRunner = async () => ({
     pass: false,
     exitCode: 1,
     failure_class: "timeout",
     error: "ETIMEDOUT",
   });
 
-  const result = await executeChallengePlan(h.plan, h);
-  const focal = (result.results || []).find((item) => item.challenge_type === "focal-mutation");
-  assert.ok(focal);
-  assert.equal(focal.outcome, "error");
-  assert.equal(focal.details.reason, "CHALLENGE_TIMEOUT");
-  assert.equal(focal.details.defects_detected || 0, 0);
-  assert.notEqual(focal.outcome, "passed");
+  await withWorkspace(h, async (workspace) => {
+    const tracker = createChallengeBudgetTracker(h.plan.budget);
+    const result = await runIsolatedMutation(
+      "focal-mutation",
+      workspace,
+      h,
+      null,
+      undefined,
+      30000,
+      tracker,
+      h.plan,
+      mockRunner,
+    );
+    assert.ok(result);
+    assert.equal(result.outcome, "error");
+    assert.equal(result.details.reason, "CHALLENGE_TIMEOUT");
+    assert.equal(result.details.defects_detected || 0, 0);
+    assert.notEqual(result.outcome, "passed");
+  });
 });
 
 test("REQ-adversarial-challenges-004: spawn_error during revert emits CHALLENGE_EXECUTION_ERROR and fails closed", async () => {
@@ -442,19 +484,31 @@ test("REQ-adversarial-challenges-004: spawn_error during revert emits CHALLENGE_
     "src/add.js": ADD_SOURCE,
     "src/add.test.js": DETECTING_TEST,
   }, ADD_DIFF);
-  h.runWorkspaceTests = async () => ({
+  const mockRunner = async () => ({
     pass: false,
     exitCode: 1,
     failure_class: "spawn_error",
     error: "spawn ENOENT",
   });
 
-  const result = await executeChallengePlan(h.plan, h);
-  const revert = (result.results || []).find((item) => item.challenge_type === "revert");
-  assert.ok(revert);
-  assert.equal(revert.outcome, "error");
-  assert.equal(revert.details.reason, "CHALLENGE_EXECUTION_ERROR");
-  assert.notEqual(revert.outcome, "passed");
+  await withWorkspace(h, async (workspace) => {
+    const tracker = createChallengeBudgetTracker(h.plan.budget);
+    const result = await runIsolatedMutation(
+      "revert",
+      workspace,
+      h,
+      null,
+      undefined,
+      30000,
+      tracker,
+      h.plan,
+      mockRunner,
+    );
+    assert.ok(result);
+    assert.equal(result.outcome, "error");
+    assert.equal(result.details.reason, "CHALLENGE_EXECUTION_ERROR");
+    assert.notEqual(result.outcome, "passed");
+  });
 });
 
 test("REQ-adversarial-challenges-004: test-level timeout during revert emits CHALLENGE_TIMEOUT and fails closed", async () => {
@@ -462,17 +516,53 @@ test("REQ-adversarial-challenges-004: test-level timeout during revert emits CHA
     "src/add.js": ADD_SOURCE,
     "src/add.test.js": DETECTING_TEST,
   }, ADD_DIFF);
-  h.runWorkspaceTests = async () => ({
+  const mockRunner = async () => ({
     pass: false,
     exitCode: 1,
     failure_class: "timeout",
     error: "ETIMEDOUT",
   });
 
-  const result = await executeChallengePlan(h.plan, h);
-  const revert = (result.results || []).find((item) => item.challenge_type === "revert");
-  assert.ok(revert);
-  assert.equal(revert.outcome, "error");
-  assert.equal(revert.details.reason, "CHALLENGE_TIMEOUT");
-  assert.notEqual(revert.outcome, "passed");
+  await withWorkspace(h, async (workspace) => {
+    const tracker = createChallengeBudgetTracker(h.plan.budget);
+    const result = await runIsolatedMutation(
+      "revert",
+      workspace,
+      h,
+      null,
+      undefined,
+      30000,
+      tracker,
+      h.plan,
+      mockRunner,
+    );
+    assert.ok(result);
+    assert.equal(result.outcome, "error");
+    assert.equal(result.details.reason, "CHALLENGE_TIMEOUT");
+    assert.notEqual(result.outcome, "passed");
+  });
 });
+
+test("REQ-adversarial-challenges-004: executeChallengePlan ignores caller context runWorkspaceTests seam and detects complacent candidate", async () => {
+  // Candidate has complacent tests (COMPLACENT_TEST).
+  // An adversarial caller supplies context.runWorkspaceTests mock that pretends tests failed (pass: false),
+  // trying to trick executeChallengePlan into thinking the defect was detected and passing the challenge.
+  const h = workspaceHarness("feature", {
+    "src/add.js": ADD_SOURCE,
+    "src/add.test.js": COMPLACENT_TEST,
+  }, ADD_DIFF);
+  h.runWorkspaceTests = async () => ({
+    pass: false,
+    exitCode: 1,
+    stdout: "mock test failure - defect detected",
+  });
+
+  const result = await executeChallengePlan(h.plan, h);
+  assert.equal(result.ok, true);
+  const focal = (result.results || []).find((item) => item.challenge_type === "focal-mutation");
+  assert.ok(focal);
+  // Real sandbox runs COMPLACENT_TEST which passes on the mutated code, so outcome MUST be failed / COMPLACENT_TEST_DETECTED
+  assert.equal(focal.outcome, "failed");
+  assert.equal(focal.details.reason, "COMPLACENT_TEST_DETECTED");
+});
+

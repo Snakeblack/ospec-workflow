@@ -105,3 +105,53 @@ test("release version matches changelog, roadmap, architecture, verify report, a
     assert.equal(process.env.GITHUB_REF_NAME, `v${packageVersion}`, "published tag must match package.json");
   }
 });
+
+test("canonical specs in openspec/specs/**/spec.md contain valid content and no undefined tokens", () => {
+  const specsDir = path.join(ROOT, "openspec", "specs");
+  const domains = fs.readdirSync(specsDir, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
+
+  assert.ok(domains.length > 0, "openspec/specs must contain domain directories");
+
+  for (const domain of domains) {
+    const specPath = path.join(specsDir, domain, "spec.md");
+    if (!fs.existsSync(specPath)) continue;
+
+    const content = fs.readFileSync(specPath, "utf8");
+
+    assert.equal(
+      /^\s*undefined\s*$/m.test(content),
+      false,
+      `canonical spec ${domain}/spec.md must not contain literal undefined tokens`,
+    );
+
+    assert.equal(
+      /\[object Object\]/.test(content),
+      false,
+      `canonical spec ${domain}/spec.md must not contain serialized [object Object] tokens`,
+    );
+
+    assert.ok(
+      content.trim().length > 0,
+      `canonical spec ${domain}/spec.md must not be empty`,
+    );
+  }
+
+  // Explicit check for adversarial-challenges REQs restoration
+  const advSpec = fs.readFileSync(path.join(specsDir, "adversarial-challenges", "spec.md"), "utf8");
+  for (const req of [
+    "REQ-adversarial-challenges-001",
+    "REQ-adversarial-challenges-002",
+    "REQ-adversarial-challenges-003",
+    "REQ-adversarial-challenges-004",
+  ]) {
+    assert.ok(
+      advSpec.includes(`{#${req}}`),
+      `canonical adversarial-challenges spec must retain ${req}`,
+    );
+  }
+});
+
+
+

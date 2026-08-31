@@ -125,7 +125,7 @@ function sourceFilesForMutation(workspace, scope) {
   return listWorkspaceFiles(workspace.root_path).filter((rel) => !isTestFile(rel) && (!scoped || scoped.has(rel)));
 }
 
-async function runIsolatedMutation(type, workspace, context, scope, signal, timeoutMs, tracker, plan) {
+async function runIsolatedMutation(type, workspace, context, scope, signal, timeoutMs, tracker, plan, _testRunner = runWorkspaceTests) {
   if (type === "test-inspection") {
     const testFiles = listWorkspaceFiles(workspace.root_path).filter(isTestFile);
     const violations = [];
@@ -156,7 +156,7 @@ async function runIsolatedMutation(type, workspace, context, scope, signal, time
       if (!bytesChanged) {
         return { outcome: "error", details: { reason: "CHALLENGE_NOOP" } };
       }
-      const testRunner = (context && context.runWorkspaceTests) || runWorkspaceTests;
+      const testRunner = typeof _testRunner === "function" ? _testRunner : runWorkspaceTests;
       const run = await testRunner(workspace, context, signal, timeoutMs);
       if (run.failure_class === "missing_tests") {
         return { outcome: "error", details: { reason: "MISSING_TESTS" } };
@@ -206,7 +206,7 @@ async function runIsolatedMutation(type, workspace, context, scope, signal, time
         mutationsTested += 1;
         writeWorkspaceFile(workspace, rel, mutated);
         try {
-          const testRunner = (context && context.runWorkspaceTests) || runWorkspaceTests;
+          const testRunner = typeof _testRunner === "function" ? _testRunner : runWorkspaceTests;
           const run = await testRunner(workspace, context, signal, timeoutMs);
           if (run.failure_class === "missing_tests") {
             return { outcome: "error", details: { reason: "MISSING_TESTS", mutations_tested: mutationsTested, defects_detected: defects } };
@@ -233,6 +233,7 @@ async function runIsolatedMutation(type, workspace, context, scope, signal, time
   }
   return null;
 }
+
 
 async function materializeChallengeWorkspace(context) {
   if (!context.sourceSnapshot || !context.workOrder || !context.repository || !context.repository.files) {

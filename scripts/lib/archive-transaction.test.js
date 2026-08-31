@@ -1228,3 +1228,75 @@ test("FS: journal done write failure before rm leaves origin intact", async (t) 
   assert.equal(receipt.origin_deleted, false);
   assert.ok(await fs.stat(ctx.originDir));
 });
+
+test("FS: preflight rejects plan with corrupted spec content (undefined) and leaves origin intact", async (t) => {
+  const ctx = await buildWorkspace(t);
+  const corruptSpec = "# Routing merged\n\n### Requirement: Foo {#REQ-routing-001}\n\nundefined\n";
+  const specPath = path.join(ctx.originDir, "specs", "routing", "spec.md");
+  await fs.writeFile(specPath, corruptSpec);
+
+  ctx.plan.spec_writes[0].content_sha256 = sha256(Buffer.from(corruptSpec));
+  await rewritePlanFingerprint(ctx);
+
+  const receipt = await runArchiveTransaction({
+    workspace: ctx.root,
+    changeName: ctx.changeName,
+    planPath: ctx.planPath,
+    now: new Date("2026-07-26T12:00:00Z"),
+  });
+
+  assert.equal(receipt.outcome, "failed");
+  assert.ok(receipt.rejection_codes.includes("corrupted-spec-content"));
+  assert.equal(receipt.origin_deleted, false);
+  assert.ok(await fs.stat(ctx.originDir));
+
+  const archiveRoot = path.join(ctx.root, "openspec", "changes", "archive");
+  const entries = await fs.readdir(archiveRoot).catch((e) => {
+    if (e.code === "ENOENT") return [];
+    throw e;
+  });
+  assert.equal(entries.length, 0);
+});
+
+test("FS: preflight rejects plan with dropped requirement ID without REMOVED and leaves origin intact", async (t) => {
+  const ctx = await buildWorkspace(t);
+  const liveTarget = "# Routing baseline\n\n### Requirement: R1 {#REQ-routing-001}\n\n### Requirement: R2 {#REQ-routing-002}\n";
+  const livePath = path.join(ctx.root, "openspec", "specs", "routing", "spec.md");
+  await fs.writeFile(livePath, liveTarget);
+
+  const stateYaml = `status: verified
+phases:
+  verify:
+    status: done
+    verdict: PASS
+gates:
+  quality-gates:
+    status: passed
+baseline_fingerprints:
+  routing: "${sha256(Buffer.from(liveTarget))}"
+`;
+  await fs.writeFile(path.join(ctx.originDir, "state.yaml"), stateYaml);
+
+  const droppedSpec = "# Routing merged\n\n### Requirement: R1 {#REQ-routing-001}\n";
+  const specPath = path.join(ctx.originDir, "specs", "routing", "spec.md");
+  await fs.writeFile(specPath, droppedSpec);
+
+  ctx.plan.spec_writes[0].target_before_sha256 = sha256(Buffer.from(liveTarget));
+  ctx.plan.spec_writes[0].content_sha256 = sha256(Buffer.from(droppedSpec));
+  await rewritePlanFingerprint(ctx);
+
+
+  const receipt = await runArchiveTransaction({
+    workspace: ctx.root,
+    changeName: ctx.changeName,
+    planPath: ctx.planPath,
+    now: new Date("2026-07-26T12:00:00Z"),
+  });
+
+  assert.equal(receipt.outcome, "failed");
+  assert.ok(receipt.rejection_codes.includes("dropped-requirement-id"));
+  assert.equal(receipt.origin_deleted, false);
+  assert.ok(await fs.stat(ctx.originDir));
+  assert.equal(await fs.readFile(livePath, "utf8"), liveTarget);
+});
+

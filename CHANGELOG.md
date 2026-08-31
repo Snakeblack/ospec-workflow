@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.56.5] - 2026-08-31
+
+### Fixed
+- **Integridad de especificaciones y confinamiento estricto del runner sandboxed en K6c (`k6c-spec-integrity-and-runner-seam-remediation`)**:
+  - **Restauración canónica de `adversarial-challenges`**: Recuperadas íntegramente las cláusulas de `REQ-adversarial-challenges-003` y `REQ-adversarial-challenges-004` en `openspec/specs/adversarial-challenges/spec.md`, erradicando el token corrupto `undefined` introducido por fallos de split bajo CRLF.
+  - **Validación fail-closed de integridad de especificaciones en archive**: Incorporados los códigos de rechazo `corrupted-spec-content` y `dropped-requirement-id` en `scripts/lib/archive-plan.js` y `scripts/lib/archive-transaction.js`. La transacción aborta en preflight ante cualquier token `undefined`, `[object Object]` o supresión de `{#REQ-...}` de `target_before` no declarada explícitamente en `## REMOVED Requirements`.
+  - **Confinamiento estricto del runner sin seams en contexto**: Eliminada la lectura de `context.runWorkspaceTests` en la API pública `executeChallengePlan` de `scripts/lib/adversarial-challenges/runner.js`. La suite del candidato se ejecuta estrictamente en un subproceso aislado (`executeSandboxedCommand`) dentro del sandbox efímero, aislando la inyección de test runners para unit tests a parámetros posicionales directos en `runIsolatedMutation` (`REQ-adversarial-challenges-004`).
+  - **Tests de invariantes globales e integración adversarial**: Añadidos tests en `scripts/manifest-sync.test.js`, `scripts/lib/archive-plan.test.js`, `scripts/lib/archive-transaction.test.js` y prueba negativa en `scripts/lib/adversarial-challenges/runner.test.js` asegurando que mocks pasados en contexto son estrictamente ignorados.
+  - **ADRs y cierre SDD**: Promovidos `docs/adr/adr-20260831-007` y `docs/adr/adr-20260831-008`. Verify PASS (16/16 escenarios), 2912 tests pasando, 4R review aprobado (0 hallazgos bloqueantes); archivado transaccional en `openspec/changes/archive/2026-08-31-k6c-spec-integrity-and-runner-seam-remediation/`.
+
+### Changed
+- K6c queda sellado de forma definitiva con integridad canónica normada y confinamiento de ejecución; K6d permanece `next-eligible`.
+
 ## [2.56.4] - 2026-08-31
 
 ### Fixed

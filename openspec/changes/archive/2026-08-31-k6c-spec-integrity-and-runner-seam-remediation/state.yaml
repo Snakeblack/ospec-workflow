@@ -1,0 +1,52 @@
+change: "k6c-spec-integrity-and-runner-seam-remediation"
+status: "archived"
+last_updated: "2026-08-31T20:22:00Z"
+blocking_questions: []
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/k6c-spec-integrity-and-runner-seam-remediation/proposal.md"
+    summary: "Remediación K6c: restauración de REQ-001..004 en adversarial-challenges, validación fail-closed en archive y confinamiento de runner."
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/k6c-spec-integrity-and-runner-seam-remediation/specs/adversarial-challenges/spec.md"
+      - "openspec/changes/k6c-spec-integrity-and-runner-seam-remediation/specs/archive-plan-contract/spec.md"
+      - "openspec/changes/k6c-spec-integrity-and-runner-seam-remediation/specs/archive-transaction-runtime/spec.md"
+    summary: "Deltas para adversarial-challenges (confinamiento runner sandbox), archive-plan-contract y archive-transaction-runtime (integridad de specs)."
+    key_decisions:
+      - "Eliminación de context.runWorkspaceTests en executeChallengePlan"
+      - "Validación fail-closed contra 'undefined' y dropped REQ IDs en archive"
+  design:
+    status: done
+    artifact: "openspec/changes/k6c-spec-integrity-and-runner-seam-remediation/design.md"
+    summary: "Diseño de confinamiento sandbox en runner.js, validación fail-closed de REQ IDs y tokens corruptos en archive, y restauración canónica de spec."
+    key_decisions:
+      - "Eliminación del seam context.runWorkspaceTests en executeChallengePlan (ADR-001)"
+      - "Validación fail-closed de integridad y retención de REQ IDs en archive-plan.js (ADR-002)"
+  tasks:
+    status: done
+    artifact: "openspec/changes/k6c-spec-integrity-and-runner-seam-remediation/tasks.md"
+    summary: "Plan de 12 tareas en 4 fases con ciclo TDD (RED-GREEN-REFACTOR), reconciliación completa y forecast de carga de revisión bajo presupuesto."
+  apply:
+    status: done
+    artifact: "openspec/changes/k6c-spec-integrity-and-runner-seam-remediation/apply-progress.md"
+    summary: "Restauración de spec canónica, validación fail-closed en archive-plan/transaction y confinamiento sandbox en runner."
+    key_decisions:
+      - "Eliminación definitiva del seam context.runWorkspaceTests"
+      - "Integridad de specs y retención de REQ IDs validadas en preflight de archive"
+
+  verify:
+    status: done
+    verdict: PASS
+    artifact: "openspec/changes/k6c-spec-integrity-and-runner-seam-remediation/verify-report.md"
+    summary: "Verificación completa PASS: 16/16 escenarios con runtime-test, 12/12 tareas completas y suite de 2912 tests pasando al 100%."
+    key_decisions:
+      - "ADR-001 y ADR-002 validados en runtime sin regresiones"
+  archive:
+    status: done
+    artifact: "openspec/changes/k6c-spec-integrity-and-runner-seam-remediation/archive-report.md"
+    summary: "Plan-and-Report emitido: 3 specs preparadas con integridad validada, 2 ADRs propuestos a docs/adr/, inventario de 15 archivos listo para transacción."
+    key_decisions:
+      - "Promoción de ADR-001 (007) y ADR-002 (008) a docs/adr/"
+      - "Preparación canónica de specs sin tokens undefined ni dropped REQ IDs"
