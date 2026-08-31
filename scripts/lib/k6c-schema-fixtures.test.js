@@ -76,7 +76,6 @@ test("K6c contract claims: challenge families list required fields and enums", (
     "evidence_strategy",
     "challenge_type",
     "outcome",
-    "node_id",
     "evidence_ids",
     "details",
   ]);
@@ -148,7 +147,11 @@ test("K6c malformed-hash fixtures and cross-bound pair fail closed", () => {
   assert.equal(validateInstance(planSchema, pairPlan).valid, true, `cross-bound plan must be schema-valid: ${JSON.stringify(validateInstance(planSchema, pairPlan).errors)}`);
   assert.equal(validateInstance(resultSchema, pairResult).valid, true, `cross-bound result must be schema-valid: ${JSON.stringify(validateInstance(resultSchema, pairResult).errors)}`);
   assert.equal(validateChallengeResult(pairResult, pairPlan).ok, false, "cross-bound result must fail pair integrity");
-  assert.equal(validateChallengeResultSet(pairPlan, [pairResult]).ok, false, "cross-bound pair must fail set integrity");
+  assert.equal(
+    validateChallengeResultSet(pairPlan, [pairResult], { evidenceStrategy: "bug" }).ok,
+    false,
+    "cross-bound pair must fail set integrity"
+  );
 });
 
 test("K6c cross-family substitution fails closed", () => {
@@ -189,5 +192,26 @@ test("K6c: K1 and K6b schemas and pins remain byte-identical", () => {
   for (const [rel, expected] of Object.entries(K6B_PINS)) {
     const actual = digestFile(path.join(ROOT, ...rel.split("/")));
     assert.equal(actual, expected, `${rel} bytes must remain frozen`);
+  }
+});
+
+test("REQ-kernel-contract-schemas-029: challenge-result required is unique and published schemas pass metaschema uniqueItems", () => {
+  const { validateSchemaDocument } = require("./kernel-schema-validator.js");
+  const resultSchema = loadSchemaById("ospec://schemas/kernel/challenge-result/v1", { rootDir: ROOT });
+  const required = resultSchema.required;
+  assert.ok(Array.isArray(required));
+  assert.equal(new Set(required).size, required.length);
+  assert.equal(required.filter((name) => name === "node_id").length, 1);
+
+  const claims = readJson("schemas/kernel/contract-claims.json");
+  const claimed = claims.families["challenge-result"].required_fields;
+  assert.equal(new Set(claimed).size, claimed.length);
+  assert.equal(claimed.filter((name) => name === "node_id").length, 1);
+
+  const manifest = readJson("schemas/kernel/manifest.json");
+  for (const entry of Object.values(manifest.families)) {
+    const schema = JSON.parse(fs.readFileSync(path.join(ROOT, entry.path), "utf8"));
+    const document = validateSchemaDocument(schema);
+    assert.equal(document.valid, true, `${entry.path} must pass required uniqueItems: ${JSON.stringify(document.errors)}`);
   }
 });

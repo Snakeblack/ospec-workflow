@@ -1,7 +1,7 @@
 # Arquitectura objetivo — harness gobernado por kernel, grafo y evidencia
 
 > **Autoridad:** fuente conceptual y estratégica del harness (responsabilidades y límites).
-> **Corte documental:** v2.56.2, 2026-08-31 (estado alineado al roadmap; la dirección conceptual no cambia).
+> **Corte documental:** v2.56.3, 2026-08-31 (estado alineado al roadmap; la dirección conceptual no cambia).
 > **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1**, **K2a**, **K3**, **`k3-readiness-remediation`**, **K4a**, **K5**, **K6a**, **K4b**, **K6b** y **K6c** están cerrados. **K6d** es `next-eligible`. OpenSpec/Git/Candidate siguen siendo la única autoridad semántica; el Assurance Graph es proyección.
 > **Roadmap:** orden, estado operativo y done criteria viven en [`../roadmaps/harness-evolution.md`](../roadmaps/harness-evolution.md).
 > **Precedencia documental:** ante diferencias de **orden o estado**, prevalece el roadmap; ante diferencias **conceptuales**, reconciliar antes de iniciar el slice.
@@ -79,7 +79,7 @@ El review terminal de v2.53.1 no cambia la dirección del kernel, pero obliga a 
 | Presupuesto | `ChallengeBudget` monótono; agotamiento produce `causal-failure/v1` con `CHALLENGE_BUDGET_EXHAUSTED` (validation_gap) sin reintentos idénticos. |
 | Complacencia | Mutaciones focales y rechazo estricto de tests complacientes (`COMPLACENT_TEST_DETECTED`) y tautológicos (`TAUTOLOGICAL_TEST_DETECTED`). |
 | Integridad | Plan y resultados se ligan canónicamente a Candidate, nodo, estrategia y PolicySnapshot; la ejecución es aislada y fail-closed; el verifier exige el conjunto exacto; la proyección/replay no es autoridad. |
-| Gate | K6c `done` en v2.56.0; integridad cerrada en v2.56.1 (`k6c-integrity-remediation`). K6d es `next-eligible`. |
+| Gate | K6c `done` en v2.56.0; integridad cerrada en v2.56.1 (`k6c-integrity-remediation`); fail-closed residual cerrado en v2.56.2 (`k6c-failclosed-integrity`). K6d es `next-eligible`. |
 
 ## Ruta rápida
 
@@ -883,7 +883,7 @@ Repositorios fixture reciben 10–30 cambios consecutivos. Se miden duplicación
 9. ~~K6a: primitivas de ejecución aislada (`CreateWorkspace`…`DisposeWorkspace`); no conoce Repair~~ — hecho: archivado y publicado en v2.46.7; frontera de procesos cerrada en v2.47.1; endurecimiento de frontera (política inmutable, fs mutante, live-identity, `worker_threads`) en v2.47.2.
 10. ~~K4b: orquesta Repair shadow (consume K6a; freeze Candidate vía K3)~~ — hecho: publicado en v2.48.0; corrección en v2.48.1; invariantes de integración en v2.48.2; cierre mode-only/baseline en v2.48.3.
 11. ~~K6b: verifier + provenance + Assurance Graph (proyección)~~ — hecho: publicado desde v2.50.0, endurecido hasta v2.54.0 y cerrado en v2.55.0 (`runner-receipt/v1` durable en CAS, canal reemitido tras restart, bind de role en replay).
-12. ~~K6c: ChallengePlan policy-selected~~ — hecho: publicado en v2.56.0; integridad (bindings canónicos, ejecución aislada fail-closed, conjunto exacto y proyección/replay) cerrada en v2.56.1.
+12. ~~K6c: ChallengePlan policy-selected~~ — hecho: publicado en v2.56.0; integridad (bindings canónicos, ejecución aislada fail-closed, conjunto exacto y proyección/replay) cerrada en v2.56.1; strategy binding + missing_tests/no-op fail-closed en v2.56.2.
 13. K6d: complexity y architecture delta (next-eligible).
 14. K7: ReviewAdapter + ReviewReducer + lineage; K8: CandidateEvaluationAttestation (emisión CAS).
 14. K9: shadow/replay/A-B; promoción de **un** profile (checkpoints intermedios ya validados).

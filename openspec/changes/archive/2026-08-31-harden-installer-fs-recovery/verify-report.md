@@ -1,7 +1,7 @@
 # Verification Report
  
 **Change**: harden-installer-fs-recovery
-**Version**: 2.56.2
+**Version**: 2.56.3
 **Mode**: Standard
 
 ### Completeness

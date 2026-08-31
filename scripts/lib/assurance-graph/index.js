@@ -132,7 +132,12 @@ function validateReplayRecords(persistable) {
   const challengePlan = persistable.challengePlan || persistable.challenge_plan;
   const challengeResults = Array.isArray(persistable.challengeResults) ? persistable.challengeResults : (Array.isArray(persistable.challenge_results) ? persistable.challenge_results : []);
   if (persistable.requireChallengeVerification || persistable.require_challenge_verification || challengePlan || challengeResults.length) {
-    const challengeGate = validateChallengeResultSet(challengePlan, challengeResults, { candidate, executionGraph: graph, policySnapshot: persistable.policySnapshot });
+    const challengeGate = validateChallengeResultSet(challengePlan, challengeResults, {
+      candidate,
+      executionGraph: graph,
+      policySnapshot: persistable.policySnapshot,
+      evidenceStrategy: persistable.evidenceStrategy,
+    });
     if (!challengeGate.ok || challengeResults.some((result) => result.outcome !== "passed")) {
       return fail("GRAPH_DIVERGENCE", (challengeGate && challengeGate.error) || "persisted K6c challenge records diverge");
     }
@@ -304,6 +309,7 @@ function replayAssuranceGraph(persistable = {}) {
     challengeResults: persistable.challengeResults || persistable.challenge_results,
     requireChallengeVerification: persistable.requireChallengeVerification || persistable.require_challenge_verification,
     policySnapshot: persistable.policySnapshot,
+    evidenceStrategy: persistable.evidenceStrategy,
   });
 }
 

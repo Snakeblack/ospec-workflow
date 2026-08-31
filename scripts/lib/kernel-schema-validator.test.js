@@ -9,6 +9,7 @@ const test = require("node:test");
 const {
   validateInstance,
   loadSchemaById,
+  validateSchemaDocument,
 } = require("./kernel-schema-validator.js");
 
 test("validateInstance accepts matching type/properties/required", () => {
@@ -368,4 +369,33 @@ test("loadSchemaById rejects malformed public loader inputs deterministically", 
       }),
     /not found in schemas map/
   );
+});
+
+test("REQ-kernel-contract-schemas-029: validateSchemaDocument rejects duplicate required even with Draft 2020-12 URI", () => {
+  const fixtureSchema = {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    $id: "ospec://schemas/test/duplicate-required/v1",
+    type: "object",
+    properties: {
+      a: { type: "string" },
+      nested: {
+        type: "object",
+        properties: { x: { type: "string" } },
+        required: ["x", "x"],
+      },
+    },
+    required: ["a", "a"],
+  };
+  const result = validateSchemaDocument(fixtureSchema);
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.some((error) => error.rule === "uniqueItems"));
+  assert.equal(fixtureSchema.$schema, "https://json-schema.org/draft/2020-12/schema");
+
+  const unique = validateSchemaDocument({
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    type: "object",
+    required: ["a", "b"],
+    properties: { nested: { type: "object", required: ["x"] } },
+  });
+  assert.equal(unique.valid, true);
 });

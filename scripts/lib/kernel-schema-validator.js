@@ -539,9 +539,53 @@ function validateById(id, instance, opts = {}) {
   return validateInstance(schema, instance, { rootSchema: schema });
 }
 
+const REQUIRED_UNIQUE_ITEMS_SCHEMA = Object.freeze({
+  type: "array",
+  uniqueItems: true,
+  items: { type: "string" },
+});
+
+function collectRequiredUniqueItemsErrors(node, instancePath, errors) {
+  if (Array.isArray(node)) {
+    for (let i = 0; i < node.length; i += 1) {
+      collectRequiredUniqueItemsErrors(node[i], `${instancePath}/${i}`, errors);
+    }
+    return;
+  }
+  if (!isPlainObject(node)) return;
+  if (Array.isArray(node.required)) {
+    const unique = validateInstance(REQUIRED_UNIQUE_ITEMS_SCHEMA, node.required);
+    if (!unique.valid) {
+      for (const error of unique.errors) {
+        errors.push({
+          path: `${instancePath || ""}/required`,
+          rule: error.rule,
+          message: error.message,
+        });
+      }
+    }
+  }
+  for (const [key, value] of Object.entries(node)) {
+    collectRequiredUniqueItemsErrors(value, joinPath(instancePath, key), errors);
+  }
+}
+
+function validateSchemaDocument(schema) {
+  if (!isPlainObject(schema)) {
+    return {
+      valid: false,
+      errors: [{ path: "/", rule: "schema", message: "schema document must be an object" }],
+    };
+  }
+  const errors = [];
+  collectRequiredUniqueItemsErrors(schema, "", errors);
+  return { valid: errors.length === 0, errors };
+}
+
 module.exports = {
   validateInstance,
   validateById,
+  validateSchemaDocument,
   loadSchemaById,
   META_KEYS,
 };

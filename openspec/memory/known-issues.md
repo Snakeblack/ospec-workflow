@@ -3,18 +3,11 @@ title: Known Issues
 last_updated: 2026-08-31
 ---
 
-## El rollback general de Codex evita la política común de reintentos
-- severity: BLOCKER
-- area: scripts/configure/install-codex.js (restorePath / createFilesystemTransaction.rollback)
-- workaround: envolver cada mutación de restauración con la primitiva resiliente y verificar EPERM, EACCES y EBUSY mediante pruebas focales
-- change: harden-installer-fs-recovery
-- date: 2026-08-31
-
-## La poda de Antigravity y Cursor pierde el target en el diagnóstico de agotamiento
+## Pre-existing cli.test.js after-hook EISDIR on evidence-link leftover
 - severity: WARNING
-- area: scripts/configure/install-antigravity.js; scripts/configure/install-cursor.js
-- workaround: propagar retryOptions a pruneStaleFiles y probar el agotamiento por target
-- change: harden-installer-fs-recovery
+- area: scripts/configure/cli.test.js (t.after fs.rmSync without recursive on openspec/changes/evidence-link)
+- workaround: rmSync with recursive true or unlink the symlink; do not treat as a K6c defect; leftover symlink may remain after npm test
+- change: k6c-failclosed-integrity
 - date: 2026-08-31
 
 ## Inherited AG-006 receipt-token attestation lacks a dedicated runtime test

@@ -1,7 +1,7 @@
 # Roadmap general — kernel, grafo y evidencia
 
 > **Autoridad:** única fuente operativa del backlog transversal.
-> **Versión de referencia:** v2.56.2, 2026-08-31.
+> **Versión de referencia:** v2.56.3, 2026-08-31.
 > **Arquitectura:** [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md).
 > **Investigación no normativa:** [`../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md`](../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md) (P0–P27). Proporcionalidad de proceso y Change Program: [`../architecture/research/proportional-process-and-change-program.md`](../architecture/research/proportional-process-and-change-program.md).
 > **Regla de estado:** los hechos se contrastan con código/OpenSpec; este roadmap no cambia el estado de un change ni sustituye sus artefactos.
@@ -79,7 +79,7 @@ Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R
 | `done` | **K6a** | Worker isolation y work-order capsule; primitivas de ejecución aislada, integración con WorkerTransport, contención de filesystem y WorkResult canónico; archivado en v2.46.0, frontera de procesos cerrada en v2.47.1 y endurecida en v2.47.2 |
 | `done` | **K4b** | Repair shadow execution (WO→WR→integrate→Candidate); despacho exclusivo K6a, integración estricta, cápsula mínima, base derivada y registro 1:N; remediación de invariantes en v2.48.2 y cierre mode-only/baseline en v2.48.3 (`2026-08-26-k4b-mode-only-and-baseline-projection`) |
 | `done` | **K6b** | Verifier + provenance + Assurance Graph; persistencia durable de `runner-receipt/v1` en CAS `runner_receipts`, canal reemitido tras restart y bind de role en replay; archivado y publicado en v2.55.0 |
-| `done` | **K6c** | ChallengePlan policy-selected; catálogo de 9 tipos, mutaciones focales y control de budget (v2.56.0); integridad canónica/fail-closed cerrada en v2.56.1 (`k6c-integrity-remediation`) |
+| `done` | **K6c** | ChallengePlan policy-selected; catálogo de 9 tipos, mutaciones focales y control de budget (v2.56.0); integridad canónica/fail-closed cerrada en v2.56.1 (`k6c-integrity-remediation`); strategy binding, missing_tests/no-op y planner reject en v2.56.2 (`k6c-failclosed-integrity`) |
 | `next-eligible` | **K6d** | Complexity delta; desbloqueado tras archive de `k6c-integrity-remediation` |
 | `pending` | K7–K8 | Review authority, **Evaluation Attestation** |
 | `pending` | K9 | Gate de promoción shadow/replay/A-B (checkpoints intermedios ya validados) |
@@ -1184,7 +1184,7 @@ K6c ataca la **evidencia/implementación** del candidato. La refutación adversa
 - no se introduce un segundo stack de “refuter de review” paralelo a K7;
 - coste de challenges no crece por “correr todo el catálogo”.
 
-**Gate terminal:** cerrado en v2.56.0 (`k6c-policy-selected-challenges`). Integridad canónica, ejecución aislada fail-closed, conjunto exacto en el verifier y proyección/replay no autoritativa cerradas en v2.56.1 (`k6c-integrity-remediation`). Desbloquea K6d.
+**Gate terminal:** cerrado en v2.56.0 (`k6c-policy-selected-challenges`). Integridad canónica, ejecución aislada fail-closed, conjunto exacto en el verifier y proyección/replay no autoritativa cerradas en v2.56.1 (`k6c-integrity-remediation`). Binding de la strategy seleccionada, fail-closed de `missing_tests`/no-op y rechazo de estrategia desconocida en el planner cerrados en v2.56.2 (`k6c-failclosed-integrity`). Desbloquea K6d.
 
 ### K6d — complexity y architecture delta — **next-eligible**
 
@@ -2081,3 +2081,4 @@ Un Change Program (objetivo → children OpenSpec + cursor, ver investigación `
 - 2026-08-28: `k6b-durable-replay-receipt-authority` aplica persistencia CAS `runner_receipts`, rehidratación/reemisión de canal y bind de role en replay. K6b sigue `revise`; K6c permanece `blocked` hasta archive de este change.
 - 2026-08-28: K6b (`k6b-durable-replay-receipt-authority`) cierra con verify PASS WITH WARNINGS, 4R approved (CRITICAL de type-confusion remediado) y archive transaccional; publicado en v2.55.0. K6b pasa a `done`; K6c queda `next-eligible`.
 - 2026-08-31: K6c (`k6c-integrity-remediation`) cierra con verify PASS, 4R approved (3 CRITICAL remediados) y archive transaccional; publicado en v2.56.1. K6c permanece `done` con integridad cerrada; K6d queda `next-eligible`.
+- 2026-08-31: K6c (`k6c-failclosed-integrity`) cierra el NO-GO residual: strategy binding en verifier/projector, `missing_tests`/no-op fail-closed, planner TypeError y `required` único + metaschema. Verify PASS WITH WARNINGS; 4R approved. Publicado en v2.56.2. K6c permanece `done`; K6d sigue `next-eligible`.
