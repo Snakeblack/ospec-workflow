@@ -1,0 +1,107 @@
+schema_version: 1
+change: harden-installer-fs-recovery
+status: archived
+classification: normal
+route:
+  intended_route: bugfix
+  actual_route: standard
+  route_rationale: "Promoción de ruta bugfix a standard SDD para dotar al cambio de propuesta, especificación delta, diseño y contrato formal de verify-lineage para la remediación."
+  validated: true
+  validation_errors: []
+baseline_fingerprints:
+  install: "sha256:8bce3a96320ccc2b91ea59411d64ce34e7d33151620c5553738dd69bfa11363e"
+phases:
+  sdd-explore:
+    status: success
+    summary: "La política de recuperación está fragmentada: el motor común no reintenta mutaciones ni rollback, Codex tiene reintentos parciales y Cursor duplica el journal."
+    key_decisions:
+      - "Centralizar EPERM, EACCES y EBUSY en una primitiva compartida."
+      - "Reintentar únicamente mutaciones mínimas e idempotentes y cada paso del rollback."
+  proposal:
+    status: done
+    artifact: "openspec/changes/harden-installer-fs-recovery/proposal.md"
+    summary: "Propuesta de endurecimiento del motor de instalación ante bloqueos transitorios (EPERM, EACCES, EBUSY) y rollback resiliente."
+    key_decisions:
+      - "Centralizar política con reintentos acotados y sleep inyectable en install-engine.js."
+      - "Reintentar pasos individuales de rollback y enriquecer diagnóstico al agotar intentos."
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/harden-installer-fs-recovery/specs/install/spec.md"
+    summary: "Especificación delta para install: reintentos transitorios (EPERM/EACCES/EBUSY), rollback resiliente y diagnóstico accionable con target."
+    key_decisions:
+      - "Reintentar leaf mutations idempotentes ante EPERM, EACCES y EBUSY."
+      - "Rollback tolerante a bloqueos transitorios en todos los targets."
+      - "Preservación del target en diagnósticos de agotamiento y poda."
+  design:
+    status: done
+    artifact: "openspec/changes/harden-installer-fs-recovery/design.md"
+    summary: "Diseño de reintentos acotados (EPERM/EACCES/EBUSY), rollback resiliente en journal/Codex y propagación de target en poda."
+    key_decisions:
+      - "Centralizar withTransientFsRetries y mutateFs para mutaciones leaf atómicas."
+      - "Integrar mutateFs en createRollbackJournal y createFilesystemTransaction.rollback()."
+      - "Propagar retryOptions con target explícito a pruneStaleFiles."
+  sdd-tasks:
+    status: done
+    artifact: "openspec/changes/harden-installer-fs-recovery/tasks.md"
+    summary: "Plan reconciliado con specs/design: 14 tareas completadas y Fase 4 para remediación de rollback en Codex y contexto de target en poda."
+    key_decisions:
+      - "Adoptar size:exception con pronóstico de 550–850 líneas."
+      - "Añadir Fase 4 de remediación para restorePath en Codex y retryOptions en poda."
+  sdd-apply:
+    status: done
+    artifact: "openspec/changes/harden-installer-fs-recovery/apply-progress.md"
+    summary: "Remediación completada: rollback de Codex protegido con mutateFs y target preservado en poda de Antigravity y Cursor; 100% tests PASS."
+    key_decisions:
+      - "Envolver mutaciones de restorePath con mutateFs y retryOptions en Codex."
+      - "Propagar retryOptions explícitamente a pruneStaleFiles en Antigravity y Cursor."
+  sdd-verify:
+    status: done
+    verdict: PASS
+    artifact: "openspec/changes/harden-installer-fs-recovery/verify-report.md"
+    summary: "Verificación superada (PASS): 8/8 escenarios cumplidos con runtime-test, 100% tests exitosos y diseño coherente."
+    key_decisions:
+      - "Veredicto PASS: REQ-install-016, REQ-install-017 y REQ-install-018 plenamente conformes."
+  archive:
+    status: done
+    artifact: "openspec/changes/harden-installer-fs-recovery/archive-report.md"
+    summary: "Plan de archivo emitido con merge de specs de install (REQ-016..018), 3 ADRs propuestas e inventario íntegro."
+last_updated: "2026-08-31T12:31:00Z"
+gate: intent-briefing
+decision: accepted
+synthesis: "Endurecer el motor común de instalación para todos los targets frente a bloqueos y errores transitorios del sistema de archivos, con reintentos seguros, diagnóstico accionable y rollback consistente."
+scope: "Incluye comportamiento compartido y particularidades necesarias por target, además de pruebas para EPERM, EACCES y EBUSY; excluye cambios ajenos al flujo de instalación."
+applies_to:
+  - change-classification
+owner:
+  author: "Manuel Retamozo"
+  branch: main
+approvals:
+  - id: intent-briefing-001
+    gate: intent-briefing
+    decision: accepted
+    source: vscode/askQuestions
+    accepted_at: "2026-08-31T09:50:07.8055243Z"
+    applies_to:
+      - change-classification
+    synthesis: "Endurecer el motor común de instalación para todos los targets frente a bloqueos y errores transitorios del sistema de archivos, con reintentos seguros, diagnóstico accionable y rollback consistente."
+    scope: "Incluye comportamiento compartido y particularidades necesarias por target, además de pruebas para EPERM, EACCES y EBUSY; excluye cambios ajenos al flujo de instalación."
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: auto
+    source: vscode/askQuestions
+    accepted_at: "2026-08-31T09:54:55.0401399Z"
+    applies_to:
+      - sdd-explore
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: vscode/askQuestions
+    accepted_at: "2026-08-31T10:09:16.5483393Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply

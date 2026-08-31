@@ -5,11 +5,13 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const { runConfigure, withTransientFsRetries } = require("./cli.js");
+const { runConfigure } = require("./cli.js");
 const { assertSafeDest } = require("./install-target.js");
 const {
   readOwnershipManifest,
   writeOwnershipManifest,
+  withTransientFsRetries,
+  mutateFs,
   pruneStaleFiles,
   toPosix,
 } = require("./install-engine.js");
@@ -895,45 +897,45 @@ function snapshotPath(targetPath, fsImpl) {
   throw new Error(`cannot transact unsupported filesystem entry: ${targetPath}`);
 }
 
-function removePathIfPresent(targetPath, fsImpl) {
+function removePathIfPresent(targetPath, fsImpl, retryOptions = {}) {
   if (lstatIfExists(targetPath, fsImpl)) {
-    fsImpl.rmSync(targetPath, { recursive: true, force: true });
+    mutateFs("rollback remove", targetPath, () => fsImpl.rmSync(targetPath, { recursive: true, force: true }), { target: "codex", ...retryOptions });
   }
 }
 
-function restorePath(targetPath, snapshot, fsImpl) {
+function restorePath(targetPath, snapshot, fsImpl, retryOptions = {}) {
   if (snapshot.type === "missing") {
     const stat = lstatIfExists(targetPath, fsImpl);
     if (!stat) return;
     if (stat.isDirectory()) {
       try {
-        fsImpl.rmdirSync(targetPath);
+        mutateFs("rollback rmdir", targetPath, () => fsImpl.rmdirSync(targetPath), { target: "codex", ...retryOptions });
       } catch (error) {
         if (error.code !== "ENOTEMPTY" && error.code !== "EEXIST") throw error;
       }
     } else {
-      fsImpl.rmSync(targetPath, { force: true });
+      mutateFs("rollback remove", targetPath, () => fsImpl.rmSync(targetPath, { force: true }), { target: "codex", ...retryOptions });
     }
     return;
   }
 
-  removePathIfPresent(targetPath, fsImpl);
-  fsImpl.mkdirSync(path.dirname(targetPath), { recursive: true });
+  removePathIfPresent(targetPath, fsImpl, retryOptions);
+  mutateFs("rollback mkdir", path.dirname(targetPath), () => fsImpl.mkdirSync(path.dirname(targetPath), { recursive: true }), { target: "codex", ...retryOptions });
   if (snapshot.type === "file") {
-    fsImpl.writeFileSync(targetPath, snapshot.bytes);
-    fsImpl.chmodSync(targetPath, snapshot.mode);
+    mutateFs("rollback write", targetPath, () => fsImpl.writeFileSync(targetPath, snapshot.bytes), { target: "codex", ...retryOptions });
+    mutateFs("rollback chmod", targetPath, () => fsImpl.chmodSync(targetPath, snapshot.mode), { target: "codex", ...retryOptions });
   } else if (snapshot.type === "symlink") {
-    fsImpl.symlinkSync(snapshot.link, targetPath);
+    mutateFs("rollback symlink", targetPath, () => fsImpl.symlinkSync(snapshot.link, targetPath), { target: "codex", ...retryOptions });
   } else if (snapshot.type === "directory") {
-    fsImpl.mkdirSync(targetPath, { recursive: true });
+    mutateFs("rollback mkdir", targetPath, () => fsImpl.mkdirSync(targetPath, { recursive: true }), { target: "codex", ...retryOptions });
     for (const [name, child] of snapshot.entries) {
-      restorePath(path.join(targetPath, name), child, fsImpl);
+      restorePath(path.join(targetPath, name), child, fsImpl, retryOptions);
     }
-    fsImpl.chmodSync(targetPath, snapshot.mode);
+    mutateFs("rollback chmod", targetPath, () => fsImpl.chmodSync(targetPath, snapshot.mode), { target: "codex", ...retryOptions });
   }
 }
 
-function createFilesystemTransaction(fsImpl = fs) {
+function createFilesystemTransaction(fsImpl = fs, retryOptions = {}) {
   const snapshots = new Map();
   let active = true;
   const capture = (targetPath) => {
@@ -956,25 +958,25 @@ function createFilesystemTransaction(fsImpl = fs) {
       if (property === "mkdirSync") {
         return (targetPath, options) => {
           captureMissingDirectories(targetPath);
-          return target.mkdirSync(targetPath, options);
+          return mutateFs("mkdir", targetPath, () => target.mkdirSync(targetPath, options), { target: "codex", ...retryOptions });
         };
       }
       if (property === "copyFileSync") {
         return (source, destination, ...args) => {
           capture(destination);
-          return target.copyFileSync(source, destination, ...args);
+          return mutateFs("copy", destination, () => target.copyFileSync(source, destination, ...args), { target: "codex", ...retryOptions });
         };
       }
       if (property === "writeFileSync") {
         return (targetPath, ...args) => {
           capture(targetPath);
-          return target.writeFileSync(targetPath, ...args);
+          return mutateFs("write", targetPath, () => target.writeFileSync(targetPath, ...args), { target: "codex", ...retryOptions });
         };
       }
       if (property === "rmSync") {
         return (targetPath, options) => {
           capture(targetPath);
-          return target.rmSync(targetPath, options);
+          return mutateFs("remove", targetPath, () => target.rmSync(targetPath, options), { target: "codex", ...retryOptions });
         };
       }
       return target[property];
@@ -991,7 +993,7 @@ function createFilesystemTransaction(fsImpl = fs) {
       const errors = [];
       for (const [targetPath, snapshot] of [...snapshots.entries()].reverse()) {
         try {
-          restorePath(targetPath, snapshot, fsImpl);
+          restorePath(targetPath, snapshot, fsImpl, retryOptions);
         } catch (error) {
           errors.push(error);
         }
@@ -1302,5 +1304,6 @@ module.exports = {
   gatherCodexOwnedFiles,
   transformLegacyServiceTier,
   repairCodexConfig,
+  createFilesystemTransaction,
   main,
 };

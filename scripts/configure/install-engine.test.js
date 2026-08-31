@@ -17,7 +17,41 @@ const {
   mergeJsoncFile,
   mergeHooksDoc,
   syncTargetTree,
+  withTransientFsRetries,
 } = require("./install-engine.js");
+
+for (const code of ["EPERM", "EACCES", "EBUSY"]) {
+  test(`withTransientFsRetries recovers from ${code} with deterministic backoff`, () => {
+    const delays = [];
+    let calls = 0;
+    const result = withTransientFsRetries(() => {
+      calls += 1;
+      if (calls < 3) throw Object.assign(new Error("locked"), { code });
+      return "ok";
+    }, { target: "test", operation: "write", path: "/tmp/hooks.json", maxRetries: 3, retryDelay: 5, sleep: delay => delays.push(delay) });
+    assert.equal(result, "ok");
+    assert.equal(calls, 3);
+    assert.deepEqual(delays, [5, 10]);
+  });
+}
+
+test("withTransientFsRetries enriches exhaustion and preserves code and cause", () => {
+  const original = Object.assign(new Error("locked"), { code: "EPERM" });
+  assert.throws(
+    () => withTransientFsRetries(() => { throw original; }, {
+      target: "antigravity", operation: "write", path: "C:/x/hooks.json", maxRetries: 1, sleep: () => {},
+    }),
+    error => error.code === "EPERM" && error.cause === original && error.attempts === 2 &&
+      /antigravity/.test(error.message) && /close the application/i.test(error.message),
+  );
+});
+
+test("withTransientFsRetries fails permanent errors immediately", () => {
+  let calls = 0;
+  const original = Object.assign(new Error("missing"), { code: "ENOENT" });
+  assert.throws(() => withTransientFsRetries(() => { calls += 1; throw original; }, { sleep: () => {} }), error => error === original);
+  assert.equal(calls, 1);
+});
 
 function createMemoryFs(initialFiles = {}) {
   const files = new Map();
@@ -128,6 +162,29 @@ function createMemoryFs(initialFiles = {}) {
     chmodSync() {},
   };
 }
+
+test("rollback retries each transient restore mutation", () => {
+  const root = path.resolve("/tmp/rollback-retry");
+  const managed = path.join(root, "hooks.json");
+  const base = createMemoryFs({ [managed]: "before" });
+  let writes = 0;
+  const fsImpl = new Proxy(base, {
+    get(target, property) {
+      if (property !== "writeFileSync") return target[property];
+      return (targetPath, ...args) => {
+        writes += 1;
+        if (writes === 1) throw Object.assign(new Error("busy"), { code: "EBUSY" });
+        return target.writeFileSync(targetPath, ...args);
+      };
+    },
+  });
+  const journal = createRollbackJournal(root, fsImpl, { target: "test", sleep: () => {} });
+  journal.capture(managed);
+  base.writeFileSync(managed, "after");
+  journal.rollback();
+  assert.equal(base.readFileSync(managed, "utf8"), "before");
+  assert.equal(writes, 2);
+});
 
 test("safeParseJson throws informative error on invalid JSON", () => {
   assert.throws(

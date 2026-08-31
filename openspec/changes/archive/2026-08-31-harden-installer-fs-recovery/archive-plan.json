@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "change": "harden-installer-fs-recovery",
+  "source_fingerprint": "sha256:01454f73abcfce1c8208837b42a4ddbd72b78a163ba5d20466091def65f4fe37",
+  "spec_writes": [
+    {
+      "domain": "install",
+      "source_delta": "specs/install/spec.md",
+      "target": "openspec/specs/install/spec.md",
+      "target_before_sha256": "sha256:8bce3a96320ccc2b91ea59411d64ce34e7d33151620c5553738dd69bfa11363e",
+      "content_sha256": "sha256:37ad7ed206f35b2014cbca350318146fa0664c62ac6cf134f551aec44fd47be8"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260831-001-centralized-transient-filesystem-retries.md",
+      "content_sha256": "sha256:ea6b37ac7c1a4f8f42e9755aaf2aad19f936c1ad5e610e173d856dbb1939d323"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260831-002-resilient-rollback-in-journals-and-codex-transactions.md",
+      "content_sha256": "sha256:fb42d2488cb025f783fd13e023c20e2aac431c774d2df1023064903927a29605"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260831-003-target-context-propagation-in-stale-file-pruning.md",
+      "content_sha256": "sha256:f1fa8945c985e166114227c053e079f4eab25eccb896f211e4890f1726616dff"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "design.md",
+    "exploration.md",
+    "proposal.md",
+    "specs/install/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

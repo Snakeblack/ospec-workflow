@@ -11,6 +11,7 @@ const { spawnSync } = require("node:child_process");
 
 const { transform } = require("../lib/target-transform.js");
 const { validateSddModelPolicy } = require("../lib/model-resolver.js");
+const { withTransientFsRetries } = require("./install-engine.js");
 
 const PROFILES = {
   claude: require("../lib/target-profiles/claude.js"),
@@ -481,27 +482,6 @@ function acquireDestinationLock(outDir) {
     if (fd !== undefined) fs.closeSync(fd);
   }
   return { destination, parent, lockPath };
-}
-
-const TRANSIENT_WINDOWS_FS_CODES = new Set(["EPERM", "EACCES", "EBUSY"]);
-
-function sleepSync(milliseconds) {
-  if (milliseconds <= 0) return;
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
-}
-
-function withTransientFsRetries(operation, retryOptions = {}) {
-  const maxRetries = Math.min(3, Math.max(0, retryOptions.maxRetries ?? 3));
-  const retryDelay = Math.max(1, retryOptions.retryDelay ?? 10);
-  const sleep = retryOptions.sleep || sleepSync;
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      return operation();
-    } catch (error) {
-      if (!TRANSIENT_WINDOWS_FS_CODES.has(error?.code) || attempt >= maxRetries) throw error;
-      sleep(retryDelay * (attempt + 1));
-    }
-  }
 }
 
 function removeOwned(pathname, operationObserver = () => {}, retryOptions = {}) {

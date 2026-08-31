@@ -1,7 +1,21 @@
 ---
 title: Known Issues
-last_updated: 2026-08-28
+last_updated: 2026-08-31
 ---
+
+## El rollback general de Codex evita la política común de reintentos
+- severity: BLOCKER
+- area: scripts/configure/install-codex.js (restorePath / createFilesystemTransaction.rollback)
+- workaround: envolver cada mutación de restauración con la primitiva resiliente y verificar EPERM, EACCES y EBUSY mediante pruebas focales
+- change: harden-installer-fs-recovery
+- date: 2026-08-31
+
+## La poda de Antigravity y Cursor pierde el target en el diagnóstico de agotamiento
+- severity: WARNING
+- area: scripts/configure/install-antigravity.js; scripts/configure/install-cursor.js
+- workaround: propagar retryOptions a pruneStaleFiles y probar el agotamiento por target
+- change: harden-installer-fs-recovery
+- date: 2026-08-31
 
 ## Inherited AG-006 receipt-token attestation lacks a dedicated runtime test
 - severity: WARNING

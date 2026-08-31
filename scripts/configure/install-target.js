@@ -20,6 +20,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { runConfigure } = require("./cli.js");
+const { mutateFs } = require("./install-engine.js");
 
 const TARGETS = new Set(["opencode", "github-copilot"]);
 
@@ -115,8 +116,9 @@ function copyBinaryToTree(outDir, target, sourceDir, deps = {}) {
 
   for (const dest of destinations) {
     try {
-      fsImpl.mkdirSync(path.dirname(dest), { recursive: true });
-      fsImpl.copyFileSync(srcBin, dest);
+      const retryOptions = { target, ...(deps.retryOptions || {}) };
+      mutateFs("mkdir", path.dirname(dest), () => fsImpl.mkdirSync(path.dirname(dest), { recursive: true }), retryOptions);
+      mutateFs("copy binary", dest, () => fsImpl.copyFileSync(srcBin, dest), retryOptions);
       // Set executable bit on POSIX systems so the shell can invoke the binary.
       if (process.platform !== "win32") {
         fsImpl.chmodSync(dest, 0o755);
@@ -152,7 +154,7 @@ function parseArgs(argv) {
   return args;
 }
 
-function syncEntriesTransactional(outDir, destDir, entries, fsImpl) {
+function syncEntriesTransactional(outDir, destDir, entries, fsImpl, retryOptions = {}) {
   const backupRoot = fsImpl.mkdtempSync(path.join(os.tmpdir(), "ospec-target-sync-"));
   const manifest = [];
   let primaryError = null;
@@ -165,26 +167,26 @@ function syncEntriesTransactional(outDir, destDir, entries, fsImpl) {
       const existed = fsImpl.existsSync(destination);
       const backup = path.join(backupRoot, entry);
       if (existed) {
-        fsImpl.cpSync(destination, backup, { recursive: true, force: true, preserveTimestamps: true });
+        mutateFs("snapshot", backup, () => fsImpl.cpSync(destination, backup, { recursive: true, force: true, preserveTimestamps: true }), retryOptions);
       }
       manifest.push({ entry, destination, backup, existed });
     }
 
     for (const { entry, destination } of manifest) {
-      fsImpl.cpSync(path.join(outDir, entry), destination, { recursive: true, force: true });
+      mutateFs("copy entry", destination, () => fsImpl.cpSync(path.join(outDir, entry), destination, { recursive: true, force: true }), retryOptions);
     }
   } catch (error) {
     primaryError = error;
     const rollbackErrors = [];
     for (const item of [...manifest].reverse()) {
       try {
-        fsImpl.rmSync(item.destination, { recursive: true, force: true });
+        mutateFs("rollback remove", item.destination, () => fsImpl.rmSync(item.destination, { recursive: true, force: true }), retryOptions);
         if (item.existed) {
-          fsImpl.cpSync(item.backup, item.destination, {
+          mutateFs("rollback restore", item.destination, () => fsImpl.cpSync(item.backup, item.destination, {
             recursive: true,
             force: true,
             preserveTimestamps: true,
-          });
+          }), retryOptions);
         }
       } catch (rollbackError) {
         rollbackErrors.push(`${item.entry}: ${rollbackError.message}`);
@@ -196,7 +198,7 @@ function syncEntriesTransactional(outDir, destDir, entries, fsImpl) {
     throw new Error(`${error.message}; changes rolled back`);
   } finally {
     try {
-      fsImpl.rmSync(backupRoot, { recursive: true, force: true });
+      mutateFs("cleanup transaction", backupRoot, () => fsImpl.rmSync(backupRoot, { recursive: true, force: true }), retryOptions);
     } catch (cleanupError) {
       if (!primaryError) {
         throw new Error(`failed to clean transaction backup: ${cleanupError.message}`);
@@ -332,7 +334,10 @@ function main(argv, deps = {}) {
     stdout.write("\n[dry-run] no files written.\n");
   } else {
     try {
-      syncEntriesTransactional(outDir, destDir, entries, fsImpl);
+      syncEntriesTransactional(outDir, destDir, entries, fsImpl, {
+        target: args.target,
+        ...(deps.retryOptions || {}),
+      });
     } catch (error) {
       stderr.write(`\nsync failed: ${error.message}\n`);
       exitCodeTarget.exitCode = 2;

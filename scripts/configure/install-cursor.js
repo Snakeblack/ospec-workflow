@@ -15,6 +15,8 @@ const {
   pruneStaleFiles,
   mergeHooksDoc,
   mergeJsonFile,
+  createRollbackJournal: createCommonRollbackJournal,
+  mutateFs,
 } = require("./install-engine.js");
 
 function usage() {
@@ -113,11 +115,12 @@ function syncTreeByContent(
   skipNames = new Set(),
   cursorRoot = destDir,
   journal = null,
+  retryOptions = {},
 ) {
   // Per-destination safety (Codex parity): refuse nested symlinks that escape root.
   assertCursorPathSafe(cursorRoot, destDir, fsImpl);
   if (journal) journal.captureDirectory(destDir);
-  fsImpl.mkdirSync(destDir, { recursive: true });
+  mutateFs("mkdir", destDir, () => fsImpl.mkdirSync(destDir, { recursive: true }), retryOptions);
   for (const entry of fsImpl.readdirSync(sourceDir, { withFileTypes: true })) {
     if (skipNames.has(entry.name)) {
       continue;
@@ -125,15 +128,15 @@ function syncTreeByContent(
     const source = path.join(sourceDir, entry.name);
     const destination = path.join(destDir, entry.name);
     if (entry.isDirectory()) {
-      syncTreeByContent(source, destination, fsImpl, result, skipNames, cursorRoot, journal);
+      syncTreeByContent(source, destination, fsImpl, result, skipNames, cursorRoot, journal, retryOptions);
     } else if (entry.isFile()) {
       assertCursorPathSafe(cursorRoot, destination, fsImpl);
       if (filesMatch(source, destination, fsImpl)) {
         result.unchanged.push(destination);
       } else {
         if (journal) journal.capture(destination);
-        fsImpl.mkdirSync(path.dirname(destination), { recursive: true });
-        fsImpl.copyFileSync(source, destination);
+        mutateFs("mkdir", path.dirname(destination), () => fsImpl.mkdirSync(path.dirname(destination), { recursive: true }), retryOptions);
+        mutateFs("copy", destination, () => fsImpl.copyFileSync(source, destination), retryOptions);
         result.updated.push(destination);
       }
     }
@@ -162,73 +165,8 @@ function expandCursorHooksPlaceholder(command, cursorRootPosix) {
   });
 }
 
-function createRollbackJournal(cursorRoot, fsImpl = fs) {
-  const entries = [];
-  const captured = new Set();
-  const newDirectories = new Set();
-
-  return {
-    captureDirectory(targetPath) {
-      const absolute = path.resolve(targetPath);
-      assertCursorPathSafe(cursorRoot, absolute, fsImpl);
-      const stat = lstatIfExists(absolute, fsImpl);
-      if (!stat) {
-        newDirectories.add(absolute);
-      } else if (!stat.isDirectory()) {
-        throw new Error(`refusing non-directory managed path: ${absolute}`);
-      }
-    },
-    capture(targetPath) {
-      const absolute = path.resolve(targetPath);
-      if (captured.has(absolute)) return;
-      assertCursorPathSafe(cursorRoot, absolute, fsImpl);
-      const stat = lstatIfExists(absolute, fsImpl);
-      if (stat && !stat.isFile()) {
-        throw new Error(`refusing to replace non-file managed path: ${absolute}`);
-      }
-      entries.push({
-        path: absolute,
-        existed: Boolean(stat),
-        bytes: stat ? fsImpl.readFileSync(absolute) : null,
-        mode: stat ? stat.mode : null,
-      });
-      captured.add(absolute);
-    },
-    rollback() {
-      const failures = [];
-      for (const entry of [...entries].reverse()) {
-        try {
-          if (entry.existed) {
-            fsImpl.mkdirSync(path.dirname(entry.path), { recursive: true });
-            fsImpl.writeFileSync(entry.path, entry.bytes);
-            fsImpl.chmodSync(entry.path, entry.mode);
-          } else {
-            fsImpl.rmSync(entry.path, { force: true });
-          }
-        } catch (error) {
-          failures.push(`${entry.path}: ${error.message || error}`);
-        }
-      }
-
-      const candidateDirs = [...newDirectories].sort((left, right) => right.length - left.length);
-      for (const dir of candidateDirs) {
-        try {
-          const stat = lstatIfExists(dir, fsImpl);
-          if (stat && stat.isSymbolicLink()) {
-            throw new Error("refusing to follow symlink during rollback");
-          }
-          if (stat && stat.isDirectory() && fsImpl.readdirSync(dir).length === 0) {
-            fsImpl.rmdirSync(dir);
-          }
-        } catch (error) {
-          failures.push(`${dir}: ${error.message || error}`);
-        }
-      }
-      if (failures.length > 0) {
-        throw new Error(`rollback incomplete: ${failures.join("; ")}`);
-      }
-    },
-  };
+function createRollbackJournal(cursorRoot, fsImpl = fs, retryOptions = {}) {
+  return createCommonRollbackJournal(cursorRoot, fsImpl, { target: "cursor", ...retryOptions });
 }
 
 function renderHooksValue(value, cursorRootPosix) {
@@ -331,7 +269,7 @@ function installMcpJson(sourceDir, cursorRoot, deps = {}) {
       next.mcpServers = { ...(existingDoc?.mcpServers || {}), ...sanitizedServers };
       return next;
     },
-    { fs: fsImpl, journal: deps.journal },
+    { fs: fsImpl, journal: deps.journal, retryOptions: { target: "cursor", ...(deps.retryOptions || {}) } },
   );
 }
 
@@ -365,8 +303,10 @@ function installHooksJson(outDir, cursorRoot, deps = {}) {
   }
 
   const merged = mergeHooksDoc(existing, rendered, "cursor");
-  fsImpl.mkdirSync(cursorRoot, { recursive: true });
-  fsImpl.writeFileSync(destPath, JSON.stringify(merged, null, 2) + "\n");
+  const retryOptions = { target: "cursor", ...(deps.retryOptions || {}) };
+  mutateFs("mkdir", cursorRoot, () => fsImpl.mkdirSync(cursorRoot, { recursive: true }), retryOptions);
+  const content = JSON.stringify(merged, null, 2) + "\n";
+  mutateFs("write hooks", destPath, () => fsImpl.writeFileSync(destPath, content), retryOptions);
 }
 
 function main(argv, deps = {}) {
@@ -429,7 +369,8 @@ function main(argv, deps = {}) {
 
   let journal = null;
   try {
-    journal = createRollbackJournal(cursorRoot, fsImpl);
+    const retryOptions = { target: "cursor", ...(deps.retryOptions || {}) };
+    journal = createRollbackJournal(cursorRoot, fsImpl, retryOptions);
     const previousManifest = readOwnershipManifest(cursorRoot, fsImpl);
 
     // Cursor requires its native hook binary. Stage it in the generated tree
@@ -448,9 +389,10 @@ function main(argv, deps = {}) {
       new Set(["hooks.json"]),
       cursorRoot,
       journal,
+      retryOptions,
     );
-    installHooks(outDir, cursorRoot, { fs: fsImpl, dryRun: false, journal });
-    installMcp(sourceDir, cursorRoot, { fs: fsImpl, dryRun: false, journal });
+    installHooks(outDir, cursorRoot, { fs: fsImpl, dryRun: false, journal, retryOptions });
+    installMcp(sourceDir, cursorRoot, { fs: fsImpl, dryRun: false, journal, retryOptions });
 
     const installedValidation = validateInstalled(cursorRoot, { fs: fsImpl });
     if (installedValidation.errors.length > 0) {
@@ -471,7 +413,7 @@ function main(argv, deps = {}) {
       ),
     ).sort();
 
-    const pruneResult = pruneStaleFiles(cursorRoot, previousManifest, allOwned, fsImpl, journal);
+    const pruneResult = pruneStaleFiles(cursorRoot, previousManifest, allOwned, fsImpl, journal, retryOptions);
 
     const isIdentical =
       previousManifest &&
@@ -488,6 +430,7 @@ function main(argv, deps = {}) {
       { version, target: "cursor", installedAt, files: allOwned },
       fsImpl,
       journal,
+      retryOptions,
     );
 
     stdout.write(

@@ -4,6 +4,46 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const MANIFEST_FILENAME = ".ospec-workflow-install.json";
+const TRANSIENT_FS_CODES = new Set(["EPERM", "EACCES", "EBUSY"]);
+
+function sleepSync(milliseconds) {
+  if (milliseconds > 0) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
+}
+
+function withTransientFsRetries(operation, options = {}) {
+  const maxRetries = Math.min(5, Math.max(0, options.maxRetries ?? 3));
+  const retryDelay = Math.max(1, options.retryDelay ?? 10);
+  const sleep = options.sleep || sleepSync;
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return operation();
+    } catch (error) {
+      if (!TRANSIENT_FS_CODES.has(error?.code)) throw error;
+      if (attempt < maxRetries) {
+        sleep(retryDelay * (attempt + 1));
+        continue;
+      }
+      const target = options.target || "installer";
+      const operationName = options.operation || "filesystem mutation";
+      const targetPath = options.path || "unknown path";
+      const enriched = new Error(
+        `${target}: ${operationName} failed for ${targetPath} after ${attempt + 1} attempts (${error.code}). ` +
+        "Close the application or process using this path, then retry the installation.",
+        { cause: error },
+      );
+      enriched.code = error.code;
+      enriched.attempts = attempt + 1;
+      enriched.operation = operationName;
+      enriched.path = targetPath;
+      enriched.target = target;
+      throw enriched;
+    }
+  }
+}
+
+function mutateFs(operation, targetPath, action, options = {}) {
+  return withTransientFsRetries(action, { ...options, operation, path: targetPath });
+}
 
 function lstatIfExists(targetPath, fsImpl = fs) {
   try {
@@ -67,7 +107,7 @@ function filesMatch(source, destination, fsImpl = fs) {
   }
 }
 
-function createRollbackJournal(targetRoot, fsImpl = fs) {
+function createRollbackJournal(targetRoot, fsImpl = fs, retryOptions = {}) {
   const entries = [];
   const captured = new Set();
   const newDirectories = new Set();
@@ -104,13 +144,13 @@ function createRollbackJournal(targetRoot, fsImpl = fs) {
       for (const entry of [...entries].reverse()) {
         try {
           if (entry.existed) {
-            fsImpl.mkdirSync(path.dirname(entry.path), { recursive: true });
-            fsImpl.writeFileSync(entry.path, entry.bytes);
+            mutateFs("rollback mkdir", path.dirname(entry.path), () => fsImpl.mkdirSync(path.dirname(entry.path), { recursive: true }), retryOptions);
+            mutateFs("rollback write", entry.path, () => fsImpl.writeFileSync(entry.path, entry.bytes), retryOptions);
             if (entry.mode !== null) {
-              fsImpl.chmodSync(entry.path, entry.mode);
+              mutateFs("rollback chmod", entry.path, () => fsImpl.chmodSync(entry.path, entry.mode), retryOptions);
             }
           } else {
-            fsImpl.rmSync(entry.path, { force: true });
+            mutateFs("rollback remove", entry.path, () => fsImpl.rmSync(entry.path, { force: true }), retryOptions);
           }
         } catch (error) {
           failures.push(`${entry.path}: ${error.message || error}`);
@@ -125,7 +165,7 @@ function createRollbackJournal(targetRoot, fsImpl = fs) {
             throw new Error("refusing to follow symlink during rollback");
           }
           if (stat && stat.isDirectory() && fsImpl.readdirSync(dir).length === 0) {
-            fsImpl.rmdirSync(dir);
+            mutateFs("rollback remove directory", dir, () => fsImpl.rmdirSync(dir), retryOptions);
           }
         } catch (error) {
           failures.push(`${dir}: ${error.message || error}`);
@@ -151,22 +191,23 @@ function readOwnershipManifest(targetRoot, fsImpl = fs) {
   }
 }
 
-function writeOwnershipManifest(targetRoot, manifest, fsImpl = fs, journal = null) {
+function writeOwnershipManifest(targetRoot, manifest, fsImpl = fs, journal = null, retryOptions = {}) {
   const manifestPath = path.join(targetRoot, MANIFEST_FILENAME);
   assertPathSafe(targetRoot, manifestPath, fsImpl);
   if (journal) {
     journal.captureDirectory(targetRoot);
     journal.capture(manifestPath);
   }
-  fsImpl.mkdirSync(targetRoot, { recursive: true });
-  fsImpl.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n", "utf8");
+  mutateFs("mkdir", targetRoot, () => fsImpl.mkdirSync(targetRoot, { recursive: true }), retryOptions);
+  const content = JSON.stringify(manifest, null, 2) + "\n";
+  mutateFs("write manifest", manifestPath, () => fsImpl.writeFileSync(manifestPath, content, "utf8"), retryOptions);
 }
 
 function toPosix(filePath) {
   return filePath ? filePath.split(path.sep).join("/").replace(/\\/g, "/") : "";
 }
 
-function pruneStaleFiles(targetRoot, previousManifest, currentFiles, fsImpl = fs, journal = null) {
+function pruneStaleFiles(targetRoot, previousManifest, currentFiles, fsImpl = fs, journal = null, retryOptions = {}) {
   if (!previousManifest || !Array.isArray(previousManifest.files)) {
     return { deleted: [] };
   }
@@ -182,7 +223,7 @@ function pruneStaleFiles(targetRoot, previousManifest, currentFiles, fsImpl = fs
         assertPathSafe(targetRoot, fullPath, fsImpl);
         if (fsImpl.existsSync(fullPath)) {
           if (journal) journal.capture(fullPath);
-          fsImpl.rmSync(fullPath, { force: true });
+          mutateFs("remove stale file", fullPath, () => fsImpl.rmSync(fullPath, { force: true }), retryOptions);
           deleted.push(toPosix(relFile));
 
           // Clean up empty directories up to targetRoot
@@ -191,7 +232,7 @@ function pruneStaleFiles(targetRoot, previousManifest, currentFiles, fsImpl = fs
           while (path.resolve(parentDir) !== resolvedRoot && path.resolve(parentDir).startsWith(resolvedRoot)) {
             const entries = fsImpl.readdirSync(parentDir);
             if (entries.length === 0) {
-              fsImpl.rmdirSync(parentDir);
+              mutateFs("remove empty directory", parentDir, () => fsImpl.rmdirSync(parentDir), retryOptions);
               parentDir = path.dirname(parentDir);
             } else {
               break;
@@ -334,8 +375,9 @@ function mergeJsonFile(filePath, updaterFn, deps = {}) {
     journal.captureDirectory(path.dirname(filePath));
     journal.capture(filePath);
   }
-  fsImpl.mkdirSync(path.dirname(filePath), { recursive: true });
-  fsImpl.writeFileSync(filePath, JSON.stringify(updated, null, 2) + "\n", "utf8");
+  mutateFs("mkdir", path.dirname(filePath), () => fsImpl.mkdirSync(path.dirname(filePath), { recursive: true }), deps.retryOptions);
+  const content = JSON.stringify(updated, null, 2) + "\n";
+  mutateFs("write JSON", filePath, () => fsImpl.writeFileSync(filePath, content, "utf8"), deps.retryOptions);
   return updated;
 }
 
@@ -354,8 +396,9 @@ function mergeJsoncFile(filePath, updaterFn, deps = {}) {
     journal.captureDirectory(path.dirname(filePath));
     journal.capture(filePath);
   }
-  fsImpl.mkdirSync(path.dirname(filePath), { recursive: true });
-  fsImpl.writeFileSync(filePath, JSON.stringify(updated, null, 2) + "\n", "utf8");
+  mutateFs("mkdir", path.dirname(filePath), () => fsImpl.mkdirSync(path.dirname(filePath), { recursive: true }), deps.retryOptions);
+  const content = JSON.stringify(updated, null, 2) + "\n";
+  mutateFs("write JSONC", filePath, () => fsImpl.writeFileSync(filePath, content, "utf8"), deps.retryOptions);
   return updated;
 }
 
@@ -402,10 +445,11 @@ function syncTargetTree(
   targetRoot = destDir,
   journal = null,
   relPrefix = "",
+  retryOptions = {},
 ) {
   assertPathSafe(targetRoot, destDir, fsImpl);
   if (journal) journal.captureDirectory(destDir);
-  fsImpl.mkdirSync(destDir, { recursive: true });
+  mutateFs("mkdir", destDir, () => fsImpl.mkdirSync(destDir, { recursive: true }), retryOptions);
 
   for (const entry of fsImpl.readdirSync(sourceDir, { withFileTypes: true })) {
     if (skipNames.has(entry.name)) {
@@ -416,7 +460,7 @@ function syncTargetTree(
     const relFile = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
 
     if (entry.isDirectory()) {
-      syncTargetTree(source, destination, fsImpl, result, skipNames, targetRoot, journal, relFile);
+      syncTargetTree(source, destination, fsImpl, result, skipNames, targetRoot, journal, relFile, retryOptions);
     } else if (entry.isFile()) {
       assertPathSafe(targetRoot, destination, fsImpl);
       result.ownedFiles.push(relFile);
@@ -424,8 +468,8 @@ function syncTargetTree(
         result.unchanged.push(destination);
       } else {
         if (journal) journal.capture(destination);
-        fsImpl.mkdirSync(path.dirname(destination), { recursive: true });
-        fsImpl.copyFileSync(source, destination);
+        mutateFs("mkdir", path.dirname(destination), () => fsImpl.mkdirSync(path.dirname(destination), { recursive: true }), retryOptions);
+        mutateFs("copy", destination, () => fsImpl.copyFileSync(source, destination), retryOptions);
         result.updated.push(destination);
       }
     }
@@ -448,4 +492,6 @@ module.exports = {
   mergeJsoncFile,
   mergeHooksDoc,
   syncTargetTree,
+  withTransientFsRetries,
+  mutateFs,
 };
