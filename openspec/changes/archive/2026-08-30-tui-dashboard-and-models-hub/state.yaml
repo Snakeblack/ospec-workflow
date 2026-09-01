@@ -1,0 +1,48 @@
+change: "2026-08-30-tui-dashboard-and-models-hub"
+status: "archived"
+last_updated: 2026-08-30T21:10:00Z
+blocking_questions: []
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/2026-08-30-tui-dashboard-and-models-hub/proposal.md"
+    summary: "Propuesta para Hitos 3 y 4 de la TUI: Dashboard con accesos rápidos y Models Hub con selector de presets y afinamiento granular."
+    key_decisions:
+      - "Diseño desacoplado Elm en internal/tui/views/"
+      - "Persistencia declarativa atómica sobre models.yaml"
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/2026-08-30-tui-dashboard-and-models-hub/specs/tui-dashboard-and-models-hub/spec.md"
+    summary: "Requisitos para tarjetas de Dashboard, detector de targets, selector de presets y afinamiento granular."
+    key_decisions:
+      - "Identificadores REQ-tui-dashboard-001 a 004 y REQ-tui-models-001 a 004"
+  design:
+    status: done
+    artifact: "openspec/changes/2026-08-30-tui-dashboard-and-models-hub/design.md"
+    summary: "Diseño técnico modular de views/dashboard y views/models con paso de mensajes a AppModel."
+    key_decisions:
+      - "Layout responsive adaptativo (multi-columna y apilado)"
+  tasks:
+    status: done
+    artifact: "openspec/changes/2026-08-30-tui-dashboard-and-models-hub/tasks.md"
+    summary: "Tareas de implementación por componente e integración con tests unitarios."
+    key_decisions:
+      - "TDD unitario e integración completa con app.go"
+  apply:
+    status: done
+    artifact: "openspec/changes/2026-08-30-tui-dashboard-and-models-hub/apply-progress.md"
+    summary: "Implementación completa de Dashboard, Models Hub, integración en AppModel y correcciones 4R."
+    key_decisions:
+      - "Cláusulas de guardia para navegación segura y saneamiento de strings"
+  verify:
+    status: done
+    verdict: PASS
+    artifact: "openspec/changes/2026-08-30-tui-dashboard-and-models-hub/verify-report.md"
+    summary: "Verificación PASS: 100% pruebas unitarias en Go y arnés Node.js en verde."
+    key_decisions:
+      - "Validación 4R confirmada por review-correction"
+  archive:
+    status: done
+    artifact: "openspec/changes/2026-08-30-tui-dashboard-and-models-hub/archive-report.md"
+    summary: "Cambio archivado y especificación promovida."

@@ -35,6 +35,8 @@ release/dist/ospec-hooks.exe
 release/dist/ospec-hooks-*
 scripts/hooks/ospec-hooks
 scripts/hooks/ospec-hooks.exe
+/ospec
+/ospec.exe
 /ospec-hooks
 /ospec-hooks.exe
 

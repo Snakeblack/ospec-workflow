@@ -194,14 +194,13 @@ func (m *ModelsManager) SetAgentTier(agent string, tier string) error {
 // Save persists the current in-memory ModelsConfig to models.yaml atomically.
 func (m *ModelsManager) Save() error {
 	m.mu.RLock()
-	cfg := m.cachedCfg
-	m.mu.RUnlock()
+	defer m.mu.RUnlock()
 
-	if cfg == nil {
+	if m.cachedCfg == nil {
 		return fmt.Errorf("no models configuration loaded to save")
 	}
 
-	return m.SaveModels(cfg)
+	return m.SaveModels(m.cachedCfg)
 }
 
 // SaveModels persists the specified ModelsConfig to models.yaml atomically.

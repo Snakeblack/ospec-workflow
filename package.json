@@ -44,6 +44,8 @@
     "reload:antigravity": "node scripts/configure/install-antigravity.js",
     "build:hooks": "node -e \"const r = require('./scripts/configure/install-target.js').ensureRuntimeBinary(process.cwd()); if (!r) process.exit(1);\"",
     "ensure:hooks": "npm run build:hooks",
+    "build:tui": "go build -o ospec ./cmd/ospec",
+    "build:ospec": "go build -o ospec ./cmd/ospec",
     "setup:git-hooks": "node scripts/setup-git-hooks.js"
   }
 }

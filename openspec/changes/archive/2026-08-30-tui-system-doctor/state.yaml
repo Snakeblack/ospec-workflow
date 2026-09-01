@@ -1,0 +1,55 @@
+change: "2026-08-30-tui-system-doctor"
+status: "archived"
+last_updated: 2026-08-30T21:34:00Z
+blocking_questions: []
+phases:
+  proposal:
+    status: "done"
+    artifact: "openspec/changes/2026-08-30-tui-system-doctor/proposal.md"
+    summary: "Vista 4 System Doctor en TUI con motor de diagnóstico para runtimes, git, configuración y API keys, con cálculo de reportes, remediaciones y enlace a TabDoctor."
+    key_decisions:
+      - "Diagnóstico desacoplado en internal/system/doctor.go con severidades OK, Warning, Error y remediaciones"
+      - "Integración Elm interactiva en TabDoctor (pestaña 4) con re-escaneo reactivo"
+  spec:
+    status: "done"
+    artifacts:
+      - "openspec/changes/2026-08-30-tui-system-doctor/specs/tui-system-doctor/spec.md"
+    summary: "Especificación formal de diagnóstico del sistema (Node.js >= 22, Go >= 1.23, Git, config, API keys), UI navegable con split/stacked layout, re-scan y conexión Elm en TabDoctor."
+    key_decisions:
+      - "4 dominios de chequeos con evidencia técnica y recomendaciones de remediación"
+      - "Trigger interactivo 'r'/'Enter' para re-diagnóstico en tiempo real"
+  design:
+    status: "done"
+    artifact: "openspec/changes/2026-08-30-tui-system-doctor/design.md"
+    summary: "Arquitectura desacoplada en internal/system/doctor.go, vista Master-Detail Elm responsiva con remediaciones y protección por timeouts."
+    key_decisions:
+      - "ADR-012: Desacoplamiento del motor de diagnósticos en internal/system/doctor.go"
+      - "ADR-013: Arquitectura Split Master-Detail para diagnósticos y remediaciones en Bubble Tea"
+      - "ADR-014: Chequeos protegidos por timeouts y evaluación consultiva de API keys"
+  tasks:
+    status: "done"
+    artifact: "openspec/changes/2026-08-30-tui-system-doctor/tasks.md"
+    summary: "Plan de 4 fases con TDD estricto y trazabilidad REQ-tui-doctor-001..005 para motor de dominio, UI del doctor, integración AppModel y verificación."
+    key_decisions:
+      - "TDD Red-Green-Refactor por capa (system -> views/doctor -> app)"
+      - "Previsión de revisión en 4 fases estructuradas"
+  apply:
+    status: "done"
+    artifact: "openspec/changes/2026-08-30-tui-system-doctor/apply-progress.md"
+    summary: "System Doctor implementado con TDD estricto: motor internal/system/doctor.go, vista Elm con cards Lip Gloss, sugerencias de remediación y conexión TabDoctor en AppModel."
+    key_decisions:
+      - "Chequeos protegidos por timeouts de 1s y API keys evaluadas como advisory"
+      - "Integración reactiva en TabDoctor con conmutación por '4' y 'd'"
+  verify:
+    status: "done"
+    verdict: "PASS"
+    artifact: "openspec/changes/2026-08-30-tui-system-doctor/verify-report.md"
+    summary: "100% de requisitos (REQ-tui-doctor-001..005) verificados con tests, build limpio y suite Go completa en verde con -race."
+    key_decisions:
+      - "Veredicto PASS para todos los chequeos, UI Elm responsiva y re-escaneo"
+  archive:
+    status: "done"
+    artifact: "openspec/changes/2026-08-30-tui-system-doctor/archive-report.md"
+    summary: "Plan de archivo emitido (1 spec promovida a openspec/specs/tui-system-doctor/spec.md, 3 ADRs promovidas a docs/adr/adr-20260830-012..014)."
+    key_decisions:
+      - "Archivo completado y registrado"

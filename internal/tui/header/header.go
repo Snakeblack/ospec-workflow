@@ -5,13 +5,7 @@ import (
 	"github.com/snakeblack/ospec-workflow/internal/tui/theme"
 )
 
-const MinStandardWidth = 80
-
-const asciiBanner = `   ____  _____ ____  _____ ____ 
-  / __ \/ ___// __ \/ ___// ___/
- / /_/ (__  )/ /_/ / /__ / /__  
- \____/____// ____/\___/ \___/  
-           /_/                  `
+const MinStandardWidth = 75
 
 type Model struct {
 	width        int
@@ -26,7 +20,7 @@ func New(version, activePreset, gitBranch string) Model {
 		version:      version,
 		activePreset: activePreset,
 		gitBranch:    gitBranch,
-		width:        MinStandardWidth,
+		width:        80,
 	}
 }
 
@@ -35,23 +29,28 @@ func (m *Model) SetWidth(w int) {
 	m.width = w
 }
 
+// SetPreset updates the active preset displayed in the header badge.
+func (m *Model) SetPreset(preset string) {
+	m.activePreset = preset
+}
+
 // Width returns the current stored viewport width.
 func (m Model) Width() int {
 	return m.width
 }
 
-// RenderBanner renders the ASCII art banner (or compact title when width < 80).
+// RenderBanner renders the sleek minimalist title banner.
 func (m Model) RenderBanner() string {
 	if m.width < MinStandardWidth {
 		return lipgloss.NewStyle().
 			Bold(true).
 			Foreground(theme.ColorPrimary).
-			Render("OSPEC")
+			Render("🐙 OSPEC")
 	}
 	return lipgloss.NewStyle().
 		Bold(true).
 		Foreground(theme.ColorPrimary).
-		Render(asciiBanner)
+		Render("🐙 OSPEC WORKFLOW  •  SDD")
 }
 
 // RenderBadges renders dynamic metadata badges for version, preset, and branch.
@@ -63,14 +62,12 @@ func (m Model) RenderBadges() string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, bVersion, " ", bPreset, " ", bBranch)
 }
 
-// View renders the complete header component.
+// View renders the complete minimalist header component in a single clean line.
 func (m Model) View() string {
 	banner := m.RenderBanner()
 	badges := m.RenderBadges()
 
-	if m.width < MinStandardWidth {
-		return lipgloss.JoinHorizontal(lipgloss.Center, banner, "  ", badges)
-	}
-
-	return lipgloss.JoinVertical(lipgloss.Left, banner, badges)
+	return lipgloss.JoinHorizontal(lipgloss.Center, banner, "  ", badges)
 }
+
+

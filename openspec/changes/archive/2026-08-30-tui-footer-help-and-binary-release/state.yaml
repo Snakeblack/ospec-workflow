@@ -1,0 +1,55 @@
+change: "2026-08-30-tui-footer-help-and-binary-release"
+status: "archived"
+last_updated: 2026-08-30T21:40:00Z
+blocking_questions: []
+phases:
+  proposal:
+    status: "done"
+    artifact: "openspec/changes/2026-08-30-tui-footer-help-and-binary-release/proposal.md"
+    summary: "Hito 7: Footer contextual, modal de ayuda '?', compilación y verificación de binario ospec standalone y no-regresión."
+    key_decisions:
+      - "Componente footer dedicado en internal/tui/footer/ con atajos contextuales adaptados por vista"
+      - "Modal de ayuda interactivo desplegable con '?' y cerrable con '?'/'esc'/'q'"
+      - "Configuración de scripts npm para build del binario ospec y validación completa del arnés"
+  spec:
+    status: "done"
+    artifacts:
+      - "openspec/changes/2026-08-30-tui-footer-help-and-binary-release/specs/tui-footer-and-release/spec.md"
+    summary: "Especificación formal de footer contextual, modal de ayuda, compilación standalone y suite de no-regresión."
+    key_decisions:
+      - "Atajos dinámicos para tabs 0 a 3 con formato compacto en anchos reducidos"
+      - "Key-trapping seguro para el modal de ayuda con dismissal rápido"
+  design:
+    status: "done"
+    artifact: "openspec/changes/2026-08-30-tui-footer-help-and-binary-release/design.md"
+    summary: "Arquitectura desacoplada en internal/tui/footer, key-trapping en AppModel, pipeline standalone y criterios de aceptación."
+    key_decisions:
+      - "ADR-015: Arquitectura del Componente Footer Contextual en internal/tui/footer"
+      - "ADR-016: Modal de Ayuda Interactivo y Mecanismo de Key-Trapping Seguro"
+      - "ADR-017: Pipeline de Compilación del Binario Standalone y Criterios de Aceptación Globales"
+  tasks:
+    status: "done"
+    artifact: "openspec/changes/2026-08-30-tui-footer-help-and-binary-release/tasks.md"
+    summary: "Plan de 4 fases con 9 tareas y TDD estricto para footer, ayuda, app shell, build standalone y verificación no-regresión."
+    key_decisions:
+      - "TDD Red-Green-Refactor por capa (footer -> app -> packaging -> verification)"
+  apply:
+    status: "done"
+    artifact: "openspec/changes/2026-08-30-tui-footer-help-and-binary-release/apply-progress.md"
+    summary: "Footer contextual, modal de ayuda '?', integración AppModel, scripts de build en package.json y binario compilado."
+    key_decisions:
+      - "Key-trapping seguro y renderizado de ayuda modal con Lip Gloss"
+      - "Scripts npm build:tui y build:ospec agregados"
+  verify:
+    status: "done"
+    verdict: "PASS"
+    artifact: "openspec/changes/2026-08-30-tui-footer-help-and-binary-release/verify-report.md"
+    summary: "100% de requisitos (REQ-tui-footer-001..005) verificados, Go test suite y Node.js test suite en verde."
+    key_decisions:
+      - "Veredicto PASS para todos los componentes y no-regresión certificada"
+  archive:
+    status: "done"
+    artifact: "openspec/changes/2026-08-30-tui-footer-help-and-binary-release/archive-report.md"
+    summary: "Plan de archivo emitido (1 spec promovida a openspec/specs/tui-footer-and-release/spec.md, 3 ADRs promovidas a docs/adr/adr-20260830-015..017)."
+    key_decisions:
+      - "Hito 7 completado y roadmap de la TUI cerrado al 100%"

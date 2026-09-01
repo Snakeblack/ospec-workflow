@@ -76,18 +76,18 @@ func TestHeaderCompactWidth(t *testing.T) {
 func TestHeaderWidthThreshold(t *testing.T) {
 	h := header.New("v2.56.0", "Default", "main")
 
-	// Width 79: should be compact (single line banner)
-	h.SetWidth(79)
+	// Width 74: should be compact (single line banner)
+	h.SetWidth(74)
 	compactBanner := ansi.Strip(h.RenderBanner())
-	if compactBanner != "OSPEC" {
-		t.Errorf("Width 79 RenderBanner() = %q, want 'OSPEC'", compactBanner)
+	if !strings.Contains(compactBanner, "OSPEC") {
+		t.Errorf("Width 74 RenderBanner() = %q, want 'OSPEC'", compactBanner)
 	}
 
-	// Width 80: should be full multi-line banner
-	h.SetWidth(80)
+	// Width 75: should be standard banner
+	h.SetWidth(75)
 	standardBanner := ansi.Strip(h.RenderBanner())
-	if !strings.Contains(standardBanner, "\n") {
-		t.Errorf("Width 80 RenderBanner() should be multi-line, got: %q", standardBanner)
+	if !strings.Contains(standardBanner, "WORKFLOW") {
+		t.Errorf("Width 75 RenderBanner() = %q, want 'WORKFLOW'", standardBanner)
 	}
 }
 

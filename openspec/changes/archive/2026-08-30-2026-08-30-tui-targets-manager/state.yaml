@@ -1,0 +1,55 @@
+change: "2026-08-30-tui-targets-manager"
+status: "archived"
+last_updated: 2026-08-30T21:24:27Z
+blocking_questions: []
+phases:
+  proposal:
+    status: "done"
+    artifact: "openspec/changes/2026-08-30-tui-targets-manager/proposal.md"
+    summary: "Vista 3 Targets Manager en TUI con inspección de 6 targets AI, badges de estado, visor de rutas/herramientas, acción de sincronización y enlace a TabTargets."
+    key_decisions:
+      - "Inspección desacoplada y tipada en internal/system/targets.go con 4 estados (Activo, Configurado, Detectado, Inactivo)"
+      - "Integración Elm interactiva en TabTargets (pestaña 3) con atajos dedicados de inspección y sincronización"
+  spec:
+    status: "done"
+    artifacts:
+      - "openspec/changes/2026-08-30-tui-targets-manager/specs/tui-targets-manager/spec.md"
+    summary: "Especificación formal de inspección de 6 targets, UI navegable con split/stacked layout, sync declarativo y conexión Elm en TabTargets."
+    key_decisions:
+      - "Jerarquía de 4 estados con inspección de evidencias de configuración y matriz de capacidades"
+      - "Trigger interactivo 's'/'Enter' para sync declarativo con toast no bloqueante"
+  design:
+    status: "done"
+    artifact: "openspec/changes/2026-08-30-tui-targets-manager/design.md"
+    summary: "Arquitectura desacoplada en internal/system/targets.go, vista Master-Detail Elm responsiva y sync declarativo no bloqueante."
+    key_decisions:
+      - "ADR-001: Desacoplamiento de inspección de targets en internal/system/targets.go"
+      - "ADR-002: Layout Master-Detail responsivo (split/stacked) en views/targets/"
+      - "ADR-003: Sincronización declarativa segura en Go con tea.Cmd asíncrono"
+  tasks:
+    status: "done"
+    artifact: "openspec/changes/2026-08-30-tui-targets-manager/tasks.md"
+    summary: "Plan de 4 fases con TDD estricto y trazabilidad REQ-tui-targets-001..005 para motor de dominio, UI de targets, integración AppModel y 4R gate."
+    key_decisions:
+      - "TDD Red-Green-Refactor por capa (system -> views/targets -> app)"
+      - "Previsión de revisión en 3 unidades de trabajo autónomas"
+  apply:
+    status: "done"
+    artifact: "openspec/changes/2026-08-30-tui-targets-manager/apply-progress.md"
+    summary: "Targets Manager implementado con TDD estricto: motor internal/system, vista Elm responsiva con cards Lip Gloss, sync declarativo e integración TabTargets en AppModel."
+    key_decisions:
+      - "Motor de inspección desacoplado con matriz de capacidades para 6 targets AI"
+      - "Integración completa de TabTargets en AppModel y refactorización de detector.go"
+  verify:
+    status: "done"
+    verdict: "PASS"
+    artifact: "openspec/changes/2026-08-30-tui-targets-manager/verify-report.md"
+    summary: "100% de requisitos (REQ-tui-targets-001..005) verificados con runtime-test, build limpio y suite Go completa en verde con -race."
+    key_decisions:
+      - "Veredicto PASS para los 6 targets AI, UI Elm responsiva y sincronización declarativa"
+  archive:
+    status: "done"
+    artifact: "openspec/changes/2026-08-30-tui-targets-manager/archive-report.md"
+    summary: "Plan de archivo emitido en archive-plan.json (1 spec promovida a openspec/specs/tui-targets-manager/spec.md, 3 ADRs promovidas a docs/adr/adr-20260830-009..011, inventario de 11 archivos verificado)."
+    key_decisions:
+      - "archive-plan.json emitido bajo el protocolo Plan-and-Report; el runtime determinista ejecuta las escrituras vivas y el movimiento de directorio"

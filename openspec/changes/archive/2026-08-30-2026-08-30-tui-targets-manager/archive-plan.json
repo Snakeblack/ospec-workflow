@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "change": "2026-08-30-tui-targets-manager",
+  "source_fingerprint": "sha256:e9a2ec7d1dd94722933fa083c9d619c33528e610a49d406f2016320e6258d77b",
+  "spec_writes": [
+    {
+      "domain": "tui-targets-manager",
+      "source_delta": "specs/tui-targets-manager/spec.md",
+      "target": "openspec/specs/tui-targets-manager/spec.md",
+      "target_before_sha256": null,
+      "content_sha256": "sha256:bb514b2d29975ea0ef1461778e9d1c0d702fe204e6e8e272ccb95107c7122f3e"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260830-009-desacoplamiento-del-motor-de-inspeccion-de-targets-en-internal-system-targets-go.md",
+      "content_sha256": "sha256:f412dd868fa8c89e564842ef0f3acb2a0c0335b27d77d69488d67c3b049a5c5b"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260830-010-arquitectura-de-panel-dividido-split-master-detail-responsiva-en-bubbletea.md",
+      "content_sha256": "sha256:daf7ef6d28c0db1c78f82c4da61693d2ed75df8f12058b10b36c5b985913dc06"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260830-011-sincronizacion-declarativa-segura-sin-invasion-de-runtime-externo.md",
+      "content_sha256": "sha256:f157d8abf654cba2c2018f7773a0f1f5d3037afff838b2c3d2e7459f14c85441"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "design.md",
+    "proposal.md",
+    "specs/tui-targets-manager/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}
