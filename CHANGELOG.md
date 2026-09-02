@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.56.8] - 2026-09-02
+
+### Added
+- **Telemetría CX0 coverage-aware (`cx0-context-measurement`)**:
+  - **Carril JSONL separado de O1**: registros `ospec-context-measurement/v1` en `.ospec/session/{change}/context-measurements.jsonl` con métricas available/unavailable, fuente, cobertura y `reason_code`; sin payloads y sin autoridad sobre routing, gates ni Candidate.
+  - **Contrato y reporting advisory**: schema cerrado, fixtures válidas/inválidas, hipótesis machine-readable, P50/P90 nearest-rank y comparación `supported`/`contradicted`/`insufficient-evidence` desconectada del scoring.
+  - **Emisión fail-safe en SubagentStop**: append CX0 posterior a phase-cost; fallos de escritura no alteran stdout ni la continuación del hook.
+  - **Specs y ADRs**: dominio nuevo `openspec/specs/context-measurement/spec.md`; `REQ-hooks-017` y `REQ-orchestrator-evals-007`; ADRs `docs/adr/adr-20260902-004`, `005` y `006`.
+  - Verify PASS (12/12), 4R aprobado (0 BLOCKER/CRITICAL; 6 WARNING y 1 SUGGESTION advisory aceptados); archivado en `openspec/changes/archive/2026-09-02-cx0-context-measurement/`.
+
 ## [2.56.7] - 2026-09-02
 
 ### Fixed

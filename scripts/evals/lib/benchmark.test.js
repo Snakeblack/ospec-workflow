@@ -20,7 +20,48 @@ const {
   validateReferenceCandidate,
   renderReferenceBaseline,
   deriveReferenceQuality,
+  readContextMeasurements,
+  buildCx0Report,
 } = require("./benchmark.js");
+const { normalizeContextMeasurement } = require("../../lib/context-measurement.js");
+
+function cx0Record({ unique = 10, duplicated = 0, toolOutput = 0 } = {}) {
+  return normalizeContextMeasurement({
+    observed_at: "2026-09-01T00:00:00.000Z",
+    dimensions: { phase: "apply", classification: "normal", profile: "default", host: "codex" },
+    observations: { input_tokens: 10, cached_input_tokens: 0, uncached_input_tokens: 10, output_tokens: 1, artifact_reads: 0, artifact_writes: 0, tool_output_tokens: toolOutput, unique_context: unique, duplicated_context: duplicated },
+  });
+}
+
+test("CX0 reporting rejects invalid rows, uses only covered samples, and is byte deterministic", async (t) => {
+  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "cx0-benchmark-"));
+  t.after(() => fs.promises.rm(directory, { recursive: true, force: true }));
+  const file = path.join(directory, "context-measurements.jsonl");
+  const usable = cx0Record({ duplicated: 20 });
+  const unavailable = cx0Record({ unique: 0, duplicated: 10 });
+  const invalid = { ...usable, metrics: { ...usable.metrics, input_tokens: { ...usable.metrics.input_tokens, source: "unknown" } } };
+  await fs.promises.writeFile(file, `${JSON.stringify(usable)}\n${JSON.stringify(unavailable)}\n${JSON.stringify(invalid)}\nnot-json\n`, "utf8");
+  const loaded = readContextMeasurements(file);
+  assert.equal(loaded.records.length, 2);
+  assert.equal(loaded.rejected.length, 2);
+  const hypotheses = [{ id: "amplification", metric: "amplification", operator: "lte", target: 2, selector: {} }];
+  const first = buildCx0Report(loaded.records, hypotheses);
+  const second = buildCx0Report([...loaded.records].reverse(), hypotheses);
+  assert.equal(first.canonical, second.canonical);
+  assert.equal(first.advisory, true);
+  assert.equal(first.aggregation.cohorts[0].metrics.amplification.eligible_count, 1);
+  assert.equal(first.aggregation.cohorts[0].metrics.amplification.unavailable_count, 1);
+  assert.equal(first.hypotheses[0].outcome, "contradicted");
+  assert.equal(first.score, undefined);
+  assert.equal(first.route, undefined);
+});
+
+test("CX0 readContextMeasurements handles missing stream returning empty records and rejected missing-stream", () => {
+  const nonExistent = path.join(os.tmpdir(), "non-existent-cx0-" + Date.now() + ".jsonl");
+  const loaded = readContextMeasurements(nonExistent);
+  assert.deepEqual(loaded.records, []);
+  assert.deepEqual(loaded.rejected, [{ reason: "missing-stream" }]);
+});
 
 function temp(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-benchmark-"));

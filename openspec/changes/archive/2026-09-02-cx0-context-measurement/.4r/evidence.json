@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "classification": "normal",
+  "fingerprint": "sha256:e39ce73fa7b7f6b605e594aad71f5ee3cefa34b946321a72c7115e58f0c84ec8",
+  "sources": {
+    "paths": [
+      "openspec/changes/cx0-context-measurement/apply-progress.md",
+      "openspec/changes/cx0-context-measurement/decisions/adr-001.md",
+      "openspec/changes/cx0-context-measurement/decisions/adr-002.md",
+      "openspec/changes/cx0-context-measurement/decisions/adr-003.md",
+      "openspec/changes/cx0-context-measurement/design.md",
+      "openspec/changes/cx0-context-measurement/proposal.md",
+      "openspec/changes/cx0-context-measurement/specs/context-measurement/spec.md",
+      "openspec/changes/cx0-context-measurement/specs/hooks/spec.md",
+      "openspec/changes/cx0-context-measurement/specs/orchestrator-evals/spec.md",
+      "openspec/changes/cx0-context-measurement/state.yaml",
+      "openspec/changes/cx0-context-measurement/tasks.md",
+      "openspec/changes/cx0-context-measurement/verify-report.md",
+      "schemas/telemetry/context-measurement/fixtures/invalid/missing-reason.json",
+      "schemas/telemetry/context-measurement/fixtures/invalid/partial-kpi.json",
+      "schemas/telemetry/context-measurement/fixtures/invalid/payload-rejection.json",
+      "schemas/telemetry/context-measurement/fixtures/invalid/unknown-source.json",
+      "schemas/telemetry/context-measurement/fixtures/valid/degraded.json",
+      "schemas/telemetry/context-measurement/fixtures/valid/full.json",
+      "schemas/telemetry/context-measurement/hypotheses.v1.json",
+      "schemas/telemetry/context-measurement/v1.schema.json",
+      "scripts/evals/lib/benchmark.js",
+      "scripts/evals/lib/benchmark.test.js",
+      "scripts/hooks/context-measurement-provenance.test.js",
+      "scripts/hooks/subagent-stop.js",
+      "scripts/hooks/subagent-stop.test.js",
+      "scripts/lib/context-measurement-hypotheses.test.js",
+      "scripts/lib/context-measurement-schema.test.js",
+      "scripts/lib/context-measurement.js",
+      "scripts/lib/context-measurement.test.js",
+      "scripts/lib/ospec-state.js",
+      "scripts/lib/ospec-state.test.js"
+    ],
+    "capabilities": [
+      "runtime"
+    ],
+    "operation_types": [
+      "add",
+      "modify"
+    ],
+    "dependencies": [],
+    "facts": [
+      {
+        "code": "design-risk",
+        "source": "design",
+        "detail": "CX0 telemetry must remain advisory fail-safe and payload-free beside O1 without changing routing or authority"
+      },
+      {
+        "code": "metadata-runtime",
+        "source": "metadata",
+        "detail": "runtime"
+      },
+      {
+        "code": "diff-error-flow",
+        "source": "real-diff",
+        "detail": "scripts/evals/lib/benchmark.js,scripts/hooks/subagent-stop.js,scripts/lib/context-measurement.js,scripts/lib/ospec-state.js"
+      }
+    ]
+  }
+}

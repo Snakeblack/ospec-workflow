@@ -1,0 +1,139 @@
+status: verified
+classification: normal
+delivery_strategy: exception-ok
+gate: intent-briefing
+decision: accepted
+synthesis: "CX0 instrumentará consumo y amplificación de contexto con cobertura y percentiles, validando o corrigiendo las hipótesis actuales sin convertirlas todavía en gates. Se desarrollará como change independiente, en paralelo a K6d."
+scope: "CX0: medición de tokens, artefactos, tools, duplicación, amplification y fallback con schema/version, fuente, cobertura y P50/P90; sin mover autoridades, garantías ni la ruta crítica."
+applies_to:
+  - change-classification
+owner:
+  author: "Manuel Retamozo"
+  branch: feat/k6d-cx0-parallel
+approvals:
+  - id: intent-briefing-001
+    gate: intent-briefing
+    decision: accepted
+    source: user-numbered-chat
+    accepted_at: "2026-08-31T22:28:32.6519095Z"
+    applies_to:
+      - change-classification
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: interactive
+    source: user-numbered-chat
+    accepted_at: "2026-08-31T22:29:24.9912639Z"
+    applies_to:
+      - session-execution
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: user-numbered-chat
+    accepted_at: "2026-08-31T22:30:00.6507655Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: clarify-amplification-001
+    gate: clarify
+    decision: total-over-unique-strict-coverage
+    source: user-numbered-chat
+    accepted_at: "2026-08-31T22:49:28.8475918Z"
+    applies_to:
+      - cx0-amplification-v1
+      - sdd-design
+  - id: change-collision-001
+    gate: change-collision
+    decision: continue
+    source: user-numbered-chat
+    accepted_at: "2026-09-01T07:48:59.5904403Z"
+    applies_to:
+      - sdd-apply
+  - id: 4r-archive-001
+    gate: 4r-review-gate
+    decision: archive
+    source: user-numbered-chat
+    accepted_at: "2026-09-02T21:40:00.000Z"
+    applies_to:
+      - sdd-archive
+collisions:
+  - with: k6d-complexity-architecture-delta
+    overlap:
+      - "scripts/**/*.test.js"
+      - "scripts/lib/k6d-schema-fixtures.test.js"
+      - "scripts/lib/complexity-architecture-delta/index.test.js"
+      - "scripts/lib/roadmap-boundary.test.js"
+    decision: continue
+    decided_at: "2026-09-01T07:48:59.5904403Z"
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "Clasificación normal; primera ruta compatible con project.status active."
+  validated: true
+  validation_errors: []
+gates:
+  4r-review-gate: {"status":"approved","schema_version":1,"classification":"normal","evidence":{"schema_version":1,"fingerprint":"sha256:e39ce73fa7b7f6b605e594aad71f5ee3cefa34b946321a72c7115e58f0c84ec8","sources":{"paths":["openspec/changes/cx0-context-measurement/apply-progress.md","openspec/changes/cx0-context-measurement/decisions/adr-001.md","openspec/changes/cx0-context-measurement/decisions/adr-002.md","openspec/changes/cx0-context-measurement/decisions/adr-003.md","openspec/changes/cx0-context-measurement/design.md","openspec/changes/cx0-context-measurement/proposal.md","openspec/changes/cx0-context-measurement/specs/context-measurement/spec.md","openspec/changes/cx0-context-measurement/specs/hooks/spec.md","openspec/changes/cx0-context-measurement/specs/orchestrator-evals/spec.md","openspec/changes/cx0-context-measurement/state.yaml","openspec/changes/cx0-context-measurement/tasks.md","openspec/changes/cx0-context-measurement/verify-report.md","schemas/telemetry/context-measurement/fixtures/invalid/missing-reason.json","schemas/telemetry/context-measurement/fixtures/invalid/partial-kpi.json","schemas/telemetry/context-measurement/fixtures/invalid/payload-rejection.json","schemas/telemetry/context-measurement/fixtures/invalid/unknown-source.json","schemas/telemetry/context-measurement/fixtures/valid/degraded.json","schemas/telemetry/context-measurement/fixtures/valid/full.json","schemas/telemetry/context-measurement/hypotheses.v1.json","schemas/telemetry/context-measurement/v1.schema.json","scripts/evals/lib/benchmark.js","scripts/evals/lib/benchmark.test.js","scripts/hooks/context-measurement-provenance.test.js","scripts/hooks/subagent-stop.js","scripts/hooks/subagent-stop.test.js","scripts/lib/context-measurement-hypotheses.test.js","scripts/lib/context-measurement-schema.test.js","scripts/lib/context-measurement.js","scripts/lib/context-measurement.test.js","scripts/lib/ospec-state.js","scripts/lib/ospec-state.test.js"],"capabilities":["runtime"],"operation_types":["add","modify"],"dependencies":[],"facts":[{"code":"design-risk","source":"design","detail":"CX0 telemetry must remain advisory fail-safe and payload-free beside O1 without changing routing or authority"},{"code":"metadata-runtime","source":"metadata","detail":"runtime"},{"code":"diff-error-flow","source":"real-diff","detail":"scripts/evals/lib/benchmark.js,scripts/hooks/subagent-stop.js,scripts/lib/context-measurement.js,scripts/lib/ospec-state.js"}]}},"generalist":{"status":"needs-specialist","specialists":["risk","reliability","resilience"],"reason":"signals=design-risk,diff-error-flow,metadata-runtime;dimensions=risk,reliability,resilience"},"depth":{"review":"strict"},"escalation_reason":{"code":"normal-signal-overflow","positive_dimensions":3,"detail":"Normal review has 3 positive dimensions; strict full 4R required"},"dimensions":{"risk":{"selected":true,"reasons":[{"code":"signal-overflow-override","source":"override","detail":"Normal review has 3 positive dimensions; strict full 4R required","precedence":0},{"code":"generalist-escalation","source":"generalist","detail":"signals=design-risk,diff-error-flow,metadata-runtime;dimensions=risk,reliability,resilience","precedence":3},{"code":"design-risk","source":"design","detail":"CX0 telemetry must remain advisory fail-safe and payload-free beside O1 without changing routing or authority","precedence":4}]},"reliability":{"selected":true,"reasons":[{"code":"signal-overflow-override","source":"override","detail":"Normal review has 3 positive dimensions; strict full 4R required","precedence":0},{"code":"diff-error-flow","source":"real-diff","detail":"scripts/evals/lib/benchmark.js,scripts/hooks/subagent-stop.js,scripts/lib/context-measurement.js,scripts/lib/ospec-state.js","precedence":2},{"code":"generalist-escalation","source":"generalist","detail":"signals=design-risk,diff-error-flow,metadata-runtime;dimensions=risk,reliability,resilience","precedence":3},{"code":"metadata-runtime","source":"metadata","detail":"runtime","precedence":5}]},"resilience":{"selected":true,"reasons":[{"code":"signal-overflow-override","source":"override","detail":"Normal review has 3 positive dimensions; strict full 4R required","precedence":0},{"code":"diff-error-flow","source":"real-diff","detail":"scripts/evals/lib/benchmark.js,scripts/hooks/subagent-stop.js,scripts/lib/context-measurement.js,scripts/lib/ospec-state.js","precedence":2},{"code":"generalist-escalation","source":"generalist","detail":"signals=design-risk,diff-error-flow,metadata-runtime;dimensions=risk,reliability,resilience","precedence":3}]},"readability":{"selected":true,"reasons":[{"code":"signal-overflow-override","source":"override","detail":"Normal review has 3 positive dimensions; strict full 4R required","precedence":0}]}},"lineage_status":"approved","lineage_id":"sha256:6366628fc807e166f255ae6a9201d71b9e0ed2a966034c9516840d7435ced330","lineage_revision":9,"lineage_artifact":"openspec/changes/cx0-context-measurement/.4r/lineage.json","selected_specialists":["risk","reliability","resilience","readability"],"findings_summary":"0 BLOCKER, 0 CRITICAL, 6 WARNING, 1 SUGGESTION","archive_allowed":true,"terminal_reason":"no-unresolved-blocking-findings","correction_budget_limit_lines":200}
+baseline_fingerprints:
+  hooks: "db9a90183ea0bd78869b181121c1a4be847102b77efe6eb0d99f17616d2e98bb"
+  orchestrator-evals: "f3f6e4ffd5a2acdceca1908c237d8ab3d43b890c1d1cbe3e5ec918a527444085"
+last_updated: "2026-09-02T22:00:00.000Z"
+blocking_questions: []
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/cx0-context-measurement/proposal.md"
+    summary: "CX0 define telemetría versionada, cobertura por campo y P50/P90 no autoritativos; K6d y los gates quedan fuera."
+    key_decisions:
+      - "Las medidas declaran fuente y cobertura; ausencia no se representa como cero."
+      - "CX0 informa hipótesis, pero no crea gates ni cambia autoridades."
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/cx0-context-measurement/specs/context-measurement/spec.md"
+      - "openspec/changes/cx0-context-measurement/specs/hooks/spec.md"
+      - "openspec/changes/cx0-context-measurement/specs/orchestrator-evals/spec.md"
+    summary: "CX0 define registros versionados con fuente y cobertura por campo, KPIs y percentiles reproducibles, y contraste de hipótesis estrictamente advisory."
+    key_decisions:
+      - "Los datos ausentes se expresan como unavailable con cobertura y razón; nunca como cero evidencial."
+      - "La emisión en SubagentStop es aditiva y fail-safe; no modifica stdout, resultados, autoridad ni enrutamiento."
+      - "P50/P90 se calculan solo sobre observaciones elegibles y exponen el sesgo de cobertura del cohorte."
+  clarify:
+    summary: "Se escribieron specs CX0 para telemetría versionada con procedencia y cobertura por campo, KPIs y P50/P90 reproducibles, y contraste de hipótesis advisory. Las "
+    status: done
+    questions_asked: 1
+  design:
+    status: done
+    artifact: "openspec/changes/cx0-context-measurement/design.md"
+    summary: "CX0 uses a separate coverage-aware JSONL stream, strict formula versions, and deterministic advisory cohort reporting."
+    key_decisions:
+      - "CX0 persistence remains separate from legacy phase-cost rows and canonical workflow state."
+      - "Metric availability, source, coverage, and formula version are explicit in a closed v1 contract."
+      - "Canonical P50/P90 and hypothesis outcomes cannot affect scoring, routing, authority, or release policy."
+  tasks:
+    status: done
+    artifact: "openspec/changes/cx0-context-measurement/tasks.md"
+    summary: "Backlog CX0 en cuatro fases: contrato/TDD, persistencia y hook fail-safe, reporting determinista y regresión; forecast high con size-exception aceptado."
+    key_decisions:
+      - "La implementación sigue RED→GREEN→REFACTOR con Node native test runner y stream CX0 separado."
+      - "El alcance estimado supera 400 líneas; se mantiene un PR con size-exception por delivery_strategy exception-ok."
+      - "El reporting permanece desconectado de scoring, routing, autoridad y gates."
+  apply:
+    summary: "CX0 implementa telemetría coverage-aware separada de O1, emisión fail-safe, cohortes reproducibles e hipótesis advisory; npm test pasa tras registrar sus dos rutas sucesoras post-K1."
+    status: done
+    artifact: "openspec/changes/cx0-context-measurement/apply-progress.md"
+  verify:
+    status: done
+    verdict: PASS
+    artifact: "openspec/changes/cx0-context-measurement/verify-report.md"
+    summary: "PASS: 12/12 escenarios validados; CX0-V001 a V003 resueltos; REQ IDs trazados; persistencia O1/CX0 y regresión full pasando."
+    key_decisions:
+      - "Todos los escenarios MUST cuentan con evidencia runtime-test verificada."
+      - "Hallazgos congelados CX0-V001 a CX0-V003 verificados al 100% en sus recetas."
+      - "La suite completa npm test pasa y mantiene aislamiento advisory."
+  archive:
+    status: done
+    artifact: "openspec/changes/cx0-context-measurement/archive-report.md"
+    summary: "Plan-and-Report emitido: 3 spec_writes, 3 ADR promotions, 7 advisory 4R follow-ups aceptados."
+    key_decisions:
+      - "Specs preparadas en prepared-specs/; escrituras vivas pendientes del runtime transaccional."
+      - "Hallazgos 4R advisory documentados como accepted_warnings sin remediación previa al archive."
+verify_lineage: {"schema_version":1,"lineage_id":"sha256:c2d2f1ca66e2dce89c914a83f4a4673f3dd3a687c61ff2339db658f4bf4e8a2f","generation":1,"predecessor_id":null,"status":"closed","genesis_candidate_id":"sha256:edcfc57644499923c981d4ae7bed10079ffdfbf22f9900453421d7d9ff7c8321","current_candidate_id":"sha256:edcfc57644499923c981d4ae7bed10079ffdfbf22f9900453421d7d9ff7c8321","verified_candidate_id":"sha256:edcfc57644499923c981d4ae7bed10079ffdfbf22f9900453421d7d9ff7c8321","contract_digest":"sha256:190b5d4e66a25700d6201759c558f3345bb388732600358ff6aeef88505108cd","remediation_attempts":0,"max_remediation_attempts":2,"findings":[{"id":"CX0-V001","severity":"CRITICAL","summary":"CX0 no compara las hipótesis vigentes del roadmap con sus fórmulas y metadatos contractuales","origin":"code-bug","allowed_paths":["schemas/telemetry/context-measurement/hypotheses.v1.json","scripts/evals/lib/benchmark.js","scripts/evals/lib/benchmark.test.js","scripts/lib/context-measurement-hypotheses.test.js","scripts/lib/context-measurement.js","scripts/lib/context-measurement.test.js"],"validation":{"commands":["node --test scripts/lib/context-measurement.test.js scripts/lib/context-measurement-hypotheses.test.js scripts/evals/lib/benchmark.test.js"],"expected_exit":0,"test_files":["scripts/evals/lib/benchmark.test.js","scripts/lib/context-measurement-hypotheses.test.js","scripts/lib/context-measurement.test.js"]},"status":"resolved"},{"id":"CX0-V002","severity":"CRITICAL","summary":"El schema y las fixtures CX0 no materializan el contrato cerrado marcado como completo","origin":"code-bug","allowed_paths":["schemas/telemetry/context-measurement/fixtures/invalid/missing-reason.json","schemas/telemetry/context-measurement/fixtures/invalid/partial-kpi.json","schemas/telemetry/context-measurement/fixtures/invalid/payload-rejection.json","schemas/telemetry/context-measurement/fixtures/invalid/unknown-source.json","schemas/telemetry/context-measurement/fixtures/valid/degraded.json","schemas/telemetry/context-measurement/fixtures/valid/full.json","schemas/telemetry/context-measurement/v1.schema.json","scripts/lib/context-measurement-schema.test.js"],"validation":{"commands":["node --test scripts/lib/context-measurement-schema.test.js"],"expected_exit":0,"test_files":["scripts/lib/context-measurement-schema.test.js"]},"status":"resolved"},{"id":"CX0-V003","severity":"CRITICAL","summary":"La normalización del hook puede persistir registros inválidos y atribuye como observado un contador derivado","origin":"code-bug","allowed_paths":["scripts/hooks/context-measurement-provenance.test.js","scripts/hooks/subagent-stop.js","scripts/hooks/subagent-stop.test.js","scripts/lib/context-measurement.js","scripts/lib/context-measurement.test.js"],"validation":{"commands":["node --test scripts/lib/context-measurement.test.js scripts/hooks/subagent-stop.test.js scripts/hooks/context-measurement-provenance.test.js"],"expected_exit":0,"test_files":["scripts/hooks/context-measurement-provenance.test.js","scripts/hooks/subagent-stop.test.js","scripts/lib/context-measurement.test.js"]},"status":"resolved"}],"late_observations":[],"terminal_reason":"all-findings-verified"}

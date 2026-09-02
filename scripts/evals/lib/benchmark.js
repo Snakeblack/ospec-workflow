@@ -2,6 +2,12 @@
 
 const fs = require("node:fs");
 const crypto = require("node:crypto");
+const {
+  aggregateContextMeasurements,
+  compareCx0Hypotheses,
+  validateContextMeasurement,
+  canonicalCx0Json,
+} = require("../../lib/context-measurement.js");
 
 const TOKEN_FIELDS = ["estimated_prompt_tokens", "estimated_artifact_tokens", "estimated_tool_output_tokens", "estimated_output_tokens"];
 const VERIFY_SEVERITIES = ["critical", "warning", "suggestion"];
@@ -276,6 +282,43 @@ function canonicalJson(value) {
   return JSON.stringify(value);
 }
 
+/** Reads the additive CX0 stream. Invalid JSONL rows are rejected explicitly;
+ * they are never converted to a zero-valued observation. */
+function readContextMeasurements(filePath) {
+  let raw;
+  try { raw = fs.readFileSync(filePath, "utf8"); }
+  catch (error) { if (error.code === "ENOENT") return { records: [], rejected: [{ reason: "missing-stream" }] }; throw error; }
+  const records = [];
+  const rejected = [];
+  for (const [index, line] of raw.split(/\r?\n/).entries()) {
+    if (!line.trim()) continue;
+    try {
+      const record = JSON.parse(line);
+      const checked = validateContextMeasurement(record);
+      if (!checked.valid) rejected.push({ line: index + 1, errors: checked.errors });
+      else records.push(record);
+    } catch (error) { rejected.push({ line: index + 1, errors: [`invalid-json: ${error.message}`] }); }
+  }
+  return { records, rejected };
+}
+
+/**
+ * Builds a pure advisory diagnostic.  It does not import score, policy, route,
+ * authority, or release modules, which makes CX0 consumption non-authoritative
+ * by construction.
+ */
+function buildCx0Report(records, hypotheses = []) {
+  const report = aggregateContextMeasurements(records);
+  const advisory = compareCx0Hypotheses(report, hypotheses);
+  return {
+    schema: "cx0-cohort-report/v1",
+    advisory: true,
+    aggregation: report,
+    hypotheses: advisory,
+    canonical: canonicalCx0Json({ aggregation: report, hypotheses: advisory }),
+  };
+}
+
 function referenceDigest(value) { return crypto.createHash("sha256").update(canonicalJson(value)).digest("hex"); }
 function validDigest(value) { return typeof value === "string" && /^[a-f0-9]{64}$/.test(value); }
 function validReferenceGeneratedAt(value) {
@@ -393,4 +436,6 @@ module.exports = {
   canonicalJson,
   verifyRowAttestation,
   canonicalPersistedO1Row,
+  readContextMeasurements,
+  buildCx0Report,
 };

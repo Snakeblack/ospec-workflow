@@ -1,0 +1,302 @@
+{
+  "schema_version": 1,
+  "lineage_id": "sha256:6366628fc807e166f255ae6a9201d71b9e0ed2a966034c9516840d7435ced330",
+  "generation": 1,
+  "predecessor_lineage_id": null,
+  "recovery": null,
+  "revision": 9,
+  "status": "approved",
+  "genesis": {
+    "candidate": {
+      "projection": "workspace",
+      "base_tree": "2555cb5b8840d4dcb0db65317bfc8f02d2381719",
+      "candidate_tree": "workspace:085707660b60ab43a94c9b56c4424d4ea3e0e9c1569ce8f93e514c74876ec27c",
+      "paths": [
+        "openspec/changes/cx0-context-measurement/apply-progress.md",
+        "openspec/changes/cx0-context-measurement/decisions/adr-001.md",
+        "openspec/changes/cx0-context-measurement/decisions/adr-002.md",
+        "openspec/changes/cx0-context-measurement/decisions/adr-003.md",
+        "openspec/changes/cx0-context-measurement/design.md",
+        "openspec/changes/cx0-context-measurement/proposal.md",
+        "openspec/changes/cx0-context-measurement/specs/context-measurement/spec.md",
+        "openspec/changes/cx0-context-measurement/specs/hooks/spec.md",
+        "openspec/changes/cx0-context-measurement/specs/orchestrator-evals/spec.md",
+        "openspec/changes/cx0-context-measurement/state.yaml",
+        "openspec/changes/cx0-context-measurement/tasks.md",
+        "openspec/changes/cx0-context-measurement/verify-report.md",
+        "schemas/telemetry/context-measurement/fixtures/invalid/missing-reason.json",
+        "schemas/telemetry/context-measurement/fixtures/invalid/partial-kpi.json",
+        "schemas/telemetry/context-measurement/fixtures/invalid/payload-rejection.json",
+        "schemas/telemetry/context-measurement/fixtures/invalid/unknown-source.json",
+        "schemas/telemetry/context-measurement/fixtures/valid/degraded.json",
+        "schemas/telemetry/context-measurement/fixtures/valid/full.json",
+        "schemas/telemetry/context-measurement/hypotheses.v1.json",
+        "schemas/telemetry/context-measurement/v1.schema.json",
+        "scripts/evals/lib/benchmark.js",
+        "scripts/evals/lib/benchmark.test.js",
+        "scripts/hooks/context-measurement-provenance.test.js",
+        "scripts/hooks/subagent-stop.js",
+        "scripts/hooks/subagent-stop.test.js",
+        "scripts/lib/context-measurement-hypotheses.test.js",
+        "scripts/lib/context-measurement-schema.test.js",
+        "scripts/lib/context-measurement.js",
+        "scripts/lib/context-measurement.test.js",
+        "scripts/lib/ospec-state.js",
+        "scripts/lib/ospec-state.test.js"
+      ],
+      "diff_hash": "sha256:085707660b60ab43a94c9b56c4424d4ea3e0e9c1569ce8f93e514c74876ec27c",
+      "paths_digest": "sha256:221730349138435183cf16dc00d1c22b8a92e418b69f32375439298372b4c490",
+      "authored_lines": 1581,
+      "original_changed_lines": 1581
+    },
+    "candidate_id": "sha256:d3c6e0321f23ae88133a9d0ff9553f7c533221128576f8ef9709093478ce778d",
+    "paths": [
+      "openspec/changes/cx0-context-measurement/apply-progress.md",
+      "openspec/changes/cx0-context-measurement/decisions/adr-001.md",
+      "openspec/changes/cx0-context-measurement/decisions/adr-002.md",
+      "openspec/changes/cx0-context-measurement/decisions/adr-003.md",
+      "openspec/changes/cx0-context-measurement/design.md",
+      "openspec/changes/cx0-context-measurement/proposal.md",
+      "openspec/changes/cx0-context-measurement/specs/context-measurement/spec.md",
+      "openspec/changes/cx0-context-measurement/specs/hooks/spec.md",
+      "openspec/changes/cx0-context-measurement/specs/orchestrator-evals/spec.md",
+      "openspec/changes/cx0-context-measurement/state.yaml",
+      "openspec/changes/cx0-context-measurement/tasks.md",
+      "openspec/changes/cx0-context-measurement/verify-report.md",
+      "schemas/telemetry/context-measurement/fixtures/invalid/missing-reason.json",
+      "schemas/telemetry/context-measurement/fixtures/invalid/partial-kpi.json",
+      "schemas/telemetry/context-measurement/fixtures/invalid/payload-rejection.json",
+      "schemas/telemetry/context-measurement/fixtures/invalid/unknown-source.json",
+      "schemas/telemetry/context-measurement/fixtures/valid/degraded.json",
+      "schemas/telemetry/context-measurement/fixtures/valid/full.json",
+      "schemas/telemetry/context-measurement/hypotheses.v1.json",
+      "schemas/telemetry/context-measurement/v1.schema.json",
+      "scripts/evals/lib/benchmark.js",
+      "scripts/evals/lib/benchmark.test.js",
+      "scripts/hooks/context-measurement-provenance.test.js",
+      "scripts/hooks/subagent-stop.js",
+      "scripts/hooks/subagent-stop.test.js",
+      "scripts/lib/context-measurement-hypotheses.test.js",
+      "scripts/lib/context-measurement-schema.test.js",
+      "scripts/lib/context-measurement.js",
+      "scripts/lib/context-measurement.test.js",
+      "scripts/lib/ospec-state.js",
+      "scripts/lib/ospec-state.test.js"
+    ],
+    "classification": "normal",
+    "selected_dimensions": [
+      "risk",
+      "reliability",
+      "resilience",
+      "readability"
+    ],
+    "evidence_fingerprint": "sha256:e39ce73fa7b7f6b605e594aad71f5ee3cefa34b946321a72c7115e58f0c84ec8",
+    "original_changed_lines": 1581,
+    "authored_lines": 1581
+  },
+  "current_candidate_id": "sha256:d3c6e0321f23ae88133a9d0ff9553f7c533221128576f8ef9709093478ce778d",
+  "current_candidate": {
+    "projection": "workspace",
+    "base_tree": "2555cb5b8840d4dcb0db65317bfc8f02d2381719",
+    "candidate_tree": "workspace:085707660b60ab43a94c9b56c4424d4ea3e0e9c1569ce8f93e514c74876ec27c",
+    "paths": [
+      "openspec/changes/cx0-context-measurement/apply-progress.md",
+      "openspec/changes/cx0-context-measurement/decisions/adr-001.md",
+      "openspec/changes/cx0-context-measurement/decisions/adr-002.md",
+      "openspec/changes/cx0-context-measurement/decisions/adr-003.md",
+      "openspec/changes/cx0-context-measurement/design.md",
+      "openspec/changes/cx0-context-measurement/proposal.md",
+      "openspec/changes/cx0-context-measurement/specs/context-measurement/spec.md",
+      "openspec/changes/cx0-context-measurement/specs/hooks/spec.md",
+      "openspec/changes/cx0-context-measurement/specs/orchestrator-evals/spec.md",
+      "openspec/changes/cx0-context-measurement/state.yaml",
+      "openspec/changes/cx0-context-measurement/tasks.md",
+      "openspec/changes/cx0-context-measurement/verify-report.md",
+      "schemas/telemetry/context-measurement/fixtures/invalid/missing-reason.json",
+      "schemas/telemetry/context-measurement/fixtures/invalid/partial-kpi.json",
+      "schemas/telemetry/context-measurement/fixtures/invalid/payload-rejection.json",
+      "schemas/telemetry/context-measurement/fixtures/invalid/unknown-source.json",
+      "schemas/telemetry/context-measurement/fixtures/valid/degraded.json",
+      "schemas/telemetry/context-measurement/fixtures/valid/full.json",
+      "schemas/telemetry/context-measurement/hypotheses.v1.json",
+      "schemas/telemetry/context-measurement/v1.schema.json",
+      "scripts/evals/lib/benchmark.js",
+      "scripts/evals/lib/benchmark.test.js",
+      "scripts/hooks/context-measurement-provenance.test.js",
+      "scripts/hooks/subagent-stop.js",
+      "scripts/hooks/subagent-stop.test.js",
+      "scripts/lib/context-measurement-hypotheses.test.js",
+      "scripts/lib/context-measurement-schema.test.js",
+      "scripts/lib/context-measurement.js",
+      "scripts/lib/context-measurement.test.js",
+      "scripts/lib/ospec-state.js",
+      "scripts/lib/ospec-state.test.js"
+    ],
+    "diff_hash": "sha256:085707660b60ab43a94c9b56c4424d4ea3e0e9c1569ce8f93e514c74876ec27c",
+    "paths_digest": "sha256:221730349138435183cf16dc00d1c22b8a92e418b69f32375439298372b4c490",
+    "authored_lines": 1581,
+    "original_changed_lines": 1581
+  },
+  "lenses": {
+    "risk": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "cx0-4r-risk-1",
+      "result_digest": "sha256:fcea02d0ce1cc30adac8eb5a997fd13f9023b246f34c54ce0f056adc7a20fabd",
+      "result": {
+        "findings": [
+          {
+            "severity": "WARNING",
+            "summary": "validateContextMeasurement no impone unit:\"count\" ni el patrón de formula_version en métricas available passthrough; input.context_measurement puede persistir cadenas arbitrarias en context-measurements.jsonl.",
+            "acceptance_criteria": "validateContextMeasurement rechaza métricas available con unit distinto de \"count\" o formula_version fuera del patrón del schema; persistContextMeasurement no persiste esos registros; tests cubren el rechazo vía input.context_measurement passthrough."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "cx0-4r-risk-1"
+    },
+    "reliability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "cx0-4r-reliability-1",
+      "result_digest": "sha256:f7cf9ad7c87d626a4668e3bf348f37f88024816bfa733e6c773b9bcb3f3fb782",
+      "result": {
+        "findings": [
+          {
+            "severity": "WARNING",
+            "summary": "La ruta incompatible-components de deriveContextKpis no tiene prueba pese a ser requisito normativo de REQ-context-measurement-002.",
+            "acceptance_criteria": "Añadir un caso en context-measurement.test.js que construya unique_context/duplicated_context disponibles con fuentes incompatibles, invoque deriveContextKpis, y aserte amplification.status === unavailable, reason_code === incompatible-components, y que normalizeContextMeasurement propaga ese código en fallback.reason_code."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "loadCx0Hypotheses no prueba los caminos de error por registro malformado aunque el test afirme cubrirlos.",
+            "acceptance_criteria": "Extender context-measurement-hypotheses.test.js con fixtures temporales que ejerciten JSON inválido, schema distinto, hypotheses no array, operator inválido o id duplicado; cada uno debe lanzar el error documentado."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "persistContextMeasurement no tiene tests para los skips fail-safe unsupported-agent y no-active-change.",
+            "acceptance_criteria": "Añadir en subagent-stop.test.js dos casos: agente sin fase retorna skipped/unsupported-agent sin JSONL; workspace sin cambio activo retorna skipped/no-active-change sin crear context-measurements.jsonl."
+          },
+          {
+            "severity": "WARNING",
+            "summary": "validateContextMeasurement no valida unit: 'count' en métricas disponibles, desalineándose del contrato cerrado del schema.",
+            "acceptance_criteria": "Añadir validación en validateContextMeasurement que rechace métricas available sin unit === count, más un test que demuestre rechazo de un registro con unit: bytes o unit ausente."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "cx0-4r-reliability-1"
+    },
+    "resilience": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "cx0-4r-resilience-1",
+      "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+      "result": {
+        "findings": []
+      },
+      "operation": null,
+      "result_request_id": "cx0-4r-resilience-1"
+    },
+    "readability": {
+      "selected": true,
+      "status": "completed",
+      "request_id": "cx0-4r-readability-1",
+      "result_digest": "sha256:2c8783f260a8b88419e86dda44fddd6558876d67a24ab2f93d43921010e5f127",
+      "result": {
+        "findings": [
+          {
+            "severity": "WARNING",
+            "summary": "Los helpers count(), available() y unavailable() en context-measurement.js usan nombres que no comunican que son validador y fábricas de envelopes métricos.",
+            "acceptance_criteria": "Renombrar count a un predicado explícito; renombrar available/unavailable a constructores explícitos; actualizar call sites y tests CX0; verificar que no cambia el comportamiento ni los contratos de validación."
+          },
+          {
+            "severity": "SUGGESTION",
+            "summary": "La regla de compatibilidad de fuentes en deriveContextKpis permite mezclar fuentes cuando alguna es runtime-derived, pero carece de comentario inline.",
+            "acceptance_criteria": "Añadir un comentario de una o dos líneas junto a la condición explicando que runtime-derived puede componerse con otra fuente y cuándo se degrada a incompatible-components; no alterar la lógica ni los tests REQ-context-measurement-002."
+          }
+        ]
+      },
+      "operation": null,
+      "result_request_id": "cx0-4r-readability-1"
+    }
+  },
+  "findings": [
+    {
+      "id": "F-7e755c339dcb57f4",
+      "owner": "risk",
+      "severity": "WARNING",
+      "summary": "validateContextMeasurement no impone unit:\"count\" ni el patrón de formula_version en métricas available passthrough; input.context_measurement puede persistir cadenas arbitrarias en context-measurements.jsonl.",
+      "acceptance_criteria": "validateContextMeasurement rechaza métricas available con unit distinto de \"count\" o formula_version fuera del patrón del schema; persistContextMeasurement no persiste esos registros; tests cubren el rechazo vía input.context_measurement passthrough.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-45fa99b248db7578",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "La ruta incompatible-components de deriveContextKpis no tiene prueba pese a ser requisito normativo de REQ-context-measurement-002.",
+      "acceptance_criteria": "Añadir un caso en context-measurement.test.js que construya unique_context/duplicated_context disponibles con fuentes incompatibles, invoque deriveContextKpis, y aserte amplification.status === unavailable, reason_code === incompatible-components, y que normalizeContextMeasurement propaga ese código en fallback.reason_code.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-7be07dc640d573e6",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "loadCx0Hypotheses no prueba los caminos de error por registro malformado aunque el test afirme cubrirlos.",
+      "acceptance_criteria": "Extender context-measurement-hypotheses.test.js con fixtures temporales que ejerciten JSON inválido, schema distinto, hypotheses no array, operator inválido o id duplicado; cada uno debe lanzar el error documentado.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-50d43dbc72fc61e4",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "persistContextMeasurement no tiene tests para los skips fail-safe unsupported-agent y no-active-change.",
+      "acceptance_criteria": "Añadir en subagent-stop.test.js dos casos: agente sin fase retorna skipped/unsupported-agent sin JSONL; workspace sin cambio activo retorna skipped/no-active-change sin crear context-measurements.jsonl.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-314a975b2b73ec76",
+      "owner": "reliability",
+      "severity": "WARNING",
+      "summary": "validateContextMeasurement no valida unit: 'count' en métricas disponibles, desalineándose del contrato cerrado del schema.",
+      "acceptance_criteria": "Añadir validación en validateContextMeasurement que rechace métricas available sin unit === count, más un test que demuestre rechazo de un registro con unit: bytes o unit ausente.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-54662d85b86880cb",
+      "owner": "readability",
+      "severity": "WARNING",
+      "summary": "Los helpers count(), available() y unavailable() en context-measurement.js usan nombres que no comunican que son validador y fábricas de envelopes métricos.",
+      "acceptance_criteria": "Renombrar count a un predicado explícito; renombrar available/unavailable a constructores explícitos; actualizar call sites y tests CX0; verificar que no cambia el comportamiento ni los contratos de validación.",
+      "blocking": false,
+      "resolution": "advisory"
+    },
+    {
+      "id": "F-0803f7bc5efd904b",
+      "owner": "readability",
+      "severity": "SUGGESTION",
+      "summary": "La regla de compatibilidad de fuentes en deriveContextKpis permite mezclar fuentes cuando alguna es runtime-derived, pero carece de comentario inline.",
+      "acceptance_criteria": "Añadir un comentario de una o dos líneas junto a la condición explicando que runtime-derived puede componerse con otra fuente y cuándo se degrada a incompatible-components; no alterar la lógica ni los tests REQ-context-measurement-002.",
+      "blocking": false,
+      "resolution": "advisory"
+    }
+  ],
+  "findings_digest": "sha256:d1292db917515d2a03b86c310b9c7f60b25b189497ba4f40191b28ce2e73ecda",
+  "correction_budget": {
+    "limit_lines": 200,
+    "used_lines": 0,
+    "failed_attempts": 0,
+    "max_failed_attempts": 3
+  },
+  "correction_history": [],
+  "validation_history": [],
+  "follow_ups": [],
+  "pending_operation": null,
+  "pending_correction": null,
+  "terminal_reason": "no-unresolved-blocking-findings"
+}

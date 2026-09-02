@@ -1,0 +1,136 @@
+{
+  "schema_version": 1,
+  "change": "cx0-context-measurement",
+  "source_fingerprint": "sha256:7292db67a177b3604d88075395f50d59832e402fc4e04d688abf52cf7b7be3d6",
+  "spec_writes": [
+    {
+      "domain": "context-measurement",
+      "source_delta": "prepared-specs/context-measurement/spec.md",
+      "target": "openspec/specs/context-measurement/spec.md",
+      "target_before_sha256": null,
+      "content_sha256": "sha256:4f4fb9adb3c66388bfe799b4d5d0ecd8aa2650bb25a558b070e1710b23765a95"
+    },
+    {
+      "domain": "hooks",
+      "source_delta": "prepared-specs/hooks/spec.md",
+      "target": "openspec/specs/hooks/spec.md",
+      "target_before_sha256": "sha256:db9a90183ea0bd78869b181121c1a4be847102b77efe6eb0d99f17616d2e98bb",
+      "content_sha256": "sha256:0c9af5bd4d820d8227f0df2a7f7e6875db08f4e64f35db20204b58fc578938c1"
+    },
+    {
+      "domain": "orchestrator-evals",
+      "source_delta": "prepared-specs/orchestrator-evals/spec.md",
+      "target": "openspec/specs/orchestrator-evals/spec.md",
+      "target_before_sha256": "sha256:f3f6e4ffd5a2acdceca1908c237d8ab3d43b890c1d1cbe3e5ec918a527444085",
+      "content_sha256": "sha256:76c2bf00d6608474a898462d4197057847f08927a496c58d820065dc45dd041a"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260902-004-separate-cx0-telemetry-from-legacy-phase-costs.md",
+      "content_sha256": "sha256:81fe7027c909be6ce618876418774c7fc1d4ac5d4563d106b184ebdb3388dcde"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260902-005-coverage-aware-metric-union-and-versioned-formulas.md",
+      "content_sha256": "sha256:a8f4bdd1bd1d6abc2ec867c15862179d6c63e6a79f204f59c9e04c7520c2c8b2"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260902-006-canonical-advisory-cohort-reporting.md",
+      "content_sha256": "sha256:7c6fcfcae9e2edf1a2c41ad5da9b44f77f82c3a40a58550d16843756d59c3370"
+    }
+  ],
+  "archive_inventory": [
+    ".4r/candidate.json",
+    ".4r/decision.json",
+    ".4r/diff.unified.patch",
+    ".4r/evidence.json",
+    ".4r/generalist.json",
+    ".4r/lens-results.json",
+    ".4r/lineage.json",
+    ".4r/next-action.json",
+    ".4r/paths.json",
+    ".4r/planned.json",
+    ".4r/request-ids.json",
+    ".4r/summary.json",
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "design.md",
+    "prepared-specs/context-measurement/spec.md",
+    "prepared-specs/hooks/spec.md",
+    "prepared-specs/orchestrator-evals/spec.md",
+    "proposal.md",
+    "specs/context-measurement/spec.md",
+    "specs/hooks/spec.md",
+    "specs/orchestrator-evals/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [
+    {
+      "id": "F-7e755c339dcb57f4",
+      "source": "4r-review-gate",
+      "severity": "WARNING",
+      "owner": "risk",
+      "summary": "validateContextMeasurement no impone unit:\"count\" ni el patrón de formula_version en métricas available passthrough; input.context_measurement puede persistir cadenas arbitrarias en context-measurements.jsonl.",
+      "disposition": "advisory-follow-up"
+    },
+    {
+      "id": "F-45fa99b248db7578",
+      "source": "4r-review-gate",
+      "severity": "WARNING",
+      "owner": "reliability",
+      "summary": "La ruta incompatible-components de deriveContextKpis no tiene prueba pese a ser requisito normativo de REQ-context-measurement-002.",
+      "disposition": "advisory-follow-up"
+    },
+    {
+      "id": "F-7be07dc640d573e6",
+      "source": "4r-review-gate",
+      "severity": "WARNING",
+      "owner": "reliability",
+      "summary": "loadCx0Hypotheses no prueba los caminos de error por registro malformado aunque el test afirme cubrirlos.",
+      "disposition": "advisory-follow-up"
+    },
+    {
+      "id": "F-50d43dbc72fc61e4",
+      "source": "4r-review-gate",
+      "severity": "WARNING",
+      "owner": "reliability",
+      "summary": "persistContextMeasurement no tiene tests para los skips fail-safe unsupported-agent y no-active-change.",
+      "disposition": "advisory-follow-up"
+    },
+    {
+      "id": "F-314a975b2b73ec76",
+      "source": "4r-review-gate",
+      "severity": "WARNING",
+      "owner": "reliability",
+      "summary": "validateContextMeasurement no valida unit: 'count' en métricas disponibles, desalineándose del contrato cerrado del schema.",
+      "disposition": "advisory-follow-up"
+    },
+    {
+      "id": "F-54662d85b86880cb",
+      "source": "4r-review-gate",
+      "severity": "WARNING",
+      "owner": "readability",
+      "summary": "Los helpers count(), available() y unavailable() en context-measurement.js usan nombres que no comunican que son validador y fábricas de envelopes métricos.",
+      "disposition": "advisory-follow-up"
+    },
+    {
+      "id": "F-0803f7bc5efd904b",
+      "source": "4r-review-gate",
+      "severity": "SUGGESTION",
+      "owner": "readability",
+      "summary": "La regla de compatibilidad de fuentes en deriveContextKpis permite mezclar fuentes cuando alguna es runtime-derived, pero carece de comentario inline.",
+      "disposition": "advisory-follow-up"
+    }
+  ],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}
