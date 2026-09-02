@@ -1,0 +1,35 @@
+{
+  "schema": "ospec-cx0-hypotheses/v1",
+  "hypotheses": [
+    {
+      "id": "cx0-amplification-below-two",
+      "metric": "amplification",
+      "formula_version": "amplification/v1",
+      "operator": "lte",
+      "target": 2,
+      "selector": {},
+      "metadata": { "aggregation_version": "cx0-cohort-report/v1", "comparison_scope": "cohort-p50", "coverage_requirement": "eligible-observations-only" },
+      "description": "La amplificación total observada no supera dos veces el contexto único."
+    },
+    {
+      "id": "cx0-duplication-share-below-half",
+      "metric": "duplication_share",
+      "formula_version": "duplication-share/v1",
+      "operator": "lt",
+      "target": 0.5,
+      "selector": {},
+      "metadata": { "aggregation_version": "cx0-cohort-report/v1", "comparison_scope": "cohort-p50", "coverage_requirement": "complete-unique-and-duplicated-context" },
+      "description": "La fracción duplicada del contexto se mantiene por debajo de la mitad."
+    },
+    {
+      "id": "cx0-fallback-rate-below-quarter",
+      "metric": "fallback_rate",
+      "formula_version": "fallback-rate/v1",
+      "operator": "lt",
+      "target": 0.25,
+      "selector": {},
+      "metadata": { "aggregation_version": "cx0-cohort-report/v1", "comparison_scope": "cohort-rate", "coverage_requirement": "all-records-in-cohort" },
+      "description": "La telemetría degradada sigue siendo minoritaria."
+    }
+  ]
+}

@@ -12,11 +12,13 @@ const {
 const { validatePath, resolveWorkspaceCwd } = require("../lib/pathsafe.js");
 const {
   appendPhaseCost,
+  appendContextMeasurement,
   findActiveChanges,
   findOpenSpecRoot,
   setPhaseSummary,
   withFileLock,
 } = require("../lib/ospec-state.js");
+const { normalizeContextMeasurement, validateContextMeasurement } = require("../lib/context-measurement.js");
 const { writeFileAtomic, recoverOrphanBak } = require("../lib/atomic-write.js");
 const { extractEnvelope, validateEnvelope } = require("../lib/result-envelope.js");
 const { resolveModelTier } = require("./lib/model-tier.js");
@@ -948,6 +950,72 @@ async function persistPhaseCost({ input, workspace }) {
   }
 }
 
+function readChangeClassification(content) {
+  const match = String(content || "").match(/^classification:\s*([^\s#]+)/m);
+  return match ? match[1].trim().toLowerCase() : "unknown-classification";
+}
+
+function contextMetricObservations(input, tokenUsage, ctx) {
+  const usage = tokenUsage?.usage || tokenUsage || {};
+  const inputTokens = Number.isSafeInteger(usage.input_tokens) ? usage.input_tokens : undefined;
+  const cached = Number.isSafeInteger(usage.cached_input_tokens) ? usage.cached_input_tokens : undefined;
+  return {
+    input_tokens: inputTokens,
+    cached_input_tokens: cached,
+    uncached_input_tokens: inputTokens !== undefined && cached !== undefined && cached <= inputTokens
+      ? { status: "available", value: inputTokens - cached, unit: "count", source: "runtime-derived", coverage: { state: "complete", observed: 2, expected: 2, ratio: 1 }, formula_version: "uncached-input/v1" }
+      : undefined,
+    output_tokens: Number.isSafeInteger(usage.output_tokens) ? usage.output_tokens : undefined,
+    artifact_reads: input?.context_measurement?.artifact_reads,
+    artifact_writes: input?.context_measurement?.artifact_writes,
+    tool_output_tokens: Number.isSafeInteger(input?.context_measurement?.tool_output_tokens) ? input.context_measurement.tool_output_tokens : undefined,
+    unique_context: input?.context_measurement?.unique_context,
+    duplicated_context: input?.context_measurement?.duplicated_context,
+    // Legacy estimated values are deliberately not copied as observed input.
+    // `ctx` is retained to document that the old O1 lane was considered but
+    // was not promoted to CX0 evidence.
+    legacy_o1_present: Boolean(ctx),
+  };
+}
+
+/**
+ * Emits the additive CX0 lane after O1.  It owns a separate fail-safe boundary
+ * so host parsing, normalization, or durable writes cannot change the hook
+ * result, routing, authority, or the legacy phase-cost stream.
+ */
+async function persistContextMeasurement({ input, workspace, append = appendContextMeasurement }) {
+  const canonicalAgentPhase = resolveAgentName(input);
+  const phase = derivePhaseKey(canonicalAgentPhase);
+  try {
+    if (!phase) return { status: "skipped", reason: "unsupported-agent" };
+    const openspecRoot = await findOpenSpecRoot(workspace);
+    const activeChange = (await findActiveChanges(openspecRoot))[0];
+    if (!activeChange) return { status: "skipped", reason: "no-active-change", phase };
+    const tokenUsage = await resolveCodexTokenCountUsageAsync(input, workspace);
+    const ctx = normalizeDispatchCostContext(input, tokenUsage);
+    const host = typeof input?.host === "string" && /^[a-z0-9][a-z0-9-]{0,63}$/i.test(input.host)
+      ? input.host.toLowerCase()
+      : process.env.OSPEC_TARGET === "codex" ? "codex" : "unknown-host";
+    const record = normalizeContextMeasurement({
+      observed_at: new Date().toISOString(),
+      candidate_id: input?.candidate_id,
+      dimensions: {
+        phase,
+        classification: readChangeClassification(activeChange.content),
+        profile: typeof input?.profile === "string" ? input.profile : "unknown-profile",
+        host,
+      },
+      observations: contextMetricObservations(input, tokenUsage, ctx),
+    });
+    const validation = validateContextMeasurement(record);
+    if (!validation.valid) return { status: "skipped", reason: "invalid-normalized-record", phase };
+    await append({ workspace, changeName: activeChange.directoryName, record });
+    return { status: "recorded", phase, change: activeChange.directoryName, fallback: record.fallback.reason_code };
+  } catch {
+    return { status: "skipped", reason: "fail-safe-error", phase: phase || null };
+  }
+}
+
 function resolveAgentName(input) {
   for (const candidate of [
     input?.agent_type,
@@ -991,6 +1059,10 @@ async function runSubagentStop({
   // contract as persistResultEnvelope above — pure side effect, never alters
   // this function's return value or the hook's stdout.
   await persistPhaseCost({ input, workspace });
+
+  // CX0 is intentionally post-O1 and independently fail-safe.  Its return
+  // value is diagnostic-only and never participates in the hook's stdout.
+  await persistContextMeasurement({ input, workspace });
 
   const resolution =
     findResolutionInInput(input) ||
@@ -1074,6 +1146,8 @@ module.exports = {
   findTextResolution,
   isDegradedResolution,
   persistPhaseCost,
+  persistContextMeasurement,
+  contextMetricObservations,
   resolveCostFieldPresence,
   persistResultEnvelope,
   resolveDispatchStatus,

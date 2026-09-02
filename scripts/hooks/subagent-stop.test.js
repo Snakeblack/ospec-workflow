@@ -13,6 +13,7 @@ const {
   findResolutionInInput,
   findTextResolution,
   isDegradedResolution,
+  persistContextMeasurement,
   persistPhaseCost,
   resolveDispatchStatus,
   runSubagentStop,
@@ -20,6 +21,7 @@ const {
 } = require("./subagent-stop.js");
 const {
   PHASE_COST_FILE_NAME,
+  CONTEXT_MEASUREMENT_FILE_NAME,
   appendPhaseCost,
 } = require("../lib/ospec-state.js");
 
@@ -697,6 +699,45 @@ async function readPhaseCosts(workspace, changeName) {
     .split(/\r?\n/)
     .map((line) => JSON.parse(line));
 }
+
+async function readContextMeasurements(workspace, changeName) {
+  const filePath = path.join(workspace, ".ospec", "session", changeName, CONTEXT_MEASUREMENT_FILE_NAME);
+  return (await fs.readFile(filePath, "utf8")).trim().split(/\r?\n/).map((line) => JSON.parse(line));
+}
+
+test("SubagentStop emits CX0 after O1 without changing continuation behavior", async (t) => {
+  const { workspace } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+  const result = await runSubagentStop({ input: {
+    cwd: workspace,
+    agent_type: "sdd-design",
+    host: "codex",
+    profile: "default",
+    telemetry: { estimated_prompt_tokens: 12, estimated_output_tokens: 3 },
+  } });
+  assert.deepEqual(result, { status: "skipped", reason: "resolution-unavailable" });
+  const o1 = await readPhaseCosts(workspace, "strict-result-envelope");
+  const cx0 = await readContextMeasurements(workspace, "strict-result-envelope");
+  assert.equal(o1.length, 1);
+  assert.equal(cx0.length, 1);
+  assert.equal(cx0[0].dimensions.phase, "design");
+  assert.equal(cx0[0].metrics.input_tokens.status, "unavailable", "O1 estimates are not promoted to observed CX0 evidence");
+});
+
+test("CX0 degradation and write failures are isolated from legacy hook work", async (t) => {
+  const { workspace } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+  const degraded = await persistContextMeasurement({ input: { cwd: workspace, agent_type: "sdd-apply", host: "bad host!" }, workspace });
+  assert.equal(degraded.status, "recorded");
+  const [record] = await readContextMeasurements(workspace, "strict-result-envelope");
+  assert.equal(record.dimensions.host, "unknown-host");
+  assert.equal(record.metrics.input_tokens.status, "unavailable");
+  const failed = await persistContextMeasurement({
+    input: { cwd: workspace, agent_type: "sdd-apply" }, workspace,
+    append: async () => { throw new Error("disk full"); },
+  });
+  assert.deepEqual(failed, { status: "skipped", reason: "fail-safe-error", phase: "apply" });
+  await persistPhaseCost({ input: { cwd: workspace, agent_type: "sdd-apply", estimated_prompt_tokens: 1 }, workspace });
+  assert.equal((await readPhaseCosts(workspace, "strict-result-envelope")).length, 1);
+});
 
 test("persistPhaseCost writes a record for an active change (phase, agent, est_tokens, status, ts)", async (t) => {
   const { workspace } = await createChangeWorkspace(

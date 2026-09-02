@@ -1,7 +1,7 @@
 # Roadmap general — kernel, grafo y evidencia
 
 > **Autoridad:** única fuente operativa del backlog transversal.
-> **Versión de referencia:** v2.56.7, 2026-09-02.
+> **Versión de referencia:** v2.56.8, 2026-09-02.
 > **Arquitectura:** [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md).
 > **Investigación no normativa:** [`../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md`](../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md) (P0–P27). Proporcionalidad de proceso y Change Program: [`../architecture/research/proportional-process-and-change-program.md`](../architecture/research/proportional-process-and-change-program.md).
 > **Regla de estado:** los hechos se contrastan con código/OpenSpec; este roadmap no cambia el estado de un change ni sustituye sus artefactos.
@@ -1927,7 +1927,7 @@ Lane subordinada para reducir amplificación sin mover autoridades, defaults ni 
 
 | Slice | Estado / dependencia | Entrega y gate |
 | --- | --- | --- |
-| CX0 — medición | `pending`, elegible en paralelo a K6d | Tokens input/cached/uncached/output, artifact read/write, tool output, contexto único/duplicado, amplification y fallback; cada dato con schema/version, fuente y cobertura; P50/P90 por fase, clasificación, profile y host. |
+| CX0 — medición | `implemented-advisory` (v2.56.8); CX1 sigue pending | Tokens input/cached/uncached/output, artifact read/write, tool output, contexto único/duplicado, amplification y fallback; cada dato con schema/version, fuente y cobertura; P50/P90 por fase, clasificación, profile y host. Hallazgos 4R advisory no bloquean el corte. |
 | CX1 — envelope/state mecánico | `pending`, tras CX0 + K2/K2.1 | Migración gradual a envelope JSON-only + renderer humano y `PhaseCompletionReducer`; schemas versionados, legacy adapter, CAS/replay y fallback. Approvals, assumptions, gates, lineage y decisiones no se infieren ni cambian de autoridad. |
 | CX2 — views/archive renderer | `pending`, tras CX0/CX1 | Reconciliation/compliance/traceability como vistas derivadas; inventario, hashes, fechas y status de archive desde `archive-plan` + receipt. El agente conserva summary, riesgos y decisiones semánticas. |
 | CX3 — proyección shadow | `pending`, tras CX0 + K4a/K6a | `ContextProjection` content-addressed, reproducible, descartable y read-only; comparación `full` vs `compiled-shadow`, sin dispatch compacto todavía. |

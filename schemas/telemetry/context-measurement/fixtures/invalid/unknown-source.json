@@ -1,0 +1,7 @@
+{
+  "schema": "ospec-context-measurement/v1",
+  "observed_at": "2026-09-01T00:00:00.000Z",
+  "dimensions": { "phase": "apply", "classification": "normal", "profile": "default", "host": "codex" },
+  "metrics": {},
+  "fallback": { "reason_code": "none", "affected_metrics": [] }
+}

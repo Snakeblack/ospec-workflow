@@ -21,6 +21,7 @@ const TERMINAL_STATUSES = new Set([
 const RUNTIME_EVENT_RELATIVE_PATH =
   ".ospec/runtime/subagent-events.jsonl";
 const PHASE_COST_FILE_NAME = "phase-costs.jsonl";
+const CONTEXT_MEASUREMENT_FILE_NAME = "context-measurements.jsonl";
 
 function compareStrings(left, right) {
   if (left < right) {
@@ -781,6 +782,23 @@ async function appendPhaseCost({ workspace, changeName, record }) {
 }
 
 /**
+ * Appends one immutable CX0 record beside legacy O1 phase costs.  This keeps
+ * field-level availability out of the zero-filled O1 compatibility lane.
+ * Callers own record validation so this primitive can remain a minimal locked
+ * JSONL transport just like appendRuntimeEvent.
+ */
+async function appendContextMeasurement({ workspace, changeName, record }) {
+  if (!workspace || typeof workspace !== "string") throw new TypeError("workspace is required.");
+  if (!changeName || typeof changeName !== "string") throw new TypeError("changeName is required.");
+  if (!record || typeof record !== "object" || Array.isArray(record)) throw new TypeError("record must be an object.");
+  const filePath = path.join(path.resolve(workspace), ".ospec", "session", changeName, CONTEXT_MEASUREMENT_FILE_NAME);
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  const line = `${JSON.stringify(record)}\n`;
+  await withFileLock(filePath, () => fs.appendFile(filePath, line, "utf8"));
+  return { path: toPortablePath(path.relative(path.resolve(workspace), filePath)), absolutePath: filePath, record };
+}
+
+/**
  * detectSpecDrift / readStagedFiles / matchesGlobs — domain-drift primitives.
  *
  * detectSpecDrift mirrors resolveGitState (scripts/hooks/lib/git-state.js):
@@ -1091,6 +1109,8 @@ const { resolveTddMode } = require("./tdd-mode.js");
 module.exports = {
   RUNTIME_EVENT_RELATIVE_PATH,
   PHASE_COST_FILE_NAME,
+  CONTEXT_MEASUREMENT_FILE_NAME,
+  appendContextMeasurement,
   LOCK_RETRY_ATTEMPTS,
   LOCK_RETRY_DELAY_MS,
   LOCK_STALE_MS,

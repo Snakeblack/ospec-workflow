@@ -1,0 +1,18 @@
+{
+  "schema": "ospec-context-measurement/v1",
+  "observed_at": "2026-09-01T00:00:00.000Z",
+  "dimensions": { "phase": "apply", "classification": "normal", "profile": "default", "host": "codex" },
+  "metrics": {
+    "input_tokens": { "status": "available", "value": 100, "unit": "count", "source": "host-observed", "coverage": { "state": "complete", "observed": 1, "expected": 1, "ratio": 1 } },
+    "cached_input_tokens": { "status": "available", "value": 10, "unit": "count", "source": "host-observed", "coverage": { "state": "complete", "observed": 1, "expected": 1, "ratio": 1 } },
+    "uncached_input_tokens": { "status": "available", "value": 90, "unit": "count", "source": "host-observed", "coverage": { "state": "complete", "observed": 1, "expected": 1, "ratio": 1 } },
+    "output_tokens": { "status": "available", "value": 25, "unit": "count", "source": "host-observed", "coverage": { "state": "complete", "observed": 1, "expected": 1, "ratio": 1 } },
+    "artifact_reads": { "status": "available", "value": 2, "unit": "count", "source": "host-observed", "coverage": { "state": "complete", "observed": 1, "expected": 1, "ratio": 1 } },
+    "artifact_writes": { "status": "available", "value": 1, "unit": "count", "source": "host-observed", "coverage": { "state": "complete", "observed": 1, "expected": 1, "ratio": 1 } },
+    "tool_output_tokens": { "status": "available", "value": 4, "unit": "count", "source": "host-observed", "coverage": { "state": "complete", "observed": 1, "expected": 1, "ratio": 1 } },
+    "unique_context": { "status": "available", "value": 80, "unit": "count", "source": "host-observed", "coverage": { "state": "complete", "observed": 1, "expected": 1, "ratio": 1 } },
+    "duplicated_context": { "status": "available", "value": 20, "unit": "count", "source": "host-observed", "coverage": { "state": "complete", "observed": 1, "expected": 1, "ratio": 1 } },
+    "amplification": { "status": "available", "value": 1.25, "unit": "count", "source": "runtime-derived", "formula_version": "amplification/v1", "coverage": { "state": "complete", "observed": 2, "expected": 2, "ratio": 1 } }
+  },
+  "fallback": { "reason_code": "none", "affected_metrics": [] }
+}

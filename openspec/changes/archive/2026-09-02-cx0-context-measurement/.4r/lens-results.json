@@ -1,0 +1,52 @@
+{
+  "risk": {
+    "findings": [
+      {
+        "severity": "WARNING",
+        "summary": "validateContextMeasurement no impone unit:\"count\" ni el patrón de formula_version en métricas available passthrough; input.context_measurement puede persistir cadenas arbitrarias en context-measurements.jsonl.",
+        "acceptance_criteria": "validateContextMeasurement rechaza métricas available con unit distinto de \"count\" o formula_version fuera del patrón del schema; persistContextMeasurement no persiste esos registros; tests cubren el rechazo vía input.context_measurement passthrough."
+      }
+    ]
+  },
+  "reliability": {
+    "findings": [
+      {
+        "severity": "WARNING",
+        "summary": "La ruta incompatible-components de deriveContextKpis no tiene prueba pese a ser requisito normativo de REQ-context-measurement-002.",
+        "acceptance_criteria": "Añadir un caso en context-measurement.test.js que construya unique_context/duplicated_context disponibles con fuentes incompatibles, invoque deriveContextKpis, y aserte amplification.status === unavailable, reason_code === incompatible-components, y que normalizeContextMeasurement propaga ese código en fallback.reason_code."
+      },
+      {
+        "severity": "WARNING",
+        "summary": "loadCx0Hypotheses no prueba los caminos de error por registro malformado aunque el test afirme cubrirlos.",
+        "acceptance_criteria": "Extender context-measurement-hypotheses.test.js con fixtures temporales que ejerciten JSON inválido, schema distinto, hypotheses no array, operator inválido o id duplicado; cada uno debe lanzar el error documentado."
+      },
+      {
+        "severity": "WARNING",
+        "summary": "persistContextMeasurement no tiene tests para los skips fail-safe unsupported-agent y no-active-change.",
+        "acceptance_criteria": "Añadir en subagent-stop.test.js dos casos: agente sin fase retorna skipped/unsupported-agent sin JSONL; workspace sin cambio activo retorna skipped/no-active-change sin crear context-measurements.jsonl."
+      },
+      {
+        "severity": "WARNING",
+        "summary": "validateContextMeasurement no valida unit: 'count' en métricas disponibles, desalineándose del contrato cerrado del schema.",
+        "acceptance_criteria": "Añadir validación en validateContextMeasurement que rechace métricas available sin unit === count, más un test que demuestre rechazo de un registro con unit: bytes o unit ausente."
+      }
+    ]
+  },
+  "resilience": {
+    "findings": []
+  },
+  "readability": {
+    "findings": [
+      {
+        "severity": "WARNING",
+        "summary": "Los helpers count(), available() y unavailable() en context-measurement.js usan nombres que no comunican que son validador y fábricas de envelopes métricos.",
+        "acceptance_criteria": "Renombrar count a un predicado explícito; renombrar available/unavailable a constructores explícitos; actualizar call sites y tests CX0; verificar que no cambia el comportamiento ni los contratos de validación."
+      },
+      {
+        "severity": "SUGGESTION",
+        "summary": "La regla de compatibilidad de fuentes en deriveContextKpis permite mezclar fuentes cuando alguna es runtime-derived, pero carece de comentario inline.",
+        "acceptance_criteria": "Añadir un comentario de una o dos líneas junto a la condición explicando que runtime-derived puede componerse con otra fuente y cuándo se degrada a incompatible-components; no alterar la lógica ni los tests REQ-context-measurement-002."
+      }
+    ]
+  }
+}

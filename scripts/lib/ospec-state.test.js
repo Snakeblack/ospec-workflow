@@ -8,6 +8,8 @@ const test = require("node:test");
 
 const {
   RUNTIME_EVENT_RELATIVE_PATH,
+  CONTEXT_MEASUREMENT_FILE_NAME,
+  appendContextMeasurement,
   PHASE_COST_FILE_NAME,
   appendPhaseCost,
   appendRuntimeEvent,
@@ -248,6 +250,28 @@ test("appendPhaseCost serializes concurrent writers without corrupting lines", a
     .map((line) => JSON.parse(line).est_tokens)
     .sort((a, b) => a - b);
   assert.deepEqual(estTokens, Array.from({ length: count }, (_unused, i) => i));
+});
+
+test("appendContextMeasurement serializes concurrent immutable JSONL rows with a final newline", async (t) => {
+  const workspace = await createWorkspace(t);
+  const changeName = "cx0";
+  await Promise.all(Array.from({ length: 20 }, (_unused, index) =>
+    appendContextMeasurement({ workspace, changeName, record: { schema: "ospec-context-measurement/v1", index } }),
+  ));
+  const filePath = path.join(workspace, ".ospec", "session", changeName, CONTEXT_MEASUREMENT_FILE_NAME);
+  const raw = await fs.readFile(filePath, "utf8");
+  assert.ok(raw.endsWith("\n"));
+  const rows = raw.trim().split(/\r?\n/).map((line) => JSON.parse(line));
+  assert.equal(rows.length, 20);
+  assert.deepEqual(rows.map((row) => row.index).sort((a, b) => a - b), Array.from({ length: 20 }, (_unused, index) => index));
+});
+
+test("appendContextMeasurement propagates a durable write failure without creating an O1 row", async (t) => {
+  const workspace = await createWorkspace(t);
+  const sessionPath = path.join(workspace, ".ospec", "session", "blocked");
+  await fs.mkdir(path.dirname(sessionPath), { recursive: true });
+  await fs.writeFile(sessionPath, "not a directory", "utf8");
+  await assert.rejects(appendContextMeasurement({ workspace, changeName: "blocked", record: {} }));
 });
 
 test("appendPhaseCost reclaims a stale orphaned lock instead of stalling forever", async (t) => {

@@ -1,0 +1,1871 @@
+diff --git a/openspec/changes/cx0-context-measurement/apply-progress.md b/openspec/changes/cx0-context-measurement/apply-progress.md
+new file mode 100644
+index 0000000..aab3a8f
+--- /dev/null
++++ b/openspec/changes/cx0-context-measurement/apply-progress.md
+@@ -0,0 +1,33 @@
++# Apply Progress: CX0 Context Measurement
++
++## Batch 1 — tasks 1.1–4.3
++
++- [x] 1.1–1.6 — Added the closed v1 schema, machine-readable advisory hypothesis registry, committed fixtures, and the pure normalization/validation/KPI/aggregation library. `amplification/v1` is available only for complete compatible components and uses `(unique_context + duplicated_context) / unique_context`.
++- [x] 2.1–2.5 — Added a locked, newline-terminated `.ospec/session/{change}/context-measurements.jsonl` append path. `SubagentStop` emits CX0 strictly after O1 in its own fail-safe boundary; O1 estimates are never reclassified as observed CX0 evidence.
++- [x] 3.1–3.4 — Added canonical cohort sorting, nearest-rank P50/P90, rejected-row reporting, source/coverage counts, and advisory-only hypothesis reporting. Existing benchmark scoring exports are unchanged.
++- [x] 4.1 and 4.3 — Focused suites completed: `node --test scripts/lib/context-measurement.test.js scripts/lib/ospec-state.test.js scripts/hooks/subagent-stop.test.js scripts/evals/lib/benchmark.test.js` (141 passing). The report is explicitly advisory, coverage-aware, and formula-versioned.
++- [~] 4.2 — `npm test` was executed and failed outside the CX0 contract: concurrent K6d schema enum declarations fail `k1-schema-compat`, and the inherited K1 frozen-inventory guard rejects both K6d and CX0 new paths. No focused CX0 test failed; keep the full-suite task pending until the shared/K1 failures are reconciled.
++
++## Scope and verification
++
++- Delivery: `size:exception` accepted by the maintainer.
++- CX0-owned code change: approximately 430 added/modified lines plus schemas and fixtures, below the 650–850 line forecast.
++- K6d files, authority, gates, route selection, budgets, defaults, and release policy were not edited by this batch.
++- The only deliberate fallback is `unavailable` with a stable reason code; it is never coerced into a numeric measurement.
++
++## Batch 2 — shared regression reconciliation for task 4.2
++
++- [x] Registered only `scripts/lib/context-measurement.js` and `scripts/lib/context-measurement.test.js` as post-K1 successor paths in `scripts/lib/k1-scope-guard.test.js`; the thirteen K6d registrations were preserved unchanged.
++- [x] `node --test scripts/lib/k1-scope-guard.test.js` — 5 passing.
++- [x] `npm test` — passed (terminal exit code 0).
++
++The full suite now verifies O1 compatibility and the concurrent K6d/CX0 scope. CX0 remains additive and advisory-only.
++
++## Batch 3 — frozen verify remediation (CX0-V001 to CX0-V003)
++
++- [x] CX0-V001 — Registry descriptors now require stable IDs, formula versions and advisory metadata; aggregation calculates `duplication-share/v1` and `fallback-rate/v1` from their canonical components instead of reusing amplification.
++- [x] CX0-V002 — The v1 JSON Schema now closes dimensions, metric unions, sources, coverage and fallback codes. Added the frozen valid/degraded and invalid named fixtures plus schema coverage.
++- [x] CX0-V003 — `uncached_input_tokens` is runtime-derived with two-component coverage, fallback preserves the most specific reason, and the hook validates the normalized record before append.
++- [x] Frozen validation recipes: 30 passing (`CX0-V001`), 2 passing (`CX0-V002`), and 59 passing (`CX0-V003`).
++- [x] Candidate successor freeze / verify handoff: verified with version 2.56.7 content-addressed Candidate recovery.
++- [x] Stable REQ IDs added to CX0 test suites (`[REQ-context-measurement-001..004]`, `[REQ-hooks-017]`).
+diff --git a/openspec/changes/cx0-context-measurement/decisions/adr-001.md b/openspec/changes/cx0-context-measurement/decisions/adr-001.md
+new file mode 100644
+index 0000000..9de0004
+--- /dev/null
++++ b/openspec/changes/cx0-context-measurement/decisions/adr-001.md
+@@ -0,0 +1,19 @@
++# ADR-001: Separate CX0 telemetry from legacy phase costs
++
++- Status: proposed
++- Change: cx0-context-measurement
++- Date: 2026-09-01
++
++## Context
++Legacy phase-cost rows use zero-compatible estimated counters and carry an existing attestation contract. CX0 must represent unavailable fields honestly without breaking those readers or making telemetry canonical state.
++
++## Decision
++Persist CX0 records in append-only `.ospec/session/{change}/context-measurements.jsonl` through the existing locked-file pattern. Emit after the legacy phase-cost append and isolate all CX0 failures.
++
++## Alternatives
++- Extend `phase-costs.jsonl`: couples new coverage semantics to legacy zero behavior and attestation.
++- Replace O1: breaks backward compatibility.
++- Store under `state.yaml`: incorrectly promotes observations into workflow authority.
++
++## Consequences
++Legacy compatibility and rollback are simple, and CX0 absence cannot alter execution. Consumers must join two evidence streams explicitly when they need both; retiring either stream requires a later migration.
+diff --git a/openspec/changes/cx0-context-measurement/decisions/adr-002.md b/openspec/changes/cx0-context-measurement/decisions/adr-002.md
+new file mode 100644
+index 0000000..9dc6f5b
+--- /dev/null
++++ b/openspec/changes/cx0-context-measurement/decisions/adr-002.md
+@@ -0,0 +1,19 @@
++# ADR-002: Coverage-aware metric union and versioned formulas
++
++- Status: proposed
++- Change: cx0-context-measurement
++- Date: 2026-09-01
++
++## Context
++Host capabilities differ and historical zero-filled values cannot distinguish measured zero from missing data. Derived context KPIs also need reproducible semantics.
++
++## Decision
++Define a closed `ospec-context-measurement/v1` record whose metric slots discriminate `available` from `unavailable`, carry source and coverage, and forbid payload content. Pin amplification to `amplification/v1 = (unique_context + duplicated_context) / unique_context` with strict complete-input and positive-denominator eligibility.
++
++## Alternatives
++- Nullable numeric fields: lose reason and source semantics.
++- Flat zero defaults: turn absence into false evidence.
++- Unversioned derived values: make later formula changes indistinguishable.
++
++## Consequences
++Aggregation can exclude missing observations honestly and future formulas require explicit versions. Producers are more verbose and must maintain stable reason codes, but the contract is additive and reversible by disabling emission.
+diff --git a/openspec/changes/cx0-context-measurement/decisions/adr-003.md b/openspec/changes/cx0-context-measurement/decisions/adr-003.md
+new file mode 100644
+index 0000000..2fad058
+--- /dev/null
++++ b/openspec/changes/cx0-context-measurement/decisions/adr-003.md
+@@ -0,0 +1,19 @@
++# ADR-003: Canonical advisory cohort reporting
++
++- Status: proposed
++- Change: cx0-context-measurement
++- Date: 2026-09-01
++
++## Context
++CX0 must produce reproducible P50/P90 by four dimensions and test roadmap hypotheses without becoming a gate or policy input.
++
++## Decision
++Sort cohort identities and eligible values canonically, use nearest-rank P50/P90, emit coverage and source composition, and evaluate the machine-readable CX0 hypothesis registry as supported, contradicted, or insufficient evidence. Pin report-only duplication-share and fallback-rate formulas; require compatible reference cohorts for reduction claims. Keep report APIs disconnected from benchmark scoring, routing, authority, and release policy.
++
++## Alternatives
++- Runtime iteration order: not portable or byte-reproducible.
++- Interpolated percentiles: adds fractional semantics to bounded counters.
++- Pass/fail assertions: prematurely converts hypotheses into gates.
++
++## Consequences
++Repeated inputs yield byte-equivalent reports and diagnostic boundaries are mechanically testable. Changing percentile semantics requires a new aggregation version; policy adoption remains a separate future decision.
+diff --git a/openspec/changes/cx0-context-measurement/design.md b/openspec/changes/cx0-context-measurement/design.md
+new file mode 100644
+index 0000000..2dfe977
+--- /dev/null
++++ b/openspec/changes/cx0-context-measurement/design.md
+@@ -0,0 +1,108 @@
++# Design: CX0 Context Measurement
++
++## Technical Approach
++
++CX0 adds a coverage-aware telemetry lane beside the existing O1 phase-cost lane. A shared CommonJS module owns the versioned measurement contract, normalization, KPI derivation, semantic validation, canonical serialization, cohort aggregation, and advisory hypothesis comparison. `SubagentStop` collects bounded counters and identifiers, emits O1 unchanged, then attempts one independent CX0 append. The evaluation library consumes CX0 records through explicit APIs; existing benchmark scoring remains untouched.
++
++This is `design-after-spec`. The design implements `context-measurement`, `hooks`, and `orchestrator-evals` requirements without changing semantic state, Candidate authority, K6d contracts, dispatch, or release policy.
++
++## Architecture Decisions
++
++### Decision: Persist CX0 beside, not inside, legacy phase costs
++
++**Choice**: Append immutable records to `.ospec/session/{change}/context-measurements.jsonl` through a new locked `appendContextMeasurement` primitive. Keep `phase-costs.jsonl`, its attestation, and all legacy readers byte-compatible.
++**Alternatives considered**: Extend every O1 row with CX0 fields; replace O1; write telemetry into `state.yaml`.
++**Rationale**: A separate append-only evidence stream prevents unavailable CX0 fields from inheriting O1 zero semantics and keeps observability outside canonical workflow state. See ADR-001.
++
++### Decision: Use a discriminated metric envelope with formula versions
++
++**Choice**: Define `ospec-context-measurement/v1` under `schemas/telemetry/context-measurement/`. Every metric slot is either `available` with bounded `value`, `unit`, `source`, and coverage, or `unavailable` with the expected source, coverage, and a stable `reason_code`. Raw payloads are forbidden. `uncached_input_tokens`, `unique_context`, and `duplicated_context` may be runtime-derived only from compatible covered components. `amplification/v1` is exactly `(unique_context + duplicated_context) / unique_context` and is unavailable unless both token-compatible components are complete and `unique_context > 0`.
++**Alternatives considered**: Nullable numbers; zero-filled flat fields; embedding prompt/tool/artifact excerpts.
++**Rationale**: The union prevents absence from becoming evidence, preserves provenance per field, and makes formula evolution explicit. See ADR-002.
++
++### Decision: Make aggregation canonical and advisory by construction
++
++**Choice**: Group validated records by the ordered tuple `[phase, classification, profile, host]`; sort cohorts and metric values deterministically; calculate P50/P90 with nearest-rank (`ceil(p*n)-1`); and serialize reports with the existing sorted-key `canonicalJson` pattern. Reports use `cx0-cohort-report/v1`, expose eligible/unavailable counts, source composition, formula versions, and classify each declared hypothesis as `supported`, `contradicted`, or `insufficient-evidence`. Hypothesis descriptors are data inputs to the comparer; its return value is never consumed by benchmark scoring or policy code.
++**Alternatives considered**: Host-order aggregation; interpolation percentiles; direct pass/fail assertions against roadmap targets.
++**Rationale**: Canonical ordering gives byte-equivalent output while API separation makes the non-authoritative boundary reviewable. See ADR-003.
++
++## Data Flow
++
++```text
++SubagentStop input / bounded Codex token event
++             |
++             v
++existing envelope -> existing phase-cost append
++             |
++             v
++CX0 collector -> normalize + derive KPIs -> validate v1
++             |             |
++             |             `-- unavailable(reason_code) on partial data
++             v
++locked append: context-measurements.jsonl
++             |
++             v
++read + validate -> canonical cohorts -> P50/P90 + coverage
++                                      -> advisory hypothesis outcomes
++```
++
++Collection uses existing agent/phase resolution, active-change discovery, safe transcript handling, Codex token parsing, and host binding. Classification comes from the active change state; profile and host use bounded hook/benchmark identifiers with stable `unknown-*` identifiers when unavailable. A syntactically valid observable `candidate_id` may be copied as an optional binding; CX0 never resolves or evaluates a Candidate. Token counts are never inferred from legacy zeroes. Estimated values are admitted only when an actual bounded segment or explicit estimate exists and are labeled `estimated`.
++
++## File Changes
++
++| File | Action | Description |
++|------|--------|-------------|
++| `schemas/telemetry/context-measurement/v1.schema.json` | Create | Closed v1 record schema, metric unions, dimensions, optional Candidate binding, and fallback codes. |
++| `schemas/telemetry/context-measurement/hypotheses.v1.json` | Create | Machine-readable advisory projection of every CX0 roadmap hypothesis and its cohort/reference selectors. |
++| `schemas/telemetry/context-measurement/fixtures/{valid,invalid}/*.json` | Create | Full, degraded, unknown-source, missing-reason, partial-KPI, and payload-rejection fixtures. |
++| `scripts/lib/context-measurement.js` | Create | Normalize/validate records, derive `amplification/v1`, canonicalize, aggregate cohorts, and compare hypotheses. |
++| `scripts/lib/context-measurement.test.js` | Create | Schema/fixture, KPI, deterministic aggregation, privacy, and advisory-boundary tests. |
++| `scripts/lib/ospec-state.js` | Modify | Add locked append to the separate CX0 JSONL stream without changing `appendPhaseCost`. |
++| `scripts/lib/ospec-state.test.js` | Modify | Concurrency, final-newline, immutability, and write-failure coverage. |
++| `scripts/hooks/subagent-stop.js` | Modify | Attempt CX0 after legacy persistence inside an independent fail-safe boundary. |
++| `scripts/hooks/subagent-stop.test.js` | Modify | Host/degraded/write-failure ordering and unchanged stdout/continuation assertions. |
++| `scripts/evals/lib/benchmark.js` | Modify | Read CX0 JSONL and expose deterministic report/comparison functions without scoring integration. |
++| `scripts/evals/lib/benchmark.test.js` | Modify | Mixed coverage, invalid rows, P50/P90 reproducibility, and advisory isolation tests. |
++
++No files are deleted. K6d paths are not touched.
++
++## Interfaces / Contracts
++
++The record has closed top-level sections: `schema`, `observed_at`, `dimensions`, optional `candidate_id`, `metrics`, and `fallback`. Required metric keys are `input_tokens`, `cached_input_tokens`, `uncached_input_tokens`, `output_tokens`, `artifact_reads`, `artifact_writes`, `tool_output_tokens`, `unique_context`, `duplicated_context`, and `amplification`. Coverage is `{ state: complete|partial|unavailable, observed, expected, ratio }`; `value` is forbidden for unavailable metrics. `fallback` is a reason-coded diagnostic with affected metric names and is never included in token totals.
++
++The advisory registry pins stable hypothesis IDs, comparison operators, targets, metric/formula versions, and cohort/reference selectors. It is a tested projection of the roadmap table, not a policy or semantic authority. `duplication-share/v1` is report-only and equals `duplicated_context / (unique_context + duplicated_context)` for complete compatible components with a positive sum; `fallback-rate/v1` is reason-coded fallback records divided by cohort size. Input-reduction hypotheses require a compatible reference cohort and otherwise return `insufficient-evidence`.
++
++The module exports pure `normalizeContextMeasurement`, `validateContextMeasurement`, `deriveContextKpis`, `aggregateContextMeasurements`, `loadCx0Hypotheses`, `compareCx0Hypotheses`, and `canonicalCx0Json`. Persistence exports `appendContextMeasurement({workspace, changeName, record})`. Benchmark exports `readContextMeasurements(filePath)` and `buildCx0Report(records, hypotheses)`; no existing export changes semantics.
++
++## Requirement and Scenario Allocation
++
++| Scenario | Component / flow | Files and tests |
++|---|---|---|
++| Fully observed attributable dispatch | Collector + v1 normalizer | `context-measurement.js`; full fixture and module test |
++| Covered compatible amplification | KPI derivation | module test pins `amplification/v1`, source, coverage |
++| Equivalent cohort percentiles | Canonical aggregator | benchmark deterministic-order/byte-equivalence test |
++| All metric values unavailable | Aggregator unavailable branch | benchmark no-eligible-observation test |
++| Contradicted hypothesis | Advisory comparer | benchmark contradicted/no-side-effect test |
++| Legacy phase-cost remains readable | Separate stream | existing O1 tests plus compatibility regression |
++| Successful hook emission | Post-O1 emitter | `subagent-stop.test.js` ordering/stdout test |
++| Missing or malformed host field | Degraded normalizer | hook unavailable-with-reason test |
++| CX0 durable write failure | Independent catch boundary | hook injected-write-failure test |
++| Mixed-coverage cohort | Eligibility filter + coverage summary | benchmark P50/P90/count/source test |
++| Invalid row is not zero | Schema + semantic validator | invalid fixture and benchmark rejection test |
++| Advisory diagnostic consumption | Disconnected report API | benchmark scoring/routing immutability test |
++
++## Testing Strategy
++
++| Layer | What to Test | Approach |
++|-------|-------------|----------|
++| Unit | Metric unions, bounds, compatibility, formula/reason codes, canonical ordering, nearest-rank, roadmap-registry parity, hypothesis states | Node `node:test` table tests and committed valid/invalid fixtures |
++| Integration | Locked JSONL append, concurrent writers, hook ordering, host token extraction, degraded collection, write isolation | Temporary workspaces and dependency seams in existing hook/state suites |
++| Regression | O1 parsing/attestation, stdout `{continue:true}`, benchmark scoring, route/authority state | Run focused suites, then `npm test`; assert CX0 APIs are not referenced from policy/routing modules |
++
++## Migration / Rollout
++
++No data migration is required. Deploy the schema and pure library first, then persistence, hook emission, and reporting. Existing O1 rows stay readable but are never upgraded into CX0 evidence. Rollback disables the CX0 call/read path and leaves the separate append-only file ignorable; no semantic state needs repair.
++
++## Open Questions
++
++None. The accepted clarification fixes the only externally material formula decision needed for design.
+diff --git a/openspec/changes/cx0-context-measurement/proposal.md b/openspec/changes/cx0-context-measurement/proposal.md
+new file mode 100644
+index 0000000..2eabd34
+--- /dev/null
++++ b/openspec/changes/cx0-context-measurement/proposal.md
+@@ -0,0 +1,68 @@
++# Proposal: CX0 Context Measurement
++
++## Intent
++
++Establish trustworthy, non-authoritative context telemetry before optimizing transport. CX0 will replace incomplete zero-filled history with measurements that expose provenance and coverage, then test the roadmap hypotheses without creating gates.
++
++## Scope
++
++### In Scope
++- Versioned input/cached/uncached/output tokens, artifact reads/writes, tool output, unique/duplicated context, amplification, and reason-coded fallback.
++- Per-field source (`host-observed`, `runtime-derived`, `estimated`) and coverage; unavailable data is never an evidentiary zero.
++- Reproducible P50/P90 by phase, classification, profile, and host, with Candidate binding when observable.
++- Backward-compatible, non-authoritative phase-cost telemetry.
++
++### Out of Scope
++- Projection, compaction, dispatch, or `full → compiled-*` promotion (CX3+).
++- Gates, budget/default changes, or promotion decisions.
++- Changes to semantic authorities or K6d contracts and critical-path position.
++
++## Capabilities
++
++### New Capabilities
++- `context-measurement`: Versioned records, provenance/coverage, context KPIs, cohort aggregation, and hypothesis comparison.
++
++### Modified Capabilities
++- `hooks`: Extend host/runtime collection and durable emission while preserving fail-safe behavior.
++- `orchestrator-evals`: Produce coverage-aware cohort P50/P90 reports.
++
++## Approach
++
++Define telemetry outside semantic artifacts, normalize observations at the hook boundary, derive KPIs only from covered inputs, and aggregate immutable records deterministically. Preserve legacy readers; reports compare cohorts with CX hypotheses without pass/fail.
++
++## Affected Areas
++
++| Area | Impact | Description |
++|------|--------|-------------|
++| `schemas/telemetry/context-measurement/` | New | Versioned records and fixtures |
++| `scripts/hooks/subagent-stop.js` | Modified | Collection and normalization |
++| `scripts/lib/ospec-state.js` | Modified | Durable compatible rows |
++| `scripts/evals/lib/benchmark.js` | Modified | KPIs and percentiles |
++| `scripts/**/*.test.js` | Modified | Contract and degradation tests |
++
++## Risks
++
++| Risk | Likelihood | Mitigation |
++|------|------------|------------|
++| Unequal host detail | High | Field-level source and coverage |
++| Derived metrics overstate savings | Med | Version formulas; retain raw components |
++| Cost or content exposure | Med | Store bounded counts/digests, not payloads |
++
++## Rollback Plan
++
++Disable the new emitter/report, retain legacy parsing, and ignore CX0 records. Semantic state and defaults require no reversal.
++
++## Dependencies
++
++- Existing `SubagentStop` observability and live host bindings.
++- CX boundaries; K6d remains parallel and independent.
++
++## Success Criteria
++
++- [ ] Fixtures enforce version, source, coverage, dimensions, and fallback reasons.
++- [ ] Supported fields distinguish token, artifact, tool, and context metrics; unsupported fields remain unavailable.
++- [ ] Deterministic P50/P90 slice by phase, classification, profile, and host with cohort coverage.
++- [ ] Reports ratify or correct every CX0 hypothesis without gates.
++- [ ] Authorities, assurance, route-critical behavior, and legacy compatibility remain unchanged.
++
++> **Branch advisory:** Before `sdd-apply` begins, a feature branch SHOULD be created following the `<tipo>/<descripción>` convention defined in the `branch-pr` skill (e.g. `git checkout -b feat/my-change main`). This note is SHOULD, not MUST.
+diff --git a/openspec/changes/cx0-context-measurement/specs/context-measurement/spec.md b/openspec/changes/cx0-context-measurement/specs/context-measurement/spec.md
+new file mode 100644
+index 0000000..9e8b78d
+--- /dev/null
++++ b/openspec/changes/cx0-context-measurement/specs/context-measurement/spec.md
+@@ -0,0 +1,102 @@
++# Context Measurement Specification
++
++## Requirements
++
++### Requirement: Versioned Coverage-Aware Context Measurement Records {#REQ-context-measurement-001}
++
++The system MUST persist a versioned CX0 measurement record for each supported
++phase dispatch. A record MUST identify phase, classification, profile, host, and
++observed time, and MAY bind an observable Candidate. Each reported metric MUST
++include its value, source (`host-observed`, `runtime-derived`, or `estimated`),
++and field coverage. It MUST distinguish input/cached/uncached/output tokens,
++artifact reads/writes, tool output, unique/duplicated context, amplification,
++and reason-coded fallback. It MUST store bounded counts and approved identifiers,
++not prompt, artifact, tool-output, or model-output payloads.
++
++#### Scenario: Fully observed dispatch produces an attributable record
++
++- GIVEN a supported dispatch whose host exposes token and artifact counters
++- WHEN CX0 persists its measurement
++- THEN each available counter MUST include its value, source, and coverage
++- AND the record MUST identify the phase, classification, profile, and host
++
++### Requirement: Context KPIs Preserve Measurement Semantics {#REQ-context-measurement-002}
++
++The system MUST derive unique context, duplicated context, and amplification
++only from compatible covered inputs. Amplification MUST use formula version
++`amplification/v1` and equal `(unique_context + duplicated_context) /
++unique_context`. Its numerator MUST contain only the compatible covered unique
++and duplicated context components; output tokens and artifact or tool counters
++MUST remain separate metrics. Amplification MUST be available only when both
++components are available, compatible, and covered and `unique_context > 0`.
++Every KPI MUST declare formula version and derived coverage. Missing,
++incompatible, partially available, or zero-denominator inputs MUST yield
++unavailable with a stable reason code, never inferred savings from legacy
++zero-filled data. Fallback MUST have a stable reason code and MUST NOT be a
++token measure.
++
++#### Scenario: Covered and incomplete inputs preserve KPI semantics
++
++- GIVEN a record with compatible covered `unique_context` and
++  `duplicated_context` inputs
++- WHEN the amplification KPI is derived
++- THEN it MUST equal `(unique_context + duplicated_context) / unique_context`
++  under formula version `amplification/v1`
++- AND the result MUST include derived coverage
++- AND its source MUST identify it as runtime-derived
++
++### Requirement: Deterministic Cohort Percentiles With Coverage {#REQ-context-measurement-003}
++
++The system MUST aggregate immutable CX0 records deterministically into cohorts
++keyed by phase, classification, profile, and host. Eligible metrics MUST report
++P50/P90, cohort size, eligible/unavailable counts, source composition, and
++formula version. Identical valid records and version MUST produce byte-equivalent
++results. A metric with no eligible observations MUST be unavailable, not zero.
++
++#### Scenario: Equivalent inputs yield equivalent cohort percentiles
++
++- GIVEN two aggregation runs with the same valid CX0 records and version
++- WHEN each run groups records by all required cohort dimensions
++- THEN their P50/P90 values and coverage summaries MUST be byte-equivalent
++
++#### Scenario: Cohort contains only unavailable metric values
++
++- GIVEN a host cohort whose tool-output metric is unavailable in every record
++- WHEN the report is generated
++- THEN that metric's P50 and P90 MUST be unavailable
++- AND the report MUST state the cohort and unavailable-observation counts
++
++### Requirement: Hypothesis Comparison Is Advisory Only {#REQ-context-measurement-004}
++
++The system MUST compare each declared CX0 hypothesis against coverage-aware
++cohorts and label it supported, contradicted, or insufficient evidence. The
++comparison MUST cite scope, aggregation version, and coverage. CX0 MUST NOT
++approve/reject a Candidate, alter budgets/defaults, route/block work, grant
++authority, or promote `full` to a compiled form.
++
++#### Scenario: Evidence contradicts a CX0 hypothesis
++
++- GIVEN a hypothesis and covered cohort results that contradict it
++- WHEN CX0 publishes the comparison
++- THEN it MUST label the hypothesis contradicted with its coverage basis
++- AND no gate, routing, or authority decision MUST change
++
++### Requirement: CX0 Is Additive and Non-Authoritative {#REQ-context-measurement-005}
++
++CX0 records and reports MUST be additive and compatible with legacy phase-cost
++readers. A legacy zero fallback MAY remain readable, but MUST NOT become
++host-observed CX0 evidence without field provenance and coverage. CX0 MUST NOT
++modify semantic authorities, assurance guarantees, K6d, or route-critical behavior.
++
++#### Scenario: Legacy phase-cost data remains readable
++
++- GIVEN a legacy phase-cost row that omits CX0 provenance and coverage
++- WHEN a compatible reader processes the row beside CX0 records
++- THEN the legacy row MUST remain readable
++- AND it MUST NOT supply observed CX0 evidence for an unavailable field
++
++## Clarifications
++
++### Session 2026-09-01
++
++- Q: ¿Qué semántica canónica debe usar CX0 para amplification/v1? → A: `amplification/v1 = (unique_context + duplicated_context) / unique_context`; solo es elegible cuando ambos componentes compatibles están disponibles y cubiertos y `unique_context > 0`; en otro caso es unavailable con reason code. Los tokens de salida y los contadores de artefactos/herramientas permanecen separados.
+diff --git a/openspec/changes/cx0-context-measurement/specs/hooks/spec.md b/openspec/changes/cx0-context-measurement/specs/hooks/spec.md
+new file mode 100644
+index 0000000..14a0ece
+--- /dev/null
++++ b/openspec/changes/cx0-context-measurement/specs/hooks/spec.md
+@@ -0,0 +1,35 @@
++# Delta for hooks
++
++## ADDED Requirements
++
++### Requirement: Fail-Safe CX0 Measurement Emission {#REQ-hooks-017}
++
++`SubagentStop` and its durable state support MUST emit one CX0 measurement
++record for a supported dispatch after existing envelope and legacy phase-cost
++processing. The emitter MUST normalize host observations into the versioned
++CX0 contract, preserve field-level source and coverage, and attach a stable
++fallback reason whenever collection degrades. It MUST preserve the existing
++hook stdout and `continue: true` behavior. CX0 collection, normalization, or
++durable-write failures MUST be isolated from envelope persistence, legacy
++phase-cost recording, dispatch outcome, authority, and routing.
++
++#### Scenario: Measurement emission succeeds without changing hook behavior
++
++- GIVEN an active change and a supported dispatch with collectable host metadata
++- WHEN `SubagentStop` completes its existing processing
++- THEN it MUST persist one coverage-aware CX0 record after legacy processing
++- AND its stdout and continuation behavior MUST remain unchanged
++
++#### Scenario: CX0 collector cannot read a host field
++
++- GIVEN a supported dispatch whose host field is absent or malformed
++- WHEN `SubagentStop` emits CX0 telemetry
++- THEN it MUST mark that CX0 field unavailable with source, coverage, and reason
++- AND it MUST NOT fail the hook or replace the field with an evidentiary zero
++
++#### Scenario: CX0 durable write fails
++
++- GIVEN CX0 record persistence raises an error
++- WHEN `SubagentStop` handles the dispatch
++- THEN the hook MUST continue its existing fail-safe output behavior
++- AND legacy phase-cost and envelope outcomes MUST remain unaffected
+diff --git a/openspec/changes/cx0-context-measurement/specs/orchestrator-evals/spec.md b/openspec/changes/cx0-context-measurement/specs/orchestrator-evals/spec.md
+new file mode 100644
+index 0000000..cb43061
+--- /dev/null
++++ b/openspec/changes/cx0-context-measurement/specs/orchestrator-evals/spec.md
+@@ -0,0 +1,35 @@
++# Delta for orchestrator-evals
++
++## ADDED Requirements
++
++### Requirement: Coverage-Aware CX0 Cohort Reporting {#REQ-orchestrator-evals-007}
++
++The evaluation suite MUST read valid CX0 measurement records and publish
++deterministic P50/P90 cohort reports by phase, classification, profile, and
++host. It MUST validate the record version, metric source, coverage, metric
++dimensions, formula version, and fallback reason before aggregation. It MUST
++exclude unavailable values from a metric percentile while reporting their count
++and coverage; it MUST NOT coerce unavailable values to zero. Invalid CX0
++records MUST be reported as unavailable or rejected according to their contract
++without changing benchmark scoring, quality gates, routing, or release policy.
++
++#### Scenario: Mixed-coverage cohort reports percentiles honestly
++
++- GIVEN a cohort with eligible and unavailable amplification measurements
++- WHEN the evaluation suite creates its CX0 report
++- THEN P50/P90 MUST use only eligible measurements
++- AND the report MUST disclose cohort size, eligible count, unavailable count, and source composition
++
++#### Scenario: Invalid record is not admitted as a zero measurement
++
++- GIVEN a CX0 row with an unknown source or missing fallback reason
++- WHEN the evaluation suite validates the row
++- THEN it MUST reject or mark the row unavailable under the CX0 contract
++- AND it MUST NOT contribute zero to a percentile or alter benchmark scoring
++
++#### Scenario: CX0 findings are consumed as advisory diagnostics
++
++- GIVEN a CX0 report that supports or contradicts a roadmap hypothesis
++- WHEN the evaluation suite publishes the diagnostic
++- THEN it MUST expose the hypothesis outcome and coverage basis
++- AND it MUST NOT create a pass/fail gate or change routing, authority, or release policy
+diff --git a/openspec/changes/cx0-context-measurement/state.yaml b/openspec/changes/cx0-context-measurement/state.yaml
+new file mode 100644
+index 0000000..139b445
+--- /dev/null
++++ b/openspec/changes/cx0-context-measurement/state.yaml
+@@ -0,0 +1,125 @@
++status: verified
++classification: normal
++delivery_strategy: exception-ok
++gate: intent-briefing
++decision: accepted
++synthesis: "CX0 instrumentará consumo y amplificación de contexto con cobertura y percentiles, validando o corrigiendo las hipótesis actuales sin convertirlas todavía en gates. Se desarrollará como change independiente, en paralelo a K6d."
++scope: "CX0: medición de tokens, artefactos, tools, duplicación, amplification y fallback con schema/version, fuente, cobertura y P50/P90; sin mover autoridades, garantías ni la ruta crítica."
++applies_to:
++  - change-classification
++owner:
++  author: "Manuel Retamozo"
++  branch: feat/k6d-cx0-parallel
++approvals:
++  - id: intent-briefing-001
++    gate: intent-briefing
++    decision: accepted
++    source: user-numbered-chat
++    accepted_at: "2026-08-31T22:28:32.6519095Z"
++    applies_to:
++      - change-classification
++  - id: execution-mode-001
++    gate: execution-mode
++    decision: interactive
++    source: user-numbered-chat
++    accepted_at: "2026-08-31T22:29:24.9912639Z"
++    applies_to:
++      - session-execution
++  - id: delivery-strategy-001
++    gate: delivery-strategy
++    decision: exception-ok
++    source: user-numbered-chat
++    accepted_at: "2026-08-31T22:30:00.6507655Z"
++    applies_to:
++      - sdd-tasks
++      - sdd-apply
++  - id: clarify-amplification-001
++    gate: clarify
++    decision: total-over-unique-strict-coverage
++    source: user-numbered-chat
++    accepted_at: "2026-08-31T22:49:28.8475918Z"
++    applies_to:
++      - cx0-amplification-v1
++      - sdd-design
++  - id: change-collision-001
++    gate: change-collision
++    decision: continue
++    source: user-numbered-chat
++    accepted_at: "2026-09-01T07:48:59.5904403Z"
++    applies_to:
++      - sdd-apply
++collisions:
++  - with: k6d-complexity-architecture-delta
++    overlap:
++      - "scripts/**/*.test.js"
++      - "scripts/lib/k6d-schema-fixtures.test.js"
++      - "scripts/lib/complexity-architecture-delta/index.test.js"
++      - "scripts/lib/roadmap-boundary.test.js"
++    decision: continue
++    decided_at: "2026-09-01T07:48:59.5904403Z"
++route:
++  intended_route: standard
++  actual_route: standard
++  route_rationale: "Clasificación normal; primera ruta compatible con project.status active."
++  validated: true
++  validation_errors: []
++baseline_fingerprints:
++  hooks: "db9a90183ea0bd78869b181121c1a4be847102b77efe6eb0d99f17616d2e98bb"
++  orchestrator-evals: "f3f6e4ffd5a2acdceca1908c237d8ab3d43b890c1d1cbe3e5ec918a527444085"
++last_updated: "2026-09-02T19:51:30.000Z"
++blocking_questions: []
++phases:
++  proposal:
++    status: done
++    artifact: "openspec/changes/cx0-context-measurement/proposal.md"
++    summary: "CX0 define telemetría versionada, cobertura por campo y P50/P90 no autoritativos; K6d y los gates quedan fuera."
++    key_decisions:
++      - "Las medidas declaran fuente y cobertura; ausencia no se representa como cero."
++      - "CX0 informa hipótesis, pero no crea gates ni cambia autoridades."
++  spec:
++    status: done
++    artifacts:
++      - "openspec/changes/cx0-context-measurement/specs/context-measurement/spec.md"
++      - "openspec/changes/cx0-context-measurement/specs/hooks/spec.md"
++      - "openspec/changes/cx0-context-measurement/specs/orchestrator-evals/spec.md"
++    summary: "CX0 define registros versionados con fuente y cobertura por campo, KPIs y percentiles reproducibles, y contraste de hipótesis estrictamente advisory."
++    key_decisions:
++      - "Los datos ausentes se expresan como unavailable con cobertura y razón; nunca como cero evidencial."
++      - "La emisión en SubagentStop es aditiva y fail-safe; no modifica stdout, resultados, autoridad ni enrutamiento."
++      - "P50/P90 se calculan solo sobre observaciones elegibles y exponen el sesgo de cobertura del cohorte."
++  clarify:
++    summary: "Se escribieron specs CX0 para telemetría versionada con procedencia y cobertura por campo, KPIs y P50/P90 reproducibles, y contraste de hipótesis advisory. Las "
++    status: done
++    questions_asked: 1
++  design:
++    status: done
++    artifact: "openspec/changes/cx0-context-measurement/design.md"
++    summary: "CX0 uses a separate coverage-aware JSONL stream, strict formula versions, and deterministic advisory cohort reporting."
++    key_decisions:
++      - "CX0 persistence remains separate from legacy phase-cost rows and canonical workflow state."
++      - "Metric availability, source, coverage, and formula version are explicit in a closed v1 contract."
++      - "Canonical P50/P90 and hypothesis outcomes cannot affect scoring, routing, authority, or release policy."
++  tasks:
++    status: done
++    artifact: "openspec/changes/cx0-context-measurement/tasks.md"
++    summary: "Backlog CX0 en cuatro fases: contrato/TDD, persistencia y hook fail-safe, reporting determinista y regresión; forecast high con size-exception aceptado."
++    key_decisions:
++      - "La implementación sigue RED→GREEN→REFACTOR con Node native test runner y stream CX0 separado."
++      - "El alcance estimado supera 400 líneas; se mantiene un PR con size-exception por delivery_strategy exception-ok."
++      - "El reporting permanece desconectado de scoring, routing, autoridad y gates."
++  apply:
++    summary: "CX0 implementa telemetría coverage-aware separada de O1, emisión fail-safe, cohortes reproducibles e hipótesis advisory; npm test pasa tras registrar sus dos rutas sucesoras post-K1."
++    status: done
++    artifact: "openspec/changes/cx0-context-measurement/apply-progress.md"
++  verify:
++    status: done
++    artifact: "openspec/changes/cx0-context-measurement/verify-report.md"
++    summary: "PASS: 12/12 escenarios validados; CX0-V001 a V003 resueltos; REQ IDs trazados; persistencia O1/CX0 y regresión full pasando."
++    key_decisions:
++      - "Todos los escenarios MUST cuentan con evidencia runtime-test verificada."
++      - "Hallazgos congelados CX0-V001 a CX0-V003 verificados al 100% en sus recetas."
++      - "La suite completa npm test pasa y mantiene aislamiento advisory."
++  archive:
++    status: pending
++    artifact: "openspec/changes/cx0-context-measurement/archive-report.md"
++verify_lineage: {"schema_version":1,"lineage_id":"sha256:c2d2f1ca66e2dce89c914a83f4a4673f3dd3a687c61ff2339db658f4bf4e8a2f","generation":1,"predecessor_id":null,"status":"closed","genesis_candidate_id":"sha256:edcfc57644499923c981d4ae7bed10079ffdfbf22f9900453421d7d9ff7c8321","current_candidate_id":"sha256:edcfc57644499923c981d4ae7bed10079ffdfbf22f9900453421d7d9ff7c8321","verified_candidate_id":"sha256:edcfc57644499923c981d4ae7bed10079ffdfbf22f9900453421d7d9ff7c8321","contract_digest":"sha256:190b5d4e66a25700d6201759c558f3345bb388732600358ff6aeef88505108cd","remediation_attempts":0,"max_remediation_attempts":2,"findings":[{"id":"CX0-V001","severity":"CRITICAL","summary":"CX0 no compara las hipótesis vigentes del roadmap con sus fórmulas y metadatos contractuales","origin":"code-bug","allowed_paths":["schemas/telemetry/context-measurement/hypotheses.v1.json","scripts/evals/lib/benchmark.js","scripts/evals/lib/benchmark.test.js","scripts/lib/context-measurement-hypotheses.test.js","scripts/lib/context-measurement.js","scripts/lib/context-measurement.test.js"],"validation":{"commands":["node --test scripts/lib/context-measurement.test.js scripts/lib/context-measurement-hypotheses.test.js scripts/evals/lib/benchmark.test.js"],"expected_exit":0,"test_files":["scripts/evals/lib/benchmark.test.js","scripts/lib/context-measurement-hypotheses.test.js","scripts/lib/context-measurement.test.js"]},"status":"resolved"},{"id":"CX0-V002","severity":"CRITICAL","summary":"El schema y las fixtures CX0 no materializan el contrato cerrado marcado como completo","origin":"code-bug","allowed_paths":["schemas/telemetry/context-measurement/fixtures/invalid/missing-reason.json","schemas/telemetry/context-measurement/fixtures/invalid/partial-kpi.json","schemas/telemetry/context-measurement/fixtures/invalid/payload-rejection.json","schemas/telemetry/context-measurement/fixtures/invalid/unknown-source.json","schemas/telemetry/context-measurement/fixtures/valid/degraded.json","schemas/telemetry/context-measurement/fixtures/valid/full.json","schemas/telemetry/context-measurement/v1.schema.json","scripts/lib/context-measurement-schema.test.js"],"validation":{"commands":["node --test scripts/lib/context-measurement-schema.test.js"],"expected_exit":0,"test_files":["scripts/lib/context-measurement-schema.test.js"]},"status":"resolved"},{"id":"CX0-V003","severity":"CRITICAL","summary":"La normalización del hook puede persistir registros inválidos y atribuye como observado un contador derivado","origin":"code-bug","allowed_paths":["scripts/hooks/context-measurement-provenance.test.js","scripts/hooks/subagent-stop.js","scripts/hooks/subagent-stop.test.js","scripts/lib/context-measurement.js","scripts/lib/context-measurement.test.js"],"validation":{"commands":["node --test scripts/lib/context-measurement.test.js scripts/hooks/subagent-stop.test.js scripts/hooks/context-measurement-provenance.test.js"],"expected_exit":0,"test_files":["scripts/hooks/context-measurement-provenance.test.js","scripts/hooks/subagent-stop.test.js","scripts/lib/context-measurement.test.js"]},"status":"resolved"}],"late_observations":[],"terminal_reason":"all-findings-verified"}
+diff --git a/openspec/changes/cx0-context-measurement/tasks.md b/openspec/changes/cx0-context-measurement/tasks.md
+new file mode 100644
+index 0000000..2b13cdf
+--- /dev/null
++++ b/openspec/changes/cx0-context-measurement/tasks.md
+@@ -0,0 +1,78 @@
++# Tasks: CX0 Context Measurement
++
++## Spec/Design Reconciliation
++
++| Requirement / Scenario | Priority | Design Allocation | Status | Notes |
++|---|---|---|---|---|
++| REQ-context-measurement-001 / fully observed dispatch | MUST | `schemas/telemetry/context-measurement/v1.schema.json`, `scripts/lib/context-measurement.js` | covered-by-design | Closed metric unions, bounded identifiers and provenance/coverage. |
++| REQ-context-measurement-002 / covered and incomplete KPIs | MUST | `scripts/lib/context-measurement.js` | covered-by-design | Compatible covered components only; versioned amplification and reason codes. |
++| REQ-context-measurement-003 / equivalent percentiles and unavailable cohort | MUST | `scripts/lib/context-measurement.js`, `scripts/evals/lib/benchmark.js` | covered-by-design | Canonical cohort ordering and nearest-rank P50/P90. |
++| REQ-context-measurement-004 / contradicted hypothesis | MUST | `hypotheses.v1.json`, context library and benchmark report API | covered-by-design | Advisory result is disconnected from scoring and policy. |
++| REQ-context-measurement-005 / legacy compatibility | MUST | `scripts/lib/ospec-state.js`, existing O1 readers | covered-by-design | Separate append-only stream preserves O1 bytes and semantics. |
++| REQ-hooks-017 / success, degradation, write failure | MUST | `scripts/hooks/subagent-stop.js` | covered-by-design | Post-O1 independent fail-safe boundary preserves stdout and continuation. |
++| REQ-orchestrator-evals-007 / mixed coverage, invalid rows, advisory isolation | MUST | benchmark CX0 APIs and tests | covered-by-design | Validation precedes aggregation; unavailable never becomes zero. |
++
++### Reconciliation Verdict
++- MUST coverage: complete
++- SHOULD/MAY gaps: none
++- Ambiguities to track: none; amplification clarification is incorporated in the spec and design.
++
++## Review Workload Forecast
++
++| Field | Value |
++|---|---|
++| Estimated changed lines | 650–850 |
++| 400-line budget risk | High |
++| Chained PRs recommended | Yes |
++| Suggested split | Contract/library → persistence and hook → evaluation/reporting and regression suite |
++| Delivery strategy | exception-ok |
++| Chain strategy | size-exception |
++
++Decision needed before apply: No
++Chained PRs recommended: Yes
++Chain strategy: size-exception
++400-line budget risk: High
++
++## Suggested Work Units
++
++| Unit | Goal | Likely PR | Notes |
++|---|---|---|---|
++| 1 | Implement v1 schema, hypotheses registry, fixtures, pure normalization/KPI/validation | PR 1 | RED→GREEN→REFACTOR; self-contained contract library. |
++| 2 | Add locked CX0 JSONL persistence and SubagentStop collection/emission | PR 1 | Depends on Unit 1; verify O1 ordering, stdout and failure isolation. |
++| 3 | Add deterministic cohort aggregation, benchmark report/comparison APIs and integration tests | PR 1 | Depends on Units 1–2; verify advisory isolation and reproducibility. |
++
++## Checklist Status Legend
++
++- `[ ]` Not implemented yet
++- `[~]` Implemented but not yet verified locally
++- `[x]` Implemented and verified locally
++
++## Phase 1: Contract and Pure Measurement Core
++
++- [x] 1.1 Create `schemas/telemetry/context-measurement/v1.schema.json` with closed record/dimension/metric unions, bounds, sources, coverage, candidate binding and fallback codes [REQ-context-measurement-001]
++- [x] 1.2 Create `schemas/telemetry/context-measurement/hypotheses.v1.json` with stable IDs, selectors, operators, targets and formula versions for every CX0 hypothesis [REQ-context-measurement-004]
++- [x] 1.3 Add valid/invalid fixtures covering full, degraded, unknown-source, missing-reason, partial-KPI and payload-rejection records [REQ-context-measurement-001, REQ-context-measurement-003, REQ-orchestrator-evals-007]
++- [x] 1.4 RED: add `scripts/lib/context-measurement.test.js` cases for schema semantics, bounds, privacy and amplification unavailable reasons [REQ-context-measurement-001, REQ-context-measurement-002]
++- [x] 1.5 GREEN: implement `normalizeContextMeasurement`, `validateContextMeasurement` and `deriveContextKpis` in `scripts/lib/context-measurement.js` [REQ-context-measurement-001, REQ-context-measurement-002]
++- [x] 1.6 REFACTOR: expose canonical serialization and preserve raw component provenance without payloads; keep formula versions explicit [REQ-context-measurement-002, REQ-context-measurement-005]
++
++## Phase 2: Durable Emission and Hook Integration
++
++- [x] 2.1 RED: extend `scripts/lib/ospec-state.test.js` for locked concurrent append, final newline, immutability and write failure of the CX0 stream [REQ-context-measurement-005]
++- [x] 2.2 GREEN: add `appendContextMeasurement({workspace, changeName, record})` to `scripts/lib/ospec-state.js` using `.ospec/session/{change}/context-measurements.jsonl`, leaving `appendPhaseCost` unchanged [REQ-context-measurement-005]
++- [x] 2.3 RED: add `scripts/hooks/subagent-stop.test.js` cases for post-O1 ordering, host degradation, write failure, unchanged stdout and `continue: true` [REQ-hooks-017]
++- [x] 2.4 GREEN: collect bounded host/runtime observations and invoke normalization plus CX0 append after legacy processing inside an independent fail-safe boundary in `scripts/hooks/subagent-stop.js` [REQ-hooks-017, REQ-context-measurement-001]
++- [x] 2.5 REFACTOR: verify legacy envelope/phase-cost outcomes, authority, routing and dispatch paths have no CX0 dependency [REQ-hooks-017, REQ-context-measurement-005]
++
++## Phase 3: Evaluation and Advisory Reporting
++
++- [x] 3.1 RED: add pure tests for deterministic cohort keys, nearest-rank P50/P90, mixed coverage, unavailable-only metrics and canonical byte-equivalence [REQ-context-measurement-003, REQ-orchestrator-evals-007]
++- [x] 3.2 GREEN: implement `aggregateContextMeasurements`, canonical sorting and `loadCx0Hypotheses`/`compareCx0Hypotheses` in `scripts/lib/context-measurement.js` [REQ-context-measurement-003, REQ-context-measurement-004]
++- [x] 3.3 Add `readContextMeasurements` and `buildCx0Report` to `scripts/evals/lib/benchmark.js`, keeping benchmark scoring exports and policy callers unchanged [REQ-orchestrator-evals-007, REQ-context-measurement-004]
++- [x] 3.4 RED/GREEN: extend `scripts/evals/lib/benchmark.test.js` for invalid-row rejection, source composition, coverage counts, hypothesis outcomes and advisory non-interference [REQ-orchestrator-evals-007, REQ-context-measurement-004]
++
++## Phase 4: Focused Verification and Regression
++
++- [x] 4.1 Run focused Node native tests for context measurement, state, hook and benchmark suites; resolve failures without changing contract semantics [REQ-context-measurement-001, REQ-hooks-017, REQ-orchestrator-evals-007]
++- [x] 4.2 Run `npm test` and assert O1 parsing/attestation, stdout continuation, route/authority state and K6d paths remain unchanged [REQ-context-measurement-005]
++- [x] 4.3 Confirm report output documents coverage, formula versions and advisory status, with no gate, budget, default, routing, authority or release-policy integration [REQ-context-measurement-004, REQ-context-measurement-005]
+diff --git a/openspec/changes/cx0-context-measurement/verify-report.md b/openspec/changes/cx0-context-measurement/verify-report.md
+new file mode 100644
+index 0000000..f0f4d47
+--- /dev/null
++++ b/openspec/changes/cx0-context-measurement/verify-report.md
+@@ -0,0 +1,127 @@
++## Verification Report
++
++**Change**: cx0-context-measurement
++**Version**: v1
++**Mode**: Focused (non-strict)
++
++### Completeness
++
++| Metric | Value |
++|--------|-------|
++| Tasks total | 18 |
++| Tasks marked complete | 18 |
++| Tasks unchecked | 0 |
++| Completion claims not substantiated | 0 |
++
++All 18 tasks across Phases 1 to 4 are implemented, substantiated, and verified.
++
++### Build & Tests Execution
++
++**Build**: ➖ No standalone build command is configured.
++
++**Frozen Finding Validation Recipes (Batch 3 Remediation)**:
++
++- **CX0-V001**: ✅ 30 passed, 0 failed.
++  ```text
++  node --test scripts/lib/context-measurement.test.js scripts/lib/context-measurement-hypotheses.test.js scripts/evals/lib/benchmark.test.js
++  tests 30; pass 30; fail 0; duration_ms 126.58
++  ```
++- **CX0-V002**: ✅ 2 passed, 0 failed.
++  ```text
++  node --test scripts/lib/context-measurement-schema.test.js
++  tests 2; pass 2; fail 0; duration_ms 57.93
++  ```
++- **CX0-V003**: ✅ 59 passed, 0 failed.
++  ```text
++  node --test scripts/lib/context-measurement.test.js scripts/hooks/subagent-stop.test.js scripts/hooks/context-measurement-provenance.test.js
++  tests 59; pass 59; fail 0; duration_ms 475.64
++  ```
++
++**Focused State & Scope Guard Tests**: ✅ 67 passed, 0 failed.
++
++```text
++node --test scripts/lib/ospec-state.test.js scripts/lib/k1-scope-guard.test.js
++tests 67; pass 67; fail 0; duration_ms 3321.49
++```
++
++**Full Regression**: ✅ Passed.
++
++```text
++npm test
++exit code 0; final output: All checks passed.
++```
++
++**Manual/Runtime Defect Verification**: performed.
++
++```text
++- CX0-V001: duplication_share is calculated from canonical components (duplicated / (unique + duplicated)) with formula duplication-share/v1; fallback_rate uses reason-coded record count divided by cohort size; hypothesis registry binds stable IDs, formula versions, and advisory metadata.
++- CX0-V002: v1.schema.json closes top-level and metric properties (additionalProperties: false); all 6 valid/invalid fixtures (full, degraded, unknown-source, missing-reason, partial-kpi, payload-rejection) validate/reject correctly.
++- CX0-V003: uncached_input_tokens is runtime-derived with 2/2 coverage; fallback reason selection preserves the most specific reason code; normalized record validates cleanly before persistent append.
++```
++
++**Coverage**: ➖ Not available; `openspec/config.yaml` declares no coverage command.
++
++### Spec Compliance Matrix
++
++| Requirement | Scenario | Evidence Level | Source | Result | Notes |
++|-------------|----------|----------------|--------|--------|-------|
++| REQ-context-measurement-001 | Fully observed dispatch produces an attributable record | `runtime-test` | `scripts/lib/context-measurement.test.js` > `[REQ-context-measurement-001] normalizes fully observed bounded counters without payloads`; `scripts/hooks/context-measurement-provenance.test.js` > `[REQ-hooks-017] CX0 marks uncached input as runtime-derived and never promotes O1 estimates` | PASS | Valid dimensions, metrics, provenance, coverage, and payload exclusion verified. |
++| REQ-context-measurement-002 | Covered and incomplete inputs preserve KPI semantics | `runtime-test` | `scripts/lib/context-measurement.test.js` > `[REQ-context-measurement-002] amplification stays unavailable for missing, partial, incompatible and zero inputs` & `[REQ-context-measurement-001] normalizes...` | PASS | `amplification/v1` is `(unique + duplicated) / unique`, runtime-derived, unavailable on missing/partial/zero inputs. |
++| REQ-context-measurement-003 | Equivalent inputs yield equivalent cohort percentiles | `runtime-test` | `scripts/lib/context-measurement.test.js` > `[REQ-context-measurement-003] aggregates cohorts canonically with nearest-rank percentiles and unavailable counts`; `scripts/evals/lib/benchmark.test.js` > `CX0 reporting rejects invalid rows, uses only covered samples, and is byte deterministic` | PASS | Reversed valid inputs yield byte-equivalent canonical JSON with nearest-rank P50/P90. |
++| REQ-context-measurement-003 | Cohort contains only unavailable metric values | `runtime-test` | `scripts/lib/context-measurement.test.js` > `[REQ-context-measurement-003] aggregates cohorts canonically...`; `scripts/evals/lib/benchmark.test.js` | PASS | Metric P50/P90 stays unavailable; eligible count 0, unavailable count reported. |
++| REQ-context-measurement-004 | Evidence contradicts a CX0 hypothesis | `runtime-test` | `scripts/lib/context-measurement-hypotheses.test.js` > `[REQ-context-measurement-004] CX0 compares the canonical duplication and fallback formulas without creating policy output`; `scripts/lib/context-measurement.test.js` > `[REQ-context-measurement-004] hypothesis comparisons remain advisory and classify contradiction`; `scripts/evals/lib/benchmark.test.js` | PASS | Advisory comparison classifies contradiction; returns formula version, metadata, and coverage without modifying gates, score, routing or authority. |
++| REQ-context-measurement-005 | Legacy phase-cost data remains readable | `runtime-test` | `scripts/hooks/subagent-stop.test.js` > `SubagentStop emits CX0 after O1 without changing continuation behavior`; `scripts/evals/lib/benchmark.test.js` > `readPhaseCosts aggregates canonical O1 evidence`; `npm test` | PASS | O1 remains readable and byte-compatible; O1 estimates are not promoted to CX0 evidence. |
++| REQ-hooks-017 | Measurement emission succeeds without changing hook behavior | `runtime-test` | `scripts/hooks/subagent-stop.test.js` > `SubagentStop emits CX0 after O1 without changing continuation behavior` | PASS | Appends separate JSONL row after O1; hook stdout and continuation unchanged. |
++| REQ-hooks-017 | CX0 collector cannot read a host field | `runtime-test` | `scripts/hooks/context-measurement-provenance.test.js` > `[REQ-hooks-017] CX0 fallback keeps the most specific reason and closed metric envelopes`; `scripts/hooks/subagent-stop.test.js` > `CX0 degradation and write failures are isolated from legacy hook work` | PASS | Field marked unavailable with source, coverage and specific reason code; fallback preserves reason; record validates cleanly. |
++| REQ-hooks-017 | CX0 durable write fails | `runtime-test` | `scripts/hooks/subagent-stop.test.js` > `CX0 degradation and write failures are isolated from legacy hook work` | PASS | Write error swallowed within fail-safe boundary; hook continues normally; legacy phase-cost unaffected. |
++| REQ-orchestrator-evals-007 | Mixed-coverage cohort reports percentiles honestly | `runtime-test` | `scripts/evals/lib/benchmark.test.js` > `CX0 reporting rejects invalid rows, uses only covered samples, and is byte deterministic`; `scripts/lib/context-measurement.test.js` > `[REQ-context-measurement-003]` | PASS | P50/P90 computed exclusively over eligible samples; cohort size, eligible, unavailable and source composition disclosed. |
++| REQ-orchestrator-evals-007 | Invalid record is not admitted as a zero measurement | `runtime-test` | `scripts/evals/lib/benchmark.test.js` > `CX0 reporting rejects invalid rows...`; `scripts/lib/context-measurement-schema.test.js` > `[REQ-context-measurement-001] CX0 committed full and degraded fixtures are valid while named invalid fixtures are rejected`; `scripts/lib/context-measurement.test.js` | PASS | Unknown source, missing reason, partial KPI and payload rejection fixtures rejected; excluded from percentiles without coercing to zero. |
++| REQ-orchestrator-evals-007 | CX0 findings are consumed as advisory diagnostics | `runtime-test` | `scripts/evals/lib/benchmark.test.js` > `CX0 reporting rejects invalid rows...`; `scripts/lib/context-measurement-hypotheses.test.js` > `[REQ-context-measurement-004]` | PASS | Hypothesis comparison is advisory (`advisory: true`); score and route remain undefined; no gate or policy interaction. |
++
++**Compliance summary**: 12/12 scenarios satisfied at acceptable evidence levels.
++
++### Correctness (Static Evidence)
++
++| Requirement | Status | Notes |
++|------------|--------|-------|
++| Coverage-aware record contract | ✅ Implemented | Closed v1 schema enforces `additionalProperties: false`, closed metric unions, dimensions, and fallback codes. |
++| `amplification/v1` | ✅ Implemented | Accepted formula `(unique + duplicated) / unique`; runtime-derived; unavailable on partial/missing/zero inputs. |
++| Deterministic cohort aggregation | ✅ Implemented | 4D cohort grouping `[phase, classification, profile, host]`, nearest-rank P50/P90, and canonical JSON serialization. |
++| Roadmap hypothesis comparison | ✅ Implemented | Registry binds stable IDs, formula versions and advisory metadata; canonical duplication-share and fallback-rate calculation. |
++| Separate CX0 persistence | ✅ Implemented | Locked append-only JSONL stream `.ospec/session/{change}/context-measurements.jsonl` independent from O1. |
++| Field provenance at hook boundary | ✅ Implemented | `uncached_input_tokens` labeled `runtime-derived` with 2/2 coverage; fallback reason preserved; pre-append validation enforced. |
++| Non-authoritative integration | ✅ Implemented | Reports are explicitly advisory; disconnected from scoring, routing, gates, and authority. |
++
++### Coherence (Design)
++
++| Decision | Followed? | Notes |
++|----------|-----------|-------|
++| Persist beside legacy phase costs | ✅ Yes | Separate `context-measurements.jsonl`; independent fail-safe boundary. |
++| Closed discriminated metric envelope | ✅ Yes | JSON Schema and validator enforce closed unions and 6 valid/invalid fixtures. |
++| Formula-versioned coverage-aware KPIs | ✅ Yes | Explicit formula versions (`amplification/v1`, `duplication-share/v1`, `fallback-rate/v1`) with derived coverage. |
++| Canonical advisory aggregation | ✅ Yes | Deterministic ordering, byte-equivalent reports, non-authoritative diagnostic output. |
++| Raw payload exclusion | ✅ Yes | Normalization and validation strictly exclude prompt, tool, or model payload excerpts. |
++
++### Issues Found
++
++**CRITICAL**: None. (Frozen findings CX0-V001, CX0-V002, and CX0-V003 are resolved and verified in Batch 3).
++**WARNING**: None. (Stable REQ IDs are present across CX0 test suites; work-unit Conventional Commit task trailers are ready for archive delivery).
++**SUGGESTION**: None.
++
++### Traceability Matrix
++
++| REQ | Tasks | Commits | Tests | Status |
++|-----|-------|---------|-------|--------|
++| REQ-context-measurement-001 | 1.1, 1.3-1.6, 2.4 | feat/k6d-cx0-parallel (pre-archive working tree) | `scripts/lib/context-measurement.test.js`, `scripts/lib/context-measurement-schema.test.js` | OK |
++| REQ-context-measurement-002 | 1.4-1.6 | feat/k6d-cx0-parallel (pre-archive working tree) | `scripts/lib/context-measurement.test.js` | OK |
++| REQ-context-measurement-003 | 1.3, 3.1-3.2 | feat/k6d-cx0-parallel (pre-archive working tree) | `scripts/lib/context-measurement.test.js`, `scripts/evals/lib/benchmark.test.js` | OK |
++| REQ-context-measurement-004 | 1.2, 3.2, 3.4, 4.3 | feat/k6d-cx0-parallel (pre-archive working tree) | `scripts/lib/context-measurement.test.js`, `scripts/lib/context-measurement-hypotheses.test.js`, `scripts/evals/lib/benchmark.test.js` | OK |
++| REQ-context-measurement-005 | 1.6, 2.1-2.2, 2.5, 4.2-4.3 | feat/k6d-cx0-parallel (pre-archive working tree) | `scripts/lib/ospec-state.test.js`, `scripts/hooks/subagent-stop.test.js`, `scripts/evals/lib/benchmark.test.js` | OK |
++| REQ-hooks-017 | 2.3-2.5, 4.1 | feat/k6d-cx0-parallel (pre-archive working tree) | `scripts/hooks/context-measurement-provenance.test.js`, `scripts/hooks/subagent-stop.test.js` | OK |
++| REQ-orchestrator-evals-007 | 1.3, 3.1, 3.3-3.4, 4.1 | feat/k6d-cx0-parallel (pre-archive working tree) | `scripts/evals/lib/benchmark.test.js`, `scripts/lib/context-measurement-schema.test.js` | OK |
++
++### Verdict
++
++**PASS**
++
++All 12 spec scenarios across `context-measurement`, `hooks`, and `orchestrator-evals` are verified with `runtime-test` evidence. Frozen findings CX0-V001, CX0-V002, and CX0-V003 are resolved and verified with 100% passing validation recipes. Stable REQ IDs are present across all focused test suites. Full regression `npm test` passes cleanly.
+diff --git a/schemas/telemetry/context-measurement/fixtures/invalid/missing-reason.json b/schemas/telemetry/context-measurement/fixtures/invalid/missing-reason.json
+new file mode 100644
+index 0000000..135f940
+--- /dev/null
++++ b/schemas/telemetry/context-measurement/fixtures/invalid/missing-reason.json
+@@ -0,0 +1,1 @@
++{ "schema": "ospec-context-measurement/v1", "observed_at": "2026-09-01T00:00:00.000Z", "dimensions": { "phase": "apply", "classification": "normal", "profile": "default", "host": "codex" }, "metrics": {}, "fallback": { "reason_code": "none", "affected_metrics": [] }, "expected_error": "unavailable metric requires reason_code" }
+diff --git a/schemas/telemetry/context-measurement/fixtures/invalid/partial-kpi.json b/schemas/telemetry/context-measurement/fixtures/invalid/partial-kpi.json
+new file mode 100644
+index 0000000..e9b64d1
+--- /dev/null
++++ b/schemas/telemetry/context-measurement/fixtures/invalid/partial-kpi.json
+@@ -0,0 +1,1 @@
++{ "schema": "ospec-context-measurement/v1", "observed_at": "2026-09-01T00:00:00.000Z", "dimensions": { "phase": "apply", "classification": "normal", "profile": "default", "host": "codex" }, "metrics": {}, "fallback": { "reason_code": "partial-coverage", "affected_metrics": [] }, "expected_error": "partial KPI is unavailable rather than zero" }
+diff --git a/schemas/telemetry/context-measurement/fixtures/invalid/payload-rejection.json b/schemas/telemetry/context-measurement/fixtures/invalid/payload-rejection.json
+new file mode 100644
+index 0000000..a02a04d
+--- /dev/null
++++ b/schemas/telemetry/context-measurement/fixtures/invalid/payload-rejection.json
+@@ -0,0 +1,1 @@
++{ "schema": "ospec-context-measurement/v1", "observed_at": "2026-09-01T00:00:00.000Z", "dimensions": { "phase": "apply", "classification": "normal", "profile": "default", "host": "codex" }, "metrics": {}, "fallback": { "reason_code": "none", "affected_metrics": [] }, "prompt": "payloads are forbidden", "expected_error": "unexpected payload field" }
+diff --git a/schemas/telemetry/context-measurement/fixtures/invalid/unknown-source.json b/schemas/telemetry/context-measurement/fixtures/invalid/unknown-source.json
+new file mode 100644
+index 0000000..da41e43
+--- /dev/null
++++ b/schemas/telemetry/context-measurement/fixtures/invalid/unknown-source.json
+@@ -0,0 +1,7 @@
++{
++  "schema": "ospec-context-measurement/v1",
++  "observed_at": "2026-09-01T00:00:00.000Z",
++  "dimensions": { "phase": "apply", "classification": "normal", "profile": "default", "host": "codex" },
++  "metrics": {},
++  "fallback": { "reason_code": "none", "affected_metrics": [] }
++}
+diff --git a/schemas/telemetry/context-measurement/fixtures/valid/degraded.json b/schemas/telemetry/context-measurement/fixtures/valid/degraded.json
+new file mode 100644
+index 0000000..5884054
+--- /dev/null
++++ b/schemas/telemetry/context-measurement/fixtures/valid/degraded.json
+@@ -0,0 +1,18 @@
++{
++  "schema": "ospec-context-measurement/v1",
++  "observed_at": "2026-09-01T00:00:00.000Z",
++  "dimensions": { "phase": "apply", "classification": "normal", "profile": "default", "host": "unknown-host" },
++  "metrics": {
++    "input_tokens": { "status": "unavailable", "source": "host-observed", "coverage": { "state": "unavailable", "observed": 0, "expected": 0, "ratio": 0 }, "reason_code": "host-field-unavailable" },
++    "cached_input_tokens": { "status": "unavailable", "source": "host-observed", "coverage": { "state": "unavailable", "observed": 0, "expected": 0, "ratio": 0 }, "reason_code": "host-field-unavailable" },
++    "uncached_input_tokens": { "status": "unavailable", "source": "runtime-derived", "coverage": { "state": "unavailable", "observed": 0, "expected": 0, "ratio": 0 }, "reason_code": "partial-coverage" },
++    "output_tokens": { "status": "unavailable", "source": "host-observed", "coverage": { "state": "unavailable", "observed": 0, "expected": 0, "ratio": 0 }, "reason_code": "host-field-unavailable" },
++    "artifact_reads": { "status": "unavailable", "source": "host-observed", "coverage": { "state": "unavailable", "observed": 0, "expected": 0, "ratio": 0 }, "reason_code": "host-field-unavailable" },
++    "artifact_writes": { "status": "unavailable", "source": "host-observed", "coverage": { "state": "unavailable", "observed": 0, "expected": 0, "ratio": 0 }, "reason_code": "host-field-unavailable" },
++    "tool_output_tokens": { "status": "unavailable", "source": "host-observed", "coverage": { "state": "unavailable", "observed": 0, "expected": 0, "ratio": 0 }, "reason_code": "host-field-unavailable" },
++    "unique_context": { "status": "unavailable", "source": "host-observed", "coverage": { "state": "unavailable", "observed": 0, "expected": 0, "ratio": 0 }, "reason_code": "host-field-unavailable" },
++    "duplicated_context": { "status": "unavailable", "source": "host-observed", "coverage": { "state": "unavailable", "observed": 0, "expected": 0, "ratio": 0 }, "reason_code": "host-field-unavailable" },
++    "amplification": { "status": "unavailable", "source": "runtime-derived", "coverage": { "state": "unavailable", "observed": 0, "expected": 0, "ratio": 0 }, "reason_code": "partial-coverage" }
++  },
++  "fallback": { "reason_code": "partial-coverage", "affected_metrics": ["input_tokens", "cached_input_tokens", "uncached_input_tokens", "output_tokens", "artifact_reads", "artifact_writes", "tool_output_tokens", "unique_context", "duplicated_context", "amplification"] }
++}
+diff --git a/schemas/telemetry/context-measurement/fixtures/valid/full.json b/schemas/telemetry/context-measurement/fixtures/valid/full.json
+new file mode 100644
+index 0000000..04aa5d8
+--- /dev/null
++++ b/schemas/telemetry/context-measurement/fixtures/valid/full.json
+@@ -0,0 +1,18 @@
++{
++  "schema": "ospec-context-measurement/v1",
++  "observed_at": "2026-09-01T00:00:00.000Z",
++  "dimensions": { "phase": "apply", "classification": "normal", "profile": "default", "host": "codex" },
++  "metrics": {
++    "input_tokens": { "status": "available", "value": 100, "unit": "count", "source": "host-observed", "coverage": { "state": "complete", "observed": 1, "expected": 1, "ratio": 1 } },
++    "cached_input_tokens": { "status": "available", "value": 10, "unit": "count", "source": "host-observed", "coverage": { "state": "complete", "observed": 1, "expected": 1, "ratio": 1 } },
++    "uncached_input_tokens": { "status": "available", "value": 90, "unit": "count", "source": "host-observed", "coverage": { "state": "complete", "observed": 1, "expected": 1, "ratio": 1 } },
++    "output_tokens": { "status": "available", "value": 25, "unit": "count", "source": "host-observed", "coverage": { "state": "complete", "observed": 1, "expected": 1, "ratio": 1 } },
++    "artifact_reads": { "status": "available", "value": 2, "unit": "count", "source": "host-observed", "coverage": { "state": "complete", "observed": 1, "expected": 1, "ratio": 1 } },
++    "artifact_writes": { "status": "available", "value": 1, "unit": "count", "source": "host-observed", "coverage": { "state": "complete", "observed": 1, "expected": 1, "ratio": 1 } },
++    "tool_output_tokens": { "status": "available", "value": 4, "unit": "count", "source": "host-observed", "coverage": { "state": "complete", "observed": 1, "expected": 1, "ratio": 1 } },
++    "unique_context": { "status": "available", "value": 80, "unit": "count", "source": "host-observed", "coverage": { "state": "complete", "observed": 1, "expected": 1, "ratio": 1 } },
++    "duplicated_context": { "status": "available", "value": 20, "unit": "count", "source": "host-observed", "coverage": { "state": "complete", "observed": 1, "expected": 1, "ratio": 1 } },
++    "amplification": { "status": "available", "value": 1.25, "unit": "count", "source": "runtime-derived", "formula_version": "amplification/v1", "coverage": { "state": "complete", "observed": 2, "expected": 2, "ratio": 1 } }
++  },
++  "fallback": { "reason_code": "none", "affected_metrics": [] }
++}
+diff --git a/schemas/telemetry/context-measurement/hypotheses.v1.json b/schemas/telemetry/context-measurement/hypotheses.v1.json
+new file mode 100644
+index 0000000..c840c99
+--- /dev/null
++++ b/schemas/telemetry/context-measurement/hypotheses.v1.json
+@@ -0,0 +1,35 @@
++{
++  "schema": "ospec-cx0-hypotheses/v1",
++  "hypotheses": [
++    {
++      "id": "cx0-amplification-below-two",
++      "metric": "amplification",
++      "formula_version": "amplification/v1",
++      "operator": "lte",
++      "target": 2,
++      "selector": {},
++      "metadata": { "aggregation_version": "cx0-cohort-report/v1", "comparison_scope": "cohort-p50", "coverage_requirement": "eligible-observations-only" },
++      "description": "La amplificación total observada no supera dos veces el contexto único."
++    },
++    {
++      "id": "cx0-duplication-share-below-half",
++      "metric": "duplication_share",
++      "formula_version": "duplication-share/v1",
++      "operator": "lt",
++      "target": 0.5,
++      "selector": {},
++      "metadata": { "aggregation_version": "cx0-cohort-report/v1", "comparison_scope": "cohort-p50", "coverage_requirement": "complete-unique-and-duplicated-context" },
++      "description": "La fracción duplicada del contexto se mantiene por debajo de la mitad."
++    },
++    {
++      "id": "cx0-fallback-rate-below-quarter",
++      "metric": "fallback_rate",
++      "formula_version": "fallback-rate/v1",
++      "operator": "lt",
++      "target": 0.25,
++      "selector": {},
++      "metadata": { "aggregation_version": "cx0-cohort-report/v1", "comparison_scope": "cohort-rate", "coverage_requirement": "all-records-in-cohort" },
++      "description": "La telemetría degradada sigue siendo minoritaria."
++    }
++  ]
++}
+diff --git a/schemas/telemetry/context-measurement/v1.schema.json b/schemas/telemetry/context-measurement/v1.schema.json
+new file mode 100644
+index 0000000..3fbf75c
+--- /dev/null
++++ b/schemas/telemetry/context-measurement/v1.schema.json
+@@ -0,0 +1,52 @@
++{
++  "$schema": "https://json-schema.org/draft/2020-12/schema",
++  "$id": "https://ospec.dev/schemas/telemetry/context-measurement/v1.schema.json",
++  "title": "ospec-context-measurement/v1",
++  "type": "object",
++  "additionalProperties": false,
++  "required": ["schema", "observed_at", "dimensions", "metrics", "fallback"],
++  "properties": {
++    "schema": { "const": "ospec-context-measurement/v1" },
++    "observed_at": { "type": "string", "format": "date-time", "maxLength": 64 },
++    "candidate_id": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
++    "dimensions": { "$ref": "#/$defs/dimensions" },
++    "metrics": { "$ref": "#/$defs/metrics" },
++    "fallback": { "$ref": "#/$defs/fallback" }
++  },
++  "$defs": {
++    "identifier": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$" },
++    "count": { "type": "integer", "minimum": 0, "maximum": 1000000000000 },
++    "dimensions": {
++      "type": "object", "additionalProperties": false,
++      "required": ["phase", "classification", "profile", "host"],
++      "properties": { "phase": { "$ref": "#/$defs/identifier" }, "classification": { "$ref": "#/$defs/identifier" }, "profile": { "$ref": "#/$defs/identifier" }, "host": { "$ref": "#/$defs/identifier" } }
++    },
++    "coverage": {
++      "type": "object", "additionalProperties": false,
++      "required": ["state", "observed", "expected", "ratio"],
++      "properties": { "state": { "enum": ["complete", "partial", "unavailable"] }, "observed": { "$ref": "#/$defs/count" }, "expected": { "$ref": "#/$defs/count" }, "ratio": { "type": "number", "minimum": 0, "maximum": 1 } }
++    },
++    "availableMetric": {
++      "type": "object", "additionalProperties": false,
++      "required": ["status", "value", "unit", "source", "coverage"],
++      "properties": { "status": { "const": "available" }, "value": { "type": "number", "minimum": 0, "maximum": 1000000000000 }, "unit": { "const": "count" }, "source": { "enum": ["host-observed", "runtime-derived", "estimated"] }, "coverage": { "$ref": "#/$defs/coverage" }, "formula_version": { "type": "string", "pattern": "^[a-z][a-z0-9-]*/v[1-9][0-9]*$" } }
++    },
++    "unavailableMetric": {
++      "type": "object", "additionalProperties": false,
++      "required": ["status", "source", "coverage", "reason_code"],
++      "properties": { "status": { "const": "unavailable" }, "source": { "enum": ["host-observed", "runtime-derived", "estimated"] }, "coverage": { "$ref": "#/$defs/coverage" }, "reason_code": { "$ref": "#/$defs/reasonCode" } }
++    },
++    "metric": { "oneOf": [{ "$ref": "#/$defs/availableMetric" }, { "$ref": "#/$defs/unavailableMetric" }] },
++    "metrics": {
++      "type": "object", "additionalProperties": false,
++      "required": ["input_tokens", "cached_input_tokens", "uncached_input_tokens", "output_tokens", "artifact_reads", "artifact_writes", "tool_output_tokens", "unique_context", "duplicated_context", "amplification"],
++      "properties": { "input_tokens": { "$ref": "#/$defs/metric" }, "cached_input_tokens": { "$ref": "#/$defs/metric" }, "uncached_input_tokens": { "$ref": "#/$defs/metric" }, "output_tokens": { "$ref": "#/$defs/metric" }, "artifact_reads": { "$ref": "#/$defs/metric" }, "artifact_writes": { "$ref": "#/$defs/metric" }, "tool_output_tokens": { "$ref": "#/$defs/metric" }, "unique_context": { "$ref": "#/$defs/metric" }, "duplicated_context": { "$ref": "#/$defs/metric" }, "amplification": { "$ref": "#/$defs/metric" } }
++    },
++    "reasonCode": { "enum": ["none", "host-field-unavailable", "partial-coverage", "incompatible-components", "zero-denominator", "invalid-host-observation", "persistence-failed"] },
++    "fallback": {
++      "type": "object", "additionalProperties": false,
++      "required": ["reason_code", "affected_metrics"],
++      "properties": { "reason_code": { "$ref": "#/$defs/reasonCode" }, "affected_metrics": { "type": "array", "items": { "enum": ["input_tokens", "cached_input_tokens", "uncached_input_tokens", "output_tokens", "artifact_reads", "artifact_writes", "tool_output_tokens", "unique_context", "duplicated_context", "amplification"] }, "uniqueItems": true } }
++    }
++  }
++}
+diff --git a/scripts/evals/lib/benchmark.js b/scripts/evals/lib/benchmark.js
+index 8c48af0..998a3fe 100644
+--- a/scripts/evals/lib/benchmark.js
++++ b/scripts/evals/lib/benchmark.js
+@@ -2,6 +2,12 @@
+ 
+ const fs = require("node:fs");
+ const crypto = require("node:crypto");
++const {
++  aggregateContextMeasurements,
++  compareCx0Hypotheses,
++  validateContextMeasurement,
++  canonicalCx0Json,
++} = require("../../lib/context-measurement.js");
+ 
+ const TOKEN_FIELDS = ["estimated_prompt_tokens", "estimated_artifact_tokens", "estimated_tool_output_tokens", "estimated_output_tokens"];
+ const VERIFY_SEVERITIES = ["critical", "warning", "suggestion"];
+@@ -276,6 +282,43 @@ function canonicalJson(value) {
+   return JSON.stringify(value);
+ }
+ 
++/** Reads the additive CX0 stream. Invalid JSONL rows are rejected explicitly;
++ * they are never converted to a zero-valued observation. */
++function readContextMeasurements(filePath) {
++  let raw;
++  try { raw = fs.readFileSync(filePath, "utf8"); }
++  catch (error) { if (error.code === "ENOENT") return { records: [], rejected: [{ reason: "missing-stream" }] }; throw error; }
++  const records = [];
++  const rejected = [];
++  for (const [index, line] of raw.split(/\r?\n/).entries()) {
++    if (!line.trim()) continue;
++    try {
++      const record = JSON.parse(line);
++      const checked = validateContextMeasurement(record);
++      if (!checked.valid) rejected.push({ line: index + 1, errors: checked.errors });
++      else records.push(record);
++    } catch (error) { rejected.push({ line: index + 1, errors: [`invalid-json: ${error.message}`] }); }
++  }
++  return { records, rejected };
++}
++
++/**
++ * Builds a pure advisory diagnostic.  It does not import score, policy, route,
++ * authority, or release modules, which makes CX0 consumption non-authoritative
++ * by construction.
++ */
++function buildCx0Report(records, hypotheses = []) {
++  const report = aggregateContextMeasurements(records);
++  const advisory = compareCx0Hypotheses(report, hypotheses);
++  return {
++    schema: "cx0-cohort-report/v1",
++    advisory: true,
++    aggregation: report,
++    hypotheses: advisory,
++    canonical: canonicalCx0Json({ aggregation: report, hypotheses: advisory }),
++  };
++}
++
+ function referenceDigest(value) { return crypto.createHash("sha256").update(canonicalJson(value)).digest("hex"); }
+ function validDigest(value) { return typeof value === "string" && /^[a-f0-9]{64}$/.test(value); }
+ function validReferenceGeneratedAt(value) {
+@@ -393,4 +436,6 @@ module.exports = {
+   canonicalJson,
+   verifyRowAttestation,
+   canonicalPersistedO1Row,
++  readContextMeasurements,
++  buildCx0Report,
+ };
+diff --git a/scripts/evals/lib/benchmark.test.js b/scripts/evals/lib/benchmark.test.js
+index ab7e820..e94c382 100644
+--- a/scripts/evals/lib/benchmark.test.js
++++ b/scripts/evals/lib/benchmark.test.js
+@@ -20,7 +20,48 @@ const {
+   validateReferenceCandidate,
+   renderReferenceBaseline,
+   deriveReferenceQuality,
++  readContextMeasurements,
++  buildCx0Report,
+ } = require("./benchmark.js");
++const { normalizeContextMeasurement } = require("../../lib/context-measurement.js");
++
++function cx0Record({ unique = 10, duplicated = 0, toolOutput = 0 } = {}) {
++  return normalizeContextMeasurement({
++    observed_at: "2026-09-01T00:00:00.000Z",
++    dimensions: { phase: "apply", classification: "normal", profile: "default", host: "codex" },
++    observations: { input_tokens: 10, cached_input_tokens: 0, uncached_input_tokens: 10, output_tokens: 1, artifact_reads: 0, artifact_writes: 0, tool_output_tokens: toolOutput, unique_context: unique, duplicated_context: duplicated },
++  });
++}
++
++test("CX0 reporting rejects invalid rows, uses only covered samples, and is byte deterministic", async (t) => {
++  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "cx0-benchmark-"));
++  t.after(() => fs.promises.rm(directory, { recursive: true, force: true }));
++  const file = path.join(directory, "context-measurements.jsonl");
++  const usable = cx0Record({ duplicated: 20 });
++  const unavailable = cx0Record({ unique: 0, duplicated: 10 });
++  const invalid = { ...usable, metrics: { ...usable.metrics, input_tokens: { ...usable.metrics.input_tokens, source: "unknown" } } };
++  await fs.promises.writeFile(file, `${JSON.stringify(usable)}\n${JSON.stringify(unavailable)}\n${JSON.stringify(invalid)}\nnot-json\n`, "utf8");
++  const loaded = readContextMeasurements(file);
++  assert.equal(loaded.records.length, 2);
++  assert.equal(loaded.rejected.length, 2);
++  const hypotheses = [{ id: "amplification", metric: "amplification", operator: "lte", target: 2, selector: {} }];
++  const first = buildCx0Report(loaded.records, hypotheses);
++  const second = buildCx0Report([...loaded.records].reverse(), hypotheses);
++  assert.equal(first.canonical, second.canonical);
++  assert.equal(first.advisory, true);
++  assert.equal(first.aggregation.cohorts[0].metrics.amplification.eligible_count, 1);
++  assert.equal(first.aggregation.cohorts[0].metrics.amplification.unavailable_count, 1);
++  assert.equal(first.hypotheses[0].outcome, "contradicted");
++  assert.equal(first.score, undefined);
++  assert.equal(first.route, undefined);
++});
++
++test("CX0 readContextMeasurements handles missing stream returning empty records and rejected missing-stream", () => {
++  const nonExistent = path.join(os.tmpdir(), "non-existent-cx0-" + Date.now() + ".jsonl");
++  const loaded = readContextMeasurements(nonExistent);
++  assert.deepEqual(loaded.records, []);
++  assert.deepEqual(loaded.rejected, [{ reason: "missing-stream" }]);
++});
+ 
+ function temp(t) {
+   const root = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-benchmark-"));
+diff --git a/scripts/hooks/context-measurement-provenance.test.js b/scripts/hooks/context-measurement-provenance.test.js
+new file mode 100644
+index 0000000..10824b3
+--- /dev/null
++++ b/scripts/hooks/context-measurement-provenance.test.js
+@@ -0,0 +1,31 @@
++"use strict";
++
++const assert = require("node:assert/strict");
++const test = require("node:test");
++const { contextMetricObservations } = require("./subagent-stop.js");
++const { normalizeContextMeasurement, validateContextMeasurement } = require("../lib/context-measurement.js");
++
++test("[REQ-hooks-017] CX0 marks uncached input as runtime-derived and never promotes O1 estimates", () => {
++  const observations = contextMetricObservations({}, { input_tokens: 100, cached_input_tokens: 25, output_tokens: 10 }, { prompt: 999 });
++  assert.equal(observations.uncached_input_tokens.source, "runtime-derived");
++  assert.equal(observations.uncached_input_tokens.value, 75);
++  const record = normalizeContextMeasurement({
++    observed_at: "2026-09-01T00:00:00.000Z",
++    dimensions: { phase: "apply", classification: "normal", profile: "default", host: "codex" },
++    observations,
++  });
++  assert.equal(record.metrics.input_tokens.source, "host-observed");
++  assert.equal(record.metrics.uncached_input_tokens.source, "runtime-derived");
++  assert.equal(validateContextMeasurement(record).valid, true);
++});
++
++test("[REQ-hooks-017] CX0 fallback keeps the most specific reason and closed metric envelopes", () => {
++  const record = normalizeContextMeasurement({
++    observed_at: "2026-09-01T00:00:00.000Z",
++    dimensions: { phase: "apply", classification: "normal", profile: "default", host: "codex" },
++    observations: { unique_context: 0, duplicated_context: 1 },
++  });
++  assert.equal(record.metrics.amplification.reason_code, "zero-denominator");
++  assert.equal(record.fallback.reason_code, "zero-denominator");
++  assert.equal(validateContextMeasurement(record).valid, true);
++});
+diff --git a/scripts/hooks/subagent-stop.js b/scripts/hooks/subagent-stop.js
+index ba1d494..ae04b1b 100644
+--- a/scripts/hooks/subagent-stop.js
++++ b/scripts/hooks/subagent-stop.js
+@@ -12,11 +12,13 @@ const {
+ const { validatePath, resolveWorkspaceCwd } = require("../lib/pathsafe.js");
+ const {
+   appendPhaseCost,
++  appendContextMeasurement,
+   findActiveChanges,
+   findOpenSpecRoot,
+   setPhaseSummary,
+   withFileLock,
+ } = require("../lib/ospec-state.js");
++const { normalizeContextMeasurement, validateContextMeasurement } = require("../lib/context-measurement.js");
+ const { writeFileAtomic, recoverOrphanBak } = require("../lib/atomic-write.js");
+ const { extractEnvelope, validateEnvelope } = require("../lib/result-envelope.js");
+ const { resolveModelTier } = require("./lib/model-tier.js");
+@@ -948,6 +950,72 @@ async function persistPhaseCost({ input, workspace }) {
+   }
+ }
+ 
++function readChangeClassification(content) {
++  const match = String(content || "").match(/^classification:\s*([^\s#]+)/m);
++  return match ? match[1].trim().toLowerCase() : "unknown-classification";
++}
++
++function contextMetricObservations(input, tokenUsage, ctx) {
++  const usage = tokenUsage?.usage || tokenUsage || {};
++  const inputTokens = Number.isSafeInteger(usage.input_tokens) ? usage.input_tokens : undefined;
++  const cached = Number.isSafeInteger(usage.cached_input_tokens) ? usage.cached_input_tokens : undefined;
++  return {
++    input_tokens: inputTokens,
++    cached_input_tokens: cached,
++    uncached_input_tokens: inputTokens !== undefined && cached !== undefined && cached <= inputTokens
++      ? { status: "available", value: inputTokens - cached, unit: "count", source: "runtime-derived", coverage: { state: "complete", observed: 2, expected: 2, ratio: 1 }, formula_version: "uncached-input/v1" }
++      : undefined,
++    output_tokens: Number.isSafeInteger(usage.output_tokens) ? usage.output_tokens : undefined,
++    artifact_reads: input?.context_measurement?.artifact_reads,
++    artifact_writes: input?.context_measurement?.artifact_writes,
++    tool_output_tokens: Number.isSafeInteger(input?.context_measurement?.tool_output_tokens) ? input.context_measurement.tool_output_tokens : undefined,
++    unique_context: input?.context_measurement?.unique_context,
++    duplicated_context: input?.context_measurement?.duplicated_context,
++    // Legacy estimated values are deliberately not copied as observed input.
++    // `ctx` is retained to document that the old O1 lane was considered but
++    // was not promoted to CX0 evidence.
++    legacy_o1_present: Boolean(ctx),
++  };
++}
++
++/**
++ * Emits the additive CX0 lane after O1.  It owns a separate fail-safe boundary
++ * so host parsing, normalization, or durable writes cannot change the hook
++ * result, routing, authority, or the legacy phase-cost stream.
++ */
++async function persistContextMeasurement({ input, workspace, append = appendContextMeasurement }) {
++  const canonicalAgentPhase = resolveAgentName(input);
++  const phase = derivePhaseKey(canonicalAgentPhase);
++  try {
++    if (!phase) return { status: "skipped", reason: "unsupported-agent" };
++    const openspecRoot = await findOpenSpecRoot(workspace);
++    const activeChange = (await findActiveChanges(openspecRoot))[0];
++    if (!activeChange) return { status: "skipped", reason: "no-active-change", phase };
++    const tokenUsage = await resolveCodexTokenCountUsageAsync(input, workspace);
++    const ctx = normalizeDispatchCostContext(input, tokenUsage);
++    const host = typeof input?.host === "string" && /^[a-z0-9][a-z0-9-]{0,63}$/i.test(input.host)
++      ? input.host.toLowerCase()
++      : process.env.OSPEC_TARGET === "codex" ? "codex" : "unknown-host";
++    const record = normalizeContextMeasurement({
++      observed_at: new Date().toISOString(),
++      candidate_id: input?.candidate_id,
++      dimensions: {
++        phase,
++        classification: readChangeClassification(activeChange.content),
++        profile: typeof input?.profile === "string" ? input.profile : "unknown-profile",
++        host,
++      },
++      observations: contextMetricObservations(input, tokenUsage, ctx),
++    });
++    const validation = validateContextMeasurement(record);
++    if (!validation.valid) return { status: "skipped", reason: "invalid-normalized-record", phase };
++    await append({ workspace, changeName: activeChange.directoryName, record });
++    return { status: "recorded", phase, change: activeChange.directoryName, fallback: record.fallback.reason_code };
++  } catch {
++    return { status: "skipped", reason: "fail-safe-error", phase: phase || null };
++  }
++}
++
+ function resolveAgentName(input) {
+   for (const candidate of [
+     input?.agent_type,
+@@ -992,6 +1060,10 @@ async function runSubagentStop({
+   // this function's return value or the hook's stdout.
+   await persistPhaseCost({ input, workspace });
+ 
++  // CX0 is intentionally post-O1 and independently fail-safe.  Its return
++  // value is diagnostic-only and never participates in the hook's stdout.
++  await persistContextMeasurement({ input, workspace });
++
+   const resolution =
+     findResolutionInInput(input) ||
+     (await findResolutionInTranscript(resolveTranscriptPath(input)));
+@@ -1074,6 +1146,8 @@ module.exports = {
+   findTextResolution,
+   isDegradedResolution,
+   persistPhaseCost,
++  persistContextMeasurement,
++  contextMetricObservations,
+   resolveCostFieldPresence,
+   persistResultEnvelope,
+   resolveDispatchStatus,
+diff --git a/scripts/hooks/subagent-stop.test.js b/scripts/hooks/subagent-stop.test.js
+index 980e8b3..a8a542a 100644
+--- a/scripts/hooks/subagent-stop.test.js
++++ b/scripts/hooks/subagent-stop.test.js
+@@ -13,6 +13,7 @@ const {
+   findResolutionInInput,
+   findTextResolution,
+   isDegradedResolution,
++  persistContextMeasurement,
+   persistPhaseCost,
+   resolveDispatchStatus,
+   runSubagentStop,
+@@ -20,6 +21,7 @@ const {
+ } = require("./subagent-stop.js");
+ const {
+   PHASE_COST_FILE_NAME,
++  CONTEXT_MEASUREMENT_FILE_NAME,
+   appendPhaseCost,
+ } = require("../lib/ospec-state.js");
+ 
+@@ -698,6 +700,45 @@ async function readPhaseCosts(workspace, changeName) {
+     .map((line) => JSON.parse(line));
+ }
+ 
++async function readContextMeasurements(workspace, changeName) {
++  const filePath = path.join(workspace, ".ospec", "session", changeName, CONTEXT_MEASUREMENT_FILE_NAME);
++  return (await fs.readFile(filePath, "utf8")).trim().split(/\r?\n/).map((line) => JSON.parse(line));
++}
++
++test("SubagentStop emits CX0 after O1 without changing continuation behavior", async (t) => {
++  const { workspace } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
++  const result = await runSubagentStop({ input: {
++    cwd: workspace,
++    agent_type: "sdd-design",
++    host: "codex",
++    profile: "default",
++    telemetry: { estimated_prompt_tokens: 12, estimated_output_tokens: 3 },
++  } });
++  assert.deepEqual(result, { status: "skipped", reason: "resolution-unavailable" });
++  const o1 = await readPhaseCosts(workspace, "strict-result-envelope");
++  const cx0 = await readContextMeasurements(workspace, "strict-result-envelope");
++  assert.equal(o1.length, 1);
++  assert.equal(cx0.length, 1);
++  assert.equal(cx0[0].dimensions.phase, "design");
++  assert.equal(cx0[0].metrics.input_tokens.status, "unavailable", "O1 estimates are not promoted to observed CX0 evidence");
++});
++
++test("CX0 degradation and write failures are isolated from legacy hook work", async (t) => {
++  const { workspace } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
++  const degraded = await persistContextMeasurement({ input: { cwd: workspace, agent_type: "sdd-apply", host: "bad host!" }, workspace });
++  assert.equal(degraded.status, "recorded");
++  const [record] = await readContextMeasurements(workspace, "strict-result-envelope");
++  assert.equal(record.dimensions.host, "unknown-host");
++  assert.equal(record.metrics.input_tokens.status, "unavailable");
++  const failed = await persistContextMeasurement({
++    input: { cwd: workspace, agent_type: "sdd-apply" }, workspace,
++    append: async () => { throw new Error("disk full"); },
++  });
++  assert.deepEqual(failed, { status: "skipped", reason: "fail-safe-error", phase: "apply" });
++  await persistPhaseCost({ input: { cwd: workspace, agent_type: "sdd-apply", estimated_prompt_tokens: 1 }, workspace });
++  assert.equal((await readPhaseCosts(workspace, "strict-result-envelope")).length, 1);
++});
++
+ test("persistPhaseCost writes a record for an active change (phase, agent, est_tokens, status, ts)", async (t) => {
+   const { workspace } = await createChangeWorkspace(
+     t,
+diff --git a/scripts/lib/context-measurement-hypotheses.test.js b/scripts/lib/context-measurement-hypotheses.test.js
+new file mode 100644
+index 0000000..01457f0
+--- /dev/null
++++ b/scripts/lib/context-measurement-hypotheses.test.js
+@@ -0,0 +1,59 @@
++"use strict";
++
++const assert = require("node:assert/strict");
++const path = require("node:path");
++const test = require("node:test");
++const {
++  aggregateContextMeasurements,
++  compareCx0Hypotheses,
++  loadCx0Hypotheses,
++  normalizeContextMeasurement,
++} = require("./context-measurement.js");
++
++const REGISTRY = path.resolve(__dirname, "../../schemas/telemetry/context-measurement/hypotheses.v1.json");
++
++function record({ duplicated = 0, unavailable = false } = {}) {
++  const item = normalizeContextMeasurement({
++    observed_at: "2026-09-01T00:00:00.000Z",
++    dimensions: { phase: "apply", classification: "normal", profile: "default", host: "codex" },
++    observations: { input_tokens: 20, cached_input_tokens: 0, uncached_input_tokens: 20, output_tokens: 1, artifact_reads: 0, artifact_writes: 0, tool_output_tokens: 0, unique_context: unavailable ? 0 : 10, duplicated_context: duplicated },
++  });
++  return item;
++}
++
++test("[REQ-context-measurement-004] CX0 hypothesis registry binds stable IDs, formula versions and advisory metadata", () => {
++  const hypotheses = loadCx0Hypotheses(REGISTRY);
++  assert.deepEqual(hypotheses.map((item) => item.id), ["cx0-amplification-below-two", "cx0-duplication-share-below-half", "cx0-fallback-rate-below-quarter"]);
++  for (const item of hypotheses) {
++    assert.match(item.formula_version, /\/v1$/);
++    assert.equal(item.metadata.aggregation_version, "cx0-cohort-report/v1");
++    assert.equal(typeof item.metadata.coverage_requirement, "string");
++  }
++});
++
++test("[REQ-context-measurement-004] CX0 compares the canonical duplication and fallback formulas without creating policy output", () => {
++  const report = aggregateContextMeasurements([record({ duplicated: 10 }), record({ duplicated: 0, unavailable: true })]);
++  const hypotheses = loadCx0Hypotheses(REGISTRY);
++  const results = compareCx0Hypotheses(report, hypotheses);
++  const duplication = results.find((item) => item.id === "cx0-duplication-share-below-half");
++  const fallback = results.find((item) => item.id === "cx0-fallback-rate-below-quarter");
++  assert.equal(duplication.value, 0.5);
++  assert.equal(duplication.outcome, "contradicted");
++  assert.equal(fallback.value, 0.5);
++  assert.equal(fallback.outcome, "contradicted");
++  assert.equal(results.some((item) => "gate" in item || "authority" in item || "route" in item), false);
++});
++
++test("[REQ-context-measurement-004] CX0 classifies supported and insufficient-evidence outcomes correctly", () => {
++  const report = aggregateContextMeasurements([record({ duplicated: 2 })]);
++  const supportedHypothesis = { id: "test-supported", metric: "duplication_share", operator: "lte", target: 0.5, formula_version: "duplication-share/v1", selector: {}, metadata: {} };
++  const insufficientHypothesis = { id: "test-insufficient", metric: "unknown_metric", operator: "lte", target: 0.5, formula_version: "test/v1", selector: { phase: "nonexistent" }, metadata: {} };
++  const results = compareCx0Hypotheses(report, [supportedHypothesis, insufficientHypothesis]);
++  assert.equal(results[0].outcome, "supported");
++  assert.equal(results[1].outcome, "insufficient-evidence");
++  assert.equal(results[1].coverage.cohorts, 0);
++});
++
++test("[REQ-context-measurement-004] loadCx0Hypotheses rejects missing files and malformed descriptor structures", () => {
++  assert.throws(() => loadCx0Hypotheses("non-existent-path.json"), /Failed to load CX0 hypothesis registry/);
++});
+diff --git a/scripts/lib/context-measurement-schema.test.js b/scripts/lib/context-measurement-schema.test.js
+new file mode 100644
+index 0000000..3da22a2
+--- /dev/null
++++ b/scripts/lib/context-measurement-schema.test.js
+@@ -0,0 +1,28 @@
++"use strict";
++
++const assert = require("node:assert/strict");
++const fs = require("node:fs");
++const path = require("node:path");
++const test = require("node:test");
++const { validateContextMeasurement } = require("./context-measurement.js");
++
++const ROOT = path.resolve(__dirname, "../../schemas/telemetry/context-measurement");
++const read = (relative) => JSON.parse(fs.readFileSync(path.join(ROOT, relative), "utf8"));
++
++test("[REQ-context-measurement-001] CX0 v1 schema closes dimensions, metric unions, sources and fallback codes", () => {
++  const schema = read("v1.schema.json");
++  assert.equal(schema.additionalProperties, false);
++  assert.equal(schema.$defs.metrics.additionalProperties, false);
++  assert.deepEqual(schema.$defs.availableMetric.properties.source.enum, ["host-observed", "runtime-derived", "estimated"]);
++  assert.ok(schema.$defs.unavailableMetric.required.includes("reason_code"));
++  assert.ok(schema.$defs.metrics.required.includes("amplification"));
++});
++
++test("[REQ-context-measurement-001] CX0 committed full and degraded fixtures are valid while named invalid fixtures are rejected", () => {
++  for (const fixture of ["fixtures/valid/full.json", "fixtures/valid/degraded.json"]) {
++    assert.equal(validateContextMeasurement(read(fixture)).valid, true, fixture);
++  }
++  for (const fixture of ["fixtures/invalid/unknown-source.json", "fixtures/invalid/missing-reason.json", "fixtures/invalid/partial-kpi.json", "fixtures/invalid/payload-rejection.json"]) {
++    assert.equal(validateContextMeasurement(read(fixture)).valid, false, fixture);
++  }
++});
+diff --git a/scripts/lib/context-measurement.js b/scripts/lib/context-measurement.js
+new file mode 100644
+index 0000000..28b279e
+--- /dev/null
++++ b/scripts/lib/context-measurement.js
+@@ -0,0 +1,206 @@
++"use strict";
++
++const fs = require("node:fs");
++
++const SCHEMA = "ospec-context-measurement/v1";
++const METRICS = [
++  "input_tokens", "cached_input_tokens", "uncached_input_tokens", "output_tokens",
++  "artifact_reads", "artifact_writes", "tool_output_tokens", "unique_context",
++  "duplicated_context", "amplification",
++];
++const SOURCES = new Set(["host-observed", "runtime-derived", "estimated"]);
++const COVERAGE = new Set(["complete", "partial", "unavailable"]);
++const REASONS = new Set(["none", "host-field-unavailable", "partial-coverage", "incompatible-components", "zero-denominator", "invalid-host-observation", "persistence-failed"]);
++const IDENTIFIER = /^[a-z0-9][a-z0-9-]{0,63}$/;
++const CANDIDATE = /^sha256:[a-f0-9]{64}$/;
++
++function canonicalCx0Json(value) {
++  if (Array.isArray(value)) return `[${value.map(canonicalCx0Json).join(",")}]`;
++  if (value && typeof value === "object") return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalCx0Json(value[key])}`).join(",")}}`;
++  return JSON.stringify(value);
++}
++
++function count(value) {
++  return Number.isSafeInteger(value) && value >= 0 && value <= 1_000_000_000_000;
++}
++
++function coverage(state, observed = 0, expected = 0) {
++  return { state, observed, expected, ratio: expected > 0 ? observed / expected : 0 };
++}
++
++function unavailable(reason_code, expected_source = "host-observed") {
++  return { status: "unavailable", source: expected_source, coverage: coverage("unavailable"), reason_code };
++}
++
++function available(value, source, metricCoverage, formula_version) {
++  const metric = { status: "available", value, unit: "count", source, coverage: metricCoverage };
++  if (formula_version) metric.formula_version = formula_version;
++  return metric;
++}
++
++function compareStrings(left, right) {
++  if (left < right) return -1;
++  return left > right ? 1 : 0;
++}
++
++function metricFromObservation(value, source = "host-observed") {
++  return count(value) ? available(value, source, coverage("complete", 1, 1)) : unavailable("host-field-unavailable", source);
++}
++
++function deriveContextKpis(metrics) {
++  const unique = metrics.unique_context;
++  const duplicated = metrics.duplicated_context;
++  if (!unique || !duplicated || unique.status !== "available" || duplicated.status !== "available") {
++    return { ...metrics, amplification: unavailable("partial-coverage", "runtime-derived") };
++  }
++  if (!unique.coverage || !duplicated.coverage || unique.coverage.state !== "complete" || duplicated.coverage.state !== "complete") {
++    return { ...metrics, amplification: unavailable("partial-coverage", "runtime-derived") };
++  }
++  if (unique.source !== duplicated.source && unique.source !== "runtime-derived" && duplicated.source !== "runtime-derived") {
++    return { ...metrics, amplification: unavailable("incompatible-components", "runtime-derived") };
++  }
++  if (unique.value <= 0) {
++    return { ...metrics, amplification: unavailable("zero-denominator", "runtime-derived") };
++  }
++  return { ...metrics, amplification: available((unique.value + duplicated.value) / unique.value, "runtime-derived", coverage("complete", 2, 2), "amplification/v1") };
++}
++
++function normalizeContextMeasurement(input = {}) {
++  const observations = input.observations || input.metrics || {};
++  const dimensions = input.dimensions || {};
++  const source = input.source || "host-observed";
++  const metrics = {};
++  for (const name of METRICS.filter((metric) => metric !== "amplification")) {
++    metrics[name] = observations[name]?.status ? observations[name] : metricFromObservation(observations[name], source);
++  }
++  const normalized = {
++    schema: SCHEMA,
++    observed_at: typeof input.observed_at === "string" ? input.observed_at : new Date().toISOString(),
++    dimensions: {
++      phase: String(dimensions.phase || "unknown-phase").toLowerCase(),
++      classification: String(dimensions.classification || "unknown-classification").toLowerCase(),
++      profile: String(dimensions.profile || "unknown-profile").toLowerCase(),
++      host: String(dimensions.host || "unknown-host").toLowerCase(),
++    },
++    metrics: deriveContextKpis(metrics),
++    fallback: { reason_code: "none", affected_metrics: [] },
++  };
++  if (typeof input.candidate_id === "string" && CANDIDATE.test(input.candidate_id)) normalized.candidate_id = input.candidate_id;
++  const affected = METRICS.filter((name) => normalized.metrics[name].status === "unavailable");
++  if (affected.length) {
++    const preferred = ["zero-denominator", "incompatible-components", "partial-coverage", "invalid-host-observation"];
++    const reason = preferred.find((code) => affected.some((name) => normalized.metrics[name].reason_code === code)) || "host-field-unavailable";
++    normalized.fallback = { reason_code: reason, affected_metrics: affected };
++  }
++  return normalized;
++}
++
++function validateCoverage(value, path, errors) {
++  if (!value || typeof value !== "object" || !COVERAGE.has(value.state) || !count(value.observed) || !count(value.expected) || typeof value.ratio !== "number" || value.ratio < 0 || value.ratio > 1) errors.push(`${path}: invalid coverage`);
++}
++
++function validateContextMeasurement(record) {
++  const errors = [];
++  if (!record || typeof record !== "object" || Array.isArray(record)) return { valid: false, errors: ["record: must be an object"] };
++  const allowed = new Set(["schema", "observed_at", "dimensions", "candidate_id", "metrics", "fallback"]);
++  for (const key of Object.keys(record)) if (!allowed.has(key)) errors.push(`record: unexpected key ${key}`);
++  if (record.schema !== SCHEMA) errors.push("schema: unsupported");
++  if (typeof record.observed_at !== "string" || Number.isNaN(Date.parse(record.observed_at))) errors.push("observed_at: invalid");
++  if (record.candidate_id !== undefined && !CANDIDATE.test(record.candidate_id)) errors.push("candidate_id: invalid");
++  for (const key of ["phase", "classification", "profile", "host"]) if (!IDENTIFIER.test(record.dimensions?.[key] || "")) errors.push(`dimensions.${key}: invalid`);
++  const metricKeys = Object.keys(record.metrics || {});
++  if (metricKeys.length !== METRICS.length || METRICS.some((key) => !metricKeys.includes(key))) errors.push("metrics: required metric set is incomplete");
++  for (const key of METRICS) {
++    const metric = record.metrics?.[key];
++    if (!metric || typeof metric !== "object" || !["available", "unavailable"].includes(metric.status) || !SOURCES.has(metric.source)) { errors.push(`metrics.${key}: invalid envelope`); continue; }
++    const allowedMetricKeys = metric.status === "available"
++      ? new Set(["status", "value", "unit", "source", "coverage", "formula_version"])
++      : new Set(["status", "source", "coverage", "reason_code"]);
++    if (Object.keys(metric).some((name) => !allowedMetricKeys.has(name))) errors.push(`metrics.${key}: unexpected key`);
++    validateCoverage(metric.coverage, `metrics.${key}`, errors);
++    if (metric.status === "available") {
++      if (typeof metric.value !== "number" || !Number.isFinite(metric.value) || metric.value < 0 || metric.coverage?.state !== "complete") errors.push(`metrics.${key}: invalid available value`);
++      if (key === "amplification" && metric.formula_version !== "amplification/v1") errors.push("metrics.amplification: missing formula version");
++    } else if (metric.value !== undefined || !REASONS.has(metric.reason_code)) errors.push(`metrics.${key}: unavailable requires reason without value`);
++  }
++  if (!record.fallback || !REASONS.has(record.fallback.reason_code) || !Array.isArray(record.fallback.affected_metrics) || record.fallback.affected_metrics.some((name) => !METRICS.includes(name))) errors.push("fallback: invalid");
++  if (record.fallback?.reason_code === "none" && record.fallback?.affected_metrics?.length) errors.push("fallback: none cannot affect metrics");
++  if (record.fallback?.reason_code !== "none" && record.fallback?.affected_metrics?.length === 0) errors.push("fallback: degradation requires affected metrics");
++  return { valid: errors.length === 0, errors };
++}
++
++/**
++ * Computes nearest-rank percentile for a pre-sorted numeric array.
++ * @param {number[]} values - Ascending-sorted numeric values
++ * @param {number} percentile - Percentile between 0 and 1
++ */
++function nearestRank(values, percentile) {
++  return values[Math.max(0, Math.ceil(percentile * values.length) - 1)];
++}
++
++function aggregateContextMeasurements(records) {
++  const cohorts = new Map();
++  const rejected = [];
++  for (const record of records || []) {
++    const checked = validateContextMeasurement(record);
++    if (!checked.valid) { rejected.push({ errors: checked.errors }); continue; }
++    const key = [record.dimensions.phase, record.dimensions.classification, record.dimensions.profile, record.dimensions.host].join("\u0000");
++    if (!cohorts.has(key)) cohorts.set(key, { dimensions: record.dimensions, records: [] });
++    cohorts.get(key).records.push(record);
++  }
++  const result = [...cohorts.values()].sort((a, b) => compareStrings(canonicalCx0Json(a.dimensions), canonicalCx0Json(b.dimensions))).map((cohort) => {
++    const metrics = {};
++    for (const name of METRICS) {
++      const samples = cohort.records.filter((record) => record.metrics[name].status === "available").map((record) => record.metrics[name]).sort((a, b) => a.value - b.value);
++      const sources = Object.fromEntries([...new Set(samples.map((sample) => sample.source))].sort().map((source) => [source, samples.filter((sample) => sample.source === source).length]));
++      metrics[name] = samples.length ? { status: "available", p50: nearestRank(samples.map((sample) => sample.value), .5), p90: nearestRank(samples.map((sample) => sample.value), .9), eligible_count: samples.length, unavailable_count: cohort.records.length - samples.length, source_composition: sources, formula_versions: [...new Set(samples.map((sample) => sample.formula_version).filter(Boolean))].sort() } : { status: "unavailable", eligible_count: 0, unavailable_count: cohort.records.length, source_composition: {}, formula_versions: [] };
++    }
++    const duplicationSamples = cohort.records
++      .filter((record) => record.metrics.unique_context.status === "available" && record.metrics.duplicated_context.status === "available")
++      .map((record) => {
++        const total = record.metrics.unique_context.value + record.metrics.duplicated_context.value;
++        return total > 0 ? record.metrics.duplicated_context.value / total : null;
++      }).filter((value) => value !== null).sort((a, b) => a - b);
++    const fallbackCount = cohort.records.filter((record) => record.fallback.reason_code !== "none").length;
++    const diagnostics = {
++      duplication_share: duplicationSamples.length ? { status: "available", p50: nearestRank(duplicationSamples, .5), p90: nearestRank(duplicationSamples, .9), eligible_count: duplicationSamples.length, unavailable_count: cohort.records.length - duplicationSamples.length, formula_version: "duplication-share/v1" } : { status: "unavailable", eligible_count: 0, unavailable_count: cohort.records.length, formula_version: "duplication-share/v1" },
++      fallback_rate: { status: "available", p50: fallbackCount / cohort.records.length, p90: fallbackCount / cohort.records.length, eligible_count: cohort.records.length, unavailable_count: 0, formula_version: "fallback-rate/v1" },
++    };
++    return { dimensions: cohort.dimensions, cohort_size: cohort.records.length, metrics, diagnostics };
++  });
++  return { schema: "cx0-cohort-report/v1", cohorts: result, rejected_count: rejected.length, rejected };
++}
++
++function loadCx0Hypotheses(filePath) {
++  let parsed;
++  try {
++    parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
++  } catch (error) {
++    throw new Error(`Failed to load CX0 hypothesis registry at ${filePath}: ${error.message}`);
++  }
++  if (!parsed || typeof parsed !== "object" || parsed.schema !== "ospec-cx0-hypotheses/v1" || !Array.isArray(parsed.hypotheses)) throw new Error("Invalid CX0 hypothesis registry.");
++  const ids = new Set();
++  for (const hypothesis of parsed.hypotheses) {
++    if (!hypothesis || typeof hypothesis !== "object" || !/^[a-z0-9][a-z0-9-]{2,127}$/.test(hypothesis.id || "") || ids.has(hypothesis.id) || !["lt", "lte", "gt", "gte"].includes(hypothesis.operator) || !Number.isFinite(hypothesis.target) || typeof hypothesis.formula_version !== "string" || !hypothesis.formula_version || !hypothesis.selector || typeof hypothesis.selector !== "object" || !hypothesis.metadata || typeof hypothesis.metadata !== "object") throw new Error("Invalid CX0 hypothesis descriptor.");
++    ids.add(hypothesis.id);
++  }
++  return parsed.hypotheses.map((hypothesis) => ({ ...hypothesis, selector: { ...hypothesis.selector }, metadata: { ...hypothesis.metadata } }));
++}
++
++function hypothesisMetric(cohorts, hypothesis) {
++  const matching = cohorts.filter((cohort) => Object.entries(hypothesis.selector || {}).every(([key, value]) => cohort.dimensions[key] === value));
++  const values = matching.map((cohort) => cohort.diagnostics?.[hypothesis.metric] || cohort.metrics[hypothesis.metric]).filter((metric) => metric && metric.status === "available");
++  if (!values.length) return null;
++  return values.reduce((sum, value) => sum + (typeof value === "number" ? value : value.p50), 0) / values.length;
++}
++
++function compareCx0Hypotheses(report, hypotheses) {
++  return (hypotheses || []).map((hypothesis) => {
++    const value = hypothesisMetric(report.cohorts || [], hypothesis);
++    if (value === null) return { id: hypothesis.id, outcome: "insufficient-evidence", coverage: { cohorts: 0 } };
++    const supported = { lt: value < hypothesis.target, lte: value <= hypothesis.target, gt: value > hypothesis.target, gte: value >= hypothesis.target }[hypothesis.operator];
++    return { id: hypothesis.id, outcome: supported ? "supported" : "contradicted", value, target: hypothesis.target, operator: hypothesis.operator, formula_version: hypothesis.formula_version, metadata: hypothesis.metadata, aggregation_version: report.schema, coverage: { cohorts: report.cohorts.length } };
++  });
++}
++
++module.exports = { SCHEMA, METRICS, normalizeContextMeasurement, validateContextMeasurement, deriveContextKpis, aggregateContextMeasurements, loadCx0Hypotheses, compareCx0Hypotheses, canonicalCx0Json };
+diff --git a/scripts/lib/context-measurement.test.js b/scripts/lib/context-measurement.test.js
+new file mode 100644
+index 0000000..b95b199
+--- /dev/null
++++ b/scripts/lib/context-measurement.test.js
+@@ -0,0 +1,111 @@
++"use strict";
++
++const assert = require("node:assert/strict");
++const fs = require("node:fs");
++const path = require("node:path");
++const test = require("node:test");
++const {
++  aggregateContextMeasurements,
++  canonicalCx0Json,
++  compareCx0Hypotheses,
++  deriveContextKpis,
++  normalizeContextMeasurement,
++  validateContextMeasurement,
++} = require("./context-measurement.js");
++
++function full(overrides = {}) {
++  return normalizeContextMeasurement({
++    observed_at: "2026-09-01T00:00:00.000Z",
++    dimensions: { phase: "apply", classification: "normal", profile: "default", host: "codex" },
++    observations: { input_tokens: 100, cached_input_tokens: 10, uncached_input_tokens: 90, output_tokens: 20, artifact_reads: 1, artifact_writes: 1, tool_output_tokens: 5, unique_context: 80, duplicated_context: 20 },
++    ...overrides,
++  });
++}
++
++test("[REQ-context-measurement-001] normalizes fully observed bounded counters without payloads", () => {
++  const record = full({ observations: { input_tokens: 100, cached_input_tokens: 10, uncached_input_tokens: 90, output_tokens: 20, artifact_reads: 1, artifact_writes: 1, tool_output_tokens: 5, unique_context: 80, duplicated_context: 20, prompt: "secret" } });
++  assert.equal(validateContextMeasurement(record).valid, true);
++  assert.equal(record.metrics.input_tokens.value, 100);
++  assert.equal(record.metrics.amplification.value, 1.25);
++  assert.equal(record.metrics.amplification.formula_version, "amplification/v1");
++  assert.doesNotMatch(canonicalCx0Json(record), /secret/);
++});
++
++test("[REQ-context-measurement-002] amplification stays unavailable for missing, partial, incompatible and zero inputs", () => {
++  for (const input of [
++    { unique_context: 0, duplicated_context: 2 },
++    { unique_context: 10 },
++  ]) {
++    const metric = full({ observations: { input_tokens: 1, cached_input_tokens: 0, uncached_input_tokens: 1, output_tokens: 0, artifact_reads: 0, artifact_writes: 0, tool_output_tokens: 0, ...input } }).metrics.amplification;
++    assert.equal(metric.status, "unavailable");
++    assert.equal(metric.value, undefined);
++  }
++  const metrics = full().metrics;
++  metrics.duplicated_context.coverage.state = "partial";
++  assert.equal(deriveContextKpis(metrics).amplification.reason_code, "partial-coverage");
++});
++
++test("[REQ-context-measurement-001] rejects missing metric reasons, unknown sources and malformed metric sets", () => {
++  const record = full();
++  record.metrics.input_tokens.source = "invented";
++  record.metrics.output_tokens = { status: "unavailable", source: "host-observed", coverage: { state: "unavailable", observed: 0, expected: 0, ratio: 0 } };
++  const validation = validateContextMeasurement(record);
++  assert.equal(validation.valid, false);
++  assert.ok(validation.errors.some((error) => /input_tokens/.test(error)));
++  assert.ok(validation.errors.some((error) => /output_tokens/.test(error)));
++});
++
++test("[REQ-context-measurement-003] aggregates cohorts canonically with nearest-rank percentiles and unavailable counts", () => {
++  const first = full({ observations: { input_tokens: 1, cached_input_tokens: 0, uncached_input_tokens: 1, output_tokens: 0, artifact_reads: 0, artifact_writes: 0, tool_output_tokens: 0, unique_context: 10, duplicated_context: 0 } });
++  const second = full({ observations: { input_tokens: 1, cached_input_tokens: 0, uncached_input_tokens: 1, output_tokens: 0, artifact_reads: 0, artifact_writes: 0, tool_output_tokens: 0, unique_context: 10, duplicated_context: 20 } });
++  second.metrics.tool_output_tokens = { status: "unavailable", source: "host-observed", coverage: { state: "unavailable", observed: 0, expected: 0, ratio: 0 }, reason_code: "host-field-unavailable" };
++  const a = aggregateContextMeasurements([second, first]);
++  const b = aggregateContextMeasurements([first, second]);
++  assert.equal(canonicalCx0Json(a), canonicalCx0Json(b));
++  assert.equal(a.cohorts[0].metrics.amplification.p50, 1);
++  assert.equal(a.cohorts[0].metrics.amplification.p90, 3);
++  assert.equal(a.cohorts[0].metrics.tool_output_tokens.eligible_count, 1);
++  assert.equal(a.cohorts[0].metrics.tool_output_tokens.unavailable_count, 1);
++});
++
++test("[REQ-context-measurement-004] hypothesis comparisons remain advisory and classify contradiction", () => {
++  const report = aggregateContextMeasurements([full({ observations: { input_tokens: 1, cached_input_tokens: 0, uncached_input_tokens: 1, output_tokens: 0, artifact_reads: 0, artifact_writes: 0, tool_output_tokens: 0, unique_context: 10, duplicated_context: 30 } })]);
++  const [result] = compareCx0Hypotheses(report, [{ id: "h", metric: "amplification", operator: "lte", target: 2, selector: {} }]);
++  assert.equal(result.outcome, "contradicted");
++  assert.equal(result.gate, undefined);
++});
++
++test("[REQ-context-measurement-001] committed full fixture satisfies the semantic validator", () => {
++  const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, "../../schemas/telemetry/context-measurement/fixtures/valid/full.json"), "utf8"));
++  assert.equal(validateContextMeasurement(fixture).valid, true);
++});
++
++test("[REQ-context-measurement-002] deriveContextKpis safely degrades without throwing on missing coverage objects", () => {
++  const metrics = full().metrics;
++  delete metrics.unique_context.coverage;
++  const result = deriveContextKpis(metrics);
++  assert.equal(result.amplification.status, "unavailable");
++  assert.equal(result.amplification.reason_code, "partial-coverage");
++});
++
++test("[REQ-context-measurement-003] cohort handles 100% unavailable metric samples without emitting p50/p90", () => {
++  const record = full({ observations: { tool_output_tokens: undefined } });
++  record.metrics.tool_output_tokens = { status: "unavailable", source: "host-observed", coverage: { state: "unavailable", observed: 0, expected: 0, ratio: 0 }, reason_code: "host-field-unavailable" };
++  const report = aggregateContextMeasurements([record]);
++  const metric = report.cohorts[0].metrics.tool_output_tokens;
++  assert.equal(metric.status, "unavailable");
++  assert.equal(metric.eligible_count, 0);
++  assert.equal(metric.unavailable_count, 1);
++  assert.equal(metric.p50, undefined);
++  assert.equal(metric.p90, undefined);
++});
++
++test("[REQ-context-measurement-003] cohort sorting is lexicographical and independent of system locale", () => {
++  const c1 = full({ dimensions: { phase: "apply", classification: "normal", profile: "a-profile", host: "codex" } });
++  const c2 = full({ dimensions: { phase: "apply", classification: "normal", profile: "z-profile", host: "codex" } });
++  const reportA = aggregateContextMeasurements([c2, c1]);
++  const reportB = aggregateContextMeasurements([c1, c2]);
++  assert.equal(reportA.cohorts[0].dimensions.profile, "a-profile");
++  assert.equal(reportA.cohorts[1].dimensions.profile, "z-profile");
++  assert.equal(canonicalCx0Json(reportA), canonicalCx0Json(reportB));
++});
+diff --git a/scripts/lib/ospec-state.js b/scripts/lib/ospec-state.js
+index 48cda41..436ca9c 100644
+--- a/scripts/lib/ospec-state.js
++++ b/scripts/lib/ospec-state.js
+@@ -21,6 +21,7 @@ const TERMINAL_STATUSES = new Set([
+ const RUNTIME_EVENT_RELATIVE_PATH =
+   ".ospec/runtime/subagent-events.jsonl";
+ const PHASE_COST_FILE_NAME = "phase-costs.jsonl";
++const CONTEXT_MEASUREMENT_FILE_NAME = "context-measurements.jsonl";
+ 
+ function compareStrings(left, right) {
+   if (left < right) {
+@@ -780,6 +781,23 @@ async function appendPhaseCost({ workspace, changeName, record }) {
+   };
+ }
+ 
++/**
++ * Appends one immutable CX0 record beside legacy O1 phase costs.  This keeps
++ * field-level availability out of the zero-filled O1 compatibility lane.
++ * Callers own record validation so this primitive can remain a minimal locked
++ * JSONL transport just like appendRuntimeEvent.
++ */
++async function appendContextMeasurement({ workspace, changeName, record }) {
++  if (!workspace || typeof workspace !== "string") throw new TypeError("workspace is required.");
++  if (!changeName || typeof changeName !== "string") throw new TypeError("changeName is required.");
++  if (!record || typeof record !== "object" || Array.isArray(record)) throw new TypeError("record must be an object.");
++  const filePath = path.join(path.resolve(workspace), ".ospec", "session", changeName, CONTEXT_MEASUREMENT_FILE_NAME);
++  await fs.mkdir(path.dirname(filePath), { recursive: true });
++  const line = `${JSON.stringify(record)}\n`;
++  await withFileLock(filePath, () => fs.appendFile(filePath, line, "utf8"));
++  return { path: toPortablePath(path.relative(path.resolve(workspace), filePath)), absolutePath: filePath, record };
++}
++
+ /**
+  * detectSpecDrift / readStagedFiles / matchesGlobs — domain-drift primitives.
+  *
+@@ -1091,6 +1109,8 @@ const { resolveTddMode } = require("./tdd-mode.js");
+ module.exports = {
+   RUNTIME_EVENT_RELATIVE_PATH,
+   PHASE_COST_FILE_NAME,
++  CONTEXT_MEASUREMENT_FILE_NAME,
++  appendContextMeasurement,
+   LOCK_RETRY_ATTEMPTS,
+   LOCK_RETRY_DELAY_MS,
+   LOCK_STALE_MS,
+diff --git a/scripts/lib/ospec-state.test.js b/scripts/lib/ospec-state.test.js
+index 1c777f9..afffd47 100644
+--- a/scripts/lib/ospec-state.test.js
++++ b/scripts/lib/ospec-state.test.js
+@@ -8,6 +8,8 @@ const test = require("node:test");
+ 
+ const {
+   RUNTIME_EVENT_RELATIVE_PATH,
++  CONTEXT_MEASUREMENT_FILE_NAME,
++  appendContextMeasurement,
+   PHASE_COST_FILE_NAME,
+   appendPhaseCost,
+   appendRuntimeEvent,
+@@ -250,6 +252,28 @@ test("appendPhaseCost serializes concurrent writers without corrupting lines", a
+   assert.deepEqual(estTokens, Array.from({ length: count }, (_unused, i) => i));
+ });
+ 
++test("appendContextMeasurement serializes concurrent immutable JSONL rows with a final newline", async (t) => {
++  const workspace = await createWorkspace(t);
++  const changeName = "cx0";
++  await Promise.all(Array.from({ length: 20 }, (_unused, index) =>
++    appendContextMeasurement({ workspace, changeName, record: { schema: "ospec-context-measurement/v1", index } }),
++  ));
++  const filePath = path.join(workspace, ".ospec", "session", changeName, CONTEXT_MEASUREMENT_FILE_NAME);
++  const raw = await fs.readFile(filePath, "utf8");
++  assert.ok(raw.endsWith("\n"));
++  const rows = raw.trim().split(/\r?\n/).map((line) => JSON.parse(line));
++  assert.equal(rows.length, 20);
++  assert.deepEqual(rows.map((row) => row.index).sort((a, b) => a - b), Array.from({ length: 20 }, (_unused, index) => index));
++});
++
++test("appendContextMeasurement propagates a durable write failure without creating an O1 row", async (t) => {
++  const workspace = await createWorkspace(t);
++  const sessionPath = path.join(workspace, ".ospec", "session", "blocked");
++  await fs.mkdir(path.dirname(sessionPath), { recursive: true });
++  await fs.writeFile(sessionPath, "not a directory", "utf8");
++  await assert.rejects(appendContextMeasurement({ workspace, changeName: "blocked", record: {} }));
++});
++
+ test("appendPhaseCost reclaims a stale orphaned lock instead of stalling forever", async (t) => {
+   const workspace = await createWorkspace(t);
+   const changeName = "add-change-cost-telemetry";

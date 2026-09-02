@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ospec.dev/schemas/telemetry/context-measurement/v1.schema.json",
+  "title": "ospec-context-measurement/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "observed_at", "dimensions", "metrics", "fallback"],
+  "properties": {
+    "schema": { "const": "ospec-context-measurement/v1" },
+    "observed_at": { "type": "string", "format": "date-time", "maxLength": 64 },
+    "candidate_id": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "dimensions": { "$ref": "#/$defs/dimensions" },
+    "metrics": { "$ref": "#/$defs/metrics" },
+    "fallback": { "$ref": "#/$defs/fallback" }
+  },
+  "$defs": {
+    "identifier": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$" },
+    "count": { "type": "integer", "minimum": 0, "maximum": 1000000000000 },
+    "dimensions": {
+      "type": "object", "additionalProperties": false,
+      "required": ["phase", "classification", "profile", "host"],
+      "properties": { "phase": { "$ref": "#/$defs/identifier" }, "classification": { "$ref": "#/$defs/identifier" }, "profile": { "$ref": "#/$defs/identifier" }, "host": { "$ref": "#/$defs/identifier" } }
+    },
+    "coverage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["state", "observed", "expected", "ratio"],
+      "properties": { "state": { "enum": ["complete", "partial", "unavailable"] }, "observed": { "$ref": "#/$defs/count" }, "expected": { "$ref": "#/$defs/count" }, "ratio": { "type": "number", "minimum": 0, "maximum": 1 } }
+    },
+    "availableMetric": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "value", "unit", "source", "coverage"],
+      "properties": { "status": { "const": "available" }, "value": { "type": "number", "minimum": 0, "maximum": 1000000000000 }, "unit": { "const": "count" }, "source": { "enum": ["host-observed", "runtime-derived", "estimated"] }, "coverage": { "$ref": "#/$defs/coverage" }, "formula_version": { "type": "string", "pattern": "^[a-z][a-z0-9-]*/v[1-9][0-9]*$" } }
+    },
+    "unavailableMetric": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "source", "coverage", "reason_code"],
+      "properties": { "status": { "const": "unavailable" }, "source": { "enum": ["host-observed", "runtime-derived", "estimated"] }, "coverage": { "$ref": "#/$defs/coverage" }, "reason_code": { "$ref": "#/$defs/reasonCode" } }
+    },
+    "metric": { "oneOf": [{ "$ref": "#/$defs/availableMetric" }, { "$ref": "#/$defs/unavailableMetric" }] },
+    "metrics": {
+      "type": "object", "additionalProperties": false,
+      "required": ["input_tokens", "cached_input_tokens", "uncached_input_tokens", "output_tokens", "artifact_reads", "artifact_writes", "tool_output_tokens", "unique_context", "duplicated_context", "amplification"],
+      "properties": { "input_tokens": { "$ref": "#/$defs/metric" }, "cached_input_tokens": { "$ref": "#/$defs/metric" }, "uncached_input_tokens": { "$ref": "#/$defs/metric" }, "output_tokens": { "$ref": "#/$defs/metric" }, "artifact_reads": { "$ref": "#/$defs/metric" }, "artifact_writes": { "$ref": "#/$defs/metric" }, "tool_output_tokens": { "$ref": "#/$defs/metric" }, "unique_context": { "$ref": "#/$defs/metric" }, "duplicated_context": { "$ref": "#/$defs/metric" }, "amplification": { "$ref": "#/$defs/metric" } }
+    },
+    "reasonCode": { "enum": ["none", "host-field-unavailable", "partial-coverage", "incompatible-components", "zero-denominator", "invalid-host-observation", "persistence-failed"] },
+    "fallback": {
+      "type": "object", "additionalProperties": false,
+      "required": ["reason_code", "affected_metrics"],
+      "properties": { "reason_code": { "$ref": "#/$defs/reasonCode" }, "affected_metrics": { "type": "array", "items": { "enum": ["input_tokens", "cached_input_tokens", "uncached_input_tokens", "output_tokens", "artifact_reads", "artifact_writes", "tool_output_tokens", "unique_context", "duplicated_context", "amplification"] }, "uniqueItems": true } }
+    }
+  }
+}

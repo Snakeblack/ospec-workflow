@@ -1,0 +1,18 @@
+{
+  "schema": "ospec-context-measurement/v1",
+  "observed_at": "2026-09-01T00:00:00.000Z",
+  "dimensions": { "phase": "apply", "classification": "normal", "profile": "default", "host": "unknown-host" },
+  "metrics": {
+    "input_tokens": { "status": "unavailable", "source": "host-observed", "coverage": { "state": "unavailable", "observed": 0, "expected": 0, "ratio": 0 }, "reason_code": "host-field-unavailable" },
+    "cached_input_tokens": { "status": "unavailable", "source": "host-observed", "coverage": { "state": "unavailable", "observed": 0, "expected": 0, "ratio": 0 }, "reason_code": "host-field-unavailable" },
+    "uncached_input_tokens": { "status": "unavailable", "source": "runtime-derived", "coverage": { "state": "unavailable", "observed": 0, "expected": 0, "ratio": 0 }, "reason_code": "partial-coverage" },
+    "output_tokens": { "status": "unavailable", "source": "host-observed", "coverage": { "state": "unavailable", "observed": 0, "expected": 0, "ratio": 0 }, "reason_code": "host-field-unavailable" },
+    "artifact_reads": { "status": "unavailable", "source": "host-observed", "coverage": { "state": "unavailable", "observed": 0, "expected": 0, "ratio": 0 }, "reason_code": "host-field-unavailable" },
+    "artifact_writes": { "status": "unavailable", "source": "host-observed", "coverage": { "state": "unavailable", "observed": 0, "expected": 0, "ratio": 0 }, "reason_code": "host-field-unavailable" },
+    "tool_output_tokens": { "status": "unavailable", "source": "host-observed", "coverage": { "state": "unavailable", "observed": 0, "expected": 0, "ratio": 0 }, "reason_code": "host-field-unavailable" },
+    "unique_context": { "status": "unavailable", "source": "host-observed", "coverage": { "state": "unavailable", "observed": 0, "expected": 0, "ratio": 0 }, "reason_code": "host-field-unavailable" },
+    "duplicated_context": { "status": "unavailable", "source": "host-observed", "coverage": { "state": "unavailable", "observed": 0, "expected": 0, "ratio": 0 }, "reason_code": "host-field-unavailable" },
+    "amplification": { "status": "unavailable", "source": "runtime-derived", "coverage": { "state": "unavailable", "observed": 0, "expected": 0, "ratio": 0 }, "reason_code": "partial-coverage" }
+  },
+  "fallback": { "reason_code": "partial-coverage", "affected_metrics": ["input_tokens", "cached_input_tokens", "uncached_input_tokens", "output_tokens", "artifact_reads", "artifact_writes", "tool_output_tokens", "unique_context", "duplicated_context", "amplification"] }
+}
