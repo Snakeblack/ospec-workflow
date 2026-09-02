@@ -4,6 +4,7 @@ const crypto = require("node:crypto");
 const fsSync = require("node:fs");
 const path = require("node:path");
 const { validateCandidateV2, computeCandidateId } = require("./execution-identities/index.js");
+const { persistCandidateRecord, recoverCandidateRecord } = require("./verify-lineage-candidate-store.js");
 
 const MAX_REMEDIATION_ATTEMPTS = 2;
 const BLOCKING_SEVERITIES = new Set(["BLOCKER", "CRITICAL"]);
@@ -235,6 +236,34 @@ function assertVerifyLineage(state) {
   }
 }
 
+function blockCandidateRecovery(state, reason_code, reason) {
+  return {
+    valid: false,
+    action: "block-candidate-recovery",
+    reason_code,
+    reason: reason || reason_code,
+    lineage: clone(state),
+  };
+}
+
+function recoverLineageCandidate(state, options = {}) {
+  const changeRoot = options.changeRoot;
+  const reference = state.candidate_recovery?.current;
+  if (!reference) {
+    return blockCandidateRecovery(
+      state,
+      "legacy-candidate-recovery-unavailable",
+      "Legacy ID-only lineage has no recoverable Candidate record"
+    );
+  }
+  if (typeof changeRoot !== "string" || changeRoot.trim().length === 0) {
+    return blockCandidateRecovery(state, "candidate-recovery-path-invalid", "changeRoot is required for Candidate recovery");
+  }
+  const recovered = recoverCandidateRecord(changeRoot, reference, state.current_candidate_id);
+  if (!recovered.ok) return blockCandidateRecovery(state, recovered.reason_code, recovered.error);
+  return { valid: true, candidate: recovered.candidate, reference: recovered.reference };
+}
+
 function startVerifyLineage(input, meta = {}) {
   if (!input || typeof input !== "object") {
     throw new TypeError("input is required to start verify lineage");
@@ -246,6 +275,12 @@ function startVerifyLineage(input, meta = {}) {
   }
   const contractDigest = computeContractDigestFromArtifacts(changeRoot, { mode });
   const candidateDigest = resolveCanonicalCandidateId(input.candidate);
+  const persistedCandidate = persistCandidateRecord(changeRoot, input.candidate);
+  if (!persistedCandidate.ok) {
+    const error = new Error(`Unable to persist Candidate recovery record: ${persistedCandidate.reason_code}`);
+    error.code = persistedCandidate.reason_code;
+    throw error;
+  }
 
   const blockingFindings = (input.findings || [])
     .filter((f) => f && BLOCKING_SEVERITIES.has(f.severity))
@@ -291,6 +326,11 @@ function startVerifyLineage(input, meta = {}) {
     current_candidate_id: candidateDigest,
     verified_candidate_id: null,
     contract_digest: contractDigest,
+    candidate_recovery: {
+      schema_version: 1,
+      genesis: clone(persistedCandidate.reference),
+      current: clone(persistedCandidate.reference),
+    },
     remediation_attempts: 0,
     max_remediation_attempts: MAX_REMEDIATION_ATTEMPTS,
     findings: blockingFindings,
@@ -299,16 +339,16 @@ function startVerifyLineage(input, meta = {}) {
   };
 }
 
-function prepareRemediation(state, currentCandidate) {
+function prepareRemediation(state, options = {}) {
   assertVerifyLineage(state);
   if (state.status !== "remediation-pending") {
     throw new Error(`Cannot prepare remediation on lineage with status '${state.status}' (expected 'remediation-pending')`);
   }
-  if (!currentCandidate) {
-    throw new TypeError("currentCandidate baseline is required for prepareRemediation");
-  }
+  const recovered = recoverLineageCandidate(state, options);
+  if (!recovered.valid) return recovered;
 
-  const currentCandidateDigest = resolveCanonicalCandidateId(currentCandidate);
+  const diagnosticCandidate = options.candidate;
+  const currentCandidateDigest = diagnosticCandidate ? resolveCanonicalCandidateId(diagnosticCandidate) : recovered.candidate.candidate_id;
 
   if (currentCandidateDigest !== state.current_candidate_id) {
     const next = clone(state);
@@ -342,12 +382,12 @@ function recordRemediationAttempt(state, candidateInput, options = {}) {
     throw new Error(`Cannot record remediation attempt on lineage with status '${state.status}' (expected 'remediation-pending')`);
   }
 
-  const preCandidate = candidateInput?.baseline_candidate || candidateInput?.preCandidate || candidateInput?.beforeCandidate || candidateInput?.baselineCandidate;
-  if (!preCandidate) {
-    throw new TypeError("baseline_candidate is required for recordRemediationAttempt");
-  }
-
-  const preCandidateDigest = resolveCanonicalCandidateId(preCandidate);
+  const changeRoot = candidateInput?.changeRoot || options.changeRoot;
+  const recovered = recoverLineageCandidate(state, { changeRoot });
+  if (!recovered.valid) return recovered;
+  const preCandidate = recovered.candidate;
+  const diagnosticBaseline = candidateInput?.baseline_candidate || candidateInput?.preCandidate || candidateInput?.beforeCandidate || candidateInput?.baselineCandidate;
+  const preCandidateDigest = diagnosticBaseline ? resolveCanonicalCandidateId(diagnosticBaseline) : preCandidate.candidate_id;
   if (preCandidateDigest !== state.current_candidate_id) {
     const next = clone(state);
     next.status = "superseded";
@@ -388,6 +428,15 @@ function recordRemediationAttempt(state, candidateInput, options = {}) {
 
   const next = clone(state);
   next.current_candidate_id = postCandidateDigest;
+  const persistedSuccessor = persistCandidateRecord(changeRoot, postCandidate);
+  if (!persistedSuccessor.ok) {
+    return blockCandidateRecovery(state, persistedSuccessor.reason_code, persistedSuccessor.error);
+  }
+  next.candidate_recovery = {
+    schema_version: 1,
+    genesis: clone(state.candidate_recovery.genesis),
+    current: clone(persistedSuccessor.reference),
+  };
   next.remediation_attempts += 1;
 
   if (next.remediation_attempts > MAX_REMEDIATION_ATTEMPTS) {

@@ -1,7 +1,56 @@
 ---
 title: Known Issues
-last_updated: 2026-08-31
+last_updated: 2026-09-01
 ---
+
+## REQ-VL-K3-001 lacks an exact test-side traceability tag
+- severity: WARNING
+- area: scripts/lib/verify-lineage-candidate-store.test.js and scripts/lib/verify-lineage.test.js
+- workaround: add REQ-VL-K3-001 to the relevant focal test names or file comments before delivery; behavioral coverage already passes
+- change: verify-lineage-candidate-persistence
+- date: 2026-09-01
+
+## Stable REQ IDs are absent from CX0 tests and task commits
+- severity: WARNING
+- area: CX0 tests and the uncommitted feat/k6d-cx0-parallel working tree
+- workaround: add stable REQ IDs to the focused test names or files and join Conventional Commit task trailers before delivery
+- change: cx0-context-measurement
+- date: 2026-09-01
+
+## Hook normalization can persist invalid or falsely attributed CX0 telemetry
+- severity: BLOCKER
+- area: scripts/hooks/subagent-stop.js and scripts/lib/context-measurement.js
+- workaround: make degraded records validate, preserve a stable fallback reason, and label computed uncached input as runtime-derived; run the frozen CX0-V003 recipe
+- change: cx0-context-measurement
+- date: 2026-09-01
+
+## CX0 schema and fixtures do not materialize the closed contract marked complete
+- severity: BLOCKER
+- area: schemas/telemetry/context-measurement and its schema fixture tests
+- workaround: close the metric envelope in JSON Schema and add the missing degraded, missing-reason, partial-KPI, and payload-rejection fixtures; run CX0-V002
+- change: cx0-context-measurement
+- date: 2026-09-01
+
+## CX0 does not compare the current roadmap hypotheses with their contractual formulas and metadata
+- severity: BLOCKER
+- area: schemas/telemetry/context-measurement/hypotheses.v1.json and scripts/lib/context-measurement.js
+- workaround: project all eight roadmap target values, compute duplication share and fallback rate from their specified components, and report scope, formula version, and coverage; run CX0-V001
+- change: cx0-context-measurement
+- date: 2026-09-01
+
+## Canonical record ordering depends on localeCompare and changes report bytes/identity across locale orderings
+- severity: BLOCKER
+- area: scripts/lib/complexity-architecture-delta/integrity.js and analyzer.js
+- workaround: replace default-locale sorting with an explicit locale-independent total order and add a regression comparing equivalent Unicode records under divergent collation behavior
+- change: k6d-complexity-architecture-delta
+- date: 2026-09-01
+
+## Required negative fixture corpus omits missing/malformed report identities and divergent Candidate bindings
+- severity: BLOCKER
+- area: schemas/kernel/complexity-architecture-delta/fixtures/invalid and scripts/lib/k6d-schema-fixtures.test.js
+- workaround: add isolated fixtures for missing Candidate ID, missing and malformed report ID, and divergent Candidate binding, then assert each exact failure path
+- change: k6d-complexity-architecture-delta
+- date: 2026-09-01
 
 ## Pre-existing cli.test.js after-hook EISDIR on evidence-link leftover
 - severity: WARNING

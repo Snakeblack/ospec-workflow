@@ -100,6 +100,8 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/model-resolver.test.js",
   "scripts/lib/verify-lineage.js",
   "scripts/lib/verify-lineage.test.js",
+  "scripts/lib/verify-lineage-candidate-store.js",
+  "scripts/lib/verify-lineage-candidate-store.test.js",
   "scripts/lib/apply-resume.js",
   "scripts/lib/apply-resume.test.js",
   "scripts/lib/roadmap-boundary.test.js",
@@ -146,6 +148,13 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/k6b-schema-fixtures.test.js",
   "scripts/k6b-verifier-assurance-graph-e2e.test.js",
   "scripts/lib/k6c-schema-fixtures.test.js",
+  // K6d additive, advisory-only complexity and architecture delta implementation.
+  "scripts/lib/k6d-schema-fixtures.test.js",
+  // CX0 additive, advisory-only context measurement implementation.
+  "scripts/lib/context-measurement.js",
+  "scripts/lib/context-measurement.test.js",
+  "scripts/lib/context-measurement-hypotheses.test.js",
+  "scripts/lib/context-measurement-schema.test.js",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [
@@ -165,6 +174,7 @@ const SUCCESSOR_K2_PREFIXES = [
   "scripts/lib/independent-verifier/",
   "scripts/lib/assurance-graph/",
   "scripts/lib/adversarial-challenges/",
+  "scripts/lib/complexity-architecture-delta/",
   "schemas/kernel/operation-permit/",
   "schemas/kernel/operation-receipt/",
   "schemas/kernel/effect-class/",
@@ -210,6 +220,8 @@ const SUCCESSOR_K2_PREFIXES = [
   "schemas/kernel/runner-receipt/",
   "schemas/kernel/challenge-plan/",
   "schemas/kernel/challenge-result/",
+  "schemas/kernel/architecture-alternative/",
+  "schemas/kernel/complexity-architecture-delta/",
 ];
 
 const PROTECTED_BASELINE_PATHS = [

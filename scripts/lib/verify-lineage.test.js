@@ -108,7 +108,7 @@ test("Phase 1.1-1.7: prepareRemediation and recordRemediationAttempt enforce bas
       { generation: 1 }
     );
 
-    const prepOk = prepareRemediation(lineage, sampleCandidate);
+    const prepOk = prepareRemediation(lineage, { changeRoot, candidate: sampleCandidate });
     assert.equal(prepOk.valid, true);
     assert.equal(prepOk.allowed_paths.length, 2);
     assert.deepEqual(prepOk.allowed_paths, ["internal/auth/auth.go", "internal/auth/auth_test.go"]);
@@ -122,19 +122,19 @@ test("Phase 1.1-1.7: prepareRemediation and recordRemediationAttempt enforce bas
       paths: ["drift.go"],
     });
 
-    const prepDrift = prepareRemediation(lineage, driftedCandidate);
+    const prepDrift = prepareRemediation(lineage, { changeRoot, candidate: driftedCandidate });
     assert.equal(prepDrift.valid, false);
     assert.equal(prepDrift.reason_code, "candidate-drift");
     assert.equal(prepDrift.lineage.status, "superseded");
 
-    assert.throws(
-      () => recordRemediationAttempt(lineage, sampleCandidate),
-      /baseline_candidate is required for recordRemediationAttempt/
-    );
+    const noRecoveryRoot = recordRemediationAttempt(lineage, sampleCandidate);
+    assert.equal(noRecoveryRoot.action, "block-candidate-recovery");
+    assert.equal(noRecoveryRoot.reason_code, "candidate-recovery-path-invalid");
 
     const recDrift = recordRemediationAttempt(lineage, {
       baseline_candidate: driftedCandidate,
       candidate: sampleCandidate,
+      changeRoot,
     });
     assert.equal(recDrift.action, "supersede-and-discovery");
     assert.equal(recDrift.reason_code, "candidate-drift");
@@ -247,6 +247,7 @@ test("Mechanical remediation scope enforcement with baseline Candidate and Git d
     const inScopeRes = recordRemediationAttempt(lineage, {
       baseline_candidate: cA,
       candidate: cB,
+      changeRoot,
       rootDir: tmpDir,
       git_trees,
     });
@@ -307,7 +308,7 @@ test("Full FSM lifecycle from start to exhausted with filesystem contract author
     const l0 = startVerifyLineage({ changeRoot, candidate: cA, findings: sampleFindings });
     assert.equal(l0.status, "remediation-pending");
 
-    const { lineage: l1 } = recordRemediationAttempt(l0, { baseline_candidate: cA, candidate: cB, rootDir: tmpDir, git_trees });
+    const { lineage: l1 } = recordRemediationAttempt(l0, { baseline_candidate: cA, candidate: cB, changeRoot, rootDir: tmpDir, git_trees });
     assert.equal(l1.status, "recheck-pending");
 
     const recheck1 = evaluateRecheck(l1, {
@@ -319,7 +320,7 @@ test("Full FSM lifecycle from start to exhausted with filesystem contract author
     assert.equal(recheck1.lineage.status, "remediation-pending");
     assert.equal(recheck1.lineage.remediation_attempts, 1);
 
-    const { lineage: l2 } = recordRemediationAttempt(recheck1.lineage, { baseline_candidate: cB, candidate: cB, rootDir: tmpDir, git_trees });
+    const { lineage: l2 } = recordRemediationAttempt(recheck1.lineage, { baseline_candidate: cB, candidate: cB, changeRoot, rootDir: tmpDir, git_trees });
     assert.equal(l2.status, "recheck-pending");
     assert.equal(l2.remediation_attempts, 2);
 
@@ -345,7 +346,7 @@ test("Closed lineage cached PASS behavior", () => {
   try {
     const { tmpDir, cA, cB, git_trees } = gitRepo;
     const l0 = startVerifyLineage({ changeRoot, candidate: cA, findings: sampleFindings });
-    const { lineage: l1 } = recordRemediationAttempt(l0, { baseline_candidate: cA, candidate: cB, rootDir: tmpDir, git_trees });
+    const { lineage: l1 } = recordRemediationAttempt(l0, { baseline_candidate: cA, candidate: cB, changeRoot, rootDir: tmpDir, git_trees });
     const recheckClosed = evaluateRecheck(l1, {
       changeRoot,
       candidate: cB,
@@ -442,5 +443,152 @@ test("Candidate ↔ Git Tree binding: genuine Candidate v2 with real SHA-256 tre
     assert.deepEqual(deltaWithExplicit, ["pkg/service/service.go"]);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("REQ-verify-lineage-010: lineage start exposes only a validated, reference-bearing Candidate recovery state", () => {
+  const changeRoot = setupContractDir();
+  try {
+    const lineage = startVerifyLineage({ changeRoot, candidate: sampleCandidate, findings: sampleFindings });
+    assert.equal(lineage.genesis_candidate_id, sampleCandidate.candidate_id);
+    assert.equal(lineage.current_candidate_id, sampleCandidate.candidate_id);
+    assert.deepEqual(lineage.candidate_recovery.genesis, lineage.candidate_recovery.current);
+    assert.equal(lineage.candidate_recovery.current.candidate_id, sampleCandidate.candidate_id);
+    assert.equal(fs.existsSync(path.join(changeRoot, lineage.candidate_recovery.current.relative_path)), true);
+  } finally {
+    fs.rmSync(changeRoot, { recursive: true, force: true });
+  }
+});
+
+test("REQ-verify-lineage-011: a separate Node process reloads state and prepares remediation without an in-memory Candidate", () => {
+  const changeRoot = setupContractDir();
+  const statePath = path.join(changeRoot, "state.json");
+  try {
+    const lineage = startVerifyLineage({ changeRoot, candidate: sampleCandidate, findings: sampleFindings });
+    fs.writeFileSync(statePath, JSON.stringify(lineage), "utf8");
+    const script = [
+      "const fs = require('node:fs');",
+      `const { prepareRemediation } = require(${JSON.stringify(path.resolve(__dirname, "verify-lineage.js"))});`,
+      "const state = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));",
+      "const result = prepareRemediation(state, { changeRoot: process.argv[2] });",
+      "process.stdout.write(JSON.stringify({ valid: result.valid, id: result.lineage.current_candidate_id }));",
+    ].join("\n");
+    const output = child_process.execFileSync(process.execPath, ["-e", script, statePath, changeRoot], { encoding: "utf8" });
+    assert.deepEqual(JSON.parse(output), { valid: true, id: sampleCandidate.candidate_id });
+  } finally {
+    fs.rmSync(changeRoot, { recursive: true, force: true });
+  }
+});
+
+test("REQ-verify-lineage-011: missing or tampered recovery material blocks transitions without changing lineage history", () => {
+  const changeRoot = setupContractDir();
+  const gitRepo = setupGitRepoWithCandidates();
+  try {
+    const lineage = startVerifyLineage({ changeRoot, candidate: gitRepo.cA, findings: sampleFindings });
+    const before = JSON.parse(JSON.stringify(lineage));
+    fs.rmSync(path.join(changeRoot, lineage.candidate_recovery.current.relative_path));
+    const prepared = prepareRemediation(lineage, { changeRoot });
+    assert.equal(prepared.valid, false);
+    assert.equal(prepared.reason_code, "candidate-recovery-missing");
+    assert.deepEqual(prepared.lineage, before);
+
+    const recorded = recordRemediationAttempt(lineage, {
+      changeRoot,
+      candidate: gitRepo.cB,
+      rootDir: gitRepo.tmpDir,
+      git_trees: gitRepo.git_trees,
+    });
+    assert.equal(recorded.action, "block-candidate-recovery");
+    assert.equal(recorded.reason_code, "candidate-recovery-missing");
+    assert.deepEqual(recorded.lineage, before);
+  } finally {
+    fs.rmSync(changeRoot, { recursive: true, force: true });
+    fs.rmSync(gitRepo.tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("REQ-verify-lineage-012: ID-only legacy lineages remain inspectable but cannot enter mutable transitions", () => {
+  const changeRoot = setupContractDir();
+  try {
+    const created = startVerifyLineage({ changeRoot, candidate: sampleCandidate, findings: sampleFindings });
+    const legacy = JSON.parse(JSON.stringify(created));
+    delete legacy.candidate_recovery;
+    const snapshot = JSON.parse(JSON.stringify(legacy));
+    assert.doesNotThrow(() => assertVerifyLineage(legacy));
+    const nextAction = getLineageNextAction(legacy, { changeRoot, candidate: sampleCandidate });
+    assert.equal(nextAction.action, "apply-remediation");
+    const prepared = prepareRemediation(legacy, { changeRoot });
+    assert.equal(prepared.reason_code, "legacy-candidate-recovery-unavailable");
+    assert.deepEqual(prepared.lineage, snapshot);
+    const recorded = recordRemediationAttempt(legacy, { changeRoot, candidate: sampleCandidate, rootDir: changeRoot });
+    assert.equal(recorded.reason_code, "legacy-candidate-recovery-unavailable");
+    assert.deepEqual(recorded.lineage, snapshot);
+  } finally {
+    fs.rmSync(changeRoot, { recursive: true, force: true });
+  }
+});
+
+test("REQ-verify-lineage-011: successor recovery survives a second Node process and preserves the recheck action", () => {
+  const changeRoot = setupContractDir();
+  const gitRepo = setupGitRepoWithCandidates();
+  const statePath = path.join(changeRoot, "state.json");
+  try {
+    const genesis = startVerifyLineage({ changeRoot, candidate: gitRepo.cA, findings: sampleFindings });
+    const recorded = recordRemediationAttempt(genesis, {
+      changeRoot,
+      candidate: gitRepo.cB,
+      rootDir: gitRepo.tmpDir,
+      git_trees: gitRepo.git_trees,
+    });
+    assert.equal(recorded.action, "run-targeted-recheck");
+    fs.writeFileSync(statePath, JSON.stringify(recorded.lineage), "utf8");
+    const script = [
+      "const fs = require('node:fs');",
+      `const lineage = require(${JSON.stringify(path.resolve(__dirname, "verify-lineage.js"))});`,
+      `const store = require(${JSON.stringify(path.resolve(__dirname, "verify-lineage-candidate-store.js"))});`,
+      "const state = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));",
+      "const candidate = store.recoverCandidateRecord(process.argv[2], state.candidate_recovery.current, state.current_candidate_id);",
+      "const action = lineage.getLineageNextAction(state, { changeRoot: process.argv[2], candidate: candidate.candidate });",
+      "process.stdout.write(JSON.stringify({ recovered: candidate.ok, id: candidate.candidate?.candidate_id, action: action.action }));",
+    ].join("\n");
+    const output = child_process.execFileSync(process.execPath, ["-e", script, statePath, changeRoot], { encoding: "utf8" });
+    assert.deepEqual(JSON.parse(output), {
+      recovered: true,
+      id: gitRepo.cB.candidate_id,
+      action: "run-targeted-recheck",
+    });
+  } finally {
+    fs.rmSync(changeRoot, { recursive: true, force: true });
+    fs.rmSync(gitRepo.tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("REQ-verify-lineage-010: a state-write failure after Candidate publication leaves only inert successor bytes", () => {
+  const changeRoot = setupContractDir();
+  const gitRepo = setupGitRepoWithCandidates();
+  const statePath = path.join(changeRoot, "state.json");
+  try {
+    const genesis = startVerifyLineage({ changeRoot, candidate: gitRepo.cA, findings: sampleFindings });
+    fs.writeFileSync(statePath, JSON.stringify(genesis), "utf8");
+    const attempt = recordRemediationAttempt(genesis, {
+      changeRoot,
+      candidate: gitRepo.cB,
+      rootDir: gitRepo.tmpDir,
+      git_trees: gitRepo.git_trees,
+    });
+    assert.equal(attempt.action, "run-targeted-recheck");
+    assert.equal(fs.existsSync(path.join(changeRoot, attempt.lineage.candidate_recovery.current.relative_path)), true);
+
+    // Simulate an atomic state.yaml write failure by leaving its durable bytes at
+    // the genesis revision. A later process can only select the genesis ref.
+    const reloaded = JSON.parse(fs.readFileSync(statePath, "utf8"));
+    assert.deepEqual(reloaded, genesis);
+    const prepared = prepareRemediation(reloaded, { changeRoot });
+    assert.equal(prepared.valid, true);
+    assert.equal(prepared.lineage.current_candidate_id, gitRepo.cA.candidate_id);
+    assert.notEqual(attempt.lineage.current_candidate_id, reloaded.current_candidate_id);
+  } finally {
+    fs.rmSync(changeRoot, { recursive: true, force: true });
+    fs.rmSync(gitRepo.tmpDir, { recursive: true, force: true });
   }
 });

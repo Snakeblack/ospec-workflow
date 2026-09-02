@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.56.7] - 2026-09-02
+
+### Fixed
+- **Persistencia y recuperación content-addressed de Candidate en el linaje de verificación (`verify-lineage-candidate-persistence`)**:
+  - **Almacenamiento CAS change-local para Candidate/v2**: Implementada la persistencia inmutable en `scripts/lib/verify-lineage-candidate-store.js` mediante publicación atómica no-clobber a nivel de raíz del cambio (`.verify-lineage-candidate-<digest>.json`) con mitigación estricta contra TOCTOU y enlaces simbólicos.
+  - **Rehidratación y doble validación entre procesos**: Actualizado `scripts/lib/verify-lineage.js` para que `prepareRemediation` y `recordRemediationAttempt` rehidraten el material del Candidate referenciado y recalculen el digest de bytes y el `candidate_id` canónico, bloqueando de forma fail-closed ante cualquier material ausente o alterado sin requerir preimágenes en memoria (`REQ-verify-lineage-010`, `REQ-verify-lineage-011`, `REQ-verify-lineage-012`).
+  - **Continuidad de remediación en linajes de verificación**: Habilitada la reanudación segura de remediaciones tras serializar y recargar `state.yaml`, desbloqueando los linajes de remediación pendientes en cambios paralelos como `cx0-context-measurement` y `k6d-complexity-architecture-delta`.
+  - **Especificaciones y ADRs normativos**: Incorporados en `openspec/specs/verify-lineage/spec.md` los requisitos `REQ-verify-lineage-010`, `REQ-verify-lineage-011` y `REQ-verify-lineage-012`; promovidos los ADRs `docs/adr/adr-20260902-001`, `002` y `003`.
+  - Verify PASS (14/14 tareas), suite de linaje y almacenamiento al 100% (25/25 tests), Gate 4R aprobado (0 hallazgos bloqueantes); archivado transaccional en `openspec/changes/archive/2026-09-02-verify-lineage-candidate-persistence/`.
+
 ## [2.56.6] - 2026-09-01
 
 ### Fixed
