@@ -36,9 +36,11 @@ function assertSafeOutDir(outDir, sourceDir) {
   if (fs.existsSync(abs)) {
     if (!fs.statSync(abs).isDirectory()) refuse("not a directory");
     const nonEmpty = fs.readdirSync(abs).length > 0;
-    const isPriorBuild = fs.existsSync(path.join(abs, ".claude-plugin", "marketplace.json"));
+    const isPriorBuild =
+      fs.existsSync(path.join(abs, ".claude-plugin", "marketplace.json")) ||
+      fs.existsSync(path.join(abs, "marketplace.json"));
     if (nonEmpty && !isPriorBuild) {
-      refuse("non-empty and not a previous marketplace build (missing .claude-plugin/marketplace.json)");
+      refuse("non-empty and not a previous marketplace build (missing .claude-plugin/marketplace.json or marketplace.json)");
     }
   }
 }
@@ -102,6 +104,8 @@ function buildClaudeMarketplace(options) {
   };
 
   writeJson(path.join(outDir, ".claude-plugin", "marketplace.json"), marketplace);
+  writeJson(path.join(outDir, "marketplace.json"), marketplace);
+  writeJson(path.join(outDir, ".github", "plugin", "marketplace.json"), marketplace);
 
   return {
     outDir,

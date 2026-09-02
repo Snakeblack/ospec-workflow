@@ -25,6 +25,8 @@ const PROFILES = {
 // Source roots that make up a plugin tree. Files are read into the
 // { path, content } shape the transform expects; missing roots are skipped.
 const SOURCE_ROOTS = [
+  "marketplace.json",
+  "plugin.json",
   ".claude-plugin/plugin.json",
   "hooks/hooks.json",
   ".mcp.json",

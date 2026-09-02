@@ -50,6 +50,10 @@ function handleFile(file, profile, models, rulesContent) {
     return null; // artifact the target does not consume (e.g. plugin manifest/hooks)
   }
 
+  if ((path === "marketplace.json" || path === "plugin.json") && profile.id !== "vscode") {
+    return null;
+  }
+
   if (profile.manifest && path === profile.manifest.location) {
     return reshapeManifest(file, profile);
   }
@@ -624,11 +628,15 @@ function handleAgent(file, profile, models) {
   if (profile.model && originalAgentName) {
     const resolved = resolveModel(originalAgentName, profile.id, models);
     if (resolved !== OMIT) {
-      const model = resolved && typeof resolved === "object" && !Array.isArray(resolved) ? resolved.model : resolved;
+      const isObject = resolved && typeof resolved === "object" && !Array.isArray(resolved);
+      const model = isObject ? resolved.model : resolved;
       if (model !== undefined && model !== null) {
         frontmatter = Array.isArray(model)
           ? setArray(frontmatter, "model", model)
           : setScalar(frontmatter, "model", model);
+      }
+      if (isObject && typeof resolved.effort === "string" && resolved.effort.trim()) {
+        frontmatter = setScalar(frontmatter, "effort", resolved.effort.trim());
       }
     }
   }
@@ -690,11 +698,13 @@ function handleAgentToml(file, profile, models) {
       const isObject = typeof resolved === "object" && resolved !== null && !Array.isArray(resolved);
       fields.model = isObject ? resolved.model : (Array.isArray(resolved) ? resolved[0] : resolved);
       if (isObject) {
-        if (resolved.model_reasoning_effort) {
-          fields.model_reasoning_effort = resolved.model_reasoning_effort;
+        const effort = resolved.model_reasoning_effort || resolved.effort;
+        const verbosity = resolved.model_verbosity || resolved.verbosity;
+        if (effort) {
+          fields.model_reasoning_effort = effort;
         }
-        if (resolved.model_verbosity) {
-          fields.model_verbosity = resolved.model_verbosity;
+        if (verbosity) {
+          fields.model_verbosity = verbosity;
         }
       }
     }

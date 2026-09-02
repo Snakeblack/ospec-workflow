@@ -1,0 +1,30 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/marketplace.schema.json",
+  "name": "ospec-workflow",
+  "metadata": {
+    "description": "Spec-Driven Development workflow for VS Code Agent Customization with OpenSpec, strict TDD, phase agents, skills, hooks, and verification contracts.",
+    "version": "2.58.0"
+  },
+  "owner": {
+    "name": "Manuel Michael Retamozo García",
+    "email": "hello@mretamozo.com"
+  },
+  "plugins": [
+    {
+      "name": "ospec-workflow",
+      "displayName": "OSpec Workflow",
+      "description": "Spec-Driven Development workflow with OpenSpec, strict TDD, phase agents, skills, hooks, and verification contracts.",
+      "version": "2.58.0",
+      "source": ".",
+      "repository": "https://github.com/snakeblack/ospec-workflow",
+      "license": "MIT",
+      "keywords": [
+        "sdd",
+        "openspec",
+        "tdd",
+        "agents",
+        "workflow"
+      ]
+    }
+  ]
+}
