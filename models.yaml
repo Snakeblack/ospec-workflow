@@ -1,88 +1,95 @@
-# Per-agent model configuration for the multi-target generator.
-#
-# Two tables:
-#   agents: which tier each agent needs. THIS is the only agent→tier policy.
-#   tiers:  how each tier maps to a concrete model per target.
-#
-# Agent assignments, target models, reasoning effort, and verbosity are all
-# configured here. The validator checks roster completeness and known tiers,
-# but does not duplicate these editable choices in application code.
-
 agents:
-  # Premium:
-  # Infrequent decisions with high blast radius.
-  # A weak result here can invalidate the complete implementation direction.
-  sdd-propose: premium
-  sdd-design: premium
-  sdd-verify: premium
-  sdd-foundation: premium
-  sdd-workspace: premium
-
-  # Default:
-  # Frequent semantic work requiring solid reasoning, but not Sol-level spend.
-  sdd-orchestrator: default
-  sdd-spec: default
-  sdd-clarify: default
-  sdd-apply: default
-  sdd-reconcile: default
-  sdd-baseline: default
-
-  # Cheap:
-  # Bounded or mostly mechanical work.
-  sdd-init: cheap
-  sdd-explore: cheap
-  sdd-tasks: cheap
-  sdd-archive: cheap
-  sdd-onboard: cheap
-  sdd-document: cheap
-
-  # Reviewers:
-  # Each reviewer can use any known tier.
+  _default: premium
   review-change: premium
   review-correction: default
-  review-risk: default
   review-readability: default
   review-reliability: default
   review-resilience: default
-
-  _default: premium
-
+  review-risk: default
+  sdd-apply: default
+  sdd-archive: cheap
+  sdd-baseline: default
+  sdd-clarify: default
+  sdd-design: premium
+  sdd-document: cheap
+  sdd-explore: cheap
+  sdd-foundation: premium
+  sdd-init: cheap
+  sdd-onboard: cheap
+  sdd-orchestrator: default
+  sdd-propose: premium
+  sdd-reconcile: default
+  sdd-spec: default
+  sdd-tasks: cheap
+  sdd-verify: premium
+  sdd-workspace: premium
 tiers:
-  # Premium:
-  # Defaults for infrequent, high-blast-radius decisions.
-  premium:
-    claude: opus
-    vscode:
-      - "GPT-5.6 Sol (copilot)"
-    opencode: openai/gpt-5.6-sol
-    codex:
-      model: gpt-5.6-sol
-      model_reasoning_effort: high
-      model_verbosity: medium
-    cursor: gpt-5.6-sol
-
-  # Default:
-  # Defaults for frequent semantic work.
-  default:
-    claude: sonnet
-    vscode:
-      - "GPT-5.6 Terra (copilot)"
-    opencode: openai/gpt-5.6-terra
-    codex:
-      model: gpt-5.6-terra
-      model_reasoning_effort: high
-      model_verbosity: medium
-    cursor: grok-4.6[fast=false]
-
-  # Cheap:
-  # Defaults for bounded or mechanical work.
   cheap:
-    claude: haiku
+    claude:
+      model: haiku
+      effort: low
     vscode:
-      - "GPT-5.6 Luna (copilot)"
+      - GPT-5.6 Luna (copilot)
+      - Gemini 3.5 Flash-Lite (copilot)
     opencode: openai/gpt-5.6-luna
     codex:
       model: gpt-5.6-luna
       model_reasoning_effort: low
       model_verbosity: low
     cursor: composer-2.5[fast=false]
+    antigravity: flash_lite
+  default:
+    claude:
+      model: sonnet
+      effort: medium
+    vscode:
+      - GPT-5.6 Terra (copilot)
+      - Claude Sonnet 5 (copilot)
+      - Gemini 3.7 Flash (copilot)
+    opencode: openai/gpt-5.6-terra
+    codex:
+      model: gpt-5.6-terra
+      model_reasoning_effort: high
+      model_verbosity: medium
+    cursor: grok-4.6[fast=false]
+    antigravity: flash
+  premium:
+    claude:
+      model: opus
+      effort: high
+    vscode:
+      - GPT-5.6 Sol (copilot)
+      - Claude Opus 5 (copilot)
+      - Gemini 3.1 Pro (copilot)
+    opencode: openai/gpt-5.6-sol
+    codex:
+      model: gpt-5.6-sol
+      model_reasoning_effort: high
+      model_verbosity: medium
+    cursor: gpt-5.6-sol
+    antigravity: pro
+assignments:
+  vscode:
+    review-change: GPT-5.6 Terra (copilot)
+    review-correction: GPT-5.6 Terra (copilot)
+    review-readability: GPT-5.6 Terra (copilot)
+    review-reliability: GPT-5.6 Terra (copilot)
+    review-resilience: GPT-5.6 Terra (copilot)
+    review-risk: GPT-5.6 Terra (copilot)
+    sdd-apply: GPT-5.6 Terra (copilot)
+    sdd-archive: GPT-5.6 Luna (copilot)
+    sdd-baseline: GPT-5.6 Terra (copilot)
+    sdd-clarify: GPT-5.6 Terra (copilot)
+    sdd-design: GPT-5.6 Sol (copilot)
+    sdd-document: GPT-5.6 Terra (copilot)
+    sdd-explore: GPT-5.6 Luna (copilot)
+    sdd-foundation: GPT-5.6 Sol (copilot)
+    sdd-init: GPT-5.6 Luna (copilot)
+    sdd-onboard: GPT-5.6 Luna (copilot)
+    sdd-orchestrator: GPT-5.6 Sol (copilot)
+    sdd-propose: GPT-5.6 Terra (copilot)
+    sdd-reconcile: GPT-5.6 Terra (copilot)
+    sdd-spec: GPT-5.6 Terra (copilot)
+    sdd-tasks: GPT-5.6 Luna (copilot)
+    sdd-verify: GPT-5.6 Sol (copilot)
+    sdd-workspace: GPT-5.6 Sol (copilot)

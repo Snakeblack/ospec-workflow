@@ -26,6 +26,41 @@ const MODELS = {
   },
 };
 
+test("per-target assignment overrides the agent→tier table", () => {
+  const models = {
+    ...MODELS,
+    assignments: {
+      claude: {
+        "sdd-apply": { model: "fable", effort: "max" },
+      },
+      antigravity: {
+        _all: "flash",
+      },
+    },
+  };
+  assert.deepEqual(resolveModel("sdd-apply", "claude", models), { model: "fable", effort: "max" });
+  assert.equal(resolveModel("sdd-design", "claude", models), "opus");
+  assert.equal(resolveModel("sdd-apply", "antigravity", models), "flash");
+  assert.equal(resolveModel("sdd-design", "antigravity", models), "flash");
+});
+
+test("codex assignment materializes effort as model_reasoning_effort", () => {
+  const models = {
+    agents: { "sdd-apply": "default", _default: "default" },
+    tiers: { default: { codex: { model: "gpt-5.6-terra", model_reasoning_effort: "medium" } } },
+    assignments: {
+      codex: {
+        "sdd-apply": { model: "gpt-5.6-sol", effort: "xhigh", verbosity: "low" },
+      },
+    },
+  };
+  assert.deepEqual(resolveModel("sdd-apply", "codex", models), {
+    model: "gpt-5.6-sol",
+    model_reasoning_effort: "xhigh",
+    model_verbosity: "low",
+  });
+});
+
 test("listed agent resolves its tier model per target", () => {
   assert.equal(resolveModel("sdd-design", "claude", MODELS), "opus");
   assert.deepEqual(resolveModel("sdd-design", "vscode", MODELS), [

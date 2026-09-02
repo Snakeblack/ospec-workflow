@@ -13,6 +13,8 @@ const {
   REQUIRED_SDD_AGENTS,
   sddAgentsByTier,
   validateSddModelPolicy,
+  resolveModel,
+  OMIT,
 } = require("./lib/model-resolver.js");
 
 const ROOT = path.resolve(__dirname, "..");
@@ -122,8 +124,12 @@ test("REQ-generator-005 all six temporary targets honor models.yaml tiers and fa
           assert.match(content, new RegExp(`^model = "${models.tiers[tier].codex.model}"$`, "m"), `${target}:${agent}`);
           assert.match(content, new RegExp(`^model_reasoning_effort = "${models.tiers[tier].codex.model_reasoning_effort}"$`, "m"), `${target}:${agent}`);
         } else {
-          const declared = models.tiers[tier][target];
-          const expected = declared && typeof declared === "object" && !Array.isArray(declared) ? declared.model : declared;
+          if (target === "vscode") {
+            assert.match(content, /^target: vscode$/m, `${target}:${agent} must keep target vscode`);
+          }
+          const resolved = resolveModel(agent, target, models);
+          assert.notEqual(resolved, OMIT, `${target}:${agent} should declare a model`);
+          const expected = resolved && typeof resolved === "object" && !Array.isArray(resolved) ? resolved.model : resolved;
           assert.deepEqual(modelField(generated), expected, `${target}:${agent}`);
         }
       }

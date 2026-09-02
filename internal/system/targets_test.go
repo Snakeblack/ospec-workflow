@@ -12,11 +12,11 @@ func TestInspectTargets_EmptyWorkspace(t *testing.T) {
 	tempDir := t.TempDir()
 
 	targets := system.InspectTargets(tempDir)
-	if len(targets) != 6 {
-		t.Fatalf("expected 6 targets, got %d", len(targets))
+	if len(targets) != 7 {
+		t.Fatalf("expected 7 targets, got %d", len(targets))
 	}
 
-	expectedIDs := []string{"claude", "antigravity", "vscode", "codex", "opencode", "cursor"}
+	expectedIDs := []string{"claude", "antigravity", "vscode", "github-copilot", "codex", "opencode", "cursor"}
 	for i, id := range expectedIDs {
 		target := targets[i]
 		if target.ID != id {
@@ -46,13 +46,14 @@ func TestInspectTargets_ConfiguredWorkspace(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(tempDir, ".claude-plugin"), []byte("{}"), 0644)
 	_ = os.WriteFile(filepath.Join(tempDir, "AGENTS.md"), []byte("# Agents"), 0644)
 	_ = os.MkdirAll(filepath.Join(tempDir, ".vscode"), 0755)
+	_ = os.MkdirAll(filepath.Join(tempDir, ".github", "agents"), 0755)
 	_ = os.WriteFile(filepath.Join(tempDir, "codex.toml"), []byte(""), 0644)
 	_ = os.WriteFile(filepath.Join(tempDir, "opencode.json"), []byte("{}"), 0644)
 	_ = os.WriteFile(filepath.Join(tempDir, ".cursorrules"), []byte(""), 0644)
 
 	targets := system.InspectTargets(tempDir)
-	if len(targets) != 6 {
-		t.Fatalf("expected 6 targets, got %d", len(targets))
+	if len(targets) != 7 {
+		t.Fatalf("expected 7 targets, got %d", len(targets))
 	}
 
 	for _, target := range targets {
@@ -231,3 +232,66 @@ func TestSyncTarget_InvalidDirectory(t *testing.T) {
 		t.Error("SyncTarget with file path as repoRoot should return error")
 	}
 }
+
+func TestInstallAndValidateTargets(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Install a subset of targets
+	toInstall := []string{"claude", "antigravity"}
+	if err := system.InstallTargets(tempDir, toInstall); err != nil {
+		t.Fatalf("InstallTargets failed: %v", err)
+	}
+
+	reports, err := system.ValidateTargets(tempDir)
+	if err != nil {
+		t.Fatalf("ValidateTargets failed: %v", err)
+	}
+
+	if len(reports) != 7 {
+		t.Fatalf("expected 7 validation reports, got %d", len(reports))
+	}
+
+	for _, rep := range reports {
+		if rep.TargetID == "claude" || rep.TargetID == "antigravity" {
+			if !rep.Valid {
+				t.Errorf("expected target %s to be valid, got errors: %v", rep.TargetID, rep.Errors)
+			}
+		}
+	}
+}
+
+func TestRepairInstallation(t *testing.T) {
+	tempDir := t.TempDir()
+
+	_ = system.InstallTargets(tempDir, []string{"claude", "codex"})
+	// Intentionally delete a config file to simulate corruption
+	_ = os.Remove(filepath.Join(tempDir, "CLAUDE.md"))
+
+	repaired, err := system.RepairInstallation(tempDir)
+	if err != nil {
+		t.Fatalf("RepairInstallation failed: %v", err)
+	}
+	if len(repaired) == 0 {
+		t.Error("expected at least 1 repaired target")
+	}
+
+	// Verify CLAUDE.md is restored
+	if _, err := os.Stat(filepath.Join(tempDir, "CLAUDE.md")); os.IsNotExist(err) {
+		t.Error("CLAUDE.md was not restored by RepairInstallation")
+	}
+}
+
+func TestUninstallTargets(t *testing.T) {
+	tempDir := t.TempDir()
+
+	_ = system.InstallTargets(tempDir, []string{"claude", "cursor"})
+	if err := system.UninstallTargets(tempDir, []string{"claude", "cursor"}); err != nil {
+		t.Fatalf("UninstallTargets failed: %v", err)
+	}
+
+	specClaude, _ := system.InspectTarget(tempDir, "claude")
+	if specClaude.Status == system.StatusConfigured {
+		t.Error("claude should not be configured after uninstall")
+	}
+}
+

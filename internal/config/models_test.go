@@ -50,8 +50,11 @@ func TestModelsConfig_ParseRealModelsYAML(t *testing.T) {
 	if !ok {
 		t.Fatal("premium tier missing")
 	}
-	if premiumTier.Claude != "opus" {
-		t.Errorf("expected claude opus, got %s", premiumTier.Claude)
+	if premiumTier.GetClaudeModel() != "opus" {
+		t.Errorf("expected claude opus, got %s", premiumTier.GetClaudeModel())
+	}
+	if premiumTier.GetClaudeEffort() != "high" {
+		t.Errorf("expected claude effort high, got %s", premiumTier.GetClaudeEffort())
 	}
 	if premiumTier.Cursor != "gpt-5.6-sol" {
 		t.Errorf("expected cursor gpt-5.6-sol, got %s", premiumTier.Cursor)
@@ -59,12 +62,15 @@ func TestModelsConfig_ParseRealModelsYAML(t *testing.T) {
 	if premiumTier.OpenCode != "openai/gpt-5.6-sol" {
 		t.Errorf("expected opencode openai/gpt-5.6-sol, got %s", premiumTier.OpenCode)
 	}
+	if premiumTier.Antigravity != "pro" {
+		t.Errorf("expected antigravity pro, got %s", premiumTier.Antigravity)
+	}
 	if premiumTier.Codex == nil || premiumTier.Codex.Model != "gpt-5.6-sol" || premiumTier.Codex.ModelReasoningEffort != "high" {
 		t.Errorf("unexpected codex configuration: %+v", premiumTier.Codex)
 	}
 
 	vscodeList := premiumTier.GetVSCodeModels()
-	if len(vscodeList) != 1 || vscodeList[0] != "GPT-5.6 Sol (copilot)" {
+	if len(vscodeList) == 0 || vscodeList[0] != "GPT-5.6 Sol (copilot)" {
 		t.Errorf("unexpected vscode models: %+v", vscodeList)
 	}
 }
@@ -107,7 +113,7 @@ func TestModelsConfig_RoundTrip(t *testing.T) {
 		},
 		Tiers: map[string]TierConfig{
 			"premium": {
-				Claude:   "opus",
+				Claude:   FlexibleModel{Model: "opus", Effort: "high"},
 				VSCode:   []string{"GPT-5.6 Sol (copilot)"},
 				OpenCode: "openai/gpt-5.6-sol",
 				Codex: &CodexTierConfig{
@@ -118,7 +124,7 @@ func TestModelsConfig_RoundTrip(t *testing.T) {
 				Cursor: "gpt-5.6-sol",
 			},
 			"default": {
-				Claude:   "sonnet",
+				Claude:   FlexibleModel{Model: "sonnet"},
 				VSCode:   "GPT-5.6 Terra (copilot)",
 				OpenCode: "openai/gpt-5.6-terra",
 				Cursor:   "grok-4.6",
@@ -141,9 +147,28 @@ func TestModelsConfig_RoundTrip(t *testing.T) {
 	}
 
 	// Compare tiers
-	if roundTripped.Tiers["premium"].Claude != "opus" ||
+	if roundTripped.Tiers["premium"].GetClaudeModel() != "opus" ||
+		roundTripped.Tiers["premium"].GetClaudeEffort() != "high" ||
 		roundTripped.Tiers["premium"].Codex.Model != "gpt-5.6-sol" ||
-		roundTripped.Tiers["default"].Claude != "sonnet" {
+		roundTripped.Tiers["default"].GetClaudeModel() != "sonnet" {
 		t.Errorf("tiers mismatch: %+v", roundTripped.Tiers)
+	}
+}
+
+func TestFlexibleModel_ScalarAndObject(t *testing.T) {
+	var scalar FlexibleModel
+	if err := yaml.Unmarshal([]byte("opus\n"), &scalar); err != nil {
+		t.Fatalf("scalar unmarshal: %v", err)
+	}
+	if scalar.Model != "opus" || scalar.Effort != "" {
+		t.Fatalf("scalar = %+v", scalar)
+	}
+
+	var obj FlexibleModel
+	if err := yaml.Unmarshal([]byte("model: haiku\neffort: low\n"), &obj); err != nil {
+		t.Fatalf("object unmarshal: %v", err)
+	}
+	if obj.Model != "haiku" || obj.Effort != "low" {
+		t.Fatalf("object = %+v", obj)
 	}
 }

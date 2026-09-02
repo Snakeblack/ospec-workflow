@@ -9,32 +9,36 @@ import (
 	"github.com/snakeblack/ospec-workflow/internal/config"
 )
 
-const quickActionsCount = 4
-
-// Model represents the Bubbletea UI model for the Dashboard view.
+// Model represents the Bubbletea UI model for the Dashboard / Home view.
 type Model struct {
 	repoRoot        string
 	modelsMgr       *config.ModelsManager
 	openspecMgr     *config.OpenSpecManager
 	width           int
 	height          int
-	selectedSection int
 	selectedAction  int
 	statusMessage   string
 	modelProfile    ModelProfileSummary
 	targets         []TargetInfo
 	openspec        OpenSpecSummary
+	hitStore        *[]dashHit
+}
+
+type dashHit struct {
+	Index int
+	Y     int
+	H     int
 }
 
 // New creates a new Dashboard Model for the given repository.
 func New(repoRoot string, mm *config.ModelsManager, om *config.OpenSpecManager) Model {
 	m := Model{
-		repoRoot:        repoRoot,
-		modelsMgr:       mm,
-		openspecMgr:     om,
-		width:           80,
-		selectedSection: 0,
-		selectedAction:  0,
+		repoRoot:       repoRoot,
+		modelsMgr:      mm,
+		openspecMgr:    om,
+		width:          80,
+		selectedAction: 0,
+		hitStore:       &[]dashHit{},
 	}
 	m.Refresh()
 	return m
@@ -61,14 +65,9 @@ func (m *Model) SetHeight(h int) {
 	m.height = h
 }
 
-// SelectedAction returns the currently focused quick action index.
+// SelectedAction returns the currently focused main menu action index.
 func (m Model) SelectedAction() int {
 	return m.selectedAction
-}
-
-// SelectedSection returns the currently highlighted section index in the dashboard index.
-func (m Model) SelectedSection() int {
-	return m.selectedSection
 }
 
 // StatusMessage returns the current toast notification text.
@@ -109,7 +108,7 @@ func (m *Model) Refresh() {
 
 		tierKey := strings.ToLower(presetName)
 		if tier, ok := cfg.Tiers[tierKey]; ok {
-			claudeModel = tier.Claude
+			claudeModel = tier.GetClaudeModel()
 			if tier.Codex != nil {
 				codexModel = tier.Codex.Model
 			}
@@ -120,7 +119,7 @@ func (m *Model) Refresh() {
 				vscodeModel = vsModels[0]
 			}
 		} else if tier, ok := cfg.Tiers["default"]; ok {
-			claudeModel = tier.Claude
+			claudeModel = tier.GetClaudeModel()
 			if tier.Codex != nil {
 				codexModel = tier.Codex.Model
 			}
@@ -182,103 +181,61 @@ func (m *Model) Refresh() {
 	m.targets = DetectTargets(m.repoRoot)
 }
 
-// CyclePreset switches between Cheap -> Default -> Premium -> Cheap presets and saves.
-func (m *Model) CyclePreset() (string, error) {
-	current := strings.ToLower(m.modelProfile.PresetName)
-	var next string
-	switch current {
-	case "cheap":
-		next = "default"
-	case "default":
-		next = "premium"
-	case "premium":
-		next = "cheap"
-	default:
-		next = "default"
-	}
-
-	if err := m.modelsMgr.ApplyPreset(next); err != nil {
-		return "", err
-	}
-
-	m.Refresh()
-	nextCap := strings.ToUpper(next[:1]) + strings.ToLower(next[1:])
-	return nextCap, nil
-}
-
 // Update processes incoming messages and keyboard navigation.
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "p", "P":
-			nextCap, err := m.CyclePreset()
-			if err != nil {
-				m.statusMessage = fmt.Sprintf("✗ Error al conmutar preset: %v", err)
-				return m, nil
-			}
-			m.statusMessage = fmt.Sprintf("✓ Preset conmutado a '%s' y guardado en models.yaml", nextCap)
-			return m, func() tea.Msg {
-				return PresetChangedMsg{Preset: nextCap}
-			}
-
-		case "d", "D":
-			return m, func() tea.Msg {
-				return SwitchTabMsg{Tab: 3} // TabDoctor
-			}
-
-		case "m", "M":
-			return m, func() tea.Msg {
-				return SwitchTabMsg{Tab: 1} // TabModels
-			}
-
-		case "t", "T":
-			return m, func() tea.Msg {
-				return SwitchTabMsg{Tab: 2} // TabTargets
-			}
-
 		case "up", "k":
-			m.selectedSection = (m.selectedSection + 4 - 1) % 4
+			if m.selectedAction > 0 {
+				m.selectedAction--
+			} else {
+				m.selectedAction = int(MainMenuActionCount) - 1
+			}
 			return m, nil
 
 		case "down", "j":
-			m.selectedSection = (m.selectedSection + 1) % 4
+			if m.selectedAction < int(MainMenuActionCount)-1 {
+				m.selectedAction++
+			} else {
+				m.selectedAction = 0
+			}
 			return m, nil
 
-		case "left", "h":
-			m.selectedAction = (m.selectedAction + quickActionsCount - 1) % quickActionsCount
-			return m, nil
-
-		case "right", "l":
-			m.selectedAction = (m.selectedAction + 1) % quickActionsCount
-			return m, nil
+		case "1":
+			m.selectedAction = int(ActionInstall)
+			return m, func() tea.Msg { return ActionTriggeredMsg{Action: ActionInstall} }
+		case "2":
+			m.selectedAction = int(ActionConfigureModels)
+			return m, func() tea.Msg { return ActionTriggeredMsg{Action: ActionConfigureModels} }
+		case "3":
+			m.selectedAction = int(ActionUpdate)
+			return m, func() tea.Msg { return ActionTriggeredMsg{Action: ActionUpdate} }
+		case "4":
+			m.selectedAction = int(ActionUninstall)
+			return m, func() tea.Msg { return ActionTriggeredMsg{Action: ActionUninstall} }
 
 		case "enter":
-			switch m.selectedAction {
-			case 0: // Conmutar preset
-				nextCap, err := m.CyclePreset()
-				if err != nil {
-					m.statusMessage = fmt.Sprintf("✗ Error al conmutar preset: %v", err)
-					return m, nil
-				}
-				m.statusMessage = fmt.Sprintf("✓ Preset conmutado a '%s' y guardado en models.yaml", nextCap)
-				return m, func() tea.Msg {
-					return PresetChangedMsg{Preset: nextCap}
-				}
-			case 1: // System Doctor
-				return m, func() tea.Msg {
-					return SwitchTabMsg{Tab: 3}
-				}
-			case 2: // Models Hub
-				return m, func() tea.Msg {
-					return SwitchTabMsg{Tab: 1}
-				}
-			case 3: // Targets Manager
-				return m, func() tea.Msg {
-					return SwitchTabMsg{Tab: 2}
+			act := MainMenuActionID(m.selectedAction)
+			return m, func() tea.Msg {
+				return ActionTriggeredMsg{Action: act}
+			}
+		}
+
+	case tea.MouseMsg:
+		if msg.Action != tea.MouseActionPress || msg.Button != tea.MouseButtonLeft {
+			return m, nil
+		}
+		if m.hitStore != nil {
+			for _, h := range *m.hitStore {
+				if msg.Y >= h.Y && msg.Y < h.Y+h.H {
+					m.selectedAction = h.Index
+					act := MainMenuActionID(h.Index)
+					return m, func() tea.Msg { return ActionTriggeredMsg{Action: act} }
 				}
 			}
 		}
+		return m, nil
 
 	case tea.WindowSizeMsg:
 		m.SetSize(msg.Width, msg.Height)
@@ -287,60 +244,34 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// View renders the complete Dashboard view with an indexed minimalist master-detail layout.
+// View renders the home screen: hero, status and the installer/models actions.
 func (m Model) View() string {
 	boxWidth := m.width - 4
-	if boxWidth < 20 {
-		boxWidth = 20
+	if boxWidth < 30 {
+		boxWidth = 30
 	}
 
-	quickActions := renderQuickActions(m.selectedAction, m.statusMessage, boxWidth)
-
-	// Responsive 2-column layout: Index on left, focused Detail on right
-	if boxWidth >= 74 {
-		leftWidth := 30
-		rightWidth := boxWidth - leftWidth - 2
-		if rightWidth < 38 {
-			rightWidth = 38
+	heroBanner := renderOctopusHero(m.modelProfile.PresetName, len(m.targets), m.openspec.Version, boxWidth)
+	mainMenu, menuHits := renderMainMenu(m.selectedAction, boxWidth)
+	heroH := lipgloss.Height(heroBanner)
+	if m.hitStore != nil {
+		offset := make([]dashHit, len(menuHits))
+		for i, h := range menuHits {
+			h.Y += heroH
+			offset[i] = h
 		}
-
-		indexCard := renderDashboardIndex(m.selectedSection, m.modelProfile.PresetName, len(m.targets), leftWidth)
-
-		var detailCard string
-		switch m.selectedSection {
-		case 1:
-			detailCard = renderTargetsCard(m.targets, rightWidth)
-		case 2:
-			detailCard = renderModelProfileCard(m.modelProfile, rightWidth)
-		default:
-			detailCard = renderOpenSpecCard(m.openspec, rightWidth)
-		}
-
-		topRow := lipgloss.JoinHorizontal(lipgloss.Top, indexCard, " ", detailCard)
-
-		return lipgloss.JoinVertical(
-			lipgloss.Left,
-			topRow,
-			quickActions,
-		)
+		*m.hitStore = offset
 	}
 
-	// Compact stacked layout
-	indexCard := renderDashboardIndex(m.selectedSection, m.modelProfile.PresetName, len(m.targets), boxWidth)
-	var detailCard string
-	switch m.selectedSection {
-	case 1:
-		detailCard = renderTargetsCard(m.targets, boxWidth)
-	case 2:
-		detailCard = renderModelProfileCard(m.modelProfile, boxWidth)
-	default:
-		detailCard = renderOpenSpecCard(m.openspec, boxWidth)
+	var statusRow string
+	if m.statusMessage != "" {
+		statusRow = fmt.Sprintf("\n%s", m.statusMessage)
 	}
 
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
-		indexCard,
-		detailCard,
-		quickActions,
+		heroBanner,
+		mainMenu,
+		statusRow,
 	)
 }

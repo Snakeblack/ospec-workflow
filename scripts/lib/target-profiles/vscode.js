@@ -11,5 +11,8 @@ module.exports = {
   agentFile: { from: ".agent.md", to: ".agent.md" },
   commandFile: { from: ".prompt.md", to: ".prompt.md" },
   model: true,
+  // Copilot Chat's Customizations editor defaults new files to github-copilot.
+  // Force the VS Code target so `model:` (string or fallback array) is honored.
+  setAgentFrontmatter: { target: "vscode" },
   validate: ["node", "scripts/configure/validate-vscode.js", "{out}"],
 };

@@ -40,9 +40,66 @@ function sddAgentsByTier(agents) {
   return partition;
 }
 
+function lookupAssignment(assignments, target, agentName) {
+  if (!assignments || typeof assignments !== "object") {
+    return undefined;
+  }
+  const byTarget = assignments[target];
+  if (!byTarget || typeof byTarget !== "object") {
+    return undefined;
+  }
+  if (Object.prototype.hasOwnProperty.call(byTarget, agentName)) {
+    return byTarget[agentName];
+  }
+  if (String(target).toLowerCase() === "antigravity" && byTarget._all !== undefined) {
+    return byTarget._all;
+  }
+  return undefined;
+}
+
+function materializeAssignment(target, overlay) {
+  if (overlay === undefined || overlay === null || overlay === INHERIT) {
+    return OMIT;
+  }
+  if (typeof overlay === "string") {
+    return overlay === INHERIT ? OMIT : overlay;
+  }
+  if (typeof overlay !== "object" || Array.isArray(overlay)) {
+    return overlay;
+  }
+  const model = overlay.model;
+  if (model === INHERIT) {
+    return OMIT;
+  }
+  const effort = overlay.effort || overlay.model_reasoning_effort || "";
+  const verbosity = overlay.verbosity || overlay.model_verbosity || "";
+  const t = String(target).toLowerCase();
+  if (t === "codex") {
+    const out = { model };
+    if (effort) out.model_reasoning_effort = effort;
+    if (verbosity) out.model_verbosity = verbosity;
+    return out;
+  }
+  if (t === "cursor" && effort) {
+    return `${model}[${effort}]`;
+  }
+  if (t === "opencode" && effort) {
+    return `${model}#${effort}`;
+  }
+  if (effort) {
+    return { model, effort };
+  }
+  return model;
+}
+
 function resolveModel(agentName, target, models) {
   if (!models || typeof models !== "object") {
     return OMIT;
+  }
+
+  const overlay = lookupAssignment(models.assignments, target, agentName);
+  if (overlay !== undefined) {
+    return materializeAssignment(target, overlay);
   }
 
   const agents = models.agents || {};

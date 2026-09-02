@@ -21,3 +21,15 @@ func TestAppModelSetup(t *testing.T) {
 		t.Fatal("tea.NewProgram returned nil")
 	}
 }
+
+func TestRunHelp(t *testing.T) {
+	if err := run([]string{"--help"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRunQACheckDoesNotInstall(t *testing.T) {
+	if err := run([]string{"--qa", "--check"}); err != nil {
+		t.Fatal(err)
+	}
+}

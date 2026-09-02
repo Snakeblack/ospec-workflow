@@ -133,6 +133,9 @@ func (m *ModelsManager) LoadModels() (*ModelsConfig, error) {
 	if cfg.Tiers == nil {
 		cfg.Tiers = make(map[string]TierConfig)
 	}
+	if cfg.Assignments == nil {
+		cfg.Assignments = make(map[string]map[string]AgentAssignment)
+	}
 
 	m.cachedCfg = &cfg
 	return &cfg, nil
@@ -188,6 +191,102 @@ func (m *ModelsManager) SetAgentTier(agent string, tier string) error {
 	defer m.mu.Unlock()
 
 	cfg.Agents[agent] = tier
+	return nil
+}
+
+// SetTargetModel sets the specific target model for a given tier.
+func (m *ModelsManager) SetTargetModel(tierName string, target string, model string) error {
+	cfg, err := m.ensureLoaded()
+	if err != nil {
+		return err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	tier := cfg.Tiers[tierName]
+	switch strings.ToLower(target) {
+	case "claude":
+		tier.Claude = FlexibleModel{Model: model, Effort: tier.Claude.Effort}
+	case "cursor":
+		_, opt := SplitCursorModel(tier.Cursor)
+		tier.Cursor = JoinCursorModel(model, opt)
+	case "opencode":
+		base, _ := SplitOpenCodeModel(model)
+		_, variant := SplitOpenCodeModel(tier.OpenCode)
+		tier.OpenCode = JoinOpenCodeModel(base, variant)
+	case "vscode":
+		tier.VSCode = []string{model}
+	case "antigravity":
+		tier.Antigravity = model
+	case "codex":
+		if tier.Codex == nil {
+			tier.Codex = &CodexTierConfig{}
+		}
+		tier.Codex.Model = model
+	default:
+		return fmt.Errorf("target %q no soportado para asignación de modelo", target)
+	}
+	cfg.Tiers[tierName] = tier
+	return nil
+}
+
+// SetTargetEffort updates reasoning effort for targets that support it on custom agents.
+func (m *ModelsManager) SetTargetEffort(tierName string, target string, effort string) error {
+	cfg, err := m.ensureLoaded()
+	if err != nil {
+		return err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	tier := cfg.Tiers[tierName]
+	switch TargetEffortKind(target) {
+	case EffortClaude:
+		tier.Claude = FlexibleModel{Model: tier.Claude.Model, Effort: effort}
+	case EffortCodex:
+		if tier.Codex == nil {
+			tier.Codex = &CodexTierConfig{}
+		}
+		tier.Codex.ModelReasoningEffort = effort
+	case EffortCursor:
+		base, _ := SplitCursorModel(tier.Cursor)
+		tier.Cursor = JoinCursorModel(base, effort)
+	case EffortOpenCode:
+		base, _ := SplitOpenCodeModel(tier.OpenCode)
+		tier.OpenCode = JoinOpenCodeModel(base, effort)
+	default:
+		return fmt.Errorf("target %q no admite effort en agentes custom", target)
+	}
+	cfg.Tiers[tierName] = tier
+	return nil
+}
+
+// SetCodexConfig updates model, reasoning effort, and verbosity for a tier.
+func (m *ModelsManager) SetCodexConfig(tierName string, model string, effort string, verbosity string) error {
+	cfg, err := m.ensureLoaded()
+	if err != nil {
+		return err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	tier := cfg.Tiers[tierName]
+	if tier.Codex == nil {
+		tier.Codex = &CodexTierConfig{}
+	}
+	if model != "" {
+		tier.Codex.Model = model
+	}
+	if effort != "" {
+		tier.Codex.ModelReasoningEffort = effort
+	}
+	if verbosity != "" {
+		tier.Codex.ModelVerbosity = verbosity
+	}
+	cfg.Tiers[tierName] = tier
 	return nil
 }
 
@@ -320,4 +419,84 @@ func (m *ModelsManager) GetActivePreset() (string, error) {
 	}
 
 	return "custom", nil
+}
+
+// NormalizeProfileName normalizes profile aliases (Economy, Balanced, Max Quality, etc.) to internal names (cheap, default, premium).
+func NormalizeProfileName(profile string) string {
+	p := strings.TrimSpace(strings.ToLower(profile))
+	switch {
+	case strings.Contains(p, "economy") || strings.Contains(p, "cheap") || strings.Contains(p, "ahorro") || strings.Contains(p, "econ"):
+		return "cheap"
+	case strings.Contains(p, "max") || strings.Contains(p, "premium") || strings.Contains(p, "quality"):
+		return "premium"
+	default:
+		return "default" // Balanced (recommended)
+	}
+}
+
+// ApplyProfile applies a normalized profile name (Economy, Balanced, Max Quality).
+func (m *ModelsManager) ApplyProfile(profile string) error {
+	normalized := NormalizeProfileName(profile)
+	return m.ApplyPreset(normalized)
+}
+
+// ResetToProfileDefaults resets all agent-to-tier mappings and target configurations to the profile defaults.
+func (m *ModelsManager) ResetToProfileDefaults(profile string) error {
+	normalized := NormalizeProfileName(profile)
+	return m.ApplyPreset(normalized)
+}
+
+// SetTargetAssignments replaces in-memory per-agent models for one target.
+func (m *ModelsManager) SetTargetAssignments(targetID string, picks []AgentAssignment) error {
+	cfg, err := m.ensureLoaded()
+	if err != nil {
+		return err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if cfg.Assignments == nil {
+		cfg.Assignments = make(map[string]map[string]AgentAssignment)
+	}
+	cfg.Assignments[targetID] = ZipAssignments(targetID, picks)
+	return nil
+}
+
+// SaveTargetAssignments persists per-agent models for one target.
+func (m *ModelsManager) SaveTargetAssignments(targetID string, picks []AgentAssignment) error {
+	if err := m.SetTargetAssignments(targetID, picks); err != nil {
+		return err
+	}
+	return m.Save()
+}
+
+// SaveAllTargetAssignments persists per-agent models for several targets in one write.
+func (m *ModelsManager) SaveAllTargetAssignments(byTarget map[string][]AgentAssignment) error {
+	cfg, err := m.ensureLoaded()
+	if err != nil {
+		return err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if cfg.Assignments == nil {
+		cfg.Assignments = make(map[string]map[string]AgentAssignment)
+	}
+	for id, picks := range byTarget {
+		cfg.Assignments[id] = ZipAssignments(id, picks)
+	}
+	return m.SaveModels(cfg)
+}
+
+// ApplyPresetToTarget writes the preset template into assignments for a target
+// without changing the global agents table.
+func (m *ModelsManager) ApplyPresetToTarget(preset, targetID string) error {
+	cfg, err := m.ensureLoaded()
+	if err != nil {
+		return err
+	}
+	picks := SeedAgentPicks(cfg, targetID, preset)
+	return m.SaveTargetAssignments(targetID, picks)
 }

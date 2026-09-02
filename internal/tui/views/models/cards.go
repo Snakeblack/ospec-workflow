@@ -5,56 +5,37 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/snakeblack/ospec-workflow/internal/system"
+	"github.com/snakeblack/ospec-workflow/internal/config"
 	"github.com/snakeblack/ospec-workflow/internal/tui/theme"
 )
 
-func renderSubNav(currentMode SubMode, width int) string {
+func renderSubNav(currentMode SubMode, width int) (string, []Hit) {
 	var tabs []string
+	labels := []string{"[1] Presets", "[2] Por agente", "[3] Por cliente"}
+	modes := []SubMode{ModePresets, ModeGranular, ModeTargetModels}
 
-	compact := width > 0 && width < 80
-	var modes []struct {
-		mode  SubMode
-		label string
-	}
-	if compact {
-		modes = []struct {
-			mode  SubMode
-			label string
-		}{
-			{ModePresets, "[1] Presets"},
-			{ModeProviders, "[2] Proveedores"},
-			{ModeGranular, "[3] Agentes"},
-		}
-	} else {
-		modes = []struct {
-			mode  SubMode
-			label string
-		}{
-			{ModePresets, "[1] Presets Globales"},
-			{ModeProviders, "[2] Proveedores & Local"},
-			{ModeGranular, "[3] Afinamiento por Agente"},
-		}
-	}
-
-	for _, m := range modes {
-		if m.mode == currentMode {
-			tabText := theme.StyleActiveTab.
+	x := 0
+	var hits []Hit
+	for i, label := range labels {
+		w := lipgloss.Width(label)
+		hits = append(hits, Hit{Kind: "subnav", Index: i, X: x, Y: 0, W: w, H: 1})
+		if modes[i] == currentMode {
+			tabs = append(tabs, theme.StyleActiveTab.
 				Border(lipgloss.NormalBorder(), false, false, true, false).
 				BorderForeground(theme.ColorPrimary).
-				Render(m.label)
-			tabs = append(tabs, tabText)
+				Render(label))
 		} else {
-			tabText := theme.StyleInactiveTab.Render(m.label)
-			tabs = append(tabs, tabText)
+			tabs = append(tabs, theme.StyleInactiveTab.Render(label))
 		}
+		x += w + 2
 	}
 
-	hint := theme.StyleLabel.Render(" (1-3/Tab)")
-	return lipgloss.JoinHorizontal(lipgloss.Top, tabs[0], "  ", tabs[1], "  ", tabs[2], hint)
+	hint := theme.StyleLabel.Render("  (clic o 1-3)")
+	_ = width
+	return lipgloss.JoinHorizontal(lipgloss.Top, tabs[0], "  ", tabs[1], "  ", tabs[2], hint), hits
 }
 
-func renderPresetCard(p PresetItem, isFocused bool, cardWidth int) string {
+func renderPresetCard(p PresetItem, isFocused bool, inCards bool, cardWidth int) string {
 	var headerStyle lipgloss.Style
 	var tagColor lipgloss.Color
 
@@ -78,64 +59,45 @@ func renderPresetCard(p PresetItem, isFocused bool, cardWidth int) string {
 		activeBadge = theme.RenderBadge("Estado", "Disponible", theme.StyleLabel)
 	}
 
-	var headerSection string
-	if cardWidth >= 36 {
-		headerSection = lipgloss.JoinHorizontal(lipgloss.Top, titleText, " ", activeBadge)
-	} else {
-		headerSection = lipgloss.JoinVertical(lipgloss.Left, titleText, activeBadge)
-	}
+	headerSection := lipgloss.JoinHorizontal(lipgloss.Top, titleText, " ", activeBadge)
 
-	// Compact models summary
-	var modelLines []string
-	if p.ClaudeModel != "" {
-		modelLines = append(modelLines, fmt.Sprintf("• Claude  : %s", theme.StyleValueAccent.Render(p.ClaudeModel)))
-	}
-	if p.CodexModel != "" {
-		modelLines = append(modelLines, fmt.Sprintf("• Codex   : %s", theme.StyleValue.Render(p.CodexModel)))
-	}
-	if p.OpenCodeModel != "" {
-		modelLines = append(modelLines, fmt.Sprintf("• OpenCode: %s", theme.StyleValue.Render(p.OpenCodeModel)))
-	}
-	if p.VSCodeModel != "" {
-		modelLines = append(modelLines, fmt.Sprintf("• VS Code : %s", theme.StyleValue.Render(p.VSCodeModel)))
-	}
-	if p.CursorModel != "" {
-		modelLines = append(modelLines, fmt.Sprintf("• Cursor  : %s", theme.StyleValue.Render(p.CursorModel)))
-	}
-
-	// Footer Action
 	var actionPrompt string
-	if p.IsActive {
-		actionPrompt = theme.StyleValueSuccess.Render("✓ Perfil actualmente activo")
-	} else if isFocused {
-		actionPrompt = theme.StyleActionBtnActive.Render("Presiona [Enter] o [Espacio] para activar")
+	if isFocused && inCards {
+		actionPrompt = theme.StyleActionBtnActive.Render("Enter elige un cliente")
 	} else {
-		actionPrompt = theme.StyleLabel.Render("Selecciona para activar")
-	}
-
-	var elements []string
-	elements = append(elements, headerSection, theme.StyleLabel.Render(p.Tagline))
-	if len(modelLines) > 0 {
-		elements = append(elements, strings.Join(modelLines, "\n"))
-	}
-	elements = append(elements, actionPrompt)
-
-	cardBox := theme.StyleCard
-	if isFocused {
-		cardBox = cardBox.BorderForeground(theme.ColorPrimary)
+		actionPrompt = theme.StyleLabel.Render("Clic o ←/→")
 	}
 
 	w := cardWidth
 	if w < 24 {
 		w = 24
 	}
+	body := strings.Join([]string{
+		headerSection,
+		theme.StyleLabel.Render(p.Tagline),
+		theme.StyleValue.Render(p.AgentSummary),
+		actionPrompt,
+	}, "\n")
 
-	return cardBox.Width(w).Padding(0, 1).Render(strings.Join(elements, "\n"))
+	cardBox := theme.StyleCard
+	if isFocused {
+		cardBox = cardBox.BorderForeground(theme.ColorPrimary)
+	}
+	return cardBox.Width(w).Padding(0, 1).Render(body)
 }
 
-func renderPresetsView(presets []PresetItem, focusedIdx int, width int) string {
+func renderPresetsView(
+	presets []PresetItem,
+	focusedIdx int,
+	zone int,
+	presetTargetIdx int,
+	picks []config.AgentAssignment,
+	agentFocus, agentCol, agentPage int,
+	targets []TargetConfigItem,
+	width int,
+) (string, []Hit) {
 	if len(presets) == 0 {
-		return theme.StyleLabel.Render("No hay presets disponibles.")
+		return theme.StyleLabel.Render("No hay presets disponibles."), nil
 	}
 
 	boxWidth := width
@@ -143,140 +105,243 @@ func renderPresetsView(presets []PresetItem, focusedIdx int, width int) string {
 		boxWidth = 30
 	}
 
-	help := theme.StyleLabel.Render("Navegación: ") +
-		theme.StyleKeyHint.Render("←/→/h/l") +
-		theme.StyleLabel.Render(" elegir, ") +
-		theme.StyleKeyHint.Render("Enter/Espacio") +
-		theme.StyleLabel.Render(" aplicar, ") +
-		theme.StyleKeyHint.Render("[2]") +
-		theme.StyleLabel.Render(" Proveedores, ") +
-		theme.StyleKeyHint.Render("[3]") +
-		theme.StyleLabel.Render(" Agentes.")
+	focused := presets[focusedIdx]
+	if zone == presetZoneTargets {
+		return renderPresetTargetList(focused, targets, presetTargetIdx, boxWidth)
+	}
+	if zone == presetZoneAgents {
+		tc := TargetConfigItem{DisplayName: "cliente"}
+		if presetTargetIdx >= 0 && presetTargetIdx < len(targets) {
+			tc = targets[presetTargetIdx]
+		}
+		title := fmt.Sprintf("%s · %s — modelo por agente", focused.Title, tc.DisplayName)
+		sub := "Espacio cicla  ·  / lista  ·  Enter guarda y vuelve  ·  Esc atrás"
+		if tc.IsSingleModel {
+			sub = "Un modelo para todos los agentes. Espacio cicla  ·  Enter guarda  ·  Esc atrás"
+		}
+		return RenderAssignmentList(tc.ID, title, sub, picks, agentFocus, agentCol, agentPage, boxWidth, 0)
+	}
 
-	// Wide screen: multi-column layout
-	if boxWidth >= 90 && len(presets) >= 3 {
+	banner := theme.StyleCard.Width(boxWidth).Padding(0, 1).Render(strings.Join([]string{
+		theme.StyleCardHeader.Render("Qué es un preset"),
+		theme.StyleLabel.Render("Económico, Equilibrado o Máximo es una plantilla. Enter elige el cliente; luego asignas el modelo de cada agente. Si el cliente ya está configurado, a aplica el preset de golpe."),
+	}, "\n"))
+
+	var hits []Hit
+	y := lipgloss.Height(banner)
+	helpCards := theme.StyleLabel.Render("←/→ elige preset  ·  Enter o clic abre los clientes  ·  Esc vuelve al inicio")
+
+	var cardsRow string
+	cardHeight := 1
+	if boxWidth >= 72 && len(presets) >= 3 {
 		cardWidth := (boxWidth - (len(presets)-1)*2) / len(presets)
-		var cardsWithSpacers []string
+		var parts []string
+		x := 0
 		for i, p := range presets {
 			if i > 0 {
-				cardsWithSpacers = append(cardsWithSpacers, "  ")
+				parts = append(parts, "  ")
+				x += 2
 			}
-			cardsWithSpacers = append(cardsWithSpacers, renderPresetCard(p, i == focusedIdx, cardWidth))
+			card := renderPresetCard(p, i == focusedIdx, zone == presetZoneCards, cardWidth)
+			cardHeight = lipgloss.Height(card)
+			hits = append(hits, Hit{Kind: "preset", Index: i, X: x, Y: y, W: lipgloss.Width(card), H: cardHeight})
+			parts = append(parts, card)
+			x += lipgloss.Width(card)
 		}
-		cardsRow := lipgloss.JoinHorizontal(lipgloss.Top, cardsWithSpacers...)
-
-		return lipgloss.JoinVertical(lipgloss.Left, cardsRow, help)
+		cardsRow = lipgloss.JoinHorizontal(lipgloss.Top, parts...)
+	} else {
+		var stacked []string
+		cy := y
+		for i, p := range presets {
+			card := renderPresetCard(p, i == focusedIdx, zone == presetZoneCards, boxWidth)
+			h := lipgloss.Height(card)
+			hits = append(hits, Hit{Kind: "preset", Index: i, X: 0, Y: cy, W: boxWidth, H: h})
+			stacked = append(stacked, card)
+			cy += h
+			cardHeight = h
+		}
+		cardsRow = strings.Join(stacked, "\n")
 	}
 
-	// Compact screen: stacked vertically
-	var elements []string
-	for i, p := range presets {
-		elements = append(elements, renderPresetCard(p, i == focusedIdx, boxWidth))
-	}
-	elements = append(elements, help)
-
-	return lipgloss.JoinVertical(lipgloss.Left, strings.Join(elements, "\n"))
+	return lipgloss.JoinVertical(lipgloss.Left, banner, cardsRow, helpCards), hits
 }
 
-func renderProvidersView(providers []system.ProviderSpec, localModels []system.LocalModelInfo, width int) string {
+func renderPresetTargetList(preset PresetItem, targets []TargetConfigItem, focusedIdx, width int) (string, []Hit) {
+	header := theme.StyleCardHeader.Render(fmt.Sprintf("Preset %s — elige un cliente", preset.Title))
+	sub := theme.StyleLabel.Render("Enter configura agentes. a aplica el preset si ese cliente ya tiene modelos guardados. Esc vuelve a las tarjetas.")
+
+	var hits []Hit
+	var rows []string
+	y := 4
+	for i, t := range targets {
+		isFocus := i == focusedIdx
+		prefix := "  "
+		nameStyle := theme.StyleValue
+		if isFocus {
+			prefix = theme.StyleKeyHint.Render("▶ ")
+			nameStyle = theme.StyleValuePrimary.Bold(true)
+		}
+		state := theme.StyleValueMuted.Render("sin configurar")
+		applyHint := ""
+		if t.HasAssignments {
+			state = theme.StyleValueSuccess.Render("configurado")
+			applyHint = theme.StyleLabel.Render("  ·  a aplica preset")
+		}
+		multi := "multiagente"
+		if t.IsSingleModel {
+			multi = "un modelo"
+		}
+		row := fmt.Sprintf("%s%s  %s  %s%s", prefix, nameStyle.Render(t.DisplayName), theme.StyleLabel.Render(multi), state, applyHint)
+		if isFocus {
+			row = lipgloss.NewStyle().Background(lipgloss.Color("#262626")).Width(width - 4).Render(row)
+		}
+		rows = append(rows, row)
+		hits = append(hits, Hit{Kind: "ptarget", Index: i, Extra: 0, X: 0, Y: y, W: width - 20, H: 1})
+		if t.HasAssignments {
+			hits = append(hits, Hit{Kind: "ptarget", Index: i, Extra: 1, X: width - 18, Y: y, W: 16, H: 1})
+		}
+		y++
+	}
+
+	hint := theme.StyleLabel.Render("↑/↓ cliente  ·  Enter configura  ·  a aplica (si configurado)  ·  Esc atrás")
+	body := lipgloss.JoinVertical(lipgloss.Left, header, "", sub, "", strings.Join(rows, "\n"), "", hint)
+	return body, hits
+}
+
+func renderTargetModelsView(targets []TargetConfigItem, selectedTargetIdx int, focusedRow, focusedCol int, width int) (string, []Hit) {
 	boxWidth := width
 	if boxWidth < 30 {
 		boxWidth = 30
 	}
+	if len(targets) == 0 {
+		return theme.StyleLabel.Render("No hay clientes configurables."), nil
+	}
+	if selectedTargetIdx < 0 || selectedTargetIdx >= len(targets) {
+		selectedTargetIdx = 0
+	}
+	cur := targets[selectedTargetIdx]
 
-	var sections []string
+	var hits []Hit
+	var leftLines []string
+	leftLines = append(leftLines, theme.StyleCardHeader.Render("Clientes"))
+	y := 1
+	for i, t := range targets {
+		prefix := "  "
+		nameStyle := theme.StyleValue
+		if i == selectedTargetIdx {
+			prefix = theme.StyleKeyHint.Render("▶ ")
+			nameStyle = theme.StyleValuePrimary.Bold(true)
+		}
+		row := fmt.Sprintf("%s%s", prefix, nameStyle.Render(t.DisplayName))
+		if i == selectedTargetIdx {
+			row = lipgloss.NewStyle().Background(lipgloss.Color("#262626")).Width(24).Render(row)
+		}
+		leftLines = append(leftLines, row)
+		hits = append(hits, Hit{Kind: "target", Index: i, X: 1, Y: y, W: 24, H: 1})
+		y++
+	}
+	leftCard := theme.StyleCard.Width(26).Padding(0, 1).Render(strings.Join(leftLines, "\n"))
 
-	// Section 1: Local Daemons
-	localHeader := theme.StyleCardHeaderSuccess.Render("💻 PROVEEDORES LOCALES (DAEMONS & RENDERERS)")
-	var localLines []string
-	localLines = append(localLines, localHeader)
+	rightWidth := boxWidth - 28
+	if rightWidth < 40 {
+		rightWidth = 40
+	}
 
-	hasLocalOnline := false
-	for _, p := range providers {
-		if p.Type == "local" {
-			statusBadge := theme.StyleValueWarning.Render("[Offline]")
-			if p.IsAvailable {
-				statusBadge = theme.StyleValueSuccess.Render("[Online]")
-				hasLocalOnline = true
+	capLine := theme.StyleLabel.Render("Modelo: sí.")
+	if cur.SupportsEffort {
+		capLine = theme.StyleValueSuccess.Render("Modelo y esfuerzo: sí (agentes custom).")
+	} else {
+		capLine = theme.StyleLabel.Render("Modelo: sí. Esfuerzo: este cliente no lo admite en agentes custom.")
+	}
+
+	var rightLines []string
+	rightLines = append(rightLines,
+		theme.StyleCardHeaderAccent.Render(cur.DisplayName),
+		theme.StyleLabel.Render(cur.Description),
+		capLine,
+		"",
+		fmt.Sprintf("  %-12s  %-22s  %-22s  %s",
+			"",
+			theme.StyleValueSuccess.Render("Económico"),
+			theme.StyleValuePrimary.Render("Equilibrado"),
+			theme.StyleValueAccent.Render("Máximo"),
+		),
+	)
+
+	renderRow := func(rowIdx int, label string, getter func(TargetConfigItem, int) string, enabled bool) string {
+		cells := make([]string, 3)
+		for col := 0; col < 3; col++ {
+			val := displayEffort(getter(cur, col))
+			if rowIdx > 0 && !enabled {
+				val = "—"
 			}
-			localLines = append(localLines, fmt.Sprintf("  • %-18s %s  %s",
-				theme.StyleValueAccent.Render(p.DisplayName),
-				statusBadge,
-				theme.StyleLabel.Render(p.Evidence),
-			))
+			cell := val
+			if rowIdx == focusedRow && col == focusedCol && enabled {
+				cell = theme.StyleValuePrimary.Bold(true).Render("‹ " + val + " ›")
+			}
+			cells[col] = fmt.Sprintf("%-22s", cell)
+		}
+		prefix := "  "
+		if rowIdx == focusedRow {
+			prefix = theme.StyleKeyHint.Render("▶ ")
+		}
+		return fmt.Sprintf("%s%-10s  %s  %s  %s", prefix, label, cells[0], cells[1], cells[2])
+	}
+
+	rightLines = append(rightLines, renderRow(rowModel, "Modelo", func(t TargetConfigItem, col int) string { return t.ModelFor(col) }, true))
+	if cur.SupportsEffort {
+		rightLines = append(rightLines, renderRow(rowEffort, "Esfuerzo", func(t TargetConfigItem, col int) string { return t.EffortFor(col) }, true))
+	}
+	if cur.SupportsVerbosity {
+		rightLines = append(rightLines, renderRow(rowVerbosity, "Verbosity", func(t TargetConfigItem, col int) string { return t.VerbosityFor(col) }, true))
+	}
+
+	rightLines = append(rightLines, "", theme.StyleLabel.Render("Catálogo: "+strings.Join(cur.AvailableModels, " · ")))
+
+	rightCard := theme.StyleCard.Width(rightWidth).Padding(0, 1).Render(strings.Join(rightLines, "\n"))
+
+	var topRow string
+	rightX := 27
+	rowY := 6
+	if boxWidth >= 70 {
+		topRow = lipgloss.JoinHorizontal(lipgloss.Top, leftCard, " ", rightCard)
+	} else {
+		topRow = lipgloss.JoinVertical(lipgloss.Left, leftCard, rightCard)
+		rightX = 0
+		rowY = lipgloss.Height(leftCard) + 6
+	}
+	maxRow := rowModel
+	if cur.SupportsEffort {
+		maxRow = rowEffort
+	}
+	if cur.SupportsVerbosity {
+		maxRow = rowVerbosity
+	}
+	for row := 0; row <= maxRow; row++ {
+		for col := 0; col < 3; col++ {
+			hits = append(hits, Hit{
+				Kind:  "tcell",
+				Index: row,
+				Extra: col,
+				X:     rightX + 12 + col*24,
+				Y:     rowY + row,
+				W:     22,
+				H:     1,
+			})
 		}
 	}
 
-	if hasLocalOnline && len(localModels) > 0 {
-		localLines = append(localLines, theme.StyleCardHeaderAccent.Render("  Modelos Locales Instalados en Ollama:"))
-		for _, m := range localModels {
-			localLines = append(localLines, fmt.Sprintf("    ✓ %-20s  %-8s  (%s)",
-				theme.StyleValuePrimary.Render(m.Name),
-				theme.StyleValue.Render(m.Size),
-				theme.StyleLabel.Render(m.Family),
-			))
-		}
-	} else if !hasLocalOnline {
-		localLines = append(localLines, theme.StyleLabel.Render("  💡 Inicia Ollama: ")+theme.StyleKeyHint.Render("ollama serve && ollama run qwen2.5-coder:32b"))
-	}
-
-	localCard := theme.StyleCard.Width(boxWidth).Padding(0, 1).Render(strings.Join(localLines, "\n"))
-	sections = append(sections, localCard)
-
-	// Section 2: Cloud Providers
-	cloudHeader := theme.StyleCardHeader.Render("☁️ PROVEEDORES CLOUD & LLM APIs")
-	var cloudLines []string
-	cloudLines = append(cloudLines, cloudHeader)
-
-	for _, p := range providers {
-		if p.Type == "cloud" {
-			statusBadge := theme.StyleValueMuted.Render("[Sin API Key]")
-			if p.IsAvailable {
-				statusBadge = theme.StyleValueSuccess.Render("[✓ Configurada]")
-			}
-			modelsSample := ""
-			if len(p.Models) > 0 {
-				modelsSample = fmt.Sprintf("  Modelos: %s", strings.Join(p.Models[:min(3, len(p.Models))], ", "))
-			}
-			cloudLines = append(cloudLines, fmt.Sprintf("  • %-18s %s  %s%s",
-				theme.StyleValue.Render(p.DisplayName),
-				statusBadge,
-				theme.StyleLabel.Render(p.Evidence),
-				theme.StyleLabel.Render(modelsSample),
-			))
-		}
-	}
-
-	cloudCard := theme.StyleCard.Width(boxWidth).Padding(0, 1).Render(strings.Join(cloudLines, "\n"))
-	sections = append(sections, cloudCard)
-
-	help := theme.StyleLabel.Render("Acciones: ") +
-		theme.StyleKeyHint.Render("[r]") +
-		theme.StyleLabel.Render(" Re-escanear | ") +
-		theme.StyleKeyHint.Render("[1]") +
-		theme.StyleLabel.Render(" Presets | ") +
-		theme.StyleKeyHint.Render("[3]") +
-		theme.StyleLabel.Render(" Agentes")
-
-	sections = append(sections, help)
-	return lipgloss.JoinVertical(lipgloss.Left, sections...)
+	help := theme.StyleLabel.Render("↑/↓ fila  ·  ←/→ celda  ·  [ ] cliente  ·  Enter cambia  ·  clic selecciona")
+	return lipgloss.JoinVertical(lipgloss.Left, topRow, help), hits
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func renderGranularView(agents []AgentRow, selectedIdx int, page int, pageSize int, width int) string {
+func renderGranularView(agents []AgentRow, selectedIdx int, page int, pageSize int, width int) (string, []Hit) {
 	boxWidth := width
 	if boxWidth < 30 {
 		boxWidth = 30
 	}
-
 	if pageSize <= 0 {
-		pageSize = 6
+		pageSize = 8
 	}
 
 	totalAgents := len(agents)
@@ -284,7 +349,6 @@ func renderGranularView(agents []AgentRow, selectedIdx int, page int, pageSize i
 	if totalPages == 0 {
 		totalPages = 1
 	}
-
 	if page < 0 {
 		page = 0
 	}
@@ -297,28 +361,28 @@ func renderGranularView(agents []AgentRow, selectedIdx int, page int, pageSize i
 	if endIdx > totalAgents {
 		endIdx = totalAgents
 	}
-
 	pageAgents := agents[startIdx:endIdx]
 
-	var rows []string
-
-	// Top Pagination Bar
-	pageBar := fmt.Sprintf("  %s %s  (Mostrando %d-%d de %d)   %s",
+	var hits []Hit
+	pageBar := fmt.Sprintf("  %s %s  (%d-%d de %d)   %s",
 		theme.StyleBadgeLabel.Render("PÁGINA"),
 		theme.StylePageCurrent.Render(fmt.Sprintf("[%d de %d]", page+1, totalPages)),
 		startIdx+1, endIdx, totalAgents,
-		theme.StylePageControls.Render("← [h/p] Anterior | [l/n] Siguiente →"),
+		theme.StylePageControls.Render("AvPág / RePág  ·  clic en la fila"),
 	)
-	rows = append(rows, pageBar)
+	hits = append(hits, Hit{Kind: "page", Extra: -1, X: 2, Y: 0, W: 12, H: 1})
+	hits = append(hits, Hit{Kind: "page", Extra: 1, X: 16, Y: 0, W: 12, H: 1})
 
 	headerLine := fmt.Sprintf("  %-20s  %-18s  %s",
-		theme.StyleCardHeader.Render("Agente / Subagente"),
-		theme.StyleCardHeaderAccent.Render("Tier Asignado"),
-		theme.StyleCardHeader.Render("Propósito / Responsabilidad"),
+		theme.StyleCardHeader.Render("Agente"),
+		theme.StyleCardHeaderAccent.Render("Nivel"),
+		theme.StyleCardHeader.Render("Para qué"),
 	)
 	separator := theme.StyleValueMuted.Render(strings.Repeat("─", boxWidth-4))
-	rows = append(rows, headerLine, separator)
 
+	var rows []string
+	rows = append(rows, pageBar, headerLine, separator)
+	y := 3
 	for i, a := range pageAgents {
 		globalIdx := startIdx + i
 		isSelected := globalIdx == selectedIdx
@@ -326,11 +390,11 @@ func renderGranularView(agents []AgentRow, selectedIdx int, page int, pageSize i
 		var tierSelector string
 		switch a.CurrentTier {
 		case "premium":
-			tierSelector = theme.StyleValueAccent.Render("[ ‹ PREMIUM › ]")
+			tierSelector = theme.StyleValueAccent.Render("[ ‹ MÁXIMO › ]")
 		case "cheap":
-			tierSelector = theme.StyleValueSuccess.Render("[ ‹  CHEAP  › ]")
+			tierSelector = theme.StyleValueSuccess.Render("[ ‹ ECONÓMICO › ]")
 		default:
-			tierSelector = theme.StyleValuePrimary.Render("[ ‹ DEFAULT › ]")
+			tierSelector = theme.StyleValuePrimary.Render("[ ‹ EQUILIBRADO › ]")
 		}
 
 		prefix := "  "
@@ -346,34 +410,15 @@ func renderGranularView(agents []AgentRow, selectedIdx int, page int, pageSize i
 			tierSelector,
 			theme.StyleLabel.Render(a.Description),
 		)
-
 		if isSelected {
-			rowText = lipgloss.NewStyle().
-				Background(lipgloss.Color("#262626")).
-				Width(boxWidth - 4).
-				Render(rowText)
+			rowText = lipgloss.NewStyle().Background(lipgloss.Color("#262626")).Width(boxWidth - 4).Render(rowText)
 		}
-
 		rows = append(rows, rowText)
+		hits = append(hits, Hit{Kind: "agent", Index: globalIdx, X: 0, Y: y, W: boxWidth, H: 1})
+		y++
 	}
 
-	help := theme.StyleLabel.Render("Atajos: ") +
-		theme.StyleKeyHint.Render("↑/↓/j/k") +
-		theme.StyleLabel.Render(" Seleccionar | ") +
-		theme.StyleKeyHint.Render("n/p") +
-		theme.StyleLabel.Render(" Pág | ") +
-		theme.StyleKeyHint.Render("[c]") +
-		theme.StyleLabel.Render(" Cheap | ") +
-		theme.StyleKeyHint.Render("[d]") +
-		theme.StyleLabel.Render(" Default | ") +
-		theme.StyleKeyHint.Render("[p]") +
-		theme.StyleLabel.Render(" Premium | ") +
-		theme.StyleKeyHint.Render("[1]") +
-		theme.StyleLabel.Render(" Presets")
-
+	help := theme.StyleLabel.Render("↑/↓ elige  ·  ←/→ cambia nivel  ·  AvPág/RePág  ·  clic selecciona o cicla")
 	tableBox := theme.StyleCard.Width(boxWidth).Padding(0, 1).Render(strings.Join(rows, "\n"))
-
-	return lipgloss.JoinVertical(lipgloss.Left, tableBox, help)
+	return lipgloss.JoinVertical(lipgloss.Left, tableBox, help), hits
 }
-
-

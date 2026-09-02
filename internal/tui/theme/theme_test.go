@@ -95,10 +95,10 @@ func TestRenderBadge(t *testing.T) {
 }
 
 func TestRenderTabBar(t *testing.T) {
-	for activeIdx := 0; activeIdx < 4; activeIdx++ {
+	for activeIdx := 0; activeIdx < 3; activeIdx++ {
 		rendered := theme.RenderTabBar(activeIdx, 80)
 
-		expectedTabs := []string{"Dashboard", "Models Hub", "Targets Manager", "System Doctor"}
+		expectedTabs := []string{"Inicio", "Instalar", "Modelos"}
 		for _, tabName := range expectedTabs {
 			if !strings.Contains(rendered, tabName) {
 				t.Errorf("RenderTabBar(%d) missing tab %q, got: %q", activeIdx, tabName, rendered)
@@ -108,14 +108,14 @@ func TestRenderTabBar(t *testing.T) {
 
 	// Boundary test: out of range active tab
 	rendered := theme.RenderTabBar(-1, 80)
-	if !strings.Contains(rendered, "Dashboard") {
-		t.Errorf("RenderTabBar(-1) missing Dashboard, got: %q", rendered)
+	if !strings.Contains(rendered, "Inicio") {
+		t.Errorf("RenderTabBar(-1) missing Inicio, got: %q", rendered)
 	}
 }
 
 func TestRenderFooter(t *testing.T) {
 	footer := theme.RenderFooter(0, 80)
-	expectedHints := []string{"Tab", "Quit", "1-4"}
+	expectedHints := []string{"Tab", "Quit", "1-3"}
 	for _, hint := range expectedHints {
 		if !strings.Contains(footer, hint) {
 			t.Errorf("RenderFooter() missing hint %q, got: %q", hint, footer)

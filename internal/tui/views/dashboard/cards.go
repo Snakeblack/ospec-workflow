@@ -5,38 +5,73 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/snakeblack/ospec-workflow/internal/tui/art"
 	"github.com/snakeblack/ospec-workflow/internal/tui/theme"
 )
 
-func renderDashboardIndex(selectedSection int, activePreset string, targetsCount int, width int) string {
-	header := theme.StyleCardHeader.Render("📑 ÍNDICE DE SECCIONES")
+func renderOctopusHero(activePreset string, targetsCount int, version string, width int) string {
+	octo := art.RenderOctopus()
 
-	sections := []struct {
+	title := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(theme.ColorPrimary).
+		Render("🐙 OSPEC WORKFLOW")
+
+	tagline := theme.StyleLabel.Render("Instala el harness y configura los modelos de cada agente")
+
+	badgePreset := theme.RenderBadge("Preset", activePreset, lipgloss.NewStyle().Bold(true).Foreground(theme.ColorAccent))
+	badgeTargets := theme.RenderBadge("Targets", fmt.Sprintf("%d detectados", targetsCount), theme.StyleValueSuccess)
+	badgeVer := theme.RenderBadge("Versión", version, theme.StyleBadgeVal)
+
+	badges := lipgloss.JoinHorizontal(lipgloss.Top, badgePreset, " ", badgeTargets, " ", badgeVer)
+
+	infoBlock := lipgloss.JoinVertical(lipgloss.Left,
+		title,
+		tagline,
+		"\n",
+		badges,
+	)
+
+	content := lipgloss.JoinHorizontal(lipgloss.Center, octo, "   ", infoBlock)
+
+	cardWidth := width
+	if cardWidth < 30 {
+		cardWidth = 30
+	}
+
+	return theme.StyleCard.Width(cardWidth).Padding(1, 2).Render(content)
+}
+
+func renderMainMenu(selectedAction int, width int) (string, []dashHit) {
+	header := theme.StyleCardHeader.Render("¿Qué quieres hacer?")
+
+	actions := []struct {
 		num  string
 		name string
 		desc string
 	}{
-		{"1", "Espacio de Trabajo", "OpenSpec & TDD"},
-		{"2", "Entornos AI & Targets", fmt.Sprintf("%d detectados", targetsCount)},
-		{"3", "Modelos & LLMs", fmt.Sprintf("Preset: %s", activePreset)},
-		{"4", "System Doctor", "Salud del sistema"},
+		{"1", "Instalar ospec", "Elige clientes, el modelo de cada agente e instala el harness"},
+		{"2", "Configurar modelos", "Presets (qué nivel usa cada agente) y modelos/esfuerzo por cliente"},
+		{"3", "Actualizar instalación", "Resincroniza clientes ya instalados"},
+		{"4", "Desinstalar", "Quita los archivos de harness de este repo"},
 	}
 
 	var rows []string
-	rows = append(rows, header)
+	rows = append(rows, header, "")
 
-	for i, s := range sections {
-		isSel := i == selectedSection
+	for i, a := range actions {
+		isSel := i == selectedAction
 		prefix := "  "
-		tag := theme.StyleIndexTag.Render(fmt.Sprintf("[%s]", s.num))
-		title := theme.StyleValue.Render(s.name)
+		tag := theme.StyleIndexTag.Render(fmt.Sprintf("[%s]", a.num))
+		title := theme.StyleValue.Render(a.name)
+		desc := theme.StyleLabel.Render("— " + a.desc)
 
 		if isSel {
 			prefix = theme.StyleKeyHint.Render("▶ ")
-			title = theme.StyleValuePrimary.Bold(true).Render(s.name)
+			title = theme.StyleValuePrimary.Bold(true).Render(a.name)
 		}
 
-		line := fmt.Sprintf("%s%s %s", prefix, tag, title)
+		line := fmt.Sprintf("%s%s %s %s", prefix, tag, title, desc)
 		if isSel {
 			line = lipgloss.NewStyle().
 				Background(lipgloss.Color("#262626")).
@@ -46,15 +81,20 @@ func renderDashboardIndex(selectedSection int, activePreset string, targetsCount
 		rows = append(rows, line)
 	}
 
-	hint := theme.StyleLabel.Render("↑/↓: Seleccionar | Enter/1..4: Abrir")
+	hint := theme.StyleLabel.Render("\n↑/↓ elige  ·  Enter, 1-4 o clic ejecuta  ·  ?: ayuda  ·  q: salir")
 	rows = append(rows, hint)
 
 	cardWidth := width
-	if cardWidth < 20 {
-		cardWidth = 20
+	if cardWidth < 30 {
+		cardWidth = 30
 	}
 
-	return theme.StyleCard.Width(cardWidth).Padding(0, 1).Render(strings.Join(rows, "\n"))
+	var hits []dashHit
+	for i := range actions {
+		hits = append(hits, dashHit{Index: i, Y: 2 + i, H: 1})
+	}
+
+	return theme.StyleCard.Width(cardWidth).Padding(0, 1).Render(strings.Join(rows, "\n")), hits
 }
 
 func renderModelProfileCard(summary ModelProfileSummary, width int) string {
@@ -121,13 +161,10 @@ func renderModelProfileCard(summary ModelProfileSummary, width int) string {
 	}
 	agentsLine := fmt.Sprintf("%s %s", theme.StyleLabel.Render("• Agentes:"), strings.Join(agentParts, " • "))
 
-	quickTip := theme.StyleLabel.Render("Acceso rápido: ") + theme.StyleKeyHint.Render("[m]") + theme.StyleLabel.Render(" Models Hub | ") + theme.StyleKeyHint.Render("[p]") + theme.StyleLabel.Render(" Conmutar Preset")
-
 	content := strings.Join([]string{
 		header,
 		modelsLine,
 		agentsLine,
-		quickTip,
 	}, "\n")
 
 	cardWidth := width
@@ -192,7 +229,6 @@ func renderOpenSpecCard(summary OpenSpecSummary, width int) string {
 		statusBadge,
 	)
 
-	// Format Testing Layers
 	renderLayer := func(name string, enabled bool) string {
 		if enabled {
 			return fmt.Sprintf("%s: %s", name, theme.StyleValueSuccess.Render("✓"))
@@ -206,7 +242,6 @@ func renderOpenSpecCard(summary OpenSpecSummary, width int) string {
 		renderLayer("E2E", summary.E2EEnabled),
 	)
 
-	// Format Baseline
 	baselineBadge := theme.StyleValueSuccess.Render(summary.BaselineStatus)
 	if summary.DomainsPending > 0 {
 		baselineBadge = theme.StyleValueWarning.Render(summary.BaselineStatus)
@@ -243,55 +278,4 @@ func renderOpenSpecCard(summary OpenSpecSummary, width int) string {
 	}
 
 	return theme.StyleCard.Width(cardWidth).Padding(0, 1).Render(content)
-}
-
-func renderQuickActions(selectedIdx int, statusMsg string, width int) string {
-	header := theme.StyleCardHeaderWarning.Render("⚡ ACCIONES RÁPIDAS (QUICK ACTIONS)")
-
-	actions := []struct {
-		key   string
-		label string
-	}{
-		{"p", "Conmutar Preset"},
-		{"d", "System Doctor"},
-		{"m", "Models Hub"},
-		{"t", "Targets Manager"},
-	}
-
-	var btnRenders []string
-	for i, a := range actions {
-		btnText := fmt.Sprintf("[%s] %s", a.key, a.label)
-		if i == selectedIdx {
-			btnRenders = append(btnRenders, theme.StyleActionBtnActive.Render(btnText))
-		} else {
-			btnRenders = append(btnRenders, theme.StyleActionBtn.Render(btnText))
-		}
-	}
-
-	buttonsRow := strings.Join(btnRenders, "  ")
-
-	hint := theme.StyleLabel.Render("Navegación: ") +
-		theme.StyleKeyHint.Render("←/→/Tab") +
-		theme.StyleLabel.Render(" elegir, ") +
-		theme.StyleKeyHint.Render("Enter") +
-		theme.StyleLabel.Render(" ejecutar, o presiona ") +
-		theme.StyleKeyHint.Render("[p]/[d]/[m]/[t]")
-
-	var elements []string
-	elements = append(elements, header, buttonsRow, hint)
-
-	if statusMsg != "" {
-		toast := theme.StyleValueSuccess.Render(statusMsg)
-		if strings.HasPrefix(statusMsg, "✗") {
-			toast = theme.StyleValueWarning.Render(statusMsg)
-		}
-		elements = append(elements, toast)
-	}
-
-	cardWidth := width
-	if cardWidth < 20 {
-		cardWidth = 20
-	}
-
-	return theme.StyleCard.Width(cardWidth).Padding(0, 1).Render(strings.Join(elements, "\n"))
 }

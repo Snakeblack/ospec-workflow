@@ -172,3 +172,27 @@ func TestModelsManager_ProfilesAndPresets(t *testing.T) {
 		t.Error("expected error for unknown preset, got nil")
 	}
 }
+
+func TestModelsManager_SetTargetEffort(t *testing.T) {
+	tempDir := setupTestRepo(t)
+	mgr := NewModelsManager(tempDir)
+	if _, err := mgr.LoadModels(); err != nil {
+		t.Fatal(err)
+	}
+	if err := mgr.SetTargetEffort("cheap", "claude", "low"); err != nil {
+		t.Fatalf("SetTargetEffort claude: %v", err)
+	}
+	if err := mgr.Save(); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := mgr.GetConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Tiers["cheap"].GetClaudeEffort() != "low" {
+		t.Fatalf("claude effort = %q", cfg.Tiers["cheap"].GetClaudeEffort())
+	}
+	if err := mgr.SetTargetEffort("default", "vscode", "high"); err == nil {
+		t.Fatal("expected vscode effort to be rejected")
+	}
+}

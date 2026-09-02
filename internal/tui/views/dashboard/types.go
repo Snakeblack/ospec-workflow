@@ -62,14 +62,18 @@ type ModelProfileSummary struct {
 	AgentTiers    map[string]string
 }
 
-// QuickAction represents an interactive action button on the dashboard.
-type QuickAction struct {
-	Key         string
-	Label       string
-	Description string
-}
+// MainMenuActionID represents the primary home actions.
+type MainMenuActionID int
 
-// SwitchTabMsg instructs the parent AppModel to switch tabs.
+const (
+	ActionInstall MainMenuActionID = iota
+	ActionConfigureModels
+	ActionUpdate
+	ActionUninstall
+	MainMenuActionCount
+)
+
+// SwitchTabMsg instructs the parent AppModel to switch views/tabs.
 type SwitchTabMsg struct {
 	Tab int
 }
@@ -77,4 +81,9 @@ type SwitchTabMsg struct {
 // PresetChangedMsg notifies the parent AppModel that the model preset changed.
 type PresetChangedMsg struct {
 	Preset string
+}
+
+// ActionTriggeredMsg instructs parent AppModel to execute or navigate to an action.
+type ActionTriggeredMsg struct {
+	Action MainMenuActionID
 }

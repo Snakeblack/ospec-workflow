@@ -337,11 +337,53 @@ test("claude adds the resolved model alias to phase agents", () => {
   const out = transform({ files: makeSource(), profile: claude, models: MODELS });
   const fm = parse(find(out, "agents/sdd-apply.md").content).frontmatter;
   assert.equal(getField(fm, "model").value, "sonnet");
+  assert.equal(getField(fm, "effort"), null);
+});
+
+test("claude emits effort when models.yaml uses {model, effort}", () => {
+  const models = {
+    agents: { "sdd-apply": "premium", _default: "default" },
+    tiers: {
+      premium: { claude: { model: "opus", effort: "high" } },
+      default: { claude: "sonnet" },
+    },
+  };
+  const out = transform({ files: makeSource(), profile: claude, models });
+  const fm = parse(find(out, "agents/sdd-apply.md").content).frontmatter;
+  assert.equal(getField(fm, "model").value, "opus");
+  assert.equal(getField(fm, "effort").value, "high");
 });
 
 test("vscode injects resolved model keys from models.yaml", () => {
   const out = transform({ files: makeSource(), profile: vscode, models: MODELS });
   const fm = parse(find(out, "agents/sdd-apply.agent.md").content).frontmatter;
+  assert.deepEqual(getField(fm, "model").value, ["Claude Sonnet 4.6 (copilot)"]);
+});
+
+test("vscode assignments overlay injects model and keeps target vscode", () => {
+  const models = {
+    ...MODELS,
+    assignments: {
+      vscode: {
+        "sdd-apply": "GPT-5.6 Terra (copilot)",
+      },
+    },
+  };
+  const out = transform({ files: makeSource(), profile: vscode, models });
+  const content = find(out, "agents/sdd-apply.agent.md").content;
+  const fm = parse(content).frontmatter;
+  assert.equal(getField(fm, "target").value, "vscode");
+  assert.equal(getField(fm, "model").value, "GPT-5.6 Terra (copilot)");
+});
+
+test("vscode profile forces target vscode even when the source says github-copilot", () => {
+  const files = makeSource().map((file) => {
+    if (file.path !== "agents/sdd-apply.agent.md") return file;
+    return { ...file, content: file.content.replace("target: vscode", "target: github-copilot") };
+  });
+  const out = transform({ files, profile: vscode, models: MODELS });
+  const fm = parse(find(out, "agents/sdd-apply.agent.md").content).frontmatter;
+  assert.equal(getField(fm, "target").value, "vscode");
   assert.deepEqual(getField(fm, "model").value, ["Claude Sonnet 4.6 (copilot)"]);
 });
 

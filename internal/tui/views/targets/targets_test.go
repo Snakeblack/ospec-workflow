@@ -36,8 +36,8 @@ func TestTargetsModel_Initialization(t *testing.T) {
 	tempDir := setupTestWorkspace(t)
 	model := targets.New(tempDir)
 
-	if len(model.Targets()) != 6 {
-		t.Fatalf("expected 6 targets, got %d", len(model.Targets()))
+	if len(model.Targets()) != 7 {
+		t.Fatalf("expected 7 targets, got %d", len(model.Targets()))
 	}
 	if model.SelectedIndex() != 0 {
 		t.Errorf("initial SelectedIndex = %d, want 0", model.SelectedIndex())
@@ -93,15 +93,15 @@ func TestTargetsModel_KeyboardNavigation(t *testing.T) {
 	// End / Home navigation
 	m, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnd})
 	model = m.(targets.Model)
-	if model.SelectedIndex() != 5 {
-		t.Errorf("SelectedIndex after KeyEnd = %d, want 5", model.SelectedIndex())
+	if model.SelectedIndex() != 6 {
+		t.Errorf("SelectedIndex after KeyEnd = %d, want 6", model.SelectedIndex())
 	}
 
 	// Boundary clamp on bottom
 	m, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
 	model = m.(targets.Model)
-	if model.SelectedIndex() != 5 {
-		t.Errorf("SelectedIndex after bottom boundary KeyDown = %d, want 5", model.SelectedIndex())
+	if model.SelectedIndex() != 6 {
+		t.Errorf("SelectedIndex after bottom boundary KeyDown = %d, want 6", model.SelectedIndex())
 	}
 
 	m, _ = model.Update(tea.KeyMsg{Type: tea.KeyHome})
@@ -123,9 +123,10 @@ func TestTargetsModel_DirectNumericJump(t *testing.T) {
 		{"1", 0, "claude"},
 		{"2", 1, "antigravity"},
 		{"3", 2, "vscode"},
-		{"4", 3, "codex"},
-		{"5", 4, "opencode"},
-		{"6", 5, "cursor"},
+		{"4", 3, "github-copilot"},
+		{"5", 4, "codex"},
+		{"6", 5, "opencode"},
+		{"7", 6, "cursor"},
 	}
 
 	for _, tt := range numericTests {
@@ -183,7 +184,7 @@ func TestTargetsModel_SyncTrigger(t *testing.T) {
 	}
 
 	// Press 'Enter' to sync another target (codex)
-	m, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("4")})
+	m, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("5")})
 	model = m.(targets.Model)
 	m, cmd = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	model = m.(targets.Model)

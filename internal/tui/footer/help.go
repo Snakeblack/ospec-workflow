@@ -8,7 +8,6 @@ import (
 	"github.com/snakeblack/ospec-workflow/internal/tui/theme"
 )
 
-// RenderHelpModal renders the popup help modal dialog with formatted sections and keybindings.
 func RenderHelpModal(width, height int) string {
 	boxWidth := width - 6
 	if boxWidth > 84 {
@@ -21,36 +20,34 @@ func RenderHelpModal(width, height int) string {
 	title := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(theme.ColorPrimary).
-		Render("📖 Help & Keybindings (ospec TUI)")
+		Render("Ayuda — ospec")
 
 	secGlobal := fmt.Sprintf(
 		"%s: %s | %s | %s | %s",
-		theme.StyleCardHeaderAccent.Render("◆ Global Navigation"),
-		fmt.Sprintf("%s Pestañas 1-4", theme.StyleKeyHint.Render("1-4")),
-		fmt.Sprintf("%s Ciclar", theme.StyleKeyHint.Render("Tab/Shift+Tab")),
-		fmt.Sprintf("%s Ayuda", theme.StyleKeyHint.Render("?")),
-		fmt.Sprintf("%s Salir", theme.StyleKeyHint.Render("q")),
+		theme.StyleCardHeaderAccent.Render("Navegación"),
+		fmt.Sprintf("%s pestañas", theme.StyleKeyHint.Render("Tab")),
+		fmt.Sprintf("%s Inicio / Instalar / Modelos", theme.StyleKeyHint.Render("1-3")),
+		fmt.Sprintf("%s esta ayuda", theme.StyleKeyHint.Render("?")),
+		fmt.Sprintf("%s salir", theme.StyleKeyHint.Render("q")),
 	)
 
-	secViewsHeader := theme.StyleCardHeaderAccent.Render("◆ View Shortcuts:")
-	secDashboard := fmt.Sprintf("  • %s: Resumen general, preset activo, targets y doctor.", theme.StyleValuePrimary.Render("Dashboard"))
-	secModels := fmt.Sprintf("  • %s: %s Presets, %s Aplicar, %s Navegar/Afinar agentes.", theme.StyleValuePrimary.Render("Models Hub"), theme.StyleKeyHint.Render("1-3"), theme.StyleKeyHint.Render("Enter"), theme.StyleKeyHint.Render("↑/↓/c/d/p"))
-	secTargets := fmt.Sprintf("  • %s: %s Seleccionar, %s Sincronizar target, %s Recargar.", theme.StyleValuePrimary.Render("Targets Manager"), theme.StyleKeyHint.Render("1-6/↑/↓"), theme.StyleKeyHint.Render("s/Enter"), theme.StyleKeyHint.Render("r"))
-	secDoctor := fmt.Sprintf("  • %s: %s Seleccionar chequeo, %s Re-escanear diagnóstico.", theme.StyleValuePrimary.Render("System Doctor"), theme.StyleKeyHint.Render("1-9/↑/↓"), theme.StyleKeyHint.Render("r/Enter"))
+	secHome := fmt.Sprintf("  • %s: instalar el harness, configurar modelos, actualizar.", theme.StyleValuePrimary.Render("Inicio"))
+	secInstall := fmt.Sprintf("  • %s: clientes detectados → modelo de cada agente → resumen. Esc es el paso anterior. El progreso y el log se ven en pantalla.", theme.StyleValuePrimary.Render("Instalar"))
+	secModels := fmt.Sprintf("  • %s: un preset es una plantilla. Eliges el cliente y el modelo de cada agente; %s aplica el preset si ese cliente ya está configurado. Subvistas: %s agentes, %s clientes.", theme.StyleValuePrimary.Render("Modelos"), theme.StyleKeyHint.Render("a"), theme.StyleKeyHint.Render("2"), theme.StyleKeyHint.Render("3"))
+	secKeys := theme.StyleLabel.Render("  ospec no pide API keys. Cada cliente (VS Code, Claude, Cursor…) usa las suyas.")
 
 	dismissTip := lipgloss.NewStyle().
 		Foreground(theme.ColorSuccess).
 		Bold(true).
-		Render("Presiona [?], [Esc], [q] o [Enter] para Close / Cerrar.")
+		Render("Esc, q o Enter cierran esta ayuda.")
 
 	modalBody := strings.Join([]string{
 		title,
 		secGlobal,
-		secViewsHeader,
-		secDashboard,
+		secHome,
+		secInstall,
 		secModels,
-		secTargets,
-		secDoctor,
+		secKeys,
 		dismissTip,
 	}, "\n")
 
@@ -60,4 +57,3 @@ func RenderHelpModal(width, height int) string {
 		Padding(0, 1).
 		Render(modalBody)
 }
-

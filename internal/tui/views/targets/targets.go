@@ -150,7 +150,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 
-		case "1", "2", "3", "4", "5", "6":
+		case "1", "2", "3", "4", "5", "6", "7", "8", "9":
 			idx := int(msg.Runes[0] - '1')
 			if idx >= 0 && idx < len(m.targets) {
 				m.selectedIdx = idx

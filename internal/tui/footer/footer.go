@@ -7,92 +7,69 @@ import (
 	"github.com/snakeblack/ospec-workflow/internal/tui/theme"
 )
 
-// Hint represents a keybinding hint in the footer bar.
 type Hint struct {
 	Key  string
 	Desc string
 }
 
-// GetTabHints returns the contextual shortcut hints for the specified active tab.
 func GetTabHints(activeTab int, compact bool) []Hint {
 	if compact {
 		switch activeTab {
-		case 1: // Models Hub
+		case 1:
 			return []Hint{
-				{Key: "1-4", Desc: "Tabs"},
-				{Key: "1-3", Desc: "Preset"},
-				{Key: "Enter", Desc: "Apply"},
-				{Key: "?", Desc: "Help"},
-				{Key: "q", Desc: "Quit"},
+				{Key: "↑/↓", Desc: "Mover"},
+				{Key: "Enter", Desc: "Continuar"},
+				{Key: "Esc", Desc: "Atrás"},
 			}
-		case 2: // Targets Manager
+		case 2:
 			return []Hint{
-				{Key: "1-4", Desc: "Tabs"},
-				{Key: "s", Desc: "Sync"},
-				{Key: "r", Desc: "Reload"},
-				{Key: "?", Desc: "Help"},
-				{Key: "q", Desc: "Quit"},
+				{Key: "1-3", Desc: "Vista"},
+				{Key: "Enter", Desc: "Configurar"},
+				{Key: "clic", Desc: "Elegir"},
 			}
-		case 3: // System Doctor
+		default:
 			return []Hint{
-				{Key: "1-4", Desc: "Tabs"},
-				{Key: "r/Enter", Desc: "Re-scan"},
-				{Key: "?", Desc: "Help"},
-				{Key: "q", Desc: "Quit"},
-			}
-		default: // Dashboard or unknown
-			return []Hint{
-				{Key: "1-4", Desc: "Tabs"},
-				{Key: "?", Desc: "Help"},
-				{Key: "q", Desc: "Quit"},
+				{Key: "1-4", Desc: "Menú"},
+				{Key: "?", Desc: "Ayuda"},
+				{Key: "q", Desc: "Salir"},
 			}
 		}
 	}
 
 	switch activeTab {
-	case 0: // Dashboard
+	case 0:
 		return []Hint{
-			{Key: "1-4/Tab", Desc: "Switch Tab"},
-			{Key: "?", Desc: "Help"},
-			{Key: "q", Desc: "Quit"},
+			{Key: "1-4/Enter/clic", Desc: "Acciones"},
+			{Key: "Tab", Desc: "Pestaña"},
+			{Key: "?", Desc: "Ayuda"},
+			{Key: "q", Desc: "Salir"},
 		}
-	case 1: // Models Hub
+	case 1:
 		return []Hint{
-			{Key: "1-4/Tab", Desc: "Switch Tab"},
-			{Key: "↑/↓", Desc: "Navigate"},
-			{Key: "1-3", Desc: "Preset"},
-			{Key: "Enter", Desc: "Apply"},
-			{Key: "r", Desc: "Refresh"},
-			{Key: "?", Desc: "Help"},
-			{Key: "q", Desc: "Quit"},
+			{Key: "↑/↓", Desc: "Elegir"},
+			{Key: "Enter/clic", Desc: "Continuar"},
+			{Key: "Espacio", Desc: "Marcar"},
+			{Key: "Esc", Desc: "Atrás"},
+			{Key: "?", Desc: "Ayuda"},
 		}
-	case 2: // Targets Manager
+	case 2:
 		return []Hint{
-			{Key: "1-4/Tab", Desc: "Switch Tab"},
-			{Key: "↑/↓", Desc: "Select"},
-			{Key: "s", Desc: "Sync All"},
-			{Key: "r", Desc: "Reload"},
-			{Key: "?", Desc: "Help"},
-			{Key: "q", Desc: "Quit"},
-		}
-	case 3: // System Doctor
-		return []Hint{
-			{Key: "1-4/Tab", Desc: "Switch Tab"},
-			{Key: "↑/↓", Desc: "Select"},
-			{Key: "r/Enter", Desc: "Re-scan"},
-			{Key: "?", Desc: "Help"},
-			{Key: "q", Desc: "Quit"},
+			{Key: "1", Desc: "Presets"},
+			{Key: "2", Desc: "Agentes"},
+			{Key: "3", Desc: "Clientes"},
+			{Key: "Enter", Desc: "Configurar"},
+			{Key: "a", Desc: "Aplicar"},
+			{Key: "?", Desc: "Ayuda"},
 		}
 	default:
 		return []Hint{
-			{Key: "1-4/Tab", Desc: "Switch Tab"},
-			{Key: "?", Desc: "Help"},
-			{Key: "q", Desc: "Quit"},
+			{Key: "Esc", Desc: "Inicio"},
+			{Key: "?", Desc: "Ayuda"},
+			{Key: "q", Desc: "Salir"},
 		}
 	}
 }
 
-// RenderContextualFooter renders the bottom bar with keybinding hints adapted to the active tab.
 func RenderContextualFooter(activeTab int, width int) string {
 	compact := width > 0 && width <= 80
 	hints := GetTabHints(activeTab, compact)

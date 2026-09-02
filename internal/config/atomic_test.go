@@ -85,7 +85,11 @@ func TestAtomicWriteYAML_Overwrite(t *testing.T) {
 }
 
 func TestAtomicWriteYAML_InvalidDir(t *testing.T) {
-	targetPath := filepath.Join("/non-existent-dir-12345/subdir", "test.yaml")
+	tempFile := filepath.Join(t.TempDir(), "regular-file")
+	if err := os.WriteFile(tempFile, []byte("content"), 0644); err != nil {
+		t.Fatalf("failed to create temp regular file: %v", err)
+	}
+	targetPath := filepath.Join(tempFile, "subdir", "test.yaml")
 	err := AtomicWriteYAML(targetPath, sampleStruct{Name: "fail"}, 0644)
 	if err == nil {
 		t.Fatal("expected error for non-existent directory, got nil")

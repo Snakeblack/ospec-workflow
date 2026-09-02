@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/snakeblack/ospec-workflow/internal/config"
 	"gopkg.in/yaml.v3"
 )
 
@@ -17,7 +18,7 @@ import (
 type ProviderSpec struct {
 	ID          string   `json:"id"`
 	DisplayName string   `json:"display_name"`
-	Type        string   `json:"type"` // "local" | "cloud"
+	Type        string   `json:"type"`   // "local" | "cloud"
 	Status      string   `json:"status"` // "Online", "Configured", "Missing Key", "Offline"
 	Endpoint    string   `json:"endpoint,omitempty"`
 	Models      []string `json:"models"`
@@ -171,7 +172,7 @@ func InspectProviders(ctx context.Context) ([]ProviderSpec, []LocalModelInfo) {
 			id:          "openai",
 			displayName: "OpenAI",
 			envKeys:     []string{"OPENAI_API_KEY"},
-			models:      []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-4o", "o3-mini", "o1"},
+			models:      []string{"o3-mini", "o3", "o1", "gpt-4o", "gpt-4.5-preview", "gpt-4o-mini"},
 		},
 		{
 			id:          "google",
@@ -257,24 +258,28 @@ func InspectModelsFull(repoRoot string) ModelsInspectionReport {
 		var raw struct {
 			Agents map[string]string `yaml:"agents"`
 			Tiers  map[string]struct {
-				Claude   string `yaml:"claude"`
-				OpenCode string `yaml:"opencode"`
-				Cursor   string `yaml:"cursor"`
-				Codex    any    `yaml:"codex"`
-				VSCode   any    `yaml:"vscode"`
+				Claude      config.FlexibleModel `yaml:"claude"`
+				OpenCode    string               `yaml:"opencode"`
+				Cursor      string               `yaml:"cursor"`
+				Antigravity string               `yaml:"antigravity"`
+				Codex       any                  `yaml:"codex"`
+				VSCode      any                  `yaml:"vscode"`
 			} `yaml:"tiers"`
 		}
 		if err := yaml.Unmarshal(data, &raw); err == nil {
 			for tierName, t := range raw.Tiers {
 				m := make(map[string]string)
-				if t.Claude != "" {
-					m["claude"] = t.Claude
+				if t.Claude.Model != "" {
+					m["claude"] = t.Claude.Model
 				}
 				if t.OpenCode != "" {
 					m["opencode"] = t.OpenCode
 				}
 				if t.Cursor != "" {
 					m["cursor"] = t.Cursor
+				}
+				if t.Antigravity != "" {
+					m["antigravity"] = t.Antigravity
 				}
 				if t.Codex != nil {
 					switch cv := t.Codex.(type) {

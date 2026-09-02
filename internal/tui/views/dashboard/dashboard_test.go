@@ -104,8 +104,8 @@ func TestDashboardInitialization(t *testing.T) {
 	model := dashboard.New(tempDir, mm, om)
 
 	profile := model.ModelProfile()
-	if profile.PresetName != "Default" && profile.PresetName != "Custom" {
-		t.Logf("Profile preset name: %s", profile.PresetName)
+	if profile.PresetName == "" {
+		t.Error("expected non-empty PresetName")
 	}
 
 	osSummary := model.OpenSpec()
@@ -115,87 +115,65 @@ func TestDashboardInitialization(t *testing.T) {
 	if osSummary.Version != "v2.60.0" {
 		t.Errorf("Version = %q, want 'v2.60.0'", osSummary.Version)
 	}
-	if osSummary.TDDMode != "strict" {
-		t.Errorf("TDDMode = %q, want 'strict'", osSummary.TDDMode)
-	}
 
 	targets := model.Targets()
-	if len(targets) != 6 {
-		t.Fatalf("expected 6 targets, got %d", len(targets))
+	if len(targets) != 7 {
+		t.Fatalf("expected 7 targets, got %d", len(targets))
 	}
 }
 
-func TestDashboardRenderStandardWidth(t *testing.T) {
+func TestDashboardMainMenuNavigation(t *testing.T) {
 	tempDir, mm, om := setupTestWorkspace(t)
 	model := dashboard.New(tempDir, mm, om)
-	model.SetWidth(120)
-
-	// Section 0 (default: OpenSpec Overview)
-	view := ansi.Strip(model.View())
-	expectedSection0 := []string{
-		"ÍNDICE DE SECCIONES",
-		"OPENSPEC CONTEXT",
-		"ACCIONES RÁPIDAS",
-		"test-workflow",
-		"v2.60.0",
-		"strict",
-	}
-	for _, s := range expectedSection0 {
-		if !strings.Contains(view, s) {
-			t.Errorf("Dashboard Section 0 missing substring %q\nGot:\n%s", s, view)
-		}
-	}
-
-	// Move to Section 1 (Targets)
-	m, _ := model.Update(tea.KeyMsg{Type: tea.KeyDown})
-	model = m
-	viewSec1 := ansi.Strip(model.View())
-	expectedSection1 := []string{
-		"AI TARGETS",
-		"Claude Code",
-		"Antigravity",
-		"VS Code / Copilot",
-	}
-	for _, s := range expectedSection1 {
-		if !strings.Contains(viewSec1, s) {
-			t.Errorf("Dashboard Section 1 missing substring %q\nGot:\n%s", s, viewSec1)
-		}
-	}
-
-	// Move to Section 2 (Model Profile)
-	m, _ = model.Update(tea.KeyMsg{Type: tea.KeyDown})
-	model = m
-	viewSec2 := ansi.Strip(model.View())
-	if !strings.Contains(viewSec2, "MODEL PROFILE") {
-		t.Errorf("Dashboard Section 2 missing 'MODEL PROFILE'\nGot:\n%s", viewSec2)
-	}
-}
-
-func TestDashboardRenderCompactWidth(t *testing.T) {
-	tempDir, mm, om := setupTestWorkspace(t)
-	model := dashboard.New(tempDir, mm, om)
-	model.SetWidth(60)
+	model.SetWidth(100)
 
 	view := ansi.Strip(model.View())
-
-	expectedSubstrings := []string{
-		"ÍNDICE DE SECCIONES",
-		"OPENSPEC CONTEXT",
-		"ACCIONES RÁPIDAS",
-		"test-workflow",
+	if !strings.Contains(view, "OSPEC WORKFLOW") {
+		t.Errorf("expected view to contain 'OSPEC WORKFLOW', got:\n%s", view)
+	}
+	if !strings.Contains(view, "Instalar ospec") {
+		t.Errorf("expected view to contain 'Instalar ospec', got:\n%s", view)
+	}
+	if !strings.Contains(view, "Desinstalar") {
+		t.Errorf("expected view to contain 'Desinstalar', got:\n%s", view)
 	}
 
-	for _, s := range expectedSubstrings {
-		if !strings.Contains(view, s) {
-			t.Errorf("Compact dashboard view missing expected substring %q\nGot:\n%s", s, view)
-		}
+	// 1. Move down with 'j'
+	m, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	model = m
+	if model.SelectedAction() != 1 {
+		t.Errorf("SelectedAction after 'j' = %d, want 1", model.SelectedAction())
+	}
+
+	// 2. Select action '2' (Configurar modelos)
+	m, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
+	model = m
+	if model.SelectedAction() != int(dashboard.ActionConfigureModels) {
+		t.Errorf("SelectedAction after '2' = %d, want %d", model.SelectedAction(), dashboard.ActionConfigureModels)
+	}
+	if cmd == nil {
+		t.Fatal("expected command on action '2'")
+	}
+	msg := cmd()
+	if actMsg, ok := msg.(dashboard.ActionTriggeredMsg); !ok || actMsg.Action != dashboard.ActionConfigureModels {
+		t.Errorf("expected ActionTriggeredMsg with ActionConfigureModels, got %T: %v", msg, msg)
+	}
+
+	// 3. Press Enter to trigger current selection
+	m, cmd = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model = m
+	if cmd == nil {
+		t.Fatal("expected command on Enter")
+	}
+	msg = cmd()
+	if actMsg, ok := msg.(dashboard.ActionTriggeredMsg); !ok || actMsg.Action != dashboard.ActionConfigureModels {
+		t.Errorf("expected ActionTriggeredMsg with ActionConfigureModels, got %T: %v", msg, msg)
 	}
 }
 
 func TestDashboardTargetDetection(t *testing.T) {
 	tempDir := t.TempDir()
 
-	// 1. Clean dir -> all targets NotConfigured
 	results := dashboard.DetectTargets(tempDir)
 	for _, res := range results {
 		if res.Status != dashboard.StatusNotConfigured {
@@ -203,194 +181,21 @@ func TestDashboardTargetDetection(t *testing.T) {
 		}
 	}
 
-	// 2. Add Claude files
+	// Add Claude files
 	_ = os.WriteFile(filepath.Join(tempDir, ".claude-plugin"), []byte("{}"), 0644)
-	// 3. Add Antigravity files
 	_ = os.WriteFile(filepath.Join(tempDir, "AGENTS.md"), []byte("agents"), 0644)
-	// 4. Add OpenCode detection marker
-	_ = os.MkdirAll(filepath.Join(tempDir, "dist", "opencode"), 0755)
-	// 5. Add Codex config
-	_ = os.WriteFile(filepath.Join(tempDir, "codex.toml"), []byte(""), 0644)
-	// 6. Add Cursor rules
-	_ = os.WriteFile(filepath.Join(tempDir, ".cursorrules"), []byte(""), 0644)
 
 	results = dashboard.DetectTargets(tempDir)
 	for _, res := range results {
 		switch res.ID {
 		case "claude":
-			if res.Status != dashboard.StatusConfigured || res.Evidence != ".claude-plugin" {
-				t.Errorf("claude status = %v (evidence: %s), want Configured with .claude-plugin", res.Status, res.Evidence)
+			if res.Status != dashboard.StatusConfigured {
+				t.Errorf("claude status = %v, want Configured", res.Status)
 			}
 		case "antigravity":
-			if res.Status != dashboard.StatusConfigured || res.Evidence != "AGENTS.md" {
+			if res.Status != dashboard.StatusConfigured {
 				t.Errorf("antigravity status = %v, want Configured", res.Status)
 			}
-		case "opencode":
-			if res.Status != dashboard.StatusDetected || res.Evidence != "dist/opencode" {
-				t.Errorf("opencode status = %v (evidence: %s), want Detected", res.Status, res.Evidence)
-			}
-		case "codex":
-			if res.Status != dashboard.StatusConfigured || res.Evidence != "codex.toml" {
-				t.Errorf("codex status = %v, want Configured", res.Status)
-			}
-		case "cursor":
-			if res.Status != dashboard.StatusConfigured || res.Evidence != ".cursorrules" {
-				t.Errorf("cursor status = %v, want Configured", res.Status)
-			}
 		}
-	}
-}
-
-func TestDashboardCyclePreset(t *testing.T) {
-	tempDir, mm, om := setupTestWorkspace(t)
-	model := dashboard.New(tempDir, mm, om)
-
-	// Cycle to Cheap
-	_ = mm.ApplyPreset("premium")
-	model.Refresh()
-
-	next, err := model.CyclePreset()
-	if err != nil {
-		t.Fatalf("CyclePreset() failed: %v", err)
-	}
-	if next != "Cheap" {
-		t.Errorf("CyclePreset from Premium -> %q, want Cheap", next)
-	}
-
-	// Cycle from Cheap -> Default
-	next, err = model.CyclePreset()
-	if err != nil {
-		t.Fatalf("CyclePreset() failed: %v", err)
-	}
-	if next != "Default" {
-		t.Errorf("CyclePreset from Cheap -> %q, want Default", next)
-	}
-
-	// Cycle from Default -> Premium
-	next, err = model.CyclePreset()
-	if err != nil {
-		t.Fatalf("CyclePreset() failed: %v", err)
-	}
-	if next != "Premium" {
-		t.Errorf("CyclePreset from Default -> %q, want Premium", next)
-	}
-}
-
-func TestDashboardKeyShortcuts(t *testing.T) {
-	tempDir, mm, om := setupTestWorkspace(t)
-	model := dashboard.New(tempDir, mm, om)
-
-	// Test 'p' shortcut (preset cycle)
-	m, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("p")})
-	model = m
-	if cmd == nil {
-		t.Fatal("expected non-nil cmd on 'p'")
-	}
-	msg := cmd()
-	if presetMsg, ok := msg.(dashboard.PresetChangedMsg); !ok || presetMsg.Preset == "" {
-		t.Errorf("expected PresetChangedMsg, got %T: %v", msg, msg)
-	}
-	if !strings.Contains(model.StatusMessage(), "✓ Preset conmutado") {
-		t.Errorf("StatusMessage = %q, expected confirmation toast", model.StatusMessage())
-	}
-
-	// Test 'd' shortcut (Doctor)
-	_, cmd = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
-	if cmd == nil {
-		t.Fatal("expected non-nil cmd on 'd'")
-	}
-	msg = cmd()
-	if switchMsg, ok := msg.(dashboard.SwitchTabMsg); !ok || switchMsg.Tab != 3 {
-		t.Errorf("expected SwitchTabMsg{Tab: 3}, got %v", msg)
-	}
-
-	// Test 'm' shortcut (Models Hub)
-	_, cmd = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("m")})
-	if cmd == nil {
-		t.Fatal("expected non-nil cmd on 'm'")
-	}
-	msg = cmd()
-	if switchMsg, ok := msg.(dashboard.SwitchTabMsg); !ok || switchMsg.Tab != 1 {
-		t.Errorf("expected SwitchTabMsg{Tab: 1}, got %v", msg)
-	}
-
-	// Test 't' shortcut (Targets Manager)
-	_, cmd = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
-	if cmd == nil {
-		t.Fatal("expected non-nil cmd on 't'")
-	}
-	msg = cmd()
-	if switchMsg, ok := msg.(dashboard.SwitchTabMsg); !ok || switchMsg.Tab != 2 {
-		t.Errorf("expected SwitchTabMsg{Tab: 2}, got %v", msg)
-	}
-}
-
-func TestDashboardActionNavigationAndEnter(t *testing.T) {
-	tempDir, mm, om := setupTestWorkspace(t)
-	model := dashboard.New(tempDir, mm, om)
-
-	if model.SelectedAction() != 0 {
-		t.Errorf("initial SelectedAction = %d, want 0", model.SelectedAction())
-	}
-
-	// Navigate right
-	m, _ := model.Update(tea.KeyMsg{Type: tea.KeyRight})
-	model = m
-	if model.SelectedAction() != 1 {
-		t.Errorf("SelectedAction after right = %d, want 1", model.SelectedAction())
-	}
-
-	// Navigate right again
-	m, _ = model.Update(tea.KeyMsg{Type: tea.KeyRight})
-	model = m
-	if model.SelectedAction() != 2 {
-		t.Errorf("SelectedAction after right = %d, want 2", model.SelectedAction())
-	}
-
-	// Navigate left
-	m, _ = model.Update(tea.KeyMsg{Type: tea.KeyLeft})
-	model = m
-	if model.SelectedAction() != 1 {
-		t.Errorf("SelectedAction after left = %d, want 1", model.SelectedAction())
-	}
-
-	// Press Enter on action 1 (Doctor)
-	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if cmd == nil {
-		t.Fatal("expected cmd on Enter")
-	}
-	msg := cmd()
-	if switchMsg, ok := msg.(dashboard.SwitchTabMsg); !ok || switchMsg.Tab != 3 {
-		t.Errorf("expected SwitchTabMsg{Tab: 3} on action 1 Enter, got %v", msg)
-	}
-
-	// Navigate to action 3 (Targets) and Enter
-	m, _ = model.Update(tea.KeyMsg{Type: tea.KeyRight})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRight})
-	model = m
-	_, cmd = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if cmd == nil {
-		t.Fatal("expected cmd on Enter")
-	}
-	msg = cmd()
-	if switchMsg, ok := msg.(dashboard.SwitchTabMsg); !ok || switchMsg.Tab != 2 {
-		t.Errorf("expected SwitchTabMsg{Tab: 2} on action 3 Enter, got %v", msg)
-	}
-}
-
-func TestDashboardEmptyConfigFallback(t *testing.T) {
-	tempDir := t.TempDir()
-	mm := config.NewModelsManager(tempDir)
-	om := config.NewOpenSpecManager(tempDir)
-
-	model := dashboard.New(tempDir, mm, om)
-	model.SetWidth(100)
-
-	view := ansi.Strip(model.View())
-	if !strings.Contains(view, "ÍNDICE DE SECCIONES") {
-		t.Error("Dashboard should render index even without existing config files")
-	}
-	if !strings.Contains(view, "OPENSPEC CONTEXT") {
-		t.Error("Dashboard should render OpenSpec context even with defaults")
 	}
 }

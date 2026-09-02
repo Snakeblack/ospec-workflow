@@ -262,7 +262,7 @@ test("sdd-document generated outputs use cheap models or fail-soft omission", (t
   const { runConfigure } = require("./configure/cli.js");
   const cases = [
     ["claude", "agents/sdd-document.md", "haiku"],
-    ["vscode", "agents/sdd-document.agent.md", ["GPT-5.6 Luna (copilot)"]],
+    ["vscode", "agents/sdd-document.agent.md", ["GPT-5.6 Luna (copilot)", "Gemini 3.5 Flash-Lite (copilot)"]],
     ["opencode", ".opencode/agents/sdd-document.md", "openai/gpt-5.6-luna"],
   ];
   for (const [target, relative, expected] of cases) {
@@ -270,6 +270,9 @@ test("sdd-document generated outputs use cheap models or fail-soft omission", (t
     runConfigure({ sourceDir: ROOT_DIR, target, outDir: out, validate: false });
     const content = fsSync.readFileSync(path.join(out, relative), "utf8");
     assert.deepEqual(getField(parse(content).frontmatter, "model").value, expected, target);
+    if (target === "claude") {
+      assert.equal(getField(parse(content).frontmatter, "effort").value, "low", "claude cheap effort");
+    }
   }
   const githubOut = tmpOut(t);
   runConfigure({ sourceDir: ROOT_DIR, target: "github-copilot", outDir: githubOut, validate: false });

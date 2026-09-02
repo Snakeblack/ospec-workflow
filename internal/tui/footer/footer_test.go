@@ -9,46 +9,34 @@ import (
 
 func TestRenderContextualFooter(t *testing.T) {
 	tests := []struct {
-		name      string
-		tab       int
-		width     int
-		mustHave  []string
+		name     string
+		tab      int
+		width    int
+		mustHave []string
 	}{
 		{
-			name:     "Dashboard tab normal width",
+			name:     "Inicio tab normal width",
 			tab:      0,
 			width:    100,
-			mustHave: []string{"1-4/Tab", "Switch Tab", "?", "Help", "q", "Quit"},
+			mustHave: []string{"1-4/Enter/clic", "Acciones", "?", "Ayuda", "q", "Salir"},
 		},
 		{
-			name:     "Models Hub tab normal width",
+			name:     "Installer tab normal width",
 			tab:      1,
 			width:    100,
-			mustHave: []string{"1-4/Tab", "↑/↓", "Navigate", "1-3", "Preset", "Enter", "Apply", "?", "Help", "q", "Quit"},
+			mustHave: []string{"↑/↓", "Elegir", "Enter", "Continuar", "Esc", "Atrás"},
 		},
 		{
-			name:     "Targets Manager tab normal width",
+			name:     "Models tab normal width",
 			tab:      2,
 			width:    100,
-			mustHave: []string{"1-4/Tab", "↑/↓", "Select", "s", "Sync All", "r", "Reload", "?", "Help", "q", "Quit"},
-		},
-		{
-			name:     "System Doctor tab normal width",
-			tab:      3,
-			width:    100,
-			mustHave: []string{"1-4/Tab", "↑/↓", "Select", "r/Enter", "Re-scan", "?", "Help", "q", "Quit"},
+			mustHave: []string{"Presets", "Agentes", "Clientes", "Enter", "Configurar"},
 		},
 		{
 			name:     "Unknown tab fallback",
 			tab:      99,
 			width:    100,
-			mustHave: []string{"1-4/Tab", "Switch Tab", "?", "Help", "q", "Quit"},
-		},
-		{
-			name:     "Narrow viewport compact rendering",
-			tab:      1,
-			width:    60,
-			mustHave: []string{"1-4", "1-3", "Enter", "?", "q"},
+			mustHave: []string{"Esc", "Inicio", "?", "Ayuda", "q", "Salir"},
 		},
 	}
 
@@ -74,14 +62,12 @@ func TestRenderHelpModal(t *testing.T) {
 	}
 
 	expectedSections := []string{
-		"Help & Keybindings",
-		"Global Navigation",
-		"Dashboard",
-		"Models Hub",
-		"Targets Manager",
-		"System Doctor",
+		"Ayuda",
+		"Navegación",
+		"Inicio",
+		"Instalar",
+		"Modelos",
 		"Esc",
-		"Close",
 	}
 
 	for _, exp := range expectedSections {
@@ -96,7 +82,7 @@ func TestRenderHelpModalSmallViewport(t *testing.T) {
 	if out == "" {
 		t.Fatal("RenderHelpModal with small dimensions returned empty string")
 	}
-	if !strings.Contains(out, "Help") {
-		t.Errorf("expected 'Help' in output, got:\n%s", out)
+	if !strings.Contains(out, "Ayuda") {
+		t.Errorf("expected 'Ayuda' in output, got:\n%s", out)
 	}
 }
