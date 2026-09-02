@@ -55,11 +55,11 @@ BEFORE loading full change context (specs, design, backlog, workload forecast):
 If the orchestrator invoked `sdd-apply` in remediation mode, OR `state.yaml` contains `verify_lineage.status: remediation-pending`:
 
 1. Require `verify_lineage.status == remediation-pending`.
-2. Freeze baseline candidate `currentCandidate` and call `prepareRemediation(verify_lineage, currentCandidate)` (`scripts/lib/verify-lineage.js`). Validate baseline candidate matches `verify_lineage.current_candidate_id`. If `candidate-drift` is detected, stop immediately and return `candidate-drift` without editing any files or incrementing remediation attempts.
+2. Call `prepareRemediation(verify_lineage, { changeRoot })` (`scripts/lib/verify-lineage.js`). It rehydrates the frozen baseline exclusively from `verify_lineage.candidate_recovery.current`, verifies the blob digest and canonical `candidate_id`, and never accepts an in-memory Candidate as a bypass. If recovery blocks or `candidate-drift` is detected, stop immediately without editing files or incrementing remediation attempts.
 3. Read ONLY the frozen blocker findings in `verify_lineage.findings` (`allowed_paths`, `summary`, `validation`). Do NOT load full specs, full design, unrelated code, or normal workload forecast.
 4. **Restrict code edits strictly to `allowed_paths`**. Do not touch unrelated files or take on new features/tasks.
 5. Apply the targeted fix for each frozen finding.
-6. Freeze successor candidate `postCandidate`, derive `remediationChangedPaths` via `deriveCandidateDeltaPaths(currentCandidate, postCandidate, { rootDir })`, and call `recordRemediationAttempt(verify_lineage, { baseline_candidate: currentCandidate, candidate: postCandidate, rootDir })` to transition `verify_lineage` to `recheck-pending`.
+6. Freeze successor candidate `postCandidate`, derive `remediationChangedPaths` via `deriveCandidateDeltaPaths(recoveredCandidate, postCandidate, { rootDir })`, and call `recordRemediationAttempt(verify_lineage, { changeRoot, candidate: postCandidate, rootDir })`. The successor Candidate blob must persist and revalidate before the returned lineage can reference it or transition to `recheck-pending`.
 7. Update `state.yaml` `verify_lineage` block and save remediation progress in `apply-progress.md`.
 8. **`RETURN` / HALT**: Return summary with `status: success` (or `blocked` if remediation failed) and end execution. Do NOT fall through to normal task implementation.
 

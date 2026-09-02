@@ -1,0 +1,112 @@
+change: "verify-lineage-candidate-persistence"
+status: archived
+last_updated: "2026-09-02T19:15:30Z"
+blocking_questions: []
+classification: high-risk
+delivery_strategy: exception-ok
+gate: intent-briefing
+decision: accepted
+synthesis: "Persistir una referencia content-addressed recuperable al Candidate/v2 completo al crear verify lineage, permitir reanudar prepareRemediation tras serializar y recargar state.yaml, y probar la continuidad real. Después, los lineages inválidos de K6d y CX0 podrán supersederse y reverificarse sin alterar findings, attempts ni scopes históricos."
+scope: "In: persistencia y recuperación exacta de Candidate/v2 para verify lineage, validación fail-closed y tests de serialización/reanudación. Out: modificar findings o attempts existentes, fabricar preimágenes, absorber fixes funcionales K6d/CX0 o cambiar la autoridad del lineage."
+applies_to:
+  - change-classification
+owner:
+  author: "Manuel Retamozo"
+  branch: feat/k6d-cx0-parallel
+approvals:
+  - id: intent-briefing-001
+    gate: intent-briefing
+    decision: accepted
+    source: user-numbered-chat
+    accepted_at: "2026-09-01T13:28:28.9882250Z"
+    applies_to:
+      - change-classification
+  - id: change-collision-001
+    gate: change-collision
+    decision: continue
+    source: user-numbered-chat
+    accepted_at: "2026-09-01T13:51:54.9145966Z"
+    applies_to:
+      - sdd-apply
+  - id: verify-lineage-candidate-persistence-bounded-review-001
+    gate: bounded-review
+    decision: approved
+    source: user-explicit-decision
+    accepted_at: "2026-09-02T19:04:40.635Z"
+    applies_to:
+      - sdd-verify
+collisions:
+  - with: cx0-context-measurement
+    overlap:
+      - "scripts/**/*.test.js"
+      - "scripts/lib/verify-lineage-candidate-store.test.js"
+      - "scripts/lib/verify-lineage.test.js"
+      - "scripts/lib/k1-scope-guard.test.js"
+    decision: continue
+    decided_at: "2026-09-01T13:51:54.9145966Z"
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "Clasificación high-risk por cambiar persistencia de identidad, continuidad de remediación y contrato fail-closed; primera ruta compatible con project.status active."
+  validated: true
+  validation_errors: []
+gates:
+  4r-review-gate: {"status":"approved","schema_version":1,"classification":"high-risk","evidence":{"schema_version":1,"fingerprint":"sha256:eb78c32bd03665fac51bc0cbb0ab8d993359bb3a374f0bb5a177464d2bf7e5b6","sources":{"paths":["openspec/changes/verify-lineage-candidate-persistence/apply-progress.md","openspec/changes/verify-lineage-candidate-persistence/decisions/adr-001-change-local-candidate-recovery-cas.md","openspec/changes/verify-lineage-candidate-persistence/decisions/adr-002-persist-before-lineage-publication.md","openspec/changes/verify-lineage-candidate-persistence/decisions/adr-003-additive-fail-closed-recovery-contract.md","openspec/changes/verify-lineage-candidate-persistence/design.md","openspec/changes/verify-lineage-candidate-persistence/proposal.md","openspec/changes/verify-lineage-candidate-persistence/specs/verify-lineage/spec.md","openspec/changes/verify-lineage-candidate-persistence/state.yaml","openspec/changes/verify-lineage-candidate-persistence/tasks.md","openspec/changes/verify-lineage-candidate-persistence/verify-report.md","scripts/lib/k1-scope-guard.test.js","scripts/lib/verify-lineage-candidate-store.js","scripts/lib/verify-lineage-candidate-store.test.js","scripts/lib/verify-lineage.js","scripts/lib/verify-lineage.test.js","skills/sdd-apply/SKILL.md","skills/sdd-verify/SKILL.md"],"capabilities":["persistence","runtime"],"dependencies":[],"operation_types":["add","modify"],"facts":[{"code":"design-risk","source":"design","detail":"Atomic cross-process Candidate/v2 persistence must remain fail-closed across Windows and POSIX."},{"code":"metadata-runtime","source":"metadata","detail":"runtime"},{"code":"diff-error-flow","source":"real-diff","detail":"scripts/lib/verify-lineage-candidate-store.js,scripts/lib/verify-lineage.js"},{"code":"diff-global-config-write","source":"real-diff","detail":"scripts/lib/verify-lineage-candidate-store.js"},{"code":"verify-readability","source":"verify","detail":"Missing literal REQ-VL-K3-001 test tag; behavioral coverage passes but mechanical REQ-to-test traceability is incomplete."}]}},"generalist":{"status":"needs-specialist","specialists":["risk","reliability","resilience","readability"],"reason":"signals=design-risk,diff-error-flow,diff-global-config-write,metadata-runtime,verify-readability;dimensions=risk,reliability,resilience,readability"},"depth":{"review":"strict"},"escalation_reason":null,"dimensions":{"risk":{"selected":true,"reasons":[{"code":"high-risk-override","source":"override","detail":"Classification requires full 4R","precedence":0},{"code":"diff-global-config-write","source":"real-diff","detail":"scripts/lib/verify-lineage-candidate-store.js","precedence":2},{"code":"generalist-escalation","source":"generalist","detail":"signals=design-risk,diff-error-flow,diff-global-config-write,metadata-runtime,verify-readability;dimensions=risk,reliability,resilience,readability","precedence":3},{"code":"design-risk","source":"design","detail":"Atomic cross-process Candidate/v2 persistence must remain fail-closed across Windows and POSIX.","precedence":4}]},"reliability":{"selected":true,"reasons":[{"code":"high-risk-override","source":"override","detail":"Classification requires full 4R","precedence":0},{"code":"diff-error-flow","source":"real-diff","detail":"scripts/lib/verify-lineage-candidate-store.js,scripts/lib/verify-lineage.js","precedence":2},{"code":"diff-global-config-write","source":"real-diff","detail":"scripts/lib/verify-lineage-candidate-store.js","precedence":2},{"code":"generalist-escalation","source":"generalist","detail":"signals=design-risk,diff-error-flow,diff-global-config-write,metadata-runtime,verify-readability;dimensions=risk,reliability,resilience,readability","precedence":3},{"code":"metadata-runtime","source":"metadata","detail":"runtime","precedence":5}]},"resilience":{"selected":true,"reasons":[{"code":"high-risk-override","source":"override","detail":"Classification requires full 4R","precedence":0},{"code":"diff-error-flow","source":"real-diff","detail":"scripts/lib/verify-lineage-candidate-store.js,scripts/lib/verify-lineage.js","precedence":2},{"code":"generalist-escalation","source":"generalist","detail":"signals=design-risk,diff-error-flow,diff-global-config-write,metadata-runtime,verify-readability;dimensions=risk,reliability,resilience,readability","precedence":3}]},"readability":{"selected":true,"reasons":[{"code":"high-risk-override","source":"override","detail":"Classification requires full 4R","precedence":0},{"code":"verify-readability","source":"verify","detail":"Missing literal REQ-VL-K3-001 test tag; behavioral coverage passes but mechanical REQ-to-test traceability is incomplete.","precedence":1},{"code":"generalist-escalation","source":"generalist","detail":"signals=design-risk,diff-error-flow,diff-global-config-write,metadata-runtime,verify-readability;dimensions=risk,reliability,resilience,readability","precedence":3}]}},"archive_allowed":true,"lineage":{"schema_version":1,"lineage_id":"sha256:ac950a40fc530a4cf57b2fe660ae08092ce307439771c42b4874b3cc5bc24af2","generation":2,"predecessor_lineage_id":"sha256:33dca679632592ccfef1af7a3bae71e7a6ddc2559a1201f2f67fd4f73bcc9558","recovery":{"reason":"Explicit fail-closed succession after unrecoverable preimage in generation 1","approval_reference":"verify-lineage-candidate-persistence-bounded-review-001"},"revision":9,"status":"approved","genesis":{"candidate":{"projection":"workspace","base_tree":"8dafcb69dac19ed9beb8dd5256263fe6fc49bd9b","candidate_tree":"sha256:6afc1c50a77b7b0e666e2a0ea4c62063fcb72f5799842ebdcfad0f53af7f0e35","paths":["openspec/changes/verify-lineage-candidate-persistence/apply-progress.md","openspec/changes/verify-lineage-candidate-persistence/decisions/adr-001-change-local-candidate-recovery-cas.md","openspec/changes/verify-lineage-candidate-persistence/decisions/adr-002-persist-before-lineage-publication.md","openspec/changes/verify-lineage-candidate-persistence/decisions/adr-003-additive-fail-closed-recovery-contract.md","openspec/changes/verify-lineage-candidate-persistence/design.md","openspec/changes/verify-lineage-candidate-persistence/proposal.md","openspec/changes/verify-lineage-candidate-persistence/specs/verify-lineage/spec.md","openspec/changes/verify-lineage-candidate-persistence/state.yaml","openspec/changes/verify-lineage-candidate-persistence/tasks.md","openspec/changes/verify-lineage-candidate-persistence/verify-report.md","scripts/lib/k1-scope-guard.test.js","scripts/lib/verify-lineage-candidate-store.js","scripts/lib/verify-lineage-candidate-store.test.js","scripts/lib/verify-lineage.js","scripts/lib/verify-lineage.test.js","skills/sdd-apply/SKILL.md","skills/sdd-verify/SKILL.md"],"diff_hash":"sha256:6afc1c50a77b7b0e666e2a0ea4c62063fcb72f5799842ebdcfad0f53af7f0e35","paths_digest":"sha256:2ed63b35ab2b9d98e40585c898d47e9b664bbcadc994bc7beaa13c0b8c7abea3","authored_lines":1326,"original_changed_lines":1326},"candidate_id":"sha256:c54367fb649b405bb44acda1e00221b96c075d9234c587831bc441c475811021","paths":["openspec/changes/verify-lineage-candidate-persistence/apply-progress.md","openspec/changes/verify-lineage-candidate-persistence/decisions/adr-001-change-local-candidate-recovery-cas.md","openspec/changes/verify-lineage-candidate-persistence/decisions/adr-002-persist-before-lineage-publication.md","openspec/changes/verify-lineage-candidate-persistence/decisions/adr-003-additive-fail-closed-recovery-contract.md","openspec/changes/verify-lineage-candidate-persistence/design.md","openspec/changes/verify-lineage-candidate-persistence/proposal.md","openspec/changes/verify-lineage-candidate-persistence/specs/verify-lineage/spec.md","openspec/changes/verify-lineage-candidate-persistence/state.yaml","openspec/changes/verify-lineage-candidate-persistence/tasks.md","openspec/changes/verify-lineage-candidate-persistence/verify-report.md","scripts/lib/k1-scope-guard.test.js","scripts/lib/verify-lineage-candidate-store.js","scripts/lib/verify-lineage-candidate-store.test.js","scripts/lib/verify-lineage.js","scripts/lib/verify-lineage.test.js","skills/sdd-apply/SKILL.md","skills/sdd-verify/SKILL.md"],"classification":"high-risk","selected_dimensions":["risk","reliability","resilience","readability"],"evidence_fingerprint":"sha256:eb78c32bd03665fac51bc0cbb0ab8d993359bb3a374f0bb5a177464d2bf7e5b6","original_changed_lines":1326,"authored_lines":1326},"current_candidate_id":"sha256:c54367fb649b405bb44acda1e00221b96c075d9234c587831bc441c475811021","current_candidate":{"projection":"workspace","base_tree":"8dafcb69dac19ed9beb8dd5256263fe6fc49bd9b","candidate_tree":"sha256:6afc1c50a77b7b0e666e2a0ea4c62063fcb72f5799842ebdcfad0f53af7f0e35","paths":["openspec/changes/verify-lineage-candidate-persistence/apply-progress.md","openspec/changes/verify-lineage-candidate-persistence/decisions/adr-001-change-local-candidate-recovery-cas.md","openspec/changes/verify-lineage-candidate-persistence/decisions/adr-002-persist-before-lineage-publication.md","openspec/changes/verify-lineage-candidate-persistence/decisions/adr-003-additive-fail-closed-recovery-contract.md","openspec/changes/verify-lineage-candidate-persistence/design.md","openspec/changes/verify-lineage-candidate-persistence/proposal.md","openspec/changes/verify-lineage-candidate-persistence/specs/verify-lineage/spec.md","openspec/changes/verify-lineage-candidate-persistence/state.yaml","openspec/changes/verify-lineage-candidate-persistence/tasks.md","openspec/changes/verify-lineage-candidate-persistence/verify-report.md","scripts/lib/k1-scope-guard.test.js","scripts/lib/verify-lineage-candidate-store.js","scripts/lib/verify-lineage-candidate-store.test.js","scripts/lib/verify-lineage.js","scripts/lib/verify-lineage.test.js","skills/sdd-apply/SKILL.md","skills/sdd-verify/SKILL.md"],"diff_hash":"sha256:6afc1c50a77b7b0e666e2a0ea4c62063fcb72f5799842ebdcfad0f53af7f0e35","paths_digest":"sha256:2ed63b35ab2b9d98e40585c898d47e9b664bbcadc994bc7beaa13c0b8c7abea3","authored_lines":1326,"original_changed_lines":1326},"lenses":{"risk":{"selected":true,"status":"completed","request_id":"gen2-risk-001","result_digest":"sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc","result":{"findings":[]},"operation":null,"result_request_id":"gen2-risk-result-001"},"reliability":{"selected":true,"status":"completed","request_id":"gen2-reliability-001","result_digest":"sha256:40701ccaf275f4446cf2cff919c831d812af28c4e01b057054437916e7fb2791","result":{"findings":[{"severity":"WARNING","summary":"Falta una prueba de carrera cross-process para la publicación CAS no-clobber.","acceptance_criteria":"Dos procesos Node publican simultáneamente el mismo Candidate contra un changeRoot y se comprueba éxito/idempotencia, un único blob canónico y ausencia de temporales publicables."},{"severity":"WARNING","summary":"Faltan pruebas de los fallos de I/O antes y durante la publicación final del CAS.","acceptance_criteria":"Con una seam/stub de filesystem, forzar fallos de write/fsync/link y comprobar {ok:false}, reason code estable, ausencia de blob/referencia final y limpieza de temporales."}]},"operation":null,"result_request_id":"gen2-reliability-result-001"},"resilience":{"selected":true,"status":"completed","request_id":"gen2-resilience-001","result_digest":"sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc","result":{"findings":[]},"operation":null,"result_request_id":"gen2-resilience-result-001"},"readability":{"selected":true,"status":"completed","request_id":"gen2-readability-001","result_digest":"sha256:e6a317e77ac582d85615fe349be3449396ddf316f46d7eb9def8e6295f444f0b","result":{"findings":[{"severity":"SUGGESTION","summary":"La canonicalización crítica está duplicada y carece de una explicación local de sus invariantes.","acceptance_criteria":"Añadir un comentario o docstring junto a ambas implementaciones —o centralizar la implementación con su contrato documentado— que indique explícitamente el orden lexicográfico de claves, la preservación de arrays, la codificación UTF-8 posterior y que los bytes resultantes forman parte del contrato de digest/candidate_id."},{"severity":"SUGGESTION","summary":"La parte más sutil del algoritmo de publicación atómica no explica localmente su garantía de no-clobber.","acceptance_criteria":"Documentar antes de linkSync que la creación de hard link se usa para publicar únicamente si el destino aún no existe, que EEXIST representa la ruta idempotente/conflictiva y que una operación de reemplazo no satisface el contrato."}]},"operation":null,"result_request_id":"gen2-readability-result-001"}},"findings":[{"id":"F-7ee253e94cc3c899","owner":"reliability","severity":"WARNING","summary":"Falta una prueba de carrera cross-process para la publicación CAS no-clobber.","acceptance_criteria":"Dos procesos Node publican simultáneamente el mismo Candidate contra un changeRoot y se comprueba éxito/idempotencia, un único blob canónico y ausencia de temporales publicables.","blocking":false,"resolution":"advisory"},{"id":"F-071d9b66fab9ae86","owner":"reliability","severity":"WARNING","summary":"Faltan pruebas de los fallos de I/O antes y durante la publicación final del CAS.","acceptance_criteria":"Con una seam/stub de filesystem, forzar fallos de write/fsync/link y comprobar {ok:false}, reason code estable, ausencia de blob/referencia final y limpieza de temporales.","blocking":false,"resolution":"advisory"},{"id":"F-d0cca9c7c81d7e9b","owner":"readability","severity":"SUGGESTION","summary":"La canonicalización crítica está duplicada y carece de una explicación local de sus invariantes.","acceptance_criteria":"Añadir un comentario o docstring junto a ambas implementaciones —o centralizar la implementación con su contrato documentado— que indique explícitamente el orden lexicográfico de claves, la preservación de arrays, la codificación UTF-8 posterior y que los bytes resultantes forman parte del contrato de digest/candidate_id.","blocking":false,"resolution":"advisory"},{"id":"F-11f26a7686975b1d","owner":"readability","severity":"SUGGESTION","summary":"La parte más sutil del algoritmo de publicación atómica no explica localmente su garantía de no-clobber.","acceptance_criteria":"Documentar antes de linkSync que la creación de hard link se usa para publicar únicamente si el destino aún no existe, que EEXIST representa la ruta idempotente/conflictiva y que una operación de reemplazo no satisface el contrato.","blocking":false,"resolution":"advisory"}],"findings_digest":"sha256:766442021fbac65578b76ba4580ab9ccf65075944da5fc456a275855d1285201","correction_budget":{"limit_lines":200,"used_lines":0,"failed_attempts":0,"max_failed_attempts":3},"correction_history":[],"validation_history":[],"follow_ups":[],"pending_operation":null,"pending_correction":null,"terminal_reason":"no-unresolved-blocking-findings"},"findings_summary":"0 BLOCKER, 0 CRITICAL, 2 WARNING, 2 SUGGESTION"}
+baseline_fingerprints:
+  verify-lineage: "b8f49c02ea2aa0e5f5cbfede131e59406b17d2fe3586ca0797cc35d48fcfcadb"
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/verify-lineage-candidate-persistence/proposal.md"
+    summary: "Durable Candidate/v2 references make verify-lineage remediation resumable and fail closed across process restarts."
+    key_decisions:
+      - "Persist and verify Candidate material before lineage state references it."
+      - "Legacy states without recoverable material remain readable but cannot mutate."
+      - "Candidate storage is recovery material, not a new authority."
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/verify-lineage-candidate-persistence/specs/verify-lineage/spec.md"
+    summary: "Define Candidate/v2 recovery records, double validation, restart continuity, and ID-only legacy immutability."
+    key_decisions:
+      - "Content address identifies immutable recovery bytes but never replaces candidate_id authority."
+      - "Missing, tampered, divergent, and legacy-unrecoverable material blocks mutation without history changes."
+  clarify:
+    status: skipped
+  design:
+    status: done
+    artifact: "openspec/changes/verify-lineage-candidate-persistence/design.md"
+    summary: "Change-local Candidate CAS with double validation and persist-before-state restart continuity."
+    key_decisions:
+      - "Lineage-carried refs select immutable change-local Candidate blobs."
+      - "Candidate bytes publish and validate before lineage state references them."
+      - "Legacy ID-only lineages stay readable but mutable transitions fail closed."
+  tasks:
+    status: done
+    artifact: "openspec/changes/verify-lineage-candidate-persistence/tasks.md"
+    summary: "Fifteen TDD-oriented tasks cover the Candidate CAS, lineage integration, legacy fail-closed behavior, and restart/crash verification."
+    key_decisions:
+      - "Use three autonomous work units while honoring the accepted size-exception delivery strategy."
+      - "Run store RED/GREEN/REFACTOR before lineage integration and cross-process verification."
+  apply:
+    status: done
+    artifact: "openspec/changes/verify-lineage-candidate-persistence/apply-progress.md"
+    summary: "Implemented change-local Candidate/v2 recovery CAS, lineage integration, legacy fail-closed behavior, restart coverage, and focal validation."
+    key_decisions:
+      - "The store publishes exact canonical bytes with atomic no-clobber linking before a returned lineage carries its reference."
+      - "Mutable lineage operations recover their baseline from the reference and preserve history on recovery failure."
+  verify:
+    status: done
+    verdict: "PASS WITH WARNINGS"
+    artifact: "openspec/changes/verify-lineage-candidate-persistence/verify-report.md"
+    summary: "PASS WITH WARNINGS: 10/10 MUST scenarios pass; exact REQ-VL-K3-001 test-side traceability tag is missing."
+    key_decisions:
+      - "Candidate recovery and restart continuity are verified with Windows runtime and cross-process evidence."
+      - "The only finding is advisory traceability; no remediation lineage is opened."
+  archive:
+    status: done
+    artifact: "openspec/changes/verify-lineage-candidate-persistence/archive-report.md"
+    summary: "Plan-and-Report emitido: spec verify-lineage preparada, 3 ADRs propuestos a docs/adr/, inventario listo para transacción determinista."
+    key_decisions:
+      - "Promoción de ADR-001, ADR-002 y ADR-003 a docs/adr/"
+      - "Preparación canónica de spec verify-lineage con REQ-010..012 y REQ-VL-K3-001 modificado"

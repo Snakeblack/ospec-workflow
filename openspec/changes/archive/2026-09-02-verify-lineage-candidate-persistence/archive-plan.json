@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "change": "verify-lineage-candidate-persistence",
+  "source_fingerprint": "sha256:4d52ef45d2af58372d37836f9bbbcf8dac9f456ed3174b746c6b15e39b370723",
+  "spec_writes": [
+    {
+      "domain": "verify-lineage",
+      "source_delta": "prepared-specs/verify-lineage/spec.md",
+      "target": "openspec/specs/verify-lineage/spec.md",
+      "target_before_sha256": "sha256:b8f49c02ea2aa0e5f5cbfede131e59406b17d2fe3586ca0797cc35d48fcfcadb",
+      "content_sha256": "sha256:2705be8cfdea049605694b1967855dc62f10c7cca996110950b9129eb43d3de6"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001-change-local-candidate-recovery-cas.md",
+      "target": "docs/adr/adr-20260902-001-change-local-candidate-recovery-cas.md",
+      "content_sha256": "sha256:27663e64dce7ec0bda82e39943152417cadcce5bf165d61df5f7cae2718c9685"
+    },
+    {
+      "source": "decisions/adr-002-persist-before-lineage-publication.md",
+      "target": "docs/adr/adr-20260902-002-persist-before-lineage-publication.md",
+      "content_sha256": "sha256:a875924c7a2c1b4087cc15c63e27505c7c74066dcbd0a1c766f357db87c38609"
+    },
+    {
+      "source": "decisions/adr-003-additive-fail-closed-recovery-contract.md",
+      "target": "docs/adr/adr-20260902-003-additive-fail-closed-recovery-contract.md",
+      "content_sha256": "sha256:6a2f4bf976fda5e9cb6a198978572117ca992c1f39e75b0a6f6250cd74301a14"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001-change-local-candidate-recovery-cas.md",
+    "decisions/adr-002-persist-before-lineage-publication.md",
+    "decisions/adr-003-additive-fail-closed-recovery-contract.md",
+    "design.md",
+    "prepared-specs/verify-lineage/spec.md",
+    "proposal.md",
+    "specs/verify-lineage/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [
+    {
+      "id": "VLCP-W001",
+      "source": "verify-report.md",
+      "severity": "WARNING",
+      "origin": "tasks-gap",
+      "summary": "The behavior of inherited requirement REQ-VL-K3-001 is covered by passing runtime tests, but neither focal test file cites that exact stable REQ ID. Mechanical REQ→test traceability is therefore incomplete even though behavioral compliance is proven.",
+      "disposition": "accepted-follow-up"
+    },
+    {
+      "id": "F-7ee253e94cc3c899",
+      "source": "4r-review-gate",
+      "severity": "WARNING",
+      "owner": "reliability",
+      "summary": "Falta una prueba de carrera cross-process para la publicación CAS no-clobber.",
+      "disposition": "advisory-follow-up"
+    },
+    {
+      "id": "F-071d9b66fab9ae86",
+      "source": "4r-review-gate",
+      "severity": "WARNING",
+      "owner": "reliability",
+      "summary": "Faltan pruebas de los fallos de I/O antes y durante la publicación final del CAS.",
+      "disposition": "advisory-follow-up"
+    }
+  ],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

@@ -125,7 +125,7 @@ d. Any entry with `reversibility: low` that remains `unresolved` after this pass
 ### Step 2c: Full Discovery Pipeline Execution
 
 1. Continue to Step 3 and run full spec, design, task, and test suite discovery.
-2. If `BLOCKER` or `CRITICAL` findings are produced, call `startVerifyLineage({ changeRoot, mode, candidate, findings }, meta)` (`scripts/lib/verify-lineage.js`) to freeze them in `state.yaml` under `verify_lineage` (`status: remediation-pending`, `remediation_attempts: 0`, `max_remediation_attempts: 2`, `genesis_candidate_id: sha256:...`, `contract_digest: sha256:...`).
+2. If `BLOCKER` or `CRITICAL` findings are produced, call `startVerifyLineage({ changeRoot, mode, candidate, findings }, meta)` (`scripts/lib/verify-lineage.js`). It must first persist and re-read the canonical Candidate record; only then may the caller write the returned `verify_lineage` to `state.yaml`. The state includes `status: remediation-pending`, `remediation_attempts: 0`, `max_remediation_attempts: 2`, `genesis_candidate_id: sha256:...`, `contract_digest: sha256:...`, and the Candidate recovery reference. A persistence failure blocks verification before any mutable lineage state becomes observable.
 3. `WARNING` and `SUGGESTION` findings remain advisory and MUST NOT open an active remediation lineage.
 
 3. Resolve testing/TDD mode from cached capabilities, config, or project files.
