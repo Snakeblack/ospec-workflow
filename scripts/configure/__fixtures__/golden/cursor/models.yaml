@@ -16,8 +16,12 @@ agents:
   sdd-archive: cheap
   sdd-onboard: cheap
   sdd-document: cheap
-  review-change: default
+  review-change: premium
   review-correction: default
+  review-trust: default
+  review-runtime: default
+  review-evolution: default
+  review-efficiency: default
   review-risk: default
   review-readability: default
   review-reliability: default

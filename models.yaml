@@ -40,6 +40,10 @@ agents:
   # Each reviewer can use any known tier.
   review-change: premium
   review-correction: default
+  review-trust: default
+  review-runtime: default
+  review-evolution: default
+  review-efficiency: default
   review-risk: default
   review-readability: default
   review-reliability: default

@@ -6,7 +6,9 @@ const crypto = require("node:crypto");
 const {
   stableSerialize,
   migrateReviewLineage,
+  migrateLineageTaxonomyV2,
   startReviewLineage,
+  startQualityReviewLineage,
   beginLens,
   recordLensResult,
   freezeFindings,
@@ -510,4 +512,88 @@ test("validateSliceCorrection binds the active slice and fail-closes incomplete 
   state = applyTargetedValidation(state, { slice_id: firstId, expected_revision: state.revision, request_id: "first-pass", outcomes: okOutcomes, regression: none, follow_ups: [] });
   assert.equal(state.correction_slices[firstId].status, "passed");
   assert.equal(state.correction_slices[secondId].status, "ready");
+});
+
+function pristineV1ForMigrate(selected_dimensions = ["risk", "reliability"]) {
+  return startReviewLineage({
+    ...genesis(),
+    selected_dimensions,
+  });
+}
+
+test("migrateLineageTaxonomyV2 maps v1 dimensions to quality domains with migration receipt", () => {
+  const state = pristineV1ForMigrate(["risk", "readability"]);
+  const migrated = migrateLineageTaxonomyV2(state);
+  assert.equal(migrated.schema_version, 2);
+  assert.deepEqual(migrated.genesis.selected_domains, ["trust", "evolution"]);
+  assert.equal(migrated.migration.kind, "taxonomy-v1-to-v2");
+  assert.equal(migrated.migration.predecessor_lineage_id, state.lineage_id);
+  assert.throws(() => migrateLineageTaxonomyV2(migrated), /schema_version 1/);
+});
+
+test("migrateLineageTaxonomyV2 fails closed on each non-pristine precondition", () => {
+  let running = pristineV1ForMigrate(["risk"]);
+  running = beginLens(running, { dimension: "risk", expected_revision: running.revision, request_id: "risk-start" });
+  assert.throws(() => migrateLineageTaxonomyV2(running), /pending/);
+
+  let reviewed = pristineV1ForMigrate(["risk"]);
+  reviewed = beginLens(reviewed, { dimension: "risk", expected_revision: reviewed.revision, request_id: "risk-start" });
+  reviewed = recordLensResult(reviewed, { dimension: "risk", expected_revision: reviewed.revision, request_id: "risk-result", result: { findings: [] } });
+  assert.throws(() => migrateLineageTaxonomyV2(reviewed), /pending/);
+
+  let withFindings = pristineV1ForMigrate(["risk"]);
+  withFindings = structuredClone(withFindings);
+  withFindings.findings = [{ id: "F-test", owner: "risk", severity: "CRITICAL", summary: "x", acceptance_criteria: "y", blocking: true, resolution: "unresolved" }];
+  assert.throws(() => migrateLineageTaxonomyV2(withFindings), /findings must be empty/);
+
+  let corrected = beginCorrection(reviewedLineage(), {
+    expected_revision: reviewedLineage().revision,
+    request_id: "corr",
+    finding_ids: reviewedLineage().findings.filter((f) => f.blocking).map((f) => f.id),
+    paths: reviewedLineage().genesis.paths,
+    base_candidate_id: reviewedLineage().current_candidate_id,
+    forecast_lines: 1,
+  });
+  assert.throws(() => migrateLineageTaxonomyV2(corrected), /correction history|pending/i);
+});
+
+test("v2 lineage rejects mixed taxonomy owners", () => {
+  const candidateInput = {
+    candidate: candidate(),
+    classification: "normal",
+    selected_domains: ["trust", "runtime"],
+    evidence_fingerprint: `sha256:${"c".repeat(64)}`,
+  };
+  const state = startQualityReviewLineage(candidateInput);
+  assert.equal(state.schema_version, 2);
+  const mixed = structuredClone(state);
+  mixed.genesis.selected_domains = ["trust", "risk"];
+  assert.throws(() => validateLineageForGate(mixed, { candidate_id: mixed.current_candidate_id, gate: "archive" }), /mixed taxonomy/i);
+});
+
+test("v2 correction follow-ups accept quality owners only", () => {
+  let state = startQualityReviewLineage({
+    candidate: candidate(),
+    classification: "normal",
+    selected_domains: ["runtime"],
+    evidence_fingerprint: `sha256:${"c".repeat(64)}`,
+  });
+  state = beginLens(state, { dimension: "runtime", expected_revision: state.revision, request_id: "runtime-start" });
+  state = recordLensResult(state, {
+    dimension: "runtime",
+    expected_revision: state.revision,
+    request_id: "runtime-result",
+    result: { findings: [{ severity: "CRITICAL", summary: "unsafe", acceptance_criteria: "fix it" }] },
+  });
+  state = freezeFindings(state, { expected_revision: state.revision, request_id: "freeze" });
+  assert.throws(
+    () => applyTargetedValidation(state, {
+      expected_revision: state.revision,
+      request_id: "validate",
+      outcomes: state.findings.filter((f) => f.blocking).map((f) => ({ id: f.id, status: "unresolved" })),
+      regression: { detected: false, evidence: ["node --test ok"] },
+      follow_ups: [{ owner: "risk", summary: "late note" }],
+    }),
+    /follow-up/i,
+  );
 });

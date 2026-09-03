@@ -1499,7 +1499,7 @@ func TestSubagentStop_Triangulate(t *testing.T) {
 
 func TestSubagentStop_ReviewPhaseCostAllowlistAndRelaunch(t *testing.T) {
 	workspace, _ := createChangeWorkspace(t, stateWithEmptyDesignSummary)
-	agents := []string{"review-change", "review-risk", "review-readability", "review-reliability", "review-resilience", "review-correction"}
+	agents := []string{"review-change", "review-trust", "review-runtime", "review-evolution", "review-efficiency", "review-correction"}
 	for _, agent := range agents {
 		stdin, _ := json.Marshal(map[string]any{
 			"cwd": workspace, "agent_type": agent, "status": "success",

@@ -1,8 +1,10 @@
 "use strict";
 
 const crypto = require("node:crypto");
+const { QUALITY_DOMAINS, LEGACY_DIMENSIONS, detectMixedTaxonomy } = require("./review-taxonomy.js");
 
-const DIMENSIONS = Object.freeze(["risk", "reliability", "resilience", "readability"]);
+const DIMENSIONS = Object.freeze([...LEGACY_DIMENSIONS]);
+const QUALITY = Object.freeze([...QUALITY_DOMAINS]);
 const TERMINAL = new Set(["approved", "exhausted", "escalated", "invalidated"]);
 const BLOCKING = new Set(["BLOCKER", "CRITICAL"]);
 const OUTCOMES = new Set(["resolved", "unresolved"]);
@@ -60,6 +62,158 @@ function normalizeCandidate(candidate) {
     authored_lines: candidate.authored_lines,
     original_changed_lines: candidate.original_changed_lines,
   };
+}
+
+function selectedLensIds(state) {
+  if (state.schema_version === 2) return state.genesis.selected_domains;
+  return state.genesis.selected_dimensions;
+}
+
+function lensKeysForSchema(schemaVersion) {
+  return schemaVersion === 2 ? QUALITY : DIMENSIONS;
+}
+
+function migrateLineageTaxonomyV2(state) {
+  assertLineage(state);
+  if (state.schema_version !== 1) throw new Error("migrateLineageTaxonomyV2 requires schema_version 1");
+  const selected = selectedLensIds(state);
+  for (const dimension of selected) {
+    const lens = state.lenses[dimension];
+    if (lens.status !== "pending") throw new Error("all selected lenses must be pending");
+    if (lens.request_id || lens.result || lens.result_digest) throw new Error("selected lenses must have no request or result");
+  }
+  for (const dimension of DIMENSIONS) {
+    if (!selected.includes(dimension) && state.lenses[dimension].status !== "skipped") throw new Error("non-selected lenses must be skipped");
+  }
+  if (state.findings.length || state.findings_digest !== null) throw new Error("findings must be empty before migrate");
+  if (state.pending_operation || state.pending_correction) throw new Error("no pending operation or correction");
+  if (state.correction_history.length) throw new Error("no correction history before migrate");
+  const domainMap = { risk: "trust", reliability: "runtime", resilience: "runtime", readability: "evolution" };
+  const mapped = [...new Set(selected.map((id) => domainMap[id]).filter(Boolean))].sort((a, b) => QUALITY.indexOf(a) - QUALITY.indexOf(b));
+  if (state.genesis.classification === "high-risk" && !mapped.includes("efficiency")) mapped.push("efficiency");
+  const predecessorDigest = digest("review-lineage-v1", {
+    candidate_id: state.genesis.candidate_id,
+    classification: state.genesis.classification,
+    selected_dimensions: state.genesis.selected_dimensions,
+    evidence_fingerprint: state.genesis.evidence_fingerprint,
+    generation: state.generation,
+    predecessor_lineage_id: state.predecessor_lineage_id,
+  });
+  const migration = {
+    kind: "taxonomy-v1-to-v2",
+    predecessor_lineage_id: state.lineage_id,
+    predecessor_revision: state.revision,
+    predecessor_digest: predecessorDigest,
+  };
+  const genesis = {
+    ...clone(state.genesis),
+    selected_domains: mapped,
+  };
+  delete genesis.selected_dimensions;
+  const lenses = Object.fromEntries(QUALITY.map((domain) => [domain, {
+    selected: mapped.includes(domain),
+    status: mapped.includes(domain) ? "pending" : "skipped",
+    request_id: null,
+    result_digest: null,
+    result: null,
+    operation: null,
+  }]));
+  const lineageId = digest("review-lineage-v2", {
+    candidate_id: genesis.candidate_id,
+    classification: genesis.classification,
+    selected_domains: mapped,
+    evidence_fingerprint: genesis.evidence_fingerprint,
+    generation: state.generation,
+    predecessor_lineage_id: state.predecessor_lineage_id,
+    migration,
+  });
+  return {
+    ...clone(state),
+    schema_version: 2,
+    lineage_id: lineageId,
+    migration,
+    genesis,
+    lenses,
+    revision: state.revision + 1,
+  };
+}
+
+function startQualityReviewLineage(input, existing, meta = {}) {
+  if (!input || !Array.isArray(input.selected_domains)) throw new TypeError("selected_domains is required for v2 lineage");
+  const normalized = normalizeQualityGenesis(input, meta);
+  if (existing !== undefined) {
+    assertLineage(existing);
+    if (existing.lineage_id !== normalized.lineageId) throw new Error("ordinary start cannot replace an existing lineage; create an explicit successor");
+    return clone(existing);
+  }
+  const lenses = Object.fromEntries(QUALITY.map((domain) => [domain, {
+    selected: normalized.genesis.selected_domains.includes(domain),
+    status: normalized.genesis.selected_domains.includes(domain) ? "pending" : "skipped",
+    request_id: null,
+    result_digest: null,
+    result: null,
+    operation: null,
+  }]));
+  return {
+    schema_version: 2,
+    lineage_id: normalized.lineageId,
+    generation: normalized.generation,
+    predecessor_lineage_id: meta.predecessor_lineage_id || null,
+    migration: meta.migration || null,
+    recovery: meta.recovery ? clone(meta.recovery) : null,
+    revision: 0,
+    status: "reviewing",
+    genesis: normalized.genesis,
+    current_candidate_id: normalized.genesis.candidate_id,
+    current_candidate: clone(normalized.genesis.candidate),
+    lenses,
+    findings: [],
+    findings_digest: null,
+    correction_budget: {
+      limit_lines: Math.min(MAX_BUDGET_LINES, Math.ceil(normalized.genesis.original_changed_lines / 2)),
+      used_lines: 0,
+      failed_attempts: 0,
+      max_failed_attempts: MAX_FAILED_ATTEMPTS,
+    },
+    correction_history: [],
+    validation_history: [],
+    follow_ups: [],
+    pending_operation: null,
+    pending_correction: null,
+    terminal_reason: null,
+  };
+}
+
+function normalizeQualityGenesis(input, meta = {}) {
+  if (!input || typeof input !== "object") throw new TypeError("lineage genesis is required");
+  if (!["normal", "high-risk"].includes(input.classification)) throw new TypeError("classification must be normal or high-risk");
+  if (typeof input.evidence_fingerprint !== "string" || input.evidence_fingerprint.length === 0) throw new TypeError("evidence_fingerprint is required");
+  const candidate = normalizeCandidate(input.candidate);
+  const selectedDomains = canonicalStringList(input.selected_domains, "selected_domains", QUALITY);
+  const generation = meta.generation || 1;
+  assertCount(generation, "generation");
+  const candidateId = digest("review-candidate-v1", candidate);
+  const genesis = {
+    candidate,
+    candidate_id: candidateId,
+    paths: candidate.paths,
+    classification: input.classification,
+    selected_domains: selectedDomains,
+    evidence_fingerprint: input.evidence_fingerprint,
+    original_changed_lines: candidate.original_changed_lines,
+    authored_lines: candidate.authored_lines,
+  };
+  const lineagePayload = {
+    candidate_id: candidateId,
+    classification: genesis.classification,
+    selected_domains: selectedDomains,
+    evidence_fingerprint: genesis.evidence_fingerprint,
+    generation,
+    predecessor_lineage_id: meta.predecessor_lineage_id || null,
+  };
+  if (meta.migration) lineagePayload.migration = meta.migration;
+  const lineageId = digest("review-lineage-v2", lineagePayload);
+  return { genesis, generation, lineageId };
 }
 
 function normalizeGenesis(input, meta = {}) {
@@ -140,7 +294,9 @@ function startReviewLineage(input, existing, meta = {}) {
 function beginLens(state, input) {
   const dimension = input.dimension;
   assertLineage(state);
-  if (!DIMENSIONS.includes(dimension) || !state.genesis.selected_dimensions.includes(dimension)) throw new Error("lens dimension is not selected in genesis");
+  const allowed = state.schema_version === 2 ? QUALITY : DIMENSIONS;
+  const selected = selectedLensIds(state);
+  if (!allowed.includes(dimension) || !selected.includes(dimension)) throw new Error("lens dimension is not selected in genesis");
   assertExpectedRevision(state, input && input.expected_revision);
   assertRequestId(input && input.request_id);
   const currentLens = state.lenses[dimension];
@@ -160,7 +316,7 @@ function recordLensResult(state, input) {
   assertRequestId(input.request_id);
   if (state.status !== "reviewing") throw new Error(`lens result is not allowed in status ${state.status}`);
   const dimension = input.dimension;
-  if (!DIMENSIONS.includes(dimension) || !state.genesis.selected_dimensions.includes(dimension)) throw new Error("lens dimension is not selected in genesis");
+  if (!((state.schema_version === 2 ? QUALITY : DIMENSIONS).includes(dimension)) || !selectedLensIds(state).includes(dimension)) throw new Error("lens dimension is not selected in genesis");
   const normalized = normalizeLensResult(input.result);
   const resultDigest = digest("review-lens-result-v1", normalized);
   const lens = state.lenses[dimension];
@@ -190,7 +346,7 @@ function normalizeFinding(finding) {
 
 function freezeFindings(state, input) {
   const next = prepareMutation(state, input, "freeze-findings", ["reviewing"]);
-  const selected = next.genesis.selected_dimensions;
+  const selected = selectedLensIds(next);
   if (selected.some((dimension) => next.lenses[dimension].status !== "completed")) throw new Error("all selected lenses must complete before findings freeze");
   const seen = new Set();
   const findings = [];
@@ -329,7 +485,7 @@ function applyTargetedValidation(state, input) {
   if (!input.regression || typeof input.regression.detected !== "boolean" || !Array.isArray(input.regression.evidence) || input.regression.evidence.length === 0 || input.regression.evidence.some((item) => typeof item !== "string" || item.length === 0 || item.length > 500)) {
     throw new TypeError("correction regression evidence is required");
   }
-  const followUps = normalizeFollowUps(input.follow_ups);
+  const followUps = normalizeFollowUps(input.follow_ups, state.schema_version);
   const requestDigest = digest("review-targeted-validation-v1", { outcomes, regression: input.regression, follow_ups: followUps });
   const previousValidation = state.validation_history.find((entry) => entry.request_id === input.request_id);
   if (previousValidation) {
@@ -375,10 +531,11 @@ function applyTargetedValidation(state, input) {
   return commit(next);
 }
 
-function normalizeFollowUps(value) {
+function normalizeFollowUps(value, schemaVersion = 1) {
+  const owners = schemaVersion === 2 ? QUALITY : DIMENSIONS;
   if (!Array.isArray(value)) throw new TypeError("follow_ups must be an array");
   return value.map((followUp) => {
-    if (!followUp || Object.keys(followUp).sort().join(",") !== "owner,summary" || !DIMENSIONS.includes(followUp.owner) || typeof followUp.summary !== "string" || followUp.summary.trim().length === 0 || followUp.summary.length > 500) {
+    if (!followUp || Object.keys(followUp).sort().join(",") !== "owner,summary" || !owners.includes(followUp.owner) || typeof followUp.summary !== "string" || followUp.summary.trim().length === 0 || followUp.summary.length > 500) {
       throw new TypeError("follow-up must be a bounded non-blocking owner/summary record");
     }
     return { owner: followUp.owner, summary: followUp.summary.trim(), blocking: false };
@@ -510,9 +667,10 @@ function nextLineageAction(state) {
   }
   if (TERMINAL.has(state.status)) return { type: "stop", reason: state.terminal_reason || state.status };
   if (state.status === "reviewing") {
-    const pending = state.genesis.selected_dimensions.filter((dimension) => state.lenses[dimension].status === "pending");
+    const selected = selectedLensIds(state);
+    const pending = selected.filter((dimension) => state.lenses[dimension].status === "pending");
     if (pending.length) return { type: "run-lenses", dimensions: pending };
-    const running = state.genesis.selected_dimensions.filter((dimension) => state.lenses[dimension].status === "running");
+    const running = selected.filter((dimension) => state.lenses[dimension].status === "running");
     return running.length ? { type: "await-lenses", dimensions: running } : { type: "freeze-findings" };
   }
   if (state.status === "correction-required") return { type: "correct", finding_ids: state.findings.filter((finding) => finding.blocking && finding.resolution === "unresolved").map((finding) => finding.id) };
@@ -775,7 +933,7 @@ function validateSliceCorrection(state, input) {
   const [, slice] = activeSlice(next, input);
   const outcomes = normalizeValidationOutcomes(input.outcomes, slice.finding_ids);
   const regression = assertCorrectionRegression(input.regression);
-  const followUps = normalizeFollowUps(input.follow_ups || []);
+  const followUps = normalizeFollowUps(input.follow_ups || [], state.schema_version);
   const failed = regression.detected || outcomes.some((outcome) => outcome.status !== "resolved");
   slice.validation_history.push({
     request_id: input.request_id,
@@ -863,7 +1021,18 @@ function assertRequestId(value) {
 
 function assertLineage(state) {
   if (!state || typeof state !== "object") throw new TypeError("lineage state must be an object");
-  if (state.schema_version !== 1) throw new TypeError("schema_version must be 1");
+  if (![1, 2].includes(state.schema_version)) throw new TypeError("schema_version must be 1 or 2");
+  if (state.schema_version === 2 && !Array.isArray(state.genesis.selected_domains)) {
+    throw new TypeError("schema_version integrity check failed");
+  }
+  if (state.schema_version === 1 && Array.isArray(state.genesis.selected_domains)) {
+    throw new TypeError("schema_version integrity check failed");
+  }
+  if (state.schema_version === 2) return assertLineageV2(state);
+  return assertLineageV1(state);
+}
+
+function assertLineageV1(state) {
   if (typeof state.lineage_id !== "string" || state.lineage_id.length === 0) throw new TypeError("lineage_id must be a non-empty string");
   if (!Number.isSafeInteger(state.revision) || state.revision < 0) throw new TypeError("revision must be a non-negative safe integer");
   if (!Number.isSafeInteger(state.generation) || state.generation < 1) throw new TypeError("generation must be a positive safe integer");
@@ -962,6 +1131,30 @@ function assertLineage(state) {
   }
 }
 
+function assertLineageV2(state) {
+  if (typeof state.lineage_id !== "string" || state.lineage_id.length === 0) throw new TypeError("lineage_id must be a non-empty string");
+  if (!Number.isSafeInteger(state.revision) || state.revision < 0) throw new TypeError("revision must be a non-negative safe integer");
+  if (!Number.isSafeInteger(state.generation) || state.generation < 1) throw new TypeError("generation must be a positive safe integer");
+  if (!state.genesis || typeof state.genesis !== "object") throw new TypeError("genesis is required");
+  if (!Array.isArray(state.genesis.selected_domains)) throw new TypeError("genesis selected_domains must be an array");
+  const mixed = detectMixedTaxonomy({ domains: state.genesis.selected_domains, lineageSchemaVersion: 2 });
+  if (mixed.mixed) throw new TypeError("mixed taxonomy in v2 lineage");
+  for (const domain of QUALITY) {
+    if (!state.lenses[domain]) throw new TypeError(`lens ${domain} is required`);
+  }
+  const payload = {
+    candidate_id: state.genesis.candidate_id,
+    classification: state.genesis.classification,
+    selected_domains: state.genesis.selected_domains,
+    evidence_fingerprint: state.genesis.evidence_fingerprint,
+    generation: state.generation,
+    predecessor_lineage_id: state.predecessor_lineage_id,
+  };
+  if (state.migration) payload.migration = state.migration;
+  const expectedLineageId = digest("review-lineage-v2", payload);
+  if (state.lineage_id !== expectedLineageId) throw new TypeError("lineage_id integrity check failed");
+}
+
 function assertRemediationV2(state) {
   if (state.remediation_schema_version !== 2 || !state.remediation_migration || typeof state.remediation_migration !== "object") throw new TypeError("remediation-v2 integrity check failed");
   for (const key of ["source_digest", "manifest_digest"]) if (typeof state.remediation_migration[key] !== "string" || !state.remediation_migration[key].startsWith("sha256:")) throw new TypeError("remediation migration digest integrity check failed");
@@ -1048,7 +1241,9 @@ function clone(value) {
 module.exports = {
   stableSerialize,
   migrateReviewLineage,
+  migrateLineageTaxonomyV2,
   startReviewLineage,
+  startQualityReviewLineage,
   beginLens,
   recordLensResult,
   freezeFindings,
@@ -1061,4 +1256,5 @@ module.exports = {
   createSuccessor,
   terminateLineage,
   nextLineageAction,
+  selectedLensIds,
 };

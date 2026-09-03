@@ -1,6 +1,7 @@
 "use strict";
 
 const crypto = require("node:crypto");
+const { QUALITY_DOMAINS } = require("./review-taxonomy.js");
 
 const DIMENSIONS = Object.freeze(["risk", "reliability", "resilience", "readability"]);
 const OPERATIONS = new Set(["add", "modify", "delete", "rename"]);
@@ -456,4 +457,325 @@ function validateEvidence(value) {
   if (value.fingerprint !== fingerprintEvidence(value.classification, value.sources)) throw new TypeError("evidence fingerprint mismatch");
 }
 
-module.exports = { normalizeReviewEvidence, validateGeneralistDecision, deriveReviewDimensions, validateReviewDecision };
+const V2_SIGNALS = Object.freeze({
+  "verify-trust": ["trust"], "verify-runtime": ["runtime"], "verify-evolution": ["evolution"], "verify-efficiency": ["efficiency"],
+  "auth-boundary-change": ["trust"], "permission-change": ["trust"], "credential-handling": ["trust"], "secret-handling": ["trust"],
+  "process-execution": ["trust"], "dependency-trust-change": ["trust"], "security-policy-change": ["trust"], "design-trust": ["trust"],
+  "network-flow": ["runtime"], "error-flow": ["runtime"], "retry-flow": ["runtime"], "timeout-flow": ["runtime"],
+  "concurrency-flow": ["runtime"], "persistent-state-mutation": ["runtime"], "partial-failure-path": ["runtime"],
+  "public-input-boundary": ["runtime"], "metadata-runtime": ["runtime"],
+  "structural-complexity": ["evolution"], "public-contract-change": ["evolution"], "architectural-boundary-change": ["evolution"],
+  "generated-contract-change": ["evolution"], "configuration-contract-change": ["evolution"],
+  "loop-io": ["efficiency"], "repeated-network-flow": ["efficiency"], "unbounded-collection": ["efficiency"],
+  "blocking-io": ["efficiency"], "whole-tree-scan": ["efficiency"], "performance-sensitive-path": ["efficiency"],
+  "metadata-docs-only": [],
+});
+const V2_FACT_SOURCES = Object.freeze(Object.fromEntries(Object.keys(V2_SIGNALS).map((code) => {
+  if (code.startsWith("verify-")) return [code, "verify"];
+  if (code.startsWith("design-")) return [code, "design"];
+  if (code === "dependency-trust-change") return [code, "dependency"];
+  if (code === "metadata-runtime" || code === "metadata-docs-only") return [code, "metadata"];
+  return [code, "real-diff"];
+})));
+const V2_DERIVED_REASON_CODES = new Set(["high-risk-override", ...QUALITY_DOMAINS.map((id) => `no-${id}-signal`)]);
+const AMBIGUITY_CODES = Object.freeze([
+  "runtime-code-without-domain-attribution", "unsupported-residual-evidence", "classification-conflict",
+  "cross-capability-blast-radius", "public-kernel-contract-unattributed", "self-review-infrastructure",
+  "generated-target-semantic-risk",
+]);
+const SELF_REVIEW_PREFIXES = [
+  "scripts/lib/review-", "skills/review-", "agents/review-", "skills/_shared/gate-4r-review.md",
+  "scripts/hooks/subagent-stop.js", "internal/hooks/subagentstop.go",
+];
+const RESIDUAL_PATH_LIMIT = 20;
+const ROUTER_REASON = /^ambiguity=([a-z0-9-]+(?:,[a-z0-9-]+)*);added=(none|trust(?:,runtime)?(?:,evolution)?(?:,efficiency)?|runtime(?:,evolution)?(?:,efficiency)?|evolution(?:,efficiency)?|efficiency)$/;
+
+function normalizeQualityReviewEvidence(input) {
+  if (!input || !["normal", "high-risk"].includes(input.classification)) throw new TypeError("classification must be normal or high-risk");
+  if (!input.verify || input.verify.status !== "success") throw new TypeError("verify.status must be success");
+  if (typeof input.diff !== "string" || !input.diff.trim()) throw new TypeError("diff must be a non-empty unified diff string");
+  requireArray(input, "paths");
+  requireArray(input, "capabilities");
+  requireArray(input, "dependencies");
+  requireArray(input, "operationTypes");
+  requireArray(input, "designRisks");
+  requireArray(input.verify, "findings", "verify.findings");
+  const paths = [...new Set(uniqueStrings(input.paths, "paths").map(normalizeRelativePath))].sort();
+  const capabilities = uniqueStrings(input.capabilities, "capabilities").sort();
+  const dependencies = uniqueStrings(input.dependencies, "dependencies").sort();
+  const operationTypes = uniqueStrings(input.operationTypes, "operationTypes").sort();
+  if (operationTypes.some((value) => !OPERATIONS.has(value))) throw new TypeError("operationTypes contains an unknown value");
+  const capabilityScopes = validateCapabilityScopes(input.capability_scopes, paths, capabilities);
+  let facts = [
+    ...normalizeV2Facts(input.verify.findings, "verify"),
+    ...normalizeV2Facts(input.designRisks, "design"),
+    ...v2DiffFacts(parseUnifiedDiff(input.diff)),
+  ];
+  if (dependencies.length) facts.push({ code: "dependency-trust-change", source: "dependency", detail: dependencies.join(","), attributed_capabilities: [] });
+  if (capabilities.includes("runtime")) facts.push({ code: "metadata-runtime", source: "metadata", detail: "runtime", attributed_capabilities: [] });
+  if (paths.length && paths.every((value) => /^(docs\/|.*\.md$)/.test(value))) facts.push({ code: "metadata-docs-only", source: "metadata", detail: paths.join(","), attributed_capabilities: [] });
+  facts = attributeFactsFromScopes(facts, capabilityScopes);
+  const capabilityCoverage = buildCapabilityCoverage({ paths, capabilities, capabilityScopes, facts });
+  const sources = { paths, capabilities, operation_types: operationTypes, dependencies, facts: sortFacts(facts), capability_scopes: capabilityScopes, capability_coverage: capabilityCoverage };
+  return { schema_version: 2, classification: input.classification, fingerprint: fingerprintEvidence(input.classification, sources), sources };
+}
+
+function validateCapabilityScopes(scopes, paths, capabilities) {
+  if (scopes === undefined || scopes === null) return [];
+  if (!Array.isArray(scopes)) throw new TypeError("capability_scopes must be an array");
+  const pathSet = new Set(paths);
+  const seen = new Set();
+  return scopes.map((scope) => {
+    if (!scope || typeof scope.id !== "string" || !Array.isArray(scope.paths)) throw new TypeError("invalid capability scope");
+    if (!capabilities.includes(scope.id)) throw new TypeError(`scope id not in capabilities: ${scope.id}`);
+    if (seen.has(scope.id)) throw new TypeError(`duplicate capability scope: ${scope.id}`);
+    seen.add(scope.id);
+    const scopePaths = [...new Set(scope.paths.map(normalizeRelativePath))].sort();
+    if (scopePaths.some((item) => !pathSet.has(item))) throw new TypeError(`scope paths must be subset of paths for ${scope.id}`);
+    return { id: scope.id, paths: scopePaths };
+  }).sort((a, b) => a.id.localeCompare(b.id));
+}
+
+function attributeFactsFromScopes(facts, capabilityScopes) {
+  if (!capabilityScopes.length) return facts;
+  return facts.map((fact) => {
+    const detailPaths = fact.detail.split(",").map((item) => item.trim()).filter(Boolean);
+    const attributed = new Set(Array.isArray(fact.attributed_capabilities) ? fact.attributed_capabilities : []);
+    for (const scope of capabilityScopes) {
+      const overlaps = scope.paths.some((scopePath) => detailPaths.includes(scopePath));
+      if (overlaps) attributed.add(scope.id);
+    }
+    return { ...fact, attributed_capabilities: [...attributed].sort() };
+  });
+}
+
+function buildCapabilityCoverage({ paths, capabilities, capabilityScopes, facts }) {
+  const scopeById = Object.fromEntries(capabilityScopes.map((scope) => [scope.id, scope]));
+  const behavioral = capabilities.filter((id) => isBehavioralCapability(id, paths));
+  return behavioral.map((id) => {
+    const scoped = Boolean(scopeById[id]);
+    const scopedPaths = scoped ? scopeById[id].paths : [];
+    const attributedDomains = new Set();
+    const factCodes = new Set();
+    for (const fact of facts) {
+      const attributed = Array.isArray(fact.attributed_capabilities) ? fact.attributed_capabilities : [];
+      if (scoped && attributed.includes(id)) {
+        for (const domain of V2_SIGNALS[fact.code] || []) attributedDomains.add(domain);
+        factCodes.add(fact.code);
+      } else if (!scoped && scopedPaths.some((p) => fact.detail.includes(p))) {
+        // unscoped: path overlap does not attribute
+      }
+    }
+    return {
+      id,
+      behavioral: true,
+      scoped,
+      attributed_domains: [...attributedDomains].sort((a, b) => QUALITY_DOMAINS.indexOf(a) - QUALITY_DOMAINS.indexOf(b)),
+      fact_codes: [...factCodes].sort(),
+    };
+  }).sort((a, b) => a.id.localeCompare(b.id));
+}
+
+function isBehavioralCapability(id, paths) {
+  if (id === "docs" || id === "documentation") return false;
+  if (/^(test|tests|fixture|fixtures|example|examples)$/.test(id)) return false;
+  return true;
+}
+
+function normalizeV2Facts(value, defaultSource) {
+  return (Array.isArray(value) ? value : []).map((item) => {
+    if (!item || typeof item.code !== "string" || !V2_SIGNALS[item.code]) throw new TypeError(`unknown fact code: ${item && item.code}`);
+    if (item.source && item.source !== defaultSource) throw new TypeError(`invalid source for ${item.code}: ${item.source}`);
+    if (V2_FACT_SOURCES[item.code] !== defaultSource) throw new TypeError(`invalid ${defaultSource} fact code: ${item.code}`);
+    const attributed = Array.isArray(item.attributed_capabilities)
+      ? [...new Set(item.attributed_capabilities)].sort()
+      : [];
+    return { code: item.code, source: defaultSource, detail: String(item.detail || item.evidence || item.code), attributed_capabilities: attributed };
+  });
+}
+
+function v2DiffFacts(files) {
+  const patterns = [
+    ["process-execution", /\b(?:(?:child_process\.)?(?:spawn|spawnSync|exec|execFile)|ProcessBuilder)\s*\(/i],
+    ["permission-change", /\b(?:auth(?:enticate|orize)?|permission|hasPermission|role|credential)\w*\s*(?:\(|=|:|\.)/i],
+    ["network-flow", /\b(?:fetch|request|retry|timeout)\s*\(|\b(?:axios|https?)\s*\.(?:get|post|put|patch|delete|request)\s*\(/i],
+    ["error-flow", /\b(?:catch\s*\(|throw\b|fallback|rollback)\w*\s*(?:\(|=|:)?/i],
+    ["retry-flow", /\bretry\b/i],
+    ["timeout-flow", /\btimeout\b/i],
+    ["structural-complexity", /\b(?:class|interface)\s+[A-Za-z_$][\w$]*|\bswitch\s*\(/i],
+    ["loop-io", /\bfor\s*\(|\.forEach\s*\(|while\s*\(/i],
+  ];
+  const attributed = new Map(patterns.map(([code]) => [code, new Set()]));
+  for (const { file, lines } of files) {
+    if (!isRuntimeProductionPath(file)) continue;
+    const lexicalState = { blockComment: null, quote: null, hashComment: hashCommentMode(file), lineComment: lineCommentMode(file), rubyBlockComment: false, language: languageMode(file) };
+    for (const line of lines) {
+      const executable = stripNonExecutableText(line.text, lexicalState);
+      if (!line.added || !executable.trim()) continue;
+      for (const [code, regex] of patterns) if (regex.test(executable)) attributed.get(code).add(file);
+    }
+  }
+  return patterns.flatMap(([code]) => {
+    const hitFiles = [...attributed.get(code)].sort();
+    return hitFiles.length ? [{ code, source: "real-diff", detail: hitFiles.join(","), attributed_capabilities: [] }] : [];
+  });
+}
+
+function classifyQualityReview(evidence) {
+  validateQualityEvidence(evidence);
+  if (evidence.classification === "high-risk") {
+    return buildQualityDecision(evidence, {
+      classification_status: "sufficient",
+      selected_domains: [...QUALITY_DOMAINS],
+      ambiguity_reasons: [],
+      residual_evidence: null,
+    });
+  }
+  const globalDomains = deriveGlobalDomains(evidence);
+  const coverage = evidence.sources.capability_coverage || [];
+  const behavioral = coverage.filter((item) => item.behavioral);
+  const unattributed = behavioral.filter((item) => !item.attributed_domains.length);
+  const ambiguityReasons = [];
+  if (pathsMatchSelfReview(evidence.sources.paths)) ambiguityReasons.push("self-review-infrastructure");
+  if (pathsMatchGeneratedTargetRisk(evidence.sources.paths)) ambiguityReasons.push("generated-target-semantic-risk");
+  if (pathsMatchKernelContract(evidence.sources.paths) && !globalDomains.length) ambiguityReasons.push("public-kernel-contract-unattributed");
+  const runtimePaths = evidence.sources.paths.filter(isRuntimeProductionPath);
+  if (runtimePaths.length && !globalDomains.length && behavioral.length <= 1) ambiguityReasons.push("runtime-code-without-domain-attribution");
+  if (behavioral.length > 3 && unattributed.length) ambiguityReasons.push("cross-capability-blast-radius");
+  const selected = canonicalDomainUnion(globalDomains, behavioral.flatMap((item) => item.attributed_domains));
+  if (ambiguityReasons.length) {
+    return buildQualityDecision(evidence, {
+      classification_status: "ambiguous",
+      selected_domains: selected,
+      ambiguity_reasons: [...new Set(ambiguityReasons)].sort(),
+      residual_evidence: buildResidualEvidence(evidence, unattributed, ambiguityReasons, selected),
+    });
+  }
+  return buildQualityDecision(evidence, {
+    classification_status: "sufficient",
+    selected_domains: selected,
+    ambiguity_reasons: [],
+    residual_evidence: null,
+  });
+}
+
+function deriveGlobalDomains(evidence) {
+  const selected = new Set();
+  for (const fact of evidence.sources.facts) {
+    for (const domain of V2_SIGNALS[fact.code] || []) selected.add(domain);
+  }
+  return QUALITY_DOMAINS.filter((id) => selected.has(id));
+}
+
+function canonicalDomainUnion(...lists) {
+  const selected = new Set();
+  for (const list of lists) for (const id of list) if (QUALITY_DOMAINS.includes(id)) selected.add(id);
+  return QUALITY_DOMAINS.filter((id) => selected.has(id));
+}
+
+function buildQualityDecision(evidence, { classification_status, selected_domains, ambiguity_reasons, residual_evidence }) {
+  const reasons = Object.fromEntries(QUALITY_DOMAINS.map((id) => [id, []]));
+  for (const fact of evidence.sources.facts) {
+    for (const domain of V2_SIGNALS[fact.code] || []) reasons[domain].push(reason(fact.code, fact.source, fact.detail));
+  }
+  if (evidence.classification === "high-risk") {
+    for (const id of QUALITY_DOMAINS) reasons[id].unshift(reason("high-risk-override", "override", "Classification requires full quality review"));
+  }
+  const domains = {};
+  for (const id of QUALITY_DOMAINS) {
+    if (!reasons[id].length) reasons[id].push(reason(`no-${id}-signal`, "classifier", "No positive signal"));
+    domains[id] = { selected: selected_domains.includes(id), reasons: dedupeReasons(reasons[id]) };
+  }
+  return {
+    schema_version: 2,
+    classification: evidence.classification,
+    classification_status,
+    selected_domains,
+    ambiguity_reasons,
+    residual_evidence,
+    domains,
+    capability_coverage: evidence.sources.capability_coverage,
+    evidence: { schema_version: evidence.schema_version, fingerprint: evidence.fingerprint, sources: evidence.sources },
+    router: null,
+    escalation_reason: null,
+  };
+}
+
+function buildResidualEvidence(evidence, unattributed, codes, selectedDomains) {
+  return {
+    codes: [...new Set(codes)].sort(),
+    selected_domains: selectedDomains,
+    capabilities: unattributed.map((item) => {
+      const capPaths = evidence.sources.paths.slice().sort();
+      const total = capPaths.length;
+      const bounded = capPaths.slice(0, RESIDUAL_PATH_LIMIT);
+      return {
+        id: item.id,
+        paths: bounded,
+        total_paths: total,
+        truncated: total > RESIDUAL_PATH_LIMIT,
+        fact_codes: item.fact_codes,
+      };
+    }).sort((a, b) => a.id.localeCompare(b.id)),
+  };
+}
+
+function pathsMatchSelfReview(paths) {
+  return paths.some((p) => SELF_REVIEW_PREFIXES.some((prefix) => p.startsWith(prefix) || p === prefix));
+}
+function pathsMatchGeneratedTargetRisk(paths) {
+  return paths.some((p) => p.startsWith("scripts/configure/__fixtures__/golden/") || p.startsWith("dist/"));
+}
+function pathsMatchKernelContract(paths) {
+  return paths.some((p) => p.startsWith("schemas/kernel/"));
+}
+
+function validateRouterDecision(value) {
+  const errors = [];
+  if (!value || typeof value !== "object" || Array.isArray(value)) return { valid: false, errors: ["router decision must be an object"] };
+  const keys = Object.keys(value).sort();
+  if (keys.join(",") !== "added_domains,classification_status,reason") errors.push("router decision must contain exactly classification_status, added_domains, reason");
+  if (!["sufficient", "ambiguous"].includes(value.classification_status)) errors.push("unknown classification_status");
+  if (!Array.isArray(value.added_domains)) errors.push("added_domains must be an array");
+  else {
+    if (value.added_domains.some((id) => !QUALITY_DOMAINS.includes(id))) errors.push("added_domains contains unknown quality domain");
+    if (new Set(value.added_domains).size !== value.added_domains.length) errors.push("duplicate added domain");
+    if (value.added_domains.join(",") !== QUALITY_DOMAINS.filter((id) => value.added_domains.includes(id)).join(",")) errors.push("added_domains must use canonical order");
+  }
+  for (const forbidden of ["findings", "severity", "risk", "reliability", "resilience", "readability", "artifacts", "paths"]) {
+    if (Object.hasOwn(value, forbidden)) errors.push(`forbidden router key: ${forbidden}`);
+  }
+  if (typeof value.reason !== "string" || !ROUTER_REASON.test(value.reason)) errors.push("reason must use ambiguity=<codes>;added=<none|ids>");
+  return { valid: errors.length === 0, errors };
+}
+
+function mergeRouterDecision(classifier, router) {
+  const validation = validateRouterDecision(router);
+  if (!validation.valid) return { valid: false, errors: validation.errors };
+  if (router.classification_status === "ambiguous") {
+    return { valid: true, blocked: true, blocker_reason: "quality-review-ambiguity-unresolved", dispatch: [], selected_domains: classifier.selected_domains };
+  }
+  const merged = canonicalDomainUnion(classifier.selected_domains, router.added_domains);
+  return { valid: true, blocked: false, selected_domains: merged, dispatch: merged.map((id) => require("./review-taxonomy.js").ACTIVE_V2_REVIEWERS[id]) };
+}
+
+function validateQualityEvidence(value) {
+  if (!value || Object.keys(value).sort().join(",") !== "classification,fingerprint,schema_version,sources" || value.schema_version !== 2) throw new TypeError("invalid normalized quality evidence");
+  if (!["normal", "high-risk"].includes(value.classification)) throw new TypeError("invalid classification");
+  if (!/^sha256:[a-f0-9]{64}$/.test(value.fingerprint || "")) throw new TypeError("invalid fingerprint");
+  if (!value.sources || !Array.isArray(value.sources.facts)) throw new TypeError("invalid sources");
+  if (value.fingerprint !== fingerprintEvidence(value.classification, value.sources)) throw new TypeError("evidence fingerprint mismatch");
+}
+
+module.exports = {
+  normalizeReviewEvidence,
+  validateGeneralistDecision,
+  deriveReviewDimensions,
+  validateReviewDecision,
+  normalizeQualityReviewEvidence,
+  classifyQualityReview,
+  validateRouterDecision,
+  mergeRouterDecision,
+  QUALITY_DOMAINS: [...QUALITY_DOMAINS],
+  AMBIGUITY_CODES: [...AMBIGUITY_CODES],
+};

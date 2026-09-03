@@ -1,9 +1,13 @@
 "use strict";
 
-// ---------------------------------------------------------------------------
-// Known-name lists (hardcoded constants; no disk reads — purity requirement)
-// Design decision: constants kept here so the module has zero side effects.
-// ---------------------------------------------------------------------------
+const {
+  LEXICAL_GATES,
+  ACTIVE_GATES,
+  LEGACY_GATES,
+  admitRouteGates,
+  ACTIVE_V2_REVIEWERS,
+  LEGACY_V1_REVIEWERS,
+} = require("./review-taxonomy.js");
 
 const KNOWN_PHASES = [
   "sdd-foundation",
@@ -19,19 +23,13 @@ const KNOWN_PHASES = [
   "sdd-archive",
 ];
 
-const KNOWN_GATES = [
-  "clarify",
-  "review-workload",
-  "impact",
-  "brownfield-advisory",
-  "4r-review-gate",
-];
+const KNOWN_GATES = LEXICAL_GATES;
 
 const KNOWN_REVIEWERS = [
-  "review-risk",
-  "review-readability",
-  "review-reliability",
-  "review-resilience",
+  ...Object.values(ACTIVE_V2_REVIEWERS),
+  "review-change",
+  "review-correction",
+  ...Object.values(LEGACY_V1_REVIEWERS),
 ];
 
 const KNOWN_CLASSES = ["trivial", "small", "normal", "high-risk"];
@@ -325,6 +323,10 @@ function validateRoute(entry) {
           `unknown gate '${gate}'; must be one of [${KNOWN_GATES.join(", ")}]`,
         );
       }
+    }
+    const admission = admitRouteGates(entry.gates, "live-v2");
+    if (!admission.valid) {
+      errors.push(`gate admission failed: ${admission.reason}`);
     }
   }
 
@@ -652,6 +654,9 @@ function classifyChange(ctx) {
 module.exports = {
   KNOWN_PHASES,
   KNOWN_GATES,
+  LEXICAL_GATES,
+  ACTIVE_GATES,
+  LEGACY_GATES,
   KNOWN_REVIEWERS,
   KNOWN_CLASSES,
   KNOWN_COSTS,

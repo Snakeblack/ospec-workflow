@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { resolveModel, validateSddModelPolicy, REQUIRED_SDD_AGENTS, OMIT } = require("./model-resolver.js");
+const { resolveModel, validateSddModelPolicy, REQUIRED_SDD_AGENTS, REQUIRED_QUALITY_REVIEW_AGENTS, OMIT } = require("./model-resolver.js");
 
 const MODELS = {
   agents: {
@@ -55,7 +55,9 @@ test("absent or malformed config yields OMIT", () => {
 
 test("canonical validator accepts model, effort, reviewer, and default choices from models.yaml", () => {
   const agents = Object.fromEntries(REQUIRED_SDD_AGENTS.map(agent => [agent, "default"]));
-  agents["review-change"] = "premium";
+  for (const agent of REQUIRED_QUALITY_REVIEW_AGENTS) {
+    agents[agent] = agent === "review-change" ? "premium" : "default";
+  }
   agents._default = "premium";
 
   const result = validateSddModelPolicy({

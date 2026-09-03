@@ -32,10 +32,10 @@ test("D2 · target-capabilities.md declares hook parity and the git-hooks-cover-
   assert.match(content, /git hooks locales son la única capa/i, "must state git hooks as the only universal layer");
 });
 
-test("D1 · 4R gate prefers parallel dispatch with serial degradation", async () => {
+test("D1 · Quality Review Gate prefers parallel dispatch with serial fallback", async () => {
   const content = await read("skills/_shared/gate-4r-review.md");
-  assert.match(content, /parallel preferred/i);
-  assert.match(content, /degrade to serial/i);
+  assert.match(content, /parallel-preferred/i);
+  assert.match(content, /serial-fallback/i);
 });
 
 // E1 — executable parity contract

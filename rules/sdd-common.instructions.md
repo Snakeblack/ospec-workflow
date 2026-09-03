@@ -63,7 +63,7 @@ Chain strategy: stacked-to-main|feature-branch-chain|size-exception|pending
 
 ## Selective 4R gate
 
-- When a declared `4r-review-gate` follows successful verify, launch the read-only `review-change` generalist once, normalize real evidence with `scripts/lib/review-dimensions.js`, validate it, freeze a lineage with `scripts/lib/review-lineage.js`, and consume only the executable `next_action` adapted by `scripts/lib/review-gate-state.js`.
+- When a declared `quality-review-gate` (live v2) or legacy `4r-review-gate` (schema v1 continuation) follows successful verify, run deterministic classification first; invoke `review-change` only on ambiguous residual evidence; freeze lineage with `scripts/lib/review-lineage.js`; consume `next_action` from `scripts/lib/review-gate-state.js`. Mixed gate keys or mixed taxonomy fail closed. `quality-review-ambiguity-unresolved` is not an SDD phase blocker type.
 - Normal changes dispatch zero to two selected specialists; high-risk changes dispatch all four. Persist deterministic reasons for selected and skipped dimensions.
 - Contract-invalid input fails closed with `blocker_reason: contract-remediation`; dispatch neither specialists nor archive and never synthesize clean reviewer envelopes.
 - Preserve existing severity and initial parallel-preferred/serial-fallback behavior. Every selected lens runs once. After findings freeze, corrections are validated only by `review-correction`; unrelated observations are non-blocking follow-ups.

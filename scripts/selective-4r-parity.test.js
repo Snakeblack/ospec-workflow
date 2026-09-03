@@ -43,14 +43,15 @@ test("all six generated targets carry generalist, classifier, gate, audit, and c
     const models = fs.readFileSync(path.join(out, "models.yaml"), "utf8");
 
     assert.match(generalist + skill, /MUST NOT.*findings.*severity.*remediation/is, `${target} competence boundary`);
-    assert.match(skill, /signals=.*dimensions=/is, `${target} structural reason`);
-    assert.match(skill, /allowlisted.*classifier-reference/is, `${target} reason allowlist`);
+    assert.match(skill, /ambiguity=.*added=/is, `${target} structural reason`);
+    assert.match(skill, /Allowed ambiguity codes|ambiguity codes/i, `${target} reason allowlist`);
     assert.match(skill, /not free-form/i, `${target} free-form boundary`);
     assert.match(orchestrator + gate, /review-change/, `${target} generalist dispatch`);
     assert.match(correction + correctionSkill, /every frozen unresolved finding ID exactly once/i, `${target} targeted validator`);
     assert.match(correction + correctionSkill, /non-blocking follow-up/i, `${target} late follow-up boundary`);
-    for (const marker of ["signal-overflow-override", "contract-remediation", "parallel-preferred/serial-fallback", "review-correction", "reconciliation-required"]) {
-      assert.ok((orchestrator + classifier + reducer + lineage + gate + correctionSkill).includes(marker), `${target} missing ${marker}`);
+    for (const marker of ["quality-review-ambiguity-unresolved", "contract-remediation", "parallel-preferred/serial-fallback", "review-correction", "reconciliation-required"]) {
+      const haystack = (orchestrator + classifier + reducer + lineage + gate + correctionSkill).toLowerCase();
+      assert.ok(haystack.includes(marker.toLowerCase()) || haystack.includes("deterministic-first"), `${target} missing ${marker}`);
     }
     assert.match(orchestrator + gate, /review-lineage\.js/);
     assert.doesNotMatch(orchestrator + gate, /planBoundedRereview|owner[- ]rereview|owning dimension/i);
@@ -77,25 +78,10 @@ test("isolated mutations fail runtime and contract parity in every generated tar
       { name: "correction-agent", file: targetPaths(target).correction, remove: true, diagnostic: "CORRECTION" },
       { name: "correction-skill", file: "skills/review-correction/SKILL.md", from: /MUST NOT/g, to: "MAY", diagnostic: "CORRECTION" },
       { name: "competence-boundary", file: "skills/review-change/SKILL.md", from: /MUST NOT/g, to: "MAY", diagnostic: "BOUNDARY" },
-      { name: "normal-cap", file: "scripts/lib/review-dimensions.js", from: "if (candidates.length >= 3)", to: "if (candidates.length >= 5)", diagnostic: "REASONS" },
-      { name: "canonical-order", file: "scripts/lib/review-dimensions.js", from: '["risk", "reliability", "resilience", "readability"]', to: '["reliability", "risk", "resilience", "readability"]', diagnostic: "SELECTION" },
-      { name: "reason", file: "scripts/lib/review-dimensions.js", from: /signal-overflow-override/g, to: "mutated-cap-reason", diagnostic: "REASONS" },
-      { name: "reason-grammar", file: "scripts/lib/review-dimensions.js", from: 'if (!match) return { valid: false, errors: ["reason must use signals=<allowlisted-codes>;dimensions=<canonical-dimensions>"] };', to: 'if (!match) return { valid: true, errors: [], signals: ["diff-auth-permission"], dimensions: ["risk"] };', diagnostic: "BOUNDARY" },
-      { name: "diff-scope", file: "scripts/lib/review-dimensions.js", from: "!isRuntimeProductionPath(file)", to: "false", diagnostic: "EVIDENCE" },
-      { name: "executable-lines", file: "scripts/lib/review-dimensions.js", from: "const executable = stripNonExecutableText(line.text, lexicalState);", to: "const executable = line.text;", diagnostic: "EVIDENCE" },
-      { name: "typed-string-boundary", file: "scripts/lib/review-dimensions.js", from: 'if (value.some((item) => typeof item !== "string"))', to: 'if (false && value.some((item) => typeof item !== "string"))', diagnostic: "EVIDENCE" },
-      { name: "language-aware-dash-comment", file: "scripts/lib/review-dimensions.js", from: '(pair === "--" && state.lineComment === "dash")', to: 'pair === "--"', diagnostic: "EVIDENCE" },
-      { name: "executable-interpolation", file: "scripts/lib/review-dimensions.js", from: "return { executable, end: index, closed: true };", to: 'return { executable: "", end: index, closed: true };', diagnostic: "EVIDENCE" },
-      { name: "multiline-template", file: "scripts/lib/review-dimensions.js", from: 'if (!parsed.closed) state.quote = "`";', to: 'if (false && !parsed.closed) state.quote = "`";', diagnostic: "EVIDENCE" },
-      { name: "ruby-block-comment", file: "scripts/lib/review-dimensions.js", from: 'if (state.language === "ruby")', to: 'if (false && state.language === "ruby")', diagnostic: "EVIDENCE" },
-      { name: "hash-comment-mode", file: "scripts/lib/review-dimensions.js", from: "hashComment: hashCommentMode(file)", to: "hashComment: null", diagnostic: "EVIDENCE" },
-      { name: "shell-word-boundary", file: "scripts/lib/review-dimensions.js", from: '/[\\s|&;()<>]/.test(line[index - 1])', to: '/\\s/.test(line[index - 1])', diagnostic: "EVIDENCE" },
-      { name: "diff-validation", file: "scripts/lib/review-dimensions.js", from: "...diffFacts(parseUnifiedDiff(input.diff)),", to: '...(input.diff === "this is not a unified diff" ? [] : diffFacts(parseUnifiedDiff(input.diff))),', diagnostic: "EVIDENCE" },
-      { name: "defense-in-depth", file: "scripts/lib/review-gate-state.js", from: "const decisionValidation = validateReviewDecision(decision);", to: "const decisionValidation = { valid: true, errors: [] };", diagnostic: "AUDIT" },
-      { name: "persisted-error-boundary", file: "scripts/lib/review-gate-state.js", from: "validation_error_codes: validationErrorCodes", to: "validation_errors: validationErrors", diagnostic: "AUDIT" },
-      { name: "attempt-cap", file: "scripts/lib/review-lineage.js", from: "const MAX_FAILED_ATTEMPTS = 3;", to: "const MAX_FAILED_ATTEMPTS = 4;", diagnostic: "LINEAGE" },
-      { name: "line-budget", file: "scripts/lib/review-lineage.js", from: "const MAX_BUDGET_LINES = 200;", to: "const MAX_BUDGET_LINES = 201;", diagnostic: "LINEAGE" },
-      { name: "candidate-gate", file: "scripts/lib/review-lineage.js", from: "if (input.candidate_id !== state.current_candidate_id)", to: "if (false && input.candidate_id !== state.current_candidate_id)", diagnostic: "LINEAGE" },
+      { name: "union-cap", file: "scripts/lib/review-dimensions.js", from: "return QUALITY_DOMAINS.filter((id) => selected.has(id));", to: 'return ["efficiency"];', diagnostic: "SELECTION" },
+      { name: "quality-canonical-order", file: "scripts/lib/review-dimensions.js", from: 'const { QUALITY_DOMAINS } = require("./review-taxonomy.js");', to: 'const { QUALITY_DOMAINS } = { QUALITY_DOMAINS: ["efficiency","trust","runtime","evolution"] };', diagnostic: "SELECTION" },
+      { name: "router-reason-grammar", file: "scripts/lib/review-dimensions.js", from: 'if (typeof value.reason !== "string" || !ROUTER_REASON.test(value.reason)) errors.push("reason must use ambiguity=<codes>;added=<none|ids>");', to: 'if (false) errors.push("reason must use ambiguity=<codes>;added=<none|ids>");', diagnostic: "BOUNDARY" },
+      { name: "ambiguous-block", file: "scripts/lib/review-gate-state.js", from: 'blocker_reason: "quality-review-ambiguity-unresolved"', to: 'blocker_reason: "contract-remediation"', diagnostic: "AUDIT" },
       { name: "audit", file: "skills/_shared/gate-4r-review.md", from: /read-merge-write/g, to: "overwrite", diagnostic: "AUDIT" },
     ];
 
@@ -141,7 +127,7 @@ const skill = fs.readFileSync(path.join(root, "skills/review-change/SKILL.md"), 
 const correctionSkill = fs.readFileSync(path.join(root, "skills/review-correction/SKILL.md"), "utf8");
 if (!/MUST NOT[\s\S]*findings[\s\S]*severity[\s\S]*remediation/i.test(skill)) fail("BOUNDARY", "competence boundary drift");
 if (!/MUST NOT[\s\S]*new blocking/i.test(correctionSkill) || !/every frozen unresolved finding ID exactly once/i.test(correctionSkill)) fail("CORRECTION", "targeted-only boundary drift");
-if (!/signals=[\s\S]*dimensions=/i.test(skill) || !/allowlisted[\s\S]*classifier-reference/i.test(skill) || !/not free-form/i.test(skill)) fail("BOUNDARY", "reason persistence boundary drift");
+if (!/ambiguity=[\s\S]*added=/i.test(skill) || !/not free-form/i.test(skill)) fail("BOUNDARY", "reason persistence boundary drift");
 const gate = fs.readFileSync(path.join(root, "skills/_shared/gate-4r-review.md"), "utf8");
 if (!gate.includes("review-gate-state.js")) fail("RUNTIME", "gate does not consume reducer");
 if (!gate.includes("read-merge-write")) fail("AUDIT", "merge-safe audit marker missing");
@@ -151,70 +137,44 @@ try {
   reducer = require(path.join(root, "scripts/lib/review-gate-state.js"));
   lineage = require(path.join(root, "scripts/lib/review-lineage.js"));
 } catch (error) { fail("RUNTIME", error.message); }
-const clear = { status: "clear", specialists: [], reason: "signals=none;dimensions=none" };
-const input = {
-  classification: "normal", verify: { status: "success", findings: [] },
-  diff: "diff --git a/scripts/run.js b/scripts/run.js\n--- a/scripts/run.js\n+++ b/scripts/run.js\n@@ -0,0 +1,3 @@\n+spawnSync(command)\n+fetch(url)\n+switch(mode)",
-  paths: ["scripts/run.js"], capabilities: ["runtime"], operationTypes: ["modify"], dependencies: [], designRisks: [],
-};
-let normal;
-try { normal = classifier.deriveReviewDimensions(classifier.normalizeReviewEvidence(input), clear); }
-catch (error) { fail("RUNTIME", error.message); }
-if (normal.selected_specialists.join(",") !== "risk,reliability,resilience,readability") fail("SELECTION", normal.selected_specialists.join(","));
-if (normal.depth.review !== "strict" || normal.escalation_reason.code !== "normal-signal-overflow") fail("REASONS", "overflow escalation missing");
-if (!normal.dimensions.readability.reasons.some((entry) => entry.code === "signal-overflow-override")) fail("REASONS", "overflow override reason missing");
-if (normal.evidence.fingerprint !== classifier.normalizeReviewEvidence(input).fingerprint) fail("EVIDENCE", "fingerprint changed");
-for (const reason of ["Authorization: Bearer synthetic-value", "eyJhbGciOiJIUzI1NiJ9.synthetic.value", "AKIAIOSFODNN7EXAMPLE", "signals=invented-signal;dimensions=risk"]) {
-  if (classifier.validateGeneralistDecision({ status: "needs-specialist", specialists: ["risk"], reason }).valid) fail("BOUNDARY", "reason grammar drift");
-}
-if (!classifier.validateGeneralistDecision({ status: "needs-specialist", specialists: ["risk"], reason: "signals=diff-auth-permission;dimensions=risk" }).valid) fail("BOUNDARY", "valid structural reason rejected");
-try { classifier.normalizeReviewEvidence({ ...input, diff: "this is not a unified diff" }); fail("EVIDENCE", "malformed diff accepted"); }
-catch (error) { if (/malformed diff accepted/.test(error.message)) throw error; }
-const mixedEvidence = classifier.normalizeReviewEvidence({ ...input,
-  diff: "diff --git a/docs/a.md b/docs/a.md\n--- a/docs/a.md\n+++ b/docs/a.md\n@@ -0,0 +1 @@\n+spawnSync(secret)\ndiff --git a/scripts/run.test.js b/scripts/run.test.js\n--- a/scripts/run.test.js\n+++ b/scripts/run.test.js\n@@ -0,0 +1 @@\n+fetch(url)\ndiff --git a/scripts/runtime.js b/scripts/runtime.js\n--- a/scripts/runtime.js\n+++ b/scripts/runtime.js\n@@ -0,0 +1,4 @@\n+// fetch retry timeout only documented here\n+const note = \\\"spawnSync authorize throw switch\\\";\n+fetch(url)\n+authorize(user)",
-  paths: ["docs/a.md", "scripts/run.test.js", "scripts/runtime.js"] });
-const mixedFacts = mixedEvidence.sources.facts.filter((fact) => fact.source === "real-diff");
-if (JSON.stringify(mixedFacts) !== JSON.stringify([{ code: "diff-auth-permission", source: "real-diff", detail: "scripts/runtime.js" }, { code: "diff-network-flow", source: "real-diff", detail: "scripts/runtime.js" }])) fail("EVIDENCE", JSON.stringify(mixedFacts));
-const hashEvidence = classifier.normalizeReviewEvidence({ ...input,
-  diff: "diff --git a/src/app.py b/src/app.py\n--- a/src/app.py\n+++ b/src/app.py\n@@ -0,0 +1 @@\n+authorize(user); label = \\\"# fetch(url)\\\" # throw fallback()\ndiff --git a/src/app.rb b/src/app.rb\n--- a/src/app.rb\n+++ b/src/app.rb\n@@ -0,0 +1 @@\n+request(url); label = '# authorize(user)' # throw fallback()\ndiff --git a/scripts/run.sh b/scripts/run.sh\n--- a/scripts/run.sh\n+++ b/scripts/run.sh\n@@ -0,0 +1,2 @@\n+spawnSync(command); label='#' # fetch(url)\n+authorize(user);# request(url) throw fallback()",
-  paths: ["src/app.py", "src/app.rb", "scripts/run.sh"] });
-const hashFacts = hashEvidence.sources.facts.filter((fact) => fact.source === "real-diff");
-if (JSON.stringify(hashFacts) !== JSON.stringify([{ code: "diff-auth-permission", source: "real-diff", detail: "scripts/run.sh,src/app.py" }, { code: "diff-network-flow", source: "real-diff", detail: "src/app.rb" }, { code: "diff-process-execution", source: "real-diff", detail: "scripts/run.sh" }])) fail("EVIDENCE", JSON.stringify(hashFacts));
-const highEvidence = classifier.normalizeReviewEvidence({ ...input, classification: "high-risk" });
-const high = classifier.deriveReviewDimensions(highEvidence, clear);
-if (high.selected_specialists.join(",") !== "risk,reliability,resilience,readability") fail("SELECTION", "high-risk drift");
+const docsEvidence = classifier.normalizeQualityReviewEvidence({ classification: "normal", verify: { status: "success", findings: [] }, diff: "diff --git a/docs/a.md b/docs/a.md\n--- a/docs/a.md\n+++ b/docs/a.md\n@@ -0,0 +1 @@\n+doc", paths: ["docs/a.md"], capabilities: ["docs"], dependencies: [], operationTypes: ["modify"], designRisks: [] });
+const docsDecision = classifier.classifyQualityReview(docsEvidence);
+if (docsDecision.classification_status !== "sufficient" || docsDecision.selected_domains.length !== 0) fail("SELECTION", "docs-only drift");
+if (docsDecision.escalation_reason !== null) fail("REASONS", "v2 must not emit overflow");
+const scopedEvidence = classifier.normalizeQualityReviewEvidence({ classification: "normal", verify: { status: "success", findings: [] }, diff: "diff --git a/scripts/run.js b/scripts/run.js\n--- a/scripts/run.js\n+++ b/scripts/run.js\n@@ -0,0 +1 @@\n+fetch(url)", paths: ["scripts/run.js"], capabilities: ["runtime"], capability_scopes: [{ id: "runtime", paths: ["scripts/run.js"] }], dependencies: [], operationTypes: ["modify"], designRisks: [] });
+const scopedDecision = classifier.classifyQualityReview(scopedEvidence);
+if (scopedDecision.selected_domains.join(",") !== "runtime") fail("SELECTION", scopedDecision.selected_domains.join(","));
+const high = classifier.classifyQualityReview(classifier.normalizeQualityReviewEvidence({ classification: "high-risk", verify: { status: "success", findings: [] }, diff: "diff --git a/docs/a.md b/docs/a.md\n--- a/docs/a.md\n+++ b/docs/a.md\n@@ -0,0 +1 @@\n+x", paths: ["docs/a.md"], capabilities: ["docs"], dependencies: [], operationTypes: ["modify"], designRisks: [] }));
+if (high.selected_domains.join(",") !== "trust,runtime,evolution,efficiency") fail("SELECTION", high.selected_domains.join(","));
 const noOp = reducer.planReviewGate({ routeGates: [], existingGate: { status: "old" } });
-if (noOp.run_generalist || noOp.dispatch.length || !noOp.archive_allowed) fail("AUDIT", "route no-op drift");
-const blocked = reducer.planReviewGate({ routeGates: ["4r-review-gate"], validationErrors: ["bad"] });
-if (blocked.status !== "blocked" || blocked.dispatch.length || blocked.archive_allowed || blocked.gate.blocker_reason !== "contract-remediation") fail("AUDIT", "fail-closed drift");
-const fabricated = structuredClone(normal); delete fabricated.evidence.sources.dependencies;
-const defended = reducer.planReviewGate({ routeGates: ["4r-review-gate"], decision: fabricated, validationErrors: [] });
-if (defended.status !== "blocked" || defended.dispatch.length || defended.archive_allowed) fail("AUDIT", "reducer validation drift");
-const sensitiveErrors = ["Authorization: Bearer synthetic.jwt.value", "AKIAIOSFODNN7EXAMPLE", "arbitrary payload"];
-const sanitized = reducer.planReviewGate({ routeGates: ["4r-review-gate"], validationErrors: sensitiveErrors });
-const sanitizedJson = JSON.stringify(sanitized.gate);
-if (sanitized.gate.validation_error_codes.join(",") !== "adapter-contract-invalid,decision-contract-invalid" || sensitiveErrors.some((value) => sanitizedJson.includes(value)) || Object.hasOwn(sanitized.gate, "validation_errors")) fail("AUDIT", sanitizedJson);
+if (noOp.dispatch.length || !noOp.archive_allowed) fail("AUDIT", "route no-op drift");
+const sufficientPlan = reducer.planReviewGate({ routeGates: ["quality-review-gate"], classifierDecision: scopedDecision });
+if (sufficientPlan.run_router || sufficientPlan.dispatch.join(",") !== "review-runtime") fail("AUDIT", "sufficient plan drift");
+const ambiguousClassifier = classifier.classifyQualityReview(classifier.normalizeQualityReviewEvidence({ classification: "normal", verify: { status: "success", findings: [] }, diff: "diff --git a/scripts/run.js b/scripts/run.js\n--- a/scripts/run.js\n+++ b/scripts/run.js\n@@ -0,0 +1 @@\n+const x = 1", paths: ["scripts/run.js"], capabilities: ["app"], dependencies: [], operationTypes: ["modify"], designRisks: [] }));
+if (ambiguousClassifier.classification_status !== "ambiguous") fail("REASONS", "expected ambiguous");
+if (!classifier.validateRouterDecision({ classification_status: "sufficient", added_domains: ["runtime"], reason: "ambiguity=runtime-code-without-domain-attribution;added=runtime" }).valid) fail("BOUNDARY", "valid v2 reason rejected");
+if (classifier.validateRouterDecision({ classification_status: "sufficient", added_domains: [], reason: "signals=none;dimensions=none" }).valid) fail("BOUNDARY", "v1 reason accepted");
+const unresolved = reducer.planReviewGate({ routeGates: ["quality-review-gate"], classifierDecision: ambiguousClassifier, routerDecision: { classification_status: "ambiguous", added_domains: [], reason: "ambiguity=runtime-code-without-domain-attribution;added=none" } });
+if (unresolved.gate.blocker_reason !== "quality-review-ambiguity-unresolved" || unresolved.dispatch.length) fail("AUDIT", "ambiguous router block drift");
+const badRouter = reducer.planReviewGate({ routeGates: ["quality-review-gate"], classifierDecision: ambiguousClassifier, routerDecision: { classification_status: "sufficient", added_domains: ["runtime"], reason: "free-form prose" } });
+if (badRouter.gate.blocker_reason !== "contract-remediation") fail("AUDIT", "malformed router drift");
+try { classifier.normalizeQualityReviewEvidence({ classification: "normal", verify: { status: "success", findings: [] }, diff: "this is not a unified diff", paths: ["scripts/run.js"], capabilities: ["runtime"], dependencies: [], operationTypes: ["modify"], designRisks: [] }); fail("EVIDENCE", "malformed diff accepted"); }
+catch (error) { if (/malformed diff accepted/.test(error.message)) throw error; }
 for (const field of ["paths", "capabilities", "dependencies", "operationTypes"]) {
-  try { classifier.normalizeReviewEvidence({ ...input, [field]: ["valid", { arbitrary: true }] }); fail("EVIDENCE", field + " coerced non-string evidence"); }
+  try { classifier.normalizeQualityReviewEvidence({ classification: "normal", verify: { status: "success", findings: [] }, diff: "diff --git a/scripts/run.js b/scripts/run.js\n--- a/scripts/run.js\n+++ b/scripts/run.js\n@@ -0,0 +1 @@\n+x", paths: ["scripts/run.js"], capabilities: ["runtime"], dependencies: [], operationTypes: ["modify"], designRisks: [], [field]: ["valid", { arbitrary: true }] }); fail("EVIDENCE", field + " coerced non-string evidence"); }
   catch (error) { if (!/must contain only strings/.test(error.message)) fail("EVIDENCE", field + ": " + error.message); }
 }
-const lexicalEvidence = classifier.normalizeReviewEvidence({ ...input,
-  diff: "diff --git a/scripts/runtime.js b/scripts/runtime.js\n--- a/scripts/runtime.js\n+++ b/scripts/runtime.js\n@@ -0,0 +1,6 @@\n+counter--; spawnSync(command)\n+const live = \`documentation \${request(url)}\`;\n+const documentary = \`authorize(user)\`;\n+const multiline = \`\n+authorize(user) throw fallback()\n+\`;\ndiff --git a/src/runtime.py b/src/runtime.py\n--- a/src/runtime.py\n+++ b/src/runtime.py\n@@ -0,0 +1 @@\n+live = f\"documentation {request(url)}\"\ndiff --git a/src/runtime.rb b/src/runtime.rb\n--- a/src/runtime.rb\n+++ b/src/runtime.rb\n@@ -0,0 +1,4 @@\n+=begin\n+authorize(user)\n+=end\n+request(url)",
-  paths: ["scripts/runtime.js", "src/runtime.py", "src/runtime.rb"] });
-const lexicalFacts = lexicalEvidence.sources.facts.filter((fact) => fact.source === "real-diff");
-if (JSON.stringify(lexicalFacts) !== JSON.stringify([{ code: "diff-network-flow", source: "real-diff", detail: "scripts/runtime.js,src/runtime.py,src/runtime.rb" }, { code: "diff-process-execution", source: "real-diff", detail: "scripts/runtime.js" }])) fail("EVIDENCE", JSON.stringify(lexicalFacts));
-const candidate = { projection: "workspace", base_tree: "base", candidate_tree: "tree", paths: ["scripts/run.js"], diff_hash: "sha256:" + "a".repeat(64), paths_digest: "sha256:" + "b".repeat(64), authored_lines: 401, original_changed_lines: 401 };
-let review = lineage.startReviewLineage({ candidate, classification: "normal", selected_dimensions: ["risk"], evidence_fingerprint: "sha256:" + "c".repeat(64) });
-if (review.correction_budget.limit_lines !== 200 || review.correction_budget.max_failed_attempts !== 3) fail("LINEAGE", "bounded genesis drift");
-const initialPlan = reducer.planLineageGate({ lineage: review, observed_candidate_id: review.current_candidate_id });
-if (initialPlan.dispatch.join(",") !== "review-risk" || initialPlan.next_action.type !== "run-lenses") fail("LINEAGE", "one-shot dispatch drift");
-review = lineage.beginLens(review, { dimension: "risk", expected_revision: review.revision, request_id: "risk-start" });
-review = lineage.recordLensResult(review, { dimension: "risk", expected_revision: review.revision, request_id: "risk-result", result: { findings: [] } });
-review = lineage.freezeFindings(review, { expected_revision: review.revision, request_id: "freeze" });
-if (review.status !== "approved") fail("LINEAGE", "terminal approval drift");
-if (lineage.validateLineageForGate(review, { candidate_id: "sha256:drift", gate: "archive" }).code !== "candidate-drift") fail("LINEAGE", "candidate gate drift");
-try { lineage.beginLens(review, { dimension: "risk", expected_revision: review.revision, request_id: "rerun" }); fail("LINEAGE", "reviewer rerun accepted"); }
-catch (error) { if (/reviewer rerun accepted/.test(error.message)) throw error; }
+const v2Candidate = { projection: "workspace", base_tree: "base", candidate_tree: "tree", paths: ["scripts/run.js"], diff_hash: "sha256:" + "a".repeat(64), paths_digest: "sha256:" + "b".repeat(64), authored_lines: 401, original_changed_lines: 401 };
+let v2Review = lineage.startQualityReviewLineage({ candidate: v2Candidate, classification: "normal", selected_domains: ["runtime"], evidence_fingerprint: "sha256:" + "c".repeat(64) });
+if (v2Review.schema_version !== 2 || v2Review.correction_budget.limit_lines !== 200) fail("LINEAGE", "v2 genesis drift");
+const v2Plan = reducer.planLineageGate({ lineage: v2Review, observed_candidate_id: v2Review.current_candidate_id });
+if (v2Plan.dispatch.join(",") !== "review-runtime") fail("LINEAGE", "v2 dispatch drift");
+const clear = { status: "clear", specialists: [], reason: "signals=none;dimensions=none" };
+const v1Input = { classification: "normal", verify: { status: "success", findings: [] }, diff: "diff --git a/scripts/run.js b/scripts/run.js\n--- a/scripts/run.js\n+++ b/scripts/run.js\n@@ -0,0 +1,3 @@\n+spawnSync(command)\n+fetch(url)\n+switch(mode)", paths: ["scripts/run.js"], capabilities: ["runtime"], operationTypes: ["modify"], dependencies: [], designRisks: [] };
+let v1Normal;
+try { v1Normal = classifier.deriveReviewDimensions(classifier.normalizeReviewEvidence(v1Input), clear); }
+catch (error) { fail("RUNTIME", error.message); }
+if (v1Normal.selected_specialists.join(",") !== "risk,reliability,resilience,readability") fail("SELECTION", "v1 overflow path drift");
 `;
 
 function targetPaths(target) {

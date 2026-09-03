@@ -530,3 +530,146 @@ function stableStringify(value) {
   if (value && typeof value === "object") return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(",")}}`;
   return JSON.stringify(value);
 }
+
+const {
+  normalizeQualityReviewEvidence,
+  classifyQualityReview,
+  validateRouterDecision,
+} = require("./lib/review-dimensions.js");
+
+function qualityEvidence(overrides = {}) {
+  return normalizeQualityReviewEvidence({
+    classification: "normal",
+    verify: { status: "success", findings: [] },
+    diff: "diff --git a/docs/a.md b/docs/a.md\n--- a/docs/a.md\n+++ b/docs/a.md\n@@ -0,0 +1 @@\n+documentation only",
+    paths: ["docs/a.md"],
+    capabilities: ["docs"],
+    operationTypes: ["modify"],
+    dependencies: [],
+    designRisks: [],
+    ...overrides,
+  });
+}
+
+test("v2 docs-only evidence is sufficient with empty selected_domains", () => {
+  const decision = classifyQualityReview(qualityEvidence());
+  assert.equal(decision.schema_version, 2);
+  assert.equal(decision.classification_status, "sufficient");
+  assert.deepEqual(decision.selected_domains, []);
+});
+
+test("v2 runtime code without signal is ambiguous", () => {
+  const decision = classifyQualityReview(qualityEvidence({
+    diff: "diff --git a/scripts/run.js b/scripts/run.js\n--- a/scripts/run.js\n+++ b/scripts/run.js\n@@ -0,0 +1 @@\n+const x = 1",
+    paths: ["scripts/run.js"],
+    capabilities: ["app"],
+  }));
+  assert.equal(decision.classification_status, "ambiguous");
+  assert.ok(decision.ambiguity_reasons.includes("runtime-code-without-domain-attribution"));
+});
+
+test("v2 high-risk selects all four quality domains", () => {
+  const decision = classifyQualityReview(qualityEvidence({ classification: "high-risk" }));
+  assert.deepEqual(decision.selected_domains, ["trust", "runtime", "evolution", "efficiency"]);
+  assert.equal(decision.classification_status, "sufficient");
+});
+
+test("validateRouterDecision rejects findings and accepts closed reason grammar", () => {
+  assert.equal(validateRouterDecision({ classification_status: "sufficient", added_domains: ["runtime"], reason: "ambiguity=runtime-code-without-domain-attribution;added=runtime" }).valid, true);
+  assert.equal(validateRouterDecision({ classification_status: "sufficient", added_domains: [], reason: "ambiguity=cross-capability-blast-radius;added=none", findings: [] }).valid, false);
+});
+
+test("v2 capability_scopes validation is fail-closed", () => {
+  assert.throws(
+    () => qualityEvidence({ capability_scopes: [{ id: "unknown", paths: ["docs/a.md"] }] }),
+    /not in capabilities/,
+  );
+  assert.throws(
+    () => qualityEvidence({ capability_scopes: [{ id: "docs", paths: ["scripts/run.js"] }] }),
+    /subset of paths/,
+  );
+});
+
+test("v2 does not infer capability attribution from path prefixes", () => {
+  const ev = qualityEvidence({
+    paths: ["scripts/runtime-api/foo.js"],
+    capabilities: ["runtime-api"],
+    diff: "diff --git a/scripts/runtime-api/foo.js b/scripts/runtime-api/foo.js\n--- a/scripts/runtime-api/foo.js\n+++ b/scripts/runtime-api/foo.js\n@@ -0,0 +1 @@\n+fetch(url)",
+  });
+  const coverage = ev.sources.capability_coverage.find((item) => item.id === "runtime-api");
+  assert.equal(coverage.attributed_domains.length, 0);
+});
+
+test("v2 global dependency fact selects trust without attributing capabilities", () => {
+  const ev = qualityEvidence({
+    paths: ["scripts/a.js"],
+    capabilities: ["cap-a"],
+    dependencies: ["pkg-x"],
+    diff: "diff --git a/scripts/a.js b/scripts/a.js\n--- a/scripts/a.js\n+++ b/scripts/a.js\n@@ -0,0 +1 @@\n+const noop = 1",
+  });
+  const decision = classifyQualityReview(ev);
+  assert.ok(decision.selected_domains.includes("trust"));
+  const cap = decision.capability_coverage.find((item) => item.id === "cap-a");
+  assert.equal(cap.attributed_domains.length, 0);
+});
+
+test("v2 explicit capability_scopes attribute facts to domains", () => {
+  const ev = qualityEvidence({
+    paths: ["scripts/run.js"],
+    capabilities: ["runtime"],
+    capability_scopes: [{ id: "runtime", paths: ["scripts/run.js"] }],
+    diff: "diff --git a/scripts/run.js b/scripts/run.js\n--- a/scripts/run.js\n+++ b/scripts/run.js\n@@ -0,0 +1 @@\n+fetch(url)",
+  });
+  const decision = classifyQualityReview(ev);
+  assert.deepEqual(decision.selected_domains, ["runtime"]);
+  assert.equal(decision.classification_status, "sufficient");
+});
+
+test("v2 per-capability residual includes total_paths and truncated", () => {
+  const manyPaths = Array.from({ length: 25 }, (_, i) => `scripts/f${i}.js`);
+  const diff = manyPaths.map((p) => `diff --git a/${p} b/${p}\n--- a/${p}\n+++ b/${p}\n@@ -0,0 +1 @@\n+const x = 1`).join("\n");
+  const caps = ["c1", "c2", "c3", "c4", "c5"];
+  const ev = qualityEvidence({ paths: manyPaths, capabilities: caps, diff });
+  const decision = classifyQualityReview(ev);
+  assert.equal(decision.classification_status, "ambiguous");
+  assert.ok(decision.ambiguity_reasons.includes("cross-capability-blast-radius"));
+  for (const cap of decision.residual_evidence.capabilities) {
+    assert.ok(typeof cap.total_paths === "number");
+    assert.equal(cap.truncated, cap.total_paths > 20);
+    assert.ok(cap.paths.length <= 20);
+  }
+});
+
+test("v2 union selection merges global and scoped domains", () => {
+  const ev = qualityEvidence({
+    paths: ["scripts/run.js", "scripts/ui.js"],
+    capabilities: ["runtime", "ui"],
+    capability_scopes: [{ id: "runtime", paths: ["scripts/run.js"] }],
+    diff: "diff --git a/scripts/run.js b/scripts/run.js\n--- a/scripts/run.js\n+++ b/scripts/run.js\n@@ -0,0 +1 @@\n+fetch(url)\ndiff --git a/scripts/ui.js b/scripts/ui.js\n--- a/scripts/ui.js\n+++ b/scripts/ui.js\n@@ -0,0 +1 @@\n+class Panel {}",
+  });
+  const decision = classifyQualityReview(ev);
+  assert.ok(decision.selected_domains.includes("runtime"));
+  assert.ok(decision.selected_domains.includes("evolution"));
+});
+
+test("v2 classifier never emits normal-signal-overflow", () => {
+  const ev = qualityEvidence({
+    paths: ["scripts/a.js", "scripts/b.js", "scripts/c.js", "scripts/d.js"],
+    capabilities: ["a", "b", "c", "d"],
+    capability_scopes: [
+      { id: "a", paths: ["scripts/a.js"] },
+      { id: "b", paths: ["scripts/b.js"] },
+      { id: "c", paths: ["scripts/c.js"] },
+      { id: "d", paths: ["scripts/d.js"] },
+    ],
+    diff: [
+      "diff --git a/scripts/a.js b/scripts/a.js\n--- a/scripts/a.js\n+++ b/scripts/a.js\n@@ -0,0 +1 @@\n+fetch(url)",
+      "diff --git a/scripts/b.js b/scripts/b.js\n--- a/scripts/b.js\n+++ b/scripts/b.js\n@@ -0,0 +1 @@\n+authorize(user)",
+      "diff --git a/scripts/c.js b/scripts/c.js\n--- a/scripts/c.js\n+++ b/scripts/c.js\n@@ -0,0 +1 @@\n+class Widget {}",
+      "diff --git a/scripts/d.js b/scripts/d.js\n--- a/scripts/d.js\n+++ b/scripts/d.js\n@@ -0,0 +1 @@\n+for (const x of items) {}",
+    ].join("\n"),
+  });
+  const decision = classifyQualityReview(ev);
+  assert.equal(decision.escalation_reason, null);
+  assert.ok(decision.selected_domains.length >= 3);
+});

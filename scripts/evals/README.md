@@ -283,7 +283,7 @@ optional nine-profile suite.
 Each live turn must write both `.eval-capture/done.json` and
 `.eval-capture/benchmark.json`. The latter contains `questions_asked` plus
 non-negative integer severity counters under `defects.verify` (`critical`,
-`warning`, `suggestion`) and `defects.four_r` (`blocker`, `critical`, `warning`,
+`warning`, `suggestion`) and `defects.quality_review` (`blocker`, `critical`, `warning`,
 `suggestion`). Tokens come from terminal `turn.completed.usage`; duration is
 measured around the complete host process. Both use `measurement_scope: run`
 and `phase_attribution: none`. Dispatch counts, relaunches, subagent coverage,
@@ -298,7 +298,7 @@ the host driver derives provenance from the actual process and transcript.
 
 After the three compatible core results pass, the command writes the
 experimental `reports/reference-baseline.md`. Rows expose route, terminal
-input/output/total tokens, host duration, questions, and verify/4R defects.
+input/output/total tokens, host duration, questions, and verify/quality-review defects.
 This smoke baseline is not phase evidence or a decision gate; nine profiles are
 optional.
 

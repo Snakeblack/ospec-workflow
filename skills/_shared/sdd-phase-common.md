@@ -356,3 +356,9 @@ Every phase that writes artifacts must preserve resumability:
 - include any `runtime_observability` warnings.
 
 Conversation history is non-canonical.
+
+## Quality Review Gate (live v2)
+
+- Live config and new writes use `gates.quality-review-gate` with quality domains (`trust`, `runtime`, `evolution`, `efficiency`).
+- Legacy `gates.4r-review-gate` / `schema_version: 1` lineages may continue until terminal; both gate keys in one `state.yaml` fail closed.
+- `quality-review-ambiguity-unresolved` is a review gate blocker reason, not an SDD phase `blocker_type`.

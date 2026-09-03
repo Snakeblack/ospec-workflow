@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.57.0] - 2026-09-03
+
+### Changed
+- **Quality Review Gate (`quality-review-gate`)**: el gate post-verify live pasa de 4R (`risk|reliability|resilience|readability` + `review-change` obligatorio) a cuatro dominios (`trust|runtime|evolution|efficiency`).
+  - Identidad canónica v2: `quality-review-gate` en rutas live (`bugfix`/`refactor`/`standard`); `4r-review-gate` solo para linajes schema-v1 e historial archivado; ambas claves en estado mutable fallan cerrado.
+  - Routing determinista primero: high-risk selecciona los cuatro dominios y omite el router; `review-change` solo con residuo por capability no atribuida; `normal-signal-overflow` eliminado.
+  - Linaje dual-schema: v1 conserva ejecutores 4R; v2 usa especialistas de calidad; `review-correction` valida dueños según schema, nunca mezclados.
+  - Cursor emite `readonly: true` en especialistas de calidad y, si existen, en los cuatro agentes 4R de compatibilidad.
+  - KPIs CX0 sidecar (`quality-review-kpis/v1`) sin persistencia paralela ni autoridad de routing.
+  - Specs actualizadas en `agents`, `skills`, `routing`, `generator`, `hooks`, `orchestrator-evals` y `context-measurement`; ADRs `docs/adr/adr-20260903-001` a `005`.
+  - Verify PASS WITH WARNINGS; hallazgos CRITICAL del gate resueltos; WARNING de KPI tokens ausentes queda como follow-up.
+  - Archivado en `openspec/changes/archive/2026-09-03-quality-review-gate/`.
+
 ## [2.56.8] - 2026-09-02
 
 ### Added

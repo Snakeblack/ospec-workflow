@@ -331,7 +331,7 @@ function printBenchmarkInstructions(name, manifest, workspaceRoot, write = (chun
     `  Benchmark change: ${manifest.benchmark.change}\n` +
     `  Expected route: ${manifest.benchmark.expected_route}\n` +
     `  Completion observations: ${path.join(workspaceRoot, ".eval-capture", "benchmark.json")}\n` +
-    "  Record questions_asked plus verify and four_r severity counters; do not infer missing evidence as zero.\n" +
+    "  Record questions_asked plus verify and quality_review severity counters; do not infer missing evidence as zero.\n" +
     "  Transaction: transcript/state/benchmark.pending.json first; live-driver.js alone may finalize benchmark.json and done.json after run-level validation.\n",
   );
 }

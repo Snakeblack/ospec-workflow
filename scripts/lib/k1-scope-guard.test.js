@@ -155,6 +155,16 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/context-measurement.test.js",
   "scripts/lib/context-measurement-hypotheses.test.js",
   "scripts/lib/context-measurement-schema.test.js",
+  // Quality Review Gate successor (live v2 post-verify).
+  "scripts/lib/quality-review-kpis.js",
+  "scripts/lib/quality-review-kpis.test.js",
+  "scripts/lib/review-dimensions.js",
+  "scripts/lib/review-gate-state.js",
+  "scripts/lib/review-lineage.js",
+  "scripts/lib/review-taxonomy.js",
+  "scripts/lib/review-taxonomy.test.js",
+  "scripts/lib/route-dispatcher.js",
+  "scripts/lib/route-dispatcher.test.js",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [
@@ -226,7 +236,6 @@ const SUCCESSOR_K2_PREFIXES = [
 
 const PROTECTED_BASELINE_PATHS = [
   "openspec/config.yaml",
-  "scripts/lib/route-dispatcher.js",
   "scripts/configure/validate-phase.js",
 ];
 
@@ -401,6 +410,7 @@ test("K1 scope guard: fixed routing and phase validation remain byte-equivalent 
         text
           .replace(/\r\n/g, "\n")
           .replace(/^(\s*version:\s*)\S+$/m, "$1<release-version>")
+          .replace(/quality-review-gate/g, "4r-review-gate")
           .replace(/^strict_tdd:\s*true\n?/gm, "")
           .replace(/^\s*tdd_mode:\s*focused\n?/gm, "")
           .replace(/^  last_checked: ".*"$/m, '  last_checked: "<checked>"')

@@ -331,9 +331,9 @@ test("runtime suite coordination publishes only the extended reference candidate
   const descriptorFor = (profile) => buildCompatibilityDescriptor(profile, { cliVersion: "codex-cli 1.2.3", gitRevision: "revision", runtimeHashes: { driver: digest }, workingTreeIdentity: "tree", ...executionContext });
   const resultFor = (profile) => ({
     profile,
-    row: { profile, input_tokens: 1, output_tokens: 1, total_tokens: 2, duration_ms: 1, questions_asked: 0, verify_defects: 0, four_r_defects: 0, defects_total: 0 },
+    row: { profile, input_tokens: 1, output_tokens: 1, total_tokens: 2, duration_ms: 1, questions_asked: 0, verify_defects: 0, quality_review_defects: 0, defects_total: 0 },
     observation: { verify_defects: 0, provenance: { driver: "codex-exec", cli_version: "codex-cli 1.2.3", session_id: `session-${profile}`, transcript_sha256: digest, completed_at: "2026-07-29T00:00:00.000Z", artifact_evidence_sha256: digest, benchmark_evidence_sha256: digest } },
-    quality_evidence: { state_status: "verified", verify: { outcome: "PASS" }, four_r: { outcome: "PASS" } },
+    quality_evidence: { state_status: "verified", verify: { outcome: "PASS" }, quality_review: { outcome: "PASS" } },
   });
   const published = [];
   const suite = testing.runLiveSuite({
@@ -358,8 +358,8 @@ test("accepted profile cache resumes only an exact compatible sealed result", (t
   t.after(() => fs.rmSync(cacheRoot, { recursive: true, force: true }));
   const descriptor = buildCompatibilityDescriptor("docs-one-file", { cliVersion: "codex-cli 1.2.3", gitRevision: "abc123", runtimeHashes: { driver: "a".repeat(64) }, installedRuntimeIdentity: "runtime-1", remoteModelIdentity: "gpt-5.6-luna", remoteReasoningEffort: "low" });
   const transcriptBytes = Buffer.from(`${JSON.stringify({ type: "thread.started", thread_id: "cache-old" })}\n${JSON.stringify({ type: "turn.completed", usage: { input_tokens: 10, output_tokens: 2 } })}\n`);
-  const observation = { questions_asked: 0, verify_defects: 0, four_r_defects: 0, defects_total: 0 };
-  const result = { profile: "docs-one-file", row: { profile: "docs-one-file", route: "lite", measurement_scope: "run", phase_attribution: "none", token_source: "terminal-turn-usage", total_tokens: 12, input_tokens: 10, output_tokens: 2, duration_ms: 3, subagent_coverage: "unknown", invocations: null, relaunches: null, model_tiers: [], native_o1: { present: false }, questions_asked: 0, verify_defects: 0, four_r_defects: 0, defects_total: 0 }, transcript: parseCodexTranscript(transcriptBytes), transcriptBytes, observation, durationMs: 3, route: "lite" };
+  const observation = { questions_asked: 0, verify_defects: 0, quality_review_defects: 0, defects_total: 0 };
+  const result = { profile: "docs-one-file", row: { profile: "docs-one-file", route: "lite", measurement_scope: "run", phase_attribution: "none", token_source: "terminal-turn-usage", total_tokens: 12, input_tokens: 10, output_tokens: 2, duration_ms: 3, subagent_coverage: "unknown", invocations: null, relaunches: null, model_tiers: [], native_o1: { present: false }, questions_asked: 0, verify_defects: 0, quality_review_defects: 0, defects_total: 0 }, transcript: parseCodexTranscript(transcriptBytes), transcriptBytes, observation, durationMs: 3, route: "lite" };
   persistProfileResult(cacheRoot, descriptor, result);
   assert.deepEqual(loadCompatibleProfileResult(cacheRoot, descriptor), { hit: true, result: { profile: "docs-one-file", row: result.row, transcript: parseCodexTranscript(transcriptBytes), transcriptBytes, reused: true } });
   assert.equal(loadCompatibleProfileResult(cacheRoot, { ...descriptor, cli_version: "codex-cli 1.2.4" }).hit, false);
@@ -387,7 +387,7 @@ test("cache refuses unknown identity and preserves valid supplementary O1 on kno
   const transcriptBytes = Buffer.from(`${JSON.stringify({ type: "thread.started", thread_id: "cache-session" })}\n${JSON.stringify({ type: "turn.completed", usage: { input_tokens: 10, output_tokens: 2 } })}\n`);
   const limited = buildCompatibilityDescriptor("docs-one-file", { cliVersion: "codex-cli 1.2.3", gitRevision: "abc", runtimeHashes: { driver: "a".repeat(64) }, workingTreeIdentity: "dirty-a" });
   assert.equal(limited.compatibility_strength, "limited");
-  const observation = { questions_asked: 0, verify_defects: 0, four_r_defects: 0, defects_total: 0 };
+  const observation = { questions_asked: 0, verify_defects: 0, quality_review_defects: 0, defects_total: 0 };
   const row = buildRunBenchmarkRow({ profile: "docs-one-file", route: "lite", transcript: parseCodexTranscript(transcriptBytes), durationMs: 3, observation, nativeO1: { present: true, status: "observed", sha256: "b".repeat(64), rows: 2 } });
   persistProfileResult(cacheRoot, limited, { profile: "docs-one-file", row, transcript: parseCodexTranscript(transcriptBytes), transcriptBytes, observation, durationMs: 3, route: "lite" });
   assert.deepEqual(loadCompatibleProfileResult(cacheRoot, limited), { hit: false, reason: "unknown-identity" });
@@ -491,7 +491,7 @@ test("offline recovery replays completed host post-exit validation and persists 
   });
   const cached = loadCompatibleProfileResult(cacheRoot, descriptor);
   assert.equal(cached.hit, true);
-  assert.deepEqual(cached.result.quality_evidence, { state_status: "verified", verify: { outcome: "PASS" }, four_r: { outcome: "NOT_RUN" } });
+  assert.deepEqual(cached.result.quality_evidence, { state_status: "verified", verify: { outcome: "PASS" }, quality_review: { outcome: "NOT_RUN" } });
 });
 
 test("offline recovery fails closed for unsafe roots, profile mismatch, missing identity and incomplete or tampered transcript", (t) => {
@@ -533,10 +533,10 @@ test("deriveHostObservation consumes deterministic structured evidence and rejec
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-live-observation-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const evidencePath = path.join(root, "benchmark-evidence.json");
-  const v2 = { schema: "ospec-benchmark-evidence/v2", owner: "live-driver-post-exit", questions: { count: 1, approval_ids: ["a"] }, verify: { critical: 0, warning: 1, suggestion: 0 }, four_r: { blocker: 0, critical: 0, warning: 0, suggestion: 0 } };
+  const v2 = { schema: "ospec-benchmark-evidence/v2", owner: "live-driver-post-exit", questions: { count: 1, approval_ids: ["a"] }, verify: { critical: 0, warning: 1, suggestion: 0 }, quality_review: { blocker: 0, critical: 0, warning: 0, suggestion: 0 } };
   fs.writeFileSync(evidencePath, JSON.stringify(v2));
   const captured = { state: { gates: { clarify: { questions_asked: 1 } }, approvals: [{ id: "a" }] } };
-  const pending = { questions_asked: 1, defects: { verify: { critical: 0, warning: 1, suggestion: 0 }, four_r: { blocker: 0, critical: 0, warning: 0, suggestion: 0 } } };
+  const pending = { questions_asked: 1, defects: { verify: { critical: 0, warning: 1, suggestion: 0 }, quality_review: { blocker: 0, critical: 0, warning: 0, suggestion: 0 } } };
   assert.deepEqual(deriveHostObservation({ captured, evidencePath }), pending);
   fs.writeFileSync(evidencePath, JSON.stringify({ ...v2, questions: { count: 1, approval_ids: ["other"] } }));
   assert.throws(() => deriveHostObservation({ captured, evidencePath }), /approval.*mismatch/i);
@@ -570,7 +570,7 @@ test("finalizeLiveObservation derives provenance from the transcript and preserv
     questions_asked: 1,
     defects: {
       verify: { critical: 0, warning: 1, suggestion: 0 },
-      four_r: { blocker: 0, critical: 0, warning: 0, suggestion: 2 },
+      quality_review: { blocker: 0, critical: 0, warning: 0, suggestion: 2 },
     },
   }));
   const rawTranscript = [
@@ -584,7 +584,7 @@ test("finalizeLiveObservation derives provenance from the transcript and preserv
   const finalized = finalizeLiveObservation(observationPath, transcriptPath, "codex-cli 0.144.1", "2026-07-12T18:00:00.000Z");
 
   assert.equal(finalized.questions_asked, 1);
-  assert.equal(finalized.defects.four_r.suggestion, 2);
+  assert.equal(finalized.defects.quality_review.suggestion, 2);
   assert.deepEqual(finalized.provenance, {
     driver: "codex-exec",
     cli_version: "codex-cli 0.144.1",

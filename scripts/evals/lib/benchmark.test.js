@@ -74,7 +74,7 @@ function referenceRow(profile, overrides = {}) {
   return {
     profile,
     quality_verdict: "PASS",
-    quality_evidence: { state_status: "verified", verify: { outcome: "PASS" }, four_r: { outcome: "PASS" } },
+    quality_evidence: { state_status: "verified", verify: { outcome: "PASS" }, quality_review: { outcome: "PASS" } },
     compatibility: {
       harness_version: "o2b-v1", git_revision: "revision", runtime_sha256: digest,
       working_tree_identity: "tree", installed_runtime_identity: "runtime",
@@ -87,7 +87,7 @@ function referenceRow(profile, overrides = {}) {
       artifact_evidence_sha256: digest, benchmark_evidence_sha256: digest,
     },
     fixture: { source: "embedded-synthetic-catalog", synthetic_payload: true, manifest_sha256: digest, prompt_sha256: digest, fixture_sha256: digest },
-    metrics: { input_tokens: 10, output_tokens: 5, total_tokens: 15, duration_ms: 4, questions_asked: 1, verify_defects: 0, four_r_defects: 0, defects_total: 0 },
+    metrics: { input_tokens: 10, output_tokens: 5, total_tokens: 15, duration_ms: 4, questions_asked: 1, verify_defects: 0, quality_review_defects: 0, defects_total: 0 },
     ...overrides,
   };
 }
@@ -158,10 +158,10 @@ test("reference candidate accepts parseable ISO-8601 timestamps with an explicit
 });
 
 test("reference quality is derived only from verified canonical verify and 4R outcomes", () => {
-  assert.equal(deriveReferenceQuality({ state_status: "verified", verify: { outcome: "PASS" }, four_r: { outcome: "PASS" } }), "PASS");
-  assert.equal(deriveReferenceQuality({ state_status: "verified", verify: { outcome: "PASS WITH WARNINGS" }, four_r: { outcome: "PASS" } }), "PASS_WITH_WARNINGS");
-  assert.equal(deriveReferenceQuality({ state_status: "blocked", verify: { outcome: "PASS" }, four_r: { outcome: "PASS" } }), null);
-  assert.equal(deriveReferenceQuality({ state_status: "verified", verify: { outcome: "PASS" }, four_r: { outcome: "FAIL" } }), null);
+  assert.equal(deriveReferenceQuality({ state_status: "verified", verify: { outcome: "PASS" }, quality_review: { outcome: "PASS" } }), "PASS");
+  assert.equal(deriveReferenceQuality({ state_status: "verified", verify: { outcome: "PASS WITH WARNINGS" }, quality_review: { outcome: "PASS" } }), "PASS_WITH_WARNINGS");
+  assert.equal(deriveReferenceQuality({ state_status: "blocked", verify: { outcome: "PASS" }, quality_review: { outcome: "PASS" } }), null);
+  assert.equal(deriveReferenceQuality({ state_status: "verified", verify: { outcome: "PASS" }, quality_review: { outcome: "FAIL" } }), null);
   const candidate = buildReferenceCandidate([referenceRow("alpha")], { profiles: ["alpha"] });
   assert.ok(validateReferenceCandidate({ ...candidate, rows: [{ ...candidate.rows[0], quality_evidence: { ...candidate.rows[0].quality_evidence, state_status: "blocked" }, metrics: { ...candidate.rows[0].metrics, verify_defects: 0 } }] }, { profiles: ["alpha"] }).includes("invalid-quality:alpha"));
 });
@@ -188,7 +188,7 @@ test("loadBenchmarkObservation validates non-negative integer counters", (t) => 
   assert.throws(() => loadBenchmarkObservation(file), /questions_asked/);
 });
 
-test("loadBenchmarkObservation preserves separate verify and 4R totals", (t) => {
+test("loadBenchmarkObservation preserves separate verify and quality-review totals", (t) => {
   const root = temp(t);
   const file = path.join(root, "benchmark.json");
   fs.writeFileSync(file, JSON.stringify({
@@ -202,12 +202,12 @@ test("loadBenchmarkObservation preserves separate verify and 4R totals", (t) => 
     },
     defects: {
       verify: { critical: 1, warning: 2, suggestion: 3 },
-      four_r: { blocker: 1, critical: 2, warning: 3, suggestion: 4 },
+      quality_review: { blocker: 1, critical: 2, warning: 3, suggestion: 4 },
     },
   }));
   const result = loadBenchmarkObservation(file);
   assert.equal(result.verify_defects, 6);
-  assert.equal(result.four_r_defects, 10);
+  assert.equal(result.quality_review_defects, 10);
   assert.equal(result.defects_total, 16);
   assert.equal(result.provenance.session_id, "019f-live-session");
 });
@@ -219,7 +219,7 @@ test("loadBenchmarkObservation rejects unverifiable live provenance", (t) => {
     questions_asked: 0,
     defects: {
       verify: { critical: 0, warning: 0, suggestion: 0 },
-      four_r: { blocker: 0, critical: 0, warning: 0, suggestion: 0 },
+      quality_review: { blocker: 0, critical: 0, warning: 0, suggestion: 0 },
     },
   };
   fs.writeFileSync(file, JSON.stringify(base));
@@ -342,7 +342,7 @@ test("run benchmark rows use terminal usage without phase attribution or invente
     route: "lite",
     transcript: { usage: { input_tokens: 120, output_tokens: 30 } },
     durationMs: 987,
-    observation: { questions_asked: 0, verify_defects: 0, four_r_defects: 0, defects_total: 0 },
+    observation: { questions_asked: 0, verify_defects: 0, quality_review_defects: 0, defects_total: 0 },
     nativeO1: null,
   });
   assert.deepEqual(row, {
@@ -351,7 +351,7 @@ test("run benchmark rows use terminal usage without phase attribution or invente
     input_tokens: 120, output_tokens: 30, total_tokens: 150, duration_ms: 987,
     subagent_coverage: "unknown", invocations: null, relaunches: null,
     model_tiers: [], native_o1: { present: false }, questions_asked: 0,
-    verify_defects: 0, four_r_defects: 0, defects_total: 0,
+    verify_defects: 0, quality_review_defects: 0, defects_total: 0,
   });
   const markdown = renderBaseline([row], { expectedProfiles: ["docs-one-file"], generatedAt: "2026-07-13T00:00:00.000Z", gitRevision: "abc" });
   assert.match(markdown, /Experimental run-level benchmark/i);

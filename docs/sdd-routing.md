@@ -1,5 +1,7 @@
 # SDD Routing
 
+Live routes in `openspec/config.yaml` use **`quality-review-gate`** (domains `trust`, `runtime`, `evolution`, `efficiency`) after successful `sdd-verify`. Legacy **`4r-review-gate`** remains valid only for in-flight `schema_version: 1` lineages and archived changes; mutable state with both gate keys fails closed.
+
 The SDD orchestrator selects a **route** for every change. A route is a named combination of phases and gates that maps to a specific user intent. Routes are declared in `openspec/config.yaml::routing` and evaluated top-to-bottom; the **first matching route wins**.
 
 ## Route, Phase, and Gate — Distinctions
@@ -8,7 +10,7 @@ The SDD orchestrator selects a **route** for every change. A route is a named co
 |---------|-----------|---------|
 | **Route** | A named workflow profile: ordered phases + hook-point gates. Represents a distinct user intent. | `standard`, `lite`, `debug`, `brownfield`, `foundation`, `federated` |
 | **Phase** | A delegated SDD sub-agent that produces a single artifact. Phases run in declared order inside a route. | `sdd-propose`, `sdd-apply`, `sdd-verify` |
-| **Gate** | A check or advisory that runs at a specific hook point within a route. Does NOT produce a main artifact; records its outcome in `state.yaml.gates`. | `clarify`, `4r-review-gate`, `brownfield-advisory` |
+| **Gate** | A check or advisory that runs at a specific hook point within a route. Does NOT produce a main artifact; records its outcome in `state.yaml.gates`. | `clarify`, `quality-review-gate` (live), `4r-review-gate` (legacy v1) |
 
 A route is a **distinct user intent**, not an implementation detail. Do not add a route because a phase needs a configuration toggle — use a gate or a phase option instead.
 
@@ -18,16 +20,16 @@ A route is a **distinct user intent**, not an implementation detail. Do not add 
 |---|------|----------------|----------------|--------|-------|------|
 | 1 | `foundation` | normal, high-risk | `project.status: empty` OR `architecture: none-detected` | `[sdd-foundation]` | `[]` | medium |
 | 2 | `federated` | normal, high-risk | `artifact_store.backend: workspace-federated` | `[sdd-workspace, sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[impact, clarify]` | high |
-| 3 | `debug` | small, normal | Explicit debug intent only (never auto-routed) | `[sdd-explore, sdd-apply]` | `[4r-review-gate]` | low |
+| 3 | `debug` | small, normal | Explicit debug intent only (never auto-routed) | `[sdd-explore, sdd-apply]` | `[quality-review-gate]` | low |
 | 4 | `brownfield` | normal, high-risk | `baseline.status: pending` OR empty specs with code present | `[sdd-baseline]` | `[brownfield-advisory]` | medium |
-| 5 | `standard` | normal, high-risk | `project.status: active`; classification normal/high-risk | `[sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[clarify, 4r-review-gate]` | high |
+| 5 | `standard` | normal, high-risk | `project.status: active`; classification normal/high-risk | `[sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[clarify, quality-review-gate]` | high |
 | 6 | `lite` | trivial, small | classification trivial/small | `[sdd-propose, sdd-tasks, sdd-apply, sdd-verify]` | `[]` | low |
 
 Notes:
 - **foundation** stops after `sdd-foundation` and hands back. It does NOT auto-chain into standard SDD.
 - **debug** is explicit-only: the user MUST signal debug intent ("debug this", "add logs", "quick fix"). The orchestrator MUST NOT auto-route from classification signals alone.
 - **brownfield** is an advisory preface: the `brownfield-advisory` gate runs first; `sdd-baseline` runs only on user consent. Then re-routes to the underlying change route.
-- **standard** lists `4r-review-gate` in `gates` to ENABLE optional 4R after a successful `sdd-verify`; removing it disables 4R.
+- **standard** lists `quality-review-gate` in `gates` to ENABLE the Quality Review Gate after a successful `sdd-verify`; removing it disables the gate. `4r-review-gate` is legacy schema-v1 continuation only.
 - **lite** omits `clarify`; the gate is SKIPPED when route=lite AND class∈{trivial,small} AND no `residual_ambiguity` from `sdd-spec`.
 
 ## Conditions Evaluation Order
@@ -45,16 +47,16 @@ Advisory signals (require `vscode/askQuestions` before routing):
 
 The validator function `classifyChange(ctx)` returns `{ classification, confidence }` where `confidence` is `'deterministic'` or `'advisory'`.
 
-## 4R Gate Hook Points
+## Quality Review Gate Hook Points
 
-The `4r-review-gate` dispatches four read-only reviewer sub-agents (risk, readability, reliability, resilience). It runs at different points depending on the route:
+The live `quality-review-gate` dispatches quality-domain specialists (`trust`, `runtime`, `evolution`, `efficiency`). High-risk selects all four and skips `review-change`. `4r-review-gate` remains valid only for in-flight schema-v1 lineages. It runs at different points depending on the route:
 
 | Route | Hook point | What happens after |
 |-------|-----------|-------------------|
 | `debug` | After `sdd-apply` completes | Route closes; no `sdd-verify` |
-| `standard` | After `sdd-verify` returns `success` (when `gates` includes `4r-review-gate`) | Route closes; archive proceeds |
+| `standard` | After `sdd-verify` returns `success` (when `gates` includes `quality-review-gate`) | Route closes; archive proceeds |
 
-A `BLOCKER` or `CRITICAL` finding MUST be surfaced to the user via `vscode/askQuestions` before the route closes. The gate is **advisory-only** by default: it does NOT auto-halt route execution. The policy is `on_blocker: advisory`; a future `gate_policy.4r.on_blocker: halt` config field can change this without code changes.
+A `BLOCKER` or `CRITICAL` finding MUST be surfaced to the user via `vscode/askQuestions` before the route closes. The gate is **advisory-only** by default: it does NOT auto-halt route execution. The policy is `on_blocker: advisory`; a future `gate_policy.quality-review.on_blocker: halt` config field can change this without code changes.
 
 ## Supported `parseRoutingTable` YAML Subset
 
@@ -72,7 +74,7 @@ The `routing:` block parser (`scripts/lib/route-dispatcher.js::parseRoutingTable
 **Inline arrays** (phases, gates, classification, tags):
 ```yaml
     phases: [sdd-propose, sdd-spec, sdd-apply]
-    gates: [clarify, 4r-review-gate]
+    gates: [clarify, quality-review-gate]
     classification: [normal, high-risk]
     gates: []
 ```
