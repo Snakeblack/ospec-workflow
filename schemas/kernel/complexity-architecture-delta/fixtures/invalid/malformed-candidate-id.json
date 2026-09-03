@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "kind": "complexity-architecture-delta/v1",
+  "report_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "candidate_id": "not-a-digest",
+  "canonical_input_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "authority": "advisory",
+  "dimensions": {},
+  "alternatives": [],
+  "signals": []
+}

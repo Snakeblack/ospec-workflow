@@ -387,20 +387,31 @@ function validateFamilyClaims(family, schema, claim, offenders) {
 }
 
 function validateFixtureSemantics(family, instance) {
-  if (family !== "state-transition" || !isRecord(instance)) return [];
+  if (!isRecord(instance)) return [];
   const errors = [];
-  if (instance.kind === "execute") {
-    if (typeof instance.command !== "string" || instance.command.trim() === "") errors.push("execute requires non-empty command");
-    if (Array.isArray(instance.arguments)) {
-      for (const argument of instance.arguments) {
-        if (!isRecord(argument) || typeof argument.token !== "string" || argument.token.trim() === "") {
-          errors.push("execute command arguments require token");
+  if (family === "state-transition") {
+    if (instance.kind === "execute") {
+      if (typeof instance.command !== "string" || instance.command.trim() === "") errors.push("execute requires non-empty command");
+      if (Array.isArray(instance.arguments)) {
+        for (const argument of instance.arguments) {
+          if (!isRecord(argument) || typeof argument.token !== "string" || argument.token.trim() === "") {
+            errors.push("execute command arguments require token");
+          }
         }
       }
     }
+    if ((instance.kind === "collect" || instance.kind === "stop") && typeof instance.command === "string" && instance.command.trim() !== "") {
+      errors.push(`${instance.kind} forbids command`);
+    }
   }
-  if ((instance.kind === "collect" || instance.kind === "stop") && typeof instance.command === "string" && instance.command.trim() !== "") {
-    errors.push(`${instance.kind} forbids command`);
+  if (family === "complexity-architecture-delta") {
+    if (Array.isArray(instance.alternatives) && typeof instance.candidate_id === "string") {
+      for (const alternative of instance.alternatives) {
+        if (isRecord(alternative) && typeof alternative.candidate_id === "string" && alternative.candidate_id !== instance.candidate_id) {
+          errors.push("alternative candidate_id must match report candidate_id");
+        }
+      }
+    }
   }
   return errors;
 }

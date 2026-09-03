@@ -1,0 +1,538 @@
+change: "k6d-complexity-architecture-delta"
+status: archived
+last_updated: "2026-09-03T12:21:16Z"
+blocking_questions: []
+classification: high-risk
+delivery_strategy: exception-ok
+gate: intent-briefing
+decision: accepted
+synthesis: "K6d materializará contratos reproducibles y ligados al Candidate para alternativas, complexity_delta y architecture_delta. Se desarrollará como change independiente, en paralelo a CX0."
+scope: "K6d: alternatives contract, complexity delta y architecture delta candidate-bound; sin absorber CX0 ni adelantar K7+; sin alterar autoridades existentes."
+applies_to:
+  - change-classification
+owner:
+  author: "Manuel Retamozo"
+  branch: fix/k6d-verify-remediation
+approvals:
+  - id: intent-briefing-001
+    gate: intent-briefing
+    decision: accepted
+    source: user-numbered-chat
+    accepted_at: "2026-08-31T22:28:32.6519095Z"
+    applies_to:
+      - change-classification
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: interactive
+    source: user-numbered-chat
+    accepted_at: "2026-08-31T22:29:24.9912639Z"
+    applies_to:
+      - session-execution
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: user-numbered-chat
+    accepted_at: "2026-08-31T22:30:00.6507655Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: change-collision-001
+    gate: change-collision
+    decision: continue
+    source: user-numbered-chat
+    accepted_at: "2026-09-01T07:48:59.5904403Z"
+    applies_to:
+      - sdd-apply
+  - id: verify-lineage-successor-001
+    gate: architecture
+    decision: "Supersede legacy ID-only verify_lineage (no candidate_recovery) and open successor discovery via sdd-verify with persisted Candidate recovery; then remediate K6D-V001/V002 under the new lineage."
+    source: user-numbered-chat
+    accepted_at: "2026-09-03T08:58:00Z"
+    applies_to:
+      - sdd-verify
+      - sdd-apply
+  - id: review-lineage-counting-001
+    gate: 4r-review-gate
+    decision: "Convención de conteo solo-producción para actual_changed_lines del slice S-211539c4342ad0b0: actual=16 (advisory.js), test lines excluidas."
+    source: question
+    accepted_at: "2026-09-03T13:30:00Z"
+    applies_to:
+      - 4r-review-gate
+      - sdd-archive
+collisions:
+  - with: cx0-context-measurement
+    overlap:
+      - "scripts/**/*.test.js"
+      - "scripts/lib/k6d-schema-fixtures.test.js"
+      - "scripts/lib/complexity-architecture-delta/index.test.js"
+      - "scripts/lib/roadmap-boundary.test.js"
+    decision: continue
+    decided_at: "2026-09-01T07:48:59.5904403Z"
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "Clasificación high-risk; primera ruta compatible con project.status active."
+  validated: true
+  validation_errors: []
+baseline_fingerprints:
+  kernel-contract-schemas: "1bf7f66aa524f592c4a4803684776c87f5802003012e58f41332bf878c2eacd9"
+  harness-authority-canon: "5da75e5e80750c7e1bf4300f47929e3e4b535350081fa41fba98f8819542751f"
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/k6d-complexity-architecture-delta/proposal.md"
+    summary: "K6d define alternativas y deltas estructurales reproducibles, Candidate-bound y advisory, sin adelantar K7+ ni absorber CX0."
+    key_decisions:
+      - "Nueva capability complexity-architecture-delta; schemas y canon de autoridad reciben deltas acotados."
+      - "Los informes derivados son content-addressed, fail-closed y no autoritativos."
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/k6d-complexity-architecture-delta/specs/complexity-architecture-delta/spec.md"
+      - "openspec/changes/k6d-complexity-architecture-delta/specs/kernel-contract-schemas/spec.md"
+      - "openspec/changes/k6d-complexity-architecture-delta/specs/harness-authority-canon/spec.md"
+    summary: "K6d especifica informes Candidate-bound reproducibles, cobertura estructural, alternativas y señales advisory."
+    key_decisions:
+      - "Las observaciones no disponibles se distinguen de cero o sin cambios."
+      - "K6d no consume telemetría CX0 ni concede autoridad a K7, K8 o K9."
+  clarify:
+    status: skipped
+  design:
+    status: done
+    artifact: "openspec/changes/k6d-complexity-architecture-delta/design.md"
+    summary: "K6d usa inventarios canónicos, dos contratos v1 Candidate-bound y señales advisory separadas de toda autoridad."
+    key_decisions:
+      - "Inventarios pre-digeridos separan el core reproducible de collectors host-specific."
+      - "Report y alternativas son familias v1 cerradas, aditivas y content-addressed."
+      - "Facts, heuristics y authority guards permanecen en capas separadas."
+  tasks:
+    status: done
+    artifact: "openspec/changes/k6d-complexity-architecture-delta/tasks.md"
+    summary: "Backlog TDD enfocado para contratos, motor determinista, señales advisory y límites de autoridad; forecast alto con size-exception aceptado."
+    key_decisions:
+      - "Todos los escenarios MUST tienen asignación de diseño y tarea trazable."
+      - "Estrategia exception-ok: no requiere decisión adicional antes de apply."
+  apply:
+    status: done
+    artifact: "openspec/changes/k6d-complexity-architecture-delta/apply-progress.md"
+    summary: "Remediation gen-2 closed K6D-V001/V002 under recovered Candidate lineage."
+    key_decisions:
+      - "K6d conserva contratos Candidate-bound, deterministas y exclusivamente advisory."
+      - "Locale-independent sort + negative identity fixtures applied in frozen allowed_paths."
+  verify:
+    status: done
+    verdict: PASS
+    artifact: "openspec/changes/k6d-complexity-architecture-delta/verify-report.md"
+    summary: "PASS: successor lineage closed; K6D-V001/V002 resolved with candidate_recovery."
+    key_decisions:
+      - "Legacy ID-only lineage superseded; generation-2 lineage persisted Candidate recovery."
+      - "Locale-independent canonical sort and negative identity fixtures closed the CRITICAL findings."
+  archive:
+    status: done
+    artifact: "openspec/changes/k6d-complexity-architecture-delta/archive-report.md"
+    summary: "Deltas sincronizados: nueva capability complexity-architecture-delta + ADDED en kernel-contract-schemas y harness-authority-canon; 3 ADR propuestas; plan emitido."
+    key_decisions:
+      - "Merge aditivo puro; sin requirements REMOVED ni MODIFIED."
+      - "Findings advisory y late observations documentados como follow-ups no bloqueantes en archive-report."
+verify_lineage:
+  schema_version: 1
+  lineage_id: "sha256:e0b42b6acc7c19b2099b2bdef10810df5ae365b24ca461e7d95d65400d4c5b74"
+  generation: 2
+  predecessor_id: "sha256:2f5c186e58a713adb6ed49c1e45816cabe98f0943057cc3ba1abf124ddb55ab0"
+  status: "closed"
+  genesis_candidate_id: "sha256:f1ac29c8ea5d9d6465260dd85c50bf342cfc766b1cbcbdad7c292e2898639ed6"
+  current_candidate_id: "sha256:6186c569dbfadb5bca74858371137934b89e2075950a0e4d2e90b4f201a8a98b"
+  verified_candidate_id: "sha256:6186c569dbfadb5bca74858371137934b89e2075950a0e4d2e90b4f201a8a98b"
+  contract_digest: "sha256:ab509ec8d1b23976e75bb9287e6e46d50785796ff5b514095df7f281c708ada1"
+  candidate_recovery:
+    schema_version: 1
+    genesis:
+      kind: "candidate-recovery-ref/v1"
+      schema_version: 1
+      candidate_id: "sha256:f1ac29c8ea5d9d6465260dd85c50bf342cfc766b1cbcbdad7c292e2898639ed6"
+      content_digest: "sha256:336f9b33747d0a10c617edf747257db0e11baf7f168baa144ec9c5966ec06a62"
+      relative_path: ".verify-lineage-candidate-336f9b33747d0a10c617edf747257db0e11baf7f168baa144ec9c5966ec06a62.json"
+    current:
+      kind: "candidate-recovery-ref/v1"
+      schema_version: 1
+      candidate_id: "sha256:6186c569dbfadb5bca74858371137934b89e2075950a0e4d2e90b4f201a8a98b"
+      content_digest: "sha256:f2be4dc1afeeee5a529672226b08827ea48688d3a85ef8d2d928ac6bbba21576"
+      relative_path: ".verify-lineage-candidate-f2be4dc1afeeee5a529672226b08827ea48688d3a85ef8d2d928ac6bbba21576.json"
+  remediation_attempts: 1
+  max_remediation_attempts: 2
+  findings:
+    - id: "K6D-V001"
+      severity: "CRITICAL"
+      summary: "Canonical record ordering depends on localeCompare and changes report bytes/identity across locale orderings"
+      origin: "code-bug"
+      allowed_paths:
+        - "scripts/lib/complexity-architecture-delta/analyzer.js"
+        - "scripts/lib/complexity-architecture-delta/index.test.js"
+        - "scripts/lib/complexity-architecture-delta/integrity.js"
+      validation:
+        commands:
+          - "node -e \"const {freezeCandidate}=require('./scripts/lib/execution-identities'),{createDeltaReport}=require('./scripts/lib/complexity-architecture-delta');const d=c=>'sha256:'+c.repeat(64),ns=['modules','interfaces','dependencies','configuration','states','compatibility','duplication','dead_code','public_api'],c=freezeCandidate({repository_id:'locale-proof',projection:'workspace',base_tree:d('a'),candidate_tree:d('b'),diff_hash:d('c'),changed_paths_modes_digest:d('d'),paths:['src/x']}),o=Object.fromEntries(ns.map(n=>[n,{status:'observed',base:[],candidate:[{id:'z',digest:d('e')},{id:'ä',digest:d('f')}]}])),orig=String.prototype.localeCompare,run=l=>{const cmp=new Intl.Collator(l).compare;String.prototype.localeCompare=function(x){return cmp(this,String(x))};return createDeltaReport({candidate:c,observations:o,alternatives:[]})};try{const a=run('en'),b=run('sv');if(!a.ok||!b.ok||a.report.report_id!==b.report.report_id||!a.bytes.equals(b.bytes))process.exit(1)}finally{String.prototype.localeCompare=orig}\""
+          - "node --test scripts/lib/complexity-architecture-delta/index.test.js"
+        expected_exit: 0
+        test_files:
+          - "scripts/lib/complexity-architecture-delta/index.test.js"
+      status: "resolved"
+    - id: "K6D-V002"
+      severity: "CRITICAL"
+      summary: "Required negative fixture corpus omits missing/malformed report identities and divergent Candidate bindings"
+      origin: "code-bug"
+      allowed_paths:
+        - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/divergent-candidate-binding.json"
+        - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/malformed-report-id.json"
+        - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/missing-candidate-id.json"
+        - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/missing-report-id.json"
+        - "scripts/lib/k6d-schema-fixtures.test.js"
+      validation:
+        commands:
+          - "node -e \"const fs=require('node:fs');for(const p of ['schemas/kernel/complexity-architecture-delta/fixtures/invalid/missing-candidate-id.json','schemas/kernel/complexity-architecture-delta/fixtures/invalid/missing-report-id.json','schemas/kernel/complexity-architecture-delta/fixtures/invalid/malformed-report-id.json','schemas/kernel/complexity-architecture-delta/fixtures/invalid/divergent-candidate-binding.json'])if(!fs.existsSync(p))process.exit(1)\""
+          - "node --test scripts/lib/k6d-schema-fixtures.test.js"
+        expected_exit: 0
+        test_files:
+          - "scripts/lib/k6d-schema-fixtures.test.js"
+      status: "resolved"
+  late_observations: []
+  terminal_reason: "all-findings-verified"
+
+review_lineage:
+schema_version: 2
+lineage_id: "sha256:2dbded9eff9b1bab864b1edf9dcacfbcbb36aa950d918530d1cae60341e32d7b"
+generation: 1
+predecessor_lineage_id: null
+migration: null
+recovery: null
+revision: 12
+status: "approved"
+genesis:
+  candidate:
+    projection: "workspace"
+    base_tree: "cc1374f8b08b81bbdbff5c843092af929a87e414"
+    candidate_tree: "sha256:e527e6633571369c106bcd20cc1d23727a772e6fc2d4cb37f273ed485af6a440"
+    paths:
+        - "models.yaml"
+        - "schemas/kernel/architecture-alternative/fixtures/invalid/incomplete-rationale.json"
+        - "schemas/kernel/architecture-alternative/fixtures/invalid/unsupported-classification.json"
+        - "schemas/kernel/architecture-alternative/fixtures/valid/new-abstraction.json"
+        - "schemas/kernel/architecture-alternative/v1.schema.json"
+        - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/divergent-candidate-binding.json"
+        - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/malformed-candidate-id.json"
+        - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/malformed-report-id.json"
+        - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/missing-candidate-id.json"
+        - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/missing-report-id.json"
+        - "schemas/kernel/complexity-architecture-delta/fixtures/valid/observed.json"
+        - "schemas/kernel/complexity-architecture-delta/v1.schema.json"
+        - "schemas/kernel/contract-claims.json"
+        - "schemas/kernel/manifest.json"
+        - "scripts/lib/complexity-architecture-delta/advisory.js"
+        - "scripts/lib/complexity-architecture-delta/analyzer.js"
+        - "scripts/lib/complexity-architecture-delta/index.js"
+        - "scripts/lib/complexity-architecture-delta/index.test.js"
+        - "scripts/lib/complexity-architecture-delta/integrity.js"
+        - "scripts/lib/k6d-schema-fixtures.test.js"
+        - "scripts/lib/lifecycle-kernel/k1-compat.js"
+        - "scripts/lib/roadmap-boundary.test.js"
+    diff_hash: "sha256:cdce728228855d5f21511c679e4b10ede47009d3c6089c6b8dfa97743d280210"
+    paths_digest: "sha256:9730683695e134b4fccecdd91bda8fb3a6ef0507c23451aa2d841828db44e525"
+    authored_lines: 682
+    original_changed_lines: 685
+  candidate_id: "sha256:70c9a8268b2cf083dd2817ebc86989bd9291d37afc36c89c64367412d760ca40"
+  paths:
+      - "models.yaml"
+      - "schemas/kernel/architecture-alternative/fixtures/invalid/incomplete-rationale.json"
+      - "schemas/kernel/architecture-alternative/fixtures/invalid/unsupported-classification.json"
+      - "schemas/kernel/architecture-alternative/fixtures/valid/new-abstraction.json"
+      - "schemas/kernel/architecture-alternative/v1.schema.json"
+      - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/divergent-candidate-binding.json"
+      - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/malformed-candidate-id.json"
+      - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/malformed-report-id.json"
+      - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/missing-candidate-id.json"
+      - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/missing-report-id.json"
+      - "schemas/kernel/complexity-architecture-delta/fixtures/valid/observed.json"
+      - "schemas/kernel/complexity-architecture-delta/v1.schema.json"
+      - "schemas/kernel/contract-claims.json"
+      - "schemas/kernel/manifest.json"
+      - "scripts/lib/complexity-architecture-delta/advisory.js"
+      - "scripts/lib/complexity-architecture-delta/analyzer.js"
+      - "scripts/lib/complexity-architecture-delta/index.js"
+      - "scripts/lib/complexity-architecture-delta/index.test.js"
+      - "scripts/lib/complexity-architecture-delta/integrity.js"
+      - "scripts/lib/k6d-schema-fixtures.test.js"
+      - "scripts/lib/lifecycle-kernel/k1-compat.js"
+      - "scripts/lib/roadmap-boundary.test.js"
+  classification: "high-risk"
+  selected_domains:
+      - "trust"
+      - "runtime"
+      - "evolution"
+      - "efficiency"
+  evidence_fingerprint: "sha256:37f9061d26f0aa3c78e3e8df4a9073fd6b17c98d2885004be4b7ba593d94576f"
+  original_changed_lines: 685
+  authored_lines: 682
+current_candidate_id: "sha256:0253063b15ff68d88a37e2550a9c17c08dec50aba8f39305724f8e85d3718d4f"
+current_candidate:
+  projection: "workspace"
+  base_tree: "cc1374f8b08b81bbdbff5c843092af929a87e414"
+  candidate_tree: "sha256:d29c5e088cfa7c372fc4b6fd9dbb33c80596379b51093dbc72884f4f67da42b6"
+  paths:
+      - "models.yaml"
+      - "schemas/kernel/architecture-alternative/fixtures/invalid/incomplete-rationale.json"
+      - "schemas/kernel/architecture-alternative/fixtures/invalid/unsupported-classification.json"
+      - "schemas/kernel/architecture-alternative/fixtures/valid/new-abstraction.json"
+      - "schemas/kernel/architecture-alternative/v1.schema.json"
+      - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/divergent-candidate-binding.json"
+      - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/malformed-candidate-id.json"
+      - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/malformed-report-id.json"
+      - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/missing-candidate-id.json"
+      - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/missing-report-id.json"
+      - "schemas/kernel/complexity-architecture-delta/fixtures/valid/observed.json"
+      - "schemas/kernel/complexity-architecture-delta/v1.schema.json"
+      - "schemas/kernel/contract-claims.json"
+      - "schemas/kernel/manifest.json"
+      - "scripts/lib/complexity-architecture-delta/advisory.js"
+      - "scripts/lib/complexity-architecture-delta/analyzer.js"
+      - "scripts/lib/complexity-architecture-delta/index.js"
+      - "scripts/lib/complexity-architecture-delta/index.test.js"
+      - "scripts/lib/complexity-architecture-delta/integrity.js"
+      - "scripts/lib/k6d-schema-fixtures.test.js"
+      - "scripts/lib/lifecycle-kernel/k1-compat.js"
+      - "scripts/lib/roadmap-boundary.test.js"
+  diff_hash: "sha256:c64fbea964a457df51d95a10471b35e0bffa17335d3bcf1dcf0ac62036a66566"
+  paths_digest: "sha256:9730683695e134b4fccecdd91bda8fb3a6ef0507c23451aa2d841828db44e525"
+  authored_lines: 682
+  original_changed_lines: 685
+lenses:
+  trust:
+    selected: true
+    status: "completed"
+    request_id: "k6d-review-trust-start-001"
+    result_digest: "sha256:8f0f62fe57dbf1ebd895c9917b52f96816506e00e5d81404321cae6785e0f927"
+    result:
+      findings:
+          - severity: "WARNING"
+            summary: "[K6D-RT-001] Guard de autoridad basado en denylist de verbos, bypaseable con sinónimos (rejectAuthorityMisuse solo rechaza deliver/approve/promote/transition/authorize; scripts/lib/complexity-architecture-delta/index.js:50-53)"
+            acceptance_criteria: "rejectAuthorityMisuse valida contra un canon/allowlist cerrado de verbos de autoridad (no denylist), cubriendo sinónimos, con cobertura negativa en scripts/lib/roadmap-boundary.test.js."
+          - severity: "SUGGESTION"
+            summary: "[K6D-RT-002] Binding del canonical_input_id a las observaciones reales es opcional en validateDeltaReport (scripts/lib/complexity-architecture-delta/index.js:41-45)"
+            acceptance_criteria: "validateDeltaReport exige y verifica el binding entre canonical_input_id y las observaciones efectivamente presentes en el informe."
+          - severity: "SUGGESTION"
+            summary: "[K6D-RT-003] alternatives vacío produce informe sin señales sin contradicción con dimensions.added (integrity.js:72-77, v1.schema.json, advisory.js:5-7)"
+            acceptance_criteria: "integrity.js y schemas/kernel/complexity-architecture-delta/v1.schema.json exigen al menos una señal o una contradicción explícita cuando dimensions.added no está vacío."
+    result_request_id: "k6d-review-trust-result-001"
+    operation: null
+  runtime:
+    selected: true
+    status: "completed"
+    request_id: "k6d-review-runtime-start-001"
+    result_digest: "sha256:ddf386bcd7ab8af0834c3d47e6d9c8c24c39573433f8c263e7f0ca7e41295137"
+    result:
+      findings:
+          - severity: "CRITICAL"
+            summary: "[K6D-RR-001] Non-determinismo residual por localeCompare en el orden de señales (clase K6D-V001 no erradicada): advisory.js:17 ordena signal_id con localeCompare; divergencia demostrada en/da en 97/44.850 pares con ids sha256: → report_id y stableReportBytes no reproducibles; test anti-locale (index.test.js:100-135) usa alternatives:[] y no ejercita signals"
+            acceptance_criteria: "advisory.js ordena signal_id con comparación locale-independiente (p. ej. UTF-16 code unit) y index.test.js incluye un test anti-locale que ejerza signals con ids sha256: divergentes bajo collators en/da."
+    result_request_id: "k6d-review-runtime-result-001"
+    operation: null
+  evolution:
+    selected: true
+    status: "completed"
+    request_id: "k6d-review-evolution-start-001"
+    result_digest: "sha256:9fa542c65b306dab6b46773516704b135e91bee762f7eea7763b97676b9684f2"
+    result:
+      findings:
+          - severity: "WARNING"
+            summary: "[K6D-RE-001] Drift de alcance: models.yaml cambia modelos opencode de 3 tiers (openai/gpt-5.6-* → zai-coding-plan/glm-5.3*), medium y light colapsan al mismo modelo (models.yaml:61,74,87)"
+            acceptance_criteria: "models.yaml restaura tres tiers opencode distinguibles (medium y light no colapsan al mismo modelo) o documenta explícitamente el colapso intencional."
+    result_request_id: "k6d-review-evolution-result-001"
+    operation: null
+  efficiency:
+    selected: true
+    status: "completed"
+    request_id: "k6d-review-efficiency-start-001"
+    result_digest: "sha256:ce02f5e3bab53279102a0a01e8cc3bb74e6735f0dd3c454d4f69697457b9af08"
+    result:
+      findings:
+          - severity: "WARNING"
+            summary: "[K6D-RP-001] validateReportSchema re-lee manifest.json y schema desde disco en cada invocación; loadSchemaById sin caché (2N lecturas redundantes); convención del repo es lazy-cache (integrity.js:100-104, kernel-schema-validator.js:407,433-444)"
+            acceptance_criteria: "validateReportSchema y loadSchemaById usan lazy-cache de manifest y schemas (como máximo una lectura de disco por schema id), alineado con la convención del repo."
+          - severity: "SUGGESTION"
+            summary: "[K6D-RP-002] require('../canonical-json.js') dentro del bucle de alternativas; mover a módulo-level (scripts/lib/complexity-architecture-delta/index.js:38)"
+            acceptance_criteria: "El require de canonical-json.js se resuelve una sola vez a nivel de módulo en index.js, fuera del bucle de alternativas."
+    result_request_id: "k6d-review-efficiency-result-001"
+    operation: null
+findings:
+    - id: "F-78e2aae0219fdf5d"
+      owner: "trust"
+      severity: "WARNING"
+      summary: "[K6D-RT-001] Guard de autoridad basado en denylist de verbos, bypaseable con sinónimos (rejectAuthorityMisuse solo rechaza deliver/approve/promote/transition/authorize; scripts/lib/complexity-architecture-delta/index.js:50-53)"
+      acceptance_criteria: "rejectAuthorityMisuse valida contra un canon/allowlist cerrado de verbos de autoridad (no denylist), cubriendo sinónimos, con cobertura negativa en scripts/lib/roadmap-boundary.test.js."
+      blocking: false
+      resolution: "advisory"
+    - id: "F-c114b12e7848502c"
+      owner: "trust"
+      severity: "SUGGESTION"
+      summary: "[K6D-RT-002] Binding del canonical_input_id a las observaciones reales es opcional en validateDeltaReport (scripts/lib/complexity-architecture-delta/index.js:41-45)"
+      acceptance_criteria: "validateDeltaReport exige y verifica el binding entre canonical_input_id y las observaciones efectivamente presentes en el informe."
+      blocking: false
+      resolution: "advisory"
+    - id: "F-650257bcabe03647"
+      owner: "trust"
+      severity: "SUGGESTION"
+      summary: "[K6D-RT-003] alternatives vacío produce informe sin señales sin contradicción con dimensions.added (integrity.js:72-77, v1.schema.json, advisory.js:5-7)"
+      acceptance_criteria: "integrity.js y schemas/kernel/complexity-architecture-delta/v1.schema.json exigen al menos una señal o una contradicción explícita cuando dimensions.added no está vacío."
+      blocking: false
+      resolution: "advisory"
+    - id: "F-560e94a1e6266f1f"
+      owner: "runtime"
+      severity: "CRITICAL"
+      summary: "[K6D-RR-001] Non-determinismo residual por localeCompare en el orden de señales (clase K6D-V001 no erradicada): advisory.js:17 ordena signal_id con localeCompare; divergencia demostrada en/da en 97/44.850 pares con ids sha256: → report_id y stableReportBytes no reproducibles; test anti-locale (index.test.js:100-135) usa alternatives:[] y no ejercita signals"
+      acceptance_criteria: "advisory.js ordena signal_id con comparación locale-independiente (p. ej. UTF-16 code unit) y index.test.js incluye un test anti-locale que ejerza signals con ids sha256: divergentes bajo collators en/da."
+      blocking: true
+      resolution: "resolved"
+    - id: "F-8598509cf0b0dc86"
+      owner: "evolution"
+      severity: "WARNING"
+      summary: "[K6D-RE-001] Drift de alcance: models.yaml cambia modelos opencode de 3 tiers (openai/gpt-5.6-* → zai-coding-plan/glm-5.3*), medium y light colapsan al mismo modelo (models.yaml:61,74,87)"
+      acceptance_criteria: "models.yaml restaura tres tiers opencode distinguibles (medium y light no colapsan al mismo modelo) o documenta explícitamente el colapso intencional."
+      blocking: false
+      resolution: "advisory"
+    - id: "F-614585633ee9ab2b"
+      owner: "efficiency"
+      severity: "WARNING"
+      summary: "[K6D-RP-001] validateReportSchema re-lee manifest.json y schema desde disco en cada invocación; loadSchemaById sin caché (2N lecturas redundantes); convención del repo es lazy-cache (integrity.js:100-104, kernel-schema-validator.js:407,433-444)"
+      acceptance_criteria: "validateReportSchema y loadSchemaById usan lazy-cache de manifest y schemas (como máximo una lectura de disco por schema id), alineado con la convención del repo."
+      blocking: false
+      resolution: "advisory"
+    - id: "F-4dff9277f61e2c99"
+      owner: "efficiency"
+      severity: "SUGGESTION"
+      summary: "[K6D-RP-002] require('../canonical-json.js') dentro del bucle de alternativas; mover a módulo-level (scripts/lib/complexity-architecture-delta/index.js:38)"
+      acceptance_criteria: "El require de canonical-json.js se resuelve una sola vez a nivel de módulo en index.js, fuera del bucle de alternativas."
+      blocking: false
+      resolution: "advisory"
+findings_digest: "sha256:795c342194df77ebd4a95531edda089431b80367cd12933a9b7e8c8deab86fa3"
+remediation_schema_version: 2
+remediation_migration:
+  source_digest: "sha256:f57157e160e2902742c3e93a9423c195ce213bd1252b6e62e77723ab37932a30"
+  manifest_digest: "sha256:2f5540c349809efb81149fd242298e972fbf1839733fa06692abf4e3bd631978"
+  legacy_used_lines: 0
+  legacy_failed_attempts: 0
+  migrated_at: "deterministic"
+slice_order:
+    - "S-211539c4342ad0b0"
+active_slice_id: null
+correction_slices:
+  S-211539c4342ad0b0:
+    slice_id: "S-211539c4342ad0b0"
+    root_cause_key: "F-560e94a1e6266f1f"
+    finding_ids:
+        - "F-560e94a1e6266f1f"
+    evidence_digests:
+        - "sha256:299a27a004de0edb8b67adce522f8f3e0951c652b8d76231613ce8b5096f3038"
+    permitted_paths:
+        - "models.yaml"
+        - "schemas/kernel/architecture-alternative/fixtures/invalid/incomplete-rationale.json"
+        - "schemas/kernel/architecture-alternative/fixtures/invalid/unsupported-classification.json"
+        - "schemas/kernel/architecture-alternative/fixtures/valid/new-abstraction.json"
+        - "schemas/kernel/architecture-alternative/v1.schema.json"
+        - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/divergent-candidate-binding.json"
+        - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/malformed-candidate-id.json"
+        - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/malformed-report-id.json"
+        - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/missing-candidate-id.json"
+        - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/missing-report-id.json"
+        - "schemas/kernel/complexity-architecture-delta/fixtures/valid/observed.json"
+        - "schemas/kernel/complexity-architecture-delta/v1.schema.json"
+        - "schemas/kernel/contract-claims.json"
+        - "schemas/kernel/manifest.json"
+        - "scripts/lib/complexity-architecture-delta/advisory.js"
+        - "scripts/lib/complexity-architecture-delta/analyzer.js"
+        - "scripts/lib/complexity-architecture-delta/index.js"
+        - "scripts/lib/complexity-architecture-delta/index.test.js"
+        - "scripts/lib/complexity-architecture-delta/integrity.js"
+        - "scripts/lib/k6d-schema-fixtures.test.js"
+        - "scripts/lib/lifecycle-kernel/k1-compat.js"
+        - "scripts/lib/roadmap-boundary.test.js"
+    resolutions:
+      F-560e94a1e6266f1f: "unresolved"
+    status: "passed"
+    used_lines: 16
+    failed_attempts: 0
+    limit_lines: 200
+    max_failed_attempts: 3
+    correction_history:
+        - slice_id: "S-211539c4342ad0b0"
+          request_id: "k6d-slice-correction-start-s211539-001"
+          finding_ids:
+              - "F-560e94a1e6266f1f"
+          paths:
+              - "models.yaml"
+              - "schemas/kernel/architecture-alternative/fixtures/invalid/incomplete-rationale.json"
+              - "schemas/kernel/architecture-alternative/fixtures/invalid/unsupported-classification.json"
+              - "schemas/kernel/architecture-alternative/fixtures/valid/new-abstraction.json"
+              - "schemas/kernel/architecture-alternative/v1.schema.json"
+              - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/divergent-candidate-binding.json"
+              - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/malformed-candidate-id.json"
+              - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/malformed-report-id.json"
+              - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/missing-candidate-id.json"
+              - "schemas/kernel/complexity-architecture-delta/fixtures/invalid/missing-report-id.json"
+              - "schemas/kernel/complexity-architecture-delta/fixtures/valid/observed.json"
+              - "schemas/kernel/complexity-architecture-delta/v1.schema.json"
+              - "schemas/kernel/contract-claims.json"
+              - "schemas/kernel/manifest.json"
+              - "scripts/lib/complexity-architecture-delta/advisory.js"
+              - "scripts/lib/complexity-architecture-delta/analyzer.js"
+              - "scripts/lib/complexity-architecture-delta/index.js"
+              - "scripts/lib/complexity-architecture-delta/index.test.js"
+              - "scripts/lib/complexity-architecture-delta/integrity.js"
+              - "scripts/lib/k6d-schema-fixtures.test.js"
+              - "scripts/lib/lifecycle-kernel/k1-compat.js"
+              - "scripts/lib/roadmap-boundary.test.js"
+          base_candidate_id: "sha256:70c9a8268b2cf083dd2817ebc86989bd9291d37afc36c89c64367412d760ca40"
+          forecast_lines: 40
+          actual_changed_lines: 16
+          record_request_id: "k6d-slice-correction-record-s211539-001"
+          corrected_candidate_id: "sha256:0253063b15ff68d88a37e2550a9c17c08dec50aba8f39305724f8e85d3718d4f"
+    validation_history:
+        - request_id: "k6d-slice-validation-s211539-001"
+          outcomes:
+              - id: "F-560e94a1e6266f1f"
+                status: "resolved"
+          regression:
+            detected: false
+            evidence:
+                - "review-correction passed: 15/15 tests exit 0 (index.test.js, k6d-schema-fixtures.test.js, roadmap-boundary.test.js)"
+                - "delta veraz bajo convención aprobada review-lineage-counting-001: actual_changed_lines=16 solo-producción (advisory.js); index.test.js +37 excluidas como test lines"
+                - "delta en advisory.js e index.test.js (permitted paths del slice S-211539c4342ad0b0); 16 <= forecast 40"
+            impacted_slices: []
+          result: "passed"
+    regression_history: []
+    legacy_correction_refs: []
+    legacy_validation_refs: []
+correction_budget:
+  limit_lines: 200
+  used_lines: 0
+  failed_attempts: 0
+  max_failed_attempts: 3
+correction_history: []
+validation_history: []
+follow_ups:
+    - owner: "trust"
+      summary: "Late: falta fixture de escape del enum authority (\"authoritative\") en el corpus negativo."
+      blocking: false
+    - owner: "trust"
+      summary: "Late: drift de modelos opencode en models.yaml (ya cubierto por K6D-RE-001)."
+      blocking: false
+    - owner: "evolution"
+      summary: "Late: drift de alcance en models.yaml (ya cubierto por K6D-RE-001)."
+      blocking: false
+    - owner: "efficiency"
+      summary: "Late: localeCompare en advisory.js (ya cubierto por K6D-RR-001 CRITICAL)."
+      blocking: false
+    - owner: "efficiency"
+      summary: "Late (micro): integrity.js:50 recalcula el sort dentro de .some."
+      blocking: false
+pending_operation: null
+pending_correction: null
+terminal_reason: "all-remediation-slices-passed"

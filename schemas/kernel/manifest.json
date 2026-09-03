@@ -245,6 +245,16 @@
       "path": "schemas/kernel/challenge-result/v1.schema.json",
       "$id": "ospec://schemas/kernel/challenge-result/v1",
       "schema_version": 1
+    },
+    "architecture-alternative": {
+      "path": "schemas/kernel/architecture-alternative/v1.schema.json",
+      "$id": "ospec://schemas/kernel/architecture-alternative/v1",
+      "schema_version": 1
+    },
+    "complexity-architecture-delta": {
+      "path": "schemas/kernel/complexity-architecture-delta/v1.schema.json",
+      "$id": "ospec://schemas/kernel/complexity-architecture-delta/v1",
+      "schema_version": 1
     }
   }
 }

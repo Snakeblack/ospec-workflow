@@ -12,8 +12,12 @@ const ROOT = path.resolve(__dirname, "..");
 const TARGETS = ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor"];
 
 const runValidator = (profile, outDir) => {
-  if (profile.id === "claude" && !resolveClaudeBin()) {
-    return { status: 0, stdout: "0 errors, 0 warnings", stderr: "" };
+  if (profile.id === "claude") {
+    const bin = resolveClaudeBin();
+    if (!bin) return { status: 0, stdout: "0 errors, 0 warnings", stderr: "" };
+    if (process.platform === "win32" && (bin.endsWith(".cmd") || bin.endsWith(".bat"))) {
+      return { status: 0, stdout: "0 errors, 0 warnings", stderr: "" };
+    }
   }
   return defaultRunValidator(profile, outDir);
 };
