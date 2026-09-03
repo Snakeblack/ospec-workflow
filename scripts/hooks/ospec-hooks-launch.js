@@ -317,13 +317,34 @@ function resolveBinary(scriptDir, suffix = hostBinarySuffix(), exists = fs.exist
   return null;
 }
 
+// REQ-hooks-019 (ADR-002): hosts Claude Code reutilizan el precedente Codex —
+// un binario nativo presente no debe ensombrecer al productor Node para
+// SubagentStop. Detección solo por marcadores de entorno, sin I/O adicional;
+// OSPEC_TARGET precede a CLAUDE_PLUGIN_ROOT para que hosts que reutilizan
+// layouts de plugin Claude (p. ej. Cursor) puedan sobreescribir.
+function isClaudeCodeHost(env = process.env) {
+  if (env && env.OSPEC_TARGET === "claude") {
+    return true;
+  }
+  return Boolean(env) && typeof env.CLAUDE_PLUGIN_ROOT === "string" && env.CLAUDE_PLUGIN_ROOT.length > 0;
+}
+
 // Resolve what to run and how. Pure so it can be unit-tested without spawning:
 // returns { command, args } for either the native binary or the Node fallback.
-function resolveInvocation(sub, scriptDir, suffix = hostBinarySuffix(), exists = fs.existsSync, readFileSync = fs.readFileSync) {
+// `env` is injectable (defaults to process.env) so tests never mutate the
+// ambient environment; the codex branch keeps reading process.env exactly as
+// before (byte-for-byte precedent, REQ-hooks-019).
+function resolveInvocation(sub, scriptDir, suffix = hostBinarySuffix(), exists = fs.existsSync, readFileSync = fs.readFileSync, env = process.env) {
   // Codex live O1 binding depends on the exact installed Node producer that
   // consumes OSPEC_CODEX_EVENTS_PATH. Do not let a stale bundled binary shadow
   // that audited producer for SubagentStop.
   if (sub === "subagent-stop" && process.env.OSPEC_TARGET === "codex") {
+    return { command: process.execPath, args: [path.join(scriptDir, `${sub}.js`)] };
+  }
+  // Claude Code: route SubagentStop to the Node producer even when a native
+  // binary ships — the binary is an optimization, the Node hook is the
+  // functional superset for this event.
+  if (sub === "subagent-stop" && isClaudeCodeHost(env)) {
     return { command: process.execPath, args: [path.join(scriptDir, `${sub}.js`)] };
   }
   if (FEDERATION_AWARE_HOOKS.has(sub)) {
@@ -391,6 +412,7 @@ module.exports = {
   binaryCandidates,
   resolveBinary,
   resolveInvocation,
+  isClaudeCodeHost,
   normalizeCodexHookOutput,
   isCursorInstall,
   isCursorHost,
