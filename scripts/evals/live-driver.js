@@ -180,7 +180,7 @@ function referenceRowFromResult(result, descriptor, origin) {
       benchmark_evidence_sha256: observation.provenance.benchmark_evidence_sha256,
     },
     fixture: { source: "embedded-synthetic-catalog", synthetic_payload: true, manifest_sha256: descriptor.manifest_sha256, prompt_sha256: descriptor.prompt_sha256, fixture_sha256: descriptor.fixture_sha256 },
-    metrics: { input_tokens: row.input_tokens, output_tokens: row.output_tokens, total_tokens: row.total_tokens, duration_ms: row.duration_ms, questions_asked: row.questions_asked, verify_defects: row.verify_defects, four_r_defects: row.four_r_defects, defects_total: row.defects_total },
+    metrics: { input_tokens: row.input_tokens, output_tokens: row.output_tokens, total_tokens: row.total_tokens, duration_ms: row.duration_ms, questions_asked: row.questions_asked, verify_defects: row.verify_defects, quality_review_defects: row.quality_review_defects, defects_total: row.defects_total },
   };
 }
 
@@ -459,11 +459,11 @@ function assertVerifyVerdictSuffix(suffix, jsonOutcome) {
 
 function assertStructuredReports({ workspaceRoot, change, expectedReviews = 4 }) {
   const verify = parseReportBlock(path.join(workspaceRoot, "openspec", "changes", change, "verify-report.md"), "ospec-benchmark-verify", "ospec-benchmark-verify/v1", ["critical", "warning", "suggestion"]);
-  const fourR = expectedReviews > 0
+  const qualityReview = expectedReviews > 0
     ? parseReportBlock(path.join(workspaceRoot, "openspec", "changes", change, "4r-review-report.md"), "ospec-benchmark-4r", "ospec-benchmark-4r/v1", ["blocker", "critical", "warning", "suggestion"])
     : { schema: "ospec-benchmark-4r/v1", outcome: "NOT_RUN", blocker: 0, critical: 0, warning: 0, suggestion: 0 };
-  if (verify.outcome !== "PASS" || (expectedReviews > 0 && !["PASS", "PASS WITH WARNINGS"].includes(fourR.outcome))) throw new Error("Structured verify/4R outcome is not acceptable.");
-  return { verify, four_r: fourR };
+  if (verify.outcome !== "PASS" || (expectedReviews > 0 && !["PASS", "PASS WITH WARNINGS"].includes(qualityReview.outcome))) throw new Error("Structured verify/quality-review outcome is not acceptable.");
+  return { verify, quality_review: qualityReview };
 }
 
 function sealEvalCaptureDirectory(workspaceRoot) {
@@ -480,7 +480,7 @@ function sealEvalCaptureDirectory(workspaceRoot) {
 function buildHostBenchmarkEvidence({ manifest, state, observedEffects, reports }) {
   const questions = Object.values(state?.gates || {}).reduce((sum, gate) => sum + (Number.isSafeInteger(gate?.questions_asked) && gate.questions_asked >= 0 ? gate.questions_asked : 0), 0);
   const approvalIds = (state?.approvals || []).map((entry) => entry?.id).filter((id) => typeof id === "string").sort();
-  return { schema: "ospec-benchmark-evidence/v2", owner: "live-driver-post-exit", route: state.route.actual_route, final_status: state.status, phase: { expected: manifest.benchmark.expected_phases.length, dispatched: null, succeeded: null, coverage: "unknown" }, review: { expected: manifest.benchmark.expected_reviews || 0, dispatched: null, succeeded: null, coverage: "unknown" }, dispatch: { attempts: observedEffects.dispatch_attempts, failures: observedEffects.dispatch_failures, completed_waits: observedEffects.collab_completions }, questions: { count: questions, approval_ids: approvalIds }, verify: reports.verify, four_r: reports.four_r };
+  return { schema: "ospec-benchmark-evidence/v2", owner: "live-driver-post-exit", route: state.route.actual_route, final_status: state.status, phase: { expected: manifest.benchmark.expected_phases.length, dispatched: null, succeeded: null, coverage: "unknown" }, review: { expected: manifest.benchmark.expected_reviews || 0, dispatched: null, succeeded: null, coverage: "unknown" }, dispatch: { attempts: observedEffects.dispatch_attempts, failures: observedEffects.dispatch_failures, completed_waits: observedEffects.collab_completions }, questions: { count: questions, approval_ids: approvalIds }, verify: reports.verify, quality_review: reports.quality_review };
 }
 
 function writeHostBenchmarkEvidence(evidencePath, captureSeal, evidence) {
@@ -751,9 +751,9 @@ function deriveHostObservation({ captured, evidencePath, evidence: suppliedEvide
   if (evidence?.questions?.count !== questions) throw new Error("questions count mismatch with state gate ledger.");
   if (!suppliedApprovalIds || approvalIds.length !== suppliedApprovalIds.length || approvalIds.some((id, index) => id !== suppliedApprovalIds[index])) throw new Error("approval id set mismatch with state ledger.");
   const verify = Object.fromEntries(["critical", "warning", "suggestion"].map((key) => [key, evidence?.verify?.[key]]));
-  const four_r = Object.fromEntries(["blocker", "critical", "warning", "suggestion"].map((key) => [key, evidence?.four_r?.[key]]));
-  for (const [label, value] of Object.entries({ ...verify, ...four_r })) if (!Number.isInteger(value) || value < 0) throw new Error(`Structured benchmark evidence contains invalid numeric field ${label}.`);
-  const derived = { questions_asked: questions, defects: { verify, four_r } };
+  const qualityReview = Object.fromEntries(["blocker", "critical", "warning", "suggestion"].map((key) => [key, evidence?.quality_review?.[key]]));
+  for (const [label, value] of Object.entries({ ...verify, ...qualityReview })) if (!Number.isInteger(value) || value < 0) throw new Error(`Structured benchmark evidence contains invalid numeric field ${label}.`);
+  const derived = { questions_asked: questions, defects: { verify, quality_review: qualityReview } };
   return derived;
 }
 
@@ -884,7 +884,7 @@ function recoverWorkspaceWithContext(profile, workspaceRoot, executionContext, o
   const scored = scoreAuthorizedBenchmarkWorkspace({ capability, name: profile, manifest, workspaceRoot: root, trustedCliVersion: version, transcriptBytes, supplementaryO1, durationMs });
   if (!scored.result.pass) throw new Error(`Recovered benchmark ${profile} failed structural scoring: ${scored.result.failures.join("; ")}`);
   publishBaselineAtomic(path.join(root, ".eval-capture", "done.json"), `${JSON.stringify({ completed_at: new Date().toISOString(), session_id: transcript.session_id, recovered_offline: true }, null, 2)}\n`);
-  const sealedResult = { profile, workspaceRoot: root, version, transcript, transcriptBytes, observation: loadBenchmarkObservation(evidence.observationPath), durationMs, route: scored.row.route, row: scored.row, quality_evidence: { state_status: captured.state.status, verify: { outcome: reports.verify.outcome }, four_r: { outcome: reports.four_r.outcome } } };
+  const sealedResult = { profile, workspaceRoot: root, version, transcript, transcriptBytes, observation: loadBenchmarkObservation(evidence.observationPath), durationMs, route: scored.row.route, row: scored.row, quality_evidence: { state_status: captured.state.status, verify: { outcome: reports.verify.outcome }, quality_review: { outcome: reports.quality_review.outcome } } };
   SEALED_PROFILE_RESULTS.add(sealedResult);
   const descriptor = buildCompatibilityDescriptor(profile, {
     cliVersion: version,
@@ -960,7 +960,7 @@ function runLiveProfileWithContext(profile, executionContext) {
   const scored = scoreAuthorizedBenchmarkWorkspace({ capability, name: profile, manifest, workspaceRoot, trustedCliVersion: version, transcriptBytes, supplementaryO1, durationMs: hostDurationMs });
   if (!scored.result.pass) throw new Error(`Live benchmark ${profile} failed structural scoring: ${scored.result.failures.join("; ")}`);
   publishBaselineAtomic(donePath, `${JSON.stringify({ completed_at: new Date().toISOString(), session_id: transcript.session_id }, null, 2)}\n`);
-  const sealedResult = { profile, workspaceRoot, version, transcript, transcriptBytes, observation: loadBenchmarkObservation(evidence.observationPath), durationMs: hostDurationMs, route: scored.row.route, row: scored.row, quality_evidence: { state_status: captured.state.status, verify: { outcome: reports.verify.outcome }, four_r: { outcome: reports.four_r.outcome } } };
+  const sealedResult = { profile, workspaceRoot, version, transcript, transcriptBytes, observation: loadBenchmarkObservation(evidence.observationPath), durationMs: hostDurationMs, route: scored.row.route, row: scored.row, quality_evidence: { state_status: captured.state.status, verify: { outcome: reports.verify.outcome }, quality_review: { outcome: reports.quality_review.outcome } } };
   SEALED_PROFILE_RESULTS.add(sealedResult);
   return sealedResult;
 }

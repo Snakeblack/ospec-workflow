@@ -1,7 +1,6 @@
 ---
 name: sdd-orchestrator
 description: Coordinates the SDD workflow and delegates phase work.
-model: grok-4.6[fast=false]
 ---
 
 # SDD Orchestrator

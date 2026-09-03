@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.58.0] - 2026-09-03
+
+### Added
+- **Deltas de complejidad y arquitectura K6d (`k6d-complexity-architecture-delta`)**:
+  - **Nueva capability `complexity-architecture-delta`**: informes de delta estructural reproducibles, Candidate-bound y exclusivamente advisory, con orden canónico locale-independent en dimensiones y señales.
+  - **Contratos v1 cerrados y aditivos**: schemas `schemas/kernel/complexity-architecture-delta/v1.schema.json` y `schemas/kernel/architecture-alternative/v1.schema.json`, content-addressed (`report_id`, `alternative_id`), con corpus de fixtures válidos e inválidos incluido binding divergente de Candidate.
+  - **Señales advisory sin autoridad**: enum cerrado `authority:["advisory"]`, guards de autoridad en capa separada (`rejectAuthorityMisuse` fail-closed), sin consumo de telemetría CX0 ni concesión de autoridad a K7/K8/K9.
+  - **Compatibilidad K1 y manifest**: entradas aditivas en `contract-claims.json`, `manifest.json` y `k1-compat.js`; límites roadmap verificados en `roadmap-boundary.test.js`.
+- **ADRs `docs/adr/adr-20260903-006` a `008`**: frontera de inventario estructural canónico, familias de contrato aditivas y frontera advisory-only de K6d.
+
+### Fixed
+- **K6D-V001**: orden canónico de registros independiente de `localeCompare` (UTF-16 code-unit) en `analyzer.js` e `integrity.js`, garantizando bytes/identidad de report reproducibles entre locales.
+- **K6D-V002**: corpus de fixtures negativos completado (report/candidate ids ausentes, malformados y binding divergente).
+- **K6D-RR-001 (gate de calidad)**: eliminado `localeCompare` residual en el orden de `signals` de `advisory.js`, con test anti-locale que ejercita ≥2 alternativas `new-abstraction`.
+
+### Archived
+- Change archivado en `openspec/changes/archive/2026-09-03-k6d-complexity-architecture-delta/`; verify PASS (lineage gen-2 cerrada) y quality-review gate aprobado con 6 hallazgos advisory como follow-ups.
+
+## [2.57.0] - 2026-09-03
+
+### Changed
+- **Quality Review Gate (`quality-review-gate`)**: el gate post-verify live pasa de 4R (`risk|reliability|resilience|readability` + `review-change` obligatorio) a cuatro dominios (`trust|runtime|evolution|efficiency`).
+  - Identidad canónica v2: `quality-review-gate` en rutas live (`bugfix`/`refactor`/`standard`); `4r-review-gate` solo para linajes schema-v1 e historial archivado; ambas claves en estado mutable fallan cerrado.
+  - Routing determinista primero: high-risk selecciona los cuatro dominios y omite el router; `review-change` solo con residuo por capability no atribuida; `normal-signal-overflow` eliminado.
+  - Linaje dual-schema: v1 conserva ejecutores 4R; v2 usa especialistas de calidad; `review-correction` valida dueños según schema, nunca mezclados.
+  - Cursor emite `readonly: true` en especialistas de calidad y, si existen, en los cuatro agentes 4R de compatibilidad.
+  - KPIs CX0 sidecar (`quality-review-kpis/v1`) sin persistencia paralela ni autoridad de routing.
+  - Specs actualizadas en `agents`, `skills`, `routing`, `generator`, `hooks`, `orchestrator-evals` y `context-measurement`; ADRs `docs/adr/adr-20260903-001` a `005`.
+  - Verify PASS WITH WARNINGS; hallazgos CRITICAL del gate resueltos; WARNING de KPI tokens ausentes queda como follow-up.
+  - Archivado en `openspec/changes/archive/2026-09-03-quality-review-gate/`.
+
 ## [2.56.8] - 2026-09-02
 
 ### Added

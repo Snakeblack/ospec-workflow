@@ -239,6 +239,19 @@ gates:
       reliability: { selected: false, reasons: [{ code: no-reliability-signal, source: classifier, detail: "No positive signal", precedence: 5 }] }
       resilience: { selected: false, reasons: [{ code: no-resilience-signal, source: classifier, detail: "No positive signal", precedence: 5 }] }
       readability: { selected: false, reasons: [{ code: no-readability-signal, source: classifier, detail: "No positive signal", precedence: 5 }] }
+  quality-review-gate:     # live v2; do not write alongside 4r-review-gate on same change
+    status: done
+    schema_version: 2
+    classification: normal
+    selected_domains:
+      trust: { selected: false, reasons: [{ code: no-trust-signal, source: classifier, detail: "No positive signal", precedence: 5 }] }
+      runtime: { selected: false, reasons: [{ code: no-runtime-signal, source: classifier, detail: "No positive signal", precedence: 5 }] }
+      evolution: { selected: false, reasons: [{ code: no-evolution-signal, source: classifier, detail: "No positive signal", precedence: 5 }] }
+      efficiency: { selected: false, reasons: [{ code: no-efficiency-signal, source: classifier, detail: "No positive signal", precedence: 5 }] }
+    router:
+      classification_status: sufficient
+      added_domains: []
+      reason: "No specialist signal."
 ```
 
 Gate `status` values:
@@ -259,6 +272,7 @@ Gate-specific fields (optional, vary by gate):
 | `4r-review-gate` | `findings_summary` | Human-readable count of findings by severity |
 | `4r-review-gate` | `surfaced_to_user` | `true` when BLOCKER/CRITICAL findings were shown via `vscode/askQuestions` |
 | `4r-review-gate` | `schema_version`, `classification`, `evidence`, `generalist`, `dimensions` | Optional schema-v1 selective-review audit; absence is valid legacy state |
+| `quality-review-gate` | `schema_version`, `classification`, `selected_domains`, `router`, `lineage` | Live v2 quality gate; mixed gate keys fail closed; `quality-review-ambiguity-unresolved` is not an SDD phase blocker type |
 
 New gate runs read-merge-write these optional audit fields and preserve unrelated historical fields. Contract-invalid input records `status: blocked`, `blocker_reason: contract-remediation`, and allowlisted `validation_error_codes`, then dispatches neither specialists nor archive. Readers MUST accept legacy gate objects without audit fields and MUST NOT invent reasons or rewrite archived state.
 
@@ -268,14 +282,14 @@ An active bounded review MAY add `lineage` beneath the gate. The pure reducer ow
 
 Written by `sdd-verify` (Step 9a) **only when `quality_gates:` is declared** in
 `openspec/config.yaml`. This block is a sibling of `gates.clarify` and
-`gates.4r-review-gate` at the same YAML indentation level.
+`gates.4r-review-gate` (legacy v1) or `gates.quality-review-gate` (live v2) at the same YAML indentation level. Mutable state with both review gate keys fails closed.
 
 When `quality_gates:` is absent, this block MUST NOT be written to `state.yaml`.
 
 **Naming asymmetry (intentional)**: the **config** key is snake_case
 `quality_gates:` (YAML config convention, alongside `rules:`, `hooks:`), while
 the **state** gate name is kebab-case `gates.quality-gates` (matches the sibling
-state gate names `clarify`, `4r-review-gate`). This is deliberate, not a typo.
+state gate names `clarify`, `4r-review-gate` (legacy), `quality-review-gate` (live)). This is deliberate, not a typo.
 
 ```yaml
 gates:

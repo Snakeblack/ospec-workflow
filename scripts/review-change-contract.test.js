@@ -4,7 +4,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const { validateGeneralistDecision } = require("./lib/review-dimensions.js");
+const { validateRouterDecision } = require("./lib/review-dimensions.js");
 
 const ROOT = path.resolve(__dirname, "..");
 
@@ -13,10 +13,10 @@ test("review-change source is read-only and defines the exact bounded decision c
   const skill = fs.readFileSync(path.join(ROOT, "skills/review-change/SKILL.md"), "utf8");
   assert.match(agent, /tools: \['read', 'search'\]/);
   assert.match(agent + skill, /artifacts: \[\]/);
-  assert.match(skill, /exactly.*status.*specialists.*reason/is);
+  assert.match(skill, /exactly.*classification_status.*added_domains.*reason/is);
   assert.match(skill, /MUST NOT.*findings.*severity.*remediation/is);
-  assert.match(skill, /basic correctness/i);
-  assert.match(skill, /permission|process/i);
+  assert.match(skill, /residual evidence|residual-only/i);
+  assert.match(skill, /per-capability|unattributed capability/i);
 });
 
 test("review-change defines the complete successful outer result envelope", () => {
@@ -47,25 +47,25 @@ test("review-change defines the complete successful outer result envelope", () =
   );
 });
 
-test("generalist payload accepts clear and canonical escalation, rejects malformed boundaries", () => {
-  assert.equal(validateGeneralistDecision({ status: "clear", specialists: [], reason: "signals=none;dimensions=none" }).valid, true);
-  assert.equal(validateGeneralistDecision({ status: "needs-specialist", specialists: ["risk", "reliability"], reason: "signals=diff-auth-permission,diff-process-execution;dimensions=risk,reliability" }).valid, true);
-  assert.equal(validateGeneralistDecision({ status: "needs-specialist", specialists: ["reliability", "risk"], reason: "Wrong order." }).valid, false);
-  assert.equal(validateGeneralistDecision({ status: "needs-specialist", specialists: ["risk"], reason: "" }).valid, false);
-  assert.equal(validateGeneralistDecision({ status: "needs-specialist", specialists: ["risk"], reason: "token=sk-live-SYNTHETIC_TOKEN" }).valid, false);
+test("router payload accepts sufficient merge and rejects malformed boundaries", () => {
+  assert.equal(validateRouterDecision({ classification_status: "sufficient", added_domains: ["runtime"], reason: "ambiguity=runtime-code-without-domain-attribution;added=runtime" }).valid, true);
+  assert.equal(validateRouterDecision({ classification_status: "ambiguous", added_domains: [], reason: "ambiguity=cross-capability-blast-radius;added=none" }).valid, true);
+  assert.equal(validateRouterDecision({ classification_status: "sufficient", added_domains: ["efficiency", "runtime"], reason: "ambiguity=runtime-code-without-domain-attribution;added=runtime,efficiency" }).valid, false);
+  assert.equal(validateRouterDecision({ classification_status: "sufficient", added_domains: ["runtime"], reason: "" }).valid, false);
+  assert.equal(validateRouterDecision({ classification_status: "sufficient", added_domains: ["runtime"], reason: "token=sk-live-SYNTHETIC_TOKEN" }).valid, false);
 });
 
-test("generalist contract structurally excludes arbitrary persisted reason material", () => {
+test("router contract structurally excludes arbitrary persisted reason material", () => {
   const source = fs.readFileSync(path.join(ROOT, "skills/review-change/SKILL.md"), "utf8");
   assert.match(source, /reason.{0,120}not free-form/is);
   assert.match(source, /arbitrary.*diff text|diff text.*arbitrary/is);
-  assert.match(source, /credentials, secrets, tokens/i);
+  assert.match(source, /credentials|tokens/i);
 });
 
-test("generalist contract requires structural classifier references instead of prose", () => {
+test("router contract requires closed ambiguity grammar instead of prose", () => {
   const source = fs.readFileSync(path.join(ROOT, "skills/review-change/SKILL.md"), "utf8");
-  assert.match(source, /signals=.*dimensions=/i);
-  assert.match(source, /allowlisted|allowlist/i);
+  assert.match(source, /ambiguity=.*added=/i);
+  assert.match(source, /Allowed ambiguity codes|ambiguity codes/i);
   assert.match(source, /MUST NOT.*free-form|free-form.*MUST NOT/is);
 });
 
@@ -74,7 +74,10 @@ test("registration and specialist sources remain distinct", () => {
   const orchestrator = fs.readFileSync(path.join(ROOT, "agents/sdd-orchestrator.agent.md"), "utf8");
   assert.match(models, /^\s*review-change: (?:premium|default|cheap)$/m);
   assert.match(orchestrator, /agents: \[[^\n]*'review-change'/);
-  for (const id of ["risk", "reliability", "resilience", "readability"]) {
+  for (const id of ["trust", "runtime", "evolution", "efficiency"]) {
     assert.ok(fs.existsSync(path.join(ROOT, `skills/review-${id}/SKILL.md`)));
+  }
+  for (const id of ["risk", "reliability", "resilience", "readability"]) {
+    assert.ok(fs.existsSync(path.join(ROOT, `skills/review-${id}/SKILL.md`)), `legacy ${id} retained`);
   }
 });

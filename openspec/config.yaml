@@ -11,7 +11,7 @@ context: |
 
 project:
   name: ospec-workflow
-  version: 2.56.8
+  version: 2.58.0
   status: active
 
 artifact_store:
@@ -108,7 +108,7 @@ routing:
     conditions:
       explicit_bugfix_intent: true
     phases: [sdd-explore, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]
-    gates: [4r-review-gate]
+    gates: [quality-review-gate]
     description: "Robust explore-fix flow with verification and archive."
     cost: medium
 
@@ -129,7 +129,7 @@ routing:
     conditions:
       explicit_refactor_intent: true
     phases: [sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]
-    gates: [4r-review-gate]
+    gates: [quality-review-gate]
     description: "Behavior-preserving code refactoring with design, verification, and archiving."
     cost: medium
 
@@ -147,7 +147,7 @@ routing:
     conditions:
       project.status: active
     phases: [sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]
-    gates: [clarify, 4r-review-gate]
+    gates: [clarify, quality-review-gate]
     description: "Full SDD for normal/high-risk changes on active projects."
     cost: high
 

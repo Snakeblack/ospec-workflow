@@ -207,4 +207,37 @@ test("REQ-harness-authority-canon-012: Challenge results cannot grant delivery a
   assert.equal(misuse.reason_code, "CHALLENGE_AUTHORITY_MISUSE");
 });
 
+test("REQ-harness-authority-canon-013: K6d is implemented advisory evidence while K7-K9 remain targets", () => {
+  const MATURITY_TAGS = {
+    "k6d-complexity-architecture-delta": "implemented-advisory",
+    "k7-review-authority": "target",
+    "k8-evaluation-attestation": "target",
+    "k9-profile-promotion": "target",
+  };
+  assert.equal(MATURITY_TAGS["k6d-complexity-architecture-delta"], "implemented-advisory");
+  assert.equal(MATURITY_TAGS["k7-review-authority"], "target");
+  assert.equal(MATURITY_TAGS["k8-evaluation-attestation"], "target");
+  assert.equal(MATURITY_TAGS["k9-profile-promotion"], "target");
+
+  const upstreamRoots = ["execution-identities", "execution-graph", "repair-shadow"];
+  for (const root of upstreamRoots) {
+    const dir = path.resolve(__dirname, root);
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isFile() || !entry.name.endsWith(".js") || entry.name.endsWith(".test.js")) continue;
+      assert.equal(fs.readFileSync(path.join(dir, entry.name), "utf8").includes("complexity-architecture-delta"), false, `${root}/${entry.name} must not import K6d`);
+    }
+  }
+
+  const k6dRoot = path.resolve(__dirname, "complexity-architecture-delta");
+  for (const entry of fs.readdirSync(k6dRoot, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith(".js") || entry.name.endsWith(".test.js")) continue;
+    const source = fs.readFileSync(path.join(k6dRoot, entry.name), "utf8").toLowerCase();
+    assert.equal(source.includes("cx0"), false, `K6d/${entry.name} must not consume CX0`);
+    assert.equal(source.includes("delivery-authorization"), false, `K6d/${entry.name} must not grant delivery authority`);
+  }
+
+  const { rejectAuthorityMisuse } = require("./complexity-architecture-delta/index.js");
+  assert.deepEqual(rejectAuthorityMisuse({ operation: "promote" }), { ok: false, reason_code: "K6D_AUTHORITY_MISUSE" });
+});
+
 

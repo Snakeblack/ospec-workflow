@@ -9,7 +9,7 @@ const {
   planLineageGate,
 } = require("./lib/review-gate-state.js");
 const { startReviewLineage, freezeFindings, migrateReviewLineage, beginLens, recordLensResult } = require("./lib/review-lineage.js");
-const { normalizeReviewEvidence, deriveReviewDimensions } = require("./lib/review-dimensions.js");
+const { classifyQualityReview, normalizeQualityReviewEvidence, normalizeReviewEvidence, deriveReviewDimensions } = require("./lib/review-dimensions.js");
 
 const dimensions = (selected) => Object.fromEntries(
   ["risk", "reliability", "resilience", "readability"].map((id) => [id, {
@@ -229,4 +229,120 @@ test("lineage adapter requires migration before mutable work and exposes only th
   assert.deepEqual(plan.dispatch, [], "correction implementation stays orchestrator-owned; only validation dispatches review-correction");
   assert.deepEqual(plan.active_slice, { slice_id: lineage.slice_order[0], finding_ids: lineage.findings.map((finding) => finding.id), paths: ["scripts/a.js"] });
   assert.equal(planLineageGate({ lineage, observed_candidate_id: "sha256:drift", downstream_gate: "archive" }).archive_allowed, false);
+});
+
+test("v2 sufficient classification skips router and dispatches quality specialists", () => {
+  const evidence = normalizeQualityReviewEvidence({
+    classification: "normal", verify: { status: "success", findings: [] },
+    diff: "diff --git a/scripts/run.js b/scripts/run.js\n--- a/scripts/run.js\n+++ b/scripts/run.js\n@@ -0,0 +1 @@\n+fetch(url)",
+    paths: ["scripts/run.js"], capabilities: ["runtime"], dependencies: [], operationTypes: ["modify"], designRisks: [],
+  });
+  const classifier = classifyQualityReview(evidence);
+  const plan = planReviewGate({ routeGates: ["quality-review-gate"], classifierDecision: classifier });
+  assert.equal(plan.run_router, false);
+  assert.deepEqual(plan.dispatch, ["review-runtime"]);
+});
+
+test("v2 valid router ambiguous blocks with quality-review-ambiguity-unresolved", () => {
+  const classifier = classifyQualityReview(normalizeQualityReviewEvidence({
+    classification: "normal", verify: { status: "success", findings: [] },
+    diff: "diff --git a/scripts/run.js b/scripts/run.js\n--- a/scripts/run.js\n+++ b/scripts/run.js\n@@ -0,0 +1 @@\n+const x = 1",
+    paths: ["scripts/run.js"], capabilities: ["runtime"], dependencies: [], operationTypes: ["modify"], designRisks: [],
+  }));
+  const plan = planReviewGate({
+    routeGates: ["quality-review-gate"],
+    classifierDecision: classifier,
+    routerDecision: { classification_status: "ambiguous", added_domains: [], reason: "ambiguity=runtime-code-without-domain-attribution;added=none" },
+  });
+  assert.equal(plan.status, "blocked");
+  assert.equal(plan.gate.blocker_reason, "quality-review-ambiguity-unresolved");
+  assert.deepEqual(plan.dispatch, []);
+});
+
+test("readReviewGate fails closed on mixed gate keys", () => {
+  const read = readReviewGate({ gates: { "4r-review-gate": { status: "done" }, "quality-review-gate": { status: "ready" } } });
+  assert.equal(read.mixed, true);
+  assert.equal(read.gate.blocker_reason, "contract-remediation");
+});
+
+test("v2 high-risk dispatches four quality specialists without router", () => {
+  const classifier = classifyQualityReview(normalizeQualityReviewEvidence({
+    classification: "high-risk",
+    verify: { status: "success", findings: [] },
+    diff: "diff --git a/docs/a.md b/docs/a.md\n--- a/docs/a.md\n+++ b/docs/a.md\n@@ -0,0 +1 @@\n+x",
+    paths: ["docs/a.md"],
+    capabilities: ["docs"],
+    dependencies: [],
+    operationTypes: ["modify"],
+    designRisks: [],
+  }));
+  const plan = planReviewGate({ routeGates: ["quality-review-gate"], classifierDecision: classifier });
+  assert.equal(plan.run_router, false);
+  assert.deepEqual(plan.dispatch, ["review-trust", "review-runtime", "review-evolution", "review-efficiency"]);
+});
+
+test("v2 zero-model path completes with empty dispatch", () => {
+  const classifier = classifyQualityReview(normalizeQualityReviewEvidence({
+    classification: "normal",
+    verify: { status: "success", findings: [] },
+    diff: "diff --git a/docs/a.md b/docs/a.md\n--- a/docs/a.md\n+++ b/docs/a.md\n@@ -0,0 +1 @@\n+doc",
+    paths: ["docs/a.md"],
+    capabilities: ["docs"],
+    dependencies: [],
+    operationTypes: ["modify"],
+    designRisks: [],
+  }));
+  const plan = planReviewGate({ routeGates: ["quality-review-gate"], classifierDecision: classifier });
+  assert.equal(plan.status, "done");
+  assert.deepEqual(plan.dispatch, []);
+  assert.equal(plan.archive_allowed, true);
+});
+
+test("v2 valid router sufficient merge extends union", () => {
+  const classifier = classifyQualityReview(normalizeQualityReviewEvidence({
+    classification: "normal",
+    verify: { status: "success", findings: [] },
+    diff: "diff --git a/scripts/run.js b/scripts/run.js\n--- a/scripts/run.js\n+++ b/scripts/run.js\n@@ -0,0 +1 @@\n+const x = 1",
+    paths: ["scripts/run.js"],
+    capabilities: ["app"],
+    dependencies: [],
+    operationTypes: ["modify"],
+    designRisks: [],
+  }));
+  const plan = planReviewGate({
+    routeGates: ["quality-review-gate"],
+    classifierDecision: classifier,
+    routerDecision: {
+      classification_status: "sufficient",
+      added_domains: ["trust"],
+      reason: "ambiguity=runtime-code-without-domain-attribution;added=trust",
+    },
+  });
+  assert.equal(plan.status, "ready");
+  assert.deepEqual(plan.dispatch, ["review-trust"]);
+});
+
+test("v2 malformed router blocks with contract-remediation", () => {
+  const classifier = classifyQualityReview(normalizeQualityReviewEvidence({
+    classification: "normal",
+    verify: { status: "success", findings: [] },
+    diff: "diff --git a/scripts/run.js b/scripts/run.js\n--- a/scripts/run.js\n+++ b/scripts/run.js\n@@ -0,0 +1 @@\n+const x = 1",
+    paths: ["scripts/run.js"],
+    capabilities: ["app"],
+    dependencies: [],
+    operationTypes: ["modify"],
+    designRisks: [],
+  }));
+  const plan = planReviewGate({
+    routeGates: ["quality-review-gate"],
+    classifierDecision: classifier,
+    routerDecision: { classification_status: "sufficient", added_domains: ["runtime"], reason: "free-form prose" },
+  });
+  assert.equal(plan.status, "blocked");
+  assert.equal(plan.gate.blocker_reason, "contract-remediation");
+});
+
+test("v1 legacy dispatch uses LEGACY_V1_REVIEWERS", () => {
+  const plan = planReviewGate({ routeGates: ["4r-review-gate"], decision: decision("normal", ["risk"]) });
+  assert.deepEqual(plan.dispatch, ["review-risk"]);
 });

@@ -77,7 +77,7 @@ Each action carries an `on_failure` value (`advisory` by default):
 | `advisory` | Record `outcome: failed, policy: advisory` in the audit; continue to next action; cross the boundary normally. |
 | `halt` | Record `outcome: failed, policy: halt`; mark remaining actions as `outcome: skipped`; write `lifecycle_hooks.{event}.status: failed` to `state.yaml`; call `vscode/askQuestions` with a **Retry / Override and continue / Abort** gate before crossing the boundary. |
 
-`halt` mirrors the `4r-review-gate` "surface, user decides" precedent.  The boundary phase is NOT dispatched until the user resolves the gate.
+`halt` mirrors the quality-review / 4r-review-gate "surface, user decides" precedent.  The boundary phase is NOT dispatched until the user resolves the gate.
 
 ## Audit Shape (`lifecycle_hooks:` in `state.yaml`)
 

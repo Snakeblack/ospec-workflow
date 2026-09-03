@@ -1,0 +1,707 @@
+change: "quality-review-gate"
+status: archived
+last_updated: "2026-09-03T00:45:00.000Z"
+blocking_questions: []
+classification: high-risk
+delivery_strategy: exception-ok
+execution_mode: auto
+gate: intent-briefing
+decision: accepted
+synthesis: "Sustituir el gate 4R (risk/reliability/resilience/readability + generalista premium obligatorio) por un Quality Review Gate de cuatro dominios — Trust, Runtime, Evolution, Efficiency — con dueño único por atributo, matriz evidencia→señal→dominio, selección por unión (sin overflow 3→4) y ambigüedad ejecutable. review-change solo entra si el clasificador marca insufficient, y solo con residuo; high-risk va directo a full review. Migración contractual atómica; linaje 4R histórico inmutable; éxito medido con router_delta_rate y tokens por gate."
+scope: "In: Quality Review Gate, dominios Trust/Runtime/Evolution/Efficiency, dueños únicos, señales nuevas, union selection, ambigüedad determinista, residual-only semantic fallback, migración atómica de lineage/agents/skills/targets/hooks. Out: SDD de routing previo conservando IDs 4R, review-operations, dueños compartidos, cambiar el papel de review-correction."
+applies_to:
+  - change-classification
+owner:
+  author: "Manuel Retamozo"
+  branch: feat/k6d-cx0-parallel
+approvals:
+  - id: intent-briefing-001
+    gate: intent-briefing
+    decision: accepted
+    source: user-numbered-chat
+    accepted_at: "2026-09-02T22:02:24.9470493Z"
+    applies_to:
+      - change-classification
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: interactive
+    source: user-numbered-chat
+    accepted_at: "2026-09-02T22:04:00.0000000Z"
+    applies_to:
+      - session-execution
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: user-numbered-chat
+    accepted_at: "2026-09-02T22:04:00.0000000Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: clarify-001
+    gate: clarify
+    decision: "A4 versioned canonical rename; B5 per-capability incomplete attribution (cross-capability-blast-radius)"
+    source: user-numbered-chat
+    accepted_at: "2026-09-02T22:33:00.0000000Z"
+    applies_to:
+      - sdd-clarify
+      - sdd-design
+  - id: design-revision-001
+    gate: architecture
+    decision: "Revise design before tasks: (1) keep schema-bound LEGACY_V1_REVIEWERS and schema-aware review-correction owners; (2) split KNOWN_GATES lexical recognition from v2 semantic admissibility; (3) remove capability-id/path inference — capability_scopes is explicit attribution authority; (4) valid router ambiguous blocks with quality-review-ambiguity-unresolved; (5) v1→v2 migration receipt in v2 identity plus pristine preconditions; (6) residual evidence per unattributed capability with bounded paths + total_paths/truncated."
+    source: user-numbered-chat
+    accepted_at: "2026-09-02T22:58:00Z"
+    applies_to:
+      - sdd-design
+      - sdd-tasks
+  - id: execution-mode-002
+    gate: execution-mode
+    decision: auto
+    source: user-numbered-chat
+    accepted_at: "2026-09-02T23:11:00Z"
+    applies_to:
+      - session-execution
+  - id: post-archive-version-001
+    gate: archive-warning
+    decision: minor
+    source: user-numbered-chat
+    accepted_at: "2026-09-02T23:11:00Z"
+    applies_to:
+      - post-archive-release
+  - id: verify-warnings-001
+    gate: archive-warning
+    decision: accepted
+    source: user-numbered-chat
+    accepted_at: "2026-09-03T00:28:30.110Z"
+    applies_to:
+      - sdd-archive
+    detail: "PASS WITH WARNINGS and advisory quality-review findings accepted as follow-ups; do not block archive."
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "Clasificación high-risk con confidence deterministic; primera ruta compatible con project.status active (standard)."
+  validated: true
+  validation_errors: []
+baseline_fingerprints:
+  agents: "4268c2edeef91121daa68524924f02fc8e976adfc3b31e6b5977d6c59718377f"
+  skills: "01a19792c945589bcbf37d20efd0e5b5f241a41d2a156cb922e6c4e77d943803"
+  routing: "bae13e9685eff1448331a5380d172e08b19c26e5be52ec6d7e8cd5ec62dfa888"
+  generator: "0bee4c0d450bdf990fc8ccacb3c6a79de746055e447c58e014f0673adb474ce4"
+  hooks: "0c9af5bd4d820d8227f0df2a7f7e6875db08f4e64f35db20204b58fc578938c1"
+  orchestrator-evals: "76c2bf00d6608474a898462d4197057847f08927a496c58d820065dc45dd041a"
+  context-measurement: "4f4fb9adb3c66388bfe799b4d5d0ecd8aa2650bb25a558b070e1710b23765a95"
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/quality-review-gate/proposal.md"
+    summary: "Maps Quality Review to existing spec domains; atomic six-slice migration; no quality-review domain; slice 6 reuses CX0."
+    key_decisions:
+      - "No new spec domain; quality-gates is not this gate; telemetry reuses context-measurement."
+      - "Classifier, roster, and lineage requirements land in routing, agents, and skills."
+      - "Released contract is atomic; mixed taxonomy fails closed; archived 4R untouched."
+  clarify:
+    status: done
+    questions_asked: 2
+    summary: "A4 versioned canonical rename; B5 cross-capability-blast-radius with per-capability attribution."
+    key_decisions:
+      - "quality-review-gate canonical for v2; 4r-review-gate legacy v1 only; both keys in mutable state fail closed."
+      - "cross-capability-blast-radius: >3 behavioral capabilities with ≥1 unattributed; router gets unattributed residue only."
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/quality-review-gate/specs/agents/spec.md"
+      - "openspec/changes/quality-review-gate/specs/skills/spec.md"
+      - "openspec/changes/quality-review-gate/specs/routing/spec.md"
+      - "openspec/changes/quality-review-gate/specs/generator/spec.md"
+      - "openspec/changes/quality-review-gate/specs/hooks/spec.md"
+      - "openspec/changes/quality-review-gate/specs/orchestrator-evals/spec.md"
+      - "openspec/changes/quality-review-gate/specs/context-measurement/spec.md"
+    summary: "Seven domain deltas: quality roster, deterministic-first routing, closed-world ambiguity, CX0 KPIs, atomic migration."
+    key_decisions:
+      - "Four domains trust/runtime/evolution/efficiency; review-change residual-only; no normal-signal-overflow."
+      - "Mixed taxonomy fail-closed; archived 4R immutable; sufficient+[] zero model calls."
+      - "Slice 6 KPIs reuse CX0/phase-cost; no parallel telemetry pipeline."
+  design:
+    status: done
+    artifact: "openspec/changes/quality-review-gate/design.md"
+    summary: "Rev-001: keep LEGACY_V1 executors; lexical≠semantic gates; explicit scopes; unresolved router blocks; migrate receipt; per-cap residual."
+    key_decisions:
+      - "Keep 4R agents/skills for v1 continue; ACTIVE_V2 vs LEGACY_V1; dual-schema correction"
+      - "ACTIVE_GATES vs LEGACY_GATES; valid router ambiguous → quality-review-ambiguity-unresolved"
+      - "capability_scopes explicit only; migrate receipt in v2 digest; residual per capability"
+  tasks:
+    status: done
+    artifact: "openspec/changes/quality-review-gate/tasks.md"
+    summary: "34 REQs in 6 slices; 41 tasks; size-exception; RED/GREEN on taxonomy, dimensions, gate-state, lineage, KPIs."
+    key_decisions:
+      - "Six design slices as phases; no shippable mixed taxonomy between slices"
+      - "exception-ok: Decision needed before apply No; optional 6-unit split for readability"
+      - "All locked rev-001 constraints encoded: dual-schema, lexical≠semantic, per-cap residual"
+  apply:
+    status: done
+    artifact: "openspec/changes/quality-review-gate/apply-progress.md"
+    summary: "Remediation attempt 1: V001 KPI catalog, V002 Go allowlist test, V003 quality-review defect metrics; lineage recheck-pending."
+  verify:
+    status: done
+    verdict: PASS WITH WARNINGS
+    artifact: "openspec/changes/quality-review-gate/verify-report.md"
+    summary: "PASS WITH WARNINGS: V001–V003 frozen recipes passed; lineage closed; discovery WARNINGs retained."
+    key_decisions:
+      - "Targeted recheck only; classifier/lineage MUST scenarios not reopened"
+      - "V001 KPI catalog/sources, V002 Go allowlist, V003 eval defect labels resolved"
+      - "L001 leftover four_r strings in eval tests/README are non-blocking"
+  archive:
+    status: done
+    artifact: "openspec/changes/quality-review-gate/archive-report.md"
+    summary: "Plan-and-Report: 7 spec merges, 5 ADR promotions, archive-plan.json emitted; runtime move pending."
+    key_decisions:
+      - "verify-warnings-001 accepted PASS WITH WARNINGS and advisory F-6d5ee4e9cc36b68c"
+      - "Quality Review lineage approved; archive is read-only identity check"
+      - "Destination openspec/changes/archive/2026-09-03-quality-review-gate/ (runtime-owned)"
+verify_lineage:
+  schema_version: 1
+  lineage_id: "sha256:1b41e37ad81788250f08ab5bceb1fef686d54aa41783eb79d555856061e20695"
+  generation: 1
+  predecessor_id: null
+  status: closed
+  genesis_candidate_id: "sha256:44e47d64e245dedbe1fd943b10f47d343b38b0909668cf1a25ac2ba32a589b9a"
+  current_candidate_id: "sha256:b3d93acc44810c57613fe8cfeb0875bf51b40f6c61b505bd9e6ee96976b12f67"
+  verified_candidate_id: "sha256:b3d93acc44810c57613fe8cfeb0875bf51b40f6c61b505bd9e6ee96976b12f67"
+  contract_digest: "sha256:a4d0af2b631f3bec7e9d087f6d046b8e247fc207c5e5c5428eaa9911006d9520"
+  candidate_recovery:
+    schema_version: 1
+    genesis:
+      kind: candidate-recovery-ref/v1
+      schema_version: 1
+      candidate_id: "sha256:44e47d64e245dedbe1fd943b10f47d343b38b0909668cf1a25ac2ba32a589b9a"
+      content_digest: "sha256:15d249d04066d9168be9510d0bcfbdf9cf906a7564500fa81386b61db80a7ae4"
+      relative_path: ".verify-lineage-candidate-15d249d04066d9168be9510d0bcfbdf9cf906a7564500fa81386b61db80a7ae4.json"
+    current:
+      kind: candidate-recovery-ref/v1
+      schema_version: 1
+      candidate_id: "sha256:b3d93acc44810c57613fe8cfeb0875bf51b40f6c61b505bd9e6ee96976b12f67"
+      content_digest: "sha256:fb45bb4bd5e7ee489fdd202c38b6562f92efa3c870950c38a9f82ce959a56da0"
+      relative_path: ".verify-lineage-candidate-fb45bb4bd5e7ee489fdd202c38b6562f92efa3c870950c38a9f82ce959a56da0.json"
+  remediation_attempts: 1
+  max_remediation_attempts: 2
+  findings:
+    - id: V001
+      severity: CRITICAL
+      summary: "KPI sidecar omits five spec-required Quality Review KPI names and uses non-CX0 source enums"
+      origin: code-bug
+      allowed_paths:
+        - scripts/lib/quality-review-kpis.js
+        - scripts/lib/quality-review-kpis.test.js
+      validation:
+        commands:
+          - "node -e \"const {KPI_NAMES}=require('./scripts/lib/quality-review-kpis.js'); const need=['semantic_router_invocation_rate','specialists_per_gate','zero_model_gate_rate','full_review_rate','tokens_per_quality_gate','tokens_per_finding','router_delta_rate']; process.exit(need.every((n)=>KPI_NAMES.includes(n))?0:1)\""
+        expected_exit: 0
+        test_files:
+          - scripts/lib/quality-review-kpis.test.js
+      status: resolved
+    - id: V002
+      severity: CRITICAL
+      summary: "Go SubagentStop phase-cost test still expects 4R agent recording after quality allowlist migration"
+      origin: code-bug
+      allowed_paths:
+        - internal/hooks/subagentstop_test.go
+      validation:
+        commands:
+          - "go test ./internal/hooks/ -count=1 -run TestSubagentStop_ReviewPhaseCostAllowlistAndRelaunch"
+        expected_exit: 0
+        test_files:
+          - internal/hooks/subagentstop_test.go
+      status: resolved
+    - id: V003
+      severity: CRITICAL
+      summary: "Live eval defect reports still expose 4R defects instead of quality-review metrics"
+      origin: code-bug
+      allowed_paths:
+        - scripts/evals/lib/benchmark.js
+        - scripts/evals/live-driver.js
+      validation:
+        commands:
+          - "node -e \"const fs=require('fs'); const s=fs.readFileSync('scripts/evals/lib/benchmark.js','utf8'); process.exit((s.includes('| 4R defects |') || !/quality-review defect|quality_review_defects/.test(s))?1:0)\""
+        expected_exit: 0
+        test_files:
+          - scripts/evals/lib/benchmark.js
+      status: resolved
+  late_observations:
+    - id: L001
+      severity: follow-up
+      summary: "Eval unit fixtures still use four_r_defects in scripts/evals/lib/benchmark.test.js and scripts/evals/live-driver.test.js; scripts/evals/README.md still mentions verify/4R defects."
+      blocking: false
+  terminal_reason: all-findings-verified
+gates:
+  quality-review-gate:
+    status: approved
+    schema_version: 2
+    classification: high-risk
+    classification_status: sufficient
+    selected_domains:
+      - trust
+      - runtime
+      - evolution
+      - efficiency
+    evidence:
+      fingerprint: "sha256:3e9142f985422fe1761a387d43bcdd5f8c2da91228cc1d1716894d4067fca09a"
+      schema_version: 2
+    router: null
+    lineage:
+      schema_version: 2
+      lineage_id: "sha256:a4caaca594fdd495df2ce9545a9049dc62ea8a0c3cceffc847eb177d7f5a3dbb"
+      generation: 1
+      predecessor_lineage_id: null
+      migration: null
+      recovery: null
+      revision: 12
+      status: approved
+      genesis:
+        candidate:
+          projection: workspace
+          base_tree: "sha256:41da7b24a4b387a08642159da285dc8025b4e4527d2525c5204a09009009b363"
+          candidate_tree: "sha256:af27ae8ea21475001c8051eb432169e10a5112f4565a58699bc8772be0ab9f7c"
+          paths:
+            - README.md
+            - agents/review-change.agent.md
+            - agents/review-correction.agent.md
+            - agents/review-efficiency.agent.md
+            - agents/review-evolution.agent.md
+            - agents/review-runtime.agent.md
+            - agents/review-trust.agent.md
+            - agents/sdd-orchestrator.agent.md
+            - docs/sdd-lifecycle-hooks.md
+            - docs/sdd-routing.md
+            - docs/target-capabilities.md
+            - internal/hooks/subagentstop.go
+            - internal/hooks/subagentstop_test.go
+            - models.yaml
+            - openspec/changes/quality-review-gate/apply-progress.md
+            - openspec/changes/quality-review-gate/decisions/adr-001-versioned-canonical-gate-identity.md
+            - openspec/changes/quality-review-gate/decisions/adr-002-deterministic-first-residual-router.md
+            - openspec/changes/quality-review-gate/decisions/adr-003-dual-schema-lineage-migration.md
+            - openspec/changes/quality-review-gate/decisions/adr-004-per-capability-attribution.md
+            - openspec/changes/quality-review-gate/decisions/adr-005-cx0-sidecar-kpis.md
+            - openspec/changes/quality-review-gate/design.md
+            - openspec/changes/quality-review-gate/proposal.md
+            - openspec/changes/quality-review-gate/specs/agents/spec.md
+            - openspec/changes/quality-review-gate/specs/context-measurement/spec.md
+            - openspec/changes/quality-review-gate/specs/generator/spec.md
+            - openspec/changes/quality-review-gate/specs/hooks/spec.md
+            - openspec/changes/quality-review-gate/specs/orchestrator-evals/spec.md
+            - openspec/changes/quality-review-gate/specs/routing/spec.md
+            - openspec/changes/quality-review-gate/specs/skills/spec.md
+            - openspec/changes/quality-review-gate/state.yaml
+            - openspec/changes/quality-review-gate/tasks.md
+            - openspec/changes/quality-review-gate/verify-report.md
+            - openspec/config.yaml
+            - openspec/memory/known-issues.md
+            - openwiki/agents-skills/agents-and-skills.md
+            - rules/sdd-common.instructions.md
+            - rules/sdd-openspec.instructions.md
+            - schemas/kernel/contract-claims.json
+            - schemas/kernel/manifest.json
+            - scripts/configure/__fixtures__/golden/claude/models.yaml
+            - scripts/configure/__fixtures__/golden/codex/models.yaml
+            - scripts/configure/__fixtures__/golden/cursor/agents/sdd-orchestrator.md
+            - scripts/configure/__fixtures__/golden/cursor/models.yaml
+            - scripts/configure/__fixtures__/golden/github-copilot/models.yaml
+            - scripts/configure/__fixtures__/golden/opencode/.opencode/agents/ospec-workflow.md
+            - scripts/configure/__fixtures__/golden/opencode/.opencode/agents/sdd-apply.md
+            - scripts/configure/__fixtures__/golden/opencode/models.yaml
+            - scripts/configure/__fixtures__/golden/vscode/.claude-plugin/plugin.json
+            - scripts/configure/__fixtures__/golden/vscode/.mcp.json
+            - scripts/configure/__fixtures__/golden/vscode/agents/sdd-apply.agent.md
+            - scripts/configure/__fixtures__/golden/vscode/agents/sdd-orchestrator.agent.md
+            - scripts/configure/__fixtures__/golden/vscode/commands/sdd-apply.prompt.md
+            - scripts/configure/__fixtures__/golden/vscode/hooks/hooks.json
+            - scripts/configure/__fixtures__/golden/vscode/models.yaml
+            - scripts/configure/__fixtures__/golden/vscode/rules/agent-teams.instructions.md
+            - scripts/configure/__fixtures__/golden/vscode/scripts/hooks/pre-tool-use.js
+            - scripts/configure/__fixtures__/golden/vscode/scripts/hooks/session-start.js
+            - scripts/configure/__fixtures__/golden/vscode/scripts/lib/ospec-state.js
+            - scripts/configure/__fixtures__/golden/vscode/skills/sdd-apply/SKILL.md
+            - scripts/configure/__fixtures__/source/models.yaml
+            - scripts/configure/validate-cursor.js
+            - scripts/evals/__fixtures__/apply-design-mismatch-blocked/repo/openspec/config.yaml
+            - scripts/evals/__fixtures__/continue-no-rebrief/repo/openspec/config.yaml
+            - scripts/evals/__fixtures__/document-batched-gate/repo/openspec/config.yaml
+            - scripts/evals/__fixtures__/document-sandbox-violation-blocked/repo/openspec/config.yaml
+            - scripts/evals/__fixtures__/document-update-noop/repo/openspec/config.yaml
+            - scripts/evals/__fixtures__/high-risk-clarify-route/repo/openspec/config.yaml
+            - scripts/evals/__fixtures__/specific-request-no-artifact/repo/openspec/config.yaml
+            - scripts/evals/__fixtures__/vague-request-no-artifact/repo/openspec/config.yaml
+            - scripts/evals/__fixtures__/verify-fail-spec-gap-routes-sdd-spec/repo/openspec/config.yaml
+            - scripts/evals/lib/benchmark.js
+            - scripts/evals/live-driver.js
+            - scripts/evals/safe-export.js
+            - scripts/evals/safe-export.test.js
+            - scripts/hooks/subagent-stop.js
+            - scripts/hooks/subagent-stop.test.js
+            - scripts/lib/model-resolver.js
+            - scripts/lib/quality-review-kpis.js
+            - scripts/lib/quality-review-kpis.test.js
+            - scripts/lib/review-dimensions.js
+            - scripts/lib/review-gate-state.js
+            - scripts/lib/review-lineage.js
+            - scripts/lib/review-taxonomy.js
+            - scripts/lib/review-taxonomy.test.js
+            - scripts/lib/route-dispatcher.js
+            - scripts/lib/route-dispatcher.test.js
+            - scripts/lib/target-profiles/cursor.js
+            - scripts/model-tier-contract.test.js
+            - scripts/review-change-contract.test.js
+            - scripts/review-correction-contract.test.js
+            - scripts/review-dimensions.test.js
+            - scripts/review-gate-state.test.js
+            - scripts/review-lineage.test.js
+            - scripts/selective-4r-parity.test.js
+            - skills/_shared/gate-4r-review.md
+            - skills/_shared/openspec-convention.md
+            - skills/_shared/sdd-phase-common.md
+            - skills/review-change/SKILL.md
+            - skills/review-correction/SKILL.md
+            - skills/review-efficiency/SKILL.md
+            - skills/review-evolution/SKILL.md
+            - skills/review-runtime/SKILL.md
+            - skills/review-trust/SKILL.md
+          diff_hash: "sha256:af27ae8ea21475001c8051eb432169e10a5112f4565a58699bc8772be0ab9f7c"
+          paths_digest: "sha256:f634f106d1c1b0b5cc82ceea8a15e9e1181b2fc71a46cfd50b5d75dd2d7da497"
+          authored_lines: 6958
+          original_changed_lines: 6958
+        candidate_id: "sha256:cad271fdbfadb3b392df4c9ed6ef38ac92e53bb208274f7d6674456862970de5"
+        paths:
+          - README.md
+          - agents/review-change.agent.md
+          - agents/review-correction.agent.md
+          - agents/review-efficiency.agent.md
+          - agents/review-evolution.agent.md
+          - agents/review-runtime.agent.md
+          - agents/review-trust.agent.md
+          - agents/sdd-orchestrator.agent.md
+          - docs/sdd-lifecycle-hooks.md
+          - docs/sdd-routing.md
+          - docs/target-capabilities.md
+          - internal/hooks/subagentstop.go
+          - internal/hooks/subagentstop_test.go
+          - models.yaml
+          - openspec/changes/quality-review-gate/apply-progress.md
+          - openspec/changes/quality-review-gate/decisions/adr-001-versioned-canonical-gate-identity.md
+          - openspec/changes/quality-review-gate/decisions/adr-002-deterministic-first-residual-router.md
+          - openspec/changes/quality-review-gate/decisions/adr-003-dual-schema-lineage-migration.md
+          - openspec/changes/quality-review-gate/decisions/adr-004-per-capability-attribution.md
+          - openspec/changes/quality-review-gate/decisions/adr-005-cx0-sidecar-kpis.md
+          - openspec/changes/quality-review-gate/design.md
+          - openspec/changes/quality-review-gate/proposal.md
+          - openspec/changes/quality-review-gate/specs/agents/spec.md
+          - openspec/changes/quality-review-gate/specs/context-measurement/spec.md
+          - openspec/changes/quality-review-gate/specs/generator/spec.md
+          - openspec/changes/quality-review-gate/specs/hooks/spec.md
+          - openspec/changes/quality-review-gate/specs/orchestrator-evals/spec.md
+          - openspec/changes/quality-review-gate/specs/routing/spec.md
+          - openspec/changes/quality-review-gate/specs/skills/spec.md
+          - openspec/changes/quality-review-gate/state.yaml
+          - openspec/changes/quality-review-gate/tasks.md
+          - openspec/changes/quality-review-gate/verify-report.md
+          - openspec/config.yaml
+          - openspec/memory/known-issues.md
+          - openwiki/agents-skills/agents-and-skills.md
+          - rules/sdd-common.instructions.md
+          - rules/sdd-openspec.instructions.md
+          - schemas/kernel/contract-claims.json
+          - schemas/kernel/manifest.json
+          - scripts/configure/__fixtures__/golden/claude/models.yaml
+          - scripts/configure/__fixtures__/golden/codex/models.yaml
+          - scripts/configure/__fixtures__/golden/cursor/agents/sdd-orchestrator.md
+          - scripts/configure/__fixtures__/golden/cursor/models.yaml
+          - scripts/configure/__fixtures__/golden/github-copilot/models.yaml
+          - scripts/configure/__fixtures__/golden/opencode/.opencode/agents/ospec-workflow.md
+          - scripts/configure/__fixtures__/golden/opencode/.opencode/agents/sdd-apply.md
+          - scripts/configure/__fixtures__/golden/opencode/models.yaml
+          - scripts/configure/__fixtures__/golden/vscode/.claude-plugin/plugin.json
+          - scripts/configure/__fixtures__/golden/vscode/.mcp.json
+          - scripts/configure/__fixtures__/golden/vscode/agents/sdd-apply.agent.md
+          - scripts/configure/__fixtures__/golden/vscode/agents/sdd-orchestrator.agent.md
+          - scripts/configure/__fixtures__/golden/vscode/commands/sdd-apply.prompt.md
+          - scripts/configure/__fixtures__/golden/vscode/hooks/hooks.json
+          - scripts/configure/__fixtures__/golden/vscode/models.yaml
+          - scripts/configure/__fixtures__/golden/vscode/rules/agent-teams.instructions.md
+          - scripts/configure/__fixtures__/golden/vscode/scripts/hooks/pre-tool-use.js
+          - scripts/configure/__fixtures__/golden/vscode/scripts/hooks/session-start.js
+          - scripts/configure/__fixtures__/golden/vscode/scripts/lib/ospec-state.js
+          - scripts/configure/__fixtures__/golden/vscode/skills/sdd-apply/SKILL.md
+          - scripts/configure/__fixtures__/source/models.yaml
+          - scripts/configure/validate-cursor.js
+          - scripts/evals/__fixtures__/apply-design-mismatch-blocked/repo/openspec/config.yaml
+          - scripts/evals/__fixtures__/continue-no-rebrief/repo/openspec/config.yaml
+          - scripts/evals/__fixtures__/document-batched-gate/repo/openspec/config.yaml
+          - scripts/evals/__fixtures__/document-sandbox-violation-blocked/repo/openspec/config.yaml
+          - scripts/evals/__fixtures__/document-update-noop/repo/openspec/config.yaml
+          - scripts/evals/__fixtures__/high-risk-clarify-route/repo/openspec/config.yaml
+          - scripts/evals/__fixtures__/specific-request-no-artifact/repo/openspec/config.yaml
+          - scripts/evals/__fixtures__/vague-request-no-artifact/repo/openspec/config.yaml
+          - scripts/evals/__fixtures__/verify-fail-spec-gap-routes-sdd-spec/repo/openspec/config.yaml
+          - scripts/evals/lib/benchmark.js
+          - scripts/evals/live-driver.js
+          - scripts/evals/safe-export.js
+          - scripts/evals/safe-export.test.js
+          - scripts/hooks/subagent-stop.js
+          - scripts/hooks/subagent-stop.test.js
+          - scripts/lib/model-resolver.js
+          - scripts/lib/quality-review-kpis.js
+          - scripts/lib/quality-review-kpis.test.js
+          - scripts/lib/review-dimensions.js
+          - scripts/lib/review-gate-state.js
+          - scripts/lib/review-lineage.js
+          - scripts/lib/review-taxonomy.js
+          - scripts/lib/review-taxonomy.test.js
+          - scripts/lib/route-dispatcher.js
+          - scripts/lib/route-dispatcher.test.js
+          - scripts/lib/target-profiles/cursor.js
+          - scripts/model-tier-contract.test.js
+          - scripts/review-change-contract.test.js
+          - scripts/review-correction-contract.test.js
+          - scripts/review-dimensions.test.js
+          - scripts/review-gate-state.test.js
+          - scripts/review-lineage.test.js
+          - scripts/selective-4r-parity.test.js
+          - skills/_shared/gate-4r-review.md
+          - skills/_shared/openspec-convention.md
+          - skills/_shared/sdd-phase-common.md
+          - skills/review-change/SKILL.md
+          - skills/review-correction/SKILL.md
+          - skills/review-efficiency/SKILL.md
+          - skills/review-evolution/SKILL.md
+          - skills/review-runtime/SKILL.md
+          - skills/review-trust/SKILL.md
+        classification: high-risk
+        selected_domains:
+          - trust
+          - runtime
+          - evolution
+          - efficiency
+        evidence_fingerprint: "sha256:3e9142f985422fe1761a387d43bcdd5f8c2da91228cc1d1716894d4067fca09a"
+        original_changed_lines: 6958
+        authored_lines: 6958
+      current_candidate_id: "sha256:15ba963708aee6a87ef4b16d214a3d0d2ccf5dae8fd533c5051ce568388a5724"
+      current_candidate:
+        projection: workspace
+        base_tree: "sha256:41da7b24a4b387a08642159da285dc8025b4e4527d2525c5204a09009009b363"
+        candidate_tree: "sha256:3e57851850cf9ff2d1e4fe9d28ae03003ccb1b176a8eeecfad6bd63c2edad307"
+        paths:
+          - README.md
+          - agents/review-change.agent.md
+          - agents/review-correction.agent.md
+          - agents/review-efficiency.agent.md
+          - agents/review-evolution.agent.md
+          - agents/review-runtime.agent.md
+          - agents/review-trust.agent.md
+          - agents/sdd-orchestrator.agent.md
+          - docs/sdd-lifecycle-hooks.md
+          - docs/sdd-routing.md
+          - docs/target-capabilities.md
+          - internal/hooks/subagentstop.go
+          - internal/hooks/subagentstop_test.go
+          - models.yaml
+          - openspec/changes/quality-review-gate/apply-progress.md
+          - openspec/changes/quality-review-gate/decisions/adr-001-versioned-canonical-gate-identity.md
+          - openspec/changes/quality-review-gate/decisions/adr-002-deterministic-first-residual-router.md
+          - openspec/changes/quality-review-gate/decisions/adr-003-dual-schema-lineage-migration.md
+          - openspec/changes/quality-review-gate/decisions/adr-004-per-capability-attribution.md
+          - openspec/changes/quality-review-gate/decisions/adr-005-cx0-sidecar-kpis.md
+          - openspec/changes/quality-review-gate/design.md
+          - openspec/changes/quality-review-gate/proposal.md
+          - openspec/changes/quality-review-gate/specs/agents/spec.md
+          - openspec/changes/quality-review-gate/specs/context-measurement/spec.md
+          - openspec/changes/quality-review-gate/specs/generator/spec.md
+          - openspec/changes/quality-review-gate/specs/hooks/spec.md
+          - openspec/changes/quality-review-gate/specs/orchestrator-evals/spec.md
+          - openspec/changes/quality-review-gate/specs/routing/spec.md
+          - openspec/changes/quality-review-gate/specs/skills/spec.md
+          - openspec/changes/quality-review-gate/state.yaml
+          - openspec/changes/quality-review-gate/tasks.md
+          - openspec/changes/quality-review-gate/verify-report.md
+          - openspec/config.yaml
+          - openspec/memory/known-issues.md
+          - openwiki/agents-skills/agents-and-skills.md
+          - rules/sdd-common.instructions.md
+          - rules/sdd-openspec.instructions.md
+          - schemas/kernel/contract-claims.json
+          - schemas/kernel/manifest.json
+          - scripts/configure/__fixtures__/golden/claude/models.yaml
+          - scripts/configure/__fixtures__/golden/codex/models.yaml
+          - scripts/configure/__fixtures__/golden/cursor/agents/sdd-orchestrator.md
+          - scripts/configure/__fixtures__/golden/cursor/models.yaml
+          - scripts/configure/__fixtures__/golden/github-copilot/models.yaml
+          - scripts/configure/__fixtures__/golden/opencode/.opencode/agents/ospec-workflow.md
+          - scripts/configure/__fixtures__/golden/opencode/.opencode/agents/sdd-apply.md
+          - scripts/configure/__fixtures__/golden/opencode/models.yaml
+          - scripts/configure/__fixtures__/golden/vscode/.claude-plugin/plugin.json
+          - scripts/configure/__fixtures__/golden/vscode/.mcp.json
+          - scripts/configure/__fixtures__/golden/vscode/agents/sdd-apply.agent.md
+          - scripts/configure/__fixtures__/golden/vscode/agents/sdd-orchestrator.agent.md
+          - scripts/configure/__fixtures__/golden/vscode/commands/sdd-apply.prompt.md
+          - scripts/configure/__fixtures__/golden/vscode/hooks/hooks.json
+          - scripts/configure/__fixtures__/golden/vscode/models.yaml
+          - scripts/configure/__fixtures__/golden/vscode/rules/agent-teams.instructions.md
+          - scripts/configure/__fixtures__/golden/vscode/scripts/hooks/pre-tool-use.js
+          - scripts/configure/__fixtures__/golden/vscode/scripts/hooks/session-start.js
+          - scripts/configure/__fixtures__/golden/vscode/scripts/lib/ospec-state.js
+          - scripts/configure/__fixtures__/golden/vscode/skills/sdd-apply/SKILL.md
+          - scripts/configure/__fixtures__/source/models.yaml
+          - scripts/configure/validate-cursor.js
+          - scripts/evals/__fixtures__/apply-design-mismatch-blocked/repo/openspec/config.yaml
+          - scripts/evals/__fixtures__/continue-no-rebrief/repo/openspec/config.yaml
+          - scripts/evals/__fixtures__/document-batched-gate/repo/openspec/config.yaml
+          - scripts/evals/__fixtures__/document-sandbox-violation-blocked/repo/openspec/config.yaml
+          - scripts/evals/__fixtures__/document-update-noop/repo/openspec/config.yaml
+          - scripts/evals/__fixtures__/high-risk-clarify-route/repo/openspec/config.yaml
+          - scripts/evals/__fixtures__/specific-request-no-artifact/repo/openspec/config.yaml
+          - scripts/evals/__fixtures__/vague-request-no-artifact/repo/openspec/config.yaml
+          - scripts/evals/__fixtures__/verify-fail-spec-gap-routes-sdd-spec/repo/openspec/config.yaml
+          - scripts/evals/lib/benchmark.js
+          - scripts/evals/live-driver.js
+          - scripts/evals/safe-export.js
+          - scripts/evals/safe-export.test.js
+          - scripts/hooks/subagent-stop.js
+          - scripts/hooks/subagent-stop.test.js
+          - scripts/lib/model-resolver.js
+          - scripts/lib/quality-review-kpis.js
+          - scripts/lib/quality-review-kpis.test.js
+          - scripts/lib/review-dimensions.js
+          - scripts/lib/review-gate-state.js
+          - scripts/lib/review-lineage.js
+          - scripts/lib/review-taxonomy.js
+          - scripts/lib/review-taxonomy.test.js
+          - scripts/lib/route-dispatcher.js
+          - scripts/lib/route-dispatcher.test.js
+          - scripts/lib/target-profiles/cursor.js
+          - scripts/model-tier-contract.test.js
+          - scripts/review-change-contract.test.js
+          - scripts/review-correction-contract.test.js
+          - scripts/review-dimensions.test.js
+          - scripts/review-gate-state.test.js
+          - scripts/review-lineage.test.js
+          - scripts/selective-4r-parity.test.js
+          - skills/_shared/gate-4r-review.md
+          - skills/_shared/openspec-convention.md
+          - skills/_shared/sdd-phase-common.md
+          - skills/review-change/SKILL.md
+          - skills/review-correction/SKILL.md
+          - skills/review-efficiency/SKILL.md
+          - skills/review-evolution/SKILL.md
+          - skills/review-runtime/SKILL.md
+          - skills/review-trust/SKILL.md
+        diff_hash: "sha256:3e57851850cf9ff2d1e4fe9d28ae03003ccb1b176a8eeecfad6bd63c2edad307"
+        paths_digest: "sha256:f634f106d1c1b0b5cc82ceea8a15e9e1181b2fc71a46cfd50b5d75dd2d7da497"
+        authored_lines: 6958
+        original_changed_lines: 6958
+      lenses:
+        trust:
+          selected: true
+          status: completed
+          request_id: qrg-lens-trust
+          result_digest: "sha256:a1aadc55089c43b13fb8764ba71f19291e259c518c4d294f5b5922dc7cf3b926"
+          result:
+            findings:
+              - severity: CRITICAL
+                summary: "Cursor 4R compatibility agents are generated without readonly:true and remain orchestrator-dispatchable, so they inherit host write defaults."
+                acceptance_criteria: "If review-risk, review-readability, review-reliability, or review-resilience are emitted in the Cursor tree, each MUST have readonly:true, or they MUST NOT be generated nor dispatchable on targets that strip tools."
+          operation: null
+          result_request_id: qrg-lens-trust
+        runtime:
+          selected: true
+          status: completed
+          request_id: qrg-lens-runtime
+          result_digest: "sha256:872dca798b64af592ccdb16fe7573075766a7f6c114803a4377516e8824faf01"
+          result:
+            findings:
+              - severity: WARNING
+                summary: KPI sidecar treats real phase-cost rows missing tokens as host-observed 0 instead of unavailable.
+                acceptance_criteria: "With real O1 phase-cost rows (estimated_*_tokens, no tokens/router_delta), token KPIs MUST be unavailable with a stable reason_code; router_delta_rate MUST use gate audit or be unavailable."
+          operation: null
+          result_request_id: qrg-lens-runtime
+        evolution:
+          selected: true
+          status: completed
+          request_id: qrg-lens-evolution
+          result_digest: "sha256:e963137dd941e4fc3f952e5bc6b37366ae1b6e2d6dd17b3e0b3cab1804db3564"
+          result:
+            findings:
+              - severity: CRITICAL
+                summary: Live orchestrator dispatch contract and docs/sdd-routing.md still hook post-verify on 4r-review-gate after config renamed to quality-review-gate.
+                acceptance_criteria: agents/sdd-orchestrator.agent.md MUST fire the post-verify handler when the live route lists quality-review-gate; 4r-review-gate remains schema-v1 continuation only. docs/sdd-routing.md MUST match openspec/config.yaml gate identity and quality roster.
+          operation: null
+          result_request_id: qrg-lens-evolution
+        efficiency:
+          selected: true
+          status: completed
+          request_id: qrg-lens-efficiency
+          result_digest: "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc"
+          result:
+            findings: []
+          operation: null
+          result_request_id: qrg-lens-efficiency
+      findings:
+        - id: F-cddfd82c8770500a
+          owner: trust
+          severity: CRITICAL
+          summary: "Cursor 4R compatibility agents are generated without readonly:true and remain orchestrator-dispatchable, so they inherit host write defaults."
+          acceptance_criteria: "If review-risk, review-readability, review-reliability, or review-resilience are emitted in the Cursor tree, each MUST have readonly:true, or they MUST NOT be generated nor dispatchable on targets that strip tools."
+          blocking: true
+          resolution: resolved
+        - id: F-6d5ee4e9cc36b68c
+          owner: runtime
+          severity: WARNING
+          summary: KPI sidecar treats real phase-cost rows missing tokens as host-observed 0 instead of unavailable.
+          acceptance_criteria: "With real O1 phase-cost rows (estimated_*_tokens, no tokens/router_delta), token KPIs MUST be unavailable with a stable reason_code; router_delta_rate MUST use gate audit or be unavailable."
+          blocking: false
+          resolution: advisory
+        - id: F-ffae71d2056f3f02
+          owner: evolution
+          severity: CRITICAL
+          summary: Live orchestrator dispatch contract and docs/sdd-routing.md still hook post-verify on 4r-review-gate after config renamed to quality-review-gate.
+          acceptance_criteria: agents/sdd-orchestrator.agent.md MUST fire the post-verify handler when the live route lists quality-review-gate; 4r-review-gate remains schema-v1 continuation only. docs/sdd-routing.md MUST match openspec/config.yaml gate identity and quality roster.
+          blocking: true
+          resolution: resolved
+      findings_digest: "sha256:70dccf4c6707e86163275a3c0cf7e21b0f6bbc51be2cfc047c0ea6b9c0c32027"
+      correction_budget:
+        limit_lines: 200
+        used_lines: 54
+        failed_attempts: 0
+        max_failed_attempts: 3
+      correction_history:
+        - attempt: 1
+          request_id: qrg-correct-criticals-001
+          finding_ids:
+            - F-cddfd82c8770500a
+            - F-ffae71d2056f3f02
+          paths:
+            - agents/sdd-orchestrator.agent.md
+            - docs/sdd-routing.md
+            - scripts/configure/validate-cursor.js
+            - scripts/lib/target-profiles/cursor.js
+          base_candidate_id: "sha256:cad271fdbfadb3b392df4c9ed6ef38ac92e53bb208274f7d6674456862970de5"
+          forecast_lines: 60
+          record_request_id: qrg-record-criticals-001
+          actual_changed_lines: 54
+          corrected_candidate_id: "sha256:15ba963708aee6a87ef4b16d214a3d0d2ccf5dae8fd533c5051ce568388a5724"
+          status: passed
+      validation_history:
+        - request_id: qrg-validate-criticals-001
+          request_digest: "sha256:daf1895361501d38975b9e4e7c2057f6ca340df4a279d8d0463bd66fa0d6db20"
+          outcomes:
+            - id: F-cddfd82c8770500a
+              status: resolved
+            - id: F-ffae71d2056f3f02
+              status: resolved
+          regression:
+            detected: false
+            evidence:
+              - "node --test validate-cursor.test.js target-transform.test.js: 106 pass 0 fail"
+              - "cursor transform of four LEGACY_V1 review agents emits readonly:true"
+          follow_up_count: 0
+          result: passed
+      follow_ups: []
+      pending_operation: null
+      pending_correction: null
+      terminal_reason: all-frozen-findings-resolved

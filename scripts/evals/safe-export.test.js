@@ -92,7 +92,7 @@ test("safe export manifest contains only synthetic allowlisted files and determi
   assert.equal(first.benchmark_contract.expected_assumptions, 0);
   assert.deepEqual(first.benchmark_contract.allowed_host_assumptions, []);
   const reviewed = buildSafeExportManifest("security-sensitive-change");
-  assert.deepEqual(reviewed.benchmark_contract.allowed_host_assumptions.map(({ code, phase, max }) => ({ code, phase, max })), [{ code: "dispatch-identity-unavailable", phase: "4r-review-gate", max: 1 }]);
+  assert.deepEqual(reviewed.benchmark_contract.allowed_host_assumptions.map(({ code, phase, max }) => ({ code, phase, max })), [{ code: "dispatch-identity-unavailable", phase: "quality-review-gate", max: 1 }]);
   assert.match(reviewed.benchmark_contract.allowed_host_assumptions[0].basis_sha256, /^[a-f0-9]{64}$/);
   assert.equal(first.git.synthetic_git, true);
   assert.equal(first.git.initialized, false);

@@ -17,6 +17,9 @@ test("review-correction source defines targeted-only exact outcome contract", ()
   assert.match(contract, /MUST NOT.*new.*block/i);
   assert.match(contract, /follow-ups?.*non-blocking/i);
   assert.match(contract, /regression.*evidence/i);
+  assert.match(contract, /dual-schema|schema_version: 1|schema_version: 2/i);
+  assert.match(skill, /trust.*runtime.*evolution.*efficiency/s);
+  assert.match(skill, /risk.*reliability.*resilience.*readability/s);
   assert.match(models, /^\s*review-correction: (?:premium|default|cheap)$/m);
 });
 

@@ -6,7 +6,7 @@ tools:
   grep: true
   glob: true
 mode: primary
-model: openai/gpt-5.6-terra
+model: openai/gpt-5.6-luna
 ---
 
 # SDD Orchestrator

@@ -237,7 +237,7 @@ But not every change needs the full cycle. The orchestrator evaluates the routin
 Some routes include gates that block progress until resolved:
 
 - **clarify** — the orchestrator detects ambiguity and requests clarifications before continuing.
-- **4r-review-gate** — after a successful `sdd-verify`, evaluates whether the change requires human review.
+- **quality-review-gate** — after a successful `sdd-verify`, runs deterministic quality classification (Trust, Runtime, Evolution, Efficiency) and bounded review lineage. Legacy **`4r-review-gate`** applies only to in-flight `schema_version: 1` lineages.
 - **impact** — in federated routes, evaluates cross-repo impact before implementing.
 - **brownfield-advisory** — reports baseline status before executing.
 

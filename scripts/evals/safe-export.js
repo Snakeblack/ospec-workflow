@@ -34,19 +34,19 @@ routing:
     conditions:
       explicit_bugfix_intent: true
     phases: [sdd-explore, sdd-tasks, sdd-apply, sdd-verify]
-    gates: [4r-review-gate]
+    gates: [quality-review-gate]
   - name: refactor
     classification: [small, normal]
     conditions:
       explicit_refactor_intent: true
     phases: [sdd-design, sdd-tasks, sdd-apply, sdd-verify]
-    gates: [4r-review-gate]
+    gates: [quality-review-gate]
   - name: standard
     classification: [normal, high-risk]
     conditions:
       project.status: active
     phases: [sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-apply, sdd-verify]
-    gates: [clarify, 4r-review-gate]
+    gates: [clarify, quality-review-gate]
   - name: lite
     classification: [trivial, small]
     conditions:
@@ -106,7 +106,7 @@ const PHASE_ARTIFACTS = Object.freeze({
 });
 const LEGACY_HOST_ASSUMPTION = Object.freeze({
   code: "dispatch-identity-unavailable",
-  phase: "4r-review-gate",
+  phase: "quality-review-gate",
   statement_normalized: "the four phase dispatches/results represent propose, tasks, apply, and verify; the four reviewer results are the primary 4r outcomes and are corroborated by workspace-local evidence.",
   basis_normalized: "state.yaml, phase artifacts, reviewer result envelopes, and .eval-capture/codex-events.jsonl",
 });

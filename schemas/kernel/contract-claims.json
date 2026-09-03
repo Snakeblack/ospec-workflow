@@ -810,6 +810,37 @@
         ]
       },
       "command_shapes": []
+    },
+    "architecture-alternative": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "alternative_id",
+        "candidate_id",
+        "classification",
+        "summary"
+      ],
+      "enum_values": {
+        "classification": ["no-op", "local", "extend-pattern", "new-abstraction"]
+      },
+      "command_shapes": []
+    },
+    "complexity-architecture-delta": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "report_id",
+        "candidate_id",
+        "canonical_input_id",
+        "authority",
+        "dimensions",
+        "alternatives",
+        "signals"
+      ],
+      "enum_values": {
+        "authority": ["advisory"]
+      },
+      "command_shapes": []
     }
   }
 }

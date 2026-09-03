@@ -11,6 +11,20 @@
 const OMIT = Symbol("model-omit");
 const INHERIT = "inherit";
 const KNOWN_TIERS = ["premium", "default", "cheap"];
+const REQUIRED_QUALITY_REVIEW_AGENTS = [
+  "review-change",
+  "review-correction",
+  "review-trust",
+  "review-runtime",
+  "review-evolution",
+  "review-efficiency",
+];
+const LEGACY_QUALITY_REVIEW_AGENTS = [
+  "review-risk",
+  "review-reliability",
+  "review-resilience",
+  "review-readability",
+];
 const REQUIRED_SDD_AGENTS = [
   "sdd-apply",
   "sdd-archive",
@@ -77,6 +91,9 @@ function validateSddModelPolicy(models) {
     const actual = agents[agent];
     if (actual === undefined) errors.push({ code: "missing-agent", agent });
   }
+  for (const agent of REQUIRED_QUALITY_REVIEW_AGENTS) {
+    if (agents[agent] === undefined) errors.push({ code: "missing-agent", agent });
+  }
   for (const [agent, actual] of Object.entries(agents).sort(([left], [right]) => left.localeCompare(right))) {
     if (!KNOWN_TIERS.includes(actual)) errors.push({ code: "unknown-tier", agent, actual });
   }
@@ -95,6 +112,8 @@ module.exports = {
   validateSddModelPolicy,
   sddAgentsByTier,
   REQUIRED_SDD_AGENTS,
+  REQUIRED_QUALITY_REVIEW_AGENTS,
+  LEGACY_QUALITY_REVIEW_AGENTS,
   KNOWN_TIERS,
   OMIT,
 };

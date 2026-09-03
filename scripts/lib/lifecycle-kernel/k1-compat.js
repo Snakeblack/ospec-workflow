@@ -182,6 +182,9 @@ function listK1SchemaFiles(rootDir) {
     // K6c additive challenge-plan and challenge-result families
     "schemas/kernel/challenge-plan/",
     "schemas/kernel/challenge-result/",
+    // K6d additive advisory contracts
+    "schemas/kernel/architecture-alternative/",
+    "schemas/kernel/complexity-architecture-delta/",
     // Evolutionary catalog registries (excluded from K1 frozen baseline pin)
     "schemas/kernel/manifest.json",
     "schemas/kernel/contract-claims.json",

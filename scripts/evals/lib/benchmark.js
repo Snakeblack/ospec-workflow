@@ -11,7 +11,7 @@ const {
 
 const TOKEN_FIELDS = ["estimated_prompt_tokens", "estimated_artifact_tokens", "estimated_tool_output_tokens", "estimated_output_tokens"];
 const VERIFY_SEVERITIES = ["critical", "warning", "suggestion"];
-const FOUR_R_SEVERITIES = ["blocker", "critical", "warning", "suggestion"];
+const QUALITY_REVIEW_SEVERITIES = ["blocker", "critical", "warning", "suggestion"];
 
 function nonNegativeInteger(value, label) {
   if (!Number.isInteger(value) || value < 0) throw new Error(`${label} must be a non-negative integer.`);
@@ -29,9 +29,9 @@ function readJson(filePath, label) {
 function loadBenchmarkObservation(filePath) {
   const value = readJson(filePath, "Benchmark observation");
   const verify = value.defects && value.defects.verify;
-  const fourR = value.defects && value.defects.four_r;
+  const qualityReview = value.defects && value.defects.quality_review;
   const questions = nonNegativeInteger(value.questions_asked, "questions_asked");
-  if (!verify || !fourR) throw new Error("defects.verify and defects.four_r are required.");
+  if (!verify || !qualityReview) throw new Error("defects.verify and defects.quality_review are required.");
   const provenance = value.provenance;
   if (!provenance || typeof provenance !== "object") throw new Error("Live provenance is required.");
   if (provenance.driver !== "codex-exec") throw new Error("provenance.driver must be codex-exec.");
@@ -48,8 +48,8 @@ function loadBenchmarkObservation(filePath) {
     throw new Error("provenance.completed_at must be an ISO timestamp.");
   }
   const verifyDefects = VERIFY_SEVERITIES.reduce((sum, key) => sum + nonNegativeInteger(verify[key], `defects.verify.${key}`), 0);
-  const fourRDefects = FOUR_R_SEVERITIES.reduce((sum, key) => sum + nonNegativeInteger(fourR[key], `defects.four_r.${key}`), 0);
-  return { questions_asked: questions, verify_defects: verifyDefects, four_r_defects: fourRDefects, defects_total: verifyDefects + fourRDefects, provenance };
+  const qualityReviewDefects = QUALITY_REVIEW_SEVERITIES.reduce((sum, key) => sum + nonNegativeInteger(qualityReview[key], `defects.quality_review.${key}`), 0);
+  return { questions_asked: questions, verify_defects: verifyDefects, quality_review_defects: qualityReviewDefects, defects_total: verifyDefects + qualityReviewDefects, provenance };
 }
 
 function parseCodexTranscript(raw) {
@@ -254,7 +254,7 @@ function buildRunBenchmarkRow({ profile, route, transcript, durationMs, observat
       ? { present: true, status: nativeO1.status || "available", sha256: nativeO1.sha256, rows: nativeO1.rows }
       : nativeO1 ? { present: false, status: "unavailable", warning: nativeO1.warning } : { present: false },
     questions_asked: observation.questions_asked, verify_defects: observation.verify_defects,
-    four_r_defects: observation.four_r_defects, defects_total: observation.defects_total,
+    quality_review_defects: observation.quality_review_defects, defects_total: observation.defects_total,
   };
 }
 
@@ -266,15 +266,15 @@ function renderBaseline(rows, options = {}) {
   const generatedAt = options.generatedAt || new Date().toISOString();
   const revision = options.gitRevision || "unknown";
   if (!rows.every((row) => row.measurement_scope === "run" && row.phase_attribution === "none")) throw new Error("Baseline renderer accepts run-level rows only.");
-  const lines = ["# Experimental run-level benchmark", "", `Generated: ${generatedAt}`, `Git revision: \`${revision}\``, "Measurement scope: complete run; phase attribution: none.", "Token source: terminal `turn.completed.usage`; O1 is supplementary when present.", "Subagent coverage: unknown unless the host reports it explicitly.", "", "| Profile | Route | Input tokens | Output tokens | Total tokens | Duration ms | Questions | Verify defects | 4R defects | Total defects |", "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|"];
-  for (const row of [...rows].sort((a, b) => a.profile.localeCompare(b.profile))) lines.push(`| ${row.profile} | ${row.route} | ${row.input_tokens} | ${row.output_tokens} | ${row.total_tokens} | ${row.duration_ms} | ${row.questions_asked} | ${row.verify_defects} | ${row.four_r_defects} | ${row.defects_total} |`);
+  const lines = ["# Experimental run-level benchmark", "", `Generated: ${generatedAt}`, `Git revision: \`${revision}\``, "Measurement scope: complete run; phase attribution: none.", "Token source: terminal `turn.completed.usage`; O1 is supplementary when present.", "Subagent coverage: unknown unless the host reports it explicitly.", "", "| Profile | Route | Input tokens | Output tokens | Total tokens | Duration ms | Questions | Verify defects | Quality-review defects | Total defects |", "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|"];
+  for (const row of [...rows].sort((a, b) => a.profile.localeCompare(b.profile))) lines.push(`| ${row.profile} | ${row.route} | ${row.input_tokens} | ${row.output_tokens} | ${row.total_tokens} | ${row.duration_ms} | ${row.questions_asked} | ${row.verify_defects} | ${row.quality_review_defects} | ${row.defects_total} |`);
   return `${lines.join("\n")}\n`;
 }
 
 const REFERENCE_SCHEMA = "ospec-fixed-policy-reference-baseline/v1";
 const REFERENCE_ORIGINS = new Set(["fresh-live", "recovered-live", "compatible-live-cache"]);
 const REFERENCE_IDENTITY_FIELDS = ["harness_version", "git_revision", "runtime_sha256", "working_tree_identity", "installed_runtime_identity", "target_identity", "target_version", "model_identity", "effort_identity"];
-const REFERENCE_METRIC_FIELDS = ["input_tokens", "output_tokens", "total_tokens", "duration_ms", "questions_asked", "verify_defects", "four_r_defects", "defects_total"];
+const REFERENCE_METRIC_FIELDS = ["input_tokens", "output_tokens", "total_tokens", "duration_ms", "questions_asked", "verify_defects", "quality_review_defects", "defects_total"];
 
 function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
@@ -339,9 +339,9 @@ function validReferenceGeneratedAt(value) {
 function deriveReferenceQuality(evidence) {
   if (evidence?.state_status !== "verified") return null;
   const verify = evidence.verify?.outcome;
-  const fourR = evidence.four_r?.outcome;
-  if (!["PASS", "PASS WITH WARNINGS"].includes(verify) || !["PASS", "PASS WITH WARNINGS", "NOT_RUN"].includes(fourR)) return null;
-  return verify === "PASS" && fourR === "PASS" ? "PASS" : "PASS_WITH_WARNINGS";
+  const qualityReview = evidence.quality_review?.outcome;
+  if (!["PASS", "PASS WITH WARNINGS"].includes(verify) || !["PASS", "PASS WITH WARNINGS", "NOT_RUN"].includes(qualityReview)) return null;
+  return verify === "PASS" && qualityReview === "PASS" ? "PASS" : "PASS_WITH_WARNINGS";
 }
 
 function validateReferenceCandidate(candidate, options = {}) {
@@ -414,8 +414,8 @@ function renderReferenceBaseline(candidate, options = {}) {
   const errors = validateReferenceCandidate(candidate, options);
   if (errors.length) throw new Error(`Reference candidate rejected: ${errors.join(", ")}`);
   const payload = canonicalJson(candidate);
-  const lines = ["# Fixed-policy reference baseline", "", `Baseline ID: \`${candidate.baseline_id}\``, `Generated: ${candidate.generated_at}`, "Policy: `fixed`.", "", "```json", payload, "```", "", "| Profile | Quality | Input tokens | Output tokens | Total tokens | Duration ms | Questions | Verify defects | 4R defects | Total defects |", "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|"];
-  for (const row of candidate.rows) { const m = row.metrics; lines.push(`| ${row.profile} | ${row.quality_verdict} | ${m.input_tokens} | ${m.output_tokens} | ${m.total_tokens} | ${m.duration_ms} | ${m.questions_asked} | ${m.verify_defects} | ${m.four_r_defects} | ${m.defects_total} |`); }
+  const lines = ["# Fixed-policy reference baseline", "", `Baseline ID: \`${candidate.baseline_id}\``, `Generated: ${candidate.generated_at}`, "Policy: `fixed`.", "", "```json", payload, "```", "", "| Profile | Quality | Input tokens | Output tokens | Total tokens | Duration ms | Questions | Verify defects | Quality-review defects | Total defects |", "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|"];
+  for (const row of candidate.rows) { const m = row.metrics; lines.push(`| ${row.profile} | ${row.quality_verdict} | ${m.input_tokens} | ${m.output_tokens} | ${m.total_tokens} | ${m.duration_ms} | ${m.questions_asked} | ${m.verify_defects} | ${m.quality_review_defects} | ${m.defects_total} |`); }
   lines.push("", "Threat model: cooperative correlation and tamper detection; this artifact is not cryptographic proof of execution.", "");
   return lines.join("\n");
 }

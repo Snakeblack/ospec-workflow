@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "change": "quality-review-gate",
+  "source_fingerprint": "sha256:46dcfde34c0c359457b9070f22aaab9648241304ba68ee1506c7a7bcda24d896",
+  "spec_writes": [
+    {
+      "domain": "agents",
+      "source_delta": "prepared-specs/agents/spec.md",
+      "target": "openspec/specs/agents/spec.md",
+      "target_before_sha256": "sha256:4268c2edeef91121daa68524924f02fc8e976adfc3b31e6b5977d6c59718377f",
+      "content_sha256": "sha256:66ac8f8ca9afd7a6ca5a7ff548352fbfb7eb9c016eaa68264f5b9630ce15f4e3"
+    },
+    {
+      "domain": "skills",
+      "source_delta": "prepared-specs/skills/spec.md",
+      "target": "openspec/specs/skills/spec.md",
+      "target_before_sha256": "sha256:01a19792c945589bcbf37d20efd0e5b5f241a41d2a156cb922e6c4e77d943803",
+      "content_sha256": "sha256:00f09a7a6b0195161ad75b356296a494e777b39ac66249580989130c33f24ea1"
+    },
+    {
+      "domain": "routing",
+      "source_delta": "prepared-specs/routing/spec.md",
+      "target": "openspec/specs/routing/spec.md",
+      "target_before_sha256": "sha256:bae13e9685eff1448331a5380d172e08b19c26e5be52ec6d7e8cd5ec62dfa888",
+      "content_sha256": "sha256:3c4f4e315cad8e7835fc6771ac9a6bf3210cf32035382f7bda331538abf5e110"
+    },
+    {
+      "domain": "generator",
+      "source_delta": "prepared-specs/generator/spec.md",
+      "target": "openspec/specs/generator/spec.md",
+      "target_before_sha256": "sha256:0bee4c0d450bdf990fc8ccacb3c6a79de746055e447c58e014f0673adb474ce4",
+      "content_sha256": "sha256:e9d1c36c94c4c15208f5d874b7cfe7bb1a8c1081d2c2e26c733fd0480667753c"
+    },
+    {
+      "domain": "hooks",
+      "source_delta": "prepared-specs/hooks/spec.md",
+      "target": "openspec/specs/hooks/spec.md",
+      "target_before_sha256": "sha256:0c9af5bd4d820d8227f0df2a7f7e6875db08f4e64f35db20204b58fc578938c1",
+      "content_sha256": "sha256:189622cf249f1e24cce7fedab2b0fb0830456606aae9eb784d8087e17e2970df"
+    },
+    {
+      "domain": "orchestrator-evals",
+      "source_delta": "prepared-specs/orchestrator-evals/spec.md",
+      "target": "openspec/specs/orchestrator-evals/spec.md",
+      "target_before_sha256": "sha256:76c2bf00d6608474a898462d4197057847f08927a496c58d820065dc45dd041a",
+      "content_sha256": "sha256:3eb9a6e5055570788baeb982adcdba37262d4eba318f83a232315a0d567dd565"
+    },
+    {
+      "domain": "context-measurement",
+      "source_delta": "prepared-specs/context-measurement/spec.md",
+      "target": "openspec/specs/context-measurement/spec.md",
+      "target_before_sha256": "sha256:4f4fb9adb3c66388bfe799b4d5d0ecd8aa2650bb25a558b070e1710b23765a95",
+      "content_sha256": "sha256:98ad8c32f4fb74b91c203b4422c8686b9f96f45fb37c6fea2a1a84e4c291bfd6"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001-versioned-canonical-gate-identity.md",
+      "target": "docs/adr/adr-20260903-001-versioned-canonical-gate-identity.md",
+      "content_sha256": "sha256:4dfb0ca41d6e672b39b2a5065bc44b7580ac5d36eb4d22d415c48ada86747ac9"
+    },
+    {
+      "source": "decisions/adr-002-deterministic-first-residual-router.md",
+      "target": "docs/adr/adr-20260903-002-deterministic-first-residual-router.md",
+      "content_sha256": "sha256:0fe1aaaa0d29388ce270c1ab3eef9adbd2e72c33f0d9f424965874af3826e667"
+    },
+    {
+      "source": "decisions/adr-003-dual-schema-lineage-migration.md",
+      "target": "docs/adr/adr-20260903-003-dual-schema-lineage-migration.md",
+      "content_sha256": "sha256:b9d3736cafa3da4524fe6fa5e59cc2de65af2413b4e924ee8e5c428734e17ad9"
+    },
+    {
+      "source": "decisions/adr-004-per-capability-attribution.md",
+      "target": "docs/adr/adr-20260903-004-per-capability-attribution.md",
+      "content_sha256": "sha256:92a6e65f40e85f6841edeb0b8db1fb909adbae2611c4fb698f7900ae9c35da66"
+    },
+    {
+      "source": "decisions/adr-005-cx0-sidecar-kpis.md",
+      "target": "docs/adr/adr-20260903-005-cx0-sidecar-kpis.md",
+      "content_sha256": "sha256:b242e21b70cc6aa28ec78547e1d93b62b82ae1bc19f33e97ef95784ab5eb7ef5"
+    }
+  ],
+  "archive_inventory": [
+    ".quality-gate-plan.json",
+    ".verify-lineage-candidate-15d249d04066d9168be9510d0bcfbdf9cf906a7564500fa81386b61db80a7ae4.json",
+    ".verify-lineage-candidate-fb45bb4bd5e7ee489fdd202c38b6562f92efa3c870950c38a9f82ce959a56da0.json",
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001-versioned-canonical-gate-identity.md",
+    "decisions/adr-002-deterministic-first-residual-router.md",
+    "decisions/adr-003-dual-schema-lineage-migration.md",
+    "decisions/adr-004-per-capability-attribution.md",
+    "decisions/adr-005-cx0-sidecar-kpis.md",
+    "design.md",
+    "prepared-specs/agents/spec.md",
+    "prepared-specs/context-measurement/spec.md",
+    "prepared-specs/generator/spec.md",
+    "prepared-specs/hooks/spec.md",
+    "prepared-specs/orchestrator-evals/spec.md",
+    "prepared-specs/routing/spec.md",
+    "prepared-specs/skills/spec.md",
+    "proposal.md",
+    "specs/agents/spec.md",
+    "specs/context-measurement/spec.md",
+    "specs/generator/spec.md",
+    "specs/hooks/spec.md",
+    "specs/orchestrator-evals/spec.md",
+    "specs/routing/spec.md",
+    "specs/skills/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [
+    {
+      "id": "verify-discovery-005",
+      "source": "sdd-verify",
+      "severity": "WARNING",
+      "owner": "orchestrator-evals",
+      "summary": "REQ-orchestrator-evals-005 remaining publication/adaptive scenarios were not re-executed as live extended runs; evidence remains inspection.",
+      "disposition": "follow-up"
+    },
+    {
+      "id": "verify-discovery-phase-cost",
+      "source": "sdd-verify",
+      "severity": "WARNING",
+      "owner": "context-measurement",
+      "summary": "REQ-context-measurement-005 legacy phase-cost readability retained as SHOULD-strength inspection evidence only.",
+      "disposition": "follow-up"
+    },
+    {
+      "id": "verify-discovery-live-extended",
+      "source": "sdd-verify",
+      "severity": "WARNING",
+      "owner": "orchestrator-evals",
+      "summary": "Live extended benchmark not re-run at targeted recheck; discovery WARNING retained.",
+      "disposition": "follow-up"
+    },
+    {
+      "id": "F-6d5ee4e9cc36b68c",
+      "source": "quality-review-gate",
+      "severity": "WARNING",
+      "owner": "runtime",
+      "summary": "KPI sidecar treats real phase-cost rows missing tokens as host-observed 0 instead of unavailable.",
+      "disposition": "advisory-follow-up"
+    },
+    {
+      "id": "L001",
+      "source": "sdd-verify",
+      "severity": "follow-up",
+      "owner": "orchestrator-evals",
+      "summary": "Eval unit fixtures still use four_r_defects in benchmark.test.js and live-driver.test.js; scripts/evals/README.md still mentions 4R defects.",
+      "disposition": "non-blocking-follow-up"
+    }
+  ],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

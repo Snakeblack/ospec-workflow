@@ -29,6 +29,26 @@ const ALLOWED_HOOK_EVENTS = new Set([
 const REVIEW_AGENTS = new Set([
   "review-change",
   "review-correction",
+  "review-trust",
+  "review-runtime",
+  "review-evolution",
+  "review-efficiency",
+  "review-risk",
+  "review-readability",
+  "review-reliability",
+  "review-resilience",
+]);
+
+const REQUIRED_READONLY_REVIEW_AGENTS = new Set([
+  "review-change",
+  "review-correction",
+  "review-trust",
+  "review-runtime",
+  "review-evolution",
+  "review-efficiency",
+]);
+
+const COMPAT_READONLY_REVIEW_AGENTS = new Set([
   "review-risk",
   "review-readability",
   "review-reliability",
@@ -125,7 +145,7 @@ function validateAgents(root, errors, fsImpl = fs) {
     }
     const nameField = getField(fm, "name");
     const name = nameField ? nameField.value : path.basename(file, ".md");
-    if (REVIEW_AGENTS.has(name) || name.startsWith("review-")) {
+    if (REQUIRED_READONLY_REVIEW_AGENTS.has(name) || COMPAT_READONLY_REVIEW_AGENTS.has(name)) {
       const readonly = getField(fm, "readonly");
       if (!readonly || readonly.value !== "true") {
         addError(errors, `${file} must include readonly: true`);

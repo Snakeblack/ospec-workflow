@@ -1,7 +1,49 @@
 ---
 title: Known Issues
-last_updated: 2026-09-01
+last_updated: 2026-09-03
 ---
+
+## Live eval defect reports still expose 4R defects instead of quality-review metrics
+- severity: BLOCKER
+- area: scripts/evals/live-driver.js and scripts/evals/lib/benchmark.js
+- workaround: rename live defect metrics from four_r / 4R defects to quality-review; keep historical archive fixtures on v1 strings
+- change: quality-review-gate
+- date: 2026-09-03
+
+## Go SubagentStop phase-cost test still expects 4R agent recording after quality allowlist migration
+- severity: BLOCKER
+- area: internal/hooks/subagentstop_test.go
+- workaround: update TestSubagentStop_ReviewPhaseCostAllowlistAndRelaunch to the six quality names; assert review-reliability is ignored fail-safely
+- change: quality-review-gate
+- date: 2026-09-03
+
+## KPI sidecar omits five spec-required Quality Review KPI names and uses non-CX0 source enums
+- severity: BLOCKER
+- area: scripts/lib/quality-review-kpis.js and scripts/lib/quality-review-kpis.test.js
+- workaround: emit semantic_router_invocation_rate, specialists_per_gate, zero_model_gate_rate, full_review_rate, tokens_per_quality_gate, tokens_per_finding, router_delta_rate with host-observed|runtime-derived|estimated sources; run the frozen V001 recipe
+- change: quality-review-gate
+- date: 2026-09-03
+
+## Active architecture note in harness-evolution.md was not applied
+- severity: WARNING
+- area: docs/roadmaps/harness-evolution.md
+- workaround: add an active Quality Review Gate note without rewriting historical 4R closures
+- change: quality-review-gate
+- date: 2026-09-03
+
+## Sufficiency-matrix cases lack committed tests
+- severity: WARNING
+- area: scripts/review-dimensions.test.js
+- workaround: add RED/GREEN coverage for 4 attributed, 4 with 2 unattributed, 7 attributed, and network-retry selects runtime only
+- change: quality-review-gate
+- date: 2026-09-03
+
+## REQ-orchestrator-evals-005 publication paths were not re-run as live extended
+- severity: WARNING
+- area: scripts/evals/live-driver.js
+- workaround: none beyond V003 label fix; do not treat smoke as the 9/9 baseline
+- change: quality-review-gate
+- date: 2026-09-03
 
 ## REQ-VL-K3-001 lacks an exact test-side traceability tag
 - severity: WARNING

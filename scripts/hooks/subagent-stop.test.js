@@ -862,7 +862,7 @@ test("persistPhaseCost ignores a non-sdd-* agent", async (t) => {
 
 test("persistPhaseCost records only exact review lifecycle agents with UTF-8 fallbacks and successful-phase relaunches", async (t) => {
   const { workspace } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
-  for (const agent_type of ["review-change", "review-risk", "review-readability", "review-reliability", "review-resilience", "review-correction"]) {
+  for (const agent_type of ["review-change", "review-trust", "review-runtime", "review-evolution", "review-efficiency", "review-correction"]) {
     await runSubagentStop({ input: {
       cwd: workspace, agent_type, status: "success",
       telemetry: { prompt: "café", artifact: "文", tool_output: "abc", output: "z" },
@@ -872,7 +872,7 @@ test("persistPhaseCost records only exact review lifecycle agents with UTF-8 fal
   await runSubagentStop({ input: { cwd: workspace, agent_type: "review-correction", status: "success", telemetry: { prompt: "café" } } });
   const records = await readPhaseCosts(workspace, "strict-result-envelope");
   assert.equal(records.length, 7);
-  assert.deepEqual(records.slice(0, 6).map((record) => record.phase), ["review-change", "review-risk", "review-readability", "review-reliability", "review-resilience", "review-correction"]);
+  assert.deepEqual(records.slice(0, 6).map((record) => record.phase), ["review-change", "review-trust", "review-runtime", "review-evolution", "review-efficiency", "review-correction"]);
   assert.deepEqual(records.slice(0, 6).map((record) => [record.estimated_prompt_tokens, record.estimated_artifact_tokens, record.estimated_tool_output_tokens, record.estimated_output_tokens, record.duration_ms]), Array(6).fill([2, 1, 1, 1, 0]));
   assert.equal(records.at(-1).phase, "review-correction");
   assert.equal(records.at(-1).relaunch, true, "only a prior successful row for the same review phase relaunches");

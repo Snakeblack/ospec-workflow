@@ -50,6 +50,14 @@ function treeDigest(root) {
   return crypto.createHash("sha256").update(rows.join("\n")).digest("hex");
 }
 
+test("REQ-generator-011 live quality roster mappings are required", () => {
+  const models = parseModels(MODELS_TEXT);
+  for (const agent of ["review-change", "review-correction", "review-trust", "review-runtime", "review-evolution", "review-efficiency"]) {
+    assert.ok(models.agents[agent], `${agent} must be mapped in models.yaml`);
+  }
+  assert.ok(models.agents["review-risk"], "legacy review-risk remains allowed");
+});
+
 test("REQ-generator-005 models.yaml is the agent-tier source of truth with structural guards", () => {
   const models = parseModels(MODELS_TEXT);
   const partition = sddAgentsByTier(models.agents);

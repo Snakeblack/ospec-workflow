@@ -934,7 +934,7 @@ func derivePhaseKey(agentName string) string {
 		return strings.TrimPrefix(agentName, "sdd-")
 	}
 	switch agentName {
-	case "review-change", "review-risk", "review-reliability", "review-resilience", "review-readability", "review-correction":
+	case "review-change", "review-trust", "review-runtime", "review-evolution", "review-efficiency", "review-correction":
 		return agentName
 	default:
 		return ""

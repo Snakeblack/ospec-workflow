@@ -27,9 +27,11 @@ agente alucine o se trabe. Ante la duda, el prompt generado usa el mínimo comú
 
 - **Gates sin question-tool**: pregunta de chat estructurada — numerada, con
   opciones cerradas y una recomendada — y espera de respuesta antes de continuar.
-- **4R sin paralelismo**: los 4 reviewers corren secuenciales (ver
-  `skills/_shared/gate-4r-review.md`, Dispatch). Con paralelismo (Claude Code),
-  los 4 se despachan a la vez — es el gate más caro del flujo y la latencia baja ~4x.
+- **4R / quality review sin paralelismo**: los reviewers del gate activo corren secuenciales (ver
+  `skills/_shared/gate-4r-review.md`, Dispatch). Live v2 usa `review-trust`, `review-runtime`,
+  `review-evolution`, `review-efficiency`; legacy v1 conserva los cuatro 4R. Con paralelismo
+  (Claude Code), los cuatro se despachan a la vez — es el gate más caro del flujo y la latencia
+  baja ~4x.
 - **Sin background tasks**: los batches largos de apply se trocean en dispatches
   síncronos; el orquestador no debe prometer seguimiento en segundo plano.
 

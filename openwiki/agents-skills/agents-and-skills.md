@@ -19,11 +19,13 @@ flowchart TD
     Orch --> V["sdd-verify (Verificador de tests)"]
     Orch --> Arc["sdd-archive (Historiador)"]
     
-    V --> R1["review-risk (Seguridad)"]
-    V --> R2["review-readability (Legibilidad)"]
-    V --> R3["review-reliability (Fiabilidad)"]
-    V --> R4["review-resilience (Resiliencia)"]
+    V --> R1["review-trust (Trust)"]
+    V --> R2["review-runtime (Runtime)"]
+    V --> R3["review-evolution (Evolution)"]
+    V --> R4["review-efficiency (Efficiency)"]
 ```
+
+Live routes use the quality v2 roster above. Legacy **`review-risk` / `review-readability` / `review-reliability` / `review-resilience`** remain for archived or in-flight `schema_version: 1` lineages only.
 
 ---
 

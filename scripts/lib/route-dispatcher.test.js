@@ -52,7 +52,7 @@ const BUGFIX_ROUTE = {
   classification: ["small", "normal"],
   conditions: { explicit_bugfix_intent: "true" },
   phases: ["sdd-explore", "sdd-tasks", "sdd-apply", "sdd-verify", "sdd-archive"],
-  gates: ["4r-review-gate"],
+  gates: ["quality-review-gate"],
   description: "Robust explore-fix flow with verification and archive.",
   cost: "medium",
 };
@@ -80,7 +80,7 @@ const STANDARD_ROUTE = {
     "sdd-verify",
     "sdd-archive",
   ],
-  gates: ["clarify", "4r-review-gate"],
+  gates: ["clarify", "quality-review-gate"],
   description: "Full SDD for normal/high-risk changes on active projects.",
   cost: "high",
 };
@@ -128,6 +128,7 @@ test("KNOWN_GATES includes all expected gate names", () => {
     "review-workload",
     "impact",
     "brownfield-advisory",
+    "quality-review-gate",
     "4r-review-gate",
   ];
 

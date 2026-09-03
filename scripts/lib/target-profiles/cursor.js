@@ -24,6 +24,10 @@ module.exports = {
     agents: [
       "review-change",
       "review-correction",
+      "review-trust",
+      "review-runtime",
+      "review-evolution",
+      "review-efficiency",
       "review-risk",
       "review-readability",
       "review-reliability",
