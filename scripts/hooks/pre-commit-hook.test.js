@@ -436,3 +436,87 @@ test("allows commit when secret exists in working tree but staged blob in index 
   assert.equal(exitCode, 0);
 });
 
+test("blocks commit and emits error banner when getStagedContent throws during secret scanning [REQ-agent-shield-security-001]", (t) => {
+  let exitCode = null;
+  t.mock.method(process, "exit", (code) => {
+    exitCode = code;
+  });
+
+  const errorCalls = [];
+  t.mock.method(console, "error", (...args) => {
+    errorCalls.push(args);
+  });
+
+  t.mock.method(child_process, "spawnSync", (cmd, args) => {
+    if (cmd === "git" && args.includes("--cached")) {
+      return { status: 0, stdout: "unreadable.js\n" };
+    }
+    if (cmd === "git" && args[0] === "show") {
+      return { status: 128, stderr: "fatal: unable to read blob" };
+    }
+    return { status: 0, stdout: "" };
+  });
+
+  runPreCommit();
+  assert.equal(exitCode, 1);
+
+  const hasBanner = errorCalls.some((args) =>
+    args.some((arg) => typeof arg === "string" && arg.includes("OSPEC-PRECOMMIT ERROR: No se pudo inspeccionar el contenido staged de unreadable.js"))
+  );
+  assert.ok(hasBanner, "Expected error banner about unable to inspect staged content");
+
+  const hasBypass = errorCalls.some((args) =>
+    args.some((arg) => typeof arg === "string" && arg.includes("DISABLE_AGENT_SHIELD=true"))
+  );
+  assert.ok(hasBypass, "Expected bypass advice in error banner");
+});
+
+test("blocks commit when git diff fails in AgentShield secret scanning [REQ-agent-shield-security-001]", (t) => {
+  let exitCode = null;
+  t.mock.method(process, "exit", (code) => {
+    exitCode = code;
+  });
+
+  t.mock.method(console, "error", () => {});
+
+  t.mock.method(child_process, "spawnSync", (cmd, args) => {
+    if (cmd === "git" && args.includes("--cached")) {
+      return { status: 128, stderr: "fatal: index corrupted" };
+    }
+    return { status: 0, stdout: "" };
+  });
+
+  runPreCommit();
+  assert.equal(exitCode, 1);
+});
+
+test("blocks commit when git diff fails in Strict TDD verification [REQ-agent-shield-security-001]", (t) => {
+  let exitCode = null;
+  t.mock.method(process, "exit", (code) => {
+    exitCode = code;
+  });
+
+  t.mock.method(console, "error", () => {});
+  t.mock.method(console, "warn", () => {});
+
+  // check.js passes, git diff in AgentShield is bypassed or passes with 0 files
+  t.mock.method(child_process, "spawnSync", (cmd, args) => {
+    if (cmd === "git" && args.includes("--diff-filter=ACMR")) {
+      return { status: 0, stdout: "" };
+    }
+    if (cmd === "node" && args[0] === "scripts/check.js") {
+      return { status: 0, stdout: "" };
+    }
+    if (cmd === "git" && args.includes("diff") && !args.includes("--diff-filter=ACMR")) {
+      return { status: 1, stderr: "fatal: git diff failed" };
+    }
+    return { status: 0, stdout: "" };
+  });
+
+  t.mock.method(fs, "existsSync", (p) => p.endsWith("config.yaml"));
+  t.mock.method(fs, "readFileSync", () => "testing:\n  tdd_mode: strict\n");
+
+  runPreCommit();
+  assert.equal(exitCode, 1);
+});
+

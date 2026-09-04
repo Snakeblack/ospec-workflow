@@ -7,6 +7,7 @@ const test = require("node:test");
 const {
   ALL_TARGETS,
   getStagedFiles,
+  getStagedBlobSize,
   getStagedContent,
   checkStagedSyntax,
   findAffectedTests,
@@ -14,11 +15,24 @@ const {
   runStagedChecks,
 } = require("./staged-validator.js");
 
-test("getStagedFiles returns empty array when git command fails", () => {
-  const files = getStagedFiles("/fake/repo", {
-    spawnSync: () => ({ status: 1, error: new Error("git error") }),
-  });
-  assert.deepEqual(files, []);
+test("getStagedFiles throws descriptive Error when git command fails or exits non-zero [REQ-git-precommit-hook-001]", () => {
+  assert.throws(
+    () => {
+      getStagedFiles("/fake/repo", {
+        spawnSync: () => ({ status: 1, stderr: "fatal: bad config" }),
+      });
+    },
+    /git diff --cached falló con código 1/
+  );
+
+  assert.throws(
+    () => {
+      getStagedFiles("/fake/repo", {
+        spawnSync: () => ({ status: 0, error: new Error("spawn ENOENT") }),
+      });
+    },
+    /Error de Git al obtener archivos staged: spawn ENOENT/
+  );
 });
 
 test("getStagedFiles parses git diff output into trimmed lines", () => {
@@ -48,30 +62,43 @@ test("getStagedContent invokes git show with POSIX path and returns stdout", () 
   assert.equal(content, "console.log('staged');\n");
 });
 
-test("getStagedContent returns null when git show fails or produces error", () => {
-  const content1 = getStagedContent("c:/repo", "missing.js", {
-    spawnSync: () => ({ status: 128, stdout: "", stderr: "fatal: path not in index" }),
-  });
-  assert.equal(content1, null);
-
-  const content2 = getStagedContent("c:/repo", "error.js", {
-    spawnSync: () => ({ status: 1, error: new Error("spawn error") }),
-  });
-  assert.equal(content2, null);
-});
-
-test("getStagedContent returns null when spawnSync throws", () => {
-  const content = getStagedContent("c:/repo", "crash.js", {
-    spawnSync: () => {
-      throw new Error("fatal crash");
+test("getStagedContent throws descriptive Error when git show fails or produces error [REQ-git-precommit-hook-001]", () => {
+  assert.throws(
+    () => {
+      getStagedContent("c:/repo", "missing.js", {
+        spawnSync: () => ({ status: 128, stdout: "", stderr: "fatal: path not in index" }),
+      });
     },
-  });
-  assert.equal(content, null);
+    /git show :missing\.js falló con código 128/
+  );
+
+  assert.throws(
+    () => {
+      getStagedContent("c:/repo", "error.js", {
+        spawnSync: () => ({ status: 1, error: new Error("spawn error") }),
+      });
+    },
+    /Error al invocar git show para :error\.js: spawn error/
+  );
 });
 
-test("getStagedContent returns null for empty or invalid path", () => {
-  assert.equal(getStagedContent("c:/repo", ""), null);
-  assert.equal(getStagedContent("c:/repo", null), null);
+test("getStagedContent throws descriptive Error when spawnSync throws [REQ-git-precommit-hook-001]", () => {
+  assert.throws(
+    () => {
+      getStagedContent("c:/repo", "crash.js", {
+        spawnSync: () => {
+          throw new Error("fatal crash");
+        },
+      });
+    },
+    /fatal crash/
+  );
+});
+
+test("getStagedContent throws descriptive Error for empty or invalid path [REQ-git-precommit-hook-001]", () => {
+  assert.throws(() => getStagedContent("c:/repo", ""), /Ruta relativa vacía o inválida/);
+  assert.throws(() => getStagedContent("c:/repo", null), /Ruta relativa vacía o inválida/);
+  assert.throws(() => getStagedContent("c:/repo", "///"), /Ruta relativa normalizada vacía/);
 });
 
 test("checkStagedSyntax validates correct JS and JSON without errors", () => {
@@ -140,6 +167,19 @@ test("checkStagedSyntax permits valid staged JS even when working tree is broken
 
   const errors = checkStagedSyntax(stagedFiles, "/fake/repo", deps);
   assert.deepEqual(errors, []);
+});
+
+test("checkStagedSyntax propagates error when getStagedContent throws [REQ-git-precommit-hook-001]", () => {
+  const deps = {
+    getStagedContent: () => {
+      throw new Error("git show failed");
+    },
+  };
+
+  assert.throws(
+    () => checkStagedSyntax(["sample.js"], "/fake/repo", deps),
+    /git show failed/
+  );
 });
 
 test("findAffectedTests collects direct test files and corresponding source tests", () => {
@@ -258,6 +298,46 @@ test("findAffectedTargets returns ALL_TARGETS when models.yaml changes [REQ-git-
   assert.deepEqual(targets, ALL_TARGETS);
 });
 
+test("findAffectedTargets returns ALL_TARGETS when canonical generator inputs change [REQ-git-precommit-hook-001]", () => {
+  const cases = [
+    ["agents/sdd-spec.agent.md"],
+    ["agents\\sdd-apply.agent.md"],
+    ["commands/build.md"],
+    ["commands\\test.md"],
+    ["rules/code.md"],
+    ["rules\\architecture.md"],
+    ["skills/branch-pr/SKILL.md"],
+    ["skills\\sdd-apply\\SKILL.md"],
+    ["hooks/pre-tool-use.json"],
+    ["hooks\\session-start.json"],
+    ["schemas/kernel/action.json"],
+    ["schemas\\kernel\\candidate.json"],
+    [".mcp.json"],
+    [".claude-plugin/plugin.json"],
+    [".claude-plugin\\plugin.json"],
+  ];
+  for (const staged of cases) {
+    const targets = findAffectedTargets(staged);
+    assert.deepEqual(targets, ALL_TARGETS, `Expected ALL_TARGETS for ${staged[0]}`);
+  }
+});
+
+test("findAffectedTargets returns ALL_TARGETS when generator helpers or runtime hooks change [REQ-git-precommit-hook-001]", () => {
+  const cases = [
+    ["scripts/lib/frontmatter.js"],
+    ["scripts\\lib\\frontmatter.js"],
+    ["scripts/lib/model-resolver.js"],
+    ["scripts\\lib\\model-resolver.js"],
+    ["scripts/hooks/pre-commit-hook.js"],
+    ["scripts\\hooks\\session-start.js"],
+    ["scripts/hooks/lib/secret-scan.js"],
+  ];
+  for (const staged of cases) {
+    const targets = findAffectedTargets(staged);
+    assert.deepEqual(targets, ALL_TARGETS, `Expected ALL_TARGETS for ${staged[0]}`);
+  }
+});
+
 test("findAffectedTargets returns isolated target for single target validator [REQ-git-precommit-hook-001]", () => {
   const targets = findAffectedTargets(["scripts/configure/validate-codex.js"]);
   assert.deepEqual(targets, ["codex"]);
@@ -304,4 +384,57 @@ test("runStagedChecks runs affected tests and generates affected targets", () =>
   assert.equal(steps.length, 1);
   assert.match(steps[0].name, /Targeted tests/);
   assert.ok(generated.includes("codex"));
+});
+
+test("getStagedFiles invokes git diff with core.quotepath=false", () => {
+  let invokedArgs = [];
+  getStagedFiles("/fake/repo", {
+    spawnSync: (cmd, args) => {
+      invokedArgs = args;
+      return { status: 0, stdout: "file1.js\nfile2.js\n" };
+    },
+  });
+  assert.deepEqual(invokedArgs, ["-c", "core.quotepath=false", "diff", "--cached", "--name-only", "--diff-filter=ACMR"]);
+});
+
+test("getStagedBlobSize parses size from git cat-file -s", () => {
+  const size = getStagedBlobSize("/fake/repo", "large.bin", {
+    spawnSync: () => ({ status: 0, stdout: "2048\n" }),
+  });
+  assert.equal(size, 2048);
+});
+
+test("getStagedContent returns null for git submodules (is a commit, not a blob)", () => {
+  const content = getStagedContent("/fake/repo", "vendor/submodule", {
+    spawnSync: () => ({ status: 128, stderr: "fatal: git show: :vendor/submodule is a commit, not a blob" }),
+  });
+  assert.equal(content, null);
+});
+
+test("getStagedContent throws descriptive Error on maxBuffer length exceeded", () => {
+  assert.throws(
+    () => {
+      getStagedContent("/fake/repo", "large.bundle.js", {
+        spawnSync: () => ({
+          error: { code: "ERR_CHILD_PROCESS_STDIO_MAXBUFFER", message: "maxBuffer length exceeded" },
+        }),
+      });
+    },
+    /excede el límite máximo de búfer de 10 MB/
+  );
+});
+
+test("checkStagedSyntax does not fail on valid ESM import/export syntax and ignores .mjs", () => {
+  const errors = checkStagedSyntax(
+    ["module.js", "script.mjs"],
+    "/fake/repo",
+    {
+      getStagedContent: (repo, file) => {
+        if (file === "module.js") return "import path from 'node:path';\nexport const foo = 123;";
+        if (file === "script.mjs") return "export default 42;";
+        return "";
+      },
+    }
+  );
+  assert.deepEqual(errors, []);
 });

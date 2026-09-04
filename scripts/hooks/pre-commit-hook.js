@@ -3,6 +3,9 @@
 const child_process = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
+const { classifySensitiveFile, scanContentForSecrets, MAX_SCAN_SIZE_BYTES } = require("./lib/secret-scan.js");
+const { getStagedContent, getStagedBlobSize } = require("./lib/staged-validator.js");
+const { resolveTddMode } = require("../lib/tdd-mode.js");
 
 function runPreCommit(options = {}) {
   // 1. Bypass por variable de entorno
@@ -17,19 +20,30 @@ function runPreCommit(options = {}) {
   // 2. Escaneo de seguridad y credenciales en archivos staged (AgentShield Pre-commit)
   if (process.env.DISABLE_AGENT_SHIELD !== "true") {
     try {
-      const diffResult = child_process.spawnSync("git", ["diff", "--cached", "--name-only", "--diff-filter=ACMR"], {
+      const diffResult = child_process.spawnSync("git", ["-c", "core.quotepath=false", "diff", "--cached", "--name-only", "--diff-filter=ACMR"], {
         cwd: repoRoot,
         encoding: "utf8",
       });
 
-      if (!diffResult.error && diffResult.status === 0 && diffResult.stdout) {
+      if (diffResult.error || diffResult.status !== 0) {
+        const errorMsg = diffResult.error ? diffResult.error.message : (diffResult.stderr || "").trim();
+        console.error("\n======================================================================");
+        console.error("OSPEC-PRECOMMIT ERROR: Falló la enumeración de archivos staged en Git.");
+        console.error(`  Detalle: ${errorMsg}`);
+        console.error("");
+        console.error("Para omitir esta verificación (emergencias):");
+        console.error("  DISABLE_AGENT_SHIELD=true git commit ...");
+        console.error("  o: git commit --no-verify");
+        console.error("======================================================================\n");
+        process.exit(1);
+        return;
+      }
+
+      if (diffResult.stdout) {
         const stagedFiles = diffResult.stdout
           .split(/\r?\n/)
           .map((line) => line.trim())
           .filter(Boolean);
-
-        const { classifySensitiveFile, scanContentForSecrets, MAX_SCAN_SIZE_BYTES } = require("./lib/secret-scan.js");
-        const { getStagedContent } = require("./lib/staged-validator.js");
 
         for (const file of stagedFiles) {
           const sensitive = classifySensitiveFile(file);
@@ -48,16 +62,27 @@ function runPreCommit(options = {}) {
             return;
           }
 
+          const maxScan = MAX_SCAN_SIZE_BYTES || 1024 * 1024;
+          const blobSize = getStagedBlobSize(repoRoot, file);
+          if (blobSize >= maxScan) continue;
+
           let content;
           try {
             content = getStagedContent(repoRoot, file);
-          } catch {
-            continue;
+          } catch (err) {
+            console.error("\n======================================================================");
+            console.error(`OSPEC-PRECOMMIT ERROR: No se pudo inspeccionar el contenido staged de ${file}`);
+            console.error(`  Detalle: ${err.message}`);
+            console.error("");
+            console.error("Para omitir esta verificación (emergencias):");
+            console.error("  DISABLE_AGENT_SHIELD=true git commit ...");
+            console.error("  o: git commit --no-verify");
+            console.error("======================================================================\n");
+            process.exit(1);
+            return;
           }
 
           if (!content || typeof content !== "string") continue;
-
-          const maxScan = MAX_SCAN_SIZE_BYTES || 1024 * 1024;
           if (Buffer.byteLength(content, "utf8") >= maxScan) continue;
 
           const scan = scanContentForSecrets(content);
@@ -77,8 +102,17 @@ function runPreCommit(options = {}) {
           }
         }
       }
-    } catch {
-      // Ignorar fallos de entorno en escaneo de secretos
+    } catch (err) {
+      console.error("\n======================================================================");
+      console.error("OSPEC-PRECOMMIT ERROR: Falló la verificación de seguridad de AgentShield.");
+      console.error(`  Detalle: ${err.message}`);
+      console.error("");
+      console.error("Para omitir esta verificación (emergencias):");
+      console.error("  DISABLE_AGENT_SHIELD=true git commit ...");
+      console.error("  o: git commit --no-verify");
+      console.error("======================================================================\n");
+      process.exit(1);
+      return;
     }
   }
 
@@ -136,7 +170,6 @@ function runPreCommit(options = {}) {
   // 4. Verificación de Strict TDD
   let strictTdd = false;
   try {
-    const { resolveTddMode } = require("../lib/tdd-mode.js");
     const configPath = path.join(repoRoot, "openspec", "config.yaml");
     if (fs.existsSync(configPath)) {
       const configContent = fs.readFileSync(configPath, "utf8");
@@ -160,8 +193,15 @@ function runPreCommit(options = {}) {
       });
 
       if (diffResult.error || diffResult.status !== 0) {
-        console.warn("OSPEC-PRECOMMIT [Warning]: No se pudo obtener la lista de archivos staged de Git.");
-        process.exit(0);
+        const errorMsg = diffResult.error ? diffResult.error.message : (diffResult.stderr || "").trim();
+        console.error("\n======================================================================");
+        console.error("OSPEC-PRECOMMIT ERROR: No se pudo obtener la lista de archivos staged de Git para Strict TDD.");
+        console.error(`  Detalle: ${errorMsg}`);
+        console.error("");
+        console.error("Para omitir esta verificación (emergencias):");
+        console.error("  git commit --no-verify");
+        console.error("======================================================================\n");
+        process.exit(1);
         return;
       }
 
@@ -222,7 +262,11 @@ function runPreCommit(options = {}) {
         return;
       }
     } catch (err) {
-      console.warn(`OSPEC-PRECOMMIT [Warning]: Error durante la verificación de Strict TDD: ${err.message}`);
+      console.error("\n======================================================================");
+      console.error(`OSPEC-PRECOMMIT ERROR: Error durante la verificación de Strict TDD: ${err.message}`);
+      console.error("======================================================================\n");
+      process.exit(1);
+      return;
     }
   }
 

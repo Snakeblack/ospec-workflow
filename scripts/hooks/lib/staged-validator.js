@@ -11,24 +11,55 @@ const child_process = require("node:child_process");
  * @param {string} repoRoot
  * @param {object} [deps]
  * @returns {string[]}
+ * @throws {Error} Si el comando git diff --cached falla o reporta código no cero.
  */
 function getStagedFiles(repoRoot, deps = {}) {
   const spawn = deps.spawnSync || child_process.spawnSync;
+  const res = spawn("git", ["-c", "core.quotepath=false", "diff", "--cached", "--name-only", "--diff-filter=ACMR"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+  if (res.error) {
+    throw new Error(`Error de Git al obtener archivos staged: ${res.error.message}`);
+  }
+  if (res.status !== 0) {
+    const stderr = (res.stderr || "").trim();
+    throw new Error(`git diff --cached falló con código ${res.status}: ${stderr}`);
+  }
+  return res.stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Obtiene el tamaño en bytes de un blob staged en el índice mediante git cat-file -s.
+ * Permite omitir archivos grandes antes de extraer su contenido en memoria.
+ *
+ * @param {string} repoRoot
+ * @param {string} relativePath
+ * @param {object} [deps]
+ * @returns {number} Tamaño en bytes o 0 si no se puede determinar.
+ */
+function getStagedBlobSize(repoRoot, relativePath, deps = {}) {
+  if (!relativePath || typeof relativePath !== "string") return 0;
+  const clean = toPosixPath(path.isAbsolute(relativePath) ? path.relative(repoRoot, relativePath) : relativePath);
+  if (!clean) return 0;
+  const spawn = deps.spawnSync || child_process.spawnSync;
   try {
-    const res = spawn("git", ["diff", "--cached", "--name-only", "--diff-filter=ACMR"], {
+    const res = spawn("git", ["cat-file", "-s", `:${clean}`], {
       cwd: repoRoot,
       encoding: "utf8",
+      shell: false,
     });
-    if (res.error || res.status !== 0) {
-      return [];
+    if (res.status === 0 && res.stdout) {
+      const size = parseInt(res.stdout.trim(), 10);
+      return Number.isFinite(size) ? size : 0;
     }
-    return res.stdout
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean);
   } catch {
-    return [];
+    return 0;
   }
+  return 0;
 }
 
 /**
@@ -38,32 +69,43 @@ function getStagedFiles(repoRoot, deps = {}) {
  * @param {string} repoRoot - Ruta absoluta de la raíz del repositorio.
  * @param {string} relativePath - Ruta relativa del archivo dentro del repositorio.
  * @param {object} [deps] - Inyección de dependencias para testing (spawnSync).
- * @returns {string|null} - Contenido UTF-8 del blob en el índice, o null si falla la lectura.
+ * @returns {string|null} - Contenido UTF-8 del blob en el índice, o null para submódulos.
+ * @throws {Error} Si el argumento es inválido o git show :<path> falla.
  */
 function getStagedContent(repoRoot, relativePath, deps = {}) {
   if (!relativePath || typeof relativePath !== "string") {
-    return null;
+    throw new Error("Ruta relativa vacía o inválida para getStagedContent");
+  }
+  const clean = relativePath.replace(/\\/g, "/").replace(/^(\.\/|\/)+/, "");
+  if (!clean) {
+    throw new Error("Ruta relativa normalizada vacía para getStagedContent");
+  }
+  const rel = path.isAbsolute(relativePath) ? path.relative(repoRoot, relativePath) : clean;
+  const posixPath = toPosixPath(rel);
+  if (!posixPath) {
+    throw new Error("Ruta relativa normalizada vacía para getStagedContent");
   }
   const spawn = deps.spawnSync || child_process.spawnSync;
-  const rel = path.isAbsolute(relativePath) ? path.relative(repoRoot, relativePath) : relativePath;
-  const posixPath = rel.replace(/\\/g, "/").replace(/^\/+/, "");
-  if (!posixPath) {
-    return null;
+  const res = spawn("git", ["show", `:${posixPath}`], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    shell: false,
+    maxBuffer: 10 * 1024 * 1024,
+  });
+  if (res.error) {
+    if (res.error.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") {
+      throw new Error(`El archivo staged :${posixPath} excede el límite máximo de búfer de 10 MB`);
+    }
+    throw new Error(`Error al invocar git show para :${posixPath}: ${res.error.message}`);
   }
-  try {
-    const res = spawn("git", ["show", `:${posixPath}`], {
-      cwd: repoRoot,
-      encoding: "utf8",
-      shell: false,
-      maxBuffer: 10 * 1024 * 1024,
-    });
-    if (res.error || res.status !== 0) {
+  if (res.status !== 0) {
+    const stderr = (res.stderr || "").trim();
+    if (stderr.includes("is a commit, not a blob")) {
       return null;
     }
-    return res.stdout;
-  } catch {
-    return null;
+    throw new Error(`git show :${posixPath} falló con código ${res.status}: ${stderr}`);
   }
+  return res.stdout;
 }
 
 /**
@@ -80,7 +122,7 @@ function checkStagedSyntax(stagedFiles, repoRoot, deps = {}) {
 
   for (const file of stagedFiles) {
     const ext = path.extname(file).toLowerCase();
-    if (ext !== ".js" && ext !== ".mjs" && ext !== ".cjs" && ext !== ".json") {
+    if (ext !== ".js" && ext !== ".cjs" && ext !== ".json") {
       continue;
     }
 
@@ -90,10 +132,16 @@ function checkStagedSyntax(stagedFiles, repoRoot, deps = {}) {
 
     if (content === null || typeof content !== "string") continue;
 
-    if (ext === ".js" || ext === ".mjs" || ext === ".cjs") {
+    if (ext === ".js" || ext === ".cjs") {
       try {
         new vm.Script(content, { filename: file });
       } catch (err) {
+        if (
+          err.message.includes("Cannot use import statement outside a module") ||
+          err.message.includes("Unexpected token 'export'")
+        ) {
+          continue;
+        }
         errors.push({ file, error: err.message, type: "js-syntax" });
       }
     } else if (ext === ".json") {
@@ -109,7 +157,9 @@ function checkStagedSyntax(stagedFiles, repoRoot, deps = {}) {
 }
 
 function toPosixPath(filePath) {
-  return String(filePath || "").replace(/\\/g, "/");
+  return String(filePath || "")
+    .replace(/\\/g, "/")
+    .replace(/^(\.\/|\/)+/, "");
 }
 
 function isCoreInfraFile(normalizedPath) {
@@ -235,21 +285,40 @@ const ALL_TARGETS = [
   "antigravity",
 ];
 
-const SHARED_TARGET_INFRASTRUCTURE = [
+const CANONICAL_SHARED_FILES = new Set([
+  ".mcp.json",
+  ".claude-plugin/plugin.json",
+  "models.yaml",
   "scripts/configure/cli.js",
   "scripts/configure/install-engine.js",
   "scripts/configure/install-target.js",
   "scripts/configure/validate-phase.js",
   "scripts/lib/target-transform.js",
-  "models.yaml",
+  "scripts/lib/frontmatter.js",
+  "scripts/lib/model-resolver.js",
+]);
+
+const CANONICAL_SHARED_PREFIXES = [
+  "agents/",
+  "commands/",
+  "rules/",
+  "skills/",
+  "hooks/",
+  "schemas/kernel/",
+  "scripts/lib/target-profiles/",
+  "scripts/hooks/",
 ];
 
-function isSharedTargetInfra(normalizedPath) {
+function isCanonicalOrSharedSource(normalizedPath) {
   const lower = normalizedPath.toLowerCase();
-  if (SHARED_TARGET_INFRASTRUCTURE.includes(lower)) return true;
-  if (lower.startsWith("scripts/lib/target-profiles/")) return true;
+  if (CANONICAL_SHARED_FILES.has(lower)) return true;
+  for (const prefix of CANONICAL_SHARED_PREFIXES) {
+    if (lower.startsWith(prefix)) return true;
+  }
   return false;
 }
+
+const isSharedTargetInfra = isCanonicalOrSharedSource;
 
 /**
  * Identifica si algún archivo staged requiere validar la generación de un target específico.
@@ -260,7 +329,7 @@ function isSharedTargetInfra(normalizedPath) {
 function findAffectedTargets(stagedFiles) {
   for (const file of stagedFiles) {
     const normalized = toPosixPath(file);
-    if (isSharedTargetInfra(normalized)) {
+    if (isCanonicalOrSharedSource(normalized)) {
       return [...ALL_TARGETS];
     }
   }
@@ -336,6 +405,7 @@ function runStagedChecks(options = {}, deps = {}) {
 module.exports = {
   ALL_TARGETS,
   getStagedFiles,
+  getStagedBlobSize,
   getStagedContent,
   checkStagedSyntax,
   findAffectedTests,

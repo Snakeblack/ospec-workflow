@@ -8,6 +8,7 @@ const path = require("node:path");
 const test = require("node:test");
 
 const {
+  ALL_TARGETS,
   getStagedFiles,
   getStagedContent,
   checkStagedSyntax,
@@ -35,8 +36,21 @@ function setupEphemeralRepo() {
     path.join(scriptsDir, "check.js"),
     `"use strict";
 const { runStagedChecks } = require(${JSON.stringify(validatorPath)});
+const fs = require("node:fs");
+const path = require("node:path");
+
+const generatedTargets = [];
 try {
-  runStagedChecks({ repoRoot: process.cwd(), runStep: () => {} });
+  runStagedChecks({
+    repoRoot: process.cwd(),
+    runStep: () => {},
+    generateTarget: (target) => {
+      generatedTargets.push(target);
+    },
+  });
+  if (generatedTargets.length > 0) {
+    fs.writeFileSync(path.join(process.cwd(), ".generated-targets.json"), JSON.stringify(generatedTargets));
+  }
   process.exit(0);
 } catch (err) {
   console.error(err.message);
@@ -166,4 +180,89 @@ test("integration: permits commit when staged file is clean and secret is in wor
     /Validación completada\. Commit permitido\./,
     "Expected success message in pre-commit output"
   );
+});
+
+test("integration: fail-closed blocks commit when Git staged blob is unreadable or corrupted [REQ-git-precommit-hook-003, REQ-agent-shield-security-001]", () => {
+  const tmpDir = setupEphemeralRepo();
+  const filePath = path.join(tmpDir, "blob-to-corrupt.txt");
+  fs.writeFileSync(filePath, "valid content before corruption", "utf8");
+  child_process.spawnSync("git", ["add", "blob-to-corrupt.txt"], { cwd: tmpDir });
+
+  // Corrupt the staged blob object in .git/objects
+  const lsRes = child_process.spawnSync("git", ["ls-files", "-s", "blob-to-corrupt.txt"], {
+    cwd: tmpDir,
+    encoding: "utf8",
+  });
+  const parts = lsRes.stdout.trim().split(/\s+/);
+  const hash = parts[1];
+  assert.ok(hash, "Expected object hash for staged file");
+
+  const objDir = path.join(tmpDir, ".git", "objects", hash.slice(0, 2));
+  const objFile = path.join(objDir, hash.slice(2));
+  assert.ok(fs.existsSync(objFile), "Expected loose object file to exist");
+  try {
+    fs.chmodSync(objFile, 0o666);
+  } catch {
+    // ignore
+  }
+  fs.writeFileSync(objFile, "corrupted-git-object");
+
+  const res = runHook(tmpDir);
+  assert.equal(res.status, 1, `Expected exit code 1. Output: ${res.stdout}\nStderr: ${res.stderr}`);
+  assert.match(
+    res.stderr + res.stdout,
+    /OSPEC-PRECOMMIT ERROR: No se pudo inspeccionar el contenido staged de blob-to-corrupt\.txt/,
+    "Expected fail-closed error banner for unreadable staged blob"
+  );
+});
+
+test("integration: fail-closed blocks commit when Git index is corrupted [REQ-git-precommit-hook-003, REQ-agent-shield-security-001]", () => {
+  const tmpDir = setupEphemeralRepo();
+  const filePath = path.join(tmpDir, "file.txt");
+  fs.writeFileSync(filePath, "content", "utf8");
+  child_process.spawnSync("git", ["add", "file.txt"], { cwd: tmpDir });
+
+  // Corrupt .git/index
+  const indexPath = path.join(tmpDir, ".git", "index");
+  fs.writeFileSync(indexPath, "CORRUPT_GIT_INDEX_DATA");
+
+  const res = runHook(tmpDir);
+  assert.equal(res.status, 1, `Expected exit code 1. Output: ${res.stdout}\nStderr: ${res.stderr}`);
+  assert.match(
+    res.stderr + res.stdout,
+    /OSPEC-PRECOMMIT ERROR/,
+    "Expected fail-closed error when Git index is corrupted"
+  );
+});
+
+test("integration: staging canonical generator input triggers ALL_TARGETS build in ephemeral repo [REQ-git-precommit-hook-001, REQ-git-precommit-hook-003]", () => {
+  const tmpDir = setupEphemeralRepo();
+  const agentDir = path.join(tmpDir, "agents");
+  fs.mkdirSync(agentDir, { recursive: true });
+  fs.writeFileSync(path.join(agentDir, "test.agent.md"), "# Test Agent\n", "utf8");
+  child_process.spawnSync("git", ["add", "agents/test.agent.md"], { cwd: tmpDir });
+
+  const res = runHook(tmpDir);
+  assert.equal(res.status, 0, `Expected exit code 0. Output: ${res.stdout}\nStderr: ${res.stderr}`);
+
+  const targetsRecord = path.join(tmpDir, ".generated-targets.json");
+  assert.ok(fs.existsSync(targetsRecord), "Expected .generated-targets.json to be generated");
+  const targets = JSON.parse(fs.readFileSync(targetsRecord, "utf8"));
+  assert.deepEqual(targets, ALL_TARGETS, "Expected all 7 targets to be generated when canonical generator input is staged");
+});
+
+test("integration: staging isolated target validator triggers only that target in ephemeral repo [REQ-git-precommit-hook-001, REQ-git-precommit-hook-003]", () => {
+  const tmpDir = setupEphemeralRepo();
+  const cfgDir = path.join(tmpDir, "scripts", "configure");
+  fs.mkdirSync(cfgDir, { recursive: true });
+  fs.writeFileSync(path.join(cfgDir, "validate-cursor.js"), "const x = 1;\n", "utf8");
+  child_process.spawnSync("git", ["add", "scripts/configure/validate-cursor.js"], { cwd: tmpDir });
+
+  const res = runHook(tmpDir);
+  assert.equal(res.status, 0, `Expected exit code 0. Output: ${res.stdout}\nStderr: ${res.stderr}`);
+
+  const targetsRecord = path.join(tmpDir, ".generated-targets.json");
+  assert.ok(fs.existsSync(targetsRecord), "Expected .generated-targets.json to be generated");
+  const targets = JSON.parse(fs.readFileSync(targetsRecord, "utf8"));
+  assert.deepEqual(targets, ["cursor"], "Expected only cursor to be generated for isolated validator");
 });

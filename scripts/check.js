@@ -86,7 +86,16 @@ function main(deps = {}) {
 
   try {
     if (isStaged) {
-      runStaged({ repoRoot: ROOT, runStep: run, generateTarget: generate }, deps);
+      const claudeOk = hasClaudeCli();
+      runStaged(
+        {
+          repoRoot: ROOT,
+          runStep: run,
+          generateTarget: (target, validate, d) =>
+            generate(target, target === "claude" ? claudeOk && validate : validate, d),
+        },
+        deps,
+      );
       proc.stdout.write("\nAll staged checks passed.\n");
       return;
     }
