@@ -24,6 +24,7 @@ El sistema MUST proveer un script de instalación idempotente para registrar el 
 ### Requirement: Validación de consistencia de OpenSpec
 El hook pre-commit MUST asegurar la validez semántica y sintáctica del arnés OpenSpec y de los archivos preparados para commit bajo una política fail-closed ante fallos del subsistema Git:
 - MUST ejecutar las comprobaciones del workspace (`node scripts/check.js`). En modo diferencial predeterminado (`--staged`), la validación sintáctica de archivos JavaScript (`.js`, `.mjs`, `.cjs`) y JSON (`.json`) MUST leer los blobs directamente desde el índice de Git mediante `git show :<path>` (con `shell: false`, codificación UTF-8 y ruta normalizada relativa a la raíz del repositorio), sin leer del árbol de trabajo (`working tree` o `fs.readFileSync`).
+- Para archivos `.mjs`, la validación sintáctica MUST parsear sintaxis de módulos ESM real (`import`/`export`): el blob staged obtenido del índice MUST materializarse en un archivo temporal `.mjs` (directorio temporal del sistema) y validarse ejecutando `node --check` sobre él (`shell: false`), ya que el fast path en memoria (`vm.Script`) no soporta sintaxis de módulos. El directorio temporal MUST eliminarse tras la comprobación (best-effort, sin enmascarar el resultado). Si la invocación de `node --check` falla (error de ejecución del subproceso), la validación MUST fallar de forma fail-closed; si el parseo detecta un error de sintaxis, el commit MUST cancelarse reportando la línea de diagnóstico relevante.
 - Si cualquier archivo preparado en el índice de Git contiene errores de sintaxis o si la validación de OpenSpec falla, el commit MUST cancelarse con código de salida diferente de cero y un mensaje de error descriptivo.
 - Si un archivo preparado en el índice contiene sintaxis válida, modificaciones no preparadas (`unstaged`) con sintaxis rota en el árbol de trabajo MUST NOT bloquear el commit.
 - MUST ejecutar la validación completa monolítica sin filtros diferenciales cuando se defina la variable de entorno `OSPEC_PRECOMMIT_FULL=true` o cuando se invoque `check.js` sin el argumento `--staged`.
@@ -50,6 +51,26 @@ El hook pre-commit MUST asegurar la validez semántica y sintáctica del arnés 
 - WHEN el desarrollador ejecuta `git commit`
 - THEN la comprobación sintáctica evalúa exitosamente el blob del índice
 - AND el commit es permitido sin verse afectado por las modificaciones no preparadas.
+
+#### Scenario: Archivo .mjs staged con sintaxis ESM válida se valida mediante node --check
+- GIVEN un archivo `.mjs` con sintaxis de módulos ESM (`import`/`export`) preparado en el índice de Git
+- WHEN la comprobación sintáctica evalúa el blob staged
+- THEN el contenido se materializa en un archivo temporal `.mjs` y se valida con `node --check` (parseo ESM real, no `vm.Script`)
+- AND el directorio temporal se elimina tras la comprobación
+- AND el commit es permitido al concluir `node --check` con código de salida cero.
+
+#### Scenario: Archivo .mjs staged con sintaxis rota cancela el commit
+- GIVEN un archivo `.mjs` con sintaxis de módulos inválida preparado en el índice de Git
+- WHEN la comprobación sintáctica ejecuta `node --check` sobre el blob materializado
+- THEN el proceso termina con código de salida distinto de cero
+- AND el commit es rechazado reportando la línea de diagnóstico del error de sintaxis.
+
+#### Scenario: Fallo al invocar node --check opera fail-closed
+- GIVEN un archivo `.mjs` preparado en el índice de Git
+- AND la invocación del subproceso `node --check` falla (error de ejecución)
+- WHEN la comprobación sintáctica intenta validar el blob staged
+- THEN la validación lanza un `Error` descriptivo en lugar de tratar el archivo como válido
+- AND el hook pre-commit aborta con código de salida no nulo impidiendo el commit.
 
 #### Scenario: Fallo de Git en enumeración de archivos staged (fail-closed)
 - GIVEN una invocación de `getStagedFiles` donde el comando `git diff --cached` falla o produce un error de ejecución
