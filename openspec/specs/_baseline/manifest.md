@@ -12,6 +12,7 @@
 - independent-verification: Independent verifier over a frozen CandidateId (evidence strategies, collector provenance, runner-receipt authority, MUST obligation coverage) | sources: scripts/lib/independent-verifier/*.js, scripts/lib/independent-verifier/internal/*.js, scripts/lib/test-support/k6b-runner-receipt.js
 - assurance-graph: Content-addressed Assurance Graph projection, cryptographic replay, and stored-payload reconcile | sources: scripts/lib/assurance-graph/*.js
 - kernel-contract-schemas: Versioned kernel JSON Schema families, manifest, contract-claims, and K1 compatibility pins | sources: schemas/kernel/**/*.schema.json, schemas/kernel/manifest.json, schemas/kernel/contract-claims.json, scripts/lib/lifecycle-kernel/k1-compat.js
+- git-precommit-hook: Git pre-commit local validation — staged-blob syntax checking (.js/.mjs/.cjs/.json read from the Git index, fail-closed), Strict TDD parity, bypass, conservative affected-target detection with ALL_TARGETS fallback, and differential test selection | sources: scripts/hooks/pre-commit-hook.js, scripts/hooks/lib/staged-validator.js, scripts/hooks/lib/git-state.js, scripts/setup-git-hooks.js | since: v2.60.2 (ad96605) — drift window v2.60.2..main (1a2d084: runtime-lib ALL_TARGETS invalidation + real .mjs validation) pending reconcile
 
 ## Entries (append-only log; latest row per domain wins)
 | domain | status | batch | commit | timestamp (UTC) |
@@ -50,4 +51,5 @@
 | independent-verification | reconciled | - | a476b9a | 2026-08-28T12:25:32Z |
 | assurance-graph | reconciled | - | a476b9a | 2026-08-28T12:25:32Z |
 | kernel-contract-schemas | reconciled | - | a476b9a | 2026-08-28T12:25:32Z |
+| git-precommit-hook | skipped | 9 | ad96605 | 2026-09-04T17:45:40Z |
 
