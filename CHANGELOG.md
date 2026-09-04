@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.60.1] - 2026-09-04
+
+### Fixed
+- **Remediación del pre-commit diferencial y lectura desde Git index (`fast-precommit-remediation`)**:
+  - **Lectura estricta desde Git index (`staged-validator.js`, `pre-commit-hook.js`)**: sustitución de lecturas directas del working tree (`fs.readFileSync`) por lectura de blobs en el índice (`git show :<path>`) con normalización POSIX y manejo seguro de buffers (ADR-001). Garantiza que tanto la validación sintáctica como el escaneo de secretos de AgentShield evalúen exactamente el contenido staged, previniendo bypasses por staging parcial o desincronización con el árbol de trabajo.
+  - **Invalidación conservadora de targets con fallback a `ALL_TARGETS`**: resolución exhaustiva en `findAffectedTargets` para generadores compartidos (`scripts/configure/cli.js`, `install-engine.js`, `install-target.js`, `validate-phase.js`), perfiles de target (`scripts/lib/target-profiles/*.js`), transformaciones (`target-transform.js`) y catálogo de modelos (`models.yaml`), evitando ejecuciones vacías ante modificaciones de infraestructura común (ADR-002).
+  - **Fallback a suite de pruebas completa de Node**: ejecución integral de tests ante cambios en módulos compartidos de infraestructura (`scripts/lib/` o `scripts/check.js`) en `findAffectedTests`, asegurando cobertura ante modificaciones de dependencias compartidas (ADR-003).
+  - **Pruebas de integración con repositorios Git efímeros**: nueva suite de pruebas de integración (`staged-validator.integration.test.js`) que valida sobre repositorios reales temporales (`git init`) escenarios de staging parcial: sintaxis inválida staged con working tree limpio, sintaxis válida staged con working tree roto, y secretos staged con working tree limpio (ADR-004).
+  - **Optimización de I/O en validación de sintaxis (`EFF-001`)**: filtrado previo por extensiones sintácticas (`.js`, `.mjs`, `.cjs`, `.json`) antes de consultar blobs en Git index, eliminando llamadas innecesarias a `git show` sobre archivos de documentación o configuración.
+  - **Especificaciones y ADRs**: Requisitos delta `REQ-git-precommit-hook-001`, `REQ-git-precommit-hook-002`, `REQ-git-precommit-hook-003` y `REQ-agent-shield-security-001`; ADRs `adr-20260904-001` a `adr-20260904-004`.
+
+### Archived
+- Cambio archivado en `openspec/changes/archive/2026-09-04-fast-precommit-remediation/`.
+
 ## [2.60.0] - 2026-09-04
 
 ### Added

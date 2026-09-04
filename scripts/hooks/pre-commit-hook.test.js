@@ -328,12 +328,11 @@ test("blocks commit when file with API key secret is staged", (t) => {
     if (cmd === "git" && args.includes("--cached")) {
       return { status: 0, stdout: "sample.txt\n" };
     }
+    if (cmd === "git" && args[0] === "show" && args[1] === ":sample.txt") {
+      return { status: 0, stdout: "FAKE_" + "SECRET = 'sk-" + "x".repeat(48) + "'" };
+    }
     return { status: 0, stdout: "" };
   });
-
-  t.mock.method(fs, "existsSync", () => true);
-  t.mock.method(fs, "statSync", () => ({ size: 50 }));
-  t.mock.method(fs, "readFileSync", () => "FAKE_" + "SECRET = 'sk-" + "x".repeat(48) + "'");
 
   runPreCommit();
   assert.equal(exitCode, 1);
@@ -375,3 +374,65 @@ test("respects DISABLE_AGENT_SHIELD bypass for staged sensitive file", (t) => {
     }
   }
 });
+
+test("blocks commit when secret is staged in Git index even if file on disk is deleted or clean [REQ-agent-shield-security-001]", (t) => {
+  let exitCode = null;
+  t.mock.method(process, "exit", (code) => {
+    exitCode = code;
+  });
+
+  const errorCalls = [];
+  t.mock.method(console, "error", (...args) => {
+    errorCalls.push(args);
+  });
+
+  t.mock.method(child_process, "spawnSync", (cmd, args) => {
+    if (cmd === "git" && args.includes("--cached")) {
+      return { status: 0, stdout: "sample.txt\n" };
+    }
+    if (cmd === "git" && args[0] === "show" && args[1] === ":sample.txt") {
+      return { status: 0, stdout: "FAKE_SECRET = 'sk-" + "x".repeat(48) + "'" };
+    }
+    return { status: 0, stdout: "" };
+  });
+
+  // Working tree has no file or has clean file
+  t.mock.method(fs, "existsSync", () => false);
+
+  runPreCommit();
+  assert.equal(exitCode, 1);
+
+  const hasSecretBanner = errorCalls.some((args) =>
+    args.some((arg) => typeof arg === "string" && arg.includes("clave secreta"))
+  );
+  assert.ok(hasSecretBanner, "Expected error banner about secret pattern");
+});
+
+test("allows commit when secret exists in working tree but staged blob in index is clean [REQ-agent-shield-security-001]", (t) => {
+  let exitCode = null;
+  t.mock.method(process, "exit", (code) => {
+    exitCode = code;
+  });
+
+  t.mock.method(child_process, "spawnSync", (cmd, args) => {
+    if (cmd === "git" && args.includes("--cached")) {
+      return { status: 0, stdout: "sample.txt\n" };
+    }
+    if (cmd === "git" && args[0] === "show" && args[1] === ":sample.txt") {
+      return { status: 0, stdout: "const safe = 'hello world';" };
+    }
+    if (cmd === "node" && args[0] === "scripts/check.js") {
+      return { status: 0, stdout: "" };
+    }
+    return { status: 0, stdout: "" };
+  });
+
+  // Working tree has a secret on disk
+  t.mock.method(fs, "existsSync", () => true);
+  t.mock.method(fs, "statSync", () => ({ size: 50 }));
+  t.mock.method(fs, "readFileSync", () => "FAKE_SECRET = 'sk-" + "x".repeat(48) + "'");
+
+  runPreCommit();
+  assert.equal(exitCode, 0);
+});
+

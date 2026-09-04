@@ -1,0 +1,101 @@
+change: "fast-precommit-remediation"
+status: "ready"
+last_updated: "2026-09-04T16:00:00Z"
+blocking_questions: []
+gates:
+  quality-review-gate:
+    schema_version: 2
+    status: approved
+    classification: normal
+    classification_status: sufficient
+    selected_domains:
+      - trust
+      - efficiency
+    evidence:
+      schema_version: 2
+      fingerprint: "sha256:d84ea2395a439281a8c08ecfe0220677aaebde5cb92d29e701968eb1e791e813"
+    router: null
+    specialists:
+      trust:
+        status: approved
+        findings: []
+      efficiency:
+        status: approved
+        findings:
+          - id: EFF-001
+            severity: warning
+            description: "checkStagedSyntax leía contenido staged mediante getStagedContent (spawnSync git show) para todos los archivos sin filtrar por extensión."
+            status: resolved
+            resolution: "Se agregó filtro previo por extensiones (.js, .mjs, .cjs, .json) antes de invocar getStagedContent."
+          - id: EFF-002
+            severity: suggestion
+            description: "maxBuffer de 10MB en spawnSync git show."
+            status: accepted-advisory
+          - id: EFF-003
+            severity: suggestion
+            description: "Múltiples llamadas a git diff en hooks."
+            status: accepted-advisory
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "Remediación crítica de pre-commit diferencial en proyecto activo; ruta standard."
+  validated: true
+  validation_errors: []
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/fast-precommit-remediation/proposal.md"
+    summary: "Remediación de pre-commit diferencial: lectura de Git index, fallback a ALL_TARGETS y tests completos, y tests de integración con repo Git temporal."
+    key_decisions:
+      - "Leer blobs del Git index vía git show :<path> en vez de fs.readFileSync para sintaxis y secretos."
+      - "Fallback a ALL_TARGETS al cambiar generadores compartidos, perfiles, transformador o models.yaml."
+      - "Fallback a suite completa de tests de Node al cambiar infraestructura central o scripts/lib/."
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/fast-precommit-remediation/specs/git-precommit-hook/spec.md"
+      - "openspec/changes/fast-precommit-remediation/specs/agent-shield-security/spec.md"
+    summary: "Deltas para git-precommit-hook y agent-shield-security: lectura de Git index, fallbacks seguros y tests de integración Git."
+    key_decisions:
+      - "Validación sintáctica y escaneo de secretos inspeccionan blobs de Git index vía git show :<path>."
+      - "findAffectedTargets recurre a ALL_TARGETS ante cambios en generadores compartidos o perfiles."
+      - "findAffectedTests ejecuta suite completa de Node ante cambios en scripts/lib/ o check.js."
+  design:
+    status: done
+    artifact: "openspec/changes/fast-precommit-remediation/design.md"
+    summary: "Diseño de lectura Git index vía git show, matriz ALL_TARGETS, suite completa en scripts/lib y tests de integración con repo Git temporal."
+    key_decisions:
+      - "git show :<path> con normalización POSIX para sintaxis y secretos."
+      - "Matriz conservadora de targets con fallback a ALL_TARGETS ante cambios de infraestructura."
+      - "Pruebas de integración con repositorios Git efímeros para staging parcial."
+  tasks:
+    status: done
+    artifact: "openspec/changes/fast-precommit-remediation/tasks.md"
+    summary: "Desglose TDD en 5 fases con lectura de blobs en Git index, fallbacks conservadores, suite de integración Git y verificación local e2e."
+    key_decisions:
+      - "Desarrollo TDD estricto (RED -> GREEN -> REFACTOR) por incremento."
+      - "Integración real con repos Git temporales para staging parcial."
+      - "Forecast <400 líneas ejecutables en un único PR unificado."
+  apply:
+    status: done
+    artifact: "openspec/changes/fast-precommit-remediation/apply-progress.md"
+    summary: "getStagedContent implementado; sintaxis y secretos sobre Git index; fallbacks ALL_TARGETS y suite completa; tests de integración con repo Git efímero."
+    key_decisions:
+      - "Inspección de blobs en Git index con normalización POSIX para sintaxis y secretos."
+      - "Fallback a ALL_TARGETS y suite completa para cambios en infraestructura central."
+      - "Verificación de integración con repositorios Git efímeros (5 tests pasando)."
+  verify:
+    status: done
+    verdict: PASS
+    artifact: "openspec/changes/fast-precommit-remediation/verify-report.md"
+    summary: "Verificación formal PASS: 19/19 tareas completas, 752/752 tests pasando, 16/16 escenarios con evidencia runtime-test y 0 errores."
+    key_decisions:
+      - "Validación sintáctica y de secretos confirmada sobre blobs Git index desacoplados de working tree."
+      - "Pruebas de integración sobre repos Git efímeros certifican staging parcial y desacoplamiento."
+  archive:
+    status: done
+    artifact: "openspec/changes/fast-precommit-remediation/archive-report.md"
+    summary: "Plan de archivo emitido con 2 dominios preparados, 4 ADRs propuestos e inventario de 13 archivos; pendiente ejecución runtime."
+baseline_fingerprints:
+  git-precommit-hook: 92fd28e3be74e5ff90c804ef53c1dc9b264d20cb2ea0cd0b2cca806b255e4b2c
+  agent-shield-security: 4879f9d637bc2102b4b91c38ac35a92f9eb05c48e3718e9a0ab18ffbdce4e377

@@ -3,7 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
-const { spawnSync } = require("node:child_process");
+const child_process = require("node:child_process");
 
 /**
  * Obtiene la lista de archivos staged (agregados, copiados, modificados, renombrados).
@@ -13,7 +13,7 @@ const { spawnSync } = require("node:child_process");
  * @returns {string[]}
  */
 function getStagedFiles(repoRoot, deps = {}) {
-  const spawn = deps.spawnSync || spawnSync;
+  const spawn = deps.spawnSync || child_process.spawnSync;
   try {
     const res = spawn("git", ["diff", "--cached", "--name-only", "--diff-filter=ACMR"], {
       cwd: repoRoot,
@@ -32,6 +32,41 @@ function getStagedFiles(repoRoot, deps = {}) {
 }
 
 /**
+ * Extrae el contenido de un archivo preparado en el índice de Git mediante `git show :<path>`.
+ * Normaliza la ruta relativa a formato POSIX con '/' para compatibilidad multiplataforma.
+ *
+ * @param {string} repoRoot - Ruta absoluta de la raíz del repositorio.
+ * @param {string} relativePath - Ruta relativa del archivo dentro del repositorio.
+ * @param {object} [deps] - Inyección de dependencias para testing (spawnSync).
+ * @returns {string|null} - Contenido UTF-8 del blob en el índice, o null si falla la lectura.
+ */
+function getStagedContent(repoRoot, relativePath, deps = {}) {
+  if (!relativePath || typeof relativePath !== "string") {
+    return null;
+  }
+  const spawn = deps.spawnSync || child_process.spawnSync;
+  const rel = path.isAbsolute(relativePath) ? path.relative(repoRoot, relativePath) : relativePath;
+  const posixPath = rel.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (!posixPath) {
+    return null;
+  }
+  try {
+    const res = spawn("git", ["show", `:${posixPath}`], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      shell: false,
+      maxBuffer: 10 * 1024 * 1024,
+    });
+    if (res.error || res.status !== 0) {
+      return null;
+    }
+    return res.stdout;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Valida la sintaxis de los archivos staged (JS vía vm.Script en memoria, JSON vía JSON.parse).
  * Operación en memoria sin spawnear subprocesos, ultra-rápida (<1ms por archivo).
  *
@@ -41,24 +76,28 @@ function getStagedFiles(repoRoot, deps = {}) {
  * @returns {{ file: string, error: string, type: string }[]}
  */
 function checkStagedSyntax(stagedFiles, repoRoot, deps = {}) {
-  const fsImpl = deps.fs || fs;
   const errors = [];
 
   for (const file of stagedFiles) {
-    const absPath = path.isAbsolute(file) ? file : path.join(repoRoot, file);
-    if (!fsImpl.existsSync(absPath)) continue;
-
     const ext = path.extname(file).toLowerCase();
+    if (ext !== ".js" && ext !== ".mjs" && ext !== ".cjs" && ext !== ".json") {
+      continue;
+    }
+
+    const content = typeof deps.getStagedContent === "function"
+      ? deps.getStagedContent(repoRoot, file, deps)
+      : getStagedContent(repoRoot, file, deps);
+
+    if (content === null || typeof content !== "string") continue;
+
     if (ext === ".js" || ext === ".mjs" || ext === ".cjs") {
       try {
-        const code = fsImpl.readFileSync(absPath, "utf8");
-        new vm.Script(code, { filename: file });
+        new vm.Script(content, { filename: file });
       } catch (err) {
         errors.push({ file, error: err.message, type: "js-syntax" });
       }
     } else if (ext === ".json") {
       try {
-        const content = fsImpl.readFileSync(absPath, "utf8");
         JSON.parse(content);
       } catch (err) {
         errors.push({ file, error: err.message, type: "json-syntax" });
@@ -67,6 +106,22 @@ function checkStagedSyntax(stagedFiles, repoRoot, deps = {}) {
   }
 
   return errors;
+}
+
+function toPosixPath(filePath) {
+  return String(filePath || "").replace(/\\/g, "/");
+}
+
+function isCoreInfraFile(normalizedPath) {
+  const lower = normalizedPath.toLowerCase();
+  if (lower === "scripts/check.js") return true;
+  if (
+    lower.startsWith("scripts/lib/") &&
+    !lower.startsWith("scripts/lib/contract-checkers/")
+  ) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -78,19 +133,26 @@ function checkStagedSyntax(stagedFiles, repoRoot, deps = {}) {
  * @returns {string[]}
  */
 function findAffectedTests(stagedFiles, repoRoot, deps = {}) {
+  for (const file of stagedFiles) {
+    const normalized = toPosixPath(file);
+    if (isCoreInfraFile(normalized)) {
+      return ["scripts/**/*.test.js"];
+    }
+  }
+
   const fsImpl = deps.fs || fs;
   const testsToRun = new Set();
   let needsContractLint = false;
   let needsDocsLint = false;
 
   for (const file of stagedFiles) {
-    const normalized = file.replace(/\\/g, "/");
+    const normalized = toPosixPath(file);
     const lower = normalized.toLowerCase();
     const base = path.basename(file).toLowerCase();
 
     // 1. Si el archivo staged es directamente un test
     if (base.endsWith(".test.js")) {
-      const relPath = path.relative(repoRoot, path.resolve(repoRoot, file)).replace(/\\/g, "/");
+      const relPath = toPosixPath(path.relative(repoRoot, path.resolve(repoRoot, file)));
       testsToRun.add(relPath);
       continue;
     }
@@ -106,9 +168,9 @@ function findAffectedTests(stagedFiles, repoRoot, deps = {}) {
       ];
 
       if (dir.startsWith("scripts/lib")) {
-        const sub = dir.slice("scripts/lib".length).replace(/^\//, "");
-        if (sub) {
-          candidates.push(path.posix.join("scripts", sub, `${name}.test.js`));
+        const relativeSubdir = dir.slice("scripts/lib".length).replace(/^\//, "");
+        if (relativeSubdir) {
+          candidates.push(path.posix.join("scripts", relativeSubdir, `${name}.test.js`));
         }
       }
 
@@ -163,6 +225,32 @@ function findAffectedTests(stagedFiles, repoRoot, deps = {}) {
   return Array.from(testsToRun);
 }
 
+const ALL_TARGETS = [
+  "claude",
+  "vscode",
+  "github-copilot",
+  "opencode",
+  "codex",
+  "cursor",
+  "antigravity",
+];
+
+const SHARED_TARGET_INFRASTRUCTURE = [
+  "scripts/configure/cli.js",
+  "scripts/configure/install-engine.js",
+  "scripts/configure/install-target.js",
+  "scripts/configure/validate-phase.js",
+  "scripts/lib/target-transform.js",
+  "models.yaml",
+];
+
+function isSharedTargetInfra(normalizedPath) {
+  const lower = normalizedPath.toLowerCase();
+  if (SHARED_TARGET_INFRASTRUCTURE.includes(lower)) return true;
+  if (lower.startsWith("scripts/lib/target-profiles/")) return true;
+  return false;
+}
+
 /**
  * Identifica si algún archivo staged requiere validar la generación de un target específico.
  *
@@ -170,11 +258,21 @@ function findAffectedTests(stagedFiles, repoRoot, deps = {}) {
  * @returns {string[]}
  */
 function findAffectedTargets(stagedFiles) {
+  for (const file of stagedFiles) {
+    const normalized = toPosixPath(file);
+    if (isSharedTargetInfra(normalized)) {
+      return [...ALL_TARGETS];
+    }
+  }
+
   const targets = new Set();
   for (const file of stagedFiles) {
-    const lower = file.replace(/\\/g, "/").toLowerCase();
+    const lower = toPosixPath(file).toLowerCase();
     if (!lower.startsWith("scripts/configure/")) continue;
 
+    // Mapeo específico por target en scripts/configure/
+    // Nota: claude-marketplace, install-global-copilot e install-global-opencode divergen
+    // del patrón estándar validate-*/install-* debido a la estructura histórica de scripts/configure.
     if (lower.includes("validate-antigravity") || lower.includes("install-antigravity")) targets.add("antigravity");
     if (lower.includes("validate-cursor") || lower.includes("install-cursor")) targets.add("cursor");
     if (lower.includes("validate-codex") || lower.includes("install-codex")) targets.add("codex");
@@ -236,7 +334,9 @@ function runStagedChecks(options = {}, deps = {}) {
 }
 
 module.exports = {
+  ALL_TARGETS,
   getStagedFiles,
+  getStagedContent,
   checkStagedSyntax,
   findAffectedTests,
   findAffectedTargets,

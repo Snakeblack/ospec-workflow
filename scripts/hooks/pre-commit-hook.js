@@ -4,7 +4,7 @@ const child_process = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
-function runPreCommit() {
+function runPreCommit(options = {}) {
   // 1. Bypass por variable de entorno
   if (process.env.DISABLE_OSPEC_PRECOMMIT === "true") {
     console.log("OSPEC-PRECOMMIT: Bypass activo via env var. Omitiendo validación.");
@@ -12,7 +12,7 @@ function runPreCommit() {
     return;
   }
 
-  const repoRoot = path.resolve(__dirname, "../..");
+  const repoRoot = options.repoRoot || process.env.OSPEC_REPO_ROOT || path.resolve(__dirname, "../..");
 
   // 2. Escaneo de seguridad y credenciales en archivos staged (AgentShield Pre-commit)
   if (process.env.DISABLE_AGENT_SHIELD !== "true") {
@@ -28,7 +28,8 @@ function runPreCommit() {
           .map((line) => line.trim())
           .filter(Boolean);
 
-        const { classifySensitiveFile, scanContentForSecrets } = require("./lib/secret-scan.js");
+        const { classifySensitiveFile, scanContentForSecrets, MAX_SCAN_SIZE_BYTES } = require("./lib/secret-scan.js");
+        const { getStagedContent } = require("./lib/staged-validator.js");
 
         for (const file of stagedFiles) {
           const sensitive = classifySensitiveFile(file);
@@ -47,31 +48,32 @@ function runPreCommit() {
             return;
           }
 
-          const absPath = path.isAbsolute(file) ? file : path.join(repoRoot, file);
-          if (fs.existsSync(absPath)) {
-            try {
-              const stats = fs.statSync(absPath);
-              if (stats.size < 1024 * 1024) {
-                const content = fs.readFileSync(absPath, "utf8");
-                const scan = scanContentForSecrets(content);
-                if (scan.matched) {
-                  console.error("\n======================================================================");
-                  console.error("OSPEC-PRECOMMIT ERROR: Se detectó una credencial o clave secreta en archivo staged.");
-                  console.error(`  Archivo: ${file}`);
-                  console.error(`  Patrón detectado: ${scan.patternId}`);
-                  console.error("");
-                  console.error("Remueve las credenciales o secretos antes de realizar el commit.");
-                  console.error("Para omitir esta verificación (emergencias):");
-                  console.error("  DISABLE_AGENT_SHIELD=true git commit ...");
-                  console.error("  o: git commit --no-verify");
-                  console.error("======================================================================\n");
-                  process.exit(1);
-                  return;
-                }
-              }
-            } catch {
-              // Ignorar errores de lectura en escaneo preventivo
-            }
+          let content;
+          try {
+            content = getStagedContent(repoRoot, file);
+          } catch {
+            continue;
+          }
+
+          if (!content || typeof content !== "string") continue;
+
+          const maxScan = MAX_SCAN_SIZE_BYTES || 1024 * 1024;
+          if (Buffer.byteLength(content, "utf8") >= maxScan) continue;
+
+          const scan = scanContentForSecrets(content);
+          if (scan.matched) {
+            console.error("\n======================================================================");
+            console.error("OSPEC-PRECOMMIT ERROR: Se detectó una credencial o clave secreta en archivo staged.");
+            console.error(`  Archivo: ${file}`);
+            console.error(`  Patrón detectado: ${scan.patternId}`);
+            console.error("");
+            console.error("Remueve las credenciales o secretos antes de realizar el commit.");
+            console.error("Para omitir esta verificación (emergencias):");
+            console.error("  DISABLE_AGENT_SHIELD=true git commit ...");
+            console.error("  o: git commit --no-verify");
+            console.error("======================================================================\n");
+            process.exit(1);
+            return;
           }
         }
       }
@@ -131,7 +133,7 @@ function runPreCommit() {
     console.warn(`\nOSPEC-PRECOMMIT [Warning]: No se pudo ejecutar el validador check.js por una falla externa: ${err.message}. Continuando validación...`);
   }
 
-  // 3. Verificación de Strict TDD
+  // 4. Verificación de Strict TDD
   let strictTdd = false;
   try {
     const { resolveTddMode } = require("../lib/tdd-mode.js");

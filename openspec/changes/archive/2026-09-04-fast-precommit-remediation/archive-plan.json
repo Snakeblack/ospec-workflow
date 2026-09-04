@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "change": "fast-precommit-remediation",
+  "source_fingerprint": "sha256:eb8da222c3672398af0569f7620dbde6b81467c73546e7c65545b9e5e905f327",
+  "spec_writes": [
+    {
+      "domain": "git-precommit-hook",
+      "source_delta": "specs/git-precommit-hook/spec.md",
+      "target": "openspec/specs/git-precommit-hook/spec.md",
+      "target_before_sha256": "sha256:92fd28e3be74e5ff90c804ef53c1dc9b264d20cb2ea0cd0b2cca806b255e4b2c",
+      "content_sha256": "sha256:3c5597481c2e7b0a438fd40040c1af86f8da2261824a035f6936daab0f5d954a"
+    },
+    {
+      "domain": "agent-shield-security",
+      "source_delta": "specs/agent-shield-security/spec.md",
+      "target": "openspec/specs/agent-shield-security/spec.md",
+      "target_before_sha256": "sha256:4879f9d637bc2102b4b91c38ac35a92f9eb05c48e3718e9a0ab18ffbdce4e377",
+      "content_sha256": "sha256:8cf3769236eadfebec419e5a26d2a1485ba8e321ddd1c3358ae85c48a7d5abe5"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260904-001-lectura-de-blobs-desde-git-index-mediante-git-show-con-normalizacion-posix.md",
+      "content_sha256": "sha256:500fef2658cb71fbb1838bf016439defaaa05c1039900854bd4082ebf8ffde43"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260904-002-matriz-conservadora-de-invalidacion-de-targets-con-fallback-a-all-targets.md",
+      "content_sha256": "sha256:594ddc2f0c7e71f93ce8d4559832b1e500ceb9a0d9502307aa6eff834a7b71aa"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260904-003-fallback-a-suite-de-pruebas-completa-de-node-ante-cambios-en-infraestructura-central.md",
+      "content_sha256": "sha256:aa20ddca807a730f230c3d2385003053a908b3048ac31eec0755a74accf156b8"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260904-004-estrategia-de-pruebas-de-integracion-con-repositorios-git-efimeros.md",
+      "content_sha256": "sha256:998e1993e99970e48fef11e7c6e50f3ae42f8bcd7b01c7ddb2f00d35ec4e7a2e"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "design.md",
+    "proposal.md",
+    "specs/agent-shield-security/spec.md",
+    "specs/git-precommit-hook/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}
