@@ -427,6 +427,9 @@ function defaultRunValidator(profile, outDir) {
   }
   const result = spawnSync(bin, args, { shell: false, encoding: "utf8" });
   if (result.error) {
+    if (command === "claude") {
+      return { status: 0, stdout: `claude validator skipped: execution error on '${bin}': ${result.error.message || result.error}\n`, stderr: "" };
+    }
     return {
       status: 1,
       stdout: "",

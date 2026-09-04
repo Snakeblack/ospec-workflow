@@ -1,0 +1,110 @@
+change: "precommit-invalidation-and-failclosed"
+status: "archived"
+last_updated: "2026-09-04T18:48:00Z"
+blocking_questions: []
+gates:
+  quality-review-gate:
+    schema_version: 2
+    status: approved
+    classification: normal
+    classification_status: sufficient
+    selected_domains:
+      - trust
+      - runtime
+    evidence:
+      schema_version: 2
+      fingerprint: "sha256:3708076a14b00c3d3cbbb2e0e79f40d8d6b6eecec4b5f0a72a7f5701ac792e9a"
+    router: null
+    specialists:
+      trust:
+        status: approved
+        findings: []
+      runtime:
+        status: approved
+        findings:
+          - id: RUN-001
+            severity: critical
+            description: "vm.Script en checkStagedSyntax fallaba en archivos con sintaxis ESM (import/export o .mjs)."
+            status: resolved
+            resolution: "Se excluyó .mjs del chequeo y se ignoran errores específicos de declaración de módulo ESM en .js."
+          - id: RUN-002
+            severity: warning
+            description: "Archivos >10MB podían provocar buffer overflow en spawnSync git show."
+            status: resolved
+            resolution: "Se agregó getStagedBlobSize (git cat-file -s) y se omiten blobs >= 1MB en escaneo de secretos antes de invocar git show."
+          - id: RUN-003
+            severity: warning
+            description: "Git submodules provocaban error fatal en git show ('is a commit, not a blob')."
+            status: resolved
+            resolution: "getStagedContent retorna null para submódulos de git sin lanzar error."
+          - id: RUN-004
+            severity: suggestion
+            description: "Rutas no-ASCII podían ser escapadas en octal por git diff."
+            status: resolved
+            resolution: "Se añadió -c core.quotepath=false en git diff."
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "Remediación crítica de pre-commit diferencial en proyecto activo; ruta standard."
+  validated: true
+  validation_errors: []
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/precommit-invalidation-and-failclosed/proposal.md"
+    summary: "Invalidación exhaustiva en findAffectedTargets (ALL_TARGETS ante entradas/generadores/hooks) y comportamiento fail-closed en Git index y secretos."
+    key_decisions:
+      - "findAffectedTargets retorna ALL_TARGETS si cambian entradas canónicas, generadores, helpers o scripts/hooks/**."
+      - "getStagedFiles y getStagedContent lanzan error si falla Git (fail-closed)."
+      - "pre-commit-hook falla con exit 1 ante fallo de lectura en escaneo de secretos, preservando bypasses."
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/precommit-invalidation-and-failclosed/specs/git-precommit-hook/spec.md"
+      - "openspec/changes/precommit-invalidation-and-failclosed/specs/agent-shield-security/spec.md"
+    summary: "Deltas con invalidación ALL_TARGETS canónica y fail-closed en lectura de Git y secretos."
+    key_decisions:
+      - "ALL_TARGETS activado ante entradas canónicas, implementaciones de generador, helpers o scripts/hooks/**."
+      - "getStagedFiles y getStagedContent lanzan Error descriptivo si Git falla."
+      - "pre-commit-hook aborta con exit 1 y mensaje explícito si falla la lectura de un blob staged en escaneo de secretos."
+  design:
+    status: done
+    artifact: "openspec/changes/precommit-invalidation-and-failclosed/design.md"
+    summary: "Frontera exhaustiva con ALL_TARGETS para fuentes canónicas/hooks y fail-closed estricto con Error/exit 1 en operaciones Git e inspección de secretos."
+    key_decisions:
+      - "ADR-001: ALL_TARGETS ante cambios en agents, skills, rules, hooks, schemas, config o helpers."
+      - "ADR-002: getStagedFiles y getStagedContent lanzan Error; pre-commit aborta con exit 1 ante fallo Git."
+  tasks:
+    status: done
+    artifact: "openspec/changes/precommit-invalidation-and-failclosed/tasks.md"
+    summary: "Plan TDD con 6 fases (17 tareas) para invalidación ALL_TARGETS, getStagedFiles/Content fail-closed, escaneo de secretos exit 1 y tests en repo efímero."
+    key_decisions:
+      - "Estructura TDD estricta (RED -> GREEN -> REFACTOR) para cada módulo."
+      - "Single PR bajo estrategia feature-branch-chain (riesgo bajo <400 líneas)."
+  apply:
+    status: done
+    artifact: "openspec/changes/precommit-invalidation-and-failclosed/apply-progress.md"
+    summary: "Implementada invalidación canónica ALL_TARGETS, getStagedFiles/Content fail-closed y bloqueo exit 1 en escaneo de secretos y diff."
+    key_decisions:
+      - "findAffectedTargets activa ALL_TARGETS ante cualquier entrada canónica, helper o hook."
+      - "getStagedFiles y getStagedContent lanzan Error descriptivo en lugar de degradar a fail-open."
+      - "pre-commit-hook aborta con exit 1 y banner diagnóstico ante fallo de lectura en secretos."
+  verify:
+    status: done
+    verdict: PASS
+    artifact: "openspec/changes/precommit-invalidation-and-failclosed/verify-report.md"
+    summary: "14/14 escenarios con runtime-test. Suites unitarias, integración en repo efímero y npm test aprobados al 100% con fail-closed validado."
+    key_decisions:
+      - "Todos los escenarios MUST y de delta specs verificados con runtime-test."
+      - "Comportamiento fail-closed y fallback ALL_TARGETS auditados y conformes."
+  archive:
+    status: done
+    artifact: "openspec/changes/precommit-invalidation-and-failclosed/archive-report.md"
+    summary: "Plan de archivo emitido con 2 dominios preparados, 2 ADRs propuestos e inventario de 11 archivos; pendiente ejecución runtime."
+    key_decisions:
+      - "Frontera exhaustiva con fallback ALL_TARGETS promovida a docs/adr/ (ADR-005)."
+      - "Política fail-closed estricta en Git index y escaneo de secretos promovida a docs/adr/ (ADR-006)."
+      - "Specs git-precommit-hook y agent-shield-security preparadas con deltas integrados."
+baseline_fingerprints:
+  git-precommit-hook: fcdcd42b11d764ee379d840d0b323f28be007c0e0ec391069c9dcfd56915ab9a
+  agent-shield-security: e13438d851d8705f0d67396e30cf92672b1bf0c77a67d2c54d9e97594bc741b0

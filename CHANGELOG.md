@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.60.2] - 2026-09-04
+
+### Fixed
+- **Invalidación exhaustiva de targets y política fail-closed en pre-commit (`precommit-invalidation-and-failclosed`)**:
+  - **Invalidación exhaustiva con fallback a `ALL_TARGETS` (`staged-validator.js`)**: ampliación de `findAffectedTargets` para cubrir todas las entradas canónicas del generador (`agents/**`, `commands/**`, `rules/**`, `skills/**`, `hooks/**`, `schemas/kernel/**`, `.mcp.json`, `.claude-plugin/plugin.json`, `models.yaml`), módulos auxiliares (`frontmatter.js`, `model-resolver.js`, `target-transform.js`, `target-profiles/**`) y hooks de runtime (`scripts/hooks/**`), garantizando que cualquier cambio en la especificación o generación de agentes y flujos regenere y valide los 7 targets (`claude`, `vscode`, `github-copilot`, `opencode`, `codex`, `cursor`, `antigravity`) (ADR-005).
+  - **Política fail-closed estricta en Git index (`staged-validator.js`)**: `getStagedFiles` y `getStagedContent` lanzan `Error` descriptivo ante fallos de Git (`git diff`, `git show`, errores de proceso o `maxBuffer`), impidiendo la degradación silenciosa a listas vacías o valores nulos (ADR-006).
+  - **Escaneo de secretos fail-closed (`pre-commit-hook.js`)**: bloqueo inmediato con código de salida `1` y banner diagnóstico ante cualquier fallo al leer o inspeccionar blobs staged en AgentShield, manteniendo las vías de bypass de emergencia autorizadas (`DISABLE_OSPEC_PRECOMMIT`, `DISABLE_AGENT_SHIELD`, `--no-verify`).
+  - **Robustez en entorno de ejecución (`RUN-001` a `RUN-004`)**:
+    - Compatibilidad ESM en validación sintáctica: exclusión de `.mjs` y tolerancia a declaraciones de módulo ESM en `.js` evaluados bajo CommonJS.
+    - Pre-filtrado por tamaño con `git cat-file -s` para omitir blobs >= 1 MB antes de invocar `git show`, evitando desbordamientos de `maxBuffer`.
+    - Detección y omisión segura de submódulos Git en el índice (`commit, not a blob`).
+    - Desactivación de escape octal en rutas con `-c core.quotepath=false` en `git diff`.
+  - **Pruebas de integración Git en repositorios efímeros**: cobertura completa en `staged-validator.integration.test.js` para invalidación canónica y comportamiento fail-closed ante índices o blobs corruptos.
+  - **Especificaciones y ADRs**: Requisitos delta `REQ-git-precommit-hook-001`, `REQ-git-precommit-hook-003` y `REQ-agent-shield-security-001`; ADRs `adr-20260904-005` y `adr-20260904-006`.
+
+### Archived
+- Cambio archivado en `openspec/changes/archive/2026-09-04-precommit-invalidation-and-failclosed/`.
+
 ## [2.60.1] - 2026-09-04
 
 ### Fixed

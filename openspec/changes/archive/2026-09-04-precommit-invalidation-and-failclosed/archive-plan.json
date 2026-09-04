@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "change": "precommit-invalidation-and-failclosed",
+  "source_fingerprint": "sha256:72e31432bca543b50bc67a1e05242db42d87cf4dd363c2563156b596389b9234",
+  "spec_writes": [
+    {
+      "domain": "git-precommit-hook",
+      "source_delta": "specs/git-precommit-hook/spec.md",
+      "target": "openspec/specs/git-precommit-hook/spec.md",
+      "target_before_sha256": "sha256:fcdcd42b11d764ee379d840d0b323f28be007c0e0ec391069c9dcfd56915ab9a",
+      "content_sha256": "sha256:d8a78c27eda26973d7e55ee094b01fe57e119441f057e0c618c95173a9021116"
+    },
+    {
+      "domain": "agent-shield-security",
+      "source_delta": "specs/agent-shield-security/spec.md",
+      "target": "openspec/specs/agent-shield-security/spec.md",
+      "target_before_sha256": "sha256:e13438d851d8705f0d67396e30cf92672b1bf0c77a67d2c54d9e97594bc741b0",
+      "content_sha256": "sha256:5987a121e38ee41e8ca9699b8d43e6a18c8ee2fb01841c368bee3bb080ca0809"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260904-005-frontera-exhaustiva-de-invalidacion-de-targets-con-fallback-a-all-targets.md",
+      "content_sha256": "sha256:dd063aa30abfa49e8458c407940cc22fe889780fab8085dc15c7bae5a51dc5f5"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260904-006-politica-fail-closed-estricta-ante-errores-de-git-en-acceso-al-indice-y-escaneo-de-secretos.md",
+      "content_sha256": "sha256:038e15831b2223fa42076b91323abac0ece9e0d8779dc8c0577e67ea02333c62"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "design.md",
+    "proposal.md",
+    "specs/agent-shield-security/spec.md",
+    "specs/git-precommit-hook/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}
