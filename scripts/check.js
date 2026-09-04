@@ -8,7 +8,7 @@ const { spawnSync } = require("node:child_process");
 const ROOT = path.resolve(__dirname, "..");
 
 const { isWindowsInteropPath, resolveClaudeBin } = require("./configure/cli.js");
-const { runStagedChecks } = require("./lib/staged-validator.js");
+const { runStagedChecks } = require("./hooks/lib/staged-validator.js");
 
 function runStep(name, args, deps = {}) {
   const spawn = deps.spawnSync || spawnSync;

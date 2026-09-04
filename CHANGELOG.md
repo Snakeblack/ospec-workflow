@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Soporte `--staged` en `check.js`**: permite al hook pre-commit validar el espacio de trabajo de manera incremental, acelerando el tiempo de commit de ~63 s a <1 s (hasta 85x-230x de mejora en latency), mientras `npm test` y CI conservan la matriz completa.
   - **Defensa en profundidad con AgentShield en pre-commit**: escaneo preventivo automático de archivos y contenidos staged antes de confirmar el commit, bloqueando archivos sensibles (`.env*`, claves SSH, `.npmrc`) y tokens de credenciales (`sk-...`, `AIzaSy...`, AWS, JWT, contraseñas genéricas).
   - **Preservación estricta de robustez y compatibilidad**: mantiene intacta la verificación de Strict TDD, banners informativos `===` con diagnóstico detallado y todas las vías de bypass (`DISABLE_OSPEC_PRECOMMIT`, `DISABLE_AGENT_SHIELD`, `OSPEC_PRECOMMIT_FULL`, `git commit --no-verify`).
+  - **Verificación directa**: `node scripts/check.js` (3045 tests pasando, 0 fallos y 4 omitidos).
 
 ## [2.59.0] - 2026-09-04
 

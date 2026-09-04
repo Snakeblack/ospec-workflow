@@ -197,7 +197,7 @@ function findAffectedTargets(stagedFiles) {
  * @returns {{ ok: boolean, stagedFiles: string[], testsRun: string[], targetsRun: string[] }}
  */
 function runStagedChecks(options = {}, deps = {}) {
-  const repoRoot = options.repoRoot || path.resolve(__dirname, "../..");
+  const repoRoot = options.repoRoot || path.resolve(__dirname, "../../..");
   const run = deps.runStep || options.runStep;
   const generate = deps.generateTarget || options.generateTarget;
 
