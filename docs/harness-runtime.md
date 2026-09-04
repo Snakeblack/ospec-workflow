@@ -102,9 +102,11 @@ Protege contra fugas de información confidencial y el acceso no deseado a crede
 - **Bypass**: Habilita la variable de entorno `DISABLE_AGENT_SHIELD=true` para desactivar este escudo.
 
 ### 3. Git Pre-commit Hook
-Validador local que asegura la calidad del repositorio antes de consolidar cambios:
+Validador local que asegura la calidad, seguridad y consistencia del repositorio antes de consolidar cambios:
 - **Instalación**: Se configura de manera idempotente usando `npm run setup:git-hooks` (ejecuta [setup-git-hooks.js](../scripts/setup-git-hooks.js) para instalar los hooks en `.git/hooks/`).
-- **Validación de Workspace**: Invoca `scripts/check.js` para asegurar que el plugin compila y todos los tests pasan.
+- **Escaneo de Secretos (AgentShield Pre-commit)**: Escanea los archivos y contenidos staged antes del commit; bloquea inmediatamente archivos sensibles (`.env*`, claves privadas SSH, `.npmrc`) y patrones de tokens de credenciales (`sk-...`, `AIzaSy...`, `AKIA...`, JWT, contraseñas). Omitible con `DISABLE_AGENT_SHIELD=true`.
+- **Validación de Sintaxis en Memoria**: Verifica sintácticamente archivos JS (`node:vm.Script`) y JSON (`JSON.parse`) en memoria de forma fail-fast (<1 ms por archivo).
+- **Validación Diferencial de Workspace**: Invoca `scripts/check.js --staged` para validar únicamente los tests y targets afectados por los archivos staged (<1 s frente a ~63 s de la suite completa), garantizando máxima velocidad sin perder cobertura. Para forzar la suite completa: `OSPEC_PRECOMMIT_FULL=true`.
 - **Validación de Strict TDD**: Si `testing.tdd_mode: strict` en `openspec/config.yaml`, rechaza commits si hay cambios de código de producción preparados (`staged`) sin sus correspondientes archivos de prueba (`*_test.go`, `*.test.js`) o su archivo `tasks.md` de planificación.
 - **Bypass**: Habilita la variable de entorno `DISABLE_OSPEC_PRECOMMIT=true` o usa `git commit --no-verify`.
 
