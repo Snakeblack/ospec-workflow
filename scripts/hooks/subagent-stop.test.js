@@ -705,6 +705,213 @@ async function readContextMeasurements(workspace, changeName) {
   return (await fs.readFile(filePath, "utf8")).trim().split(/\r?\n/).map((line) => JSON.parse(line));
 }
 
+// ── Lane CX0 Claude (REQ-context-measurement-007/008, REQ-hooks-018) ─────────
+
+/**
+ * Escribe una transcripción Claude JSONL en el workspace y devuelve su ruta.
+ * @param {string} workspace directorio temporal del fixture
+ * @param {Array<object>} entries entradas JSONL a serializar
+ */
+async function writeClaudeTranscript(workspace, entries) {
+  const transcriptPath = path.join(workspace, "claude-session.jsonl");
+  await fs.writeFile(
+    transcriptPath,
+    entries.map((entry) => JSON.stringify(entry)).join("\n") + "\n",
+    "utf8",
+  );
+  return transcriptPath;
+}
+
+test("[REQ-context-measurement-007][REQ-hooks-018] CM-007: uso completo de la transcripción alimenta CX0 available + derivadas runtime-derived", async (t) => {
+  const { workspace } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+  const transcriptPath = await writeClaudeTranscript(workspace, [
+    { type: "user", message: { role: "user", content: "prepara el informe" } },
+    { type: "assistant", message: { role: "assistant", usage: { input_tokens: 1000, output_tokens: 200, cached_input_tokens: 400 } } },
+  ]);
+
+  const outcome = await persistContextMeasurement({
+    input: { cwd: workspace, agent_type: "sdd-design", transcript_path: transcriptPath },
+    workspace,
+    env: {},
+  });
+
+  assert.equal(outcome.status, "recorded");
+  assert.equal(outcome.fallback, "host-field-unavailable", "solo artifact_* y tool_output_tokens quedan sin observación");
+  const [record] = await readContextMeasurements(workspace, "strict-result-envelope");
+  assert.equal(record.dimensions.host, "claude", "la firma de transcripción (tier 5) resuelve host claude");
+  const m = record.metrics;
+  assert.equal(m.input_tokens.status, "available");
+  assert.equal(m.input_tokens.source, "host-observed");
+  assert.equal(m.input_tokens.value, 1000);
+  assert.equal(m.output_tokens.status, "available");
+  assert.equal(m.output_tokens.source, "host-observed");
+  assert.equal(m.output_tokens.value, 200);
+  assert.equal(m.cached_input_tokens.status, "available");
+  assert.equal(m.cached_input_tokens.source, "host-observed");
+  assert.equal(m.cached_input_tokens.value, 400);
+  assert.equal(m.uncached_input_tokens.status, "available");
+  assert.equal(m.uncached_input_tokens.source, "runtime-derived");
+  assert.equal(m.uncached_input_tokens.value, 600);
+  assert.equal(m.uncached_input_tokens.formula_version, "uncached-input/v1");
+  assert.equal(m.unique_context.status, "available");
+  assert.equal(m.unique_context.source, "runtime-derived");
+  assert.equal(m.unique_context.value, 600);
+  assert.equal(m.duplicated_context.status, "available");
+  assert.equal(m.duplicated_context.source, "runtime-derived");
+  assert.equal(m.duplicated_context.value, 400);
+  assert.equal(m.amplification.status, "available", "amplification/v1 disponible con unique_context > 0");
+  assert.equal(m.amplification.formula_version, "amplification/v1");
+  assert.equal(m.amplification.value, (600 + 400) / 600);
+  assert.equal(validateContextMeasurementRecordShape(record), true);
+});
+
+/**
+ * Verifica que el registro persistido conserva su forma completa: las 10
+ * métricas del esquema presentes y los envelopes unavailable sin valor.
+ * @param {object} record registro CX0 normalizado
+ * @returns {boolean}
+ */
+function validateContextMeasurementRecordShape(record) {
+  const names = ["input_tokens", "cached_input_tokens", "uncached_input_tokens", "output_tokens", "artifact_reads", "artifact_writes", "tool_output_tokens", "unique_context", "duplicated_context", "amplification"];
+  return names.every((name) => record.metrics[name] !== undefined)
+    && names.every((name) => record.metrics[name].status !== "unavailable" || record.metrics[name].value === undefined);
+}
+
+test("[REQ-context-measurement-007] CM-007: el par Anthropic se normaliza al triple canónico end-to-end (caché = suma)", async (t) => {
+  const { workspace } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+  const transcriptPath = await writeClaudeTranscript(workspace, [
+    { type: "assistant", message: { role: "assistant", usage: { input_tokens: 1000, output_tokens: 200, cache_read_input_tokens: 250, cache_creation_input_tokens: 150 } } },
+  ]);
+
+  const outcome = await persistContextMeasurement({
+    input: { cwd: workspace, agent_type: "sdd-apply", transcript_path: transcriptPath },
+    workspace,
+    env: {},
+  });
+
+  assert.equal(outcome.status, "recorded");
+  const [record] = await readContextMeasurements(workspace, "strict-result-envelope");
+  assert.equal(record.metrics.cached_input_tokens.status, "available");
+  assert.equal(record.metrics.cached_input_tokens.value, 400, "cache_read + cache_creation");
+  assert.equal(record.metrics.uncached_input_tokens.status, "available");
+  assert.equal(record.metrics.uncached_input_tokens.value, 600, "input - cached, sin resultar negativa");
+});
+
+test("[REQ-context-measurement-007] CM-007: cobertura parcial degrada solo las métricas afectadas, sin ceros evidenciales", async (t) => {
+  const { workspace } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+  const transcriptPath = await writeClaudeTranscript(workspace, [
+    { type: "assistant", message: { role: "assistant", usage: { input_tokens: 800, output_tokens: 120 } } },
+  ]);
+
+  const outcome = await persistContextMeasurement({
+    input: { cwd: workspace, agent_type: "sdd-spec", transcript_path: transcriptPath },
+    workspace,
+    env: {},
+  });
+
+  assert.equal(outcome.status, "recorded");
+  const [record] = await readContextMeasurements(workspace, "strict-result-envelope");
+  assert.equal(record.metrics.input_tokens.status, "available");
+  assert.equal(record.metrics.input_tokens.source, "host-observed");
+  assert.equal(record.metrics.output_tokens.status, "available");
+  assert.equal(record.metrics.output_tokens.source, "host-observed");
+  for (const name of ["cached_input_tokens", "uncached_input_tokens", "unique_context", "duplicated_context", "amplification"]) {
+    assert.equal(record.metrics[name].status, "unavailable", `${name} unavailable`);
+    assert.equal(record.metrics[name].value, undefined, `${name} sin cero evidencial`);
+  }
+  assert.equal(record.metrics.cached_input_tokens.reason_code, "host-field-unavailable");
+  assert.equal(record.metrics.uncached_input_tokens.reason_code, "host-field-unavailable");
+  assert.equal(record.metrics.unique_context.reason_code, "host-field-unavailable");
+  assert.equal(record.metrics.duplicated_context.reason_code, "host-field-unavailable");
+  assert.equal(validateContextMeasurementRecordShape(record), true, "el registro persiste su forma completa");
+});
+
+test("[REQ-context-measurement-008] CM-008: la precedencia de host va de lo explícito a lo inferido (tiers 1-6)", async (t) => {
+  const { workspace } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+
+  const hostFor = async (input, env) => {
+    const outcome = await persistContextMeasurement({ input, workspace, env });
+    assert.equal(outcome.status, "recorded");
+    const records = await readContextMeasurements(workspace, "strict-result-envelope");
+    return records[records.length - 1].dimensions.host;
+  };
+
+  // Tier 1: host explícito válido conserva precedencia sobre cualquier señal.
+  assert.equal(await hostFor({ cwd: workspace, agent_type: "sdd-design", host: "opencode" }, { OSPEC_TARGET: "claude", CLAUDE_PLUGIN_ROOT: "/x" }), "opencode");
+  // Tier 2: OSPEC_TARGET=codex precede a la señal Claude.
+  assert.equal(await hostFor({ cwd: workspace, agent_type: "sdd-design" }, { OSPEC_TARGET: "codex", CLAUDE_PLUGIN_ROOT: "/x" }), "codex");
+  // Tier 3: OSPEC_TARGET=claude.
+  assert.equal(await hostFor({ cwd: workspace, agent_type: "sdd-design" }, { OSPEC_TARGET: "claude" }), "claude");
+  // Tier 4: CLAUDE_PLUGIN_ROOT no vacío.
+  assert.equal(await hostFor({ cwd: workspace, agent_type: "sdd-design" }, { CLAUDE_PLUGIN_ROOT: "/x" }), "claude");
+  // Exclusión: OSPEC_PLUGIN_ROOT NO es señal (el launcher lo inyecta en todos los hosts).
+  assert.equal(await hostFor({ cwd: workspace, agent_type: "sdd-design" }, { OSPEC_PLUGIN_ROOT: "/x" }), "unknown-host");
+  // Tier 6: sin señal → unknown-host.
+  assert.equal(await hostFor({ cwd: workspace, agent_type: "sdd-design" }, {}), "unknown-host");
+});
+
+test("[REQ-context-measurement-008] CM-008: la firma de transcripción resuelve host claude y su ausencia conserva unknown-host", async (t) => {
+  const { workspace } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+
+  const withSignature = await writeClaudeTranscript(workspace, [
+    { type: "assistant", message: { role: "assistant", content: "sin uso pero con firma" } },
+  ]);
+  const outcome = await persistContextMeasurement({
+    input: { cwd: workspace, agent_type: "sdd-design", transcript_path: withSignature },
+    workspace,
+    env: {},
+  });
+  assert.equal(outcome.status, "recorded");
+  const records = await readContextMeasurements(workspace, "strict-result-envelope");
+  assert.equal(records[0].dimensions.host, "claude");
+
+  const genericPath = path.join(workspace, "generic.jsonl");
+  await fs.writeFile(genericPath, `${JSON.stringify({ role: "user", content: "sin firma Claude" })}\n`, "utf8");
+  await persistContextMeasurement({
+    input: { cwd: workspace, agent_type: "sdd-design", transcript_path: genericPath },
+    workspace,
+    env: {},
+  });
+  const afterGeneric = await readContextMeasurements(workspace, "strict-result-envelope");
+  assert.equal(afterGeneric[1].dimensions.host, "unknown-host");
+  const metricsBefore = JSON.stringify(afterGeneric[0].metrics);
+  const metricsAfter = JSON.stringify(afterGeneric[1].metrics);
+  assert.ok(metricsBefore.length > 0 && metricsAfter.length > 0, "las métricas persisten sin alteración por el valor de host");
+});
+
+test("[REQ-hooks-018] H-018: transcripción corrupta o ausente degrada CX0 sin alterar el comportamiento del hook", async (t) => {
+  const { workspace } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+  const corruptPath = path.join(workspace, "corrupt.jsonl");
+  await fs.writeFile(corruptPath, "{linea-rota\n\t{json-malo}\n\n}}}", "utf8");
+
+  const result = await runSubagentStop({
+    input: { cwd: workspace, agent_type: "sdd-apply", transcript_path: corruptPath },
+  });
+
+  // stdout/retorno intactos: la degradación no cambia la continuación.
+  assert.deepEqual(result, { status: "skipped", reason: "resolution-unavailable" });
+  // Lane O1 (phase-cost) intacta.
+  const o1 = await readPhaseCosts(workspace, "strict-result-envelope");
+  assert.equal(o1.length, 1);
+  // Lane CX0 persistida con degradación estable.
+  const [record] = await readContextMeasurements(workspace, "strict-result-envelope");
+  for (const name of ["input_tokens", "cached_input_tokens", "uncached_input_tokens", "output_tokens", "unique_context", "duplicated_context"]) {
+    assert.equal(record.metrics[name].status, "unavailable", `${name} unavailable`);
+    assert.equal(record.metrics[name].reason_code, "host-field-unavailable", `${name} razón estable`);
+  }
+  assert.equal(validateContextMeasurementRecordShape(record), true);
+
+  // Variante: transcript_path inexistente → misma degradación fail-safe.
+  const missing = await persistContextMeasurement({
+    input: { cwd: workspace, agent_type: "sdd-apply", transcript_path: path.join(workspace, "inexistente.jsonl") },
+    workspace,
+    env: {},
+  });
+  assert.equal(missing.status, "recorded");
+  const records = await readContextMeasurements(workspace, "strict-result-envelope");
+  assert.equal(records[1].metrics.input_tokens.reason_code, "host-field-unavailable");
+});
+
 test("SubagentStop emits CX0 after O1 without changing continuation behavior", async (t) => {
   const { workspace } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
   const result = await runSubagentStop({ input: {

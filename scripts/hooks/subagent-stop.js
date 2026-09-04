@@ -19,6 +19,7 @@ const {
   withFileLock,
 } = require("../lib/ospec-state.js");
 const { normalizeContextMeasurement, validateContextMeasurement } = require("../lib/context-measurement.js");
+const { extractClaudeTelemetry } = require("./lib/claude-usage.js");
 const { writeFileAtomic, recoverOrphanBak } = require("../lib/atomic-write.js");
 const { extractEnvelope, validateEnvelope } = require("../lib/result-envelope.js");
 const { resolveModelTier } = require("./lib/model-tier.js");
@@ -955,22 +956,77 @@ function readChangeClassification(content) {
   return match ? match[1].trim().toLowerCase() : "unknown-classification";
 }
 
+/**
+ * Envelope CX0 `unavailable` runtime-derived con código de razón estable
+ * (REQ-context-measurement-007): sin valor, sin ceros evidenciales.
+ * @param {"host-field-unavailable"|"incompatible-components"} reasonCode código estable de degradación
+ */
+function unavailableDerivedObservation(reasonCode) {
+  return {
+    status: "unavailable",
+    source: "runtime-derived",
+    coverage: { state: "unavailable", observed: 0, expected: 0, ratio: 0 },
+    reason_code: reasonCode,
+  };
+}
+
+/**
+ * Envelope CX0 `available` runtime-derived para un componente observado
+ * (unique_context ← componente uncached; duplicated_context ← componente cached).
+ * @param {number} value valor del componente
+ */
+function derivedObservation(value) {
+  return {
+    status: "available",
+    value,
+    unit: "count",
+    source: "runtime-derived",
+    coverage: { state: "complete", observed: 1, expected: 1, ratio: 1 },
+  };
+}
+
 function contextMetricObservations(input, tokenUsage, ctx) {
   const usage = tokenUsage?.usage || tokenUsage || {};
   const inputTokens = Number.isSafeInteger(usage.input_tokens) ? usage.input_tokens : undefined;
   const cached = Number.isSafeInteger(usage.cached_input_tokens) ? usage.cached_input_tokens : undefined;
+  // REQ-context-measurement-007: uncached = input - cached bajo
+  // uncached-input/v1; disponible solo si ambos presentes y cached <= input.
+  // cached > input (varianza semántica de endpoints) → incompatible-components
+  // en vez de inventar negativos; contador faltante → host-field-unavailable.
+  const uncached = inputTokens !== undefined && cached !== undefined
+    ? cached <= inputTokens
+      ? {
+          status: "available",
+          value: inputTokens - cached,
+          unit: "count",
+          source: "runtime-derived",
+          coverage: { state: "complete", observed: 2, expected: 2, ratio: 1 },
+          formula_version: "uncached-input/v1",
+        }
+      : unavailableDerivedObservation("incompatible-components")
+    : unavailableDerivedObservation("host-field-unavailable");
+  // Los valores explícitos de context_measurement del host conservan
+  // precedencia; en su ausencia las componentes se emiten como envelopes.
+  const explicitUnique = input?.context_measurement?.unique_context;
+  const explicitDuplicated = input?.context_measurement?.duplicated_context;
   return {
     input_tokens: inputTokens,
     cached_input_tokens: cached,
-    uncached_input_tokens: inputTokens !== undefined && cached !== undefined && cached <= inputTokens
-      ? { status: "available", value: inputTokens - cached, unit: "count", source: "runtime-derived", coverage: { state: "complete", observed: 2, expected: 2, ratio: 1 }, formula_version: "uncached-input/v1" }
-      : undefined,
+    uncached_input_tokens: uncached,
     output_tokens: Number.isSafeInteger(usage.output_tokens) ? usage.output_tokens : undefined,
     artifact_reads: input?.context_measurement?.artifact_reads,
     artifact_writes: input?.context_measurement?.artifact_writes,
     tool_output_tokens: Number.isSafeInteger(input?.context_measurement?.tool_output_tokens) ? input.context_measurement.tool_output_tokens : undefined,
-    unique_context: input?.context_measurement?.unique_context,
-    duplicated_context: input?.context_measurement?.duplicated_context,
+    unique_context: explicitUnique !== undefined
+      ? explicitUnique
+      : uncached.status === "available"
+        ? derivedObservation(uncached.value)
+        : unavailableDerivedObservation(uncached.reason_code),
+    duplicated_context: explicitDuplicated !== undefined
+      ? explicitDuplicated
+      : cached !== undefined
+        ? derivedObservation(cached)
+        : unavailableDerivedObservation("host-field-unavailable"),
     // Legacy estimated values are deliberately not copied as observed input.
     // `ctx` is retained to document that the old O1 lane was considered but
     // was not promoted to CX0 evidence.
@@ -979,11 +1035,47 @@ function contextMetricObservations(input, tokenUsage, ctx) {
 }
 
 /**
+ * Valida un marcador de entorno no vacío (solo strings con contenido).
+ * @param {unknown} value valor de process.env / env inyectado
+ */
+function isNonEmptyEnvMarker(value) {
+  return typeof value === "string" && value.length > 0;
+}
+
+/**
+ * Resuelve la dimensión `host` del registro CX0 por precedencia de lo
+ * explícito a lo inferido (ADR-002, REQ-context-measurement-008):
+ * (1) input.host explícito válido; (2) OSPEC_TARGET=codex; (3)
+ * OSPEC_TARGET=claude; (4) CLAUDE_PLUGIN_ROOT no vacío; (5) firma de
+ * transcripción (type assistant + message objeto en la ventana leída);
+ * (6) unknown-host. OSPEC_PLUGIN_ROOT NO es señal: el launcher lo inyecta
+ * en todos los hosts.
+ * @param {object} input dispatch crudo del host
+ * @param {NodeJS.ProcessEnv} env entorno inyectado (default process.env)
+ * @param {{isClaudeTranscript?: boolean}|undefined} claudeTelemetry resultado del tail-read
+ * @returns {string} dimensión host
+ */
+function resolveContextHost(input, env, claudeTelemetry) {
+  if (typeof input?.host === "string" && /^[a-z0-9][a-z0-9-]{0,63}$/i.test(input.host)) {
+    return input.host.toLowerCase();
+  }
+  if (env?.OSPEC_TARGET === "codex") return "codex";
+  if (env?.OSPEC_TARGET === "claude") return "claude";
+  if (isNonEmptyEnvMarker(env?.CLAUDE_PLUGIN_ROOT)) return "claude";
+  if (claudeTelemetry?.isClaudeTranscript) return "claude";
+  return "unknown-host";
+}
+
+/**
  * Emits the additive CX0 lane after O1.  It owns a separate fail-safe boundary
  * so host parsing, normalization, or durable writes cannot change the hook
  * result, routing, authority, or the legacy phase-cost stream.
+ * REQ-hooks-018: compone `tokenUsage = codex || claude` (Codex primero, byte a
+ * byte; extractor Claude solo en cortocircuito, de modo que un solo tail-read
+ * alimenta uso + firma). REQ-context-measurement-008: host por precedencia
+ * ADR-002 con `env` inyectable.
  */
-async function persistContextMeasurement({ input, workspace, append = appendContextMeasurement }) {
+async function persistContextMeasurement({ input, workspace, append = appendContextMeasurement, env = process.env }) {
   const canonicalAgentPhase = resolveAgentName(input);
   const phase = derivePhaseKey(canonicalAgentPhase);
   try {
@@ -991,11 +1083,11 @@ async function persistContextMeasurement({ input, workspace, append = appendCont
     const openspecRoot = await findOpenSpecRoot(workspace);
     const activeChange = (await findActiveChanges(openspecRoot))[0];
     if (!activeChange) return { status: "skipped", reason: "no-active-change", phase };
-    const tokenUsage = await resolveCodexTokenCountUsageAsync(input, workspace);
+    const codexUsage = await resolveCodexTokenCountUsageAsync(input, workspace);
+    const claudeTelemetry = codexUsage ? undefined : await extractClaudeTelemetry(input);
+    const tokenUsage = codexUsage || claudeTelemetry?.usage;
     const ctx = normalizeDispatchCostContext(input, tokenUsage);
-    const host = typeof input?.host === "string" && /^[a-z0-9][a-z0-9-]{0,63}$/i.test(input.host)
-      ? input.host.toLowerCase()
-      : process.env.OSPEC_TARGET === "codex" ? "codex" : "unknown-host";
+    const host = resolveContextHost(input, env, claudeTelemetry);
     const record = normalizeContextMeasurement({
       observed_at: new Date().toISOString(),
       candidate_id: input?.candidate_id,

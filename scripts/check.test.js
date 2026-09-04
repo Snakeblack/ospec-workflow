@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 const test = require("node:test");
 
-const { main, generateTarget, runStep } = require("./check.js");
+const { main, generateTarget, runStep, claudeCliAvailable } = require("./check.js");
 
 test("runStep throws a clear error when spawnSync cannot start", () => {
   const stdout = [];
@@ -114,4 +114,46 @@ test("main reports generation failures and exits with status 1", () => {
 
   assert.equal(exitCode, 1);
   assert.match(stderr.join(""), /Check failed: codex exploded/);
+});
+
+function withPlatform(platform, fn) {
+  const original = process.platform;
+  Object.defineProperty(process, "platform", { value: platform, configurable: true });
+  try {
+    fn();
+  } finally {
+    Object.defineProperty(process, "platform", { value: original, configurable: true });
+  }
+}
+
+test("claudeCliAvailable rejects a WSL interop binary resolved under /mnt", () => {
+  withPlatform("linux", () => {
+    assert.equal(
+      claudeCliAvailable({
+        resolveClaudeBin: () => "/mnt/c/Program Files/nodejs/claude",
+        spawnSync: () => ({ error: undefined, status: 0 }),
+      }),
+      false,
+    );
+  });
+});
+
+test("claudeCliAvailable returns false when no claude binary can be resolved", () => {
+  assert.equal(
+    claudeCliAvailable({
+      resolveClaudeBin: () => null,
+      spawnSync: () => ({ error: new Error("ENOENT") }),
+    }),
+    false,
+  );
+});
+
+test("claudeCliAvailable keeps the --version probe for a usable native binary", () => {
+  assert.equal(
+    claudeCliAvailable({
+      resolveClaudeBin: () => "/usr/bin/claude",
+      spawnSync: () => ({ error: undefined, status: 0 }),
+    }),
+    true,
+  );
 });

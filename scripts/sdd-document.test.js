@@ -263,7 +263,7 @@ test("sdd-document generated outputs use cheap models or fail-soft omission", (t
   const cases = [
     ["claude", "agents/sdd-document.md", "haiku"],
     ["vscode", "agents/sdd-document.agent.md", ["GPT-5.6 Luna (copilot)"]],
-    ["opencode", ".opencode/agents/sdd-document.md", "openai/gpt-5.6-luna"],
+    ["opencode", ".opencode/agents/sdd-document.md", "zai-coding-plan/glm-5.3-flash"],
   ];
   for (const [target, relative, expected] of cases) {
     const out = tmpOut(t);

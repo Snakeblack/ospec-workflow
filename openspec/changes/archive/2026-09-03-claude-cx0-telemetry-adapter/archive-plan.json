@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "change": "claude-cx0-telemetry-adapter",
+  "source_fingerprint": "sha256:f1075b311b296f8acd41cecb78ebb17ccfe9158cdc0bd5b31a6965b312758865",
+  "spec_writes": [
+    {
+      "domain": "context-measurement",
+      "source_delta": "prepared/context-measurement.spec.md",
+      "target": "openspec/specs/context-measurement/spec.md",
+      "target_before_sha256": "sha256:7997ef6ff3232ec03a682e315c38f6ee86c3ae679cbaaeca892cc59fa282f73f",
+      "content_sha256": "sha256:0c879c87e66c0c9a8eb4347c91c0e8822036f19ab9c1727440f9e1fc8efe62a5"
+    },
+    {
+      "domain": "hooks",
+      "source_delta": "prepared/hooks.spec.md",
+      "target": "openspec/specs/hooks/spec.md",
+      "target_before_sha256": "sha256:01035d84b06fb703981f2ec3280a2cf4886d8be963b608339f6d9fa8a3799d74",
+      "content_sha256": "sha256:ee029417204548b8666b3d73b4e6afc9131fba9463921cc1277805861b0c5eaa"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260903-009-bounded-tail-read-window-for-claude-transcripts.md",
+      "content_sha256": "sha256:9bdd7aec171c65c8fad68a0cd331342785a94292fdc5d8996a2ee43db1e9a5a3"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260903-010-claude-host-detection-precedence.md",
+      "content_sha256": "sha256:77a8c5dfcf94d0065270e116515062e2af341f345525d8fe0d06f1bb3f1d32dd"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "design.md",
+    "prepared/context-measurement.spec.md",
+    "prepared/hooks.spec.md",
+    "proposal.md",
+    "specs/context-measurement/spec.md",
+    "specs/hooks/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

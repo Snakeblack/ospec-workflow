@@ -382,9 +382,17 @@ function resolveBinFromPath(binName) {
   return null;
 }
 
+// A /mnt/<drive>/ path on linux is a Windows binary reached through the WSL
+// interop mount. It may start, but it reinterprets POSIX paths (a /tmp/...
+// argument becomes C:\tmp\... on the Windows side), so it can never consume
+// the POSIX output dirs we generate. Treat it as unusable.
+function isWindowsInteropPath(p) {
+  return process.platform === "linux" && /^\/mnt\/[a-z]\//.test(p);
+}
+
 function resolveClaudeBin() {
   const resolved = resolveBinFromPath("claude");
-  if (resolved) {
+  if (resolved && !isWindowsInteropPath(resolved)) {
     return resolved;
   }
 
@@ -410,9 +418,12 @@ function defaultRunValidator(profile, outDir) {
   let bin = command === "node" ? process.execPath : command;
   if (command === "claude") {
     const resolved = resolveClaudeBin();
-    if (resolved) {
-      bin = resolved;
+    if (!resolved) {
+      // Fail soft like the other missing-CLI paths: complete generation without
+      // claude validation instead of failing the gate on a spawn error.
+      return { status: 0, stdout: "claude validator skipped: no usable native binary\n", stderr: "" };
     }
+    bin = resolved;
   }
   const result = spawnSync(bin, args, { shell: false, encoding: "utf8" });
   if (result.error) {
@@ -645,6 +656,8 @@ module.exports = {
   parseModels,
   defaultRunValidator,
   resolveClaudeBin,
+  resolveBinFromPath,
+  isWindowsInteropPath,
   withTransientFsRetries,
   runConfigure,
   main,

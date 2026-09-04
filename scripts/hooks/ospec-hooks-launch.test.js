@@ -15,6 +15,7 @@ const {
   adaptCursorHookInput,
   normalizeCursorHookOutput,
   isCursorHost,
+  isClaudeCodeHost,
 } = require("./ospec-hooks-launch.js");
 
 const HOOKS_DIR = path.join("plugins", "ospec-workflow", "scripts", "hooks");
@@ -133,6 +134,97 @@ test("resolveInvocation handles missing config file gracefully, defaulting to op
     command: platform,
     args: ["session-start"],
   });
+});
+
+// ── H-019: el launcher enruta subagent-stop a Node bajo hosts Claude ────────
+
+const LINUX_SUFFIX = { goos: "linux", goarch: "amd64", ext: "" };
+const LINUX_BINARY = path.join(HOOKS_DIR, "ospec-hooks-linux-amd64");
+const readNoConfig = () => {
+  throw new Error("no config read expected");
+};
+
+test("[REQ-hooks-019] H-019: subagent-stop bajo host Claude con binario presente se ejecuta vía Node", () => {
+  const exists = (p) => p === LINUX_BINARY; // binario nativo presente
+
+  // Señal OSPEC_TARGET=claude (tier 3 de ADR-002).
+  assert.deepEqual(
+    resolveInvocation("subagent-stop", HOOKS_DIR, LINUX_SUFFIX, exists, readNoConfig, { OSPEC_TARGET: "claude" }),
+    { command: process.execPath, args: [path.join(HOOKS_DIR, "subagent-stop.js")] },
+    "el binario nativo no debe ensombrecer al productor Node",
+  );
+
+  // Señal CLAUDE_PLUGIN_ROOT no vacío (tier 4 de ADR-002).
+  assert.deepEqual(
+    resolveInvocation("subagent-stop", HOOKS_DIR, LINUX_SUFFIX, exists, readNoConfig, { CLAUDE_PLUGIN_ROOT: "/plugins/claude" }),
+    { command: process.execPath, args: [path.join(HOOKS_DIR, "subagent-stop.js")] },
+  );
+
+  // OSPEC_PLUGIN_ROOT NO es señal: el binario conserva el evento.
+  assert.deepEqual(
+    resolveInvocation("subagent-stop", HOOKS_DIR, LINUX_SUFFIX, exists, readNoConfig, { OSPEC_PLUGIN_ROOT: "/plugins/x" }),
+    { command: LINUX_BINARY, args: ["subagent-stop"] },
+  );
+});
+
+test("isClaudeCodeHost detecta hosts Claude solo por marcadores de entorno", () => {
+  assert.equal(isClaudeCodeHost({ OSPEC_TARGET: "claude" }), true);
+  assert.equal(isClaudeCodeHost({ CLAUDE_PLUGIN_ROOT: "/x" }), true);
+  assert.equal(isClaudeCodeHost({ CLAUDE_PLUGIN_ROOT: "" }), false, "valor vacío no es señal");
+  assert.equal(isClaudeCodeHost({ OSPEC_TARGET: "codex" }), false);
+  assert.equal(isClaudeCodeHost({ OSPEC_TARGET: "cursor" }), false);
+  assert.equal(isClaudeCodeHost({}), false);
+});
+
+test("[REQ-hooks-019] H-019: los demás eventos conservan el enrutamiento binario y sin binario manda el fallback Node", () => {
+  const exists = (p) => p === LINUX_BINARY;
+  const claudeEnv = { OSPEC_TARGET: "claude" };
+
+  // pre-tool-use con binario y host Claude → binario (la rama es solo para subagent-stop).
+  assert.deepEqual(
+    resolveInvocation("pre-tool-use", HOOKS_DIR, LINUX_SUFFIX, exists, readNoConfig, claudeEnv),
+    { command: LINUX_BINARY, args: ["pre-tool-use"] },
+  );
+  // stop con binario y host Claude → binario.
+  assert.deepEqual(
+    resolveInvocation("stop", HOOKS_DIR, LINUX_SUFFIX, exists, readNoConfig, claudeEnv),
+    { command: LINUX_BINARY, args: ["stop"] },
+  );
+  // Cualquier subcomando sin binario → fallback Node existente.
+  assert.deepEqual(
+    resolveInvocation("subagent-stop", HOOKS_DIR, LINUX_SUFFIX, () => false, readNoConfig, claudeEnv),
+    { command: process.execPath, args: [path.join(HOOKS_DIR, "subagent-stop.js")] },
+  );
+  assert.deepEqual(
+    resolveInvocation("session-start", HOOKS_DIR, LINUX_SUFFIX, () => false, readNoConfig, claudeEnv),
+    { command: process.execPath, args: [path.join(HOOKS_DIR, "session-start.js")] },
+  );
+});
+
+test("[REQ-hooks-019] la rama codex queda intacta (byte a byte) y precede a la rama Claude", () => {
+  const exists = (p) => p === LINUX_BINARY;
+  const original = process.env.OSPEC_TARGET;
+  process.env.OSPEC_TARGET = "codex";
+  try {
+    // Con OSPEC_TARGET=codex en el entorno real, subagent-stop va a Node
+    // aunque el env inyectado diga claude: la rama codex conserva su
+    // precedencia y su forma original.
+    assert.deepEqual(
+      resolveInvocation("subagent-stop", HOOKS_DIR, LINUX_SUFFIX, exists, readNoConfig, { OSPEC_TARGET: "claude", CLAUDE_PLUGIN_ROOT: "/x" }),
+      { command: process.execPath, args: [path.join(HOOKS_DIR, "subagent-stop.js")] },
+    );
+    // Y para otro subcomando codex no altera el enrutamiento binario.
+    assert.deepEqual(
+      resolveInvocation("pre-tool-use", HOOKS_DIR, LINUX_SUFFIX, exists, readNoConfig, {}),
+      { command: LINUX_BINARY, args: ["pre-tool-use"] },
+    );
+  } finally {
+    if (original === undefined) {
+      delete process.env.OSPEC_TARGET;
+    } else {
+      process.env.OSPEC_TARGET = original;
+    }
+  }
 });
 
 test("normalizeCodexHookOutput wraps SessionStart context in the native hook shape", () => {

@@ -1,0 +1,192 @@
+change: "claude-cx0-telemetry-adapter"
+status: archived
+last_updated: "2026-09-03T20:59:14.000Z"
+blocking_questions: []
+classification: normal
+delivery_strategy: exception-ok
+execution_mode: automatic
+owner:
+  author: Manuel Retamozo
+  branch: main
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "classification=normal + project.status=active + baseline.status=done: first match is 'standard' (foundation/federated/bugfix/brownfield/refactor/hotfix conditions all unsatisfied); deterministic signals, no advisory confirmation needed."
+  validated: true
+  validation_errors: []
+approvals:
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: interactive
+    accepted_at: "2026-09-03T14:00:00.000Z"
+    applies_to:
+      - session-execution
+  - id: execution-mode-002
+    gate: execution-mode
+    decision: automatic
+    accepted_at: "2026-09-03T14:30:00.000Z"
+    applies_to:
+      - session-execution
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    accepted_at: "2026-09-03T14:00:00.000Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+baseline_fingerprints:
+  context-measurement: "7997ef6ff3232ec03a682e315c38f6ee86c3ae679cbaaeca892cc59fa282f73f"
+  hooks: "01035d84b06fb703981f2ec3280a2cf4886d8be963b608339f6d9fa8a3799d74"
+assumptions:
+  - id: sdd-spec-001
+    phase: sdd-spec
+    statement: "unique_context se deriva del componente uncached y duplicated_context del componente cached del triple canónico."
+    reversibility: high
+    basis: "La propuesta (Approach/Scope) ordena derivar ambos KPIs desde los contadores de tokens; es la única descomposición compatible de los contadores disponibles y los valores explícitos del host conservan precedencia."
+    recorded_at: "2026-09-03T15:48:00.000Z"
+    status: unresolved
+  - id: sdd-spec-002
+    phase: sdd-spec
+    statement: "Para el formato Anthropic, cached_input_tokens equivale a la suma de cache_read_input_tokens y cache_creation_input_tokens."
+    reversibility: high
+    basis: "La mitigación de riesgos de la propuesta nombra ambas familias de campos como soporte equivalente al campo estándar cached_input_tokens."
+    recorded_at: "2026-09-03T15:48:00.000Z"
+    status: unresolved
+  - id: sdd-spec-003
+    phase: sdd-spec
+    statement: "La extracción desde transcripción alimenta únicamente la lane CX0 de context-measurements.jsonl, no la grabación de phase-cost."
+    reversibility: high
+    basis: "Intent y Success Criteria de la propuesta mencionan solo context-measurements.jsonl; REQ-hooks-001 permanece sin cambios y Out of Scope excluye ampliar lanes."
+    recorded_at: "2026-09-03T15:48:00.000Z"
+    status: unresolved
+  - id: sdd-design-001
+    phase: sdd-design
+    statement: "Una entrada de transcripción califica como observación de uso solo cuando input_tokens y output_tokens son válidos; los contadores de caché son opcionales (ruta de cobertura parcial)."
+    reversibility: high
+    basis: "Escenario de cobertura parcial de REQ-context-measurement-007 requiere input/output available con caché unavailable; decide internalamente qué entrada gana el escaneo reverso."
+    recorded_at: "2026-09-03T16:10:00.000Z"
+    status: unresolved
+  - id: sdd-design-002
+    phase: sdd-design
+    statement: "El par Anthropic de caché es all-or-nothing: cache_read_input_tokens + cache_creation_input_tokens requieren ambos ser válidos; un solo miembro degrada cached_input_tokens a unavailable."
+    reversibility: high
+    basis: "REQ-context-measurement-007 prohíbe ceros evidenciales y trata el par como fuente equivalente; la spec no fija el caso de un solo miembro."
+    recorded_at: "2026-09-03T16:10:00.000Z"
+    status: unresolved
+  - id: sdd-design-003
+    phase: sdd-design
+    statement: "La extracción se intenta siempre que haya transcripción resoluble (no solo con OSPEC_TARGET=claude); un host no-Claude con entradas de uso compatibles poblaría métricas host-observed sin cambiar su dimensión de cohortes."
+    reversibility: high
+    basis: "REQ-hooks-018 ordena extraer desde la transcripción referenciada sin gate de host; CX0 es lane aditiva sin autoridad (REQ-context-measurement-005)."
+    recorded_at: "2026-09-03T16:10:00.000Z"
+    status: unresolved
+  - id: sdd-apply-001
+    phase: sdd-apply
+    statement: "contextMetricObservations emite envelopes explícitos solo para las métricas derivadas (uncached/unique/duplicated); las directas quedan como valores crudos para que la lib las envuelva igual que hoy."
+    reversibility: high
+    basis: "Decisión 3 del design (envelopes solo para derivadas) y comportamiento idéntico de metricFromObservation para envoltura directa; preserva la ruta Codex byte a byte."
+    recorded_at: "2026-09-03T16:45:00.000Z"
+    status: unresolved
+  - id: sdd-apply-002
+    phase: sdd-apply
+    statement: "Con cached > input, duplicated_context permanece available (deriva de cached, métrica no afectada) mientras uncached y unique degradan a incompatible-components."
+    reversibility: high
+    basis: "REQ-context-measurement-007: la métrica afectada y SUS derivadas degradan; duplicated deriva del componente cached, que es una observación válida."
+    recorded_at: "2026-09-03T16:45:00.000Z"
+    status: unresolved
+  - id: sdd-apply-003
+    phase: sdd-apply
+    statement: "persistContextMeasurement y resolveInvocation ganan parámetro opcional env (default process.env); la rama codex del launcher conserva la lectura de process.env sin cambios."
+    reversibility: high
+    basis: "Tareas 2.5 y 3.2/3.3 piden escenarios con env inyectado sin mutar process.env y rama codex byte a byte; con el default el comportamiento de producción es idéntico."
+    recorded_at: "2026-09-03T16:45:00.000Z"
+    status: unresolved
+  - id: sdd-archive-001
+    phase: sdd-archive
+    statement: "REQ-hooks-018/019 se insertan en §1.5 del spec hooks, tras REQ-hooks-017 y antes de REQ-hooks-003."
+    reversibility: high
+    basis: "§1.5 'ADDED Requirements' es la zona de merge establecida de los requisitos delta de hooks; 018 extiende temáticamente a 017 (CX0) y el orden no altera semántica ni hashes declarados."
+    recorded_at: "2026-09-03T23:10:00.000Z"
+    status: unresolved
+  - id: sdd-archive-002
+    phase: sdd-archive
+    statement: "El contenido merged se persiste bajo prepared/ dentro de la carpeta del change y se declara como source_delta en spec_writes."
+    reversibility: high
+    basis: "buildSnapshot (scripts/lib/archive-transaction.js) lee el contenido preparado desde path.join(origin, source_delta); los deltas originales quedan intactos como audit trail."
+    recorded_at: "2026-09-03T23:10:00.000Z"
+    status: unresolved
+  - id: sdd-archive-003
+    phase: sdd-archive
+    statement: "El contenido merged de ambos dominios se normaliza a finales de línea LF puro."
+    reversibility: high
+    basis: "git ls-files --eol reporta i/lf w/crlf (blob canónico LF; CRLF es artefacto de checkout WSL/Windows); evita un spec live con finales mixtos baseline-CRLF + delta-LF."
+    recorded_at: "2026-09-03T23:10:00.000Z"
+    status: unresolved
+  - id: sdd-archive-004
+    phase: sdd-archive
+    statement: "Se añadió phases.verify.verdict: \"PASS\" a state.yaml (reparación de estado documentada en archive-report.md)."
+    reversibility: high
+    basis: "readArchiveGateFacts exige el verdict para gatesSatisfied y el bloque verify no lo traía; el valor es el reflejo literal del veredicto PASS de verify-report.md."
+    recorded_at: "2026-09-03T23:10:00.000Z"
+    status: unresolved
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/claude-cx0-telemetry-adapter/proposal.md"
+    summary: "Claude CX0 telemetry adapter extracts host token usage from transcripts and routes SubagentStop to Node in launcher."
+    key_decisions:
+      - "Route SubagentStop to Node.js in ospec-hooks-launch.js for Claude Code to prevent binary shadowing."
+      - "Support Anthropic and GLM cache token fields to derive uncached_input_tokens and amplification/v1."
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/claude-cx0-telemetry-adapter/specs/context-measurement/spec.md"
+      - "openspec/changes/claude-cx0-telemetry-adapter/specs/hooks/spec.md"
+    summary: "Deltas ADDED: REQ-context-measurement-007/008 (tokens host desde transcripción, host claude) y REQ-hooks-018/019 (extracción transcript fail-safe, launcher enruta subagent-stop a Node)."
+    key_decisions:
+      - "Triple canónico entrada/salida/caché: cached_input_tokens estándar o suma Anthropic cache_read+cache_creation; unique_context←uncached, duplicated_context←cached."
+      - "Extracción transcript alimenta solo la lane CX0; lane phase-cost y su heurística de estimación quedan intactas."
+      - "Launcher: rama subagent-stop→Node bajo Claude Code espeja el precedente Codex; demás eventos conservan binario-primero."
+  clarify:
+    status: skipped
+    reason: "shouldRunClarify=false: residual_ambiguity false y arrays public_contract_questions/conflicting_requirements/missing_acceptance_criteria vacíos; 3 ambigüedades marcadas resolvibles por design."
+  design:
+    status: done
+    artifact: "openspec/changes/claude-cx0-telemetry-adapter/design.md"
+    summary: "Extractor claude-usage.js (tail-read 256 KiB, triple canónico, firma de host) alimenta solo la lane CX0; launcher enruta subagent-stop a Node bajo Claude. 2 ADRs."
+    key_decisions:
+      - "Ventana de escaneo: única lectura posicionada de los últimos 256 KiB con escaneo reverso (última entrada válida gana); sin fallback a lectura completa."
+      - "Precedencia host: input.host > OSPEC_TARGET=codex > OSPEC_TARGET=claude > CLAUDE_PLUGIN_ROOT > firma de transcripción > unknown-host; OSPEC_PLUGIN_ROOT excluido."
+      - "Derivados CX0 (uncached/unique/duplicated) se emiten como envelopes desde contextMetricObservations; lib context-measurement.js sin cambios."
+  tasks:
+    status: done
+    artifact: "openspec/changes/claude-cx0-telemetry-adapter/tasks.md"
+    summary: "4 fases / 23 tareas: extractor claude-usage.js, integración CX0 en subagent-stop, rama Claude en launcher; 12 escenarios MUST cubiertos; estimación 700–900 líneas."
+    key_decisions:
+      - "Entrega: PR único con size:exception (estrategia exception-ok cacheada); 3 work units = 3 commits convencionales."
+      - "TDD enfocado: pares RED/GREEN por pieza; tests junto al código en cada commit."
+      - "Los 12 escenarios MUST (CM-007/008, H-018/019) quedan covered-by-design y con tarea + test asignado."
+  apply:
+    status: done
+    artifact: "openspec/changes/claude-cx0-telemetry-adapter/apply-progress.md"
+    summary: "23/23 tareas en 3 commits (d03646b, 7703090, 4398b19); extractor tail-read 256 KiB, lane CX0 con envelopes derivados, launcher enruta subagent-stop a Node bajo Claude; suite verde en worktree committeado."
+    key_decisions:
+      - "tokenUsage = codex || claude con cortocircuito; un solo tail-read alimenta uso + firma (ADR-001)."
+      - "unique_context/duplicated_context se emiten como envelopes runtime-derived con precedencia del input explícito; cached>input degrada a incompatible-components."
+      - "resolveInvocation gana env opcional; rama Claude solo para subagent-stop tras la rama codex intacta (ADR-002)."
+  verify:
+    status: done
+    verdict: "PASS"
+    artifact: "openspec/changes/claude-cx0-telemetry-adapter/verify-report.md"
+    summary: "PASS: 12/12 escenarios MUST con runtime-test; suite 3022 verde en worktree limpio @4398b19 (PATH sin interop); invariantes 0 hunks (main/persistPhaseCost/lib/hooks.json); 0 CRITICAL/WARNING, 3 SUGGESTION; 9 asunciones high sin escalación."
+    key_decisions:
+      - "Corrida autoritativa en worktree al HEAD committeado con PATH solo-Linux; falla de sdd-document.test.js en workspace principal es preexistente (models.yaml staged del usuario)."
+      - "Rama cached>input → incompatible-components probada por sonda runtime manual (sin test dedicado; SUGGESTION S-02)."
+      - "Ledger de asunciones: 9 entradas high unresolved sin escalación, auditadas contra evidencia; confirmación grupal opcional queda en manos del orquestador."
+  archive:
+    status: done
+    artifact: "openspec/changes/claude-cx0-telemetry-adapter/archive-report.md"
+    summary: "Cierre preparado: deltas ADDED-only mergeados en prepared/ (CM 6→8 REQ, hooks 10→12), 2 ADRs propuestos a docs/adr (009/010), plan emitido; receipt del runtime = única autoridad de cierre."
+    key_decisions:
+      - "Merge no destructivo ADDED-only: rules.archive de advertencia destructiva no aplica; REQ IDs íntegros (sin dropped-requirement-id)."
+      - "Reparación de estado documentada: phases.verify.verdict PASS añadido (reflejo del verify-report; exigido por readArchiveGateFacts)."

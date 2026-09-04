@@ -1,0 +1,145 @@
+change: "wsl-claude-interop-guard"
+status: archived
+last_updated: "2026-09-04T00:07:00.000Z"
+blocking_questions: []
+resolved_questions:
+  - id: bq-concurrent-writer-001
+    phase: sdd-apply
+    resolution: >-
+      Arbitraje del usuario via question gate: ESTA sesión completa la verificación
+      final y el commit único (AC-4); la sesión concurrente se detiene (no aportó
+      cambios a este árbol; árbol verificado sin doble aplicación).
+    resolved_at: "2026-09-03T23:35:00.000Z"
+    approval_id: session-arbitration-001
+classification: small
+execution_mode: automatic
+delivery_strategy: exception-ok
+owner:
+  author: Manuel Retamozo
+  branch: main
+gate:
+  intent-briefing:
+    decision: accepted
+    synthesis: >-
+      Desbloquear el commit de models.yaml (modelos opencode -> zai-coding-plan/glm-5.3*)
+      con dos fixes: (1) actualizar la expectativa hardcodeada del tier light en
+      scripts/sdd-document.test.js, y (2) anadir un guard de interop WSL en
+      scripts/check.js y scripts/configure/cli.js para que el claude de Windows
+      (bajo /mnt/) se trate como no disponible desde WSL, degradando a generacion
+      sin validacion claude. Objetivo: el precommit pase en WSL.
+    scope:
+      - scripts/sdd-document.test.js
+      - scripts/check.js
+      - scripts/configure/cli.js
+    applies_to:
+      - change-classification
+approvals:
+  - id: session-arbitration-001
+    gate: session-arbitration
+    decision: "esta-sesion-completa-ac4"
+    source: question
+    accepted_at: "2026-09-03T23:35:00.000Z"
+    applies_to:
+      - sdd-apply
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: automatic
+    source: question
+    accepted_at: "2026-09-03T18:15:00.000Z"
+    applies_to:
+      - session-execution
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: exception-ok
+    source: question
+    accepted_at: "2026-09-03T18:15:00.000Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: branch-placement-001
+    gate: branch-placement
+    decision: current-branch-cx0
+    source: question
+    accepted_at: "2026-09-03T19:05:00.000Z"
+    applies_to:
+      - sdd-apply
+route:
+  intended_route: lite
+  actual_route: lite
+  route_rationale: "classification=small + sin explicit_bugfix/hotfix/refactor_intent: foundation (status!=empty), federated (no), bugfix (no explicit bugfix intent), brownfield (classification fuera de [normal,high-risk]), refactor (no), hotfix (no), standard (classification fuera de [normal,high-risk]) no aplican; primer match = lite (classification [trivial,small], change.classification: small). Senales deterministas."
+  validated: true
+  validation_errors: []
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/wsl-claude-interop-guard/proposal-lite.md"
+    summary: "Guard interop WSL (/mnt/<letra>/ en linux = claude no disponible, degrade a validate:false) + expectativa tier light glm-5.3-flash; commit unico con models.yaml."
+    key_decisions:
+      - "Degrade a validate:false en vez de corregir el interop con wslpath (menor riesgo, flujo ya soportado por check.js)"
+      - "Predicado compartido exportado desde scripts/configure/cli.js y reutilizado por check.js y e2e.test.js"
+  tasks:
+    status: done
+    artifact: "openspec/changes/wsl-claude-interop-guard/tasks.md"
+    summary: "4 fases, 17 tareas TDD (RED->GREEN); guard interop en cli.js/check.js + expectativa glm-5.3-flash; PR unico ~90-130 lineas, riesgo Low."
+    key_decisions:
+      - "Rama fix/wsl-claude-interop-guard desde HEAD actual (no main) para preservar models.yaml staged"
+      - "defaultRunValidator devuelve fail-soft status 0 sin spawn cuando resolveClaudeBin() es null (precedente selective-4r-parity:16-17)"
+      - "Predicado exportado como funcion pura para testeable sin fs (rutas /mnt sinteticas)"
+  apply:
+    status: done
+    artifact: "openspec/changes/wsl-claude-interop-guard/apply-progress.md"
+    summary: "Guard interop WSL aplicado con focused TDD (RED/GREEN por par): predicado isWindowsInteropPath en cli.js, guard en resolveClaudeBin/defaultRunValidator/claudeCliAvailable, skip e2e, expectativa glm-5.3-flash; check.js pasa en WSL."
+    key_decisions:
+      - "defaultRunValidator devuelve fail-soft status 0 sin spawn cuando no hay binario claude utilizable"
+      - "e2e clasifica interop desde resolveBinFromPath crudo (resolveClaudeBin post-guard ya anonima el motivo); resolveBinFromPath exportado"
+      - "17/17 tareas [x]; verificacion integradora node scripts/check.js = All checks passed en WSL"
+  verify:
+    status: done
+    artifact: "openspec/changes/wsl-claude-interop-guard/verify-report.md"
+    summary: "Veredicto PASS: 4/4 ACs completados con evidencia en runtime."
+  archive:
+    status: done
+    artifact: "openspec/changes/wsl-claude-interop-guard/archive-report.md"
+    summary: "Archivado en openspec/changes/archive/2026-09-04-wsl-claude-interop-guard/"
+assumptions:
+  - id: sdd-propose-001
+    phase: sdd-propose
+    seq: 1
+    statement: "El predicado de interop se define y exporta desde scripts/configure/cli.js y lo reutilizan check.js y configure/e2e.test.js en lugar de duplicar la heuristica en cada consumidor."
+    reversibility: high
+    basis: "Precedente existente: selective-4r-parity.test.js:9 ya importa resolveClaudeBin desde configure/cli.js, y check.js ya consume logica de cli.js via spawn."
+    recorded_at: "2026-09-03T18:40:00.000Z"
+    status: unresolved
+  - id: sdd-tasks-001
+    phase: sdd-tasks
+    seq: 1
+    statement: "La rama fix/wsl-claude-interop-guard se crea desde el HEAD actual (7703090) en lugar de main, para preservar el models.yaml staged y los 2 commits aun no fusionados."
+    reversibility: high
+    basis: "git rev-parse main = efa6cea y HEAD = 7703090 (main 2 commits atras); checkout -b preserva el indice staged; rebase a main sigue siendo posible antes del PR."
+    recorded_at: "2026-09-03T18:55:00.000Z"
+    status: corrected
+    correction: "Rama actual real: feat/claude-cx0-telemetry-adapter (no main). Decision del usuario (approval branch-placement-001): commitear el work unit directamente en la rama CX0 actual; NO crear rama nueva. La Fase 1 de tasks.md se sustituye por verificar rama activa != main."
+  - id: sdd-tasks-002
+    phase: sdd-tasks
+    seq: 2
+    statement: "defaultRunValidator senala claude no disponible con resultado sintetico {status: 0, stdout con nota de skip, stderr vacio} en vez de spawn del bare 'claude'."
+    reversibility: high
+    basis: "Precedente fail-soft de selective-4r-parity.test.js:16-17; publishTransaction (cli.js:513-515) solo falla la puerta si validatorFailed(result), por lo que status 0 completa la generacion sin validacion."
+    recorded_at: "2026-09-03T18:55:00.000Z"
+    status: unresolved
+  - id: sdd-tasks-003
+    phase: sdd-tasks
+    seq: 3
+    statement: "La rama fix/wsl-claude-interop-guard se crea desde el HEAD actual (4398b19, tras el archive de claude-cx0-telemetry-adapter) en lugar de main, para preservar el models.yaml staged y los commits de feat/claude-cx0-telemetry-adapter aún no fusionados."
+    reversibility: high
+    basis: "Corrección orquestador (session 2026-09-03): la entrada original sdd-tasks-001 duplicada apuntaba a 7703090 (stale tras el 3er commit y el archive); checkout -b desde HEAD 4398b19 preserva el índice staged; rebase a main sigue siendo posible antes del PR."
+    recorded_at: "2026-09-03T23:20:00.000Z"
+    status: unresolved
+  - id: sdd-tasks-004
+    phase: sdd-tasks
+    seq: 4
+    statement: "defaultRunValidator señala claude no disponible con resultado sintético {status: 0, stdout con nota de skip, stderr vacío} en vez de spawn del bare 'claude'."
+    reversibility: high
+    basis: "Precedente fail-soft de selective-4r-parity.test.js:16-17 ({status: 0, stdout: '0 errors, 0 warnings'}); publishTransaction (cli.js:513-515) solo falla la puerta si validatorFailed(result), por lo que status 0 completa la generación sin validación, tal como pide la propuesta."
+    recorded_at: "2026-09-03T23:20:00.000Z"
+    status: unresolved

@@ -13,7 +13,7 @@ const path = require("node:path");
 const test = require("node:test");
 const { spawnSync } = require("node:child_process");
 
-const { runConfigure } = require("./cli.js");
+const { runConfigure, isWindowsInteropPath, resolveBinFromPath } = require("./cli.js");
 
 const ROOT = path.resolve(__dirname, "..", "..");
 
@@ -33,12 +33,16 @@ function tmpOut(t, label) {
   return dir;
 }
 
-const claudeBin = findCli(["claude", "claude.cmd", "claude.exe"]);
+// resolveClaudeBin() already nulls interop paths, so classify from the raw PATH
+// resolution to tell "not installed" apart from "Windows interop under /mnt".
+const claudeRaw = resolveBinFromPath("claude");
+const claudeInterop = Boolean(claudeRaw && isWindowsInteropPath(claudeRaw));
+const claudeBin = claudeInterop ? null : findCli(["claude", "claude.cmd", "claude.exe"]);
 const codexBin = findCli(["codex", "codex.cmd", "codex.exe"]);
 
 test(
   "E2E: the real claude CLI validates the generated claude plugin tree",
-  { skip: claudeBin ? false : "claude CLI not installed" },
+  { skip: claudeBin ? false : claudeInterop ? "claude interop de Windows bajo /mnt" : "claude CLI not installed" },
   (t) => {
     const out = tmpOut(t, "claude");
     runConfigure({ sourceDir: ROOT, target: "claude", outDir: out, validate: false });
