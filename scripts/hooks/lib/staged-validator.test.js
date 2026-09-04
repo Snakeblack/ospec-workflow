@@ -424,17 +424,67 @@ test("getStagedContent throws descriptive Error on maxBuffer length exceeded", (
   );
 });
 
-test("checkStagedSyntax does not fail on valid ESM import/export syntax and ignores .mjs", () => {
+test("checkStagedSyntax does not fail on valid ESM import/export syntax in .js", () => {
   const errors = checkStagedSyntax(
-    ["module.js", "script.mjs"],
+    ["module.js"],
     "/fake/repo",
     {
-      getStagedContent: (repo, file) => {
-        if (file === "module.js") return "import path from 'node:path';\nexport const foo = 123;";
-        if (file === "script.mjs") return "export default 42;";
-        return "";
+      getStagedContent: () => "import path from 'node:path';\nexport const foo = 123;",
+    }
+  );
+  assert.deepEqual(errors, []);
+});
+
+test("checkStagedSyntax validates valid .mjs ESM via node --check [REQ-git-precommit-hook-001]", () => {
+  const errors = checkStagedSyntax(
+    ["script.mjs"],
+    "/fake/repo",
+    {
+      getStagedContent: () => "import path from 'node:path';\nexport default 42;",
+      spawnSync: (cmd, args) => {
+        assert.equal(cmd, process.execPath);
+        assert.equal(args[0], "--check");
+        assert.ok(args[1].endsWith(".mjs"));
+        return { status: 0, stdout: "", stderr: "" };
       },
     }
   );
   assert.deepEqual(errors, []);
+});
+
+test("checkStagedSyntax detects broken .mjs ESM via node --check [REQ-git-precommit-hook-001]", () => {
+  const errors = checkStagedSyntax(
+    ["broken.mjs"],
+    "/fake/repo",
+    {
+      getStagedContent: () => "export default const broken = ;",
+      spawnSync: () => ({
+        status: 1,
+        stdout: "",
+        stderr: "file:///tmp/x.mjs:1\nexport default const broken = ;\n^^^^^^\nSyntaxError: Unexpected token 'const'\n",
+      }),
+    }
+  );
+  assert.equal(errors.length, 1);
+  assert.equal(errors[0].file, "broken.mjs");
+  assert.equal(errors[0].type, "mjs-syntax");
+  assert.match(errors[0].error, /SyntaxError/);
+});
+
+test("findAffectedTargets returns ALL_TARGETS for distributed runtime libs (review-dimensions) [REQ-git-precommit-hook-001]", () => {
+  const targets = findAffectedTargets(["scripts/lib/review-dimensions.js"]);
+  assert.deepEqual(targets.sort(), [...ALL_TARGETS].sort());
+});
+
+test("findAffectedTargets returns ALL_TARGETS for any production scripts/lib module [REQ-git-precommit-hook-001]", () => {
+  const targets = findAffectedTargets(["scripts/lib/federation-marker.js"]);
+  assert.deepEqual(targets.sort(), [...ALL_TARGETS].sort());
+});
+
+test("findAffectedTargets does not invalidate targets for scripts/lib tests or test-support [REQ-git-precommit-hook-001]", () => {
+  const staged = [
+    "scripts/lib/frontmatter.test.js",
+    "scripts/lib/test-support/fixtures/helper.js",
+  ];
+  assert.deepEqual(findAffectedTargets(staged), []);
 });

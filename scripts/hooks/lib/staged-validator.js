@@ -109,8 +109,54 @@ function getStagedContent(repoRoot, relativePath, deps = {}) {
 }
 
 /**
- * Valida la sintaxis de los archivos staged (JS vía vm.Script en memoria, JSON vía JSON.parse).
- * Operación en memoria sin spawnear subprocesos, ultra-rápida (<1ms por archivo).
+ * Valida la sintaxis de un módulo ESM staged materializándolo en un archivo
+ * temporal .mjs y ejecutando `node --check` (que parsea según la extensión).
+ * vm.Script no soporta sintaxis de módulos (import/export), por eso .mjs
+ * requiere este camino en lugar del fast path en memoria.
+ *
+ * @param {string} repoRoot
+ * @param {string} file
+ * @param {string} content
+ * @param {object} deps
+ * @returns {{ file: string, error: string, type: string }|null}
+ */
+function checkMjsSyntax(repoRoot, file, content, deps) {
+  const fsImpl = deps.fs || fs;
+  const os = require("node:os");
+  const tmpDir = fsImpl.mkdtempSync(path.join(os.tmpdir(), "ospec-mjs-"));
+  const tmpFile = path.join(tmpDir, "staged-check.mjs");
+  try {
+    fsImpl.writeFileSync(tmpFile, content, "utf8");
+    const spawn = deps.spawnSync || child_process.spawnSync;
+    const res = spawn(process.execPath, ["--check", tmpFile], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      shell: false,
+    });
+    if (res.error) {
+      throw new Error(`Error al invocar node --check para ${file}: ${res.error.message}`);
+    }
+    if (res.status !== 0) {
+      const stderr = (res.stderr || "").trim();
+      const lines = stderr.split(/\r?\n/).filter((l) => l.trim());
+      // node --check emite la ruta del temporal y un caret antes del mensaje
+      // útil; se prefiere la línea con el diagnóstico real.
+      const diagLine = lines.find((l) => l.includes("SyntaxError")) || lines[0] || stderr;
+      return { file, error: diagLine, type: "mjs-syntax" };
+    }
+    return null;
+  } finally {
+    try {
+      fsImpl.rmSync(tmpDir, { recursive: true, force: true });
+    } catch {
+      // El cleanup del temporal es best-effort; no debe enmascarar el resultado.
+    }
+  }
+}
+
+/**
+ * Valida la sintaxis de los archivos staged (JS vía vm.Script en memoria, JSON vía JSON.parse,
+ * .mjs vía node --check sobre el blob materializado).
  *
  * @param {string[]} stagedFiles
  * @param {string} repoRoot
@@ -122,7 +168,7 @@ function checkStagedSyntax(stagedFiles, repoRoot, deps = {}) {
 
   for (const file of stagedFiles) {
     const ext = path.extname(file).toLowerCase();
-    if (ext !== ".js" && ext !== ".cjs" && ext !== ".json") {
+    if (ext !== ".js" && ext !== ".cjs" && ext !== ".mjs" && ext !== ".json") {
       continue;
     }
 
@@ -144,6 +190,9 @@ function checkStagedSyntax(stagedFiles, repoRoot, deps = {}) {
         }
         errors.push({ file, error: err.message, type: "js-syntax" });
       }
+    } else if (ext === ".mjs") {
+      const mjsError = checkMjsSyntax(repoRoot, file, content, deps);
+      if (mjsError) errors.push(mjsError);
     } else if (ext === ".json") {
       try {
         JSON.parse(content);
@@ -309,9 +358,21 @@ const CANONICAL_SHARED_PREFIXES = [
   "scripts/hooks/",
 ];
 
+// Los módulos de scripts/lib/** se distribuyen dentro del runtime generado de los
+// targets (gatherRuntimeScripts + dependencias transitivas de require). Cualquier
+// lib de producción cambiada invalida todos los targets; sólo se excluyen tests
+// y helpers de testing, que no forman parte del runtime distribuido.
+function isProductionSharedLib(lower) {
+  if (!lower.startsWith("scripts/lib/")) return false;
+  if (lower.startsWith("scripts/lib/test-support/")) return false;
+  if (lower.endsWith(".test.js")) return false;
+  return true;
+}
+
 function isCanonicalOrSharedSource(normalizedPath) {
   const lower = normalizedPath.toLowerCase();
   if (CANONICAL_SHARED_FILES.has(lower)) return true;
+  if (isProductionSharedLib(lower)) return true;
   for (const prefix of CANONICAL_SHARED_PREFIXES) {
     if (lower.startsWith(prefix)) return true;
   }

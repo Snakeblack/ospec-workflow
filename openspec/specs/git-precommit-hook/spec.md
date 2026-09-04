@@ -98,7 +98,8 @@ El sistema diferencial de pre-commit MUST identificar de manera conservadora los
 - Si los archivos preparados modifican cualquier entrada canónica del generador, implementación del generador, librería auxiliar compartida o hook de runtime distribuido, el sistema MUST recurrir a un fallback seguro y retornar la lista completa de targets soportados (`ALL_TARGETS`: `claude`, `vscode`, `github-copilot`, `opencode`, `codex`, `cursor`, `antigravity`).
 - Se consideran componentes que fuerzan fallback a `ALL_TARGETS`:
   - Entradas canónicas del generador: `agents/**`, `commands/**`, `rules/**`, `skills/**`, `hooks/**`, `schemas/kernel/**`, `.mcp.json`, `.claude-plugin/plugin.json`, `models.yaml`.
-  - Implementación del generador y librerías auxiliares: `scripts/configure/cli.js`, `scripts/configure/install-engine.js`, `scripts/configure/install-target.js`, `scripts/configure/validate-phase.js`, `scripts/lib/target-transform.js`, `scripts/lib/frontmatter.js`, `scripts/lib/model-resolver.js`, `scripts/lib/target-profiles/**`.
+  - Implementación del generador y librerías auxiliares: `scripts/configure/cli.js`, `scripts/configure/install-engine.js`, `scripts/configure/install-target.js`, `scripts/configure/validate-phase.js`.
+  - Librerías de runtime distribuidas: cualquier módulo de producción bajo `scripts/lib/**` (excluyendo `*.test.js` y `scripts/lib/test-support/**`), incluyendo `scripts/lib/target-profiles/**`, pues `gatherRuntimeScripts` y sus dependencias transitivas de `require()` se distribuyen dentro de los targets generados.
   - Hooks distribuidos de runtime: `scripts/hooks/**`.
 
 #### Scenario: Modificación en validador o instalador de target aislado
@@ -111,6 +112,12 @@ El sistema diferencial de pre-commit MUST identificar de manera conservadora los
 - GIVEN un cambio preparado en `scripts/configure/cli.js`, `scripts/lib/target-transform.js`, `scripts/lib/frontmatter.js` o `scripts/lib/model-resolver.js`
 - WHEN el sistema analiza los targets afectados
 - THEN el resultado retorna la lista completa de todos los targets (`ALL_TARGETS`)
+
+#### Scenario: Fallback a ALL_TARGETS por cambio en lib de runtime distribuida
+- GIVEN un cambio preparado en un módulo de producción de `scripts/lib/` distribuido en el runtime de los targets (p. ej. `scripts/lib/review-dimensions.js` o `scripts/lib/federation-marker.js`)
+- WHEN el sistema analiza los targets afectados
+- THEN el resultado retorna la lista completa de todos los targets (`ALL_TARGETS`)
+- AND cambios limitados a `scripts/lib/**/*.test.js` o `scripts/lib/test-support/**` no invalidan targets.
 - AND se valida y regenera cada uno de los 7 targets soportados.
 
 #### Scenario: Fallback a ALL_TARGETS por cambio en perfil o models.yaml
