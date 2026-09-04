@@ -430,9 +430,58 @@ test("checkStagedSyntax does not fail on valid ESM import/export syntax in .js",
     "/fake/repo",
     {
       getStagedContent: () => "import path from 'node:path';\nexport const foo = 123;",
+      spawnSync: (cmd, args) => {
+        assert.equal(cmd, process.execPath);
+        assert.equal(args[0], "--check");
+        assert.ok(args[1].endsWith(".mjs"));
+        return { status: 0, stdout: "", stderr: "" };
+      },
     }
   );
   assert.deepEqual(errors, []);
+});
+
+test("checkStagedSyntax detects real syntax error in .js ESM via node --check [REQ-git-precommit-hook-001]", () => {
+  const spawnCalls = [];
+  const errors = checkStagedSyntax(
+    ["module.js"],
+    "/fake/repo",
+    {
+      getStagedContent: () => "import x from 'x';\nconst broken = ;",
+      spawnSync: (cmd, args) => {
+        spawnCalls.push({ cmd, args });
+        return {
+          status: 1,
+          stdout: "",
+          stderr: "file:///tmp/x.mjs:2\nconst broken = ;\n            ^\nSyntaxError: Unexpected token ';'\n",
+        };
+      },
+    }
+  );
+  assert.equal(spawnCalls.length, 1);
+  assert.equal(spawnCalls[0].cmd, process.execPath);
+  assert.equal(spawnCalls[0].args[0], "--check");
+  assert.equal(errors.length, 1);
+  assert.equal(errors[0].file, "module.js");
+  assert.equal(errors[0].type, "js-esm-syntax");
+  assert.match(errors[0].error, /SyntaxError/);
+});
+
+test("checkStagedSyntax reports import statement in .cjs as js-syntax error [REQ-git-precommit-hook-001]", () => {
+  const errors = checkStagedSyntax(
+    ["module.cjs"],
+    "/fake/repo",
+    {
+      getStagedContent: () => "import x from 'x';",
+      spawnSync: () => {
+        throw new Error("node --check no debe invocarse para .cjs con exención ESM eliminada");
+      },
+    }
+  );
+  assert.equal(errors.length, 1);
+  assert.equal(errors[0].file, "module.cjs");
+  assert.equal(errors[0].type, "js-syntax");
+  assert.match(errors[0].error, /import statement/i);
 });
 
 test("checkStagedSyntax validates valid .mjs ESM via node --check [REQ-git-precommit-hook-001]", () => {

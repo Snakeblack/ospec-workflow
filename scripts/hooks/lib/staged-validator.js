@@ -182,10 +182,16 @@ function checkStagedSyntax(stagedFiles, repoRoot, deps = {}) {
       try {
         new vm.Script(content, { filename: file });
       } catch (err) {
-        if (
+        const isEsmModeError =
           err.message.includes("Cannot use import statement outside a module") ||
-          err.message.includes("Unexpected token 'export'")
-        ) {
+          err.message.includes("Unexpected token 'export'");
+        if (isEsmModeError && ext === ".js") {
+          // .js: el contenido puede ser ESM legítimo; validar como módulo real
+          // vía node --check (el mismo camino de .mjs). Un error real cancela.
+          const esmError = checkMjsSyntax(repoRoot, file, content, deps);
+          if (esmError) {
+            errors.push({ ...esmError, type: "js-esm-syntax" });
+          }
           continue;
         }
         errors.push({ file, error: err.message, type: "js-syntax" });
