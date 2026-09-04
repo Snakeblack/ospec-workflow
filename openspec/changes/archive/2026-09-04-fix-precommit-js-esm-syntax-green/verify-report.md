@@ -1,6 +1,7 @@
 # Verification Report: fix-precommit-js-esm-syntax-green
 
 - Date: 2026-09-04
+**Version**: 2.60.4
 - Mode: bugfix route, Focused TDD (no strict-TDD audit)
 - Verdict: **PASS**
 - Lineage: `verify_lineage` ausente en state.yaml → Full Discovery Pipeline; sin CRITICAL/BLOCKER findings, no se abre linaje de remediación.
