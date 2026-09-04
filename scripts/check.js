@@ -7,6 +7,8 @@ const { spawnSync } = require("node:child_process");
 
 const ROOT = path.resolve(__dirname, "..");
 
+const { isWindowsInteropPath, resolveClaudeBin } = require("./configure/cli.js");
+
 function runStep(name, args, deps = {}) {
   const spawn = deps.spawnSync || spawnSync;
   const stdout = deps.stdout || process.stdout;
@@ -33,8 +35,17 @@ function runStep(name, args, deps = {}) {
 // guaranteed in CI. Probe for it so check.js can validate claude when present
 // and fall back to generation-only; github-copilot, opencode, and codex always
 // run their in-repo validators, while vscode still remains generation-only.
+// A binary resolved under /mnt/<drive>/ on linux is the Windows claude reached
+// through WSL interop: it cannot consume the POSIX output dirs, so it counts
+// as unavailable and claude degrades to generation-only.
 function claudeCliAvailable(deps = {}) {
   const spawn = deps.spawnSync || spawnSync;
+  const resolve = deps.resolveClaudeBin || resolveClaudeBin;
+  const isInterop = deps.isWindowsInteropPath || isWindowsInteropPath;
+  const resolved = resolve();
+  if (!resolved || isInterop(resolved)) {
+    return false;
+  }
   for (const bin of ["claude", "claude.cmd", "claude.exe"]) {
     const probe = spawn(bin, ["--version"], { stdio: "ignore", shell: false });
     if (!probe.error) {

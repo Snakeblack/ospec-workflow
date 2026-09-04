@@ -6,7 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { loadTree, gatherRuntimeScripts, parseModels, runConfigure: runConfigureStrict, defaultRunValidator, PROFILES } = require("./cli.js");
+const { loadTree, gatherRuntimeScripts, parseModels, runConfigure: runConfigureStrict, defaultRunValidator, resolveClaudeBin, isWindowsInteropPath, PROFILES } = require("./cli.js");
 const { transform } = require("../lib/target-transform.js");
 const runConfigure = options => runConfigureStrict(options);
 const { rootedEvidencePath } = require("../lib/strict-tdd-evidence-remediation.js");
@@ -532,6 +532,65 @@ test("K3 readiness: every generated target receives the Candidate v2 schema and 
     const files = transform({ files: source, profile: PROFILES[target] }).files;
     for (const requiredPath of required) {
       assert.ok(files.some((file) => file.path === requiredPath), `${target} is missing ${requiredPath}`);
+    }
+  }
+});
+
+// --- Guard de interop WSL (wsl-claude-interop-guard) ------------------------
+
+function withPlatform(platform, fn) {
+  const original = process.platform;
+  Object.defineProperty(process, "platform", { value: platform, configurable: true });
+  try {
+    fn();
+  } finally {
+    Object.defineProperty(process, "platform", { value: original, configurable: true });
+  }
+}
+
+test("isWindowsInteropPath flags /mnt/<letra>/ paths as Windows interop only on linux", () => {
+  withPlatform("linux", () => {
+    assert.equal(isWindowsInteropPath("/mnt/c/Users/x/claude.exe"), true);
+    assert.equal(isWindowsInteropPath("/mnt/d/tools/claude"), true);
+  });
+});
+
+test("isWindowsInteropPath ignores native paths and non-linux platforms", () => {
+  withPlatform("linux", () => {
+    assert.equal(isWindowsInteropPath("/usr/bin/claude"), false);
+    assert.equal(isWindowsInteropPath("/mnt/claude"), false);
+    assert.equal(isWindowsInteropPath("/mnt/tools/claude"), false);
+  });
+  withPlatform("win32", () => {
+    assert.equal(isWindowsInteropPath("/mnt/c/Users/x/claude.exe"), false);
+    assert.equal(isWindowsInteropPath("C:\\Users\\x\\claude.exe"), false);
+  });
+});
+
+test("resolveClaudeBin never returns a /mnt/<letra>/ interop path on linux", () => {
+  withPlatform("linux", () => {
+    const resolved = resolveClaudeBin();
+    assert.ok(
+      resolved === null || !/^\/mnt\/[a-z]\//.test(resolved),
+      `resolveClaudeBin devolvió una ruta interop de Windows: ${resolved}`,
+    );
+  });
+});
+
+test("defaultRunValidator degrades to a fail-soft skip when no usable claude binary exists", () => {
+  const originalPath = process.env.PATH;
+  const originalLocalApp = process.env.LOCALAPPDATA;
+  process.env.PATH = "";
+  delete process.env.LOCALAPPDATA;
+  try {
+    const result = defaultRunValidator(PROFILES.claude, "/tmp/ospec-out-unused");
+    assert.deepEqual(result, { status: 0, stdout: "claude validator skipped: no usable native binary\n", stderr: "" });
+  } finally {
+    process.env.PATH = originalPath;
+    if (originalLocalApp !== undefined) {
+      process.env.LOCALAPPDATA = originalLocalApp;
+    } else {
+      delete process.env.LOCALAPPDATA;
     }
   }
 });

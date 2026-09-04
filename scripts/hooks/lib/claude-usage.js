@@ -158,6 +158,7 @@ async function readTranscriptTail(filePath, tailBytes = TAIL_WINDOW_BYTES) {
     handle = await fs.open(cleaned, "r");
     try {
       const stat = await handle.stat();
+      if (!stat.isFile()) return undefined;
       const size = Number(stat.size);
       const offset = Math.max(0, size - tailBytes);
       const length = size - offset;
