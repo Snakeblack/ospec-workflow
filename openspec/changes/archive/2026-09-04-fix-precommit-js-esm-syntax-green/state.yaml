@@ -28,8 +28,8 @@ owner:
 execution:
   mode: auto
   delivery_strategy: exception-ok
-last_updated: "2026-09-04T15:30:00Z"
-status: ready-for-verify
+last_updated: "2026-09-04T19:30:00Z"
+status: archived
 phases:
   exploration:
     status: done
@@ -51,6 +51,17 @@ phases:
     summary: "Fix implementado y suite verde (3089 pass, 0 fail): fallback node --check para .js ESM con type js-esm-syntax, .cjs sin exención; commit caa3831 en fix/precommit-js-esm-syntax-green."
     key_decisions:
       - "Test preexistente de .js ESM válido actualizado con mock spawnSync (nuevo camino de validación)"
+  verify:
+    status: done
+    verdict: PASS
+    artifact: "openspec/changes/fix-precommit-js-esm-syntax-green/verify-report.md"
+    summary: "PASS: REQ-git-precommit-hook-001 runtime-test en todos los escenarios; npm test re-ejecutado (3091 tests, 3089 pass, 0 fail); sin findings CRITICAL/WARNING; 1 suggestion (matching de mensajes vm.Script preexistente)."
+  archive:
+    status: done
+    artifact: "openspec/changes/fix-precommit-js-esm-syntax-green/archive-report.md"
+    summary: "Archive report y plan emitidos; sin delta de spec ni ADRs (spec_writes/adr_promotions vacios); PASS sin warnings; destino propuesto archive/2026-09-04-fix-precommit-js-esm-syntax-green."
+    key_decisions:
+      - "source_fingerprint placeholder: sin shell en este entorno, el orquestador debe recalcularlo (snippet en archive-report.md) antes de correr el runtime"
 assumptions:
   - id: sdd-tasks-001
     phase: sdd-tasks
