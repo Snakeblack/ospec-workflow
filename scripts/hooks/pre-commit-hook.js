@@ -14,13 +14,84 @@ function runPreCommit() {
 
   const repoRoot = path.resolve(__dirname, "../..");
 
-  // 2. Ejecutar validación de OpenSpec
+  // 2. Escaneo de seguridad y credenciales en archivos staged (AgentShield Pre-commit)
+  if (process.env.DISABLE_AGENT_SHIELD !== "true") {
+    try {
+      const diffResult = child_process.spawnSync("git", ["diff", "--cached", "--name-only", "--diff-filter=ACMR"], {
+        cwd: repoRoot,
+        encoding: "utf8",
+      });
+
+      if (!diffResult.error && diffResult.status === 0 && diffResult.stdout) {
+        const stagedFiles = diffResult.stdout
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean);
+
+        const { classifySensitiveFile, scanContentForSecrets } = require("./lib/secret-scan.js");
+
+        for (const file of stagedFiles) {
+          const sensitive = classifySensitiveFile(file);
+          if (sensitive && (sensitive.action === "deny" || sensitive.action === "ask")) {
+            console.error("\n======================================================================");
+            console.error("OSPEC-PRECOMMIT ERROR: Se bloqueó el commit por archivo sensible detectado.");
+            console.error(`  Archivo: ${file}`);
+            console.error(`  Clasificación: ${sensitive.kind} (${sensitive.action})`);
+            console.error("");
+            console.error("No se permite versionar credenciales ni archivos de entorno en Git.");
+            console.error("Para omitir esta verificación (emergencias):");
+            console.error("  DISABLE_AGENT_SHIELD=true git commit ...");
+            console.error("  o: git commit --no-verify");
+            console.error("======================================================================\n");
+            process.exit(1);
+            return;
+          }
+
+          const absPath = path.isAbsolute(file) ? file : path.join(repoRoot, file);
+          if (fs.existsSync(absPath)) {
+            try {
+              const stats = fs.statSync(absPath);
+              if (stats.size < 1024 * 1024) {
+                const content = fs.readFileSync(absPath, "utf8");
+                const scan = scanContentForSecrets(content);
+                if (scan.matched) {
+                  console.error("\n======================================================================");
+                  console.error("OSPEC-PRECOMMIT ERROR: Se detectó una credencial o clave secreta en archivo staged.");
+                  console.error(`  Archivo: ${file}`);
+                  console.error(`  Patrón detectado: ${scan.patternId}`);
+                  console.error("");
+                  console.error("Remueve las credenciales o secretos antes de realizar el commit.");
+                  console.error("Para omitir esta verificación (emergencias):");
+                  console.error("  DISABLE_AGENT_SHIELD=true git commit ...");
+                  console.error("  o: git commit --no-verify");
+                  console.error("======================================================================\n");
+                  process.exit(1);
+                  return;
+                }
+              }
+            } catch {
+              // Ignorar errores de lectura en escaneo preventivo
+            }
+          }
+        }
+      }
+    } catch {
+      // Ignorar fallos de entorno en escaneo de secretos
+    }
+  }
+
+  // 3. Ejecutar validación de OpenSpec (modo staged diferencial por defecto para máxima velocidad)
   try {
     // Task 2.1: progress feedback while output is buffered
     console.log("OSPEC-PRECOMMIT: Ejecutando validación de OpenSpec...");
 
+    const checkArgs =
+      process.env.OSPEC_PRECOMMIT_FULL === "true"
+        ? ["scripts/check.js"]
+        : ["scripts/check.js", "--staged"];
+
     // Task 2.2: capture stdout/stderr via pipe instead of inheriting
-    const checkResult = child_process.spawnSync("node", ["scripts/check.js"], {
+    const checkResult = child_process.spawnSync("node", checkArgs, {
       cwd: repoRoot,
       stdio: "pipe",
       encoding: "utf8",

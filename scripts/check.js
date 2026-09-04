@@ -8,6 +8,7 @@ const { spawnSync } = require("node:child_process");
 const ROOT = path.resolve(__dirname, "..");
 
 const { isWindowsInteropPath, resolveClaudeBin } = require("./configure/cli.js");
+const { runStagedChecks } = require("./hooks/lib/staged-validator.js");
 
 function runStep(name, args, deps = {}) {
   const spawn = deps.spawnSync || spawnSync;
@@ -78,8 +79,18 @@ function main(deps = {}) {
   const run = deps.runStep || runStep;
   const hasClaudeCli = deps.claudeCliAvailable || claudeCliAvailable;
   const generate = deps.generateTarget || generateTarget;
+  const runStaged = deps.runStagedChecks || runStagedChecks;
+
+  const argv = deps.argv || (proc.argv ? proc.argv.slice(2) : []);
+  const isStaged = argv.includes("--staged");
 
   try {
+    if (isStaged) {
+      runStaged({ repoRoot: ROOT, runStep: run, generateTarget: generate }, deps);
+      proc.stdout.write("\nAll staged checks passed.\n");
+      return;
+    }
+
     run("Native Node tests", ["--test", "scripts/**/*.test.js"]);
 
     const claudeOk = hasClaudeCli();
@@ -115,4 +126,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { main, runStep, claudeCliAvailable, generateTarget };
+module.exports = { main, runStep, claudeCliAvailable, generateTarget, runStagedChecks };
