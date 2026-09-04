@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Validación sintáctica real de `.mjs` (`staged-validator.js`)**: los blobs staged `.mjs` se materializan en un archivo temporal y se validan con `node --check` (parseo ESM nativo según extensión), en lugar de saltarse silenciosamente, cumpliendo el contrato de la spec que promete validar `.js`, `.mjs`, `.cjs` y `.json`. Fail-closed ante fallo del spawn.
 - **Spec actualizada (`openspec/specs/git-precommit-hook/spec.md`)**: la frontera de invalidación documenta `scripts/lib/**` de producción y los escenarios de regresión correspondientes.
 
+**Verificación directa**: `node scripts/check.js` (3086 tests pasando, 0 fallos y 4 omitidos)
+
 ## [2.60.2] - 2026-09-04
 
 ### Fixed
