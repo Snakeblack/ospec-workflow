@@ -5,7 +5,9 @@ const path = require("node:path");
 const test = require("node:test");
 
 const {
+  ALL_TARGETS,
   getStagedFiles,
+  getStagedContent,
   checkStagedSyntax,
   findAffectedTests,
   findAffectedTargets,
@@ -29,41 +31,115 @@ test("getStagedFiles parses git diff output into trimmed lines", () => {
   assert.deepEqual(files, ["scripts/check.js", "scripts/lib/staged-validator.js"]);
 });
 
+test("getStagedContent invokes git show with POSIX path and returns stdout", () => {
+  let invoked = null;
+  const content = getStagedContent("c:/repo", "scripts\\foo\\bar.js", {
+    spawnSync: (cmd, args, opts) => {
+      invoked = { cmd, args, opts };
+      return { status: 0, stdout: "console.log('staged');\n" };
+    },
+  });
+
+  assert.equal(invoked.cmd, "git");
+  assert.deepEqual(invoked.args, ["show", ":scripts/foo/bar.js"]);
+  assert.equal(invoked.opts.cwd, "c:/repo");
+  assert.equal(invoked.opts.encoding, "utf8");
+  assert.equal(invoked.opts.shell, false);
+  assert.equal(content, "console.log('staged');\n");
+});
+
+test("getStagedContent returns null when git show fails or produces error", () => {
+  const content1 = getStagedContent("c:/repo", "missing.js", {
+    spawnSync: () => ({ status: 128, stdout: "", stderr: "fatal: path not in index" }),
+  });
+  assert.equal(content1, null);
+
+  const content2 = getStagedContent("c:/repo", "error.js", {
+    spawnSync: () => ({ status: 1, error: new Error("spawn error") }),
+  });
+  assert.equal(content2, null);
+});
+
+test("getStagedContent returns null when spawnSync throws", () => {
+  const content = getStagedContent("c:/repo", "crash.js", {
+    spawnSync: () => {
+      throw new Error("fatal crash");
+    },
+  });
+  assert.equal(content, null);
+});
+
+test("getStagedContent returns null for empty or invalid path", () => {
+  assert.equal(getStagedContent("c:/repo", ""), null);
+  assert.equal(getStagedContent("c:/repo", null), null);
+});
+
 test("checkStagedSyntax validates correct JS and JSON without errors", () => {
-  const fakeFs = {
-    existsSync: () => true,
-    readFileSync: (p) => {
+  const deps = {
+    getStagedContent: (root, p) => {
       if (p.endsWith(".json")) return '{"name": "test", "valid": true}';
       return "const x = 1; function test() { return x + 1; }";
     },
   };
 
-  const errors = checkStagedSyntax(["sample.js", "sample.json"], "/fake/repo", { fs: fakeFs });
+  const errors = checkStagedSyntax(["sample.js", "sample.json"], "/fake/repo", deps);
   assert.deepEqual(errors, []);
 });
 
 test("checkStagedSyntax detects JS syntax error", () => {
-  const fakeFs = {
-    existsSync: () => true,
-    readFileSync: () => "const = 123;",
+  const deps = {
+    getStagedContent: () => "const = 123;",
   };
 
-  const errors = checkStagedSyntax(["broken.js"], "/fake/repo", { fs: fakeFs });
+  const errors = checkStagedSyntax(["broken.js"], "/fake/repo", deps);
   assert.equal(errors.length, 1);
   assert.equal(errors[0].file, "broken.js");
   assert.equal(errors[0].type, "js-syntax");
 });
 
 test("checkStagedSyntax detects JSON parse error", () => {
-  const fakeFs = {
-    existsSync: () => true,
-    readFileSync: () => '{"broken": json without quotes}',
+  const deps = {
+    getStagedContent: () => '{"broken": json without quotes}',
   };
 
-  const errors = checkStagedSyntax(["bad.json"], "/fake/repo", { fs: fakeFs });
+  const errors = checkStagedSyntax(["bad.json"], "/fake/repo", deps);
   assert.equal(errors.length, 1);
   assert.equal(errors[0].file, "bad.json");
   assert.equal(errors[0].type, "json-syntax");
+});
+
+test("checkStagedSyntax detects error in staged JS even when working tree is clean", () => {
+  const stagedFiles = ["app.js"];
+  const fakeFs = {
+    existsSync: () => true,
+    readFileSync: () => "const valid = 1;", // working tree clean
+  };
+  const deps = {
+    fs: fakeFs,
+    getStagedContent: (root, file) => "const broken = ;", // staged broken
+    spawnSync: () => ({ status: 0, stdout: "const broken = ;" }),
+  };
+
+  const errors = checkStagedSyntax(stagedFiles, "/fake/repo", deps);
+  assert.equal(errors.length, 1);
+  assert.equal(errors[0].file, "app.js");
+  assert.equal(errors[0].type, "js-syntax");
+});
+
+test("checkStagedSyntax permits valid staged JS even when working tree is broken", () => {
+  const stagedFiles = ["app.js"];
+  const fakeFs = {
+    existsSync: () => true,
+    readFileSync: () => "const broken = ;", // working tree broken
+  };
+  const deps = {
+    fs: fakeFs,
+    getStagedContent: (root, file) => "const valid = 1;", // staged clean
+    spawnSync: () => ({ status: 0, stdout: "const valid = 1;" }),
+  };
+
+  const errors = checkStagedSyntax(stagedFiles, "/fake/repo", deps);
+  assert.deepEqual(errors, []);
 });
 
 test("findAffectedTests collects direct test files and corresponding source tests", () => {
@@ -98,6 +174,36 @@ test("findAffectedTests defaults to contract and docs lint when no specific test
   assert.deepEqual(tests, ["scripts/contract-lint.test.js", "scripts/docs-lint.test.js"]);
 });
 
+test("findAffectedTests returns full suite pattern when scripts/check.js is staged [REQ-git-precommit-hook-002]", () => {
+  const cases = [
+    ["scripts/check.js"],
+    ["scripts\\check.js"],
+  ];
+  for (const staged of cases) {
+    const tests = findAffectedTests(staged, "c:/repo", { fs: { existsSync: () => true } });
+    assert.deepEqual(tests, ["scripts/**/*.test.js"]);
+  }
+});
+
+test("findAffectedTests returns full suite pattern when core scripts/lib module is staged [REQ-git-precommit-hook-002]", () => {
+  const cases = [
+    ["scripts/lib/staged-validator.js"],
+    ["scripts\\lib\\tdd-mode.js"],
+    ["scripts/lib/some-shared-util.js"],
+  ];
+  for (const staged of cases) {
+    const tests = findAffectedTests(staged, "c:/repo", { fs: { existsSync: () => true } });
+    assert.deepEqual(tests, ["scripts/**/*.test.js"]);
+  }
+});
+
+test("findAffectedTests does NOT trigger full suite for contract-checkers [REQ-git-precommit-hook-002]", () => {
+  const staged = ["scripts/lib/contract-checkers/spec-checker.js"];
+  const tests = findAffectedTests(staged, "c:/repo", { fs: { existsSync: () => false } });
+  assert.notDeepEqual(tests, ["scripts/**/*.test.js"]);
+  assert.ok(tests.includes("scripts/contract-lint.test.js"));
+});
+
 test("findAffectedTargets detects configure changes for specific targets", () => {
   const staged = [
     "scripts/configure/validate-antigravity.js",
@@ -109,12 +215,55 @@ test("findAffectedTargets detects configure changes for specific targets", () =>
   assert.equal(targets.length, 2);
 });
 
-test("runStagedChecks fails fast on syntax errors before running tests", () => {
-  const fakeFs = {
-    existsSync: () => true,
-    readFileSync: () => "const bad = ;",
-  };
+test("ALL_TARGETS contains all seven supported targets [REQ-git-precommit-hook-001]", () => {
+  assert.deepEqual(ALL_TARGETS, [
+    "claude",
+    "vscode",
+    "github-copilot",
+    "opencode",
+    "codex",
+    "cursor",
+    "antigravity",
+  ]);
+});
 
+test("findAffectedTargets returns ALL_TARGETS when shared generators change [REQ-git-precommit-hook-001]", () => {
+  const cases = [
+    ["scripts/configure/cli.js"],
+    ["scripts/configure/install-engine.js"],
+    ["scripts/configure/install-target.js"],
+    ["scripts/configure/validate-phase.js"],
+    ["scripts\\configure\\cli.js"],
+  ];
+  for (const staged of cases) {
+    const targets = findAffectedTargets(staged);
+    assert.deepEqual(targets, ALL_TARGETS);
+  }
+});
+
+test("findAffectedTargets returns ALL_TARGETS when target profiles or transform change [REQ-git-precommit-hook-001]", () => {
+  const cases = [
+    ["scripts/lib/target-profiles/claude.js"],
+    ["scripts\\lib\\target-profiles\\cursor.js"],
+    ["scripts/lib/target-transform.js"],
+  ];
+  for (const staged of cases) {
+    const targets = findAffectedTargets(staged);
+    assert.deepEqual(targets, ALL_TARGETS);
+  }
+});
+
+test("findAffectedTargets returns ALL_TARGETS when models.yaml changes [REQ-git-precommit-hook-001]", () => {
+  const targets = findAffectedTargets(["models.yaml"]);
+  assert.deepEqual(targets, ALL_TARGETS);
+});
+
+test("findAffectedTargets returns isolated target for single target validator [REQ-git-precommit-hook-001]", () => {
+  const targets = findAffectedTargets(["scripts/configure/validate-codex.js"]);
+  assert.deepEqual(targets, ["codex"]);
+});
+
+test("runStagedChecks fails fast on syntax errors before running tests", () => {
   let runStepCalled = false;
   assert.throws(
     () =>
@@ -126,7 +275,7 @@ test("runStagedChecks fails fast on syntax errors before running tests", () => {
             runStepCalled = true;
           },
         },
-        { fs: fakeFs }
+        { getStagedContent: () => "const bad = ;" }
       ),
     /Error de sintaxis en archivos staged/
   );
@@ -139,7 +288,6 @@ test("runStagedChecks runs affected tests and generates affected targets", () =>
 
   const fakeFs = {
     existsSync: () => true,
-    readFileSync: () => "const ok = 1;",
   };
 
   const result = runStagedChecks(
@@ -149,7 +297,7 @@ test("runStagedChecks runs affected tests and generates affected targets", () =>
       runStep: (name, args) => steps.push({ name, args }),
       generateTarget: (target) => generated.push(target),
     },
-    { fs: fakeFs }
+    { fs: fakeFs, getStagedContent: () => "const ok = 1;" }
   );
 
   assert.equal(result.ok, true);
