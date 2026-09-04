@@ -285,3 +285,93 @@ test("on check.js failure, writes captured stdout before exit", (t) => {
   );
   assert.ok(hasCapture, "Expected process.stdout.write to include 'captured-output-line'");
 });
+
+test("blocks commit when sensitive file is staged (.env)", (t) => {
+  let exitCode = null;
+  t.mock.method(process, "exit", (code) => {
+    exitCode = code;
+  });
+
+  const errorCalls = [];
+  t.mock.method(console, "error", (...args) => {
+    errorCalls.push(args);
+  });
+
+  t.mock.method(child_process, "spawnSync", (cmd, args) => {
+    if (cmd === "git" && args.includes("--cached")) {
+      return { status: 0, stdout: ".env.production\n" };
+    }
+    return { status: 0, stdout: "" };
+  });
+
+  runPreCommit();
+  assert.equal(exitCode, 1);
+
+  const hasBanner = errorCalls.some((args) =>
+    args.some((arg) => typeof arg === "string" && arg.includes("archivo sensible detectado"))
+  );
+  assert.ok(hasBanner, "Expected error banner about sensitive file");
+});
+
+test("blocks commit when file with API key secret is staged", (t) => {
+  let exitCode = null;
+  t.mock.method(process, "exit", (code) => {
+    exitCode = code;
+  });
+
+  const errorCalls = [];
+  t.mock.method(console, "error", (...args) => {
+    errorCalls.push(args);
+  });
+
+  t.mock.method(child_process, "spawnSync", (cmd, args) => {
+    if (cmd === "git" && args.includes("--cached")) {
+      return { status: 0, stdout: "sample.txt\n" };
+    }
+    return { status: 0, stdout: "" };
+  });
+
+  t.mock.method(fs, "existsSync", () => true);
+  t.mock.method(fs, "statSync", () => ({ size: 50 }));
+  t.mock.method(fs, "readFileSync", () => "FAKE_" + "SECRET = 'sk-" + "x".repeat(48) + "'");
+
+  runPreCommit();
+  assert.equal(exitCode, 1);
+
+  const hasSecretBanner = errorCalls.some((args) =>
+    args.some((arg) => typeof arg === "string" && arg.includes("clave secreta"))
+  );
+  assert.ok(hasSecretBanner, "Expected error banner about secret pattern");
+});
+
+test("respects DISABLE_AGENT_SHIELD bypass for staged sensitive file", (t) => {
+  let exitCode = null;
+  t.mock.method(process, "exit", (code) => {
+    exitCode = code;
+  });
+
+  t.mock.method(child_process, "spawnSync", (cmd, args) => {
+    if (cmd === "git" && args.includes("--cached")) {
+      return { status: 0, stdout: ".env\n" };
+    }
+    if (cmd === "node" && args[0] === "scripts/check.js") {
+      return { status: 0, stdout: "" };
+    }
+    return { status: 0, stdout: "" };
+  });
+
+  t.mock.method(fs, "existsSync", () => false);
+
+  const oldEnv = process.env.DISABLE_AGENT_SHIELD;
+  process.env.DISABLE_AGENT_SHIELD = "true";
+  try {
+    runPreCommit();
+    assert.equal(exitCode, 0);
+  } finally {
+    if (oldEnv === undefined) {
+      delete process.env.DISABLE_AGENT_SHIELD;
+    } else {
+      process.env.DISABLE_AGENT_SHIELD = oldEnv;
+    }
+  }
+});

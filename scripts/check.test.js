@@ -157,3 +157,50 @@ test("claudeCliAvailable keeps the --version probe for a usable native binary", 
     true,
   );
 });
+
+test("main delegates to runStagedChecks when --staged flag is passed", () => {
+  let stagedChecksCalled = false;
+  let fullSuiteCalled = false;
+  const stdout = [];
+
+  main({
+    argv: ["--staged"],
+    runStagedChecks: () => {
+      stagedChecksCalled = true;
+    },
+    runStep: () => {
+      fullSuiteCalled = true;
+    },
+    process: {
+      stdout: { write: (text) => stdout.push(text) },
+      stderr: { write: () => {} },
+      exit: () => {},
+    },
+  });
+
+  assert.equal(stagedChecksCalled, true);
+  assert.equal(fullSuiteCalled, false);
+  assert.match(stdout.join(""), /All staged checks passed/);
+});
+
+test("main catches runStagedChecks failure and exits 1", () => {
+  const stderr = [];
+  let exitCode;
+
+  main({
+    argv: ["--staged"],
+    runStagedChecks: () => {
+      throw new Error("Syntax error in staged files");
+    },
+    process: {
+      stdout: { write: () => {} },
+      stderr: { write: (text) => stderr.push(text) },
+      exit: (code) => {
+        exitCode = code;
+      },
+    },
+  });
+
+  assert.equal(exitCode, 1);
+  assert.match(stderr.join(""), /Check failed: Syntax error in staged files/);
+});
