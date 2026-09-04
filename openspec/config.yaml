@@ -11,7 +11,7 @@ context: |
 
 project:
   name: ospec-workflow
-  version: 2.60.3
+  version: 2.60.4
   status: active
 
 artifact_store:
@@ -53,8 +53,9 @@ baseline:
     - independent-verification
     - assurance-graph
     - kernel-contract-schemas
+    - git-precommit-hook
   stale_domains: []
-  last_checked: "2026-08-28T12:09:36Z"
+  last_checked: "2026-09-04T17:45:40Z"
 
 rules:
   foundation:

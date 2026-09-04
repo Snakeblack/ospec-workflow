@@ -117,6 +117,34 @@ test("integration: rejects commit when staged JS has broken syntax and working t
   );
 });
 
+test("integration: rejects commit when staged .js ESM has real syntax error [REQ-git-precommit-hook-001]", () => {
+  const tmpDir = setupEphemeralRepo();
+  const filePath = path.join(tmpDir, "module.js");
+
+  // 1. ESM con error real de sintaxis (no sólo el modo módulo) staged
+  fs.writeFileSync(filePath, "import x from 'x';\nconst broken = ;", "utf8");
+  child_process.spawnSync("git", ["add", "module.js"], { cwd: tmpDir });
+
+  const res = runHook(tmpDir);
+  assert.equal(res.status, 1, `Expected exit code 1 but got ${res.status}. Output: ${res.stdout}\nStderr: ${res.stderr}`);
+  assert.match(
+    res.stderr + res.stdout,
+    /Error de sintaxis en archivos staged/i,
+    "Expected syntax error message in pre-commit output"
+  );
+});
+
+test("integration: permits commit when staged .js ESM is valid [REQ-git-precommit-hook-001]", () => {
+  const tmpDir = setupEphemeralRepo();
+  const filePath = path.join(tmpDir, "module.js");
+
+  fs.writeFileSync(filePath, "import path from 'node:path';\nexport const value = 42;\n", "utf8");
+  child_process.spawnSync("git", ["add", "module.js"], { cwd: tmpDir });
+
+  const res = runHook(tmpDir);
+  assert.equal(res.status, 0, `Expected exit code 0 but got ${res.status}. Output: ${res.stdout}\nStderr: ${res.stderr}`);
+});
+
 test("integration: permits commit when staged JS has valid syntax and working tree has broken syntax [REQ-git-precommit-hook-003]", () => {
   const tmpDir = setupEphemeralRepo();
   const filePath = path.join(tmpDir, "app.js");

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.60.4] - 2026-09-04
+
+### Fixed
+- **Falso verde sintáctico en `.js` ESM (`staged-validator.js`)**: cuando `vm.Script` falla únicamente por modo ESM (`import`/`export`) en un `.js` staged, el contenido completo se valida con `node --check` sobre un temporal `.mjs` (reutilizando `checkMjsSyntax`, con cleanup en `finally` y type `js-esm-syntax`). Antes, un `.js` con `import` válido más un error sintáctico real (p. ej. `const broken = ;`) pasaba la validación porque el `continue` incondicional interpretaba el error de modo ESM como archivo válido.
+- **Rechazo de ESM en `.cjs` (`staged-validator.js`)**: `.cjs` pierde la exención de modo ESM; `import`/`export` en un `.cjs` staged ahora se reporta como error de sintaxis (`js-syntax`), según su semántica CommonJS explícita.
+- **Regresiones**: 2 tests unitarios (`.js` ESM roto con verificación de invocación real de `node --check`; `.cjs` con `import` que falla sin invocar el fallback) y 2 tests de integración end-to-end (exit 1 con "Error de sintaxis en archivos staged"; exit 0 para ESM válido).
+
+### Archived
+- Cambio archivado en `openspec/changes/archive/2026-09-04-fix-precommit-js-esm-syntax-green/`.
+
+**Verificación directa**: `npm test` (3091 tests, 3089 pasando, 0 fallos, 2 omitidos)
+
 ## [2.60.3] - 2026-09-04
 
 ### Fixed

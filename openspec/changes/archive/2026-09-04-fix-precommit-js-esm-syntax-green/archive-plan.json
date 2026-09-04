@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "change": "fix-precommit-js-esm-syntax-green",
+  "source_fingerprint": "sha256:f95b6127a6a514bd45e78f569dfa0b4eab745e8768e12d1cd5f3ba9c38758fe9",
+  "spec_writes": [],
+  "adr_promotions": [],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "exploration.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

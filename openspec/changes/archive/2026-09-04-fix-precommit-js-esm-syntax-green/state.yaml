@@ -1,0 +1,73 @@
+gate: intent-briefing
+decision: accepted
+synthesis: >
+  Fix quirúrgico v2.60.4 al fast pre-commit hook: (1) .js ESM — cuando vm.Script
+  falle sólo por modo ESM (import/export), validar sintaxis con node --check sobre
+  un temporal .mjs en vez de continue; (2) .cjs — eliminar la exención ESM:
+  import/export en .cjs se reporta como error. 2 tests de regresión. Fuera de
+  alcance: findAffectedTargets, grafo de dependencias, parsers nuevos, otros
+  subsistemas.
+scope: fast pre-commit staged syntax validation (.js/.cjs ESM handling)
+applies_to: [change-classification]
+approvals:
+  - id: intent-briefing-accepted
+    gate: intent-briefing
+    decision: accepted
+    source: AskUserQuestion
+    accepted_at: "2026-09-04"
+    applies_to: [change-classification]
+route:
+  intended_route: bugfix
+  actual_route: bugfix
+  route_rationale: "explicit_bugfix_intent=true y classification=small; primera coincidencia en la tabla antes que lite"
+  validated: true
+  validation_errors: []
+owner:
+  author: Manuel Retamozo
+  branch: main
+execution:
+  mode: auto
+  delivery_strategy: exception-ok
+last_updated: "2026-09-04T19:30:00Z"
+status: archived
+phases:
+  exploration:
+    status: done
+    artifact: "openspec/changes/fix-precommit-js-esm-syntax-green/exploration.md"
+    summary: "Punto de fix aislado en staged-validator.js:181-192; checkMjsSyntax reutilizable tal cual; tests mock existentes replicables; fix alinea con REQ-git-precommit-hook-001."
+    key_decisions:
+      - "Reutilizar checkMjsSyntax sin extraer nueva función ni cambiar firmas"
+      - "Exención ESM sólo para .js; .cjs reporta import/export como js-syntax"
+  tasks:
+    status: done
+    artifact: "openspec/changes/fix-precommit-js-esm-syntax-green/tasks.md"
+    summary: "TDD focused: 2 tests de regresión RED primero, fix en staged-validator.js:181-192 reutilizando checkMjsSyntax, type remapeado a js-esm-syntax; ~70-100 líneas, PR único, riesgo Low."
+    key_decisions:
+      - "Remapear type del fallback .js ESM a js-esm-syntax (claridad de camino de validación)"
+      - "Orden RED→GREEN: tests primero contra código actual que falla"
+  apply:
+    status: done
+    artifact: "openspec/changes/fix-precommit-js-esm-syntax-green/apply-progress.md"
+    summary: "Fix implementado y suite verde (3089 pass, 0 fail): fallback node --check para .js ESM con type js-esm-syntax, .cjs sin exención; commit caa3831 en fix/precommit-js-esm-syntax-green."
+    key_decisions:
+      - "Test preexistente de .js ESM válido actualizado con mock spawnSync (nuevo camino de validación)"
+  verify:
+    status: done
+    verdict: PASS
+    artifact: "openspec/changes/fix-precommit-js-esm-syntax-green/verify-report.md"
+    summary: "PASS: REQ-git-precommit-hook-001 runtime-test en todos los escenarios; npm test re-ejecutado (3091 tests, 3089 pass, 0 fail); sin findings CRITICAL/WARNING; 1 suggestion (matching de mensajes vm.Script preexistente)."
+  archive:
+    status: done
+    artifact: "openspec/changes/fix-precommit-js-esm-syntax-green/archive-report.md"
+    summary: "Archive report y plan emitidos; sin delta de spec ni ADRs (spec_writes/adr_promotions vacios); PASS sin warnings; destino propuesto archive/2026-09-04-fix-precommit-js-esm-syntax-green."
+    key_decisions:
+      - "source_fingerprint placeholder: sin shell en este entorno, el orquestador debe recalcularlo (snippet en archive-report.md) antes de correr el runtime"
+assumptions:
+  - id: sdd-tasks-001
+    phase: sdd-tasks
+    statement: "Remapear el type del error del fallback .js ESM a js-esm-syntax en lugar de reutilizar mjs-syntax."
+    reversibility: high
+    basis: "Decisión señalada como no contractual en exploration.md:61-64; js-esm-syntax comunica el camino de validación y evita confusión con archivos .mjs reales."
+    recorded_at: 2026-09-04T00:00:00Z
+    status: resolved
+    resolved_at: 2026-09-04T15:30:00Z
