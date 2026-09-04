@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.60.3] - 2026-09-04
+
+### Fixed
+- **Invalidación de targets ante libs de runtime distribuidas (`staged-validator.js`)**: `findAffectedTargets` ahora trata cualquier módulo de producción bajo `scripts/lib/**` (excluyendo `*.test.js` y `scripts/lib/test-support/**`) como fuente compartida distribuida, retornando `ALL_TARGETS`. Esto cierra el hueco donde módulos empaquetados por `gatherRuntimeScripts()` y sus dependencias transitivas de `require()` (p. ej. `review-dimensions.js`, `federation-marker.js`, `review-gate-state.js`, `review-lineage.js`) producían cero regeneraciones de target en el fast pre-commit.
+- **Validación sintáctica real de `.mjs` (`staged-validator.js`)**: los blobs staged `.mjs` se materializan en un archivo temporal y se validan con `node --check` (parseo ESM nativo según extensión), en lugar de saltarse silenciosamente, cumpliendo el contrato de la spec que promete validar `.js`, `.mjs`, `.cjs` y `.json`. Fail-closed ante fallo del spawn.
+- **Spec actualizada (`openspec/specs/git-precommit-hook/spec.md`)**: la frontera de invalidación documenta `scripts/lib/**` de producción y los escenarios de regresión correspondientes.
+
 ## [2.60.2] - 2026-09-04
 
 ### Fixed
