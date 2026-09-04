@@ -1,7 +1,7 @@
 # Verification Report: claude-cx0-telemetry-adapter
 
 **Change**: claude-cx0-telemetry-adapter
-**Version**: N/A (delta specs REQ-context-measurement-007/008, REQ-hooks-018/019)
+**Version**: 2.59.0
 **Mode**: Standard (focused TDD; strict evidence-table audit skipped)
 **Verified state**: commits `d03646b` → `7703090` → `4398b19` (rama `feat/claude-cx0-telemetry-adapter`, base `efa6cea`)
 **Fecha**: 2026-09-03T20:22:32Z

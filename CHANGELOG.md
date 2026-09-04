@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.59.0] - 2026-09-04
+
+### Added
+- **Adaptador de telemetría de tokens Claude CX0 (`claude-cx0-telemetry-adapter`)**:
+  - **Extracción de uso observada desde transcripciones**: extracción de contadores de tokens (`input_tokens`, `output_tokens`, `cached_input_tokens`) desde transcripciones JSONL para alimentar la lane CX0 (`ospec-context-measurement/v1`) con métricas `host-observed` y derivadas (`runtime-derived`).
+  - **Normalización de contadores Anthropic**: soporte para suma del par `cache_read_input_tokens` y `cache_creation_input_tokens` al triple canónico.
+  - **Lectura acotada de cola (Tail Read Window)**: lectura de cola de 64 KB de un solo salto posicionado sin cargar transcripciones completas en memoria (ADR-009).
+  - **Precedencia de detección de host**: resolución de la dimensión host a `claude` bajo marcadores y firmas de sesión (ADR-010).
+  - **Enrutamiento de SubagentStop a Node**: enrutamiento del subcomando `subagent-stop` hacia Node.js en hosts Claude Code para asegurar la ejecución del extractor.
+  - **Especificaciones y ADRs**: Requisitos `REQ-context-measurement-007`, `REQ-context-measurement-008`, `REQ-hooks-018` y `REQ-hooks-019`; ADRs `docs/adr/adr-20260903-009` y `docs/adr/adr-20260903-010`.
+
+### Fixed
+- **Interoperabilidad WSL y modelos OpenCode (`wsl-claude-interop-guard`)**:
+  - **Guard de binario WSL interop**: detección y descarte fail-soft de ejecutables Windows bajo `/mnt/<letra>/` invocados desde WSL/Linux, degradando a generación sin validador externo para evitar fallos de rutas POSIX.
+  - **Compatibilidad multiplataforma de tests**: aislamiento de `LOCALAPPDATA` y simulación de plataforma en pruebas de validadores y chequeo `stat.isFile()` en lecturas de transcripción para evitar fallos en Windows nativo.
+  - **Alineación de modelos OpenCode**: actualización del modelo del tier light y default en `models.yaml` y pruebas unitarias a `zai-coding-plan/glm-5.3-flash`.
+
+### Archived
+- Cambios archivados en `openspec/changes/archive/2026-09-03-claude-cx0-telemetry-adapter/` y `openspec/changes/archive/2026-09-04-wsl-claude-interop-guard/`.
+
 ## [2.58.0] - 2026-09-03
 
 ### Added
