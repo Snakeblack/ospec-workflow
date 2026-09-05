@@ -1,7 +1,7 @@
 ## Verification Report
 
 **Change**: canonicalize-cx0-context-measurement
-**Version**: 2.60.5
+**Version**: 2.61.0
 **Mode**: Strict TDD
 
 ### Completeness
