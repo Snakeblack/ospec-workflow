@@ -57,9 +57,9 @@ Modo TDD estricto: cada unidad de comportamiento es par RED (test que falla, ver
 
 ## Phase 2: Espejo Go + paridad E1
 
-- [ ] 2.1 RED: crear `internal/agentidentity/agentidentity_test.go` con la MISMA tabla byte-por-byte que 1.1 (patrón resultenvelope), incluyendo caso de regresión con nombre prefijado. Ejecutar `go test ./internal/agentidentity/` y verificar que falla (paquete inexistente → falla de compilación = RED). [REQ-agent-identity-003]
-- [ ] 2.2 GREEN: crear `internal/agentidentity/agentidentity.go` — `package agentidentity`, `const Unresolved = "unresolved"`, `var ReviewAgents`, `func ResolveCanonicalAgent(rawName string) string`, `func DerivePhaseKey(canonicalAgent string) string`, reglas idénticas a 1.2. Verificar GREEN. [REQ-agent-identity-001, REQ-agent-identity-003]
-- [ ] 2.3 Paridad E1: tabla de paridad en ambos tests (JS y Go) sobre el set representativo `sdd-spec`, `host:sdd-spec`, `review-runtime`, `host:review-runtime`, `review-invented` + caso regresión prefijado; mismos resultados esperados en ambos runtimes. Verificar `node scripts/check.js` + `go test ./...` en verde. [REQ-agent-identity-003]
+- [x] 2.1 RED: crear `internal/agentidentity/agentidentity_test.go` con la MISMA tabla byte-por-byte que 1.1 (patrón resultenvelope), incluyendo caso de regresión con nombre prefijado. Ejecutar `go test ./internal/agentidentity/` y verificar que falla (paquete inexistente → falla de compilación = RED). [REQ-agent-identity-003]
+- [x] 2.2 GREEN: crear `internal/agentidentity/agentidentity.go` — `package agentidentity`, `const Unresolved = "unresolved"`, `var ReviewAgents`, `func ResolveCanonicalAgent(rawName string) string`, `func DerivePhaseKey(canonicalAgent string) string`, reglas idénticas a 1.2. Verificar GREEN. [REQ-agent-identity-001, REQ-agent-identity-003]
+- [x] 2.3 Paridad E1: tabla de paridad en ambos tests (JS y Go) sobre el set representativo `sdd-spec`, `host:sdd-spec`, `review-runtime`, `host:review-runtime`, `review-invented` + caso regresión prefijado; mismos resultados esperados en ambos runtimes. Verificar `node scripts/check.js` + `go test ./...` en verde. [REQ-agent-identity-003]
 
 ## Phase 3: Integración emisor SubagentStop (JS)
 
