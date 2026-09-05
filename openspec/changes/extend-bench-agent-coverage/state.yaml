@@ -142,3 +142,23 @@ assumptions:
     recorded_at: "2026-09-05T00:00:00Z"
     status: resolved
     resolution: "Confirmado en tasks: internal/hooks/subagentstop_test.go."
+
+gates:
+  4r-review-gate:
+    lineage_id: sha256:af9f7f0c4e2412f5347b4b00d92c41dc6e3931e3cd3dd2b745eaf2a7486e9c2c
+    status: approved
+    classification: normal
+    selected_dimensions: [risk]
+    skipped_dimensions:
+      reliability: no-reliability-signal
+      resilience: no-resilience-signal
+      readability: no-readability-signal
+    findings:
+      - id: F-c1cf060d0008ff4f
+        severity: SUGGESTION
+        summary: >
+          persistContextMeasurement y persistResultEnvelope consumen el nombre
+          crudo sin resolveCanonicalAgent; dispatches prefijados saltan la
+          medicion CX0 (subcuenta, fail-closed, sin bypass). Mirror Go equivalente.
+    follow_ups:
+      - "F-c1cf060d0008ff4f SUGGESTION: canonicalizar persistContextMeasurement (JS/Go) o documentarlo BY DESIGN en design.md"
