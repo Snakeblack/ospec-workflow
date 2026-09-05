@@ -100,8 +100,8 @@ function normalizeCodexHookOutput(subcommand, output) {
 // loads Claude-plugin hooks as third-party PreToolUse; detect that host via
 // Cursor-native stdin fields / event names so we never emit unsupported `ask`.
 function isCursorInstall(scriptDir = __dirname, env = process.env) {
-  if (env && env.OSPEC_TARGET === "cursor") {
-    return true;
+  if (env && env.OSPEC_TARGET) {
+    return env.OSPEC_TARGET === "cursor";
   }
   const parts = String(scriptDir || "")
     .split(/[\\/]+/)
@@ -110,10 +110,14 @@ function isCursorInstall(scriptDir = __dirname, env = process.env) {
 }
 
 function isCursorHost(scriptDir = __dirname, env = process.env, rawInput = "") {
+  // Explicit target configuration wins over inherited terminal/plugin markers.
+  if (env && env.OSPEC_TARGET) {
+    return env.OSPEC_TARGET === "cursor";
+  }
   if (isCursorInstall(scriptDir, env)) {
     return true;
   }
-  if (env && (env.CURSOR_AGENT || env.CURSOR_SESSION_ID || env.CURSOR_HOOK || env.VSCODE_PID || env.VSCODE_CWD)) {
+  if (env && (env.CURSOR_AGENT || env.CURSOR_SESSION_ID || env.CURSOR_HOOK)) {
     return true;
   }
   try {
@@ -323,8 +327,8 @@ function resolveBinary(scriptDir, suffix = hostBinarySuffix(), exists = fs.exist
 // OSPEC_TARGET precede a CLAUDE_PLUGIN_ROOT para que hosts que reutilizan
 // layouts de plugin Claude (p. ej. Cursor) puedan sobreescribir.
 function isClaudeCodeHost(env = process.env) {
-  if (env && env.OSPEC_TARGET === "claude") {
-    return true;
+  if (env && env.OSPEC_TARGET) {
+    return env.OSPEC_TARGET === "claude";
   }
   return Boolean(env) && typeof env.CLAUDE_PLUGIN_ROOT === "string" && env.CLAUDE_PLUGIN_ROOT.length > 0;
 }

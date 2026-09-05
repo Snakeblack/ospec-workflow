@@ -242,6 +242,101 @@ test("generateUnifiedDiff: uses standard headers for created and deleted files",
   assert.equal(patch.includes("-deleted\n"), false, "Must not contain synthetic -deleted placeholder");
 });
 
+test("generateUnifiedDiff: reads only added or content-modified files", (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-diff-read-scope-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+  for (const name of ["unchanged.txt", "mode-only.sh", "modified.txt", "added.txt"]) {
+    fs.writeFileSync(path.join(baseDir, name), "new content\n");
+  }
+  const baseline = [
+    { path: "unchanged.txt", sha256: "same", mode: 0o100644 },
+    { path: "mode-only.sh", sha256: "same", mode: 0o100644 },
+    { path: "modified.txt", sha256: "old", mode: 0o100644 },
+  ];
+  const post = [
+    baseline[0],
+    { ...baseline[1], mode: 0o100755 },
+    { ...baseline[2], sha256: "new" },
+    { path: "added.txt", sha256: "new", mode: 0o100644 },
+  ];
+  const reads = [];
+  const readFileSync = fs.readFileSync;
+  t.mock.method(fs, "readFileSync", (...args) => {
+    reads.push(path.basename(args[0]));
+    return readFileSync(...args);
+  });
+  const patch = generateUnifiedDiff(baseDir, baseline, post, { "modified.txt": "old content\n" });
+  assert.deepEqual(reads, ["modified.txt", "added.txt"]);
+  assert.ok(patch.includes("old mode 100644\nnew mode 100755"));
+  assert.ok(patch.includes("-old content\n+new content\n"));
+  assert.ok(!patch.includes("unchanged.txt"));
+});
+
+test("generateUnifiedDiff: bounds LCS allocation for a focal change in a large file", (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-diff-large-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+  const oldLines = Array.from({ length: 10001 }, (_, i) => `line ${i}`);
+  const newLines = [...oldLines];
+  newLines[5000] = "replacement";
+  fs.writeFileSync(path.join(baseDir, "large.txt"), newLines.join("\n") + "\n");
+
+  // Count actual matrix cells rather than asserting a machine-dependent duration.
+  const NativeUint32Array = Uint32Array;
+  let allocatedCells = 0;
+  t.mock.method(globalThis, "Uint32Array", function (length) {
+    allocatedCells += length;
+    assert.ok(allocatedCells <= 4096, "A focal edit must not allocate a whole-file LCS matrix");
+    return new NativeUint32Array(length);
+  });
+  const patch = generateUnifiedDiff(baseDir,
+    [{ path: "large.txt", sha256: "old" }], [{ path: "large.txt", sha256: "new" }],
+    { "large.txt": oldLines.join("\n") + "\n" });
+  assert.ok(patch.includes(" line 4999\n-line 5000\n+replacement\n line 5001\n"));
+  assert.ok(patch.endsWith(" line 10000\n"));
+});
+
+test("generateUnifiedDiff: preserves repeated-line alignment and trailing newline edits", (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-diff-repeated-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+  const cases = [
+    ["a\na\nb\n", "a\nb\n", "-a\n a\n b\n"],
+    ["a\na\nb\n", "a\nb\na\nc\n", "-a\n a\n b\n+a\n+c\n"],
+    ["a\na\nb\n", "a\na\nc\n", " a\n a\n-b\n+c\n"],
+    ["a\nb\na\n", "a\nc\nb\na", " a\n+c\n b\n-a\n+a\n\\ No newline at end of file\n"],
+  ];
+  for (const [oldContent, newContent, expectedBody] of cases) {
+    fs.writeFileSync(path.join(baseDir, "repeated.txt"), newContent);
+    const patch = generateUnifiedDiff(baseDir,
+      [{ path: "repeated.txt", sha256: "old" }], [{ path: "repeated.txt", sha256: "new" }],
+      { "repeated.txt": oldContent });
+    assert.equal(patch.split("@@\n")[1], expectedBody);
+  }
+});
+
+test("generateUnifiedDiff: propagates read failures instead of emitting empty content", (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-diff-read-error-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+  const filePath = path.join(baseDir, "modified.txt");
+  fs.writeFileSync(filePath, "new content\n");
+  const readError = Object.assign(new Error("Access denied"), { code: "EACCES", path: filePath });
+  t.mock.method(fs, "readFileSync", () => { throw readError; });
+  for (const baseline of [[], [{ path: "modified.txt", sha256: "old" }]]) {
+    assert.throws(() => generateUnifiedDiff(baseDir, baseline,
+      [{ path: "modified.txt", sha256: "new" }], { "modified.txt": "old content\n" }),
+    (error) => error === readError);
+  }
+});
+
+test("generateUnifiedDiff: rejects files missing after the post-flight inventory", (t) => {
+  const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-diff-missing-"));
+  t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));
+  for (const baseline of [[], [{ path: "missing.txt", sha256: "old" }]]) {
+    assert.throws(() => generateUnifiedDiff(baseDir, baseline,
+      [{ path: "missing.txt", sha256: "new" }], { "missing.txt": "old content\n" }),
+    { code: "ENOENT" });
+  }
+});
+
 test("generateUnifiedDiff: handles hello -> hello\\n and hello\\n -> hello with standard EOF markers", (t) => {
   const baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "k6a-diff-eof-"));
   t.after(() => fs.rmSync(baseDir, { recursive: true, force: true }));

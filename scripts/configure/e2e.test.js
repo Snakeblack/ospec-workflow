@@ -11,17 +11,18 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
-const { spawnSync } = require("node:child_process");
 
-const { runConfigure, isWindowsInteropPath, resolveBinFromPath } = require("./cli.js");
+const { runConfigure, isWindowsInteropPath, resolveBinFromPath, spawnCliSync } = require("./cli.js");
 
 const ROOT = path.resolve(__dirname, "..", "..");
 
 function findCli(bins, args = ["--version"]) {
   for (const bin of bins) {
-    const probe = spawnSync(bin, args, { stdio: "ignore", shell: false });
-    if (!probe.error) {
-      return bin;
+    // Resolve through PATH first so Windows npm shims (.cmd) spawn via cmd.exe.
+    const resolved = resolveBinFromPath(bin) || bin;
+    const probe = spawnCliSync(resolved, args, { stdio: "ignore" });
+    if (!probe.error && probe.status === 0) {
+      return resolved;
     }
   }
   return null;
@@ -47,9 +48,8 @@ test(
     const out = tmpOut(t, "claude");
     runConfigure({ sourceDir: ROOT, target: "claude", outDir: out, validate: false });
 
-    const result = spawnSync(claudeBin, ["plugin", "validate", "--strict", out], {
+    const result = spawnCliSync(claudeBin, ["plugin", "validate", "--strict", out], {
       encoding: "utf8",
-      shell: false,
     });
 
     assert.equal(result.status, 0, `claude plugin validate failed:\n${result.stdout}\n${result.stderr}`);

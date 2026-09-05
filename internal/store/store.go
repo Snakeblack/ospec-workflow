@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -283,21 +284,33 @@ func (s *Store) AppendPhaseCost(changeName string, line []byte) error {
 		rowIndex := 0
 
 		if f, err := os.Open(costPath); err == nil {
-			scanner := bufio.NewScanner(f)
-			for scanner.Scan() {
-				trimmed := strings.TrimSpace(scanner.Text())
-				if trimmed == "" {
-					continue
+			// Phase evidence can exceed Scanner's 64 KiB token limit. Read one
+			// complete row at a time, and never attest a partially read history.
+			reader := bufio.NewReader(f)
+			for {
+				line, readErr := reader.ReadString('\n')
+				if readErr != nil && !errors.Is(readErr, io.EOF) {
+					_ = f.Close()
+					return fmt.Errorf("store.AppendPhaseCost: read history: %w", readErr)
 				}
-				rowIndex++
-				var prior map[string]any
-				if err := json.Unmarshal([]byte(trimmed), &prior); err == nil {
-					if priorPhase, ok := prior["phase"].(string); ok && priorPhase == phase && prior["status"] == "success" {
-						hasPrior = true
+				if trimmed := strings.TrimSpace(line); trimmed != "" {
+					rowIndex++
+					var prior map[string]any
+					if err := json.Unmarshal([]byte(trimmed), &prior); err == nil {
+						if priorPhase, ok := prior["phase"].(string); ok && priorPhase == phase && prior["status"] == "success" {
+							hasPrior = true
+						}
 					}
 				}
+				if errors.Is(readErr, io.EOF) {
+					break
+				}
 			}
-			f.Close()
+			if err := f.Close(); err != nil {
+				return fmt.Errorf("store.AppendPhaseCost: close history: %w", err)
+			}
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("store.AppendPhaseCost: open history: %w", err)
 		}
 
 		record["relaunch"] = hasPrior

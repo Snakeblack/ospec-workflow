@@ -416,6 +416,44 @@ test("ensureRuntimeBinary: returns existing binary path when present", (t) => {
   assert.equal(resolved, binPath);
 });
 
+test("syncEntriesTransactional preserves recovery backup when rollback fails", (t) => {
+  const { syncEntriesTransactional } = require("./install-target.js");
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "install-target-recovery-"));
+  t.after(() => fs.rmSync(sandbox, { recursive: true, force: true }));
+  const source = path.join(sandbox, "source");
+  const destination = path.join(sandbox, "destination");
+  fs.mkdirSync(source);
+  fs.mkdirSync(destination);
+  fs.writeFileSync(path.join(source, "agent.md"), "replacement");
+  fs.writeFileSync(path.join(source, "later.md"), "new file");
+  fs.writeFileSync(path.join(destination, "agent.md"), "user original");
+
+  let backupRoot;
+  const fsImpl = Object.create(fs);
+  fsImpl.mkdtempSync = () => {
+    backupRoot = fs.mkdtempSync(path.join(sandbox, "backup-"));
+    return backupRoot;
+  };
+  fsImpl.cpSync = (src, dest, options) => {
+    if (src === path.join(source, "later.md")) throw new Error("copy failed");
+    if (src === path.join(backupRoot, "agent.md")) throw new Error("restore failed");
+    return fs.cpSync(src, dest, options);
+  };
+
+  let failure;
+  assert.throws(
+    () => syncEntriesTransactional(source, destination, ["agent.md", "later.md"], fsImpl),
+    error => {
+      assert.match(error.message, /rollback failed/);
+      failure = error;
+      return true;
+    },
+  );
+  assert.ok(fs.existsSync(path.join(backupRoot, "agent.md")), "original file must survive failed rollback");
+  assert.equal(fs.readFileSync(path.join(backupRoot, "agent.md"), "utf8"), "user original");
+  assert.ok(failure.message.includes(backupRoot), "error must identify the recovery backup");
+});
+
 test("ensureRuntimeBinary: attempts compilation when binary is missing and Go is available", (t) => {
   const { ensureRuntimeBinary, hostBinarySuffix } = require("./install-target.js");
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-go-test-"));
