@@ -1,7 +1,21 @@
 ---
 title: Known Issues
-last_updated: 2026-09-03
+last_updated: 2026-09-05
 ---
+
+## Design de extend-bench-agent-coverage promete canonicalizacion de la via de envelope que no ocurre
+- severity: WARNING
+- area: openspec/changes/extend-bench-agent-coverage/design.md (seccion Scope of hook integration) vs scripts/hooks/subagent-stop.js:462-463 e internal/hooks/subagentstop.go:510-511
+- workaround: corregir la frase del design (o abrir un cambio futuro si se desea canonicalizar persistResultEnvelope); la implementacion casa con spec y tasks
+- change: extend-bench-agent-coverage
+- date: 2026-09-05
+
+## state.yaml de extend-bench-agent-coverage tiene YAML estructuralmente invalido
+- severity: WARNING
+- area: openspec/changes/extend-bench-agent-coverage/state.yaml (phases.tasks con claves duplicadas; approvals 005-008 anidados bajo baseline_fingerprints)
+- workaround: sin impacto en el codigo verificado; regenerar/sanear el bloque al archivar para que parsers estrictos no fallen
+- change: extend-bench-agent-coverage
+- date: 2026-09-05
 
 ## Live eval defect reports still expose 4R defects instead of quality-review metrics
 - severity: BLOCKER

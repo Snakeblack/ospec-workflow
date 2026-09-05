@@ -77,9 +77,10 @@ phase-cost path (`persistPhaseCost` in JS, `persistPhaseCost` in Go): raw name �
 `ResolveCanonicalAgent` → `DerivePhaseKey(canonical)`. `derivePhaseKey`/`DerivePhaseKey` remain
 as the phase-key half of the authority, now moved into/behind the shared module (hook-local
 copies deleted). Envelope-persistence paths (`persistResultEnvelope`) keep their current
-behavior: they consume `derivePhaseKey` output, so foreign names still yield `""` (no state
-update) and prefixed `sdd-*` names now derive the correct phase key as a natural consequence —
-same bug class, same one-line integration point.
+behavior BY DESIGN (tasks 3.2/4.2, spec "without altering its outcome"): they consume the raw
+agent name and do NOT go through the canonical resolution, so foreign names still yield `""`
+(no state update) and prefixed `sdd-*` names remain outside the envelope-persistence path.
+Canonical coverage applies only to the phase-cost path.
 **Alternatives considered**: canonicalizing inside `resolveAgentName` — rejected: that function
 feeds `resultenvelope.ValidateForPhase` and logging where the raw name is contractually
 expected; changing it risks envelope-validation drift out of scope.
