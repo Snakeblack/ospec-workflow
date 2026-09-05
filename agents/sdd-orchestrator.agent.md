@@ -202,9 +202,12 @@ Call `classifyChange(ctx)` where `ctx` carries the current context signals (`cla
   - "Go freeform (no restrictions)" (sets `actual_route: freeform`, disabling strict phase validation)
   Do NOT auto-route on advisory signals without this confirmation.
 
-#### Step 3: Evaluate Conditions — First Match Wins
+#### Step 3: Select and Dispatch Route (`selectRoute`)
 
-Walk the route table top-to-bottom. The **first** route whose `conditions` are all satisfied by the current context is selected. Stop evaluating after the first match.
+Execute route dispatch via `selectRoute(routes, ctx, { persistedRoute })` or CLI `node scripts/route-dispatch-run.js [change-name]`:
+1. **Signal Normalization & Precedence**: Harmonizes `classification` and `change.classification` fail-closed (errors on conflict). Evaluates `FLOOR_GUARANTEES` (auth, migration, API) enforcing standard tier minimums.
+2. **Eligibility & Contextual Precedence**: Filters routes by metadata (`isRouteEligible`) preventing `standard` from shadowing `lite` on active projects. Contextual routes (`foundation`, `brownfield`) retain precedence as workflow prerequisites.
+3. **Continuation Invariance**: Locks persisted route from `state.yaml`. If newly discovered risk floors violate the active route or the route was removed, returns `status: blocked` with user decision gate to halt and prompt the user.
 
 #### Step 4: Record the Route Decision in `state.yaml`
 
