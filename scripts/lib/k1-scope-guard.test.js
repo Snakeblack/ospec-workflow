@@ -165,6 +165,9 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/review-taxonomy.test.js",
   "scripts/lib/route-dispatcher.js",
   "scripts/lib/route-dispatcher.test.js",
+  // Additive shared canonical agent-identity resolution implementation.
+  "scripts/lib/agent-identity.js",
+  "scripts/lib/agent-identity.test.js",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [

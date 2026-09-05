@@ -51,9 +51,9 @@ Modo TDD estricto: cada unidad de comportamiento es par RED (test que falla, ver
 
 ## Phase 1: Módulo JS de identidad de agente (Foundation)
 
-- [ ] 1.1 RED: crear `scripts/lib/agent-identity.test.js` con tabla de casos — `sdd-spec`→`sdd-spec`, `plugin-host:sdd-spec`→`sdd-spec` (regresión prefijo), `host:review-runtime`→`review-runtime`, `a:b:sdd-spec`→`unresolved`, `sdd-`→`unresolved`, `""`/no-string→`unresolved`, `review-invented`→`unresolved`, los 6 `REVIEW_AGENTS` resuelven a sí mismos; y casos de `derivePhaseKey` (`sdd-x`→`x`, review→sí mismo, otro→`""`). Verificar que falla en `node scripts/check.js`. [REQ-agent-identity-001, REQ-agent-identity-003]
-- [ ] 1.2 GREEN: crear `scripts/lib/agent-identity.js` con `UNRESOLVED = "unresolved"`, `REVIEW_AGENTS` (6 nombres), `resolveCanonicalAgent(raw)` (trim → exactamente un `:` con lados no vacíos → resto en set cerrado `sdd-[a-z][a-z0-9-]*` o review allowlist; identidad sin prefijo) y `derivePhaseKey(canonical)`. Pure, sin I/O. Verificar GREEN. [REQ-agent-identity-001]
-- [ ] 1.3 Añadir en `scripts/lib/agent-identity.test.js` caso O1: para todo nombre sin prefijo válido, `resolveCanonicalAgent` + `derivePhaseKey` producen los valores que hoy emiten los hooks (identidad + strip `sdd-` / self / `""`). Verificar GREEN. [REQ-agent-identity-002]
+- [x] 1.1 RED: crear `scripts/lib/agent-identity.test.js` con tabla de casos — `sdd-spec`→`sdd-spec`, `plugin-host:sdd-spec`→`sdd-spec` (regresión prefijo), `host:review-runtime`→`review-runtime`, `a:b:sdd-spec`→`unresolved`, `sdd-`→`unresolved`, `""`/no-string→`unresolved`, `review-invented`→`unresolved`, los 6 `REVIEW_AGENTS` resuelven a sí mismos; y casos de `derivePhaseKey` (`sdd-x`→`x`, review→sí mismo, otro→`""`). Verificar que falla en `node scripts/check.js`. [REQ-agent-identity-001, REQ-agent-identity-003]
+- [x] 1.2 GREEN: crear `scripts/lib/agent-identity.js` con `UNRESOLVED = "unresolved"`, `REVIEW_AGENTS` (6 nombres), `resolveCanonicalAgent(raw)` (trim → exactamente un `:` con lados no vacíos → resto en set cerrado `sdd-[a-z][a-z0-9-]*` o review allowlist; identidad sin prefijo) y `derivePhaseKey(canonical)`. Pure, sin I/O. Verificar GREEN. [REQ-agent-identity-001]
+- [x] 1.3 Añadir en `scripts/lib/agent-identity.test.js` caso O1: para todo nombre sin prefijo válido, `resolveCanonicalAgent` + `derivePhaseKey` producen los valores que hoy emiten los hooks (identidad + strip `sdd-` / self / `""`). Verificar GREEN. [REQ-agent-identity-002]
 
 ## Phase 2: Espejo Go + paridad E1
 
