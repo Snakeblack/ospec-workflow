@@ -1087,6 +1087,72 @@ test("persistPhaseCost records only exact review lifecycle agents with UTF-8 fal
   assert.equal(records.at(-1).model_tier, "default", "configured review agent tier is retained while absent numeric fields fall back to zero");
 });
 
+test("persistPhaseCost canonicalizes a host-prefixed sdd dispatch to the same row as the bare name (regresión prefijo)", async (t) => {
+  const { workspace } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+
+  await runSubagentStop({
+    input: { cwd: workspace, agent_type: "sdd-spec", status: "success", result: "bare name dispatch" },
+  });
+  await runSubagentStop({
+    input: { cwd: workspace, agent_type: "plugin-host:sdd-spec", status: "success", result: "prefixed dispatch" },
+  });
+
+  const records = await readPhaseCosts(workspace, "strict-result-envelope");
+  assert.equal(records.length, 2);
+  const [bare, prefixed] = records;
+  assert.equal(bare.phase, "spec");
+  assert.equal(bare.agent, "sdd-spec");
+  assert.deepEqual(
+    { phase: prefixed.phase, agent: prefixed.agent, status: prefixed.status },
+    { phase: bare.phase, agent: bare.agent, status: bare.status },
+    "la fila del nombre prefijado debe ser idéntica a la del nombre sin prefijo",
+  );
+});
+
+test("persistPhaseCost canonicalizes a host-prefixed review dispatch to the review phase row", async (t) => {
+  const { workspace } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+
+  await runSubagentStop({
+    input: { cwd: workspace, agent_type: "host:review-runtime", status: "success", result: "prefixed review dispatch" },
+  });
+
+  const records = await readPhaseCosts(workspace, "strict-result-envelope");
+  assert.equal(records.length, 1);
+  assert.equal(records[0].phase, "review-runtime");
+  assert.equal(records[0].agent, "review-runtime");
+});
+
+test("persistPhaseCost skips foreign review agents fail-safe and keeps the hook outcome intact", async (t) => {
+  const { workspace } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+
+  const outcome = await persistPhaseCost({
+    input: { cwd: workspace, agent_type: "review-invented", result: "foreign dispatch" },
+    workspace,
+  });
+  assert.equal(outcome.status, "skipped");
+  assert.equal(outcome.reason, "unsupported-agent");
+  assert.equal(outcome.phase, null);
+
+  const outcomeReliability = await persistPhaseCost({
+    input: { cwd: workspace, agent_type: "review-reliability", result: "legacy 4R name" },
+    workspace,
+  });
+  assert.equal(outcomeReliability.status, "skipped");
+  assert.equal(outcomeReliability.reason, "unsupported-agent");
+
+  const fullRun = await runSubagentStop({
+    input: { cwd: workspace, agent_type: "review-invented", result: "foreign dispatch" },
+  });
+  assert.deepEqual(fullRun, { status: "skipped", reason: "resolution-unavailable" });
+
+  await assert.rejects(
+    fs.stat(
+      path.join(workspace, ".ospec", "session", "strict-result-envelope", PHASE_COST_FILE_NAME),
+    ),
+    (error) => error.code === "ENOENT",
+  );
+});
+
 test("persistPhaseCost swallows estimation errors without affecting stdout/return value (fail-safe)", async (t) => {
   const { workspace } = await createChangeWorkspace(
     t,

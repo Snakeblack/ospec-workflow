@@ -63,8 +63,8 @@ Modo TDD estricto: cada unidad de comportamiento es par RED (test que falla, ver
 
 ## Phase 3: Integración emisor SubagentStop (JS)
 
-- [ ] 3.1 RED: en `scripts/hooks/subagent-stop.test.js`, añadir casos — dispatch con nombre `plugin-host:sdd-spec` produce fila con `agent: "sdd-spec"`, `phase: "spec"` (idéntica a la del nombre sin prefijo); dispatch `host:review-runtime` produce fila con `phase`/`agent` = `review-runtime`; `review-invented` y `review-reliability` NO escriben fila y el hook sigue fail-safe (`continue: true`). Verificar RED. [REQ-hooks-001, REQ-agent-identity-002]
-- [ ] 3.2 GREEN: en `scripts/hooks/subagent-stop.js`, en `persistPhaseCost`: importar de `scripts/lib/agent-identity.js`, clasificar vía `resolveCanonicalAgent(raw)` → `derivePhaseKey(canonical)`; `unresolved` → skip (sin fila); grabar `agent` = canónico; eliminar la copia local de `derivePhaseKey`. No tocar `resolveAgentName` ni `persistResultEnvelope`. Verificar GREEN en `node scripts/check.js`. [REQ-hooks-001, REQ-agent-identity-002]
+- [x] 3.1 RED: en `scripts/hooks/subagent-stop.test.js`, añadir casos — dispatch con nombre `plugin-host:sdd-spec` produce fila con `agent: "sdd-spec"`, `phase: "spec"` (idéntica a la del nombre sin prefijo); dispatch `host:review-runtime` produce fila con `phase`/`agent` = `review-runtime`; `review-invented` y `review-reliability` NO escriben fila y el hook sigue fail-safe (`continue: true`). Verificar RED. [REQ-hooks-001, REQ-agent-identity-002]
+- [x] 3.2 GREEN: en `scripts/hooks/subagent-stop.js`, en `persistPhaseCost`: importar de `scripts/lib/agent-identity.js`, clasificar vía `resolveCanonicalAgent(raw)` → `derivePhaseKey(canonical)`; `unresolved` → skip (sin fila); grabar `agent` = canónico; eliminar la copia local de `derivePhaseKey`. No tocar `resolveAgentName` ni `persistResultEnvelope`. Verificar GREEN en `node scripts/check.js`. [REQ-hooks-001, REQ-agent-identity-002]
 
 ## Phase 4: Integración espejo Go del hook
 
