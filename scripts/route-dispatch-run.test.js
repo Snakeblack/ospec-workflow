@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { execSync } = require("node:child_process");
+const { execSync, execFileSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -205,4 +205,105 @@ test("route-dispatch-run CLI E2E: rejects path traversal in changeName", () => {
   }
   assert.equal(threw, true, "command must exit with status 1 on path traversal");
 });
+
+test("route-dispatch-run CLI E2E: selects bugfix via --context JSON", () => {
+  const context = JSON.stringify({
+    classification: "small",
+    explicit_bugfix_intent: true,
+  });
+  const output = execFileSync(process.execPath, [DISPATCH_SCRIPT, `--context=${context}`], { cwd: ROOT }).toString();
+  const parsed = JSON.parse(output);
+
+  assert.equal(parsed.status, "success");
+  assert.equal(parsed.name, "bugfix");
+});
+
+test("route-dispatch-run CLI E2E: selects refactor via --context JSON", () => {
+  const context = JSON.stringify({
+    classification: "small",
+    explicit_refactor_intent: true,
+  });
+  const output = execFileSync(process.execPath, [DISPATCH_SCRIPT, `--context=${context}`], { cwd: ROOT }).toString();
+  const parsed = JSON.parse(output);
+
+  assert.equal(parsed.status, "success");
+  assert.equal(parsed.name, "refactor");
+});
+
+test("route-dispatch-run CLI E2E: selects hotfix via shorthand --hotfix and --classification=small", () => {
+  const cmd = `node "${DISPATCH_SCRIPT}" --classification=small --hotfix`;
+  const output = execSync(cmd, { cwd: ROOT }).toString();
+  const parsed = JSON.parse(output);
+
+  assert.equal(parsed.status, "success");
+  assert.equal(parsed.name, "hotfix");
+});
+
+test("route-dispatch-run CLI E2E: selects brownfield via derived signal specs_empty_with_code in --context", () => {
+  const context = JSON.stringify({
+    classification: "small",
+    specs_empty_with_code: true,
+  });
+  const output = execFileSync(process.execPath, [DISPATCH_SCRIPT, `--context=${context}`], { cwd: ROOT }).toString();
+  const parsed = JSON.parse(output);
+
+  assert.equal(parsed.status, "success");
+  assert.equal(parsed.name, "brownfield");
+});
+
+test("route-dispatch-run CLI E2E: selects brownfield via derived signal code_without_specs in --context", () => {
+  const context = JSON.stringify({
+    classification: "small",
+    code_without_specs: true,
+  });
+  const output = execFileSync(process.execPath, [DISPATCH_SCRIPT, `--context=${context}`], { cwd: ROOT }).toString();
+  const parsed = JSON.parse(output);
+
+  assert.equal(parsed.status, "success");
+  assert.equal(parsed.name, "brownfield");
+});
+
+test("route-dispatch-run CLI E2E: selects lite on new change without prior state via --context", () => {
+  const tempChange = `new-unstarted-${Date.now()}`;
+  const context = JSON.stringify({
+    classification: "small",
+  });
+  const output = execFileSync(process.execPath, [DISPATCH_SCRIPT, tempChange, `--context=${context}`], { cwd: ROOT }).toString();
+  const parsed = JSON.parse(output);
+
+  assert.equal(parsed.status, "success");
+  assert.equal(parsed.name, "lite");
+  assert.equal(parsed.classification, "small");
+});
+
+test("route-dispatch-run CLI E2E: reads context from file via --context-file", () => {
+  const tempFile = path.join(ROOT, `temp-ctx-${Date.now()}.json`);
+  fs.writeFileSync(
+    tempFile,
+    JSON.stringify({ classification: "small", explicit_bugfix_intent: true }),
+    "utf8"
+  );
+
+  try {
+    const cmd = `node "${DISPATCH_SCRIPT}" --context-file="${tempFile}"`;
+    const output = execSync(cmd, { cwd: ROOT }).toString();
+    const parsed = JSON.parse(output);
+
+    assert.equal(parsed.status, "success");
+    assert.equal(parsed.name, "bugfix");
+  } finally {
+    fs.rmSync(tempFile, { force: true });
+  }
+});
+
+test("route-dispatch-run CLI E2E: reads context from stdin via --context=-", () => {
+  const inputJson = JSON.stringify({ classification: "small", explicit_refactor_intent: true });
+  const cmd = `node "${DISPATCH_SCRIPT}" --context=-`;
+  const output = execSync(cmd, { cwd: ROOT, input: inputJson }).toString();
+  const parsed = JSON.parse(output);
+
+  assert.equal(parsed.status, "success");
+  assert.equal(parsed.name, "refactor");
+});
+
 

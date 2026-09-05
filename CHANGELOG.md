@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.63.2] - 2026-09-05
+
+### Fixed
+- **Soporte de contexto completo y banderas de intención en runner CLI (`scripts/route-dispatch-run.js`)**:
+  - Habilitación de entrada de contexto completo estructurado mediante `--context='<json>'`, `--context-file=<path>` y lectura de stdin con `--context=-`.
+  - Fusión determinista con precedencia estricta: configuración por defecto (`openspec/config.yaml`) + estado persistido (`state.yaml`) + contexto suministrado (`--context`/`--context-file`) + anulaciones directas por flags CLI.
+  - Soporte de banderas de intención shorthand (`--bugfix`, `--refactor`, `--hotfix`) mapeadas a sus respectivas señales (`explicit_*_intent`).
+  - Desanidado y preservación de comillas en argumentos JSON de consola y validación fail-closed de formato de objeto.
+- **Autoridad operativa única en orquestador (`agents/sdd-orchestrator.agent.md`)**:
+  - Paso 3 declara `node scripts/route-dispatch-run.js [change-name] [options]` como la única autoridad operativa de despacho, delegando de forma canónica en `selectRoute(routes, ctx, { persistedRoute })` con contexto serializado en JSON.
+  - Preservación del presupuesto estricto de líneas del agente orquestador (< 500 líneas).
+- **Reconciliación normativa de exención de prerrequisitos contextuales (`openspec/specs/routing/spec.md`)**:
+  - Actualización formal de `REQ-routing-013` y `REQ-routing-014` para documentar normativamente que las rutas contextuales (`foundation`, `brownfield`) están exentas de las fases requeridas por mínimos de riesgo durante su ejecución como prerrequisitos, manteniendo su precedencia e invarianza en continuación.
+- **Ampliación de suite E2E multiplataforma (`scripts/route-dispatch-run.test.js`)**:
+  - Cobertura integral E2E para selección de `bugfix`, `refactor`, `hotfix`, derivación de `brownfield` desde señales en contexto (`specs_empty_with_code`, `code_without_specs`), y selección de `lite` en cambios nuevos sin estado previo.
+  - Invocación segura sin shell para evitar la interpolación de comillas en Windows (`cmd.exe`).
+
+**Verificación directa**: `node scripts/check.js` (3234 tests pasando, 0 fallos y 0 omitidos) y `go test ./...` (10/10 paquetes ok). Reensobres Quality Review Gate (Trust, Runtime, Evolution, Efficiency) sin hallazgos.
+
 ## [2.63.1] - 2026-09-05
 
 ### Fixed
