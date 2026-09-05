@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.60.5] - 2026-09-05
+
+### Fixed
+- **Falsa ausencia del CLI host en Windows (`check.js`, `configure/cli.js`, `configure/e2e.test.js`)**: en Windows `resolveClaudeBin()` resuelve al shim npm `claude.cmd`, y Node lo rechaza con `EINVAL` al spawnearlo con `shell: false` (endurecimiento de CVE-2024-27980). Los tres puntos de spawn (`claudeCliAvailable`, `defaultRunValidator` y el probe/E2E) fallaban el probe y la validación del perfil degradaba silenciosamente a generation-only. Nuevo helper `spawnCliSync` en `scripts/configure/cli.js` que enruta shims `.cmd`/`.bat` por `cmd.exe /d /s /c` con quoting explícito (ni `EINVAL` ni la falta de quoting de `shell: true`); el resto de binarios sigue con `shell: false`. El E2E real (`plugin validate --strict`) vuelve a ejecutarse en Windows.
+- **Historia de costes con líneas largas (`internal/store/store.go`)**: `AppendPhaseCost` lee la historia con `bufio.Reader` en vez de `bufio.Scanner` (las filas de evidencia podían superar el límite de token de 64 KiB) y propaga errores de lectura/apertura/cierre en lugar de atestiguar una historia parcialmente leída.
+- **Diff unificado más rápido y fail-closed (`scripts/lib/worker-executor.js`)**: `computeLineDiff` recorta prefijo/sufijo comunes antes del DP (preservando el alineamiento cuando hay líneas repetidas) y se elimina el helper muerto `splitLines`; `generateUnifiedDiff` solo lee el contenido de archivos cuyo sha cambió y aborta la captura ante un fallo de lectura en lugar de fabricar un borrado.
+- **Transporte asíncrono bajo guards (`scripts/lib/host-contract/index.js`)**: `invokeTransportAsync` mantiene la work anidada (thenables en `value`) dentro de los guards de deadline/abort, también cuando se asientan tras una cancelación.
+- **Limpieza de eventos retirados (`scripts/configure/install-engine.js`)**: `mergeHooksDoc` filtra comandos ospec-hooks también de eventos que el manifiesto generado ya no emite, y elimina las claves vacías.
+- **Backup preservado en rollback fallido (`scripts/configure/install-target.js`)**: `syncEntriesTransactional` conserva el snapshot de recuperación cuando la restauración falla, reportando su ruta en el error.
+- **Detección de host explícita (`scripts/hooks/ospec-hooks-launch.js`)**: un `OSPEC_TARGET` explícito gana sobre marcadores heredados del terminal/plugin (VSCODE_PID/CWD ya no fuerzan Cursor), y la ausencia de target ya no implica Claude por defecto en la presencia de marcadores Cursor.
+
+**Verificación directa**: `node scripts/check.js` (3119 tests pasando, 0 fallos y 0 omitidos)
+
 ## [2.60.4] - 2026-09-04
 
 ### Fixed
