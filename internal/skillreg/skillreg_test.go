@@ -5,7 +5,9 @@ package skillreg_test
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -227,3 +229,243 @@ func TestCacheRoundTrip(t *testing.T) {
 		}
 	})
 }
+
+// ── CX0 Robustness Tests (REQ-skill-registry-004, REQ-skill-registry-002) ─────
+
+func makeUnreadableFile(t *testing.T, path string) func() {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		out, err := exec.Command("icacls", path, "/deny", "*S-1-1-0:(R)").CombinedOutput()
+		if err != nil {
+			t.Fatalf("icacls deny failed: %v, output: %s", err, out)
+		}
+		return func() {
+			_ = exec.Command("icacls", path, "/grant", "*S-1-1-0:(R)").Run()
+		}
+	}
+	if err := os.Chmod(path, 0000); err != nil {
+		t.Fatalf("chmod 0000: %v", err)
+	}
+	return func() {
+		_ = os.Chmod(path, 0644)
+	}
+}
+
+func TestDiscoverSkills_UnreadableSkillDegradation(t *testing.T) {
+	root := makePluginRoot(t)
+	unreadablePath := filepath.Join(root, "skills", "unreadable", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(unreadablePath), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(unreadablePath, []byte("---\nname: unreadable\n---\n## Rules\n- Unreadable rule.\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	restore := makeUnreadableFile(t, unreadablePath)
+	defer restore()
+
+	result, err := skillreg.DiscoverSkills(root, skillreg.DiscoverOptions{})
+	if err != nil {
+		t.Fatalf("DiscoverSkills must not fail on unreadable skill: %v", err)
+	}
+
+	// Unreadable skill must be omitted from parsed skills
+	if len(result.Skills) != 1 || result.Skills[0].ID != "example" {
+		t.Errorf("expected only 'example' skill, got: %v", result.Skills)
+	}
+
+	// Unreadable skill must be present in FingerprintPaths with 0-byte Content
+	var found bool
+	for _, fp := range result.FingerprintPaths {
+		if fp.RelativePath == "skills/unreadable/SKILL.md" {
+			found = true
+			if fp.Content == nil {
+				t.Errorf("Content must be non-nil 0-byte slice, got nil")
+			} else if len(fp.Content) != 0 {
+				t.Errorf("Content must have 0 bytes, got %d bytes", len(fp.Content))
+			}
+		}
+	}
+	if !found {
+		t.Errorf("skills/unreadable/SKILL.md not found in FingerprintPaths")
+	}
+
+	// CalculateFingerprint should succeed without throwing
+	fp, err := skillreg.CalculateFingerprint(result.FingerprintPaths)
+	if err != nil {
+		t.Fatalf("CalculateFingerprint failed: %v", err)
+	}
+	if !strings.HasPrefix(fp, "sha256:") {
+		t.Errorf("expected sha256: prefix, got %s", fp)
+	}
+}
+
+func TestCalculateFingerprint_DirectCallResilience(t *testing.T) {
+	tempDir := t.TempDir()
+	unreadableFile := filepath.Join(tempDir, "unreadable.md")
+	if err := os.WriteFile(unreadableFile, []byte("content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	restore := makeUnreadableFile(t, unreadableFile)
+	defer restore()
+
+	// Direct call without preloaded Content on unreadable file
+	fpDirect, err := skillreg.CalculateFingerprint([]skillreg.FingerprintPath{
+		{AbsolutePath: unreadableFile, RelativePath: "rules/unreadable.md"},
+	})
+	if err != nil {
+		t.Fatalf("CalculateFingerprint must not fail on unreadable file: %v", err)
+	}
+	if !strings.HasPrefix(fpDirect, "sha256:") {
+		t.Errorf("expected sha256: prefix, got %s", fpDirect)
+	}
+
+	// Must match the digest of explicit 0-byte content
+	fpExplicit, err := skillreg.CalculateFingerprint([]skillreg.FingerprintPath{
+		{AbsolutePath: unreadableFile, RelativePath: "rules/unreadable.md", Content: []byte{}},
+	})
+	if err != nil {
+		t.Fatalf("CalculateFingerprint with explicit 0-byte content failed: %v", err)
+	}
+	if fpDirect != fpExplicit {
+		t.Errorf("hash mismatch: direct=%s vs explicit=%s", fpDirect, fpExplicit)
+	}
+}
+
+func TestDiscoverSkills_MissingSkillsRoot(t *testing.T) {
+	root := t.TempDir()
+	_, err := skillreg.DiscoverSkills(root, skillreg.DiscoverOptions{
+		SkillsRoot:    filepath.Join(root, "non-existent"),
+		RequireSkills: true,
+	})
+	if err == nil {
+		t.Fatalf("expected error for missing required skills root, got nil")
+	}
+	if !strings.Contains(err.Error(), "no SKILL.md files found in required skills root") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestDiscoverSkills_ForeignOnlyExternalSkillsRootRejection(t *testing.T) {
+	root := makePluginRoot(t)
+	extSkills := filepath.Join(t.TempDir(), "external-skills")
+	foreignSkill := filepath.Join(extSkills, "foreign", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(foreignSkill), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(foreignSkill, []byte("---\nname: foreign\n---\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Foreign-only skills without OSpec anchors must fail closed when RequireSkills is true
+	_, err := skillreg.DiscoverSkills(root, skillreg.DiscoverOptions{
+		SkillsRoot:    extSkills,
+		RequireSkills: true,
+	})
+	if err == nil {
+		t.Fatalf("expected error for foreign-only external skills root, got nil")
+	}
+	if !strings.Contains(err.Error(), "no OSpec identity anchors found in required external skills root") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+
+	// Adding canonical OSpec anchor (.ospec-workflow-install.json) allows discovery to succeed
+	manifestPath := filepath.Join(extSkills, ".ospec-workflow-install.json")
+	if err := os.WriteFile(manifestPath, []byte("{}"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := skillreg.DiscoverSkills(root, skillreg.DiscoverOptions{
+		SkillsRoot:    extSkills,
+		RequireSkills: true,
+	})
+	if err != nil {
+		t.Fatalf("expected discovery to succeed with OSpec anchor: %v", err)
+	}
+	if len(result.Skills) != 1 || result.Skills[0].ID != "foreign" {
+		t.Errorf("expected 1 parsed skill (foreign), got: %v", result.Skills)
+	}
+}
+
+// ── Cross-Runtime Parity Verification (Task 3.1, REQ-skill-registry-004) ─────
+
+func TestCrossRuntime_UnreadableFileParity(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skipf("Node binary not found: %v", err)
+	}
+
+	root := makePluginRoot(t)
+	unreadablePath := filepath.Join(root, "skills", "unreadable", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(unreadablePath), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(unreadablePath, []byte("---\nname: unreadable\n---\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	restore := makeUnreadableFile(t, unreadablePath)
+	defer restore()
+
+	// 1. Go DiscoverSkills & CalculateFingerprint
+	goResult, err := skillreg.DiscoverSkills(root, skillreg.DiscoverOptions{})
+	if err != nil {
+		t.Fatalf("Go DiscoverSkills failed: %v", err)
+	}
+	goFp, err := skillreg.CalculateFingerprint(goResult.FingerprintPaths)
+	if err != nil {
+		t.Fatalf("Go CalculateFingerprint failed: %v", err)
+	}
+
+	// 2. Node discoverSkills & calculateFingerprint
+	script, err := filepath.Abs(filepath.Join("..", "..", "scripts", "lib", "skill-registry.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	js := `
+		const reg = require(process.argv[1]);
+		reg.discoverSkills(process.argv[2])
+			.then(r => reg.calculateFingerprint(r.fingerprintPaths))
+			.then(fp => console.log(fp))
+			.catch(e => { console.error(e); process.exit(1); });
+	`
+	cmd := exec.Command(node, "-e", js, script, root)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("Node discovery/fingerprint failed: %v", err)
+	}
+	nodeFp := strings.TrimSpace(string(out))
+
+	if goFp != nodeFp {
+		t.Fatalf("Cross-runtime fingerprint mismatch on unreadable file fixture:\nGo:   %s\nNode: %s", goFp, nodeFp)
+	}
+
+	// 3. Parity on direct calculateFingerprint with unreadable file path
+	jsDirect := `
+		const reg = require(process.argv[1]);
+		reg.calculateFingerprint([{ absolutePath: process.argv[2], relativePath: "skills/unreadable/SKILL.md" }])
+			.then(fp => console.log(fp))
+			.catch(e => { console.error(e); process.exit(1); });
+	`
+	cmdDirect := exec.Command(node, "-e", jsDirect, script, unreadablePath)
+	outDirect, err := cmdDirect.Output()
+	if err != nil {
+		t.Fatalf("Node direct calculateFingerprint failed: %v", err)
+	}
+	nodeDirectFp := strings.TrimSpace(string(outDirect))
+
+	goDirectFp, err := skillreg.CalculateFingerprint([]skillreg.FingerprintPath{
+		{AbsolutePath: unreadablePath, RelativePath: "skills/unreadable/SKILL.md"},
+	})
+	if err != nil {
+		t.Fatalf("Go direct CalculateFingerprint failed: %v", err)
+	}
+
+	if goDirectFp != nodeDirectFp {
+		t.Fatalf("Cross-runtime direct fingerprint mismatch on unreadable file:\nGo:   %s\nNode: %s", goDirectFp, nodeDirectFp)
+	}
+}
+
+

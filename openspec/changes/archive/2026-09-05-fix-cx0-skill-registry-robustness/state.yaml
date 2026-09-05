@@ -1,0 +1,57 @@
+change: "fix-cx0-skill-registry-robustness"
+status: "archived"
+last_updated: "2026-09-05T15:56:30Z"
+blocking_questions: []
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/fix-cx0-skill-registry-robustness/proposal.md"
+    summary: "Reforzar skill-registry (JS/Go): snapshot único para fingerprint sin relectura/error en EACCES, y guarda fail-closed con identidad mínima OSpec en roots compartidos."
+    key_decisions:
+      - "Snapshot único en descubrimiento reutilizado en fingerprinting (sin I/O redundante)"
+      - "Identidad OSpec mínima (_shared, skill-registry/SKILL.md o manifiesto) requerida por requireSkills"
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/fix-cx0-skill-registry-robustness/specs/skill-registry/spec.md"
+    summary: "Delta spec para skill-registry: snapshot único y resiliencia a errores de lectura en hashing, y validación fail-closed de identidad OSpec en shared roots."
+    key_decisions:
+      - "calculateFingerprint usa bytes de snapshot sin re-lectura y degrada a contenido vacío ante EACCES"
+      - "requireSkills valida anclas canónicas (_shared, skill-registry, manifiesto) en roots externos"
+  design:
+    status: done
+    artifact: "openspec/changes/fix-cx0-skill-registry-robustness/design.md"
+    summary: "Snapshot único con buffers en memoria para hash sin fallo ante EACCES y validación fail-closed de anclas OSpec (_shared, registry, manifest) en JS y Go."
+    key_decisions:
+      - "Pipeline de snapshot único: buffer en memoria en discoverSkills reutilizado en calculateFingerprint sin I/O redundante (ADR-001)"
+      - "Degradación elegante: archivos no legibles generan warning, se excluyen de skills y hashean 0 bytes sin lanzar excepción (ADR-001)"
+      - "Identidad OSpec fail-closed: requireSkills exige _shared, skill-registry o manifiesto en roots externos (ADR-002)"
+  tasks:
+    status: done
+    artifact: "openspec/changes/fix-cx0-skill-registry-robustness/tasks.md"
+    summary: "Plan de tareas Strict TDD en 3 fases: tests RED/GREEN para Node y Go, degradación ante EACCES, guarda OSpec y paridad cruzada."
+    key_decisions:
+      - "Strict TDD con fases RED y GREEN explícitas para Node y Go"
+      - "Estrategia size-exception aprobada con PR único bajo presupuesto de 400 líneas"
+  apply:
+    status: done
+    artifact: "openspec/changes/fix-cx0-skill-registry-robustness/apply-progress.md"
+    summary: "Implementación robusta de skill-registry: single-snapshot, degradación elegante a 0 bytes y validación fail-closed de anclas OSpec en Node y Go."
+    key_decisions:
+      - "Snapshot en memoria en discoverSkills reutilizado en hashing sin re-lecturas"
+      - "hasOspecIdentity verifica _shared, skill-registry o manifiesto en roots externos"
+  verify:
+    status: done
+    artifact: "openspec/changes/fix-cx0-skill-registry-robustness/verify-report.md"
+    verdict: "PASS"
+    summary: "Verificación PASS: 7/7 escenarios de delta spec validados con runtime-test en Node y Go, paridad criptográfica exacta y 0 regresiones."
+    key_decisions:
+      - "7/7 escenarios de REQ-skill-registry-004 y 002 validados con evidencia runtime-test"
+      - "Paridad criptográfica SHA-256 verificada entre Node.js y Go ante fixtures con EACCES"
+  archive:
+    status: done
+    artifact: "openspec/changes/fix-cx0-skill-registry-robustness/archive-report.md"
+    summary: "Plan-and-report emitido con spec fusionado para skill-registry, 2 ADR promotions y 10 archivos en inventario."
+    key_decisions:
+      - "Spec fusionado localmente en specs/skill-registry/spec.md listo para commit runtime"
+      - "Promoción formal de ADR-001 y ADR-002 hacia docs/adr/"

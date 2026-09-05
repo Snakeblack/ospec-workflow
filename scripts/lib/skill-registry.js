@@ -190,6 +190,34 @@ function shouldIncludeSkill(relativePath) {
   );
 }
 
+async function hasOspecIdentity(skillsRoot, skillFiles) {
+  for (const file of skillFiles) {
+    const relativePath = toPortablePath(path.relative(skillsRoot, file));
+    if (relativePath.startsWith("_shared/") && file.endsWith(".md")) {
+      return true;
+    }
+    if (relativePath === "skill-registry/SKILL.md") {
+      return true;
+    }
+  }
+
+  const manifestInRoot = path.join(skillsRoot, ".ospec-workflow-install.json");
+  const manifestInParent = path.join(path.dirname(skillsRoot), ".ospec-workflow-install.json");
+
+  for (const manifestPath of [manifestInRoot, manifestInParent]) {
+    try {
+      const stat = await fs.stat(manifestPath);
+      if (stat.isFile()) {
+        return true;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return false;
+}
+
 async function discoverSkills(root, {
   skillsRoot = path.join(root, "skills"),
   requireSkills = false,
@@ -209,46 +237,67 @@ async function discoverSkills(root, {
     }),
     collectFiles(rulesRoot, (filePath) => filePath.endsWith(".md")),
   ]);
+
   // Optional project skills may be absent. A hook's required bundle must not
   // silently replace a working registry with the SHA of an empty input set.
-  if (requireSkills && !skillFiles.some(file => path.basename(file) === "SKILL.md")) {
-    throw new Error(`No SKILL.md files found in required skills root: ${skillsRoot}`);
+  if (requireSkills) {
+    if (!skillFiles.some((file) => path.basename(file) === "SKILL.md")) {
+      throw new Error(`No SKILL.md files found in required skills root: ${skillsRoot}`);
+    }
+    if (externalSkills && !(await hasOspecIdentity(skillsRoot, skillFiles))) {
+      throw new Error(`No OSpec identity anchors found in required external skills root: ${skillsRoot}`);
+    }
   }
-  const fingerprintPaths = [
+
+  const allCandidates = [
     ...skillFiles.map((absolutePath) => ({
       absolutePath,
       relativePath: `skills/${toPortablePath(path.relative(skillsRoot, absolutePath))}`,
+      isSkill: true,
     })),
     ...ruleFiles.map((absolutePath) => ({
       absolutePath,
       relativePath: toPortablePath(path.relative(absoluteRoot, absolutePath)),
+      isSkill: false,
     })),
   ].sort((left, right) =>
-      compareStrings(left.relativePath, right.relativePath),
-    );
+    compareStrings(left.relativePath, right.relativePath),
+  );
+
+  const fingerprintPaths = [];
   const skills = [];
 
-  for (const file of fingerprintPaths.filter(({ relativePath }) =>
-    shouldIncludeSkill(relativePath),
-  )) {
-    let markdown = "";
+  for (const file of allCandidates) {
+    let content;
+    let readOk = true;
     try {
-      markdown = await fs.readFile(file.absolutePath, "utf8");
+      content = await fs.readFile(file.absolutePath);
     } catch (error) {
+      readOk = false;
       console.error(`Warning: failed to read skill file ${file.absolutePath}: ${error.message}`);
-      continue;
+      content = Buffer.alloc(0);
     }
-    const { attributes } = parseFrontmatter(markdown);
-    const fallbackName = path.basename(path.dirname(file.absolutePath));
-    const id = attributes.name || fallbackName;
 
-    skills.push({
-      id,
-      path: externalSkills ? toPortablePath(file.absolutePath) : file.relativePath,
-      triggers: extractTriggers(attributes.description || "", id),
-      compact_rules: extractCompactRules(markdown),
-      capabilities: extractCapabilities(attributes.capabilities || ""),
+    fingerprintPaths.push({
+      absolutePath: file.absolutePath,
+      relativePath: file.relativePath,
+      content,
     });
+
+    if (readOk && file.isSkill && shouldIncludeSkill(file.relativePath)) {
+      const markdown = content.toString("utf8");
+      const { attributes } = parseFrontmatter(markdown);
+      const fallbackName = path.basename(path.dirname(file.absolutePath));
+      const id = attributes.name || fallbackName;
+
+      skills.push({
+        id,
+        path: externalSkills ? toPortablePath(file.absolutePath) : file.relativePath,
+        triggers: extractTriggers(attributes.description || "", id),
+        compact_rules: extractCompactRules(markdown),
+        capabilities: extractCapabilities(attributes.capabilities || ""),
+      });
+    }
   }
 
   skills.sort((left, right) => compareStrings(left.id, right.id));
@@ -261,6 +310,7 @@ function normalizeFingerprintPath(entry) {
     return {
       absolutePath: path.resolve(entry),
       relativePath: toPortablePath(entry),
+      content: undefined,
     };
   }
 
@@ -272,6 +322,7 @@ function normalizeFingerprintPath(entry) {
     return {
       absolutePath: path.resolve(entry.absolutePath),
       relativePath: toPortablePath(entry.relativePath),
+      content: entry.content !== undefined ? entry.content : undefined,
     };
   }
 
@@ -291,12 +342,12 @@ async function calculateFingerprint(paths) {
   for (const file of files) {
     hash.update(file.relativePath);
     hash.update("\0");
-    let content = "";
-    try {
-      content = await fs.readFile(file.absolutePath);
-    } catch (error) {
-      if (error.code !== "ENOENT") {
-        throw error;
+    let content = file.content;
+    if (content === undefined) {
+      try {
+        content = await fs.readFile(file.absolutePath);
+      } catch {
+        content = Buffer.alloc(0);
       }
     }
     hash.update(content);
@@ -353,6 +404,7 @@ module.exports = {
   discoverSkills,
   extractCapabilities,
   extractCompactRules,
+  hasOspecIdentity,
   readRegistryCache,
   writeRegistryCache,
 };

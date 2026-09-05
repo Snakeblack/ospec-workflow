@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.62.1] - 2026-09-05
+
+### Fixed
+- **Robustez del runtime de `skill-registry` ante errores de lectura (`scripts/lib/skill-registry.js`, `internal/skillreg/skillreg.go`)**:
+  - Implementación de pipeline con snapshot único en memoria durante el descubrimiento (`discoverSkills`/`DiscoverSkills`) para el cálculo del fingerprint SHA-256 (`calculateFingerprint`/`CalculateFingerprint`), eliminando lecturas redundantes de disco y evitando discrepancias de estado entre parseo y hashing.
+  - Degradación elegante ante ficheros no legibles (`EACCES`, errores de permisos o I/O): emite una advertencia en `stderr`, omite el skill del registro parseado y hashea 0 bytes en el fingerprint sin relanzar excepciones ni abortar `SessionStart`.
+  - Paridad criptográfica y de comportamiento verificada entre Node.js y Go mediante pruebas automatizadas de integración cruzada.
+- **Guarda `requireSkills` fail-closed en raíces de skills compartidas (`~/.agents/skills`)**:
+  - Verificación estricta de anclas canónicas de identidad OSpec (`skills/_shared/`, `skills/skill-registry/SKILL.md` o manifiesto `.ospec-workflow-install.json`) cuando `requireSkills: true` se ejecuta sobre raíces externas.
+  - Impide que una raíz compartida que contenga únicamente skills foráneos o de terceros satisfaga la guarda cuando el bundle de OSpec está ausente, evitando la corrupción o vaciado de caches válidas previas.
+- **Documentación de arquitectura (ADRs)**:
+  - `ADR-20260905-005`: Pipeline de snapshot único en memoria y degradación a contenido vacío en hashing ante errores de lectura.
+  - `ADR-20260905-006`: Verificación fail-closed de anclas canónicas de identidad OSpec en directorios compartidos y externos.
+  - Cambio archivado en `openspec/changes/archive/2026-09-05-fix-cx0-skill-registry-robustness/`.
+
+**Verificación directa**: `node scripts/check.js` (3176 tests pasando, 0 fallos y 0 omitidos) y `go test ./...` (10/10 paquetes ok)
+
 ## [2.62.0] - 2026-09-05
 
 ### Added

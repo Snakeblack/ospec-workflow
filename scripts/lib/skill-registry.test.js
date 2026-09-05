@@ -130,6 +130,8 @@ test("discovers an external skills root with usable paths and stable fingerprint
   const skillPath = path.join(skillsRoot, "example", "SKILL.md");
   await fs.mkdir(path.dirname(skillPath), { recursive: true });
   await fs.writeFile(skillPath, "---\nname: example\n---\n## Rules\n- External rule.\n");
+  // OSpec identity anchor in parent directory of external skills root
+  await fs.writeFile(path.join(path.dirname(skillsRoot), ".ospec-workflow-install.json"), "{}");
 
   const result = await discoverSkills(path.join(root, "runtime"), { skillsRoot, requireSkills: true });
 
@@ -137,7 +139,11 @@ test("discovers an external skills root with usable paths and stable fingerprint
   assert.equal(result.skills[0].path, skillPath.split(path.sep).join("/"));
   assert.equal(await fs.readFile(result.skills[0].path, "utf8"), await fs.readFile(skillPath, "utf8"));
   assert.deepEqual(result.skills[0].compact_rules, ["External rule."]);
-  assert.deepEqual(result.fingerprintPaths, [{ absolutePath: skillPath, relativePath: "skills/example/SKILL.md" }]);
+  assert.equal(result.fingerprintPaths.length, 1);
+  assert.equal(result.fingerprintPaths[0].absolutePath, skillPath);
+  assert.equal(result.fingerprintPaths[0].relativePath, "skills/example/SKILL.md");
+  assert.ok(result.fingerprintPaths[0].content !== undefined, "entry must carry content snapshot");
+  assert.equal(result.fingerprintPaths[0].content.toString("utf8"), await fs.readFile(skillPath, "utf8"));
 });
 
 test("an absent optional project skills root is valid but a required bundle is not", async (t) => {
@@ -317,4 +323,127 @@ test("writeRegistryCache: rename error is propagated and not masked by finally b
   await fs.mkdir(dirPath);
   await assert.rejects(writeRegistryCache(dirPath, { test: true }));
 });
+
+// ---------------------------------------------------------------------------
+// CX0 Robustness tests (REQ-skill-registry-004, REQ-skill-registry-002)
+// ---------------------------------------------------------------------------
+
+test("discoverSkills: unreadable skill file logs warning, is omitted from skills, and hashes as 0 bytes without throwing", async (t) => {
+  const root = await createRoot(t);
+  const readableSkillPath = path.join(root, "skills", "readable", "SKILL.md");
+  const unreadableSkillPath = path.join(root, "skills", "unreadable", "SKILL.md");
+  await fs.mkdir(path.dirname(readableSkillPath), { recursive: true });
+  await fs.mkdir(path.dirname(unreadableSkillPath), { recursive: true });
+  await fs.writeFile(readableSkillPath, "---\nname: readable\n---\n## Rules\n- Readable rule.\n");
+  await fs.writeFile(unreadableSkillPath, "---\nname: unreadable\n---\n## Rules\n- Unreadable rule.\n");
+
+  const originalReadFile = fs.readFile;
+  t.mock.method(fs, "readFile", async (filePath, ...args) => {
+    if (path.resolve(filePath) === path.resolve(unreadableSkillPath)) {
+      const err = new Error("EACCES: permission denied");
+      err.code = "EACCES";
+      throw err;
+    }
+    return originalReadFile.call(fs, filePath, ...args);
+  });
+
+  const errors = [];
+  t.mock.method(console, "error", (msg) => {
+    errors.push(msg);
+  });
+
+  const result = await discoverSkills(root);
+
+  assert.equal(result.skills.length, 1);
+  assert.equal(result.skills[0].id, "readable");
+  assert.ok(errors.some(e => /Warning: failed to read skill file/i.test(e) && e.includes("unreadable")));
+
+  const unreadableEntry = result.fingerprintPaths.find(f => f.relativePath.includes("unreadable"));
+  assert.ok(unreadableEntry, "unreadable file should be in fingerprintPaths");
+  assert.ok(unreadableEntry.content !== undefined, "entry should have content snapshot");
+  assert.equal(unreadableEntry.content.length, 0, "unreadable file content snapshot must be 0 bytes");
+
+  const digest = await calculateFingerprint(result.fingerprintPaths);
+  assert.match(digest, /^sha256:[a-f0-9]{64}$/);
+});
+
+test("calculateFingerprint: direct call on unreadable/missing file degrades to empty content without throwing", async (t) => {
+  const root = await createRoot(t);
+  const unreadablePath = path.join(root, "unreadable.md");
+  await fs.writeFile(unreadablePath, "content");
+
+  const originalReadFile = fs.readFile;
+  t.mock.method(fs, "readFile", async (filePath, ...args) => {
+    if (path.resolve(filePath) === path.resolve(unreadablePath)) {
+      const err = new Error("EACCES: permission denied");
+      err.code = "EACCES";
+      throw err;
+    }
+    return originalReadFile.call(fs, filePath, ...args);
+  });
+
+  const digest = await calculateFingerprint([
+    { absolutePath: unreadablePath, relativePath: "rules/unreadable.md" },
+  ]);
+  assert.match(digest, /^sha256:[a-f0-9]{64}$/);
+
+  const emptyDigest = await calculateFingerprint([
+    { absolutePath: unreadablePath, relativePath: "rules/unreadable.md", content: Buffer.alloc(0) },
+  ]);
+  assert.equal(digest, emptyDigest);
+});
+
+test("discoverSkills and calculateFingerprint: single-snapshot read pipeline performs zero additional disk reads during fingerprinting", async (t) => {
+  const root = await createRoot(t);
+  const skillPath = path.join(root, "skills", "example", "SKILL.md");
+  const rulePath = path.join(root, "rules", "rule.md");
+  await fs.mkdir(path.dirname(skillPath), { recursive: true });
+  await fs.mkdir(path.dirname(rulePath), { recursive: true });
+  await fs.writeFile(skillPath, "---\nname: example\n---\n## Rules\n- Rule.\n");
+  await fs.writeFile(rulePath, "Rule content.\n");
+
+  let readCount = 0;
+  const originalReadFile = fs.readFile;
+  t.mock.method(fs, "readFile", async (filePath, ...args) => {
+    readCount++;
+    return originalReadFile.call(fs, filePath, ...args);
+  });
+
+  const result = await discoverSkills(root);
+  assert.equal(readCount, 2, "exactly 2 files should be read during discovery");
+
+  const beforeCount = readCount;
+  const digest = await calculateFingerprint(result.fingerprintPaths);
+  assert.match(digest, /^sha256:[a-f0-9]{64}$/);
+  assert.equal(readCount, beforeCount, "calculateFingerprint must not read from disk when content snapshot is present");
+});
+
+test("discoverSkills: foreign-only external skills root fails closed when requireSkills is true", async (t) => {
+  const root = await createRoot(t);
+  const externalSkillsRoot = path.join(root, "external-skills");
+  const foreignSkill = path.join(externalSkillsRoot, "foreign-tool", "SKILL.md");
+  await fs.mkdir(path.dirname(foreignSkill), { recursive: true });
+  await fs.writeFile(foreignSkill, "---\nname: foreign-tool\n---\n## Rules\n- Foreign.\n");
+
+  await assert.rejects(
+    discoverSkills(path.join(root, "plugin"), { skillsRoot: externalSkillsRoot, requireSkills: true }),
+    /No OSpec identity anchors found in required external skills root/i,
+  );
+});
+
+test("discoverSkills: external skills root with canonical OSpec identity anchor succeeds when requireSkills is true", async (t) => {
+  const root = await createRoot(t);
+  const externalSkillsRoot = path.join(root, "external-skills");
+  const foreignSkill = path.join(externalSkillsRoot, "foreign-tool", "SKILL.md");
+  await fs.mkdir(path.dirname(foreignSkill), { recursive: true });
+  await fs.writeFile(foreignSkill, "---\nname: foreign-tool\n---\n## Rules\n- Foreign.\n");
+
+  const manifestPath = path.join(externalSkillsRoot, ".ospec-workflow-install.json");
+  await fs.writeFile(manifestPath, "{}");
+
+  const result = await discoverSkills(path.join(root, "plugin"), { skillsRoot: externalSkillsRoot, requireSkills: true });
+  assert.equal(result.skills.length, 1);
+  assert.equal(result.skills[0].id, "foreign-tool");
+});
+
 

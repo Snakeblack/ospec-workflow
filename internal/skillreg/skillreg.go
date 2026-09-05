@@ -99,8 +99,13 @@ func DiscoverSkills(root string, opts DiscoverOptions) (*DiscoveryResult, error)
 
 	// Optional project skills may be absent. A hook's required bundle must not
 	// silently replace a working registry with the SHA of an empty input set.
-	if opts.RequireSkills && !containsSkillFile(skillFiles) {
-		return nil, fmt.Errorf("no SKILL.md files found in required skills root: %s", skillsRoot)
+	if opts.RequireSkills {
+		if !containsSkillFile(skillFiles) {
+			return nil, fmt.Errorf("no SKILL.md files found in required skills root: %s", skillsRoot)
+		}
+		if externalSkills && !hasOspecIdentity(skillsRoot, skillFiles) {
+			return nil, fmt.Errorf("no OSpec identity anchors found in required external skills root: %s", skillsRoot)
+		}
 	}
 
 	ruleFiles, err := collectFiles(rulesRoot, func(abs string) bool {
@@ -113,24 +118,28 @@ func DiscoverSkills(root string, opts DiscoverOptions) (*DiscoveryResult, error)
 	// Build fingerprint paths sorted by relative path, reading each file once.
 	// Skill files are namespaced under "skills/" relative to the (possibly
 	// external) skills root; rule files stay relative to the plugin root.
-	// An unreadable file keeps its fingerprint entry (the hash pass tolerates
-	// a missing file as empty content, mirroring the JS implementation) but is
-	// skipped as a skill candidate.
+	// An unreadable file keeps its fingerprint entry (with 0-byte content,
+	// mirroring the JS implementation) but is skipped as a skill candidate.
 	var fpPaths []FingerprintPath
+	readOk := make(map[string]bool)
 	for _, abs := range skillFiles {
-		fpPaths = append(fpPaths, readFingerprintFile(abs, "skills/"+toPortablePath(relativeTo(skillsRoot, abs))))
+		fp, ok := readFingerprintFile(abs, "skills/"+toPortablePath(relativeTo(skillsRoot, abs)))
+		fpPaths = append(fpPaths, fp)
+		readOk[fp.RelativePath] = ok
 	}
 	for _, abs := range ruleFiles {
-		fpPaths = append(fpPaths, readFingerprintFile(abs, toPortablePath(relativeTo(absRoot, abs))))
+		fp, ok := readFingerprintFile(abs, toPortablePath(relativeTo(absRoot, abs)))
+		fpPaths = append(fpPaths, fp)
+		readOk[fp.RelativePath] = ok
 	}
 	sort.Slice(fpPaths, func(i, j int) bool {
 		return fpPaths[i].RelativePath < fpPaths[j].RelativePath
 	})
 
-	// Parse skills from files that satisfy shouldIncludeSkill.
+	// Parse skills from files that satisfy shouldIncludeSkill and succeeded reading.
 	var skills []SkillEntry
 	for _, fp := range fpPaths {
-		if !shouldIncludeSkill(fp.RelativePath) || fp.Content == nil {
+		if !shouldIncludeSkill(fp.RelativePath) || !readOk[fp.RelativePath] {
 			continue
 		}
 		attrs, body := parseFrontmatter(string(fp.Content))
@@ -160,19 +169,44 @@ func DiscoverSkills(root string, opts DiscoverOptions) (*DiscoveryResult, error)
 	return &DiscoveryResult{FingerprintPaths: fpPaths, Skills: skills}, nil
 }
 
+// hasOspecIdentity reports whether an external skills root contains canonical
+// OSpec identity anchors: _shared/*.md, skill-registry/SKILL.md, or
+// .ospec-workflow-install.json in the skills root or its parent directory.
+func hasOspecIdentity(skillsRoot string, skillFiles []string) bool {
+	for _, file := range skillFiles {
+		rel := toPortablePath(relativeTo(skillsRoot, file))
+		if strings.HasPrefix(rel, "_shared/") && strings.HasSuffix(file, ".md") {
+			return true
+		}
+		if rel == "skill-registry/SKILL.md" {
+			return true
+		}
+	}
+	manifest1 := filepath.Join(skillsRoot, ".ospec-workflow-install.json")
+	if info, err := os.Stat(manifest1); err == nil && !info.IsDir() {
+		return true
+	}
+	manifest2 := filepath.Join(filepath.Dir(skillsRoot), ".ospec-workflow-install.json")
+	if info, err := os.Stat(manifest2); err == nil && !info.IsDir() {
+		return true
+	}
+	return false
+}
+
 // readFingerprintFile loads a file's content once for hashing and skill
-// parsing. An unreadable file keeps its fingerprint entry (the hash pass
-// tolerates a missing file as empty content, mirroring the JS implementation)
-// but is skipped as a skill candidate; discovery degrades with a warning
-// instead of failing session start.
-func readFingerprintFile(abs, relativePath string) FingerprintPath {
+// parsing. An unreadable file keeps its fingerprint entry with 0 bytes
+// (mirroring the JS implementation) but is skipped as a skill candidate;
+// discovery degrades with a warning instead of failing session start.
+func readFingerprintFile(abs, relativePath string) (FingerprintPath, bool) {
 	fp := FingerprintPath{AbsolutePath: abs, RelativePath: relativePath}
 	if data, err := os.ReadFile(abs); err == nil {
 		fp.Content = data
+		return fp, true
 	} else {
 		fmt.Fprintf(os.Stderr, "Warning: failed to read skill file %s: %v\n", abs, err)
+		fp.Content = []byte{}
+		return fp, false
 	}
-	return fp
 }
 
 // containsSkillFile reports whether the collected files include any SKILL.md.
@@ -232,12 +266,7 @@ func CalculateFingerprint(paths []FingerprintPath) (string, error) {
 			var err error
 			data, err = os.ReadFile(fp.AbsolutePath)
 			if err != nil {
-				// Match the JS implementation: a vanished file hashes as empty
-				// instead of failing the fingerprint.
-				if !errors.Is(err, os.ErrNotExist) {
-					return "", fmt.Errorf("skillreg.CalculateFingerprint read %s: %w", fp.AbsolutePath, err)
-				}
-				data = nil
+				data = []byte{}
 			}
 		}
 		h.Write([]byte(fp.RelativePath))

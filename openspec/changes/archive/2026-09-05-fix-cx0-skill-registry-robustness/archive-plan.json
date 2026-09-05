@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "change": "fix-cx0-skill-registry-robustness",
+  "source_fingerprint": "sha256:5f4d91ca5e98466803516e2c131e9539b4bb769a689e36b46c369a767f01346e",
+  "spec_writes": [
+    {
+      "domain": "skill-registry",
+      "source_delta": "specs/skill-registry/spec.md",
+      "target": "openspec/specs/skill-registry/spec.md",
+      "target_before_sha256": "sha256:78c615f66e56f2c43580f7e8c62507cf87d6506c84140f895ef4a23ac6307d18",
+      "content_sha256": "sha256:74291ffd4ba313fa30af60993633bfc586d267a36c20c372a14ea2c08e22ae9b"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260905-005-single-snapshot-read-pipeline-and-empty-content-hashing-degradation.md",
+      "content_sha256": "sha256:0b01ef304010a291b9b69a8dfa942390177b359265fa5b7946b7cffbae18cec8"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260905-006-fail-closed-ospec-identity-anchor-verification-for-shared-roots.md",
+      "content_sha256": "sha256:fff67ac23f11f22d77f88093ac554922d771fed997dc4e57fa7b9f3f43d1c108"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "design.md",
+    "proposal.md",
+    "specs/skill-registry/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}
