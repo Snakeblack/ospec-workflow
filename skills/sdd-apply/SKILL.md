@@ -145,7 +145,7 @@ Execute assigned tasks using the strategy resolved in Step 3:
 - **Focused Mode**: Follow `focused-tdd.md` workflow (loaded in Step 3).
 - **Strict Mode**: Follow `strict-tdd.md` workflow (loaded in Step 3).
 
-All modes enforce the common guards in **Rules** before writing each task: check the applicable standard/lite contract and material design contradictions, respect the assigned scope, re-estimate workload, and update task status accurately. TDD modules specialize the test cycle only; they do not override these guards or authorize broader refactoring.
+All modes enforce the common guards in **Rules** before writing each task: check the applicable standard/lite contract and material design contradictions, respect the assigned scope, re-estimate workload, and update task status accurately. On a `blocked: spec-change-required` or `blocked: design-mismatch` STOP, persist partial progress on already-completed tasks in this batch before returning. TDD modules specialize the test cycle only; they do not override these guards or authorize broader refactoring.
 
 #### Step 4a: Standard Workflow (Standard Mode Only)
 

@@ -8,12 +8,15 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/snakeblack/ospec-workflow/internal/hooks"
+	"github.com/snakeblack/ospec-workflow/internal/skillreg"
 )
 
 // ── helpers ────────────────────────────────────────────────────────────────────
@@ -119,6 +122,202 @@ func createWorkspaceWithConfig(t *testing.T, configContent string) string {
 }
 
 // ── tests ──────────────────────────────────────────────────────────────────────
+
+func writeSessionFile(t *testing.T, file, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(file), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func readSessionCache(t *testing.T, ws string) (string, map[string]any) {
+	t.Helper()
+	file := filepath.Join(ws, ".ospec", "cache", "skill-registry.cache.json")
+	cache, err := skillreg.ReadCache(file)
+	if err != nil || cache == nil {
+		t.Fatalf("read cache: %v; cache=%v", err, cache)
+	}
+	return file, cache
+}
+
+func TestSessionStart_LauncherEnvironmentAndInstalledHome(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("CODEX_HOME", filepath.Join(home, "unrelated-codex-home"))
+	t.Setenv("OSPEC_TARGET", "codex")
+	t.Setenv("DISABLE_GIT_COLLABORATION_GUARD", "true")
+	pluginRoot := filepath.Join(home, ".codex", "ospec-workflow")
+	t.Setenv("OSPEC_PLUGIN_ROOT", pluginRoot)
+	skillPath := filepath.Join(home, ".agents", "skills", "example", "SKILL.md")
+	writeSessionFile(t, skillPath, "---\nname: example\n---\n## Rules\n- Installed rule.\n")
+	ws := createWorkspaceWithConfig(t, "strict_tdd: true\n")
+	cachePath := filepath.Join(ws, ".ospec", "cache", "skill-registry.cache.json")
+	writeSessionFile(t, cachePath, `{"version":2,"fingerprint":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","skills":[]}`)
+	input := makeSessionInput(ws, "", "") // The launcher supplies only cwd on stdin.
+	got, code := runSessionStart(t, input)
+	if code != 0 || got.Registry.Status != "generated" {
+		t.Fatalf("installed registry: code=%d result=%+v", code, got)
+	}
+	_, cache := readSessionCache(t, ws)
+	skills, ok := cache["skills"].([]any)
+	if !ok || len(skills) != 1 {
+		t.Fatalf("installed skills: %v", cache["skills"])
+	}
+	if skills[0].(map[string]any)["path"] != filepath.ToSlash(skillPath) {
+		t.Fatalf("unusable installed path: %v", skills[0])
+	}
+	got, code = runSessionStart(t, input)
+	if code != 0 || got.Registry.Status != "reused" {
+		t.Fatalf("reuse: code=%d result=%+v", code, got)
+	}
+	writeSessionFile(t, skillPath, "---\nname: example\n---\n## Rules\n- Changed rule.\n")
+	got, code = runSessionStart(t, input)
+	if code != 0 || got.Registry.Status != "generated" {
+		t.Fatalf("refresh: code=%d result=%+v", code, got)
+	}
+
+	// Explicit bundle roots retain local skills, even with installed-root env.
+	bundle := createMinimalPluginRoot(t)
+	got, code = runSessionStart(t, makeSessionInput(ws, bundle, ""))
+	if code != 0 || got.Registry.Status != "generated" {
+		t.Fatalf("explicit bundle: code=%d result=%+v", code, got)
+	}
+	_, cache = readSessionCache(t, ws)
+	if cache["skills"].([]any)[0].(map[string]any)["path"] != "skills/example/SKILL.md" {
+		t.Fatalf("explicit bundle must use local skills: %v", cache["skills"])
+	}
+	// The launcher also uses OSPEC_PLUGIN_ROOT for other hosts.
+	t.Setenv("OSPEC_TARGET", "claude")
+	t.Setenv("OSPEC_PLUGIN_ROOT", bundle)
+	got, code = runSessionStart(t, input)
+	if code != 0 || got.Registry.Status != "reused" {
+		t.Fatalf("launcher bundle: code=%d result=%+v", code, got)
+	}
+}
+
+func TestSessionStart_BrokenRequiredRootPreservesCache(t *testing.T) {
+	t.Setenv("DISABLE_GIT_COLLABORATION_GUARD", "true")
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("OSPEC_TARGET", "codex")
+	pluginRoot := filepath.Join(home, ".codex", "ospec-workflow")
+	t.Setenv("OSPEC_PLUGIN_ROOT", pluginRoot)
+	ws := createWorkspaceWithConfig(t, "strict_tdd: true\n")
+	cachePath := filepath.Join(ws, ".ospec", "cache", "skill-registry.cache.json")
+	got, code := runSessionStart(t, makeSessionInput(ws, "", ""))
+	if code != 1 || !strings.Contains(got.Message, "required skills root") {
+		t.Fatalf("missing bundle must fail: code=%d result=%+v", code, got)
+	}
+	if _, err := os.Stat(cachePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("missing bundle wrote cache: %v", err)
+	}
+	const original = `{"version":2,"fingerprint":"sha256:previous","skills":[]}`
+	writeSessionFile(t, cachePath, original)
+	if err := os.MkdirAll(filepath.Join(home, ".agents", "skills"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	got, code = runSessionStart(t, makeSessionInput(ws, "", ""))
+	if code != 1 || !strings.Contains(got.Message, "required skills root") {
+		t.Fatalf("empty bundle must fail: code=%d result=%+v", code, got)
+	}
+	data, err := os.ReadFile(cachePath)
+	if err != nil || string(data) != original {
+		t.Fatalf("cache changed on failure: %s; %v", data, err)
+	}
+}
+
+func TestSessionStart_CacheContentRefresh(t *testing.T) {
+	t.Setenv("DISABLE_GIT_COLLABORATION_GUARD", "true")
+	ws := createWorkspaceWithConfig(t, "strict_tdd: true\n")
+	pr := createMinimalPluginRoot(t)
+	input := makeSessionInput(ws, pr, "")
+	got, code := runSessionStart(t, input)
+	if code != 0 {
+		t.Fatalf("generate: %+v", got)
+	}
+	cachePath, expected := readSessionCache(t, ws)
+	for _, skills := range []any{nil, []any{}, []any{map[string]any{"id": "outdated"}}} {
+		mutated := map[string]any{"version": expected["version"], "fingerprint": expected["fingerprint"], "skills": skills}
+		if err := skillreg.WriteCache(cachePath, mutated); err != nil {
+			t.Fatal(err)
+		}
+		got, code := runSessionStart(t, input)
+		if code != 0 || got.Registry.Status != "generated" {
+			t.Fatalf("stale entries reused: code=%d result=%+v", code, got)
+		}
+		_, actual := readSessionCache(t, ws)
+		if !reflect.DeepEqual(actual["skills"], expected["skills"]) {
+			t.Fatalf("entries not repaired: %v", actual["skills"])
+		}
+	}
+}
+
+func TestSessionStart_NodeCacheParity(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skipf("Node required for cross-runtime parity: %v", err)
+	}
+	t.Setenv("DISABLE_GIT_COLLABORATION_GUARD", "true")
+	t.Setenv("DISABLE_AGENT_SHIELD", "true")
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("OSPEC_TARGET", "codex")
+	pr := filepath.Join(home, ".codex", "ospec-workflow")
+	t.Setenv("OSPEC_PLUGIN_ROOT", pr)
+	skills := filepath.Join(home, ".agents", "skills")
+	writeSessionFile(t, filepath.Join(skills, "plain", "SKILL.md"), "---\nname: plain\n---\nParagraph without bullets.\n")
+	writeSessionFile(t, filepath.Join(skills, "commands", "sdd-apply", "SKILL.md"), "---\nname: sdd-apply\n---\n## Rules\n- Dispatch a phase.\n")
+	writeSessionFile(t, filepath.Join(skills, "_shared", "runtime.md"), "Shared runtime.\n")
+	ws := createWorkspaceWithConfig(t, "strict_tdd: true\n")
+	script, err := filepath.Abs(filepath.Join("..", "..", "scripts", "hooks", "session-start.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	js := `require(process.argv[1]).runSessionStart({input:{cwd:process.argv[2]},pluginRoot:process.argv[3]}).then(r=>console.log(JSON.stringify(r))).catch(e=>{console.error(e);process.exitCode=1})`
+	output, err := exec.Command(node, "-e", js, script, ws, pr).CombinedOutput()
+	if err != nil {
+		t.Fatalf("Node fixture failed: %v; %s", err, output)
+	}
+	file, expected := readSessionCache(t, ws)
+	before, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, code := runSessionStart(t, makeSessionInput(ws, "", ""))
+	if code != 0 || got.Registry.Status != "reused" {
+		t.Fatalf("Go must reuse Node cache: code=%d result=%+v", code, got)
+	}
+	after, err := os.ReadFile(file)
+	if err != nil || string(before) != string(after) {
+		t.Fatalf("Go changed Node cache: %v", err)
+	}
+	// Force Go to regenerate; Node must then reuse the same payload and fingerprint.
+	if err := skillreg.WriteCache(file, map[string]any{"version": 2}); err != nil {
+		t.Fatal(err)
+	}
+	got, code = runSessionStart(t, makeSessionInput(ws, "", ""))
+	if code != 0 || got.Registry.Status != "generated" {
+		t.Fatalf("Go generation: code=%d result=%+v", code, got)
+	}
+	_, actual := readSessionCache(t, ws)
+	if !reflect.DeepEqual(expected["skills"], actual["skills"]) || expected["fingerprint"] != actual["fingerprint"] {
+		t.Fatalf("Node/Go cache differs: expected=%v actual=%v", expected, actual)
+	}
+	output, err = exec.Command(node, "-e", js, script, ws, pr).CombinedOutput()
+	if err != nil {
+		t.Fatalf("Node reuse failed: %v; %s", err, output)
+	}
+	var result sessionStartResult
+	if err := json.Unmarshal(output, &result); err != nil || result.Registry.Status != "reused" {
+		t.Fatalf("Node must reuse Go cache: %v; %s", err, output)
+	}
+}
 
 func TestSessionStart_NoOspec(t *testing.T) {
 	ws := createWorkspaceWithConfig(t, "") // no openspec dir

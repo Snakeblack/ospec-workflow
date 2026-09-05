@@ -147,6 +147,88 @@ test("does not rewrite a cache whose fingerprint is unchanged", async (t) => {
   assert.equal(await fs.readFile(cachePath, "utf8"), originalCache);
 });
 
+test("installed Codex runtime discovers home skills and repairs the empty-input cache", async (t) => {
+  const { pluginRoot, root, workspace } = await createFixture(t);
+  const homeDir = path.join(root, "home");
+  const installedRoot = path.join(homeDir, ".codex", "ospec-workflow");
+  const skillsRoot = path.join(homeDir, ".agents", "skills");
+  await fs.mkdir(installedRoot, { recursive: true });
+  await fs.mkdir(path.dirname(skillsRoot), { recursive: true });
+  await fs.rename(path.join(pluginRoot, "skills"), skillsRoot);
+  const cachePath = path.join(workspace, CACHE_RELATIVE_PATH);
+  await fs.mkdir(path.dirname(cachePath), { recursive: true });
+  const emptyFingerprint = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+  await fs.writeFile(cachePath, JSON.stringify({ version: 2, fingerprint: emptyFingerprint, skills: [] }));
+  const options = { input: { cwd: workspace }, pluginRoot: installedRoot, target: "codex", homeDir };
+
+  const result = await runSessionStart(options);
+  const cache = JSON.parse(await fs.readFile(cachePath, "utf8"));
+  assert.equal(result.registry.status, "generated");
+  assert.notEqual(cache.fingerprint, emptyFingerprint);
+  assert.deepEqual(cache.skills.map(skill => skill.id), ["example"]);
+  const skillPath = path.join(skillsRoot, "example", "SKILL.md");
+  assert.equal(cache.skills[0].path, skillPath.split(path.sep).join("/"));
+  assert.equal((await runSessionStart(options)).registry.status, "reused");
+
+  await fs.appendFile(skillPath, "\n- Updated installed rule.\n");
+  assert.equal((await runSessionStart(options)).registry.status, "generated");
+  const updated = JSON.parse(await fs.readFile(cachePath, "utf8"));
+  assert.ok(updated.skills[0].compact_rules.includes("Updated installed rule."));
+});
+
+test("source and generated Codex bundles use their own skills, without project skills", async (t) => {
+  const { pluginRoot, root, workspace } = await createFixture(t);
+  const homeDir = path.join(root, "home");
+  const unrelatedSkill = path.join(homeDir, ".agents", "skills", "unrelated", "SKILL.md");
+  await fs.mkdir(path.dirname(unrelatedSkill), { recursive: true });
+  await fs.writeFile(unrelatedSkill, "---\nname: unrelated\n---\n");
+
+  await runSessionStart({ input: { cwd: workspace }, pluginRoot, target: "codex", homeDir });
+  const cachePath = path.join(workspace, CACHE_RELATIVE_PATH);
+  const original = await fs.readFile(cachePath, "utf8");
+  assert.deepEqual(JSON.parse(original).skills.map(skill => skill.id), ["example"]);
+  await assert.rejects(fs.stat(path.join(workspace, "skills")), { code: "ENOENT" });
+
+  await fs.rename(path.join(pluginRoot, "skills"), path.join(pluginRoot, "missing-skills"));
+  await assert.rejects(
+    runSessionStart({ input: { cwd: workspace }, pluginRoot, target: "codex", homeDir }),
+    /required skills root/i,
+  );
+  assert.equal(await fs.readFile(cachePath, "utf8"), original);
+});
+
+test("a broken installed skills root cannot create or overwrite a registry", async (t) => {
+  const { root, workspace } = await createFixture(t);
+  const homeDir = path.join(root, "home");
+  const pluginRoot = path.join(homeDir, ".codex", "ospec-workflow");
+  await fs.mkdir(pluginRoot, { recursive: true });
+  const options = { input: { cwd: workspace }, pluginRoot, target: "codex", homeDir };
+  const cachePath = path.join(workspace, CACHE_RELATIVE_PATH);
+  await assert.rejects(runSessionStart(options), /required skills root/i);
+  await assert.rejects(fs.stat(cachePath), { code: "ENOENT" });
+
+  await fs.mkdir(path.dirname(cachePath), { recursive: true });
+  const original = JSON.stringify({ version: 2, fingerprint: "sha256:previous", skills: [{ id: "previous" }] });
+  await fs.writeFile(cachePath, original);
+  await fs.mkdir(path.join(homeDir, ".agents", "skills"), { recursive: true });
+  await assert.rejects(runSessionStart(options), /required skills root/i);
+  assert.equal(await fs.readFile(cachePath, "utf8"), original);
+});
+
+test("a matching fingerprint cannot reuse missing or outdated compact skill entries", async (t) => {
+  const { pluginRoot, workspace } = await createFixture(t);
+  const options = { input: { cwd: workspace }, pluginRoot };
+  await runSessionStart(options);
+  const cachePath = path.join(workspace, CACHE_RELATIVE_PATH);
+  const expected = JSON.parse(await fs.readFile(cachePath, "utf8"));
+  for (const skills of [undefined, [], [{ ...expected.skills[0], compact_rules: ["Outdated rule."] }]]) {
+    await fs.writeFile(cachePath, JSON.stringify({ ...expected, skills }));
+    assert.equal((await runSessionStart(options)).registry.status, "generated");
+    const actual = JSON.parse(await fs.readFile(cachePath, "utf8"));
+    assert.deepEqual(actual.skills, expected.skills);
+  }
+});
+
 test("regenerates the cache after a fingerprint input changes", async (t) => {
   const { pluginRoot, workspace } = await createFixture(t);
   const cachePath = path.join(
