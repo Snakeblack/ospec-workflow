@@ -79,6 +79,6 @@ Modo TDD estricto: cada unidad de comportamiento es par RED (test que falla, ver
 
 ## Phase 6: Verificación final y registro
 
-- [ ] 6.1 Suite completa en verde: `node scripts/check.js` + `go test ./...` (recordar `env -u DISABLE_AGENT_SHIELD -u DISABLE_GIT_COLLABORATION_GUARD -u TOKEN_ADVISOR` si el entorno de sesión exporta esas variables). [REQ-agent-identity-003]
-- [ ] 6.2 Marcar ADR-001 y ADR-002 como `accepted` en `openspec/changes/extend-bench-agent-coverage/decisions/` si la implementación coincidió con lo decidido. [sin REQ]
-- [ ] 6.3 Registrar en `apply-progress.md` cada unidad de trabajo con su commit (commits en imperativo español, sin atribución de modelo; convención `work-unit-commits`). [sin REQ]
+- [x] 6.1 Suite completa en verde: `node scripts/check.js` + `go test ./...` (recordar `env -u DISABLE_AGENT_SHIELD -u DISABLE_GIT_COLLABORATION_GUARD -u TOKEN_ADVISOR` si el entorno de sesión exporta esas variables). [REQ-agent-identity-003]
+- [x] 6.2 Marcar ADR-001 y ADR-002 como `accepted` en `openspec/changes/extend-bench-agent-coverage/decisions/` si la implementación coincidió con lo decidido. [sin REQ]
+- [x] 6.3 Registrar en `apply-progress.md` cada unidad de trabajo con su commit (commits en imperativo español, sin atribución de modelo; convención `work-unit-commits`). [sin REQ]

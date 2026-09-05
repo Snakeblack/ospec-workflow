@@ -1,6 +1,6 @@
 change: extend-bench-agent-coverage
-status: ready-for-apply
-last_updated: "2026-09-05T18:30:00Z"
+status: ready-for-verify
+last_updated: "2026-09-05T19:45:00Z"
 blocking_questions: []
 phases:
   proposal:
@@ -32,6 +32,13 @@ phases:
     key_decisions:
       - "Set cerrado de agentes propios; nombre no resoluble queda unresolved y falla cobertura"
       - "Valor canonico igual al emitido hoy para nombres sin prefijo (compatibilidad O1)"
+  apply:
+    status: done
+    artifact: "openspec/changes/extend-bench-agent-coverage/apply-progress.md"
+    summary: "Modulo compartido agent-identity (JS+Go) integrado en persistPhaseCost JS/Go y validCostRow; paridad E1, regresion prefijo y compatibilidad O1 verificadas; suite 3158 JS + 10 pkg Go en verde."
+    key_decisions:
+      - "Nuevos scripts/lib registrados en SUCCESSOR_K2_EXACT del guarda K1 (convencion post-K1)"
+      - "persistResultEnvelope intacto: la resolucion canonica aplica solo al camino phase-cost (tasks 3.2/4.2)"
 gate: intent-briefing
 decision: accepted
 accepted_at: "2026-09-05T00:00:00Z"
