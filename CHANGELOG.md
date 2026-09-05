@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.63.3] - 2026-09-05
+
+### Fixed
+- **Empaquetado y distribución del runner canónico en targets (`scripts/configure/cli.js`)**:
+  - Incorporación de `scripts/route-dispatch-run.js` como raíz explícita de BFS dentro de `RUNTIME_ENTRY_SCRIPTS` (con alias `SKILL_ENTRY_SCRIPTS`).
+  - Arrastre automático de dependencias transitivas (`route-dispatcher.js`, `change-classification.js`, `archive-plan.js`, etc.) en los paquetes generados de todos los targets (`claude`, `vscode`, `github-copilot`, `opencode`, `codex`, `cursor`, `antigravity`), garantizando que la autoridad operativa única de despacho sea ejecutable en instalaciones reales.
+- **Saneamiento de comentarios JSDoc (`scripts/lib/route-dispatcher.js`)**:
+  - Reemplazo de residuo de namespace `vscode/askQuestions` por referencia agnóstica a la herramienta de preguntas para cumplir los invariantes de validación multi-target.
+- **Validación e integración en repositorios reales (`scripts/configure/real-repo.test.js`)**:
+  - Adición de pruebas de integración que verifican la presencia del runner y sus dependencias de runtime en los 7 targets generados.
+  - Verificación de ejecución directa del runner (`scripts/route-dispatch-run.js`) desde la salida generada de un target, validando el ciclo completo de resolución de rutas en el artefacto distribuido.
+
+**Verificación directa**: `node scripts/check.js` (3236 tests pasando, 0 fallos y 0 omitidos) y `go test ./...` (10/10 paquetes ok). Reensobres Quality Review Gate (Trust, Runtime, Evolution, Efficiency) sin hallazgos.
+
 ## [2.63.2] - 2026-09-05
 
 ### Fixed
