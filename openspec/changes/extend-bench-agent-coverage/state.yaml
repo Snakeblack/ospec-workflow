@@ -123,3 +123,9 @@ assumptions:
     source: ask-user-question
     accepted_at: "2026-09-05T00:00:00Z"
     applies_to: [sdd-apply]
+  - id: approval-008
+    gate: verify-continue
+    decision: continue-to-verify
+    source: ask-user-question
+    accepted_at: "2026-09-05T00:00:00Z"
+    applies_to: [sdd-verify]
