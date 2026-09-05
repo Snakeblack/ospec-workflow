@@ -68,8 +68,8 @@ Modo TDD estricto: cada unidad de comportamiento es par RED (test que falla, ver
 
 ## Phase 4: Integración espejo Go del hook
 
-- [ ] 4.1 RED: en `internal/hooks/subagentstop_test.go` (archivo vigente de tests del hook Go; cierra la suposición `sdd-design-001` — NO `store_test.go`), replicar los casos de 3.1 con paridad byte de campos normalizados. Verificar RED con `go test ./internal/hooks/`. [REQ-agent-identity-003, REQ-hooks-001]
-- [ ] 4.2 GREEN: en `internal/hooks/subagentstop.go`, integrar `agentidentity` en `persistPhaseCost` (raw → `ResolveCanonicalAgent` → `DerivePhaseKey`); `unresolved` → sin fila; `agent` = canónico; la copia local de `derivePhaseKey` delega al paquete `agentidentity`. Verificar GREEN con `go test ./...`. [REQ-hooks-001, REQ-agent-identity-002]
+- [x] 4.1 RED: en `internal/hooks/subagentstop_test.go` (archivo vigente de tests del hook Go; cierra la suposición `sdd-design-001` — NO `store_test.go`), replicar los casos de 3.1 con paridad byte de campos normalizados. Verificar RED con `go test ./internal/hooks/`. [REQ-agent-identity-003, REQ-hooks-001]
+- [x] 4.2 GREEN: en `internal/hooks/subagentstop.go`, integrar `agentidentity` en `persistPhaseCost` (raw → `ResolveCanonicalAgent` → `DerivePhaseKey`); `unresolved` → sin fila; `agent` = canónico; la copia local de `derivePhaseKey` delega al paquete `agentidentity`. Verificar GREEN con `go test ./...`. [REQ-hooks-001, REQ-agent-identity-002]
 
 ## Phase 5: Consumidor bench (validCostRow + O1 + CX0)
 

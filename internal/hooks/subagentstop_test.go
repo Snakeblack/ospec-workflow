@@ -1295,6 +1295,86 @@ func TestSubagentStop_PersistPhaseCost_IgnoresNonSddAgent(t *testing.T) {
 	}
 }
 
+// TestSubagentStop_PersistPhaseCost_CanonicalizesHostPrefixedSddAgent asserts
+// the prefixed-name regression case (REQ-agent-identity-003, REQ-hooks-001):
+// a `plugin-host:sdd-spec` dispatch must produce the same normalized row as
+// the bare `sdd-spec` name (paridad byte de campos normalizados con el caso
+// JS "regresión prefijo").
+func TestSubagentStop_PersistPhaseCost_CanonicalizesHostPrefixedSddAgent(t *testing.T) {
+	workspace, _ := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+
+	bareStdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-spec",
+		"status":     "success",
+		"result":     "bare name dispatch",
+	})
+	runSubagentStop(t, bareStdin)
+	prefixedStdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "plugin-host:sdd-spec",
+		"status":     "success",
+		"result":     "prefixed dispatch",
+	})
+	runSubagentStop(t, prefixedStdin)
+
+	records := readPhaseCosts(t, workspace, "strict-result-envelope")
+	if len(records) != 2 {
+		t.Fatalf("records: got %d, want 2", len(records))
+	}
+	if records[0].Phase != "spec" || records[0].Agent != "sdd-spec" {
+		t.Errorf("bare row: got phase=%q agent=%q, want spec/sdd-spec", records[0].Phase, records[0].Agent)
+	}
+	if records[1].Phase != records[0].Phase || records[1].Agent != records[0].Agent {
+		t.Errorf("prefixed row must be identical to bare row: got phase=%q agent=%q, want phase=%q agent=%q",
+			records[1].Phase, records[1].Agent, records[0].Phase, records[0].Agent)
+	}
+}
+
+// TestSubagentStop_PersistPhaseCost_CanonicalizesHostPrefixedReviewAgent
+// mirrors the JS `host:review-runtime` dispatch case.
+func TestSubagentStop_PersistPhaseCost_CanonicalizesHostPrefixedReviewAgent(t *testing.T) {
+	workspace, _ := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "host:review-runtime",
+		"status":     "success",
+		"result":     "prefixed review dispatch",
+	})
+	runSubagentStop(t, stdin)
+
+	records := readPhaseCosts(t, workspace, "strict-result-envelope")
+	if len(records) != 1 {
+		t.Fatalf("records: got %d, want 1", len(records))
+	}
+	if records[0].Phase != "review-runtime" || records[0].Agent != "review-runtime" {
+		t.Errorf("row: got phase=%q agent=%q, want review-runtime/review-runtime", records[0].Phase, records[0].Agent)
+	}
+}
+
+// TestSubagentStop_PersistPhaseCost_SkipsForeignReviewAgentsFailSafe mirrors
+// the JS fail-safe case: foreign review-* names (including the legacy 4R
+// `review-reliability`) must not write a row.
+func TestSubagentStop_PersistPhaseCost_SkipsForeignReviewAgentsFailSafe(t *testing.T) {
+	workspace, _ := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+
+	for _, agent := range []string{"review-invented", "review-reliability"} {
+		stdin, _ := json.Marshal(map[string]any{
+			"cwd":        workspace,
+			"agent_type": agent,
+			"status":     "success",
+			"result":     "foreign dispatch must be ignored",
+		})
+		runSubagentStop(t, stdin)
+	}
+
+	costPath := filepath.Join(workspace, ".ospec", "session", "strict-result-envelope", "phase-costs.jsonl")
+	if _, err := os.Stat(costPath); err == nil {
+		t.Error("phase-costs.jsonl must NOT be created for foreign review agents")
+	}
+}
+
 // TestSubagentStop_EstTokensMatchesJSFormula asserts the Go integer formula
 // (len(str)+2)/4 equals the JS Math.round(byteLength/4) on a known
 // non-ASCII payload, per the design's cross-runtime parity decision.
