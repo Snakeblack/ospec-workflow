@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "change": "live-routing-eligibility-and-risk-floors",
+  "source_fingerprint": "sha256:0a71139b371510696edb54d1def4f007aff41ee1f6952b0c713f3a96343308f3",
+  "spec_writes": [
+    {
+      "domain": "routing",
+      "source_delta": "specs/routing/spec.md",
+      "target": "openspec/specs/routing/spec.md",
+      "target_before_sha256": "sha256:ed7fc98bf9e473def04b4a330a418fb545f65ba50d002f3ea73255335d45ff15",
+      "content_sha256": "sha256:9d37a5fe29b5ebd8cea81434e26158c07ea738bb32a2f3a4e6cc955a112327d8"
+    },
+    {
+      "domain": "change-classification",
+      "source_delta": "specs/change-classification/spec.md",
+      "target": "openspec/specs/change-classification/spec.md",
+      "target_before_sha256": "sha256:a1c3504e591abe9dbe83809dcb65189782822b4e19ea7ba29f5fb9e1ece4e872",
+      "content_sha256": "sha256:55e264fd9c738890b7190f87b086fb8b0daab2f2ce9ccf378935f3b617bc9d9e"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260905-007-deterministic-signal-normalization-and-fail-closed-conflict-handling.md",
+      "content_sha256": "sha256:d93e4405602a7f64682f1e01901e7a42121ccdaf8ebd137bc08426041aff7954"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260905-008-pre-evaluation-route-eligibility-filtering-via-route-metadata.md",
+      "content_sha256": "sha256:b279b3dc6329be0f27faa9e1c3cf126d748f238e4fdfe9f900bbb454eee7c802"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260905-009-bridging-k1-impact-risk-floors-to-live-route-dispatch.md",
+      "content_sha256": "sha256:1a7332164e1aaa444920c98422b5e19396763723aae00428a3fa834bc8e9e41d"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260905-010-continuation-route-decision-invariance-and-blocker-gate.md",
+      "content_sha256": "sha256:0392221a4becea74f4384fcf01ce79c88b0b8d08d7e73deeabec6ef83ded0b11"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "design.md",
+    "proposal.md",
+    "specs/change-classification/spec.md",
+    "specs/routing/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

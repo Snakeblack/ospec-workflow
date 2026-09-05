@@ -8,6 +8,11 @@ const {
   ACTIVE_V2_REVIEWERS,
   LEGACY_V1_REVIEWERS,
 } = require("./review-taxonomy.js");
+const {
+  HARD_FLOORS,
+  resolveFloorGuarantees,
+  classifyChange: classifyEvidence,
+} = require("./change-classification.js");
 
 const KNOWN_PHASES = [
   "sdd-foundation",
@@ -414,7 +419,7 @@ function validateRouteTable(routes) {
 // ---------------------------------------------------------------------------
 
 // Indent levels used in the supported YAML subset
-const ROUTING_TOP_KEY = "routing:";
+const ROUTING_SECTION_HEADER = "routing:";
 const ROUTING_TOP_EMPTY = "routing: []";
 const ENTRY_INDENT = 2;   // "  - name: ..."
 const FIELD_INDENT = 4;   // "    field: value"
@@ -495,7 +500,7 @@ function parseRoutingTable(content) {
 
     // --- Top-level handling ---
     if (indent === 0) {
-      if (trimmed === ROUTING_TOP_KEY) {
+      if (trimmed === ROUTING_SECTION_HEADER) {
         finalizeEntry();
         inRouting = true;
       } else if (trimmed === ROUTING_TOP_EMPTY) {
@@ -592,12 +597,287 @@ function parseRoutingTable(content) {
   return entries;
 }
 
+class ClassificationConflictError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "ClassificationConflictError";
+    this.code = "ERR_CLASSIFICATION_CONFLICT";
+  }
+}
+
+/**
+ * Normalizes classification signals between ctx.classification and ctx["change.classification"].
+ * Throws an Error with code ERR_CLASSIFICATION_CONFLICT if both are present and differ.
+ *
+ * @param {object} ctx - Caller context
+ * @returns {{ resolvedClassification: string|null, normalizedCtx: object }}
+ */
+function normalizeClassificationSignals(ctx) {
+  if (ctx === null || typeof ctx !== "object") {
+    return { resolvedClassification: null, normalizedCtx: {} };
+  }
+
+  const c1 = ctx.classification;
+  const c2 = ctx["change.classification"];
+
+  const hasC1 = typeof c1 === "string" && c1.trim() !== "";
+  const hasC2 = typeof c2 === "string" && c2.trim() !== "";
+
+  if (hasC1 && hasC2 && c1.trim() !== c2.trim()) {
+    const err = new ClassificationConflictError(
+      `Classification conflict: 'ctx.classification' ('${c1}') and 'ctx["change.classification"]' ('${c2}') do not match.`
+    );
+    throw err;
+  }
+
+  const resolved = hasC1 ? c1.trim() : hasC2 ? c2.trim() : null;
+  const normalizedCtx = { ...ctx };
+
+  if (resolved !== null) {
+    normalizedCtx.classification = resolved;
+    normalizedCtx["change.classification"] = resolved;
+  }
+
+  return { resolvedClassification: resolved, normalizedCtx };
+}
+
+/**
+ * Checks whether a candidate route is eligible for a given change classification and floor.
+ *
+ * @param {object} route - Parsed route object from routing table
+ * @param {string|null} resolvedClassification - Resolved classification (e.g. "small")
+ * @param {object} [floorGuarantees] - Result from resolveFloorGuarantees(floor)
+ * @returns {boolean}
+ */
+function isRouteEligible(route, resolvedClassification, floorGuarantees) {
+  if (!route || typeof route !== "object") return false;
+
+  // 1. Risk floor ineligibility checks
+  if (floorGuarantees) {
+    if (
+      Array.isArray(floorGuarantees.ineligibleRoutes) &&
+      floorGuarantees.ineligibleRoutes.includes(route.name)
+    ) {
+      return false;
+    }
+
+    if (
+      (floorGuarantees.minTier === "full-sdd" || floorGuarantees.minTier === "spec-design") &&
+      Array.isArray(floorGuarantees.requiredPhases) &&
+      floorGuarantees.requiredPhases.length > 0
+    ) {
+      const routePhases = Array.isArray(route.phases) ? route.phases : [];
+      const satisfiesPhases = floorGuarantees.requiredPhases.every((p) =>
+        routePhases.includes(p)
+      );
+      if (!satisfiesPhases) {
+        return false;
+      }
+    }
+  }
+
+  // 2. Classification metadata filtering
+  // If floor elevated the route (e.g. fallbackRoute === route.name), classification filter is bypassed
+  const isFloorElevatedRoute = floorGuarantees && floorGuarantees.fallbackRoute === route.name;
+
+  if (!isFloorElevatedRoute && resolvedClassification !== null && route.classification) {
+    const allowed = Array.isArray(route.classification)
+      ? route.classification
+      : [route.classification];
+    if (!allowed.includes(resolvedClassification)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+const CONTEXTUAL_ROUTE_NAMES = new Set(["foundation", "federated", "brownfield"]);
+
+/**
+ * Evaluates candidate routes against context, enforcing risk floors, contextual precedence,
+ * and continuation invariance.
+ *
+ * @param {object[]} routes - Parsed routing table
+ * @param {object} ctx - Context signals
+ * @param {object} [options] - Options including persistedRoute
+ * @returns {{
+ *   route: object|null,
+ *   name: string|null,
+ *   classification: string|null,
+ *   floor: string,
+ *   reasons: string[],
+ *   status?: string,
+ *   blocker_type?: string,
+ *   rationale: string
+ * }}
+ */
+function selectRoute(routes, ctx, options = {}) {
+  const opts = options && typeof options === "object" ? options : {};
+
+  // 1. Signal normalization (throws ClassificationConflictError on conflict)
+  const { resolvedClassification, normalizedCtx } = normalizeClassificationSignals(ctx);
+
+  // 2. Impact risk floor resolution
+  let impact = {};
+  if (
+    normalizedCtx &&
+    normalizedCtx.impact &&
+    typeof normalizedCtx.impact === "object" &&
+    !Array.isArray(normalizedCtx.impact)
+  ) {
+    impact = normalizedCtx.impact;
+  } else if (normalizedCtx) {
+    for (const rule of HARD_FLOORS) {
+      if (normalizedCtx[rule.evidenceKey] === true) {
+        impact[rule.evidenceKey] = true;
+      }
+    }
+  }
+
+  const floorProfile = classifyEvidence({ impact });
+  const floor = floorProfile.route;
+  const floorGuarantees = resolveFloorGuarantees(floor);
+
+  // 3. Continuation Invariance Handling
+  const resolveRouteName = (val) =>
+    typeof val === "string" && val.trim().length > 0 ? val.trim() : null;
+
+  const persistedRouteName =
+    resolveRouteName(opts.persistedRoute) ||
+    (opts.persistedRoute && typeof opts.persistedRoute === "object"
+      ? resolveRouteName(opts.persistedRoute.actual_route)
+      : null) ||
+    resolveRouteName(opts.actual_route);
+
+  if (persistedRouteName !== null) {
+    const tableRoutes = Array.isArray(routes) ? routes : [];
+    const persistedRouteObj =
+      tableRoutes.find((r) => r.name === persistedRouteName) || { name: persistedRouteName };
+
+    // Check if newly discovered floor violates the persisted route
+    const routePhases = Array.isArray(persistedRouteObj.phases) ? persistedRouteObj.phases : [];
+    const isViolated =
+      (Array.isArray(floorGuarantees.ineligibleRoutes) &&
+        floorGuarantees.ineligibleRoutes.includes(persistedRouteName)) ||
+      ((floorGuarantees.minTier === "full-sdd" || floorGuarantees.minTier === "spec-design") &&
+        Array.isArray(floorGuarantees.requiredPhases) &&
+        floorGuarantees.requiredPhases.length > 0 &&
+        (!Array.isArray(persistedRouteObj.phases) ||
+          !floorGuarantees.requiredPhases.every((p) => routePhases.includes(p))));
+
+    if (isViolated) {
+      return {
+        status: "blocked",
+        blocker_type: "needs_user_decision",
+        route: persistedRouteObj,
+        name: persistedRouteName,
+        classification: resolvedClassification,
+        floor,
+        reasons: [...floorProfile.reasons, `persisted_route_violation.${persistedRouteName}`],
+        rationale: `Active route '${persistedRouteName}' violates newly discovered ${floor} risk floor. Requires user decision to elevate or proceed.`,
+      };
+    }
+
+    return {
+      status: "success",
+      route: persistedRouteObj,
+      name: persistedRouteName,
+      classification: resolvedClassification,
+      floor,
+      reasons: ["continuation_locked"],
+      rationale: `Resumed active change with persisted route '${persistedRouteName}'.`,
+    };
+  }
+
+  // 4. Evaluate routes with contextual precedence and custom table ordering
+  const tableRoutes = Array.isArray(routes) ? routes : [];
+
+  // 4a. Contextual routes evaluated first
+  const contextualRoutes = tableRoutes.filter((r) => CONTEXTUAL_ROUTE_NAMES.has(r.name));
+  for (const route of contextualRoutes) {
+    if (isRouteEligible(route, resolvedClassification, floorGuarantees)) {
+      if (matchConditions(route.conditions, normalizedCtx)) {
+        return {
+          status: "success",
+          route,
+          name: route.name,
+          classification: resolvedClassification,
+          floor,
+          reasons: [...floorProfile.reasons, `contextual_match.${route.name}`],
+          rationale: `Contextual route '${route.name}' matched and retained precedence.`,
+        };
+      }
+    }
+  }
+
+  // 4b. Non-contextual routes evaluated in declared order
+  const nonContextualRoutes = tableRoutes.filter((r) => !CONTEXTUAL_ROUTE_NAMES.has(r.name));
+  for (const route of nonContextualRoutes) {
+    if (isRouteEligible(route, resolvedClassification, floorGuarantees)) {
+      if (matchConditions(route.conditions, normalizedCtx)) {
+        const reasons = [...floorProfile.reasons];
+        if (
+          floorGuarantees &&
+          floorGuarantees.fallbackRoute === route.name &&
+          resolvedClassification !== null &&
+          route.classification &&
+          !route.classification.includes(resolvedClassification)
+        ) {
+          reasons.push(`floor_elevation.${floor}`);
+        } else {
+          reasons.push(`route_match.${route.name}`);
+        }
+
+        return {
+          status: "success",
+          route,
+          name: route.name,
+          classification: resolvedClassification,
+          floor,
+          reasons,
+          rationale: `Selected route '${route.name}' as first matching eligible route.`,
+        };
+      }
+    }
+  }
+
+  // 4c. If no route matched, but a fallbackRoute is defined by the risk floor
+  if (floorGuarantees && floorGuarantees.fallbackRoute) {
+    const fallbackRouteObj = tableRoutes.find((r) => r.name === floorGuarantees.fallbackRoute);
+    if (fallbackRouteObj) {
+      return {
+        status: "success",
+        route: fallbackRouteObj,
+        name: fallbackRouteObj.name,
+        classification: resolvedClassification,
+        floor,
+        reasons: [...floorProfile.reasons, `floor_elevation.${floor}`],
+        rationale: `Elevated to '${fallbackRouteObj.name}' to satisfy ${floor} floor guarantees.`,
+      };
+    }
+  }
+
+  return {
+    status: "blocked",
+    route: null,
+    name: null,
+    classification: resolvedClassification,
+    floor,
+    reasons: [...floorProfile.reasons, "no_matching_eligible_route"],
+    rationale: "No eligible route matched the change context.",
+  };
+}
+
+const dispatchRoute = selectRoute;
+
 // ---------------------------------------------------------------------------
 // classifyChange(ctx) → { classification: string|null, confidence }
 // ---------------------------------------------------------------------------
 
 const DETERMINISTIC_SIGNAL_KEYS = new Set([
   "classification",
+  "change.classification",
   "project.status",
   "baseline.status",
   "artifact_store.backend",
@@ -631,13 +911,15 @@ function classifyChange(ctx) {
     return { classification: null, confidence: "advisory" };
   }
 
+  const { resolvedClassification, normalizedCtx } = normalizeClassificationSignals(ctx);
+
   // Explicit classification takes priority
-  if (typeof ctx.classification === "string") {
-    return { classification: ctx.classification, confidence: "deterministic" };
+  if (resolvedClassification !== null) {
+    return { classification: resolvedClassification, confidence: "deterministic" };
   }
 
   // Other deterministic signals (routing can proceed without asking user)
-  for (const key of Object.keys(ctx)) {
+  for (const key of Object.keys(normalizedCtx)) {
     if (DETERMINISTIC_SIGNAL_KEYS.has(key)) {
       return { classification: null, confidence: "deterministic" };
     }
@@ -667,4 +949,11 @@ module.exports = {
   classifyChange,
   matchConditions,
   detectResidualBooleanStrings,
+  normalizeClassificationSignals,
+  ClassificationConflictError,
+  isRouteEligible,
+  selectRoute,
+  dispatchRoute,
 };
+
+

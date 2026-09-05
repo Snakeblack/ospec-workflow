@@ -1,0 +1,156 @@
+schema: sdd-state
+change: live-routing-eligibility-and-risk-floors
+status: archived
+owner:
+  author: Manuel Retamozo
+  branch: feat/live-routing-eligibility-and-risk-floors
+created_at: "2026-09-05T17:43:00Z"
+last_updated: "2026-09-05T21:20:00Z"
+classification: normal
+source_roadmap: "docs/roadmaps/harness-evolution.md#pp1-live-routing-eligibility-and-risk-floors"
+
+session:
+  execution_mode: interactive
+  delivery_strategy: exception-ok
+  reply_language: Spanish
+
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "classification=normal, project.status=active: primera condición que casa en la tabla (foundation/federated/bugfix/brownfield/refactor descartadas por contexto)"
+  validated: true
+  validation_errors: []
+
+gate: intent-briefing
+decision: accepted
+accepted_at: "2026-09-05T17:43:00Z"
+synthesis: >-
+  Habilitar la selección segura de la ruta lite en repositorios activos y conectar
+  los mínimos de riesgo (hard floors K1) al routing vivo, evitando que standard
+  capture todo por project.status: active o que hotfix degrade garantías en áreas críticas
+  (auth, migración de datos, API pública).
+scope: >-
+  scripts/lib/route-dispatcher.js, openspec/config.yaml, scripts/lib/change-classification.js,
+  tests de integración y routing (scripts/configure/real-repo.test.js y afines),
+  documentación y contratos de targets sin alterar el parser genérico ni introducir recetas Direct.
+applies_to: [change-classification]
+
+approvals:
+  - id: approval-001
+    gate: intent-briefing
+    decision: accepted
+    source: ask-user-question
+    accepted_at: "2026-09-05T17:43:00Z"
+    applies_to: [change-classification]
+  - id: approval-002
+    gate: execution-mode
+    decision: interactive
+    source: ask-user-question
+    accepted_at: "2026-09-05T17:43:48Z"
+    applies_to: [sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]
+  - id: approval-003
+    gate: delivery-strategy
+    decision: exception-ok
+    source: ask-user-question
+    accepted_at: "2026-09-05T17:43:48Z"
+    applies_to: [sdd-tasks, sdd-apply]
+  - id: approval-004
+    gate: propose-continue
+    decision: continue-to-spec
+    source: ask-user-question
+    accepted_at: "2026-09-05T17:48:19Z"
+    applies_to: [sdd-spec]
+  - id: approval-005
+    gate: spec-continue
+    decision: continue-to-design
+    source: ask-user-question
+    accepted_at: "2026-09-05T17:52:22Z"
+    applies_to: [sdd-design]
+  - id: approval-006
+    gate: design-continue
+    decision: continue-to-tasks
+    source: ask-user-question
+    accepted_at: "2026-09-05T17:56:32Z"
+    applies_to: [sdd-tasks]
+  - id: approval-007
+    gate: tasks-continue
+    decision: continue-to-apply
+    source: ask-user-question
+    accepted_at: "2026-09-05T17:59:37Z"
+    applies_to: [sdd-apply]
+  - id: approval-008
+    gate: apply-continue
+    decision: continue-to-verify
+    source: ask-user-question
+    accepted_at: "2026-09-05T18:14:27Z"
+    applies_to: [sdd-verify]
+  - id: approval-009
+    gate: quality-review-gate
+    decision: continue-to-archive
+    source: ask-user-question
+    accepted_at: "2026-09-05T18:28:39Z"
+    applies_to: [sdd-archive]
+
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/live-routing-eligibility-and-risk-floors/proposal.md"
+    summary: "Propuesta estándar para selección segura de lite, conexión de risk floors K1 y preservación de precedencia contextual."
+    key_decisions:
+      - "Normalizar señales classification y change.classification con resolución determinista"
+      - "Filtrar elegibilidad por metadata classification y conectar hard floors K1 al dispatch"
+      - "Preservar precedencia contextual y bloquear downgrade silencioso en continuación"
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/live-routing-eligibility-and-risk-floors/specs/routing/spec.md"
+      - "openspec/changes/live-routing-eligibility-and-risk-floors/specs/change-classification/spec.md"
+    summary: "Deltas normativas para routing y change-classification con elegibilidad por metadata, floors K1 e invariancia en continuación."
+    key_decisions:
+      - "Eliminar sombreado de standard sobre lite filtrando elegibilidad por classification"
+      - "Conectar floors K1 (critical, planned) bloqueando degradación por hotfix o tamaño"
+      - "Bloquear recálculo o downgrade silencioso de ruta al reanudar en continuación"
+  design:
+    status: done
+    artifact: "openspec/changes/live-routing-eligibility-and-risk-floors/design.md"
+    summary: "Diseño técnico de normalización fail-closed, filtrado de elegibilidad, conexión de floors K1 e invariancia en continuación."
+    key_decisions:
+      - "Normalización fail-closed ante conflicto de señales classification"
+      - "Filtrar elegibilidad por metadata de ruta antes de evaluar condiciones"
+      - "Conexión de risk floors K1 al dispatch vivo elevando a standard ante auth/migración"
+  tasks:
+    status: done
+    artifact: "openspec/changes/live-routing-eligibility-and-risk-floors/tasks.md"
+    summary: "Desglose en 5 fases TDD estricto con reconciliación 100% y entrega de PR única bajo size:exception pre-aprobado."
+    key_decisions:
+      - "Entrega en PR única bajo excepción de tamaño aprobada sin split encadenado"
+      - "Orden TDD estricto en 5 fases desde bridge K1 hasta integración real-repo"
+  apply:
+    status: done
+    artifact: "openspec/changes/live-routing-eligibility-and-risk-floors/apply-progress.md"
+    summary: "Implementación completa bajo Strict TDD de clasificación con risk floors K1, filtrado de elegibilidad, selección de rutas con invariancia en continuación y configuración declarativa en config.yaml."
+    key_decisions:
+      - "Garantías de piso inmutables (FLOOR_GUARANTEES) exportadas y protegidas contra downgrade por hotfix intent o LOC"
+      - "Normalización de señales fail-closed y filtrado de elegibilidad por clasificación antes de condiciones"
+      - "selectRoute con soporte de elevación por floors a standard, precedencia contextual, orden de tabla e invariancia de continuación con bloqueo ante violaciones tardías"
+      - "Configuración declarativa de rutas en config.yaml actualizada con validación limpia e integración real-repo verificada"
+  verify:
+    status: done
+    verdict: "PASS"
+    artifact: "openspec/changes/live-routing-eligibility-and-risk-floors/verify-report.md"
+    summary: "Verificación independiente PASS. 19/19 escenarios validados con runtime-test. 16/16 tareas completadas. npm test 100% exitoso."
+    key_decisions:
+      - "Todos los requisitos delta cubiertos con nivel de evidencia runtime-test"
+      - "Adherencia estricta a ADR-001 a ADR-004 y orden de despacho contextual"
+  archive:
+    status: done
+    artifact: "openspec/changes/live-routing-eligibility-and-risk-floors/archive-report.md"
+    summary: "Archivo preparado bajo protocolo Plan-and-Report. Specs fusionadas para routing y change-classification, 4 ADRs propuestos y plan emitido."
+    key_decisions:
+      - "Promover ADR-001 a ADR-004 como adr-20260905-007 a 010 en docs/adr/"
+      - "Fusión de specs locales con retención completa de REQ IDs y adición de REQ-routing-012 a 014"
+blocking_questions: []
+
+baseline_fingerprints:
+  routing: ed7fc98bf9e473def04b4a330a418fb545f65ba50d002f3ea73255335d45ff15
+  change-classification: a1c3504e591abe9dbe83809dcb65189782822b4e19ea7ba29f5fb9e1ece4e872

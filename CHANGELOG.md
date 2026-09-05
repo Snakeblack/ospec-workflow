@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.63.0] - 2026-09-05
+
+### Added
+- **Normalización fail-closed de señales de clasificación (`scripts/lib/route-dispatcher.js`)**:
+  - Función `normalizeClassificationSignals(ctx)` que armoniza las claves `classification` y `change.classification` en el contexto.
+  - Clase de error determinista `ClassificationConflictError` lanzada cuando ambas señales están presentes pero difieren en valor, impidiendo ambigüedad silenciosa o desalineación en el despacho.
+- **Filtrado de elegibilidad de rutas por metadata (`scripts/lib/route-dispatcher.js`)**:
+  - Función `isRouteEligible(route, resolvedClassification, floorGuarantees)` que evalúa metadatos antes de las condiciones dinámicas.
+  - Eliminación del sombreado de la ruta `standard` sobre `lite` en proyectos activos (`project.status: active`), permitiendo el despacho directo y seguro de flujos reducidos para cambios `trivial` y `small`.
+- **Conexión de mínimos de riesgo K1 a despacho de rutas (`scripts/lib/change-classification.js`, `scripts/lib/route-dispatcher.js`)**:
+  - Constante `FLOOR_GUARANTEES` y función `resolveFloorGuarantees(floor)` que traducen mínimos de impacto K1 (`auth_security`, `data_migration`, `public_api`) a una garantía estricta de tier mínimo `standard`.
+  - Imposibilidad de degradar garantías de seguridad mediante marcas `explicit_hotfix_intent` o tamaños reducidos de diff (LOC).
+- **Invarianza de ruta en continuación y compuerta bloqueante (`scripts/lib/route-dispatcher.js`)**:
+  - `selectRoute` (con alias `dispatchRoute`) preserva la ruta persistida en `state.yaml` a lo largo de fases sucesivas.
+  - Detección de riesgos emergentes tardíos: si una evidencia posterior viola los mínimos de riesgo de la ruta activa, la ejecución se detiene de forma determinista con estado `blocked` y `blocker_type: needs_user_decision` en lugar de degradar o cambiar silenciosamente de ruta.
+- **Documentación de arquitectura (ADRs)**:
+  - `ADR-20260905-007`: Normalización determinista de señales y manejo fail-closed de conflictos.
+  - `ADR-20260905-008`: Filtrado de elegibilidad de ruta por metadata previo a evaluación.
+  - `ADR-20260905-009`: Conexión de mínimos de impacto de riesgo K1 al despacho de rutas en vivo.
+  - `ADR-20260905-010`: Invarianza de decisión de ruta en continuación y compuerta bloqueante.
+  - Cambio archivado en `openspec/changes/archive/2026-09-05-live-routing-eligibility-and-risk-floors/`.
+
+### Changed
+- **Configuración declarativa de enrutamiento (`openspec/config.yaml`)**:
+  - Ampliación de metadata de clasificación en rutas contextuales (`foundation`, `federated`, `brownfield`) a `[trivial, small, normal, high-risk]` para preservar su precedencia independientemente del tamaño del cambio.
+  - Actualización de la condición de activación de la ruta `lite` a `project.status: active`, eliminando el acoplamiento redundante a `change.classification: small` resuelto ahora por filtrado de elegibilidad.
+- **Especificaciones canónicas OpenSpec (`openspec/specs/`)**:
+  - Incorporación de requisitos en `openspec/specs/routing/spec.md` (REQ-routing-012, REQ-routing-013, REQ-routing-014) y `openspec/specs/change-classification/spec.md` (REQ-change-classification-003, REQ-change-classification-004).
+
+**Verificación directa**: `npm test` (3204 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.62.1] - 2026-09-05
 
 ### Fixed

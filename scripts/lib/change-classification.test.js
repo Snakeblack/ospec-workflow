@@ -3,7 +3,11 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { classifyChange } = require("./change-classification.js");
+const {
+  classifyChange,
+  FLOOR_GUARANTEES,
+  resolveFloorGuarantees,
+} = require("./change-classification.js");
 
 test("auth/security evidence floors to critical despite tiny LOC", () => {
   const profile = classifyChange({
@@ -151,3 +155,79 @@ test("classifyChange preserves optional-input normalization", () => {
   assert.deepEqual(profile.uncertainty, {});
   assert.deepEqual(profile.execution, {});
 });
+
+test("FLOOR_GUARANTEES defines complete guarantee tiers for all floors", () => {
+  assert.ok(FLOOR_GUARANTEES, "FLOOR_GUARANTEES must be defined");
+  assert.ok(Object.isFrozen(FLOOR_GUARANTEES), "FLOOR_GUARANTEES must be frozen");
+
+  const expectedFloors = ["critical", "planned", "bounded", "repair", "direct"];
+  for (const floor of expectedFloors) {
+    assert.ok(FLOOR_GUARANTEES[floor], `Floor guarantee for '${floor}' must exist`);
+    assert.ok(Object.isFrozen(FLOOR_GUARANTEES[floor]), `Floor guarantee for '${floor}' must be frozen`);
+    assert.ok(Object.isFrozen(FLOOR_GUARANTEES[floor].ineligibleRoutes), `ineligibleRoutes for '${floor}' must be frozen`);
+    assert.ok(Object.isFrozen(FLOOR_GUARANTEES[floor].requiredPhases), `requiredPhases for '${floor}' must be frozen`);
+  }
+
+  // critical floor guarantees
+  assert.equal(FLOOR_GUARANTEES.critical.minTier, "full-sdd");
+  assert.deepEqual(FLOOR_GUARANTEES.critical.ineligibleRoutes, ["lite", "hotfix", "repair", "direct"]);
+  assert.deepEqual(FLOOR_GUARANTEES.critical.requiredPhases, [
+    "sdd-propose", "sdd-spec", "sdd-design", "sdd-tasks",
+    "sdd-apply", "sdd-verify", "sdd-archive"
+  ]);
+  assert.equal(FLOOR_GUARANTEES.critical.fallbackRoute, "standard");
+
+  // planned floor guarantees
+  assert.equal(FLOOR_GUARANTEES.planned.minTier, "spec-design");
+  assert.deepEqual(FLOOR_GUARANTEES.planned.ineligibleRoutes, ["lite", "hotfix", "repair", "direct"]);
+  assert.deepEqual(FLOOR_GUARANTEES.planned.requiredPhases, ["sdd-spec", "sdd-design"]);
+  assert.equal(FLOOR_GUARANTEES.planned.fallbackRoute, "standard");
+
+  // bounded floor guarantees
+  assert.equal(FLOOR_GUARANTEES.bounded.minTier, "bounded");
+  assert.deepEqual(FLOOR_GUARANTEES.bounded.ineligibleRoutes, []);
+  assert.deepEqual(FLOOR_GUARANTEES.bounded.requiredPhases, [
+    "sdd-propose", "sdd-tasks", "sdd-apply", "sdd-verify", "sdd-archive"
+  ]);
+  assert.equal(FLOOR_GUARANTEES.bounded.fallbackRoute, null);
+
+  // repair floor guarantees
+  assert.equal(FLOOR_GUARANTEES.repair.minTier, "repair");
+  assert.deepEqual(FLOOR_GUARANTEES.repair.ineligibleRoutes, []);
+  assert.deepEqual(FLOOR_GUARANTEES.repair.requiredPhases, [
+    "sdd-explore", "sdd-tasks", "sdd-apply", "sdd-verify", "sdd-archive"
+  ]);
+  assert.equal(FLOOR_GUARANTEES.repair.fallbackRoute, null);
+
+  // direct floor guarantees
+  assert.equal(FLOOR_GUARANTEES.direct.minTier, "direct");
+  assert.deepEqual(FLOOR_GUARANTEES.direct.ineligibleRoutes, []);
+  assert.deepEqual(FLOOR_GUARANTEES.direct.requiredPhases, []);
+  assert.equal(FLOOR_GUARANTEES.direct.fallbackRoute, null);
+});
+
+test("resolveFloorGuarantees resolves floor guarantees with bounded fallback", () => {
+  assert.equal(typeof resolveFloorGuarantees, "function");
+  assert.equal(resolveFloorGuarantees("critical"), FLOOR_GUARANTEES.critical);
+  assert.equal(resolveFloorGuarantees("planned"), FLOOR_GUARANTEES.planned);
+  assert.equal(resolveFloorGuarantees("bounded"), FLOOR_GUARANTEES.bounded);
+  assert.equal(resolveFloorGuarantees("repair"), FLOOR_GUARANTEES.repair);
+  assert.equal(resolveFloorGuarantees("direct"), FLOOR_GUARANTEES.direct);
+
+  // Fallback to bounded on unknown or null/undefined
+  assert.equal(resolveFloorGuarantees("unknown"), FLOOR_GUARANTEES.bounded);
+  assert.equal(resolveFloorGuarantees(null), FLOOR_GUARANTEES.bounded);
+  assert.equal(resolveFloorGuarantees(undefined), FLOOR_GUARANTEES.bounded);
+});
+
+test("hotfix intent cannot downgrade auth hard floor", () => {
+  const profile = classifyChange({
+    impact: { auth_security: true },
+    execution: { loc: 2, files: 1 },
+    candidate_route: "direct",
+    explicit_hotfix_intent: true,
+  });
+  assert.equal(profile.route, "critical");
+  assert.ok(profile.reasons.includes("hard_floor.auth_security"));
+});
+

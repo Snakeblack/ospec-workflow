@@ -17,7 +17,13 @@ const { validate } = require("./validate-github-copilot.js");
 const { validate: validateOpencode } = require("./validate-opencode.js");
 const { validate: validateCodex } = require("./validate-codex.js");
 const { validate: validateCursor } = require("./validate-cursor.js");
-const { matchConditions, parseRoutingTable, validateRouteTable } = require("../lib/route-dispatcher.js");
+const {
+  matchConditions,
+  parseRoutingTable,
+  validateRouteTable,
+  selectRoute,
+  isRouteEligible,
+} = require("../lib/route-dispatcher.js");
 const { parse, getField } = require("../lib/frontmatter.js");
 const ROOT = path.resolve(__dirname, "..", "..");
 
@@ -736,6 +742,149 @@ test(
     );
   },
 );
+
+test(
+  "real repo: live routing table validates cleanly and has expanded contextual classifications and updated lite condition",
+  { skip: HAS_LIVE_CONFIG ? false : "openspec/config.yaml not present" },
+  () => {
+    const content = fs.readFileSync(LIVE_CONFIG_PATH, "utf8");
+    const parsed = parseRoutingTable(content);
+
+    const tableResult = validateRouteTable(parsed);
+    assert.equal(tableResult.valid, true, `live route table must validate cleanly: ${JSON.stringify(tableResult.errors)}`);
+
+    for (const name of ["foundation", "federated", "brownfield"]) {
+      const route = parsed.find((r) => r.name === name);
+      assert.ok(route, `contextual route '${name}' must exist`);
+      assert.deepEqual(
+        [...route.classification].sort(),
+        ["high-risk", "normal", "small", "trivial"].sort(),
+        `route '${name}' classification must be expanded to all tiers`
+      );
+    }
+
+    const lite = parsed.find((r) => r.name === "lite");
+    assert.ok(lite, "lite route must exist");
+    assert.equal(lite.conditions["project.status"], "active", "lite condition must be project.status: active");
+  }
+);
+
+test(
+  "real repo: live route dispatch selects lite for small change in active repo and standard for normal",
+  { skip: HAS_LIVE_CONFIG ? false : "openspec/config.yaml not present" },
+  () => {
+    const content = fs.readFileSync(LIVE_CONFIG_PATH, "utf8");
+    const parsed = parseRoutingTable(content);
+
+    // small change selects lite
+    const smallDecision = selectRoute(parsed, {
+      classification: "small",
+      "project.status": "active",
+    });
+    assert.equal(smallDecision.name, "lite", "small change in active repo must select lite");
+    assert.equal(smallDecision.status, "success");
+
+    // trivial change selects lite
+    const trivialDecision = selectRoute(parsed, {
+      classification: "trivial",
+      "project.status": "active",
+    });
+    assert.equal(trivialDecision.name, "lite", "trivial change in active repo must select lite");
+
+    // normal change selects standard
+    const normalDecision = selectRoute(parsed, {
+      classification: "normal",
+      "project.status": "active",
+    });
+    assert.equal(normalDecision.name, "standard", "normal change in active repo must select standard");
+  }
+);
+
+test(
+  "real repo: live route dispatch elevates small change to standard on auth or migration floor",
+  { skip: HAS_LIVE_CONFIG ? false : "openspec/config.yaml not present" },
+  () => {
+    const content = fs.readFileSync(LIVE_CONFIG_PATH, "utf8");
+    const parsed = parseRoutingTable(content);
+
+    // auth_security elevates hotfix/lite to standard
+    const authDecision = selectRoute(parsed, {
+      classification: "small",
+      explicit_hotfix_intent: true,
+      impact: { auth_security: true },
+      "project.status": "active",
+    });
+    assert.equal(authDecision.name, "standard", "auth impact must elevate to standard");
+    assert.equal(authDecision.floor, "critical");
+    assert.ok(authDecision.reasons.includes("hard_floor.auth_security"));
+
+    // data_migration elevates to standard
+    const migrationDecision = selectRoute(parsed, {
+      classification: "small",
+      impact: { data_migration: true },
+      "project.status": "active",
+    });
+    assert.equal(migrationDecision.name, "standard", "migration impact must elevate to standard");
+    assert.equal(migrationDecision.floor, "critical");
+    assert.ok(migrationDecision.reasons.includes("hard_floor.data_migration"));
+
+    // public_api elevates to standard
+    const apiDecision = selectRoute(parsed, {
+      classification: "small",
+      impact: { public_api: true },
+      "project.status": "active",
+    });
+    assert.equal(apiDecision.name, "standard", "public API impact must elevate to standard");
+    assert.equal(apiDecision.floor, "planned");
+    assert.ok(apiDecision.reasons.includes("hard_floor.public_api"));
+  }
+);
+
+test(
+  "real repo: live route dispatch preserves brownfield precedence over lite",
+  { skip: HAS_LIVE_CONFIG ? false : "openspec/config.yaml not present" },
+  () => {
+    const content = fs.readFileSync(LIVE_CONFIG_PATH, "utf8");
+    const parsed = parseRoutingTable(content);
+
+    const decision = selectRoute(parsed, {
+      classification: "small",
+      "baseline.status": "pending",
+      "project.status": "active",
+    });
+    assert.equal(decision.name, "brownfield", "brownfield must take precedence over lite");
+  }
+);
+
+test(
+  "real repo: live route dispatch preserves persisted route on continuation and blocks on late floor violation",
+  { skip: HAS_LIVE_CONFIG ? false : "openspec/config.yaml not present" },
+  () => {
+    const content = fs.readFileSync(LIVE_CONFIG_PATH, "utf8");
+    const parsed = parseRoutingTable(content);
+
+    // continuation locks persisted standard route
+    const contDecision = selectRoute(
+      parsed,
+      { classification: "small", "project.status": "active" },
+      { persistedRoute: "standard" }
+    );
+    assert.equal(contDecision.name, "standard");
+    assert.equal(contDecision.status, "success");
+
+    // late discovery of auth impact on lite halts with blocker
+    const blockDecision = selectRoute(
+      parsed,
+      { classification: "small", impact: { auth_security: true }, "project.status": "active" },
+      { persistedRoute: "lite" }
+    );
+    assert.equal(blockDecision.status, "blocked");
+    assert.equal(blockDecision.blocker_type, "needs_user_decision");
+    assert.equal(blockDecision.name, "lite");
+    assert.equal(blockDecision.floor, "critical");
+  }
+);
+
 
 test("real repo: orchestrator pointer-table refs resolve and handler sentinels absent from body", () => {
   // Read the orchestrator source file from ROOT (not a dist target)

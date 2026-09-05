@@ -19,6 +19,60 @@ const HARD_FLOORS = Object.freeze([
 ]);
 
 /**
+ * Guarantee tiers and ineligible routes per K1 impact floor.
+ */
+const FLOOR_GUARANTEES = Object.freeze({
+  critical: Object.freeze({
+    minTier: "full-sdd",
+    ineligibleRoutes: Object.freeze(["lite", "hotfix", "repair", "direct"]),
+    requiredPhases: Object.freeze([
+      "sdd-propose", "sdd-spec", "sdd-design", "sdd-tasks",
+      "sdd-apply", "sdd-verify", "sdd-archive"
+    ]),
+    fallbackRoute: "standard",
+  }),
+  planned: Object.freeze({
+    minTier: "spec-design",
+    ineligibleRoutes: Object.freeze(["lite", "hotfix", "repair", "direct"]),
+    requiredPhases: Object.freeze(["sdd-spec", "sdd-design"]),
+    fallbackRoute: "standard",
+  }),
+  bounded: Object.freeze({
+    minTier: "bounded",
+    ineligibleRoutes: Object.freeze([]),
+    requiredPhases: Object.freeze([
+      "sdd-propose", "sdd-tasks", "sdd-apply", "sdd-verify", "sdd-archive"
+    ]),
+    fallbackRoute: null,
+  }),
+  repair: Object.freeze({
+    minTier: "repair",
+    ineligibleRoutes: Object.freeze([]),
+    requiredPhases: Object.freeze(["sdd-explore", "sdd-tasks", "sdd-apply", "sdd-verify", "sdd-archive"]),
+    fallbackRoute: null,
+  }),
+  direct: Object.freeze({
+    minTier: "direct",
+    ineligibleRoutes: Object.freeze([]),
+    requiredPhases: Object.freeze([]),
+    fallbackRoute: null,
+  }),
+});
+
+/**
+ * Returns the guarantee specification for a given risk floor.
+ * @param {string} floor - "critical" | "planned" | "bounded" | "repair" | "direct"
+ * @returns {object} Floor guarantee record
+ */
+function resolveFloorGuarantees(floor) {
+  if (typeof floor === "string" && Object.prototype.hasOwnProperty.call(FLOOR_GUARANTEES, floor)) {
+    return FLOOR_GUARANTEES[floor];
+  }
+  return FLOOR_GUARANTEES.bounded;
+}
+
+
+/**
  * Pure classifier: publishes route hard floors + fingerprint.
  * Does NOT wire into fixed/default routing (K1 out of scope).
  *
@@ -148,4 +202,10 @@ function normalizeAxis(axis) {
   return out;
 }
 
-module.exports = { classifyChange, HARD_FLOORS, ROUTE_RANK };
+module.exports = {
+  classifyChange,
+  HARD_FLOORS,
+  ROUTE_RANK,
+  FLOOR_GUARANTEES,
+  resolveFloorGuarantees,
+};

@@ -421,6 +421,14 @@ test("K1 scope guard: fixed routing and phase validation remain byte-equivalent 
           .replace(/^\s*tdd_mode:\s*focused\n?/gm, "")
           .replace(/^  last_checked: ".*"$/m, '  last_checked: "<checked>"')
           .replace(/(domains_done:\n)(?:    - .+\n)+/, "$1    - <domains>\n")
+          .replace(
+            /(\s*name:\s*(?:foundation|federated|brownfield)\n\s*classification:\s*)\[trivial, small, normal, high-risk\]/g,
+            "$1[normal, high-risk]"
+          )
+          .replace(
+            /(\s*name:\s*lite\n\s*classification:\s*\[trivial, small\]\n\s*conditions:\n\s*)project\.status:\s*active/g,
+            "$1change.classification: small"
+          )
           .replace(/\n{3,}/g, "\n\n");
       assert.equal(
         normalizeConfig(baseline.stdout),
