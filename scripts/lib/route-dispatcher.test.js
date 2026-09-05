@@ -14,7 +14,13 @@ const {
   classifyChange,
   matchConditions,
   detectResidualBooleanStrings,
+  normalizeClassificationSignals,
+  ClassificationConflictError,
+  isRouteEligible,
+  selectRoute,
+  dispatchRoute,
 } = require("./route-dispatcher.js");
+const { FLOOR_GUARANTEES } = require("./change-classification.js");
 
 // ---------------------------------------------------------------------------
 // Fixtures: the six canonical routes from design.md §The Six Routes
@@ -1020,3 +1026,330 @@ test("detectResidualBooleanStrings excludes the 'match' meta-key even though its
 
   assert.deepEqual(detectResidualBooleanStrings(conditions), ["baseline.status"]);
 });
+
+// ---------------------------------------------------------------------------
+// Phase 2 RED tests — normalizeClassificationSignals & isRouteEligible
+// ---------------------------------------------------------------------------
+
+test("normalizeClassificationSignals returns empty for null/non-object", () => {
+  assert.deepEqual(normalizeClassificationSignals(null), {
+    resolvedClassification: null,
+    normalizedCtx: {},
+  });
+  assert.deepEqual(normalizeClassificationSignals(undefined), {
+    resolvedClassification: null,
+    normalizedCtx: {},
+  });
+});
+
+test("normalizeClassificationSignals resolves ctx.classification", () => {
+  const result = normalizeClassificationSignals({ classification: "small", other: 123 });
+  assert.equal(result.resolvedClassification, "small");
+  assert.equal(result.normalizedCtx.classification, "small");
+  assert.equal(result.normalizedCtx["change.classification"], "small");
+  assert.equal(result.normalizedCtx.other, 123);
+});
+
+test("normalizeClassificationSignals resolves ctx['change.classification']", () => {
+  const result = normalizeClassificationSignals({ "change.classification": "normal" });
+  assert.equal(result.resolvedClassification, "normal");
+  assert.equal(result.normalizedCtx.classification, "normal");
+  assert.equal(result.normalizedCtx["change.classification"], "normal");
+});
+
+test("normalizeClassificationSignals succeeds when both signals match", () => {
+  const result = normalizeClassificationSignals({
+    classification: "small",
+    "change.classification": "small",
+  });
+  assert.equal(result.resolvedClassification, "small");
+  assert.equal(result.normalizedCtx.classification, "small");
+});
+
+test("normalizeClassificationSignals throws ClassificationConflictError on conflicting signals", () => {
+  assert.throws(
+    () =>
+      normalizeClassificationSignals({
+        classification: "small",
+        "change.classification": "normal",
+      }),
+    (err) => {
+      assert.ok(err instanceof ClassificationConflictError);
+      assert.equal(err.code, "ERR_CLASSIFICATION_CONFLICT");
+      assert.match(err.message, /Classification conflict/);
+      return true;
+    }
+  );
+});
+
+test("isRouteEligible filters candidate route by route classification metadata", () => {
+  assert.equal(isRouteEligible(null, "small"), false);
+
+  // standard route requires [normal, high-risk]
+  assert.equal(isRouteEligible(STANDARD_ROUTE, "normal"), true);
+  assert.equal(isRouteEligible(STANDARD_ROUTE, "high-risk"), true);
+  assert.equal(isRouteEligible(STANDARD_ROUTE, "small"), false, "standard must be ineligible for small");
+  assert.equal(isRouteEligible(STANDARD_ROUTE, "trivial"), false, "standard must be ineligible for trivial");
+
+  // lite route requires [trivial, small]
+  assert.equal(isRouteEligible(LITE_ROUTE, "small"), true);
+  assert.equal(isRouteEligible(LITE_ROUTE, "trivial"), true);
+  assert.equal(isRouteEligible(LITE_ROUTE, "normal"), false, "lite must be ineligible for normal");
+});
+
+test("isRouteEligible enforces floor guarantees", () => {
+  const criticalGuarantees = FLOOR_GUARANTEES.critical;
+  const plannedGuarantees = FLOOR_GUARANTEES.planned;
+
+  // Under critical floor: lite and hotfix are ineligible
+  assert.equal(isRouteEligible(LITE_ROUTE, "small", criticalGuarantees), false);
+  assert.equal(isRouteEligible(BUGFIX_ROUTE, "small", criticalGuarantees), false); // lacks required phases
+  assert.equal(isRouteEligible(STANDARD_ROUTE, "normal", criticalGuarantees), true);
+
+  // Under planned floor: lite is ineligible (in ineligibleRoutes & lacks requiredPhases sdd-spec, sdd-design)
+  assert.equal(isRouteEligible(LITE_ROUTE, "small", plannedGuarantees), false);
+  assert.equal(isRouteEligible(STANDARD_ROUTE, "normal", plannedGuarantees), true);
+
+  // Route with missing required phase is rejected
+  const customRoute = {
+    name: "custom-quick",
+    classification: ["small"],
+    phases: ["sdd-spec"], // lacks sdd-design
+  };
+  assert.equal(isRouteEligible(customRoute, "small", plannedGuarantees), false);
+});
+
+// ---------------------------------------------------------------------------
+// Phase 3 RED tests — selectRoute / dispatchRoute
+// ---------------------------------------------------------------------------
+
+const CANONICAL_TEST_ROUTES = [
+  { ...FOUNDATION_ROUTE, classification: ["trivial", "small", "normal", "high-risk"] },
+  { ...FEDERATED_ROUTE, classification: ["trivial", "small", "normal", "high-risk"] },
+  { ...BUGFIX_ROUTE },
+  { ...BROWNFIELD_ROUTE, classification: ["trivial", "small", "normal", "high-risk"] },
+  { ...STANDARD_ROUTE },
+  { ...LITE_ROUTE, conditions: { "project.status": "active" } },
+];
+
+test("dispatchRoute is an alias of selectRoute", () => {
+  assert.equal(typeof selectRoute, "function");
+  assert.equal(dispatchRoute, selectRoute);
+});
+
+test("selectRoute selects lite for small change in active repo without standard shadowing", () => {
+  const ctx = {
+    classification: "small",
+    "project.status": "active",
+  };
+  const decision = selectRoute(CANONICAL_TEST_ROUTES, ctx);
+  assert.equal(decision.name, "lite");
+  assert.equal(decision.route.name, "lite");
+  assert.equal(decision.classification, "small");
+  assert.equal(decision.floor, "bounded");
+  assert.equal(decision.status, "success");
+});
+
+test("selectRoute selects lite for trivial change in active repo", () => {
+  const ctx = {
+    classification: "trivial",
+    "project.status": "active",
+  };
+  const decision = selectRoute(CANONICAL_TEST_ROUTES, ctx);
+  assert.equal(decision.name, "lite");
+  assert.equal(decision.route.name, "lite");
+  assert.equal(decision.classification, "trivial");
+});
+
+test("selectRoute selects standard for normal change in active repo", () => {
+  const ctx = {
+    classification: "normal",
+    "project.status": "active",
+  };
+  const decision = selectRoute(CANONICAL_TEST_ROUTES, ctx);
+  assert.equal(decision.name, "standard");
+  assert.equal(decision.route.name, "standard");
+  assert.equal(decision.classification, "normal");
+});
+
+test("selectRoute elevates small change with auth_security impact to standard", () => {
+  const ctx = {
+    classification: "small",
+    explicit_hotfix_intent: true,
+    impact: { auth_security: true },
+    "project.status": "active",
+  };
+  const decision = selectRoute(CANONICAL_TEST_ROUTES, ctx);
+  assert.equal(decision.name, "standard");
+  assert.equal(decision.floor, "critical");
+  assert.ok(decision.reasons.includes("hard_floor.auth_security"));
+  assert.equal(decision.status, "success");
+});
+
+test("selectRoute elevates small change with data_migration impact to standard", () => {
+  const ctx = {
+    classification: "small",
+    impact: { data_migration: true },
+    "project.status": "active",
+  };
+  const decision = selectRoute(CANONICAL_TEST_ROUTES, ctx);
+  assert.equal(decision.name, "standard");
+  assert.equal(decision.floor, "critical");
+  assert.ok(decision.reasons.includes("hard_floor.data_migration"));
+});
+
+test("selectRoute elevates small change with public_api impact to standard", () => {
+  const ctx = {
+    classification: "small",
+    impact: { public_api: true },
+    "project.status": "active",
+  };
+  const decision = selectRoute(CANONICAL_TEST_ROUTES, ctx);
+  assert.equal(decision.name, "standard");
+  assert.equal(decision.floor, "planned");
+  assert.ok(decision.reasons.includes("hard_floor.public_api"));
+});
+
+test("selectRoute preserves contextual route precedence over lite", () => {
+  const ctx = {
+    classification: "small",
+    "baseline.status": "pending",
+    "project.status": "active",
+  };
+  const decision = selectRoute(CANONICAL_TEST_ROUTES, ctx);
+  assert.equal(decision.name, "brownfield");
+  assert.equal(decision.status, "success");
+});
+
+test("selectRoute preserves custom route ordering among eligible routes", () => {
+  const routeA = {
+    name: "custom-a",
+    classification: ["small"],
+    conditions: { "project.status": "active" },
+    phases: ["sdd-apply"],
+    gates: [],
+    description: "Custom A",
+  };
+  const routeB = {
+    name: "custom-b",
+    classification: ["small"],
+    conditions: { "project.status": "active" },
+    phases: ["sdd-apply"],
+    gates: [],
+    description: "Custom B",
+  };
+
+  const decision1 = selectRoute([routeA, routeB], {
+    classification: "small",
+    "project.status": "active",
+  });
+  assert.equal(decision1.name, "custom-a");
+
+  const decision2 = selectRoute([routeB, routeA], {
+    classification: "small",
+    "project.status": "active",
+  });
+  assert.equal(decision2.name, "custom-b");
+});
+
+test("selectRoute continuation locks persisted route when resuming", () => {
+  const ctx = {
+    classification: "small",
+    "project.status": "active",
+  };
+  const options = { persistedRoute: "standard" };
+  const decision = selectRoute(CANONICAL_TEST_ROUTES, ctx, options);
+  assert.equal(decision.name, "standard");
+  assert.equal(decision.status, "success");
+  assert.ok(decision.reasons.includes("continuation_locked"));
+});
+
+test("selectRoute halts with blocker when late discovery violates persisted route floor", () => {
+  const ctx = {
+    classification: "small",
+    impact: { auth_security: true },
+    "project.status": "active",
+  };
+  const options = { persistedRoute: "lite" };
+  const decision = selectRoute(CANONICAL_TEST_ROUTES, ctx, options);
+  assert.equal(decision.status, "blocked");
+  assert.equal(decision.blocker_type, "needs_user_decision");
+  assert.equal(decision.name, "lite");
+  assert.equal(decision.floor, "critical");
+  assert.ok(decision.reasons.includes("hard_floor.auth_security"));
+});
+
+test("selectRoute fails closed on conflicting classification signals", () => {
+  assert.throws(
+    () =>
+      selectRoute(CANONICAL_TEST_ROUTES, {
+        classification: "small",
+        "change.classification": "normal",
+      }),
+    (err) => {
+      assert.ok(err instanceof ClassificationConflictError);
+      assert.equal(err.code, "ERR_CLASSIFICATION_CONFLICT");
+      return true;
+    }
+  );
+});
+
+test("selectRoute does not mutate frozen routes, ctx, or options (purity proof)", () => {
+  const frozenRoutes = Object.freeze(
+    CANONICAL_TEST_ROUTES.map((r) =>
+      Object.freeze({
+        ...r,
+        classification: Object.freeze(Array.isArray(r.classification) ? [...r.classification] : r.classification),
+        conditions: Object.freeze({ ...r.conditions }),
+        phases: Object.freeze([...r.phases]),
+        gates: Object.freeze([...r.gates]),
+      })
+    )
+  );
+  const frozenCtx = Object.freeze({
+    classification: "small",
+    "project.status": "active",
+    impact: Object.freeze({ auth_security: true }),
+  });
+  const frozenOptions = Object.freeze({ persistedRoute: "standard" });
+
+  assert.doesNotThrow(() => selectRoute(frozenRoutes, frozenCtx, frozenOptions));
+  const result = selectRoute(frozenRoutes, frozenCtx, frozenOptions);
+  assert.equal(result.name, "standard");
+  assert.equal(result.status, "success");
+});
+
+test("selectRoute handles options: null gracefully without TypeError", () => {
+  assert.doesNotThrow(() => {
+    const result = selectRoute(CANONICAL_TEST_ROUTES, { classification: "normal", "project.status": "active" }, null);
+    assert.equal(result.status, "success");
+    assert.equal(result.name, "standard");
+  });
+});
+
+test("selectRoute ignores empty string in persistedRoute and evaluates table normally", () => {
+  const result = selectRoute(
+    CANONICAL_TEST_ROUTES,
+    { classification: "small", "project.status": "active" },
+    { persistedRoute: "" }
+  );
+  assert.equal(result.status, "success");
+  assert.equal(result.name, "lite");
+});
+
+test("selectRoute flags floor violation when persisted route lacks phases under critical floor", () => {
+  const result = selectRoute(
+    CANONICAL_TEST_ROUTES,
+    {
+      classification: "small",
+      "project.status": "active",
+      impact: { auth_security: true },
+    },
+    { persistedRoute: "unknown-route-without-phases" }
+  );
+  assert.equal(result.status, "blocked");
+  assert.equal(result.blocker_type, "needs_user_decision");
+});
+
+
+

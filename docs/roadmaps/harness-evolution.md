@@ -1,7 +1,7 @@
 # Roadmap general — kernel, grafo y evidencia
 
 > **Autoridad:** única fuente operativa del backlog transversal.
-> **Versión de referencia:** v2.62.1, 2026-09-05.
+> **Versión de referencia:** v2.63.0, 2026-09-05.
 > **Arquitectura:** [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md).
 > **Investigación no normativa:** [`../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md`](../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md) (P0–P27). Proporcionalidad de proceso y Change Program: [`../architecture/research/proportional-process-and-change-program.md`](../architecture/research/proportional-process-and-change-program.md).
 > **Regla de estado:** los hechos se contrastan con código/OpenSpec; este roadmap no cambia el estado de un change ni sustituye sus artefactos.
@@ -52,7 +52,7 @@ Este orden prioriza beneficio al desarrollar el propio harness: obtener un ahorr
 
 | Prioridad | Unidad propuesta | Ahorro que deja al siguiente trabajo | Dependencia técnica real |
 | ---: | --- | --- | --- |
-| 1 | PP1 — elegibilidad/floors del routing vivo | Trivial/small seguro en repos active puede pasar de siete fases a las cinco de lite. | Compatibilidad de tabla, señales, contratos y mapeo K1; no espera K10. |
+| 1 | PP1 — elegibilidad/floors del routing vivo [ARCHIVADO - v2.63.0] | Trivial/small seguro en repos active puede pasar de siete fases a las cinco de lite. | Compatibilidad de tabla, señales, contratos y mapeo K1; no espera K10. |
 | 2 | PP2 — contrato lite compacto | Esas cinco fases producen y releen menos contenido redundante. | PP1 para aprovechar selección segura; formatos y consumidores vigentes. |
 | 3 | CX1 — envelope/state mecánico | Menos escritura repetida de estado y salida humana/JSON. | CX0 + K2/K2.1; PP2 aporta casos comparables, no es dependencia del kernel. |
 | 4 | CX2 — vistas y archive renderer | Menos matrices, inventarios y reconciliación manual en cada cierre. | CX1; datos canónicos/receipts, sin cambiar autoridad. |
@@ -67,7 +67,7 @@ PP1/PP2 son identificadores locales de backlog, no nuevas rutas o autoridades. L
 
 La etapa actual entrega análisis y documentación. Cada slug de abajo es **propuesto**, pendiente de explorar contratos, confirmar alcance y planificar implementación. Las estimaciones pequeña/media describen trabajo esperado, no la clasificación definitiva: modificar routing/autoridad puede ser high-risk aunque tenga pocas líneas. Si el forecast supera 400 líneas o cruza fronteras de contrato, dividir al planificar con entregas verificables; no prometer ocho PRs pequeñas.
 
-#### PP1 — `live-routing-eligibility-and-risk-floors`
+#### PP1 — `live-routing-eligibility-and-risk-floors` [ARCHIVADO - v2.63.0]
 
 - **Beneficio:** habilitar lite seguro en active y evitar ciclos completos causados por matching accidental; los siguientes cambios elegibles aprovechan cinco fases en vez de siete, sin atribuir un porcentaje de ahorro.
 - **Alcance:** normalizar `classification`/`change.classification`, decidir conflictos y elegibilidad de metadata, integrar mapeo de floors K1 a garantías legacy, conservar prioridad contextual/intenciones y orden entre rutas custom elegibles; actualizar contratos/fixtures/documentación de todos los targets afectados. **No alcance:** recetas Direct, Change Program o endurecimiento genérico del parser.

@@ -11,7 +11,7 @@ context: |
 
 project:
   name: ospec-workflow
-  version: 2.62.1
+  version: 2.63.0
   status: active
 
 artifact_store:
@@ -87,7 +87,7 @@ rules:
 
 routing:
   - name: foundation
-    classification: [normal, high-risk]
+    classification: [trivial, small, normal, high-risk]
     conditions:
       project.status: empty
     phases: [sdd-foundation]
@@ -96,7 +96,7 @@ routing:
     cost: medium
 
   - name: federated
-    classification: [normal, high-risk]
+    classification: [trivial, small, normal, high-risk]
     conditions:
       artifact_store.backend: workspace-federated
     phases: [sdd-workspace, sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]
@@ -114,7 +114,7 @@ routing:
     cost: medium
 
   - name: brownfield
-    classification: [normal, high-risk]
+    classification: [trivial, small, normal, high-risk]
     conditions:
       match: any
       baseline.status: [pending, partial]
@@ -155,7 +155,7 @@ routing:
   - name: lite
     classification: [trivial, small]
     conditions:
-      change.classification: small
+      project.status: active
     phases: [sdd-propose, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]
     gates: []
     description: "Reduced SDD for trivial/small changes with archiving."

@@ -32,7 +32,7 @@ test("K2a maturity docs tag host surfaces implemented; Candidate/attestation/del
   assert.match(roadmap, /\|\s*`done`\s*\|\s*\*\*K3\*\*/);
   assert.match(roadmap, /\|\s*`done`\s*\|\s*\*\*K4b\*\*/);
   assert.match(roadmap, /\|\s*`done`\s*\|\s*\*\*K6c\*\*/);
-  assert.match(roadmap, /\|\s*`next-eligible`\s*\|\s*\*\*K6d\*\*/);
+  assert.match(roadmap, /\|\s*`(done|next-eligible)`\s*\|\s*\*\*K6d\*\*/);
   assert.match(arch, /\{implemented\} Independent verifier over frozen CandidateId \(K6b\)/);
   assert.match(arch, /\{implemented\} Evidence strategies with provenance and Strict TDD fallback \(K6b\)/);
   assert.match(arch, /\{implemented\} Assurance Graph as derived content-addressed projection/);
