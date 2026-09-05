@@ -158,6 +158,7 @@ function syncEntriesTransactional(outDir, destDir, entries, fsImpl, retryOptions
   const backupRoot = fsImpl.mkdtempSync(path.join(os.tmpdir(), "ospec-target-sync-"));
   const manifest = [];
   let primaryError = null;
+  let preserveBackup = false;
 
   try {
     // Snapshot every destination entry before the first mutation. Unrelated
@@ -193,12 +194,16 @@ function syncEntriesTransactional(outDir, destDir, entries, fsImpl, retryOptions
       }
     }
     if (rollbackErrors.length > 0) {
-      throw new Error(`${error.message}; rollback failed: ${rollbackErrors.join("; ")}`);
+      preserveBackup = true;
+      throw new Error(`${error.message}; rollback failed: ${rollbackErrors.join("; ")}; recovery backup preserved at ${backupRoot}`);
     }
     throw new Error(`${error.message}; changes rolled back`);
   } finally {
     try {
-      mutateFs("cleanup transaction", backupRoot, () => fsImpl.rmSync(backupRoot, { recursive: true, force: true }), retryOptions);
+      // A failed restoration leaves the snapshot as the user's recovery copy.
+      if (!preserveBackup) {
+        mutateFs("cleanup transaction", backupRoot, () => fsImpl.rmSync(backupRoot, { recursive: true, force: true }), retryOptions);
+      }
     } catch (cleanupError) {
       if (!primaryError) {
         throw new Error(`failed to clean transaction backup: ${cleanupError.message}`);

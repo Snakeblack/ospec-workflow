@@ -306,6 +306,32 @@ test("mergeHooksDoc merges OSpec hooks without deleting foreign hooks", () => {
   assert.equal(merged.hooks.stop.length, 1);
 });
 
+test("mergeHooksDoc retires removed Cursor events while preserving user commands", () => {
+  const existing = {
+    version: 1,
+    hooks: {
+      beforeShellExecution: [
+        { command: "node /old/ospec-hooks-launch.js pre-tool-use" },
+        { command: "my-custom-linter.sh" },
+      ],
+      stop: [{ command: "node /old/ospec-hooks-launch.js stop" }],
+      afterFileEdit: [{ command: "format.sh" }],
+    },
+  };
+  const generated = { version: 1, hooks: { sessionStart: [{ command: "ospec-hooks session-start" }] } };
+  const original = structuredClone(existing);
+
+  const merged = mergeHooksDoc(existing, generated, "cursor");
+
+  assert.deepEqual(merged.hooks, {
+    beforeShellExecution: [{ command: "my-custom-linter.sh" }],
+    afterFileEdit: [{ command: "format.sh" }],
+    sessionStart: generated.hooks.sessionStart,
+  });
+  assert.deepEqual(existing, original);
+  assert.deepEqual(mergeHooksDoc(merged, generated, "cursor"), merged);
+});
+
 test("safeParseJsonc parses complex JSONC without corrupting string literals", () => {
   const jsonc = `// Leading file comment
 {

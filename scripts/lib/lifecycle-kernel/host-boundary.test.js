@@ -12,8 +12,7 @@ const {
 const { createEvidenceDigest, createProbeDigest } = require("../capability-proof/index.js");
 const { createAuthorityStore, createKernelRuntime } = require("./index.js");
 
-function proofFor(cap) {
-  const evidence = { cap };
+function proofFor(cap, evidence = { cap }) {
   const adapter_id = "claude";
   const adapter_version = "1.0.0";
   const host_version = "k2a-host/1";
@@ -52,6 +51,23 @@ function proofFor(cap) {
     },
   };
 }
+
+test("resolveHostCapability binds WorkerIsolation to the executing transport", () => {
+  const transport = { port_id: "WorkerTransport", fingerprint: "worker-live-fingerprint" };
+  const { proof, evidence, expected } = proofFor("WorkerIsolation", { transport });
+  const input = {
+    capability_id: "WorkerIsolation",
+    declared_state: "enforced",
+    proof,
+    semantic_evidence: evidence,
+    ...expected,
+    expectedPortId: transport.port_id,
+    expectedFingerprint: transport.fingerprint,
+  };
+  assert.equal(resolveHostCapability(input).enforced, true);
+  assert.equal(resolveHostCapability({ ...input, expectedFingerprint: "other-worker" }).enforced, false);
+  assert.equal(resolveHostCapability({ ...input, expectedPortId: "other-port" }).enforced, false);
+});
 
 test("transition selection uses port outcomes, not concrete host product id", async () => {
   const left = { status: "ready", port_outcome: "ok", host_product_id: "claude" };

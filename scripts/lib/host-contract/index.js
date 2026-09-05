@@ -444,14 +444,15 @@ async function invokeTransportAsync(port, request) {
 
   let timeoutId = null;
   let abortHandler = null;
+  let cancellationPromise = null;
   const guards = [];
 
   if (signal) {
     guards.push(
       new Promise((_, reject) => {
-        abortHandler = async () => {
-          await cancelPort();
+        abortHandler = () => {
           reject(Object.assign(new Error("aborted"), { name: "AbortError", code: "host-fault-cancel" }));
+          cancellationPromise ||= cancelPort();
         };
         signal.addEventListener("abort", abortHandler, { once: true });
       })
@@ -461,9 +462,9 @@ async function invokeTransportAsync(port, request) {
   if (deadlineMs != null && deadlineMs >= 0) {
     guards.push(
       new Promise((_, reject) => {
-        timeoutId = setTimeout(async () => {
-          await cancelPort();
+        timeoutId = setTimeout(() => {
           reject(Object.assign(new Error("deadline exceeded"), { name: "TimeoutError", code: "host-fault-timeout" }));
+          cancellationPromise ||= cancelPort();
         }, deadlineMs);
       })
     );
@@ -476,21 +477,18 @@ async function invokeTransportAsync(port, request) {
 
   try {
     const invokerPayload = isRecord(input) ? { ...input, signal, deadlineMs } : input;
-    const invokePromise = Promise.resolve().then(() => invoker(invokerPayload));
+    const invokePromise = Promise.resolve().then(async () => {
+      const raw = await invoker(invokerPayload);
+      // Nested work belongs to the same invocation and must remain under its
+      // deadline/abort guards, including when it settles after cancellation.
+      return isRecord(raw) && raw.ok === true && isThenable(raw.value)
+        ? { ...raw, value: await raw.value }
+        : raw;
+    });
     // Absorb late settlement so a losing invoke cannot raise unhandledRejection
     // after timeout/abort already won the race (caller still gets classified failure).
     invokePromise.catch(() => {});
-    let raw = guards.length > 0 ? await Promise.race([invokePromise, ...guards]) : await invokePromise;
-    cleanup();
-
-    // Settle nested thenables in value — never report ok:true with a rejecting Promise inside.
-    if (isRecord(raw) && raw.ok === true && isThenable(raw.value)) {
-      try {
-        raw = { ...raw, value: await raw.value };
-      } catch (nestedErr) {
-        return classifyTransportFailure(nestedErr, { requestId, portName: optsPortName(port) });
-      }
-    }
+    const raw = guards.length > 0 ? await Promise.race([invokePromise, ...guards]) : await invokePromise;
 
     if (isRecord(raw) && raw.ok === false) {
       const classified = classifyTransportFailure(raw, {
@@ -511,8 +509,12 @@ async function invokeTransportAsync(port, request) {
     }
     return normalized;
   } catch (err) {
-    cleanup();
+    // Fix the interruption outcome immediately, but wait for transport cleanup
+    // before callers inspect or recover a workspace with potentially live writes.
+    if (cancellationPromise) await cancellationPromise;
     return classifyTransportFailure(err, { requestId, portName: optsPortName(port) });
+  } finally {
+    cleanup();
   }
 }
 

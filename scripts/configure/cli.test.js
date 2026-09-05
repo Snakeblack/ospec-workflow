@@ -6,7 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { loadTree, gatherRuntimeScripts, parseModels, runConfigure: runConfigureStrict, defaultRunValidator, resolveClaudeBin, isWindowsInteropPath, PROFILES } = require("./cli.js");
+const { loadTree, gatherRuntimeScripts, parseModels, runConfigure: runConfigureStrict, defaultRunValidator, resolveClaudeBin, isWindowsInteropPath, spawnCliSync, PROFILES } = require("./cli.js");
 const { transform } = require("../lib/target-transform.js");
 const runConfigure = options => runConfigureStrict(options);
 const { rootedEvidencePath } = require("../lib/strict-tdd-evidence-remediation.js");
@@ -593,4 +593,14 @@ test("defaultRunValidator degrades to a fail-soft skip when no usable claude bin
       delete process.env.LOCALAPPDATA;
     }
   }
+});
+
+test("spawnCliSync runs a real Windows npm shim (.cmd) when present", { skip: process.platform === "win32" ? false : "windows-only probe" }, () => {
+  const resolved = resolveClaudeBin();
+  if (!resolved || !/\.cmd$/i.test(resolved)) {
+    return; // native binary or not installed; quoting path not exercised
+  }
+  const probe = spawnCliSync(resolved, ["--version"], { stdio: "ignore", encoding: "utf8" });
+  assert.equal(probe.error, undefined);
+  assert.equal(probe.status, 0);
 });

@@ -390,6 +390,22 @@ function isWindowsInteropPath(p) {
   return process.platform === "linux" && /^\/mnt\/[a-z]\//.test(p);
 }
 
+// Spawn a resolved CLI binary synchronously. Node refuses to spawn .cmd/.bat
+// shims without a shell (EINVAL since the CVE-2024-27980 fix), and shell:true
+// does not quote paths with spaces, so Windows npm shims go through cmd.exe
+// with explicit quoting instead.
+function spawnCliSync(bin, args, options = {}) {
+  if (process.platform === "win32" && /\.(cmd|bat)$/i.test(bin)) {
+    const quoted = args.map((a) => `"${a}"`).join(" ");
+    return spawnSync(
+      process.env.ComSpec || "cmd.exe",
+      ["/d", "/s", "/c", `""${bin}" ${quoted}"`],
+      { ...options, shell: false, windowsVerbatimArguments: true },
+    );
+  }
+  return spawnSync(bin, args, { ...options, shell: false });
+}
+
 function resolveClaudeBin() {
   const resolved = resolveBinFromPath("claude");
   if (resolved && !isWindowsInteropPath(resolved)) {
@@ -425,7 +441,7 @@ function defaultRunValidator(profile, outDir) {
     }
     bin = resolved;
   }
-  const result = spawnSync(bin, args, { shell: false, encoding: "utf8" });
+  const result = spawnCliSync(bin, args, { encoding: "utf8" });
   if (result.error) {
     if (command === "claude") {
       return { status: 0, stdout: `claude validator skipped: execution error on '${bin}': ${result.error.message || result.error}\n`, stderr: "" };
@@ -661,6 +677,7 @@ module.exports = {
   resolveClaudeBin,
   resolveBinFromPath,
   isWindowsInteropPath,
+  spawnCliSync,
   withTransientFsRetries,
   runConfigure,
   main,

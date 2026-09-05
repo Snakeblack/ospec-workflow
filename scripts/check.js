@@ -7,7 +7,7 @@ const { spawnSync } = require("node:child_process");
 
 const ROOT = path.resolve(__dirname, "..");
 
-const { isWindowsInteropPath, resolveClaudeBin } = require("./configure/cli.js");
+const { isWindowsInteropPath, resolveClaudeBin, spawnCliSync } = require("./configure/cli.js");
 const { runStagedChecks } = require("./hooks/lib/staged-validator.js");
 
 function runStep(name, args, deps = {}) {
@@ -40,20 +40,15 @@ function runStep(name, args, deps = {}) {
 // through WSL interop: it cannot consume the POSIX output dirs, so it counts
 // as unavailable and claude degrades to generation-only.
 function claudeCliAvailable(deps = {}) {
-  const spawn = deps.spawnSync || spawnSync;
+  const spawnCli = deps.spawnCliSync || spawnCliSync;
   const resolve = deps.resolveClaudeBin || resolveClaudeBin;
   const isInterop = deps.isWindowsInteropPath || isWindowsInteropPath;
   const resolved = resolve();
   if (!resolved || isInterop(resolved)) {
     return false;
   }
-  for (const bin of ["claude", "claude.cmd", "claude.exe"]) {
-    const probe = spawn(bin, ["--version"], { stdio: "ignore", shell: false });
-    if (!probe.error) {
-      return true;
-    }
-  }
-  return false;
+  const probe = spawnCli(resolved, ["--version"], { stdio: "ignore" });
+  return !probe.error && probe.status === 0;
 }
 
 function generateTarget(target, validate, deps = {}) {
@@ -100,7 +95,7 @@ function main(deps = {}) {
       return;
     }
 
-    run("Native Node tests", ["--test", "scripts/**/*.test.js"]);
+    run("Native Node tests", ["--test", "scripts/**/*.test.js", "tests/**/*.test.js"]);
 
     const claudeOk = hasClaudeCli();
     if (!claudeOk) {

@@ -176,6 +176,20 @@ test("isClaudeCodeHost detecta hosts Claude solo por marcadores de entorno", () 
   assert.equal(isClaudeCodeHost({}), false);
 });
 
+test("explicit targets override inherited host markers and install paths", () => {
+  for (const target of ["codex", "claude", "vscode", "github-copilot"]) {
+    assert.equal(isCursorHost("/plugins/.cursor/hooks", {
+      OSPEC_TARGET: target, CURSOR_AGENT: "1", VSCODE_PID: "123",
+    }, JSON.stringify({ hook_event_name: "preToolUse" })), false, target);
+  }
+  assert.equal(isClaudeCodeHost({ OSPEC_TARGET: "cursor", CLAUDE_PLUGIN_ROOT: "/plugin" }), false);
+  assert.equal(isClaudeCodeHost({ OSPEC_TARGET: "codex", CLAUDE_PLUGIN_ROOT: "/plugin" }), false);
+});
+
+test("VS Code terminal markers alone do not select Cursor's hook protocol", () => {
+  assert.equal(isCursorHost(HOOKS_DIR, { VSCODE_PID: "123", VSCODE_CWD: "/workspace" }, "{}"), false);
+});
+
 test("[REQ-hooks-019] H-019: los demás eventos conservan el enrutamiento binario y sin binario manda el fallback Node", () => {
   const exists = (p) => p === LINUX_BINARY;
   const claudeEnv = { OSPEC_TARGET: "claude" };

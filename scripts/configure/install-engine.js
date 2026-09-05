@@ -416,7 +416,10 @@ function mergeHooksDoc(existingDoc, generatedDoc, format = "standard") {
     next.hooks = { ...(existingDoc.hooks || {}) };
 
     const genHooks = generatedDoc.hooks || {};
-    for (const [event, genCommandList] of Object.entries(genHooks)) {
+    // Retired events need the same cleanup as events still generated today.
+    const events = new Set([...Object.keys(next.hooks), ...Object.keys(genHooks)]);
+    for (const event of events) {
+      const genCommandList = genHooks[event] || [];
       const existingList = Array.isArray(next.hooks[event]) ? next.hooks[event] : [];
       // Filter out previous ospec-hooks commands
       const foreignCommands = existingList.filter((entry) => {
@@ -424,6 +427,7 @@ function mergeHooksDoc(existingDoc, generatedDoc, format = "standard") {
         return !cmd.includes("ospec-hooks");
       });
       next.hooks[event] = [...foreignCommands, ...genCommandList];
+      if (next.hooks[event].length === 0) delete next.hooks[event];
     }
     return next;
   }

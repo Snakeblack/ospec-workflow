@@ -62,11 +62,12 @@ test("generateTarget removes its temp directory when generation fails", () => {
 
 test("main includes cursor and skips claude validation when the claude CLI is unavailable", () => {
   const generated = [];
+  const steps = [];
   const stdout = [];
   let exitCode;
 
   main({
-    runStep: () => {},
+    runStep: (name, args) => steps.push({ name, args }),
     claudeCliAvailable: () => false,
     generateTarget: (target, validate) => generated.push({ target, validate }),
     process: {
@@ -79,6 +80,10 @@ test("main includes cursor and skips claude validation when the claude CLI is un
   });
 
   assert.equal(exitCode, undefined);
+  assert.deepEqual(steps, [{
+    name: "Native Node tests",
+    args: ["--test", "scripts/**/*.test.js", "tests/**/*.test.js"],
+  }]);
   assert.deepEqual(generated, [
     { target: "claude", validate: false },
     { target: "vscode", validate: true },
@@ -131,7 +136,7 @@ test("claudeCliAvailable rejects a WSL interop binary resolved under /mnt", () =
     assert.equal(
       claudeCliAvailable({
         resolveClaudeBin: () => "/mnt/c/Program Files/nodejs/claude",
-        spawnSync: () => ({ error: undefined, status: 0 }),
+        spawnCliSync: () => ({ error: undefined, status: 0 }),
       }),
       false,
     );
@@ -142,7 +147,7 @@ test("claudeCliAvailable returns false when no claude binary can be resolved", (
   assert.equal(
     claudeCliAvailable({
       resolveClaudeBin: () => null,
-      spawnSync: () => ({ error: new Error("ENOENT") }),
+      spawnCliSync: () => ({ error: new Error("ENOENT") }),
     }),
     false,
   );
@@ -152,11 +157,46 @@ test("claudeCliAvailable keeps the --version probe for a usable native binary", 
   assert.equal(
     claudeCliAvailable({
       resolveClaudeBin: () => "/usr/bin/claude",
-      spawnSync: () => ({ error: undefined, status: 0 }),
+      spawnCliSync: () => ({ error: undefined, status: 0 }),
     }),
     true,
   );
 });
+
+for (const resolved of ["/usr/bin/claude", "C:/Users/test/WinGet/Claude/claude.exe"]) {
+  test(`claudeCliAvailable probes the resolved binary ${resolved}`, () => {
+    const calls = [];
+    assert.equal(claudeCliAvailable({
+      resolveClaudeBin: () => resolved,
+      spawnCliSync: (bin, args, options) => {
+        calls.push({ bin, args, options });
+        return bin === resolved ? { status: 0 } : { error: new Error("ENOENT") };
+      },
+    }), true);
+    assert.deepEqual(calls, [{ bin: resolved, args: ["--version"], options: { stdio: "ignore" } }]);
+  });
+}
+
+test("claudeCliAvailable delegates the probe to spawnCliSync (Windows .cmd shims route through cmd.exe there)", () => {
+  const calls = [];
+  assert.equal(claudeCliAvailable({
+    resolveClaudeBin: () => "C:/Program Files/nodejs/claude.cmd",
+    spawnCliSync: (bin, args, options) => {
+      calls.push({ bin, args, options });
+      return { status: 0 };
+    },
+  }), true);
+  assert.deepEqual(calls, [{ bin: "C:/Program Files/nodejs/claude.cmd", args: ["--version"], options: { stdio: "ignore" } }]);
+});
+
+for (const probe of [{ status: 1 }, { status: null, signal: "SIGTERM" }, { error: new Error("ENOENT") }]) {
+  test(`claudeCliAvailable rejects an unsuccessful version probe (${probe.status ?? probe.error?.message ?? probe.signal})`, () => {
+    assert.equal(claudeCliAvailable({
+      resolveClaudeBin: () => "/usr/bin/claude",
+      spawnCliSync: () => probe,
+    }), false);
+  });
+}
 
 test("main delegates to runStagedChecks when --staged flag is passed", () => {
   let stagedChecksCalled = false;

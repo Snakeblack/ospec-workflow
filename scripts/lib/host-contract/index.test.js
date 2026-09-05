@@ -294,6 +294,124 @@ test("invokeTransportAsync: nested rejecting Promise in value becomes ok:false",
   assert.equal(outcome.requestId, "r-nested");
 });
 
+for (const trigger of ["deadline", "abort"]) {
+  test(`invokeTransportAsync: ${trigger} bounds nested values and waits for cancellation settlement`, async () => {
+    const { invokeTransportAsync } = require("./index.js");
+    const controller = new AbortController();
+    let entered;
+    const started = new Promise((resolve) => { entered = resolve; });
+    let cancelCalls = 0;
+    let terminateCalls = 0;
+    let cancellationSettled = false;
+    const port = {
+      invoke: () => {
+        entered();
+        return { ok: true, value: new Promise(() => {}) };
+      },
+      cancel: async () => {
+        cancelCalls++;
+        await new Promise((resolve) => setImmediate(resolve));
+        cancellationSettled = true;
+      },
+      terminate: () => { terminateCalls++; },
+    };
+    const pending = invokeTransportAsync(port, {
+      requestId: `bounded-${trigger}`,
+      ...(trigger === "deadline" ? { deadlineMs: 5 } : { signal: controller.signal }),
+    });
+    await started;
+    // Let the successful outer result settle before aborting its nested work.
+    await new Promise((resolve) => setImmediate(resolve));
+    if (trigger === "abort") controller.abort();
+    let watchdog;
+    try {
+      const result = await Promise.race([
+        pending,
+        new Promise((resolve) => { watchdog = setTimeout(() => resolve({ outcome: "watchdog" }), 250); }),
+      ]);
+      assert.equal(result.failure_class, trigger === "deadline" ? "timeout" : "cancel");
+      assert.equal(result.requestId, `bounded-${trigger}`);
+      assert.equal(cancelCalls, 1);
+      assert.equal(cancellationSettled, true, "return must wait for cancellation settlement");
+      assert.equal(terminateCalls, 1);
+    } finally {
+      clearTimeout(watchdog);
+    }
+  });
+}
+
+test("invokeTransportAsync: pre-aborted request waits for cancellation without invoking work", async () => {
+  const { invokeTransportAsync } = require("./index.js");
+  const controller = new AbortController();
+  controller.abort();
+  let invoked = false;
+  let cancellationSettled = false;
+  let watchdog;
+  try {
+    const result = await Promise.race([
+      invokeTransportAsync({
+        invoke: () => { invoked = true; },
+        cancel: async () => {
+          await new Promise((resolve) => setImmediate(resolve));
+          cancellationSettled = true;
+        },
+      }, { signal: controller.signal }),
+      new Promise((resolve) => { watchdog = setTimeout(() => resolve({ outcome: "watchdog" }), 250); }),
+    ]);
+    assert.equal(result.failure_class, "cancel");
+    assert.equal(invoked, false);
+    assert.equal(cancellationSettled, true);
+  } finally {
+    clearTimeout(watchdog);
+  }
+});
+
+for (const trigger of ["deadline", "abort"]) {
+  test(`invokeTransportAsync: ${trigger} cannot become success while cancellation settles`, async () => {
+    const { invokeTransportAsync } = require("./index.js");
+    const controller = new AbortController();
+    let finishWork;
+    let finishCancellation;
+    let cancellationStarted;
+    const started = new Promise((resolve) => { cancellationStarted = resolve; });
+    const work = new Promise((resolve) => { finishWork = resolve; });
+    const cancellation = new Promise((resolve) => { finishCancellation = resolve; });
+    let returned = false;
+    const pending = invokeTransportAsync({
+      invoke: () => ({ ok: true, value: work }),
+      cancel: () => { cancellationStarted(); return cancellation; },
+    }, trigger === "deadline" ? { deadlineMs: 5 } : { signal: controller.signal });
+    pending.then(() => { returned = true; });
+    await new Promise((resolve) => setImmediate(resolve));
+    if (trigger === "abort") controller.abort();
+    await started;
+    finishWork({ done: true });
+    await new Promise((resolve) => setImmediate(resolve));
+    const returnedBeforeSettlement = returned;
+    finishCancellation();
+    const result = await pending;
+    assert.equal(returnedBeforeSettlement, false, "return must await the cancellation barrier");
+    assert.equal(result.ok, false, "late success must not replace cancellation");
+    assert.equal(result.failure_class, trigger === "deadline" ? "timeout" : "cancel");
+  });
+}
+
+test("invokeTransportAsync: late nested success cannot replace a timeout outcome", async () => {
+  const { invokeTransportAsync } = require("./index.js");
+  let settleValue;
+  const nested = new Promise((resolve) => { settleValue = resolve; });
+  const pending = invokeTransportAsync({
+    invoke: () => ({ ok: true, value: nested }),
+  }, { requestId: "late-nested", deadlineMs: 5 });
+  const result = await pending;
+  assert.equal(result.ok, false);
+  assert.equal(result.failure_class, "timeout");
+  settleValue({ authoritative: true });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.strictEqual(await pending, result);
+  assert.equal(Object.hasOwn(result, "value"), false);
+});
+
 test("invokeTransportAsync: AbortSignal and deadline classify as cancel/timeout with requestId", async () => {
   const { invokeTransportAsync } = require("./index.js");
 

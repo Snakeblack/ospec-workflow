@@ -152,6 +152,37 @@ func TestAppendRuntimeEvent(t *testing.T) {
 
 // ── AppendPhaseCost ───────────────────────────────────────────────────────────
 
+func TestAppendPhaseCostLargePriorRecord(t *testing.T) {
+	s := store.NewStore(t.TempDir())
+	prior, err := json.Marshal(map[string]any{
+		"phase": "apply", "status": "success", "evidence": strings.Repeat("x", 128*1024),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AppendPhaseCost("large-record", prior); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AppendPhaseCost("large-record", []byte(`{"phase":"apply","status":"success"}`)); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(s.SessionPhaseCostPath("large-record"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("got %d records, want 2", len(lines))
+	}
+	var record map[string]any
+	if err := json.Unmarshal([]byte(lines[1]), &record); err != nil {
+		t.Fatal(err)
+	}
+	if record["row_index"] != float64(1) || record["relaunch"] != true {
+		t.Fatalf("large prior record was lost: row_index=%v relaunch=%v", record["row_index"], record["relaunch"])
+	}
+}
+
 func TestAppendPhaseCost(t *testing.T) {
 	t.Run("creates dir and appends JSONL line under the change's session dir", func(t *testing.T) {
 		ws := makeWorkspace(t)

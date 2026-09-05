@@ -161,16 +161,6 @@ function analyzeLines(content) {
 }
 
 /**
- * Splits text into an array of lines without carriage returns and removes trailing empty line.
- *
- * @param {string|Buffer} text
- * @returns {string[]}
- */
-function splitLines(text) {
-  return analyzeLines(text).lines;
-}
-
-/**
  * Computes longest common subsequence line-by-line diff edits.
  *
  * @param {string[]} oldLines
@@ -178,13 +168,31 @@ function splitLines(text) {
  * @returns {Array<{ type: "keep"|"delete"|"insert", line: string }>}
  */
 function computeLineDiff(oldLines, newLines) {
-  const m = oldLines.length;
-  const n = newLines.length;
+  let oldEnd = oldLines.length;
+  let newEnd = newLines.length;
+  // Backtracking always keeps equal final lines, so this preserves its alignment.
+  while (oldEnd > 0 && newEnd > 0 && oldLines[oldEnd - 1] === newLines[newEnd - 1]) {
+    oldEnd--;
+    newEnd--;
+  }
+  let start = 0;
+  while (start < oldEnd && start < newEnd && oldLines[start] === newLines[start]) start++;
+  if (start > 0) {
+    const remainder = new Set(oldLines.slice(start, oldEnd));
+    for (let j = start; j < newEnd; j++) remainder.add(newLines[j]);
+    // A repeated prefix line in the middle can change LCS tie-breaking. Keep
+    // the original prefix in that case instead of choosing another valid patch.
+    for (let i = 0; i < start; i++) {
+      if (remainder.has(oldLines[i])) { start = 0; break; }
+    }
+  }
+  const m = oldEnd - start;
+  const n = newEnd - start;
 
   const dp = Array.from({ length: m + 1 }, () => new Uint32Array(n + 1));
   for (let i = 0; i < m; i++) {
     for (let j = 0; j < n; j++) {
-      if (oldLines[i] === newLines[j]) {
+      if (oldLines[start + i] === newLines[start + j]) {
         dp[i + 1][j + 1] = dp[i][j] + 1;
       } else {
         dp[i + 1][j + 1] = Math.max(dp[i + 1][j], dp[i][j + 1]);
@@ -195,18 +203,24 @@ function computeLineDiff(oldLines, newLines) {
   let i = m;
   let j = n;
   const edits = [];
+  for (let k = oldLines.length - 1; k >= oldEnd; k--) {
+    edits.push({ type: "keep", line: oldLines[k] });
+  }
   while (i > 0 || j > 0) {
-    if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
-      edits.push({ type: "keep", line: oldLines[i - 1] });
+    if (i > 0 && j > 0 && oldLines[start + i - 1] === newLines[start + j - 1]) {
+      edits.push({ type: "keep", line: oldLines[start + i - 1] });
       i--;
       j--;
     } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-      edits.push({ type: "insert", line: newLines[j - 1] });
+      edits.push({ type: "insert", line: newLines[start + j - 1] });
       j--;
     } else if (i > 0 && (j === 0 || dp[i][j - 1] < dp[i - 1][j])) {
-      edits.push({ type: "delete", line: oldLines[i - 1] });
+      edits.push({ type: "delete", line: oldLines[start + i - 1] });
       i--;
     }
+  }
+  for (let k = start - 1; k >= 0; k--) {
+    edits.push({ type: "keep", line: oldLines[k] });
   }
   edits.reverse();
   return edits;
@@ -252,17 +266,19 @@ function generateUnifiedDiff(workspaceRoot, baselineInventory = [], postInventor
 
   // Created and Modified files
   for (const [p, postEntry] of postMap.entries()) {
-    const absPath = path.resolve(workspaceRoot, p);
+    const baseEntry = baselineMap.get(p);
+    const contentChanged = !baseEntry || baseEntry.sha256 !== postEntry.sha256;
     let newContent = "";
-    try {
-      if (fs.existsSync(absPath)) {
-        newContent = fs.readFileSync(absPath, "utf8");
-      }
-    } catch {
-      newContent = "";
+    // Unchanged and mode-only entries need no content I/O; large inventories
+    // should read only the files whose content contributes to the patch.
+    if (contentChanged) {
+      const absPath = path.resolve(workspaceRoot, p);
+      // Missing or unreadable inventoried content must abort result capture;
+      // treating a read failure as empty content would fabricate a deletion.
+      newContent = fs.readFileSync(absPath, "utf8");
     }
 
-    if (!baselineMap.has(p)) {
+    if (!baseEntry) {
       // Created file
       const { lines, hasTrailingNewline } = analyzeLines(newContent);
       const header = `--- /dev/null\n+++ b/${p}\n@@ -0,0 +1,${lines.length} @@\n`;
@@ -275,8 +291,6 @@ function generateUnifiedDiff(workspaceRoot, baselineInventory = [], postInventor
       }
       chunks.push(header + body);
     } else {
-      const baseEntry = baselineMap.get(p);
-      const contentChanged = baseEntry.sha256 !== postEntry.sha256;
       const modeChanged =
         baseEntry.mode !== undefined &&
         postEntry.mode !== undefined &&
