@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "change": "canonicalize-cx0-context-measurement",
+  "source_fingerprint": "sha256:4961ea72d61d99c60cc2fa3d5d1c5165fa3cb50502ce1c972a13789f1aa7c412",
+  "spec_writes": [
+    {
+      "domain": "agent-identity",
+      "source_delta": "specs/agent-identity/spec.md",
+      "target": "openspec/specs/agent-identity/spec.md",
+      "target_before_sha256": "sha256:f1d5bd4075869fef98633e860504ff88afea28194598c10629935f4a11df60e8",
+      "content_sha256": "sha256:929611ac32133f483971313c99c99a79fa0d9c908d93ceb4cc0930d13a33f725"
+    },
+    {
+      "domain": "hooks",
+      "source_delta": "specs/hooks/spec.md",
+      "target": "openspec/specs/hooks/spec.md",
+      "target_before_sha256": "sha256:92fe66f82caf823c518cf979eb5ace4178e1b959194fef5d44aa15f6df5fa4db",
+      "content_sha256": "sha256:d446d798aa1f0aa68b79083471eb44da42ae39108012384f8ab532655143d35e"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260905-003-canonical-agent-resolution-in-subagent-stop-ingress-points.md",
+      "content_sha256": "sha256:d9811f56ae15a1d594ad305e5a47f63837594761e1b3a13b0353b276def593b5"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "design.md",
+    "proposal.md",
+    "specs/agent-identity/spec.md",
+    "specs/hooks/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

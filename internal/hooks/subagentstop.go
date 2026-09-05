@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/snakeblack/ospec-workflow/internal/agentidentity"
 	"github.com/snakeblack/ospec-workflow/internal/modelconfig"
 	"github.com/snakeblack/ospec-workflow/internal/resultenvelope"
 	"github.com/snakeblack/ospec-workflow/internal/store"
@@ -506,13 +507,13 @@ func persistResultEnvelope(input map[string]any, workspace string) {
 		return
 	}
 
-	canonicalAgentPhase := resolveAgentName(input)
-	statePhaseKey := derivePhaseKey(canonicalAgentPhase)
+	canonicalAgent := agentidentity.ResolveCanonicalAgent(resolveAgentName(input))
+	statePhaseKey := derivePhaseKey(canonicalAgent)
 	if statePhaseKey == "" {
 		return
 	}
 
-	valid, _ := resultenvelope.ValidateForPhase(envelope, canonicalAgentPhase)
+	valid, _ := resultenvelope.ValidateForPhase(envelope, canonicalAgent)
 	if !valid {
 		return
 	}
@@ -906,7 +907,11 @@ func resolveCostFieldPresence(input map[string]any, usages ...*codexTokenUsage) 
 // PhaseCostDiagnostic returns bounded metadata for a phase-cost no-op. It is
 // intentionally safe to expose to adapters: it never includes payload values.
 func PhaseCostDiagnostic(input map[string]any, workspace string) map[string]any {
-	phase := derivePhaseKey(resolveAgentName(input))
+	canonical := agentidentity.ResolveCanonicalAgent(resolveAgentName(input))
+	phase := ""
+	if canonical != agentidentity.Unresolved {
+		phase = agentidentity.DerivePhaseKey(canonical)
+	}
 	diagnostic := map[string]any{
 		"status":         "skipped",
 		"phase":          phase,
@@ -925,20 +930,12 @@ func PhaseCostDiagnostic(input map[string]any, workspace string) map[string]any 
 	return diagnostic
 }
 
-// derivePhaseKey strips the "sdd-" prefix from an agent name to derive its
-// phase key. Returns "" when the agent name does not carry the prefix.
-// Shared between persistResultEnvelope and persistPhaseCost (REFACTOR, task
-// 2.5) so the phase-key derivation rule lives in exactly one place.
+// derivePhaseKey delegates to the shared agentidentity authority so the
+// phase-key derivation rule lives in exactly one place. It takes an already
+// canonical agent name and mirrors scripts/lib/agent-identity.js semantics
+// byte-for-byte (strip "sdd-" / review self / "").
 func derivePhaseKey(agentName string) string {
-	if strings.HasPrefix(agentName, "sdd-") {
-		return strings.TrimPrefix(agentName, "sdd-")
-	}
-	switch agentName {
-	case "review-change", "review-trust", "review-runtime", "review-evolution", "review-efficiency", "review-correction":
-		return agentName
-	default:
-		return ""
-	}
+	return agentidentity.DerivePhaseKey(agentName)
 }
 
 // resolveResultPayload picks the first present §5.2 resultFields value from
@@ -995,13 +992,13 @@ func resolveDispatchStatus(input map[string]any) string {
 		}
 	}
 	if found && envelope != nil {
-		canonicalAgentPhase := resolveAgentName(input)
-		if valid, _ := resultenvelope.ValidateForPhase(envelope, canonicalAgentPhase); valid {
+		canonicalAgent := agentidentity.ResolveCanonicalAgent(resolveAgentName(input))
+		if valid, _ := resultenvelope.ValidateForPhase(envelope, canonicalAgent); valid {
 			if s, ok := envelope["status"].(string); ok && s != "" {
 				return s
 			}
 		}
-		if status, _ := envelope["status"].(string); canonicalAgentPhase == "sdd-spec" && status == "success" {
+		if status, _ := envelope["status"].(string); canonicalAgent == "sdd-spec" && status == "success" {
 			return "blocked"
 		}
 	}
@@ -1023,7 +1020,11 @@ func persistPhaseCost(input map[string]any, workspace string) {
 	}()
 
 	canonicalAgentPhase := resolveAgentName(input)
-	statePhaseKey := derivePhaseKey(canonicalAgentPhase)
+	canonicalAgent := agentidentity.ResolveCanonicalAgent(canonicalAgentPhase)
+	if canonicalAgent == agentidentity.Unresolved {
+		return
+	}
+	statePhaseKey := derivePhaseKey(canonicalAgent)
 	if statePhaseKey == "" {
 		return
 	}
@@ -1054,11 +1055,11 @@ func persistPhaseCost(input map[string]any, workspace string) {
 			pluginRoot = filepath.Dir(filepath.Dir(exePath))
 		}
 	}
-	modelTier := modelconfig.ResolveModelTier(canonicalAgentPhase, pluginRoot)
+	modelTier := modelconfig.ResolveModelTier(canonicalAgent, pluginRoot)
 
 	record := map[string]any{
 		"phase":                        statePhaseKey,
-		"agent":                        canonicalAgentPhase,
+		"agent":                        canonicalAgent,
 		"estimated_prompt_tokens":      ctx["prompt"],
 		"estimated_artifact_tokens":    ctx["artifact"],
 		"estimated_tool_output_tokens": ctx["tool_output"],

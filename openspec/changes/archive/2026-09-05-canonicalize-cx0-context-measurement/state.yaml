@@ -1,0 +1,125 @@
+change: canonicalize-cx0-context-measurement
+status: archived
+last_updated: "2026-09-05T10:38:00Z"
+blocking_questions: []
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/canonicalize-cx0-context-measurement/proposal.md"
+    summary: "Extiende resolución de agent-identity a persistContextMeasurement (JS) y persistResultEnvelope (JS/Go); resuelve follow-up F-c1cf060d0008ff4f."
+    key_decisions:
+      - "Usar resolveCanonicalAgent en persistContextMeasurement y persistResultEnvelope (JS/Go)"
+      - "Alinear resolveDispatchStatus para validar contratos de fase en agentes prefijados"
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/canonicalize-cx0-context-measurement/specs/hooks/spec.md"
+      - "openspec/changes/canonicalize-cx0-context-measurement/specs/agent-identity/spec.md"
+    summary: "Deltas normativas para hooks y agent-identity: resolución canónica en persistContextMeasurement, persistResultEnvelope y resolveDispatchStatus."
+    key_decisions:
+      - "Canonicalizar agente antes de derivar phase key y validar envelope en JS y Go"
+      - "Preservar fail-closed a blocked para sdd-spec prefijado con envelope inválido"
+      - "Actualizar REQ-agent-identity-002 vinculando formalmente a persistContextMeasurement y persistResultEnvelope"
+  design:
+    status: done
+    artifact: "openspec/changes/canonicalize-cx0-context-measurement/design.md"
+    summary: "Canonicalización de agente en persistContextMeasurement (JS), persistResultEnvelope (JS/Go) y resolveDispatchStatus (JS/Go); paridad estricta y fail-safe."
+    key_decisions:
+      - "Canonicalizar tras resolveAgentName antes de derivePhaseKey y validación de envelope"
+      - "Pasar canonicalAgent como phase context a validateEnvelope y ValidateForPhase"
+      - "Evaluar canonicalAgent === sdd-spec para fail-closed a blocked en resolveDispatchStatus"
+  tasks:
+    status: done
+    artifact: "openspec/changes/canonicalize-cx0-context-measurement/tasks.md"
+    summary: "Desglose TDD en 4 fases (JS envelope/dispatch, JS CX0, Go envelope/dispatch, paridad) cubriendo REQ-hooks-015, REQ-hooks-017 y REQ-agent-identity-002."
+    key_decisions:
+      - "Enfoque TDD estricto (RED -> GREEN -> REFACTOR) por componente y runtime"
+      - "Single PR bajo estrategia size-exception con riesgo de presupuesto bajo (~60-100 líneas)"
+      - "Verificación de paridad estricta Go/JS y regresión completa"
+  apply:
+    status: done
+    artifact: "openspec/changes/canonicalize-cx0-context-measurement/apply-progress.md"
+    summary: "Canonicalización de agente en persistContextMeasurement (JS), persistResultEnvelope (JS/Go) y resolveDispatchStatus (JS/Go) con tests TDD y paridad."
+    key_decisions:
+      - "Canonicalizar antes de derivePhaseKey y validación de envelope en todos los consumidores"
+      - "Preservar fail-closed a blocked para sdd-spec prefijado con envelope inválido"
+      - "Paridad estricta entre JS y Go para dispatches prefijados y omisión fail-safe"
+  verify:
+    status: done
+    verdict: PASS
+    artifact: "openspec/changes/canonicalize-cx0-context-measurement/verify-report.md"
+    summary: "Verificación independiente exitosa (PASS). 110 tests pasando en Node.js y Go, TDD estricto y 13/13 escenarios de spec cubiertos sin regresiones."
+  archive:
+    status: done
+    artifact: "openspec/changes/canonicalize-cx0-context-measurement/archive-report.md"
+    summary: "Plan-and-report emitido con 2 specs preparados (hooks, agent-identity), 1 ADR promotion y 10 archivos en inventario."
+    key_decisions:
+      - "Specs fusionados localmente en specs/{domain}/spec.md listos para commit runtime"
+      - "Promocion formal de ADR-001 hacia docs/adr/adr-20260905-003-canonical-agent-resolution-in-subagent-stop-ingress-points.md"
+
+gate: intent-briefing
+decision: accepted
+accepted_at: "2026-09-05T09:45:12Z"
+synthesis: >-
+  Extender la resolución canónica de identidad de agente (agent-identity) a
+  persistContextMeasurement (JS) y persistResultEnvelope (JS y Go). Con ello,
+  dispatches con prefijo de host registrarán debidamente mediciones de contexto
+  CX0 y resúmenes de envelope, resolviendo el follow-up F-c1cf060d0008ff4f bajo el
+  baseline recién consolidado.
+scope: >-
+  scripts/hooks/subagent-stop.js (persistContextMeasurement, persistResultEnvelope),
+  internal/hooks/subagentstop.go (persistResultEnvelope), tests unitarios y de integración
+  asociados para validar dispatches prefijados en CX0 y envelope summaries sin regresiones.
+applies_to: [change-classification]
+
+owner:
+  author: Manuel Retamozo
+  branch: feat/canonicalize-cx0-context-measurement
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "classification=normal, project.status=active: primera condición que casa en la tabla (foundation/federated/bugfix/brownfield/refactor descartadas por contexto)"
+  validated: true
+  validation_errors: []
+
+approvals:
+  - id: approval-001
+    gate: intent-briefing
+    decision: accepted
+    source: ask-user-question
+    accepted_at: "2026-09-05T09:45:12Z"
+    applies_to: [change-classification]
+  - id: approval-002
+    gate: execution-mode
+    decision: fast-forward
+    source: ask-user-question
+    accepted_at: "2026-09-05T10:13:28Z"
+    applies_to: [sdd-spec, sdd-design, sdd-tasks]
+  - id: approval-003
+    gate: delivery-strategy
+    decision: exception-ok
+    source: ask-user-question
+    accepted_at: "2026-09-05T10:13:28Z"
+    applies_to: [sdd-tasks, sdd-apply]
+  - id: approval-004
+    gate: propose-continue
+    decision: continue-to-spec
+    source: ask-user-question
+    accepted_at: "2026-09-05T10:13:28Z"
+    applies_to: [sdd-spec]
+  - id: approval-005
+    gate: apply-continue
+    decision: continue-to-apply
+    source: ask-user-question
+    accepted_at: "2026-09-05T10:22:33Z"
+    applies_to: [sdd-apply]
+  - id: approval-006
+    gate: archive-continue
+    decision: continue-to-archive
+    source: ask-user-question
+    accepted_at: "2026-09-05T10:37:21Z"
+    applies_to: [sdd-archive]
+
+baseline_fingerprints:
+  hooks: 92fe66f82caf823c518cf979eb5ace4178e1b959194fef5d44aa15f6df5fa4db
+  agent-identity: f1d5bd4075869fef98633e860504ff88afea28194598c10629935f4a11df60e8

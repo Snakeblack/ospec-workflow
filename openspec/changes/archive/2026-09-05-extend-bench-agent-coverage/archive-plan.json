@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "change": "extend-bench-agent-coverage",
+  "source_fingerprint": "sha256:f764822b08349ef375ab3e1741a686bf8073df40b99e3e4141c74bb044d40284",
+  "spec_writes": [
+    {
+      "domain": "agent-identity",
+      "source_delta": "specs/agent-identity/spec.md",
+      "target": "openspec/specs/agent-identity/spec.md",
+      "target_before_sha256": null,
+      "content_sha256": "sha256:f1d5bd4075869fef98633e860504ff88afea28194598c10629935f4a11df60e8"
+    },
+    {
+      "domain": "hooks",
+      "source_delta": "specs/hooks/spec.md",
+      "target": "openspec/specs/hooks/spec.md",
+      "target_before_sha256": "sha256:d17a9a1b6350f1713ce14ec69042e8518ab9d84839c38321aed7989c42525a1a",
+      "content_sha256": "sha256:92fe66f82caf823c518cf979eb5ace4178e1b959194fef5d44aa15f6df5fa4db"
+    },
+    {
+      "domain": "orchestrator-evals",
+      "source_delta": "specs/orchestrator-evals/spec.md",
+      "target": "openspec/specs/orchestrator-evals/spec.md",
+      "target_before_sha256": "sha256:ac1ceaddbd29fa8e281d73edc02509d824e6469accb31e52760a2c8f785a5f2d",
+      "content_sha256": "sha256:261caae50e046ce49837d86389f3069b823ebf2b322cb55e6aa66e900cc89f27"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260905-001-shared-agent-identity-module-with-manual-go-mirror.md",
+      "content_sha256": "sha256:2a4fd96d5a720e63d76ee6bfdc195780eb042fa509e43bdac13cd5496808ef41"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260905-002-prefix-grammar-and-closed-set-failure-semantics.md",
+      "content_sha256": "sha256:3bd7d00efa0ce7192fc81de4a4685f759eb270cc0751634a1276fbed4de3675d"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "design.md",
+    "proposal.md",
+    "specs/agent-identity/spec.md",
+    "specs/hooks/spec.md",
+    "specs/orchestrator-evals/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [
+    {
+      "id": "WARNING-1",
+      "source": "sdd-verify",
+      "severity": "WARNING",
+      "owner": "hooks",
+      "summary": "Design §Scope of hook integration promete un efecto no implementado en la vía de envelope (persistResultEnvelope); la vía de envelope quedó fuera de alcance en spec y tasks.",
+      "disposition": "accepted-risk-follow-up"
+    },
+    {
+      "id": "WARNING-2",
+      "source": "sdd-verify",
+      "severity": "WARNING",
+      "owner": "orchestrator",
+      "summary": "state.yaml con claves duplicadas en phases.tasks y nesting anómalo bajo baseline_fingerprints; sanitizado y corregido.",
+      "disposition": "resolved"
+    },
+    {
+      "id": "F-c1cf060d0008ff4f",
+      "source": "4r-review-gate",
+      "severity": "SUGGESTION",
+      "owner": "runtime",
+      "summary": "persistContextMeasurement y persistResultEnvelope consumen el nombre crudo sin resolveCanonicalAgent; dispatches prefijados saltan la medicion CX0 (subcuenta, fail-closed, sin bypass). Mirror Go equivalente.",
+      "disposition": "follow-up-cx0"
+    }
+  ],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

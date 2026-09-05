@@ -15,6 +15,7 @@ const {
   isDegradedResolution,
   persistContextMeasurement,
   persistPhaseCost,
+  persistResultEnvelope,
   resolveDispatchStatus,
   runSubagentStop,
   resolveHostBinding,
@@ -535,6 +536,51 @@ test("non-sdd agent_type is ignored — state.yaml is left byte-for-byte intact"
   assert.equal(untouchedState, STATE_WITH_EMPTY_DESIGN_SUMMARY);
 });
 
+test("persistResultEnvelope persists valid envelope from prefixed dispatch (plugin-host:sdd-design) and skips fail-safely for foreign agent (host:unsupported-worker) [REQ-hooks-015, REQ-agent-identity-002]", async (t) => {
+  // Dispatches prefijados válidos persisten summary y key_decisions en state.yaml
+  const { workspace, statePath } = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_DESIGN_SUMMARY,
+  );
+
+  await persistResultEnvelope({
+    input: {
+      cwd: workspace,
+      agent_type: "plugin-host:sdd-design",
+      result: buildFenceText(VALID_ENVELOPE),
+    },
+    workspace,
+  });
+
+  const updatedState = await fs.readFile(statePath, "utf8");
+  assert.match(
+    updatedState,
+    /summary: "Diseñó el flujo de persistencia del envelope\."/,
+  );
+  assert.match(
+    updatedState,
+    /key_decisions:\s*\n\s*- "Fill-gap merge sobre last-writer-wins"/,
+  );
+
+  // Omisión fail-safe ante agentes no reconocidos o foráneos (host:unsupported-worker)
+  const foreignWorkspace = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_DESIGN_SUMMARY,
+  );
+
+  await persistResultEnvelope({
+    input: {
+      cwd: foreignWorkspace.workspace,
+      agent_type: "host:unsupported-worker",
+      result: buildFenceText(VALID_ENVELOPE),
+    },
+    workspace: foreignWorkspace.workspace,
+  });
+
+  const untouchedState = await fs.readFile(foreignWorkspace.statePath, "utf8");
+  assert.equal(untouchedState, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+});
+
 test("key_decisions with mixed non-string entries only persists the strings (parity with Go, which filters non-strings)", async (t) => {
   const { workspace, statePath } = await createChangeWorkspace(
     t,
@@ -946,6 +992,66 @@ test("CX0 degradation and write failures are isolated from legacy hook work", as
   assert.equal((await readPhaseCosts(workspace, "strict-result-envelope")).length, 1);
 });
 
+test("persistContextMeasurement emits CX0 measurement for host-prefixed dispatches (plugin-host:sdd-spec, host:sdd-apply) [REQ-hooks-017, REQ-agent-identity-002]", async (t) => {
+  const { workspace } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+
+  // Dispatch prefijado con plugin-host:sdd-spec
+  const specOutcome = await persistContextMeasurement({
+    input: {
+      cwd: workspace,
+      agent_type: "plugin-host:sdd-spec",
+      profile: "default",
+    },
+    workspace,
+  });
+
+  assert.equal(specOutcome.status, "recorded");
+  assert.equal(specOutcome.phase, "spec");
+
+  // Dispatch prefijado con host:sdd-apply (triangulación de agente prefijado)
+  const applyOutcome = await persistContextMeasurement({
+    input: {
+      cwd: workspace,
+      agent_type: "host:sdd-apply",
+      profile: "default",
+    },
+    workspace,
+  });
+
+  assert.equal(applyOutcome.status, "recorded");
+  assert.equal(applyOutcome.phase, "apply");
+
+  // Verificar persistencia en .ospec/session/{change}/context-measurements.jsonl
+  const records = await readContextMeasurements(workspace, "strict-result-envelope");
+  assert.equal(records.length, 2);
+  assert.equal(records[0].dimensions.phase, "spec");
+  assert.equal(records[1].dimensions.phase, "apply");
+});
+
+test("persistContextMeasurement skips fail-safely for foreign or unresolvable agent (host:unknown-agent) [REQ-hooks-017, REQ-agent-identity-002]", async (t) => {
+  const { workspace } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+
+  const outcome = await persistContextMeasurement({
+    input: {
+      cwd: workspace,
+      agent_type: "host:unknown-agent",
+      profile: "default",
+    },
+    workspace,
+  });
+
+  assert.deepEqual(outcome, {
+    status: "skipped",
+    reason: "unsupported-agent",
+  });
+
+  // Comprobar que no se emitió ningún registro ni se creó archivo de mediciones
+  await assert.rejects(
+    readContextMeasurements(workspace, "strict-result-envelope"),
+    (err) => err.code === "ENOENT",
+  );
+});
+
 test("persistPhaseCost writes a record for an active change (phase, agent, est_tokens, status, ts)", async (t) => {
   const { workspace } = await createChangeWorkspace(
     t,
@@ -1087,6 +1193,72 @@ test("persistPhaseCost records only exact review lifecycle agents with UTF-8 fal
   assert.equal(records.at(-1).model_tier, "default", "configured review agent tier is retained while absent numeric fields fall back to zero");
 });
 
+test("persistPhaseCost canonicalizes a host-prefixed sdd dispatch to the same row as the bare name (regresión prefijo)", async (t) => {
+  const { workspace } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+
+  await runSubagentStop({
+    input: { cwd: workspace, agent_type: "sdd-spec", status: "success", result: "bare name dispatch" },
+  });
+  await runSubagentStop({
+    input: { cwd: workspace, agent_type: "plugin-host:sdd-spec", status: "success", result: "prefixed dispatch" },
+  });
+
+  const records = await readPhaseCosts(workspace, "strict-result-envelope");
+  assert.equal(records.length, 2);
+  const [bare, prefixed] = records;
+  assert.equal(bare.phase, "spec");
+  assert.equal(bare.agent, "sdd-spec");
+  assert.deepEqual(
+    { phase: prefixed.phase, agent: prefixed.agent, status: prefixed.status },
+    { phase: bare.phase, agent: bare.agent, status: bare.status },
+    "la fila del nombre prefijado debe ser idéntica a la del nombre sin prefijo",
+  );
+});
+
+test("persistPhaseCost canonicalizes a host-prefixed review dispatch to the review phase row", async (t) => {
+  const { workspace } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+
+  await runSubagentStop({
+    input: { cwd: workspace, agent_type: "host:review-runtime", status: "success", result: "prefixed review dispatch" },
+  });
+
+  const records = await readPhaseCosts(workspace, "strict-result-envelope");
+  assert.equal(records.length, 1);
+  assert.equal(records[0].phase, "review-runtime");
+  assert.equal(records[0].agent, "review-runtime");
+});
+
+test("persistPhaseCost skips foreign review agents fail-safe and keeps the hook outcome intact", async (t) => {
+  const { workspace } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+
+  const outcome = await persistPhaseCost({
+    input: { cwd: workspace, agent_type: "review-invented", result: "foreign dispatch" },
+    workspace,
+  });
+  assert.equal(outcome.status, "skipped");
+  assert.equal(outcome.reason, "unsupported-agent");
+  assert.equal(outcome.phase, null);
+
+  const outcomeReliability = await persistPhaseCost({
+    input: { cwd: workspace, agent_type: "review-reliability", result: "legacy 4R name" },
+    workspace,
+  });
+  assert.equal(outcomeReliability.status, "skipped");
+  assert.equal(outcomeReliability.reason, "unsupported-agent");
+
+  const fullRun = await runSubagentStop({
+    input: { cwd: workspace, agent_type: "review-invented", result: "foreign dispatch" },
+  });
+  assert.deepEqual(fullRun, { status: "skipped", reason: "resolution-unavailable" });
+
+  await assert.rejects(
+    fs.stat(
+      path.join(workspace, ".ospec", "session", "strict-result-envelope", PHASE_COST_FILE_NAME),
+    ),
+    (error) => error.code === "ENOENT",
+  );
+});
+
 test("persistPhaseCost swallows estimation errors without affecting stdout/return value (fail-safe)", async (t) => {
   const { workspace } = await createChangeWorkspace(
     t,
@@ -1206,6 +1378,39 @@ test("resolveDispatchStatus falls back to top-level input.status, then 'unknown'
     "blocked",
   );
   assert.equal(await resolveDispatchStatus({ result: "no fence, no status" }), "unknown");
+});
+
+test("resolveDispatchStatus fails closed to 'blocked' for prefixed plugin-host:sdd-spec with invalid envelope and succeeds with valid envelope [REQ-hooks-015, REQ-agent-identity-002]", async () => {
+  // Dispatches prefijados con envelope inválido (sin ambiguity signals) fallan cerrado a "blocked"
+  const blockedStatus = await resolveDispatchStatus({
+    agent_type: "plugin-host:sdd-spec",
+    status: "success",
+    result: buildFenceText(VALID_ENVELOPE),
+  });
+  assert.equal(blockedStatus, "blocked");
+
+  // Dispatches prefijados con envelope válido (con ambiguity signals) resuelven a "success"
+  const successStatus = await resolveDispatchStatus({
+    agent_type: "plugin-host:sdd-spec",
+    status: "blocked",
+    result: buildFenceText(VALID_SPEC_ENVELOPE),
+  });
+  assert.equal(successStatus, "success");
+
+  // Regresión con nombres sin prefijo
+  const bareBlockedStatus = await resolveDispatchStatus({
+    agent_type: "sdd-spec",
+    status: "success",
+    result: buildFenceText(VALID_ENVELOPE),
+  });
+  assert.equal(bareBlockedStatus, "blocked");
+
+  const bareSuccessStatus = await resolveDispatchStatus({
+    agent_type: "sdd-spec",
+    status: "blocked",
+    result: buildFenceText(VALID_SPEC_ENVELOPE),
+  });
+  assert.equal(bareSuccessStatus, "success");
 });
 
 // Task 1.1 RED: resolveModelTier tests

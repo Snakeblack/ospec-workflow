@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.61.0] - 2026-09-05
+
+### Added
+- **Autoridad compartida de identidad de agentes (`scripts/lib/agent-identity.js` e `internal/agentidentity`)**:
+  - Punto único y compartido de resolución canónica de identidad de agentes que normaliza nombres con prefijos de host (ej. `plugin-host:sdd-*`, `host:review-*`) a su identificador canónico (`sdd-*`, `review-*`), tolerando hasta un prefijo con delimitador `:`.
+  - Conjunto cerrado de agentes propios del harness con manejo fail-closed a `unresolved` ante agentes desconocidos o foráneos, impidiendo omisiones o bypasses de coverabilidad.
+  - Espejo completo en Go con pruebas de paridad cruzada entre ambos runtimes.
+  - ADRs `adr-20260905-001` y `adr-20260905-002`.
+
+### Changed
+- **Emisión de costes de fase y validación de cobertura en benchmark (`extend-bench-agent-coverage`)**:
+  - `persistPhaseCost` (en Node.js `scripts/hooks/subagent-stop.js` y en Go `internal/hooks/subagentstop.go`) utiliza la resolución canónica compartida para clasificar dispatches y registrar el `agent` canónico, permitiendo la persistencia de costes de agentes prefijados.
+  - `validCostRow` en `scripts/evals/lib/benchmark.js` valida cobertura contra la identidad canónica en lugar de igualdad estricta `agent === \`sdd-${phase}\``, extendiendo el soporte a todos los agentes propios del harness y manteniendo compatibilidad retroactiva O1 byte a byte.
+  - Cambio archivado en `openspec/changes/archive/2026-09-05-extend-bench-agent-coverage/`.
+- **Ingress canonicalization en telemetría CX0 y Result Envelope (`canonicalize-cx0-context-measurement`)**:
+  - `persistContextMeasurement` en `scripts/hooks/subagent-stop.js` canonicaliza el nombre de agente antes de derivar la clave de fase, evitando que dispatches prefijados omitan la medición de contexto CX0.
+  - `persistResultEnvelope` y `resolveDispatchStatus` en Node.js y Go (`subagentstop.go`) resuelven el agente canónico para derivar la phase key, garantizando la persistencia de resúmenes de envelope en `state.yaml` y la validación fail-closed a `blocked` para `sdd-spec` con envelope inválido.
+  - ADR `adr-20260905-003`.
+  - Cambio archivado en `openspec/changes/archive/2026-09-05-canonicalize-cx0-context-measurement/`.
+
+**Verificación directa**: `node scripts/check.js` y `go test ./...` (10/10 paquetes ok)
+
 ## [2.60.5] - 2026-09-05
 
 ### Fixed

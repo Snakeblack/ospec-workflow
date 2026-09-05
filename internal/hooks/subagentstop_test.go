@@ -1295,6 +1295,86 @@ func TestSubagentStop_PersistPhaseCost_IgnoresNonSddAgent(t *testing.T) {
 	}
 }
 
+// TestSubagentStop_PersistPhaseCost_CanonicalizesHostPrefixedSddAgent asserts
+// the prefixed-name regression case (REQ-agent-identity-003, REQ-hooks-001):
+// a `plugin-host:sdd-spec` dispatch must produce the same normalized row as
+// the bare `sdd-spec` name (paridad byte de campos normalizados con el caso
+// JS "regresión prefijo").
+func TestSubagentStop_PersistPhaseCost_CanonicalizesHostPrefixedSddAgent(t *testing.T) {
+	workspace, _ := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+
+	bareStdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-spec",
+		"status":     "success",
+		"result":     "bare name dispatch",
+	})
+	runSubagentStop(t, bareStdin)
+	prefixedStdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "plugin-host:sdd-spec",
+		"status":     "success",
+		"result":     "prefixed dispatch",
+	})
+	runSubagentStop(t, prefixedStdin)
+
+	records := readPhaseCosts(t, workspace, "strict-result-envelope")
+	if len(records) != 2 {
+		t.Fatalf("records: got %d, want 2", len(records))
+	}
+	if records[0].Phase != "spec" || records[0].Agent != "sdd-spec" {
+		t.Errorf("bare row: got phase=%q agent=%q, want spec/sdd-spec", records[0].Phase, records[0].Agent)
+	}
+	if records[1].Phase != records[0].Phase || records[1].Agent != records[0].Agent {
+		t.Errorf("prefixed row must be identical to bare row: got phase=%q agent=%q, want phase=%q agent=%q",
+			records[1].Phase, records[1].Agent, records[0].Phase, records[0].Agent)
+	}
+}
+
+// TestSubagentStop_PersistPhaseCost_CanonicalizesHostPrefixedReviewAgent
+// mirrors the JS `host:review-runtime` dispatch case.
+func TestSubagentStop_PersistPhaseCost_CanonicalizesHostPrefixedReviewAgent(t *testing.T) {
+	workspace, _ := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+
+	stdin, _ := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "host:review-runtime",
+		"status":     "success",
+		"result":     "prefixed review dispatch",
+	})
+	runSubagentStop(t, stdin)
+
+	records := readPhaseCosts(t, workspace, "strict-result-envelope")
+	if len(records) != 1 {
+		t.Fatalf("records: got %d, want 1", len(records))
+	}
+	if records[0].Phase != "review-runtime" || records[0].Agent != "review-runtime" {
+		t.Errorf("row: got phase=%q agent=%q, want review-runtime/review-runtime", records[0].Phase, records[0].Agent)
+	}
+}
+
+// TestSubagentStop_PersistPhaseCost_SkipsForeignReviewAgentsFailSafe mirrors
+// the JS fail-safe case: foreign review-* names (including the legacy 4R
+// `review-reliability`) must not write a row.
+func TestSubagentStop_PersistPhaseCost_SkipsForeignReviewAgentsFailSafe(t *testing.T) {
+	workspace, _ := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+
+	for _, agent := range []string{"review-invented", "review-reliability"} {
+		stdin, _ := json.Marshal(map[string]any{
+			"cwd":        workspace,
+			"agent_type": agent,
+			"status":     "success",
+			"result":     "foreign dispatch must be ignored",
+		})
+		runSubagentStop(t, stdin)
+	}
+
+	costPath := filepath.Join(workspace, ".ospec", "session", "strict-result-envelope", "phase-costs.jsonl")
+	if _, err := os.Stat(costPath); err == nil {
+		t.Error("phase-costs.jsonl must NOT be created for foreign review agents")
+	}
+}
+
 // TestSubagentStop_EstTokensMatchesJSFormula asserts the Go integer formula
 // (len(str)+2)/4 equals the JS Math.round(byteLength/4) on a known
 // non-ASCII payload, per the design's cross-runtime parity decision.
@@ -1703,5 +1783,66 @@ tiers:
 	}
 	if _, ok := record["ts"].(string); !ok {
 		t.Errorf("ts is missing or not a string")
+	}
+}
+
+func TestResolveDispatchStatus_PrefixedSpec(t *testing.T) {
+	// plugin-host:sdd-spec con envelope inválido (sin ambiguity signals) -> fail-closed a "blocked"
+	invalidInput := map[string]any{
+		"agent_type": "plugin-host:sdd-spec",
+		"status":     "success",
+		"result":     buildFenceText(validSubagentEnvelope()),
+	}
+	if got := hooks.ResolveDispatchStatusForTest(invalidInput); got != "blocked" {
+		t.Errorf("prefixed sdd-spec with invalid envelope must resolve to 'blocked', got %q", got)
+	}
+
+	// plugin-host:sdd-spec con envelope válido (con ambiguity signals) -> "success"
+	validInput := map[string]any{
+		"agent_type": "plugin-host:sdd-spec",
+		"status":     "blocked",
+		"result":     buildFenceText(validSpecSubagentEnvelope()),
+	}
+	if got := hooks.ResolveDispatchStatusForTest(validInput); got != "success" {
+		t.Errorf("prefixed sdd-spec with valid envelope must resolve to 'success', got %q", got)
+	}
+}
+
+func TestPersistResultEnvelope_PrefixedAndForeignAgent(t *testing.T) {
+	// Dispatch prefijado válido (plugin-host:sdd-design) actualiza state.yaml
+	workspace, statePath := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+
+	hooks.PersistResultEnvelopeForTest(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "plugin-host:sdd-design",
+		"result":     buildFenceText(validSubagentEnvelope()),
+	}, workspace)
+
+	updated, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(updated), `summary: "Diseñó el flujo de persistencia del envelope."`) {
+		t.Errorf("expected summary to be persisted for prefixed dispatch, got:\n%s", updated)
+	}
+	if !strings.Contains(string(updated), `- "Fill-gap merge sobre last-writer-wins"`) {
+		t.Errorf("expected key_decisions to be persisted for prefixed dispatch, got:\n%s", updated)
+	}
+
+	// Agente no reconocido o foráneo (host:unsupported-worker) omite persistencia fail-safely
+	foreignWorkspace, foreignStatePath := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+
+	hooks.PersistResultEnvelopeForTest(map[string]any{
+		"cwd":        foreignWorkspace,
+		"agent_type": "host:unsupported-worker",
+		"result":     buildFenceText(validSubagentEnvelope()),
+	}, foreignWorkspace)
+
+	after, err := os.ReadFile(foreignStatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != stateWithEmptyDesignSummary {
+		t.Errorf("state.yaml must be byte-for-byte untouched for foreign agent, got:\n%s", after)
 	}
 }

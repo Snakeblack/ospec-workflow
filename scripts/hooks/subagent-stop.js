@@ -23,6 +23,11 @@ const { extractClaudeTelemetry } = require("./lib/claude-usage.js");
 const { writeFileAtomic, recoverOrphanBak } = require("../lib/atomic-write.js");
 const { extractEnvelope, validateEnvelope } = require("../lib/result-envelope.js");
 const { resolveModelTier } = require("./lib/model-tier.js");
+const {
+  UNRESOLVED,
+  derivePhaseKey,
+  resolveCanonicalAgent,
+} = require("../lib/agent-identity.js");
 
 const EVENT_RELATIVE_PATH = ARTIFACT_STORE_RELATIVE_PATHS.runtimeEvents;
 const RESULT_FIELDS = [
@@ -454,15 +459,15 @@ async function persistResultEnvelope({ input, workspace }) {
       return;
     }
 
-    const canonicalAgentPhase = resolveAgentName(input);
-    const statePhaseKey = derivePhaseKey(canonicalAgentPhase);
+    const canonicalAgent = resolveCanonicalAgent(resolveAgentName(input));
+    const statePhaseKey = derivePhaseKey(canonicalAgent);
 
     if (!statePhaseKey) {
       return;
     }
 
     const validation = validateEnvelope(envelopeResult.value, {
-      phase: canonicalAgentPhase,
+      phase: canonicalAgent,
     });
 
     if (!validation.valid) {
@@ -517,21 +522,6 @@ async function persistResultEnvelope({ input, workspace }) {
 }
 
 /**
- * Strips the `sdd-` prefix from an agent name to derive its phase key.
- * Returns "" when the agent name does not carry the `sdd-` prefix. Shared
- * between persistResultEnvelope and persistPhaseCost (REFACTOR, task 2.5) so
- * the phase-key derivation rule lives in exactly one place.
- */
-function derivePhaseKey(agentName) {
-  if (agentName.startsWith("sdd-")) return agentName.slice("sdd-".length);
-  // Review telemetry is deliberately closed-world: arbitrary review-* names
-  // must never create cost rows or influence relaunch accounting.
-  return new Set(["review-change", "review-trust", "review-runtime", "review-evolution", "review-efficiency", "review-correction"]).has(agentName)
-    ? agentName
-    : "";
-}
-
-/**
  * Picks the first present §5.2 RESULT_FIELDS value from the dispatch input,
  * unresolved/raw (no stringification here) — the caller decides how to turn
  * it into an estimate string. Mirrors findEnvelopeInInput/findResolutionInInput's
@@ -576,9 +566,9 @@ async function resolveDispatchStatus(input) {
   }
 
   if (envelopeResult.found && envelopeResult.value) {
-    const canonicalAgentPhase = resolveAgentName(input);
+    const canonicalAgent = resolveCanonicalAgent(resolveAgentName(input));
     const validation = validateEnvelope(envelopeResult.value, {
-      phase: canonicalAgentPhase,
+      phase: canonicalAgent,
     });
 
     if (validation.valid && typeof envelopeResult.value.status === "string") {
@@ -586,7 +576,7 @@ async function resolveDispatchStatus(input) {
     }
 
     if (
-      canonicalAgentPhase === "sdd-spec" &&
+      canonicalAgent === "sdd-spec" &&
       envelopeResult.value.status === "success"
     ) {
       return "blocked";
@@ -888,8 +878,10 @@ function phaseCostDiagnostic({ phase, reason, input }) {
  * without affecting the hook's stdout.
  */
 async function persistPhaseCost({ input, workspace }) {
-  const canonicalAgentPhase = resolveAgentName(input);
-  const statePhaseKey = derivePhaseKey(canonicalAgentPhase);
+  const canonicalAgentPhase = resolveCanonicalAgent(resolveAgentName(input));
+  const statePhaseKey = canonicalAgentPhase === UNRESOLVED
+    ? ""
+    : derivePhaseKey(canonicalAgentPhase);
   try {
     if (!statePhaseKey) {
       return phaseCostDiagnostic({ phase: null, reason: "unsupported-agent", input });
@@ -1076,8 +1068,8 @@ function resolveContextHost(input, env, claudeTelemetry) {
  * ADR-002 con `env` inyectable.
  */
 async function persistContextMeasurement({ input, workspace, append = appendContextMeasurement, env = process.env }) {
-  const canonicalAgentPhase = resolveAgentName(input);
-  const phase = derivePhaseKey(canonicalAgentPhase);
+  const canonicalAgent = resolveCanonicalAgent(resolveAgentName(input));
+  const phase = derivePhaseKey(canonicalAgent);
   try {
     if (!phase) return { status: "skipped", reason: "unsupported-agent" };
     const openspecRoot = await findOpenSpecRoot(workspace);

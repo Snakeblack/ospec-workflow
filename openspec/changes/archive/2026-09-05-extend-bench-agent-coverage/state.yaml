@@ -1,0 +1,178 @@
+change: extend-bench-agent-coverage
+status: archived
+last_updated: "2026-09-05T11:12:00Z"
+blocking_questions: []
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/extend-bench-agent-coverage/proposal.md"
+    summary: "Propuesta: resolucion canonica de identidad de agente como unico punto compartido (hooks JS/Go + validacion bench); reemplaza igualdad estricta sdd-${phase}."
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/extend-bench-agent-coverage/specs/agent-identity/spec.md"
+      - "openspec/changes/extend-bench-agent-coverage/specs/hooks/spec.md"
+      - "openspec/changes/extend-bench-agent-coverage/specs/orchestrator-evals/spec.md"
+    summary: "Capability nueva agent-identity (resolucion canonica con set cerrado, prefijos de host, paridad Go/JS); delta hooks REQ-hooks-001; delta orchestrator-evals REQ-orchestrator-evals-009."
+    key_decisions:
+      - "Set cerrado de agentes propios; nombre no resoluble queda unresolved y falla cobertura"
+      - "Valor canonico igual al emitido hoy para nombres sin prefijo (compatibilidad O1)"
+  design:
+    status: done
+    artifact: "openspec/changes/extend-bench-agent-coverage/design.md"
+    summary: "Modulo compartido agent-identity (scripts/lib + espejo Go internal/agentidentity); gramatica de un solo prefijo ':'; set cerrado sdd-* + 6 review; foraneo -> unresolved fail-safe; O1 sin migracion."
+    key_decisions:
+      - "Espejo manual JS->Go siguiendo patron result-envelope (sin codegen)"
+      - "Set cerrado decide propiedad; sin allowlist de prefijos"
+      - "Bench resuelve row.agent en validacion; filas persistidas quedan intactas (compatibilidad O1)"
+  tasks:
+    status: done
+    artifact: "openspec/changes/extend-bench-agent-coverage/tasks.md"
+    summary: "18 tareas TDD en 6 fases (modulo JS, espejo Go + paridad E1, hooks JS/Go, bench, registro); archivo de tests Go confirmado: internal/hooks/subagentstop_test.go; riesgo 400-lineas Medium con exception-ok ya aprobada."
+    key_decisions:
+      - "Tests del hook Go en internal/hooks/subagentstop_test.go (cierra sdd-design-001)"
+      - "Un solo PR; Decision needed before apply: No (delivery exception-ok)"
+  apply:
+    status: done
+    artifact: "openspec/changes/extend-bench-agent-coverage/apply-progress.md"
+    summary: "Modulo compartido agent-identity (JS+Go) integrado en persistPhaseCost JS/Go y validCostRow; paridad E1, regresion prefijo y compatibilidad O1 verificadas; suite 3158 JS + 10 pkg Go en verde."
+    key_decisions:
+      - "Nuevos scripts/lib registrados en SUCCESSOR_K2_EXACT del guarda K1 (convencion post-K1)"
+      - "persistResultEnvelope intacto: la resolucion canonica aplica solo al camino phase-cost (tasks 3.2/4.2)"
+  verify:
+    status: done
+    artifact: "openspec/changes/extend-bench-agent-coverage/verify-report.md"
+    verdict: PASS WITH WARNINGS
+    summary: "PASS WITH WARNINGS: suite real 3158 JS + 10 pkg Go en verde; baselines sin drift; O1 intacto; 2 WARNING (design sobre-habla via envelope, state.yaml malformado)."
+    key_decisions:
+      - "persistResultEnvelope sin resolucion canonica casa con spec/tasks; el design queda desalineado (WARNING)"
+  archive:
+    status: done
+    artifact: "openspec/changes/extend-bench-agent-coverage/archive-report.md"
+    summary: "Plan-and-report emitido con 3 specs preparados (agent-identity, hooks, orchestrator-evals), 2 ADR promotions y 12 archivos en inventario."
+    key_decisions:
+      - "Specs fusionados localmente en specs/{domain}/spec.md listos para commit runtime"
+      - "Promocion formal de ADR-001 y ADR-002 hacia docs/adr/"
+
+gate: intent-briefing
+decision: accepted
+accepted_at: "2026-09-05T00:00:00Z"
+synthesis: >-
+  Extender el mecanismo de benchmark/coverabilidad de agentes (scripts/evals,
+  incluida la validación CX0) para que reconozca a TODOS los agentes propios
+  del harness ospec-workflow, no solo a los que empiezan por sdd-. Hoy el bench
+  exige igualdad estricta agent === `sdd-${phase}`, de modo que (a) otros
+  agentes del harness quedan fuera, y (b) los propios sdd-* fallan cuando el
+  nombre registrado lleva prefijo del host/plugin.
+scope: >-
+  scripts/evals (benchmark, live-driver), validación CX0, y el punto donde se
+  registra row.agent en phase-costs; énfasis en diseño de arquitectura e
+  ingeniería elegante (resolución de identidad de agente como concepto de
+  primer orden) sin sobreingeniería.
+applies_to: [change-classification]
+
+owner:
+  author: Manuel Retamozo
+  branch: main
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "classification=normal, project.status=active: primera condición que casa en la tabla (foundation/federated/bugfix/brownfield/refactor descartadas por contexto)"
+  validated: true
+  validation_errors: []
+
+approvals:
+  - id: approval-001
+    gate: intent-briefing
+    decision: accepted
+    source: ask-user-question
+    accepted_at: "2026-09-05T00:00:00Z"
+    applies_to: [change-classification]
+  - id: approval-002
+    gate: execution-mode
+    decision: interactive
+    source: ask-user-question
+    accepted_at: "2026-09-05T00:00:00Z"
+    applies_to: [sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]
+  - id: approval-003
+    gate: delivery-strategy
+    decision: exception-ok
+    source: ask-user-question
+    accepted_at: "2026-09-05T00:00:00Z"
+    applies_to: [sdd-tasks, sdd-apply]
+  - id: approval-004
+    gate: propose-continue
+    decision: continue-to-spec
+    source: ask-user-question
+    accepted_at: "2026-09-05T00:00:00Z"
+    applies_to: [sdd-spec]
+  - id: approval-005
+    gate: spec-continue
+    decision: continue-to-design
+    source: ask-user-question
+    accepted_at: "2026-09-05T00:00:00Z"
+    applies_to: [sdd-design]
+  - id: approval-006
+    gate: design-continue
+    decision: continue-to-tasks
+    source: ask-user-question
+    accepted_at: "2026-09-05T00:00:00Z"
+    applies_to: [sdd-tasks]
+  - id: approval-007
+    gate: apply-continue
+    decision: continue-to-apply-size-exception-new-branch
+    source: ask-user-question
+    accepted_at: "2026-09-05T00:00:00Z"
+    applies_to: [sdd-apply]
+  - id: approval-008
+    gate: verify-continue
+    decision: continue-to-verify
+    source: ask-user-question
+    accepted_at: "2026-09-05T00:00:00Z"
+    applies_to: [sdd-verify]
+  - id: approval-009
+    gate: verify-warnings
+    decision: fix-warnings-then-quality-review
+    source: ask-user-question
+    accepted_at: "2026-09-05T00:00:00Z"
+    applies_to: [quality-review-gate, sdd-archive]
+  - id: approval-010
+    gate: archive-order
+    decision: archive-first-then-cx0-change
+    source: ask-user-question
+    accepted_at: "2026-09-05T00:00:00Z"
+    applies_to: [sdd-archive]
+
+baseline_fingerprints:
+  hooks: d17a9a1b6350f1713ce14ec69042e8518ab9d84839c38321aed7989c42525a1a
+  orchestrator-evals: ac1ceaddbd29fa8e281d73edc02509d824e6469accb31e52760a2c8f785a5f2d
+
+assumptions:
+  - id: sdd-design-001
+    phase: sdd-design
+    statement: "El archivo de tests Go del hook se nombra definitivamente en tasks en vez de asumir store_test.go."
+    reversibility: high
+    basis: "La propuesta cita store_test.go pero el grep muestra los tests de hook en internal/hooks; decision interna sin efecto observable."
+    recorded_at: "2026-09-05T00:00:00Z"
+    status: resolved
+    resolution: "Confirmado en tasks: internal/hooks/subagentstop_test.go."
+
+gates:
+  4r-review-gate:
+    lineage_id: sha256:af9f7f0c4e2412f5347b4b00d92c41dc6e3931e3cd3dd2b745eaf2a7486e9c2c
+    status: approved
+    classification: normal
+    selected_dimensions: [risk]
+    skipped_dimensions:
+      reliability: no-reliability-signal
+      resilience: no-resilience-signal
+      readability: no-readability-signal
+    findings:
+      - id: F-c1cf060d0008ff4f
+        severity: SUGGESTION
+        summary: >
+          persistContextMeasurement y persistResultEnvelope consumen el nombre
+          crudo sin resolveCanonicalAgent; dispatches prefijados saltan la
+          medicion CX0 (subcuenta, fail-closed, sin bypass). Mirror Go equivalente.
+    follow_ups:
+      - "F-c1cf060d0008ff4f SUGGESTION: canonicalizar persistContextMeasurement (JS/Go) o documentarlo BY DESIGN en design.md"

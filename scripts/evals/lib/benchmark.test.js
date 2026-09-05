@@ -262,6 +262,59 @@ test("readPhaseCosts rejects plausible but non-canonical synthetic rows", (t) =>
   assert.throws(() => readPhaseCosts(file), /invalid O1 line/i);
 });
 
+function costRow(overrides = {}) {
+  return {
+    phase: "spec",
+    agent: "sdd-spec",
+    estimated_prompt_tokens: 10,
+    estimated_artifact_tokens: 20,
+    estimated_tool_output_tokens: 30,
+    estimated_output_tokens: 40,
+    duration_ms: 50,
+    model_tier: "standard",
+    status: "success",
+    relaunch: false,
+    ts: "2026-07-12T18:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function readSingleRow(t, row) {
+  const root = temp(t);
+  const file = path.join(root, "phase-costs.jsonl");
+  fs.writeFileSync(file, `${JSON.stringify(row)}\n`);
+  return readPhaseCosts(file);
+}
+
+test("validCostRow accepts a host-prefixed agent row resolved to its canonical phase (regresión prefijo)", (t) => {
+  const result = readSingleRow(t, costRow({ agent: "plugin-host:sdd-spec" }));
+  assert.equal(result.invocations, 1);
+});
+
+test("validCostRow accepts a review agent row whose phase is the review name", (t) => {
+  const result = readSingleRow(t, costRow({ phase: "review-runtime", agent: "review-runtime" }));
+  assert.equal(result.invocations, 1);
+});
+
+test("validCostRow accepts an unprefixed sdd row unchanged (compatibilidad O1)", (t) => {
+  const result = readSingleRow(t, costRow({ phase: "design", agent: "sdd-design" }));
+  assert.equal(result.invocations, 1);
+});
+
+test("validCostRow rejects a foreign review agent row (unresolved)", (t) => {
+  assert.throws(
+    () => readSingleRow(t, costRow({ phase: "review-invented", agent: "review-invented" })),
+    /invalid O1 line/i,
+  );
+});
+
+test("validCostRow rejects a row whose phase does not match the derived phase key", (t) => {
+  assert.throws(
+    () => readSingleRow(t, costRow({ phase: "apply", agent: "sdd-spec" })),
+    /invalid O1 line/i,
+  );
+});
+
 test("verifyBenchmarkProvenance binds declared provenance to transcript bytes and trusted CLI", (t) => {
   const root = temp(t);
   const transcriptPath = path.join(root, "codex-events.jsonl");

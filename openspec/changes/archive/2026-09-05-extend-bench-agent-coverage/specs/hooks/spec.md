@@ -156,37 +156,14 @@ When optional input is absent or invalid, the writer MUST preserve the complete 
 
 ### Requirement: SubagentStop Phase-Aware Envelope And Spec Contract Fail-Closed {#REQ-hooks-015}
 
-When persisting a result envelope or resolving dispatch status, `SubagentStop` (in `scripts/hooks/subagent-stop.js` and the Go mirror `internal/hooks/subagentstop.go`) MUST resolve the registered agent name through the shared canonical agent resolution authority (`agent-identity`) before deriving the state phase key or validating envelope contents. Envelope persistence MUST derive the state phase key from the resolved canonical agent and skip persistence fail-safely when unsupported or unresolved; only then validate the envelope. Both runtimes MUST pass the resolved canonical agent name as the phase context (`{ phase }` in JS, `phase` string in Go `ValidateForPhase`) to envelope validation so phase-specific constraints apply to host-prefixed dispatches. For an `sdd-spec` dispatch (including host-prefixed dispatches such as `plugin-host:sdd-spec`) whose envelope claims `status: "success"` but fails phase-aware validation, `resolveDispatchStatus` MUST return `"blocked"` rather than accepting the success string. Root-transcript identity comparison (`sameFileIdentity`) MUST treat either side's `dev === 0` as a matching device when inode and size match.
-
-(Previously: subagent-stop.js and subagentstop.go evaluated raw agent names directly without resolveCanonicalAgent, causing prefixed dispatches to fail phase key derivation, skip envelope persistence in state.yaml, and bypass the sdd-spec "blocked" fail-closed guard.)
+When persisting a result envelope or resolving dispatch status, `subagent-stop.js` MUST pass the canonical agent name as `{ phase }` to `validateEnvelope`. Envelope persistence MUST derive the state phase key first and skip when unsupported; only then validate. For an `sdd-spec` dispatch whose envelope claims `status: "success"` but fails phase-aware validation, `resolveDispatchStatus` MUST return `"blocked"` rather than accepting the success string. Root-transcript identity comparison (`sameFileIdentity`) MUST treat either side's `dev === 0` as a matching device when inode and size match.
 
 #### Scenario: Invalid successful sdd-spec envelope becomes blocked status
 
 - GIVEN SubagentStop receives an `sdd-spec` result with `status: "success"` that fails phase-aware envelope validation
-- WHEN dispatch status is resolved in JS or Go
+- WHEN dispatch status is resolved
 - THEN the resolved status MUST be `"blocked"`
 - AND the hook MUST NOT treat the invalid success as a successful phase outcome
-
-#### Scenario: Prefixed sdd-spec dispatch enforces fail-closed validation
-
-- GIVEN SubagentStop receives a result with `status: "success"` that fails phase-aware validation for registered agent `plugin-host:sdd-spec`
-- WHEN `resolveDispatchStatus` evaluates the dispatch in JS or Go
-- THEN canonical resolution MUST resolve the agent to `sdd-spec`
-- AND the resolved status MUST be `"blocked"`
-
-#### Scenario: Valid envelope from prefixed dispatch persists to state.yaml
-
-- GIVEN an active change and a subagent result containing a valid result envelope for registered agent `plugin-host:sdd-design`
-- WHEN `persistResultEnvelope` executes in JS or Go
-- THEN canonical resolution MUST resolve the agent to `sdd-design` and phase key `design`
-- AND `state.yaml` `phases.design.summary` and `key_decisions` MUST be updated with the envelope contents
-
-#### Scenario: Unresolvable or foreign agent skips envelope persistence fail-safely
-
-- GIVEN a subagent result payload for an unregistered or foreign agent name (e.g. `host:review-invented` or `foreign-worker`)
-- WHEN `persistResultEnvelope` runs in JS or Go
-- THEN canonical resolution MUST return `unresolved`
-- AND envelope persistence MUST be skipped without throwing or altering hook stdout
 
 #### Scenario: Zero device id still matches transcript identity
 
@@ -215,9 +192,14 @@ When persisting a result envelope or resolving dispatch status, `SubagentStop` (
 
 ### Requirement: Fail-Safe CX0 Measurement Emission {#REQ-hooks-017}
 
-`SubagentStop` and its durable state support MUST emit one CX0 measurement record for a supported dispatch after existing envelope and legacy phase-cost processing. In `persistContextMeasurement` (`scripts/hooks/subagent-stop.js`), the emitter MUST resolve the registered agent name through the shared canonical resolution authority (`resolveCanonicalAgent`) before deriving the phase key (`derivePhaseKey`). Supported dispatches with host/plugin prefixes (e.g. `plugin-host:sdd-apply`, `host:sdd-spec`) MUST resolve to their canonical harness agent and valid phase key, recording their context measurement. The emitter MUST normalize host observations into the versioned CX0 contract, preserve field-level source and coverage, and attach a stable fallback reason whenever collection degrades. It MUST preserve the existing hook stdout and `continue: true` behavior. CX0 collection, normalization, durable-write, or unsupported-agent skips MUST be isolated from envelope persistence, legacy phase-cost recording, dispatch outcome, authority, and routing.
-
-(Previously: persistContextMeasurement derived the phase key from the raw agent name directly without resolveCanonicalAgent, causing host-prefixed dispatches to be skipped as unsupported-agent and omitting CX0 records.)
+`SubagentStop` and its durable state support MUST emit one CX0 measurement
+record for a supported dispatch after existing envelope and legacy phase-cost
+processing. The emitter MUST normalize host observations into the versioned
+CX0 contract, preserve field-level source and coverage, and attach a stable
+fallback reason whenever collection degrades. It MUST preserve the existing
+hook stdout and `continue: true` behavior. CX0 collection, normalization, or
+durable-write failures MUST be isolated from envelope persistence, legacy
+phase-cost recording, dispatch outcome, authority, and routing.
 
 #### Scenario: Measurement emission succeeds without changing hook behavior
 
@@ -225,22 +207,6 @@ When persisting a result envelope or resolving dispatch status, `SubagentStop` (
 - WHEN `SubagentStop` completes its existing processing
 - THEN it MUST persist one coverage-aware CX0 record after legacy processing
 - AND its stdout and continuation behavior MUST remain unchanged
-
-#### Scenario: Host-prefixed sdd dispatch emits CX0 context measurement
-
-- GIVEN an active change and a dispatch whose registered agent name is `plugin-host:sdd-spec` with observable host context
-- WHEN `persistContextMeasurement` executes in `SubagentStop`
-- THEN it MUST canonicalize the agent to `sdd-spec` and derive phase key `spec`
-- AND it MUST persist one versioned CX0 measurement record in `.ospec/session/{change}/context-measurements.jsonl` with `dimensions.phase: "spec"`
-- AND the dispatch MUST NOT be skipped as `unsupported-agent`
-
-#### Scenario: Unresolvable or foreign agent skips CX0 emission fail-safely
-
-- GIVEN an active change and a dispatch with a foreign or unresolvable agent name (e.g. `host:unknown-worker`)
-- WHEN `persistContextMeasurement` executes
-- THEN canonical resolution MUST return `unresolved`
-- AND the function MUST return status `skipped` with reason `unsupported-agent` without creating a CX0 record
-- AND hook execution and stdout MUST proceed normally
 
 #### Scenario: CX0 collector cannot read a host field
 
