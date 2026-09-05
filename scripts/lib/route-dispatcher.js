@@ -641,6 +641,8 @@ function normalizeClassificationSignals(ctx) {
   return { resolvedClassification: resolved, normalizedCtx };
 }
 
+const CONTEXTUAL_ROUTE_NAMES = new Set(["foundation", "federated", "brownfield"]);
+
 /**
  * Checks whether a candidate route is eligible for a given change classification and floor.
  *
@@ -661,7 +663,11 @@ function isRouteEligible(route, resolvedClassification, floorGuarantees) {
       return false;
     }
 
+    // Contextual routes (e.g. foundation, brownfield) serve as workflow prerequisites
+    // and must not be disqualified by implementation risk floor phase requirements.
+    const isContextualPrerequisite = CONTEXTUAL_ROUTE_NAMES.has(route.name);
     if (
+      !isContextualPrerequisite &&
       (floorGuarantees.minTier === "full-sdd" || floorGuarantees.minTier === "spec-design") &&
       Array.isArray(floorGuarantees.requiredPhases) &&
       floorGuarantees.requiredPhases.length > 0
@@ -691,8 +697,6 @@ function isRouteEligible(route, resolvedClassification, floorGuarantees) {
 
   return true;
 }
-
-const CONTEXTUAL_ROUTE_NAMES = new Set(["foundation", "federated", "brownfield"]);
 
 /**
  * Evaluates candidate routes against context, enforcing risk floors, contextual precedence,
@@ -726,8 +730,9 @@ function selectRoute(routes, ctx, options = {}) {
     typeof normalizedCtx.impact === "object" &&
     !Array.isArray(normalizedCtx.impact)
   ) {
-    impact = normalizedCtx.impact;
-  } else if (normalizedCtx) {
+    impact = { ...normalizedCtx.impact };
+  }
+  if (normalizedCtx) {
     for (const rule of HARD_FLOORS) {
       if (normalizedCtx[rule.evidenceKey] === true) {
         impact[rule.evidenceKey] = true;
@@ -752,15 +757,29 @@ function selectRoute(routes, ctx, options = {}) {
 
   if (persistedRouteName !== null) {
     const tableRoutes = Array.isArray(routes) ? routes : [];
-    const persistedRouteObj =
-      tableRoutes.find((r) => r.name === persistedRouteName) || { name: persistedRouteName };
+    const persistedRouteObj = tableRoutes.find((r) => r.name === persistedRouteName);
+
+    if (!persistedRouteObj) {
+      return {
+        status: "blocked",
+        blocker_type: "needs_user_decision",
+        route: null,
+        name: persistedRouteName,
+        classification: resolvedClassification,
+        floor,
+        reasons: [...floorProfile.reasons, `persisted_route_missing.${persistedRouteName}`],
+        rationale: `Persisted route '${persistedRouteName}' declared in change state no longer exists in routing table. Requires user decision to select an active route.`,
+      };
+    }
 
     // Check if newly discovered floor violates the persisted route
+    const isContextualPrerequisite = CONTEXTUAL_ROUTE_NAMES.has(persistedRouteName);
     const routePhases = Array.isArray(persistedRouteObj.phases) ? persistedRouteObj.phases : [];
     const isViolated =
       (Array.isArray(floorGuarantees.ineligibleRoutes) &&
         floorGuarantees.ineligibleRoutes.includes(persistedRouteName)) ||
-      ((floorGuarantees.minTier === "full-sdd" || floorGuarantees.minTier === "spec-design") &&
+      (!isContextualPrerequisite &&
+        (floorGuarantees.minTier === "full-sdd" || floorGuarantees.minTier === "spec-design") &&
         Array.isArray(floorGuarantees.requiredPhases) &&
         floorGuarantees.requiredPhases.length > 0 &&
         (!Array.isArray(persistedRouteObj.phases) ||
@@ -845,7 +864,10 @@ function selectRoute(routes, ctx, options = {}) {
   // 4c. If no route matched, but a fallbackRoute is defined by the risk floor
   if (floorGuarantees && floorGuarantees.fallbackRoute) {
     const fallbackRouteObj = tableRoutes.find((r) => r.name === floorGuarantees.fallbackRoute);
-    if (fallbackRouteObj) {
+    if (
+      fallbackRouteObj &&
+      isRouteEligible(fallbackRouteObj, resolvedClassification, floorGuarantees)
+    ) {
       return {
         status: "success",
         route: fallbackRouteObj,

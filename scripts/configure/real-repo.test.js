@@ -885,6 +885,36 @@ test(
   }
 );
 
+test(
+  "real repo: orchestrator canonical route dispatch anchors present and legacy algorithm absent",
+  () => {
+    const orchestratorPath = path.join(ROOT, "agents", "sdd-orchestrator.agent.md");
+    const text = fs.readFileSync(orchestratorPath, "utf8");
+
+    assert.match(text, /selectRoute\(routes, ctx, \{ persistedRoute \}\)/, "must reference selectRoute canonical dispatch");
+    assert.match(text, /scripts\/route-dispatch-run\.js/, "must reference route-dispatch-run.js CLI");
+    assert.doesNotMatch(text, /Walk the route table top-to-bottom/i, "legacy walk-the-table algorithm must be absent");
+  }
+);
+
+test(
+  "real repo: live route dispatch preserves brownfield contextual prerequisite under critical floor",
+  { skip: HAS_LIVE_CONFIG ? false : "openspec/config.yaml not present" },
+  () => {
+    const content = fs.readFileSync(LIVE_CONFIG_PATH, "utf8");
+    const parsed = parseRoutingTable(content);
+
+    const decision = selectRoute(parsed, {
+      classification: "small",
+      "baseline.status": "pending",
+      "project.status": "active",
+      impact: { auth_security: true },
+    });
+    assert.equal(decision.name, "brownfield", "brownfield must take precedence even under critical floor");
+    assert.equal(decision.floor, "critical");
+    assert.equal(decision.status, "success");
+  }
+);
 
 test("real repo: orchestrator pointer-table refs resolve and handler sentinels absent from body", () => {
   // Read the orchestrator source file from ROOT (not a dist target)

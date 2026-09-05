@@ -1351,5 +1351,99 @@ test("selectRoute flags floor violation when persisted route lacks phases under 
   assert.equal(result.blocker_type, "needs_user_decision");
 });
 
+test("selectRoute blocks when persisted route does not exist in tableRoutes (fail-closed)", () => {
+  const result = selectRoute(
+    CANONICAL_TEST_ROUTES,
+    { classification: "small", "project.status": "active" },
+    { persistedRoute: "non-existent-legacy-route" }
+  );
+  assert.equal(result.status, "blocked");
+  assert.equal(result.blocker_type, "needs_user_decision");
+  assert.equal(result.name, "non-existent-legacy-route");
+  assert.ok(result.reasons.includes("persisted_route_missing.non-existent-legacy-route"));
+});
 
+test("selectRoute blocks when fallbackRoute does not satisfy floorGuarantees (phase check)", () => {
+  const customRoutes = [
+    {
+      name: "standard",
+      classification: ["normal", "high-risk"],
+      conditions: { "project.status": "active" },
+      phases: ["sdd-apply", "sdd-verify"],
+      gates: [],
+      description: "Custom standard lacking propose, spec, design, tasks, archive",
+    },
+  ];
 
+  const result = selectRoute(customRoutes, {
+    classification: "small",
+    "project.status": "active",
+    impact: { auth_security: true },
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.equal(result.route, null);
+  assert.equal(result.name, null);
+  assert.ok(result.reasons.includes("no_matching_eligible_route"));
+});
+
+test("selectRoute preserves brownfield and foundation contextual precedence under critical risk floor", () => {
+  const resultBrownfield = selectRoute(CANONICAL_TEST_ROUTES, {
+    classification: "small",
+    "baseline.status": "pending",
+    "project.status": "active",
+    impact: { auth_security: true },
+  });
+  assert.equal(resultBrownfield.status, "success");
+  assert.equal(resultBrownfield.name, "brownfield");
+  assert.equal(resultBrownfield.floor, "critical");
+
+  const resultFoundation = selectRoute(CANONICAL_TEST_ROUTES, {
+    classification: "small",
+    "project.status": "empty",
+    impact: { auth_security: true },
+  });
+  assert.equal(resultFoundation.status, "success");
+  assert.equal(resultFoundation.name, "foundation");
+  assert.equal(resultFoundation.floor, "critical");
+});
+
+test("selectRoute continuation on brownfield and foundation succeeds under critical risk floor", () => {
+  const resultBrownfield = selectRoute(
+    CANONICAL_TEST_ROUTES,
+    {
+      classification: "small",
+      impact: { auth_security: true },
+    },
+    { persistedRoute: "brownfield" }
+  );
+  assert.equal(resultBrownfield.status, "success");
+  assert.equal(resultBrownfield.name, "brownfield");
+  assert.ok(resultBrownfield.reasons.includes("continuation_locked"));
+
+  const resultFoundation = selectRoute(
+    CANONICAL_TEST_ROUTES,
+    {
+      classification: "small",
+      impact: { auth_security: true },
+    },
+    { persistedRoute: "foundation" }
+  );
+  assert.equal(resultFoundation.status, "success");
+  assert.equal(resultFoundation.name, "foundation");
+  assert.ok(resultFoundation.reasons.includes("continuation_locked"));
+});
+
+test("selectRoute merges root HARD_FLOORS signals even when ctx.impact is empty object", () => {
+  const result = selectRoute(
+    CANONICAL_TEST_ROUTES,
+    {
+      classification: "small",
+      "project.status": "active",
+      impact: {},
+      auth_security: true,
+    }
+  );
+  assert.equal(result.floor, "critical");
+  assert.equal(result.name, "standard");
+});

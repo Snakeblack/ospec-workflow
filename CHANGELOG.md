@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.63.1] - 2026-09-05
+
+### Fixed
+- **Integración canónica del despacho de rutas en el orquestador (`agents/sdd-orchestrator.agent.md`)**:
+  - Sustitución del algoritmo heurístico redundante de Step 3 por la autoridad canónica de despacho `selectRoute(routes, ctx, { persistedRoute })`, sincronizando la especificación del agente con la implementación de routing en vivo.
+  - Adición del runner CLI `scripts/route-dispatch-run.js` y su suite de pruebas (`scripts/route-dispatch-run.test.js`) para resolver y despachar rutas de forma determinista con códigos de salida normalizados (`0` éxito, `2` bloqueado por decisión de usuario, `1` error).
+- **Validación estricta y blindaje fail-closed de rutas en `selectRoute` (`scripts/lib/route-dispatcher.js`)**:
+  - Validación de elegibilidad de `fallbackRoute` frente a `floorGuarantees` vía `isRouteEligible()`, impidiendo que rutas de respaldo incumplan los requisitos de fase de pisos críticos.
+  - Manejo fail-closed cuando una ruta persistida en `state.yaml` no existe en la tabla de routing declarada (`persisted_route_missing`), requiriendo decisión explícita del usuario.
+  - Exención explícita de rutas contextuales (`foundation`, `brownfield`) de las fases requeridas por floors de implementación de código tanto en el despacho inicial como en continuación, preservando su rol como prerrequisitos de workflow.
+  - Fusión inclusiva de señales de impacto (`HARD_FLOORS`) evitando sombreado de claves raíz cuando `ctx.impact` se provee como objeto vacío.
+- **Robustez y seguridad en runner CLI (`scripts/route-dispatch-run.js`)**:
+  - Prevención de path traversal en `changeName` mediante validación estricta con `isSafeChangeName()`.
+  - Normalización y eliminación de comillas en `persistedRoute` y `classification`.
+  - Parseo seguro de señales booleanas en `state.yaml` ignorando líneas de comentarios y admitiendo valores encomillados (`"true"`, `'true'`).
+
+**Verificación directa**: `node scripts/check.js` (3226 tests pasando, 0 fallos y 0 omitidos) y `go test ./...` (10/10 paquetes ok). Reensobres 4R sin hallazgos.
+
 ## [2.63.0] - 2026-09-05
 
 ### Added
