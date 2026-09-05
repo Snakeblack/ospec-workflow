@@ -7,6 +7,7 @@
 // external CLI is required, so this runs cross-platform in CI.
 
 const assert = require("node:assert/strict");
+const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -986,4 +987,51 @@ test("real repo: orchestrator pointer-table refs resolve and handler sentinels a
       `sentinel "${sentinel}" must be present in ${file} after migration`
     );
   }
+});
+
+test("real repo: all seven targets include scripts/route-dispatch-run.js and its runtime dependencies", (t) => {
+  const targets = ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor", "antigravity"];
+  for (const target of targets) {
+    const out = tmpOut(t);
+    const result = runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
+    assert.ok(result.files.length > 0, `${target} produced no files`);
+
+    const runnerRel = "scripts/route-dispatch-run.js";
+    assert.ok(
+      result.files.some((file) => file.path === runnerRel),
+      `${target} dropped canonical dispatch runner ${runnerRel}`,
+    );
+
+    const requiredRuntimeLibs = [
+      "scripts/lib/route-dispatcher.js",
+      "scripts/lib/change-classification.js",
+      "scripts/lib/archive-plan.js",
+    ];
+    for (const libRel of requiredRuntimeLibs) {
+      assert.ok(
+        result.files.some((file) => file.path === libRel),
+        `${target} dropped runtime dependency ${libRel} required by dispatch runner`,
+      );
+    }
+  }
+});
+
+test("real repo: route-dispatch-run executes directly from generated target output", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: ROOT, target: "vscode", outDir: out, validate: false });
+
+  const runnerPath = path.join(out, "scripts", "route-dispatch-run.js");
+  assert.ok(fs.existsSync(runnerPath), "generated vscode target must contain scripts/route-dispatch-run.js");
+
+  const contextJson = JSON.stringify({ classification: "small" });
+  const output = execFileSync(
+    process.execPath,
+    [runnerPath, `--workspace=${ROOT}`, `--context=${contextJson}`],
+    { cwd: out, encoding: "utf8" }
+  );
+
+  const parsed = JSON.parse(output);
+  assert.equal(parsed.status, "success", "execution from generated target output must return status: success");
+  assert.equal(parsed.name, "lite", "execution from generated target output must select lite for small on active repo");
+  assert.equal(parsed.classification, "small");
 });

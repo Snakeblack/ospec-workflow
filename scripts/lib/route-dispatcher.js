@@ -920,7 +920,7 @@ const DETERMINISTIC_SIGNAL_KEYS = new Set([
  *   - `artifact_store.backend`
  *
  * All other signals require intent inference and are ADVISORY — the
- * orchestrator MUST surface these via `vscode/askQuestions` and MUST NOT
+ * orchestrator MUST surface these via the question tool and MUST NOT
  * auto-route.
  *
  * Pure: reads only its argument, no side effects.

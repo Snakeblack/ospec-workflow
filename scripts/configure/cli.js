@@ -67,10 +67,11 @@ function loadTree(sourceDir, roots = SOURCE_ROOTS) {
   return files;
 }
 
-// Skill entry-point scripts that must always be included in the runtime dist as
-// additional BFS roots alongside hooks/*.js. These entry-point scripts are the runtime
-// half of the federation/explore/baseline skills and are unreachable from hooks.
-const SKILL_ENTRY_SCRIPTS = [
+// Runtime entry-point scripts that must always be included in the runtime dist as
+// additional BFS roots alongside hooks/*.js. These entry-point scripts include the runtime
+// half of the federation/explore/baseline skills and orchestrator CLI runners (such as route-dispatch-run.js).
+const RUNTIME_ENTRY_SCRIPTS = [
+  "scripts/route-dispatch-run.js",
   "scripts/lib/review-dimensions.js",
   "scripts/lib/review-gate-state.js",
   "scripts/lib/review-lineage.js",
@@ -81,6 +82,8 @@ const SKILL_ENTRY_SCRIPTS = [
   "scripts/lib/strict-tdd-evidence-remediation.js",
   "scripts/lib/execution-identities/index.js",
 ];
+
+const SKILL_ENTRY_SCRIPTS = RUNTIME_ENTRY_SCRIPTS;
 
 // Returns true for modules that must never appear in the runtime dist:
 // test files, generator-only code under scripts/configure/, and generator-only

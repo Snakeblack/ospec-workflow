@@ -1,7 +1,7 @@
 # Arquitectura objetivo — harness gobernado por kernel, grafo y evidencia
 
 > **Autoridad:** fuente conceptual y estratégica del harness (responsabilidades y límites).
-> **Corte documental:** v2.63.2, 2026-09-05 (estado alineado al roadmap; la dirección conceptual no cambia).
+> **Corte documental:** v2.63.3, 2026-09-05 (estado alineado al roadmap; la dirección conceptual no cambia).
 > **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1**, **K2a**, **K3**, **`k3-readiness-remediation`**, **K4a**, **K5**, **K6a**, **K4b**, **K6b**, **K6c** y **K6d** están cerrados. K6d aporta evidencia advisory; OpenSpec/Git/Candidate siguen siendo la única autoridad semántica y K7–K9 permanecen como trabajo objetivo.
 > **Roadmap:** orden, estado operativo y done criteria viven en [`../roadmaps/harness-evolution.md`](../roadmaps/harness-evolution.md).
 > **Precedencia documental:** ante diferencias de **orden o estado**, prevalece el roadmap; ante diferencias **conceptuales**, reconciliar antes de iniciar el slice.
