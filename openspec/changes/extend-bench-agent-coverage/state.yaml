@@ -110,3 +110,9 @@ assumptions:
     source: ask-user-question
     accepted_at: "2026-09-05T00:00:00Z"
     applies_to: [sdd-tasks]
+  - id: approval-007
+    gate: apply-continue
+    decision: continue-to-apply-size-exception-new-branch
+    source: ask-user-question
+    accepted_at: "2026-09-05T00:00:00Z"
+    applies_to: [sdd-apply]
