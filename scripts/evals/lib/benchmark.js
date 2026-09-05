@@ -8,6 +8,11 @@ const {
   validateContextMeasurement,
   canonicalCx0Json,
 } = require("../../lib/context-measurement.js");
+const {
+  UNRESOLVED,
+  derivePhaseKey,
+  resolveCanonicalAgent,
+} = require("../../lib/agent-identity.js");
 
 const TOKEN_FIELDS = ["estimated_prompt_tokens", "estimated_artifact_tokens", "estimated_tool_output_tokens", "estimated_output_tokens"];
 const VERIFY_SEVERITIES = ["critical", "warning", "suggestion"];
@@ -111,8 +116,17 @@ function verifyBenchmarkProvenance({ provenance, transcriptPath, transcriptBytes
 
 function validCostRow(row) {
   const allowed = new Set(["phase", "agent", ...TOKEN_FIELDS, "duration_ms", "model_tier", "status", "relaunch", "row_index", "ts", "host_binding", "cost_observability", "row_attestation_sha256", "estimate_source", "emitter", "phase_evidence", "artifact_evidence_sha256", "benchmark_evidence_sha256"]);
+  // Cobertura vía la autoridad compartida de identidad canónica
+  // (REQ-orchestrator-evals-009): la fila pasa si row.agent resuelve a un
+  // agente propio y row.phase coincide con su clave de fase derivada. Los
+  // nombres prefijados por el host se aceptan sin reescribir la fila (O1) y
+  // los foráneos (unresolved) fallan.
+  const canonical = row && typeof row === "object" && !Array.isArray(row)
+    ? resolveCanonicalAgent(row.agent)
+    : UNRESOLVED;
+  const phaseKey = derivePhaseKey(canonical);
   return row && typeof row === "object" && !Array.isArray(row) && Object.keys(row).every((key) => allowed.has(key)) && typeof row.phase === "string" && row.phase.length > 0 &&
-    row.agent === `sdd-${row.phase}` &&
+    canonical !== UNRESOLVED && phaseKey !== "" && row.phase === phaseKey &&
     TOKEN_FIELDS.every((key) => Number.isSafeInteger(row[key]) && row[key] >= 0 && row[key] <= 1_000_000_000_000) &&
     Number.isSafeInteger(row.duration_ms) && row.duration_ms >= 0 && row.duration_ms <= 31_536_000_000 &&
     typeof row.model_tier === "string" && row.model_tier.length > 0 &&

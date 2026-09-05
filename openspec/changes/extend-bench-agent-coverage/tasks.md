@@ -73,9 +73,9 @@ Modo TDD estricto: cada unidad de comportamiento es par RED (test que falla, ver
 
 ## Phase 5: Consumidor bench (validCostRow + O1 + CX0)
 
-- [ ] 5.1 RED: en `scripts/evals/lib/benchmark.test.js`, añadir fixtures literales — fila `{phase:"spec", agent:"plugin-host:sdd-spec"}` pasa `validCostRow`; fila `agent:"review-runtime"` con `phase:"review-runtime"` pasa; fila `{phase:"design", agent:"sdd-design"}` sigue pasando igual; fila `agent:"review-invented"` (→ unresolved) falla; fila con fase que no coincide con la clave derivada falla. Verificar RED. [REQ-orchestrator-evals-009]
-- [ ] 5.2 GREEN: en `scripts/evals/lib/benchmark.js`, reemplazar en `validCostRow` la igualdad estricta por la cláusula del design: `canonical !== UNRESOLVED && key !== "" && row.phase === key` vía `resolveCanonicalAgent`/`derivePhaseKey` del módulo compartido. CX0 consume `validCostRow` sin cambios. Verificar GREEN. [REQ-orchestrator-evals-009, REQ-agent-identity-002]
-- [ ] 5.3 Compatibilidad O1: ejecutar la suite de bench existente sin editar fixtures — todos los tests vigentes de `benchmark.test.js` y las aserciones de `canonicalPersistedO1Row`/atestiguamientos v1/v2/v3 deben quedar verdes sin cambios. [REQ-agent-identity-002, REQ-orchestrator-evals-009]
+- [x] 5.1 RED: en `scripts/evals/lib/benchmark.test.js`, añadir fixtures literales — fila `{phase:"spec", agent:"plugin-host:sdd-spec"}` pasa `validCostRow`; fila `agent:"review-runtime"` con `phase:"review-runtime"` pasa; fila `{phase:"design", agent:"sdd-design"}` sigue pasando igual; fila `agent:"review-invented"` (→ unresolved) falla; fila con fase que no coincide con la clave derivada falla. Verificar RED. [REQ-orchestrator-evals-009]
+- [x] 5.2 GREEN: en `scripts/evals/lib/benchmark.js`, reemplazar en `validCostRow` la igualdad estricta por la cláusula del design: `canonical !== UNRESOLVED && key !== "" && row.phase === key` vía `resolveCanonicalAgent`/`derivePhaseKey` del módulo compartido. CX0 consume `validCostRow` sin cambios. Verificar GREEN. [REQ-orchestrator-evals-009, REQ-agent-identity-002]
+- [x] 5.3 Compatibilidad O1: ejecutar la suite de bench existente sin editar fixtures — todos los tests vigentes de `benchmark.test.js` y las aserciones de `canonicalPersistedO1Row`/atestiguamientos v1/v2/v3 deben quedar verdes sin cambios. [REQ-agent-identity-002, REQ-orchestrator-evals-009]
 
 ## Phase 6: Verificación final y registro
 
