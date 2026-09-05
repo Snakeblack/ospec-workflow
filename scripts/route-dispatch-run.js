@@ -27,7 +27,12 @@ function parseArgs(argv) {
     authSecurity: false,
     dataMigration: false,
     publicApi: false,
+    explicitBugfix: false,
+    explicitRefactor: false,
+    explicitHotfix: false,
     impactJson: null,
+    contextJson: null,
+    contextFile: null,
     workspace: process.cwd(),
     configFile: null,
   };
@@ -46,8 +51,22 @@ function parseArgs(argv) {
       flags.dataMigration = true;
     } else if (arg === "--public_api" || arg === "--public-api") {
       flags.publicApi = true;
+    } else if (arg === "--bugfix" || arg === "--explicit_bugfix_intent" || arg === "--explicit-bugfix-intent") {
+      flags.explicitBugfix = true;
+    } else if (arg === "--refactor" || arg === "--explicit_refactor_intent" || arg === "--explicit-refactor-intent") {
+      flags.explicitRefactor = true;
+    } else if (arg === "--hotfix" || arg === "--explicit_hotfix_intent" || arg === "--explicit-hotfix-intent") {
+      flags.explicitHotfix = true;
     } else if (arg.startsWith("--impact=")) {
       flags.impactJson = arg.slice("--impact=".length);
+    } else if (arg.startsWith("--context=")) {
+      flags.contextJson = arg.slice("--context=".length);
+    } else if (arg === "--context" && i + 1 < argv.length) {
+      flags.contextJson = argv[++i];
+    } else if (arg.startsWith("--context-file=")) {
+      flags.contextFile = arg.slice("--context-file=".length);
+    } else if (arg === "--context-file" && i + 1 < argv.length) {
+      flags.contextFile = argv[++i];
     } else if (arg.startsWith("--workspace=")) {
       flags.workspace = arg.slice("--workspace=".length);
     } else if (arg === "--workspace" && i + 1 < argv.length) {
@@ -180,28 +199,77 @@ function main(argv = process.argv.slice(2), deps = {}) {
     }
   }
 
+  let suppliedCtx = null;
+  let rawContext = flags.contextJson;
+
+  if (rawContext === "-") {
+    try {
+      rawContext = (deps.readStdin || (() => fs.readFileSync(0, "utf8")))();
+    } catch (e) {
+      error(JSON.stringify({ error: `Failed to read context from stdin: ${e.message}` }));
+      return exit(1);
+    }
+  } else if (flags.contextFile) {
+    try {
+      const resolvedFile = path.resolve(workspace, flags.contextFile);
+      rawContext = fs.readFileSync(resolvedFile, "utf8");
+    } catch (e) {
+      error(JSON.stringify({ error: `Failed to read context file '${flags.contextFile}': ${e.message}` }));
+      return exit(1);
+    }
+  }
+
+  if (rawContext) {
+    try {
+      const cleanJson = String(rawContext).trim().replace(/^['"]|['"]$/g, "");
+      suppliedCtx = JSON.parse(cleanJson);
+      if (!suppliedCtx || typeof suppliedCtx !== "object" || Array.isArray(suppliedCtx)) {
+        error(JSON.stringify({ error: "Context JSON must be a plain object" }));
+        return exit(1);
+      }
+    } catch (e) {
+      error(JSON.stringify({ error: `Invalid JSON for context: ${e.message}` }));
+      return exit(1);
+    }
+  }
+
   const ctx = {
     ...configDefaults,
   };
 
-  if (flags.classification) {
-    ctx.classification = flags.classification;
-  } else if (stateInfo.classification) {
+  if (stateInfo.classification) {
     ctx.classification = stateInfo.classification;
   }
+  if (stateInfo.impact && Object.keys(stateInfo.impact).length > 0) {
+    ctx.impact = { ...stateInfo.impact };
+  }
 
+  if (suppliedCtx) {
+    for (const [k, v] of Object.entries(suppliedCtx)) {
+      if (k === "impact" && v && typeof v === "object" && !Array.isArray(v)) {
+        ctx.impact = { ...(ctx.impact || {}), ...v };
+      } else {
+        ctx[k] = v;
+      }
+    }
+  }
+
+  if (flags.classification) {
+    ctx.classification = flags.classification;
+  }
   if (flags.changeClassification) {
     ctx["change.classification"] = flags.changeClassification;
   }
 
-  const impact = { ...stateInfo.impact };
+  const impact = { ...(ctx.impact || {}) };
   if (flags.authSecurity) impact.auth_security = true;
   if (flags.dataMigration) impact.data_migration = true;
   if (flags.publicApi) impact.public_api = true;
 
   if (flags.impactJson) {
     try {
-      const parsedImpact = JSON.parse(flags.impactJson);
+      const cleanImpact = String(flags.impactJson).trim().replace(/^['"]|['"]$/g, "");
+      const parsedImpact = JSON.parse(cleanImpact);
       Object.assign(impact, parsedImpact);
     } catch (e) {
       error(JSON.stringify({ error: `Invalid JSON for --impact: ${e.message}` }));
@@ -213,7 +281,22 @@ function main(argv = process.argv.slice(2), deps = {}) {
     ctx.impact = impact;
   }
 
-  const persistedRoute = flags.persistedRoute || stateInfo.persistedRoute || null;
+  if (flags.explicitBugfix) {
+    ctx.explicit_bugfix_intent = true;
+  }
+  if (flags.explicitRefactor) {
+    ctx.explicit_refactor_intent = true;
+  }
+  if (flags.explicitHotfix) {
+    ctx.explicit_hotfix_intent = true;
+  }
+
+  const persistedRoute =
+    flags.persistedRoute ||
+    (suppliedCtx && (suppliedCtx.persistedRoute || suppliedCtx.actual_route)) ||
+    stateInfo.persistedRoute ||
+    null;
+
   const options = {};
   if (persistedRoute) {
     options.persistedRoute = persistedRoute;

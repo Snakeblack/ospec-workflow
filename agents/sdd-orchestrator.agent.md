@@ -204,7 +204,7 @@ Call `classifyChange(ctx)` where `ctx` carries the current context signals (`cla
 
 #### Step 3: Select and Dispatch Route (`selectRoute`)
 
-Execute route dispatch via `selectRoute(routes, ctx, { persistedRoute })` or CLI `node scripts/route-dispatch-run.js [change-name]`:
+Execute route dispatch via canonical runner `node scripts/route-dispatch-run.js [change-name] [options]` (single operational authority delegating to `selectRoute(routes, ctx, { persistedRoute })` with `--context='<json>'`):
 1. **Signal Normalization & Precedence**: Harmonizes `classification` and `change.classification` fail-closed (errors on conflict). Evaluates `FLOOR_GUARANTEES` (auth, migration, API) enforcing standard tier minimums.
 2. **Eligibility & Contextual Precedence**: Filters routes by metadata (`isRouteEligible`) preventing `standard` from shadowing `lite` on active projects. Contextual routes (`foundation`, `brownfield`) retain precedence as workflow prerequisites.
 3. **Continuation Invariance**: Locks persisted route from `state.yaml`. If newly discovered risk floors violate the active route or the route was removed, returns `status: blocked` with user decision gate to halt and prompt the user.

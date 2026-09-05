@@ -1153,7 +1153,7 @@ K1 impact risk floors (`critical`, `planned`, `bounded`, `repair`, `direct`) MUS
 
 When a change carries `critical` impact evidence (`auth_security`, `data_migration`), routes omitting full SDD assurance (`lite`, `hotfix`, `repair`, `direct`) MUST be disqualified, and the dispatcher MUST elevate candidate selection to `standard` (or equivalent full SDD route). When a change carries `planned` impact evidence (`public_api`), routes omitting specification or design (`lite`, `hotfix`) MUST be disqualified.
 
-Contextual routes (`foundation`, `federated`, `brownfield`) MUST be evaluated before general workflow routes, retaining precedence regardless of change classification. Among eligible custom or non-contextual routes, the declared table order in `openspec/config.yaml` MUST be strictly preserved using first-match evaluation.
+Contextual routes (`foundation`, `federated`, `brownfield`) MUST be evaluated before general workflow routes, retaining precedence regardless of change classification. Contextual prerequisite routes are exempt from floor required-phase eligibility while executing the prerequisite; the floor remains binding when routing the underlying implementation workflow. Among eligible custom or non-contextual routes, the declared table order in `openspec/config.yaml` MUST be strictly preserved using first-match evaluation.
 
 #### Scenario: Auth security evidence blocks lite and hotfix
 
@@ -1180,6 +1180,15 @@ Contextual routes (`foundation`, `federated`, `brownfield`) MUST be evaluated be
 - THEN the contextual route `brownfield` MUST be evaluated before general routes
 - AND `brownfield` MUST match and retain precedence over `lite`
 
+#### Scenario: Contextual prerequisite route precedence under critical floor
+
+- GIVEN a change with `baseline.status: pending` (or `project.status: empty`)
+- AND emergent or declared `critical` impact evidence (`auth_security: true`)
+- WHEN route selection evaluates candidate routes
+- THEN the contextual route (`brownfield` or `foundation`) MUST be selected as a prerequisite
+- AND MUST NOT be disqualified by the implementation floor's required phases
+- AND the critical floor MUST remain binding for subsequent implementation workflow routing
+
 #### Scenario: Custom route ordering preserved
 
 - GIVEN a custom routing table with multiple eligible routes matching the change classification
@@ -1188,9 +1197,9 @@ Contextual routes (`foundation`, `federated`, `brownfield`) MUST be evaluated be
 
 ### Requirement: Continuation Route Invariance and Late Floor Blocker Gate {#REQ-routing-014}
 
-When resuming an in-flight SDD change with an existing persisted route in `state.yaml` (`route.actual_route`), the dispatcher MUST lock in the persisted route without re-evaluating the declarative routing table, ensuring deterministic phase continuation.
+When resuming an in-flight SDD change with an existing persisted route in `state.yaml` (`route.actual_route`), the dispatcher MUST lock in the persisted route without re-evaluating the declarative routing table, ensuring deterministic phase continuation. Contextual prerequisite routes (`foundation`, `brownfield`) are exempt from floor phase checks during continuation to allow completing prerequisite phases under elevated risk floors.
 
-If newly discovered impact evidence during implementation or verification violates the minimum floor guarantees of the active persisted route, the dispatcher MUST NOT perform a silent route substitution or downgrade. It MUST halt execution immediately with `status: blocked` and `blocker_type: needs_user_decision` to request operator confirmation.
+If newly discovered impact evidence during implementation or verification violates the minimum floor guarantees of the active persisted route (excluding contextual prerequisites), the dispatcher MUST NOT perform a silent route substitution or downgrade. It MUST halt execution immediately with `status: blocked` and `blocker_type: needs_user_decision` to request operator confirmation.
 
 #### Scenario: Resuming active change preserves persisted route
 
@@ -1206,3 +1215,12 @@ If newly discovered impact evidence during implementation or verification violat
 - WHEN continuation route validation evaluates the active route
 - THEN it MUST detect that `lite` violates the `critical` floor guarantees
 - AND MUST return `status: blocked` with `blocker_type: needs_user_decision`
+
+#### Scenario: Continuation of contextual prerequisite route under critical floor
+
+- GIVEN an in-flight change executing on a contextual prerequisite route (`brownfield` or `foundation`)
+- AND `auth_security: true` is present
+- WHEN continuation route validation evaluates the active route
+- THEN it MUST preserve and lock the contextual prerequisite route
+- AND MUST NOT block on missing implementation phases during prerequisite execution
+
