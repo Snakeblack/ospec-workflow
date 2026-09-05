@@ -14,3 +14,6 @@ var SetGitRunnerForTest = func(fn func(ctx context.Context, args []string) (stri
 	gitRunner = fn
 	return func() { gitRunner = old }
 }
+
+var ResolveDispatchStatusForTest = resolveDispatchStatus
+var PersistResultEnvelopeForTest = persistResultEnvelope

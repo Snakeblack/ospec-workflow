@@ -459,15 +459,15 @@ async function persistResultEnvelope({ input, workspace }) {
       return;
     }
 
-    const canonicalAgentPhase = resolveAgentName(input);
-    const statePhaseKey = derivePhaseKey(canonicalAgentPhase);
+    const canonicalAgent = resolveCanonicalAgent(resolveAgentName(input));
+    const statePhaseKey = derivePhaseKey(canonicalAgent);
 
     if (!statePhaseKey) {
       return;
     }
 
     const validation = validateEnvelope(envelopeResult.value, {
-      phase: canonicalAgentPhase,
+      phase: canonicalAgent,
     });
 
     if (!validation.valid) {
@@ -566,9 +566,9 @@ async function resolveDispatchStatus(input) {
   }
 
   if (envelopeResult.found && envelopeResult.value) {
-    const canonicalAgentPhase = resolveAgentName(input);
+    const canonicalAgent = resolveCanonicalAgent(resolveAgentName(input));
     const validation = validateEnvelope(envelopeResult.value, {
-      phase: canonicalAgentPhase,
+      phase: canonicalAgent,
     });
 
     if (validation.valid && typeof envelopeResult.value.status === "string") {
@@ -576,7 +576,7 @@ async function resolveDispatchStatus(input) {
     }
 
     if (
-      canonicalAgentPhase === "sdd-spec" &&
+      canonicalAgent === "sdd-spec" &&
       envelopeResult.value.status === "success"
     ) {
       return "blocked";
@@ -1068,8 +1068,8 @@ function resolveContextHost(input, env, claudeTelemetry) {
  * ADR-002 con `env` inyectable.
  */
 async function persistContextMeasurement({ input, workspace, append = appendContextMeasurement, env = process.env }) {
-  const canonicalAgentPhase = resolveAgentName(input);
-  const phase = derivePhaseKey(canonicalAgentPhase);
+  const canonicalAgent = resolveCanonicalAgent(resolveAgentName(input));
+  const phase = derivePhaseKey(canonicalAgent);
   try {
     if (!phase) return { status: "skipped", reason: "unsupported-agent" };
     const openspecRoot = await findOpenSpecRoot(workspace);

@@ -507,13 +507,13 @@ func persistResultEnvelope(input map[string]any, workspace string) {
 		return
 	}
 
-	canonicalAgentPhase := resolveAgentName(input)
-	statePhaseKey := derivePhaseKey(canonicalAgentPhase)
+	canonicalAgent := agentidentity.ResolveCanonicalAgent(resolveAgentName(input))
+	statePhaseKey := derivePhaseKey(canonicalAgent)
 	if statePhaseKey == "" {
 		return
 	}
 
-	valid, _ := resultenvelope.ValidateForPhase(envelope, canonicalAgentPhase)
+	valid, _ := resultenvelope.ValidateForPhase(envelope, canonicalAgent)
 	if !valid {
 		return
 	}
@@ -992,13 +992,13 @@ func resolveDispatchStatus(input map[string]any) string {
 		}
 	}
 	if found && envelope != nil {
-		canonicalAgentPhase := resolveAgentName(input)
-		if valid, _ := resultenvelope.ValidateForPhase(envelope, canonicalAgentPhase); valid {
+		canonicalAgent := agentidentity.ResolveCanonicalAgent(resolveAgentName(input))
+		if valid, _ := resultenvelope.ValidateForPhase(envelope, canonicalAgent); valid {
 			if s, ok := envelope["status"].(string); ok && s != "" {
 				return s
 			}
 		}
-		if status, _ := envelope["status"].(string); canonicalAgentPhase == "sdd-spec" && status == "success" {
+		if status, _ := envelope["status"].(string); canonicalAgent == "sdd-spec" && status == "success" {
 			return "blocked"
 		}
 	}

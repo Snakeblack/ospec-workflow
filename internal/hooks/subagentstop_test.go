@@ -1785,3 +1785,64 @@ tiers:
 		t.Errorf("ts is missing or not a string")
 	}
 }
+
+func TestResolveDispatchStatus_PrefixedSpec(t *testing.T) {
+	// plugin-host:sdd-spec con envelope inválido (sin ambiguity signals) -> fail-closed a "blocked"
+	invalidInput := map[string]any{
+		"agent_type": "plugin-host:sdd-spec",
+		"status":     "success",
+		"result":     buildFenceText(validSubagentEnvelope()),
+	}
+	if got := hooks.ResolveDispatchStatusForTest(invalidInput); got != "blocked" {
+		t.Errorf("prefixed sdd-spec with invalid envelope must resolve to 'blocked', got %q", got)
+	}
+
+	// plugin-host:sdd-spec con envelope válido (con ambiguity signals) -> "success"
+	validInput := map[string]any{
+		"agent_type": "plugin-host:sdd-spec",
+		"status":     "blocked",
+		"result":     buildFenceText(validSpecSubagentEnvelope()),
+	}
+	if got := hooks.ResolveDispatchStatusForTest(validInput); got != "success" {
+		t.Errorf("prefixed sdd-spec with valid envelope must resolve to 'success', got %q", got)
+	}
+}
+
+func TestPersistResultEnvelope_PrefixedAndForeignAgent(t *testing.T) {
+	// Dispatch prefijado válido (plugin-host:sdd-design) actualiza state.yaml
+	workspace, statePath := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+
+	hooks.PersistResultEnvelopeForTest(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "plugin-host:sdd-design",
+		"result":     buildFenceText(validSubagentEnvelope()),
+	}, workspace)
+
+	updated, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(updated), `summary: "Diseñó el flujo de persistencia del envelope."`) {
+		t.Errorf("expected summary to be persisted for prefixed dispatch, got:\n%s", updated)
+	}
+	if !strings.Contains(string(updated), `- "Fill-gap merge sobre last-writer-wins"`) {
+		t.Errorf("expected key_decisions to be persisted for prefixed dispatch, got:\n%s", updated)
+	}
+
+	// Agente no reconocido o foráneo (host:unsupported-worker) omite persistencia fail-safely
+	foreignWorkspace, foreignStatePath := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+
+	hooks.PersistResultEnvelopeForTest(map[string]any{
+		"cwd":        foreignWorkspace,
+		"agent_type": "host:unsupported-worker",
+		"result":     buildFenceText(validSubagentEnvelope()),
+	}, foreignWorkspace)
+
+	after, err := os.ReadFile(foreignStatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != stateWithEmptyDesignSummary {
+		t.Errorf("state.yaml must be byte-for-byte untouched for foreign agent, got:\n%s", after)
+	}
+}
