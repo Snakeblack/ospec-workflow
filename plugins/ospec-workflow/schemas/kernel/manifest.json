@@ -1,0 +1,260 @@
+{
+  "schema_version": 1,
+  "families": {
+    "state-transition": {
+      "path": "schemas/kernel/state-transition/v1.schema.json",
+      "$id": "ospec://schemas/kernel/state-transition/v1",
+      "schema_version": 1
+    },
+    "classification": {
+      "path": "schemas/kernel/classification/v1.schema.json",
+      "$id": "ospec://schemas/kernel/classification/v1",
+      "schema_version": 1
+    },
+    "contract": {
+      "path": "schemas/kernel/contract/v1.schema.json",
+      "$id": "ospec://schemas/kernel/contract/v1",
+      "schema_version": 1
+    },
+    "graph-node": {
+      "path": "schemas/kernel/graph-node/v1.schema.json",
+      "$id": "ospec://schemas/kernel/graph-node/v1",
+      "schema_version": 1
+    },
+    "work-order": {
+      "path": "schemas/kernel/work-order/v1.schema.json",
+      "$id": "ospec://schemas/kernel/work-order/v1",
+      "schema_version": 1
+    },
+    "candidate": {
+      "path": "schemas/kernel/candidate/v1.schema.json",
+      "$id": "ospec://schemas/kernel/candidate/v1",
+      "schema_version": 1
+    },
+    "evidence": {
+      "path": "schemas/kernel/evidence/v1.schema.json",
+      "$id": "ospec://schemas/kernel/evidence/v1",
+      "schema_version": 1
+    },
+    "verification": {
+      "path": "schemas/kernel/verification/v1.schema.json",
+      "$id": "ospec://schemas/kernel/verification/v1",
+      "schema_version": 1
+    },
+    "finding-review": {
+      "path": "schemas/kernel/finding-review/v1.schema.json",
+      "$id": "ospec://schemas/kernel/finding-review/v1",
+      "schema_version": 1
+    },
+    "failure-recovery": {
+      "path": "schemas/kernel/failure-recovery/v1.schema.json",
+      "$id": "ospec://schemas/kernel/failure-recovery/v1",
+      "schema_version": 1
+    },
+    "receipt": {
+      "path": "schemas/kernel/receipt/v1.schema.json",
+      "$id": "ospec://schemas/kernel/receipt/v1",
+      "schema_version": 1
+    },
+    "event": {
+      "path": "schemas/kernel/event/v1.schema.json",
+      "$id": "ospec://schemas/kernel/event/v1",
+      "schema_version": 1
+    },
+    "operation-permit": {
+      "path": "schemas/kernel/operation-permit/v1.schema.json",
+      "$id": "ospec://schemas/kernel/operation-permit/v1",
+      "schema_version": 1
+    },
+    "operation-receipt": {
+      "path": "schemas/kernel/operation-receipt/v1.schema.json",
+      "$id": "ospec://schemas/kernel/operation-receipt/v1",
+      "schema_version": 1
+    },
+    "effect-class": {
+      "path": "schemas/kernel/effect-class/v1.schema.json",
+      "$id": "ospec://schemas/kernel/effect-class/v1",
+      "schema_version": 1
+    },
+    "host-capabilities": {
+      "path": "schemas/kernel/host-capabilities/v1.schema.json",
+      "$id": "ospec://schemas/kernel/host-capabilities/v1",
+      "schema_version": 1
+    },
+    "host-adapter": {
+      "path": "schemas/kernel/host-adapter/v1.schema.json",
+      "$id": "ospec://schemas/kernel/host-adapter/v1",
+      "schema_version": 1
+    },
+    "execution-transport": {
+      "path": "schemas/kernel/execution-transport/v1.schema.json",
+      "$id": "ospec://schemas/kernel/execution-transport/v1",
+      "schema_version": 1
+    },
+    "question-transport": {
+      "path": "schemas/kernel/question-transport/v1.schema.json",
+      "$id": "ospec://schemas/kernel/question-transport/v1",
+      "schema_version": 1
+    },
+    "worker-transport": {
+      "path": "schemas/kernel/worker-transport/v1.schema.json",
+      "$id": "ospec://schemas/kernel/worker-transport/v1",
+      "schema_version": 1
+    },
+    "tool-execution-transport": {
+      "path": "schemas/kernel/tool-execution-transport/v1.schema.json",
+      "$id": "ospec://schemas/kernel/tool-execution-transport/v1",
+      "schema_version": 1
+    },
+    "delivery-gate-transport": {
+      "path": "schemas/kernel/delivery-gate-transport/v1.schema.json",
+      "$id": "ospec://schemas/kernel/delivery-gate-transport/v1",
+      "schema_version": 1
+    },
+    "capability-proof": {
+      "path": "schemas/kernel/capability-proof/v1.schema.json",
+      "$id": "ospec://schemas/kernel/capability-proof/v1",
+      "schema_version": 1
+    },
+    "transport-request": {
+      "path": "schemas/kernel/transport-request/v1.schema.json",
+      "$id": "ospec://schemas/kernel/transport-request/v1",
+      "schema_version": 1
+    },
+    "transport-outcome": {
+      "path": "schemas/kernel/transport-outcome/v1.schema.json",
+      "$id": "ospec://schemas/kernel/transport-outcome/v1",
+      "schema_version": 1
+    },
+    "transport-failure": {
+      "path": "schemas/kernel/transport-failure/v1.schema.json",
+      "$id": "ospec://schemas/kernel/transport-failure/v1",
+      "schema_version": 1
+    },
+    "source-snapshot": {
+      "path": "schemas/kernel/source-snapshot/v1.schema.json",
+      "$id": "ospec://schemas/kernel/source-snapshot/v1",
+      "schema_version": 1
+    },
+    "work-result": {
+      "path": "schemas/kernel/work-result/v1.schema.json",
+      "$id": "ospec://schemas/kernel/work-result/v1",
+      "schema_version": 1
+    },
+    "candidate-v2": {
+      "path": "schemas/kernel/candidate/v2.schema.json",
+      "$id": "ospec://schemas/kernel/candidate/v2",
+      "schema_version": 2
+    },
+    "work-order-v2": {
+      "path": "schemas/kernel/work-order/v2.schema.json",
+      "$id": "ospec://schemas/kernel/work-order/v2",
+      "schema_version": 2
+    },
+    "execution-graph": {
+      "path": "schemas/kernel/execution-graph/v1.schema.json",
+      "$id": "ospec://schemas/kernel/execution-graph/v1",
+      "schema_version": 1
+    },
+    "policy-snapshot": {
+      "path": "schemas/kernel/policy-snapshot/v1.schema.json",
+      "$id": "ospec://schemas/kernel/policy-snapshot/v1",
+      "schema_version": 1
+    },
+    "clarify-event": {
+      "path": "schemas/kernel/clarify-event/v1.schema.json",
+      "$id": "ospec://schemas/kernel/clarify-event/v1",
+      "schema_version": 1
+    },
+    "execution-budget": {
+      "path": "schemas/kernel/execution-budget/v1.schema.json",
+      "$id": "ospec://schemas/kernel/execution-budget/v1",
+      "schema_version": 1
+    },
+    "authority-effect-budget": {
+      "path": "schemas/kernel/authority-effect-budget/v1.schema.json",
+      "$id": "ospec://schemas/kernel/authority-effect-budget/v1",
+      "schema_version": 1
+    },
+    "causal-failure": {
+      "path": "schemas/kernel/causal-failure/v1.schema.json",
+      "$id": "ospec://schemas/kernel/causal-failure/v1",
+      "schema_version": 1
+    },
+    "failure-recovery-transition": {
+      "path": "schemas/kernel/failure-recovery-transition/v1.schema.json",
+      "$id": "ospec://schemas/kernel/failure-recovery-transition/v1",
+      "schema_version": 1
+    },
+    "workspace-descriptor": {
+      "path": "schemas/kernel/workspace-descriptor/v1.schema.json",
+      "$id": "ospec://schemas/kernel/workspace-descriptor/v1",
+      "schema_version": 1
+    },
+    "capsule-definition": {
+      "path": "schemas/kernel/capsule-definition/v1.schema.json",
+      "$id": "ospec://schemas/kernel/capsule-definition/v1",
+      "schema_version": 1
+    },
+    "work-result-execution-payload": {
+      "path": "schemas/kernel/work-result-execution-payload/v1.schema.json",
+      "$id": "ospec://schemas/kernel/work-result-execution-payload/v1",
+      "schema_version": 1
+    },
+    "containment-violation": {
+      "path": "schemas/kernel/containment-violation/v1.schema.json",
+      "$id": "ospec://schemas/kernel/containment-violation/v1",
+      "schema_version": 1
+    },
+    "evidence-v2": {
+      "path": "schemas/kernel/evidence/v2.schema.json",
+      "$id": "ospec://schemas/kernel/evidence/v2",
+      "schema_version": 2
+    },
+    "verification-v2": {
+      "path": "schemas/kernel/verification/v2.schema.json",
+      "$id": "ospec://schemas/kernel/verification/v2",
+      "schema_version": 2
+    },
+    "assurance-graph": {
+      "path": "schemas/kernel/assurance-graph/v1.schema.json",
+      "$id": "ospec://schemas/kernel/assurance-graph/v1",
+      "schema_version": 1
+    },
+    "assessment": {
+      "path": "schemas/kernel/assessment/v1.schema.json",
+      "$id": "ospec://schemas/kernel/assessment/v1",
+      "schema_version": 1
+    },
+    "assessment-v2": {
+      "path": "schemas/kernel/assessment/v2.schema.json",
+      "$id": "ospec://schemas/kernel/assessment/v2",
+      "schema_version": 2
+    },
+    "runner-receipt": {
+      "path": "schemas/kernel/runner-receipt/v1.schema.json",
+      "$id": "ospec://schemas/kernel/runner-receipt/v1",
+      "schema_version": 1
+    },
+    "challenge-plan": {
+      "path": "schemas/kernel/challenge-plan/v1.schema.json",
+      "$id": "ospec://schemas/kernel/challenge-plan/v1",
+      "schema_version": 1
+    },
+    "challenge-result": {
+      "path": "schemas/kernel/challenge-result/v1.schema.json",
+      "$id": "ospec://schemas/kernel/challenge-result/v1",
+      "schema_version": 1
+    },
+    "architecture-alternative": {
+      "path": "schemas/kernel/architecture-alternative/v1.schema.json",
+      "$id": "ospec://schemas/kernel/architecture-alternative/v1",
+      "schema_version": 1
+    },
+    "complexity-architecture-delta": {
+      "path": "schemas/kernel/complexity-architecture-delta/v1.schema.json",
+      "$id": "ospec://schemas/kernel/complexity-architecture-delta/v1",
+      "schema_version": 1
+    }
+  }
+}

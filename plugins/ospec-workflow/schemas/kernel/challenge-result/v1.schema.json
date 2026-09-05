@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/challenge-result/v1",
+  "title": "ChallengeResultV1",
+  "description": "Resultado de la ejecución de un challenge adversarial sobre un candidate.",
+  "type": "object",
+  "schema_version": 1,
+  "required": [
+    "schema_version",
+    "kind",
+    "result_id",
+    "plan_id",
+    "candidate_id",
+    "node_id",
+    "policy_snapshot_id",
+    "evidence_strategy",
+    "challenge_type",
+    "outcome",
+    "evidence_ids",
+    "details"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "kind": {
+      "type": "string",
+      "const": "challenge-result/v1"
+    },
+    "result_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "plan_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "policy_snapshot_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "evidence_strategy": {
+      "type": "string",
+      "enum": ["bug", "feature", "refactor", "migration", "config-docs", "strict-tdd"]
+    },
+    "challenge_type": {
+      "type": "string",
+      "enum": [
+        "revert",
+        "focal-mutation",
+        "independent-acceptance",
+        "regression-acceptance",
+        "compatibility-acceptance",
+        "test-inspection",
+        "structural-validation",
+        "behavior-equivalence",
+        "rollback"
+      ]
+    },
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "passed",
+        "failed",
+        "error"
+      ]
+    },
+    "node_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^sha256:[a-f0-9]{64}$"
+      }
+    },
+    "details": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,92 @@
+# Per-agent model configuration for the multi-target generator.
+#
+# Two tables:
+#   agents: which tier each agent needs. THIS is the only agent→tier policy.
+#   tiers:  how each tier maps to a concrete model per target.
+#
+# Agent assignments, target models, reasoning effort, and verbosity are all
+# configured here. The validator checks roster completeness and known tiers,
+# but does not duplicate these editable choices in application code.
+
+agents:
+  # Premium:
+  # Infrequent decisions with high blast radius.
+  # A weak result here can invalidate the complete implementation direction.
+  sdd-propose: premium
+  sdd-design: premium
+  sdd-verify: premium
+  sdd-foundation: premium
+  sdd-workspace: premium
+
+  # Default:
+  # Frequent semantic work requiring solid reasoning, but not Sol-level spend.
+  sdd-orchestrator: default
+  sdd-spec: default
+  sdd-clarify: default
+  sdd-apply: default
+  sdd-reconcile: default
+  sdd-baseline: default
+
+  # Cheap:
+  # Bounded or mostly mechanical work.
+  sdd-init: cheap
+  sdd-explore: cheap
+  sdd-tasks: cheap
+  sdd-archive: cheap
+  sdd-onboard: cheap
+  sdd-document: cheap
+
+  # Reviewers:
+  # Each reviewer can use any known tier.
+  review-change: premium
+  review-correction: default
+  review-trust: default
+  review-runtime: default
+  review-evolution: default
+  review-efficiency: default
+  review-risk: default
+  review-readability: default
+  review-reliability: default
+  review-resilience: default
+
+  _default: premium
+
+tiers:
+  # Premium:
+  # Defaults for infrequent, high-blast-radius decisions.
+  premium:
+    claude: opus
+    vscode:
+      - "GPT-5.6 Sol (copilot)"
+    opencode: zai-coding-plan/glm-5.3
+    codex:
+      model: gpt-5.6-sol
+      model_reasoning_effort: high
+      model_verbosity: medium
+    cursor: gpt-5.6-sol
+
+  # Default:
+  # Defaults for frequent semantic work.
+  default:
+    claude: sonnet
+    vscode:
+      - "GPT-5.6 Terra (copilot)"
+    opencode: zai-coding-plan/glm-5.3-flash
+    codex:
+      model: gpt-5.6-terra
+      model_reasoning_effort: high
+      model_verbosity: medium
+    cursor: grok-4.6[fast=false]
+
+  # Cheap:
+  # Defaults for bounded or mechanical work.
+  cheap:
+    claude: haiku
+    vscode:
+      - "GPT-5.6 Luna (copilot)"
+    opencode: zai-coding-plan/glm-5.3-flash
+    codex:
+      model: gpt-5.6-luna
+      model_reasoning_effort: low
+      model_verbosity: low
+    cursor: composer-2.5[fast=false]

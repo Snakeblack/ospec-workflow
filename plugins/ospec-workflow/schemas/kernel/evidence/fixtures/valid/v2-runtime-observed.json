@@ -1,0 +1,10 @@
+{
+  "schema_version": 2,
+  "kind": "evidence/v2",
+  "evidence_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "candidate_id": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "provenance": "runtime-observed",
+  "origin": "npm test -- scripts/lib/example.test.js",
+  "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "node_id": "repair-core"
+}

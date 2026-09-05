@@ -1,0 +1,33 @@
+<!--
+  Declarative WebMCP Form Template
+  Standard: W3C Web Machine Learning Community Group (Declarative WebMCP)
+-->
+
+<form 
+  action="/api/search" 
+  method="GET"
+  toolname="search_documentation" 
+  tooldescription="Searches the developer documentation and returns matching articles">
+  
+  <label for="search-input">Search Docs</label>
+  <input 
+    id="search-input"
+    type="search" 
+    name="query" 
+    toolparameterdescription="Keyword, term, or question to search within documentation" 
+    required />
+
+  <label for="filter-category">Category</label>
+  <select 
+    id="filter-category" 
+    name="category" 
+    toolparameterdescription="Optional section category filter">
+    <option value="">All Categories</option>
+    <option value="quickstart">Quickstart</option>
+    <option value="architecture">Architecture</option>
+    <option value="rules-system">Rules System</option>
+    <option value="agents-skills">Agents & Skills</option>
+  </select>
+
+  <button type="submit">Search</button>
+</form>
