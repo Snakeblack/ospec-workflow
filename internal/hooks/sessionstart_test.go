@@ -154,6 +154,7 @@ func TestSessionStart_LauncherEnvironmentAndInstalledHome(t *testing.T) {
 	t.Setenv("OSPEC_PLUGIN_ROOT", pluginRoot)
 	skillPath := filepath.Join(home, ".agents", "skills", "example", "SKILL.md")
 	writeSessionFile(t, skillPath, "---\nname: example\n---\n## Rules\n- Installed rule.\n")
+	writeSessionFile(t, filepath.Join(home, ".agents", "skills", ".ospec-workflow-install.json"), "{}")
 	ws := createWorkspaceWithConfig(t, "strict_tdd: true\n")
 	cachePath := filepath.Join(ws, ".ospec", "cache", "skill-registry.cache.json")
 	writeSessionFile(t, cachePath, `{"version":2,"fingerprint":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","skills":[]}`)

@@ -15,7 +15,7 @@ Las instalaciones globales de Codex separan los scripts del plugin (`~/.codex/os
 Se trata `~/.agents/skills` como una **frontera de confianza equivalente al propio bundle del plugin**:
 
 1. El contenido de cualquier `SKILL.md` presente ahí se considera tan confiable como el del bundle. El descubrimiento no filtra por autoría ni propiedad del directorio.
-2. El guard `requireSkills` (fallo si no hay ningún `SKILL.md`) atestigua presencia del bundle, **no** autoría del contenido.
+2. El guard `requireSkills` atestigua presencia del bundle de OSpec mediante verificación de anclas canónicas mínimas (actualizado por [ADR-20260905-006](adr-20260905-006-fail-closed-ospec-identity-anchor-verification-for-shared-roots.md)).
 3. El modelo de amenaza aceptado: comprometer el filesystem del home del usuario ya implica compromiso del bundle (`~/.codex/ospec-workflow`); un directorio compartido en el mismo nivel de privilegios no amplía el privilegio del atacante, sí su conveniencia (cualquier herramienta que escriba en `~/.agents/skills` gana inyección de prompt persistente hasta que el archivo cambie, perpetuada por la cache con fingerprint).
 
 ## Consecuencias
