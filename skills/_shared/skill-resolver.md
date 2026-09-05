@@ -22,6 +22,10 @@ Use exactly one ordered strategy across all agents and documents:
 
 If `## Project Standards (auto-resolved)` is present, use it and do not load additional skill sources unless the orchestrator explicitly requests a high-fidelity fallback. Prefer compact rules; use full `SKILL.md` files only as fallback step 4.
 
+This order resolves **supplementary project standards**, not the executor's own phase/review procedure or its required shared references. Read each required procedure once; do not reinject it as a supplementary skill. An empty block, empty registry, or source with no applicable compact rules does not satisfy resolution: continue to the next available source and report what was actually used. Never report `injected` solely because an empty heading exists.
+
+Supplementary skills supply technical judgment within the assigned task. They do not grant write/delegation permissions, change artifact ownership, select a different workflow, add approval gates, or override the phase's behavior contract, TDD mode, or bounded review scope. For example, an ADR skill informs a design decision; it does not authorize a read-only reviewer to create `docs/adr/`. If technical guidance conflicts with the behavior contract, identify the concrete conflict through the phase's existing blocker protocol.
+
 ## Registry Cache
 
 The durable registry cache lives at:
@@ -82,7 +86,13 @@ What action will the sub-agent perform?
 | Write comments | "comment" |
 | Run tests | "test", "vitest", "pytest", "playwright" |
 
-If more than five skill blocks match, keep only the five most relevant. Prioritize code-context matches over task-context matches.
+If more than five skill blocks match, keep only the five most relevant to the actual decision or risk. Match task context as well as file extensions: architectural design and boundary reviews must not lose relevant architecture guidance merely because several language skills match. Do not fill unused slots or select a framework/architecture solely because its skill exists.
+
+- For design, select applicable boundary/API/data or architecture guidance and the stack rules needed to evaluate the proposed approach.
+- For apply, select implementation and testing guidance for the affected behavior, carrying forward relevant design constraints.
+- For specialists, select guidance for the assigned quality domain and affected technology; do not inject unrelated review domains or discovery instructions into `review-correction`.
+
+Deduplicate by skill id and overlapping rule content before injection. Keep conditional rules with their applicability conditions; never turn a pattern-specific recommendation into a universal mandate. Where the phase already returns decisions, verification evidence, or findings, explain the applied guidance there only when it affected an outcome; do not add a separate skill checklist or artifact.
 
 ### Stack-Skill Candidate Resolution
 

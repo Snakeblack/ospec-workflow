@@ -3,6 +3,8 @@
 > **This module is loaded ONLY when Strict TDD Mode is enabled (`testing.tdd_mode: strict`).**
 > If you are reading this, the orchestrator already verified this condition. Follow every instruction.
 
+This module specializes the test cycle only. The parent skill's contract, workload, scope, remediation, persistence, and status guards still apply. If the runner is absent or unavailable, keep Strict mode and use the existing `STATIC_VALIDATED` / `DEFERRED` evidence semantics below; never report an executed pass or silently switch to Standard.
+
 ## TDD Philosophy
 
 TDD is not testing. TDD is **software design driven by tests**. You write a test that describes what the code SHOULD do, then write the minimum code to make it real. The tests design the API, the contracts, the behavior. Code is a side effect of tests.
@@ -27,8 +29,8 @@ FOR EACH TASK:
 │
 ├── 1. UNDERSTAND
 │   ├── Read the task description
-│   ├── Read relevant spec scenarios (these ARE your acceptance criteria)
-│   ├── Read the design decisions (these CONSTRAIN your approach)
+│   ├── Read relevant spec scenarios and design decisions in standard mode, or proposal-lite.md in lite mode
+│   ├── Apply the parent skill's common contract and scope guards before writing
 │   ├── Read existing code and test patterns (match the style)
 │   └── Determine test layer (see "Choosing Test Layer" below)
 │
@@ -60,17 +62,14 @@ FOR EACH TASK:
 │   └── Skip triangulation when a single test establishes the complete contract or for structural tasks
 │
 ├── 5. REFACTOR — Improve without changing behavior
-│   ├── Extract constants (eliminate magic numbers)
-│   ├── Extract functions (reduce cyclomatic complexity)
-│   ├── Improve naming, remove duplication
-│   ├── Push toward pure functions where feasible
-│   ├── Apply Boy Scout Rule: leave code cleaner than you found it
+│   ├── Refactor only when it improves the assigned behavior's clarity or removes demonstrated coupling
+│   ├── Apply engineering-judgment.md proportionality criteria; keep compatible boundaries and skip unnecessary extractions
 │   ├── EXECUTE tests ONCE after the completed refactor batch → must STILL PASS
 │   │   ├── ✅ Still passing → refactoring is safe, continue
 │   │   └── ❌ Failed → REVERT that refactoring step, try smaller
 │   └── GATE: The refactor batch is complete only when that final targeted run is green
 │
-├── 6. Mark task complete [x]
+├── 6. Mark [x] only after local execution passes; use [~] while execution is deferred
 └── 7. Note any deviations or issues discovered
 ```
 
@@ -99,7 +98,7 @@ Determine test layer by WHAT the task does:
 └── Default: Unit test (always the fallback)
 ```
 
-**Key rule**: Use the HIGHEST available layer that fits the task. But NEVER skip a task because a layer is unavailable — degrade to the next available layer.
+**Key rule**: Use the smallest available layer that observes the contract and its failure paths. A mocked unit test cannot establish real integration or E2E behavior: when the needed layer is unavailable, run useful narrower checks and report the missing evidence for later verification. Do not redesign production boundaries solely to fit a test tool.
 
 ## Test Execution
 
@@ -173,7 +172,7 @@ When Strict TDD Mode is active, your return summary MUST include this section:
 |------|-----------|-------|------------|-----|-------|-------------|----------|-------------------|
 | 1.1 | `path/test.ext` | Unit | ✅ 5/5 | ✅ Written | ✅ Passed | ✅ 3 cases | ✅ Clean | |
 | 1.2 | `path/test.ext` | Integration | N/A (new) | ✅ Written | ✅ Passed | ➖ Single | ✅ Clean | |
-| 1.3 | `path/test.ext` | Unit | ✅ 2/2 | ✅ Written | STATIC_VALIDATED | ✅ 2 cases | ➖ None needed | Command execution restricted; static verification performed. |
+| 1.3 | `path/test.ext` | Unit | DEFERRED | ✅ Written | STATIC_VALIDATED | ➖ Deferred | ➖ None needed | Execution restricted; static verification performed; task remains [~]. |
 
 ### Test Summary
 - **Total tests written**: {N}
@@ -277,39 +276,9 @@ expect(screen.getByRole("button")).toHaveTextContent("Submit");  # Verifies real
 
 ### Mock Hygiene Rules
 
-**If you need more mocks than assertions, or write 7+ mocks in a single test case, you are testing at the WRONG level.**
+Mock counts are a diagnostic signal, not proof of a defect or a reason to stop. Check whether setup obscures the behavior or mocks the very boundary the test claims to verify. Prefer an existing pure helper for isolated transformations, or an integration test when wiring is the risk. Extract new logic only when its cohesion and ownership justify it under `skills/_shared/engineering-judgment.md`; never require an extraction merely to satisfy a mock ratio.
 
-```
-Mock/assertion ratio guide:
-├── ≤ 3 mocks for a test case → ✅ Healthy — focused test
-├── 4–6 mocks (and <= 2x assertions) → ⚠️ Consider extracting logic to a pure function
-└── 7+ mocks or mocks > 2x assertions → ❌ STOP — mock-heavy test (will trigger a WARNING during verification)
-    ├── Extract the logic under test to a PURE FUNCTION and test it without mocks
-    ├── OR move the test to integration/E2E layer where real dependencies exist
-    └── NEVER write 10+ mocks to verify a one-line transformation
-```
-
-**Extract-Before-Mock Rule**: If the behavior you want to test is a data transformation, mapping, filtering, or conditional logic (e.g., `MUTED → FAIL` status conversion), EXTRACT it to a pure function FIRST, then test the pure function directly. No mocks needed.
-
-```
-# ❌ BAD: 15 mocks to test a one-line status conversion
-vi.mock("next/navigation", ...);
-vi.mock("next/link", ...);
-vi.mock("@/components/shadcn", ...);
-// ... 12 more mocks ...
-render(<StatusCell row={mutedRow} />);
-expect(screen.getByText("FAIL")).toBeInTheDocument();
-
-# ✅ GOOD: extract and test the logic directly
-// In production code:
-export function resolveDisplayStatus(status: string, isMuted: boolean): string {
-  return status === "MUTED" ? "FAIL" : status;
-}
-
-// In test — ZERO mocks needed:
-expect(resolveDisplayStatus("MUTED", true)).toBe("FAIL");
-expect(resolveDisplayStatus("PASS", false)).toBe("PASS");
-```
+Keep mocks at explicit external boundaries and assert observable outcomes. If an extracted helper is tested alone, do not claim that this also verifies its caller's wiring.
 
 ### Implementation Detail Coupling Rule
 
@@ -346,7 +315,7 @@ expect(screen.getByRole("button")).toBeDisabled();
 - ALWAYS verify that every assertion CALLS production code and asserts a SPECIFIC expected value
 - ALWAYS run the Safety Net before modifying existing files — protect what already works
 - ALWAYS report the TDD Cycle Evidence table — the verify phase will check it
-- If a test runner execution fails for infrastructure reasons or command execution is unavailable, do not fake execution evidence. Instead, perform rigorous static verification, document the task as `STATIC_VALIDATED` or `DEFERRED` in the evidence table, and ensure execution is verified in a later environment-capable phase.
+- If the test runner is absent, execution fails for infrastructure reasons, or command execution is unavailable, do not fake execution evidence. Perform rigorous static verification where possible, record `STATIC_VALIDATED` or `DEFERRED` in the evidence table, and leave implementation status `[~]` until local execution succeeds. Report the missing execution for a later environment-capable phase; these markers do not change verify policy or establish a passing cycle.
 - Prefer pure functions — but don't force it where it doesn't fit (e.g., React components with state)
 - For refactoring tasks, ALWAYS write approval tests before touching code
 - Run ONLY the relevant test file during the cycle, not the full suite

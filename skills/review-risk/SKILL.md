@@ -10,103 +10,28 @@ metadata:
   delegate_only: true
 ---
 
-> **ORCHESTRATOR GATE**: If you loaded this skill via the `skill()` tool, you are
-> the ORCHESTRATOR — STOP. Do NOT execute these instructions inline. Delegate to
-> the dedicated `review-risk` sub-agent using your platform's delegation primitive
-> (e.g., `task(...)`, sub-agent invocation, etc.). This skill is for EXECUTORS
-> only.
+> **ORCHESTRATOR GATE**: Dispatch this skill to the dedicated `review-risk` executor. The executor reviews directly and never delegates.
 
 ## Purpose
 
-You are a read-only sub-agent responsible for RISK REVIEW. You scan for security and risk issues in the reviewed scope and emit findings using the standard finding schema. You NEVER fix issues — you only report them.
+Review security and risk for the assigned legacy v1 risk lens. This compatibility reviewer retains its original ownership.
 
-## What You Receive
+## Core rules
 
-From the orchestrator:
-- Scope of review (files, paths, or change description)
-- Artifact store mode (`openspec | none`)
+- Read/search only within the supplied candidate and assigned lens; do not write, run tests, or delegate. Use injected Project Standards first.
+- Apply `skills/_shared/review-judgment.md` (read once if not supplied) for evidence/output; use its canonical `engineering-judgment.md` reference for architectural tradeoffs.
+- Trace elevated privilege, sensitive data, injection, or auth bypass to a supported caller and failed trust boundary, checking actual controls.
+- Every finding needs a precise reference, trigger, causal impact, counterevidence check, and verifiable correction outcome; unsupported suspicion is not a finding.
+- Preserve `severity`, `affected_files`, `evidence`, `why_it_matters`, and `owner: risk` (legacy v1); bounded findings also need existing `summary` and `acceptance_criteria` fields.
+- Keep `BLOCKER|CRITICAL|WARNING|SUGGESTION`, one-shot lineage, and frozen scope. Completed clean findings report: exactly `No findings.`; preserve the required outer envelope and structured `findings: []`. Missing essential evidence is not a clean review.
 
-## Read-Only Contract
+## Lens questions
 
-You MUST NOT write, edit, or delete any file. All findings appear ONLY in your return envelope.
+| Inspect | Evidence to establish | Counterevidence and limits |
+|---------|-----------------------|----------------------------|
+| Privilege and sensitive data | Identify unnecessary authority or sensitive data reaching an observable sink, including who can access it. | Intentional public or effectively anonymized data is not exposure. |
+| Injection and auth bypass | Trace external input and resource access through validation, escaping, and permission checks. | Do not flag correctly parameterized calls or validated auth flows; established patterns are not immunity from a demonstrated bypass. |
 
-## Finding Output Schema
+## Finding output
 
-Every finding MUST include all four fields:
-
-| Field | Type | Constraint |
-|-------|------|------------|
-| `severity` | string | exactly one of `BLOCKER`, `CRITICAL`, `WARNING`, `SUGGESTION` |
-| `affected_files` | string[] | at least one file path |
-| `evidence` | string | specific file + line reference, code snippet, or dependency scan output |
-| `why_it_matters` | string | one-sentence impact statement |
-
-Example:
-
-```
-severity: CRITICAL
-affected_files: ["scripts/lib/route-dispatcher.js"]
-evidence: "Line 42: user-controlled input passed directly to eval() with no sanitization"
-why_it_matters: "Allows arbitrary code execution by any caller with write access to config.yaml."
-```
-
-## Require-Evidence Rule
-
-You MUST supply concrete evidence before emitting a finding. Accepted evidence types:
-- Specific file path + line number referencing the vulnerable code
-- A quoted code snippet showing the exact problem
-- Output from a dependency or static analysis scan naming the specific vector
-
-Generic suspicion without concrete evidence is NOT a valid finding. If you suspect an issue but cannot locate concrete evidence, do NOT emit a finding.
-
-## Flag / Do-Not-Flag Table
-
-| Flag When | Do Not Flag When |
-|-----------|-----------------|
-| Elevated privilege scope (code operating with more permissions than required) | Standard, well-established auth patterns with no privilege escalation |
-| PII or sensitive data exposed in logs, responses, or error messages | Data that is intentionally public or already anonymized |
-| Injection vectors (SQL, command, path traversal, template injection) | Standard parameterized queries or properly escaped output |
-| Auth bypass paths (missing auth checks, insecure defaults, broken access control) | Access controls that are correctly scoped and verified by tests |
-
-## Clean-Output Contract
-
-When you have no findings after reviewing the entire scope, your output MUST be exactly:
-
-```
-No findings.
-```
-
-No additional prose, no clarification, no placeholder text.
-
-## What to Do
-
-### Step 1: Read the Scope
-
-Read each file or path in the review scope. Use `read` and `search` only.
-
-### Step 2: Evaluate Each Risk Dimension
-
-For each file reviewed, evaluate:
-1. **Elevated privilege**: Does this code operate with more access than the task requires?
-2. **PII exposure**: Could sensitive data appear in logs, errors, or API responses?
-3. **Injection**: Is any user-controlled or external input used without proper sanitization?
-4. **Auth bypass**: Are access checks missing, bypassable, or insecure by default?
-
-### Step 3: Apply Require-Evidence Rule
-
-For each candidate finding, locate concrete evidence (file + line, snippet, or scan output). If you cannot, discard the finding.
-
-### Step 4: Emit Findings or Clean Output
-
-Emit each finding with all four required fields in the schema above.
-
-If no findings remain after the evidence filter, emit exactly `No findings.`
-
-## Rules
-
-- NEVER write, edit, or delete any file
-- NEVER emit a finding without concrete evidence
-- NEVER emit vague findings like "this looks risky" — name the specific vector
-- ALWAYS use exactly one severity label per finding
-- ALWAYS emit `No findings.` (exactly) when the scope is clean
-- Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`
+Follow [review-judgment.md](../_shared/review-judgment.md) for the common finding schema, severity calibration, and return envelope. Include `owner: risk`; never translate it across lineage schemas. Classification signals select inspection, not conclusions.

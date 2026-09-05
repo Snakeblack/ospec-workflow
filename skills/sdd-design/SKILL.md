@@ -42,6 +42,7 @@ From the orchestrator:
 
 ### Step 1: Load Skills
 Follow **Section A** from `skills/_shared/sdd-phase-common.md`.
+Read `skills/_shared/engineering-judgment.md` once and apply it to the design decisions below; it does not require additional skill discovery.
 
 ### Step 2: Resolve Design Mode and Read Inputs
 
@@ -78,6 +79,8 @@ openspec/changes/{change-name}/
 
 #### Design Document Format
 
+Scale the sections to the change. Include only material decisions and affected contracts/flows; omit inapplicable template rows. Record boundaries, invariants, and quality evidence in the relevant sections, without creating a parallel checklist.
+
 ```markdown
 # Design: {Change Title}
 
@@ -93,16 +96,11 @@ How does this map to the proposal's approach? Reference specs.}
 **Choice**: {What we chose}
 **Alternatives considered**: {What we rejected}
 **Rationale**: {Why this choice over alternatives}
-
-### Decision: {Decision Title}
-
-**Choice**: {What we chose}
-**Alternatives considered**: {What we rejected}
-**Rationale**: {Why this choice over alternatives}
+**Evidence and consequences**: {Requirement or code reference; cost and reversibility}
 
 ## Data Flow
 
-{Describe how data moves through the system for this change.
+{Describe ownership, boundary crossings, and relevant failure paths for this change.
 Use ASCII diagrams when helpful.}
 
     Component A ──→ Component B ──→ Component C
@@ -119,16 +117,14 @@ Use ASCII diagrams when helpful.}
 
 ## Interfaces / Contracts
 
-{Define any new interfaces, API contracts, type definitions, or data structures.
+{Define affected interfaces, compatibility obligations, and invariants that must remain true.
 Use code blocks with the project's language.}
 
 ## Testing Strategy
 
-| Layer | What to Test | Approach |
-|-------|-------------|----------|
-| Unit | {What} | {How} |
-| Integration | {What} | {How} |
-| E2E | {What} | {How} |
+| Requirement / quality concern | Trigger and conditions | Expected response | Verification |
+|--------------------------------|------------------------|-------------------|--------------|
+| {Affected behavior or attribute} | {Realistic scenario} | {Observable result / agreed target} | {Test layer, measurement, or inspection; evidence gaps} |
 
 ## Migration / Rollout
 
@@ -143,7 +139,7 @@ If not applicable, state "No migration required."}
 
 ### Step 3b: Extract ADRs for Significant Decisions
 
-After writing `design.md`, promote each **significant** Architecture Decision to its own short ADR file under `openspec/changes/{change-name}/decisions/adr-NNN.md` (`NNN` = 001, 002, … in design order).
+In `openspec` mode, after writing `design.md`, promote each **significant** Architecture Decision to its own short ADR file under `openspec/changes/{change-name}/decisions/adr-NNN.md` (`NNN` = 001, 002, … in design order). In `none` mode, include significant decisions inline; do not create ADR files or directories.
 
 A decision is **significant** when it meets AT LEAST ONE of: affects a public contract, changes a data model, introduces a new dependency, or establishes a cross-cutting pattern. Everything else stays only in `design.md` — do NOT create an ADR for it.
 
@@ -208,8 +204,7 @@ Ready for tasks (sdd-tasks).
 - ALWAYS read change-local specs when they exist; `design-after-spec` is mandatory in that case
 - Every decision MUST have a rationale (the "why")
 - Include concrete file paths, not abstract descriptions
-- Use the project's ACTUAL patterns and conventions, not generic best practices
-- If you find the codebase uses a pattern different from what you'd recommend, note it but FOLLOW the existing pattern unless the change specifically addresses it
+- Ground pattern selection and quality claims in `skills/_shared/engineering-judgment.md`; do not introduce structure merely because a skill or this template illustrates it
 - Keep ASCII diagrams simple — clarity over beauty
 - Apply any `rules.design` from `openspec/config.yaml`
 - If you have open questions that BLOCK the design, say so clearly — don't guess

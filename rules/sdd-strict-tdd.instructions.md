@@ -27,7 +27,7 @@ Required evidence columns:
 
 - Read `apply-progress.md` and validate the TDD evidence against real test files and execution output.
 - Runtime test execution evidence overrides static inspection when deciding compliance. If tasks were marked `STATIC_VALIDATED` or `DEFERRED`, execute their test files during this verify phase if a test runner is now available to obtain runtime verification.
-- A spec scenario is compliant only when a covering test passed at runtime (or statically validated with documented rationale if execution remains impossible across all environments).
+- Apply the evidence-strength matrix in `skills/sdd-verify/SKILL.md`. `STATIC_VALIDATED` and `DEFERRED` record execution limitations; neither is a runtime pass or, by itself, proof that a MUST scenario is compliant.
 - Audit assertion quality: no tautologies, ghost loops, type-only smoke tests, or tests that do not exercise production code.
 - If Strict TDD evidence is missing or cannot be proven (without valid `STATIC_VALIDATED`/`DEFERRED` status and rationale), report a CRITICAL issue.
 

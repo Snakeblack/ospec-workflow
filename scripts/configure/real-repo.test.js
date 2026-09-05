@@ -43,11 +43,17 @@ function walk(root, relDir = "", acc = []) {
   return acc;
 }
 
-test("real repo: all six targets generate non-empty trees", (t) => {
-  for (const target of ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor"]) {
+test("real repo: all seven targets ship the engineering and review references", (t) => {
+  for (const target of ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor", "antigravity"]) {
     const out = tmpOut(t);
     const result = runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
     assert.ok(result.files.length > 0, `${target} produced no files`);
+    for (const reference of ["engineering-judgment.md", "review-judgment.md"]) {
+      assert.ok(
+        result.files.some((file) => file.path.endsWith(`/skills/_shared/${reference}`) || file.path === `skills/_shared/${reference}`),
+        `${target} dropped required shared reference ${reference}`,
+      );
+    }
   }
 });
 
@@ -121,6 +127,11 @@ test("real repo: the orchestrator agent dispatches through the root AGENTS.md wi
   assert.ok(!fs.existsSync(orchestratorPath), "orchestrator TOML agent must not be generated");
 
   const content = fs.readFileSync(agentMdPath, "utf8");
+  assert.doesNotMatch(
+    content,
+    /do not ask blocking workflow questions as plain chat text/i,
+    "a target that degrades gates to chat must not also prohibit chat gates",
+  );
   assert.ok(
     content.includes("sdd-propose") || content.includes("sdd-explore") || content.includes("Propose") || content.includes("Explore"),
     "orchestrator AGENTS.md instructions must retain delegation to phase sub-agents",

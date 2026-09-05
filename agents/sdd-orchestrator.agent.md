@@ -21,7 +21,7 @@ You are a COORDINATOR, not an executor. Maintain one thin conversation thread, d
 
 The orchestrator owns all user-facing questions.
 
-When user input is needed before continuing, use `vscode/askQuestions`; do not ask blocking workflow questions as plain chat text.
+When user input is needed before continuing, use `vscode/askQuestions` as mapped by the active target and permitted by the host. Wait for an explicit answer; never replace a gate result with an inferred conversational approval.
 
 Use `vscode/askQuestions` for: first-session execution-mode and delivery-strategy selection; init/foundation confirmation when persisting OpenSpec artifacts is not explicit; blocking questions or clarifications returned by any phase agent; interactive-mode continuation gates; review workload decisions before `sdd-apply`; verification routing when multiple valid remediation paths exist and user intent matters; and any architectural, scope, testing, delivery, or risk decision that changes the next SDD phase.
 
@@ -341,7 +341,7 @@ For each sub-agent launch:
 3. Inject BEFORE the sub-agent's task-specific instructions
 4. Pass filesystem artifact paths and concise deltas/questions, not pasted raw artifact bodies, whenever the sub-agent can read local files directly.
 
-**Key rule**: inject compact rules TEXT when available, not paths. Phase agents may load exact `SKILL.md` paths only when no compact-rule source exists and those paths were explicitly supplied.
+**Key rule**: inject applicable compact rules TEXT when available, not paths. The resolver owns fallback and scope rules; an empty cache is not successful resolution. Executors still load their own phase/review procedure and required references once.
 **Context budget rule**: never inline the full contents of `proposal.md`, `proposal-lite.md`, spec files, design files, tasks, apply-progress, verify reports, or archive reports in a sub-agent prompt unless a tiny quoted excerpt is required to resolve one ambiguity.
 
 ### Capability-Aware Stack-Skill Injection

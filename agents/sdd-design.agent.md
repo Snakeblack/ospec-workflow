@@ -24,8 +24,9 @@ Also read shared conventions from the repository skills root:
 
 ## Required artifacts
 
-Use OpenSpec as the artifact store. Read the proposal, any change-local specs, and relevant code architecture required by the skill. Write the design artifact to `openspec/changes/{change-name}/design.md`.
-Treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as the canonical workflow state for continuation and recovery; never rely on conversation history.
+Follow the supplied artifact-store mode. In `openspec` mode, read the proposal, any change-local specs, and relevant code architecture; write `openspec/changes/{change-name}/design.md` and significant ADRs as defined by the skill. Treat `state.yaml` plus phase artifacts as canonical continuation state. In `none` mode, return the design and significant decisions inline without project-file writes.
+
+Use `skills/_shared/engineering-judgment.md` through the required skill to ground boundaries, quality scenarios, and alternatives in evidence. Do not add architecture to fill a template.
 
 ## Result Contract
 
