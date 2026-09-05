@@ -44,17 +44,102 @@ O2B cerró el gate inicial. K1, K2, K2.1, K2a, K2.1b, k2a-1, K3, `k3-readiness-r
 
 Las iniciativas anteriores no se descartan. O20A, O13A–C, O15, O18, O19A/B y R1 se rebasan sobre un kernel común; O7+O10 se convierte en capacidades; O9+O11 en invalidación/recompilación; O14 en routing por nodo; R4 consume el mismo Execution Graph. O8 y O12 conservan shadow, compatibilidad y deprecación. Targets y R2 siguen subordinados a la estabilidad del core.
 
-## Ruta rápida para ejecución
+<a id="ruta-rápida-para-ejecución"></a>
 
-| Orden | Acción | Gate de salida |
-| ---: | --- | --- |
-| 1 | Ejecutar K6d | Complexity/architecture delta reproducible |
-| 2 | Ejecutar K7 → K8 | Review authority + Candidate Evaluation Attestation |
-| 3 | Ejecutar K9 | Calidad no inferior, replay y fallback fixed (checkpoints intermedios ya emitidos) |
-| 4 | Ejecutar K10-delivery | `DeliveryAuthorization` **solo** del profile promovido por K9; relación Candidate por etapas; resto fixed/deferred |
-| 5 | Expandir K10, K11a→K11d y K12 | Rutas/targets de uno en uno, luego corpus/longitudinal (runner mínimo ya en K2) |
+## Orden recomendado de trabajo
 
-La lane CX es subordinada y no aparece en este diagrama crítico: CX0 puede avanzar en paralelo a K6d, sin cambiar que `K6d → K7 → K8 → K9 → K10-delivery → K10 → K11a–d → K12` gobierna la promoción del harness.
+Este orden prioriza beneficio al desarrollar el propio harness: obtener un ahorro reutilizable antes de afrontar las inversiones largas. Es una recomendación de planificación; no abre ni aprueba changes. **K6d está done advisory y K7 es técnicamente next-eligible.** La cadena de promoción sigue siendo `K7 → K8 → K9 → K10-delivery → K10 → K11/K12`, con quality gates, shadow/A-B y fixed como control/default intactos.
+
+| Prioridad | Unidad propuesta | Ahorro que deja al siguiente trabajo | Dependencia técnica real |
+| ---: | --- | --- | --- |
+| 1 | PP1 — elegibilidad/floors del routing vivo | Trivial/small seguro en repos active puede pasar de siete fases a las cinco de lite. | Compatibilidad de tabla, señales, contratos y mapeo K1; no espera K10. |
+| 2 | PP2 — contrato lite compacto | Esas cinco fases producen y releen menos contenido redundante. | PP1 para aprovechar selección segura; formatos y consumidores vigentes. |
+| 3 | CX1 — envelope/state mecánico | Menos escritura repetida de estado y salida humana/JSON. | CX0 + K2/K2.1; PP2 aporta casos comparables, no es dependencia del kernel. |
+| 4 | CX2 — vistas y archive renderer | Menos matrices, inventarios y reconciliación manual en cada cierre. | CX1; datos canónicos/receipts, sin cambiar autoridad. |
+| 5 | R2.1 — fronteras de foundation | Menos redescubrimiento y duplicación de decisiones estables. | K1; puede adelantarse o avanzar en paralelo sin esperar CX1/CX2. |
+| 6 | R2.4 — foundation holística por etapas | Mejor contexto inicial y menos decisiones tardías para próximos changes. | R2.1 y gates humanos vigentes; no requiere CNCF. |
+| 7 | R2.2 — consumo focal | Planner/verifier aprovechan foundation sin copiarla completa. | R2.1; validar sobre el resultado útil de R2.4 es el orden recomendado. |
+| 8 | R2.3/R2.6 — conocimiento CNCF on-demand | Menos búsqueda repetida cuando una decisión sí necesita fuentes externas. | Contratos R2.1/R2.2 y fronteras de ingesta/refresh; no es requisito general. |
+
+PP1/PP2 son identificadores locales de backlog, no nuevas rutas o autoridades. Las unidades R2 conservan los siete slices existentes; una ficha compartida R2.3/R2.6 describe un caso de uso, no los da por completados. Prioridad no significa que todas las filas formen una dependencia secuencial ni que se deba posponer K7 hasta terminar CX o R2.
+
+### Fichas iniciales para futuros changes
+
+La etapa actual entrega análisis y documentación. Cada slug de abajo es **propuesto**, pendiente de explorar contratos, confirmar alcance y planificar implementación. Las estimaciones pequeña/media describen trabajo esperado, no la clasificación definitiva: modificar routing/autoridad puede ser high-risk aunque tenga pocas líneas. Si el forecast supera 400 líneas o cruza fronteras de contrato, dividir al planificar con entregas verificables; no prometer ocho PRs pequeñas.
+
+#### PP1 — `live-routing-eligibility-and-risk-floors`
+
+- **Beneficio:** habilitar lite seguro en active y evitar ciclos completos causados por matching accidental; los siguientes cambios elegibles aprovechan cinco fases en vez de siete, sin atribuir un porcentaje de ahorro.
+- **Alcance:** normalizar `classification`/`change.classification`, decidir conflictos y elegibilidad de metadata, integrar mapeo de floors K1 a garantías legacy, conservar prioridad contextual/intenciones y orden entre rutas custom elegibles; actualizar contratos/fixtures/documentación de todos los targets afectados. **No alcance:** recetas Direct, Change Program o endurecimiento genérico del parser.
+- **Depende de:** tabla viva y contratos K1 existentes; no K7/K10. Referencia: [diagnóstico y diseño](../architecture/harness-proportionality.md#pp1-compatibilidad-de-elegibilidad-y-mínimos).
+- **Done:** config real selecciona lite para trivial/small admisible; auth/migración/API no esquivan mínimos con hotfix; foundation/federated/brownfield conservan prioridad; fixtures prueban claves, conflictos, orden custom, entrypoints/targets y continuación sin downgrade silencioso.
+- **Medición:** distribución de rutas justificadas, fases/invocaciones y obligaciones conservadas con cobertura declarada. **Riesgo/rollback:** compatibilidad de tablas custom; reversión para nuevas admisiones sin borrar ledgers activos ni habilitar rutas inseguras.
+- **Estimación:** media; tests de integración pertenecen a este change, no a una iniciativa posterior.
+
+#### PP2 — `compact-lite-contract-and-consumer-compatibility`
+
+- **Beneficio:** cada lite posterior redacta y relee menos información; aprovecha la selección segura de PP1.
+- **Alcance:** compactar `proposal-lite`, tasks y resúmenes exigidos; auditar dependencias/consumidores y corregir requisitos incondicionales de spec/design donde existan; coherencia en apply, verify, archive, recovery y targets. **No alcance:** artefactos de relleno, eliminación de evidencia, fusión de fases o nueva ruta.
+- **Depende de:** PP1 como entrada segura y contratos vigentes; no del futuro reducer CX1 para reducir prosa compatible.
+- **Done:** las cinco fases actuales recorren un lite sin spec/design legítimamente ausentes; continuidad combina apply-progress; verify independiente y archive conservan contratos; un caso normal mantiene planificación suficiente.
+- **Medición:** bytes/tokens por artefacto y relecturas por cohortes, rework y errores de consumidores. **Riesgo/rollback:** lectores ocultos; restaurar formato compatible sin perder evidencia ni fabricar completions.
+- **Estimación:** media; separar migraciones si aparecen consumidores con fronteras independientes.
+
+#### CX1 — `phase-envelope-state-mechanical-projection`
+
+- **Beneficio:** PP2 reduce contenido semántico repetido; CX1 elimina después duplicación mecánica en todos los changes que adopten el contrato.
+- **Alcance:** envelope versionado, renderer humano y `PhaseCompletionReducer` del slice CX1. **No alcance:** consolidar planificación/invocaciones ni mover approvals al modelo.
+- **Depende de:** CX0 + K2/K2.1; equivalencia legacy/CAS/replay. PP2 no bloquea técnicamente este slice.
+- **Done:** igual estado/decisiones desde envelope y legacy; errores y outcomes desconocidos reconciliables; cero pérdida de approvals, assumptions, lineage y gates; fallback probado.
+- **Medición:** escritura de estado/salida duplicada y divergencias de render. **Riesgo/rollback:** migración de consumidores; adapter legacy preservado y replay sin reset de budgets.
+- **Estimación:** media; empezar por contrato y consumidor focal, expandir por slices si supera el presupuesto.
+
+#### CX2 — `derived-traceability-and-archive-views`
+
+- **Beneficio:** reutiliza el contrato CX1 y reduce trabajo mecánico al verificar/cerrar los changes siguientes.
+- **Alcance:** vistas de traceability/compliance y renderer de inventario, hashes, fechas y estado de archive desde plan/receipt. **No alcance:** escribir conclusiones semánticas ni declarar movimientos completados sin receipt.
+- **Depende de:** CX0/CX1; no CX3–CX6 ni finalización de K7.
+- **Done:** vistas reproducibles equivalentes; archive parcial/unknown visible; summary, riesgos y decisiones siguen siendo responsabilidad semántica del agente.
+- **Medición:** volumen derivado, relecturas y errores de reconciliación. **Riesgo/rollback:** fuente incompleta o stale; restaurar vista legacy compatible sin cambiar el estado canónico.
+- **Estimación:** media; particionar renderer de archive si introduce una frontera independiente.
+
+#### R2.1 — `foundation-knowledge-change-boundaries`
+
+- **Beneficio:** decisiones estables referenciables desde cada change; puede aprovechar PP2/CX1 sin depender de su implementación.
+- **Alcance:** fijar reparto entre foundation, conocimiento externo, decisiones de change y fuentes existentes dentro de los artefactos actuales. **No alcance:** nuevo store normativo, agente arquitecto, cloud o wiki obligatorios.
+- **Depende de:** K1 y autoridades existentes. Diseño: [foundation holística](../architecture/harness-foundation-holistic.md).
+- **Done:** ejemplos de proyecto nuevo y repo existente ubican cada decisión una sola vez; gaps y fuentes distinguibles de requisitos aceptados; lectores pueden resolver referencias sin duplicación normativa.
+- **Medición:** decisiones repetidas, referencias sin dueño/fuente y contexto reintroducido. **Riesgo/rollback:** competir con OpenSpec; restaurar referencias anteriores y conservar los originales.
+- **Estimación:** pequeña de diseño, a reclasificar si la implementación cruza varios consumidores.
+
+#### R2.4 — `holistic-proportional-foundation-discovery`
+
+- **Beneficio:** aprovechar R2.1 para despejar incertidumbre de producto y ciclo de vida antes de que cause rework en apply.
+- **Alcance:** descubrimiento interno por etapas, matriz holística proporcional y gaps con condición de resolución en los documentos existentes. **No alcance:** nueva fase universal, scaffold implícito o implementación previa de catálogo CNCF.
+- **Depende de:** R2.1 y gates humanos vigentes; no de CX completo ni K7.
+- **Done:** CLI/librería sin cloud, servicio con datos sensibles y proyecto con información incompleta producen profundidad distinta; `unknown` no se trata como N/A; reanudar conserva respuestas y decisiones; no se genera app sin autorización.
+- **Medición:** preguntas materiales, decisiones tardías/rework y cobertura de gaps por caso. **Riesgo/rollback:** checklist exhaustivo; volver al descubrimiento vigente preservando decisiones y documentos.
+- **Estimación:** media; no absorber adopción brownfield R2.5 ni publicación R2.7.
+
+#### R2.2 — `foundation-reference-consumption`
+
+- **Beneficio:** planner/verifier usan el contexto útil de R2.4 por referencia y evitan volver a descubrirlo o copiarlo completo.
+- **Alcance:** contratos de consumo, vigencia visible y resolución focal de gaps para planificación/verificación/documentación. **No alcance:** wiki como autoridad o reescritura de todos los artefactos.
+- **Depende de:** R2.1; se recomienda probar sobre R2.4, sin añadir dependencia del kernel.
+- **Done:** fuente actual, stale y ausente producen comportamientos distinguibles; el verificador contrasta hechos y no confía en el resumen como evidencia; repos sin OpenWiki siguen funcionando.
+- **Medición:** referencias leídas, contexto duplicado y decisiones rehechas. **Riesgo/rollback:** ocultar información material; fallback a fuentes completas con motivo registrado.
+- **Estimación:** media; un consumidor primero, expansión posterior según forecast.
+
+#### R2.3/R2.6 — `cncf-on-demand-knowledge-curation`
+
+- **Beneficio:** reutilizar búsqueda y evaluación cuando una necesidad concreta justifique opciones del ecosistema CNCF, tras el ahorro de discovery y consumo focal.
+- **Alcance:** futura skill de consulta/curación con fichas fuente-fecha-vigencia, criterios de madurez y alternativas; ingesta resiliente R2.3 y refresh focal R2.6. **No alcance:** arquitecto universal, catálogo completo obligatorio, instalación de herramientas o imponer Kubernetes/cloud.
+- **Depende de:** R2.1/R2.2; primero contrato de ingesta R2.3, luego refresh R2.6. La planificación separará ambos si requieren validación autónoma; no se dan por completados sus demás usos.
+- **Done:** necesidad que no requiere CNCF termina sin catálogo; una necesidad pertinente compara opciones con fuentes; fuente ausente/conflictiva/stale degrada explícitamente; refresh no sobrescribe decisiones aceptadas. Detalle: [conocimiento externo](../architecture/harness-foundation-holistic.md).
+- **Medición:** búsquedas repetidas, referencias reutilizadas con vigencia y recomendaciones corregidas. **Riesgo/rollback:** sesgo de catálogo o desactualización; desactivar consulta y volver a fuentes originales, conservando provenance y decisiones.
+- **Estimación:** media, on-demand; no bloquear R2.4 esperando esta skill.
+
+Las inversiones largas retoman K7/K8 y los gates K9/K10-delivery con las mejoras disponibles. K10 generaliza mínimo de obligaciones a capacidades, y solo después de contratos runtime/CX1 y recetas promovidas se considera consolidar invocaciones manteniendo verificación independiente. K11/K12 y CX3–CX6 se expanden por evidencia, sin convertir el ahorro esperado en permiso para relajar garantías.
 
 ## Estado ejecutivo
 
@@ -81,8 +166,9 @@ La lane CX es subordinada y no aparece en este diagrama crítico: CX0 puede avan
 | `done` | **K4b** | Repair shadow execution (WO→WR→integrate→Candidate); despacho exclusivo K6a, integración estricta, cápsula mínima, base derivada y registro 1:N; remediación de invariantes en v2.48.2 y cierre mode-only/baseline en v2.48.3 (`2026-08-26-k4b-mode-only-and-baseline-projection`) |
 | `done` | **K6b** | Verifier + provenance + Assurance Graph; persistencia durable de `runner-receipt/v1` en CAS `runner_receipts`, canal reemitido tras restart y bind de role en replay; archivado y publicado en v2.55.0 |
 | `done` | **K6c** | ChallengePlan policy-selected; catálogo de 9 tipos, mutaciones focales y control de budget (v2.56.0); integridad canónica/fail-closed cerrada en v2.56.1 (`k6c-integrity-remediation`); strategy binding, missing_tests/no-op y planner reject en v2.56.2 (`k6c-failclosed-integrity`); enforcement monotónico de mutation_budget en v2.56.4 (`k6c-budget-execution-failclosed`); restauración canónica de spec sin corrupción, validación fail-closed de integridad de archive y confinamiento estricto de runner sandboxed en v2.56.5 (`k6c-spec-integrity-and-runner-seam-remediation`) |
-| `next-eligible` | **K6d** | Complexity delta; desbloqueado tras archive de `k6c-spec-integrity-and-runner-seam-remediation` |
-| `pending` | K7–K8 | Review authority, **Evaluation Attestation** |
+| `done` | **K6d** | Complexity/architecture delta Candidate-bound advisory; verify PASS y archive cerrado en `2026-09-03-k6d-complexity-architecture-delta` |
+| `next-eligible` | K7 | Review authority; técnicamente desbloqueado, sin afirmar change iniciado |
+| `pending` | K8 | **Evaluation Attestation** |
 | `pending` | K9 | Gate de promoción shadow/replay/A-B (checkpoints intermedios ya validados) |
 | `pending` | K10-delivery | `DeliveryAuthorization` **acotada al profile K9**; relación Candidate por etapas; fixed/deferred para el resto |
 | `pending` | K10–K12 | Expansión adaptativa; K11a = multi-target; K12 = corpus/longitudinal (no el primer runner) |
@@ -188,11 +274,11 @@ Campo canónico de binding al candidato: **`candidate_id`** (no `candidate_diges
 Entregado:
 G0/G0.1 ─ O2A ─ O3 ─ O4+O5/O4.1 ─ O4.2 ─ O6A ─ O2B → K1 → K2 → K2.1 → K2a → K3 → K4a → K5 → K6a → K4b
                                                                                                       ↓
-Done:                                                                                                K6b → K6c
+Done:                                                                                                K6b → K6c → K6d
                                                                                                       ↓
-Next-eligible:                                                                                       K6d
+Next-eligible:                                                                                       K7
                                                                                                       ↓
-Pending:     K7 → K8
+Pending:     K8
                                                                    ↓
 Promoción:                                                       K9
                                                                    ↓
@@ -1187,7 +1273,7 @@ K6c ataca la **evidencia/implementación** del candidato. La refutación adversa
 
 **Gate terminal:** cerrado en v2.56.0 (`k6c-policy-selected-challenges`). Integridad canónica, ejecución aislada fail-closed, conjunto exacto en el verifier y proyección/replay no autoritativa cerradas en v2.56.1 (`k6c-integrity-remediation`). Binding de la strategy seleccionada, fail-closed de `missing_tests`/no-op y rechazo de estrategia desconocida en el planner cerrados en v2.56.2 (`k6c-failclosed-integrity`). Enforcement monotónico de `mutation_budget` con fallo causal y clasificación estricta de spawn/tooling errors cerrados en v2.56.4 (`k6c-budget-execution-failclosed`). Desbloquea K6d.
 
-### K6d — complexity y architecture delta — **next-eligible**
+### K6d — complexity y architecture delta — **done (advisory)**
 
 **Dependencias:** K6b; K6c para promotion evidence.
 
@@ -1208,7 +1294,7 @@ K6c ataca la **evidencia/implementación** del candidato. La refutación adversa
 - output queda disponible para review y K9;
 - no se crean límites rígidos por líneas/archivos.
 
-**Gate terminal:** complexity report reproducible; K7 puede integrar el conjunto K6.
+**Gate terminal:** cerrado; [archive-report](../../openspec/changes/archive/2026-09-03-k6d-complexity-architecture-delta/archive-report.md) y [estado](../../openspec/changes/archive/2026-09-03-k6d-complexity-architecture-delta/state.yaml) registran verify/archive done, PASS y lineage cerrado. La evidencia de complexity permanece advisory y Candidate-bound; K7 puede integrar el conjunto K6 sin reabrir este slice.
 
 ### Gate de equivalencia de evidencia
 
@@ -1923,7 +2009,9 @@ Reglas:
 
 ### CX — eficiencia de contexto (no bloqueante)
 
-Lane subordinada para reducir amplificación sin mover autoridades, defaults ni ruta crítica. K4a sigue siendo el único `ExecutionGraphCompiler`; `InputProjectionBuilder` solo deriva `ContextProjection` desde Graph/`capsule_inputs` y referencias canónicas. CX0 puede iniciar en paralelo a K6d.
+Lane subordinada para reducir amplificación sin mover autoridades, defaults ni ruta crítica. K4a sigue siendo el único `ExecutionGraphCompiler`; `InputProjectionBuilder` solo deriva `ContextProjection` desde Graph/`capsule_inputs` y referencias canónicas. CX0 está implemented-advisory; CX1/CX2 tienen prioridad de ahorro reutilizable en el orden recomendado, sin ser requisito de K7.
+
+El [verify histórico CX0](../../openspec/changes/archive/2026-09-02-cx0-context-measurement/verify-report.md) registra PASS (12/12). Su carpeta está bajo archive, pero [state](../../openspec/changes/archive/2026-09-02-cx0-context-measurement/state.yaml) conserva `verified` y [archive-report](../../openspec/changes/archive/2026-09-02-cx0-context-measurement/archive-report.md) documenta movimiento pendiente. Se registra como limitación histórica; este roadmap no inventa reconciliación ni deduce ahorro medido de instrumentación existente.
 
 | Slice | Estado / dependencia | Entrega y gate |
 | --- | --- | --- |
@@ -1960,6 +2048,8 @@ El registro histórico de K4a (`5.478.420` prompt tokens; `70,9 %` en review reg
 ### R2 — Foundation + OpenWiki
 
 R2 sigue subordinado al core. Puede avanzar por slice solo si no toca lifecycle, Execution Graph, Candidate/evidence authority ni defaults adaptive.
+
+El [diseño holístico](../architecture/harness-foundation-holistic.md) amplía descubrimiento dentro de los artefactos vigentes, cubriendo propósito y ciclo de vida del software según riesgo. Las fichas iniciales de arriba priorizan R2.1/R2.4 y R2.2; la futura skill CNCF se mapea a R2.3/R2.6 y sigue siendo on-demand. No exige OpenWiki, Starlight, cloud ni catálogo previo; R2.5 y R2.7 conservan su alcance posterior.
 
 | Slice | Destino | Dependencia/gate | Done criteria |
 | --- | --- | --- | --- |

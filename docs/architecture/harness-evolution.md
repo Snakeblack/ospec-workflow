@@ -93,15 +93,24 @@ El diagnóstico cambia el **transporte y la proyección** del contexto, no las a
 
 El histórico de K4a registró `5.478.420` prompt tokens y `3.883.947` en la familia review/4R/correction (`70,9 %`). Confirma una **patología histórica** de consumo, no una baseline del protocolo 4R actual: con `artifact_tokens` y `tool_output_tokens` registrados como cero no permite atribuir causalidad ni cuantificar ahorro por intervención.
 
-## Ruta rápida
+<a id="ruta-rápida"></a>
 
-1. [Modelo de autoridad](#modelo-de-autoridad).
-2. [Cadena canónica](#cadena-canónica-del-change).
-3. [Kernel y Execution Graph](#kernel-determinista-y-execution-graph).
-4. [Proyecciones y budgets de contexto](#proyecciones-de-entrada-y-budgets-de-contexto-propuesta-cx).
-5. [Rutas y capacidades](#clasificación-rutas-y-capacidades).
-6. [Migración sin big bang](#estrategia-de-migración).
-7. [Qué es hecho, target o hipótesis](#registro-de-madurez).
+## Orden recomendado de trabajo
+
+Para desarrollar el propio harness conviene obtener primero mejoras que cada change siguiente pueda reutilizar. El [orden operativo y sus fichas](../roadmaps/harness-evolution.md#orden-recomendado-de-trabajo) prioriza PP1 (routing vivo y mínimos de riesgo), PP2 (lite compacto con contratos vigentes), CX1/CX2 (estado y vistas mecánicas), y R2.1/R2.4/R2.2 (foundation útil y consumo por referencias). Son propuestas de trabajo, no changes abiertos ni aprobados.
+
+La prioridad de inversión se distingue de la dependencia técnica de promoción: **K7 → K8 → K9 → K10-delivery → K10 → K11/K12** se conserva. K6d ya está cerrado como evidencia advisory; K7 es el siguiente slice técnicamente elegible. No necesita esperar a CX completo, ni foundation tiene que terminar un catálogo externo antes de ser útil.
+
+| Decisión de corto plazo | Beneficio para los siguientes changes | Límite |
+| --- | --- | --- |
+| Hacer alcanzable lite para trivial/small admisible | Evitar spec/design cuando el proceso vigente no los necesita: siete fases pasan a cinco. | Primero elegibilidad, normalización de señales y hard floors; no basta reordenar YAML. |
+| Compactar artefactos existentes y corregir sus consumidores | Menos repetición y reconstrucción de contexto dentro de esas cinco fases. | Sin documentos vacíos, falsa evidencia, completions fabricadas ni saltos de fase. |
+| Derivar estado y vistas mecánicas en CX1/CX2 | Menos redacción y reconciliación repetitivas. | Contrato versionado y replay; la semántica sigue en los agentes. |
+| Ampliar foundation proporcional dentro de R2 | Menos redescubrimiento de propósito, restricciones y decisiones de ciclo de vida. | Sin nueva autoridad, agente arquitecto universal ni cloud obligatorio. |
+
+El diseño concreto se desarrolla en [proporcionalidad](harness-proportionality.md) y [foundation holística](harness-foundation-holistic.md). Separan estado actual y objetivo: la primera mejora no consolida invocaciones; esa capacidad espera contratos runtime/CX1 y recetas K10 promovidas, preservando verificación independiente.
+
+CX0 ya aporta instrumentación advisory, aunque su histórico de archive tiene una inconsistencia de estado documentada en el roadmap. No hay ahorro demostrado atribuible a estas propuestas. Medir por cohortes coste, relecturas, latencia, rework y conservación de evidencia precede a fijar objetivos de ahorro.
 
 ## Propósito del producto
 
@@ -230,7 +239,7 @@ El programa no cambia defaults por el solo hecho de cerrar O2B/K1/K2/K2.1/K2a: c
 
 - Hard floors K1 no cablean la tabla de routing de producto; first-match de `standard` por `project.status: active` deja `lite` inalcanzable en repos active (compatibilidad; no es K10).
 - Recetas Direct/Repair/Bounded/Planned/Critical no están activas (K10, una a una, tras K9).
-- ChallengePlan / challenges proporcionales y `complexity_delta` no son gates reutilizables (K6c/K6d).
+- K6c ya entrega ChallengePlan/challenges proporcionales y K6d `complexity_delta` advisory; su integración con review/promoción K7/K9 permanece pendiente, sin reabrir esas primitivas.
 - El Assurance Graph no es autoridad independiente de lifecycle, approval o delivery (sigue `target`; K6b solo materializa la proyección).
 - ReviewAdapter / Nivel 0 determinista no sustituyen el generalist de O4 (K7).
 - No hay CandidateEvaluationAttestation ni DeliveryAuthorization productivos (K8 / K10-delivery).
@@ -622,7 +631,9 @@ La clasificación nombra sus `reasons` y produce fingerprint estable. El tier de
 
 Las rutas no son nuevos orquestadores. Son recetas de compilación con hard floors, capabilities y evidence strategies.
 
-La tabla `routing:` de `openspec/config.yaml` (foundation, federated, bugfix, brownfield, refactor, hotfix, standard, lite) es el **producto actual**, no esas recetas. Hasta que K10 active una receta promovida, un camino corto válido es lite/hotfix **con clamp de hard floors**. `project.status: active` no es clasificación de change y no debe sombrear esa selección. Eso no autoriza Direct productivo ni degrada auth/API a “small”.
+La tabla `routing:` de `openspec/config.yaml` (foundation, federated, bugfix, brownfield, refactor, hotfix, standard, lite) es el **producto actual**, no esas recetas. PP1 propone hacer admisible el camino corto con mínimos de riesgo aplicados; su conexión a la tabla viva todavía no está implementada. `project.status: active` no es clasificación de change y no debe sombrear esa selección. La urgencia de hotfix tampoco exime de garantías. Eso no autoriza Direct productivo ni degrada auth/API a “small”.
+
+La admisión combina riesgo, incertidumbre, alcance e irreversibilidad antes de preferencias o coste. Después se ajustan por separado representación/contexto y modelo. Un desconocido material pide exploración focal o resolución de alcance, no un salto automático a standard ni permiso implícito para lite. Una continuación conserva ruta y ledger; el descubrimiento de riesgo eleva obligaciones y nunca causa downgrade silencioso. La [matriz de proporcionalidad](harness-proportionality.md#matriz-de-aceptación-para-cambios-futuros) concreta ejemplos y compatibilidad custom/multi-target.
 
 ### Capacidades, no fases obligatorias
 
@@ -639,7 +650,7 @@ La tabla `routing:` de `openspec/config.yaml` (foundation, federated, bugfix, br
 - `review-selectively`
 - `validate-delivery`
 
-Proposal, spec, design y tasks conservan responsabilidades y formatos compatibles. El compiler decide si requieren agente propio, invocación combinada o materialización compacta.
+Proposal, spec, design y tasks conservan responsabilidades y formatos compatibles. **Objetivo K10:** el compiler decidirá si requieren agente propio, invocación combinada o materialización compacta, tras contratos runtime y promoción de receta. **Corto plazo PP2:** lite conserva proposal-lite, tasks, apply, verify y archive; no exige spec/design ficticios ni elimina fases para ahorrar llamadas.
 
 ### Clarify como evento
 
@@ -975,6 +986,8 @@ Los roadmaps de target siguen subordinados. Pueden mejorar capacidades independi
 
 R2 Foundation/OpenWiki permanece separado de evidencia de ejecución. Conserva siete slices: reparto normativo, consumo aguas abajo, ingesta resiliente, foundation por etapas, adopción brownfield, staleness/refresh y Starlight opcional. Cada slice tiene gate propio en el roadmap; puede consumir receipts/eventos como referencias, pero no gobernar transitions.
 
+La [foundation holística](harness-foundation-holistic.md) concreta R2.1/R2.4: relacionar propósito y usuarios con capacidades, datos, interfaces, calidad, seguridad, operación, entrega, soporte y evolución del software; profundizar solo donde cambie una decisión. Sirve a web, API, CLI, librerías, mobile, desktop y embedded. R2.2 lleva referencias vigentes a planner/verifier; R2.3/R2.6 pueden alojar curación externa y una futura skill CNCF on-demand sin convertir un catálogo, OpenWiki o Starlight en prerrequisito.
+
 R4 epic/federation extiende el mismo Execution Graph:
 
 1. subgraphs intra-repo;
@@ -1020,6 +1033,8 @@ Un **Change Program** (objetivo humano → children OpenSpec con `depends_on` y 
 - {implemented} Evidence strategies with provenance and Strict TDD fallback (K6b).
 - {implemented} Assurance Graph as derived content-addressed projection with selective invalidation (K6b); OpenSpec/Git/Candidate remain sole semantic authority.
 - {implemented} ChallengePlan policy-selected y suite proporcional de challenges adversariales (K6c).
+- {implemented} Complexity/architecture delta Candidate-bound (K6d), evidencia advisory; cierre archivado en `2026-09-03-k6d-complexity-architecture-delta`.
+- {implemented} CX0, instrumentación advisory; cobertura y limitación histórica de archive registradas en el roadmap, sin ahorro atribuido.
 
 ### Target arquitectónico aceptado
 
@@ -1035,7 +1050,6 @@ Un **Change Program** (objetivo humano → children OpenSpec con `depends_on` y 
 - {target} Rutas como recetas y fases como capacidades (K10). La tabla lite/standard permanece como producto hasta promoción.
 - {target} Clarify con invalidación parcial.
 - {target} Presupuestos/failure/recovery consumidos por recetas y challenges (kernel K5 entregado; no reabrir el primitive).
-- {target} Complexity delta (K6d).
 - {target} ReviewAdapter + ReviewReducer + reutilización de lineage.
 - {target} CandidateEvaluationAttestation (emisión CAS) y DeliveryAuthorization (kinds distintos; profile-scoped).
 - {target} Eventos estructurados.
@@ -1142,7 +1156,7 @@ La métrica privilegia reducir `dead_end` y `out_of_band`, no “parar menos”.
 13. Elección del host de referencia (K2a) por capacidad reproducible.
 14. ~~CAS / permits / effect semantics~~ — **cerrado en K2.1** (v2.39.0); no reabrir como decisión abierta de diseño.
 15. Cuándo promocionar `compatible-base-advance` tras fixtures K9 (experimental hasta entonces).
-16. Cuándo materializar Change Program (orquestador vs espera a R4) y si el first-match de la tabla viva se corrige como change de compatibilidad **antes** de K10. No bloquea K6b. No es un slice nuevo.
+16. Cuándo materializar Change Program (orquestador vs espera a R4) sigue abierto y sin slice. La prioridad de corregir first-match **antes** de K10 queda resuelta documentalmente mediante PP1; no implica implementación o aprobación y no amplía K6b.
 17. Schema y granularidad de `ContextProjection`, más criterios de promoción `full → compiled-shadow → compiled` por fase/profile.
 18. Cobertura mínima de telemetría para convertir los objetivos CX en gates, sin confundir estimaciones con observaciones del host.
 19. Orden de retirada del envelope/prose legacy y de la escritura de state por agentes tras probar `PhaseCompletionReducer` con CAS/replay.
