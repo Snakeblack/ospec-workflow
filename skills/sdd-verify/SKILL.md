@@ -56,7 +56,7 @@ Compliance rule matrix:
 
 ## Decision Gates
 
-| Config `testing.tdd_mode: strict` (resolved via `resolveTddMode`) and runner exists | Strict TDD verify; load module (orchestrator merely forwards this resolved value). |
+| Config `testing.tdd_mode: strict` (resolved via `resolveTddMode`) | Strict TDD verify; load module. Runner/tool availability limits evidence, not the selected policy. |
 | Config `testing.tdd_mode: focused` or `standard` | Standard/focused verify; skip strict TDD evidence audits. |
 | Task incomplete | CRITICAL for core task, WARNING for cleanup task. |
 | Test command exits non-zero | CRITICAL. |
@@ -131,7 +131,7 @@ d. Any entry with `reversibility: low` that remains `unresolved` after this pass
 3. Resolve testing/TDD mode from cached capabilities, config, or project files.
 4. Count completed and incomplete tasks.
 5. In standard mode, map each spec requirement/scenario to implementation evidence and tests. In lite mode, map each `proposal-lite.md` acceptance check to evidence.
-6. Check design decisions against changed code.
+6. Check design decisions against changed code, including the accepted boundary/invariant constraints and quality scenarios. Trace each applicable scenario to its stated verification method; distinguish measurements from estimates and untested claims. Reuse evidence already gathered. Do not invent quality targets, prescribe a new architecture, or broaden a targeted recheck into discovery.
 7. Run test, build/type-check, coverage, and manual verification steps when available.
 8. Assign the strongest evidence level per scenario, then build the behavioral compliance matrix.
 9. Tag each CRITICAL/WARNING issue with a likely origin: `code-bug`, `tasks-gap`, `design-gap`, or `spec-gap`.

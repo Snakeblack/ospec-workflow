@@ -10,104 +10,29 @@ metadata:
   delegate_only: true
 ---
 
-> **ORCHESTRATOR GATE**: If you loaded this skill via the `skill()` tool, you are
-> the ORCHESTRATOR — STOP. Do NOT execute these instructions inline. Delegate to
-> the dedicated `review-resilience` sub-agent using your platform's delegation primitive
-> (e.g., `task(...)`, sub-agent invocation, etc.). This skill is for EXECUTORS
-> only.
+> **ORCHESTRATOR GATE**: Dispatch this skill to the dedicated `review-resilience` executor. The executor reviews directly and never delegates.
 
 ## Purpose
 
-You are a read-only sub-agent responsible for RESILIENCE REVIEW. You scan for error-handling gaps and failure-recovery deficiencies in the reviewed scope and emit findings using the standard finding schema. You NEVER fix issues — you only report them.
+Review failure propagation and recovery for the assigned legacy v1 resilience lens.
 
-## What You Receive
+## Core rules
 
-From the orchestrator:
-- Scope of review (files, paths, or change description)
-- Artifact store mode (`openspec | none`)
+- Read/search only within the supplied candidate and assigned lens; do not write, run tests, or delegate. Use injected Project Standards first.
+- Apply `skills/_shared/review-judgment.md` (read once if not supplied) for evidence/output; use its canonical `engineering-judgment.md` reference for architectural tradeoffs.
+- Follow an exception or partial failure to the real handling boundary; a missing local try/catch or logging statement alone is not actionable evidence.
+- Every finding needs a precise reference, trigger, causal impact, counterevidence check, and verifiable correction outcome; unsupported suspicion is not a finding.
+- Preserve `severity`, `affected_files`, `evidence`, `why_it_matters`, and `owner: resilience` (legacy v1); bounded findings also need existing `summary` and `acceptance_criteria` fields.
+- Keep `BLOCKER|CRITICAL|WARNING|SUGGESTION`, one-shot lineage, and frozen scope. Completed clean findings report: exactly `No findings.`; preserve the required outer envelope and structured `findings: []`. Missing essential evidence is not a clean review.
 
-## Read-Only Contract
+## Lens questions
 
-You MUST NOT write, edit, or delete any file. All findings appear ONLY in your return envelope.
+| Inspect | Evidence to establish | Counterevidence and limits |
+|---------|-----------------------|----------------------------|
+| I/O failures | Trace a supported I/O failure through callers and show the violated failure contract. | Caller-managed propagation and intentional fail-fast may be correct without a local catch. |
+| Partial state and recovery | Identify the failed step, already-applied effects, and inconsistent state visible to later operations. | Atomic operations or demonstrated rollback can exclude the proposed failure. |
+| Suppressed exceptions | Show which meaningful failure becomes invisible or is wrongly reported as success. | Expected absence or documented suppression can be valid; assess the actual consequence rather than requiring logging everywhere. |
 
-## Finding Output Schema
+## Finding output
 
-Every finding MUST include all four fields:
-
-| Field | Type | Constraint |
-|-------|------|------------|
-| `severity` | string | exactly one of `BLOCKER`, `CRITICAL`, `WARNING`, `SUGGESTION` |
-| `affected_files` | string[] | at least one file path |
-| `evidence` | string | specific unhandled exception path or missing try/catch location |
-| `why_it_matters` | string | one-sentence impact statement |
-
-Example:
-
-```
-severity: WARNING
-affected_files: ["scripts/hooks/session-start.js"]
-evidence: "Line 34: fs.readFileSync() called with no try/catch — a missing file causes an uncaught ENOENT that crashes the hook"
-why_it_matters: "A missing config file during session start silently kills all subsequent SDD operations."
-```
-
-## Require-Evidence Rule
-
-You MUST supply concrete evidence before emitting a finding. Accepted evidence types:
-- Specific file path + line number of the unhandled exception path
-- Exact location (file and approximate line) of the missing try/catch or error check
-
-Generic concerns ("errors may not be handled") without a concrete location are NOT a valid finding.
-
-## Flag / Do-Not-Flag Table
-
-| Flag When | Do Not Flag When |
-|-----------|-----------------|
-| Missing error handling for I/O operations (file reads, network calls, process spawns without try/catch or equivalent) | Intentional fail-fast patterns that have a documented reason in a comment or spec |
-| No recovery path for partial failures (code leaves state inconsistent when a mid-sequence step fails) | Atomic operations where partial failure is impossible by construction |
-| Silently swallowed exceptions (empty catch blocks or caught errors with no logging or re-raise) | Exception suppression that is explicitly documented with a reason comment |
-
-## Clean-Output Contract
-
-When you have no findings after reviewing the entire scope, your output MUST be exactly:
-
-```
-No findings.
-```
-
-No additional prose, no clarification, no placeholder text.
-
-## What to Do
-
-### Step 1: Read the Scope
-
-Read each file or path in the review scope. Use `read` and `search` only.
-
-### Step 2: Evaluate Each Resilience Dimension
-
-For each file reviewed, evaluate:
-1. **I/O error handling**: Are file reads, network calls, and process spawns wrapped in try/catch or equivalent?
-2. **Partial failure recovery**: If a multi-step sequence fails midway, is the state left consistent?
-3. **Exception swallowing**: Are there empty catch blocks or caught errors that are neither logged nor re-raised?
-
-### Step 3: Apply Require-Evidence Rule
-
-For each candidate finding, locate the exact file and line of the unhandled path. If you cannot, discard the finding.
-
-### Step 4: Apply Do-Not-Flag Filters
-
-Before emitting, check whether the candidate matches the Do-Not-Flag column (e.g., documented fail-fast). If it does, discard the finding.
-
-### Step 5: Emit Findings or Clean Output
-
-Emit each finding with all four required fields in the schema above.
-
-If no findings remain after the filters, emit exactly `No findings.`
-
-## Rules
-
-- NEVER write, edit, or delete any file
-- NEVER emit a finding without a concrete file + line reference for the unhandled path
-- NEVER flag documented fail-fast patterns with an explanatory reason comment or spec reference
-- ALWAYS use exactly one severity label per finding
-- ALWAYS emit `No findings.` (exactly) when the scope is clean
-- Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`
+Follow [review-judgment.md](../_shared/review-judgment.md) for the common finding schema, severity calibration, and return envelope. Include `owner: resilience`; never translate it across lineage schemas. Classification signals select inspection, not conclusions.

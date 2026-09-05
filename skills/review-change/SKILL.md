@@ -11,6 +11,13 @@ metadata:
 
 # Review Change
 
+## Core rules
+
+- Read only orchestrator-supplied residual evidence per unattributed capability; use relevant injected rules only to interpret those facts, never to expand scope or perform architectural review.
+- Add only supported v2 domains in canonical order: `trust`, `runtime`, `evolution`, `efficiency`. Routing signals are not defects; do not emit findings, severity, remediation, or new requirements.
+- If residual facts cannot justify attribution, return `classification_status: ambiguous` with `added_domains: []`; do not guess from filenames or select extra lenses just in case.
+- Return the existing successful outer envelope with `artifacts: []` and exactly one `decision` containing only `classification_status`, `added_domains`, and closed-grammar `reason`; no free-form reason or additional keys.
+
 ## Read-only boundary
 
 Inspect only the **residual evidence** supplied by the orchestrator for unattributed behavioral capabilities. MUST NOT write, edit, delete, fix, or remediate files. Return `artifacts: []`.

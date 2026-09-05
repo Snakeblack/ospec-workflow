@@ -1329,6 +1329,156 @@ Quality-domain signal codes and classifier facts MUST inform routing and special
 - THEN it MUST NOT emit a finding consisting only of the signal name
 - AND MUST cite concrete runtime evidence if it reports an issue
 
+## 20. Shared Judgment References and Skill Authority Hierarchy
+
+> Reconciled by `/sdd-reconcile skills` on 2026-09-05 (window `359deff..HEAD`,
+> commit 1129bbd "docs(skills): extraer juicio compartido de revision y
+> compactar agentes review").
+
+### Requirement: Shared Review Judgment Protocol {#REQ-skills-013}
+
+The catalog MUST ship `skills/_shared/review-judgment.md` as the single shared
+protocol for discovery specialists — the four v2 quality domains and the
+legacy 4R reviewers. The review skills (`skills/review-*/SKILL.md`) MUST
+delegate evidence, finding-output, severity, and lineage-literal rules to it
+instead of duplicating per-skill rule blocks. `review-change` (residual
+router) and `review-correction` (targeted validation) MUST NOT consume this
+protocol as discovery authority. The protocol MUST define, at minimum:
+
+- An evidence-before-findings loop: trigger and trace (precise path/line/
+  snippet), consequence (violated contract or concrete cost, distinguishing
+  observed defect from conditional risk), counterevidence (callers, upstream
+  validation, tests, documented tradeoffs), and an actionable outcome.
+  Keyword/checklist/classifier-signal matches are reasons to inspect, never
+  proof of a defect.
+- The specialist finding fields `severity` (exactly `BLOCKER`, `CRITICAL`,
+  `WARNING`, `SUGGESTION`), `affected_files` (within the supplied scope),
+  `evidence`, and `why_it_matters`; owner taxonomy per matching skill (v2
+  quality domains / v1 4R) never mixed or renamed.
+- Bounded-lineage dispatch fields: non-empty `summary` and
+  `acceptance_criteria`, each at most 1000 characters, phrased to survive
+  normalization; acceptance criteria test the reported problem, not a preferred
+  implementation.
+- The clean-report literal: after a completed review with no supported
+  findings, the findings report text is exactly `No findings.` — governing the
+  findings report text (placed in `detailed_report` where applicable) while
+  structured outputs use `findings: []`; no appended mentorship prose or
+  placeholders.
+- Arbitrary numeric thresholds (e.g. nesting depth limits, mock-count ratios)
+  MUST NOT appear as finding rules; severity calibrates to demonstrated impact
+  and supported exposure.
+
+#### Scenario: Especialista sin hallazgos emite el literal exacto
+
+- GIVEN a completed `review-runtime` dispatch with no supported findings
+- WHEN the specialist returns
+- THEN its findings report text is exactly `No findings.` inside the required
+  outer envelope
+- AND structured consumers receive `findings: []`
+
+#### Scenario: Señal determinista no es hallazgo por sí sola
+
+- GIVEN a classifier signal or checklist match with no traced trigger and
+  consequence
+- WHEN the specialist evaluates it under the shared protocol
+- THEN it MUST NOT emit a finding on that basis alone
+
+### Requirement: Engineering Judgment Reference {#REQ-skills-014}
+
+The catalog MUST ship `skills/_shared/engineering-judgment.md`. The
+`sdd-design`, `sdd-apply` (including the Strict TDD module's REFACTOR step),
+and review skills MUST apply it as the shared criteria for: grounding
+consequential decisions in the change (evidence vs assumption, simplest viable
+local change vs realistic alternative), making quality claims verifiable
+(trigger and conditions → observable response → verification, with recorded
+limitations instead of invented passes), and keeping structure proportional
+(no speculative layers, interface/dependency/extension points only for present
+requirements, refactoring only for the assigned behavior or a demonstrated
+defect, no extraction merely to reduce mock counts). The reference defines
+reasoning criteria only — it MUST NOT create a new phase, gate, artifact, or
+remediation-expanding permission, and both shared references MUST be shipped
+in every supported generated target.
+
+#### Scenario: REFACTOR estricto aplica proporcionalidad
+
+- GIVEN a Strict TDD REFACTOR step where an extraction would not improve the
+  assigned behavior's clarity or remove demonstrated coupling
+- WHEN the executor applies `engineering-judgment.md`
+- THEN it MUST skip the unnecessary extraction
+- AND the mandatory post-refactor green run contract is unchanged
+
+### Requirement: Skill-Resolver Authority Hierarchy {#REQ-skills-015}
+
+Per `skills/_shared/skill-resolver.md`, the resolution order resolves
+**supplementary project standards** only — it MUST NOT replace the executor's
+own phase/review procedure or required shared references, which are read once
+and never reinjected as supplementary skills. An empty `## Project Standards`
+block, empty registry, or source with no applicable compact rules does NOT
+satisfy resolution: the resolver continues to the next source, reports what
+was actually used, and MUST NOT report `injected` solely because an empty
+heading exists. Supplementary skills supply technical judgment within the
+assigned task and MUST NOT grant write/delegation permissions, change
+artifact ownership, select a different workflow, add approval gates, or
+override the phase's behavior contract, TDD mode, or bounded review scope; a
+conflict with the behavior contract routes through the phase's existing
+blocker protocol. Five-skill-cap selection MUST rank by relevance to the
+actual decision or risk (task context as well as file extensions — design and
+boundary reviews MUST NOT lose architecture guidance merely because several
+language skills match), MUST NOT fill unused slots or select a
+framework/architecture merely because its skill exists, and MUST deduplicate
+by skill id and overlapping rule content, preserving conditional rules with
+their applicability conditions.
+
+#### Scenario: Bloque vacío no cuenta como inyección
+
+- GIVEN a launch prompt containing `## Project Standards (auto-resolved)` with
+  no content and a registry with applicable entries
+- WHEN the executor resolves skills
+- THEN it continues to the next available source and reports what was used
+- AND `skill_resolution` MUST NOT be `injected` on the empty block alone
+
+#### Scenario: Skill técnico no otorga permisos
+
+- GIVEN a read-only reviewer receives an ADR-authoring supplementary skill
+- WHEN it composes its review
+- THEN it MUST NOT create `docs/adr/` files
+- AND any conflict with its read-only contract routes through the blocker
+  protocol rather than silent redesign
+
+### Requirement: sdd-apply Modo y Guards de Resolución TDD {#REQ-skills-016}
+
+The `sdd-apply` skill MUST resolve the TDD mode as follows: `testing.tdd_mode:
+strict` selects Strict TDD even when the test runner is missing/unavailable —
+execution is deferred under the module's `STATIC_VALIDATED`/`DEFERRED`
+evidence semantics (an execution limitation, never a runtime pass; tasks stay
+`[~]` until local execution passes) — and MUST NEVER silently resolve to
+Standard Mode. Standard applies only when `tdd_mode: standard` OR no runner
+exists AND the mode is not strict. Strict/Focused TDD modules replace only the
+Step 4a Standard Workflow test cycle; the parent skill's common guards
+(contract/scope check, remediation routing, workload re-estimation,
+persistence limits, task-status semantics) remain mandatory in every mode. In
+artifact-store `none` mode, `sdd-apply` MUST return proposed
+implementation/progress inline only — no creation or modification of project
+files (source, tests, tasks, progress, lineage state) and no mutating
+remediation path. A low-risk workload forecast MUST NOT require a chain
+strategy merely because the field is absent.
+
+#### Scenario: Strict sin runner no degrada a Standard
+
+- GIVEN `testing.tdd_mode: strict` and no available test runner
+- WHEN `sdd-apply` resolves its mode
+- THEN it stays in Strict TDD with deferred execution recorded via
+  `STATIC_VALIDATED`/`DEFERRED`
+- AND tasks remain `[~]` until execution passes
+
+#### Scenario: Modo none no escribe archivos de proyecto
+
+- GIVEN the orchestrator launches `sdd-apply` with artifact-store mode `none`
+- WHEN the phase completes
+- THEN it returns proposed changes and progress inline
+- AND no project file (source, tests, `tasks.md`, `apply-progress.md`,
+  lineage state) is created or modified
+
 ## Clarifications
 
 ### Session 2026-06-20

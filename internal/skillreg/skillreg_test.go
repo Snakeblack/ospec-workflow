@@ -55,7 +55,7 @@ func makePluginRoot(t *testing.T) string {
 func TestDiscoverSkills(t *testing.T) {
 	t.Run("empty dir returns zero skills and fingerprint paths", func(t *testing.T) {
 		root := t.TempDir()
-		result, err := skillreg.DiscoverSkills(root)
+		result, err := skillreg.DiscoverSkills(root, skillreg.DiscoverOptions{})
 		if err != nil {
 			t.Fatalf("DiscoverSkills: %v", err)
 		}
@@ -69,7 +69,7 @@ func TestDiscoverSkills(t *testing.T) {
 
 	t.Run("discovers example skill with triggers and compact rules", func(t *testing.T) {
 		root := makePluginRoot(t)
-		result, err := skillreg.DiscoverSkills(root)
+		result, err := skillreg.DiscoverSkills(root, skillreg.DiscoverOptions{})
 		if err != nil {
 			t.Fatalf("DiscoverSkills: %v", err)
 		}
@@ -99,7 +99,7 @@ func TestDiscoverSkills(t *testing.T) {
 
 	t.Run("includes _shared and rules in fingerprint paths but not in skills", func(t *testing.T) {
 		root := makePluginRoot(t)
-		result, err := skillreg.DiscoverSkills(root)
+		result, err := skillreg.DiscoverSkills(root, skillreg.DiscoverOptions{})
 		if err != nil {
 			t.Fatalf("DiscoverSkills: %v", err)
 		}
@@ -127,7 +127,7 @@ func TestDiscoverSkills(t *testing.T) {
 func TestCalculateFingerprint(t *testing.T) {
 	t.Run("same files produce same fingerprint", func(t *testing.T) {
 		root := makePluginRoot(t)
-		result, _ := skillreg.DiscoverSkills(root)
+		result, _ := skillreg.DiscoverSkills(root, skillreg.DiscoverOptions{})
 		fp1, err1 := skillreg.CalculateFingerprint(result.FingerprintPaths)
 		fp2, err2 := skillreg.CalculateFingerprint(result.FingerprintPaths)
 		if err1 != nil || err2 != nil {
@@ -143,7 +143,7 @@ func TestCalculateFingerprint(t *testing.T) {
 
 	t.Run("changed file produces different fingerprint", func(t *testing.T) {
 		root := makePluginRoot(t)
-		result, _ := skillreg.DiscoverSkills(root)
+		result, _ := skillreg.DiscoverSkills(root, skillreg.DiscoverOptions{})
 		fp1, _ := skillreg.CalculateFingerprint(result.FingerprintPaths)
 
 		_ = os.WriteFile(
@@ -151,7 +151,11 @@ func TestCalculateFingerprint(t *testing.T) {
 			[]byte("Changed project rule.\n"),
 			0644,
 		)
-		fp2, _ := skillreg.CalculateFingerprint(result.FingerprintPaths)
+		// Discovery snapshots each file's content once (single-read contract);
+		// a later fingerprint must come from a fresh discovery, exactly as the
+		// session-start hook does on every run.
+		refreshed, _ := skillreg.DiscoverSkills(root, skillreg.DiscoverOptions{})
+		fp2, _ := skillreg.CalculateFingerprint(refreshed.FingerprintPaths)
 		if fp1 == fp2 {
 			t.Error("fingerprints should differ after file change")
 		}

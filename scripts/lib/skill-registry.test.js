@@ -124,6 +124,40 @@ test("extracts compact rules from complete skill markdown", () => {
   ]);
 });
 
+test("discovers an external skills root with usable paths and stable fingerprint inputs", async (t) => {
+  const root = await createRoot(t);
+  const skillsRoot = path.join(root, "installed", "skills");
+  const skillPath = path.join(skillsRoot, "example", "SKILL.md");
+  await fs.mkdir(path.dirname(skillPath), { recursive: true });
+  await fs.writeFile(skillPath, "---\nname: example\n---\n## Rules\n- External rule.\n");
+
+  const result = await discoverSkills(path.join(root, "runtime"), { skillsRoot, requireSkills: true });
+
+  assert.equal(result.skills.length, 1);
+  assert.equal(result.skills[0].path, skillPath.split(path.sep).join("/"));
+  assert.equal(await fs.readFile(result.skills[0].path, "utf8"), await fs.readFile(skillPath, "utf8"));
+  assert.deepEqual(result.skills[0].compact_rules, ["External rule."]);
+  assert.deepEqual(result.fingerprintPaths, [{ absolutePath: skillPath, relativePath: "skills/example/SKILL.md" }]);
+});
+
+test("an absent optional project skills root is valid but a required bundle is not", async (t) => {
+  const root = await createRoot(t);
+  assert.deepEqual(await discoverSkills(root), { fingerprintPaths: [], skills: [] });
+  await assert.rejects(discoverSkills(root, { requireSkills: true }), /required skills root/i);
+  await fs.mkdir(path.join(root, "skills"));
+  await assert.rejects(discoverSkills(root, { requireSkills: true }), /required skills root/i);
+});
+
+test("generated SDD command skills are fingerprinted but never injected as utility rules", async (t) => {
+  const root = await createRoot(t);
+  const command = path.join(root, "skills", "commands", "sdd-apply", "SKILL.md");
+  await fs.mkdir(path.dirname(command), { recursive: true });
+  await fs.writeFile(command, "---\nname: sdd-apply\n---\n## Rules\n- Dispatch a phase.\n");
+  const result = await discoverSkills(root, { requireSkills: true });
+  assert.deepEqual(result.skills, []);
+  assert.equal(result.fingerprintPaths[0].relativePath, "skills/commands/sdd-apply/SKILL.md");
+});
+
 test("writes and reads registry cache JSON", async (t) => {
   const root = await createRoot(t);
   const cachePath = path.join(root, ".ospec", "cache", "registry.json");

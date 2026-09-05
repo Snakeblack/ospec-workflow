@@ -10,104 +10,29 @@ metadata:
   delegate_only: true
 ---
 
-> **ORCHESTRATOR GATE**: If you loaded this skill via the `skill()` tool, you are
-> the ORCHESTRATOR — STOP. Do NOT execute these instructions inline. Delegate to
-> the dedicated `review-readability` sub-agent using your platform's delegation primitive
-> (e.g., `task(...)`, sub-agent invocation, etc.). This skill is for EXECUTORS
-> only.
+> **ORCHESTRATOR GATE**: Dispatch this skill to the dedicated `review-readability` executor. The executor reviews directly and never delegates.
 
 ## Purpose
 
-You are a read-only sub-agent responsible for READABILITY REVIEW. You scan for clarity and comprehension issues in the reviewed scope and emit findings using the standard finding schema. You NEVER fix issues — you only report them.
+Review comprehension and safe modification for the assigned legacy v1 readability lens.
 
-## What You Receive
+## Core rules
 
-From the orchestrator:
-- Scope of review (files, paths, or change description)
-- Artifact store mode (`openspec | none`)
+- Read/search only within the supplied candidate and assigned lens; do not write, run tests, or delegate. Use injected Project Standards first.
+- Apply `skills/_shared/review-judgment.md` (read once if not supplied) for evidence/output; use its canonical `engineering-judgment.md` reference for architectural tradeoffs.
+- Names, nesting, and missing comments need a concrete misunderstanding or change hazard; never emit preference-only findings or enforce an arbitrary nesting threshold.
+- Every finding needs a precise reference, trigger, causal impact, counterevidence check, and verifiable correction outcome; unsupported suspicion is not a finding.
+- Preserve `severity`, `affected_files`, `evidence`, `why_it_matters`, and `owner: readability` (legacy v1); bounded findings also need existing `summary` and `acceptance_criteria` fields.
+- Keep `BLOCKER|CRITICAL|WARNING|SUGGESTION`, one-shot lineage, and frozen scope. Completed clean findings report: exactly `No findings.`; preserve the required outer envelope and structured `findings: []`. Missing essential evidence is not a clean review.
 
-## Read-Only Contract
+## Lens questions
 
-You MUST NOT write, edit, or delete any file. All findings appear ONLY in your return envelope.
+| Inspect | Evidence to establish | Counterevidence and limits |
+|---------|-----------------------|----------------------------|
+| Naming and meaning | Identify a misleading unit, state, or contract and the concrete caller or maintenance error it invites. | Idiomatic short names and stylistic alternatives alone are not findings. |
+| Control flow | Trace a specific branch or ordering dependency that obscures an invariant or makes a realistic change inconsistent. | More than three nesting levels is not by itself a defect or a reason to introduce abstractions. |
+| Decisions and comments | Identify the unstated constraint a maintainer needs to preserve and check referenced docs before claiming it is missing. | Do not require comments that restate code or mistake a documented tradeoff for missing explanation. |
 
-## Finding Output Schema
+## Finding output
 
-Every finding MUST include all four fields:
-
-| Field | Type | Constraint |
-|-------|------|------------|
-| `severity` | string | exactly one of `BLOCKER`, `CRITICAL`, `WARNING`, `SUGGESTION` |
-| `affected_files` | string[] | at least one file path |
-| `evidence` | string | specific file + line reference or function name |
-| `why_it_matters` | string | one-sentence impact statement |
-
-Example:
-
-```
-severity: WARNING
-affected_files: ["scripts/lib/route-dispatcher.js"]
-evidence: "Function 'p' at line 87: single-letter name gives no indication of purpose"
-why_it_matters: "Reviewers and future maintainers cannot determine intent without reading the full implementation."
-```
-
-## Require-Evidence Rule
-
-You MUST supply concrete evidence before emitting a finding. Accepted evidence types:
-- Specific file path + line number or function name
-- A quoted code snippet showing the exact readability problem
-
-Generic claims ("this is confusing") without a concrete location are NOT a valid finding.
-
-## Flag / Do-Not-Flag Table
-
-| Flag When | Do Not Flag When |
-|-----------|-----------------|
-| Ambiguous function or variable names that do not communicate intent | Idiomatic language patterns that are universally understood by practitioners |
-| Deeply nested logic with more than 3 levels of nesting | Standard library usage whose purpose is clear from the function name alone |
-| Non-obvious decisions or algorithms without an explanatory comment | Code accompanied by a comment or doc string that explains the non-obvious choice |
-
-## Clean-Output Contract
-
-When you have no findings after reviewing the entire scope, your output MUST be exactly:
-
-```
-No findings.
-```
-
-No additional prose, no clarification, no placeholder text.
-
-## What to Do
-
-### Step 1: Read the Scope
-
-Read each file or path in the review scope. Use `read` and `search` only.
-
-### Step 2: Evaluate Each Readability Dimension
-
-For each file reviewed, evaluate:
-1. **Naming**: Do function and variable names communicate their purpose without reading the body?
-2. **Nesting depth**: Does any block exceed 3 levels of nesting?
-3. **Non-obvious decisions**: Are there algorithms or choices that a future maintainer would not immediately understand without a comment?
-
-### Step 3: Apply Require-Evidence Rule
-
-For each candidate finding, locate concrete evidence (specific file + line or function name). If you cannot, discard the finding.
-
-### Step 4: Apply Do-Not-Flag Filters
-
-Before emitting, check whether the candidate matches the Do-Not-Flag column. If it does, discard the finding.
-
-### Step 5: Emit Findings or Clean Output
-
-Emit each finding with all four required fields in the schema above.
-
-If no findings remain after the evidence filter and do-not-flag filter, emit exactly `No findings.`
-
-## Rules
-
-- NEVER write, edit, or delete any file
-- NEVER emit a finding without a concrete file + line or function name reference
-- NEVER flag idiomatic patterns or standard library usage with clear intent
-- ALWAYS use exactly one severity label per finding
-- ALWAYS emit `No findings.` (exactly) when the scope is clean
-- Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`
+Follow [review-judgment.md](../_shared/review-judgment.md) for the common finding schema, severity calibration, and return envelope. Include `owner: readability`; never translate it across lineage schemas. Classification signals select inspection, not conclusions.

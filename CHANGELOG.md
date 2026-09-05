@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.62.0] - 2026-09-05
+
+### Added
+- **Registro de skills para instalaciones globales de CX0 (`scripts/hooks/session-start.js`, `scripts/lib/skill-registry.js`, `internal/skillreg`, `internal/hooks/sessionstart.go`)**:
+  - Detección del layout de instalación global del target CX0 y soporte de root externo (`~/.agents/skills`) con paths absolutos portables.
+  - Cache-hit con deep-equal de entradas de skills para reparar caches vacíos o desactualizados ante fingerprints coincidentes.
+  - Guard `requireSkills` fail-closed para evitar que un bundle roto o vacío reemplace un registro válido con hash de entrada vacía.
+  - Exclusión automática de skills `sdd-*` anidados para prevenir recursión y duplicidad.
+  - Discovery lee cada archivo una sola vez y degrada con warning sin abortar la sesión ante fallos de lectura.
+  - Launcher CX0: preservación de campos estructurados (`registry`, `capabilities`) en `additionalContext` como línea JSON y marco explícito `[ospec error]` en envelopes de error.
+  - Paridad completa verificada entre las implementaciones de Node.js y Go.
+  - ADR `adr-20260905-004`: `~/.agents/skills` como frontera de confianza equivalente al bundle del plugin.
+  - `k1-scope-guard`: registro de `skill-registry` en el inventario de sucesores.
+
+### Changed
+- **Juicio compartido de revisión y compactación de agentes (`skills/_shared/`, `agents/review-*.agent.md`)**:
+  - Nuevas referencias compartidas `skills/_shared/review-judgment.md` (protocolo de evidencia, schema de findings, severidad y literales de lineage para especialistas v2/4R) y `skills/_shared/engineering-judgment.md` (proporcionalidad, calidad verificable y estructura proporcional).
+  - Agentes `review-*` y skills de revisión delegan en las referencias compartidas, eliminando duplicidades y umbrales rígidos arbitrarios (anidación, ratio de mocks).
+  - Jerarquía estricta de autoridad en `skill-resolver` y `sdd-phase-common` entre procedimiento de fase y standards suplementarios.
+  - Manejo de `strict-tdd`: estados `STATIC_VALIDATED` y `DEFERRED` documentan limitaciones de ejecución sin otorgar pases runtime falsos; modo estricto sin runner nunca resuelve a Standard.
+  - Verificación en `real-repo.test.js` de que los 7 targets embarquen ambas referencias.
+- **Reconciliación canónica de especificaciones OpenSpec (`openspec/specs/`)**:
+  - Reconciliación de especificaciones de los dominios `hooks`, `skill-registry`, `skills` y `agents` con la ventana de cambios `359deff..4f96084`.
+
+**Verificación directa**: `node scripts/check.js` (3171 tests pasando, 0 fallos y 0 omitidos) y `go test ./...` (10/10 paquetes ok)
+
 ## [2.61.0] - 2026-09-05
 
 ### Added

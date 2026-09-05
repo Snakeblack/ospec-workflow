@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"time"
@@ -138,17 +139,38 @@ func runSessionStart(input sessionStartInput) ([]byte, int) {
 		baselineHint = buildBaselineHint(bs)
 	}
 
-	// Resolve plugin root (default: repo root = parent of workspace? use "." if absent).
+	// Resolve plugin root: the launcher passes it on stdin for known hosts and
+	// through OSPEC_PLUGIN_ROOT for hosts whose hook payload is only {cwd}
+	// (Codex). Unlike the JS hook (which defaults to the script's own
+	// location), the binary cannot derive its bundle, so the final fallback is
+	// the process working directory — valid only when invoked from the plugin
+	// root; direct invocations should rely on the launcher's env.
 	pluginRoot := strings.TrimSpace(input.PluginRoot)
 	if pluginRoot == "" {
-		// Default plugin root: current executable dir or "." — in practice the
-		// test always supplies plugin_root; for production the binary lives in the
-		// repo root, so "." is reasonable.
+		pluginRoot = strings.TrimSpace(os.Getenv("OSPEC_PLUGIN_ROOT"))
+	}
+	if pluginRoot == "" {
 		pluginRoot = "."
 	}
 	pluginRoot = filepath.Clean(pluginRoot)
 
-	discovery, err := skillreg.DiscoverSkills(pluginRoot)
+	// Global Codex installs split scripts (~/.codex/ospec-workflow) from
+	// skills (~/.agents/skills). Source and generated bundles retain
+	// root/skills.
+	skillsRoot := filepath.Join(pluginRoot, "skills")
+	if os.Getenv("OSPEC_TARGET") == "codex" {
+		if home, err := os.UserHomeDir(); err == nil {
+			installedRoot := filepath.Join(home, ".codex", "ospec-workflow")
+			if rel, err := filepath.Rel(installedRoot, pluginRoot); err == nil && rel == "." {
+				skillsRoot = filepath.Join(home, ".agents", "skills")
+			}
+		}
+	}
+
+	discovery, err := skillreg.DiscoverSkills(pluginRoot, skillreg.DiscoverOptions{
+		SkillsRoot:    skillsRoot,
+		RequireSkills: true,
+	})
 	if err != nil {
 		return errorOutput(err), 1
 	}
@@ -161,12 +183,15 @@ func runSessionStart(input sessionStartInput) ([]byte, int) {
 	cachePath := s.CachePath()
 	currentCache, _ := skillreg.ReadCache(cachePath)
 
-	// Cache hit: same version and same fingerprint.
+	// Cache hit: same version, same fingerprint, and cache entries that match
+	// a fresh discovery. A cache whose skills were emptied or stale must be
+	// repaired even when the fingerprint still matches.
 	cacheHit := false
 	if currentCache != nil {
 		v, _ := currentCache["version"].(float64)
 		fp, _ := currentCache["fingerprint"].(string)
-		cacheHit = int(v) == skillreg.CacheVersion && fp == fingerprint
+		cacheHit = int(v) == skillreg.CacheVersion && fp == fingerprint &&
+			skillsMatchCache(currentCache["skills"], discovery.Skills)
 	}
 
 	regStatus := "generated"
@@ -181,23 +206,11 @@ func runSessionStart(input sessionStartInput) ([]byte, int) {
 			generatedAt = nowStr
 		}
 
-		// Build skills slice for cache.
-		skillsSlice := make([]map[string]any, len(discovery.Skills))
-		for i, sk := range discovery.Skills {
-			skillsSlice[i] = map[string]any{
-				"id":            sk.ID,
-				"path":          sk.Path,
-				"triggers":      sk.Triggers,
-				"compact_rules": sk.CompactRules,
-				"capabilities":  sk.Capabilities,
-			}
-		}
-
 		cache := map[string]any{
 			"version":      skillreg.CacheVersion,
 			"fingerprint":  fingerprint,
 			"generated_at": generatedAt,
-			"skills":       skillsSlice,
+			"skills":       skillsToMaps(discovery.Skills),
 		}
 		if err := skillreg.WriteCache(cachePath, cache); err != nil {
 			return errorOutput(err), 1
@@ -331,6 +344,37 @@ func errorOutput(err error) []byte {
 	}
 	b, _ := json.Marshal(errOut{Status: "error", Message: err.Error()})
 	return b
+}
+
+// skillsToMaps converts skill entries to the cache's JSON shape.
+func skillsToMaps(skills []skillreg.SkillEntry) []map[string]any {
+	skillsSlice := make([]map[string]any, len(skills))
+	for i, sk := range skills {
+		skillsSlice[i] = map[string]any{
+			"id":            sk.ID,
+			"path":          sk.Path,
+			"triggers":      sk.Triggers,
+			"compact_rules": sk.CompactRules,
+			"capabilities":  sk.Capabilities,
+		}
+	}
+	return skillsSlice
+}
+
+// skillsMatchCache compares the cached skills value against a fresh
+// discovery. Both sides go through a JSON round-trip so the comparison sees
+// the same dynamic types a decoded cache holds, mirroring the JS
+// isDeepStrictEqual cache-hit check.
+func skillsMatchCache(cached any, skills []skillreg.SkillEntry) bool {
+	expected, err := json.Marshal(skillsToMaps(skills))
+	if err != nil {
+		return false
+	}
+	var normalized any
+	if err := json.Unmarshal(expected, &normalized); err != nil {
+		return false
+	}
+	return reflect.DeepEqual(normalized, cached)
 }
 
 func isPathIgnored(line string, f string) bool {

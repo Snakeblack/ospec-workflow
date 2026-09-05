@@ -168,6 +168,9 @@ const SUCCESSOR_K2_EXACT = new Set([
   // Additive shared canonical agent-identity resolution implementation.
   "scripts/lib/agent-identity.js",
   "scripts/lib/agent-identity.test.js",
+  // Skill registry runtime for globally installed Codex bundles.
+  "scripts/lib/skill-registry.js",
+  "scripts/lib/skill-registry.test.js",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [

@@ -59,11 +59,33 @@ function normalizeCodexHookOutput(subcommand, output) {
   }
 
   if (subcommand === "session-start") {
-    const context = typeof output.systemMessage === "string" && output.systemMessage.trim()
-      ? output.systemMessage.trim()
-      : JSON.stringify(Object.fromEntries(Object.entries(output).filter(([key]) => key !== "status")));
-    return context && context !== "{}"
-      ? { hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: context } }
+    // An error envelope must keep its frame in the only channel Codex
+    // surfaces: prefix it instead of leaking the raw diagnostic JSON.
+    if (output.status === "error") {
+      const detail = typeof output.message === "string" && output.message.trim()
+        ? output.message.trim()
+        : "unknown session-start failure";
+      return {
+        hookSpecificOutput: {
+          hookEventName: "SessionStart",
+          additionalContext: `[ospec error] ${detail}`,
+        },
+      };
+    }
+    const message = typeof output.systemMessage === "string" ? output.systemMessage.trim() : "";
+    // Codex surfaces only additionalContext, so the structured fields the
+    // orchestrator needs for skill injection ride along as a JSON line after
+    // the human-readable advisory.
+    const context = Object.fromEntries(
+      Object.entries(output).filter(([key]) => key !== "status" && key !== "systemMessage"),
+    );
+    const json = JSON.stringify(context);
+    let additionalContext = message;
+    if (json !== "{}") {
+      additionalContext = additionalContext ? `${additionalContext}\n${json}` : json;
+    }
+    return additionalContext
+      ? { hookSpecificOutput: { hookEventName: "SessionStart", additionalContext } }
       : {};
   }
 

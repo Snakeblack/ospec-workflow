@@ -13,7 +13,7 @@ For any request for **spec-driven development** or one that invokes `/sdd-*` com
   exposed as `ospec-workflow`) and follow its instructions as the single source of truth for the
   workflow (gates, routing, strict TDD, OpenSpec persistence). Do not reimplement that
   protocol in this file.
-- Resolve blocking gate questions using your agent’s structured question mechanism,
-  not plain chat.
+- Resolve blocking gate questions using the mechanism specified by the active
+  target's orchestrator and permitted by the host, then wait for the answer.
 
 This applies only to SDD work; for normal tasks, operate as usual.

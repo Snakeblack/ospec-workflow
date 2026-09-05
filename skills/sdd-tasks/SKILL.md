@@ -72,6 +72,8 @@ From the design document, identify:
 - The dependency order (what must come first)
 - Testing requirements per component
 
+Carry accepted quality scenarios and architectural constraints into the relevant implementation tasks and their completion checks: name the observable result and verification method. Preserve the design's tradeoffs and evidence limits; do not invent numerical targets or add separate tasks for every quality attribute. Reuse existing tests/checks when they prove the scenario.
+
 ### Step 3: Write tasks.md
 
 **IF mode is `openspec`:** Create the task file:

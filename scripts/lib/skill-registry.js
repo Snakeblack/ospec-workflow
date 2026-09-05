@@ -185,13 +185,18 @@ function shouldIncludeSkill(relativePath) {
     relativePath.endsWith("/SKILL.md") &&
     skillDirectory !== "_shared" &&
     skillDirectory !== "skill-registry" &&
-    !skillDirectory.startsWith("sdd-")
+    !skillDirectory.startsWith("sdd-") &&
+    !path.posix.basename(path.posix.dirname(relativePath)).startsWith("sdd-")
   );
 }
 
-async function discoverSkills(root) {
+async function discoverSkills(root, {
+  skillsRoot = path.join(root, "skills"),
+  requireSkills = false,
+} = {}) {
   const absoluteRoot = path.resolve(root);
-  const skillsRoot = path.join(absoluteRoot, "skills");
+  skillsRoot = path.resolve(skillsRoot);
+  const externalSkills = path.relative(path.join(absoluteRoot, "skills"), skillsRoot) !== "";
   const rulesRoot = path.join(absoluteRoot, "rules");
   const [skillFiles, ruleFiles] = await Promise.all([
     collectFiles(skillsRoot, (filePath) => {
@@ -204,12 +209,21 @@ async function discoverSkills(root) {
     }),
     collectFiles(rulesRoot, (filePath) => filePath.endsWith(".md")),
   ]);
-  const fingerprintPaths = [...skillFiles, ...ruleFiles]
-    .map((absolutePath) => ({
+  // Optional project skills may be absent. A hook's required bundle must not
+  // silently replace a working registry with the SHA of an empty input set.
+  if (requireSkills && !skillFiles.some(file => path.basename(file) === "SKILL.md")) {
+    throw new Error(`No SKILL.md files found in required skills root: ${skillsRoot}`);
+  }
+  const fingerprintPaths = [
+    ...skillFiles.map((absolutePath) => ({
+      absolutePath,
+      relativePath: `skills/${toPortablePath(path.relative(skillsRoot, absolutePath))}`,
+    })),
+    ...ruleFiles.map((absolutePath) => ({
       absolutePath,
       relativePath: toPortablePath(path.relative(absoluteRoot, absolutePath)),
-    }))
-    .sort((left, right) =>
+    })),
+  ].sort((left, right) =>
       compareStrings(left.relativePath, right.relativePath),
     );
   const skills = [];
@@ -230,7 +244,7 @@ async function discoverSkills(root) {
 
     skills.push({
       id,
-      path: file.relativePath,
+      path: externalSkills ? toPortablePath(file.absolutePath) : file.relativePath,
       triggers: extractTriggers(attributes.description || "", id),
       compact_rules: extractCompactRules(markdown),
       capabilities: extractCapabilities(attributes.capabilities || ""),

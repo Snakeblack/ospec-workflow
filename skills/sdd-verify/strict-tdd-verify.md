@@ -51,6 +51,8 @@ Read apply-progress artifact:
 
 Run all the test files identified in Step 5a using the test runner command. Record their PASS/FAIL results to cross-reference with the TDD Cycle Evidence table. If execution tools are unavailable, perform static verification of the test files and document the verification audit rationale in the verification report.
 
+`STATIC_VALIDATED` and `DEFERRED` preserve honest evidence of a limitation; they do not count as runtime passes. Apply the parent skill's Evidence Levels and compliance rule matrix to the scenario verdict. A passing test now proves current behavior, not that RED was observed historically; do not fabricate or backfill execution history.
+
 ## Step 5c: Test Layer Validation
 
 Classify ALL test files related to this change by their testing layer:

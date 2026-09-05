@@ -3,8 +3,10 @@
 "use strict";
 
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
+const { isDeepStrictEqual } = require("node:util");
 const {
   calculateFingerprint,
   discoverSkills,
@@ -77,6 +79,8 @@ async function runSessionStart({
   input = {},
   fallbackCwd = process.cwd(),
   pluginRoot = path.resolve(__dirname, "../.."),
+  target = process.env.OSPEC_TARGET,
+  homeDir = os.homedir(),
   mode,
   now = () => new Date(),
   gitRunner = undefined,
@@ -110,16 +114,24 @@ async function runSessionStart({
     // Baseline state read failure must not break session start
   }
 
-  const registry = await discoverSkills(pluginRoot);
+  // Global Codex installs split scripts (~/.codex/ospec-workflow) from skills
+  // (~/.agents/skills). Source and generated bundles retain root/skills.
+  const installedCodex = target === "codex" &&
+    path.relative(path.join(homeDir, ".codex", "ospec-workflow"), path.resolve(pluginRoot)) === "";
+  const skillsRoot = installedCodex
+    ? path.join(homeDir, ".agents", "skills")
+    : path.join(pluginRoot, "skills");
+  const registry = await discoverSkills(pluginRoot, { skillsRoot, requireSkills: true });
   const fingerprint = await calculateFingerprint(registry.fingerprintPaths);
   const currentCache = await readRegistryCache(cachePath);
 
-  // Report whether the cache was reused (fingerprint hit, no write) or
+  // Report whether the cache was reused (matching inputs and entries, no write) or
   // generated (created/refreshed). Callers use this to tell a cheap cache hit
   // from real regeneration work instead of conflating both as "fresh".
   const cacheHit =
     currentCache?.version === CACHE_VERSION &&
-    currentCache.fingerprint === fingerprint;
+    currentCache.fingerprint === fingerprint &&
+    isDeepStrictEqual(currentCache.skills, registry.skills);
 
   const registryResult = {
     status: cacheHit ? "reused" : "generated",

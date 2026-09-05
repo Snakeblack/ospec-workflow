@@ -251,9 +251,41 @@ test("normalizeCodexHookOutput wraps SessionStart context in the native hook sha
   assert.deepEqual(output, {
     hookSpecificOutput: {
       hookEventName: "SessionStart",
-      additionalContext: "Read the workspace state.",
+      additionalContext: 'Read the workspace state.\n{"ospecDetected":true}',
     },
   });
+});
+
+test("SessionStart advisory preserves registry and capability context for skill injection", () => {
+  const registry = { status: "generated", path: ".ospec/cache/skill-registry.cache.json" };
+  const capabilities = ["go", "postgres"];
+  const result = normalizeCodexHookOutput("session-start", {
+    status: "ok", systemMessage: "Working tree has changes.", registry, capabilities,
+  });
+  const context = result.hookSpecificOutput.additionalContext;
+  assert.equal(context.split("\n")[0], "Working tree has changes.");
+  assert.deepEqual(JSON.parse(context.split("\n").at(-1)), { registry, capabilities });
+  assert.deepEqual(normalizeCodexHookOutput("session-start", { status: "ok" }), {});
+  assert.deepEqual(normalizeCodexHookOutput("session-start", {
+    status: "ok", systemMessage: "  Advisory only.  ",
+  }).hookSpecificOutput.additionalContext, "Advisory only.");
+});
+
+test("SessionStart error envelopes keep an explicit error frame in additionalContext", () => {
+  const framed = normalizeCodexHookOutput("session-start", {
+    status: "error",
+    message: "no SKILL.md files found in required skills root: C:\\Users\\example\\.codex\\ospec-workflow\\skills",
+  });
+  assert.deepEqual(framed, {
+    hookSpecificOutput: {
+      hookEventName: "SessionStart",
+      additionalContext: "[ospec error] no SKILL.md files found in required skills root: C:\\Users\\example\\.codex\\ospec-workflow\\skills",
+    },
+  });
+  assert.deepEqual(
+    normalizeCodexHookOutput("session-start", { status: "error" }).hookSpecificOutput.additionalContext,
+    "[ospec error] unknown session-start failure",
+  );
 });
 
 test("normalizeCodexHookOutput emits PreToolUse context for advisory decisions and no allow decision", () => {

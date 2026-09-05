@@ -39,7 +39,7 @@ From the orchestrator:
 
 - **openspec**: Read and follow `skills/_shared/openspec-convention.md`. Update `tasks.md` with `[~]` or `[x]` marks and save progress to `apply-progress.md`.
 - In `openspec` mode, treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as canonical workflow state for continuation and recovery; never rely on conversation history.
-- **none**: Return progress only. Do not update project artifacts.
+- **none**: Return the proposed implementation/progress inline only. Do not create or modify project files, including source, tests, tasks, progress, or lineage state; do not enter a mutating remediation path. The steps below describe work to return inline in this mode, not permission to execute writes.
 
 ## What to Do
 
@@ -66,12 +66,13 @@ If the orchestrator invoked `sdd-apply` in remediation mode, OR `state.yaml` con
 #### Step 2b: Read Previous Apply Progress & Full Contract Context
 
 For normal task backlog implementation (when no active remediation is pending):
-1. Read `openspec/changes/{change-name}/apply-progress.md` if it exists. Call `resolveRemainingTasks(tasksContent, applyProgressContent)` (`scripts/lib/apply-resume.js`) to restore previously completed tasks marked `[x]` and prevent re-executing verified work.
+1. Read assigned `tasks.md` and `openspec/changes/{change-name}/apply-progress.md` if it exists. Call `resolveRemainingTasks(tasksContent, applyProgressContent)` (`scripts/lib/apply-resume.js`) to restore previously completed tasks marked `[x]` and prevent re-executing verified work.
 2. In standard mode, read the specs — understand WHAT the code must do
 3. In standard mode, read the design — understand HOW to structure the code
 4. In lite mode, read `proposal-lite.md` — it is the behavior contract when spec/design are intentionally absent
 5. Read existing code in affected files — understand current patterns
 6. Check the project's coding conventions from `config.yaml`
+7. Read `skills/_shared/engineering-judgment.md` once. Apply its proportionality and verification criteria within the assigned contract; use existing helpers when equivalent, without adding speculative layers or broad cleanup. Remediation keeps Step 2a's restricted context and paths.
 
 #### Step 2c: Enforce Review Workload Decision
 
@@ -93,7 +94,7 @@ Also check for `Chain strategy` in the tasks artifact. If present and not `pendi
 - `stacked-to-main`: each PR targets the previous PR's branch (or `main` after the previous merges).
 - `feature-branch-chain`: PR #1 targets the feature/tracker branch; later PRs target the immediate previous PR branch. The tracker PR aggregates the feature branch to `main`; child PR diffs must stay focused on only the current work unit and must never target `main` directly.
 
-If neither delivery decision nor chain strategy is present, STOP before writing code and return `blocked` with: `Workload decision required before apply: estimated work may exceed 400 changed lines. Ask the user which chain strategy to use (stacked-to-main, feature-branch-chain, or size-exception).`
+If the forecast requires a decision and no resolved delivery path was supplied, STOP before writing code and return `blocked` with: `Workload decision required before apply: estimated work may exceed 400 changed lines. Ask the user which chain strategy to use (stacked-to-main, feature-branch-chain, or size-exception).` A low-risk forecast does not require a chain strategy merely because that field is absent.
 
 Runtime drift guard:
 - Track the forecast from `tasks.md` against the real work discovered while implementing.
@@ -110,15 +111,16 @@ Read testing capabilities from:
 └── Fallback: check project files directly (package.json, go.mod, etc.)
 
 Resolve mode:
-├── IF testing.tdd_mode: strict AND test runner exists
+├── IF testing.tdd_mode: strict
 │   └── STRICT TDD MODE → Load and follow strict-tdd.md module
 │       (read the file: skills/sdd-apply/strict-tdd.md)
+│       Missing/unavailable runner leaves execution deferred; never resolve to Standard Mode
 │
 ├── IF testing.tdd_mode: focused AND test runner exists
 │   └── FOCUSED TDD MODE → Load and follow focused-tdd.md module
 │       (read the file: skills/sdd-apply/focused-tdd.md)
 │
-├── IF testing.tdd_mode: standard OR no test runner
+├── IF testing.tdd_mode: standard OR (no test runner AND mode is not strict)
 │   └── STANDARD MODE → use Step 4 below (no TDD module loaded)
 │
 └── Cache the resolved mode for the return summary
@@ -143,18 +145,16 @@ Execute assigned tasks using the strategy resolved in Step 3:
 - **Focused Mode**: Follow `focused-tdd.md` workflow (loaded in Step 3).
 - **Strict Mode**: Follow `strict-tdd.md` workflow (loaded in Step 3).
 
-All modes enforce common guards (spec check, design contradiction check, workload live estimation, and task status updates).
+All modes enforce the common guards in **Rules** before writing each task: check the applicable standard/lite contract and material design contradictions, respect the assigned scope, re-estimate workload, and update task status accurately. On a `blocked: spec-change-required` or `blocked: design-mismatch` STOP, persist partial progress on already-completed tasks in this batch before returning. TDD modules specialize the test cycle only; they do not override these guards or authorize broader refactoring.
 
 #### Step 4a: Standard Workflow (Standard Mode Only)
 
 ```
 FOR EACH TASK:
 ├── Read the task description
-├── Read relevant spec scenarios (these are your acceptance criteria)
-├── Read the design decisions (these constrain your approach)
+├── Read relevant spec scenarios and design decisions in standard mode, or proposal-lite.md in lite mode
 ├── Read existing code patterns (match the project's style)
-├── If the spec is wrong, contradictory, or impossible to verify, persist partial progress on already-completed tasks in this batch, then STOP with `blocked: spec-change-required`
-├── If existing code contradicts the design (an assumed API, module, or dependency does not exist or differs, or the design's approach is incompatible with an established existing pattern) — and the deviation is NOT merely cosmetic (naming, or an equivalent existing helper with the same contract) — persist partial progress on already-completed tasks in this batch, then STOP with `blocked: design-mismatch`, citing the concrete contradiction and the affected `design.md` section
+├── Apply the common contract and scope guards in Rules before writing
 ├── Write the code
 ├── Run the cheapest local verification available for that task slice
 ├── Mark task as `[~]` if code exists but verification is still pending
@@ -243,12 +243,11 @@ If none, say "None."}
 
 ## Rules
 
-- ALWAYS read specs before implementing — specs are your acceptance criteria
-- ALWAYS follow the design decisions — don't freelance a different approach
+- In normal backlog execution, read specs/design in standard mode and `proposal-lite.md` in lite mode; absent lite specs/design are not blockers. Step 2a remediation uses only its frozen findings and restricted context.
+- Follow the applicable contract's decisions; internal details left open may be resolved with evidence under the common assumption policy, without redesigning approved boundaries
 - ALWAYS match existing code patterns and conventions in the project
 - In `openspec` mode, update task status in `tasks.md` AS you go, not at the end
-- If you discover the design is wrong or incomplete, NOTE IT in your return summary — don't silently deviate
-- If the spec is wrong, incomplete, contradictory, or impossible to verify, persist partial progress on already-completed tasks in this batch, then STOP and return `blocked: spec-change-required`. Do not patch specs on the fly.
+- If the applicable behavior contract is wrong, incomplete, contradictory, or impossible to verify, persist partial progress on already-completed tasks in this batch, then STOP and return `blocked: spec-change-required`, identifying the spec or lite proposal at issue. Do not patch the contract on the fly.
 - If existing code contradicts the design (an assumed API, module, or dependency that does not exist or differs, or a design approach incompatible with an established existing pattern), persist partial progress on already-completed tasks in this batch, then STOP and return `blocked: design-mismatch`, citing the concrete contradiction and the affected `design.md` section. A cosmetic deviation — a naming difference, or an equivalent existing helper that fulfills the same contract the design describes — is NOT a `design-mismatch`; proceed using the existing code without blocking.
 - If a task is blocked by something unexpected, STOP and report back
 - If workload forecast requires a decision and none was provided, STOP before writing code
@@ -279,9 +278,8 @@ change or candidate drift falls back to ordinary routing.
 - When applying `size:exception`, state it explicitly in apply-progress and the return summary
 - **Traceability trailers**: when committing work units for an active change, append the trailers `Ospec-Change: {change-name}` and `Ospec-Task: {task-number}` (comma-separate multiple task numbers) to each commit message body. The `commit-msg` git hook validates the format advisorily when a change is active; the verify traceability matrix joins commits to REQs through these trailers.
 - NEVER implement tasks that weren't assigned to you
-- Skill loading is handled in Step 1 — follow any loaded skills strictly when writing code
+- Skill loading is handled in Step 1; apply the relevant rules to the assigned work using `skills/_shared/engineering-judgment.md`, without treating examples as mandatory architecture
 - Apply any `rules.apply` from `openspec/config.yaml`
-- If Strict TDD Mode is active (Step 3), load `strict-tdd.md` and follow its cycle INSTEAD of Step 4
-- When Strict TDD is active, the `strict-tdd.md` module's rules OVERRIDE Step 4 entirely
+- Strict and Focused TDD replace only the Standard Workflow cycle in Step 4a; common guards, remediation routing, persistence limits, and task status semantics remain mandatory
 - `[x]` means implemented and verified locally. Use `[~]` for implemented-but-unverified work.
 - Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`.

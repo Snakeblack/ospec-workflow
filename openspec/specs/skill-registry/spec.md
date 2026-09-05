@@ -338,6 +338,77 @@ Then: `skills` MUST contain only the `example` entry. `fingerprintPaths` MUST co
 
 ---
 
+## 11. External Skills Root and Required-Bundle Guard
+
+> Reconciled by `/sdd-reconcile skill-registry` on 2026-09-05 (window
+> `c2ca072..HEAD`, commit 4f96084 "feat(hooks): registro de skills para
+> instalaciones globales de CX0").
+
+### Requirement: External Skills Root With Portable Paths {#REQ-skill-registry-001}
+
+`discoverSkills(root, options)` in `scripts/lib/skill-registry.js` MUST accept an
+options object `{ skillsRoot, requireSkills }`. When omitted, behavior MUST be
+byte-identical to the previous single-argument form (skills read from
+`<root>/skills`, `requireSkills` false).
+
+When a `skillsRoot` different from `<root>/skills` is supplied (an external
+skills root, e.g. `~/.agents/skills` for global CX0 installs):
+
+- Skill files collected under `skillsRoot` MUST contribute fingerprint entries
+  whose `relativePath` is `skills/<portable path relative to skillsRoot>` — so
+  the fingerprint is stable across source and installed layouts — while rules
+  files keep `relativePath` relative to `root` as before.
+- Emitted skill entries MUST carry `path` as the portable **absolute** path of
+  the SKILL.md (forward slashes), instead of the repo-relative path, so
+  consumers in split-script/skill installations can resolve the file.
+- Entries are still discovered, filtered, parsed, and sorted by the existing
+  §4/§5 rules; only the path representation changes.
+
+#### Scenario: Global CX0 installation discovers the external root
+
+- GIVEN `discoverSkills` is called with `skillsRoot` pointing at
+  `~/.agents/skills` while `root` holds only scripts and rules
+- WHEN discovery completes
+- THEN every emitted skill entry's `path` is a portable absolute path under
+  `~/.agents/skills`
+- AND the fingerprint input set uses `skills/<relative-to-skillsRoot>` paths for
+  skills and `<relative-to-root>` paths for rules
+
+### Requirement: Fail-Closed Required-Bundle Guard {#REQ-skill-registry-002}
+
+When `discoverSkills` is called with `requireSkills: true` and the resolved
+skills root yields zero files named `SKILL.md`, the function MUST throw an
+Error naming the required skills root. A hook's required bundle MUST NOT
+silently replace a working registry with the SHA of an empty input set: the
+error propagates to the caller's existing error path rather than producing an
+empty-but-valid cache.
+
+#### Scenario: Broken required bundle fails closed
+
+- GIVEN `requireSkills: true` and a `skillsRoot` containing no `SKILL.md`
+  (missing or malformed installation)
+- WHEN `discoverSkills` runs
+- THEN it throws an Error whose message names the required skills root
+- AND no registry, fingerprint, or cache object is returned
+
+### Requirement: Nested `sdd-` Directory Exclusion {#REQ-skill-registry-003}
+
+`shouldIncludeSkill` MUST exclude a `SKILL.md` not only when the immediate
+skill directory (second path segment) starts with `sdd-`, but also when the
+file's immediate parent directory name starts with `sdd-` (a skill nested
+inside another directory, e.g. `skills/ops/sdd-helper/SKILL.md`). Excluded
+files still contribute to the fingerprint per §4.2 of the skills domain spec.
+
+#### Scenario: Nested sdd- skill is not a registry entry
+
+- GIVEN a file `skills/agents-tree/sdd-orchestrator/SKILL.md` under the skills
+  root
+- WHEN `shouldIncludeSkill` evaluates its path
+- THEN the file is excluded from registry entries
+- AND it still appears in `fingerprintPaths`
+
+---
+
 ## Cross-References
 
 - `capability-registry` domain spec — name matching contract used at injection time
