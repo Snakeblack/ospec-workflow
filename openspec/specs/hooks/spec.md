@@ -139,7 +139,7 @@ When optional input is absent or invalid, the writer MUST preserve the complete 
 
 ### Requirement: Cursor Host Adaptation In Hook Launcher {#REQ-hooks-014}
 
-`scripts/hooks/ospec-hooks-launch.js` MUST detect a Cursor host via install-path (`.cursor` path segment), `OSPEC_TARGET=cursor`, Cursor/VS Code env markers, Cursor-native stdin event names, or Cursor-native shapes (`command`+`sandbox` without `tool_input`, `file_path`+`content`, `subagent_type`/`subagent_id`). On Cursor hosts it MUST adapt `beforeShellExecution`/`beforeReadFile` stdin into the shared PreToolUse contract (`tool_name` + `tool_input`), set `OSPEC_TARGET` to `cursor` when unset, and normalize stdout through `normalizeCursorHookOutput`. For `pre-tool-use`, Claude `permissionDecision: "ask"` MUST degrade to Cursor `permission: "allow"` with an `[ospec advisory]` user/agent message; `deny` MUST map to Cursor `permission: "deny"` with reason text; other decisions MUST allow. Session-start Cursor output MUST use `{ continue: true, user_message? }`.
+`scripts/hooks/ospec-hooks-launch.js` MUST detect a Cursor host via install-path (`.cursor` path segment), `OSPEC_TARGET=cursor` (explicit target precedence per REQ-hooks-022), Cursor env markers, Cursor-native stdin event names, or Cursor-native shapes (`command`+`sandbox` without `tool_input`, `file_path`+`content`, `subagent_type`/`subagent_id`). On Cursor hosts it MUST adapt `beforeShellExecution`/`beforeReadFile` stdin into the shared PreToolUse contract (`tool_name` + `tool_input`), set `OSPEC_TARGET` to `cursor` when unset, and normalize stdout through `normalizeCursorHookOutput`. For `pre-tool-use`, Claude `permissionDecision: "ask"` MUST degrade to Cursor `permission: "allow"` with an `[ospec advisory]` user/agent message; `deny` MUST map to Cursor `permission: "deny"` with reason text; other decisions MUST allow. Session-start Cursor output MUST use `{ continue: true, user_message? }`.
 
 #### Scenario: Cursor shell stdin is adapted for shared PreToolUse policy
 
@@ -302,6 +302,108 @@ En sesiones de Claude Code (incluidos endpoints compatibles Anthropic/GLM), `scr
 - GIVEN un host sin binario nativo presente
 - WHEN `resolveInvocation` resuelve cualquier subcomando
 - THEN MUST retornar el fallback Node existente para ese subcomando
+
+### Requirement: SessionStart Global CX0 Skills Root y Cache-Hit Profundo {#REQ-hooks-020}
+
+`runSessionStart` (`scripts/hooks/session-start.js`) MUST detect the global CX0
+(Codex) installation layout — `OSPEC_TARGET === "codex"` AND the resolved
+`pluginRoot` equals `~/.codex/ospec-workflow` — and in that case resolve the
+skills root to `~/.agents/skills` instead of `<pluginRoot>/skills`, passing
+`requireSkills: true` to `discoverSkills` so a broken bundle fails closed
+(skill-registry REQ-skill-registry-002) instead of overwriting a working
+registry. Source checkouts and generated bundles keep `<pluginRoot>/skills`
+unchanged (ADR-20260905-004 treats `~/.agents/skills` as a trust boundary
+equivalent to the plugin bundle).
+
+The cache-hit predicate MUST require ALL of: `currentCache.version ===
+CACHE_VERSION`, `currentCache.fingerprint === fingerprint`, AND
+`isDeepStrictEqual(currentCache.skills, registry.skills)`. A cache whose
+stored `skills` entries diverge from the freshly discovered entries MUST be
+regenerated (`registry.status: "generated"`) even when the fingerprint
+matches — repairing caches that are empty or stale despite a colliding
+fingerprint hash.
+
+#### Scenario: Instalación global CX0 usa ~/.agents/skills
+
+- GIVEN `OSPEC_TARGET=codex` AND `pluginRoot` resolves to
+  `~/.codex/ospec-workflow` with skills installed at `~/.agents/skills`
+- WHEN `runSessionStart` discovers skills
+- THEN discovery runs against `~/.agents/skills` with `requireSkills: true`
+- AND a source checkout or generated bundle (any other pluginRoot) keeps using
+  `<pluginRoot>/skills`
+
+#### Scenario: Fingerprint coincide pero entradas difieren — regeneración
+
+- GIVEN a version-2 cache whose `fingerprint` matches the computed fingerprint
+  AND whose `skills` array is not deep-equal to the freshly discovered entries
+- WHEN `runSessionStart` evaluates freshness
+- THEN it MUST report `registry.status: "generated"` and rewrite the cache
+- AND a cache that is version-, fingerprint-, AND entry-equal MUST still be
+  reported `"reused"` without a write
+
+### Requirement: Launcher CX0 Preserva Contexto Estructurado y Marca Errores {#REQ-hooks-021}
+
+In `normalizeCodexHookOutput("session-start", output)`
+(`scripts/hooks/ospec-hooks-launch.js`):
+
+- When `output.status === "error"`, the launcher MUST return
+  `additionalContext: "[ospec error] <message>"` (or
+  `[ospec error] unknown session-start failure` when no usable message), so the
+  error frame stays visible in the only channel Codex surfaces and raw
+  diagnostic JSON is never leaked as context.
+- On success, the launcher MUST compose `additionalContext` as the trimmed
+  `systemMessage` (human-readable advisory) first, then — when the remaining
+  structured fields (everything except `status` and `systemMessage`) serialize
+  to a non-empty JSON object — append exactly one JSON line after a newline
+  carrying those fields (notably `registry` and `capabilities`) so the
+  orchestrator can still perform skill injection on Codex.
+- When both are empty the launcher MUST return no `hookSpecificOutput` at all.
+
+#### Scenario: Envelope de error con marco explícito
+
+- GIVEN session-start returns `{"status":"error","message":"boom"}`
+- WHEN the launcher normalizes it for Codex
+- THEN `additionalContext` is exactly `[ospec error] boom`
+- AND no raw error JSON is emitted as context
+
+#### Scenario: Campos estructurados viajan como línea JSON
+
+- GIVEN session-start returns `systemMessage: "advisory"` plus `registry` and
+  `capabilities` objects
+- WHEN the launcher normalizes it
+- THEN `additionalContext` reads `advisory\n{...}` with exactly one appended
+  JSON line containing those structured fields
+
+### Requirement: OSPEC_TARGET Explícito Precede a Marcadores Heredados del Host {#REQ-hooks-022}
+
+In `scripts/hooks/ospec-hooks-launch.js`, an explicitly set `OSPEC_TARGET`
+(any non-empty value) MUST decide host detection by equality, overriding
+inherited terminal/plugin markers, in all three detectors:
+
+- `isCursorInstall` / `isCursorHost` return true only when
+  `OSPEC_TARGET === "cursor"`; any other value returns false even when Cursor
+  install-path or env markers are present. `VSCODE_PID` / `VSCODE_CWD` are no
+  longer Cursor host markers (inherited VS Code terminal markers); only
+  `CURSOR_AGENT`, `CURSOR_SESSION_ID`, and `CURSOR_HOOK` remain.
+- `isClaudeCodeHost` returns `OSPEC_TARGET === "claude"` when the variable is
+  set, taking precedence over `CLAUDE_PLUGIN_ROOT` (hosts reusing Claude plugin
+  layouts, e.g. Cursor, can override).
+
+This amends REQ-hooks-014's detection list: "Cursor/VS Code env markers" is
+superseded by "Cursor env markers with explicit `OSPEC_TARGET` precedence".
+
+#### Scenario: OSPEC_TARGET distinto de cursor desactiva detección Cursor
+
+- GIVEN `OSPEC_TARGET=codex` AND `CURSOR_AGENT=1` inherited in the environment
+- WHEN `isCursorHost` evaluates
+- THEN it MUST return false — the explicit target wins over inherited markers
+
+#### Scenario: OSPEC_TARGET=claude gana sobre CLAUDE_PLUGIN_ROOT
+
+- GIVEN `OSPEC_TARGET=cursor` AND `CLAUDE_PLUGIN_ROOT` set
+- WHEN `isClaudeCodeHost` evaluates
+- THEN it MUST return false — explicit target precedence over the plugin-layout
+  marker
 
 ### Requirement: Codex hooks registration format and command translation {#REQ-hooks-003}
 

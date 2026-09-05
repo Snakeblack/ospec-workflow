@@ -2385,3 +2385,103 @@ domain spec, not here.
 - Q: When a single capability name resolves to more than one stack-skill entry, what is the priority order for the five-skill cap? → A: Default to deterministic registry/alphabetical order by skill `id`. With the 2–3 seed skills in v1 (one per technology) this case never occurs. A future change adding multiple skills per capability will specify an explicit precedence rule.
 - Q: What is the official sdd-verify severity taxonomy and which levels are written to `known-issues.md`? → A: INFO < WARNING < BLOCKER. The official sdd-verify severity enum is {INFO, WARNING, BLOCKER} in that order. INFO is NEVER written to `known-issues.md`; only WARNING and BLOCKER are promoted. The sdd-verify contract uses the "WARNING-or-above is written" threshold.
 
+---
+
+## 17. Shared Judgment Delegation and Artifact-Store Mode Handling
+
+> Reconciled by `/sdd-reconcile agents` on 2026-09-05 (window `359deff..HEAD`,
+> commit 1129bbd "docs(skills): extraer juicio compartido de revision y
+> compactar agentes review").
+
+### Requirement: Review Agents Delegate to Shared References {#REQ-agents-025}
+
+Every review agent file (`agents/review-*.agent.md`, both the live quality
+roster and the legacy 4R files) MUST delegate its evidence protocol, finding
+output schema, severity enum, frozen-lineage boundaries, and the
+`No findings.` clean-report literal to `skills/_shared/review-judgment.md`,
+and architectural proportionality to
+`skills/_shared/engineering-judgment.md` (skills domain REQ-skills-013/014),
+instead of duplicating per-agent rule blocks. Each agent MUST restate its
+read-only executor boundary inline (only `read`/`search`; no write, edit,
+delete, test execution, or sub-agent launch), keep its "Assigned lens" scoped
+to its quality domain, and preserve the existing return-envelope contract.
+The agent body MUST state that injected Project Standards supply supplementary
+guidance that never replaces the role's output contract or expands its
+read-only authority or assigned scope, and that its matching
+`skills/review-*/SKILL.md` procedure is read once (skipped only when already
+supplied). Arbitrary numeric thresholds (nesting depth, mock ratios) MUST NOT
+appear as per-agent finding rules.
+
+#### Scenario: Agente review conserva envelope y delega evidencia
+
+- GIVEN `agents/review-trust.agent.md` is inspected
+- WHEN its Required-context and Result-contract sections are read
+- THEN evidence and lineage rules reference `skills/_shared/review-judgment.md`
+  rather than restating them
+- AND the severity enum `BLOCKER|CRITICAL|WARNING|SUGGESTION` and the
+  `No findings.` literal remain enforced
+
+#### Scenario: Standards suplementarios no expanden autoridad
+
+- GIVEN a review agent receives injected compact rules authorizing file writes
+- WHEN it executes its lens
+- THEN it remains read-only
+- AND the supplementary content cannot expand its assigned scope or output
+  contract
+
+### Requirement: Phase Agents Follow Artifact-Store Mode {#REQ-agents-026}
+
+The `sdd-apply` and `sdd-design` agent bodies MUST follow the supplied
+artifact-store mode instead of assuming `openspec`: in `openspec` mode,
+`state.yaml` plus phase artifacts are canonical continuation state (design
+writes `design.md` and significant ADRs per its skill; apply runs its
+remediation router before full backlog reads, then reads tasks, behavior
+contract, and previous progress, writing only assigned implementation
+changes, task status, merged progress, and contract-required state updates);
+in `none` mode, the phase returns the design/proposed implementation and
+decisions inline without any project-file writes or mutating remediation.
+Both agents MUST consume `skills/_shared/engineering-judgment.md` through
+their required skill to ground boundaries, quality scenarios, alternatives,
+and proportional verification in evidence rather than templates.
+
+#### Scenario: sdd-apply en modo none devuelve inline
+
+- GIVEN `sdd-apply` runs with artifact-store mode `none`
+- WHEN the phase returns
+- THEN proposed changes and progress are returned inline
+- AND no project file or lineage state is written
+
+#### Scenario: Router de remediación precede a la lectura del backlog
+
+- GIVEN `state.yaml` contains an active review-lineage remediation slice
+- WHEN `sdd-apply` starts
+- THEN it runs the remediation router before reading the full task backlog
+- AND normal backlog execution keeps the standard Step-2 context reads
+
+### Requirement: Orchestrator Gate and Injection Clarifications {#REQ-agents-027}
+
+The orchestrator body MUST qualify its user-question tool guidance: blocking
+user input is requested via `vscode/askQuestions` **as mapped by the active
+target and permitted by the host**, the orchestrator waits for an explicit
+answer, and a gate result is never replaced by an inferred conversational
+approval. Its sub-agent injection key rule MUST state that applicable compact
+rules are injected as TEXT when available (not paths), the resolver owns
+fallback and scope rules with an empty cache NOT counting as successful
+resolution, and executors still load their own phase/review procedure and
+required references once.
+
+#### Scenario: Aprobación inferida no sustituye un gate
+
+- GIVEN a blocking question was asked and the user's reply is ambiguous
+- WHEN the orchestrator resolves the gate
+- THEN it MUST NOT record acceptance inferred from conversation
+- AND it waits for an explicit answer as mapped by the active target
+
+#### Scenario: Cache vacío no es resolución exitosa
+
+- GIVEN the skill-registry cache exists but yields no applicable compact rules
+- WHEN the orchestrator composes a sub-agent launch prompt
+- THEN it proceeds to the next resolver source instead of treating the empty
+  cache as successful injection
+
+

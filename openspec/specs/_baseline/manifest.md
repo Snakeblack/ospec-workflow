@@ -53,3 +53,7 @@
 | kernel-contract-schemas | reconciled | - | a476b9a | 2026-08-28T12:25:32Z |
 | git-precommit-hook | skipped | 9 | ad96605 | 2026-09-04T17:45:40Z |
 | git-precommit-hook | reconciled | - | be47709 | 2026-09-04T17:49:35Z |
+| hooks | reconciled | - | 4f96084 | 2026-09-05T14:34:57Z |
+| skill-registry | reconciled | - | 4f96084 | 2026-09-05T14:34:57Z |
+| skills | reconciled | - | 4f96084 | 2026-09-05T14:34:57Z |
+| agents | reconciled | - | 4f96084 | 2026-09-05T14:34:57Z |
