@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "change": "go-installer-tui",
+  "source_fingerprint": "sha256:7f66fb7f245fdaa125272d97b013be0154fa571bb9ba02eb866b6b3393c5a000",
+  "spec_writes": [
+    {
+      "domain": "install",
+      "source_delta": "specs/install/spec.md",
+      "target": "openspec/specs/install/spec.md",
+      "target_before_sha256": "sha256:05e5f3d1c618b45e9c41ea3fa6f4a4970fe0f730d75b759a437a9fb5333754b8",
+      "content_sha256": "sha256:8b1cfad0b5059ba8caf5ea6fb6891e51b6e56f6d5082346aca36bd65b354cc8b"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260906-001-bubble-tea-for-installer-navigation.md",
+      "content_sha256": "sha256:fa08c344c434c3612c9716ba7f6a9144759e229480e0692cb4ea4bec92a0fed6"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260906-002-node-adapter-and-ephemeral-model-overrides.md",
+      "content_sha256": "sha256:36c33982818f2b0452893467af21a8e31da0279493128ff4dde44a1ebb4f9c39"
+    }
+  ],
+  "archive_inventory": [
+    "adapter-progress.md",
+    "apply-progress.md",
+    "archive-report.md",
+    "client-progress.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "design.md",
+    "final-go-regression.log",
+    "final-node-regression.log",
+    "node-regression.log",
+    "proposal.md",
+    "quality-review.json",
+    "spec-result.json",
+    "specs/install/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "terminal-smoke.md",
+    "test-evidence.md",
+    "tui-progress.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [
+    "tasks-gap: lack of stable test IDs (accepted under approval warning-001)"
+  ],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}
