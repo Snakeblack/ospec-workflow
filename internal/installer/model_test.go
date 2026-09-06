@@ -100,6 +100,124 @@ func TestModelOnlyRequestsInstallFromReviewInstallAction(t *testing.T) {
 	}
 }
 
+func TestModelCustomModelInput(t *testing.T) {
+	plan := testPlan(Target{
+		ID:          "claude",
+		Label:       "Claude",
+		AllowCustom: true,
+		Agents:      []Agent{selectableAgent("architect")},
+	})
+	m := NewModel(plan)
+	m = updateKey(t, m, "enter") // menu -> targets
+	m = updateKey(t, m, "enter") // targets -> models
+	m = updateKey(t, m, "c")     // models -> customModelScreen
+	if m.screen != customModelScreen {
+		t.Fatalf("screen = %v, want customModelScreen", m.screen)
+	}
+
+	for _, ch := range "glm-5.3" {
+		m = updateKey(t, m, string(ch))
+	}
+	if m.customInput != "glm-5.3" {
+		t.Fatalf("customInput = %q, want glm-5.3", m.customInput)
+	}
+
+	m = updateKey(t, m, "enter") // submit custom model -> modelsScreen
+	if m.screen != modelsScreen {
+		t.Fatalf("screen = %v, want modelsScreen", m.screen)
+	}
+
+	target, _ := m.target()
+	label := m.agentLabel(target, target.Agents[0])
+	if label != "glm-5.3 (Personalizado)" {
+		t.Fatalf("agent label = %q, want glm-5.3 (Personalizado)", label)
+	}
+
+	m = updateKey(t, m, "enter") // models -> reviewScreen
+	if m.screen != reviewScreen {
+		t.Fatalf("screen = %v, want reviewScreen", m.screen)
+	}
+	labelInReview := m.agentLabel(target, target.Agents[0])
+	if labelInReview != "glm-5.3 (Personalizado)" {
+		t.Fatalf("review label = %q, want glm-5.3 (Personalizado)", labelInReview)
+	}
+}
+
+func TestModelCycleCodexEffort(t *testing.T) {
+	initialVal := `{"model":"gpt-6-astra","model_reasoning_effort":"high","model_verbosity":"medium"}`
+	plan := testPlan(Target{
+		ID:          "codex",
+		Label:       "Codex",
+		AllowCustom: true,
+		Agents: []Agent{{
+			ID:         "architect",
+			Selectable: true,
+			Effective:  json.RawMessage(initialVal),
+			Choices: []Choice{{
+				ID:    "astra-high",
+				Label: "GPT-6 Astra · high · medium",
+				Value: json.RawMessage(initialVal),
+			}},
+		}},
+	})
+	m := NewModel(plan)
+	m = updateKey(t, m, "enter") // menu -> targets
+	m = updateKey(t, m, "enter") // targets -> models
+
+	// Cycle high -> xhigh
+	m = updateKey(t, m, "e")
+	target, _ := m.target()
+	if got := m.agentLabel(target, target.Agents[0]); got != "gpt-6-astra · xhigh · medium" {
+		t.Fatalf("effort 1 = %q, want gpt-6-astra · xhigh · medium", got)
+	}
+
+	// Cycle xhigh -> low
+	m = updateKey(t, m, "e")
+	if got := m.agentLabel(target, target.Agents[0]); got != "gpt-6-astra · low · medium" {
+		t.Fatalf("effort 2 = %q, want gpt-6-astra · low · medium", got)
+	}
+
+	// Cycle low -> medium
+	m = updateKey(t, m, "e")
+	if got := m.agentLabel(target, target.Agents[0]); got != "gpt-6-astra · medium · medium" {
+		t.Fatalf("effort 3 = %q, want gpt-6-astra · medium · medium", got)
+	}
+
+	// Cycle medium -> high
+	m = updateKey(t, m, "e")
+	if got := m.agentLabel(target, target.Agents[0]); got != "gpt-6-astra · high · medium" {
+		t.Fatalf("effort 4 = %q, want gpt-6-astra · high · medium", got)
+	}
+}
+
+func TestModelCustomModelInputCodex(t *testing.T) {
+	plan := testPlan(Target{
+		ID:          "codex",
+		Label:       "Codex",
+		AllowCustom: true,
+		Agents:      []Agent{selectableAgent("architect")},
+	})
+	m := NewModel(plan)
+	m = updateKey(t, m, "enter") // menu -> targets
+	m = updateKey(t, m, "enter") // targets -> models
+	m = updateKey(t, m, "c")     // models -> customModelScreen
+
+	for _, ch := range "gpt-6-astra" {
+		m = updateKey(t, m, string(ch))
+	}
+	m = updateKey(t, m, "enter") // confirm custom model
+	target, _ := m.target()
+	if got := m.agentLabel(target, target.Agents[0]); got != "gpt-6-astra · high · medium (Personalizado)" {
+		t.Fatalf("codex custom model label = %q, want gpt-6-astra · high · medium (Personalizado)", got)
+	}
+
+	// Now cycle effort on this newly added custom model!
+	m = updateKey(t, m, "e")
+	if got := m.agentLabel(target, target.Agents[0]); got != "gpt-6-astra · xhigh · medium" {
+		t.Fatalf("effort on custom codex model = %q, want gpt-6-astra · xhigh · medium", got)
+	}
+}
+
 func testPlan(targets ...Target) Plan { return Plan{Version: protocolVersion, Targets: targets} }
 
 func selectableAgent(id string) Agent {

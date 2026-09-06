@@ -49,7 +49,7 @@ func TestViewTruncatesLongChoiceAtTerminalWidth(t *testing.T) {
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 16})
 	m = next.(Model)
 	view := m.View()
-	if !strings.Contains(view, "←/→ modelo · Enter revisar") || !strings.Contains(view, "…") {
+	if !strings.Contains(view, "←/→ modelo") || !strings.Contains(view, "Enter revisar") || !strings.Contains(view, "…") {
 		t.Fatalf("narrow view must retain controls and truncate long choice:\n%s", view)
 	}
 }

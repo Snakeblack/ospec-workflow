@@ -90,3 +90,103 @@ tiers:
       model_reasoning_effort: low
       model_verbosity: low
     cursor: composer-2.5[fast=false]
+
+# Curated catalog of available models per target for configuration and selection.
+# Tiers above define defaults; this catalog exposes current models offered in target plans.
+catalog:
+  claude:
+    - fable
+    - opus
+    - sonnet
+    - haiku
+    - claude-fable-5-1
+    - claude-opus-5
+    - claude-sonnet-5
+    - claude-haiku-4-5
+    - claude-opus-4-8
+    - claude-sonnet-4-6
+
+  codex:
+    gpt-6-astra-high:
+      model: gpt-6-astra
+      model_reasoning_effort: high
+      model_verbosity: medium
+    gpt-6-astra-medium:
+      model: gpt-6-astra
+      model_reasoning_effort: medium
+      model_verbosity: medium
+    gpt-6-astra-low:
+      model: gpt-6-astra
+      model_reasoning_effort: low
+      model_verbosity: low
+    gpt-5.6-sol-high:
+      model: gpt-5.6-sol
+      model_reasoning_effort: high
+      model_verbosity: medium
+    gpt-5.6-sol-medium:
+      model: gpt-5.6-sol
+      model_reasoning_effort: medium
+      model_verbosity: medium
+    gpt-5.6-terra-high:
+      model: gpt-5.6-terra
+      model_reasoning_effort: high
+      model_verbosity: medium
+    gpt-5.6-terra-medium:
+      model: gpt-5.6-terra
+      model_reasoning_effort: medium
+      model_verbosity: medium
+    gpt-5.6-luna-low:
+      model: gpt-5.6-luna
+      model_reasoning_effort: low
+      model_verbosity: low
+    o4-mini-medium:
+      model: o4-mini
+      model_reasoning_effort: medium
+    o3-high:
+      model: o3
+      model_reasoning_effort: high
+    gpt-5.3-codex:
+      model: gpt-5.3-codex
+
+  cursor:
+    - grok-4.6[fast=false]
+    - grok-4.6[fast=true]
+    - grok-4.5
+    - composer-2.5[fast=false]
+    - composer-2.5[fast=true]
+    - gpt-6-astra
+    - gpt-5.6-sol
+    - gpt-5.6-terra
+    - claude-fable-5-1
+    - claude-opus-5
+    - claude-sonnet-5
+    - gemini-3.8-flash
+    - gemini-3.1-pro
+
+  opencode:
+    - zai-coding-plan/glm-5.3
+    - zai-coding-plan/glm-5.3-flash
+    - zai-coding-plan/glm-5.2
+    - zai-coding-plan/glm-5.1
+    - anthropic/claude-fable-5-1
+    - anthropic/claude-opus-5
+    - anthropic/claude-sonnet-5
+    - anthropic/claude-haiku-4-5
+    - openai/gpt-6-astra
+    - openai/gpt-5.6-sol
+    - openai/gpt-5.6-terra
+    - openai/gpt-5.6-luna
+
+  vscode:
+    - "GPT-6 Astra (copilot)"
+    - "GPT-5.6 Sol (copilot)"
+    - "GPT-5.6 Terra (copilot)"
+    - "GPT-5.6 Luna (copilot)"
+    - "Claude Fable 5 (copilot)"
+    - "Claude Opus 5 (copilot)"
+    - "Claude Sonnet 5 (copilot)"
+    - "Gemini 3.8 Flash (copilot)"
+
+  antigravity:
+    - gemini-3.8-flash
+    - gemini-3.1-pro

@@ -19,6 +19,8 @@ func (m Model) View() string {
 		return m.targetsView()
 	case modelsScreen:
 		return m.modelsView()
+	case customModelScreen:
+		return m.customModelView()
 	case reviewScreen:
 		return m.reviewView()
 	case installingScreen:
@@ -68,7 +70,28 @@ func (m Model) modelsView() string {
 		}
 		lines = append(lines, prefix+m.truncate(agent.ID+"  "+m.agentLabel(target, agent)))
 	}
-	return strings.Join(lines, "\n") + "\n\n" + help("↑/↓ mover · ←/→ modelo · Enter revisar · Esc atrás · q salir")
+	helpText := "↑/↓ mover · ←/→ modelo"
+	if target.AllowCustom {
+		helpText += " · c personalizar"
+	}
+	if target.ID == "codex" {
+		helpText += " · e esfuerzo"
+	}
+	helpText += " · Enter revisar · Esc atrás · q salir"
+	return strings.Join(lines, "\n") + "\n\n" + help(helpText)
+}
+
+func (m Model) customModelView() string {
+	target, _ := m.target()
+	lines := []string{
+		titleStyle.Render("Modelo personalizado para " + m.customAgentID),
+		"",
+		mutedStyle.Render("Destino: " + target.Label),
+		mutedStyle.Render("Escribe el nombre del modelo y pulsa Enter:"),
+		"",
+		focusStyle.Render("› ") + m.customInput + focusStyle.Render("█"),
+	}
+	return strings.Join(lines, "\n") + "\n\n" + help("Enter confirmar · Esc cancelar · Ctrl+U borrar")
 }
 
 func (m Model) reviewView() string {
