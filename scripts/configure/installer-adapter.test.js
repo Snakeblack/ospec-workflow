@@ -45,6 +45,14 @@ tiers:
       model_reasoning_effort: low
       model_verbosity: low
     cursor: cursor-cheap
+catalog:
+  claude:
+    - fable
+  codex:
+    gpt-6-astra-high:
+      model: gpt-6-astra
+      model_reasoning_effort: high
+      model_verbosity: medium
 `);
   return root;
 }
@@ -58,6 +66,12 @@ test("plan is read-only and exposes seven profiles with native model forms", t =
   const plan = buildPlan({ sourceDir });
   assert.equal(plan.version, 1);
   assert.deepEqual(plan.targets.map(item => item.id), ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor", "antigravity"]);
+  assert.equal(target(plan, "claude").allowCustom, true);
+  assert.equal(target(plan, "codex").allowCustom, true);
+  assert.equal(target(plan, "cursor").allowCustom, true);
+  assert.equal(target(plan, "opencode").allowCustom, true);
+  assert.equal(target(plan, "vscode").allowCustom, false);
+  assert.equal(target(plan, "antigravity").allowCustom, false);
   assert.equal(fs.readFileSync(path.join(sourceDir, "models.yaml"), "utf8"), before);
   const vscodeAlpha = agent(target(plan, "vscode"), "alpha");
   const codexAlpha = agent(target(plan, "codex"), "alpha");
@@ -66,6 +80,8 @@ test("plan is read-only and exposes seven profiles with native model forms", t =
   assert.deepEqual(codexAlpha.effective, { model: "gpt-5.6-sol", model_reasoning_effort: "high", model_verbosity: "medium" });
   assert.equal(codexAlpha.choices.find(choice => JSON.stringify(choice.value) === JSON.stringify(codexAlpha.effective)).label, "GPT-5.6 Sol · high · medium");
   assert.equal(agent(target(plan, "claude"), "alpha").choices.find(choice => choice.value === "opus").label, "Claude Opus (Claude Code alias)");
+  assert.equal(agent(target(plan, "claude"), "alpha").choices.find(choice => choice.value === "fable").label, "Claude Fable (Claude Code alias)");
+  assert.equal(agent(target(plan, "codex"), "alpha").choices.find(choice => choice.value?.model === "gpt-6-astra").label, "GPT-6 Astra · high · medium");
   assert.equal(agent(target(plan, "github-copilot"), "alpha").inherited, true);
   assert.equal(agent(target(plan, "antigravity"), "alpha").selectable, false);
 });
@@ -156,6 +172,53 @@ test("install rejects stale, inherited, unknown, and incomplete selections befor
   assert.throws(() => installPlan({ version: 1, target: "github-copilot", selections: { alpha: valid.alpha } }, deps), /inherited|unknown agent/i);
   assert.throws(() => installPlan({ version: 1, target: "claude", selections: { ...valid, unknown: valid.alpha } }, deps), /unknown agent/i);
   assert.equal(calls, 0);
+});
+
+test("installPlan accepts custom model strings for allowCustom targets and rejects for restricted targets", t => {
+  const sourceDir = fixture(t);
+  const plan = buildPlan({ sourceDir });
+  const claude = target(plan, "claude");
+  const baseSelections = Object.fromEntries(claude.agents.filter(item => item.selectable).map(item => [item.id, item.choices.find(choice => JSON.stringify(choice.value) === JSON.stringify(item.effective)).id]));
+
+  // Custom model encoded as choiceId('"glm-5.3"')
+  const customClaudeId = Buffer.from(JSON.stringify("glm-5.3")).toString("base64url");
+  let receivedOverrides;
+  const resultClaude = installPlan({ version: 1, target: "claude", selections: { ...baseSelections, alpha: customClaudeId } }, {
+    sourceDir,
+    mains: { claude: (argv, deps) => {
+      receivedOverrides = deps.runConfigure({ target: "claude", sourceDir }).modelOverrides;
+      return 0;
+    } },
+    runConfigure: options => options,
+  });
+  assert.equal(resultClaude, 0);
+  assert.equal(receivedOverrides.alpha, "glm-5.3");
+
+  // Custom model object for codex
+  const customCodexObj = { model: "gpt-6-astra", model_reasoning_effort: "xhigh", model_verbosity: "medium" };
+  const customCodexId = Buffer.from(JSON.stringify(customCodexObj)).toString("base64url");
+  const codex = target(plan, "codex");
+  const codexSelections = Object.fromEntries(codex.agents.filter(item => item.selectable).map(item => [item.id, item.choices.find(choice => JSON.stringify(choice.value) === JSON.stringify(item.effective)).id]));
+  let receivedCodexOverrides;
+  const resultCodex = installPlan({ version: 1, target: "codex", selections: { ...codexSelections, alpha: customCodexId } }, {
+    sourceDir,
+    mains: { codex: (argv, deps) => {
+      receivedCodexOverrides = deps.runConfigure({ target: "codex", sourceDir }).modelOverrides;
+      return 0;
+    } },
+    runConfigure: options => options,
+  });
+  assert.equal(resultCodex, 0);
+  assert.deepEqual(receivedCodexOverrides.alpha, customCodexObj);
+
+  // Rejection on vscode where allowCustom is false
+  const vscode = target(plan, "vscode");
+  const vscodeSelections = Object.fromEntries(vscode.agents.filter(item => item.selectable).map(item => [item.id, item.choices.find(choice => JSON.stringify(choice.value) === JSON.stringify(item.effective)).id]));
+  assert.throws(() => installPlan({ version: 1, target: "vscode", selections: { ...vscodeSelections, alpha: customClaudeId } }, {
+    sourceDir,
+    mains: { vscode: () => 0 },
+    runConfigure: options => options,
+  }), /choice/i);
 });
 
 test("CLI plan emits only JSON and invalid install returns status two", t => {

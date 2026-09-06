@@ -39,6 +39,7 @@ type Target struct {
 	ID                 string  `json:"id"`
 	Label              string  `json:"label"`
 	InstallDescription string  `json:"installDescription"`
+	AllowCustom        bool    `json:"allowCustom,omitempty"`
 	Agents             []Agent `json:"agents"`
 }
 
