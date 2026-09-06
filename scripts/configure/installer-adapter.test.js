@@ -106,6 +106,39 @@ test("each target dispatches only its own injected main, preserving Codex object
   }
 });
 
+test("real installer mains synchronously receive the source and override wrapper", t => {
+  const sourceDir = fixture(t);
+  const plan = buildPlan({ sourceDir });
+  const previousCwd = process.cwd();
+  process.chdir(sourceDir);
+  try {
+    for (const current of plan.targets) {
+      const selections = Object.fromEntries(current.agents.filter(item => item.selectable).map(item => [item.id, item.choices.find(choice => JSON.stringify(choice.value) === JSON.stringify(item.effective)).id]));
+      const calls = [];
+      const result = installPlan({ version: 1, target: current.id, selections }, {
+        sourceDir,
+        runConfigure: options => { calls.push(options); return { exitCode: 23, validation: { stdout: "", stderr: "" } }; },
+      });
+      assert.equal(result, 23, current.id);
+      assert.equal(calls.length, 1, current.id);
+      assert.equal(calls[0].sourceDir, sourceDir, current.id);
+      assert.equal(calls[0].target, current.id, current.id);
+    }
+  } finally {
+    process.chdir(previousCwd);
+  }
+});
+
+test("a promise or failure object from an installer cannot become success", t => {
+  const sourceDir = fixture(t);
+  const plan = buildPlan({ sourceDir });
+  const claude = target(plan, "claude");
+  const selections = Object.fromEntries(claude.agents.filter(item => item.selectable).map(item => [item.id, item.choices.find(choice => JSON.stringify(choice.value) === JSON.stringify(item.effective)).id]));
+  const request = { version: 1, target: "claude", selections };
+  assert.throws(() => installPlan(request, { sourceDir, mains: { claude: () => Promise.resolve(0) } }), /synchronously/i);
+  assert.throws(() => installPlan(request, { sourceDir, mains: { claude: () => ({ exitCode: 19 }) } }), /integer exit code/i);
+});
+
 test("install rejects stale, inherited, unknown, and incomplete selections before dispatch", t => {
   const sourceDir = fixture(t);
   const plan = buildPlan({ sourceDir });

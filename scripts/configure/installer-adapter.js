@@ -119,12 +119,24 @@ function defaultMain(target) {
   return require(modules[target]).main;
 }
 
+function invalidInstallerResult(target, reason) {
+  const error = new Error(`installer ${target} ${reason}`);
+  error.exitCode = 1;
+  return error;
+}
+
+function installerExitCode(target, result) {
+  if (result && typeof result.then === "function") throw invalidInstallerResult(target, "must complete synchronously");
+  if (!Number.isInteger(result) || result < 0) throw invalidInstallerResult(target, "must return a non-negative integer exit code");
+  return result;
+}
+
 function installPlan(request, { sourceDir = process.cwd(), mains = {}, runConfigure: runConfigureImpl = configure } = {}) {
   const { target, modelOverrides } = validateRequest(request, buildPlan({ sourceDir }));
   const installer = mains[target] || defaultMain(target);
   const runConfigure = options => runConfigureImpl({ ...options, sourceDir, modelOverrides });
   const result = installer([], { cwd: sourceDir, runConfigure });
-  return Number.isInteger(result) ? result : 0;
+  return installerExitCode(target, result);
 }
 
 function readStdin(deps) {
