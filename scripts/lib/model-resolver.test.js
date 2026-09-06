@@ -3,7 +3,14 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { resolveModel, validateSddModelPolicy, REQUIRED_SDD_AGENTS, REQUIRED_QUALITY_REVIEW_AGENTS, OMIT } = require("./model-resolver.js");
+const {
+  resolveModel,
+  validateModelOverrides,
+  validateSddModelPolicy,
+  REQUIRED_SDD_AGENTS,
+  REQUIRED_QUALITY_REVIEW_AGENTS,
+  OMIT,
+} = require("./model-resolver.js");
 
 const MODELS = {
   agents: {
@@ -51,6 +58,32 @@ test("absent or malformed config yields OMIT", () => {
   assert.equal(resolveModel("x", "claude", null), OMIT);
   assert.equal(resolveModel("x", "claude", {}), OMIT);
   assert.equal(resolveModel("x", "claude", "nope"), OMIT);
+});
+
+test("per-run overrides take precedence without changing the configured tier", () => {
+  const models = {
+    ...MODELS,
+    modelOverrides: {
+      "sdd-design": {
+        claude: "temporary-model",
+        vscode: ["Temporary (copilot)"],
+      },
+    },
+  };
+
+  assert.equal(resolveModel("sdd-design", "claude", models), "temporary-model");
+  assert.deepEqual(resolveModel("sdd-design", "vscode", models), ["Temporary (copilot)"]);
+  assert.equal(resolveModel("sdd-design", "copilot-cli", models), OMIT);
+  assert.equal(MODELS.tiers.premium.claude, "opus");
+});
+
+test("model override validation accepts emitted model shapes and rejects malformed maps", () => {
+  assert.deepEqual(validateModelOverrides({
+    "sdd-apply": { model: "gpt", model_reasoning_effort: "high" },
+    "sdd-design": ["Sonnet (copilot)"],
+  }), { valid: true, errors: [] });
+  assert.equal(validateModelOverrides({ "sdd-apply": { claude: "sonnet" } }).valid, false);
+  assert.equal(validateModelOverrides({ "sdd-apply": { claude: null } }).valid, false);
 });
 
 test("canonical validator accepts model, effort, reviewer, and default choices from models.yaml", () => {

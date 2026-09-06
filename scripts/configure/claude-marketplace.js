@@ -65,14 +65,15 @@ function parseArgs(argv) {
   return args;
 }
 
-function buildClaudeMarketplace(options) {
+function buildClaudeMarketplace(options, deps = {}) {
   const outDir = path.resolve(options.out);
   const pluginDir = path.join(outDir, "plugins", options.pluginName);
 
   assertSafeOutDir(outDir, options.source);
   fs.rmSync(outDir, { recursive: true, force: true });
 
-  const result = runConfigure({
+  const runConfigureImpl = deps.runConfigure || runConfigure;
+  const result = runConfigureImpl({
     sourceDir: path.resolve(options.source),
     target: "claude",
     outDir: pluginDir,

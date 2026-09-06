@@ -10,7 +10,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const { transform } = require("../lib/target-transform.js");
-const { validateSddModelPolicy } = require("../lib/model-resolver.js");
+const { validateModelOverrides, validateSddModelPolicy } = require("../lib/model-resolver.js");
 const { withTransientFsRetries } = require("./install-engine.js");
 
 const PROFILES = {
@@ -589,7 +589,7 @@ function publishTransaction({ outDir, output, profile, validate, runValidator, o
   }
 }
 
-function runConfigure({ sourceDir, target, outDir, validate = true, runValidator = defaultRunValidator, operationObserver = () => {}, retryOptions = {} }) {
+function runConfigure({ sourceDir, target, outDir, validate = true, runValidator = defaultRunValidator, operationObserver = () => {}, retryOptions = {}, modelOverrides }) {
   const profile = PROFILES[target];
   if (!profile) {
     throw new Error(`unknown target: ${target}`);
@@ -602,7 +602,19 @@ function runConfigure({ sourceDir, target, outDir, validate = true, runValidator
   const policy = validateSddModelPolicy(models);
   if (!policy.valid) return { files: [], summary: [], exitCode: 1, validation: { status: 1, stdout: "", stderr: `invalid SDD model policy: ${JSON.stringify(policy.errors)}\n` } };
 
-  const output = transform({ files, profile, models });
+  const overridePolicy = validateModelOverrides(modelOverrides);
+  if (!overridePolicy.valid) return { files: [], summary: [], exitCode: 1, validation: { status: 1, stdout: "", stderr: `invalid model overrides: ${JSON.stringify(overridePolicy.errors)}\n` } };
+
+  const resolvedModels = modelOverrides === undefined
+    ? models
+    : {
+      ...models,
+      modelOverrides: Object.fromEntries(
+        Object.entries(modelOverrides).map(([agent, value]) => [agent, { [target]: structuredClone(value) }]),
+      ),
+    };
+
+  const output = transform({ files, profile, models: resolvedModels });
   const summary = output.files.map((file) => file.path);
   const publication = publishTransaction({
     outDir,
