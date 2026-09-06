@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.65.0] - 2026-09-07
+
+### Added
+- **Catálogos ampliados por destino (`models.yaml`)**:
+  - Incorporación de catálogo canónico por target con modelos vigentes (OpenAI GPT-6 Astra, GPT-5.6 Sol/Terra/Luna, o4-mini, o3; Claude Fable 5.1, Opus 5, Sonnet 5, Haiku 4.5; Zhipu GLM-5.3/5.2/5.1; Grok 4.6/4.5, Composer 2.5; Gemini 3.8 Flash, 3.1 Pro).
+  - Etiquetas amigables normalizadas en la presentación del configurador interactivo (`scripts/configure/installer-adapter.js`).
+- **Entrada manual de modelos personalizados en el instalador**:
+  - Compatibilidad para ingresar modelos arbitrarios a mano en destinos que lo permiten (`claude`, `cursor`, `codex`, `opencode`), facilitando el uso de proxies y modelos alternativos como GLM en Claude Code.
+  - Validación segura y decodificación `base64url` de modelos personalizados en el adaptador Node sin romper los invariantes de los destinos cerrados.
+  - Modo interactivo de entrada de texto (`c`) en la TUI de Go (`internal/installer/`).
+- **Control de nivel de esfuerzo de razonamiento en Codex**:
+  - Ciclado interactivo (`e`) entre niveles `low`, `medium`, `high` y `xhigh` para modelos de Codex directamente desde la TUI, actualizando la configuración y etiquetas en tiempo real.
+
+**Verificación directa**: `node scripts/check.js` (3249 tests pasando, 0 fallos y 0 omitidos) y `go test ./...` (11/11 paquetes ok).
+
 ## [2.64.0] - 2026-09-06
 
 ### Added
