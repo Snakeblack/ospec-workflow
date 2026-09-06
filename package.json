@@ -42,6 +42,7 @@
     "build:antigravity": "node scripts/configure/cli.js --target antigravity --out dist/antigravity",
     "setup:antigravity": "node scripts/configure/install-antigravity.js",
     "reload:antigravity": "node scripts/configure/install-antigravity.js",
+    "setup:tui": "go run ./cmd/ospec-install",
     "build:hooks": "node -e \"const r = require('./scripts/configure/install-target.js').ensureRuntimeBinary(process.cwd()); if (!r) process.exit(1);\"",
     "ensure:hooks": "npm run build:hooks",
     "setup:git-hooks": "node scripts/setup-git-hooks.js"

@@ -17,6 +17,16 @@ const TARGET_INFO = {
   antigravity: ["Antigravity", "Install Antigravity configuration"],
 };
 
+// Presentation only. Adapted from the legacy TUI catalog:
+// internal/tui/views/models/picker.go#MasterModelCatalog; keys are existing
+// models.yaml values or aliases, never a selectable catalog.
+const FRIENDLY_MODEL_LABELS = Object.freeze({
+  opus: "Claude Opus (Claude Code alias)", sonnet: "Claude Sonnet (Claude Code alias)", haiku: "Claude Haiku (Claude Code alias)",
+  "gpt-5.6-sol": "GPT-5.6 Sol", "gpt-5.6-terra": "GPT-5.6 Terra", "gpt-5.6-luna": "GPT-5.6 Luna",
+  "GPT-5.6 Sol (copilot)": "GPT-5.6 Sol (Copilot)", "GPT-5.6 Terra (copilot)": "GPT-5.6 Terra (Copilot)", "GPT-5.6 Luna (copilot)": "GPT-5.6 Luna (Copilot)",
+  "grok-4.6[fast=false]": "Grok 4.6 (Cursor)", "composer-2.5[fast=false]": "Composer 2.5 (Cursor)",
+});
+
 function stableJson(value) {
   if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
   if (value && typeof value === "object") return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(",")}}`;
@@ -59,11 +69,16 @@ function valuesForTarget(models, target, effective) {
 }
 
 function label(value) {
-  if (Array.isArray(value)) return value.join(", ");
+  if (Array.isArray(value)) return value.map(friendlyLabel).join(", ");
   if (value && typeof value === "object") {
-    return [value.model, value.model_reasoning_effort, value.model_verbosity].filter(Boolean).join(" · ") || stableJson(value);
+    return [friendlyLabel(value.model), value.model_reasoning_effort, value.model_verbosity].filter(Boolean).join(" · ") || stableJson(value);
   }
-  return String(value);
+  return friendlyLabel(value);
+}
+
+function friendlyLabel(value) {
+  if (value === undefined || value === null) return value;
+  return FRIENDLY_MODEL_LABELS[String(value)] || String(value);
 }
 
 function makeAgent(models, target, id) {

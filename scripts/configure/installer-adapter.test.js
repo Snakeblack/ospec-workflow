@@ -20,28 +20,28 @@ function fixture(t) {
 tiers:
   premium:
     claude: opus
-    vscode: [VS Premium]
+    vscode: [GPT-5.6 Sol (copilot)]
     opencode: open/premium
     codex:
-      model: gpt-premium
+      model: gpt-5.6-sol
       model_reasoning_effort: high
       model_verbosity: medium
     cursor: cursor-premium
   default:
     claude: sonnet
-    vscode: [VS Default]
+    vscode: [GPT-5.6 Terra (copilot)]
     opencode: open/default
     codex:
-      model: gpt-default
+      model: gpt-5.6-terra
       model_reasoning_effort: medium
       model_verbosity: low
     cursor: cursor-default
   cheap:
     claude: haiku
-    vscode: [VS Cheap]
+    vscode: [GPT-5.6 Luna (copilot)]
     opencode: open/cheap
     codex:
-      model: gpt-cheap
+      model: gpt-5.6-luna
       model_reasoning_effort: low
       model_verbosity: low
     cursor: cursor-cheap
@@ -59,8 +59,13 @@ test("plan is read-only and exposes seven profiles with native model forms", t =
   assert.equal(plan.version, 1);
   assert.deepEqual(plan.targets.map(item => item.id), ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor", "antigravity"]);
   assert.equal(fs.readFileSync(path.join(sourceDir, "models.yaml"), "utf8"), before);
-  assert.deepEqual(agent(target(plan, "vscode"), "alpha").effective, ["VS Premium"]);
-  assert.deepEqual(agent(target(plan, "codex"), "alpha").effective, { model: "gpt-premium", model_reasoning_effort: "high", model_verbosity: "medium" });
+  const vscodeAlpha = agent(target(plan, "vscode"), "alpha");
+  const codexAlpha = agent(target(plan, "codex"), "alpha");
+  assert.deepEqual(vscodeAlpha.effective, ["GPT-5.6 Sol (copilot)"]);
+  assert.equal(vscodeAlpha.choices.find(choice => JSON.stringify(choice.value) === JSON.stringify(vscodeAlpha.effective)).label, "GPT-5.6 Sol (Copilot)");
+  assert.deepEqual(codexAlpha.effective, { model: "gpt-5.6-sol", model_reasoning_effort: "high", model_verbosity: "medium" });
+  assert.equal(codexAlpha.choices.find(choice => JSON.stringify(choice.value) === JSON.stringify(codexAlpha.effective)).label, "GPT-5.6 Sol · high · medium");
+  assert.equal(agent(target(plan, "claude"), "alpha").choices.find(choice => choice.value === "opus").label, "Claude Opus (Claude Code alias)");
   assert.equal(agent(target(plan, "github-copilot"), "alpha").inherited, true);
   assert.equal(agent(target(plan, "antigravity"), "alpha").selectable, false);
 });
@@ -102,7 +107,7 @@ test("each target dispatches only its own injected main, preserving Codex object
     }]));
     assert.equal(installPlan({ version: 1, target: current.id, selections }, { sourceDir, mains, runConfigure: options => options }), 0);
     assert.deepEqual(calls, [current.id]);
-    if (current.id === "codex") assert.deepEqual(configured.modelOverrides.alpha, { model: "gpt-premium", model_reasoning_effort: "high", model_verbosity: "medium" });
+    if (current.id === "codex") assert.deepEqual(configured.modelOverrides.alpha, { model: "gpt-5.6-sol", model_reasoning_effort: "high", model_verbosity: "medium" });
   }
 });
 
