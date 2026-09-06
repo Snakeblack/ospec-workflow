@@ -1,0 +1,418 @@
+name: go-installer-tui
+status: archived
+last_updated: '2026-09-06T15:40:00Z'
+blocking_questions: []
+execution_mode: auto
+delivery_strategy: auto-chain
+model_overrides:
+  sdd-design: gpt-6-astra
+approvals:
+  - id: intent-001
+    gate: intent-briefing
+    decision: accepted
+    source: plain-chat
+    accepted_at: '2026-09-05T22:36:22.8104645Z'
+    synthesis: 'Build a minimal elegant Go terminal installer with menu, target selection, supported per-agent model selection, final summary and explicit installation, and Back preserving selections.'
+    scope: 'Reuse existing installation behavior; prioritize a usable tested MVP and resumable slices; verify target model capabilities.'
+    applies_to: [change-classification]
+  - id: mode-001
+    gate: execution-mode
+    decision: auto
+    source: plain-chat
+    accepted_at: '2026-09-05T22:36:22.8104645Z'
+    applies_to: [all-phases]
+  - id: delivery-001
+    gate: delivery-strategy
+    decision: auto-chain
+    source: plain-chat
+    accepted_at: '2026-09-05T22:36:22.8104645Z'
+    applies_to: [sdd-tasks, sdd-apply]
+  - id: warning-001
+    gate: verify-warning-acceptance
+    decision: accepted
+    source: plain-chat
+    accepted_at: '2026-09-06T15:35:31.000Z'
+    synthesis: 'Aceptar advertencia advisory tasks-gap de trazabilidad de IDs estables en tests como deuda técnica / seguimiento futuro para permitir el archivado del cambio.'
+    applies_to: [sdd-archive]
+owner:
+  author: Manuel Retamozo
+  branch: main
+classification: normal
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: 'Normal cross-module feature on an initialized active project with completed baseline.'
+  validated: true
+  validation_errors: []
+phases:
+  archive:
+    status: done
+    artifact: openspec/changes/go-installer-tui/archive-report.md
+    summary: 'Reporte y plan emitidos; delta merged en install; 2 promociones ADR; advertencia tasks-gap aceptada.'
+  verify:
+    status: done
+    verdict: "PASS WITH WARNINGS"
+    artifact: openspec/changes/go-installer-tui/verify-report.md
+    summary: '10/10 escenarios y 12/12 tareas cumplen; PASS WITH WARNINGS por ausencia de IDs REQ en pruebas.'
+    key_decisions:
+      - 'La cobertura funcional pasa; la trazabilidad test-side queda como WARNING de origen tasks-gap.'
+  apply:
+    status: done
+    artifact: openspec/changes/go-installer-tui/apply-progress.md
+    summary: 'PR1 completó protocolo/adaptador/cliente; PR2 completó TUI Bubble Tea, selección semántica por destino, documentación, regresiones finales y comprobación PTY con restauración de terminal y código nativo 17 del fixture.'
+    key_decisions:
+      - 'El límite público es modelOverrides por agente con valor nativo; el destino activo lo acota dentro de la configuración efímera.'
+      - 'La cobertura del adaptador y el cliente se fusionó en el progreso sin borrar sus registros detallados.'
+  tasks:
+    status: done
+    artifact: openspec/changes/go-installer-tui/tasks.md
+    summary: 'Descomposición en dos PRs encadenadas: protocolo/adaptador y TUI Bubble Tea con pruebas y documentación.'
+    key_decisions:
+      - 'Auto-chain usa stacked-to-main; el riesgo supera el presupuesto de 400 líneas.'
+      - 'El protocolo Node y los seams de instaladores forman la primera unidad autónoma.'
+  design:
+    status: done
+    artifact: openspec/changes/go-installer-tui/design.md
+    summary: 'Bubble Tea y adaptador Node con planes JSON, overrides efímeros y reutilización de siete instaladores.'
+    key_decisions:
+      - 'Bubble Tea v1.3.4 conserva el mínimo Go 1.23.'
+      - 'El adaptador deriva modelos locales y revalida antes de invocar un único instalador.'
+      - 'Claude requiere seams compatibles en main y buildClaudeMarketplace.'
+  clarify:
+    status: skipped
+  proposal:
+    status: done
+    artifact: openspec/changes/go-installer-tui/proposal.md
+    summary: 'Go TUI con confirmación, navegación persistente y adaptador Node que reutiliza los siete instaladores existentes.'
+    key_decisions:
+      - 'Antigravity hereda modelo y omite selección multimodelo hasta contar con soporte verificable.'
+      - 'Los overrides por ejecución no modifican el models.yaml canónico.'
+  spec:
+    status: done
+    artifacts:
+      - openspec/changes/go-installer-tui/specs/install/spec.md
+    summary: 'Cinco requisitos para TUI, modelos por capacidad, confirmación y adaptador; 10 escenarios comprobables.'
+    key_decisions:
+      - 'La selección de modelos se limita a capacidades explícitamente declaradas; Antigravity hereda.'
+      - 'El adaptador revalida el plan y delega en los instaladores existentes sin duplicar sus garantías.'
+
+baseline_fingerprints:
+  install: 05e5f3d1c618b45e9c41ea3fa6f4a4970fe0f730d75b759a437a9fb5333754b8
+assumptions:
+  - id: sdd-design-001
+    phase: sdd-design
+    statement: 'Use Bubble Tea v1.3.4 with a local state model and a private versioned Node process boundary.'
+    reversibility: high
+    basis: 'REQ-install-019 requires retained terminal navigation; official dependency metadata preserves Go 1.23 minimum; existing Node mains own installation effects.'
+    recorded_at: '2026-09-05T22:49:19.6162736Z'
+    status: unresolved
+    resolution:
+      action: leave-unresolved
+      note: 'Coordinator leaves this high-reversibility implementation choice unresolved; no user confirmation is claimed. Automatic execution already authorized; this does not block or escalate per Step2a.'
+      resolved_at: '2026-09-06T11:28:25.0237385Z'
+
+gates:
+  # BEGIN persisted quality review
+  quality-review-gate:
+    status: "done"
+    schema_version: 2
+    classification: "normal"
+    classification_status: "sufficient"
+    selected_domains:
+      - "trust"
+      - "runtime"
+      - "efficiency"
+    capability_coverage:
+      -
+        id: "install"
+        behavioral: true
+        scoped: true
+        attributed_domains:
+          - "runtime"
+          - "efficiency"
+        fact_codes:
+          - "error-flow"
+          - "loop-io"
+    ambiguity_reasons: []
+    evidence:
+      schema_version: 2
+      fingerprint: "sha256:b1094c21af1cb6d2837701ca9c94f5143258681227b1fcdf7c240ec92f9f7d6a"
+      sources:
+        paths:
+          - "README.md"
+          - "cmd/ospec-install/main.go"
+          - "go.mod"
+          - "go.sum"
+          - "internal/installer/client.go"
+          - "internal/installer/client_test.go"
+          - "internal/installer/model.go"
+          - "internal/installer/model_test.go"
+          - "internal/installer/ui.go"
+          - "internal/installer/ui_test.go"
+          - "internal/installer/view.go"
+          - "internal/installer/view_test.go"
+          - "package.json"
+          - "scripts/configure/claude-marketplace.js"
+          - "scripts/configure/claude-marketplace.test.js"
+          - "scripts/configure/cli.js"
+          - "scripts/configure/cli.test.js"
+          - "scripts/configure/install-claude.js"
+          - "scripts/configure/install-claude.test.js"
+          - "scripts/configure/installer-adapter.js"
+          - "scripts/configure/installer-adapter.test.js"
+          - "scripts/lib/model-resolver.js"
+          - "scripts/lib/model-resolver.test.js"
+        capabilities:
+          - "install"
+        operation_types:
+          - "add"
+          - "modify"
+        dependencies:
+          - "github.com/charmbracelet/bubbletea@v1.3.4"
+          - "github.com/charmbracelet/lipgloss@v1.0.0"
+        facts:
+          -
+            code: "dependency-trust-change"
+            source: "dependency"
+            detail: "github.com/charmbracelet/bubbletea@v1.3.4,github.com/charmbracelet/lipgloss@v1.0.0"
+            attributed_capabilities: []
+          -
+            code: "error-flow"
+            source: "real-diff"
+            detail: "scripts/configure/installer-adapter.js"
+            attributed_capabilities:
+              - "install"
+          -
+            code: "loop-io"
+            source: "real-diff"
+            detail: "scripts/configure/installer-adapter.js,scripts/lib/model-resolver.js"
+            attributed_capabilities:
+              - "install"
+        capability_scopes:
+          -
+            id: "install"
+            paths:
+              - "README.md"
+              - "cmd/ospec-install/main.go"
+              - "go.mod"
+              - "go.sum"
+              - "internal/installer/client.go"
+              - "internal/installer/client_test.go"
+              - "internal/installer/model.go"
+              - "internal/installer/model_test.go"
+              - "internal/installer/ui.go"
+              - "internal/installer/ui_test.go"
+              - "internal/installer/view.go"
+              - "internal/installer/view_test.go"
+              - "package.json"
+              - "scripts/configure/claude-marketplace.js"
+              - "scripts/configure/claude-marketplace.test.js"
+              - "scripts/configure/cli.js"
+              - "scripts/configure/cli.test.js"
+              - "scripts/configure/install-claude.js"
+              - "scripts/configure/install-claude.test.js"
+              - "scripts/configure/installer-adapter.js"
+              - "scripts/configure/installer-adapter.test.js"
+              - "scripts/lib/model-resolver.js"
+              - "scripts/lib/model-resolver.test.js"
+        capability_coverage:
+          -
+            id: "install"
+            behavioral: true
+            scoped: true
+            attributed_domains:
+              - "runtime"
+              - "efficiency"
+            fact_codes:
+              - "error-flow"
+              - "loop-io"
+    domains:
+      trust:
+        selected: true
+        reasons:
+          -
+            code: "dependency-trust-change"
+            source: "dependency"
+            detail: "github.com/charmbracelet/bubbletea@v1.3.4,github.com/charmbracelet/lipgloss@v1.0.0"
+            precedence: 4
+      runtime:
+        selected: true
+        reasons:
+          -
+            code: "error-flow"
+            source: "real-diff"
+            detail: "scripts/configure/installer-adapter.js"
+            precedence: 2
+      evolution:
+        selected: false
+        reasons:
+          -
+            code: "no-evolution-signal"
+            source: "classifier"
+            detail: "No positive signal"
+            precedence: 5
+      efficiency:
+        selected: true
+        reasons:
+          -
+            code: "loop-io"
+            source: "real-diff"
+            detail: "scripts/configure/installer-adapter.js,scripts/lib/model-resolver.js"
+            precedence: 2
+    lineage:
+      schema_version: 2
+      lineage_id: "sha256:195a34f7de928b4612896a416178ed9266f5e8c720beb742d54c75887fb7d43b"
+      generation: 1
+      predecessor_lineage_id: null
+      migration: null
+      recovery: null
+      revision: 7
+      status: "approved"
+      genesis:
+        candidate:
+          projection: "git-tree"
+          base_tree: "3149d77ee128fa9c530c2fbccf7df5ff115a95b6"
+          candidate_tree: "598ae554fc88d31c25a0df9a0841a71ff03f4570"
+          paths:
+            - "README.md"
+            - "cmd/ospec-install/main.go"
+            - "go.mod"
+            - "go.sum"
+            - "internal/installer/client.go"
+            - "internal/installer/client_test.go"
+            - "internal/installer/model.go"
+            - "internal/installer/model_test.go"
+            - "internal/installer/ui.go"
+            - "internal/installer/ui_test.go"
+            - "internal/installer/view.go"
+            - "internal/installer/view_test.go"
+            - "package.json"
+            - "scripts/configure/claude-marketplace.js"
+            - "scripts/configure/claude-marketplace.test.js"
+            - "scripts/configure/cli.js"
+            - "scripts/configure/cli.test.js"
+            - "scripts/configure/install-claude.js"
+            - "scripts/configure/install-claude.test.js"
+            - "scripts/configure/installer-adapter.js"
+            - "scripts/configure/installer-adapter.test.js"
+            - "scripts/lib/model-resolver.js"
+            - "scripts/lib/model-resolver.test.js"
+          diff_hash: "sha256:b1d1afc2ae4f6e17778394bd3cb9314c50d9ce70b740fbf03360eeac40c54d9d"
+          paths_digest: "sha256:0efcd087b9907bc8306b33cbce716d42db7c63f7301b6ec992b6950d46aa5991"
+          authored_lines: 1594
+          original_changed_lines: 1594
+        candidate_id: "sha256:c1339b181bc06e3eda92849c800a69e5587580b76ef44ba4b1e979073849eb6d"
+        paths:
+          - "README.md"
+          - "cmd/ospec-install/main.go"
+          - "go.mod"
+          - "go.sum"
+          - "internal/installer/client.go"
+          - "internal/installer/client_test.go"
+          - "internal/installer/model.go"
+          - "internal/installer/model_test.go"
+          - "internal/installer/ui.go"
+          - "internal/installer/ui_test.go"
+          - "internal/installer/view.go"
+          - "internal/installer/view_test.go"
+          - "package.json"
+          - "scripts/configure/claude-marketplace.js"
+          - "scripts/configure/claude-marketplace.test.js"
+          - "scripts/configure/cli.js"
+          - "scripts/configure/cli.test.js"
+          - "scripts/configure/install-claude.js"
+          - "scripts/configure/install-claude.test.js"
+          - "scripts/configure/installer-adapter.js"
+          - "scripts/configure/installer-adapter.test.js"
+          - "scripts/lib/model-resolver.js"
+          - "scripts/lib/model-resolver.test.js"
+        classification: "normal"
+        selected_domains:
+          - "trust"
+          - "runtime"
+          - "efficiency"
+        evidence_fingerprint: "sha256:b1094c21af1cb6d2837701ca9c94f5143258681227b1fcdf7c240ec92f9f7d6a"
+        original_changed_lines: 1594
+        authored_lines: 1594
+      current_candidate_id: "sha256:c1339b181bc06e3eda92849c800a69e5587580b76ef44ba4b1e979073849eb6d"
+      current_candidate:
+        projection: "git-tree"
+        base_tree: "3149d77ee128fa9c530c2fbccf7df5ff115a95b6"
+        candidate_tree: "598ae554fc88d31c25a0df9a0841a71ff03f4570"
+        paths:
+          - "README.md"
+          - "cmd/ospec-install/main.go"
+          - "go.mod"
+          - "go.sum"
+          - "internal/installer/client.go"
+          - "internal/installer/client_test.go"
+          - "internal/installer/model.go"
+          - "internal/installer/model_test.go"
+          - "internal/installer/ui.go"
+          - "internal/installer/ui_test.go"
+          - "internal/installer/view.go"
+          - "internal/installer/view_test.go"
+          - "package.json"
+          - "scripts/configure/claude-marketplace.js"
+          - "scripts/configure/claude-marketplace.test.js"
+          - "scripts/configure/cli.js"
+          - "scripts/configure/cli.test.js"
+          - "scripts/configure/install-claude.js"
+          - "scripts/configure/install-claude.test.js"
+          - "scripts/configure/installer-adapter.js"
+          - "scripts/configure/installer-adapter.test.js"
+          - "scripts/lib/model-resolver.js"
+          - "scripts/lib/model-resolver.test.js"
+        diff_hash: "sha256:b1d1afc2ae4f6e17778394bd3cb9314c50d9ce70b740fbf03360eeac40c54d9d"
+        paths_digest: "sha256:0efcd087b9907bc8306b33cbce716d42db7c63f7301b6ec992b6950d46aa5991"
+        authored_lines: 1594
+        original_changed_lines: 1594
+      lenses:
+        trust:
+          selected: true
+          status: "completed"
+          request_id: "go-tui-trust-1"
+          result_digest: "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc"
+          result:
+            findings: []
+          operation: null
+          result_request_id: "go-tui-trust-result-1"
+        runtime:
+          selected: true
+          status: "completed"
+          request_id: "go-tui-runtime-1"
+          result_digest: "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc"
+          result:
+            findings: []
+          operation: null
+          result_request_id: "go-tui-runtime-result-1"
+        evolution:
+          selected: false
+          status: "skipped"
+          request_id: null
+          result_digest: null
+          result: null
+          operation: null
+        efficiency:
+          selected: true
+          status: "completed"
+          request_id: "go-tui-efficiency-1"
+          result_digest: "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc"
+          result:
+            findings: []
+          operation: null
+          result_request_id: "go-tui-efficiency-result-1"
+      findings: []
+      findings_digest: "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f"
+      correction_budget:
+        limit_lines: 200
+        used_lines: 0
+        failed_attempts: 0
+        max_failed_attempts: 3
+      correction_history: []
+      validation_history: []
+      follow_ups: []
+      pending_operation: null
+      pending_correction: null
+      terminal_reason: "no-unresolved-blocking-findings"
+  # END persisted quality review

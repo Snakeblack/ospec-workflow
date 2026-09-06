@@ -1,0 +1,14 @@
+ok  	github.com/snakeblack/ospec-workflow/cmd/ospec-hooks	(cached)
+?   	github.com/snakeblack/ospec-workflow/cmd/ospec-install	[no test files]
+ok  	github.com/snakeblack/ospec-workflow/internal/agentidentity	(cached)
+ok  	github.com/snakeblack/ospec-workflow/internal/hooks	7.093s
+ok  	github.com/snakeblack/ospec-workflow/internal/installer	(cached)
+ok  	github.com/snakeblack/ospec-workflow/internal/jsonio	(cached)
+ok  	github.com/snakeblack/ospec-workflow/internal/modelconfig	(cached)
+ok  	github.com/snakeblack/ospec-workflow/internal/resultenvelope	(cached)
+ok  	github.com/snakeblack/ospec-workflow/internal/rules	(cached)
+ok  	github.com/snakeblack/ospec-workflow/internal/skillreg	(cached)
+ok  	github.com/snakeblack/ospec-workflow/internal/store	(cached)
+ok  	github.com/snakeblack/ospec-workflow/internal/yamllite	(cached)
+
+[runner] exit_code=0 duration_seconds=111,931

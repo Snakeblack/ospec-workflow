@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.64.0] - 2026-09-06
+
+### Added
+- **Instalador guiado en terminal (TUI) en Go (`cmd/ospec-install/`, `internal/installer/`)**:
+  - Interfaz de terminal construida con Bubble Tea v1.3.4 y Lip Gloss para guiar la selección e instalación en los 7 destinos soportados (`claude`, `vscode`, `github-copilot`, `opencode`, `codex`, `cursor`, `antigravity`).
+  - Menú de selección de destino único y configuración de modelos por agente basada en capacidades declaradas, aplicando herencia automática para Antigravity y GitHub Copilot.
+  - Navegación bidireccional que retiene selecciones locales por destino al retroceder y paso obligatorio de revisión previa a la instalación.
+  - Restauración garantizada del estado de la terminal al salir y propagación fiel de flujos de salida y códigos de terminación nativos del proceso.
+- **Adaptador Node desacoplado y anulaciones efímeras (`scripts/configure/installer-adapter.js`)**:
+  - Protocolo v1 basado en JSON sobre stdin para comunicación entre el binario Go y el runtime Node.
+  - Resolución in-memory de anulaciones de modelos efímeros sin alterar el archivo canónico `models.yaml`.
+  - Reutilización de los puntos de entrada existentes `main(argv, deps)` de los instaladores sin duplicar transacciones ni mutaciones en el sistema de archivos.
+- **Trazabilidad y especificaciones vivas**:
+  - Incorporación y consolidación de requisitos `REQ-install-019` a `REQ-install-023` en `openspec/specs/install/spec.md`.
+  - Promoción de decisiones de arquitectura: [ADR-20260906-001](docs/adr/adr-20260906-001-bubble-tea-for-installer-navigation.md) (Bubble Tea para navegación del instalador) y [ADR-20260906-002](docs/adr/adr-20260906-002-node-adapter-and-ephemeral-model-overrides.md) (Adaptador Node y anulaciones efímeras de modelos).
+  - Aceptación formal de advertencia advisory de trazabilidad test-side bajo aprobación `warning-001` y archivado completo del cambio `go-installer-tui` en `openspec/changes/archive/2026-09-06-go-installer-tui/`.
+
 ## [2.63.3] - 2026-09-05
 
 ### Fixed

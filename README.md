@@ -54,12 +54,23 @@ Choose your target and run its automatic configurator:
 | **Codex CLI** | `npm run setup:codex` | Builds `dist/codex`, registers the marketplace, adds only missing global MCPs and copies `.codex/agents/*.toml`. |
 | **Cursor** | `npm run setup:cursor` | Builds `dist/cursor`, syncs to `~/.cursor/`, configures MCPs and preserves hooks. |
 | **Antigravity** | `npm run setup:antigravity` | Builds `dist/antigravity` and installs into `~/.gemini/config/` with a transactional manifest. |
+| **Guided TUI** | `npm run setup:tui` | Opens the guided installer from this repository checkout. |
 
 ### 3. Start an SDD Cycle
 Once the plugin is loaded in your chat agent:
 1. **Initialize the project**: Type `/sdd-init`. It will automatically detect your stack and test runner.
 2. **Start a change**: Type `/sdd-new <change-name>` (e.g. `/sdd-new login-session-timeout`).
 3. **Complete the flow**: Follow the sequence recommended by the orchestrator (`/sdd-continue` → `/sdd-apply` → `/sdd-verify` → `/sdd-archive`).
+
+### Guided installer TUI
+
+From a repository checkout, use Node.js 22+ and Go 1.23+:
+
+```powershell
+npm run setup:tui
+```
+
+Choose a target, edit models when that target supports it, review the summary, then activate **Install**. Use arrow keys to move, Enter to select, Escape to go back, and `q` or Ctrl-C to cancel. Back retains selections per target; canceling before Install does not write files. Choices are per-run and do not modify `models.yaml`; destinations and installer behavior remain the existing defaults. Model availability and host authentication are outside this flow, and standalone binaries are outside the MVP.
 
 ---
 

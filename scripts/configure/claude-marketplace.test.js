@@ -77,3 +77,28 @@ test("buildClaudeMarketplace refuses a destructive --out and leaves it untouched
   );
   assert.ok(fs.existsSync(path.join(dir, "important.txt")), "pre-existing data must survive a refused build");
 });
+
+test("buildClaudeMarketplace forwards an injected generator seam", (t) => {
+  const out = path.join(tmp(t), "build");
+  const calls = [];
+  const result = buildClaudeMarketplace(
+    {
+      source: SOURCE,
+      out,
+      validate: false,
+      marketplaceName: "ospec-tools",
+      pluginName: "ospec-workflow",
+    },
+    {
+      runConfigure(options) {
+        calls.push(options);
+        return { exitCode: 0, validation: null };
+      },
+    },
+  );
+
+  assert.equal(result.exitCode, 0);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].target, "claude");
+  assert.equal(calls[0].outDir, result.pluginDir);
+});

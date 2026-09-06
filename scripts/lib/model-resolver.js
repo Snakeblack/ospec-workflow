@@ -59,6 +59,22 @@ function resolveModel(agentName, target, models) {
     return OMIT;
   }
 
+  const modelOverrides = models.modelOverrides;
+  if (
+    modelOverrides &&
+    typeof modelOverrides === "object" &&
+    Object.prototype.hasOwnProperty.call(modelOverrides, agentName)
+  ) {
+    const agentOverrides = modelOverrides[agentName];
+    if (
+      agentOverrides &&
+      typeof agentOverrides === "object" &&
+      Object.prototype.hasOwnProperty.call(agentOverrides, target)
+    ) {
+      return agentOverrides[target];
+    }
+  }
+
   const agents = models.agents || {};
   const tier = agents[agentName] || agents._default;
 
@@ -79,6 +95,24 @@ function resolveModel(agentName, target, models) {
   }
 
   return value;
+}
+
+function isModelValue(value) {
+  if (typeof value === "string") return value.length > 0;
+  if (Array.isArray(value)) return value.length > 0 && value.every(item => typeof item === "string" && item.length > 0);
+  return Boolean(value && typeof value === "object" && !Array.isArray(value) && typeof value.model === "string" && value.model.length > 0);
+}
+
+function validateModelOverrides(modelOverrides) {
+  if (modelOverrides === undefined) return { valid: true, errors: [] };
+  const errors = [];
+  if (!modelOverrides || typeof modelOverrides !== "object" || Array.isArray(modelOverrides)) {
+    return { valid: false, errors: [{ code: "invalid-overrides" }] };
+  }
+  for (const [agent, value] of Object.entries(modelOverrides)) {
+    if (!agent || !isModelValue(value)) errors.push({ code: "invalid-override", agent });
+  }
+  return { valid: errors.length === 0, errors };
 }
 
 function validateSddModelPolicy(models) {
@@ -109,6 +143,7 @@ function validateSddModelPolicy(models) {
 
 module.exports = {
   resolveModel,
+  validateModelOverrides,
   validateSddModelPolicy,
   sddAgentsByTier,
   REQUIRED_SDD_AGENTS,

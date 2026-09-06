@@ -76,43 +76,48 @@ function listOutput(bin, args) {
   return `${result.stdout || ""}${result.stderr || ""}`;
 }
 
-function main(argv = process.argv.slice(2)) {
+function main(argv = process.argv.slice(2), deps = {}) {
   const buildOnly = argv.includes("--build-only");
-  const bin = resolveClaudeBin();
+  const cwd = deps.cwd || process.cwd();
+  const stdout = deps.stdout || process.stdout;
+  const stderr = deps.stderr || process.stderr;
+  const resolveClaudeBinImpl = deps.resolveClaudeBin || resolveClaudeBin;
+  const buildClaudeMarketplaceImpl = deps.buildClaudeMarketplace || buildClaudeMarketplace;
+  const copyBinaryToTreeImpl = deps.copyBinaryToTree || copyBinaryToTree;
+  const bin = resolveClaudeBinImpl();
 
-  const build = buildClaudeMarketplace({
-    source: process.cwd(),
+  const build = buildClaudeMarketplaceImpl({
+    source: cwd,
     out: path.join("dist", "claude-marketplace"),
     validate: bin !== null,
     marketplaceName: MARKETPLACE,
     pluginName: PLUGIN,
-  });
+  }, { runConfigure: deps.runConfigure });
 
-  process.stdout.write(`claude marketplace -> ${build.outDir}\n`);
-  if (build.validation?.stdout) process.stdout.write(build.validation.stdout);
-  if (build.validation?.stderr) process.stderr.write(build.validation.stderr);
+  stdout.write(`claude marketplace -> ${build.outDir}\n`);
+  if (build.validation?.stdout) stdout.write(build.validation.stdout);
+  if (build.validation?.stderr) stderr.write(build.validation.stderr);
 
   if (build.exitCode !== 0) {
-    process.stderr.write("\nbuild/validation failed; not touching marketplace state\n");
-    process.exitCode = build.exitCode || 1;
-    return;
+    stderr.write("\nbuild/validation failed; not touching marketplace state\n");
+    return build.exitCode || 1;
   }
 
   // Copy the platform-appropriate ospec-hooks binary into the Claude plugin tree
   // (scripts/hooks/). Best-effort: warns and skips if the binary is absent.
-  copyBinaryToTree(build.pluginDir, "claude", process.cwd());
+  copyBinaryToTreeImpl(build.pluginDir, "claude", cwd);
 
   if (buildOnly) {
-    process.stdout.write("\nBuilt. Run /reload-plugins in your Claude Code session to apply.\n");
-    return;
+    stdout.write("\nBuilt. Run /reload-plugins in your Claude Code session to apply.\n");
+    return 0;
   }
 
   if (!bin) {
-    process.stdout.write(
+    stdout.write(
       "\n'claude' CLI not found on PATH; marketplace not (re)registered.\n" +
         `Built artifact is ready at ${build.outDir}.\n`,
     );
-    return;
+    return 0;
   }
 
   try {
@@ -133,15 +138,16 @@ function main(argv = process.argv.slice(2)) {
       run(bin, ["plugin", "install", pluginId]);
     }
 
-    process.stdout.write("\nDone. Restart Claude Code or run /reload-plugins to apply.\n");
+    stdout.write("\nDone. Restart Claude Code or run /reload-plugins to apply.\n");
+    return 0;
   } catch (error) {
-    process.stderr.write(`\nClaude marketplace installation failed: ${error.message}\n`);
-    process.exitCode = 1;
+    stderr.write(`\nClaude marketplace installation failed: ${error.message}\n`);
+    return 1;
   }
 }
 
 if (require.main === module) {
-  main(process.argv.slice(2));
+  process.exitCode = main(process.argv.slice(2));
 }
 
 module.exports = { main, resolveClaudeBin };

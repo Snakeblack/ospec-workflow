@@ -82,6 +82,24 @@ test("the source fixture is left byte-for-byte unchanged", (t) => {
   assert.deepEqual(after, before);
 });
 
+test("runConfigure applies a model override only to its generated tree", (t) => {
+  const out = tmpOut(t);
+  const modelsPath = path.join(SOURCE, "models.yaml");
+  const before = fs.readFileSync(modelsPath, "utf8");
+
+  const result = runConfigure({
+    sourceDir: SOURCE,
+    target: "claude",
+    outDir: out,
+    validate: false,
+    modelOverrides: { "sdd-apply": "temporary-model" },
+  });
+
+  assert.equal(result.exitCode, 0);
+  assert.match(fs.readFileSync(path.join(out, "agents", "sdd-apply.md"), "utf8"), /^model: temporary-model$/m);
+  assert.equal(fs.readFileSync(modelsPath, "utf8"), before);
+});
+
 // ---------------------------------------------------------------------------
 // Requirement: Validation Gate
 // ---------------------------------------------------------------------------
