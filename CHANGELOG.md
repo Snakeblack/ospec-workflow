@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.65.1] - 2026-09-09
+
+### Added
+- **Modernización y presets en instalador interactivo (`modernize-installer-model-selection`)**:
+  - Navegación orientada a preconfiguraciones (presets) con edición granular por fases y controles finos de razonamiento (`effort`, `model_reasoning_effort`, `variant`) en la TUI Go.
+  - Paridad de configuración para GitHub Copilot equivalente a VS Code, manteniendo la herencia automática de Antigravity sin selector.
+  - Protocolo v2 de adaptador e instalador con validación estricta de planes frescos y catálogo estático sin descubrimiento forzado.
+- **Recuperación auditada de linaje y preservación de Candidate (`verify-lineage`)**:
+  - Terminación auditada de Candidates irrecuperables (`candidate-recovery-irrecoverable`) y creación de sucesoras con preservación literal de hallazgos, recetas congeladas y presupuesto de remediación sin repetición de recetas (`no-replay`).
+  - Captura canónica de Candidates vinculada a árboles Git mediante índices aislados y snapshots duraderos a nivel de workspace (`startVerifyLineageFromWorkspace`, `captureCandidateSnapshot`).
+  - Journaling inmutable de operaciones dirigidas y soporte para sucesoras de reconciliación ante operaciones inconclusas (`preserved: true`).
+- **Trazabilidad y memoria de arquitectura**:
+  - Actualización y consolidación de especificaciones en `openspec/specs/generator/spec.md` (`REQ-generator-015..016`), `openspec/specs/install/spec.md` (`REQ-install-019..025`) y `openspec/specs/verify-lineage/spec.md` (`REQ-verify-lineage-013..018`).
+  - Promoción de decisiones de arquitectura ADR-20260909-001 a ADR-20260909-004 en `docs/adr/`.
+  - Archivado atómico del cambio `modernize-installer-model-selection` en `openspec/changes/archive/2026-09-09-modernize-installer-model-selection/`.
+
+**Verificación directa**: `node scripts/check.js` (3267 tests pasando, 0 fallos) y `go test ./internal/installer -count=1` (ok).
+
 ## [2.65.0] - 2026-09-07
 
 ### Added
