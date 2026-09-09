@@ -11,6 +11,11 @@
 const OMIT = Symbol("model-omit");
 const INHERIT = "inherit";
 const KNOWN_TIERS = ["premium", "default", "cheap"];
+const CONTROL_FIELDS_BY_TARGET = {
+  claude: "effort",
+  codex: "model_reasoning_effort",
+  opencode: "variant",
+};
 const REQUIRED_QUALITY_REVIEW_AGENTS = [
   "review-change",
   "review-correction",
@@ -103,7 +108,25 @@ function isModelValue(value) {
   return Boolean(value && typeof value === "object" && !Array.isArray(value) && typeof value.model === "string" && value.model.length > 0);
 }
 
-function validateModelOverrides(modelOverrides) {
+function modelKey(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value.model : value;
+}
+
+function canonicalControlsFor(models, target, value) {
+  const key = modelKey(value);
+  if (typeof key !== "string") return {};
+  const declared = models?.installer?.capabilities?.[target]?.[key];
+  if (!declared || typeof declared !== "object" || Array.isArray(declared)) return {};
+  const controls = {};
+  for (const [name, control] of Object.entries(declared)) {
+    if (!control || typeof control !== "object" || Array.isArray(control)) continue;
+    if (!Array.isArray(control.values) || !control.values.every(item => typeof item === "string") || !control.values.includes(control.default)) continue;
+    controls[name] = { values: [...control.values], default: control.default };
+  }
+  return controls;
+}
+
+function validateModelOverrides(modelOverrides, models, target) {
   if (modelOverrides === undefined) return { valid: true, errors: [] };
   const errors = [];
   if (!modelOverrides || typeof modelOverrides !== "object" || Array.isArray(modelOverrides)) {
@@ -111,7 +134,58 @@ function validateModelOverrides(modelOverrides) {
   }
   for (const [agent, value] of Object.entries(modelOverrides)) {
     if (!agent || !isModelValue(value)) errors.push({ code: "invalid-override", agent });
+    if (target && Object.keys(CONTROL_FIELDS_BY_TARGET).includes(target)) {
+      const field = CONTROL_FIELDS_BY_TARGET[target];
+      const model = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+      if (Object.prototype.hasOwnProperty.call(model, field)) {
+        const policy = canonicalControlsFor(models, target, value)[field];
+        if (!policy || !policy.values.includes(model[field])) errors.push({ code: "unsupported-control", agent, target, field, actual: model[field] });
+      }
+    }
   }
+  return { valid: errors.length === 0, errors };
+}
+
+function validateInstallerPolicy(models) {
+  const errors = [];
+  const agents = models && typeof models === "object" && models.agents && typeof models.agents === "object" ? models.agents : {};
+  const installer = models && typeof models === "object" ? models.installer : null;
+  if (!installer || typeof installer !== "object" || Array.isArray(installer)) {
+    errors.push({ code: "missing-installer-policy" });
+  } else {
+    const groups = installer.phase_groups;
+    if (!groups || typeof groups !== "object" || Array.isArray(groups) || Object.keys(groups).length === 0) {
+      errors.push({ code: "missing-phase-groups" });
+    } else {
+      for (const [group, definition] of Object.entries(groups)) {
+        const members = definition?.agents;
+        if (!Array.isArray(members) || members.length === 0) errors.push({ code: "invalid-phase-group", group });
+        else for (const agent of members) if (typeof agent !== "string" || agents[agent] === undefined) errors.push({ code: "unknown-phase-agent", group, agent });
+      }
+    }
+    const presets = installer.presets;
+    if (!presets || typeof presets !== "object" || Array.isArray(presets) || Object.keys(presets).length === 0) errors.push({ code: "missing-presets" });
+    else for (const [preset, definition] of Object.entries(presets)) {
+      const groups = definition?.groups;
+      if (!Array.isArray(groups) || groups.length === 0 || groups.some(group => !installer.phase_groups?.[group])) errors.push({ code: "invalid-preset-group", preset });
+    }
+    const capabilities = installer.capabilities;
+    if (!capabilities || typeof capabilities !== "object" || Array.isArray(capabilities)) errors.push({ code: "missing-capabilities" });
+    else for (const [target, modelsByKey] of Object.entries(capabilities)) {
+      const field = CONTROL_FIELDS_BY_TARGET[target];
+      if (!field || !modelsByKey || typeof modelsByKey !== "object" || Array.isArray(modelsByKey)) {
+        errors.push({ code: "invalid-capability-target", target });
+        continue;
+      }
+      for (const [key, controls] of Object.entries(modelsByKey)) {
+        const control = controls?.[field];
+        if (!key || !control || !Array.isArray(control.values) || !control.values.every(value => typeof value === "string") || !control.values.includes(control.default)) {
+          errors.push({ code: "invalid-capability", target, model: key, field });
+        }
+      }
+    }
+  }
+
   return { valid: errors.length === 0, errors };
 }
 
@@ -121,23 +195,11 @@ function validateSddModelPolicy(models) {
   const tiers = models && typeof models === "object" && models.tiers && typeof models.tiers === "object" ? models.tiers : {};
   const required = new Set(REQUIRED_SDD_AGENTS);
 
-  for (const agent of REQUIRED_SDD_AGENTS) {
-    const actual = agents[agent];
-    if (actual === undefined) errors.push({ code: "missing-agent", agent });
-  }
-  for (const agent of REQUIRED_QUALITY_REVIEW_AGENTS) {
-    if (agents[agent] === undefined) errors.push({ code: "missing-agent", agent });
-  }
-  for (const [agent, actual] of Object.entries(agents).sort(([left], [right]) => left.localeCompare(right))) {
-    if (!KNOWN_TIERS.includes(actual)) errors.push({ code: "unknown-tier", agent, actual });
-  }
-  for (const agent of Object.keys(agents).filter(name => name.startsWith("sdd-") && !required.has(name)).sort()) {
-    errors.push({ code: "unexpected-agent", agent, actual: agents[agent] });
-  }
-  for (const tier of Object.keys(tiers).filter(name => !KNOWN_TIERS.includes(name)).sort()) {
-    errors.push({ code: "unknown-tier", tier, actual: tier });
-  }
-
+  for (const agent of REQUIRED_SDD_AGENTS) if (agents[agent] === undefined) errors.push({ code: "missing-agent", agent });
+  for (const agent of REQUIRED_QUALITY_REVIEW_AGENTS) if (agents[agent] === undefined) errors.push({ code: "missing-agent", agent });
+  for (const [agent, actual] of Object.entries(agents).sort(([left], [right]) => left.localeCompare(right))) if (!KNOWN_TIERS.includes(actual)) errors.push({ code: "unknown-tier", agent, actual });
+  for (const agent of Object.keys(agents).filter(name => name.startsWith("sdd-") && !required.has(name)).sort()) errors.push({ code: "unexpected-agent", agent, actual: agents[agent] });
+  for (const tier of Object.keys(tiers).filter(name => !KNOWN_TIERS.includes(name)).sort()) errors.push({ code: "unknown-tier", tier, actual: tier });
   return { valid: errors.length === 0, errors };
 }
 
@@ -145,6 +207,8 @@ module.exports = {
   resolveModel,
   validateModelOverrides,
   validateSddModelPolicy,
+  validateInstallerPolicy,
+  canonicalControlsFor,
   sddAgentsByTier,
   REQUIRED_SDD_AGENTS,
   REQUIRED_QUALITY_REVIEW_AGENTS,

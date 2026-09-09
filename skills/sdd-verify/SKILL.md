@@ -78,7 +78,8 @@ Compliance rule matrix:
 Runs IMMEDIATELY after artifact retrieval (Step 2) and BEFORE any discovery preflights (assumptions, TDD mode, spec mapping).
 
 a. Read `openspec/changes/{change-name}/state.yaml` `verify_lineage:`.
-b. Call `getLineageNextAction(verify_lineage, { changeRoot, mode, candidate })` (`scripts/lib/verify-lineage.js`) to determine routing:
+b. Recover the persisted Candidate snapshot with `recoverCandidateSnapshot(changeRoot, verify_lineage.candidate_snapshot, verify_lineage.current_candidate_id, { rootDir, verifyLiveWorkspace: true })`. A missing, altered, or live-drifted snapshot blocks the mutable route; do not reconstruct a Candidate from prose or a digest label.
+c. Call `getLineageNextAction(verify_lineage, { changeRoot, mode, candidate })` (`scripts/lib/verify-lineage.js`) using that recovered Candidate to determine routing:
 
 1. **Remediation Pending** (`action: apply-remediation`):
    - STOP immediately and return `status: blocked` to the orchestrator: "Remediation pending for frozen blocker findings. Run sdd-apply in remediation mode."
@@ -125,7 +126,7 @@ d. Any entry with `reversibility: low` that remains `unresolved` after this pass
 ### Step 2c: Full Discovery Pipeline Execution
 
 1. Continue to Step 3 and run full spec, design, task, and test suite discovery.
-2. If `BLOCKER` or `CRITICAL` findings are produced, call `startVerifyLineage({ changeRoot, mode, candidate, findings }, meta)` (`scripts/lib/verify-lineage.js`). It must first persist and re-read the canonical Candidate record; only then may the caller write the returned `verify_lineage` to `state.yaml`. The state includes `status: remediation-pending`, `remediation_attempts: 0`, `max_remediation_attempts: 2`, `genesis_candidate_id: sha256:...`, `contract_digest: sha256:...`, and the Candidate recovery reference. A persistence failure blocks verification before any mutable lineage state becomes observable.
+2. If `BLOCKER` or `CRITICAL` findings are produced, call `startVerifyLineageFromWorkspace({ changeRoot, rootDir, mode, repository_id, findings }, meta)` (`scripts/lib/verify-lineage.js`). It captures the live workspace through an isolated Git index, persists and rereads a byte/mode/diff-bound Candidate snapshot, then validates the live execution workspace before any lineage is returned. Only then may the caller write the returned `verify_lineage` to `state.yaml`. The state includes `status: remediation-pending`, `remediation_attempts: 0`, `max_remediation_attempts: 2`, `genesis_candidate_id: sha256:...`, `contract_digest: sha256:...`, the Candidate recovery reference, and `candidate_snapshot`. A persistence failure blocks verification before any mutable lineage state becomes observable.
 3. `WARNING` and `SUGGESTION` findings remain advisory and MUST NOT open an active remediation lineage.
 
 3. Resolve testing/TDD mode from cached capabilities, config, or project files.
@@ -240,4 +241,20 @@ resolving; missing or stale proof is ordinary CRITICAL routing.
 They MUST also rehash the persisted functional manifest and validate that the
 before/after snapshots changed only the exact evidence region while preserving
 candidate identity; live source/spec/test drift fails closed.
+
+### Audited recovery successor recheck
+
+For an approved recovery successor in `recheck-pending`, validate its persisted
+Candidate snapshot and contract digest, then run every frozen validation recipe
+exactly once. Do not invoke Full Discovery or accept caller-supplied results;
+failed findings remain unresolved and retain their inherited attempt budget.
+
+An unresolved, unknown, or terminally preserved predecessor operation is
+historical evidence, never current recipe coverage. Verify the fresh journal's
+completion blobs before reducing outcomes; do not replay or repair old entries.
+
+Use `persistRecheckResultState(statePath, activeLineage, result.lineage)` after
+the directed reducer returns. It atomically compares the active identity and
+persists only the bound result, so a process restart reads the closed (or
+unresolved) state rather than replaying a completed journal.
 - `../_shared/sdd-phase-common.md` — skill loading, retrieval, persistence, and return envelope.

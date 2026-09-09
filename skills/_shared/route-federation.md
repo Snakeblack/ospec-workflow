@@ -14,7 +14,7 @@ members. Never assume a single active change.
 **Impact Advisory (before a cross-repo change).** Before launching `/sdd-new` (or an
 equivalent request) for work that touches more than one member, delegate to
 `sdd-workspace impact <change>` to compute the affected members from the contract graph,
-then surface them with `vscode/askQuestions` so the user can scope reviewer load and
+then surface them with the active host question protocol so the user can scope reviewer load and
 delivery (chained PRs per member are usually right). Do not auto-plan a cross-repo
 change without this.
 
@@ -49,7 +49,7 @@ cache and `openspec/workspace-map.md`. A per-member enroll failure is recorded a
 When orchestrating baseline federation, the agent executes the loop using the `federation-baseline-orchestrator` library (which acts as the decision core, while the agent serves as the effect layer):
 
 1. **Candidate Selection**: Derive the candidates using `selectCandidates` with a probe of `brownfield && !initDone` verified directly on the filesystem (never from the cached marker).
-2. **Unified Gate**: Scan the fresh domain-maps of all candidates. If `unified_gate.status` is not `'approved'`, present a single unified gate to the user via `vscode/askQuestions`. Once approved, record the approval atomically in `federation-baseline-status.yaml`.
+2. **Unified Gate**: Scan the fresh domain-maps of all candidates. If `unified_gate.status` is not `'approved'`, present a single unified gate to the user via the active host question protocol. Once approved, record the approval atomically in `federation-baseline-status.yaml`.
 3. **Sequential Iteration**: Iterate candidates in deterministic order (atlas order, tie-broken by `member.id` ascending):
    - If `done` -> skip.
    - If `partial` -> re-delegate only if there is forward progress.
@@ -59,4 +59,3 @@ When orchestrating baseline federation, the agent executes the loop using the `f
 5. **Failure Policy**: Implement the `continue-log-retry` policy. A terminal failure of a member changes its status to `failed`, logs a warning with the error message verbatim, and allows the loop to continue with other members. The `unified_gate` is NOT invalidated.
 6. **Retry Mechanism**: The `--retry-failed` flag re-includes failed members in the iteration, but does NOT re-present the approved unified gate. Perform standard idempotency checks.
 7. **Read-and-Link Boundary (D10)**: The coordinator only reads markers/configurations as probes; it NEVER writes any files under `{member}/openspec/specs/`.
-

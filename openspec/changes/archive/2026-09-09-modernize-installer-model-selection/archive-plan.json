@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "change": "modernize-installer-model-selection",
+  "source_fingerprint": "sha256:451bc8c017a778c7736ea95d23105ab804501b8a4d89deb57d8c566df07cbe8a",
+  "spec_writes": [
+    {
+      "domain": "generator",
+      "source_delta": "specs/generator/spec.md",
+      "target": "openspec/specs/generator/spec.md",
+      "target_before_sha256": "sha256:f21306dead8e0039dedc9b94777373b73b847c8f330b060960991a8d62320cdb",
+      "content_sha256": "sha256:ed98e421ad6b88af4fba38247ddd1f881b08cc2b753c0f381a1820ff8f36f35a"
+    },
+    {
+      "domain": "install",
+      "source_delta": "specs/install/spec.md",
+      "target": "openspec/specs/install/spec.md",
+      "target_before_sha256": "sha256:09968d920032f93cd03e9e2a3fe53ad53bb4c32ad679643f04308d2e560baca0",
+      "content_sha256": "sha256:dd4f6026bcf05ec48f68e1997ad9fa2bbea2e3eb6349672243ceded2972dedac"
+    },
+    {
+      "domain": "verify-lineage",
+      "source_delta": "specs/verify-lineage/spec.md",
+      "target": "openspec/specs/verify-lineage/spec.md",
+      "target_before_sha256": "sha256:52e7c2e99d1ebbadd728ea1e792449590f61b1c6c5e5a146a9f762fe9cd5fd82",
+      "content_sha256": "sha256:d151b6dc98f446c6346bab1ccdc921ef7fca590ccd800a9611488e6f24e73e9b"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260909-001-canonical-model-policy-and-private-protocol-v2.md",
+      "content_sha256": "sha256:28241f86726f7243da54f21a9aaf43850fafb4be3a80a968978958ec37100bfa"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260909-002-profile-owned-selection-and-reasoning-emission.md",
+      "content_sha256": "sha256:7cb5ccc48482a3eeca0c623b7c5153dc61584c6f935a787ec9b0867ea4580e0d"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260909-003-audited-terminal-predecessor-and-snapshot-bound-verify-successor.md",
+      "content_sha256": "sha256:827d95e0515f35712c8093e73ec0c869bdad20abc06d0a3671df52880392a175"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260909-004-immutable-operation-disposition-and-audited-reconciliation-successor.md",
+      "content_sha256": "sha256:c96190990f45a40c14b575b04bce1d336d84c07691efe96786af585a8f0e9033"
+    }
+  ],
+  "archive_inventory": [
+    ".candidate-recovery-audit-379dc283648d3146c0e62a239b54d5b999ea8b65d405c557033d41e1a776710a.json",
+    ".reconciliation-successor-audit-39b932450ce14d1e13bc3cc5b39237b2a38bc48bb8399e1b984c40b08e0dc645.json",
+    ".verify-lineage-candidate-2d73dafc9986d29d6eac1861e77a86d7a36176c7d272870bc5e5c0b2fb097ab8.json",
+    ".verify-lineage-candidate-804aa809bbe6d601b8b7d6a8aa41561032fd47547e07564a1b5945de5643499d.json",
+    ".verify-lineage-candidate-8d50441dbc331ab348515efb52f5ad6ea5f8da8100726ed36cdd4007bf8c3ce6.json",
+    ".verify-lineage-candidate-8ead0a691ae04a1594f4a42cccbafdd0c7289c107bd61c83bd9308e7c9f8afca.json",
+    ".verify-lineage-candidate-a2770acb8fb45561f472356522c94483326b626bf7b8cd6748808e38b388940c.json",
+    ".verify-lineage-candidate-aa6ca23c70b2c58743c97a890535321d782658ac22600e14b2c16321a5c0d0c1.json",
+    ".verify-lineage-candidate-b1337d654753fa7817b75a72b325dcc4da4433838f8ad3e314ced667e979cc42.json",
+    ".verify-lineage-candidate-e03ba54e2be5f229f2365ffba9189edcba11e7bcf41d9655943c36b09447199b.json",
+    ".verify-lineage-operation-1b48778553e5a75741328de32c2d18d1d3fce9010c3803508a49970e72c4454e.json",
+    ".verify-lineage-operation-1c477ed5c1082904eabc55d7d54830068ad1b3dfcad9df311349d2726396d0ac.json",
+    ".verify-lineage-operation-62b101116c5ced0f554a8792d6d1f6fa7d651fcce8e5f295963337f0d10172d5.json",
+    ".verify-lineage-operation-636de5b48cc1ccc37426df6179ecd855fc6217e897fc628faf279a86ab9ff3cf.json",
+    ".verify-lineage-operation-6dd8ad0bff081e52dce249cf0b8d541e97a630ed730d9a05c7364366d8085e01.json",
+    ".verify-lineage-operation-d7d1c409aee500bf2efb28ded1200caa1cb286eb4c7fd1d318ad3a59494dfb6a.json",
+    ".verify-lineage-operation-disposition-073bf36e3e50f677e56867f231ebc436c584de21f274c982755255357cf3f75f.json",
+    ".verify-lineage-operation-disposition-28e670237a37f0c6df305e25db459941529095b040a260a3aacbca24e3f01aaa.json",
+    ".verify-lineage-operation-disposition-330d00a597455b2752f97b8471302a5b3f2cad138a87b1100380d9f907626677.json",
+    ".verify-lineage-operation-disposition-346563260ee898e2af0a5113cdd620be099039de1996c563cf28bc299e9fb00b.json",
+    ".verify-lineage-operation-disposition-5f595c284393b40321c22495c4ee91a035653cbbf7cea9ddd199cae2246fee96.json",
+    ".verify-lineage-operation-disposition-a9cbcf6ecd8d213a1572c37f331129c9673f4a0d6485f383647049434128d2c7.json",
+    ".verify-lineage-operation-f172b213382cd03ce0b9eadcf30e4026050e1eda3564a6148437fdcbdb9fe5b3.json",
+    ".verify-lineage-operation-f640504b408227274332b5626fb035d93c6f018a3ef9a0660c682d24c2655f12.json",
+    ".verify-lineage-operation-result-da5171bbef1263688c87cdb092536a3a622cc78147b7202efda7deb84d0ef1f4.json",
+    ".verify-lineage-operation-result-ddfb44421bc2ed2e34ff71c4cba442f78f8ce6ca7e0b9c73e72aaab72b51495a.json",
+    ".verify-lineage-predecessor-45f06a4a7607a6f9e992bd8361f1031997cd0138c7990f7e2a5a2d52cd18336a.json",
+    ".verify-lineage-snapshot-11ada8bb1d9ebd5459cc01cc75b045f5f5737c3130673c693795eb31a369c396.json",
+    ".verify-lineage-snapshot-6d534d4599bb03eb0cba9bad4e61fde2e4843462e625d0ec92a45e23ce6bc69c.json",
+    ".verify-lineage-snapshot-71f2ff91e031b5d2b57236318ed618ead6de869ea261e77fc07acce5f491b49e.json",
+    ".verify-lineage-snapshot-ab09831a6c51e27ba7ef5ea5939e219aa27985afda0774cd8236c23fb9da1d9c.json",
+    ".verify-lineage-snapshot-f23e2a1527cdb24304ee85f865cec55f402592449cefa185a2ce4ca588311220.json",
+    ".verify-lineage-snapshot-f63be389a572cb1533558795e9676297829133c72b35520bdb080400da42972d.json",
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "design.md",
+    "proposal.md",
+    "specs/generator/spec.md",
+    "specs/install/spec.md",
+    "specs/verify-lineage/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

@@ -20,9 +20,9 @@ The brownfield route is triggered when ANY of the following hold (matching `matc
 
 Check the current session context for the flag `_brownfield_advisory_shown`. If it is `true`, skip the advisory entirely and proceed directly with the originally requested SDD command. The flag is session-scoped only — it is NOT persisted to `state.yaml`. The advisory reappears in a new session whenever brownfield conditions remain true.
 
-#### Brownfield Advisory (vscode/askQuestions)
+#### Brownfield Advisory (active host question protocol)
 
-If the session flag is not set, use `vscode/askQuestions` to present the two-option advisory:
+If the session flag is not set, use the active host question protocol to present the two-option advisory:
 
 ```json
 {

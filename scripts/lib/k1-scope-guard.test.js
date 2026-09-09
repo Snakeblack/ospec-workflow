@@ -102,6 +102,10 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/verify-lineage.test.js",
   "scripts/lib/verify-lineage-candidate-store.js",
   "scripts/lib/verify-lineage-candidate-store.test.js",
+  "scripts/lib/verify-lineage-recovery.js",
+  "scripts/lib/verify-lineage-recovery.test.js",
+  "scripts/lib/verify-lineage-recheck.js",
+  "scripts/lib/verify-lineage-recheck.test.js",
   "scripts/lib/apply-resume.js",
   "scripts/lib/apply-resume.test.js",
   "scripts/lib/roadmap-boundary.test.js",
@@ -373,6 +377,10 @@ test("K1 scope guard: K2 successor paths are excluded from K1 inventory governan
   assert.equal(isSuccessorK2Path("scripts/lib/lifecycle-model.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/minimal-kernel-harness.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/transition-parity.k2.test.js"), true);
+  assert.equal(isSuccessorK2Path("scripts/lib/verify-lineage-recovery.js"), true);
+  assert.equal(isSuccessorK2Path("scripts/lib/verify-lineage-recovery.test.js"), true);
+  assert.equal(isSuccessorK2Path("scripts/lib/verify-lineage-recheck.js"), true);
+  assert.equal(isSuccessorK2Path("scripts/lib/verify-lineage-recheck.test.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/transition-parity.js"), false);
   assert.equal(isSuccessorK2Path("scripts/lib/canonical-json.js"), false);
 
@@ -380,6 +388,8 @@ test("K1 scope guard: K2 successor paths are excluded from K1 inventory governan
   assert.equal(isAllowedK1Path("scripts/lib/lifecycle-kernel/reducer.js"), false);
   assert.equal(isAllowedK1Path("scripts/lib/lifecycle-model.js"), false);
   assert.equal(isAllowedK1Path("scripts/lib/minimal-kernel-harness.js"), false);
+  assert.equal(isAllowedK1Path("scripts/lib/verify-lineage-recovery.js"), false);
+  assert.equal(isAllowedK1Path("scripts/lib/verify-lineage-recheck.js"), false);
   assert.equal(isK1GovernedImplementationPath("scripts/lib/lifecycle-kernel/reducer.js"), false);
   assert.equal(isK1GovernedImplementationPath("scripts/lib/canonical-json.js"), true);
 });

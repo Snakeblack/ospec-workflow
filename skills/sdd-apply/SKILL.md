@@ -59,7 +59,7 @@ If the orchestrator invoked `sdd-apply` in remediation mode, OR `state.yaml` con
 3. Read ONLY the frozen blocker findings in `verify_lineage.findings` (`allowed_paths`, `summary`, `validation`). Do NOT load full specs, full design, unrelated code, or normal workload forecast.
 4. **Restrict code edits strictly to `allowed_paths`**. Do not touch unrelated files or take on new features/tasks.
 5. Apply the targeted fix for each frozen finding.
-6. Freeze successor candidate `postCandidate`, derive `remediationChangedPaths` via `deriveCandidateDeltaPaths(recoveredCandidate, postCandidate, { rootDir })`, and call `recordRemediationAttempt(verify_lineage, { changeRoot, candidate: postCandidate, rootDir })`. The successor Candidate blob must persist and revalidate before the returned lineage can reference it or transition to `recheck-pending`.
+6. Capture `postCandidate` with `captureCandidateSnapshot(changeRoot, { rootDir })`, reread it with `verifyLiveWorkspace: true`, and call `recordRemediationAttempt(verify_lineage, { changeRoot, candidate: postCandidate, candidate_snapshot, rootDir })`. For snapshot-backed lineages the reducer derives the changed paths only from the persisted baseline/successor Git trees; it never substitutes a digest label, path list, or narrative diff. The successor Candidate record and snapshot must persist and revalidate before the returned lineage can reference it or transition to `recheck-pending`.
 7. Update `state.yaml` `verify_lineage` block and save remediation progress in `apply-progress.md`.
 8. **`RETURN` / HALT**: Return summary with `status: success` (or `blocked` if remediation failed) and end execution. Do NOT fall through to normal task implementation.
 
@@ -283,3 +283,15 @@ change or candidate drift falls back to ordinary routing.
 - Strict and Focused TDD replace only the Standard Workflow cycle in Step 4a; common guards, remediation routing, persistence limits, and task status semantics remain mandatory
 - `[x]` means implemented and verified locally. Use `[~]` for implemented-but-unverified work.
 - Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`.
+
+### Audited recovery successor routing
+
+For an approved recovery successor in `recheck-pending`, do not re-enter normal
+remediation or Full Discovery. Require its persisted Candidate snapshot and run
+only the frozen finding recipes through the directed recheck runner; caller
+results are never authority.
+
+If directed-operation reconciliation is pending, unknown, or terminally
+preserved, it takes precedence over generic candidate/contract-drift routing.
+Never replay, overwrite, or promote an old journal entry; only an approved,
+audited reconciliation successor may create a fresh directed journal.

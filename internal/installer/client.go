@@ -11,7 +11,7 @@ import (
 	"os/exec"
 )
 
-const protocolVersion = 1
+const protocolVersion = 2
 
 // ProcessRunner is the small seam around os/exec. stdin is supplied as a
 // complete payload so callers cannot accidentally introduce shell parsing.
@@ -36,11 +36,13 @@ type Plan struct {
 }
 
 type Target struct {
-	ID                 string  `json:"id"`
-	Label              string  `json:"label"`
-	InstallDescription string  `json:"installDescription"`
-	AllowCustom        bool    `json:"allowCustom,omitempty"`
-	Agents             []Agent `json:"agents"`
+	ID                 string   `json:"id"`
+	Label              string   `json:"label"`
+	InstallDescription string   `json:"installDescription"`
+	Inherited          bool     `json:"inherited"`
+	Groups             []Group  `json:"groups"`
+	Presets            []Preset `json:"presets"`
+	Agents             []Agent  `json:"agents"`
 }
 
 type Agent struct {
@@ -51,16 +53,38 @@ type Agent struct {
 	Choices    []Choice        `json:"choices"`
 }
 
+type Group struct {
+	ID     string   `json:"id"`
+	Label  string   `json:"label"`
+	Agents []string `json:"agents"`
+}
+type Preset struct {
+	ID         string               `json:"id"`
+	Label      string               `json:"label"`
+	Selections map[string]Selection `json:"selections"`
+}
+
 type Choice struct {
-	ID    string          `json:"id"`
-	Label string          `json:"label"`
-	Value json.RawMessage `json:"value"`
+	ID       string             `json:"id"`
+	Label    string             `json:"label"`
+	Value    json.RawMessage    `json:"value"`
+	Controls map[string]Control `json:"controls"`
+}
+type Control struct {
+	Values  []string `json:"values"`
+	Default string   `json:"default"`
+}
+type Selection struct {
+	ChoiceID string            `json:"choiceId"`
+	Controls map[string]string `json:"controls,omitempty"`
 }
 
 type InstallRequest struct {
-	Version    int               `json:"version,omitempty"`
-	Target     string            `json:"target"`
-	Selections map[string]string `json:"selections"`
+	Version    int                  `json:"version,omitempty"`
+	Target     string               `json:"target"`
+	Mode       string               `json:"mode"`
+	PresetID   string               `json:"presetId,omitempty"`
+	Selections map[string]Selection `json:"selections"`
 }
 
 // Plan requests a read-only adapter plan and validates its protocol version.

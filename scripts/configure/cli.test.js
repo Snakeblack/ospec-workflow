@@ -309,6 +309,11 @@ test("parseModels reads block-sequence target models", () => {
   assert.deepEqual(models.tiers.default.vscode, ["A (copilot)", "B (copilot)"]);
 });
 
+test("parseModels reads inline capability mappings without a YAML dependency", () => {
+  const models = parseModels("installer:\n  capabilities:\n    claude:\n      sonnet:\n        effort: { values: [low, medium], default: medium }");
+  assert.deepEqual(models.installer.capabilities.claude.sonnet.effort, { values: ["low", "medium"], default: "medium" });
+});
+
 test("runConfigure accepts configurable reviewer and Codex policy from models.yaml", (t) => {
   const source = fs.mkdtempSync(path.join(os.tmpdir(), "configure-policy-"));
   t.after(() => fs.rmSync(source, { recursive: true, force: true }));

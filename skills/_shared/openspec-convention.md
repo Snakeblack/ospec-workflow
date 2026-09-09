@@ -270,7 +270,7 @@ Gate-specific fields (optional, vary by gate):
 | `clarify` | `questions_asked` | Number of clarification questions answered |
 | `4r-review-gate` | `on_blocker` | Policy applied to BLOCKER findings (`advisory` default) |
 | `4r-review-gate` | `findings_summary` | Human-readable count of findings by severity |
-| `4r-review-gate` | `surfaced_to_user` | `true` when BLOCKER/CRITICAL findings were shown via `vscode/askQuestions` |
+| `4r-review-gate` | `surfaced_to_user` | `true` when BLOCKER/CRITICAL findings were shown via the active host question protocol |
 | `4r-review-gate` | `schema_version`, `classification`, `evidence`, `generalist`, `dimensions` | Optional schema-v1 selective-review audit; absence is valid legacy state |
 | `quality-review-gate` | `schema_version`, `classification`, `selected_domains`, `router`, `lineage` | Live v2 quality gate; mixed gate keys fail closed; `quality-review-ambiguity-unresolved` is not an SDD phase blocker type |
 

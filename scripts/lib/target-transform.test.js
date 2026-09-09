@@ -494,6 +494,13 @@ test("opencode injects provider/model slugs by tier", () => {
   assert.match(find(out, ".opencode/agents/sdd-apply.md").content, /\nmodel: anthropic\/claude-sonnet-4-6\n/);
 });
 
+test("opencode clears a stale variant when the selected model declares none", () => {
+  const files = [{ path: "agents/sdd-apply.agent.md", content: "---\nname: sdd-apply\nvariant: stale\n---\nbody\n" }];
+  const models = { agents: { "sdd-apply": "default", _default: "default" }, tiers: { default: { opencode: "provider/model" } } };
+  const out = transform({ files, profile: opencode, models });
+  assert.match(find(out, ".opencode/agents/sdd-apply.md").content, /^variant: ""$/m);
+});
+
 test("opencode commands keep agent routing, drop name, and use positional/$ARGUMENTS", () => {
   const out = transform({ files: makeSource(), profile: opencode, models: MODELS });
   const cmd = find(out, ".opencode/commands/sdd-apply.md").content;
@@ -954,11 +961,43 @@ test("codex does not collide the command-derived skill with a pre-existing conte
   assert.equal(getField(commandFm, "name").value, "sdd-apply", "invocation name must be the bare base name, unaffected by the commands/ prefix");
 });
 
-test("codex degrades vscode/askQuestions to a chat-protocol instruction, never a bare tool name", () => {
+test("codex maps foreign question aliases to the active host protocol", () => {
   const out = transform({ files: makeSource(), profile: codex, models: MODELS });
   const apply = find(out, ".codex/agents/sdd-apply.toml").content;
-  assert.match(apply, /numbered plain-chat list/);
+  assert.match(apply, /active host question protocol/);
+  assert.doesNotMatch(apply, /do not invoke any tool to ask/);
   assert.doesNotMatch(apply, /vscode\//);
+});
+
+test("real Codex rules and fallback approval contracts use native questions with truthful chat provenance", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const paths = ["agents/sdd-orchestrator.agent.md", "rules/sdd-common.instructions.md", "rules/sdd-openspec.instructions.md", "skills/_shared/approval-ledger.md", "skills/_shared/question-shapes.md"];
+  const files = paths.map((file) => ({ path: file, content: fs.readFileSync(path.join(__dirname, "../..", file), "utf8") }));
+  const out = transform({ files, profile: codex, models: MODELS });
+  const rules = find(out, "AGENTS.md").content;
+  assert.match(rules, /request_user_input/);
+  assert.match(rules, /request_user_input_async/);
+  assert.match(rules, /current mode/);
+  assert.match(rules, /only when available, permitted in the current mode, and allowed for that question type/);
+  assert.match(rules, /when exposed and appropriate under its actual schema and host instructions/);
+  assert.match(rules, /If native questioning is unavailable or disallowed, ask one concise question in chat/);
+  assert.match(rules, /host instructions/);
+  assert.doesNotMatch(rules, /do not invoke any tool to ask|vscode\//);
+  for (const ledger of [files.find((file) => file.path.endsWith("approval-ledger.md")).content, find(out, "skills/_shared/approval-ledger.md").content]) {
+    assert.match(ledger, /codex\/plain-chat/);
+    assert.match(ledger, /actual tool identifier/);
+    assert.doesNotMatch(ledger, /source: vscode\/askQuestions/);
+  }
+  const shapes = find(out, "skills/_shared/question-shapes.md").content;
+  assert.match(shapes, /actual tool schema/);
+  // Phase handlers are also read directly when the installed registry falls
+  // back to source paths, so generation alone cannot prevent host leakage.
+  const sharedDir = path.join(__dirname, "../../skills/_shared");
+  for (const name of fs.readdirSync(sharedDir).filter((name) => name.endsWith(".md"))) {
+    const content = fs.readFileSync(path.join(sharedDir, name), "utf8");
+    assert.doesNotMatch(content, /vscode\/askQuestions/, `${name} must remain host-neutral when loaded without projection`);
+  }
 });
 
 test("codex front-loads a skill description whose trigger phrase starts past the 80-char budget", () => {

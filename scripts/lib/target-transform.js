@@ -624,11 +624,25 @@ function handleAgent(file, profile, models) {
   if (profile.model && originalAgentName) {
     const resolved = resolveModel(originalAgentName, profile.id, models);
     if (resolved !== OMIT) {
+      // These fields are target-owned. Remove stale source metadata before
+      // emitting the profile's explicit allowlist.
+      const staleNativeFields = new Set(
+        ["effort", "model_reasoning_effort", "model_verbosity", "variant"].filter(field => getField(frontmatter, field) !== null)
+      );
+      frontmatter = stripKeys(frontmatter, ["effort", "model_reasoning_effort", "model_verbosity", "variant"]);
       const model = resolved && typeof resolved === "object" && !Array.isArray(resolved) ? resolved.model : resolved;
       if (model !== undefined && model !== null) {
         frontmatter = Array.isArray(model)
           ? setArray(frontmatter, "model", model)
           : setScalar(frontmatter, "model", model);
+      }
+      if (resolved && typeof resolved === "object" && !Array.isArray(resolved)) {
+        for (const field of profile.nativeModelFields || []) {
+          if (Object.prototype.hasOwnProperty.call(resolved, field)) frontmatter = setScalar(frontmatter, field, resolved[field]);
+          else if (staleNativeFields.has(field) && Object.prototype.hasOwnProperty.call(profile.nativeModelDefaults || {}, field)) frontmatter = setScalar(frontmatter, field, profile.nativeModelDefaults[field]);
+        }
+      } else {
+        for (const [field, defaultValue] of Object.entries(profile.nativeModelDefaults || {})) if (staleNativeFields.has(field)) frontmatter = setScalar(frontmatter, field, defaultValue);
       }
     }
   }

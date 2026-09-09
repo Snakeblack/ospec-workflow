@@ -124,7 +124,7 @@ test("REQ-generator-005 all six temporary targets honor models.yaml tiers and fa
         if (generated === null) continue;
         assert.equal(fs.existsSync(generated), true, `${target}:${agent}`);
         const content = fs.readFileSync(generated, "utf8");
-        if (target === "github-copilot" || (target === "codex" && agent === "sdd-orchestrator")) {
+        if (target === "codex" && agent === "sdd-orchestrator") {
           assert.doesNotMatch(content, target === "codex" ? /^model\s*=/m : /^model:/m, `${target}:${agent}`);
         } else if (target === "codex") {
           assert.match(content, new RegExp(`^model = "${models.tiers[tier].codex.model}"$`, "m"), `${target}:${agent}`);

@@ -26,7 +26,7 @@ No gate intervention; dispatch normally.
 - the last `sdd-verify` envelope `status` was non-`success` (e.g. `blocked`).
 
 On BLOCK, do NOT dispatch `sdd-archive`. Surface the blocking details to the
-user via `vscode/askQuestions`:
+user via the active host question protocol:
 
 ```json
 {
@@ -58,7 +58,7 @@ the correct path — never dispatch archive on the anomaly.
 **Resolution — Override with written justification**:
 
 1. Require the user to provide a written justification text (use a follow-up
-   `vscode/askQuestions` with `allowFreeformInput: true` if the initial
+   question through the active host question protocol accepting freeform text if the initial
    response did not include the text).
 2. Write the override record to `state.yaml` under
    `gates.quality-gates.override`:
@@ -77,7 +77,7 @@ the correct path — never dispatch archive on the anomaly.
      gate: quality-gates
      decision: forced-archive
      detail: "<verbatim justification>"
-     source: vscode/askQuestions
+     source: <actual observed answer channel per approval-ledger.md>
      accepted_at: <ISO 8601 UTC>
      applies_to: [sdd-archive]
    ```

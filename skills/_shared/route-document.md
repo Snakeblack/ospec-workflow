@@ -13,7 +13,7 @@ Trigger: `/sdd-document` is invoked, or route dispatch selects the
 When no `.last-update.json` exists yet at any candidate output directory (or
 the persisted metadata lacks `doc_language`/`scope_choice`), build ONE
 `question_gate` containing TWO independent questions, delivered via a single
-`vscode/askQuestions` call — never as two separate blocking round-trips:
+question through the active host question protocol — never as two separate blocking round-trips:
 
 1. **Language** — offer at minimum English (recommended) and Spanish, with
    `allowFreeformInput: true`.
@@ -63,7 +63,7 @@ resolved `scope_choice`:
 
 If Option C's `custom_path` resolves outside the repository working tree,
 reject it at gate time — do not delegate. Re-prompt the user for a path
-inside the repository via `vscode/askQuestions` before proceeding. This
+inside the repository via the active host question protocol before proceeding. This
 ensures the J5 post-run `git status` scoping below always covers a path
 `git` can see.
 

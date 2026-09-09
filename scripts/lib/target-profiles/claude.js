@@ -38,6 +38,7 @@ module.exports = {
   },
   commandVars: { positional: "$ARGUMENTS", named: "arguments-frontmatter" },
   model: { format: "alias" },
+  nativeModelFields: ["effort"],
   // Claude plugins do not load CLAUDE.md and sub-agents are one-shot workers, so the
   // orchestrator persona ships as a SKILL (the documented context-loading vehicle).
   rules: { strategy: "inline-into-orchestrator" },

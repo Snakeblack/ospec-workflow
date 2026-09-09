@@ -37,6 +37,14 @@ Use this file as a compact entry point. Agent files own roles and tool boundarie
 
 The canonical resolution order, matching, scope limits, and fallback reporting live in `skills/_shared/skill-resolver.md`; executor initialization lives in `skills/_shared/sdd-phase-common.md` §A. Inject applicable compact rules, not duplicate phase procedures. Communication skills affect assistant replies, not persisted SDD artifacts; file-transform skills require explicit user invocation.
 
+## Active host question protocol
+
+Resolve questions from the tools actually exposed in the current session and the host instructions. Target aliases in source files are references to this protocol, never permission to call an unavailable tool. Shared fallback documents follow the same protocol even when read directly from the source repository.
+
+For Codex, prefer its native `request_user_input` tool (including the exposed namespace, such as `functions.request_user_input`) only when available, permitted in the current mode, and allowed for that question type. Use `request_user_input_async` when exposed and appropriate under its actual schema and host instructions. Never invent a tool or change modes merely to obtain it. If native questioning is unavailable or disallowed, ask one concise question in chat, formatted as permitted by the host, and wait for an explicit response. A numeric answer to an existing numbered gate remains valid even when a later host mode requires plain questions.
+
+Question shape examples describe intent: adapt them to the actual tool schema; omit unsupported fields. An unanswered or expired request is not approval. Preserve an explicit user answer already received for the same gate and scope; do not ask again solely because the channel or host mode changed. Persist the actual answer provenance per `skills/_shared/approval-ledger.md`; never relabel a chat answer as a tool result.
+
 ## Communication language
 
 - The orchestrator and every phase agent write user-facing prose in the user's language. The orchestrator detects it once per session and forwards a `Reply language: {language}` line in each sub-agent launch prompt; sub-agents otherwise default to English because they never see the user's messages.

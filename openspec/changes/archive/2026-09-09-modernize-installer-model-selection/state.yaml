@@ -1,0 +1,250 @@
+schema_version: 1
+change: modernize-installer-model-selection
+status: archived
+classification: normal
+last_updated: "2026-09-09T08:35:00Z"
+blocking_questions: []
+
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "Cambio transversal de comportamiento en la TUI Go, el adaptador Node y los contratos de modelos; la ruta standard es la primera ruta elegible para un proyecto activo con clasificación normal."
+  validated: true
+  validation_errors: []
+
+owner:
+  author: Manuel Retamozo
+  branch: feat/modernize-installer-model-selection
+
+baseline_fingerprints:
+  install: 09968d920032f93cd03e9e2a3fe53ad53bb4c32ad679643f04308d2e560baca0
+  generator: f21306dead8e0039dedc9b94777373b73b847c8f330b060960991a8d62320cdb
+  verify-lineage: 52e7c2e99d1ebbadd728ea1e792449590f61b1c6c5e5a146a9f762fe9cd5fd82
+
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/modernize-installer-model-selection/proposal.md"
+    summary: "Preset-first model setup with phase customization, target reasoning controls, Copilot parity, and static discovery fallback."
+    key_decisions:
+      - "Modify existing install and generator capabilities; create no new domain."
+      - "GitHub Copilot matches VS Code configurability; Antigravity remains inherited."
+      - "Dynamic Codex/OpenCode discovery is bounded and never replaces static fallback."
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/modernize-installer-model-selection/specs/install/spec.md"
+      - "openspec/changes/modernize-installer-model-selection/specs/generator/spec.md"
+      - "openspec/changes/modernize-installer-model-selection/specs/verify-lineage/spec.md"
+    summary: "Delta specs add audited terminal/successor recovery for unrecoverable candidates and unreconciled directed operations, preserving findings, recipes and budgets without replay."
+    key_decisions:
+      - "GitHub Copilot is selectable with VS Code-equivalent configuration semantics; Antigravity remains inherited without a selector."
+      - "Codex/OpenCode discovery only augments the static catalog and always falls back safely."
+      - "Reasoning fields are capability-gated and stale defaults are cleared per target contract."
+      - "An unrecoverable candidate may terminate only with explicit approvals and exhaustive recovery audit; its successor preserves findings and budget."
+  clarify:
+    status: skipped
+  design:
+    status: done
+    artifact: "openspec/changes/modernize-installer-model-selection/design.md"
+    summary: "Diseño ampliado con terminación auditada, sucesora para operaciones dirigidas inconclusas, journal independiente, captura verificable y preservación literal de historia/presupuesto."
+    key_decisions:
+      - "Node owns finite choices and fresh request validation; Go retains opaque reversible selection state."
+      - "Profiles enable Copilot parity, disable Antigravity injection, and clear stale reasoning fields."
+      - "Ship static catalogs; defer optional native discovery until read-only capability-bearing CLI support is evidenced."
+      - "La recuperación irrecuperable es una nueva frontera aprobada, no una equivalencia A→B; las operaciones usan journal reconciliable."
+      - "Las operaciones dirigidas inconclusas se preservan sin replay y solo una sucesora auditada puede abrir un journal nuevo."
+  tasks:
+    status: done
+    artifact: "openspec/changes/modernize-installer-model-selection/tasks.md"
+    summary: "Tasks conserva fases 1–6 completadas y añade Phase 7 para disposiciones non-reconcilable, sucesora fresca, snapshot C/B, recheck sin replay y verificación."
+    key_decisions:
+      - "Todos los MUST tienen asignación explícita al diseño y verificación; no hay bloqueos de reconciliación."
+      - "El trabajo se estima en 850–1.150 líneas; delivery_strategy single-pr exige decisión explícita antes de apply."
+      - "La extensión mantiene forecast High y usa la size:exception ya aprobada sin nueva decisión antes de apply."
+  apply:
+    status: done
+    artifact: "openspec/changes/modernize-installer-model-selection/apply-progress.md"
+    summary: "La corrección raíz captura Candidate inicial/posterior con árbol Git recuperable, excluye solo metadatos operacionales y deriva scopes desde OID persistidos; la gen3 histórica permanece sin mutación ante drift fuera de V001–V004."
+  verify:
+    status: done
+    artifact: "openspec/changes/modernize-installer-model-selection/verify-report.md"
+    summary: "PASS: 45/45 escenarios spec verificados con runtime-test (npm test exit 0, go test exit 0), 28/28 tareas completas y asunciones reconciliadas."
+    verdict: PASS
+  archive:
+    status: done
+    artifact: "openspec/changes/modernize-installer-model-selection/archive-report.md"
+    summary: "Archive plan y reporte emitidos; 3 specs preparadas, 4 ADRs propuestos, 45/45 escenarios verificados."
+    key_decisions:
+      - "Fusión change-local de generator, install y verify-lineage"
+      - "Promoción de 4 ADRs hacia docs/adr/adr-20260909-*"
+
+recovery_operation: {"kind":"verify-lineage-operation-ref/v1","schema_version":1,"content_digest":"sha256:1b48778553e5a75741328de32c2d18d1d3fce9010c3803508a49970e72c4454e","relative_path":".verify-lineage-operation-1b48778553e5a75741328de32c2d18d1d3fce9010c3803508a49970e72c4454e.json","status":"completed","result":{"content_digest":"sha256:da5171bbef1263688c87cdb092536a3a622cc78147b7202efda7deb84d0ef1f4","relative_path":".verify-lineage-operation-result-da5171bbef1263688c87cdb092536a3a622cc78147b7202efda7deb84d0ef1f4.json"}}
+recovery_operation_reconciliation: {"kind":"verify-lineage-operation-ref/v1","schema_version":1,"content_digest":"sha256:f172b213382cd03ce0b9eadcf30e4026050e1eda3564a6148437fdcbdb9fe5b3","relative_path":".verify-lineage-operation-f172b213382cd03ce0b9eadcf30e4026050e1eda3564a6148437fdcbdb9fe5b3.json","status":"completed","result":{"content_digest":"sha256:ddfb44421bc2ed2e34ff71c4cba442f78f8ce6ca7e0b9c73e72aaab72b51495a","relative_path":".verify-lineage-operation-result-ddfb44421bc2ed2e34ff71c4cba442f78f8ce6ca7e0b9c73e72aaab72b51495a.json"}}
+verify_lineage_predecessor: {"schema_version":1,"lineage_id":"sha256:f11f19c22904765bdb3a16aea2daf00fb08e40452e74f091b9df87bec993754b","generation":1,"predecessor_id":null,"status":"superseded","genesis_candidate_id":"sha256:8cd01070ac71f5107f0343dc9862c935deac4c1a0cc1c82543f0399894507486","current_candidate_id":"sha256:8cd01070ac71f5107f0343dc9862c935deac4c1a0cc1c82543f0399894507486","verified_candidate_id":null,"contract_digest":"sha256:575f4f4add2e454b80451d0d76e28e70495b9ff33748467ed87440ebc61d91cb","candidate_recovery":{"schema_version":1,"genesis":{"kind":"candidate-recovery-ref/v1","schema_version":1,"candidate_id":"sha256:8cd01070ac71f5107f0343dc9862c935deac4c1a0cc1c82543f0399894507486","content_digest":"sha256:804aa809bbe6d601b8b7d6a8aa41561032fd47547e07564a1b5945de5643499d","relative_path":".verify-lineage-candidate-804aa809bbe6d601b8b7d6a8aa41561032fd47547e07564a1b5945de5643499d.json"},"current":{"kind":"candidate-recovery-ref/v1","schema_version":1,"candidate_id":"sha256:8cd01070ac71f5107f0343dc9862c935deac4c1a0cc1c82543f0399894507486","content_digest":"sha256:804aa809bbe6d601b8b7d6a8aa41561032fd47547e07564a1b5945de5643499d","relative_path":".verify-lineage-candidate-804aa809bbe6d601b8b7d6a8aa41561032fd47547e07564a1b5945de5643499d.json"}},"remediation_attempts":0,"max_remediation_attempts":2,"findings":[{"id":"V001","severity":"CRITICAL","summary":"El flujo personalizado con controles no alcanza revisión ni Instalar.","origin":"code-bug","allowed_paths":["internal/installer/model.go","internal/installer/model_test.go","internal/installer/ui_test.go","internal/installer/view.go","internal/installer/view_test.go"],"validation":{"commands":["go test ./internal/installer -count=1"],"expected_exit":0,"test_files":["internal/installer/model_test.go","internal/installer/ui_test.go","internal/installer/view_test.go"]},"status":"unresolved"},{"id":"V002","severity":"CRITICAL","summary":"Falta la política canónica de capacidades y se aceptan valores de razonamiento incompatibles.","origin":"code-bug","allowed_paths":["models.yaml","scripts/configure/cli.js","scripts/configure/cli.test.js","scripts/configure/installer-adapter.js","scripts/configure/installer-adapter.test.js","scripts/lib/model-resolver.js","scripts/lib/model-resolver.test.js","scripts/lib/target-profiles/antigravity.js","scripts/lib/target-profiles/claude.js","scripts/lib/target-profiles/codex.js","scripts/lib/target-profiles/cursor.js","scripts/lib/target-profiles/github-copilot.js","scripts/lib/target-profiles/opencode.js","scripts/lib/target-profiles/vscode.js","scripts/lib/target-transform.js","scripts/lib/target-transform.test.js"],"validation":{"commands":["node --test scripts/configure/installer-adapter.test.js scripts/configure/cli.test.js scripts/lib/model-resolver.test.js scripts/lib/target-transform.test.js"],"expected_exit":0,"test_files":["scripts/configure/cli.test.js","scripts/configure/installer-adapter.test.js","scripts/lib/model-resolver.test.js","scripts/lib/target-transform.test.js"]},"status":"unresolved"},{"id":"V003","severity":"CRITICAL","summary":"La suite completa falla dos contratos tras la emisión de modelos de GitHub Copilot.","origin":"code-bug","allowed_paths":["models.yaml","scripts/lib/target-profiles/github-copilot.js","scripts/lib/target-transform.js","scripts/model-tier-contract.test.js","scripts/sdd-document.test.js"],"validation":{"commands":["npm test"],"expected_exit":0,"test_files":["scripts/model-tier-contract.test.js","scripts/sdd-document.test.js"]},"status":"unresolved"},{"id":"V004","severity":"CRITICAL","summary":"Las tareas completadas carecen de pruebas para varios escenarios MUST.","origin":"code-bug","allowed_paths":["internal/installer/client_test.go","internal/installer/model_test.go","internal/installer/ui_test.go","internal/installer/view_test.go","scripts/configure/cli.test.js","scripts/configure/installer-adapter.test.js","scripts/configure/installer-protocol.test.js","scripts/lib/model-resolver.test.js","scripts/lib/target-transform.test.js"],"validation":{"commands":["go test ./internal/installer -count=1","node --test scripts/configure/installer-adapter.test.js scripts/configure/installer-protocol.test.js scripts/configure/cli.test.js scripts/lib/model-resolver.test.js scripts/lib/target-transform.test.js","npm test"],"expected_exit":0,"test_files":["internal/installer/client_test.go","internal/installer/model_test.go","internal/installer/ui_test.go","internal/installer/view_test.go","scripts/configure/cli.test.js","scripts/configure/installer-adapter.test.js","scripts/configure/installer-protocol.test.js","scripts/lib/model-resolver.test.js","scripts/lib/target-transform.test.js"]},"status":"unresolved"}],"late_observations":[],"terminal_reason":"candidate-recovery-irrecoverable","candidate_recovery_audit":{"kind":"candidate-recovery-audit-ref/v1","schema_version":1,"content_digest":"sha256:379dc283648d3146c0e62a239b54d5b999ea8b65d405c557033d41e1a776710a","relative_path":".candidate-recovery-audit-379dc283648d3146c0e62a239b54d5b999ea8b65d405c557033d41e1a776710a.json"},"recovery_approvals":[{"id":"candidate-recovery-new-scope-001","gate":"new-scope","decision":"authorize-candidate-recovery-reconciliation-only","source":"codex/plain-chat-numbered-gate","accepted_at":"2026-09-07T23:38:22Z","applies_to":["verify-lineage-candidate-recovery"]},{"id":"verify-lineage-successor-architecture-001","gate":"architecture","decision":"authorize-audited-terminal-successor-contract-for-unrecoverable-candidate","source":"codex/plain-chat-numbered-gate","accepted_at":"2026-09-07T23:48:38Z","applies_to":["sdd-spec","sdd-design","sdd-tasks","sdd-apply","sdd-verify"]}]}
+verify_lineage: {"schema_version":1,"lineage_id":"sha256:60a1b356b84ba5a2a41b6878d03c59846864d9de6f5a812095adaf4bd2b878b5","generation":3,"predecessor_id":"sha256:321b44ce63720bb66ed197d0e791a42d62a75b87e42e1c777200d2b391d91b9d","status":"recheck-pending","genesis_candidate_id":"sha256:efe7367a48a4fd567fb6aff237c3c7adb0dddbc237d3eac1d91f0a4fb62eb1ed","current_candidate_id":"sha256:efe7367a48a4fd567fb6aff237c3c7adb0dddbc237d3eac1d91f0a4fb62eb1ed","verified_candidate_id":null,"contract_digest":"sha256:c741b2567aa3780e19447f5cb83a74ac3e04057a9b5823fd38b2c6546ff3ab06","candidate_recovery":{"schema_version":1,"genesis":{"candidate_id":"sha256:efe7367a48a4fd567fb6aff237c3c7adb0dddbc237d3eac1d91f0a4fb62eb1ed","content_digest":"sha256:a2770acb8fb45561f472356522c94483326b626bf7b8cd6748808e38b388940c","kind":"candidate-recovery-ref/v1","relative_path":".verify-lineage-candidate-a2770acb8fb45561f472356522c94483326b626bf7b8cd6748808e38b388940c.json","schema_version":1},"current":{"candidate_id":"sha256:efe7367a48a4fd567fb6aff237c3c7adb0dddbc237d3eac1d91f0a4fb62eb1ed","content_digest":"sha256:a2770acb8fb45561f472356522c94483326b626bf7b8cd6748808e38b388940c","kind":"candidate-recovery-ref/v1","relative_path":".verify-lineage-candidate-a2770acb8fb45561f472356522c94483326b626bf7b8cd6748808e38b388940c.json","schema_version":1}},"remediation_attempts":0,"max_remediation_attempts":2,"findings":[{"id":"V001","severity":"CRITICAL","summary":"El flujo personalizado con controles no alcanza revisión ni Instalar.","origin":"code-bug","allowed_paths":["internal/installer/model.go","internal/installer/model_test.go","internal/installer/ui_test.go","internal/installer/view.go","internal/installer/view_test.go"],"validation":{"commands":["go test ./internal/installer -count=1"],"expected_exit":0,"test_files":["internal/installer/model_test.go","internal/installer/ui_test.go","internal/installer/view_test.go"]},"status":"unresolved"},{"id":"V002","severity":"CRITICAL","summary":"Falta la política canónica de capacidades y se aceptan valores de razonamiento incompatibles.","origin":"code-bug","allowed_paths":["models.yaml","scripts/configure/cli.js","scripts/configure/cli.test.js","scripts/configure/installer-adapter.js","scripts/configure/installer-adapter.test.js","scripts/lib/model-resolver.js","scripts/lib/model-resolver.test.js","scripts/lib/target-profiles/antigravity.js","scripts/lib/target-profiles/claude.js","scripts/lib/target-profiles/codex.js","scripts/lib/target-profiles/cursor.js","scripts/lib/target-profiles/github-copilot.js","scripts/lib/target-profiles/opencode.js","scripts/lib/target-profiles/vscode.js","scripts/lib/target-transform.js","scripts/lib/target-transform.test.js"],"validation":{"commands":["node --test scripts/configure/installer-adapter.test.js scripts/configure/cli.test.js scripts/lib/model-resolver.test.js scripts/lib/target-transform.test.js"],"expected_exit":0,"test_files":["scripts/configure/cli.test.js","scripts/configure/installer-adapter.test.js","scripts/lib/model-resolver.test.js","scripts/lib/target-transform.test.js"]},"status":"unresolved"},{"id":"V003","severity":"CRITICAL","summary":"La suite completa falla dos contratos tras la emisión de modelos de GitHub Copilot.","origin":"code-bug","allowed_paths":["models.yaml","scripts/lib/target-profiles/github-copilot.js","scripts/lib/target-transform.js","scripts/model-tier-contract.test.js","scripts/sdd-document.test.js"],"validation":{"commands":["npm test"],"expected_exit":0,"test_files":["scripts/model-tier-contract.test.js","scripts/sdd-document.test.js"]},"status":"unresolved"},{"id":"V004","severity":"CRITICAL","summary":"Las tareas completadas carecen de pruebas para varios escenarios MUST.","origin":"code-bug","allowed_paths":["internal/installer/client_test.go","internal/installer/model_test.go","internal/installer/ui_test.go","internal/installer/view_test.go","scripts/configure/cli.test.js","scripts/configure/installer-adapter.test.js","scripts/configure/installer-protocol.test.js","scripts/lib/model-resolver.test.js","scripts/lib/target-transform.test.js"],"validation":{"commands":["go test ./internal/installer -count=1","node --test scripts/configure/installer-adapter.test.js scripts/configure/installer-protocol.test.js scripts/configure/cli.test.js scripts/lib/model-resolver.test.js scripts/lib/target-transform.test.js","npm test"],"expected_exit":0,"test_files":["internal/installer/client_test.go","internal/installer/model_test.go","internal/installer/ui_test.go","internal/installer/view_test.go","scripts/configure/cli.test.js","scripts/configure/installer-adapter.test.js","scripts/configure/installer-protocol.test.js","scripts/lib/model-resolver.test.js","scripts/lib/target-transform.test.js"]},"status":"unresolved"}],"late_observations":[],"terminal_reason":null,"candidate_recovery_audit":{"kind":"candidate-recovery-audit-ref/v1","schema_version":1,"content_digest":"sha256:379dc283648d3146c0e62a239b54d5b999ea8b65d405c557033d41e1a776710a","relative_path":".candidate-recovery-audit-379dc283648d3146c0e62a239b54d5b999ea8b65d405c557033d41e1a776710a.json"},"recovery_approvals":[{"id":"candidate-recovery-new-scope-001","gate":"new-scope","decision":"authorize-candidate-recovery-reconciliation-only","source":"codex/plain-chat-numbered-gate","accepted_at":"2026-09-07T23:38:22Z","applies_to":["verify-lineage-candidate-recovery"]},{"id":"verify-lineage-successor-architecture-001","gate":"architecture","decision":"authorize-audited-terminal-successor-contract-for-unrecoverable-candidate","source":"codex/plain-chat-numbered-gate","accepted_at":"2026-09-07T23:48:38Z","applies_to":["sdd-spec","sdd-design","sdd-tasks","sdd-apply","sdd-verify"]}],"candidate_snapshot":{"kind":"candidate-snapshot-ref/v1","schema_version":1,"candidate_id":"sha256:efe7367a48a4fd567fb6aff237c3c7adb0dddbc237d3eac1d91f0a4fb62eb1ed","content_digest":"sha256:f23e2a1527cdb24304ee85f865cec55f402592449cefa185a2ce4ca588311220","relative_path":".verify-lineage-snapshot-f23e2a1527cdb24304ee85f865cec55f402592449cefa185a2ce4ca588311220.json"},"recovery_successor":{"schema_version":1,"kind":"reconciliation-successor/v1","predecessor_contract_digest":"sha256:47aa7198e1db47f7acc922ac801efcb6a7714cfc65c3aa102f4f7be3d4eed8b2","audit_ref":{"kind":"reconciliation-successor-audit-ref/v1","schema_version":1,"content_digest":"sha256:39b932450ce14d1e13bc3cc5b39237b2a38bc48bb8399e1b984c40b08e0dc645","relative_path":".reconciliation-successor-audit-39b932450ce14d1e13bc3cc5b39237b2a38bc48bb8399e1b984c40b08e0dc645.json"},"approval_refs":["verify-lineage-reconciliation-successor-001"],"predecessor_journal":[{"operation_reference":{"content_digest":"sha256:6dd8ad0bff081e52dce249cf0b8d541e97a630ed730d9a05c7364366d8085e01","kind":"verify-lineage-operation-ref/v1","relative_path":".verify-lineage-operation-6dd8ad0bff081e52dce249cf0b8d541e97a630ed730d9a05c7364366d8085e01.json","schema_version":1},"disposition_reference":{"content_digest":"sha256:346563260ee898e2af0a5113cdd620be099039de1996c563cf28bc299e9fb00b","kind":"directed-recheck-disposition-ref/v1","relative_path":".verify-lineage-operation-disposition-346563260ee898e2af0a5113cdd620be099039de1996c563cf28bc299e9fb00b.json","schema_version":1}},{"operation_reference":{"content_digest":"sha256:62b101116c5ced0f554a8792d6d1f6fa7d651fcce8e5f295963337f0d10172d5","kind":"verify-lineage-operation-ref/v1","relative_path":".verify-lineage-operation-62b101116c5ced0f554a8792d6d1f6fa7d651fcce8e5f295963337f0d10172d5.json","schema_version":1},"disposition_reference":{"content_digest":"sha256:a9cbcf6ecd8d213a1572c37f331129c9673f4a0d6485f383647049434128d2c7","kind":"directed-recheck-disposition-ref/v1","relative_path":".verify-lineage-operation-disposition-a9cbcf6ecd8d213a1572c37f331129c9673f4a0d6485f383647049434128d2c7.json","schema_version":1}},{"operation_reference":{"content_digest":"sha256:636de5b48cc1ccc37426df6179ecd855fc6217e897fc628faf279a86ab9ff3cf","kind":"verify-lineage-operation-ref/v1","relative_path":".verify-lineage-operation-636de5b48cc1ccc37426df6179ecd855fc6217e897fc628faf279a86ab9ff3cf.json","schema_version":1},"disposition_reference":{"content_digest":"sha256:073bf36e3e50f677e56867f231ebc436c584de21f274c982755255357cf3f75f","kind":"directed-recheck-disposition-ref/v1","relative_path":".verify-lineage-operation-disposition-073bf36e3e50f677e56867f231ebc436c584de21f274c982755255357cf3f75f.json","schema_version":1}},{"operation_reference":{"content_digest":"sha256:f640504b408227274332b5626fb035d93c6f018a3ef9a0660c682d24c2655f12","kind":"verify-lineage-operation-ref/v1","relative_path":".verify-lineage-operation-f640504b408227274332b5626fb035d93c6f018a3ef9a0660c682d24c2655f12.json","schema_version":1},"disposition_reference":{"content_digest":"sha256:5f595c284393b40321c22495c4ee91a035653cbbf7cea9ddd199cae2246fee96","kind":"directed-recheck-disposition-ref/v1","relative_path":".verify-lineage-operation-disposition-5f595c284393b40321c22495c4ee91a035653cbbf7cea9ddd199cae2246fee96.json","schema_version":1}},{"operation_reference":{"content_digest":"sha256:d7d1c409aee500bf2efb28ded1200caa1cb286eb4c7fd1d318ad3a59494dfb6a","kind":"verify-lineage-operation-ref/v1","relative_path":".verify-lineage-operation-d7d1c409aee500bf2efb28ded1200caa1cb286eb4c7fd1d318ad3a59494dfb6a.json","schema_version":1},"disposition_reference":{"content_digest":"sha256:330d00a597455b2752f97b8471302a5b3f2cad138a87b1100380d9f907626677","kind":"directed-recheck-disposition-ref/v1","relative_path":".verify-lineage-operation-disposition-330d00a597455b2752f97b8471302a5b3f2cad138a87b1100380d9f907626677.json","schema_version":1}},{"operation_reference":{"content_digest":"sha256:1c477ed5c1082904eabc55d7d54830068ad1b3dfcad9df311349d2726396d0ac","kind":"verify-lineage-operation-ref/v1","relative_path":".verify-lineage-operation-1c477ed5c1082904eabc55d7d54830068ad1b3dfcad9df311349d2726396d0ac.json","schema_version":1},"disposition_reference":{"content_digest":"sha256:28e670237a37f0c6df305e25db459941529095b040a260a3aacbca24e3f01aaa","kind":"directed-recheck-disposition-ref/v1","relative_path":".verify-lineage-operation-disposition-28e670237a37f0c6df305e25db459941529095b040a260a3aacbca24e3f01aaa.json","schema_version":1}}]}}
+verify_lineage_history: [{"schema_version":1,"lineage_id":"sha256:321b44ce63720bb66ed197d0e791a42d62a75b87e42e1c777200d2b391d91b9d","generation":2,"predecessor_id":"sha256:f11f19c22904765bdb3a16aea2daf00fb08e40452e74f091b9df87bec993754b","status":"remediation-pending","genesis_candidate_id":"sha256:5f3ce3c9c6c31c2e772e222056b4028198e1f710b2fc13a793a0b69c1d0b5b3b","current_candidate_id":"sha256:5f3ce3c9c6c31c2e772e222056b4028198e1f710b2fc13a793a0b69c1d0b5b3b","verified_candidate_id":null,"contract_digest":"sha256:47aa7198e1db47f7acc922ac801efcb6a7714cfc65c3aa102f4f7be3d4eed8b2","candidate_recovery":{"schema_version":1,"genesis":{"candidate_id":"sha256:5f3ce3c9c6c31c2e772e222056b4028198e1f710b2fc13a793a0b69c1d0b5b3b","content_digest":"sha256:8d50441dbc331ab348515efb52f5ad6ea5f8da8100726ed36cdd4007bf8c3ce6","kind":"candidate-recovery-ref/v1","relative_path":".verify-lineage-candidate-8d50441dbc331ab348515efb52f5ad6ea5f8da8100726ed36cdd4007bf8c3ce6.json","schema_version":1},"current":{"candidate_id":"sha256:5f3ce3c9c6c31c2e772e222056b4028198e1f710b2fc13a793a0b69c1d0b5b3b","content_digest":"sha256:8d50441dbc331ab348515efb52f5ad6ea5f8da8100726ed36cdd4007bf8c3ce6","kind":"candidate-recovery-ref/v1","relative_path":".verify-lineage-candidate-8d50441dbc331ab348515efb52f5ad6ea5f8da8100726ed36cdd4007bf8c3ce6.json","schema_version":1}},"remediation_attempts":0,"max_remediation_attempts":2,"findings":[{"id":"V001","severity":"CRITICAL","summary":"El flujo personalizado con controles no alcanza revisión ni Instalar.","origin":"code-bug","allowed_paths":["internal/installer/model.go","internal/installer/model_test.go","internal/installer/ui_test.go","internal/installer/view.go","internal/installer/view_test.go"],"validation":{"commands":["go test ./internal/installer -count=1"],"expected_exit":0,"test_files":["internal/installer/model_test.go","internal/installer/ui_test.go","internal/installer/view_test.go"]},"status":"unresolved"},{"id":"V002","severity":"CRITICAL","summary":"Falta la política canónica de capacidades y se aceptan valores de razonamiento incompatibles.","origin":"code-bug","allowed_paths":["models.yaml","scripts/configure/cli.js","scripts/configure/cli.test.js","scripts/configure/installer-adapter.js","scripts/configure/installer-adapter.test.js","scripts/lib/model-resolver.js","scripts/lib/model-resolver.test.js","scripts/lib/target-profiles/antigravity.js","scripts/lib/target-profiles/claude.js","scripts/lib/target-profiles/codex.js","scripts/lib/target-profiles/cursor.js","scripts/lib/target-profiles/github-copilot.js","scripts/lib/target-profiles/opencode.js","scripts/lib/target-profiles/vscode.js","scripts/lib/target-transform.js","scripts/lib/target-transform.test.js"],"validation":{"commands":["node --test scripts/configure/installer-adapter.test.js scripts/configure/cli.test.js scripts/lib/model-resolver.test.js scripts/lib/target-transform.test.js"],"expected_exit":0,"test_files":["scripts/configure/cli.test.js","scripts/configure/installer-adapter.test.js","scripts/lib/model-resolver.test.js","scripts/lib/target-transform.test.js"]},"status":"unresolved"},{"id":"V003","severity":"CRITICAL","summary":"La suite completa falla dos contratos tras la emisión de modelos de GitHub Copilot.","origin":"code-bug","allowed_paths":["models.yaml","scripts/lib/target-profiles/github-copilot.js","scripts/lib/target-transform.js","scripts/model-tier-contract.test.js","scripts/sdd-document.test.js"],"validation":{"commands":["npm test"],"expected_exit":0,"test_files":["scripts/model-tier-contract.test.js","scripts/sdd-document.test.js"]},"status":"unresolved"},{"id":"V004","severity":"CRITICAL","summary":"Las tareas completadas carecen de pruebas para varios escenarios MUST.","origin":"code-bug","allowed_paths":["internal/installer/client_test.go","internal/installer/model_test.go","internal/installer/ui_test.go","internal/installer/view_test.go","scripts/configure/cli.test.js","scripts/configure/installer-adapter.test.js","scripts/configure/installer-protocol.test.js","scripts/lib/model-resolver.test.js","scripts/lib/target-transform.test.js"],"validation":{"commands":["go test ./internal/installer -count=1","node --test scripts/configure/installer-adapter.test.js scripts/configure/installer-protocol.test.js scripts/configure/cli.test.js scripts/lib/model-resolver.test.js scripts/lib/target-transform.test.js","npm test"],"expected_exit":0,"test_files":["internal/installer/client_test.go","internal/installer/model_test.go","internal/installer/ui_test.go","internal/installer/view_test.go","scripts/configure/cli.test.js","scripts/configure/installer-adapter.test.js","scripts/configure/installer-protocol.test.js","scripts/lib/model-resolver.test.js","scripts/lib/target-transform.test.js"]},"status":"unresolved"}],"late_observations":[],"terminal_reason":null,"candidate_recovery_audit":{"kind":"candidate-recovery-audit-ref/v1","schema_version":1,"content_digest":"sha256:379dc283648d3146c0e62a239b54d5b999ea8b65d405c557033d41e1a776710a","relative_path":".candidate-recovery-audit-379dc283648d3146c0e62a239b54d5b999ea8b65d405c557033d41e1a776710a.json"},"recovery_approvals":[{"id":"candidate-recovery-new-scope-001","gate":"new-scope","decision":"authorize-candidate-recovery-reconciliation-only","source":"codex/plain-chat-numbered-gate","accepted_at":"2026-09-07T23:38:22Z","applies_to":["verify-lineage-candidate-recovery"]},{"id":"verify-lineage-successor-architecture-001","gate":"architecture","decision":"authorize-audited-terminal-successor-contract-for-unrecoverable-candidate","source":"codex/plain-chat-numbered-gate","accepted_at":"2026-09-07T23:48:38Z","applies_to":["sdd-spec","sdd-design","sdd-tasks","sdd-apply","sdd-verify"]}],"candidate_snapshot":{"kind":"candidate-snapshot-ref/v1","schema_version":1,"candidate_id":"sha256:5f3ce3c9c6c31c2e772e222056b4028198e1f710b2fc13a793a0b69c1d0b5b3b","content_digest":"sha256:6d534d4599bb03eb0cba9bad4e61fde2e4843462e625d0ec92a45e23ce6bc69c","relative_path":".verify-lineage-snapshot-6d534d4599bb03eb0cba9bad4e61fde2e4843462e625d0ec92a45e23ce6bc69c.json"},"recovery_successor":{"schema_version":1,"predecessor_contract_digest":"sha256:575f4f4add2e454b80451d0d76e28e70495b9ff33748467ed87440ebc61d91cb","audit_ref":{"kind":"candidate-recovery-audit-ref/v1","schema_version":1,"content_digest":"sha256:379dc283648d3146c0e62a239b54d5b999ea8b65d405c557033d41e1a776710a","relative_path":".candidate-recovery-audit-379dc283648d3146c0e62a239b54d5b999ea8b65d405c557033d41e1a776710a.json"},"approval_refs":["candidate-recovery-new-scope-001","verify-lineage-successor-architecture-001"]}}]
+
+assumptions:
+  - id: sdd-spec-001
+    phase: sdd-spec
+    statement: "El contrato de recuperación irrecuperable pertenece al dominio verify-lineage y no crea una autoridad de identidad alternativa."
+    reversibility: low
+    basis: "El gap está documentado en apply-progress.md y el baseline separa recovery material de candidate_id."
+    recorded_at: "2026-09-07T23:55:00Z"
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "Confirmada: la recuperación irrecuperable pertenece a verify-lineage sin crear identidades alternativas."
+      resolved_at: "2026-09-09T08:26:00Z"
+  - id: sdd-spec-002
+    phase: sdd-spec
+    statement: "La lineage sucesora comienza en recheck-pending para ejecutar únicamente las recetas congeladas sobre el Candidate nuevo."
+    reversibility: low
+    basis: "No puede afirmarse el delta A→B sin evidencia de A; el recheck dirigido conserva la validación existente sin redescubrimiento."
+    recorded_at: "2026-09-07T23:55:00Z"
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "Confirmada: la sucesora evalúa únicamente recetas congeladas sin reabrir discovery."
+      resolved_at: "2026-09-09T08:26:00Z"
+  - id: sdd-design-001
+    phase: sdd-design
+    statement: "Separar la auditoría y reconciliación de recuperación de la ejecución dirigida de recetas en dos módulos Node locales."
+    reversibility: high
+    basis: "verify-lineage.js concentra transiciones y candidate-store separa persistencia; los nuevos módulos mantienen esos límites."
+    recorded_at: "2026-09-08T00:00:17Z"
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "Confirmada: separación modular en scripts/lib de auditoría y ejecución de recetas."
+      resolved_at: "2026-09-09T08:26:00Z"
+  - id: sdd-tasks-001
+    phase: sdd-tasks
+    statement: "La extensión de lineage se entrega en el mismo PR single-pr bajo size-exception aprobada."
+    reversibility: high
+    basis: "La estrategia de delivery persistida ya autoriza el PR único sobredimensionado."
+    recorded_at: "2026-09-08T00:03:03Z"
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "Confirmada: entrega consolidada en single-pr bajo la size:exception aprobada."
+      resolved_at: "2026-09-09T08:26:00Z"
+  - id: sdd-spec-003
+    phase: sdd-spec
+    statement: "La preservación terminal de operaciones dirigidas inconclusas se expresa mediante un resultado non-reconcilable y un marcador preserved=true, sin sobrescribir el registro pending original."
+    reversibility: low
+    basis: "La nueva especificación exige marca terminal preservada, evidencia inmutable y prohibición de replay o promoción desde prosa."
+    recorded_at: "2026-09-08T07:12:00Z"
+    status: confirmed
+    resolution:
+      action: confirm
+      note: "Confirmada: preservación terminal inmutable con preserved=true."
+      resolved_at: "2026-09-09T08:26:00Z"
+
+approvals:
+  - id: harness-root-scope-001
+    gate: new-scope
+    decision: authorize-harness-root-remediation-and-current-source-verification
+    source: codex/plain-chat
+    accepted_at: "2026-09-09T05:44:46Z"
+    detail: "Explicit user request: intenta cerrar rapido el problema y remedia desde la raiz el problema ... codex tiene su propio tool para preguntas, pero sobretodo quiero que remedies este problema de candidatos, etc, el flujo del harness no deberia de tener este tipo de errores. User subsequently requested continua."
+    scope: "Installer fixes plus recoverable Candidate capture, snapshot-derived remediation deltas, durable recheck/restart behavior, and host-native question provenance. Verify the final source through the existing code-drift route; preserve all historical lineages, operations, findings and budgets. This does not authorize replay, fabricated completion evidence or blanket review resets."
+    applies_to:
+      - sdd-apply
+      - sdd-verify
+  - id: intent-briefing-001
+    gate: intent-briefing
+    decision: accepted
+    source: vscode/askQuestions
+    accepted_at: "2026-09-06T23:02:36Z"
+    synthesis: "Modernizar la TUI de instalación con navegación jerárquica, presets, configuración personalizada por fase, búsqueda de modelos y selección compatible de effort/variant. GitHub Copilot será configurable de forma equivalente a VS Code; Antigravity seguirá sin selector propio."
+    scope: "Incluye models.yaml, el adaptador Node, las transformaciones por target, la TUI Go y la evaluación de descubrimiento dinámico opcional con fallback estático."
+    applies_to:
+      - change-classification
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: interactive
+    source: vscode/askQuestions
+    accepted_at: "2026-09-06T23:04:37Z"
+    applies_to:
+      - sdd-workflow
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: single-pr
+    source: vscode/askQuestions
+    accepted_at: "2026-09-06T23:05:31Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: interactive-continuation-001
+    gate: interactive-continuation
+    decision: continue-to-sdd-spec
+    source: vscode/askQuestions
+    accepted_at: "2026-09-06T23:12:02Z"
+    applies_to:
+      - sdd-spec
+  - id: interactive-continuation-002
+    gate: interactive-continuation
+    decision: continue-to-sdd-design
+    source: vscode/askQuestions
+    accepted_at: "2026-09-06T23:18:50Z"
+    applies_to:
+      - sdd-design
+  - id: interactive-continuation-003
+    gate: interactive-continuation
+    decision: continue-to-sdd-tasks
+    source: vscode/askQuestions
+    accepted_at: "2026-09-06T23:25:31Z"
+    applies_to:
+      - sdd-tasks
+  - id: review-workload-001
+    gate: review-workload
+    decision: size:exception
+    source: vscode/askQuestions
+    accepted_at: "2026-09-06T23:29:27Z"
+    applies_to:
+      - sdd-apply
+  - id: interactive-continuation-004
+    gate: interactive-continuation
+    decision: continue-to-sdd-verify
+    source: vscode/askQuestions
+    accepted_at: "2026-09-06T23:41:17Z"
+    applies_to:
+      - sdd-verify
+  - id: interactive-continuation-005
+    gate: interactive-continuation
+    decision: continue-to-sdd-apply-remediation
+    source: codex/plain-chat-numbered-gate
+    accepted_at: "2026-09-07T23:20:38Z"
+    applies_to:
+      - sdd-apply
+  - id: candidate-recovery-new-scope-001
+    gate: new-scope
+    decision: authorize-candidate-recovery-reconciliation-only
+    source: codex/plain-chat-numbered-gate
+    accepted_at: "2026-09-07T23:38:22Z"
+    applies_to:
+      - verify-lineage-candidate-recovery
+  - id: verify-lineage-successor-architecture-001
+    gate: architecture
+    decision: authorize-audited-terminal-successor-contract-for-unrecoverable-candidate
+    source: codex/plain-chat-numbered-gate
+    accepted_at: "2026-09-07T23:48:38Z"
+    applies_to:
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+  - id: verify-lineage-reconciliation-successor-001
+    gate: successor-reconciliation
+    decision: authorize-audited-successor-for-unreconciled-directed-operations
+    source: codex/plain-chat-numbered-gate
+    accepted_at: "2026-09-08T07:08:40Z"
+    applies_to:
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify

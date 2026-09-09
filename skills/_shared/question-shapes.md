@@ -1,8 +1,10 @@
 # Question Shape Library (on-demand)
 
-Canonical `vscode/askQuestions` payload shapes for the orchestrator's session-level
+Canonical question intent shapes for the orchestrator's session-level
 gates. Read this file only when composing one of these questions (pointer-table
 handler); the shapes then stay in context for the rest of the session.
+
+Use the active host question protocol. Adapt these examples to the actual tool schema and current mode instead of sending them verbatim: native tools may require IDs, shorter headers, fewer options, or may not support `recommended`, `allowFreeformInput`, or `multiSelect`. If the tool cannot represent the question, follow the host question protocol and record the explicit outcome in the approval ledger.
 
 Every `recommended: true` option MUST follow the Recommended Option Description
 Contract (`sdd-phase-common.md` §D): rationale, main trade-off vs. the alternatives,

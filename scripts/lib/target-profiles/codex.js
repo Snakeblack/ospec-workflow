@@ -17,11 +17,9 @@
 //     (keepFields) + interface injection + rename (NOT the omit/drop deny-list
 //     used by claude): future-proof against new canonical manifest keys, and
 //     agents are naturally absent since they are not in the allowlist.
-//   - question_gate -> Codex has no structured ask-tool, so both the
-//     namespaced marker `vscode/askQuestions` and the abstract alias
-//     `AskUserQuestion` degrade to the same numbered plain-chat protocol via
-//     toolMap degradation markers instead of a literal tool name; this covers
-//     both target-specific and cross-target source prose.
+//   - question_gate -> resolve the live host's question capability and mode
+//     through the shared protocol. Availability differs between desktop, CLI,
+//     and planning modes; a build cannot pin one question channel for all.
 
 module.exports = {
   id: "codex",
@@ -36,6 +34,7 @@ module.exports = {
   // the coordinator/worker boundary enforceable even when a user's global
   // config has raised the default for a different workflow.
   agentSettings: { max_depth: 1 },
+  nativeModelFields: ["model_reasoning_effort", "model_verbosity"],
 
   commandFile: { from: ".prompt.md", format: "skill" },
 
@@ -53,20 +52,14 @@ module.exports = {
   // grants, -> read-only). No new frontmatter field is introduced.
   sandboxByCapability: { writeTool: "edit", write: "workspace-write", read: "read-only" },
 
-  // Codex has no structured ask-tool: both the namespaced target tool
-  // (vscode/askQuestions) and the abstract cross-target alias
-  // (AskUserQuestion) degrade to the same numbered plain-chat protocol instead
-  // of a literal tool name (REQ-codex-target-005 / generator
-  // REQ-generator-003). Every other abstract tool maps to its closest
-  // Codex-native equivalent.
+  // A protocol reference avoids duplicating a long fallback at every gate.
+  // rules/sdd-common.instructions.md defines native selection and chat fallback.
   toolMap: {
     "vscode/askQuestions": {
-      degrade:
-        "ask blocking gate questions as a numbered plain-chat list (e.g. \"1) Option A  2) Option B\") and wait for the user to reply with a number — do not invoke any tool to ask",
+      degrade: "the active host question protocol",
     },
     AskUserQuestion: {
-      degrade:
-        "ask blocking gate questions as a numbered plain-chat list (e.g. \"1) Option A  2) Option B\") and wait for the user to reply with a number — do not invoke any tool to ask",
+      degrade: "the active host question protocol",
     },
     read: "read",
     search: "read",

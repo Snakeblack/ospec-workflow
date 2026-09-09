@@ -85,6 +85,8 @@ module.exports = {
 
   // Inject provider/model slugs from models.yaml (opencode column).
   model: { format: "provider-slug" },
+  nativeModelFields: ["variant"],
+  nativeModelDefaults: { variant: "" },
 
   // Drop the Claude plugin manifest, the Claude/Copilot hooks.json (replaced by the
   // plugin), and the standalone .mcp.json (consumed into opencode.json).

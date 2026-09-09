@@ -12,6 +12,8 @@ const {
   stableSerialize,
   persistCandidateRecord,
   recoverCandidateRecord,
+  captureCandidateSnapshot,
+  recoverCandidateSnapshot,
 } = require("./verify-lineage-candidate-store.js");
 
 function candidate(suffix = "2") {
@@ -186,5 +188,86 @@ test("REQ-verify-lineage-010: orphan temp files and post-publish blobs never bec
     assert.equal(absent.reason_code, "candidate-recovery-missing");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("REQ-verify-lineage-014: captures a canonical Candidate B from a real working tree through an isolated index", () => {
+  const root = changeRoot();
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), "vl-capture-git-"));
+  const run = (args) => require("node:child_process").execFileSync("git", args, { cwd: repo, encoding: "utf8" }).trim();
+  try {
+    run(["init"]);
+    run(["config", "user.name", "Candidate Test"]);
+    run(["config", "user.email", "candidate@example.test"]);
+    fs.mkdirSync(path.join(repo, "src"));
+    fs.writeFileSync(path.join(repo, "src", "a.js"), "module.exports = 1;\n");
+    run(["add", "."]); run(["commit", "-m", "base"]);
+    fs.writeFileSync(path.join(repo, "src", "a.js"), "module.exports = 2;\n");
+    fs.writeFileSync(path.join(repo, "new.txt"), "untracked\n");
+
+    const captured = captureCandidateSnapshot(root, { rootDir: repo, repository_id: "temp-candidate-repo" });
+    assert.equal(captured.ok, true);
+    assert.deepEqual(captured.candidate.paths, ["new.txt", "src/a.js"]);
+    assert.match(captured.snapshot.material.base.oid, /^[0-9a-f]{40}$/);
+    assert.match(captured.snapshot.material.candidate.oid, /^[0-9a-f]{40}$/);
+    assert.notEqual(captured.snapshot.material.base.oid, captured.snapshot.material.candidate.oid);
+    assert.equal(recoverCandidateSnapshot(root, captured.snapshot_ref, captured.candidate.candidate_id, { rootDir: repo }).ok, true);
+    // Capture uses an isolated temporary index and never changes the caller's index.
+    assert.equal(run(["diff", "--cached", "--name-only"]), "");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("REQ-verify-lineage-016: a live Candidate snapshot excludes its own change artifacts but detects source drift", () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), "vl-capture-live-"));
+  const changeRoot = path.join(repo, "openspec", "changes", "candidate-live");
+  const run = (args) => require("node:child_process").execFileSync("git", args, { cwd: repo, encoding: "utf8" }).trim();
+  try {
+    run(["init"]);
+    run(["config", "user.name", "Candidate Test"]);
+    run(["config", "user.email", "candidate@example.test"]);
+    fs.mkdirSync(path.join(repo, "src"), { recursive: true });
+    fs.writeFileSync(path.join(repo, "src", "a.js"), "module.exports = 1;\n");
+    run(["add", "."]); run(["commit", "-m", "base"]);
+    fs.writeFileSync(path.join(repo, "src", "a.js"), "module.exports = 2;\n");
+    fs.mkdirSync(changeRoot, { recursive: true });
+    fs.writeFileSync(path.join(changeRoot, "state.yaml"), "status: recheck-pending\n");
+    fs.writeFileSync(path.join(changeRoot, "proposal.md"), "# Contract\nCandidate capture\n");
+
+    const captured = captureCandidateSnapshot(changeRoot, { rootDir: repo, repository_id: "live-candidate-repo" });
+    assert.equal(captured.ok, true, captured.error);
+    assert.deepEqual(captured.candidate.paths, ["openspec/changes/candidate-live/proposal.md", "src/a.js"]);
+
+    // These are written by the lineage lifecycle after the snapshot. They are
+    // bookkeeping, not product bytes, and must not invalidate a live snapshot.
+    fs.writeFileSync(path.join(changeRoot, "verify-report.md"), "pending\n");
+    assert.equal(
+      recoverCandidateSnapshot(changeRoot, captured.snapshot_ref, captured.candidate.candidate_id, {
+        rootDir: repo,
+        verifyLiveWorkspace: true,
+      }).ok,
+      true
+    );
+
+    fs.writeFileSync(path.join(changeRoot, "proposal.md"), "# Contract\nChanged contract\n");
+    const contractDrifted = recoverCandidateSnapshot(changeRoot, captured.snapshot_ref, captured.candidate.candidate_id, {
+      rootDir: repo,
+      verifyLiveWorkspace: true,
+    });
+    assert.equal(contractDrifted.ok, false);
+    assert.equal(contractDrifted.reason_code, "candidate-snapshot-live-workspace-drift");
+    fs.writeFileSync(path.join(changeRoot, "proposal.md"), "# Contract\nCandidate capture\n");
+
+    fs.writeFileSync(path.join(repo, "src", "a.js"), "module.exports = 3;\n");
+    const drifted = recoverCandidateSnapshot(changeRoot, captured.snapshot_ref, captured.candidate.candidate_id, {
+      rootDir: repo,
+      verifyLiveWorkspace: true,
+    });
+    assert.equal(drifted.ok, false);
+    assert.equal(drifted.reason_code, "candidate-snapshot-live-workspace-drift");
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
   }
 });

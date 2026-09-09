@@ -31,7 +31,7 @@ When the gate runs:
 
 1. **On `status: success`**: record `phases.clarify.status: done` and
    `phases.clarify.questions_asked: {N}` in `state.yaml`; proceed to `sdd-design`.
-2. **On `status: blocked` with `question_gate`**: call `vscode/askQuestions` with the
+2. **On `status: blocked` with `question_gate`**: use the active host question protocol with the
    `question_gate` payload; wait for all answers; relaunch `sdd-clarify` with the
    answers; record `state.yaml` `status: blocked` and `blocking_questions` while
    waiting. On relaunch success, go to step 1.

@@ -94,7 +94,7 @@ After each action completes (or is determined to be un-issuable):
 2. Mark all remaining actions in this event's list as `outcome: skipped`.
 3. Write `lifecycle_hooks.{event}.status: failed` and the failure message to `state.yaml` **immediately** (do NOT defer).
 4. **Do NOT dispatch the boundary phase** until the user resolves the gate.
-5. Call `vscode/askQuestions` with the exact shape below:
+5. Use the active host question protocol, adapting the shape below to its actual schema:
 
 ```json
 {
