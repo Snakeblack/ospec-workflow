@@ -1,7 +1,7 @@
 schema_version: 1
 change: compact-lite-contract-and-consumer-compatibility
 status: applying
-last_updated: "2026-09-09T23:20:15Z"
+last_updated: "2026-09-09T23:30:42Z"
 classification: normal
 route:
   intended_route: standard
@@ -98,6 +98,6 @@ phases:
   apply:
     status: partial
     artifact: "openspec/changes/compact-lite-contract-and-consumer-compatibility/apply-progress.md"
-    summary: "PR 1 validates persisted route identity and lite/standard predecessor artifacts."
+    summary: "PR 1 route validation and its K1-compatible successor guard passed staged pre-commit."
     key_decisions:
       - "A persisted route conflict or undeclared route blocks validation fail-closed."
