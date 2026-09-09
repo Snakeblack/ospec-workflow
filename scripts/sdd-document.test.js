@@ -274,7 +274,7 @@ test("sdd-document generated outputs use cheap models or fail-soft omission", (t
   const githubOut = tmpOut(t);
   runConfigure({ sourceDir: ROOT_DIR, target: "github-copilot", outDir: githubOut, validate: false });
   const github = fsSync.readFileSync(path.join(githubOut, ".github/agents/sdd-document.agent.md"), "utf8");
-  assert.equal(getField(parse(github).frontmatter, "model"), null);
+  assert.deepEqual(getField(parse(github).frontmatter, "model").value, ["GPT-5.6 Luna (copilot)"]);
 
   const codexOut = tmpOut(t);
   runConfigure({ sourceDir: ROOT_DIR, target: "codex", outDir: codexOut, validate: false });

@@ -484,6 +484,19 @@ Y vuelve a revisar:
 
 ## Solucion de problemas
 
+## Selección de modelos del instalador
+
+El instalador guiado comienza seleccionando un destino y el preset
+**Recomendado**. Elige **Personalizar por fase** para editar una fase cada vez:
+la lista admite búsqueda sin distinguir mayúsculas y muestra únicamente los
+controles compatibles con el destino y modelo elegidos. GitHub Copilot usa el
+mismo catálogo curado que VS Code.
+
+Antigravity conserva el comportamiento heredado del host y no ofrece selector
+de modelo ni razonamiento. El catálogo es estático primero: no se ejecuta
+descubrimiento local para destinos IDE, por lo que una CLI ausente o no
+compatible no bloquea la instalación.
+
 | Sintoma | Causa probable | Que revisar |
 | --- | --- | --- |
 | Faltan la UI de Agent Plugins | La vista previa de Agent Plugins no esta disponible o la politica la deshabilita. | Confirma que tu version de VS Code soporta Agent Plugins y revisa la politica de tu organizacion. |

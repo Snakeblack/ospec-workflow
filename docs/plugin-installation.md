@@ -482,6 +482,17 @@ And check again:
 
 ## Troubleshooting
 
+## Installer model selection
+
+The guided installer now starts with a target and a **Recommended** preset. Choose
+**Customize by phase** to edit one phase at a time; its model list supports
+case-insensitive filtering and only shows controls that the selected target and
+model support. GitHub Copilot uses the same curated model choices as VS Code.
+
+Antigravity remains host-inherited and intentionally has no model or reasoning
+selector. The catalog is static-first: no local model-discovery command runs for
+IDE targets, so an unavailable or unsupported CLI cannot prevent installation.
+
 | Symptom | Likely cause | What to check |
 | --- | --- | --- |
 | Agent Plugins UI missing | The Agent Plugins preview is unavailable or policy disables it. | Confirm your VS Code version supports Agent Plugins and review your organization's policy. |

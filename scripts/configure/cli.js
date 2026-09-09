@@ -331,6 +331,27 @@ function parseModels(text) {
 }
 
 function parseScalarOrArray(value) {
+  if (/^\{.*\}$/.test(value)) {
+    const object = {};
+    let depth = 0;
+    let token = "";
+    const parts = [];
+    for (const character of value.slice(1, -1)) {
+      if (character === "[" || character === "{") depth += 1;
+      if (character === "]" || character === "}") depth -= 1;
+      if (character === "," && depth === 0) {
+        parts.push(token);
+        token = "";
+      } else token += character;
+    }
+    if (token.trim()) parts.push(token);
+    for (const part of parts) {
+      const separator = part.indexOf(":");
+      if (separator === -1) return unquote(value);
+      object[part.slice(0, separator).trim()] = parseScalarOrArray(part.slice(separator + 1).trim());
+    }
+    return object;
+  }
   if (/^\[.*\]$/.test(value)) {
     const inner = value.slice(1, -1).trim();
     if (!inner) {
@@ -602,7 +623,7 @@ function runConfigure({ sourceDir, target, outDir, validate = true, runValidator
   const policy = validateSddModelPolicy(models);
   if (!policy.valid) return { files: [], summary: [], exitCode: 1, validation: { status: 1, stdout: "", stderr: `invalid SDD model policy: ${JSON.stringify(policy.errors)}\n` } };
 
-  const overridePolicy = validateModelOverrides(modelOverrides);
+  const overridePolicy = validateModelOverrides(modelOverrides, models, target);
   if (!overridePolicy.valid) return { files: [], summary: [], exitCode: 1, validation: { status: 1, stdout: "", stderr: `invalid model overrides: ${JSON.stringify(overridePolicy.errors)}\n` } };
 
   const resolvedModels = modelOverrides === undefined

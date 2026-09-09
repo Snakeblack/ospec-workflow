@@ -5,227 +5,90 @@ import (
 	"testing"
 )
 
-func TestModelUsesEffectiveChoiceAsDefault(t *testing.T) {
-	m := NewModel(testPlan(Target{ID: "codex", Agents: []Agent{{
-		ID: "architect", Selectable: true, Effective: json.RawMessage(`{"model":"preferred"}`),
-		Choices: []Choice{
-			{ID: "first", Label: "Fallback", Value: json.RawMessage(`{"model":"fallback"}`)},
-			{ID: "preferred", Label: "Preferred", Value: json.RawMessage(`{"model":"preferred"}`)},
-		},
-	}}}))
-	if got := m.selections["codex"]["architect"]; got != "preferred" {
-		t.Fatalf("default choice = %q, want effective choice preferred", got)
-	}
+func choice(id string, controls map[string]Control) Choice {
+	return Choice{ID: id, Label: id, Value: json.RawMessage(`"` + id + `"`), Controls: controls}
 }
-
-func TestModelRetainsSelectionsPerTarget(t *testing.T) {
-	plan := testPlan(
-		Target{ID: "claude", Label: "Claude", Agents: []Agent{selectableAgent("architect")}},
-		Target{ID: "codex", Label: "Codex", Agents: []Agent{selectableAgent("reviewer")}},
-	)
+func TestPresetAndInheritedNavigationRemainExplicit(t *testing.T) {
+	plan := Plan{Version: 2, Targets: []Target{{ID: "vscode", Agents: []Agent{{ID: "a", Selectable: true, Choices: []Choice{choice("one", nil)}}}, Presets: []Preset{{ID: "recommended", Selections: map[string]Selection{"a": {ChoiceID: "one", Controls: map[string]string{}}}}}}, {ID: "antigravity", Inherited: true, Agents: []Agent{{ID: "a", Inherited: true}}}}}
 	m := NewModel(plan)
-
-	m = updateKey(t, m, "enter") // menu -> targets
-	m = updateKey(t, m, "enter") // Claude -> models
-	m = updateKey(t, m, "right")
-	if got := m.Selections()["architect"]; got != "second" {
-		t.Fatalf("Claude selection = %q, want second", got)
+	m.handleKey("enter")
+	m.handleKey("enter")
+	m.handleKey("enter")
+	if m.screen != reviewScreen || m.mode != "preset" {
+		t.Fatalf("preset state=%v %s", m.screen, m.mode)
 	}
-	m = updateKey(t, m, "esc")  // models -> targets
-	m = updateKey(t, m, "down") // Codex
-	m = updateKey(t, m, "enter")
-	if got := m.Selections()["reviewer"]; got != "first" {
-		t.Fatalf("Codex default = %q, want first", got)
-	}
-	m = updateKey(t, m, "esc")
-	m = updateKey(t, m, "up")
-	m = updateKey(t, m, "enter")
-	if got := m.Selections()["architect"]; got != "second" {
-		t.Fatalf("returning to Claude lost selection: %q", got)
+	m.back()
+	m.back()
+	m.handleKey("down")
+	m.handleKey("enter")
+	if m.mode != "inherited" || m.screen != reviewScreen {
+		t.Fatalf("inherited state=%v %s", m.screen, m.mode)
 	}
 }
-
-func TestModelUpdateNavigation(t *testing.T) {
-	plan := testPlan(Target{ID: "claude", Label: "Claude", Agents: []Agent{selectableAgent("architect")}})
-	cases := []struct {
-		name        string
-		keys        []string
-		wantScreen  screen
-		wantInstall bool
-	}{
-		{name: "menu to targets", keys: []string{"enter"}, wantScreen: targetsScreen},
-		{name: "escape returns to menu", keys: []string{"enter", "esc"}, wantScreen: menuScreen},
-		{name: "models enter review", keys: []string{"enter", "enter", "enter"}, wantScreen: reviewScreen},
-		{name: "review default Back", keys: []string{"enter", "enter", "enter", "enter"}, wantScreen: modelsScreen},
-		{name: "review explicit Install", keys: []string{"enter", "enter", "enter", "right", "enter"}, wantScreen: installingScreen, wantInstall: true},
-	}
-	for _, test := range cases {
-		t.Run(test.name, func(t *testing.T) {
-			model := NewModel(plan)
-			for _, key := range test.keys {
-				model = updateKey(t, model, key)
-			}
-			if model.screen != test.wantScreen || model.InstallRequested() != test.wantInstall {
-				t.Fatalf("state = (%v, %t), want (%v, %t)", model.screen, model.InstallRequested(), test.wantScreen, test.wantInstall)
-			}
-		})
-	}
-}
-
-func TestModelOnlyRequestsInstallFromReviewInstallAction(t *testing.T) {
-	m := NewModel(testPlan(Target{ID: "claude", Label: "Claude", Agents: []Agent{selectableAgent("architect")}}))
-	m = updateKey(t, m, "enter")
-	m = updateKey(t, m, "enter")
-	m = updateKey(t, m, "enter") // models -> review
-	if m.InstallRequested() {
-		t.Fatal("navigation must not request installation")
-	}
-	m = updateKey(t, m, "enter") // default Back
-	if m.screen != modelsScreen || m.InstallRequested() {
-		t.Fatal("default review action must return to models without installation")
-	}
-	m = updateKey(t, m, "enter")
-	m = updateKey(t, m, "right")
-	m = updateKey(t, m, "enter")
-	if m.screen != installingScreen || !m.InstallRequested() {
-		t.Fatal("Install must transition to installing exactly once")
-	}
-	request, ok := m.InstallRequest()
-	if !ok || request.Target != "claude" || request.Selections["architect"] != "first" {
-		t.Fatalf("reviewed install request = %#v, %t", request, ok)
-	}
-	m = updateKey(t, m, "enter")
-	if m.screen != installingScreen || !m.InstallRequested() {
-		t.Fatal("repeated Enter must not leave installing or request a second install")
-	}
-}
-
-func TestModelCustomModelInput(t *testing.T) {
-	plan := testPlan(Target{
-		ID:          "claude",
-		Label:       "Claude",
-		AllowCustom: true,
-		Agents:      []Agent{selectableAgent("architect")},
-	})
+func TestSearchRetainsChoiceAndFiltersCaseInsensitively(t *testing.T) {
+	agent := Agent{ID: "a", Selectable: true, Choices: []Choice{choice("Alpha", nil), choice("Beta", nil)}}
+	plan := Plan{Version: 2, Targets: []Target{{ID: "claude", Agents: []Agent{agent}, Presets: []Preset{{ID: "recommended", Selections: map[string]Selection{"a": {ChoiceID: "Alpha", Controls: map[string]string{}}}}}}}}
 	m := NewModel(plan)
-	m = updateKey(t, m, "enter") // menu -> targets
-	m = updateKey(t, m, "enter") // targets -> models
-	m = updateKey(t, m, "c")     // models -> customModelScreen
-	if m.screen != customModelScreen {
-		t.Fatalf("screen = %v, want customModelScreen", m.screen)
-	}
-
-	for _, ch := range "glm-5.3" {
-		m = updateKey(t, m, string(ch))
-	}
-	if m.customInput != "glm-5.3" {
-		t.Fatalf("customInput = %q, want glm-5.3", m.customInput)
-	}
-
-	m = updateKey(t, m, "enter") // submit custom model -> modelsScreen
-	if m.screen != modelsScreen {
-		t.Fatalf("screen = %v, want modelsScreen", m.screen)
-	}
-
+	m.handleKey("enter")
+	m.handleKey("enter")
+	m.handleKey("down")
+	m.handleKey("enter")
+	m.handleKey("B")
 	target, _ := m.target()
-	label := m.agentLabel(target, target.Agents[0])
-	if label != "glm-5.3 (Personalizado)" {
-		t.Fatalf("agent label = %q, want glm-5.3 (Personalizado)", label)
+	if len(m.filtered(target.Agents[0], m.queries[target.ID]["a"])) != 1 || m.Selections()["a"].ChoiceID != "Alpha" {
+		t.Fatal("search changed selection or did not filter")
 	}
+}
 
-	m = updateKey(t, m, "enter") // models -> reviewScreen
+func TestCustomReasoningFlowReachesReviewAndInstall(t *testing.T) {
+	control := Control{Values: []string{"low", "high"}, Default: "high"}
+	plan := Plan{Version: 2, Targets: []Target{{
+		ID: "claude",
+		Agents: []Agent{{ID: "apply", Selectable: true, Choices: []Choice{choice("sonnet", map[string]Control{"effort": control})}}},
+		Presets: []Preset{{ID: "recommended", Selections: map[string]Selection{"apply": {ChoiceID: "sonnet", Controls: map[string]string{}}}}},
+	}}}
+	m := NewModel(plan)
+	for _, key := range []string{"enter", "enter", "down", "enter", "enter"} {
+		m.handleKey(key)
+	}
+	if m.screen != controlsScreen {
+		t.Fatalf("screen = %v, want controls", m.screen)
+	}
+	m.handleKey("enter")
 	if m.screen != reviewScreen {
-		t.Fatalf("screen = %v, want reviewScreen", m.screen)
+		t.Fatalf("screen = %v, want review after confirming controls", m.screen)
 	}
-	labelInReview := m.agentLabel(target, target.Agents[0])
-	if labelInReview != "glm-5.3 (Personalizado)" {
-		t.Fatalf("review label = %q, want glm-5.3 (Personalizado)", labelInReview)
+	m.handleKey("right")
+	if action := m.handleKey("enter"); action != installAction || !m.InstallRequested() {
+		t.Fatalf("action = %v, install requested = %v", action, m.InstallRequested())
 	}
 }
 
-func TestModelCycleCodexEffort(t *testing.T) {
-	initialVal := `{"model":"gpt-6-astra","model_reasoning_effort":"high","model_verbosity":"medium"}`
-	plan := testPlan(Target{
-		ID:          "codex",
-		Label:       "Codex",
-		AllowCustom: true,
-		Agents: []Agent{{
-			ID:         "architect",
-			Selectable: true,
-			Effective:  json.RawMessage(initialVal),
-			Choices: []Choice{{
-				ID:    "astra-high",
-				Label: "GPT-6 Astra · high · medium",
-				Value: json.RawMessage(initialVal),
-			}},
-		}},
-	})
+func TestCustomEditRetainsSearchChoiceAndControlState(t *testing.T) {
+	control := Control{Values: []string{"low", "high"}, Default: "high"}
+	plan := Plan{Version: 2, Targets: []Target{{ID: "claude", Agents: []Agent{{ID: "apply", Selectable: true, Choices: []Choice{choice("Alpha", map[string]Control{"effort": control}), choice("Beta", map[string]Control{"effort": control})}}}, Presets: []Preset{{ID: "recommended", Selections: map[string]Selection{"apply": {ChoiceID: "Alpha", Controls: map[string]string{}}}}}}}}
 	m := NewModel(plan)
-	m = updateKey(t, m, "enter") // menu -> targets
-	m = updateKey(t, m, "enter") // targets -> models
-
-	// Cycle high -> xhigh
-	m = updateKey(t, m, "e")
-	target, _ := m.target()
-	if got := m.agentLabel(target, target.Agents[0]); got != "gpt-6-astra · xhigh · medium" {
-		t.Fatalf("effort 1 = %q, want gpt-6-astra · xhigh · medium", got)
+	for _, key := range []string{"enter", "enter", "down", "enter", "B", "backspace", "right", "enter", "down", "enter"} {
+		m.handleKey(key)
 	}
-
-	// Cycle xhigh -> low
-	m = updateKey(t, m, "e")
-	if got := m.agentLabel(target, target.Agents[0]); got != "gpt-6-astra · low · medium" {
-		t.Fatalf("effort 2 = %q, want gpt-6-astra · low · medium", got)
+	if m.screen != reviewScreen || m.Selections()["apply"].ChoiceID != "Beta" || m.Selections()["apply"].Controls["effort"] != "low" {
+		t.Fatalf("review or selection state lost: screen=%v selections=%#v", m.screen, m.Selections())
 	}
-
-	// Cycle low -> medium
-	m = updateKey(t, m, "e")
-	if got := m.agentLabel(target, target.Agents[0]); got != "gpt-6-astra · medium · medium" {
-		t.Fatalf("effort 3 = %q, want gpt-6-astra · medium · medium", got)
-	}
-
-	// Cycle medium -> high
-	m = updateKey(t, m, "e")
-	if got := m.agentLabel(target, target.Agents[0]); got != "gpt-6-astra · high · medium" {
-		t.Fatalf("effort 4 = %q, want gpt-6-astra · high · medium", got)
+	m.back()
+	m.handleKey("enter")
+	if m.screen != controlsScreen || m.Selections()["apply"].Controls["effort"] != "low" {
+		t.Fatalf("edit path did not retain control state: screen=%v selections=%#v", m.screen, m.Selections())
 	}
 }
 
-func TestModelCustomModelInputCodex(t *testing.T) {
-	plan := testPlan(Target{
-		ID:          "codex",
-		Label:       "Codex",
-		AllowCustom: true,
-		Agents:      []Agent{selectableAgent("architect")},
-	})
+func TestCustomEditChangesOnlyTheFocusedPhase(t *testing.T) {
+	plan := Plan{Version: 2, Targets: []Target{{ID: "vscode", Agents: []Agent{{ID: "first", Selectable: true, Choices: []Choice{choice("one", nil), choice("two", nil)}}, {ID: "second", Selectable: true, Choices: []Choice{choice("one", nil), choice("two", nil)}}}, Presets: []Preset{{ID: "recommended", Selections: map[string]Selection{"first": {ChoiceID: "one"}, "second": {ChoiceID: "one"}}}}}}}
 	m := NewModel(plan)
-	m = updateKey(t, m, "enter") // menu -> targets
-	m = updateKey(t, m, "enter") // targets -> models
-	m = updateKey(t, m, "c")     // models -> customModelScreen
-
-	for _, ch := range "gpt-6-astra" {
-		m = updateKey(t, m, string(ch))
+	for _, key := range []string{"enter", "enter", "down", "enter", "right"} {
+		m.handleKey(key)
 	}
-	m = updateKey(t, m, "enter") // confirm custom model
-	target, _ := m.target()
-	if got := m.agentLabel(target, target.Agents[0]); got != "gpt-6-astra · high · medium (Personalizado)" {
-		t.Fatalf("codex custom model label = %q, want gpt-6-astra · high · medium (Personalizado)", got)
+	selections := m.Selections()
+	if selections["first"].ChoiceID != "two" || selections["second"].ChoiceID != "one" {
+		t.Fatalf("focused edit leaked across phases: %#v", selections)
 	}
-
-	// Now cycle effort on this newly added custom model!
-	m = updateKey(t, m, "e")
-	if got := m.agentLabel(target, target.Agents[0]); got != "gpt-6-astra · xhigh · medium" {
-		t.Fatalf("effort on custom codex model = %q, want gpt-6-astra · xhigh · medium", got)
-	}
-}
-
-func testPlan(targets ...Target) Plan { return Plan{Version: protocolVersion, Targets: targets} }
-
-func selectableAgent(id string) Agent {
-	return Agent{ID: id, Selectable: true, Choices: []Choice{{ID: "first", Label: "First"}, {ID: "second", Label: "Second"}}}
-}
-
-func updateKey(t *testing.T, model Model, key string) Model {
-	t.Helper()
-	model.handleKey(key)
-	return model
 }

@@ -8,8 +8,10 @@ const test = require("node:test");
 
 const {
   startVerifyLineage,
+  startVerifyLineageFromWorkspace,
   prepareRemediation,
   recordRemediationAttempt,
+  startReconciliationSuccessor,
   evaluateRecheck,
   getLineageNextAction,
   computeContractDigest,
@@ -22,6 +24,12 @@ const {
 
 const { freezeCandidate } = require("./execution-identities/index.js");
 const { resolveTddMode } = require("./tdd-mode.js");
+const { captureCandidateSnapshot } = require("./verify-lineage-candidate-store.js");
+const {
+  persistRecoveryOperation,
+  preserveDirectedRecheckOperation,
+  collectReconciliationSuccessorAudit,
+} = require("./verify-lineage-recovery.js");
 
 function setupContractDir() {
   const tmpDir = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "vl-contract-"));
@@ -592,3 +600,109 @@ test("REQ-verify-lineage-010: a state-write failure after Candidate publication 
     fs.rmSync(gitRepo.tmpDir, { recursive: true, force: true });
   }
 });
+
+test("REQ-verify-lineage-010: canonical initial verification capture binds a live workspace snapshot before lineage state exists", () => {
+  const changeRoot = setupContractDir();
+  const gitRepo = setupGitRepoWithCandidates();
+  try {
+    fs.writeFileSync(path.join(gitRepo.tmpDir, "internal", "auth", "auth.go"), "package auth\n// candidate C\n");
+    const lineage = startVerifyLineageFromWorkspace({
+      changeRoot,
+      rootDir: gitRepo.tmpDir,
+      repository_id: "canonical-initial-capture",
+      findings: sampleFindings,
+    });
+    assert.equal(lineage.status, "remediation-pending");
+    assert.equal(lineage.candidate_snapshot.kind, "candidate-snapshot-ref/v1");
+    const recovered = require("./verify-lineage-candidate-store.js").recoverCandidateSnapshot(
+      changeRoot,
+      lineage.candidate_snapshot,
+      lineage.current_candidate_id,
+      { rootDir: gitRepo.tmpDir, verifyLiveWorkspace: true }
+    );
+    assert.equal(recovered.ok, true, recovered.error);
+    assert.equal(recovered.candidate.candidate_id, lineage.current_candidate_id);
+  } finally {
+    fs.rmSync(changeRoot, { recursive: true, force: true });
+    fs.rmSync(gitRepo.tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("REQ-verify-lineage-010: snapshot-backed remediation derives its scope from persisted Git trees", () => {
+  const changeRoot = setupContractDir();
+  const gitRepo = setupGitRepoWithCandidates();
+  try {
+    const initial = startVerifyLineageFromWorkspace({
+      changeRoot,
+      rootDir: gitRepo.tmpDir,
+      repository_id: "snapshot-remediation",
+      findings: sampleFindings,
+    });
+    fs.writeFileSync(path.join(gitRepo.tmpDir, "internal", "auth", "auth.go"), "package auth\n// remediated from snapshot\n");
+    const post = captureCandidateSnapshot(changeRoot, { rootDir: gitRepo.tmpDir, repository_id: "snapshot-remediation" });
+    assert.equal(post.ok, true, post.error);
+
+    const recorded = recordRemediationAttempt(initial, {
+      changeRoot,
+      rootDir: gitRepo.tmpDir,
+      candidate: post.candidate,
+      candidate_snapshot: post.snapshot_ref,
+    });
+    assert.equal(recorded.action, "run-targeted-recheck");
+    assert.deepEqual(recorded.lineage.candidate_snapshot, post.snapshot_ref);
+  } finally {
+    fs.rmSync(changeRoot, { recursive: true, force: true });
+    fs.rmSync(gitRepo.tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("REQ-verify-lineage-016: an approved reconciliation successor has a fresh identity and preserves frozen obligations", () => {
+  const changeRoot = setupContractDir();
+  const repo = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "vl-reconciliation-"));
+  const git = (args) => child_process.execFileSync("git", args, { cwd: repo, encoding: "utf8" }).trim();
+  try {
+    git(["init"]); git(["config", "user.name", "Reconciliation Test"]); git(["config", "user.email", "reconciliation@example.test"]);
+    fs.writeFileSync(path.join(repo, "subject.txt"), "A\n"); git(["add", "."]); git(["commit", "-m", "base"]);
+    fs.writeFileSync(path.join(repo, "subject.txt"), "B\n");
+    const predecessorCapture = captureCandidateSnapshot(changeRoot, { rootDir: repo, repository_id: "reconciliation-test" });
+    const predecessor = startVerifyLineage({ changeRoot, candidate: predecessorCapture.candidate, findings: [findingForReconciliation()] });
+    const pending = persistRecoveryOperation(changeRoot, {
+      type: "directed-recheck-command",
+      input: { lineage_id: predecessor.lineage_id, finding_id: "V001", command: "node --test focal.js", index: 0 },
+      expected_output: { command: "node --test focal.js" },
+    });
+    const disposition = preserveDirectedRecheckOperation(changeRoot, pending.reference, { predecessor_lineage_id: predecessor.lineage_id });
+    fs.writeFileSync(path.join(repo, "subject.txt"), "C\n");
+    const successorCapture = captureCandidateSnapshot(changeRoot, { rootDir: repo, repository_id: "reconciliation-test" });
+    const approvals = [{
+      id: "verify-lineage-reconciliation-successor-001", gate: "successor-reconciliation",
+      decision: "authorize-audited-successor-for-unreconciled-directed-operations",
+      source: "codex/plain-chat-numbered-gate", applies_to: ["sdd-apply"],
+    }];
+    const audit = collectReconciliationSuccessorAudit(predecessor, {
+      changeRoot, approvals, dispositions: [disposition.reference],
+    });
+    const result = startReconciliationSuccessor(predecessor, {
+      changeRoot, rootDir: repo, snapshotRef: successorCapture.snapshot_ref, auditRef: audit.reference, approvals,
+    });
+
+    assert.equal(result.ok, true, result.error || result.reason_code);
+    assert.equal(result.lineage.status, "recheck-pending");
+    assert.equal(result.lineage.generation, predecessor.generation + 1);
+    assert.equal(result.lineage.predecessor_id, predecessor.lineage_id);
+    assert.notEqual(result.lineage.lineage_id, predecessor.lineage_id);
+    assert.deepEqual(result.lineage.findings, predecessor.findings);
+    assert.equal(result.lineage.remediation_attempts, predecessor.remediation_attempts);
+    assert.deepEqual(result.predecessor, predecessor);
+  } finally {
+    fs.rmSync(changeRoot, { recursive: true, force: true });
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+function findingForReconciliation() {
+  return {
+    id: "V001", severity: "CRITICAL", summary: "reconciliation fixture", origin: "code-bug",
+    allowed_paths: ["subject.txt"], validation: { commands: ["node --test focal.js"], expected_exit: 0, test_files: [] },
+  };
+}

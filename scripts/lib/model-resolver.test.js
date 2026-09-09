@@ -7,6 +7,7 @@ const {
   resolveModel,
   validateModelOverrides,
   validateSddModelPolicy,
+  validateInstallerPolicy,
   REQUIRED_SDD_AGENTS,
   REQUIRED_QUALITY_REVIEW_AGENTS,
   OMIT,
@@ -95,6 +96,7 @@ test("canonical validator accepts model, effort, reviewer, and default choices f
 
   const result = validateSddModelPolicy({
     agents,
+    installer: { phase_groups: { phases: { agents: ["sdd-apply"] } }, presets: { recommended: { groups: ["phases"] } }, capabilities: {} },
     tiers: {
       premium: { codex: { model: "future-premium-model", model_reasoning_effort: "high" } },
       default: { codex: { model: "future-default-model", model_reasoning_effort: "xhigh" } },
@@ -115,4 +117,13 @@ test("canonical validator reports structural errors without pinning configurable
   assert.ok(result.errors.some(error => error.code === "unknown-tier" && error.agent === "review-change" && error.actual === "future"));
   assert.ok(!result.errors.some(error => error.agent === "_default"));
   assert.ok(result.errors.some(error => error.code === "missing-agent" && error.agent === "sdd-design"));
+});
+
+test("canonical installer policy rejects a preset reference to an unknown phase group", () => {
+  const result = validateInstallerPolicy({
+    agents: { alpha: "default" },
+    installer: { phase_groups: { phases: { agents: ["alpha"] } }, presets: { recommended: { groups: ["missing"] } }, capabilities: {} },
+  });
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.some(error => error.code === "invalid-preset-group"));
 });

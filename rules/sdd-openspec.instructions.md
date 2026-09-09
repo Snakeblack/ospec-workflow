@@ -74,10 +74,10 @@ Durable instructions must not be mixed with user-provided or generated payloads.
 
 Blocking workflow decisions are valid only when they come from:
 
-1. `vscode/askQuestions` result in the current orchestration step; or
+1. an explicit native question-tool result or permitted chat response for the current gate, following the active host question protocol and preserving its actual source; or
 2. an explicit approval entry persisted in `openspec/changes/{change-name}/state.yaml`.
 
-Do not infer approvals from plain chat summaries.
+Do not infer approvals from plain chat summaries. An explicit user answer to the gate is not a summary and remains valid when the active host uses chat fallback.
 
 Evidence remediation state is namespaced under the change and is fail-closed:
 the structured record is authoritative, writes are limited to the evidence

@@ -4,7 +4,13 @@ const crypto = require("node:crypto");
 const fsSync = require("node:fs");
 const path = require("node:path");
 const { validateCandidateV2, computeCandidateId } = require("./execution-identities/index.js");
-const { persistCandidateRecord, recoverCandidateRecord } = require("./verify-lineage-candidate-store.js");
+const {
+  persistCandidateRecord,
+  recoverCandidateRecord,
+  recoverCandidateSnapshot,
+  captureCandidateSnapshot,
+} = require("./verify-lineage-candidate-store.js");
+const { validateCandidateRecoveryAudit, validateReconciliationSuccessorAudit, requiredApproval } = require("./verify-lineage-recovery.js");
 
 const MAX_REMEDIATION_ATTEMPTS = 2;
 const BLOCKING_SEVERITIES = new Set(["BLOCKER", "CRITICAL"]);
@@ -376,6 +382,233 @@ function prepareRemediation(state, options = {}) {
   };
 }
 
+// The verifier's canonical entry point. A Candidate/v2 digest alone cannot be
+// used later to reconstruct an execution tree, so a mutable lineage begins
+// from an independently persisted, live-validated workspace snapshot.
+function startVerifyLineageFromWorkspace(input, meta = {}) {
+  if (!input || typeof input !== "object") throw new TypeError("input is required to capture a verify lineage Candidate");
+  const changeRoot = input.changeRoot || meta.changeRoot;
+  const rootDir = input.rootDir || meta.rootDir;
+  if (!changeRoot || !rootDir) throw new TypeError("changeRoot and rootDir are required for canonical Candidate capture");
+  const captured = captureCandidateSnapshot(changeRoot, {
+    rootDir,
+    repository_id: input.repository_id || input.repositoryId,
+    projection: input.projection,
+  });
+  if (!captured.ok) {
+    const error = new Error(`Unable to capture canonical Candidate snapshot: ${captured.reason_code}`);
+    error.code = captured.reason_code;
+    throw error;
+  }
+  const verified = recoverCandidateSnapshot(changeRoot, captured.snapshot_ref, captured.candidate.candidate_id, {
+    rootDir,
+    verifyLiveWorkspace: true,
+  });
+  if (!verified.ok) {
+    const error = new Error(`Canonical Candidate snapshot failed live validation: ${verified.reason_code}`);
+    error.code = verified.reason_code;
+    throw error;
+  }
+  const lineage = startVerifyLineage({ ...input, changeRoot, candidate: verified.candidate }, meta);
+  lineage.candidate_snapshot = clone(captured.snapshot_ref);
+  return lineage;
+}
+
+function resolveRecoveryApprovals(approvals) {
+  const newScope = requiredApproval(approvals, "new-scope");
+  const architecture = requiredApproval(approvals, "architecture");
+  if (!newScope || !architecture) throw new Error("audited recovery requires new-scope and architecture approvals");
+  return [clone(newScope), clone(architecture)];
+}
+
+// This is intentionally an additive terminal transition. It never tries to
+// derive A -> B; a valid audit only establishes that such derivation cannot be
+// made from the available evidence.
+function terminalizeIrrecoverableLineage(state, options = {}) {
+  assertVerifyLineage(state);
+  if (!["remediation-pending", "reconciliation-required"].includes(state.status)) {
+    return { ok: false, reason_code: "terminalization-status-invalid", lineage: clone(state) };
+  }
+  try {
+    const approvals = resolveRecoveryApprovals(options.approvals || state.approvals || []);
+    const audit = validateCandidateRecoveryAudit(state, options.auditRef, { changeRoot: options.changeRoot });
+    if (!audit.ok) return { ok: false, reason_code: audit.reason_code, lineage: clone(state) };
+    const terminal = clone(state);
+    terminal.status = "superseded";
+    terminal.terminal_reason = "candidate-recovery-irrecoverable";
+    terminal.candidate_recovery_audit = clone(options.auditRef);
+    terminal.recovery_approvals = approvals;
+    return { ok: true, action: "terminalized-candidate-recovery", lineage: terminal };
+  } catch (error) { return { ok: false, reason_code: "candidate-recovery-approval-missing", error: error.message, lineage: clone(state) }; }
+}
+
+function startRecoverySuccessor(predecessor, options = {}) {
+  assertVerifyLineage(predecessor);
+  if (predecessor.status !== "superseded" || predecessor.terminal_reason !== "candidate-recovery-irrecoverable") {
+    return { ok: false, reason_code: "recovery-predecessor-not-terminal", lineage: clone(predecessor) };
+  }
+  try {
+    const approvals = resolveRecoveryApprovals(options.approvals || predecessor.recovery_approvals || []);
+    const audit = validateCandidateRecoveryAudit(predecessor, predecessor.candidate_recovery_audit, { changeRoot: options.changeRoot });
+    if (!audit.ok) return { ok: false, reason_code: audit.reason_code, lineage: clone(predecessor) };
+    const recovered = recoverCandidateSnapshot(options.changeRoot, options.snapshotRef, options.candidateRef?.candidate_id || options.snapshotRef?.candidate_id, { rootDir: options.rootDir });
+    if (!recovered.ok) return { ok: false, reason_code: recovered.reason_code, lineage: clone(predecessor) };
+    if (options.candidateRef && stableSerialize(options.candidateRef) !== stableSerialize(recovered.snapshot.candidate_ref)) {
+      return { ok: false, reason_code: "candidate-snapshot-reference-mismatch", lineage: clone(predecessor) };
+    }
+    const successor = clone(predecessor);
+    const candidateId = resolveCanonicalCandidateId(recovered.candidate);
+    const contractDigest = computeContractDigestFromArtifacts(options.changeRoot, { mode: options.mode || "standard" });
+    successor.generation = predecessor.generation + 1;
+    successor.predecessor_id = predecessor.lineage_id;
+    successor.lineage_id = digest("verify-lineage-v1", {
+      genesis_candidate_id: candidateId, contract_digest: contractDigest,
+      findings_ids: successor.findings.map((finding) => finding.id).sort(), generation: successor.generation,
+      predecessor_id: predecessor.lineage_id,
+    });
+    successor.status = "recheck-pending";
+    successor.genesis_candidate_id = candidateId;
+    successor.current_candidate_id = candidateId;
+    successor.verified_candidate_id = null;
+    successor.contract_digest = contractDigest;
+    successor.candidate_recovery = { schema_version: 1, genesis: clone(recovered.snapshot.candidate_ref), current: clone(recovered.snapshot.candidate_ref) };
+    successor.candidate_snapshot = clone(options.snapshotRef);
+    successor.terminal_reason = null;
+    successor.recovery_successor = { schema_version: 1, predecessor_contract_digest: predecessor.contract_digest, audit_ref: clone(predecessor.candidate_recovery_audit), approval_refs: approvals.map((entry) => entry.id) };
+    return { ok: true, action: "start-recovery-successor-recheck", lineage: successor, predecessor: clone(predecessor) };
+  } catch (error) { return { ok: false, reason_code: "recovery-successor-invalid", error: error.message, lineage: clone(predecessor) }; }
+}
+
+function reconciliationSuccessorApproval(approvals) {
+  const validSources = new Set([
+    "codex/plain-chat-numbered-gate",
+    "codex/plain-chat",
+    "request_user_input",
+    "functions.request_user_input",
+    "functions.request_user_input_async",
+  ]);
+  return (approvals || []).find((entry) =>
+    entry?.gate === "successor-reconciliation" &&
+    entry.decision === "authorize-audited-successor-for-unreconciled-directed-operations" &&
+    validSources.has(entry.source) &&
+    Array.isArray(entry.applies_to) && entry.applies_to.includes("sdd-apply")
+  ) || null;
+}
+
+// This successor is deliberately separate from Candidate-irrecoverable recovery:
+// it preserves an intact predecessor and only replaces the active pointer after
+// every inconclusive predecessor operation has immutable disposition evidence.
+function startReconciliationSuccessor(predecessor, options = {}) {
+  assertVerifyLineage(predecessor);
+  try {
+    if (!['remediation-pending', 'recheck-pending'].includes(predecessor.status)) {
+      return { ok: false, reason_code: 'reconciliation-predecessor-status-invalid', lineage: clone(predecessor) };
+    }
+    const approval = reconciliationSuccessorApproval(options.approvals || []);
+    if (!approval) return { ok: false, reason_code: 'reconciliation-successor-approval-missing', lineage: clone(predecessor) };
+    const audited = validateReconciliationSuccessorAudit(predecessor, options.auditRef, { changeRoot: options.changeRoot });
+    if (!audited.ok) return { ok: false, reason_code: audited.reason_code, lineage: clone(predecessor) };
+    if (!audited.audit.approval_ids.includes(approval.id)) return { ok: false, reason_code: 'reconciliation-successor-audit-approval-mismatch', lineage: clone(predecessor) };
+    const recovered = recoverCandidateSnapshot(options.changeRoot, options.snapshotRef, options.candidateRef?.candidate_id || options.snapshotRef?.candidate_id, { rootDir: options.rootDir });
+    if (!recovered.ok) return { ok: false, reason_code: recovered.reason_code, lineage: clone(predecessor) };
+    if (options.candidateRef && stableSerialize(options.candidateRef) !== stableSerialize(recovered.snapshot.candidate_ref)) {
+      return { ok: false, reason_code: 'candidate-snapshot-reference-mismatch', lineage: clone(predecessor) };
+    }
+    const candidateId = resolveCanonicalCandidateId(recovered.candidate);
+    if (candidateId === predecessor.current_candidate_id) return { ok: false, reason_code: 'reconciliation-successor-candidate-not-fresh', lineage: clone(predecessor) };
+    const contractDigest = computeContractDigestFromArtifacts(options.changeRoot, { mode: options.mode || 'standard' });
+    const successor = clone(predecessor);
+    successor.generation = predecessor.generation + 1;
+    successor.predecessor_id = predecessor.lineage_id;
+    successor.lineage_id = digest('verify-lineage-reconciliation-successor-v1', {
+      predecessor_id: predecessor.lineage_id, generation: successor.generation,
+      genesis_candidate_id: candidateId, contract_digest: contractDigest,
+      audit_digest: options.auditRef.content_digest,
+    });
+    successor.status = 'recheck-pending';
+    successor.genesis_candidate_id = candidateId;
+    successor.current_candidate_id = candidateId;
+    successor.verified_candidate_id = null;
+    successor.contract_digest = contractDigest;
+    successor.candidate_recovery = { schema_version: 1, genesis: clone(recovered.snapshot.candidate_ref), current: clone(recovered.snapshot.candidate_ref) };
+    successor.candidate_snapshot = clone(options.snapshotRef);
+    successor.terminal_reason = null;
+    successor.recovery_successor = {
+      schema_version: 1, kind: 'reconciliation-successor/v1', predecessor_contract_digest: predecessor.contract_digest,
+      audit_ref: clone(options.auditRef), approval_refs: [approval.id], predecessor_journal: audited.audit.recipes.map((recipe) => ({
+        operation_reference: clone(recipe.operation_reference), disposition_reference: clone(recipe.disposition_reference),
+      })),
+    };
+    return { ok: true, action: 'start-reconciliation-successor-recheck', lineage: successor, predecessor: clone(predecessor) };
+  } catch (error) { return { ok: false, reason_code: 'reconciliation-successor-invalid', error: error.message, lineage: clone(predecessor) }; }
+}
+
+function persistReconciliationSuccessorState(statePath, predecessor, successor) {
+  if (typeof statePath !== 'string' || !statePath.trim()) throw new TypeError('statePath is required');
+  if (successor?.predecessor_id !== predecessor?.lineage_id || successor?.generation !== predecessor?.generation + 1) {
+    throw new Error('reconciliation successor does not bind the supplied predecessor');
+  }
+  const original = fsSync.readFileSync(statePath, 'utf8');
+  const match = /^verify_lineage: (.+)$/m.exec(original);
+  if (!match) throw new Error('state.yaml has no active verify_lineage');
+  if (stableSerialize(JSON.parse(match[1])) !== stableSerialize(predecessor)) throw new Error('state.yaml active verify_lineage changed before successor installation');
+  const historyMatch = /^verify_lineage_history: (.+)$/m.exec(original);
+  const history = historyMatch ? JSON.parse(historyMatch[1]) : [];
+  if (!Array.isArray(history)) throw new Error('state.yaml verify_lineage_history is invalid');
+  const nextHistory = [...history, clone(predecessor)];
+  const replacement = `verify_lineage: ${JSON.stringify(successor)}\nverify_lineage_history: ${JSON.stringify(nextHistory)}`;
+  let next = original.replace(match[0], replacement);
+  if (historyMatch) next = next.replace(historyMatch[0], '');
+  const absolute = path.resolve(statePath);
+  const temporary = `${absolute}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  fsSync.writeFileSync(temporary, next, 'utf8');
+  fsSync.renameSync(temporary, absolute);
+  return { active: clone(successor), history_count: nextHistory.length };
+}
+
+function persistRecheckResultState(statePath, predecessor, result) {
+  if (typeof statePath !== "string" || !statePath.trim()) throw new TypeError("statePath is required");
+  assertVerifyLineage(predecessor);
+  assertVerifyLineage(result);
+  if (predecessor.status !== "recheck-pending") throw new Error("only an active recheck may persist a result");
+  if (
+    result.lineage_id !== predecessor.lineage_id ||
+    result.generation !== predecessor.generation ||
+    result.predecessor_id !== predecessor.predecessor_id ||
+    result.current_candidate_id !== predecessor.current_candidate_id ||
+    result.genesis_candidate_id !== predecessor.genesis_candidate_id ||
+    result.contract_digest !== predecessor.contract_digest ||
+    stableSerialize(result.candidate_snapshot || null) !== stableSerialize(predecessor.candidate_snapshot || null)
+  ) {
+    throw new Error("recheck result does not bind the active lineage identity");
+  }
+  if (result.status === "closed" && result.verified_candidate_id !== predecessor.current_candidate_id) {
+    throw new Error("closed recheck result must verify the active Candidate");
+  }
+  const original = fsSync.readFileSync(statePath, "utf8");
+  const match = /^verify_lineage: (.+)$/m.exec(original);
+  if (!match) throw new Error("state.yaml has no active verify_lineage");
+  if (stableSerialize(JSON.parse(match[1])) !== stableSerialize(predecessor)) {
+    throw new Error("state.yaml active verify_lineage changed before recheck result installation");
+  }
+  const next = original.replace(match[0], `verify_lineage: ${JSON.stringify(result)}`);
+  const absolute = path.resolve(statePath);
+  const temporary = `${absolute}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  let descriptor;
+  try {
+    descriptor = fsSync.openSync(temporary, "wx", 0o600);
+    fsSync.writeFileSync(descriptor, next, "utf8");
+    fsSync.fsyncSync(descriptor);
+    fsSync.closeSync(descriptor);
+    descriptor = undefined;
+    fsSync.renameSync(temporary, absolute);
+  } finally {
+    if (descriptor !== undefined) fsSync.closeSync(descriptor);
+    try { fsSync.unlinkSync(temporary); } catch (error) { if (error.code !== "ENOENT") throw error; }
+  }
+  return { active: clone(result) };
+}
+
 function recordRemediationAttempt(state, candidateInput, options = {}) {
   assertVerifyLineage(state);
   if (state.status !== "remediation-pending") {
@@ -407,6 +640,26 @@ function recordRemediationAttempt(state, candidateInput, options = {}) {
   const postCandidateDigest = resolveCanonicalCandidateId(postCandidate);
 
   const deltaOptions = Object.assign({}, typeof candidateInput === "object" ? candidateInput : {}, options);
+  const postSnapshotRef = candidateInput?.candidate_snapshot || candidateInput?.candidateSnapshot || candidateInput?.snapshotRef || null;
+  let postSnapshot = null;
+  if (state.candidate_snapshot || postSnapshotRef) {
+    if (!state.candidate_snapshot || !postSnapshotRef) {
+      return blockCandidateRecovery(state, "candidate-snapshot-required", "Snapshot-backed remediation requires both baseline and successor Candidate snapshots");
+    }
+    const rootDir = deltaOptions.rootDir || deltaOptions.cwd;
+    const baselineSnapshot = recoverCandidateSnapshot(changeRoot, state.candidate_snapshot, preCandidate.candidate_id, { rootDir });
+    if (!baselineSnapshot.ok) return blockCandidateRecovery(state, baselineSnapshot.reason_code, baselineSnapshot.error);
+    postSnapshot = recoverCandidateSnapshot(changeRoot, postSnapshotRef, postCandidateDigest, { rootDir });
+    if (!postSnapshot.ok) return blockCandidateRecovery(state, postSnapshot.reason_code, postSnapshot.error);
+    if (
+      baselineSnapshot.snapshot.material?.type !== "git-tree-snapshot/v1" ||
+      postSnapshot.snapshot.material?.type !== "git-tree-snapshot/v1"
+    ) {
+      return blockCandidateRecovery(state, "candidate-snapshot-delta-unresolvable", "Snapshot-backed remediation requires Git tree material for mechanical scope derivation");
+    }
+    deltaOptions.before_git_tree = baselineSnapshot.snapshot.material.candidate.oid;
+    deltaOptions.after_git_tree = postSnapshot.snapshot.material.candidate.oid;
+  }
   const actualChangedPaths = deriveCandidateDeltaPaths(preCandidate, postCandidate, deltaOptions);
 
   const allowedPathsUnion = new Set(
@@ -428,7 +681,9 @@ function recordRemediationAttempt(state, candidateInput, options = {}) {
 
   const next = clone(state);
   next.current_candidate_id = postCandidateDigest;
-  const persistedSuccessor = persistCandidateRecord(changeRoot, postCandidate);
+  const persistedSuccessor = postSnapshot
+    ? { ok: true, reference: postSnapshot.snapshot.candidate_ref }
+    : persistCandidateRecord(changeRoot, postCandidate);
   if (!persistedSuccessor.ok) {
     return blockCandidateRecovery(state, persistedSuccessor.reason_code, persistedSuccessor.error);
   }
@@ -437,6 +692,7 @@ function recordRemediationAttempt(state, candidateInput, options = {}) {
     genesis: clone(state.candidate_recovery.genesis),
     current: clone(persistedSuccessor.reference),
   };
+  if (postSnapshotRef) next.candidate_snapshot = clone(postSnapshotRef);
   next.remediation_attempts += 1;
 
   if (next.remediation_attempts > MAX_REMEDIATION_ATTEMPTS) {
@@ -471,6 +727,9 @@ function evaluateRecheck(state, input) {
 
   if (state.status !== "recheck-pending") {
     throw new Error(`Cannot evaluate recheck on lineage with status '${state.status}' (expected 'recheck-pending')`);
+  }
+  if (state.recovery_successor && input.durable_recheck !== true) {
+    throw new Error("recovery successor rechecks require durable journal coverage");
   }
 
   const next = clone(state);
@@ -619,7 +878,9 @@ function getLineageNextAction(state, input = {}) {
       if (currentCandidateDigest !== state.current_candidate_id) {
         return { action: "supersede-and-discovery", reason: "candidate-code-changed" };
       }
-      return { action: "run-targeted-recheck", reason: "active-recheck-pending" };
+      return state.recovery_successor
+        ? { action: "run-recovery-successor-recheck", reason: "snapshot-bound-directed-recheck" }
+        : { action: "run-targeted-recheck", reason: "active-recheck-pending" };
     }
     case "exhausted":
       return { action: "require-user-intervention", reason: "remediation-attempts-exhausted" };
@@ -641,7 +902,13 @@ module.exports = {
   deriveCandidateDeltaPaths,
   assertVerifyLineage,
   startVerifyLineage,
+  startVerifyLineageFromWorkspace,
   prepareRemediation,
+  terminalizeIrrecoverableLineage,
+  startRecoverySuccessor,
+  startReconciliationSuccessor,
+  persistReconciliationSuccessorState,
+  persistRecheckResultState,
   recordRemediationAttempt,
   evaluateRecheck,
   getLineageNextAction,

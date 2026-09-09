@@ -10,7 +10,7 @@ module.exports = {
   agentFile: { from: ".agent.md", to: ".agent.md" },
   commandFile: { from: ".prompt.md", to: ".prompt.md" },
 
-  model: { format: "alias" },
+  // The host inherits its model; it must never receive selector metadata.
 
   frontmatter: {
     stripKeys: ["target", "disable-model-invocation"],

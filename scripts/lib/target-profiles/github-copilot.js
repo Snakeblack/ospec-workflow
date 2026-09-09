@@ -68,7 +68,10 @@ module.exports = {
   // and skills/ ships so agent "Skills to load before work" references resolve.
   drop: [".claude-plugin/"],
 
-  // No model injection: the source omits model and github-copilot has no models.yaml column.
+  // Copilot uses the same curated selector surface as VS Code.  The adapter
+  // keeps choice IDs opaque, while the generator receives the native value.
+  model: true,
+  nativeModelFields: [],
   // argv form (not a shell string): the runner spawns it with shell:false so the
   // {out} path can never be reinterpreted by a shell. "node" resolves to the
   // running interpreter (process.execPath) in the runner.
