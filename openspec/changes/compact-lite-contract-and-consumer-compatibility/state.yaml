@@ -1,0 +1,103 @@
+schema_version: 1
+change: compact-lite-contract-and-consumer-compatibility
+status: applying
+last_updated: "2026-09-09T23:20:15Z"
+classification: normal
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "PP2 cambia contratos y consumidores en varias fases/targets; corresponde a un cambio normal. La ruta standard fue la primera ruta elegible para un proyecto active."
+  validated: true
+  validation_errors: []
+owner:
+  author: "Manuel Retamozo"
+  branch: feat/compact-lite-contract-and-consumer-compatibility
+baseline_fingerprints:
+  routing: "d768060a5fc09787628424e14bf28e396bc579f7ae9a14334ccd223adfebaad8"
+  skills: "92c9dfb7b372b20e63c697fd4b0c954306a65ff43f613d958205b39054fb3b41"
+  agents: "7b8b6f127b46951ec30309ee0181fe402aac7e7babb3601fe3d900625fb741dd"
+  generator: "6c7e67a77dcf883fc49c47f786cdc729fea1c7d4d1c58b9e875c051acd15f33c"
+  archive-plan-contract: "edc5368b7448da48c1460bb2d7622869a95b52e6d05c8d55b3d5b2e58c57b97c"
+approvals:
+  - id: intent-briefing-001
+    gate: intent-briefing
+    decision: accepted
+    source: codex/plain-chat
+    accepted_at: "2026-09-09T22:44:05.3920965Z"
+    synthesis: "Compactar el contrato lite (proposal-lite, tasks y resúmenes) y adaptar sus consumidores en apply, verify, archive, recovery y targets, preservando evidencia y compatibilidad. Las cinco fases lite deben funcionar sin spec/design, mantener continuidad de apply-progress y no introducir nuevas rutas ni fusionar fases."
+    scope:
+      in: "Contrato lite compacto y compatibilidad de consumidores vigentes en las cinco fases lite."
+      out: "Artefactos de relleno, eliminación de evidencia, fusión de fases y creación de rutas nuevas."
+    applies_to:
+      - change-classification
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: auto
+    source: codex/plain-chat
+    accepted_at: "2026-09-09T22:44:05.3920965Z"
+    applies_to:
+      - sdd-propose
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: ask-on-risk
+    source: codex/plain-chat
+    accepted_at: "2026-09-09T22:47:00Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: review-workload-001
+    gate: review-workload
+    decision: feature-branch-chain
+    source: codex/plain-chat
+    accepted_at: "2026-09-09T23:16:00Z"
+    applies_to:
+      - sdd-apply
+phases:
+  proposal:
+    status: done
+    artifact: "openspec/changes/compact-lite-contract-and-consumer-compatibility/proposal.md"
+    summary: "Five-phase lite contract defined with route-aware consumers, evidence continuity, archive integrity, and six-target parity."
+    key_decisions:
+      - "Use proposal-lite plus tasks as the lite planning contract; spec and design remain legitimately absent."
+      - "Modify existing routing, skills, agents, generator, and archive-plan-contract capabilities."
+  spec:
+    status: done
+    artifacts:
+      - "openspec/changes/compact-lite-contract-and-consumer-compatibility/specs/routing/spec.md"
+      - "openspec/changes/compact-lite-contract-and-consumer-compatibility/specs/skills/spec.md"
+      - "openspec/changes/compact-lite-contract-and-consumer-compatibility/specs/agents/spec.md"
+      - "openspec/changes/compact-lite-contract-and-consumer-compatibility/specs/generator/spec.md"
+      - "openspec/changes/compact-lite-contract-and-consumer-compatibility/specs/archive-plan-contract/spec.md"
+    summary: "Five route-aware deltas define compact lite artifacts, recovery, target parity, and archive integrity."
+    key_decisions:
+      - "Lite uses proposal-lite and tasks while spec/design remain legitimately absent."
+      - "Standard-route planning dependencies and PP1 risk floors remain unchanged."
+      - "Archive inventory is route-complete and retains schema-v1 fail-closed checks."
+  clarify:
+    status: skipped
+    summary: "Skipped deterministically: residual_ambiguity=false and all ambiguity arrays are empty."
+  design:
+    status: done
+    artifact: "openspec/changes/compact-lite-contract-and-consumer-compatibility/design.md"
+    summary: "Route-aware lite dependencies, compact references, recovery, archive integrity, and six-target parity allocated."
+    key_decisions:
+      - "Persisted actual_route owns artifact prerequisites; launch mode only checks consistency."
+      - "Compact artifacts reference stable acceptance labels while preserving progress and evidence."
+      - "Archive schema v1 keeps exact-byte checks and adds lite route minimums before mutation."
+  tasks:
+    status: done
+    artifact: "openspec/changes/compact-lite-contract-and-consumer-compatibility/tasks.md"
+    summary: "Five implementation phases cover route validators, compact consumers, recovery, archive integrity, and six-target parity with TDD evidence."
+    key_decisions:
+      - "Split the high-risk workload into three review slices while preserving dependency order."
+      - "Require an apply decision because the estimate is 700–1,000 changed lines under ask-on-risk."
+  apply:
+    status: partial
+    artifact: "openspec/changes/compact-lite-contract-and-consumer-compatibility/apply-progress.md"
+    summary: "PR 1 validates persisted route identity and lite/standard predecessor artifacts."
+    key_decisions:
+      - "A persisted route conflict or undeclared route blocks validation fail-closed."
