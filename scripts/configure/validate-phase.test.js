@@ -51,3 +51,47 @@ test("validate-phase CLI: passes validation when required file is present", () =
     fs.rmSync(changeDir, { recursive: true, force: true });
   }
 });
+
+test("validate-phase CLI: uses the persisted lite route and rejects a conflicting launch route", () => {
+  const changeName = `test-lite-route-${Date.now()}`;
+  const changeDir = path.join(ROOT, "openspec", "changes", changeName);
+  fs.mkdirSync(changeDir, { recursive: true });
+  fs.writeFileSync(path.join(changeDir, "proposal-lite.md"), "# Lite proposal");
+  fs.writeFileSync(path.join(changeDir, "state.yaml"), [
+    "change: test-lite-route",
+    "route:",
+    "  actual_route: lite",
+  ].join("\n"));
+
+  try {
+    const valid = execSync(`node "${VALIDATE_SCRIPT}" sdd-tasks lite ${changeName}`).toString();
+    assert.match(valid, /\[OK\]/);
+
+    assert.throws(
+      () => execSync(`node "${VALIDATE_SCRIPT}" sdd-tasks standard ${changeName}`, { stdio: "pipe" }),
+      (error) => error.status === 1 && /no coincide con la ruta persistida/.test(error.stderr.toString()),
+    );
+  } finally {
+    fs.rmSync(changeDir, { recursive: true, force: true });
+  }
+});
+
+test("validate-phase CLI: rejects an undeclared persisted route instead of bypassing validation", () => {
+  const changeName = `test-unknown-route-${Date.now()}`;
+  const changeDir = path.join(ROOT, "openspec", "changes", changeName);
+  fs.mkdirSync(changeDir, { recursive: true });
+  fs.writeFileSync(path.join(changeDir, "state.yaml"), [
+    "change: test-unknown-route",
+    "route:",
+    "  actual_route: removed-route",
+  ].join("\n"));
+
+  try {
+    assert.throws(
+      () => execSync(`node "${VALIDATE_SCRIPT}" sdd-tasks removed-route ${changeName}`, { stdio: "pipe" }),
+      (error) => error.status === 1 && /no está declarada con fases/.test(error.stderr.toString()),
+    );
+  } finally {
+    fs.rmSync(changeDir, { recursive: true, force: true });
+  }
+});

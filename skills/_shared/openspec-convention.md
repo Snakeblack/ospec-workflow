@@ -80,6 +80,29 @@ Main specs: openspec/specs/{domain}/spec.md
 Foundation: docs/product/brief.md, docs/architecture/technical-baseline.md, docs/roadmap.md
 ```
 
+## Route Artifact Preconditions
+
+`openspec/changes/{change-name}/state.yaml` `route.actual_route` is the
+authoritative identity for a persisted change. Phase launch arguments may only
+confirm that identity; a conflicting route blocks the transition instead of
+selecting another contract.
+
+| Persisted route contract | Phase to start | Required predecessor artifact |
+|---|---|---|
+| `lite` | `sdd-tasks` | `proposal-lite.md` |
+| `lite` or standard route | `sdd-apply` | `tasks.md` |
+| `lite` or standard route | `sdd-verify` | `apply-progress.md` |
+| `lite` or standard route | `sdd-archive` | `verify-report.md` |
+| Route declaring `sdd-spec` | `sdd-spec` | `proposal.md` |
+| Route declaring `sdd-design` | `sdd-design` | `specs/**/spec.md` |
+| Route declaring `sdd-design` | `sdd-tasks` | `design.md` |
+
+The five-phase lite route is `sdd-propose → sdd-tasks → sdd-apply → sdd-verify → sdd-archive`.
+Its legitimate absence of `proposal.md`,
+change-local specs, and `design.md` is never satisfied with filler artifacts.
+Routes that declare specification or design phases retain their corresponding
+preconditions.
+
 ## Writing Rules
 
 - Always create the change directory before writing artifacts
