@@ -22,8 +22,8 @@ Use this file as a compact entry point. Agent files own roles and tool boundarie
   - **Bypass Default Planning Mode**: Do NOT create generic `implementation_plan.md` or `walkthrough.md` artifacts when handling SDD requests or commands (`/sdd-*`).
   - **OpenSpec is the Plan**: OpenSpec artifacts (`openspec/changes/{change-name}/*`) are the single source of truth for planning and execution.
   - **Orchestration**: The agent must act directly as `sdd-orchestrator`:
-    1. Read `openspec/` state to identify the active change and next phase.
-    2. Resolve the next phase and its launch contract; the executor loads its own phase procedure.
+    1. Read `openspec/` state to identify the active change, persisted `route.actual_route`, and next declared incomplete phase.
+    2. Resolve the route-specific launch contract: lite uses proposal-lite → tasks → apply → verify → archive; standard requires proposal → specs → design before tasks → apply → verify → archive. A missing required artifact blocks recovery; never promote or fabricate artifacts.
     3. Launch phase subagents through the host's available delegation tool using the prompt contracts in `agents/<phase>.agent.md`.
     4. Execute the SDD lifecycle strictly in order without skipping phases or defaulting to generic single-agent edits.
 

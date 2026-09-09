@@ -34,6 +34,11 @@ const ARTIFACT_CANDIDATES = [
   { relativePath: "archive-report.md", rank: 7 },
 ];
 
+const ROUTE_PHASES = Object.freeze({
+  lite: ["proposal", "tasks", "apply", "verify", "archive"],
+  standard: ["proposal", "spec", "design", "tasks", "apply", "verify", "archive"],
+});
+
 function compareStrings(left, right) {
   if (left < right) {
     return -1;
@@ -211,6 +216,66 @@ function normalizePhase(value) {
     .replace(/^sdd-/, "")
     .trim()
     .toLowerCase();
+}
+
+function extractPhaseStatuses(content) {
+  const statuses = new Map();
+  let inPhases = false;
+  let phase = "";
+
+  for (const raw of content.split(/\r?\n/)) {
+    const trimmed = raw.trim();
+    const indent = raw.match(/^\s*/)[0].length;
+
+    if (!inPhases) {
+      inPhases = indent === 0 && trimmed === "phases:";
+      continue;
+    }
+
+    if (trimmed && indent === 0) {
+      break;
+    }
+
+    const phaseMatch = indent === 2 && trimmed.match(/^([\w-]+):\s*$/);
+    if (phaseMatch) {
+      phase = normalizePhase(phaseMatch[1]);
+      continue;
+    }
+
+    const statusMatch = phase && indent === 4 && trimmed.match(/^status:\s*(.+)$/);
+    if (statusMatch) {
+      statuses.set(phase, normalizePhase(parseScalar(statusMatch[1])));
+    }
+  }
+
+  return statuses;
+}
+
+function isCompletedPhase(status) {
+  return ["done", "completed", "success", "verified"].includes(status);
+}
+
+function resolveCurrentPhase(content) {
+  const actualRoute = normalizePhase(
+    extractFirstScalar(content, [["route", "actual_route"]]),
+  );
+  const statuses = extractPhaseStatuses(content);
+  const declaredPhases = ROUTE_PHASES[actualRoute];
+
+  if (declaredPhases && statuses.size) {
+    for (const phase of declaredPhases) {
+      const status = statuses.get(phase) || statuses.get(`${phase}s`);
+      if (!isCompletedPhase(status)) {
+        return phase;
+      }
+    }
+  }
+
+  return extractFirstScalar(content, [
+    ["change", "current_phase"],
+    ["current_phase"],
+    ["phase"],
+  ]);
 }
 
 async function findActiveChange(workspace, mode) {
@@ -429,11 +494,7 @@ async function runPreCompact({
   const changeName =
     extractFirstScalar(activeChange.content, [["change", "name"]]) ||
     activeChange.directoryName;
-  const currentPhase = extractFirstScalar(activeChange.content, [
-    ["change", "current_phase"],
-    ["current_phase"],
-    ["phase"],
-  ]);
+  const currentPhase = resolveCurrentPhase(activeChange.content);
   const lastCompletedArtifact = await inferLastCompletedArtifact(
     workspace,
     activeChange,
@@ -496,6 +557,7 @@ module.exports = {
   extractListSection,
   findActiveChange,
   formatNextAction,
+  resolveCurrentPhase,
   renderSummary,
   runPreCompact,
 };

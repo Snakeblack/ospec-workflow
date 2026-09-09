@@ -169,8 +169,8 @@ Use this only for `trivial` or `small` changes that do not justify full specs an
 
 ## Acceptance Checks
 
-- [ ] {specific observable behavior or local verification check}
-- [ ] {second bounded check if needed}
+- [ ] AC-1: {specific observable behavior or local verification check}
+- [ ] AC-2: {second bounded check if needed}
 
 ## Risks and Rollback
 
@@ -220,5 +220,6 @@ Ready for specs (sdd-spec) or design (sdd-design).
 - Modified Capabilities → each will become a delta spec in the change folder
 - If nothing changes at the spec level (pure refactor, config change), explicitly write "None" under both sub-sections — don't leave them as template placeholders
 - `proposal-lite.md` is valid only for `trivial` or `small` changes. If the work needs full capabilities, spec deltas, or architecture decisions, escalate to standard mode.
+- Lite acceptance checks MUST use stable, unique `AC-N` labels. Later `tasks.md`, apply progress, and verification evidence reference the same labels; do not renumber a label after work begins.
 - **Size budget**: Standard proposals target 450 words or less. Lite proposals target 250 words or less. Use bullet points and tables over prose.
 - Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`.

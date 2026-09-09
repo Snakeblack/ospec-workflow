@@ -1,7 +1,7 @@
 schema_version: 1
 change: compact-lite-contract-and-consumer-compatibility
 status: applying
-last_updated: "2026-09-09T23:30:42Z"
+last_updated: "2026-09-09T23:42:04Z"
 classification: normal
 route:
   intended_route: standard
@@ -98,6 +98,8 @@ phases:
   apply:
     status: partial
     artifact: "openspec/changes/compact-lite-contract-and-consumer-compatibility/apply-progress.md"
-    summary: "PR 1 route validation and its K1-compatible successor guard passed staged pre-commit."
+    summary: "PR 2 compact consumers and route-aware recovery passed focused tests, npm test, and the pre-commit wrapper."
     key_decisions:
       - "A persisted route conflict or undeclared route blocks validation fail-closed."
+      - "Consumers resolve actual_route before selecting standard or lite artifacts."
+      - "Recovery derives the next lite phase from persisted phase status without mutating continuation state."

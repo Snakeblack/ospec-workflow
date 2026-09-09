@@ -25,6 +25,8 @@ Also read shared conventions from the repository skills root:
 ## Required artifacts
 
 Follow the supplied artifact-store mode. In `openspec` mode, treat `state.yaml` plus phase artifacts as canonical continuation state. Run the skill's remediation router before full backlog reads. For normal execution, read tasks, the standard or lite behavior contract, and previous apply progress. Write only assigned implementation changes, task status, merged progress, and state updates required by the phase/lineage contracts. In `none` mode, return proposed changes/progress inline without project-file writes or mutating remediation.
+Use `state.yaml.route.actual_route` as authoritative: standard requires proposal, specs, and design; lite requires `proposal-lite.md` and tasks and permits absent spec/design. Missing required artifacts or a conflicting supplied mode block fail-closed.
+Keep the phase summary factual (at most 160 characters), retain only this phase's artifact references, and return at most three key decisions.
 
 Use `skills/_shared/engineering-judgment.md` through the required skill for proportional implementation and verification. Strict/Focused TDD specialize the test cycle while preserving common contract, scope, workload, and status guards.
 

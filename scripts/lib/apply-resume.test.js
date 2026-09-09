@@ -49,3 +49,24 @@ test("Phase 6: resolveRemainingTasks handles task markdown updates in tasks.md",
   assert.equal(res2.remaining.length, 2);
   assert.deepEqual(res2.remaining.map(t => t.id), ["1.2", "1.3"]);
 });
+
+test("preserves verified work when a later apply batch appends progress", () => {
+  const tasksContent = `
+# Tasks
+- [ ] 2.1 Update the lite contract
+- [ ] 2.2 Merge previous apply progress
+- [ ] 2.3 Verify acceptance evidence
+`;
+  const mergedProgress = `
+## PR 1
+- [x] 2.1 Update the lite contract
+
+## PR 2
+- [~] 2.2 Merge previous apply progress
+`;
+
+  const resumed = resolveRemainingTasks(tasksContent, mergedProgress);
+
+  assert.deepEqual(resumed.completed.map((task) => task.id), ["2.1"]);
+  assert.deepEqual(resumed.remaining.map((task) => task.id), ["2.2", "2.3"]);
+});

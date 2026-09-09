@@ -43,6 +43,7 @@ Default to `openspec` only when the orchestrator/user selected persisted artifac
 - Preserve raw project/source documents under `docs/references/raw/` before writing processed summaries under `docs/references/processed/`.
 - If `apply-progress.md` exists, merge previous progress with new progress.
 - `proposal-lite.md` is valid only for lite-mode changes. If the change escalates, keep it and create `proposal.md` for the full workflow.
+- `state.yaml.route.actual_route` is the recovery authority: lite accepts proposal-lite, tasks, apply progress, and verify report without specs/design; standard requires proposal, change-local specs, and design before downstream phases. Missing required artifacts block; preserve approvals, assumptions, gates, summaries, and progress without fabrication or implicit promotion.
 - Archive only after verification has no CRITICAL issues and any `PASS WITH WARNINGS` risks are explicitly accepted or converted into follow-up work.
 - The archive is an audit trail. Never delete archived changes.
 - New selective-review runs may add schema-v1 `classification`, normalized `evidence`, `generalist`, and four `dimensions` under `gates.4r-review-gate`, or v2 audit fields under `gates.quality-review-gate` (`selected_domains`, residual evidence, router decision). Update this object by read-merge-write and preserve historical fields. Mixed gate keys fail closed.
