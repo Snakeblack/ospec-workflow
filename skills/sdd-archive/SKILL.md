@@ -53,7 +53,9 @@ Follow **Section A** from `skills/_shared/sdd-phase-common.md`.
 
 ### Step 2: Prepare Spec Content (change-local — no live main-spec writes)
 
-Before preparing anything, inspect `openspec/changes/{change-name}/verify-report.md` and enforce the close gate:
+Before preparing anything, read `state.yaml.route.actual_route` and inspect `openspec/changes/{change-name}/verify-report.md`. Lite requires `proposal-lite.md`, `tasks.md`, `apply-progress.md`, `verify-report.md`, and `state.yaml`; standard also requires proposal, change-local specs, and design. Missing required artifacts block; absent lite specs/design do not.
+
+Enforce the close gate:
 - `FAIL` blocks archive completely.
 - `PASS WITH WARNINGS` may proceed only when the warnings are explicitly documented as accepted risks or converted into follow-up work.
 - If warning acceptance is missing, STOP and return `blocked`.
@@ -234,6 +236,7 @@ continue. ADRs are optional per change.
 - `change`, `source_fingerprint`, `spec_writes[]`, `adr_promotions[]`,
   `archive_inventory[]` (origin paths the runtime must preserve), `accepted_warnings[]`,
   `rollback.strategy: "staging-rename"`
+- For lite, inventory every required lite artifact and no nonexistent proposal/spec/design reference; `spec_writes: []` is valid when no delta specs exist.
 
 Your responsibility ends at: semantic prep (Step 2), archive-report persistence
 (Step 3), ADR promotion proposals (Step 4b), and plan emission (Step 5).

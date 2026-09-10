@@ -74,3 +74,30 @@ Remaining tasks: 2.1–5.3.
 This chained PR slice starts from `feat/compact-lite-contract-pr1` and ends with compact producers/consumers plus recovery. It does not modify archive integrity, generator parity, generated targets, or `dist/`.
 
 Remaining tasks: 4.1–5.3.
+
+## PR 3 — Archive Integrity and Six-Target Parity
+
+### Completed tasks
+
+- [x] 4.1 Route-complete lite archive inventory
+  - The archive validator now requires proposal-lite, tasks, apply progress, verify report, and state for a persisted lite snapshot while retaining schema-v1 and empty `spec_writes` support.
+- [x] 4.2 Fail-closed archive preflight
+  - The transaction snapshot reads the persisted route; missing verify evidence and an invented design inventory entry both reject before mutation and preserve the origin.
+- [x] 5.1–5.2 Compact contract and six-target parity
+  - Added `scripts/compact-lite-contract.test.js` for stable producers, independent verification, absent-filler rejection, standard regression, six generated targets, and an injected unconditional standard read.
+  - Extended the real-repo generator test with the same six-target artifact obligations and five-phase lite order.
+- [x] 5.3 Generated output and full validation
+  - Regenerated and inspected ignored `dist/{claude,vscode,github-copilot,opencode,codex,cursor}`; each generation reported `0 errors, 0 warnings`.
+
+### Focused TDD and verification
+
+- RED: `node --test scripts/lib/archive-plan.test.js` rejected the new lite fixture because a matching but verify-less inventory was previously accepted.
+- GREEN: `node --test scripts/lib/archive-plan.test.js scripts/lib/archive-transaction.test.js scripts/compact-lite-contract.test.js` — 71 passing, 0 failing.
+- `npm test` — completed after the full native suite, including compact lite generation parity.
+- `git diff --check` — no whitespace errors.
+
+### Scope completion
+
+This chained PR slice starts from `feat/compact-lite-contract-pr2` and completes archive integrity plus generator parity. No previous-slice behavior was reverted; generated `dist/` remains an ignored regeneration artifact.
+
+Remaining tasks: none; ready for `sdd-verify`.

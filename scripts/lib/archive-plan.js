@@ -283,6 +283,38 @@ function hasCorruptedSpecContent(text) {
   return false;
 }
 
+const LITE_ARCHIVE_ARTIFACTS = Object.freeze([
+  "proposal-lite.md",
+  "tasks.md",
+  "apply-progress.md",
+  "verify-report.md",
+  "state.yaml",
+]);
+
+function validateLiteArchiveInventory(planPaths, originPaths, snapshot, codes, errors) {
+  if (snapshot.route !== "lite") {
+    return;
+  }
+
+  for (const artifact of LITE_ARCHIVE_ARTIFACTS) {
+    if (!originPaths.has(artifact)) {
+      pushCode(
+        codes,
+        errors,
+        "missing-reference",
+        `lite archive requires ${artifact}`,
+      );
+    } else if (!planPaths.has(artifact)) {
+      pushCode(
+        codes,
+        errors,
+        "inventory-mismatch",
+        `lite archive_inventory omits ${artifact}`,
+      );
+    }
+  }
+}
+
 /**
  * @param {object} plan - already shape-validated (or still checked lightly)
  * @param {object} snapshot
@@ -337,6 +369,8 @@ function validatePlanAgainstSnapshot(plan, snapshot) {
       "archive_inventory or source_fingerprint disagree with origin",
     );
   }
+
+  validateLiteArchiveInventory(planPaths, originPaths, snapshot, codes, errors);
 
   const preparedContent = isPlainObject(snapshot.preparedContent)
     ? snapshot.preparedContent
@@ -480,5 +514,6 @@ module.exports = {
   isRelativeUnder,
   isSafeChangeName,
   isSafeDomain,
+  LITE_ARCHIVE_ARTIFACTS,
 };
 
