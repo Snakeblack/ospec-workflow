@@ -63,8 +63,9 @@ const ALLOWED_PREFIXES = [
 ];
 
 /**
- * Post-K1 successor implementation (K2). These paths MUST NOT be treated as
- * undeclared K1 candidate inventory, and MUST NOT become K1-allowed paths.
+ * Post-K1 successor implementation (K2 and later). These paths MUST NOT be
+ * treated as undeclared K1 candidate inventory, and MUST NOT become K1-allowed
+ * paths.
  */
 const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/lifecycle-model.js",
@@ -175,6 +176,9 @@ const SUCCESSOR_K2_EXACT = new Set([
   // Skill registry runtime for globally installed Codex bundles.
   "scripts/lib/skill-registry.js",
   "scripts/lib/skill-registry.test.js",
+  // PP2 evolves phase-artifact validation without reopening the frozen K1 candidate.
+  "scripts/lib/flow-validator.js",
+  "scripts/lib/flow-validator.test.js",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [
@@ -249,6 +253,15 @@ const PROTECTED_BASELINE_PATHS = [
   "scripts/configure/validate-phase.js",
 ];
 
+/**
+ * A protected K1 path may evolve only through a named post-K1 contract with
+ * direct regression coverage below. This is deliberately narrower than a
+ * general prefix exemption: it preserves the K1 baseline lock everywhere else.
+ */
+const APPROVED_PROTECTED_SUCCESSOR_EVOLUTIONS = new Set([
+  "scripts/configure/validate-phase.js",
+]);
+
 function git(args, options = {}) {
   const result = spawnSync("git", args, {
     cwd: ROOT,
@@ -322,6 +335,10 @@ function isSuccessorK2Path(relativePath) {
   return SUCCESSOR_K2_PREFIXES.some((prefix) => normalized.startsWith(prefix));
 }
 
+function isApprovedProtectedSuccessorEvolution(relativePath) {
+  return APPROVED_PROTECTED_SUCCESSOR_EVOLUTIONS.has(toPosix(relativePath));
+}
+
 function isImplementationPath(relativePath) {
   return (
     relativePath === "docs/architecture/harness-evolution.md" ||
@@ -380,6 +397,8 @@ test("K1 scope guard: K2 successor paths are excluded from K1 inventory governan
   assert.equal(isSuccessorK2Path("scripts/lib/verify-lineage-recovery.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/verify-lineage-recovery.test.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/verify-lineage-recheck.js"), true);
+  assert.equal(isSuccessorK2Path("scripts/lib/flow-validator.js"), true);
+  assert.equal(isSuccessorK2Path("scripts/lib/flow-validator.test.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/verify-lineage-recheck.test.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/transition-parity.js"), false);
   assert.equal(isSuccessorK2Path("scripts/lib/canonical-json.js"), false);
@@ -390,7 +409,9 @@ test("K1 scope guard: K2 successor paths are excluded from K1 inventory governan
   assert.equal(isAllowedK1Path("scripts/lib/minimal-kernel-harness.js"), false);
   assert.equal(isAllowedK1Path("scripts/lib/verify-lineage-recovery.js"), false);
   assert.equal(isAllowedK1Path("scripts/lib/verify-lineage-recheck.js"), false);
+  assert.equal(isAllowedK1Path("scripts/lib/flow-validator.js"), false);
   assert.equal(isK1GovernedImplementationPath("scripts/lib/lifecycle-kernel/reducer.js"), false);
+  assert.equal(isK1GovernedImplementationPath("scripts/lib/flow-validator.js"), false);
   assert.equal(isK1GovernedImplementationPath("scripts/lib/canonical-json.js"), true);
 });
 
@@ -416,7 +437,7 @@ test("K1 scope guard: the frozen candidate implementation inventory is confined 
   );
 });
 
-test("K1 scope guard: fixed routing and phase validation remain byte-equivalent to baseline", () => {
+test("K1 scope guard: fixed routing and phase validation remain byte-equivalent except named successor contracts", () => {
   for (const relativePath of PROTECTED_BASELINE_PATHS) {
     if (relativePath === "openspec/config.yaml") {
       const baseline = git(["show", `${K1_BASELINE}:openspec/config.yaml`]);
@@ -447,8 +468,48 @@ test("K1 scope guard: fixed routing and phase validation remain byte-equivalent 
       );
       continue;
     }
+    if (isApprovedProtectedSuccessorEvolution(relativePath)) continue;
     const result = git(["diff", "--quiet", K1_BASELINE, "--", relativePath]);
     assert.equal(result.status, 0, `${relativePath} changed relative to the fixed K1 baseline`);
+  }
+});
+
+test("K1 scope guard: the PP2 phase-validator successor is narrow and preserves the standard gate", () => {
+  assert.deepEqual(
+    [...APPROVED_PROTECTED_SUCCESSOR_EVOLUTIONS].sort(),
+    ["scripts/configure/validate-phase.js"],
+    "the protected-path exception must stay limited to the PP2 validator contract",
+  );
+
+  const changeDir = fs.mkdtempSync(path.join(ROOT, "openspec", "changes", "k1-validator-"));
+  const changeName = path.basename(changeDir);
+  const validator = path.join(ROOT, "scripts", "configure", "validate-phase.js");
+  const run = (routeName) =>
+    spawnSync(process.execPath, [validator, "sdd-tasks", routeName, changeName], {
+      cwd: ROOT,
+      encoding: "utf8",
+    });
+
+  try {
+    const missingStandardDesign = run("standard");
+    assert.equal(missingStandardDesign.status, 1);
+    assert.match(missingStandardDesign.stderr, /Falta el documento de diseño/);
+
+    fs.writeFileSync(path.join(changeDir, "design.md"), "# Design");
+    const validStandard = run("standard");
+    assert.equal(validStandard.status, 0, validStandard.stderr);
+
+    fs.rmSync(path.join(changeDir, "design.md"));
+    fs.writeFileSync(path.join(changeDir, "proposal-lite.md"), "# Lite proposal");
+    fs.writeFileSync(path.join(changeDir, "state.yaml"), "route:\n  actual_route: lite\n");
+    const validLite = run("lite");
+    assert.equal(validLite.status, 0, validLite.stderr);
+
+    const conflictingRoute = run("standard");
+    assert.equal(conflictingRoute.status, 1);
+    assert.match(conflictingRoute.stderr, /no coincide con la ruta persistida/);
+  } finally {
+    fs.rmSync(changeDir, { recursive: true, force: true });
   }
 });
 

@@ -5,10 +5,11 @@
  * 
  * @param {string} targetPhase - La fase a iniciar (ej. 'sdd-tasks', 'sdd-apply').
  * @param {string[]} routePhases - Lista de fases declaradas en la ruta activa.
- * @param {object} filesPresent - Objeto mapa de archivos presentes { "design.md": true, "tasks.md": false }.
+ * @param {object} filesPresent - Objeto mapa de artefactos presentes.
+ * @param {{routeName?: string}} [options] - Identidad de ruta ya resuelta desde state.yaml.
  * @returns {{ allowed: boolean, reason: string|null }}
  */
-function validatePhaseTransition(targetPhase, routePhases, filesPresent) {
+function validatePhaseTransition(targetPhase, routePhases, filesPresent, options = {}) {
   // Si la ruta está vacía o es manual (freeform), no se imponen restricciones
   if (!Array.isArray(routePhases) || routePhases.length === 0) {
     return { allowed: true, reason: null };
@@ -22,10 +23,42 @@ function validatePhaseTransition(targetPhase, routePhases, filesPresent) {
     };
   }
 
+  const isLiteRoute =
+    options.routeName === "lite" ||
+    (!options.routeName &&
+      routePhases.includes("sdd-propose") &&
+      !routePhases.includes("sdd-spec") &&
+      !routePhases.includes("sdd-design"));
+
   switch (targetPhase) {
+    case "sdd-spec":
+      if (routePhases.includes("sdd-propose") && !filesPresent["proposal.md"]) {
+        return {
+          allowed: false,
+          reason: "Falta la propuesta (proposal.md) requerida por esta ruta antes de crear la especificación.",
+        };
+      }
+      break;
+
+    case "sdd-design":
+      if (routePhases.includes("sdd-spec") && !filesPresent.specs) {
+        return {
+          allowed: false,
+          reason: "Faltan las especificaciones locales (specs/**/spec.md) requeridas por esta ruta antes de crear el diseño.",
+        };
+      }
+      break;
+
     case "sdd-tasks":
-      // Si la ruta declara sdd-design antes de sdd-tasks, exige la presencia de design.md
-      if (routePhases.includes("sdd-design") && !filesPresent["design.md"]) {
+      if (isLiteRoute && !filesPresent["proposal-lite.md"]) {
+        return {
+          allowed: false,
+          reason: "Falta la propuesta lite (proposal-lite.md) requerida por la ruta lite antes de crear las tareas.",
+        };
+      }
+
+      // Si la ruta declara sdd-design antes de sdd-tasks, exige la presencia de design.md.
+      if (!isLiteRoute && routePhases.includes("sdd-design") && !filesPresent["design.md"]) {
         return {
           allowed: false,
           reason: "Falta el documento de diseño (design.md) requerido por esta ruta antes de crear las tareas."

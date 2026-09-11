@@ -2,6 +2,8 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const {
   KNOWN_PHASES,
@@ -21,6 +23,8 @@ const {
   dispatchRoute,
 } = require("./route-dispatcher.js");
 const { FLOOR_GUARANTEES } = require("./change-classification.js");
+
+const ROOT = path.resolve(__dirname, "../..");
 
 // ---------------------------------------------------------------------------
 // Fixtures: the six canonical routes from design.md §The Six Routes
@@ -1205,6 +1209,24 @@ test("selectRoute elevates small change with public_api impact to standard", () 
     "project.status": "active",
   };
   const decision = selectRoute(CANONICAL_TEST_ROUTES, ctx);
+  assert.equal(decision.name, "standard");
+  assert.equal(decision.floor, "planned");
+  assert.ok(decision.reasons.includes("hard_floor.public_api"));
+});
+
+test("configured lite route remains five phases and public API floor selects standard", () => {
+  const routes = parseRoutingTable(fs.readFileSync(path.join(ROOT, "openspec", "config.yaml"), "utf8"));
+  const lite = routes.find((route) => route.name === "lite");
+
+  assert.ok(lite);
+  assert.deepEqual(lite.phases, ["sdd-propose", "sdd-tasks", "sdd-apply", "sdd-verify", "sdd-archive"]);
+  assert.equal(routes.filter((route) => route.name === "lite").length, 1);
+
+  const decision = selectRoute(routes, {
+    classification: "small",
+    "project.status": "active",
+    impact: { public_api: true },
+  });
   assert.equal(decision.name, "standard");
   assert.equal(decision.floor, "planned");
   assert.ok(decision.reasons.includes("hard_floor.public_api"));
