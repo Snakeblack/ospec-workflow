@@ -1,0 +1,852 @@
+/*
+ * Custom Starlight theme overrides for the generated web-doc/ site.
+ * Refined Scandinavian Design System:
+ * - Neutral black-and-white foundation with alpha-based ink & surface rungs
+ * - Restrained sans-serif typography (natural casing, no forced uppercase)
+ * - Generous, calm spacing and natural visual hierarchy
+ * - Quiet, functional micro-interactions (<200ms, reduced-motion compliant)
+ * - Minimalist borders, absence of decorative gradients and heavy glows
+ */
+
+:root {
+  /* --- Typography --- */
+  --sl-font: "Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --sl-font-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --sl-text-sm: 0.875rem;
+  --sl-text-base: 1rem;
+  --sl-text-h1: 2rem;
+
+  /* --- Dark Palette (Nordic Night / Near-Black #0A0A0A) --- */
+  --sl-color-accent-low: rgba(255, 255, 255, 0.06);
+  --sl-color-accent: #ffffff;
+  --sl-color-accent-high: #ffffff;
+
+  --sl-color-bg: #0a0a0a;
+  --sl-color-bg-nav: rgba(10, 10, 10, 0.9);
+  --sl-color-bg-sidebar: #0e0e0e;
+  --sl-color-bg-inline-code: rgba(255, 255, 255, 0.08);
+
+  --sl-color-hairline: rgba(255, 255, 255, 0.09);
+  --sl-color-hairline-light: rgba(255, 255, 255, 0.04);
+  --sl-color-hairline-shade: rgba(0, 0, 0, 0.6);
+
+  --sl-color-text: rgba(255, 255, 255, 0.88);
+  --sl-color-text-accent: #ffffff;
+  --sl-color-text-invert: #0a0a0a;
+
+  --sl-color-gray-1: #ffffff;
+  --sl-color-gray-2: rgba(255, 255, 255, 0.76);
+  --sl-color-gray-3: rgba(255, 255, 255, 0.54);
+  --sl-color-gray-4: rgba(255, 255, 255, 0.38);
+  --sl-color-gray-5: rgba(255, 255, 255, 0.22);
+  --sl-color-gray-6: rgba(255, 255, 255, 0.12);
+  --sl-color-black: #050505;
+  --sl-color-white: #ffffff;
+
+  --sl-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --sl-shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.4);
+  --sl-shadow-lg: 0 12px 24px -4px rgba(0, 0, 0, 0.5);
+
+  background-color: #0a0a0a;
+}
+
+:root[data-theme="light"] {
+  /* --- Light Palette (Nordic Day / Pure Canvas #FFFFFF) --- */
+  /* In Starlight light mode: --sl-color-white is primary high-contrast ink, --sl-color-black is canvas */
+  --sl-color-white: #000000;
+  --sl-color-black: #ffffff;
+
+  --sl-color-gray-1: #000000;
+  --sl-color-gray-2: rgba(0, 0, 0, 0.72);
+  --sl-color-gray-3: rgba(0, 0, 0, 0.52);
+  --sl-color-gray-4: rgba(0, 0, 0, 0.36);
+  --sl-color-gray-5: rgba(0, 0, 0, 0.18);
+  --sl-color-gray-6: rgba(0, 0, 0, 0.08);
+  --sl-color-gray-7: #fafafa;
+
+  --sl-color-accent-low: rgba(0, 0, 0, 0.04);
+  --sl-color-accent: #000000;
+  --sl-color-accent-high: #000000;
+
+  --sl-color-bg: #ffffff;
+  --sl-color-bg-nav: rgba(255, 255, 255, 0.92);
+  --sl-color-bg-sidebar: #fafafa;
+  --sl-color-bg-inline-code: rgba(0, 0, 0, 0.05);
+
+  --sl-color-hairline: rgba(0, 0, 0, 0.09);
+  --sl-color-hairline-light: rgba(0, 0, 0, 0.04);
+  --sl-color-hairline-shade: rgba(0, 0, 0, 0.12);
+
+  --sl-color-text: rgba(0, 0, 0, 0.82);
+  --sl-color-text-accent: #000000;
+  --sl-color-text-invert: #ffffff;
+
+  --sl-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+  --sl-shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.05);
+  --sl-shadow-lg: 0 12px 24px -4px rgba(0, 0, 0, 0.07);
+
+  background-color: #ffffff;
+}
+
+/* ==========================================================================
+   Global Reset & Refinement
+   ========================================================================== */
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+}
+
+@keyframes contentFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sl-markdown-content {
+  animation: contentFadeIn 0.2s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Subtle Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+  transition: background-color 0.15s ease;
+}
+
+:root[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+:root[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* ==========================================================================
+   Header & Navbar (Scandinavian Restraint)
+   ========================================================================== */
+
+header.header {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background-color: var(--sl-color-bg-nav) !important;
+  border-bottom: 1px solid var(--sl-color-hairline);
+}
+
+.site-title {
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  font-size: 1rem;
+  color: var(--sl-color-white) !important;
+}
+
+.site-title img,
+a:has(.site-title) img {
+  border-radius: 4px;
+  transition: transform 0.2s ease, filter 0.15s ease;
+}
+
+:root[data-theme="light"] .site-title img,
+:root[data-theme="light"] a:has(.site-title) img {
+  filter: invert(1);
+}
+
+a:has(.site-title):hover img,
+.site-title:hover img {
+  transform: scale(1.04);
+}
+
+/* Search button */
+site-search button {
+  border-radius: 6px !important;
+  border: 1px solid var(--sl-color-hairline) !important;
+  background: var(--sl-color-bg-sidebar) !important;
+  color: var(--sl-color-gray-3) !important;
+  font-size: 0.8125rem !important;
+  transition: border-color 0.15s ease, color 0.15s ease !important;
+}
+
+site-search button:hover {
+  border-color: var(--sl-color-gray-2) !important;
+  color: var(--sl-color-white) !important;
+}
+
+/* ==========================================================================
+   Left Sidebar: Navigation Menu (Scandinavian Design System)
+   ========================================================================== */
+
+.sidebar-pane {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background-color: var(--sl-color-bg-sidebar) !important;
+  border-right: 1px solid var(--sl-color-hairline);
+}
+
+.sidebar-pane::-webkit-scrollbar {
+  width: 3px;
+}
+
+.sidebar-pane::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+}
+
+:root[data-theme="light"] .sidebar-pane::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.sidebar-content {
+  padding: 1.25rem 0.75rem 3.5rem 0.75rem;
+}
+
+/* Root top-level links */
+.sidebar-content ul.top-level > li {
+  margin-bottom: 0.25rem;
+}
+
+.sidebar-content ul.top-level > li > a {
+  display: flex !important;
+  align-items: center;
+  border-radius: 4px;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.8125rem;
+  font-weight: 450;
+  color: var(--sl-color-gray-3);
+  text-decoration: none !important;
+  transition: color 0.12s ease, background-color 0.12s ease;
+}
+
+.sidebar-content ul.top-level > li > a:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--sl-color-white);
+}
+
+:root[data-theme="light"] .sidebar-content ul.top-level > li > a:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: #000000;
+}
+
+/* Section Groups (Natural Sentence Casing) */
+.sidebar-content details {
+  margin-bottom: 0.2rem;
+}
+
+.sidebar-content summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  padding: 0.35rem 0.55rem;
+  border-radius: 4px;
+  user-select: none;
+  transition: background-color 0.12s ease;
+}
+
+.sidebar-content summary:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+:root[data-theme="light"] .sidebar-content summary:hover {
+  background: rgba(0, 0, 0, 0.025);
+}
+
+.sidebar-content summary .group-label {
+  font-weight: 550;
+  font-size: 0.75rem;
+  text-transform: none !important;
+  letter-spacing: 0.01em;
+  color: var(--sl-color-gray-4);
+  transition: color 0.12s ease;
+}
+
+.sidebar-content summary:hover .group-label {
+  color: var(--sl-color-gray-2);
+}
+
+:root[data-theme="light"] .sidebar-content summary:hover .group-label {
+  color: #000000;
+}
+
+.sidebar-content summary svg.caret {
+  width: 12px;
+  height: 12px;
+  opacity: 0.35;
+  color: var(--sl-color-gray-4);
+  transition: transform 0.15s ease, opacity 0.12s ease;
+}
+
+.sidebar-content summary:hover svg.caret {
+  opacity: 0.7;
+}
+
+.sidebar-content details[open] > summary svg.caret {
+  transform: rotate(90deg);
+  opacity: 0.6;
+}
+
+/* Group inner items with a single delicate tree guideline */
+.sidebar-content details > ul {
+  position: relative;
+  margin: 0.15rem 0 0.35rem 0.65rem !important;
+  padding: 0 0 0 0.55rem !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+:root[data-theme="light"] .sidebar-content details > ul {
+  border-left: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Reset Starlight's duplicate default borders and margins on nested li */
+.sidebar-content ul ul li,
+.sidebar-content details > ul li {
+  border-inline-start: none !important;
+  border-left: none !important;
+  margin-inline-start: 0 !important;
+  padding-inline-start: 0 !important;
+  margin: 1px 0;
+}
+
+.sidebar-content details > ul a {
+  display: flex !important;
+  align-items: center;
+  border-radius: 4px;
+  padding: 0.28rem 0.5rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  font-weight: 400;
+  color: var(--sl-color-gray-3);
+  text-decoration: none !important;
+  transition: color 0.12s ease, background-color 0.12s ease;
+}
+
+.sidebar-content details > ul a:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--sl-color-white);
+}
+
+:root[data-theme="light"] .sidebar-content details > ul a:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: #000000;
+}
+
+/* Active Selected Page in Left Sidebar */
+.sidebar-content a[aria-current="page"] {
+  background: rgba(255, 255, 255, 0.09) !important;
+  color: #ffffff !important;
+  font-weight: 550 !important;
+  box-shadow: none !important;
+}
+
+:root[data-theme="light"] .sidebar-content a[aria-current="page"] {
+  background: rgba(0, 0, 0, 0.065) !important;
+  color: #000000 !important;
+  font-weight: 550 !important;
+}
+
+/* ==========================================================================
+   Right Sidebar: Table of Contents (Scandinavian Design System)
+   ========================================================================== */
+
+.right-sidebar-panel {
+  padding: 1.5rem 1rem 3rem 1.25rem;
+}
+
+starlight-toc {
+  display: block;
+  border-left: 1px solid var(--sl-color-hairline);
+  padding-left: 1rem;
+}
+
+/* TOC Section Heading */
+starlight-toc h2,
+#starlight__on-this-page {
+  font-weight: 550;
+  font-size: 0.75rem;
+  text-transform: none !important;
+  letter-spacing: 0.01em;
+  color: var(--sl-color-gray-4);
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+:root[data-theme="light"] starlight-toc h2,
+:root[data-theme="light"] #starlight__on-this-page {
+  color: rgba(0, 0, 0, 0.45);
+}
+
+/* TOC Links List */
+starlight-toc ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+starlight-toc li {
+  margin: 0.15rem 0;
+  border-left: none !important;
+  border-inline-start: none !important;
+}
+
+starlight-toc a {
+  display: block;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--sl-color-gray-3);
+  text-decoration: none !important;
+  padding: 0.25rem 0.45rem;
+  border-radius: 4px;
+  transition: color 0.12s ease, background-color 0.12s ease;
+}
+
+starlight-toc a:hover {
+  color: var(--sl-color-white);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+:root[data-theme="light"] starlight-toc a:hover {
+  color: #000000;
+  background: rgba(0, 0, 0, 0.035);
+}
+
+/* Indent nested sub-headings in TOC with pure clean whitespace (no duplicate borders) */
+starlight-toc ul ul {
+  padding-left: 0.65rem !important;
+  margin: 0.1rem 0 !important;
+  border-left: none !important;
+  border-inline-start: none !important;
+}
+
+starlight-toc ul ul a {
+  font-size: 0.775rem;
+  color: var(--sl-color-gray-4);
+}
+
+starlight-toc ul ul a:hover {
+  color: var(--sl-color-white);
+}
+
+:root[data-theme="light"] starlight-toc ul ul a:hover {
+  color: #000000;
+}
+
+/* Active Heading Indicator in Right TOC */
+starlight-toc a[aria-current="true"] {
+  color: #ffffff !important;
+  font-weight: 550 !important;
+  background: rgba(255, 255, 255, 0.07) !important;
+}
+
+:root[data-theme="light"] starlight-toc a[aria-current="true"] {
+  color: #000000 !important;
+  background: rgba(0, 0, 0, 0.055) !important;
+}
+
+/* Mobile Table of Contents Dropdown (< 1024px) */
+mobile-starlight-toc {
+  margin-bottom: 1.25rem;
+}
+
+mobile-starlight-toc details {
+  border: 1px solid var(--sl-color-hairline);
+  border-radius: 6px;
+  background: var(--sl-color-bg-sidebar);
+}
+
+mobile-starlight-toc summary {
+  padding: 0.5rem 0.85rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--sl-color-gray-2);
+  cursor: pointer;
+  user-select: none;
+}
+
+:root[data-theme="light"] mobile-starlight-toc summary {
+  color: rgba(0, 0, 0, 0.8);
+}
+
+mobile-starlight-toc .dropdown {
+  padding: 0.5rem 0.85rem 0.75rem 0.85rem;
+  border-top: 1px solid var(--sl-color-hairline);
+}
+
+mobile-starlight-toc .dropdown a {
+  display: block;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--sl-color-gray-3);
+  text-decoration: none !important;
+  padding: 0.25rem 0;
+  transition: color 0.12s ease;
+}
+
+mobile-starlight-toc .dropdown a:hover {
+  color: var(--sl-color-white);
+}
+
+:root[data-theme="light"] mobile-starlight-toc .dropdown a:hover {
+  color: #000000;
+}
+
+/* ==========================================================================
+   Content & Typography (Restrained, Left-Aligned, High Legibility)
+   ========================================================================== */
+
+.sl-markdown-content h1 {
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+  margin-bottom: 1.25rem;
+  color: var(--sl-color-white);
+}
+
+.sl-markdown-content h2 {
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  margin-top: 2.25rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--sl-color-hairline);
+  color: var(--sl-color-white);
+}
+
+.sl-markdown-content h3 {
+  font-weight: 550;
+  letter-spacing: -0.012em;
+  margin-top: 1.75rem;
+  color: var(--sl-color-white);
+}
+
+.sl-markdown-content h4 {
+  font-weight: 500;
+  letter-spacing: -0.008em;
+  color: var(--sl-color-white);
+}
+
+.sl-markdown-content p {
+  line-height: 1.65;
+  color: var(--sl-color-gray-2);
+}
+
+:root[data-theme="light"] .sl-markdown-content p {
+  color: rgba(0, 0, 0, 0.76);
+}
+
+.sl-markdown-content a:not(.sl-badge):not(.anchor-link) {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  color: var(--sl-color-white);
+  transition: opacity 0.12s ease;
+}
+
+.sl-markdown-content a:not(.sl-badge):not(.anchor-link):hover {
+  opacity: 0.8;
+}
+
+:root[data-theme="light"] .sl-markdown-content a:not(.sl-badge):not(.anchor-link) {
+  color: #000000;
+}
+
+/* Inline Code */
+.sl-markdown-content :not(pre) > code {
+  font-family: var(--sl-font-mono);
+  font-size: 0.84em;
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  background: var(--sl-color-bg-inline-code);
+  border: 1px solid var(--sl-color-hairline);
+  color: var(--sl-color-white);
+  font-weight: 450;
+}
+
+:root[data-theme="light"] .sl-markdown-content :not(pre) > code {
+  color: #000000;
+}
+
+/* Blockquotes (Nordic Minimal Bar) */
+.sl-markdown-content blockquote {
+  border-left: 2px solid var(--sl-color-hairline-shade);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 0.75rem 1.25rem;
+  border-radius: 0 6px 6px 0;
+  margin: 1.5rem 0;
+}
+
+:root[data-theme="light"] .sl-markdown-content blockquote {
+  border-left-color: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.sl-markdown-content blockquote p {
+  color: var(--sl-color-gray-2);
+  font-style: normal;
+  margin: 0;
+}
+
+/* Keyboard Keys */
+kbd {
+  font-family: var(--sl-font-mono);
+  font-size: 0.75em;
+  padding: 0.15em 0.45em;
+  border-radius: 4px;
+  border: 1px solid var(--sl-color-hairline);
+  background: var(--sl-color-bg-nav);
+  color: var(--sl-color-gray-2);
+}
+
+/* ==========================================================================
+   Tables (Scandinavian Grid System)
+   ========================================================================== */
+
+.sl-markdown-content table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 6px;
+  border: 1px solid var(--sl-color-hairline);
+  overflow: hidden;
+  width: 100%;
+  margin: 1.75rem 0;
+}
+
+.sl-markdown-content th {
+  background: rgba(255, 255, 255, 0.03);
+  font-weight: 550;
+  font-size: 0.75rem;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--sl-color-hairline);
+  color: var(--sl-color-white);
+  text-align: left;
+}
+
+:root[data-theme="light"] .sl-markdown-content th {
+  background: rgba(0, 0, 0, 0.03);
+  color: #000000;
+}
+
+.sl-markdown-content td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--sl-color-hairline-light);
+  font-size: 0.875rem;
+  color: var(--sl-color-gray-2);
+}
+
+:root[data-theme="light"] .sl-markdown-content td {
+  color: rgba(0, 0, 0, 0.76);
+}
+
+.sl-markdown-content tr:last-child td {
+  border-bottom: none;
+}
+
+.sl-markdown-content tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+:root[data-theme="light"] .sl-markdown-content tbody tr:hover td {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+/* ==========================================================================
+   Asides / Callout Cards (Minimal Semantic Restraint)
+   ========================================================================== */
+
+.starlight-aside {
+  border-radius: 6px;
+  border: 1px solid var(--sl-color-hairline);
+  border-left-width: 3px;
+  padding: 0.85rem 1.15rem;
+  margin: 1.5rem 0;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+:root[data-theme="light"] .starlight-aside {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.starlight-aside--note {
+  border-left-color: rgba(255, 255, 255, 0.6);
+}
+
+:root[data-theme="light"] .starlight-aside--note {
+  border-left-color: rgba(0, 0, 0, 0.6);
+}
+
+.starlight-aside--tip {
+  border-left-color: #10b981;
+}
+
+.starlight-aside--caution {
+  border-left-color: #f59e0b;
+}
+
+.starlight-aside--danger {
+  border-left-color: #ef4444;
+}
+
+.starlight-aside__title {
+  font-weight: 600;
+  font-size: 0.875rem;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.25rem;
+  color: var(--sl-color-white);
+}
+
+:root[data-theme="light"] .starlight-aside__title {
+  color: #000000;
+}
+
+/* ==========================================================================
+   Mermaid Diagrams
+   ========================================================================== */
+
+.mermaid {
+  background: var(--sl-color-bg-sidebar) !important;
+  border: 1px solid var(--sl-color-hairline);
+  border-radius: 6px;
+  padding: 1.75rem 1.25rem;
+  margin: 2rem 0;
+  text-align: center;
+  overflow-x: auto;
+}
+
+/* ==========================================================================
+   Expressive Code & Pre Blocks (Clean Single-Border Frame)
+   ========================================================================== */
+
+.expressive-code {
+  margin: 1.75rem 0;
+}
+
+.expressive-code .frame {
+  border-radius: 6px !important;
+  border: 1px solid var(--sl-color-hairline) !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+}
+
+/* Eliminate duplicate inner borders from ExpressiveCode's pre, code, title, and headers */
+.expressive-code .frame pre,
+.expressive-code pre {
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.expressive-code:not(:has(.frame)) pre {
+  border: 1px solid var(--sl-color-hairline) !important;
+  border-radius: 6px !important;
+}
+
+.expressive-code .frame .header {
+  border: none !important;
+  border-bottom: 1px solid var(--sl-color-hairline) !important;
+}
+
+.expressive-code .frame .header::before,
+.expressive-code .frame .header::after {
+  border: none !important;
+}
+
+.expressive-code .frame .title {
+  border: none !important;
+}
+
+.expressive-code .frame .title::after {
+  border: none !important;
+}
+
+.expressive-code .copy button {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.expressive-code .copy button:active {
+  transform: scale(0.96);
+}
+
+/* ==========================================================================
+   Badges
+   ========================================================================== */
+
+.sl-badge {
+  border-radius: 4px;
+  font-weight: 500;
+  font-size: 0.725rem;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--sl-color-hairline);
+}
+
+/* ==========================================================================
+   Footer & Pagination
+   ========================================================================== */
+
+footer {
+  border-top: 1px solid var(--sl-color-hairline);
+  padding-top: 2rem;
+  margin-top: 4rem;
+}
+
+.pagination-links a {
+  border-radius: 6px;
+  border: 1px solid var(--sl-color-hairline);
+  padding: 0.85rem 1.15rem;
+  background: var(--sl-color-bg-sidebar);
+  color: var(--sl-color-white) !important;
+  text-decoration: none !important;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+:root[data-theme="light"] .pagination-links a {
+  color: #000000 !important;
+}
+
+.pagination-links a:hover {
+  border-color: var(--sl-color-gray-3);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+:root[data-theme="light"] .pagination-links a:hover {
+  border-color: rgba(0, 0, 0, 0.25);
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.pagination-links a:active {
+  transform: scale(0.98);
+}

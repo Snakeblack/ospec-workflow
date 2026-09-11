@@ -1,0 +1,846 @@
+{
+  "schema_version": 1,
+  "families": {
+    "state-transition": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "operation"
+      ],
+      "enum_values": {
+        "kind": [
+          "execute",
+          "collect",
+          "decide",
+          "stop"
+        ]
+      },
+      "command_shapes": [
+        {
+          "kind": "execute",
+          "requires": [
+            "command"
+          ],
+          "argument_required_fields": [
+            "token"
+          ]
+        }
+      ]
+    },
+    "classification": {
+      "required_fields": [
+        "schema_version",
+        "risk",
+        "uncertainty",
+        "execution",
+        "route",
+        "reasons",
+        "fingerprint"
+      ],
+      "enum_values": {
+        "route": [
+          "direct",
+          "repair",
+          "bounded",
+          "planned",
+          "critical"
+        ]
+      },
+      "command_shapes": []
+    },
+    "contract": {
+      "required_fields": [
+        "schema_version",
+        "contract_id",
+        "family",
+        "version"
+      ],
+      "enum_values": {
+        "surface": [
+          "emit",
+          "consume",
+          "both"
+        ]
+      },
+      "command_shapes": []
+    },
+    "graph-node": {
+      "required_fields": [
+        "schema_version",
+        "node_id",
+        "kind",
+        "operation"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "work-order": {
+      "required_fields": [
+        "schema_version",
+        "work_order_id",
+        "node_id",
+        "role",
+        "status"
+      ],
+      "enum_values": {
+        "status": [
+          "pending",
+          "running",
+          "completed",
+          "failed"
+        ]
+      },
+      "command_shapes": []
+    },
+    "candidate": {
+      "required_fields": [
+        "schema_version",
+        "candidate_id",
+        "projection",
+        "base_tree",
+        "candidate_tree",
+        "diff_hash",
+        "paths"
+      ],
+      "enum_values": {
+        "projection": [
+          "workspace",
+          "staged"
+        ]
+      },
+      "command_shapes": []
+    },
+    "evidence": {
+      "required_fields": [
+        "schema_version",
+        "evidence_id",
+        "kind",
+        "digest"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "verification": {
+      "required_fields": [
+        "schema_version",
+        "verification_id",
+        "candidate_id",
+        "verdict"
+      ],
+      "enum_values": {
+        "verdict": [
+          "PASS",
+          "PASS WITH WARNINGS",
+          "FAIL"
+        ]
+      },
+      "command_shapes": []
+    },
+    "finding-review": {
+      "required_fields": [
+        "schema_version",
+        "finding_id",
+        "severity",
+        "dimension",
+        "summary",
+        "blocking"
+      ],
+      "enum_values": {
+        "severity": [
+          "BLOCKER",
+          "CRITICAL",
+          "WARNING",
+          "INFO"
+        ]
+      },
+      "command_shapes": []
+    },
+    "failure-recovery": {
+      "required_fields": [
+        "schema_version",
+        "recovery_id",
+        "failure_code",
+        "mode"
+      ],
+      "enum_values": {
+        "mode": [
+          "focal",
+          "escalate",
+          "stop"
+        ]
+      },
+      "command_shapes": []
+    },
+    "receipt": {
+      "required_fields": [
+        "schema_version",
+        "receipt_id",
+        "candidate_id",
+        "kind",
+        "digest"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "event": {
+      "required_fields": [
+        "schema_version",
+        "event_id",
+        "type",
+        "timestamp"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "operation-permit": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "permit_id",
+        "domain",
+        "operation",
+        "subject_id",
+        "expected_revision",
+        "arguments_digest",
+        "scope_digest",
+        "policy_digest",
+        "budget_ref",
+        "single_use"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "operation-receipt": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "receipt_id",
+        "permit_id",
+        "subject_id",
+        "operation",
+        "revision",
+        "outcome"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "effect-class": {
+      "required_fields": [
+        "schema_version",
+        "effect_class"
+      ],
+      "enum_values": {
+        "effect_class": [
+          "pure",
+          "idempotent-keyed",
+          "probeable",
+          "compensatable",
+          "irreversible"
+        ]
+      },
+      "command_shapes": []
+    },
+    "host-capabilities": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "capabilities"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "host-adapter": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "adapter_id",
+        "adapter_version",
+        "host_version",
+        "capabilities",
+        "transports"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "execution-transport": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "port_id"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "question-transport": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "port_id"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "worker-transport": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "port_id"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "tool-execution-transport": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "port_id"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "delivery-gate-transport": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "port_id"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "capability-proof": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "adapter_id",
+        "adapter_version",
+        "host_version",
+        "fixture",
+        "evidence_digest",
+        "probe_digest"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "transport-request": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "requestId"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "transport-outcome": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "ok"
+      ],
+      "enum_values": {
+        "failure_class": [
+          "timeout",
+          "cancel",
+          "reject",
+          "interrupt",
+          "worker-fail"
+        ]
+      },
+      "command_shapes": []
+    },
+    "transport-failure": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "ok",
+        "failure_class"
+      ],
+      "enum_values": {
+        "failure_class": [
+          "timeout",
+          "cancel",
+          "reject",
+          "interrupt",
+          "worker-fail"
+        ]
+      },
+      "command_shapes": []
+    },
+    "source-snapshot": {
+      "required_fields": [
+        "schema_version",
+        "source_snapshot_id",
+        "repository_id",
+        "base_tree_digest",
+        "projection"
+      ],
+      "enum_values": {
+        "projection": [
+          "workspace",
+          "staged",
+          "commit"
+        ]
+      },
+      "command_shapes": []
+    },
+    "work-result": {
+      "required_fields": [
+        "schema_version",
+        "work_result_id",
+        "work_order_id",
+        "source_snapshot_id",
+        "patch",
+        "commands",
+        "logs",
+        "exit_code",
+        "filesystem_inventory"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "candidate-v2": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "candidate_id",
+        "repository_id",
+        "projection",
+        "base_tree",
+        "candidate_tree",
+        "diff_hash",
+        "paths",
+        "changed_paths_modes_digest",
+        "intended_untracked_digest",
+        "relation"
+      ],
+      "enum_values": {
+        "projection": [
+          "workspace",
+          "staged"
+        ]
+      },
+      "command_shapes": []
+    },
+    "work-order-v2": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "work_order_id",
+        "source_snapshot_id",
+        "node_id",
+        "role",
+        "status",
+        "operation",
+        "objective",
+        "dependencies",
+        "ownership",
+        "allowed_paths",
+        "invariants",
+        "required_evidence",
+        "budget"
+      ],
+      "enum_values": {
+        "status": [
+          "pending",
+          "in_progress",
+          "completed",
+          "failed",
+          "cancelled"
+        ]
+      },
+      "command_shapes": []
+    },
+    "execution-graph": {
+      "required_fields": [
+        "schema_version",
+        "graph_id",
+        "contract_digest",
+        "policy_bundle_digest",
+        "policy_snapshot_id",
+        "source_snapshot_id",
+        "nodes",
+        "obligations"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "policy-snapshot": {
+      "required_fields": [
+        "schema_version",
+        "snapshot_id",
+        "policy_bundle_digest",
+        "compiler_version",
+        "classifier_version",
+        "runtime_version",
+        "effective_rules"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "clarify-event": {
+      "required_fields": [
+        "schema_version",
+        "event_id",
+        "question_id",
+        "answer",
+        "timestamp",
+        "affected_nodes"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "execution-budget": {
+      "required_fields": [
+        "schema_version",
+        "turns",
+        "patches",
+        "commands",
+        "wall_time_minutes",
+        "changed_lines",
+        "allowed_paths"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "authority-effect-budget": {
+      "required_fields": [
+        "schema_version",
+        "effect_attempts",
+        "authority_mutations",
+        "evidence_runs",
+        "review_sweeps"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "causal-failure": {
+      "required_fields": [
+        "schema_version",
+        "failure_id",
+        "category",
+        "code",
+        "priority",
+        "blocking_fingerprint",
+        "details"
+      ],
+      "enum_values": {
+        "category": [
+          "environment_tooling",
+          "cas_conflict",
+          "ambiguous_effect",
+          "validation_gap",
+          "code_defect"
+        ]
+      },
+      "command_shapes": []
+    },
+    "failure-recovery-transition": {
+      "required_fields": [
+        "schema_version",
+        "transition_id",
+        "failure_code",
+        "target_operation",
+        "scope",
+        "expected_advancement"
+      ],
+      "enum_values": {
+        "target_operation": [
+          "repair",
+          "replan",
+          "escalate",
+          "stop"
+        ]
+      },
+      "command_shapes": []
+    },
+    "workspace-descriptor": {
+      "required_fields": [
+        "schema_version",
+        "workspace_id",
+        "root_path",
+        "source_snapshot_id",
+        "status",
+        "created_at"
+      ],
+      "enum_values": {
+        "status": [
+          "active",
+          "disposed",
+          "interrupted"
+        ]
+      },
+      "command_shapes": []
+    },
+    "capsule-definition": {
+      "required_fields": [
+        "schema_version",
+        "capsule_id",
+        "fingerprint",
+        "source_snapshot_id",
+        "dependencies",
+        "allowed_paths",
+        "environment"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "work-result-execution-payload": {
+      "required_fields": [
+        "schema_version",
+        "work_result_id",
+        "work_order_id",
+        "source_snapshot_id",
+        "patch",
+        "commands",
+        "logs",
+        "exit_code",
+        "filesystem_inventory",
+        "execution_usage"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "containment-violation": {
+      "required_fields": [
+        "schema_version",
+        "violation_id",
+        "workspace_id",
+        "work_order_id",
+        "attempted_path",
+        "allowed_paths",
+        "violation_type",
+        "timestamp"
+      ],
+      "enum_values": {
+        "violation_type": [
+          "traversal",
+          "symlink_escape",
+          "undeclared_write",
+          "permission_denied"
+        ]
+      },
+      "command_shapes": []
+    },
+    "evidence-v2": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "evidence_id",
+        "candidate_id",
+        "provenance",
+        "origin",
+        "digest",
+        "node_id"
+      ],
+      "enum_values": {
+        "provenance": [
+          "runtime-observed",
+          "host-attested",
+          "tool-produced",
+          "model-reported",
+          "human-decision",
+          "external-unverified"
+        ]
+      },
+      "command_shapes": []
+    },
+    "verification-v2": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "verification_id",
+        "candidate_id",
+        "verdict",
+        "evidence_ids"
+      ],
+      "enum_values": {
+        "verdict": [
+          "PASS",
+          "PASS WITH WARNINGS",
+          "FAIL"
+        ]
+      },
+      "command_shapes": []
+    },
+    "assurance-graph": {
+      "required_fields": [
+        "schema_version",
+        "graph_id",
+        "candidate_id",
+        "nodes",
+        "edges"
+      ],
+      "enum_values": {
+        "relation": [
+          "verified-by",
+          "satisfies",
+          "derived-from",
+          "invalidates"
+        ]
+      },
+      "command_shapes": []
+    },
+    "assessment": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "assessment_id",
+        "evidence_id",
+        "role",
+        "obligation_id",
+        "node_id",
+        "candidate_id",
+        "policy_snapshot_id"
+      ],
+      "enum_values": {},
+      "command_shapes": []
+    },
+    "assessment-v2": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "assessment_id",
+        "evidence_id",
+        "role",
+        "obligation_id",
+        "node_id",
+        "candidate_id",
+        "policy_snapshot_id",
+        "evidence_requirements_satisfied"
+      ],
+      "enum_values": {
+        "role": [
+          "red",
+          "green",
+          "characterization-before",
+          "characterization-after",
+          "negative",
+          "acceptance",
+          "integration",
+          "invariant",
+          "smoke",
+          "rollback",
+          "dry-run"
+        ]
+      },
+      "command_shapes": []
+    },
+    "runner-receipt": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "receipt_id",
+        "candidate_id",
+        "evidence_id",
+        "node_id",
+        "role",
+        "satisfied_tokens",
+        "outcome",
+        "issuer_id",
+        "transport"
+      ],
+      "enum_values": {
+        "outcome": [
+          "passed",
+          "failed"
+        ],
+        "transport": [
+          "tool-execution-transport",
+          "execution-transport"
+        ]
+      },
+      "command_shapes": []
+    },
+    "challenge-plan": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "plan_id",
+        "candidate_id",
+        "node_id",
+        "policy_snapshot_id",
+        "evidence_strategy",
+        "selected",
+        "skipped",
+        "reasons",
+        "budget"
+      ],
+      "enum_values": {
+        "evidence_strategy": [
+          "bug",
+          "feature",
+          "refactor",
+          "migration",
+          "config-docs",
+          "strict-tdd"
+        ]
+      },
+      "command_shapes": []
+    },
+    "challenge-result": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "result_id",
+        "plan_id",
+        "candidate_id",
+        "node_id",
+        "policy_snapshot_id",
+        "evidence_strategy",
+        "challenge_type",
+        "outcome",
+        "evidence_ids",
+        "details"
+      ],
+      "enum_values": {
+        "outcome": [
+          "passed",
+          "failed",
+          "error"
+        ],
+        "challenge_type": [
+          "revert",
+          "focal-mutation",
+          "independent-acceptance",
+          "regression-acceptance",
+          "compatibility-acceptance",
+          "test-inspection",
+          "structural-validation",
+          "behavior-equivalence",
+          "rollback"
+        ]
+      },
+      "command_shapes": []
+    },
+    "architecture-alternative": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "alternative_id",
+        "candidate_id",
+        "classification",
+        "summary"
+      ],
+      "enum_values": {
+        "classification": ["no-op", "local", "extend-pattern", "new-abstraction"]
+      },
+      "command_shapes": []
+    },
+    "complexity-architecture-delta": {
+      "required_fields": [
+        "schema_version",
+        "kind",
+        "report_id",
+        "candidate_id",
+        "canonical_input_id",
+        "authority",
+        "dimensions",
+        "alternatives",
+        "signals"
+      ],
+      "enum_values": {
+        "authority": ["advisory"]
+      },
+      "command_shapes": []
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "kind": "execute",
+  "operation": "repair-node",
+  "command": "ospec kernel repair-node --node-id=n1",
+  "arguments": [
+    {
+      "name": "node_id",
+      "value": "n1",
+      "token": "--node-id=n1"
+    }
+  ]
+}

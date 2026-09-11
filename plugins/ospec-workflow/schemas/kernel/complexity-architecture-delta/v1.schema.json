@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/complexity-architecture-delta/v1",
+  "title": "ComplexityArchitectureDeltaV1",
+  "type": "object",
+  "schema_version": 1,
+  "required": ["schema_version", "kind", "report_id", "candidate_id", "canonical_input_id", "authority", "dimensions", "alternatives", "signals"],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "kind": { "type": "string", "const": "complexity-architecture-delta/v1" },
+    "report_id": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "candidate_id": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "canonical_input_id": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "authority": { "type": "string", "enum": ["advisory"] },
+    "dimensions": { "$ref": "#/$defs/dimensions" },
+    "alternatives": { "type": "array", "items": { "$ref": "#/$defs/alternative" } },
+    "signals": { "type": "array", "items": { "$ref": "#/$defs/signal" } }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "record": { "type": "object", "required": ["id", "digest"], "properties": { "id": { "type": "string", "minLength": 1 }, "digest": { "$ref": "#/$defs/digest" } }, "additionalProperties": false },
+    "change": { "type": "object", "required": ["id", "before_digest", "after_digest"], "properties": { "id": { "type": "string", "minLength": 1 }, "before_digest": { "$ref": "#/$defs/digest" }, "after_digest": { "$ref": "#/$defs/digest" } }, "additionalProperties": false },
+    "observed": { "type": "object", "required": ["status", "added", "removed", "changed"], "properties": { "status": { "const": "observed" }, "added": { "type": "array", "items": { "$ref": "#/$defs/record" } }, "removed": { "type": "array", "items": { "$ref": "#/$defs/record" } }, "changed": { "type": "array", "items": { "$ref": "#/$defs/change" } } }, "additionalProperties": false },
+    "unavailable": { "type": "object", "required": ["status", "reason"], "properties": { "status": { "const": "unavailable" }, "reason": { "type": "string", "minLength": 1 } }, "additionalProperties": false },
+    "dimension": { "oneOf": [{ "$ref": "#/$defs/observed" }, { "$ref": "#/$defs/unavailable" }] },
+    "dimensions": { "type": "object", "required": ["modules", "interfaces", "dependencies", "configuration", "states", "compatibility", "duplication", "dead_code", "public_api"], "properties": { "modules": { "$ref": "#/$defs/dimension" }, "interfaces": { "$ref": "#/$defs/dimension" }, "dependencies": { "$ref": "#/$defs/dimension" }, "configuration": { "$ref": "#/$defs/dimension" }, "states": { "$ref": "#/$defs/dimension" }, "compatibility": { "$ref": "#/$defs/dimension" }, "duplication": { "$ref": "#/$defs/dimension" }, "dead_code": { "$ref": "#/$defs/dimension" }, "public_api": { "$ref": "#/$defs/dimension" } }, "additionalProperties": false },
+    "rationale": { "type": "object", "required": ["problem", "consumers", "variability", "boundary", "simpler_alternative", "retirement_path"], "properties": { "problem": { "type": "string", "minLength": 1 }, "consumers": { "type": "string", "minLength": 1 }, "variability": { "type": "string", "minLength": 1 }, "boundary": { "type": "string", "minLength": 1 }, "simpler_alternative": { "type": "string", "minLength": 1 }, "retirement_path": { "type": "string", "minLength": 1 } }, "additionalProperties": false },
+    "alternative": { "type": "object", "required": ["schema_version", "kind", "alternative_id", "candidate_id", "classification", "summary"], "properties": { "schema_version": { "const": 1 }, "kind": { "const": "architecture-alternative/v1" }, "alternative_id": { "$ref": "#/$defs/digest" }, "candidate_id": { "$ref": "#/$defs/digest" }, "classification": { "enum": ["no-op", "local", "extend-pattern", "new-abstraction"] }, "summary": { "type": "string", "minLength": 1 }, "rationale": { "$ref": "#/$defs/rationale" } }, "if": { "properties": { "classification": { "const": "new-abstraction" } }, "required": ["classification"] }, "then": { "required": ["rationale"] }, "additionalProperties": false },
+    "signal": { "type": "object", "required": ["signal_id", "code", "question", "basis_refs", "authority"], "properties": { "signal_id": { "$ref": "#/$defs/digest" }, "code": { "type": "string", "enum": ["K6D_NEW_ABSTRACTION_REVIEW"] }, "question": { "type": "string", "minLength": 1 }, "basis_refs": { "type": "array", "items": { "$ref": "#/$defs/digest" }, "uniqueItems": true }, "authority": { "const": "advisory" } }, "additionalProperties": false }
+  }
+}

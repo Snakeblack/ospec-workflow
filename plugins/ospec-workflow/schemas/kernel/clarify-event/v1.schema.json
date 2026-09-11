@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/clarify-event/v1",
+  "title": "ClarifyEventV1",
+  "description": "Kernel ClarifyEvent Schema v1 for typed clarify events and descendant invalidation.",
+  "type": "object",
+  "schema_version": 1,
+  "required": [
+    "schema_version",
+    "event_id",
+    "question_id",
+    "answer",
+    "timestamp",
+    "affected_nodes"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "event_id": {
+      "type": "string"
+    },
+    "question_id": {
+      "type": "string"
+    },
+    "answer": {
+      "type": "string"
+    },
+    "timestamp": {
+      "type": "string"
+    },
+    "affected_nodes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false
+}

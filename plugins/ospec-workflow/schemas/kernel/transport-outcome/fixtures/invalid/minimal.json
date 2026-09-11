@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "kind": "transport-outcome/v1",
+  "ok": true,
+  "failure_class": "timeout",
+  "outcome": "ok"
+}

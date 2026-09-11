@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "recovery_id": "r-1",
+  "failure_code": "verification-fail",
+  "mode": "retry-forever"
+}

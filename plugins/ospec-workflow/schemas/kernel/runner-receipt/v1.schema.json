@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/runner-receipt/v1",
+  "title": "RunnerReceiptV1",
+  "description": "Recibo del runner ligado a una Evidence concreta y a un canal de emisión confiable.",
+  "type": "object",
+  "schema_version": 1,
+  "required": [
+    "schema_version",
+    "kind",
+    "receipt_id",
+    "candidate_id",
+    "evidence_id",
+    "node_id",
+    "role",
+    "satisfied_tokens",
+    "outcome",
+    "issuer_id",
+    "transport"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "kind": {
+      "type": "string",
+      "const": "runner-receipt/v1"
+    },
+    "receipt_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "evidence_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "node_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "red",
+        "green",
+        "patch",
+        "acceptance",
+        "invariants",
+        "invariant",
+        "contract",
+        "integration",
+        "negative",
+        "characterization-before",
+        "characterization-after",
+        "no-behavior-change",
+        "behavioral-delta",
+        "dry-run",
+        "rollback",
+        "incompatibility",
+        "idempotent-re-run",
+        "schema-parser",
+        "smoke",
+        "install",
+        "consume",
+        "docs-only",
+        "annotation"
+      ]
+    },
+    "satisfied_tokens": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "execution_sequence": {
+      "type": "object",
+      "required": [
+        "run_id",
+        "ordinal"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ordinal": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "previous_evidence_id": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "passed",
+        "failed"
+      ]
+    },
+    "issuer_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "transport": {
+      "type": "string",
+      "enum": [
+        "tool-execution-transport",
+        "execution-transport"
+      ]
+    }
+  },
+  "additionalProperties": false
+}
