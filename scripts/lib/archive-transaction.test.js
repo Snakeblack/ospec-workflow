@@ -354,7 +354,7 @@ baseline_fingerprints:
   return { root, changeName, originDir, planPath, plan, inventory, fp };
 }
 
-async function buildLiteWorkspace(t, { includeVerifyReport = true } = {}) {
+async function buildLiteWorkspace(t, { includeVerifyReport = true, includeArchiveReport = true } = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "ospec-lite-archive-tx-"));
   t.after(async () => {
     await fs.rm(root, { recursive: true, force: true });
@@ -382,6 +382,9 @@ async function buildLiteWorkspace(t, { includeVerifyReport = true } = {}) {
   };
   if (includeVerifyReport) {
     files[`${originRel}/verify-report.md`] = "# Verify Report\n";
+  }
+  if (includeArchiveReport) {
+    files[`${originRel}/archive-report.md`] = "# Archive Report\n";
   }
   await writeTree(root, files);
 
@@ -505,6 +508,22 @@ test("FS: lite archive missing verify-report blocks before mutation", async (t) 
     changeName: ctx.changeName,
     planPath: ctx.planPath,
     now: new Date("2026-07-26T12:00:00Z"),
+  });
+
+  assert.equal(receipt.outcome, "failed");
+  assert.ok(receipt.rejection_codes.includes("missing-reference"));
+  assert.equal(receipt.origin_deleted, false);
+  assert.ok(await fs.stat(ctx.originDir));
+});
+
+test("FS: lite archive missing archive-report blocks before mutation", async (t) => {
+  const ctx = await buildLiteWorkspace(t, { includeArchiveReport: false });
+
+  const receipt = await runArchiveTransaction({
+workspace: ctx.root,
+changeName: ctx.changeName,
+planPath: ctx.planPath,
+now: new Date("2026-07-26T12:00:00Z"),
   });
 
   assert.equal(receipt.outcome, "failed");

@@ -53,7 +53,7 @@ Follow **Section A** from `skills/_shared/sdd-phase-common.md`.
 
 ### Step 2: Prepare Spec Content (change-local — no live main-spec writes)
 
-Before preparing anything, read `state.yaml.route.actual_route` and inspect `openspec/changes/{change-name}/verify-report.md`. Lite requires `proposal-lite.md`, `tasks.md`, `apply-progress.md`, `verify-report.md`, and `state.yaml`; standard also requires proposal, change-local specs, and design. Missing required artifacts block; absent lite specs/design do not.
+Before preparing anything, read `state.yaml.route.actual_route` and inspect `openspec/changes/{change-name}/verify-report.md`. Lite requires `proposal-lite.md`, `tasks.md`, `apply-progress.md`, `verify-report.md`, `state.yaml`, and the `archive-report.md` persisted in Step 3 before plan emission; standard also requires proposal, change-local specs, and design. Missing required artifacts block; absent lite specs/design do not.
 
 Enforce the close gate:
 - `FAIL` blocks archive completely.

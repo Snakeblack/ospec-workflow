@@ -288,6 +288,7 @@ const LITE_ARCHIVE_ARTIFACTS = Object.freeze([
   "tasks.md",
   "apply-progress.md",
   "verify-report.md",
+  "archive-report.md",
   "state.yaml",
 ]);
 
