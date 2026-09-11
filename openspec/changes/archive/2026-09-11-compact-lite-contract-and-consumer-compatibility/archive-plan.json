@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "change": "compact-lite-contract-and-consumer-compatibility",
+  "source_fingerprint": "sha256:50311f3523c1aa8b7822b71dd3c2612769f0737d3769aaf52435392ecddc217d",
+  "spec_writes": [
+    {
+      "domain": "routing",
+      "source_delta": "specs/routing/spec.md",
+      "target": "openspec/specs/routing/spec.md",
+      "target_before_sha256": "sha256:d768060a5fc09787628424e14bf28e396bc579f7ae9a14334ccd223adfebaad8",
+      "content_sha256": "sha256:48e846cd0c3a262bbf6c91a2bae92ce279b7fa451991d3d89a7d837cda5feabf"
+    },
+    {
+      "domain": "skills",
+      "source_delta": "specs/skills/spec.md",
+      "target": "openspec/specs/skills/spec.md",
+      "target_before_sha256": "sha256:92c9dfb7b372b20e63c697fd4b0c954306a65ff43f613d958205b39054fb3b41",
+      "content_sha256": "sha256:c4b2f7dd87c04ed1bffd2ca6582d53498a141780f908dd3e08823a10f5c59081"
+    },
+    {
+      "domain": "agents",
+      "source_delta": "specs/agents/spec.md",
+      "target": "openspec/specs/agents/spec.md",
+      "target_before_sha256": "sha256:7b8b6f127b46951ec30309ee0181fe402aac7e7babb3601fe3d900625fb741dd",
+      "content_sha256": "sha256:2c5b992ad15852cee4632f2ebe8c93e2cbc61583102475ed946ac893657e51f9"
+    },
+    {
+      "domain": "generator",
+      "source_delta": "specs/generator/spec.md",
+      "target": "openspec/specs/generator/spec.md",
+      "target_before_sha256": "sha256:6c7e67a77dcf883fc49c47f786cdc729fea1c7d4d1c58b9e875c051acd15f33c",
+      "content_sha256": "sha256:1b5ebf6d00b2a6cdf1b83b19a1532d43041fd0e50a3381e05f1a1bbb95d25c49"
+    },
+    {
+      "domain": "archive-plan-contract",
+      "source_delta": "specs/archive-plan-contract/spec.md",
+      "target": "openspec/specs/archive-plan-contract/spec.md",
+      "target_before_sha256": "sha256:edc5368b7448da48c1460bb2d7622869a95b52e6d05c8d55b3d5b2e58c57b97c",
+      "content_sha256": "sha256:695d8eb97cfce60b5b7df65fa94298034aa3c661442d722299ec3590b7bc70dc"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260911-001-persisted-route-owns-the-artifact-contract.md",
+      "content_sha256": "sha256:cca026c6085be4580facead9173854480245eb124cfe630db72cdd70a30041cd"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "design.md",
+    "proposal.md",
+    "specs/agents/spec.md",
+    "specs/archive-plan-contract/spec.md",
+    "specs/generator/spec.md",
+    "specs/routing/spec.md",
+    "specs/skills/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

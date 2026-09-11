@@ -26,6 +26,8 @@ Also read shared conventions from the repository skills root:
 
 Use OpenSpec as the artifact store. Read all required change artifacts and verification evidence. Write the archive report and emit `archive-plan.json` (Plan-and-Report). Do NOT write live `openspec/specs/**` or `docs/adr/**`, do NOT copy/move the change folder into `openspec/changes/archive/`, and do NOT delete the source directory — those commits belong to `node scripts/archive-transaction-run.js` invoked by the orchestrator.
 Treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as the canonical workflow state for continuation and recovery; never rely on conversation history.
+Use `state.yaml.route.actual_route` to select artifacts: lite requires proposal-lite, tasks, apply progress, and verify report; standard also requires proposal, specs, and design. Missing required artifacts block; absent lite specs/design do not.
+Keep the phase summary factual (at most 160 characters), retain only this phase's artifact references, and return at most three key decisions.
 
 Use the current ISO date when proposing archive destination / ADR target names in the plan.
 

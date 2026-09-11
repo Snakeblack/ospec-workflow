@@ -26,6 +26,8 @@ Also read shared conventions from the repository skills root:
 
 Use OpenSpec as the artifact store. Read the proposal or lite proposal, plus specs and design when required by the skill. Write the tasks artifact to `openspec/changes/{change-name}/tasks.md`.
 Treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as the canonical workflow state for continuation and recovery; never rely on conversation history.
+Use `state.yaml.route.actual_route` as the read contract: lite requires `proposal-lite.md` and tasks only; standard requires proposal, change-local specs, and design. A missing required artifact blocks; absent lite specs/design do not.
+Return only the factual phase artifact reference, a summary of at most 160 characters, and at most three key decisions.
 
 The review workload forecast must include these lines near the top:
 

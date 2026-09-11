@@ -491,7 +491,7 @@ Do not continue to downstream phases while a blocking question is unresolved.
 
 ### Recovery Rule
 
-Read `openspec/changes/*/state.yaml` and the artifacts under each active change folder. Determine resume phase from filesystem state first, then ask only for missing data.
+Read `openspec/changes/*/state.yaml` and the artifacts under each active change folder. Resolve `route.actual_route` first, then derive the next declared incomplete phase from `phases.*` status and artifact availability: lite uses proposal-lite → tasks → apply → verify → archive; standard requires proposal → specs → design before tasks → apply → verify → archive. Preserve approvals, assumptions, gates, phase summaries, and merged apply progress exactly; do not promote a lite change or fabricate a missing artifact. A required artifact missing for the persisted route is a blocked recovery state, not a phase skip.
 
 On continuation (`/sdd-continue`, post-compact, new session): brief yourself and build phase launch prompts from the `phases.*.summary` / `key_decisions` blocks in `state.yaml` (Phase Summary Block, `_shared/sdd-phase-common.md` §C) — do NOT re-read completed phase artifacts inline. Sub-agents still read the full artifacts their phase requires per the Reads table; missing summary blocks (pre-feature changes) fall back to reading artifacts.
 

@@ -322,6 +322,46 @@ test("valid envelope fence is persisted into the active change's state.yaml", as
   );
 });
 
+test("persists a phase summary without replacing route or continuation state", async (t) => {
+  const state = [
+    "change: strict-result-envelope",
+    "status: applying",
+    "route:",
+    "  actual_route: lite",
+    "approvals:",
+    "  - id: delivery-001",
+    "    decision: feature-branch-chain",
+    "assumptions:",
+    "  - id: apply-001",
+    "    status: unresolved",
+    "gates:",
+    "  quality-review-gate:",
+    "    status: pending",
+    "phases:",
+    "  design:",
+    "    status: done",
+    '    artifact: "openspec/changes/strict-result-envelope/design.md"',
+    '    summary: ""',
+    "",
+  ].join("\n");
+  const { workspace, statePath } = await createChangeWorkspace(t, state);
+
+  await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-design",
+      result: buildFenceText(VALID_ENVELOPE),
+    },
+  });
+
+  const updated = await fs.readFile(statePath, "utf8");
+  assert.match(updated, /actual_route: lite/);
+  assert.match(updated, /decision: feature-branch-chain/);
+  assert.match(updated, /id: apply-001/);
+  assert.match(updated, /quality-review-gate:/);
+  assert.match(updated, /summary: "Diseñó el flujo de persistencia del envelope\."/);
+});
+
 test("missing fence — no state.yaml write, stdout/return unaffected", async (t) => {
   const { workspace, statePath } = await createChangeWorkspace(
     t,

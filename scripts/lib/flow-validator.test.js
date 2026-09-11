@@ -68,11 +68,52 @@ test("flow-validator: standard route transitions", () => {
 test("flow-validator: lite route transitions (sdd-tasks doesn't require design.md)", () => {
   const litePhases = ["sdd-propose", "sdd-tasks", "sdd-apply", "sdd-verify", "sdd-archive"];
 
-  // sdd-tasks doesn't require design.md on lite because sdd-design is not in the phases list
-  const t1 = validatePhaseTransition("sdd-tasks", litePhases, { "design.md": false });
+  // Lite starts tasks from proposal-lite, not fabricated full-planning artifacts.
+  const t1 = validatePhaseTransition("sdd-tasks", litePhases, {
+    "proposal-lite.md": true,
+    "proposal.md": false,
+    "specs": false,
+    "design.md": false,
+  });
   assert.equal(t1.allowed, true);
+
+  const t1Missing = validatePhaseTransition("sdd-tasks", litePhases, {
+    "proposal-lite.md": false,
+    "design.md": false,
+  });
+  assert.equal(t1Missing.allowed, false);
+  assert.match(t1Missing.reason, /proposal-lite\.md/);
 
   // sdd-apply still requires tasks.md
   const t2 = validatePhaseTransition("sdd-apply", litePhases, { "tasks.md": false });
   assert.equal(t2.allowed, false);
+});
+
+test("flow-validator: standard route requires each declared predecessor artifact", () => {
+  const standardPhases = [
+    "sdd-propose",
+    "sdd-spec",
+    "sdd-design",
+    "sdd-tasks",
+    "sdd-apply",
+    "sdd-verify",
+    "sdd-archive",
+  ];
+
+  const cases = [
+    ["sdd-spec", "proposal.md"],
+    ["sdd-design", "specs"],
+    ["sdd-tasks", "design.md"],
+    ["sdd-apply", "tasks.md"],
+    ["sdd-verify", "apply-progress.md"],
+    ["sdd-archive", "verify-report.md"],
+  ];
+
+  for (const [phase, artifact] of cases) {
+    const missing = validatePhaseTransition(phase, standardPhases, { [artifact]: false });
+    assert.equal(missing.allowed, false, `${phase} must require ${artifact}`);
+
+    const present = validatePhaseTransition(phase, standardPhases, { [artifact]: true });
+    assert.equal(present.allowed, true, `${phase} must allow ${artifact}`);
+  }
 });

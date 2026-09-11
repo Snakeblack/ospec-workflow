@@ -275,6 +275,26 @@ function readArchiveGateFacts(stateYamlText) {
   };
 }
 
+function readPersistedRoute(stateYamlText) {
+  let inRoute = false;
+
+  for (const raw of String(stateYamlText || "").split(/\r?\n/)) {
+    const content = raw.trim();
+    const indent = raw.match(/^\s*/)[0].length;
+
+    if (indent === 0) {
+      inRoute = content === "route:";
+      continue;
+    }
+
+    if (inRoute && indent === 2 && content.startsWith("actual_route:")) {
+      return yamlScalar(content.slice("actual_route:".length)).toLowerCase();
+    }
+  }
+
+  return "";
+}
+
 function defaultFs() {
   return {
     rename: fsp.rename,
@@ -531,6 +551,15 @@ async function buildSnapshot(workspace, changeName, plan, fsx) {
   const preparedContent = {};
   const preparedTexts = {};
   const adrSources = {};
+  let route = "";
+
+  try {
+    route = readPersistedRoute(
+      await fsx.readFile(path.join(origin, "state.yaml"), "utf8"),
+    );
+  } catch (err) {
+    if (err.code !== "ENOENT") throw err;
+  }
 
   for (const sw of plan.spec_writes || []) {
     const targetAbs = path.join(workspace, ...sw.target.split("/"));
@@ -573,6 +602,7 @@ async function buildSnapshot(workspace, changeName, plan, fsx) {
     preparedContent,
     preparedTexts,
     adrSources,
+    route,
   };
 }
 
@@ -1226,6 +1256,7 @@ async function rollbackTransaction(opts) {
 module.exports = {
   nextTransactionAction,
   readArchiveGateFacts,
+  readPersistedRoute,
   computeInventory,
   runArchiveTransaction,
   rollbackTransaction,
