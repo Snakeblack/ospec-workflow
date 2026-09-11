@@ -1,7 +1,7 @@
 schema_version: 1
 change: compact-lite-contract-and-consumer-compatibility
-status: applying
-last_updated: "2026-09-09T23:42:04Z"
+status: archived
+last_updated: "2026-09-11T08:37:00Z"
 classification: normal
 route:
   intended_route: standard
@@ -96,10 +96,44 @@ phases:
       - "Split the high-risk workload into three review slices while preserving dependency order."
       - "Require an apply decision because the estimate is 700–1,000 changed lines under ask-on-risk."
   apply:
-    status: partial
+    status: done
     artifact: "openspec/changes/compact-lite-contract-and-consumer-compatibility/apply-progress.md"
-    summary: "PR 2 compact consumers and route-aware recovery passed focused tests, npm test, and the pre-commit wrapper."
+    summary: "PR 3 archive integrity and six-target lite parity completed with focused tests and regenerated outputs."
     key_decisions:
-      - "A persisted route conflict or undeclared route blocks validation fail-closed."
-      - "Consumers resolve actual_route before selecting standard or lite artifacts."
-      - "Recovery derives the next lite phase from persisted phase status without mutating continuation state."
+      - "Lite archive preflight requires independent verify evidence before any mutation."
+      - "Generated target parity preserves the five-phase lite route and standard dependency guard."
+  verify:
+    status: done
+    verdict: "PASS"
+    artifact: "openspec/changes/compact-lite-contract-and-consumer-compatibility/verify-report.md"
+    summary: "PASS: 13 tasks and all lite/standard contract scenarios verified with focused, full, and pre-commit checks."
+  archive:
+    status: done
+    artifact: "openspec/changes/compact-lite-contract-and-consumer-compatibility/archive-report.md"
+    summary: "Plan-and-Report emitted with 5 change-local spec writes, 1 ADR promotion, and telemetry cost block. Ready for runtime transaction commit."
+    key_decisions:
+      - "Promote ADR-001 to docs/adr/adr-20260911-001-persisted-route-owns-the-artifact-contract.md."
+      - "Prepare change-local merged specs for routing, skills, agents, generator, and archive-plan-contract."
+gates:
+  quality-review-gate:
+    status: done
+    schema_version: 2
+    classification: normal
+    classification_status: resolved
+    selected_domains:
+      - runtime
+      - efficiency
+      - trust
+      - evolution
+    ambiguity_reasons: []
+    evidence_fingerprint: "sha256:b982251426c9ae3657225de0e7e8ce6422c1fd77d09a28823a5bf7a34d7396d5"
+    capability_coverage:
+      agents: [efficiency]
+      archive-plan-contract: [runtime, efficiency]
+      generator: []
+      routing: [efficiency]
+      skills: []
+    router:
+      classification_status: resolved
+      added_domains: []
+      reason: "ambiguity=resolved;authority-burned"

@@ -1035,3 +1035,20 @@ test("real repo: route-dispatch-run executes directly from generated target outp
   assert.equal(parsed.name, "lite", "execution from generated target output must select lite for small on active repo");
   assert.equal(parsed.classification, "small");
 });
+
+test("real repo: six target outputs retain the compact lite artifact contract", (t) => {
+  const sourceConfig = fs.readFileSync(path.join(ROOT, "openspec", "config.yaml"), "utf8");
+  const lite = parseRoutingTable(sourceConfig).find((route) => route.name === "lite");
+  assert.deepEqual(lite.phases, ["sdd-propose", "sdd-tasks", "sdd-apply", "sdd-verify", "sdd-archive"]);
+
+  for (const target of ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor"]) {
+    const out = tmpOut(t);
+    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
+    const text = walk(out).map((file) => fs.readFileSync(path.join(out, file), "utf8")).join("\n");
+
+    assert.match(text, /state\.yaml\.route\.actual_route/, `${target} must retain persisted route authority`);
+    for (const artifact of ["proposal-lite.md", "tasks.md", "apply-progress.md", "verify-report.md"]) {
+      assert.match(text, new RegExp(artifact.replace(".", "\\.")), `${target} must retain ${artifact}`);
+    }
+  }
+});

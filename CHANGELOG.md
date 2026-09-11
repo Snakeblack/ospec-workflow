@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.66.0] - 2026-09-11
+
+### Added
+- **Contrato compacto de ruta Lite y compatibilidad de consumidores (`compact-lite-contract-and-consumer-compatibility`)**:
+  - Contrato lite de 5 fases (`propose` -> `tasks` -> `apply` -> `verify` -> `archive`) con `proposal-lite.md` y `tasks.md` como artefactos de planificación, manteniendo `spec` y `design` legítimamente ausentes sin requerir artefactos de relleno.
+  - Adaptación de consumidores en `sdd-apply` y `sdd-verify` para soportar `actual_route: lite` con continuidad de `apply-progress.md` y validación de escenarios referenciando etiquetas estables de aceptación.
+  - Integración de cierre e integridad de archivo en `sdd-archive` con preflight y verificación de inventario mínimo para ruta lite (`LITE_ARCHIVE_ARTIFACTS`) sin comprobaciones espurias de deltas inexistentes.
+  - Paridad de generación en los seis targets (`claude`, `vscode`, `github-copilot`, `opencode`, `codex`, `cursor`) preservando el guardián de dependencias estándar.
+  - Actualización y consolidación de especificaciones vivas en `openspec/specs/routing/spec.md` (`REQ-routing-015`), `openspec/specs/skills/spec.md` (`REQ-skills-017`), `openspec/specs/agents/spec.md` (`REQ-agents-028`), `openspec/specs/generator/spec.md` (`REQ-generator-017`) y `openspec/specs/archive-plan-contract/spec.md` (`REQ-archive-plan-contract-004`).
+  - Promoción de ADR en `docs/adr/adr-20260911-001-persisted-route-owns-the-artifact-contract.md`.
+  - Archivado atómico del cambio `compact-lite-contract-and-consumer-compatibility` en `openspec/changes/archive/2026-09-11-compact-lite-contract-and-consumer-compatibility/`.
+
+**Verificación directa**: `npm test` y suites enfocadas de archive y paridad de targets pasando (13/13 tareas verificadas).
+
 ## [2.65.1] - 2026-09-09
 
 ### Added

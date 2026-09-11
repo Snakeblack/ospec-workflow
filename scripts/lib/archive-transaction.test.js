@@ -353,6 +353,58 @@ baseline_fingerprints:
 
   return { root, changeName, originDir, planPath, plan, inventory, fp };
 }
+
+async function buildLiteWorkspace(t, { includeVerifyReport = true, includeArchiveReport = true } = {}) {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "ospec-lite-archive-tx-"));
+  t.after(async () => {
+    await fs.rm(root, { recursive: true, force: true });
+  });
+
+  const changeName = "lite-change";
+  const originRel = `openspec/changes/${changeName}`;
+  const files = {
+    [`${originRel}/proposal-lite.md`]: "# Proposal Lite\n",
+    [`${originRel}/tasks.md`]: "# Tasks\n",
+    [`${originRel}/apply-progress.md`]: "# Apply Progress\n",
+    [`${originRel}/state.yaml`]: [
+      "status: verified",
+      "route:",
+      "  actual_route: lite",
+      "phases:",
+      "  verify:",
+      "    status: done",
+      "    verdict: PASS",
+      "gates:",
+      "  quality-gates:",
+      "    status: passed",
+      "",
+    ].join("\n"),
+  };
+  if (includeVerifyReport) {
+    files[`${originRel}/verify-report.md`] = "# Verify Report\n";
+  }
+  if (includeArchiveReport) {
+    files[`${originRel}/archive-report.md`] = "# Archive Report\n";
+  }
+  await writeTree(root, files);
+
+  const originDir = path.join(root, "openspec", "changes", changeName);
+  const inventory = await computeInventory(originDir);
+  const plan = {
+    schema_version: 1,
+    change: changeName,
+    source_fingerprint: fingerprintInventory(inventory),
+    spec_writes: [],
+    adr_promotions: [],
+    archive_inventory: inventory.map((entry) => entry.path),
+    accepted_warnings: [],
+    rollback: { strategy: "staging-rename" },
+  };
+  const planPath = path.join(originDir, "archive-plan.json");
+  await fs.writeFile(planPath, JSON.stringify(plan, null, 2));
+
+  return { root, changeName, originDir, planPath, plan };
+}
 // --- computeInventory --------------------------------------------------------
 
 test("computeInventory: sorted POSIX paths and raw-byte SHA-256", async (t) => {
@@ -444,6 +496,56 @@ test("FS: hash mismatch after staging blocks delete", async (t) => {
     now: new Date("2026-07-26T12:00:00Z"),
   });
   assert.equal(receipt.outcome, "failed");
+  assert.equal(receipt.origin_deleted, false);
+  assert.ok(await fs.stat(ctx.originDir));
+});
+
+test("FS: lite archive missing verify-report blocks before mutation", async (t) => {
+  const ctx = await buildLiteWorkspace(t, { includeVerifyReport: false });
+
+  const receipt = await runArchiveTransaction({
+    workspace: ctx.root,
+    changeName: ctx.changeName,
+    planPath: ctx.planPath,
+    now: new Date("2026-07-26T12:00:00Z"),
+  });
+
+  assert.equal(receipt.outcome, "failed");
+  assert.ok(receipt.rejection_codes.includes("missing-reference"));
+  assert.equal(receipt.origin_deleted, false);
+  assert.ok(await fs.stat(ctx.originDir));
+});
+
+test("FS: lite archive missing archive-report blocks before mutation", async (t) => {
+  const ctx = await buildLiteWorkspace(t, { includeArchiveReport: false });
+
+  const receipt = await runArchiveTransaction({
+workspace: ctx.root,
+changeName: ctx.changeName,
+planPath: ctx.planPath,
+now: new Date("2026-07-26T12:00:00Z"),
+  });
+
+  assert.equal(receipt.outcome, "failed");
+  assert.ok(receipt.rejection_codes.includes("missing-reference"));
+  assert.equal(receipt.origin_deleted, false);
+  assert.ok(await fs.stat(ctx.originDir));
+});
+
+test("FS: lite archive with invented design reference blocks before mutation", async (t) => {
+  const ctx = await buildLiteWorkspace(t);
+  ctx.plan.archive_inventory.push("design.md");
+  await fs.writeFile(ctx.planPath, JSON.stringify(ctx.plan, null, 2));
+
+  const receipt = await runArchiveTransaction({
+    workspace: ctx.root,
+    changeName: ctx.changeName,
+    planPath: ctx.planPath,
+    now: new Date("2026-07-26T12:00:00Z"),
+  });
+
+  assert.equal(receipt.outcome, "failed");
+  assert.ok(receipt.rejection_codes.includes("inventory-mismatch"));
   assert.equal(receipt.origin_deleted, false);
   assert.ok(await fs.stat(ctx.originDir));
 });

@@ -440,7 +440,110 @@ test("validatePlanAgainstSnapshot: matching snapshot succeeds", () => {
   assert.deepEqual(result.codes, []);
 });
 
-test("validatePlanShape: path confinement rejects ../, absolute, domain ..", () => {
+test("validatePlanAgainstSnapshot: lite inventory requires independent verify evidence", () => {
+  const originInventory = [
+    { path: "apply-progress.md", sha256: sha256Hex(Buffer.from("apply")) },
+    { path: "proposal-lite.md", sha256: sha256Hex(Buffer.from("proposal")) },
+    { path: "state.yaml", sha256: sha256Hex(Buffer.from("state")) },
+    { path: "tasks.md", sha256: sha256Hex(Buffer.from("tasks")) },
+  ];
+  const fingerprint = sha256Hex(Buffer.from(
+    originInventory
+      .slice()
+      .sort((left, right) => left.path.localeCompare(right.path))
+      .map((entry) => `${entry.sha256}  ${entry.path}\n`)
+      .join(""),
+  ));
+  const plan = minimalPlan({
+    source_fingerprint: fingerprint,
+    archive_inventory: originInventory.map((entry) => entry.path),
+  });
+
+  const result = validatePlanAgainstSnapshot(plan, {
+    changeName: "hybrid-archive-transaction-runtime",
+    route: "lite",
+    sourceFingerprint: fingerprint,
+    originInventory,
+    targets: {},
+    preparedContent: {},
+    adrSources: {},
+  });
+
+      assert.equal(result.valid, false);
+      assert.ok(result.codes.includes("missing-reference"));
+    });
+
+    test("validatePlanAgainstSnapshot: lite inventory requires the archive report", () => {
+      const originInventory = [
+        { path: "apply-progress.md", sha256: sha256Hex(Buffer.from("apply")) },
+        { path: "proposal-lite.md", sha256: sha256Hex(Buffer.from("proposal")) },
+        { path: "state.yaml", sha256: sha256Hex(Buffer.from("state")) },
+        { path: "tasks.md", sha256: sha256Hex(Buffer.from("tasks")) },
+        { path: "verify-report.md", sha256: sha256Hex(Buffer.from("verify")) },
+      ];
+      const fingerprint = sha256Hex(Buffer.from(
+        originInventory
+          .slice()
+          .sort((left, right) => left.path.localeCompare(right.path))
+          .map((entry) => `${entry.sha256}  ${entry.path}\n`)
+          .join(""),
+      ));
+      const plan = minimalPlan({
+        source_fingerprint: fingerprint,
+        archive_inventory: originInventory.map((entry) => entry.path),
+      });
+
+      const result = validatePlanAgainstSnapshot(plan, {
+        changeName: "hybrid-archive-transaction-runtime",
+        route: "lite",
+        sourceFingerprint: fingerprint,
+        originInventory,
+        targets: {},
+        preparedContent: {},
+        adrSources: {},
+      });
+
+      assert.equal(result.valid, false);
+      assert.ok(result.codes.includes("missing-reference"));
+      assert.ok(JSON.stringify(result).includes("archive-report.md"));
+    });
+
+    test("validatePlanAgainstSnapshot: complete lite inventory including archive report succeeds", () => {
+      const originInventory = [
+        { path: "apply-progress.md", sha256: sha256Hex(Buffer.from("apply")) },
+        { path: "archive-report.md", sha256: sha256Hex(Buffer.from("report")) },
+        { path: "proposal-lite.md", sha256: sha256Hex(Buffer.from("proposal")) },
+        { path: "state.yaml", sha256: sha256Hex(Buffer.from("state")) },
+        { path: "tasks.md", sha256: sha256Hex(Buffer.from("tasks")) },
+        { path: "verify-report.md", sha256: sha256Hex(Buffer.from("verify")) },
+      ];
+      const fingerprint = sha256Hex(Buffer.from(
+        originInventory
+          .slice()
+          .sort((left, right) => left.path.localeCompare(right.path))
+          .map((entry) => `${entry.sha256}  ${entry.path}\n`)
+          .join(""),
+      ));
+      const plan = minimalPlan({
+        source_fingerprint: fingerprint,
+        archive_inventory: originInventory.map((entry) => entry.path),
+      });
+
+      const result = validatePlanAgainstSnapshot(plan, {
+        changeName: "hybrid-archive-transaction-runtime",
+        route: "lite",
+        sourceFingerprint: fingerprint,
+        originInventory,
+        targets: {},
+        preparedContent: {},
+        adrSources: {},
+      });
+
+      assert.equal(result.valid, true);
+      assert.deepEqual(result.codes, []);
+    });
+
+    test("validatePlanShape: path confinement rejects ../, absolute, domain ..", () => {
   const { isSafeChangeName } = require("./archive-plan.js");
   const digest = sha256Hex(Buffer.from("x"));
   const bad = [

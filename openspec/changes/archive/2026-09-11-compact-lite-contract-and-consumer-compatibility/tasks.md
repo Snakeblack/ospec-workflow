@@ -60,14 +60,14 @@ Chain strategy: feature-branch-chain
 
 ## Phase 4: Archive Integrity
 
-- [ ] 4.1 RED/GREEN: hacer que `scripts/lib/archive-plan.js` construya inventario mínimo lite (incluido `verify-report`) con `spec_writes: []` permitido y rechace ausentes/inexistentes [REQ-archive-plan-contract-004]
-- [ ] 4.2 RED/GREEN: hacer que `scripts/lib/archive-transaction.js` detenga toda mutación ante fingerprint/hash/inventario inválido; añadir casos de diseño inventado y verify omitido en sus tests [REQ-archive-plan-contract-004]
+- [x] 4.1 RED/GREEN: hacer que `scripts/lib/archive-plan.js` construya inventario mínimo lite (incluido `verify-report`) con `spec_writes: []` permitido y rechace ausentes/inexistentes [REQ-archive-plan-contract-004]
+- [x] 4.2 RED/GREEN: hacer que `scripts/lib/archive-transaction.js` detenga toda mutación ante fingerprint/hash/inventario inválido; añadir casos de diseño inventado y verify omitido en sus tests [REQ-archive-plan-contract-004]
 
 ## Phase 5: Generator Parity and Verification
 
-- [ ] 5.1 Crear `scripts/compact-lite-contract.test.js` con fixtures de productor compacto, verify independiente, ausencia sin filler y regresión standard [REQ-generator-017]
-- [ ] 5.2 Extender `scripts/configure/real-repo.test.js` para generar claude, vscode, github-copilot, opencode, codex y cursor; afirmar mismo orden, dependencias y obligaciones, fallando ante spec/design incondicional [REQ-generator-017]
-- [ ] 5.3 Regenerar/inspeccionar `dist/` y ejecutar `node --test scripts/**/*.test.js` y `npm test`; documentar evidencia y cualquier warning aceptado en el progreso [REQ-generator-017, REQ-agents-028]
+- [x] 5.1 Crear `scripts/compact-lite-contract.test.js` con fixtures de productor compacto, verify independiente, ausencia sin filler y regresión standard [REQ-generator-017]
+- [x] 5.2 Extender `scripts/configure/real-repo.test.js` para generar claude, vscode, github-copilot, opencode, codex y cursor; afirmar mismo orden, dependencias y obligaciones, fallando ante spec/design incondicional [REQ-generator-017]
+- [x] 5.3 Regenerar/inspeccionar `dist/` y ejecutar `node --test scripts/**/*.test.js` y `npm test`; documentar evidencia y cualquier warning aceptado en el progreso [REQ-generator-017, REQ-agents-028]
 
 ### Checklist Status Legend
 
