@@ -26,12 +26,12 @@ Run when the orchestrator launches verification for an SDD change. You are the q
 
 ## Hard Rules
 
-- Read the available planning artifacts before judging implementation: `proposal.md` plus spec/design in standard mode, or `proposal-lite.md` in lite mode, alongside `tasks.md`.
+- Read `state.yaml.route.actual_route` before judging implementation. Standard requires `proposal.md`, change-local specs, design, tasks, and apply progress; lite requires `proposal-lite.md`, tasks, and apply progress, and must not be blocked solely because spec/design are absent.
 - In `openspec` mode, treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as canonical workflow state for continuation and recovery; never rely on conversation history.
 - Execute relevant tests when they exist; when runtime testing is immature, record the highest credible evidence level instead of collapsing everything into `UNTESTED`.
 - A spec scenario is compliant only when its evidence level meets the requirement strength defined in the spec.
 - Compare specs first, design second, task completion third.
-- In lite mode, compare `proposal-lite.md` first, then tasks, then implementation evidence.
+- In lite mode, compare every stable `AC-N` in `proposal-lite.md` directly to its task, implementation, and executed or inspection evidence.
 - Do not fix issues; report them for the orchestrator/user.
 - Persist `verify-report` according to mode: openspec file or inline-only for `none`.
 - If Strict TDD is active, load `strict-tdd-verify.md` from this skill directory; if inactive, never load it.
@@ -131,7 +131,7 @@ d. Any entry with `reversibility: low` that remains `unresolved` after this pass
 
 3. Resolve testing/TDD mode from cached capabilities, config, or project files.
 4. Count completed and incomplete tasks.
-5. In standard mode, map each spec requirement/scenario to implementation evidence and tests. In lite mode, map each `proposal-lite.md` acceptance check to evidence.
+5. In standard mode, map each spec requirement/scenario to implementation evidence and tests. In lite mode, map every `proposal-lite.md` `AC-N` acceptance check to its task, implementation, and evidence.
 6. Check design decisions against changed code, including the accepted boundary/invariant constraints and quality scenarios. Trace each applicable scenario to its stated verification method; distinguish measurements from estimates and untested claims. Reuse evidence already gathered. Do not invent quality targets, prescribe a new architecture, or broaden a targeted recheck into discovery.
 7. Run test, build/type-check, coverage, and manual verification steps when available.
 8. Assign the strongest evidence level per scenario, then build the behavioral compliance matrix.

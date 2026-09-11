@@ -48,6 +48,7 @@ Follow **Section A** from `skills/_shared/sdd-phase-common.md`.
 ### Step 2: Reconcile Specs and Design Before Writing Tasks
 
 If planning mode is `lite`:
+- Read `state.yaml.route.actual_route` first. It is authoritative; a supplied planning mode that conflicts with it is blocked rather than reconciled from prose.
 - Read `openspec/changes/{change-name}/proposal-lite.md` as the behavioral contract.
 - Confirm the change is still `trivial` or `small` and does not need dedicated spec/design artifacts.
 - Write `## Lite Change Contract` instead of `## Spec/Design Reconciliation`.
@@ -80,10 +81,10 @@ Carry accepted quality scenarios and architectural constraints into the relevant
 
 ```
 openspec/changes/{change-name}/
-├── proposal.md
-├── specs/
-├── design.md
+├── proposal-lite.md       ← lite only
 └── tasks.md               ← You create this
+
+Standard mode instead requires `proposal.md`, change-local `specs/`, `design.md`, and `tasks.md`.
 ```
 
 **IF mode is `none`:** Do NOT create any `openspec/` directories or files. Compose the tasks content in memory and return it inline in Step 5.
@@ -98,6 +99,7 @@ openspec/changes/{change-name}/
 - Change class: {trivial | small}
 - Behavioral contract: {one-line summary from `proposal-lite.md`}
 - Acceptance checks: {brief list}
+- Traceability: `AC-N` → task id → verification command or inspection evidence
 - Escalation trigger: {what would force full SDD}
 
 ## Spec/Design Reconciliation
@@ -298,6 +300,7 @@ Return to the orchestrator:
 - NEVER include vague tasks like "implement feature" or "add tests"
 - In full mode, ALWAYS emit `## Spec/Design Reconciliation` before the backlog. If any MUST scenario is `missing-design`, return `blocked` instead of writing `tasks.md`.
 - In lite mode, emit `## Lite Change Contract` instead of the reconciliation matrix and use `proposal-lite.md` as the contract.
+- In lite mode, preserve each proposal `AC-N` label in the relevant task and name its concrete verification evidence. Do not create a full reconciliation matrix just to mimic standard mode.
 - If lite planning reveals normal/high-risk scope or a need for dedicated specs/design, STOP and return `blocked` with `escalate-to-standard-sdd`.
 - Apply any `rules.tasks` from `openspec/config.yaml`
 - If the project uses TDD, integrate test-first tasks: RED task (write failing test) → GREEN task (make it pass) → REFACTOR task (clean up)

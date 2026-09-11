@@ -255,6 +255,74 @@ test("does not rewrite an unchanged summary", async (t) => {
   assert.equal(second.status, "fresh");
 });
 
+test("recovers the next lite phase from persisted route and phase statuses", async (t) => {
+  const workspace = await createWorkspace(t);
+
+  await createChange(
+    workspace,
+    "compact-contract",
+    [
+      "change:",
+      "  name: compact-contract",
+      "  status: applying",
+      "route:",
+      "  actual_route: lite",
+      "approvals:",
+      "  - gate: delivery-strategy",
+      "    decision: feature-branch-chain",
+      "assumptions:",
+      "  - id: apply-001",
+      "    status: unresolved",
+      "gates:",
+      "  quality-review-gate:",
+      "    status: pending",
+      "phases:",
+      "  proposal:",
+      "    status: done",
+      '    artifact: "openspec/changes/compact-contract/proposal-lite.md"',
+      "  tasks:",
+      "    status: done",
+      '    artifact: "openspec/changes/compact-contract/tasks.md"',
+      "  apply:",
+      "    status: pending",
+      '    artifact: "openspec/changes/compact-contract/apply-progress.md"',
+      "",
+    ].join("\n"),
+    {
+      "proposal-lite.md": "bounded lite contract\n",
+      "tasks.md": "- [ ] 1.1 Implement bounded behavior\n",
+    },
+  );
+
+  const statePath = path.join(
+    workspace,
+    "openspec",
+    "changes",
+    "compact-contract",
+    "state.yaml",
+  );
+  const before = await fs.readFile(statePath, "utf8");
+
+  await runPreCompact({ input: { cwd: workspace } });
+  const summary = await fs.readFile(
+    path.join(
+      workspace,
+      ".ospec",
+      "session",
+      "compact-contract",
+      "session-summary.md",
+    ),
+    "utf8",
+  );
+
+  assert.match(summary, /## Current phase\n`apply`/);
+  assert.match(
+    summary,
+    /## Last completed artifact\n`openspec\/changes\/compact-contract\/tasks\.md`/,
+  );
+  assert.equal(await fs.readFile(statePath, "utf8"), before);
+});
+
 test("skips cleanly when no active change exists", async (t) => {
   const workspace = await createWorkspace(t);
 

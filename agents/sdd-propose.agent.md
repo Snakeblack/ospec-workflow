@@ -26,6 +26,8 @@ Also read shared conventions from the repository skills root:
 
 Use OpenSpec as the artifact store. Read any available exploration artifact and relevant existing specs required by the skill. Write `openspec/changes/{change-name}/proposal.md` or `openspec/changes/{change-name}/proposal-lite.md` according to the requested mode.
 Treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as the canonical workflow state for continuation and recovery; never rely on conversation history.
+Read `state.yaml.route.actual_route` before selecting the artifact: lite writes `proposal-lite.md`, while standard writes `proposal.md` and continues into specs/design. A conflicting requested mode is blocked fail-closed.
+Return only the factual phase artifact reference, a summary of at most 160 characters, and at most three key decisions.
 
 ## Result Contract
 

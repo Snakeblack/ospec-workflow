@@ -66,10 +66,10 @@ If the orchestrator invoked `sdd-apply` in remediation mode, OR `state.yaml` con
 #### Step 2b: Read Previous Apply Progress & Full Contract Context
 
 For normal task backlog implementation (when no active remediation is pending):
-1. Read assigned `tasks.md` and `openspec/changes/{change-name}/apply-progress.md` if it exists. Call `resolveRemainingTasks(tasksContent, applyProgressContent)` (`scripts/lib/apply-resume.js`) to restore previously completed tasks marked `[x]` and prevent re-executing verified work.
-2. In standard mode, read the specs — understand WHAT the code must do
-3. In standard mode, read the design — understand HOW to structure the code
-4. In lite mode, read `proposal-lite.md` — it is the behavior contract when spec/design are intentionally absent
+1. Read `state.yaml.route.actual_route` before any contract artifact. It is authoritative; a supplied mode that conflicts with it is a fail-closed blocker.
+2. Read assigned `tasks.md` and `openspec/changes/{change-name}/apply-progress.md` if it exists. Call `resolveRemainingTasks(tasksContent, applyProgressContent)` (`scripts/lib/apply-resume.js`) to restore previously completed tasks marked `[x]` and prevent re-executing verified work.
+3. For `standard`, require and read proposal, specs, and design — understand WHAT and HOW.
+4. For `lite`, require and read `proposal-lite.md` plus tasks; it is the behavior contract when spec/design are intentionally absent.
 5. Read existing code in affected files — understand current patterns
 6. Check the project's coding conventions from `config.yaml`
 7. Read `skills/_shared/engineering-judgment.md` once. Apply its proportionality and verification criteria within the assigned contract; use existing helpers when equivalent, without adding speculative layers or broad cleanup. Remediation keeps Step 2a's restricted context and paths.
@@ -243,7 +243,7 @@ If none, say "None."}
 
 ## Rules
 
-- In normal backlog execution, read specs/design in standard mode and `proposal-lite.md` in lite mode; absent lite specs/design are not blockers. Step 2a remediation uses only its frozen findings and restricted context.
+- In normal backlog execution, resolve `state.yaml.route.actual_route` first. Standard requires proposal/specs/design; lite requires proposal-lite/tasks and permits absent spec/design. Step 2a remediation uses only its frozen findings and restricted context.
 - Follow the applicable contract's decisions; internal details left open may be resolved with evidence under the common assumption policy, without redesigning approved boundaries
 - ALWAYS match existing code patterns and conventions in the project
 - In `openspec` mode, update task status in `tasks.md` AS you go, not at the end

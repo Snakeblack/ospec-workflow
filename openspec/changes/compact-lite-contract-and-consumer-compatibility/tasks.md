@@ -48,15 +48,15 @@ Chain strategy: feature-branch-chain
 
 ## Phase 2: Compact Producers and Consumers
 
-- [ ] 2.1 RED/GREEN: actualizar `skills/sdd-propose/SKILL.md` y `skills/sdd-tasks/SKILL.md` para `proposal-lite.md`, etiquetas estables `AC-N`, tareas accionables y evidencia enlazada, sin reconciliación full [REQ-skills-017]
-- [ ] 2.2 RED/GREEN: actualizar `skills/sdd-apply/SKILL.md` y `scripts/lib/apply-resume.test.js` para leer contrato lite y fusionar `apply-progress.md` previo sin repetir tareas completadas [REQ-skills-017]
-- [ ] 2.3 RED/GREEN: actualizar `skills/sdd-verify/SKILL.md` para verificar AC-N, tareas, implementación y evidencia directamente; mantener proposal/spec/design obligatorios en standard [REQ-skills-017]
+- [x] 2.1 RED/GREEN: actualizar `skills/sdd-propose/SKILL.md` y `skills/sdd-tasks/SKILL.md` para `proposal-lite.md`, etiquetas estables `AC-N`, tareas accionables y evidencia enlazada, sin reconciliación full [REQ-skills-017]
+- [x] 2.2 RED/GREEN: actualizar `skills/sdd-apply/SKILL.md` y `scripts/lib/apply-resume.test.js` para leer contrato lite y fusionar `apply-progress.md` previo sin repetir tareas completadas [REQ-skills-017]
+- [x] 2.3 RED/GREEN: actualizar `skills/sdd-verify/SKILL.md` para verificar AC-N, tareas, implementación y evidencia directamente; mantener proposal/spec/design obligatorios en standard [REQ-skills-017]
 
 ## Phase 3: Recovery and Targeted Agent Contracts
 
-- [ ] 3.1 Alinear `agents/sdd-{propose,tasks,apply,verify,archive}.agent.md` con lecturas route-aware, límites de resumen y referencias de artifact; añadir pruebas de `pre-compact` y `subagent-stop` [REQ-agents-028]
-- [ ] 3.2 Actualizar `agents/sdd-orchestrator.agent.md`, `rules/sdd-common.instructions.md` y `rules/sdd-openspec.instructions.md` para recuperar la siguiente fase declarada, bloquear artifacts faltantes y no promover rutas [REQ-agents-028]
-- [ ] 3.3 RED/GREEN: cubrir continuación en dos sesiones/batches y preservar route, refs, approvals, assumptions, gates y progreso en `scripts/lib/apply-resume.test.js`, `scripts/hooks/pre-compact.test.js` y `scripts/hooks/subagent-stop.test.js` [REQ-agents-028]
+- [x] 3.1 Alinear `agents/sdd-{propose,tasks,apply,verify,archive}.agent.md` con lecturas route-aware, límites de resumen y referencias de artifact; añadir pruebas de `pre-compact` y `subagent-stop` [REQ-agents-028]
+- [x] 3.2 Actualizar `agents/sdd-orchestrator.agent.md`, `rules/sdd-common.instructions.md` y `rules/sdd-openspec.instructions.md` para recuperar la siguiente fase declarada, bloquear artifacts faltantes y no promover rutas [REQ-agents-028]
+- [x] 3.3 RED/GREEN: cubrir continuación en dos sesiones/batches y preservar route, refs, approvals, assumptions, gates y progreso en `scripts/lib/apply-resume.test.js`, `scripts/hooks/pre-compact.test.js` y `scripts/hooks/subagent-stop.test.js` [REQ-agents-028]
 
 ## Phase 4: Archive Integrity
 
