@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.66.1] - 2026-09-11
+
+### Fixed
+- **Aceptación canónica end-to-end de ruta Lite y verificación independiente (`compact-lite-contract`)**:
+  - Incorporada prueba de aceptación integral de las cinco fases (`propose` -> `tasks` -> `apply` -> `verify` -> `archive`) con recorrido en change real deliberadamente sin `proposal.md`, `specs/` ni `design.md`.
+  - Demostración de apply acumulativo y reanudable que preserva tareas completadas en `apply-progress.md` entre sesiones.
+  - Verificación runtime verdaderamente independiente que evalúa criterios de aceptación (`AC-1`/`AC-2`) directamente sobre el código, detectando fallos en pruebas adversariales incluso con tareas marcadas como completadas.
+  - Cierre transaccional fail-closed validando el inventario de 6 artefactos de `LITE_ARCHIVE_ARTIFACTS` con `spec_writes: []`.
+  - Elevación del nivel de evidencia de `REQ-skills-017` a `runtime-test` en la matriz de verificación de `openspec/changes/archive/2026-09-11-compact-lite-contract-and-consumer-compatibility/`.
+  - Registro formal de deuda técnica sobre el vocabulario de estados de quality gates en `readArchiveGateFacts()`.
+
+**Verificación directa**: `node --test scripts/compact-lite-contract.test.js` (4/4 tests pasando) y suite completa `node scripts/check.js`.
+
 ## [2.66.0] - 2026-09-11
 
 ### Added

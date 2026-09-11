@@ -1,7 +1,7 @@
 ## Verification Report
 
 **Change**: compact-lite-contract-and-consumer-compatibility
-**Version**: 2.66.0
+**Version**: 2.66.1
 **Mode**: Focused TDD
 **Candidate**: `feat/compact-lite-contract-pr3` (acumula PR1 `1c6fe6f`, PR2 `ab817fb` y PR3 `9848560`)
 
@@ -17,14 +17,14 @@
 
 **Build**: ➖ No build command configured.
 
-**Focused tests**: ✅ 311 passed / ❌ 0 failed / ⚠️ 0 skipped
+**Focused tests**: ✅ 312 passed / ❌ 0 failed / ⚠️ 0 skipped
 
 ```text
 node --test scripts/lib/k1-scope-guard.test.js scripts/lib/flow-validator.test.js scripts/configure/validate-phase.test.js scripts/lib/route-dispatcher.test.js
   122 passed, 0 failed
 
 node --test scripts/lib/apply-resume.test.js scripts/hooks/pre-compact.test.js scripts/hooks/subagent-stop.test.js scripts/lib/archive-plan.test.js scripts/lib/archive-transaction.test.js scripts/compact-lite-contract.test.js
-  146 passed, 0 failed
+  147 passed, 0 failed
 
 node --test scripts/configure/real-repo.test.js
   43 passed, 0 failed
@@ -57,7 +57,7 @@ node scripts/hooks/pre-commit-hook.js
 | REQ-routing-015 | Public API floor rejects lite | `runtime-test` | `route-dispatcher.test.js` > configured lite route remains five phases and public API floor selects standard | PASS | Floor retains standard planning guarantees. |
 | REQ-routing-015 | Route definition does not expand | `runtime-test` | `route-dispatcher.test.js` > configured lite route remains five phases | PASS | Parsed live config fixes the original five phases and no new route. |
 | REQ-skills-017 | Resumed lite apply retains progress | `runtime-test` | `apply-resume.test.js` > preserves verified work when a later apply batch appends progress | PASS | Existing verified entries survive a later batch. |
-| REQ-skills-017 | Lite verify is independent without specs | `static-lint` | `compact-lite-contract.test.js` > compact lite source contract has stable producers, independent verify, and no filler | PASS | Declarative phase contract directly requires lite evidence without filler artifacts. |
+| REQ-skills-017 | Lite verify is independent without specs | `runtime-test` | `compact-lite-contract.test.js` > canonical end-to-end acceptance: 5-phase lite journey with cumulative apply, independent verify, and fail-closed archive | PASS | Evaluates AC-1/AC-2 runtime behavior independently; detects adversarial implementation defect even when tasks are marked complete; validates cumulative apply-progress and fail-closed archive without spec/design. |
 | REQ-skills-017 | Standard route keeps full dependencies | `runtime-test` | `flow-validator.test.js` > standard route requires each declared predecessor artifact | PASS | Lite compatibility does not relax the standard predecessor matrix. |
 | REQ-agents-028 | Lite continuation resumes from persisted state | `runtime-test` | `pre-compact.test.js` > recovers the next lite phase from persisted route and phase statuses | PASS | Recovery selects the next declared incomplete phase from route-owned state. |
 | REQ-agents-028 | Lite summary is factual and compact | `runtime-test` | `subagent-stop.test.js` > persists a phase summary without replacing route or continuation state | PASS | Summary persistence preserves route and continuation data. |
@@ -108,6 +108,10 @@ node scripts/hooks/pre-commit-hook.js
 **WARNING**: None.
 
 **SUGGESTION**: None.
+
+### Technical Debt & Follow-up
+
+- **readArchiveGateFacts status vocabulary divergence**: `scripts/lib/archive-transaction.js` evaluates quality gates using `passed|done|approved|override`, while the canonical Quality Gate schema specifies `pass|fail|skipped|error`. Since quality gates remain disabled in the active configuration, this divergence does not block execution, but is formally tracked as remediation debt for the Quality Gate convergence milestone.
 
 ### Verdict
 
