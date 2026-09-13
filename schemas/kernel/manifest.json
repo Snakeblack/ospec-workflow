@@ -255,6 +255,11 @@
       "path": "schemas/kernel/complexity-architecture-delta/v1.schema.json",
       "$id": "ospec://schemas/kernel/complexity-architecture-delta/v1",
       "schema_version": 1
+    },
+    "result-envelope": {
+      "path": "schemas/kernel/result-envelope/v1/envelope.schema.json",
+      "$id": "https://openspec.io/schemas/kernel/result-envelope/v1.schema.json",
+      "schema_version": 1
     }
   }
 }

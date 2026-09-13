@@ -179,6 +179,10 @@ const SUCCESSOR_K2_EXACT = new Set([
   // PP2 evolves phase-artifact validation without reopening the frozen K1 candidate.
   "scripts/lib/flow-validator.js",
   "scripts/lib/flow-validator.test.js",
+  // CX1 additive result-envelope implementation.
+  "scripts/lib/result-envelope.js",
+  "scripts/lib/result-envelope.test.js",
+  "scripts/lib/result-envelope-schema-fixtures.test.js",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [
@@ -246,6 +250,8 @@ const SUCCESSOR_K2_PREFIXES = [
   "schemas/kernel/challenge-result/",
   "schemas/kernel/architecture-alternative/",
   "schemas/kernel/complexity-architecture-delta/",
+  "schemas/kernel/result-envelope/",
+  "schemas/kernel/result-envelope.schema.json",
 ];
 
 const PROTECTED_BASELINE_PATHS = [

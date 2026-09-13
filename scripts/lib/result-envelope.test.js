@@ -3,9 +3,15 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { extractEnvelope, validateEnvelope } = require("./result-envelope.js");
+const {
+  extractEnvelope,
+  validateEnvelope,
+  adaptLegacyEnvelope,
+  renderEnvelopeToMarkdown,
+} = require("./result-envelope.js");
 
 const VALID_ENVELOPE = {
+  schema_version: 1,
   status: "success",
   executive_summary: "Did the thing.",
   artifacts: ["openspec/changes/foo/design.md"],
@@ -66,6 +72,7 @@ test("validateEnvelope: valid envelope passes with no errors", () => {
 });
 
 for (const field of [
+  "schema_version",
   "status",
   "executive_summary",
   "artifacts",
@@ -344,3 +351,169 @@ test("validateEnvelope: partial and blocked sdd-spec do not require signals", ()
     errors: [],
   });
 });
+
+test("validateEnvelope: schema_version must be exactly 1", () => {
+  const badVersion = validateEnvelope({ ...VALID_ENVELOPE, schema_version: 2 });
+  assert.equal(badVersion.valid, false);
+  assert.ok(badVersion.errors.some((e) => e.includes("schema_version")));
+
+  const stringVersion = validateEnvelope({ ...VALID_ENVELOPE, schema_version: "1" });
+  assert.equal(stringVersion.valid, false);
+  assert.ok(stringVersion.errors.some((e) => e.includes("schema_version")));
+});
+
+// --- adaptLegacyEnvelope ----------------------------------------------------
+
+test("adaptLegacyEnvelope: already valid v1 object returns as-is", () => {
+  const result = adaptLegacyEnvelope(VALID_ENVELOPE);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.envelope, VALID_ENVELOPE);
+});
+
+test("adaptLegacyEnvelope: normalizes unversioned object with summary to v1", () => {
+  const legacy = {
+    status: "success",
+    summary: "Legacy summary field",
+    artifacts: ["openspec/changes/foo/design.md"],
+    next_recommended: "sdd-tasks",
+    risks: "None",
+    skill_resolution: "injected",
+    key_decisions: ["Decision 1"],
+  };
+
+  const result = adaptLegacyEnvelope(legacy);
+  assert.equal(result.ok, true);
+  assert.equal(result.envelope.schema_version, 1);
+  assert.equal(result.envelope.executive_summary, "Legacy summary field");
+  assert.equal(result.envelope.status, "success");
+  assert.deepEqual(result.envelope.key_decisions, ["Decision 1"]);
+});
+
+test("adaptLegacyEnvelope: normalizes unversioned fence in text", () => {
+  const text = [
+    "Some prose here.",
+    "```json:result-envelope",
+    JSON.stringify({
+      status: "success",
+      summary: "Completed work.",
+      artifacts: ["foo.md"],
+      next_recommended: "sdd-verify",
+      risks: "None",
+      skill_resolution: "injected",
+    }),
+    "```",
+  ].join("\n");
+
+  const result = adaptLegacyEnvelope(text);
+  assert.equal(result.ok, true);
+  assert.equal(result.envelope.schema_version, 1);
+  assert.equal(result.envelope.executive_summary, "Completed work.");
+  assert.equal(result.envelope.status, "success");
+});
+
+test("adaptLegacyEnvelope: normalizes legacy plain-prose envelope lines", () => {
+  const prose = [
+    "Here is the report:",
+    "**Status**: success",
+    "**Summary**: Proposal created for feature.",
+    "**Artifacts**: `openspec/changes/feat/proposal.md`",
+    "**Next**: sdd-spec",
+    "**Risks**: None",
+    "**Skill Resolution**: injected — 3 skills",
+  ].join("\n");
+
+  const result = adaptLegacyEnvelope(prose);
+  assert.equal(result.ok, true);
+  assert.equal(result.envelope.schema_version, 1);
+  assert.equal(result.envelope.status, "success");
+  assert.equal(result.envelope.executive_summary, "Proposal created for feature.");
+  assert.deepEqual(result.envelope.artifacts, ["openspec/changes/feat/proposal.md"]);
+  assert.equal(result.envelope.next_recommended, "sdd-spec");
+  assert.equal(result.envelope.risks, "None");
+  assert.equal(result.envelope.skill_resolution, "injected");
+});
+
+test("adaptLegacyEnvelope: malformed or missing input fails fail-safely", () => {
+  assert.equal(adaptLegacyEnvelope("Just unstructured rambling without envelope").ok, false);
+  assert.equal(adaptLegacyEnvelope(null).ok, false);
+  assert.equal(adaptLegacyEnvelope(undefined).ok, false);
+  assert.equal(adaptLegacyEnvelope(42).ok, false);
+  assert.equal(adaptLegacyEnvelope("```json:result-envelope\n{ invalid json\n```").ok, false);
+});
+
+// --- renderEnvelopeToMarkdown -----------------------------------------------
+
+test("renderEnvelopeToMarkdown: renders success envelope deterministically", () => {
+  const envelope = {
+    schema_version: 1,
+    status: "success",
+    executive_summary: "Designed auth system.",
+    artifacts: ["openspec/changes/auth/design.md"],
+    next_recommended: "sdd-tasks",
+    risks: "None",
+    skill_resolution: "injected",
+    key_decisions: ["Use RS256", "Stateless refresh tokens"],
+  };
+
+  const md = renderEnvelopeToMarkdown(envelope);
+  assert.ok(md.includes("success") || md.includes("Success"));
+  assert.ok(md.includes("Designed auth system."));
+  assert.ok(md.includes("openspec/changes/auth/design.md"));
+  assert.ok(md.includes("sdd-tasks"));
+  assert.ok(md.includes("RS256"));
+  assert.ok(md.includes("Stateless refresh tokens"));
+});
+
+test("renderEnvelopeToMarkdown: renders blocked envelope with question_gate and options", () => {
+  const blocked = {
+    schema_version: 1,
+    status: "blocked",
+    executive_summary: "Blocked on workload decision.",
+    artifacts: "inline",
+    next_recommended: "sdd-tasks",
+    risks: "Scope creep",
+    skill_resolution: "injected",
+    blocker_type: "workload-escalation",
+    question_gate: {
+      reason: "Workload exceeds budget.",
+      questions: [
+        {
+          header: "Chain Strategy",
+          question: "Which chain strategy?",
+          options: [
+            { label: "feature-branch-chain", description: "Use feature branch", recommended: true },
+            { label: "single-pr", description: "Use single PR", recommended: false },
+          ],
+        },
+      ],
+    },
+  };
+
+  const md = renderEnvelopeToMarkdown(blocked);
+  assert.ok(md.includes("blocked") || md.includes("Blocked"));
+  assert.ok(md.includes("Blocked on workload decision."));
+  assert.ok(md.includes("workload-escalation"));
+  assert.ok(md.includes("Workload exceeds budget."));
+  assert.ok(md.includes("Chain Strategy"));
+  assert.ok(md.includes("feature-branch-chain"));
+  assert.ok(md.includes("single-pr"));
+});
+
+test("renderEnvelopeToMarkdown: preserves payload integrity and never mutates input", () => {
+  const envelope = Object.freeze({
+    schema_version: 1,
+    status: "success",
+    executive_summary: "Preserve purity.",
+    artifacts: Object.freeze(["file.md"]),
+    next_recommended: "sdd-verify",
+    risks: "None",
+    skill_resolution: "injected",
+    key_decisions: Object.freeze(["Pure function"]),
+  });
+
+  const snapshotBefore = JSON.stringify(envelope);
+  const md = renderEnvelopeToMarkdown(envelope);
+  assert.equal(typeof md, "string");
+  assert.equal(JSON.stringify(envelope), snapshotBefore);
+});
+

@@ -21,6 +21,7 @@ const {
   readBaselineState,
   readStagedFiles,
   readState,
+  projectPhaseCompletion,
   setPhaseSummary,
   withAppendLock,
   withFileLock,
@@ -1169,4 +1170,282 @@ test("appendPhaseCost assigns relaunch: false on first append and relaunch: true
   assert.equal(res3.record.row_index, 2);
   assert.equal(res4.record.row_index, 3);
 });
+
+// --- projectPhaseCompletion -------------------------------------------------
+
+test("projectPhaseCompletion: successfully projects phase completion under lock [REQ-lifecycle-kernel-029]", async (t) => {
+  const workspace = await createWorkspace(t);
+  const changeDir = path.join(workspace, "openspec", "changes", "jwt-auth");
+  await fs.mkdir(changeDir, { recursive: true });
+  const statePath = path.join(changeDir, "state.yaml");
+
+  const initialState = [
+    "schema_version: 1",
+    "change: jwt-auth",
+    "status: planning",
+    "revision: 1",
+    "approvals:",
+    "  - id: briefing-001",
+    "    gate: intent-briefing",
+    "    decision: accepted",
+    "phases:",
+    "  proposal:",
+    "    status: done",
+    "    artifact: proposal.md",
+    "  design:",
+    "    status: pending",
+    "    artifact: design.md",
+    "  tasks:",
+    "    status: pending",
+    "    artifact: tasks.md",
+  ].join("\n");
+  await fs.writeFile(statePath, initialState, "utf8");
+
+  const envelope = {
+    schema_version: 1,
+    status: "success",
+    executive_summary: "Designed stateless JWT auth.",
+    artifacts: ["openspec/changes/jwt-auth/design.md"],
+    next_recommended: "sdd-tasks",
+    risks: "None",
+    skill_resolution: "injected",
+    key_decisions: ["RS256 algorithm", "Rotate refresh tokens"],
+  };
+
+  const result = await projectPhaseCompletion({
+    changePath: changeDir,
+    phase: "design",
+    envelope,
+    expectedRevision: 1,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.outcome, "advanced");
+  assert.equal(result.state.phases.design.status, "done");
+  assert.equal(result.state.revision, 2);
+
+  const updatedContent = await fs.readFile(statePath, "utf8");
+  assert.match(updatedContent, /status: "done"|status: done/);
+  assert.match(updatedContent, /summary: "Designed stateless JWT auth\."/);
+  assert.match(updatedContent, /key_decisions:/);
+  assert.match(updatedContent, /RS256 algorithm/);
+  assert.match(updatedContent, /decision: accepted/); // approvals preserved
+});
+
+test("projectPhaseCompletion: recovers orphaned .bak file before read [REQ-lifecycle-kernel-029]", async (t) => {
+  const workspace = await createWorkspace(t);
+  const changeDir = path.join(workspace, "openspec", "changes", "recovery-test");
+  await fs.mkdir(changeDir, { recursive: true });
+  const statePath = path.join(changeDir, "state.yaml");
+  const bakPath = path.join(changeDir, "state.yaml.bak");
+
+  const bakContent = [
+    "schema_version: 1",
+    "change: recovery-test",
+    "status: planning",
+    "revision: 1",
+    "phases:",
+    "  design:",
+    "    status: pending",
+    "    artifact: design.md",
+  ].join("\n");
+  // state.yaml missing, only state.yaml.bak exists
+  await fs.writeFile(bakPath, bakContent, "utf8");
+
+  const envelope = {
+    schema_version: 1,
+    status: "success",
+    executive_summary: "Recovered and projected.",
+    artifacts: ["design.md"],
+    next_recommended: "sdd-tasks",
+    risks: "None",
+    skill_resolution: "injected",
+  };
+
+  const result = await projectPhaseCompletion({
+    changePath: changeDir,
+    phase: "design",
+    envelope,
+  });
+
+  assert.equal(result.ok, true);
+  assert.ok(result.state);
+  const stateExists = await fs.stat(statePath).then(() => true).catch(() => false);
+  assert.equal(stateExists, true, "state.yaml must be recovered and written");
+});
+
+test("projectPhaseCompletion: fails closed with CAS conflict when expectedRevision mismatches [REQ-lifecycle-kernel-029]", async (t) => {
+  const workspace = await createWorkspace(t);
+  const changeDir = path.join(workspace, "openspec", "changes", "cas-test");
+  await fs.mkdir(changeDir, { recursive: true });
+  const statePath = path.join(changeDir, "state.yaml");
+
+  const stateContent = [
+    "schema_version: 1",
+    "change: cas-test",
+    "status: planning",
+    "revision: 3",
+    "phases:",
+    "  design:",
+    "    status: pending",
+    "    artifact: design.md",
+  ].join("\n");
+  await fs.writeFile(statePath, stateContent, "utf8");
+
+  const envelope = {
+    schema_version: 1,
+    status: "success",
+    executive_summary: "Stale write attempt.",
+    artifacts: ["design.md"],
+    next_recommended: "sdd-tasks",
+    risks: "None",
+    skill_resolution: "injected",
+  };
+
+  const result = await projectPhaseCompletion({
+    changePath: changeDir,
+    phase: "design",
+    envelope,
+    expectedRevision: 2, // expected 2, head is 3
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.outcome, "cas-conflict");
+  assert.equal(result.code, "cas_conflict");
+
+  const unchangedContent = await fs.readFile(statePath, "utf8");
+  assert.equal(unchangedContent, stateContent, "state file must not be modified on CAS conflict");
+});
+
+test("projectPhaseCompletion: idempotent replay produces noop-replay without file mutation [REQ-lifecycle-kernel-029]", async (t) => {
+  const workspace = await createWorkspace(t);
+  const changeDir = path.join(workspace, "openspec", "changes", "replay-test");
+  await fs.mkdir(changeDir, { recursive: true });
+  const statePath = path.join(changeDir, "state.yaml");
+
+  const stateContent = [
+    "schema_version: 1",
+    "change: replay-test",
+    "status: planning",
+    "revision: 1",
+    "phases:",
+    "  design:",
+    "    status: pending",
+    "    artifact: design.md",
+  ].join("\n");
+  await fs.writeFile(statePath, stateContent, "utf8");
+
+  const envelope = {
+    schema_version: 1,
+    status: "success",
+    executive_summary: "First projection run.",
+    artifacts: ["design.md"],
+    next_recommended: "sdd-tasks",
+    risks: "None",
+    skill_resolution: "injected",
+  };
+
+  const first = await projectPhaseCompletion({
+    changePath: changeDir,
+    phase: "design",
+    envelope,
+  });
+  assert.equal(first.ok, true);
+  assert.equal(first.outcome, "advanced");
+
+  const contentAfterFirst = await fs.readFile(statePath, "utf8");
+
+  // Replay identical envelope
+  const replay = await projectPhaseCompletion({
+    changePath: changeDir,
+    phase: "design",
+    envelope,
+  });
+  assert.equal(replay.ok, true);
+  assert.equal(replay.outcome, "noop-replay");
+
+  const contentAfterReplay = await fs.readFile(statePath, "utf8");
+  assert.equal(contentAfterReplay, contentAfterFirst, "file must not change on replay");
+});
+
+test("projectPhaseCompletion: projects blocked status with blocking_questions [REQ-lifecycle-kernel-029]", async (t) => {
+  const workspace = await createWorkspace(t);
+  const changeDir = path.join(workspace, "openspec", "changes", "block-test");
+  await fs.mkdir(changeDir, { recursive: true });
+  const statePath = path.join(changeDir, "state.yaml");
+
+  const stateContent = [
+    "schema_version: 1",
+    "change: block-test",
+    "status: applying",
+    "phases:",
+    "  apply:",
+    "    status: pending",
+    "    artifact: apply-progress.md",
+  ].join("\n");
+  await fs.writeFile(statePath, stateContent, "utf8");
+
+  const envelope = {
+    schema_version: 1,
+    status: "blocked",
+    executive_summary: "Blocked on user input.",
+    artifacts: "inline",
+    next_recommended: "sdd-tasks",
+    risks: "Delays",
+    skill_resolution: "injected",
+    blocker_type: "needs_user_decision",
+    question_gate: {
+      reason: "Need user decision on database schema.",
+      questions: [
+        {
+          header: "DB Schema",
+          question: "Which database engine?",
+          options: [{ label: "sqlite", description: "Embedded", recommended: true }],
+        },
+      ],
+    },
+  };
+
+  const result = await projectPhaseCompletion({
+    changePath: changeDir,
+    phase: "apply",
+    envelope,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.outcome, "blocked");
+  assert.equal(result.state.status, "blocked");
+
+  const content = await fs.readFile(statePath, "utf8");
+  assert.match(content, /status: blocked/);
+  assert.match(content, /blocking_questions:/);
+  assert.match(content, /Which database engine\?/);
+});
+
+test("projectPhaseCompletion: repeat projection preserves non-projected phase fields [REQ-lifecycle-kernel-029]", async (t) => {
+  const workspace = await createWorkspace(t);
+  const changeDir = path.join(workspace, "openspec", "changes", "preserve-test");
+  await fs.mkdir(changeDir, { recursive: true });
+  const statePath = path.join(changeDir, "state.yaml");
+  const reportPath = "openspec/changes/preserve-test/verify-report.md";
+  await fs.writeFile(statePath, [
+    "schema_version: 1", "change: preserve-test", "status: ready-for-verify", "revision: 1",
+    "phases:", "  verify:", "    status: pending", "    verdict: PASS",
+    `    report: ${reportPath}`, `    artifacts:`, `      - ${reportPath}`,
+    "    key_decisions:", '      - "Keep single reducer"',
+].join("\n"), "utf8");
+  const envelope = {
+    schema_version: 1, status: "success", executive_summary: "Re-verified after correction.",
+    artifacts: "inline", next_recommended: "sdd-archive", risks: "None", skill_resolution: "injected",
+  };
+  await projectPhaseCompletion({ changePath: changeDir, phase: "verify", envelope });
+  const content = await fs.readFile(statePath, "utf8");
+  assert.ok(content.includes("status: done"));
+  assert.ok(content.includes("verdict: PASS"));
+  assert.ok(content.includes("report: " + reportPath));
+  assert.ok(content.includes("      - " + reportPath));
+  assert.ok(content.includes('- "Keep single reducer"'));
+  assert.ok(content.includes('summary: "Re-verified after correction."'));
+});
+
 

@@ -297,4 +297,10 @@ function allTerminal(state) {
   );
 }
 
-module.exports = { reduceLifecycle, DEFAULT_EFFECT_CLASS };
+const { reducePhaseCompletion } = require("./phase-completion-reducer.js");
+
+module.exports = {
+  reduceLifecycle,
+  reducePhaseCompletion,
+  DEFAULT_EFFECT_CLASS,
+};

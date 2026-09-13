@@ -841,6 +841,37 @@
         "authority": ["advisory"]
       },
       "command_shapes": []
+    },
+    "result-envelope": {
+      "required_fields": [
+        "schema_version",
+        "status",
+        "executive_summary",
+        "artifacts",
+        "next_recommended",
+        "risks",
+        "skill_resolution"
+      ],
+      "enum_values": {
+        "status": [
+          "success",
+          "partial",
+          "blocked"
+        ],
+        "skill_resolution": [
+          "injected",
+          "fallback-registry",
+          "fallback-path",
+          "none"
+        ],
+        "blocker_type": [
+          "needs_user_decision",
+          "design-mismatch",
+          "spec-change-required",
+          "workload-escalation"
+        ]
+      },
+      "command_shapes": []
     }
   }
 }

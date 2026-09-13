@@ -15,13 +15,14 @@ const {
   appendContextMeasurement,
   findActiveChanges,
   findOpenSpecRoot,
+  projectPhaseCompletion,
   setPhaseSummary,
   withFileLock,
 } = require("../lib/ospec-state.js");
 const { normalizeContextMeasurement, validateContextMeasurement } = require("../lib/context-measurement.js");
 const { extractClaudeTelemetry } = require("./lib/claude-usage.js");
 const { writeFileAtomic, recoverOrphanBak } = require("../lib/atomic-write.js");
-const { extractEnvelope, validateEnvelope } = require("../lib/result-envelope.js");
+const { extractEnvelope, validateEnvelope, adaptLegacyEnvelope } = require("../lib/result-envelope.js");
 const { resolveModelTier } = require("./lib/model-tier.js");
 const {
   UNRESOLVED,
@@ -447,6 +448,11 @@ async function findEnvelopeInTranscript(transcriptPath) {
  * schema-invalid, no active change, non-"sdd-" agent, lock/write failure)
  * silently no-ops without throwing and without affecting the hook's stdout.
  */
+/**
+ * Extracts, validates, and projects the phase's Result Envelope
+ * into the active change's state.yaml via projectPhaseCompletion, per REQ-hooks-001/023.
+ * Strictly additive and fail-safe: any failure at any step silently no-ops.
+ */
 async function persistResultEnvelope({ input, workspace }) {
   try {
     let envelopeResult = findEnvelopeInInput(input);
@@ -466,7 +472,15 @@ async function persistResultEnvelope({ input, workspace }) {
       return;
     }
 
-    const validation = validateEnvelope(envelopeResult.value, {
+    let candidate = envelopeResult.value;
+    if (typeof candidate === "object" && candidate !== null && candidate.schema_version === undefined) {
+      const adapted = adaptLegacyEnvelope(candidate);
+      if (adapted.ok && adapted.envelope) {
+        candidate = adapted.envelope;
+      }
+    }
+
+    const validation = validateEnvelope(candidate, {
       phase: canonicalAgent,
     });
 
@@ -481,39 +495,10 @@ async function persistResultEnvelope({ input, workspace }) {
       return;
     }
 
-    const envelope = envelopeResult.value;
-    // Filter out non-string entries (parity with internal/hooks/subagentstop.go,
-    // which only relays `item.(string)` values) rather than String()-coercing
-    // them — a stray non-string key_decisions entry should be dropped, not
-    // silently turned into a misleading "[object Object]"/"42"/"null" string.
-    const keyDecisions = Array.isArray(envelope.key_decisions)
-      ? envelope.key_decisions.filter((item) => typeof item === "string")
-      : [];
-
-    await withFileLock(activeChange.statePath, async () => {
-      let freshContent;
-
-      try {
-        // CRITICAL remediation (strict-result-envelope 4R gate): recover an
-        // orphaned state.yaml.bak (left by a failed writeFileAtomic
-        // double-rename) before this re-read-under-lock, so a prior transient
-        // write failure never turns into a silent no-op here.
-        await recoverOrphanBak(activeChange.statePath);
-        freshContent = await fs.readFile(activeChange.statePath, "utf8");
-      } catch {
-        return;
-      }
-
-      const updated = setPhaseSummary(freshContent, statePhaseKey, {
-        summary: envelope.executive_summary,
-        keyDecisions,
-      });
-
-      if (updated === freshContent) {
-        return;
-      }
-
-      await writeFileAtomic(activeChange.statePath, updated);
+    await projectPhaseCompletion({
+      changePath: activeChange.changePath,
+      phase: statePhaseKey,
+      envelope: candidate,
     });
   } catch {
     // Fully fail-safe: envelope persistence must never affect SubagentStop's
@@ -567,17 +552,25 @@ async function resolveDispatchStatus(input) {
 
   if (envelopeResult.found && envelopeResult.value) {
     const canonicalAgent = resolveCanonicalAgent(resolveAgentName(input));
-    const validation = validateEnvelope(envelopeResult.value, {
+    let candidate = envelopeResult.value;
+    if (typeof candidate === "object" && candidate !== null && candidate.schema_version === undefined) {
+      const adapted = adaptLegacyEnvelope(candidate);
+      if (adapted.ok && adapted.envelope) {
+        candidate = adapted.envelope;
+      }
+    }
+
+    const validation = validateEnvelope(candidate, {
       phase: canonicalAgent,
     });
 
-    if (validation.valid && typeof envelopeResult.value.status === "string") {
-      return envelopeResult.value.status;
+    if (validation.valid && typeof candidate.status === "string") {
+      return candidate.status;
     }
 
     if (
       canonicalAgent === "sdd-spec" &&
-      envelopeResult.value.status === "success"
+      candidate.status === "success"
     ) {
       return "blocked";
     }

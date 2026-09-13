@@ -14,6 +14,7 @@ const BLOCKER_TYPE_ENUM = new Set([
   "workload-escalation",
 ]);
 const REQUIRED_FIELDS = [
+  "schema_version",
   "status",
   "executive_summary",
   "artifacts",
@@ -143,6 +144,12 @@ function validateEnvelope(obj, context = {}) {
     }
   }
 
+  if (Object.prototype.hasOwnProperty.call(obj, "schema_version")) {
+    if (obj.schema_version !== 1) {
+      errors.push("schema_version must be 1");
+    }
+  }
+
   if (Object.prototype.hasOwnProperty.call(obj, "status")) {
     if (!STATUS_ENUM.has(obj.status)) {
       errors.push(`status must be one of: ${[...STATUS_ENUM].join(", ")}`);
@@ -181,6 +188,21 @@ function validateEnvelope(obj, context = {}) {
     errors.push("skill_resolution must be a non-empty string");
   }
 
+  if (Object.prototype.hasOwnProperty.call(obj, "key_decisions")) {
+    if (!Array.isArray(obj.key_decisions)) {
+      errors.push("key_decisions must be an array");
+    } else {
+      if (obj.key_decisions.length > 3) {
+        errors.push("key_decisions must contain at most 3 entries");
+      }
+      obj.key_decisions.forEach((item, index) => {
+        if (!isNonEmptyString(item)) {
+          errors.push(`key_decisions[${index}] must be a non-empty string`);
+        }
+      });
+    }
+  }
+
   if (
     Object.prototype.hasOwnProperty.call(obj, "blocker_type") &&
     !BLOCKER_TYPE_ENUM.has(obj.blocker_type)
@@ -214,7 +236,205 @@ function validateEnvelope(obj, context = {}) {
   return { valid: errors.length === 0, errors };
 }
 
+/**
+ * Normalizes unversioned JSON fences, legacy field names, or prose envelopes
+ * into a canonical result-envelope/v1 payload. Never throws.
+ *
+ * @param {string|object} rawInput - Text containing envelope or parsed object
+ * @returns {{ok: boolean, envelope?: object, errors?: string[]}}
+ */
+function adaptLegacyEnvelope(rawInput) {
+  if (!rawInput || (typeof rawInput !== "string" && (typeof rawInput !== "object" || Array.isArray(rawInput)))) {
+    return { ok: false, errors: ["input must be a non-empty string or envelope object"] };
+  }
+
+  let candidate = null;
+
+  if (typeof rawInput === "object") {
+    candidate = JSON.parse(JSON.stringify(rawInput));
+  } else if (typeof rawInput === "string") {
+    const extracted = extractEnvelope(rawInput);
+    if (extracted.found && extracted.value && typeof extracted.value === "object" && !Array.isArray(extracted.value)) {
+      candidate = extracted.value;
+    } else {
+      const statusMatch = rawInput.match(/\*\*Status\*\*:\s*([^\r\n]+)/i);
+      const summaryMatch = rawInput.match(/\*\*Summary\*\*:\s*([^\r\n]+)/i);
+      const artifactsMatch = rawInput.match(/\*\*Artifacts\*\*:\s*([^\r\n]+)/i);
+      const nextMatch = rawInput.match(/\*\*Next(?:\s*Recommended)?\*\*:\s*([^\r\n]+)/i);
+      const risksMatch = rawInput.match(/\*\*Risks\*\*:\s*([^\r\n]+)/i);
+      const resolutionMatch = rawInput.match(/\*\*Skill Resolution\*\*:\s*([^\r\n]+)/i);
+
+      if (statusMatch && summaryMatch) {
+        const rawStatus = statusMatch[1].trim().toLowerCase();
+        const rawSummary = summaryMatch[1].trim();
+
+        let artifacts = "inline";
+        if (artifactsMatch) {
+          const artRaw = artifactsMatch[1].trim();
+          if (artRaw.toLowerCase().startsWith("inline")) {
+            artifacts = "inline";
+          } else {
+            const paths = [];
+            const backtickMatches = artRaw.matchAll(/`([^`]+)`/g);
+            for (const m of backtickMatches) {
+              if (m[1].trim() && m[1].trim() !== "inline") {
+                paths.push(m[1].trim());
+              }
+            }
+            if (paths.length > 0) {
+              artifacts = paths;
+            } else {
+              artifacts = [artRaw.split("|")[0].trim()];
+            }
+          }
+        }
+
+        const next_recommended = nextMatch ? nextMatch[1].trim() : "none";
+        const risks = risksMatch ? risksMatch[1].trim() : "None";
+
+        let skill_resolution = "injected";
+        if (resolutionMatch) {
+          const resRaw = resolutionMatch[1].trim();
+          const cleanRes = resRaw.split(/\s*[-—]\s*/)[0].trim().toLowerCase();
+          if (["injected", "fallback-registry", "fallback-path", "none"].includes(cleanRes)) {
+            skill_resolution = cleanRes;
+          }
+        }
+
+        candidate = {
+          schema_version: 1,
+          status: rawStatus,
+          executive_summary: rawSummary,
+          artifacts,
+          next_recommended,
+          risks,
+          skill_resolution,
+        };
+      }
+    }
+  }
+
+  if (!candidate) {
+    return { ok: false, errors: ["unable to extract or parse result envelope"] };
+  }
+
+  if (!candidate.schema_version) {
+    candidate.schema_version = 1;
+  }
+  if (!candidate.executive_summary && candidate.summary) {
+    candidate.executive_summary = candidate.summary;
+  }
+  delete candidate.summary;
+
+  if (Array.isArray(candidate.key_decisions)) {
+    candidate.key_decisions = candidate.key_decisions
+      .filter((item) => typeof item === "string" && item.trim().length > 0)
+      .slice(0, 3);
+  }
+
+  const validation = validateEnvelope(candidate);
+  if (!validation.valid) {
+    return { ok: false, errors: validation.errors };
+  }
+
+  return { ok: true, envelope: candidate };
+}
+
+/**
+ * Renders a validated result-envelope/v1 payload into human-readable markdown.
+ * Read-only: never mutates envelope.
+ *
+ * @param {object} envelope - Validated result-envelope/v1 payload
+ * @param {object} [options] - Optional formatting overrides
+ * @returns {string} Human-facing Markdown text
+ */
+function renderEnvelopeToMarkdown(envelope, options = {}) {
+  if (!envelope || typeof envelope !== "object") {
+    return "";
+  }
+
+  const lines = [];
+
+  const statusLabel =
+    envelope.status === "success"
+      ? "Success"
+      : envelope.status === "blocked"
+        ? "Blocked"
+        : "Partial";
+
+  lines.push(`### Phase Result: ${statusLabel}`);
+  lines.push("");
+  lines.push(`- **Status**: ${envelope.status}`);
+  lines.push(`- **Summary**: ${envelope.executive_summary || ""}`);
+
+  if (Array.isArray(envelope.artifacts)) {
+    if (envelope.artifacts.length === 0) {
+      lines.push("- **Artifacts**: none");
+    } else {
+      lines.push("- **Artifacts**:");
+      for (const artifact of envelope.artifacts) {
+        lines.push(`  - \`${artifact}\``);
+      }
+    }
+  } else {
+    lines.push(`- **Artifacts**: ${envelope.artifacts || "inline"}`);
+  }
+
+  lines.push(`- **Next Recommended**: ${envelope.next_recommended || "none"}`);
+  lines.push(
+    `- **Risks**: ${Array.isArray(envelope.risks) ? envelope.risks.join(", ") : envelope.risks || "None"}`,
+  );
+  lines.push(`- **Skill Resolution**: ${envelope.skill_resolution || "none"}`);
+
+  if (Array.isArray(envelope.key_decisions) && envelope.key_decisions.length > 0) {
+    lines.push("");
+    lines.push("#### Key Decisions");
+    for (const decision of envelope.key_decisions) {
+      lines.push(`- ${decision}`);
+    }
+  }
+
+  if (Array.isArray(envelope.assumptions) && envelope.assumptions.length > 0) {
+    lines.push("");
+    lines.push("#### Assumptions");
+    for (const assumption of envelope.assumptions) {
+      lines.push(
+        `- **${assumption.id}** (${assumption.phase}): ${assumption.statement} [Reversibility: ${assumption.reversibility}] - ${assumption.basis}`,
+      );
+    }
+  }
+
+  if (envelope.status === "blocked") {
+    lines.push("");
+    lines.push("#### Blocker Details");
+    if (envelope.blocker_type) {
+      lines.push(`- **Blocker Type**: ${envelope.blocker_type}`);
+    }
+    if (envelope.question_gate) {
+      lines.push(`- **Reason**: ${envelope.question_gate.reason || ""}`);
+      if (Array.isArray(envelope.question_gate.questions)) {
+        for (const q of envelope.question_gate.questions) {
+          lines.push("");
+          lines.push(`##### ${q.header || "Question"}`);
+          lines.push(`${q.question}`);
+          if (Array.isArray(q.options)) {
+            for (const opt of q.options) {
+              const rec = opt.recommended ? " (recommended)" : "";
+              const desc = opt.description ? `: ${opt.description}` : "";
+              lines.push(`- [ ] **${opt.label}**${desc}${rec}`);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return lines.join("\n");
+}
+
 module.exports = {
   extractEnvelope,
   validateEnvelope,
+  adaptLegacyEnvelope,
+  renderEnvelopeToMarkdown,
 };

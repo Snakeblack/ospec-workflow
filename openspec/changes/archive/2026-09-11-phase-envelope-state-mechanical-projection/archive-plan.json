@@ -1,0 +1,91 @@
+{
+	"schema_version": 1,
+	"change": "phase-envelope-state-mechanical-projection",
+	"source_fingerprint": "sha256:af675af640960567d6730477ef8d072c8af9eb2bdde39f8535d592ec43bae3ff",
+	"spec_writes": [
+		{
+			"domain": "agents",
+			"source_delta": "specs/agents/spec-prepared.md",
+			"target": "openspec/specs/agents/spec.md",
+			"target_before_sha256": "sha256:26d4b8049210cf0833e46906fb196b7503d278d448ceed87269e3de34e747730",
+			"content_sha256": "sha256:0ee30269b814de6a089a1258db8a5a3c02b4cb15268ffea4730a1ca6acbd8bd3"
+		},
+		{
+			"domain": "hooks",
+			"source_delta": "specs/hooks/spec-prepared.md",
+			"target": "openspec/specs/hooks/spec.md",
+			"target_before_sha256": "sha256:945fe7603875846ae9aee5bf6f30981ad96c3c22f1c45f6db3b3376317d22897",
+			"content_sha256": "sha256:5dc398df2efac213fb0fc2bf851fd2d835c83b40312eeb8c84416aade0a6fb0b"
+		},
+		{
+			"domain": "kernel-contract-schemas",
+			"source_delta": "specs/kernel-contract-schemas/spec-prepared.md",
+			"target": "openspec/specs/kernel-contract-schemas/spec.md",
+			"target_before_sha256": "sha256:00c814dc1069a9374648260cb80b6fb018635f187cfb959b8a518fe2bf2a4e15",
+			"content_sha256": "sha256:71866d44b6f56eae659de42e76d507b732a6d150ee2e3e0d907cc855db0756f1"
+		},
+		{
+			"domain": "lifecycle-kernel-runtime",
+			"source_delta": "specs/lifecycle-kernel-runtime/spec-prepared.md",
+			"target": "openspec/specs/lifecycle-kernel-runtime/spec.md",
+			"target_before_sha256": "sha256:8f4f63a0577a3a8e7d8d8d2c1465b4bee65ed43bbecdbe8bcd0bd4e2c0256e77",
+			"content_sha256": "sha256:72f3611ecb5e9f16898402d492291e037efc155914fedd45b5fd4bb90f654509"
+		},
+		{
+			"domain": "skills",
+			"source_delta": "specs/skills/spec-prepared.md",
+			"target": "openspec/specs/skills/spec.md",
+			"target_before_sha256": "sha256:84657cb1e9748dc1896cbfbd2ffbc0b5d9b05acf5208766d04249a3683c63526",
+			"content_sha256": "sha256:f6d7ffcc975b29c42ada806b2fe31ac170cc38b274799e14297cd05af601a9ba"
+		}
+	],
+	"adr_promotions": [
+		{
+			"source": "decisions/adr-001.md",
+			"target": "docs/adr/adr-20260911-002-adr-001-versioned-result-envelope-v1-and-decoupled-human-renderer.md",
+			"content_sha256": "sha256:30610c18557a29bcb9b75239827797200f5e1333314cd5400cdad4f953cce4d6"
+		},
+		{
+			"source": "decisions/adr-002.md",
+			"target": "docs/adr/adr-20260911-003-adr-002-pure-phasecompletionreducer-state-projection.md",
+			"content_sha256": "sha256:98e80fec502a323c0317539b4b7abdb27964f109d812bc006ee7d8651d17272e"
+		},
+		{
+			"source": "decisions/adr-003.md",
+			"target": "docs/adr/adr-20260911-004-adr-003-cas-revision-checks-and-replay-determinism.md",
+			"content_sha256": "sha256:7bc366a22b881691a8ff56479d5a8128266db910323eb6d799c000f9a0abadce"
+		},
+		{
+			"source": "decisions/adr-004.md",
+			"target": "docs/adr/adr-20260911-005-adr-004-fail-closed-authority-boundary-on-approvals-and-gates.md",
+			"content_sha256": "sha256:2c3ba17d9177b89c9ea9ba4d0d742bd79a3ce6cd7e7b2a24db3eea7410772e49"
+		}
+	],
+	"archive_inventory": [
+		"apply-progress.md",
+		"archive-report.md",
+		"decisions/adr-001.md",
+		"decisions/adr-002.md",
+		"decisions/adr-003.md",
+		"decisions/adr-004.md",
+		"design.md",
+		"proposal.md",
+		"specs/agents/spec-prepared.md",
+		"specs/agents/spec.md",
+		"specs/hooks/spec-prepared.md",
+		"specs/hooks/spec.md",
+		"specs/kernel-contract-schemas/spec-prepared.md",
+		"specs/kernel-contract-schemas/spec.md",
+		"specs/lifecycle-kernel-runtime/spec-prepared.md",
+		"specs/lifecycle-kernel-runtime/spec.md",
+		"specs/skills/spec-prepared.md",
+		"specs/skills/spec.md",
+		"state.yaml",
+		"tasks.md",
+		"verify-report.md"
+	],
+	"accepted_warnings": [],
+	"rollback": {
+		"strategy": "staging-rename"
+	}
+}

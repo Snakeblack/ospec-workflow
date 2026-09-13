@@ -77,6 +77,12 @@ const FAMILY_PUBLICATION = Object.freeze({
     // Bundle of four role payloads for identity distinctness; walked by k6b-schema-fixtures.
     fixtureNameFilter: (name) => !name.startsWith("v2-") && name !== "v1-four-roles.json",
   }),
+  "result-envelope": Object.freeze({
+    path: "schemas/kernel/result-envelope/v1/envelope.schema.json",
+    id: "https://openspec.io/schemas/kernel/result-envelope/v1.schema.json",
+    fixturesDir: "schemas/kernel/result-envelope/v1/fixtures",
+    fixtureNameFilter: (name) => name.endsWith(".json"),
+  }),
 });
 
 function toPosix(relativePath) {

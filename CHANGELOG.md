@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.67.0] - 2026-09-14
+
+### Added
+- **Envelope versionado y proyección mecánica de estado (CX1)**:
+  - Incorporado el contrato `result-envelope/v1` con validación, adaptador legacy y renderer humano desacoplado en `schemas/kernel/` y `scripts/lib/result-envelope.js`.
+  - Incorporado `PhaseCompletionReducer` y su proyección de estado con CAS, recuperación y replay idempotente en `scripts/lib/lifecycle-kernel/`, `scripts/lib/ospec-state.js` y `scripts/hooks/subagent-stop.js`.
+  - Ciclo SDD completo archivado en `openspec/changes/archive/2026-09-11-phase-envelope-state-mechanical-projection/`; requisitos 11/11, escenarios 50/50 y tareas 24/24 verificados.
+  - **Verificación archivada**: 189/189 tests focales, `npm test` con 3316/3316 tests pasando y `node scripts/check.js` con salida 0.
+
 ## [2.66.1] - 2026-09-11
 
 ### Fixed

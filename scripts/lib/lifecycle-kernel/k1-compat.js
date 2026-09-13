@@ -185,6 +185,9 @@ function listK1SchemaFiles(rootDir) {
     // K6d additive advisory contracts
     "schemas/kernel/architecture-alternative/",
     "schemas/kernel/complexity-architecture-delta/",
+    // CX1 additive result-envelope family and backward compatibility schemas
+    "schemas/kernel/result-envelope/",
+    "schemas/kernel/result-envelope.schema.json",
     // Evolutionary catalog registries (excluded from K1 frozen baseline pin)
     "schemas/kernel/manifest.json",
     "schemas/kernel/contract-claims.json",
