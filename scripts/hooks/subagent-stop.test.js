@@ -422,7 +422,7 @@ test("fence missing a required field — validation fails safely, no write", asy
   assert.equal(untouchedState, STATE_WITH_EMPTY_DESIGN_SUMMARY);
 });
 
-test("agent's own non-empty summary is not overwritten by the hook", async (t) => {
+test("distinct re-run of a done phase without stored hash applies (corrected replay semantics)", async (t) => {
   const { workspace, statePath } = await createChangeWorkspace(
     t,
     STATE_WITH_NON_EMPTY_DESIGN_SUMMARY,
@@ -436,8 +436,9 @@ test("agent's own non-empty summary is not overwritten by the hook", async (t) =
     },
   });
 
-  const untouchedState = await fs.readFile(statePath, "utf8");
-  assert.equal(untouchedState, STATE_WITH_NON_EMPTY_DESIGN_SUMMARY);
+  const updatedState = await fs.readFile(statePath, "utf8");
+  assert.ok(updatedState.includes('summary: "Diseñó el flujo de persistencia del envelope."'));
+  assert.ok(updatedState.includes('- "Fill-gap merge sobre last-writer-wins"'));
 });
 
 test("successful sdd-spec envelope without ambiguity signals is not persisted", async (t) => {
@@ -642,7 +643,7 @@ test("key_decisions with mixed non-string entries only persists the strings (par
   const updatedState = await fs.readFile(statePath, "utf8");
   assert.match(updatedState, /- "A real decision"/);
   assert.match(updatedState, /- "Another real decision"/);
-  assert.doesNotMatch(updatedState, /42/);
+  assert.doesNotMatch(updatedState, /-\s*"?42"?/);
   assert.doesNotMatch(updatedState, /nested/);
 });
 
@@ -1845,5 +1846,134 @@ tiers:
   assert.equal(typeof record.ts, "string");
   assert.ok(record.ts.endsWith("Z")); // ISO 8601 UTC
 });
+
+// --- REQ-hooks-023 & REQ-hooks-015: Mechanical Projection via PhaseCompletionReducer ---
+
+test("SubagentStop: projects valid envelope via PhaseCompletionReducer under file lock [REQ-hooks-023]", async (t) => {
+  const { workspace, statePath } = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_DESIGN_SUMMARY,
+  );
+
+  const envelope = {
+    schema_version: 1,
+    status: "success",
+    executive_summary: "Diseñó el flujo mecánico de proyección.",
+    artifacts: ["openspec/changes/strict-result-envelope/design.md"],
+    next_recommended: "sdd-tasks",
+    risks: "None",
+    skill_resolution: "injected",
+    key_decisions: ["Proyección mecánica runtime-owned"],
+  };
+
+  const hookResult = await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-design",
+      result: buildFenceText(envelope),
+    },
+  });
+
+  assert.ok(hookResult);
+
+  const updatedState = await fs.readFile(statePath, "utf8");
+  assert.match(updatedState, /summary: "Diseñó el flujo mecánico de proyección\."/);
+  assert.match(updatedState, /key_decisions:\s*\n\s*- "Proyección mecánica runtime-owned"/);
+  assert.match(updatedState, /status: "done"|status: done/);
+});
+
+test("SubagentStop: replay of SubagentStop projection is idempotent [REQ-hooks-023]", async (t) => {
+  const { workspace, statePath } = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_DESIGN_SUMMARY,
+  );
+
+  const envelope = {
+    schema_version: 1,
+    status: "success",
+    executive_summary: "Primer pase de proyección.",
+    artifacts: ["openspec/changes/strict-result-envelope/design.md"],
+    next_recommended: "sdd-tasks",
+    risks: "None",
+    skill_resolution: "injected",
+  };
+
+  // Run 1
+  await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-design",
+      result: buildFenceText(envelope),
+    },
+  });
+  const stateAfterFirst = await fs.readFile(statePath, "utf8");
+
+  // Run 2 (replay)
+  const replayResult = await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-design",
+      result: buildFenceText(envelope),
+    },
+  });
+  assert.ok(replayResult);
+
+  const stateAfterReplay = await fs.readFile(statePath, "utf8");
+  assert.equal(stateAfterReplay, stateAfterFirst, "state file must not mutate on replay");
+});
+
+test("SubagentStop: reducer or state write failure remains fail-safe [REQ-hooks-023]", async (t) => {
+  const { workspace, statePath } = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_DESIGN_SUMMARY,
+  );
+
+  // Corrupt state file into completely unparseable garbage or invalid permissions
+  await fs.writeFile(statePath, "::: invalid yaml :::\n\t\t\t][][", "utf8");
+
+  const hookResult = await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-design",
+      result: buildFenceText(VALID_ENVELOPE),
+    },
+  });
+
+  // Hook must NEVER fail or exit non-zero; it must return fail-safely
+  assert.ok(hookResult);
+});
+
+test("SubagentStop: prefixed sdd-spec dispatch enforces fail-closed validation [REQ-hooks-015]", async (t) => {
+  const { workspace, statePath } = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_SPEC_SUMMARY,
+  );
+
+  // An sdd-spec envelope claiming success but missing ambiguity signals
+  const invalidSpecEnvelope = {
+    schema_version: 1,
+    status: "success",
+    executive_summary: "Spec without required ambiguity signals.",
+    artifacts: ["spec.md"],
+    next_recommended: "sdd-design",
+    risks: "None",
+    skill_resolution: "injected",
+  };
+
+  const hookResult = await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "plugin-host:sdd-spec",
+      result: buildFenceText(invalidSpecEnvelope),
+    },
+  });
+
+  assert.ok(hookResult);
+
+  // Because it failed spec validation, it must NOT have been persisted as a completed spec summary
+  const stateContent = await fs.readFile(statePath, "utf8");
+  assert.equal(stateContent, STATE_WITH_EMPTY_SPEC_SUMMARY);
+});
+
 
 

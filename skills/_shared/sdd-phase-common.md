@@ -116,9 +116,15 @@ phases:
     artifact: "openspec/changes/{change-name}/archive-report.md"
 ```
 
-### Phase Summary Block (resume without re-reading artifacts)
+### Phase Summary Block and State Projection Authority
 
-On phase completion (`done` or `partial`), extend YOUR phase's entry in `state.yaml` with a compact summary so continuations can be briefed from state alone:
+Phase skills MUST NOT directly mutate or write to `state.yaml`. Direct ad-hoc edits by agents corrupt YAML formatting, risk losing uncommitted approvals, and fabricate invalid gate passes. Instead, all change state progression is runtime-owned: the lifecycle kernel (`PhaseCompletionReducer`) mechanically projects state updates from the validated `result-envelope/v1` payload under advisory locking (`withFileLock`) and atomic writes (`writeFileAtomic`).
+
+On phase completion (`done` or `partial`), every phase skill MUST include compact summary metadata in its return envelope:
+- `executive_summary`: ≤ 160 characters, factual, stating WHAT the phase produced or decided (no process narration)
+- `key_decisions`: list of up to 3 strings (omit or empty list when none)
+
+The runtime `PhaseCompletionReducer` projects these fields into `phases.{phase}`:
 
 ```yaml
 phases:
@@ -130,18 +136,18 @@ phases:
       - "RS256 sobre HS256 (multi-servicio)"
 ```
 
-Rules: `summary` states WHAT the phase produced/decided (no process narration); `key_decisions` only for choices a later phase or a human would need; both are derived from the artifact you just wrote — never invent content not in it. The full artifact stays the source of truth; the summary is a cache for the orchestrator's continuation prompts.
+Rules: `executive_summary` states WHAT the phase produced/decided (no process narration); `key_decisions` only for choices a later phase or a human would need; both are derived solely from the artifact just written — never invent content not in it. The full artifact stays the source of truth; the summary in `state.yaml` is a cache for orchestrator continuation prompts.
 
-State update rules:
-- Preserve existing phase entries and artifact paths; update only the phase you just executed plus any top-level status that changes because of it.
-- Update `last_updated` with the current UTC timestamp every time you write a phase artifact or return `blocked`.
-- On `blocked`, set top-level `status: blocked` and record the blocking question(s) or reason in `blocking_questions`.
-- On successful `proposal`, `spec`, or `design`, keep top-level `status: planning` unless a later phase already advanced it.
-- On successful `tasks`, set `phases.tasks.status: done` and top-level `status: ready-for-apply`.
-- On `apply`, set `phases.apply.status: partial` for incomplete batches and `done` for a fully implemented batch. Top-level status becomes `applying` for partial progress or `ready-for-verify` when apply is complete.
-- On successful `verify`, set `phases.verify.status: done`. Use top-level `status: verified` for `PASS` and `PASS WITH WARNINGS`; stay `blocked` for `FAIL`.
-- On successful `archive`, set `phases.archive.status: done` and top-level `status: archived` before moving the folder.
-- Clear resolved entries from `blocking_questions` when the phase succeeds.
+Runtime mechanical projection rules:
+- Preserves existing phase entries, approvals, and artifact paths; advances only the phase matching the validated return envelope.
+- Updates `last_updated` with current UTC timestamp and increments `revision` under CAS verification.
+- On `blocked`, sets top-level `status: blocked` and records `blocking_questions` from `question_gate` without setting phase status to `done`.
+- On successful `proposal`, `spec`, or `design`, advances phase status to `done` and maintains top-level `status: planning`.
+- On successful `tasks`, sets `phases.tasks.status: done` and advances top-level to `status: ready-for-apply`.
+- On `apply`, sets `phases.apply.status: partial` for incomplete batches (top-level `status: applying`) or `done` when complete (top-level `status: ready-for-verify`).
+- On successful `verify`, sets `phases.verify.status: done`. Top-level becomes `status: verified` for `PASS` and `PASS WITH WARNINGS`, or stays `blocked` on failure.
+- On successful `archive`, sets `phases.archive.status: done` and top-level `status: archived`.
+- Clears resolved entries from `blocking_questions` upon successful completion.
 
 ### None mode
 
@@ -149,52 +155,43 @@ Return result inline only. Do not write project files.
 
 ## D. Return Envelope
 
-Every phase MUST return a structured envelope to the orchestrator. In addition to the
-prose fields below, every phase MUST append exactly one strict, directly
-`JSON.parse`-able fenced block with the info-string `json:result-envelope` carrying the
-same fields as JSON. This is additive — `executive_summary` stays human-readable prose;
-the fence is a machine-parseable anchor for the orchestrator and the `SubagentStop` hook.
-Optional fields not applicable to the current batch are omitted from the fence entirely
-(never emitted as `null`), matching the omission convention below.
+Every phase MUST return a structured result envelope conforming strictly to the `result-envelope/v1` schema (`schemas/kernel/result-envelope/v1/envelope.schema.json`). Terminal and chat presentation are decoupled via the pure human renderer (`renderEnvelopeToMarkdown`); phase agents do NOT need to duplicate human prose and JSON in execution returns.
+
+Every phase MUST emit exactly one strict, directly `JSON.parse`-able fenced block with the info-string `json:result-envelope`:
 
 ```json:result-envelope
-{ "status": "success", "executive_summary": "...", "artifacts": ["..."],
-  "next_recommended": "sdd-tasks", "risks": "None", "skill_resolution": "injected" }
+{
+  "schema_version": 1,
+  "status": "success",
+  "executive_summary": "JWT stateless authentication with rotated tokens.",
+  "artifacts": ["openspec/changes/{change-name}/design.md"],
+  "next_recommended": "sdd-tasks",
+  "risks": "None",
+  "skill_resolution": "injected"
+}
 ```
 
-The canonical schema for validating this fence is exactly the field table below plus the
-Assumption Entry Schema and the Blocking Question Envelope shape already defined in this
-section — this requirement does not redefine or introduce any new field, enum value, or
-meaning. The reference implementation (`scripts/lib/result-envelope.js`, mirrored by
-`internal/resultenvelope`) exports `extractEnvelope(text)` and
-`validateEnvelope(obj) → {valid, errors}` (never throws) against this same schema.
-Callers that know the returning phase pass it explicitly with
-`validateEnvelope(obj, { phase: "sdd-spec" })`; the Go mirror uses
-`ValidateForPhase(obj, "sdd-spec")`. The generic entry points remain valid for
-callers without phase context.
+Optional fields not applicable to the current batch MUST be omitted from the fence entirely (never emitted as `null`).
 
+The canonical schema for validating this fence is `schemas/kernel/result-envelope/v1/envelope.schema.json`. The reference implementation (`scripts/lib/result-envelope.js`, mirrored by `internal/resultenvelope`) exports:
+- `validateEnvelope(obj, context)`: strict validator checking `schema_version: 1`, required fields, max 3 `key_decisions`, blocker metadata, and spec ambiguity signals. Callers that know the returning phase pass it explicitly with `validateEnvelope(obj, { phase: "sdd-spec" })`; the Go mirror uses `ValidateForPhase(obj, "sdd-spec")`.
+- `adaptLegacyEnvelope(rawInput)`: pure backward-compatibility adapter translating unversioned fences and prose-adjacent envelopes to canonical v1 payloads.
+- `renderEnvelopeToMarkdown(envelope)`: decoupled pure presentation renderer converting v1 envelopes into clean human Markdown.
+
+Fields:
+- `schema_version`: MUST be integer `1`
 - `status`: `success`, `partial`, or `blocked`
-- `executive_summary`: 1-3 sentence summary of what was done
+- `executive_summary`: 1-3 sentence summary of what was done (≤ 160 chars for state cache)
 - `detailed_report`: (optional) full phase output, or omit if already inline
 - `artifacts`: list of artifact paths written, or `inline` for `none`
 - `next_recommended`: the next SDD phase to run, or "none"
 - `risks`: risks discovered, or "None"
-- `skill_resolution`: how skills were loaded — `injected` (received Project Standards in the launch prompt, including orchestrator cached rules), `fallback-registry` (loaded from `.ospec/cache/skill-registry.cache.json`), `fallback-path` (loaded exact `SKILL.md` fallback paths), or `none` (no skills loaded)
-- `assumptions`: OPTIONAL. A list of entries recorded under the Assumption Materiality Rule below, conforming to the Assumption Entry Schema. Omit the field, or return an empty list, when the phase made no assumptions this batch.
-- Successful `sdd-spec` ambiguity signals: `residual_ambiguity` (boolean),
-  `public_contract_questions` (array of strings), `conflicting_requirements`
-  (array of strings), and `missing_acceptance_criteria` (array of strings).
-  They are required only for `sdd-spec` + `success`; other phases and
-  non-successful spec returns keep the generic schema. When present on any
-  envelope, validators type-check them in this canonical order.
-- `blocker_type`: OPTIONAL. Present when `status: blocked`. Enum of known values (open — a new value MUST update this table AND `openspec/specs/agents/spec.md` §6.1 in the same change):
-
-  | Value | Meaning | Typical emitting phase |
-  |---|---|---|
-  | `needs_user_decision` | A phase is blocked on a clarify-style question with no dedicated blocker type | any phase, e.g. `sdd-clarify` |
-  | `design-mismatch` | Existing code contradicts the design during implementation | `sdd-apply` |
-  | `spec-change-required` | The spec itself is wrong, contradictory, or unverifiable | `sdd-apply` |
-  | `workload-escalation` | Live apply work overruns the tasks forecast beyond the safe threshold | `sdd-apply` |
+- `skill_resolution`: how skills were loaded — `injected`, `fallback-registry`, `fallback-path`, or `none`
+- `key_decisions`: OPTIONAL. Array of up to 3 non-empty strings.
+- `assumptions`: OPTIONAL. A list of entries conforming to the Assumption Entry Schema below. Omit when none.
+- Successful `sdd-spec` ambiguity signals: `residual_ambiguity` (boolean), `public_contract_questions` (array of strings), `conflicting_requirements` (array of strings), and `missing_acceptance_criteria` (array of strings). They are required only for `sdd-spec` + `success`; other phases and non-successful spec returns keep the generic schema. When present on any envelope, validators type-check them in this canonical order.
+- `blocker_type`: OPTIONAL. Present when `status: blocked`. Enum: `needs_user_decision`, `design-mismatch`, `spec-change-required`, `workload-escalation`.
+- `question_gate`: REQUIRED when `status: blocked`. Object containing `reason` and array of `questions`.
 
   Naming note: the existing values mix snake_case (`needs_user_decision`) and kebab-case (`design-mismatch`, `spec-change-required`, `workload-escalation`) for historical reasons that predate a naming convention — do not rename them. New values SHOULD use kebab-case going forward, matching the majority.
 

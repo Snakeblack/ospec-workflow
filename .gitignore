@@ -3,6 +3,10 @@
 # no estos renders. Mantener local para evitar trazabilidad stale en git.
 .ospec/
 
+# Preflight de sesión SDD — estado efímero del runtime gentle-ai en Pi,
+# regenerado por sesión. Nunca artefacto canónico.
+.pi/
+
 # Atlas de federación — cache derivado y regenerable. La verdad son los marcadores
 # openspec/federation.member.yaml de cada repo miembro; openspec/workspace.yaml se
 # reconstruye desde ellos y NUNCA se versiona como artefacto canónico.

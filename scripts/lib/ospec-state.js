@@ -9,7 +9,8 @@ const {
   ARTIFACT_STORE_MODES,
   DEFAULT_ARTIFACT_STORE_MODE,
 } = require("./artifact-store-modes.js");
-const { recoverOrphanBak } = require("./atomic-write.js");
+const { recoverOrphanBak, writeFileAtomic } = require("./atomic-write.js");
+const { reducePhaseCompletion } = require("./lifecycle-kernel/phase-completion-reducer.js");
 
 const TERMINAL_STATUSES = new Set([
   "archived",
@@ -85,7 +86,7 @@ function readStatus(content) {
 
 const BASELINE_LIST_KEYS = new Set(["domains_pending", "domains_done", "stale_domains"]);
 const BASELINE_SCALAR_KEYS = new Set(["status", "last_checked"]);
-const BASELINE_TOP_KEY = "baseline:";
+const BASELINE_SECTION_TAG = "baseline:";
 const BASELINE_FIELD_INDENT = 2;
 const BASELINE_LIST_ITEM_INDENT = 4;
 
@@ -137,7 +138,7 @@ function readBaselineState(content) {
     }
 
     if (indent === 0) {
-      inBaseline = trimmed === BASELINE_TOP_KEY;
+      inBaseline = trimmed === BASELINE_SECTION_TAG;
       if (inBaseline) {
         foundBaseline = true;
       }
@@ -686,6 +687,378 @@ function setPhaseSummary(content, phase, { summary, keyDecisions = [] } = {}) {
   return nextLines.join(eol);
 }
 
+function parseStateYaml(content) {
+  const result = {
+    schema_version: 1,
+    status: "",
+    revision: 0,
+    blocking_questions: [],
+    approvals: [],
+    phases: {},
+  };
+
+  const lines = content.split(/\r?\n/);
+  let currentTopSection = null;
+  let currentPhase = null;
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const raw = lines[i];
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+
+    const indent = raw.match(/^\s*/)[0].length;
+
+    if (indent === 0) {
+      currentTopSection = null;
+      currentPhase = null;
+
+      const kv = trimmed.match(/^([^:]+):\s*(.*)$/);
+      if (kv) {
+        const key = kv[1].trim();
+        const val = kv[2].trim();
+
+        if (key === "schema_version") {
+          result.schema_version = Number(parseScalar(val)) || 1;
+        } else if (key === "change") {
+          result.change = parseScalar(val);
+        } else if (key === "status") {
+          result.status = parseScalar(val);
+        } else if (key === "last_updated") {
+          result.last_updated = parseScalar(val);
+        } else if (key === "revision") {
+          result.revision = Number(parseScalar(val)) || 0;
+        } else if (key === "classification") {
+          result.classification = parseScalar(val);
+        } else if (key === "blocking_questions") {
+          if (val === "[]") {
+            result.blocking_questions = [];
+          } else {
+            currentTopSection = "blocking_questions";
+          }
+        } else if (key === "phases") {
+          currentTopSection = "phases";
+        } else if (key === "approvals") {
+          currentTopSection = "approvals";
+        }
+      }
+      continue;
+    }
+
+    if (currentTopSection === "blocking_questions") {
+      if (indent >= 2 && trimmed.startsWith("- ")) {
+        result.blocking_questions.push(parseScalar(trimmed.slice(2)));
+      }
+      continue;
+    }
+
+    if (currentTopSection === "approvals") {
+      if (trimmed.startsWith("- id:")) {
+        const match = trimmed.match(/- id:\s*(.+)$/);
+        if (match) {
+          result.approvals.push({ id: parseScalar(match[1]) });
+        }
+      } else if (trimmed.startsWith("id:") && result.approvals.length > 0) {
+        const match = trimmed.match(/id:\s*(.+)$/);
+        if (match && !result.approvals[result.approvals.length - 1].id) {
+          result.approvals[result.approvals.length - 1].id = parseScalar(match[1]);
+        }
+      }
+      continue;
+    }
+
+    if (currentTopSection === "phases") {
+      if (indent === 2) {
+        const match = trimmed.match(/^([\w-]+):\s*$/);
+        if (match) {
+          currentPhase = match[1];
+          result.phases[currentPhase] = result.phases[currentPhase] || {};
+        }
+      } else if (indent >= 4 && currentPhase) {
+        const kv = trimmed.match(/^([^:]+):\s*(.*)$/);
+        if (kv) {
+          const pKey = kv[1].trim();
+          const pVal = kv[2].trim();
+          if (pKey === "status") {
+            result.phases[currentPhase].status = parseScalar(pVal);
+          } else if (pKey === "summary") {
+            result.phases[currentPhase].summary = parseScalar(pVal);
+          } else if (pKey === "last_payload_hash") {
+            result.phases[currentPhase].last_payload_hash = parseScalar(pVal);
+          } else if (pKey === "blocker_type") {
+            result.phases[currentPhase].blocker_type = parseScalar(pVal);
+          }
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
+function applyStateProjectionToYaml(content, nextState, phase) {
+  const eol = content.includes("\r\n") ? "\r\n" : "\n";
+  let lines = content.split(/\r?\n/);
+
+  // 1. Top-level status
+  let statusIndex = lines.findIndex(
+    (l) => /^status:\s*/.test(l.trim()) && l.match(/^\s*/)[0].length === 0,
+  );
+  if (statusIndex !== -1) {
+    lines[statusIndex] = `status: ${nextState.status}`;
+  } else {
+    lines.splice(1, 0, `status: ${nextState.status}`);
+    statusIndex = 1;
+  }
+
+  // 2. Top-level last_updated
+  const lastUpdatedIndex = lines.findIndex(
+    (l) => /^last_updated:\s*/.test(l.trim()) && l.match(/^\s*/)[0].length === 0,
+  );
+  const lastUpdatedLine = `last_updated: "${nextState.last_updated}"`;
+  if (lastUpdatedIndex !== -1) {
+    lines[lastUpdatedIndex] = lastUpdatedLine;
+  } else {
+    lines.splice(statusIndex + 1, 0, lastUpdatedLine);
+  }
+
+  // 3. Top-level revision
+  if (nextState.revision !== undefined) {
+    const revIndex = lines.findIndex(
+      (l) => /^revision:\s*/.test(l.trim()) && l.match(/^\s*/)[0].length === 0,
+    );
+    const revLine = `revision: ${nextState.revision}`;
+    if (revIndex !== -1) {
+      lines[revIndex] = revLine;
+    } else {
+      lines.splice(statusIndex + 1, 0, revLine);
+    }
+  }
+
+  // 4. Top-level blocking_questions
+  const bqStartIndex = lines.findIndex(
+    (l) => /^blocking_questions:\s*(.*)$/.test(l.trim()) && l.match(/^\s*/)[0].length === 0,
+  );
+  if (bqStartIndex !== -1) {
+    let bqEndIndex = lines.length;
+    for (let i = bqStartIndex + 1; i < lines.length; i += 1) {
+      const raw = lines[i];
+      const trimmed = raw.trim();
+      if (!trimmed) continue;
+      const indent = raw.match(/^\s*/)[0].length;
+      if (indent === 0) {
+        bqEndIndex = i;
+        break;
+      }
+    }
+    const bqLines = [];
+    if (!nextState.blocking_questions || nextState.blocking_questions.length === 0) {
+      bqLines.push("blocking_questions: []");
+    } else {
+      bqLines.push("blocking_questions:");
+      for (const q of nextState.blocking_questions) {
+        bqLines.push(`  - ${toYamlDoubleQuoted(q)}`);
+      }
+    }
+    lines.splice(bqStartIndex, bqEndIndex - bqStartIndex, ...bqLines);
+  } else if (nextState.blocking_questions && nextState.blocking_questions.length > 0) {
+    const bqLines = ["blocking_questions:"];
+    for (const q of nextState.blocking_questions) {
+      bqLines.push(`  - ${toYamlDoubleQuoted(q)}`);
+    }
+    lines.splice(statusIndex + 1, 0, ...bqLines);
+  }
+
+  // 5. Phases block and phase entry
+  let phasesStart = -1;
+  let phasesEnd = lines.length;
+  for (let i = 0; i < lines.length; i += 1) {
+    const trimmed = lines[i].trim();
+    const indent = lines[i].match(/^\s*/)[0].length;
+    if (indent === 0 && trimmed === "phases:") {
+      phasesStart = i;
+      continue;
+    }
+    if (phasesStart !== -1 && indent === 0 && trimmed) {
+      phasesEnd = i;
+      break;
+    }
+  }
+
+  if (phasesStart === -1) {
+    phasesStart = lines.length;
+    lines.push("phases:");
+    phasesEnd = lines.length;
+  }
+
+  let phaseHeaderIndex = -1;
+  let phaseBlockEnd = phasesEnd;
+  for (let i = phasesStart + 1; i < phasesEnd; i += 1) {
+    const trimmed = lines[i].trim();
+    const indent = lines[i].match(/^\s*/)[0].length;
+    if (indent === 2) {
+      if (phaseHeaderIndex !== -1) {
+        phaseBlockEnd = i;
+        break;
+      }
+      const match = trimmed.match(/^([\w-]+):\s*$/);
+      if (match && match[1] === phase) {
+        phaseHeaderIndex = i;
+      }
+    }
+  }
+
+  const phaseState = nextState.phases?.[phase] || {};
+  const newPhaseLines = [];
+  newPhaseLines.push(`  ${phase}:`);
+  if (phaseState.status) {
+    newPhaseLines.push(`    status: ${phaseState.status}`);
+  }
+
+  if (phaseState.artifacts) {
+    if (phaseState.artifacts === "inline") {
+      newPhaseLines.push('    artifact: "inline"');
+    } else if (Array.isArray(phaseState.artifacts)) {
+      if (phaseState.artifacts.length === 1) {
+        newPhaseLines.push(`    artifact: ${toYamlDoubleQuoted(phaseState.artifacts[0])}`);
+      } else {
+        newPhaseLines.push("    artifacts:");
+        for (const art of phaseState.artifacts) {
+          newPhaseLines.push(`      - ${toYamlDoubleQuoted(art)}`);
+        }
+      }
+    }
+  }
+
+  if (phaseState.summary) {
+    newPhaseLines.push(`    summary: ${toYamlDoubleQuoted(phaseState.summary)}`);
+  }
+
+  if (Array.isArray(phaseState.key_decisions) && phaseState.key_decisions.length > 0) {
+    newPhaseLines.push("    key_decisions:");
+    for (const d of phaseState.key_decisions) {
+      newPhaseLines.push(`      - ${toYamlDoubleQuoted(d)}`);
+    }
+  }
+
+  if (phaseState.blocker_type) {
+    newPhaseLines.push(`    blocker_type: ${phaseState.blocker_type}`);
+  }
+
+  if (phaseState.last_payload_hash) {
+    newPhaseLines.push(`    last_payload_hash: "${phaseState.last_payload_hash}"`);
+  }
+
+  if (phaseHeaderIndex !== -1) {
+    // Field-preserving projection: replace only projected keys in place and
+    // preserve every other existing field (verdict, report, artifacts lists,
+    // key_decisions) verbatim inside the existing phase block.
+    const projected = [];
+    if (phaseState.status) projected.push(["status", [`    status: ${phaseState.status}`]]);
+    if (phaseState.summary) projected.push(["summary", [`    summary: ${toYamlDoubleQuoted(phaseState.summary)}`]]);
+    if (Array.isArray(phaseState.key_decisions) && phaseState.key_decisions.length > 0) {
+      projected.push(["key_decisions", ["    key_decisions:", ...phaseState.key_decisions.map((d) => `      - ${toYamlDoubleQuoted(d)}`)]]);
+    }
+    if (phaseState.blocker_type) projected.push(["blocker_type", [`    blocker_type: ${phaseState.blocker_type}`]]);
+    if (phaseState.last_payload_hash) projected.push(["last_payload_hash", [`    last_payload_hash: "${phaseState.last_payload_hash}"`]]);
+    const applied = new Set();
+    let cursor = phaseHeaderIndex + 1;
+    while (cursor < phaseBlockEnd) {
+      const m = lines[cursor].match(/^\s{4}([^:#]+):/);
+      const key = m ? m[1].trim() : null;
+      const rep = key && !applied.has(key) ? projected.find(([k]) => k === key) : null;
+      if (!rep) { cursor += 1; continue; }
+      applied.add(key);
+      let segEnd = cursor + 1;
+      while (segEnd < phaseBlockEnd && !(lines[segEnd].trim() && lines[segEnd].match(/^\s*/)[0].length <= 4)) segEnd += 1;
+      lines.splice(cursor, segEnd - cursor, ...rep[1]);
+      phaseBlockEnd += rep[1].length - (segEnd - cursor);
+      cursor += rep[1].length;
+    }
+    let appendAt = phaseBlockEnd;
+    while (appendAt > phaseHeaderIndex + 1 && !lines[appendAt - 1].trim()) appendAt -= 1;
+    lines.splice(appendAt, 0, ...projected.filter(([k]) => !applied.has(k)).flatMap(([, ls]) => ls));
+  } else {
+    lines.splice(phasesStart + 1, 0, ...newPhaseLines);
+  }
+
+  return lines.join(eol);
+}
+
+/**
+ * Executes locked, atomic state projection for a phase completion envelope.
+ *
+ * @param {object} params
+ * @param {string} params.changePath - Path to change directory containing state.yaml
+ * @param {string} params.phase - Phase key (e.g. "design", "apply")
+ * @param {object} params.envelope - Validated result-envelope/v1 payload
+ * @param {number} [params.expectedRevision] - Optional revision for CAS verification
+ * @returns {Promise<{ ok: boolean, outcome: string, state?: object, code?: string, error?: string }>}
+ */
+async function projectPhaseCompletion({ changePath, phase, envelope, expectedRevision }) {
+  if (!changePath || typeof changePath !== "string") {
+    return { ok: false, outcome: "error", error: "changePath is required" };
+  }
+  if (!phase || typeof phase !== "string") {
+    return { ok: false, outcome: "error", error: "phase is required" };
+  }
+
+  const resolvedPath = path.resolve(changePath);
+  const statePath =
+    path.basename(resolvedPath).toLowerCase() === "state.yaml"
+      ? resolvedPath
+      : path.join(resolvedPath, "state.yaml");
+
+  return await withFileLock(statePath, async () => {
+    // 1. Recover orphaned .bak file before read
+    await recoverOrphanBak(statePath);
+
+    let content;
+    try {
+      content = await fs.readFile(statePath, "utf8");
+    } catch (error) {
+      return { ok: false, outcome: "read-failed", error: error.message };
+    }
+
+    // 2. Parse currentState from state.yaml
+    const currentState = parseStateYaml(content);
+
+    // 3. Execute pure reduction (timestamp injected at this I/O boundary)
+    const reduction = reducePhaseCompletion(
+      currentState,
+      { phase, envelope },
+      { expectedRevision, now: new Date().toISOString() },
+    );
+
+    if (!reduction.ok) {
+      return {
+        ok: false,
+        outcome: reduction.outcome,
+        code: reduction.code,
+        error: reduction.error,
+        state: reduction.state,
+      };
+    }
+
+    if (reduction.outcome === "noop-replay") {
+      return {
+        ok: true,
+        outcome: "noop-replay",
+        state: reduction.state,
+      };
+    }
+
+    // 4. Update YAML text deterministically and commit atomically
+    const nextContent = applyStateProjectionToYaml(content, reduction.state, phase);
+    await writeFileAtomic(statePath, nextContent);
+
+    return {
+      ok: true,
+      outcome: reduction.outcome,
+      state: reduction.state,
+    };
+  });
+}
+
 async function appendRuntimeEvent(event) {
   if (!event || typeof event !== "object" || Array.isArray(event)) {
     throw new TypeError("Runtime event must be an object.");
@@ -1124,6 +1497,7 @@ module.exports = {
   readBaselineState,
   readStagedFiles,
   readState,
+  projectPhaseCompletion,
   resolveTddMode,
   setPhaseSummary,
   withAppendLock,

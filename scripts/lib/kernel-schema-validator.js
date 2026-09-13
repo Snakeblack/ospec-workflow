@@ -504,7 +504,7 @@ function pathEscapeError(pathLabel) {
 }
 
 function versionFromSchemaId(id) {
-  const match = /\/v([1-9][0-9]*)$/.exec(id);
+  const match = /\/v([1-9][0-9]*)(?:\.schema\.json)?$/.exec(id);
   if (!match) {
     throw new Error(`schema $id must end with a positive version: ${id}`);
   }

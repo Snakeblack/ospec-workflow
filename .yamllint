@@ -1,0 +1,10 @@
+# Config yamllint repo-local (honrada por pi-lens para chequeos YAML).
+# Los YAML generados de openspec (config.yaml, state.yaml) llevan líneas
+# largas legítimas (bloques context, descriptions, fingerprints hex);
+# mismo criterio que el waiver de MD013 para markdown.
+extends: default
+
+rules:
+  line-length: disable
+  truthy: disable
+  document-start: disable

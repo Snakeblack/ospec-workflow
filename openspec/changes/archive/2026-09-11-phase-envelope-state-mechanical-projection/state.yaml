@@ -1,0 +1,113 @@
+schema_version: 1
+change: phase-envelope-state-mechanical-projection
+status: archived
+last_updated: "2026-09-11T15:20:00Z"
+classification: normal
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "CX1 introduce el envelope versionado y PhaseCompletionReducer mecanico; corresponde a un cambio normal bajo la ruta standard."
+  validated: true
+  validation_errors: []
+owner:
+  author: "Manuel Retamozo"
+  branch: feat/phase-envelope-state-mechanical-projection
+baseline_fingerprints:
+  skills: "84657cb1e9748dc1896cbfbd2ffbc0b5d9b05acf5208766d04249a3683c63526"
+  agents: "26d4b8049210cf0833e46906fb196b7503d278d448ceed87269e3de34e747730"
+  hooks: "945fe7603875846ae9aee5bf6f30981ad96c3c22f1c45f6db3b3376317d22897"
+  lifecycle-kernel-runtime: "8f4f63a0577a3a8e7d8d8d2c1465b4bee65ed43bbecdbe8bcd0bd4e2c0256e77"
+  kernel-contract-schemas: "00c814dc1069a9374648260cb80b6fb018635f187cfb959b8a518fe2bf2a4e15"
+approvals:
+  - id: intent-briefing-001
+    gate: intent-briefing
+    decision: accepted
+    source: antigravity/ask_question
+    accepted_at: "2026-09-11T10:31:19Z"
+    synthesis: "Implementar el envelope versionado y la proyeccion mecanica de estado mediante PhaseCompletionReducer, eliminando la duplicacion mecanica de salidas entre agentes y el kernel. Incluye envelope JSON versionado con validacion estricta, PhaseCompletionReducer runtime-owned con CAS/replay determinista y compatibilidad legacy, y renderers humanos desacoplados sin inferir decisiones semanticas ni mover approvals."
+    scope:
+      in: "Envelope versionado con validacion estricta, PhaseCompletionReducer runtime-owned con CAS/replay y compatibilidad legacy, y renderers humanos desacoplados."
+      out: "Consolidar fases o invocaciones antes de K10, mover approvals al modelo o relajar la verificacion independiente."
+    applies_to:
+      - change-classification
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: auto
+    source: antigravity/plain-chat
+    accepted_at: "2026-09-11T10:31:19Z"
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+  - id: review-workload-001
+    gate: review-workload
+    decision: feature-branch-chain
+    source: antigravity/ask_question
+    accepted_at: "2026-09-11T10:49:18Z"
+    applies_to:
+      - sdd-apply
+phases:
+  proposal:
+    status: done
+    artifact: openspec/changes/phase-envelope-state-mechanical-projection/proposal.md
+    summary: "Propuesta CX1: envelope versionado con renderer humano desacoplado y PhaseCompletionReducer mecánico con CAS/replay determinista."
+    key_decisions:
+      - "Target JSON-only versionado con renderer humano desacoplado"
+      - "PhaseCompletionReducer mecánico en runtime sin inferencia por LLM"
+      - "Compatibilidad total con envelopes legacy sin consolidar fases pre-K10"
+  spec:
+    status: done
+    artifacts:
+      - openspec/changes/phase-envelope-state-mechanical-projection/specs/skills/spec.md
+      - openspec/changes/phase-envelope-state-mechanical-projection/specs/agents/spec.md
+      - openspec/changes/phase-envelope-state-mechanical-projection/specs/hooks/spec.md
+      - openspec/changes/phase-envelope-state-mechanical-projection/specs/lifecycle-kernel-runtime/spec.md
+      - openspec/changes/phase-envelope-state-mechanical-projection/specs/kernel-contract-schemas/spec.md
+    summary: "Especificaciones delta para envelope versionado result-envelope/v1, renderer desacoplado y proyección mecánica con PhaseCompletionReducer."
+    key_decisions:
+      - "Contrato result-envelope/v1 estricto con renderer humano desacoplado"
+      - "Proyección mecánica vía PhaseCompletionReducer con CAS/replay determinista"
+      - "Adaptador de compatibilidad para envelopes legacy y sin versionar"
+  clarify:
+    status: skipped
+    summary: "Skipped deterministically: residual_ambiguity=false and all ambiguity arrays are empty."
+  design:
+    status: done
+    artifact: openspec/changes/phase-envelope-state-mechanical-projection/design.md
+    summary: "Diseño CX1: schema result-envelope/v1 con renderer desacoplado, adaptador legacy y PhaseCompletionReducer puro con CAS/replay determinista."
+    key_decisions:
+      - "Schema result-envelope/v1 estricto con renderer markdown desacoplado"
+      - "PhaseCompletionReducer puro con CAS y deduplicación por hash de replay"
+      - "Frontera estricta a prueba de fallos contra inferencia de approvals"
+  tasks:
+    status: done
+    artifact: openspec/changes/phase-envelope-state-mechanical-projection/tasks.md
+    summary: "Desglose TDD en 5 fases y unidades de PR encadenadas para schemas, validator, reducer puro, integración en hooks y skills."
+    key_decisions:
+      - "Estrategia encadenada de 5 PRs con riesgo alto de presupuesto de 400 líneas"
+      - "Enfoque estricto TDD (test RED antes de implementación GREEN en cada fase)"
+      - "Frontera fail-closed en schemas, reducer y hooks con compatibilidad legacy"
+  apply:
+    status: done
+    artifact: openspec/changes/phase-envelope-state-mechanical-projection/apply-progress.md
+    summary: "Implementadas 5 fases CX1: schema v1, validator, renderer, reducer puro, integración en SubagentStop y alineación de skills con 100% tests."
+    key_decisions:
+      - "result-envelope/v1 con renderer puro desacoplado y adapter legacy"
+      - "PhaseCompletionReducer puro con CAS y replay determinista"
+      - "SubagentStop delega en projectPhaseCompletion bajo withFileLock"
+  verify:
+    status: done
+    verdict: "PASS"
+    artifact: openspec/changes/phase-envelope-state-mechanical-projection/verify-report.md
+    summary: "PASS (re-run v1): 24t, 11r, 50s, suite 3316 exit 0"
+  archive:
+    status: done
+    artifact: openspec/changes/phase-envelope-state-mechanical-projection/archive-plan.json
+    report: openspec/changes/phase-envelope-state-mechanical-projection/archive-report.md
+    summary: "Runtime staging-rename: 5 merges, 4 ADRs, 24/24 tareas."
+
+
+
