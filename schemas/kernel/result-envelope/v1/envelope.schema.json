@@ -125,6 +125,14 @@
         "workload-escalation"
       ]
     },
+    "verify_outcome": {
+      "type": "string",
+      "enum": [
+        "PASS",
+        "PASS WITH WARNINGS",
+        "FAIL"
+      ]
+    },
     "question_gate": {
       "type": "object",
       "required": [

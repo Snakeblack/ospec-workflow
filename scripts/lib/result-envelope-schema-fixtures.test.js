@@ -70,6 +70,11 @@ test("result-envelope contract claims: required fields and enums are registered"
     "spec-change-required",
     "workload-escalation",
   ]);
+  assert.deepEqual(claims.families["result-envelope"].enum_values.verify_outcome, [
+    "PASS",
+    "PASS WITH WARNINGS",
+    "FAIL",
+  ]);
 });
 
 test("result-envelope v1 schema validates valid fixtures", () => {
@@ -81,6 +86,7 @@ test("result-envelope v1 schema validates valid fixtures", () => {
     "schemas/kernel/result-envelope/v1/fixtures/valid-v1.json",
     "schemas/kernel/result-envelope/v1/fixtures/blocked-v1.json",
     "schemas/kernel/result-envelope/v1/fixtures/ambiguity-spec-v1.json",
+    "schemas/kernel/result-envelope/v1/fixtures/valid/verify-pass-v1.json",
   ];
 
   for (const relPath of validFixtures) {
@@ -109,9 +115,30 @@ test("result-envelope v1 schema rejects invalid fixtures with path/rule", () => 
       path: "schemas/kernel/result-envelope/v1/fixtures/legacy-unversioned.json",
       expectedMissing: ["/schema_version"],
     },
+    {
+      path: "schemas/kernel/result-envelope/v1/fixtures/invalid/verify-outcome-invalid.json",
+      expectedPath: "/verify_outcome",
+      expectedRule: "enum",
+    },
+    {
+      path: "schemas/kernel/result-envelope/v1/fixtures/invalid/non-string-artifacts.json",
+      expectedPath: "/artifacts",
+      expectedRule: "oneOf",
+    },
+    {
+      path: "schemas/kernel/result-envelope/v1/fixtures/invalid/invalid-skill-resolution.json",
+      expectedPath: "/skill_resolution",
+      expectedRule: "enum",
+    },
+    {
+      path: "schemas/kernel/result-envelope/v1/fixtures/invalid/malformed-question-gate.json",
+      expectedPath: "/question_gate/reason",
+      expectedRule: "required",
+    },
   ];
 
-  for (const { path: relPath, expectedMissing } of invalidFixtures) {
+  for (const fixtureConfig of invalidFixtures) {
+    const { path: relPath, expectedMissing, expectedPath, expectedRule } = fixtureConfig;
     const fixturePath = path.join(ROOT, relPath);
     assert.ok(fs.existsSync(fixturePath), `fixture missing: ${relPath}`);
     const instance = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
@@ -119,11 +146,23 @@ test("result-envelope v1 schema rejects invalid fixtures with path/rule", () => 
     assert.equal(result.valid, false, `fixture ${relPath} unexpectedly passed`);
     assert.ok(result.errors.length >= 1);
 
-    const missingPaths = new Set(
-      result.errors.filter((e) => e.rule === "required").map((e) => e.path)
-    );
-    for (const expected of expectedMissing) {
-      assert.ok(missingPaths.has(expected), `${relPath} expected required error for ${expected}`);
+    if (expectedMissing) {
+      const missingPaths = new Set(
+        result.errors.filter((e) => e.rule === "required").map((e) => e.path)
+      );
+      for (const expected of expectedMissing) {
+        assert.ok(missingPaths.has(expected), `${relPath} expected required error for ${expected}`);
+      }
+    }
+
+    if (expectedPath) {
+      const matched = result.errors.some(
+        (e) => e.path === expectedPath && (!expectedRule || e.rule === expectedRule)
+      );
+      assert.ok(
+        matched,
+        `${relPath} expected error at path ${expectedPath} with rule ${expectedRule}, got: ${JSON.stringify(result.errors)}`
+      );
     }
   }
 });

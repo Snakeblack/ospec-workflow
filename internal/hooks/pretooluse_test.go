@@ -353,6 +353,7 @@ func TestPreToolUse_TokenBudgetAdvisor(t *testing.T) {
 			}
 		})
 		targetChange := "token-budget-advisor"
+		os.WriteFile(filepath.Join(root, "package.json"), []byte("{}"), 0644)
 		tempChangeDir := filepath.Join(root, "openspec", "changes", targetChange)
 		os.MkdirAll(tempChangeDir, 0755)
 		os.WriteFile(filepath.Join(tempChangeDir, "state.yaml"), []byte("status: active\n"), 0644)
@@ -465,7 +466,7 @@ func TestPreToolUse_TokenBudgetAdvisor(t *testing.T) {
 		tempFile := filepath.Join(".", "code_sample.js")
 
 		// Test OpenAI API key pattern
-		os.WriteFile(tempFile, []byte("const openAIKey = 'sk-123456789012345678901234567890123456789012345678';"), 0644)
+		os.WriteFile(tempFile, []byte("const openAIKey = 'sk-"+strings.Repeat("1", 48)+"';"), 0644)
 		defer os.Remove(tempFile)
 
 		stdin := []byte(`{

@@ -35,7 +35,7 @@ Run when the orchestrator launches verification for an SDD change. You are the q
 - Do not fix issues; report them for the orchestrator/user.
 - Persist `verify-report` according to mode: openspec file or inline-only for `none`.
 - If Strict TDD is active, load `strict-tdd-verify.md` from this skill directory; if inactive, never load it.
-- Return the Section D envelope from `../_shared/sdd-phase-common.md`.
+- Return the Section D envelope from `../_shared/sdd-phase-common.md` with the mandatory canonical `verify_outcome` field set to `"PASS"`, `"PASS WITH WARNINGS"`, or `"FAIL"` matching the final verification outcome [REQ-skills-018].
 
 ## Evidence Levels
 
@@ -167,7 +167,7 @@ This step runs **after** test/build verification (Step 7) and **before** the ope
    - Any WARNING finding (advisory-required `fail`/`error`) → overall outcome is `PASS WITH WARNINGS`
    - No blocking findings → outcome unchanged (determined by spec compliance matrix)
 
-When the audit write succeeds (step 8b read-back matches), the agent envelope `status` field is `success` — it reports that the verification work was done; the `FAIL` / `PASS WITH WARNINGS` / `PASS` outcome lives in `verify-report.md` and `state.yaml.gates.quality-gates.status`. Only a persistence failure (step 8c) flips the envelope to `blocked`.
+When the audit write succeeds (step 8b read-back matches), the agent envelope `status` field is `success` — it reports that the verification work was done; the mandatory canonical `verify_outcome` property (`PASS` | `PASS WITH WARNINGS` | `FAIL`) MUST be included in the return envelope [REQ-skills-018], and recorded in `verify-report.md` and `state.yaml.gates.quality-gates.status`. Only a persistence failure (step 8c) flips the envelope to `blocked`.
 
 Step 10 has two parts (10a and 10b). Both are mandatory — do NOT stop after 10a.
 
@@ -220,7 +220,7 @@ After the verify report is finalized, write qualifying findings to `openspec/mem
 
 ## Output Contract
 
-Return `## Verification Report` with change, mode, completeness table, build/tests/coverage evidence, spec compliance matrix including evidence levels, correctness table, design coherence table, a `## Assumption Reconciliation` section (see Step 2a; omitted when `assumptions:` is absent or empty), issues grouped as CRITICAL/WARNING/SUGGESTION with origin tags, and final verdict `PASS`, `PASS WITH WARNINGS`, or `FAIL`.
+Return `## Verification Report` with change, mode, completeness table, build/tests/coverage evidence, spec compliance matrix including evidence levels, correctness table, design coherence table, a `## Assumption Reconciliation` section (see Step 2a; omitted when `assumptions:` is absent or empty), issues grouped as CRITICAL/WARNING/SUGGESTION with origin tags, and final verdict `PASS`, `PASS WITH WARNINGS`, or `FAIL`. The Section D result-envelope MUST explicitly include the canonical `verify_outcome` property set to `"PASS"`, `"PASS WITH WARNINGS"`, or `"FAIL"` matching this final verdict [REQ-skills-018].
 
 ## References
 

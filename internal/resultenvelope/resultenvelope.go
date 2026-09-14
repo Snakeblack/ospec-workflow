@@ -25,10 +25,23 @@ var blockerTypeEnumOrder = []string{
 	"spec-change-required",
 	"workload-escalation",
 }
+var skillResolutionEnumOrder = []string{
+	"injected",
+	"fallback-registry",
+	"fallback-path",
+	"none",
+}
+var verifyOutcomeEnumOrder = []string{
+	"PASS",
+	"PASS WITH WARNINGS",
+	"FAIL",
+}
 
 var statusEnum = toMembershipSet(statusEnumOrder)
 var reversibilityEnum = toMembershipSet(reversibilityEnumOrder)
 var blockerTypeEnum = toMembershipSet(blockerTypeEnumOrder)
+var skillResolutionEnum = toMembershipSet(skillResolutionEnumOrder)
+var verifyOutcomeEnum = toMembershipSet(verifyOutcomeEnumOrder)
 
 func toMembershipSet(values []string) map[string]bool {
 	set := make(map[string]bool, len(values))
@@ -39,6 +52,7 @@ func toMembershipSet(values []string) map[string]bool {
 }
 
 var requiredFields = []string{
+	"schema_version",
 	"status",
 	"executive_summary",
 	"artifacts",
@@ -59,6 +73,17 @@ var specSignalArrayFields = specSignalFields[1:]
 // fenceRe matches the strict json:result-envelope fence, mirroring
 // scripts/lib/result-envelope.js's FENCE_RE.
 var fenceRe = regexp.MustCompile("(?s)```json:result-envelope\r?\n(.*?)```")
+
+var (
+	statusPattern     = regexp.MustCompile(`(?i)\*\*Status\*\*:\s*([^\r\n]+)`)
+	summaryPattern    = regexp.MustCompile(`(?i)\*\*Summary\*\*:\s*([^\r\n]+)`)
+	artifactsPattern  = regexp.MustCompile(`(?i)\*\*Artifacts\*\*:\s*([^\r\n]+)`)
+	nextPattern       = regexp.MustCompile(`(?i)\*\*Next(?:\s*Recommended)?\*\*:\s*([^\r\n]+)`)
+	risksPattern      = regexp.MustCompile(`(?i)\*\*Risks\*\*:\s*([^\r\n]+)`)
+	resolutionPattern = regexp.MustCompile(`(?i)\*\*Skill Resolution\*\*:\s*([^\r\n]+)`)
+	backtickPattern   = regexp.MustCompile("`([^`]+)`")
+	dashSplitPattern  = regexp.MustCompile(`\s*[-—]\s*`)
+)
 
 // Extract locates the strict json:result-envelope fenced block inside text and
 // attempts to json.Unmarshal its content. Never panics.
@@ -140,6 +165,82 @@ func validateStringArrayField(obj map[string]any, field string, errs *[]string) 
 	}
 }
 
+func validateQuestionGate(questionGate any, errs *[]string) {
+	qg, ok := questionGate.(map[string]any)
+	if !ok {
+		*errs = append(*errs, "question_gate must be an object")
+		return
+	}
+
+	if !isNonEmptyString(qg["reason"]) {
+		*errs = append(*errs, "question_gate.reason must be a non-empty string")
+	}
+
+	questions, ok := qg["questions"].([]any)
+	if !ok {
+		*errs = append(*errs, "question_gate.questions must be an array")
+		return
+	}
+
+	for i, qItem := range questions {
+		q, ok := qItem.(map[string]any)
+		if !ok {
+			*errs = append(*errs, fmt.Sprintf("question_gate.questions[%d] must be an object", i))
+			continue
+		}
+
+		if !isNonEmptyString(q["header"]) {
+			*errs = append(*errs, fmt.Sprintf("question_gate.questions[%d].header must be a non-empty string", i))
+		}
+
+		if !isNonEmptyString(q["question"]) {
+			*errs = append(*errs, fmt.Sprintf("question_gate.questions[%d].question must be a non-empty string", i))
+		}
+
+		options, ok := q["options"].([]any)
+		if !ok {
+			*errs = append(*errs, fmt.Sprintf("question_gate.questions[%d].options must be an array", i))
+			continue
+		}
+
+		for j, optItem := range options {
+			opt, ok := optItem.(map[string]any)
+			if !ok {
+				*errs = append(*errs, fmt.Sprintf("question_gate.questions[%d].options[%d] must be an object", i, j))
+				continue
+			}
+
+			if !isNonEmptyString(opt["label"]) {
+				*errs = append(*errs, fmt.Sprintf("question_gate.questions[%d].options[%d].label must be a non-empty string", i, j))
+			}
+
+			if desc, ok := opt["description"]; ok {
+				if _, isString := desc.(string); !isString {
+					*errs = append(*errs, fmt.Sprintf("question_gate.questions[%d].options[%d].description must be a string", i, j))
+				}
+			}
+
+			if rec, ok := opt["recommended"]; ok {
+				if _, isBool := rec.(bool); !isBool {
+					*errs = append(*errs, fmt.Sprintf("question_gate.questions[%d].options[%d].recommended must be a boolean", i, j))
+				}
+			}
+		}
+
+		if ms, ok := q["multiSelect"]; ok {
+			if _, isBool := ms.(bool); !isBool {
+				*errs = append(*errs, fmt.Sprintf("question_gate.questions[%d].multiSelect must be a boolean", i))
+			}
+		}
+
+		if ff, ok := q["allowFreeformInput"]; ok {
+			if _, isBool := ff.(bool); !isBool {
+				*errs = append(*errs, fmt.Sprintf("question_gate.questions[%d].allowFreeformInput must be a boolean", i))
+			}
+		}
+	}
+}
+
 // Validate validates a parsed envelope object against the canonical §D schema.
 // Never panics.
 func Validate(obj map[string]any) (valid bool, errs []string) {
@@ -170,6 +271,25 @@ func ValidateForPhase(obj map[string]any, phase string) (valid bool, errs []stri
 		}
 	}
 
+	if v, ok := obj["schema_version"]; ok {
+		switch n := v.(type) {
+		case int:
+			if n != 1 {
+				errs = append(errs, "schema_version must be 1")
+			}
+		case int64:
+			if n != 1 {
+				errs = append(errs, "schema_version must be 1")
+			}
+		case float64:
+			if n != 1 {
+				errs = append(errs, "schema_version must be 1")
+			}
+		default:
+			errs = append(errs, "schema_version must be 1")
+		}
+	}
+
 	if status, ok := obj["status"]; ok {
 		s, isString := status.(string)
 		if !isString || !statusEnum[s] {
@@ -181,20 +301,62 @@ func ValidateForPhase(obj map[string]any, phase string) (valid bool, errs []stri
 		errs = append(errs, "executive_summary must be a non-empty string")
 	}
 
-	if v, ok := obj["artifacts"]; ok && !isArtifactsValid(v) {
-		errs = append(errs, `artifacts must be an array of paths or the literal string "inline"`)
+	if v, ok := obj["artifacts"]; ok {
+		if !isArtifactsValid(v) {
+			errs = append(errs, `artifacts must be an array of paths or the literal string "inline"`)
+		} else if list, isSlice := v.([]any); isSlice {
+			for i, item := range list {
+				if _, isString := item.(string); !isString {
+					errs = append(errs, fmt.Sprintf("artifacts[%d] must be a string", i))
+				}
+			}
+		}
 	}
 
 	if v, ok := obj["next_recommended"]; ok && !isNonEmptyString(v) {
 		errs = append(errs, "next_recommended must be a non-empty string")
 	}
 
-	if v, ok := obj["risks"]; ok && !isRisksValid(v) {
-		errs = append(errs, "risks must be a non-empty string or an array")
+	if v, ok := obj["risks"]; ok {
+		if !isRisksValid(v) {
+			errs = append(errs, "risks must be a non-empty string or an array")
+		} else if list, isSlice := v.([]any); isSlice {
+			for i, item := range list {
+				if _, isString := item.(string); !isString {
+					errs = append(errs, fmt.Sprintf("risks[%d] must be a string", i))
+				}
+			}
+		}
 	}
 
-	if v, ok := obj["skill_resolution"]; ok && !isNonEmptyString(v) {
-		errs = append(errs, "skill_resolution must be a non-empty string")
+	if v, ok := obj["skill_resolution"]; ok {
+		s, isString := v.(string)
+		if !isString || !skillResolutionEnum[s] {
+			errs = append(errs, fmt.Sprintf("skill_resolution must be one of: %s", strings.Join(skillResolutionEnumOrder, ", ")))
+		}
+	}
+
+	if v, ok := obj["verify_outcome"]; ok {
+		s, isString := v.(string)
+		if !isString || !verifyOutcomeEnum[s] {
+			errs = append(errs, fmt.Sprintf("verify_outcome must be one of: %s", strings.Join(verifyOutcomeEnumOrder, ", ")))
+		}
+	}
+
+	if v, ok := obj["key_decisions"]; ok {
+		list, isSlice := v.([]any)
+		if !isSlice {
+			errs = append(errs, "key_decisions must be an array")
+		} else {
+			if len(list) > 3 {
+				errs = append(errs, "key_decisions must contain at most 3 entries")
+			}
+			for i, item := range list {
+				if !isNonEmptyString(item) {
+					errs = append(errs, fmt.Sprintf("key_decisions[%d] must be a non-empty string", i))
+				}
+			}
+		}
 	}
 
 	if v, ok := obj["blocker_type"]; ok {
@@ -207,7 +369,11 @@ func ValidateForPhase(obj map[string]any, phase string) (valid bool, errs []stri
 	if status, _ := obj["status"].(string); status == "blocked" {
 		if obj["question_gate"] == nil {
 			errs = append(errs, "question_gate is required when status is blocked")
+		} else {
+			validateQuestionGate(obj["question_gate"], &errs)
 		}
+	} else if qg, ok := obj["question_gate"]; ok && qg != nil {
+		validateQuestionGate(qg, &errs)
 	}
 
 	if v, ok := obj["assumptions"]; ok {
@@ -232,4 +398,131 @@ func ValidateForPhase(obj map[string]any, phase string) (valid bool, errs []stri
 	}
 
 	return len(errs) == 0, errs
+}
+
+// AdaptLegacyEnvelope normalizes unversioned JSON fences, legacy field names,
+// or prose envelopes into a canonical result-envelope/v1 payload. Never panics.
+func AdaptLegacyEnvelope(rawInput any) (map[string]any, bool, []string) {
+	if rawInput == nil {
+		return nil, false, []string{"input must be a non-empty string or envelope object"}
+	}
+
+	var candidate map[string]any
+
+	switch v := rawInput.(type) {
+	case map[string]any:
+		candidate = make(map[string]any, len(v))
+		for k, val := range v {
+			candidate[k] = val
+		}
+	case string:
+		if strings.TrimSpace(v) == "" {
+			return nil, false, []string{"input must be a non-empty string or envelope object"}
+		}
+		extracted, found := Extract(v)
+		if found && extracted != nil {
+			candidate = extracted
+		} else {
+			statusMatch := statusPattern.FindStringSubmatch(v)
+			summaryMatch := summaryPattern.FindStringSubmatch(v)
+
+			if len(statusMatch) > 1 && len(summaryMatch) > 1 {
+				rawStatus := strings.ToLower(strings.TrimSpace(statusMatch[1]))
+				rawSummary := strings.TrimSpace(summaryMatch[1])
+
+				var artifacts any = "inline"
+				artMatch := artifactsPattern.FindStringSubmatch(v)
+				if len(artMatch) > 1 {
+					artRaw := strings.TrimSpace(artMatch[1])
+					if strings.HasPrefix(strings.ToLower(artRaw), "inline") {
+						artifacts = "inline"
+					} else {
+						var paths []any
+						btMatches := backtickPattern.FindAllStringSubmatch(artRaw, -1)
+						for _, m := range btMatches {
+							p := strings.TrimSpace(m[1])
+							if p != "" && p != "inline" {
+								paths = append(paths, p)
+							}
+						}
+						if len(paths) > 0 {
+							artifacts = paths
+						} else {
+							part := strings.TrimSpace(strings.Split(artRaw, "|")[0])
+							artifacts = []any{part}
+						}
+					}
+				}
+
+				nextRecommended := "none"
+				if nMatch := nextPattern.FindStringSubmatch(v); len(nMatch) > 1 {
+					nextRecommended = strings.TrimSpace(nMatch[1])
+				}
+
+				risks := "None"
+				if rMatch := risksPattern.FindStringSubmatch(v); len(rMatch) > 1 {
+					risks = strings.TrimSpace(rMatch[1])
+				}
+
+				skillResolution := "injected"
+				if resMatch := resolutionPattern.FindStringSubmatch(v); len(resMatch) > 1 {
+					resRaw := strings.TrimSpace(resMatch[1])
+					splitParts := dashSplitPattern.Split(resRaw, -1)
+					cleanRes := strings.ToLower(strings.TrimSpace(splitParts[0]))
+					if skillResolutionEnum[cleanRes] {
+						skillResolution = cleanRes
+					}
+				}
+
+				candidate = map[string]any{
+					"schema_version":    1,
+					"status":            rawStatus,
+					"executive_summary": rawSummary,
+					"artifacts":         artifacts,
+					"next_recommended":  nextRecommended,
+					"risks":             risks,
+					"skill_resolution":  skillResolution,
+				}
+			}
+		}
+	default:
+		return nil, false, []string{"input must be a non-empty string or envelope object"}
+	}
+
+	if candidate == nil {
+		return nil, false, []string{"unable to extract or parse result envelope"}
+	}
+
+	if v, hasVer := candidate["schema_version"]; !hasVer {
+		candidate["schema_version"] = 1
+	} else if n, ok := v.(float64); ok && n == 1 {
+		candidate["schema_version"] = 1
+	}
+
+	if _, hasExec := candidate["executive_summary"]; !hasExec {
+		if s, ok := candidate["summary"]; ok {
+			candidate["executive_summary"] = s
+		}
+	}
+	delete(candidate, "summary")
+
+	if kd, ok := candidate["key_decisions"].([]any); ok {
+		var filtered []any
+		for _, item := range kd {
+			if s, isStr := item.(string); isStr && strings.TrimSpace(s) != "" {
+				filtered = append(filtered, s)
+				if len(filtered) == 3 {
+					break
+				}
+			}
+		}
+		candidate["key_decisions"] = filtered
+	}
+
+	valid, errs := Validate(candidate)
+	if !valid {
+		return nil, false, errs
+	}
+
+	return candidate, true, nil
 }

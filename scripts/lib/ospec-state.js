@@ -948,6 +948,10 @@ function applyStateProjectionToYaml(content, nextState, phase) {
     newPhaseLines.push(`    last_payload_hash: "${phaseState.last_payload_hash}"`);
   }
 
+  if (phaseState.verdict) {
+    newPhaseLines.push(`    verdict: ${toYamlDoubleQuoted(phaseState.verdict)}`);
+  }
+
   if (phaseHeaderIndex !== -1) {
     // Field-preserving projection: replace only projected keys in place and
     // preserve every other existing field (verdict, report, artifacts lists,
@@ -955,6 +959,7 @@ function applyStateProjectionToYaml(content, nextState, phase) {
     const projected = [];
     if (phaseState.status) projected.push(["status", [`    status: ${phaseState.status}`]]);
     if (phaseState.summary) projected.push(["summary", [`    summary: ${toYamlDoubleQuoted(phaseState.summary)}`]]);
+    if (phaseState.verdict) projected.push(["verdict", [`    verdict: ${toYamlDoubleQuoted(phaseState.verdict)}`]]);
     if (Array.isArray(phaseState.key_decisions) && phaseState.key_decisions.length > 0) {
       projected.push(["key_decisions", ["    key_decisions:", ...phaseState.key_decisions.map((d) => `      - ${toYamlDoubleQuoted(d)}`)]]);
     }

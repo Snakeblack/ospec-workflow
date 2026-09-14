@@ -869,6 +869,11 @@
           "design-mismatch",
           "spec-change-required",
           "workload-escalation"
+        ],
+        "verify_outcome": [
+          "PASS",
+          "PASS WITH WARNINGS",
+          "FAIL"
         ]
       },
       "command_shapes": []

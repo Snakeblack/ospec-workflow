@@ -1975,5 +1975,254 @@ test("SubagentStop: prefixed sdd-spec dispatch enforces fail-closed validation [
   assert.equal(stateContent, STATE_WITH_EMPTY_SPEC_SUMMARY);
 });
 
+test("SubagentStop: legacy prose result text without canonical fence is adapted and persisted [REQ-hooks-015]", async (t) => {
+  const { workspace, statePath } = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_DESIGN_SUMMARY,
+  );
+
+  const legacyProse = [
+    "Work completed.",
+    "**Status**: success",
+    '**Summary**: Diseñó el flujo adaptado.',
+    "**Artifacts**: `openspec/changes/strict-result-envelope/design.md`",
+    "**Next**: sdd-tasks",
+    "**Risks**: None",
+    "**Skill Resolution**: injected",
+  ].join("\n");
+
+  await persistResultEnvelope({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-design",
+      result: legacyProse,
+    },
+    workspace,
+  });
+
+  const stateContent = await fs.readFile(statePath, "utf8");
+  assert.match(stateContent, /summary: "Diseñó el flujo adaptado\."/);
+});
+
+test("SubagentStop: legacy transcript without canonical fence is adapted and persisted [REQ-hooks-015]", async (t) => {
+  const { workspace, statePath } = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_DESIGN_SUMMARY,
+  );
+
+  const transcriptPath = path.join(workspace, "transcript.jsonl");
+  const legacyProse = [
+    "Work completed from transcript.",
+    "**Status**: success",
+    '**Summary**: Diseñó el flujo desde transcripción.',
+    "**Artifacts**: inline",
+    "**Next**: sdd-tasks",
+    "**Risks**: None",
+    "**Skill Resolution**: injected",
+  ].join("\n");
+
+  await fs.writeFile(
+    transcriptPath,
+    JSON.stringify({ role: "assistant", content: legacyProse }) + "\n",
+    "utf8",
+  );
+
+  await persistResultEnvelope({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-design",
+      transcript_path: transcriptPath,
+    },
+    workspace,
+  });
+
+  const stateContent = await fs.readFile(statePath, "utf8");
+  assert.match(stateContent, /summary: "Diseñó el flujo desde transcripción\."/);
+});
+
+test("SubagentStop: legacy sdd-spec success without ambiguity signals fails closed in persistResultEnvelope [REQ-hooks-015]", async (t) => {
+  const { workspace, statePath } = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_SPEC_SUMMARY,
+  );
+
+  const legacySpecProse = [
+    "Spec work completed.",
+    "**Status**: success",
+    '**Summary**: Spec legacy sin ambiguity signals.',
+    "**Artifacts**: inline",
+    "**Next**: sdd-design",
+    "**Risks**: None",
+    "**Skill Resolution**: injected",
+  ].join("\n");
+
+  await persistResultEnvelope({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-spec",
+      result: legacySpecProse,
+    },
+    workspace,
+  });
+
+  const stateContent = await fs.readFile(statePath, "utf8");
+  assert.equal(stateContent, STATE_WITH_EMPTY_SPEC_SUMMARY);
+});
+
+test("SubagentStop: resolveDispatchStatus resolves legacy raw text and transcript [REQ-hooks-015]", async (t) => {
+  const workspace = await createWorkspace(t);
+  const legacyProse = [
+    "**Status**: success",
+    "**Summary**: Resuelto legacy.",
+  ].join("\n");
+
+  const statusFromRaw = await resolveDispatchStatus({
+    agent_type: "sdd-design",
+    result: legacyProse,
+  });
+  assert.equal(statusFromRaw, "success");
+
+  const transcriptPath = path.join(workspace, "transcript.jsonl");
+  await fs.writeFile(
+    transcriptPath,
+    JSON.stringify({ role: "assistant", content: legacyProse }) + "\n",
+    "utf8",
+  );
+  const statusFromTranscript = await resolveDispatchStatus({
+    agent_type: "sdd-design",
+    transcript_path: transcriptPath,
+  });
+  assert.equal(statusFromTranscript, "success");
+});
+
+test("SubagentStop: resolveDispatchStatus rejects legacy sdd-spec success without ambiguity signals [REQ-hooks-015]", async (t) => {
+  const legacySpecProse = [
+    "**Status**: success",
+    "**Summary**: Spec legacy sin ambiguity signals.",
+  ].join("\n");
+
+  const status = await resolveDispatchStatus({
+    agent_type: "sdd-spec",
+    status: "success",
+    result: legacySpecProse,
+  });
+  assert.equal(status, "blocked");
+});
+
+test("SubagentStop integration: full boundary execution of legacy sdd-design and sdd-verify projects state.yaml [REQ-hooks-015, REQ-lifecycle-kernel-028]", async (t) => {
+  const initialState = [
+    "schema_version: 1",
+    "change: strict-result-envelope",
+    "status: applying",
+    "revision: 1",
+    "blocking_questions: []",
+    "phases:",
+    "  design:",
+    "    status: pending",
+    '    artifact: "openspec/changes/strict-result-envelope/design.md"',
+    '    summary: ""',
+    "  verify:",
+    "    status: pending",
+    '    artifact: "openspec/changes/strict-result-envelope/verify-report.md"',
+    '    summary: ""',
+    "",
+  ].join("\n");
+
+  const { workspace, statePath } = await createChangeWorkspace(t, initialState);
+
+  // 1. Subagente legacy sdd-design ejecuta emitiendo prosa sin fence
+  const legacyDesignProse = [
+    "Design work completed successfully.",
+    "**Status**: success",
+    "**Summary**: Diseñó la arquitectura de integración de extremo a extremo.",
+    "**Artifacts**: `openspec/changes/strict-result-envelope/design.md`",
+    "**Next**: sdd-tasks",
+    "**Risks**: None",
+    "**Skill Resolution**: injected",
+  ].join("\n");
+
+  const designHookResult = await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-design",
+      result: legacyDesignProse,
+    },
+  });
+  assert.ok(designHookResult);
+
+  const stateAfterDesign = await fs.readFile(statePath, "utf8");
+  assert.match(stateAfterDesign, /summary: "Diseñó la arquitectura de integración de extremo a extremo\."/);
+  assert.match(stateAfterDesign, /status: "done"|status: done/);
+
+  // 2. Subagente sdd-verify ejecuta emitiendo envelope con verify_outcome PASS
+  const verifyEnvelope = {
+    schema_version: 1,
+    status: "success",
+    verify_outcome: "PASS",
+    executive_summary: "Verificación de integración exitosa sin hallazgos.",
+    artifacts: ["openspec/changes/strict-result-envelope/verify-report.md"],
+    next_recommended: "none",
+    risks: "None",
+    skill_resolution: "injected",
+  };
+
+  const verifyHookResult = await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-verify",
+      result: buildFenceText(verifyEnvelope),
+    },
+  });
+  assert.ok(verifyHookResult);
+
+  const stateAfterVerify = await fs.readFile(statePath, "utf8");
+  assert.match(stateAfterVerify, /summary: "Verificación de integración exitosa sin hallazgos\."/);
+  assert.match(stateAfterVerify, /status: "verified"|status: verified/);
+});
+
+test("SubagentStop integration: sdd-verify with FAIL outcome projects blocked state in state.yaml [REQ-hooks-015, REQ-lifecycle-kernel-028]", async (t) => {
+  const initialState = [
+    "schema_version: 1",
+    "change: strict-result-envelope",
+    "status: applying",
+    "revision: 1",
+    "blocking_questions: []",
+    "phases:",
+    "  verify:",
+    "    status: pending",
+    '    artifact: "openspec/changes/strict-result-envelope/verify-report.md"',
+    '    summary: ""',
+    "",
+  ].join("\n");
+
+  const { workspace, statePath } = await createChangeWorkspace(t, initialState);
+
+  const failVerifyEnvelope = {
+    schema_version: 1,
+    status: "success",
+    verify_outcome: "FAIL",
+    executive_summary: "Verificación fallida: regresiones críticas detectadas.",
+    artifacts: ["openspec/changes/strict-result-envelope/verify-report.md"],
+    next_recommended: "sdd-apply",
+    risks: "High",
+    skill_resolution: "injected",
+  };
+
+  const hookResult = await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-verify",
+      result: buildFenceText(failVerifyEnvelope),
+    },
+  });
+  assert.ok(hookResult);
+
+  const stateAfter = await fs.readFile(statePath, "utf8");
+  assert.match(stateAfter, /status: "blocked"|status: blocked/);
+  assert.match(stateAfter, /blocking_questions:\s*\n\s*- "Verificación fallida: regresiones críticas detectadas\."/);
+});
+
+
+
 
 

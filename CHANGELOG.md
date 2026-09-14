@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.67.1] - 2026-09-14
+
+### Fixed
+- **Remediación de contratos y proyección de envelopes (CX1)**:
+  - **Fallback legacy en `SubagentStop`**: Conectada la normalización vía `adaptLegacyEnvelope()` ante retornos sin fence canónico en JavaScript (`scripts/hooks/subagent-stop.js`) y Go (`internal/hooks/subagentstop.go`), garantizando la preservación estricta de `status: blocked` fail-closed en `sdd-spec` ante ausencia de señales de ambigüedad (`REQ-hooks-015`).
+  - **Autoridad de `verify_outcome` en reducer**: Añadida la propiedad canónica `verify_outcome` (`PASS`, `PASS WITH WARNINGS`, `FAIL`) a `result-envelope/v1`, requerida obligatoriamente en `sdd-verify`, y condicionado el avance a `status: verified` en `PhaseCompletionReducer` exclusivamente a un veredicto positivo explícito (`PASS` o `PASS WITH WARNINGS`). La omisión, `FAIL` o valores desconocidos proyectan mecánicamente `status: blocked` con `blocking_questions` (`REQ-lifecycle-kernel-028`, `REQ-skills-018`).
+  - **Paridad estricta entre Schema y validadores JS/Go**: Validación canónica rigurosa de elementos string en `artifacts` y `risks`, enum cerrado de `skill_resolution`, estructura de `question_gate` y verificación de `schema_version == 1` en el mirror Go (`internal/resultenvelope`), unificando el corpus de fixtures bajo `schemas/kernel/result-envelope/v1/fixtures/` (`REQ-kernel-contract-schemas-031`).
+  - **Transacción de archivo de cambio**: Cambio archivado en `openspec/changes/archive/2026-09-14-remediate-cx1-envelope-projection/` con 25/25 tareas completadas y 29/29 escenarios verificados en runtime con suite completa verde (3,331 tests en Node y 11 paquetes Go pasando).
+
 ## [2.67.0] - 2026-09-14
 
 ### Added

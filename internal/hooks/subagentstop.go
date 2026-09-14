@@ -484,9 +484,75 @@ func findEnvelopeInTranscript(transcriptPath string) (map[string]any, bool) {
 	return nil, false
 }
 
+func adaptTranscriptContent(content string) (map[string]any, bool) {
+	if adapted, ok, _ := resultenvelope.AdaptLegacyEnvelope(content); ok && adapted != nil {
+		return adapted, true
+	}
+	lines := strings.Split(content, "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			continue
+		}
+		parsed := parseJsonText(line)
+		if parsed == nil {
+			continue
+		}
+		if m, ok := parsed.(map[string]any); ok {
+			for _, field := range resultFields {
+				if v, ok := m[field]; ok && v != nil {
+					if adapted, ok, _ := resultenvelope.AdaptLegacyEnvelope(v); ok && adapted != nil {
+						return adapted, true
+					}
+				}
+			}
+		}
+	}
+	return nil, false
+}
+
+func resolveCandidateEnvelope(input map[string]any) (map[string]any, bool) {
+	envelope, found := findEnvelopeInInput(input)
+	if !found {
+		if tp, ok := resolveTranscriptPath(input); ok {
+			envelope, found = findEnvelopeInTranscript(tp)
+		}
+	}
+	if found && envelope != nil {
+		if _, hasVersion := envelope["schema_version"]; !hasVersion {
+			if adapted, ok, _ := resultenvelope.AdaptLegacyEnvelope(envelope); ok && adapted != nil {
+				return adapted, true
+			}
+		}
+		return envelope, true
+	}
+
+	for _, field := range resultFields {
+		if v, ok := input[field]; ok && v != nil {
+			if adapted, ok, _ := resultenvelope.AdaptLegacyEnvelope(v); ok && adapted != nil {
+				return adapted, true
+			}
+		}
+	}
+
+	if tp, ok := resolveTranscriptPath(input); ok {
+		path, valid := validatePath(tp)
+		if valid {
+			data, err := readFilePermissive(path)
+			if err == nil && data != nil {
+				if adapted, ok := adaptTranscriptContent(string(data)); ok && adapted != nil {
+					return adapted, true
+				}
+			}
+		}
+	}
+
+	return nil, false
+}
+
 // persistResultEnvelope extracts, validates, and (fill-gap) persists the
 // phase's Result Envelope summary into the active change's state.yaml, per
-// REQ-hooks-001. Strictly additive and fail-safe: any failure at any step (no
+// REQ-hooks-001/015. Strictly additive and fail-safe: any failure at any step (no
 // fence, malformed JSON, schema-invalid, no active change, non-"sdd-" agent,
 // lock/write failure) silently no-ops without panicking and without affecting
 // the hook's stdout.
@@ -497,13 +563,8 @@ func persistResultEnvelope(input map[string]any, workspace string) {
 		_ = recover()
 	}()
 
-	envelope, found := findEnvelopeInInput(input)
-	if !found {
-		if tp, ok := resolveTranscriptPath(input); ok {
-			envelope, found = findEnvelopeInTranscript(tp)
-		}
-	}
-	if !found || envelope == nil {
+	candidate, found := resolveCandidateEnvelope(input)
+	if !found || candidate == nil {
 		return
 	}
 
@@ -513,7 +574,7 @@ func persistResultEnvelope(input map[string]any, workspace string) {
 		return
 	}
 
-	valid, _ := resultenvelope.ValidateForPhase(envelope, canonicalAgent)
+	valid, _ := resultenvelope.ValidateForPhase(candidate, canonicalAgent)
 	if !valid {
 		return
 	}
@@ -525,9 +586,9 @@ func persistResultEnvelope(input map[string]any, workspace string) {
 	}
 	statePath := filepath.Join(activeChanges[0].ChangeDirectory, "state.yaml")
 
-	summary, _ := envelope["executive_summary"].(string)
+	summary, _ := candidate["executive_summary"].(string)
 	var keyDecisions []string
-	if raw, ok := envelope["key_decisions"].([]any); ok {
+	if raw, ok := candidate["key_decisions"].([]any); ok {
 		for _, item := range raw {
 			if s, ok := item.(string); ok {
 				keyDecisions = append(keyDecisions, s)
@@ -982,23 +1043,18 @@ func EstimateResultTokens(payload any) int {
 
 // resolveDispatchStatus resolves the dispatch's status for a phase-cost
 // record: a valid json:result-envelope fence's `status` field, else the
-// top-level input.status, else "unknown" (REQ-hooks-001 / design
+// top-level input.status, else "unknown" (REQ-hooks-001/015 / design
 // "Payload/status resolution").
 func resolveDispatchStatus(input map[string]any) string {
-	envelope, found := findEnvelopeInInput(input)
-	if !found {
-		if tp, ok := resolveTranscriptPath(input); ok {
-			envelope, found = findEnvelopeInTranscript(tp)
-		}
-	}
-	if found && envelope != nil {
+	candidate, found := resolveCandidateEnvelope(input)
+	if found && candidate != nil {
 		canonicalAgent := agentidentity.ResolveCanonicalAgent(resolveAgentName(input))
-		if valid, _ := resultenvelope.ValidateForPhase(envelope, canonicalAgent); valid {
-			if s, ok := envelope["status"].(string); ok && s != "" {
+		if valid, _ := resultenvelope.ValidateForPhase(candidate, canonicalAgent); valid {
+			if s, ok := candidate["status"].(string); ok && s != "" {
 				return s
 			}
 		}
-		if status, _ := envelope["status"].(string); canonicalAgent == "sdd-spec" && status == "success" {
+		if status, _ := candidate["status"].(string); canonicalAgent == "sdd-spec" && status == "success" {
 			return "blocked"
 		}
 	}

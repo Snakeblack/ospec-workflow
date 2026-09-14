@@ -9,7 +9,7 @@ metadata:
   version: "2.0"
   delegate_only: true
 runtime_capabilities:
-  execute: false
+  execute: true
   mcp: false
   write: true
 ---

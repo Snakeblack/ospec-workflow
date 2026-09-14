@@ -20,11 +20,11 @@ class MissingTimestampError extends Error {
   }
 }
 
-// True when a verify-phase envelope carries an explicit FAIL outcome
-// (verify_outcome / verification_outcome / verdict fields).
-function isVerificationFail(envelope) {
-  const raw = envelope?.verify_outcome ?? envelope?.verification_outcome ?? envelope?.verdict;
-  return typeof raw === "string" && raw.trim().toUpperCase() === "FAIL";
+const POSITIVE_VERIFY_OUTCOMES = new Set(["PASS", "PASS WITH WARNINGS"]);
+
+function isPositiveVerifyOutcome(envelope) {
+  const raw = envelope?.verify_outcome;
+  return typeof raw === "string" && POSITIVE_VERIFY_OUTCOMES.has(raw.trim().toUpperCase());
 }
 
 /**
@@ -197,6 +197,10 @@ function reducePhaseCompletion(currentState, payload, options = {}) {
       .slice(0, 3);
   }
 
+  if (phase === "verify" && envelope.verify_outcome) {
+    nextState.phases[phase].verdict = envelope.verify_outcome;
+  }
+
   // Clear resolved blocking questions on success
   nextState.blocking_questions = [];
 
@@ -210,18 +214,18 @@ function reducePhaseCompletion(currentState, payload, options = {}) {
   } else if (phase === "apply") {
     nextState.status = isPartial ? "applying" : "ready-for-verify";
   } else if (phase === "verify") {
+    if (!isPositiveVerifyOutcome(envelope)) {
+      nextState.status = "blocked";
+      nextState.blocking_questions = [
+        envelope.executive_summary ||
+        (envelope.verify_outcome ? `Verification verdict: ${envelope.verify_outcome}` : "Verification verdict FAIL, omitted, or invalid")
+      ];
+      effects.push({ kind: "persist-state", payload: { phase, status: "blocked" } });
+      return { ok: true, state: nextState, effects, events, outcome: "blocked", code: "verification_failed" };
+    }
     nextState.status = "verified";
   } else if (phase === "archive") {
     nextState.status = "archived";
-  }
-
-  // Verify gating: sdd-verify emits envelope status success even when the verdict
-  // is FAIL; a FAIL outcome must project blocked with the failure surfaced.
-  if (phase === "verify" && isVerificationFail(envelope)) {
-    nextState.status = "blocked";
-    nextState.blocking_questions = [envelope.executive_summary || "Verification verdict: FAIL"];
-    effects.push({ kind: "persist-state", payload: { phase, status: "blocked" } });
-    return { ok: true, state: nextState, effects, events, outcome: "blocked", code: "verification_failed" };
   }
   effects.push({
     kind: "persist-state",

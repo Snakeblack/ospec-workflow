@@ -1,0 +1,76 @@
+{
+	"schema_version": 1,
+	"change": "remediate-cx1-envelope-projection",
+	"source_fingerprint": "sha256:a65fbc9536a209b12cbd580285d5b7f48c0c3b176c5de47642e9ccf5a985917c",
+	"spec_writes": [
+		{
+			"domain": "hooks",
+			"source_delta": "specs/hooks/spec-prepared.md",
+			"target": "openspec/specs/hooks/spec.md",
+			"target_before_sha256": "sha256:a93245bf789fb917cc0e0035b8630b180d0c14983adbf77c65692bbfa5b86ac5",
+			"content_sha256": "sha256:de27332cdc972c073a79bc56a8ba93709cc1361b99057e722f49e426ee7f6176"
+		},
+		{
+			"domain": "kernel-contract-schemas",
+			"source_delta": "specs/kernel-contract-schemas/spec-prepared.md",
+			"target": "openspec/specs/kernel-contract-schemas/spec.md",
+			"target_before_sha256": "sha256:c4ec76523d87a772e9f068aae0b91a626a9ef2746c3c19ef34cf0d0a8857e402",
+			"content_sha256": "sha256:3aebe40cd3bcdfb41d7f76a96318bfe4c5779239a68d1daaf57cb1247e7d9dd8"
+		},
+		{
+			"domain": "lifecycle-kernel-runtime",
+			"source_delta": "specs/lifecycle-kernel-runtime/spec-prepared.md",
+			"target": "openspec/specs/lifecycle-kernel-runtime/spec.md",
+			"target_before_sha256": "sha256:8b6eaac671b95fc9cca0de41e190137371cf16e0a136c931c2fb34cc1b91528c",
+			"content_sha256": "sha256:128d3669690403e48eb09c567f0ce7160f14cb56c32890176d8a15713117f076"
+		},
+		{
+			"domain": "skills",
+			"source_delta": "specs/skills/spec-prepared.md",
+			"target": "openspec/specs/skills/spec.md",
+			"target_before_sha256": "sha256:644c6065a9a8e631a19f3a0564bac2b32ddd431248080c0b9bbf77fa4f6dfe1b",
+			"content_sha256": "sha256:e1294acb00494035077ba9fa39b8d04f4f0360eb22d03cc3f0dd070bd905b530"
+		}
+	],
+	"adr_promotions": [
+		{
+			"source": "decisions/adr-001.md",
+			"target": "docs/adr/adr-20260914-001-conexion-de-fallback-legacy-en-subagentstop-con-preservacion-fail-closed-para-sdd-spec.md",
+			"content_sha256": "sha256:396153d63093fb13d5e31c325ca74438f1597bd69dfde9526d0b3ce56851585d"
+		},
+		{
+			"source": "decisions/adr-002.md",
+			"target": "docs/adr/adr-20260914-002-contrato-canonico-de-verify-outcome-y-gating-estricto-en-phasecompletionreducer.md",
+			"content_sha256": "sha256:a4f9c32071ff46ccbb4719d805fec584b1179a29e405eee0cc0eaa4fb6fa5e9c"
+		},
+		{
+			"source": "decisions/adr-003.md",
+			"target": "docs/adr/adr-20260914-003-paridad-estricta-de-esquemas-y-validadores-entre-json-schema-v1-js-y-go.md",
+			"content_sha256": "sha256:3b55172414779688b0f10528ec333370a961fa9c39d3468f2b52a7ee95615215"
+		}
+	],
+	"archive_inventory": [
+		"apply-progress.md",
+		"archive-report.md",
+		"decisions/adr-001.md",
+		"decisions/adr-002.md",
+		"decisions/adr-003.md",
+		"design.md",
+		"proposal.md",
+		"specs/hooks/spec-prepared.md",
+		"specs/hooks/spec.md",
+		"specs/kernel-contract-schemas/spec-prepared.md",
+		"specs/kernel-contract-schemas/spec.md",
+		"specs/lifecycle-kernel-runtime/spec-prepared.md",
+		"specs/lifecycle-kernel-runtime/spec.md",
+		"specs/skills/spec-prepared.md",
+		"specs/skills/spec.md",
+		"state.yaml",
+		"tasks.md",
+		"verify-report.md"
+	],
+	"accepted_warnings": [],
+	"rollback": {
+		"strategy": "staging-rename"
+	}
+}

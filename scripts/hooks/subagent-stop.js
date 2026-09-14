@@ -449,19 +449,103 @@ async function findEnvelopeInTranscript(transcriptPath) {
  * silently no-ops without throwing and without affecting the hook's stdout.
  */
 /**
+ * Picks the first present §5.2 RESULT_FIELDS value from the dispatch input,
+ * unresolved/raw (no stringification here) — the caller decides how to turn
+ * it into an estimate string. Mirrors findEnvelopeInInput/findResolutionInInput's
+ * field-search order.
+ */
+function resolveResultPayload(input) {
+  for (const field of RESULT_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(input || {}, field)) {
+      return input[field];
+    }
+  }
+
+  return undefined;
+}
+
+function adaptTranscriptContent(content) {
+  const direct = adaptLegacyEnvelope(content);
+  if (direct.ok && direct.envelope) {
+    return direct;
+  }
+
+  const lines = content.split(/\r?\n/).filter((line) => line.trim());
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const parsed = parseJsonText(lines[index]);
+    if (!parsed) continue;
+
+    const payload = resolveResultPayload(parsed);
+    if (payload !== undefined && payload !== null) {
+      const adapted = adaptLegacyEnvelope(payload);
+      if (adapted.ok && adapted.envelope) {
+        return adapted;
+      }
+    }
+  }
+
+  return { ok: false };
+}
+
+/**
+ * Resolves the Result Envelope candidate from canonical fences in input/transcript,
+ * falling back to adaptLegacyEnvelope on raw payload and transcript content.
+ */
+async function resolveCandidateEnvelope(input) {
+  let envelopeResult = findEnvelopeInInput(input);
+
+  if (!envelopeResult.found) {
+    envelopeResult = await findEnvelopeInTranscript(resolveTranscriptPath(input));
+  }
+
+  if (envelopeResult.found && envelopeResult.value) {
+    let candidate = envelopeResult.value;
+    if (typeof candidate === "object" && candidate !== null && candidate.schema_version === undefined) {
+      const adapted = adaptLegacyEnvelope(candidate);
+      if (adapted.ok && adapted.envelope) {
+        return adapted.envelope;
+      }
+    }
+    return candidate;
+  }
+
+  const rawPayload = resolveResultPayload(input);
+  if (rawPayload !== undefined && rawPayload !== null) {
+    const adapted = adaptLegacyEnvelope(rawPayload);
+    if (adapted.ok && adapted.envelope) {
+      return adapted.envelope;
+    }
+  }
+
+  const transcriptPath = resolveTranscriptPath(input);
+  if (typeof transcriptPath === "string" && transcriptPath) {
+    const { cleaned, ok } = validatePath(transcriptPath);
+    if (ok) {
+      try {
+        const transcriptContent = await fs.readFile(cleaned, "utf8");
+        const adapted = adaptTranscriptContent(transcriptContent);
+        if (adapted.ok && adapted.envelope) {
+          return adapted.envelope;
+        }
+      } catch {
+        // fail-safe
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
  * Extracts, validates, and projects the phase's Result Envelope
- * into the active change's state.yaml via projectPhaseCompletion, per REQ-hooks-001/023.
+ * into the active change's state.yaml via projectPhaseCompletion, per REQ-hooks-001/023/015.
  * Strictly additive and fail-safe: any failure at any step silently no-ops.
  */
 async function persistResultEnvelope({ input, workspace }) {
   try {
-    let envelopeResult = findEnvelopeInInput(input);
+    const candidate = await resolveCandidateEnvelope(input);
 
-    if (!envelopeResult.found) {
-      envelopeResult = await findEnvelopeInTranscript(resolveTranscriptPath(input));
-    }
-
-    if (!envelopeResult.found || !envelopeResult.value) {
+    if (!candidate) {
       return;
     }
 
@@ -470,14 +554,6 @@ async function persistResultEnvelope({ input, workspace }) {
 
     if (!statePhaseKey) {
       return;
-    }
-
-    let candidate = envelopeResult.value;
-    if (typeof candidate === "object" && candidate !== null && candidate.schema_version === undefined) {
-      const adapted = adaptLegacyEnvelope(candidate);
-      if (adapted.ok && adapted.envelope) {
-        candidate = adapted.envelope;
-      }
     }
 
     const validation = validateEnvelope(candidate, {
@@ -507,22 +583,6 @@ async function persistResultEnvelope({ input, workspace }) {
 }
 
 /**
- * Picks the first present §5.2 RESULT_FIELDS value from the dispatch input,
- * unresolved/raw (no stringification here) — the caller decides how to turn
- * it into an estimate string. Mirrors findEnvelopeInInput/findResolutionInInput's
- * field-search order.
- */
-function resolveResultPayload(input) {
-  for (const field of RESULT_FIELDS) {
-    if (Object.prototype.hasOwnProperty.call(input || {}, field)) {
-      return input[field];
-    }
-  }
-
-  return undefined;
-}
-
-/**
  * Estimates a token count for a dispatch result payload using the same
  * ~4-bytes/token heuristic as `estimateTokens` in `pre-tool-use.js`
  * (REQ-hooks-001 / design "Estimate over UTF-8 byte length"). `payload` is
@@ -544,21 +604,10 @@ function estimateResultTokens(payload) {
  * resolution").
  */
 async function resolveDispatchStatus(input) {
-  let envelopeResult = findEnvelopeInInput(input);
+  const candidate = await resolveCandidateEnvelope(input);
 
-  if (!envelopeResult.found) {
-    envelopeResult = await findEnvelopeInTranscript(resolveTranscriptPath(input));
-  }
-
-  if (envelopeResult.found && envelopeResult.value) {
+  if (candidate) {
     const canonicalAgent = resolveCanonicalAgent(resolveAgentName(input));
-    let candidate = envelopeResult.value;
-    if (typeof candidate === "object" && candidate !== null && candidate.schema_version === undefined) {
-      const adapted = adaptLegacyEnvelope(candidate);
-      if (adapted.ok && adapted.envelope) {
-        candidate = adapted.envelope;
-      }
-    }
 
     const validation = validateEnvelope(candidate, {
       phase: canonicalAgent,

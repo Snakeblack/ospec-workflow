@@ -207,3 +207,59 @@ test("reducePhaseCompletion: verify FAIL outcome projects blocked; PASS stays ve
   assert.ok(fail.state.blocking_questions.length > 0);
   assert.equal(reduce("PASS WITH WARNINGS").state.status, "verified");
 });
+
+test("reducePhaseCompletion: verify phase requires explicit positive verify_outcome [REQ-lifecycle-kernel-028]", () => {
+  const envelope = (outcome) => {
+    const env = {
+      schema_version: 1,
+      status: "success",
+      executive_summary: "Verification run completed.",
+      artifacts: ["openspec/changes/foo/verify-report.md"],
+      next_recommended: "sdd-archive",
+      risks: "None",
+      skill_resolution: "injected",
+    };
+    if (outcome !== undefined) {
+      env.verify_outcome = outcome;
+    }
+    return env;
+  };
+
+  const reduce = (outcome) =>
+    reducePhaseCompletion(sampleState(), { phase: "verify", envelope: envelope(outcome) }, { now: NOW });
+
+  // Missing verify_outcome must project blocked
+  const missing = reduce(undefined);
+  assert.equal(missing.outcome, "blocked");
+  assert.equal(missing.state.status, "blocked");
+  assert.equal(missing.state.phases.verify.status, "done");
+  assert.ok(missing.state.blocking_questions.length > 0);
+
+  // FAIL must project blocked
+  const fail = reduce("FAIL");
+  assert.equal(fail.outcome, "blocked");
+  assert.equal(fail.state.status, "blocked");
+  assert.equal(fail.state.phases.verify.status, "done");
+  assert.ok(fail.state.blocking_questions.length > 0);
+
+  // Unknown / unallowlisted verify_outcome must project blocked
+  const unknown = reduce("UNKNOWN");
+  assert.equal(unknown.outcome, "blocked");
+  assert.equal(unknown.state.status, "blocked");
+  assert.equal(unknown.state.phases.verify.status, "done");
+  assert.ok(unknown.state.blocking_questions.length > 0);
+
+  // PASS must project verified
+  const pass = reduce("PASS");
+  assert.equal(pass.outcome, "advanced");
+  assert.equal(pass.state.status, "verified");
+  assert.equal(pass.state.phases.verify.status, "done");
+  assert.deepEqual(pass.state.blocking_questions, []);
+
+  // PASS WITH WARNINGS must project verified
+  const passWarn = reduce("PASS WITH WARNINGS");
+  assert.equal(passWarn.outcome, "advanced");
+  assert.equal(passWarn.state.status, "verified");
+  assert.equal(passWarn.state.phases.verify.status, "done");
+  assert.deepEqual(passWarn.state.blocking_questions, []);
+});
