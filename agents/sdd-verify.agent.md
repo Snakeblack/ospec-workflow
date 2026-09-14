@@ -43,4 +43,4 @@ returns ordinary CRITICAL routing.
 
 ## Result Contract
 
-See [sdd-phase-common.md](skills/_shared/sdd-phase-common.md) for the return envelope structure. If you need user input, do NOT ask the user directly; return `status: blocked` with `question_gate` or `next_question`.
+See [sdd-phase-common.md](skills/_shared/sdd-phase-common.md) for the return envelope structure. The envelope MUST explicitly include the canonical `verify_outcome` property set to `"PASS"`, `"PASS WITH WARNINGS"`, or `"FAIL"` matching the verification outcome (per REQ-skills-018). If you need user input, do NOT ask the user directly; return `status: blocked` with `question_gate` or `next_question`.

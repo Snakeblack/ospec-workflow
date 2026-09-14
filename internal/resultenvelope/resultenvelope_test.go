@@ -11,6 +11,7 @@ import (
 
 func validEnvelope() map[string]any {
 	return map[string]any{
+		"schema_version":    1,
 		"status":            "success",
 		"executive_summary": "Did the thing.",
 		"artifacts":         []any{"openspec/changes/foo/design.md"},
@@ -91,6 +92,7 @@ func TestValidate_ValidEnvelopePassesWithNoErrors(t *testing.T) {
 
 func TestValidate_MissingRequiredFields(t *testing.T) {
 	fields := []string{
+		"schema_version",
 		"status",
 		"executive_summary",
 		"artifacts",
@@ -397,6 +399,272 @@ func TestValidateForPhase_NonSuccessfulSpecDoesNotRequireSignals(t *testing.T) {
 	for _, envelope := range []map[string]any{partial, blocked} {
 		if valid, errs := resultenvelope.ValidateForPhase(envelope, "sdd-spec"); !valid || len(errs) != 0 {
 			t.Fatalf("valid=%v errors=%v", valid, errs)
+		}
+	}
+}
+
+func TestValidate_SchemaVersionMustBeOne(t *testing.T) {
+	envelope := validEnvelope()
+	envelope["schema_version"] = 2
+	valid, errs := resultenvelope.Validate(envelope)
+	if valid {
+		t.Error("expected valid=false when schema_version != 1")
+	}
+	if !containsSubstring(errs, "schema_version must be 1") {
+		t.Errorf("expected error mentioning 'schema_version must be 1', got: %v", errs)
+	}
+
+	envelope["schema_version"] = "1"
+	valid, errs = resultenvelope.Validate(envelope)
+	if valid {
+		t.Error("expected valid=false when schema_version is string '1'")
+	}
+	if !containsSubstring(errs, "schema_version must be 1") {
+		t.Errorf("expected error mentioning 'schema_version must be 1', got: %v", errs)
+	}
+}
+
+func TestValidate_ArtifactsNonStringItems(t *testing.T) {
+	envelope := validEnvelope()
+	envelope["artifacts"] = []any{"path.md", 42}
+	valid, errs := resultenvelope.Validate(envelope)
+	if valid {
+		t.Error("expected valid=false when artifacts has non-string items")
+	}
+	if !containsSubstring(errs, "artifacts[1] must be a string") {
+		t.Errorf("expected error mentioning artifacts[1] must be a string, got: %v", errs)
+	}
+}
+
+func TestValidate_RisksNonStringItems(t *testing.T) {
+	envelope := validEnvelope()
+	envelope["risks"] = []any{false}
+	valid, errs := resultenvelope.Validate(envelope)
+	if valid {
+		t.Error("expected valid=false when risks has non-string items")
+	}
+	if !containsSubstring(errs, "risks[0] must be a string") {
+		t.Errorf("expected error mentioning risks[0] must be a string, got: %v", errs)
+	}
+}
+
+func TestValidate_BadSkillResolutionEnum(t *testing.T) {
+	envelope := validEnvelope()
+	envelope["skill_resolution"] = "custom"
+	valid, errs := resultenvelope.Validate(envelope)
+	if valid {
+		t.Error("expected valid=false for invalid skill_resolution")
+	}
+	want := "skill_resolution must be one of: injected, fallback-registry, fallback-path, none"
+	if !containsSubstring(errs, want) {
+		t.Errorf("expected %q, got: %v", want, errs)
+	}
+}
+
+func TestValidate_ValidSkillResolutionEnumValues(t *testing.T) {
+	for _, res := range []string{"injected", "fallback-registry", "fallback-path", "none"} {
+		envelope := validEnvelope()
+		envelope["skill_resolution"] = res
+		valid, errs := resultenvelope.Validate(envelope)
+		if !valid {
+			t.Errorf("expected %q to be valid, got errors: %v", res, errs)
+		}
+	}
+}
+
+func TestValidate_BadVerifyOutcomeEnum(t *testing.T) {
+	envelope := validEnvelope()
+	envelope["verify_outcome"] = "UNKNOWN"
+	valid, errs := resultenvelope.Validate(envelope)
+	if valid {
+		t.Error("expected valid=false for bad verify_outcome")
+	}
+	want := "verify_outcome must be one of: PASS, PASS WITH WARNINGS, FAIL"
+	if !containsSubstring(errs, want) {
+		t.Errorf("expected %q, got: %v", want, errs)
+	}
+}
+
+func TestValidate_ValidVerifyOutcomeEnumValues(t *testing.T) {
+	for _, outcome := range []string{"PASS", "PASS WITH WARNINGS", "FAIL"} {
+		envelope := validEnvelope()
+		envelope["verify_outcome"] = outcome
+		valid, errs := resultenvelope.Validate(envelope)
+		if !valid {
+			t.Errorf("expected %q to be valid, got errors: %v", outcome, errs)
+		}
+	}
+}
+
+func TestValidate_MalformedQuestionGateStructure(t *testing.T) {
+	envelope := validEnvelope()
+	envelope["status"] = "blocked"
+	envelope["question_gate"] = map[string]any{"questions": []any{}}
+	valid, errs := resultenvelope.Validate(envelope)
+	if valid || !containsSubstring(errs, "question_gate.reason must be a non-empty string") {
+		t.Errorf("expected error for missing reason, got: %v", errs)
+	}
+
+	envelope["question_gate"] = map[string]any{"reason": "Need decision", "questions": "not-an-array"}
+	valid, errs = resultenvelope.Validate(envelope)
+	if valid || !containsSubstring(errs, "question_gate.questions must be an array") {
+		t.Errorf("expected error for non-array questions, got: %v", errs)
+	}
+
+	envelope["question_gate"] = map[string]any{
+		"reason": "Need decision",
+		"questions": []any{
+			map[string]any{"question": "What?", "options": []any{map[string]any{"label": "A"}}},
+		},
+	}
+	valid, errs = resultenvelope.Validate(envelope)
+	if valid || !containsSubstring(errs, "question_gate.questions[0].header must be a non-empty string") {
+		t.Errorf("expected error for missing header, got: %v", errs)
+	}
+
+	envelope["question_gate"] = map[string]any{
+		"reason": "Need decision",
+		"questions": []any{
+			map[string]any{"header": "Choice", "question": "What?"},
+		},
+	}
+	valid, errs = resultenvelope.Validate(envelope)
+	if valid || !containsSubstring(errs, "question_gate.questions[0].options must be an array") {
+		t.Errorf("expected error for missing options, got: %v", errs)
+	}
+
+	envelope["question_gate"] = map[string]any{
+		"reason": "Need decision",
+		"questions": []any{
+			map[string]any{
+				"header":   "Choice",
+				"question": "What?",
+				"options":  []any{map[string]any{}},
+			},
+		},
+	}
+	valid, errs = resultenvelope.Validate(envelope)
+	if valid || !containsSubstring(errs, "question_gate.questions[0].options[0].label must be a non-empty string") {
+		t.Errorf("expected error for missing label, got: %v", errs)
+	}
+}
+
+func TestValidate_WellFormedQuestionGate(t *testing.T) {
+	envelope := validEnvelope()
+	envelope["status"] = "blocked"
+	envelope["question_gate"] = map[string]any{
+		"reason": "Workload decision required",
+		"questions": []any{
+			map[string]any{
+				"header":   "Strategy",
+				"question": "Which strategy?",
+				"options": []any{
+					map[string]any{"label": "single-pr", "description": "All in one", "recommended": true},
+					map[string]any{"label": "auto-chain"},
+				},
+			},
+		},
+	}
+	valid, errs := resultenvelope.Validate(envelope)
+	if !valid {
+		t.Errorf("expected valid=true, got errors: %v", errs)
+	}
+}
+
+// ── AdaptLegacyEnvelope ───────────────────────────────────────────────────────
+
+func isOne(v any) bool {
+	switch n := v.(type) {
+	case int:
+		return n == 1
+	case int64:
+		return n == 1
+	case float64:
+		return n == 1
+	}
+	return false
+}
+
+func TestAdaptLegacyEnvelope_ValidV1Object(t *testing.T) {
+	env := validEnvelope()
+	adapted, ok, errs := resultenvelope.AdaptLegacyEnvelope(env)
+	if !ok {
+		t.Fatalf("expected ok=true, got errs: %v", errs)
+	}
+	if !isOne(adapted["schema_version"]) {
+		t.Errorf("expected schema_version=1, got: %v", adapted["schema_version"])
+	}
+	if adapted["executive_summary"] != "Did the thing." {
+		t.Errorf("expected executive_summary, got: %v", adapted["executive_summary"])
+	}
+}
+
+func TestAdaptLegacyEnvelope_UnversionedObjectWithSummary(t *testing.T) {
+	legacy := map[string]any{
+		"status":            "success",
+		"summary":           "Legacy summary field",
+		"artifacts":         []any{"openspec/changes/foo/design.md"},
+		"next_recommended":  "sdd-tasks",
+		"risks":             "None",
+		"skill_resolution":  "injected",
+		"key_decisions":     []any{"Decision 1"},
+	}
+	adapted, ok, errs := resultenvelope.AdaptLegacyEnvelope(legacy)
+	if !ok {
+		t.Fatalf("expected ok=true, got errs: %v", errs)
+	}
+	if !isOne(adapted["schema_version"]) {
+		t.Errorf("expected schema_version=1, got: %v", adapted["schema_version"])
+	}
+	if adapted["executive_summary"] != "Legacy summary field" {
+		t.Errorf("expected executive_summary, got: %v", adapted["executive_summary"])
+	}
+	if _, hasSummary := adapted["summary"]; hasSummary {
+		t.Error("expected summary key to be removed")
+	}
+}
+
+func TestAdaptLegacyEnvelope_UnversionedFenceInText(t *testing.T) {
+	text := "Some prose here.\n```json:result-envelope\n{\"status\":\"success\",\"summary\":\"Completed work.\",\"artifacts\":[\"foo.md\"],\"next_recommended\":\"sdd-verify\",\"risks\":\"None\",\"skill_resolution\":\"injected\"}\n```"
+	adapted, ok, errs := resultenvelope.AdaptLegacyEnvelope(text)
+	if !ok {
+		t.Fatalf("expected ok=true, got errs: %v", errs)
+	}
+	if !isOne(adapted["schema_version"]) {
+		t.Errorf("expected schema_version=1, got: %v", adapted["schema_version"])
+	}
+	if adapted["executive_summary"] != "Completed work." {
+		t.Errorf("expected executive_summary, got: %v", adapted["executive_summary"])
+	}
+}
+
+func TestAdaptLegacyEnvelope_PlainProseLines(t *testing.T) {
+	prose := "Here is the report:\n**Status**: success\n**Summary**: Proposal created for feature.\n**Artifacts**: `openspec/changes/feat/proposal.md`\n**Next**: sdd-spec\n**Risks**: None\n**Skill Resolution**: injected — 3 skills"
+	adapted, ok, errs := resultenvelope.AdaptLegacyEnvelope(prose)
+	if !ok {
+		t.Fatalf("expected ok=true, got errs: %v", errs)
+	}
+	if !isOne(adapted["schema_version"]) {
+		t.Errorf("expected schema_version=1, got: %v", adapted["schema_version"])
+	}
+	if adapted["status"] != "success" {
+		t.Errorf("expected status=success, got: %v", adapted["status"])
+	}
+	if adapted["executive_summary"] != "Proposal created for feature." {
+		t.Errorf("expected executive_summary, got: %v", adapted["executive_summary"])
+	}
+}
+
+func TestAdaptLegacyEnvelope_MalformedInputFailsFailSafely(t *testing.T) {
+	for _, input := range []any{
+		"Just unstructured rambling without envelope",
+		nil,
+		42,
+		"```json:result-envelope\n{ invalid json\n```",
+	} {
+		_, ok, _ := resultenvelope.AdaptLegacyEnvelope(input)
+		if ok {
+			t.Errorf("expected ok=false for input %v", input)
 		}
 	}
 }

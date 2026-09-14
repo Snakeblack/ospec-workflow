@@ -13,6 +13,17 @@ const BLOCKER_TYPE_ENUM = new Set([
   "spec-change-required",
   "workload-escalation",
 ]);
+const SKILL_RESOLUTION_ENUM = new Set([
+  "injected",
+  "fallback-registry",
+  "fallback-path",
+  "none",
+]);
+const VERIFY_OUTCOME_ENUM = new Set([
+  "PASS",
+  "PASS WITH WARNINGS",
+  "FAIL",
+]);
 const REQUIRED_FIELDS = [
   "schema_version",
   "status",
@@ -116,6 +127,81 @@ function validateStringArrayField(obj, field, errors) {
   });
 }
 
+function validateQuestionGate(questionGate, errors) {
+  if (!questionGate || typeof questionGate !== "object" || Array.isArray(questionGate)) {
+    errors.push("question_gate must be an object");
+    return;
+  }
+
+  if (!isNonEmptyString(questionGate.reason)) {
+    errors.push("question_gate.reason must be a non-empty string");
+  }
+
+  if (!Array.isArray(questionGate.questions)) {
+    errors.push("question_gate.questions must be an array");
+    return;
+  }
+
+  questionGate.questions.forEach((q, i) => {
+    if (!q || typeof q !== "object" || Array.isArray(q)) {
+      errors.push(`question_gate.questions[${i}] must be an object`);
+      return;
+    }
+
+    if (!isNonEmptyString(q.header)) {
+      errors.push(`question_gate.questions[${i}].header must be a non-empty string`);
+    }
+
+    if (!isNonEmptyString(q.question)) {
+      errors.push(`question_gate.questions[${i}].question must be a non-empty string`);
+    }
+
+    if (!Array.isArray(q.options)) {
+      errors.push(`question_gate.questions[${i}].options must be an array`);
+      return;
+    }
+
+    q.options.forEach((opt, j) => {
+      if (!opt || typeof opt !== "object" || Array.isArray(opt)) {
+        errors.push(`question_gate.questions[${i}].options[${j}] must be an object`);
+        return;
+      }
+
+      if (!isNonEmptyString(opt.label)) {
+        errors.push(`question_gate.questions[${i}].options[${j}].label must be a non-empty string`);
+      }
+
+      if (
+        Object.prototype.hasOwnProperty.call(opt, "description") &&
+        typeof opt.description !== "string"
+      ) {
+        errors.push(`question_gate.questions[${i}].options[${j}].description must be a string`);
+      }
+
+      if (
+        Object.prototype.hasOwnProperty.call(opt, "recommended") &&
+        typeof opt.recommended !== "boolean"
+      ) {
+        errors.push(`question_gate.questions[${i}].options[${j}].recommended must be a boolean`);
+      }
+    });
+
+    if (
+      Object.prototype.hasOwnProperty.call(q, "multiSelect") &&
+      typeof q.multiSelect !== "boolean"
+    ) {
+      errors.push(`question_gate.questions[${i}].multiSelect must be a boolean`);
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(q, "allowFreeformInput") &&
+      typeof q.allowFreeformInput !== "boolean"
+    ) {
+      errors.push(`question_gate.questions[${i}].allowFreeformInput must be a boolean`);
+    }
+  });
+}
+
 /**
  * Validates a parsed envelope object against the canonical §D schema. Never throws.
  *
@@ -163,11 +249,16 @@ function validateEnvelope(obj, context = {}) {
     errors.push("executive_summary must be a non-empty string");
   }
 
-  if (
-    Object.prototype.hasOwnProperty.call(obj, "artifacts") &&
-    !isArtifactsValid(obj.artifacts)
-  ) {
-    errors.push('artifacts must be an array of paths or the literal string "inline"');
+  if (Object.prototype.hasOwnProperty.call(obj, "artifacts")) {
+    if (!isArtifactsValid(obj.artifacts)) {
+      errors.push('artifacts must be an array of paths or the literal string "inline"');
+    } else if (Array.isArray(obj.artifacts)) {
+      obj.artifacts.forEach((item, index) => {
+        if (typeof item !== "string") {
+          errors.push(`artifacts[${index}] must be a string`);
+        }
+      });
+    }
   }
 
   if (
@@ -177,15 +268,28 @@ function validateEnvelope(obj, context = {}) {
     errors.push("next_recommended must be a non-empty string");
   }
 
-  if (Object.prototype.hasOwnProperty.call(obj, "risks") && !isRisksValid(obj.risks)) {
-    errors.push("risks must be a non-empty string or an array");
+  if (Object.prototype.hasOwnProperty.call(obj, "risks")) {
+    if (!isRisksValid(obj.risks)) {
+      errors.push("risks must be a non-empty string or an array");
+    } else if (Array.isArray(obj.risks)) {
+      obj.risks.forEach((item, index) => {
+        if (typeof item !== "string") {
+          errors.push(`risks[${index}] must be a string`);
+        }
+      });
+    }
   }
 
-  if (
-    Object.prototype.hasOwnProperty.call(obj, "skill_resolution") &&
-    !isNonEmptyString(obj.skill_resolution)
-  ) {
-    errors.push("skill_resolution must be a non-empty string");
+  if (Object.prototype.hasOwnProperty.call(obj, "skill_resolution")) {
+    if (!SKILL_RESOLUTION_ENUM.has(obj.skill_resolution)) {
+      errors.push(`skill_resolution must be one of: ${[...SKILL_RESOLUTION_ENUM].join(", ")}`);
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(obj, "verify_outcome")) {
+    if (!VERIFY_OUTCOME_ENUM.has(obj.verify_outcome)) {
+      errors.push(`verify_outcome must be one of: ${[...VERIFY_OUTCOME_ENUM].join(", ")}`);
+    }
   }
 
   if (Object.prototype.hasOwnProperty.call(obj, "key_decisions")) {
@@ -210,8 +314,14 @@ function validateEnvelope(obj, context = {}) {
     errors.push(`blocker_type must be one of: ${[...BLOCKER_TYPE_ENUM].join(", ")}`);
   }
 
-  if (obj.status === "blocked" && !obj.question_gate) {
-    errors.push("question_gate is required when status is blocked");
+  if (obj.status === "blocked") {
+    if (!obj.question_gate) {
+      errors.push("question_gate is required when status is blocked");
+    } else {
+      validateQuestionGate(obj.question_gate, errors);
+    }
+  } else if (Object.prototype.hasOwnProperty.call(obj, "question_gate")) {
+    validateQuestionGate(obj.question_gate, errors);
   }
 
   if (Object.prototype.hasOwnProperty.call(obj, "assumptions")) {

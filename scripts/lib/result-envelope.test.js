@@ -213,6 +213,124 @@ test("validateEnvelope: well-formed assumptions[] entry is valid", () => {
   assert.equal(result.valid, true);
 });
 
+test("validateEnvelope: artifacts array with non-string items is invalid", () => {
+  const result = validateEnvelope({ ...VALID_ENVELOPE, artifacts: ["path.md", 42] });
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.includes("artifacts[1] must be a string"));
+});
+
+test("validateEnvelope: risks array with non-string items is invalid", () => {
+  const result = validateEnvelope({ ...VALID_ENVELOPE, risks: [false] });
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.includes("risks[0] must be a string"));
+});
+
+test("validateEnvelope: bad skill_resolution enum value is invalid", () => {
+  const result = validateEnvelope({ ...VALID_ENVELOPE, skill_resolution: "custom" });
+  assert.equal(result.valid, false);
+  assert.ok(
+    result.errors.includes(
+      "skill_resolution must be one of: injected, fallback-registry, fallback-path, none"
+    )
+  );
+});
+
+test("validateEnvelope: valid skill_resolution enum values are accepted", () => {
+  for (const resolution of ["injected", "fallback-registry", "fallback-path", "none"]) {
+    const result = validateEnvelope({ ...VALID_ENVELOPE, skill_resolution: resolution });
+    assert.equal(result.valid, true, `expected ${resolution} to be valid`);
+  }
+});
+
+test("validateEnvelope: bad verify_outcome enum value is invalid", () => {
+  const result = validateEnvelope({ ...VALID_ENVELOPE, verify_outcome: "UNKNOWN" });
+  assert.equal(result.valid, false);
+  assert.ok(
+    result.errors.includes(
+      "verify_outcome must be one of: PASS, PASS WITH WARNINGS, FAIL"
+    )
+  );
+});
+
+test("validateEnvelope: valid verify_outcome enum values are accepted", () => {
+  for (const outcome of ["PASS", "PASS WITH WARNINGS", "FAIL"]) {
+    const result = validateEnvelope({ ...VALID_ENVELOPE, verify_outcome: outcome });
+    assert.equal(result.valid, true, `expected ${outcome} to be valid`);
+  }
+});
+
+test("validateEnvelope: malformed question_gate structure is rejected", () => {
+  const missingReason = validateEnvelope({
+    ...VALID_ENVELOPE,
+    status: "blocked",
+    question_gate: { questions: [] },
+  });
+  assert.equal(missingReason.valid, false);
+  assert.ok(missingReason.errors.includes("question_gate.reason must be a non-empty string"));
+
+  const nonArrayQuestions = validateEnvelope({
+    ...VALID_ENVELOPE,
+    status: "blocked",
+    question_gate: { reason: "Need decision", questions: "not-an-array" },
+  });
+  assert.equal(nonArrayQuestions.valid, false);
+  assert.ok(nonArrayQuestions.errors.includes("question_gate.questions must be an array"));
+
+  const missingHeader = validateEnvelope({
+    ...VALID_ENVELOPE,
+    status: "blocked",
+    question_gate: {
+      reason: "Need decision",
+      questions: [{ question: "What?", options: [{ label: "A" }] }],
+    },
+  });
+  assert.equal(missingHeader.valid, false);
+  assert.ok(missingHeader.errors.includes("question_gate.questions[0].header must be a non-empty string"));
+
+  const missingOptions = validateEnvelope({
+    ...VALID_ENVELOPE,
+    status: "blocked",
+    question_gate: {
+      reason: "Need decision",
+      questions: [{ header: "Choice", question: "What?" }],
+    },
+  });
+  assert.equal(missingOptions.valid, false);
+  assert.ok(missingOptions.errors.includes("question_gate.questions[0].options must be an array"));
+
+  const missingOptionLabel = validateEnvelope({
+    ...VALID_ENVELOPE,
+    status: "blocked",
+    question_gate: {
+      reason: "Need decision",
+      questions: [{ header: "Choice", question: "What?", options: [{}] }],
+    },
+  });
+  assert.equal(missingOptionLabel.valid, false);
+  assert.ok(missingOptionLabel.errors.includes("question_gate.questions[0].options[0].label must be a non-empty string"));
+});
+
+test("validateEnvelope: well-formed question_gate with options is valid", () => {
+  const result = validateEnvelope({
+    ...VALID_ENVELOPE,
+    status: "blocked",
+    question_gate: {
+      reason: "Workload decision required",
+      questions: [
+        {
+          header: "Strategy",
+          question: "Which strategy?",
+          options: [
+            { label: "single-pr", description: "All in one", recommended: true },
+            { label: "auto-chain" },
+          ],
+        },
+      ],
+    },
+  });
+  assert.equal(result.valid, true, `expected valid, got: ${JSON.stringify(result.errors)}`);
+});
+
 test("validateEnvelope: never throws on garbage input", () => {
   assert.doesNotThrow(() => validateEnvelope(null));
   assert.doesNotThrow(() => validateEnvelope(undefined));

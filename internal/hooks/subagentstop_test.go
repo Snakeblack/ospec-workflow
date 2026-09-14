@@ -1846,3 +1846,138 @@ func TestPersistResultEnvelope_PrefixedAndForeignAgent(t *testing.T) {
 		t.Errorf("state.yaml must be byte-for-byte untouched for foreign agent, got:\n%s", after)
 	}
 }
+
+func TestPersistResultEnvelope_LegacyProseAdapted(t *testing.T) {
+	workspace, statePath := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+
+	legacyProse := "Work completed.\n**Status**: success\n**Summary**: Diseñó el flujo adaptado en Go.\n**Artifacts**: `openspec/changes/strict-result-envelope/design.md`\n**Next**: sdd-tasks\n**Risks**: None\n**Skill Resolution**: injected"
+
+	hooks.PersistResultEnvelopeForTest(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-design",
+		"result":     legacyProse,
+	}, workspace)
+
+	updated, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(updated), `summary: "Diseñó el flujo adaptado en Go."`) {
+		t.Errorf("expected legacy prose summary to be persisted, got:\n%s", updated)
+	}
+}
+
+func TestPersistResultEnvelope_LegacyTranscriptAdapted(t *testing.T) {
+	workspace, statePath := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+
+	transcriptPath := filepath.Join(workspace, "transcript.jsonl")
+	legacyProse := "Work completed from transcript.\n**Status**: success\n**Summary**: Diseñó el flujo desde transcripción Go.\n**Artifacts**: inline\n**Next**: sdd-tasks\n**Risks**: None\n**Skill Resolution**: injected"
+
+	lineData, _ := json.Marshal(map[string]any{"role": "assistant", "content": legacyProse})
+	if err := os.WriteFile(transcriptPath, append(lineData, '\n'), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	hooks.PersistResultEnvelopeForTest(map[string]any{
+		"cwd":             workspace,
+		"agent_type":      "sdd-design",
+		"transcript_path": transcriptPath,
+	}, workspace)
+
+	updated, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(updated), `summary: "Diseñó el flujo desde transcripción Go."`) {
+		t.Errorf("expected transcript summary to be persisted, got:\n%s", updated)
+	}
+}
+
+func TestPersistResultEnvelope_LegacySpecFailClosed(t *testing.T) {
+	workspace, statePath := createChangeWorkspace(t, stateWithEmptySpecSummary)
+
+	legacySpecProse := "Spec work completed.\n**Status**: success\n**Summary**: Spec legacy sin ambiguity signals.\n**Artifacts**: inline\n**Next**: sdd-design\n**Risks**: None\n**Skill Resolution**: injected"
+
+	hooks.PersistResultEnvelopeForTest(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-spec",
+		"result":     legacySpecProse,
+	}, workspace)
+
+	updated, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(updated) != stateWithEmptySpecSummary {
+		t.Errorf("state.yaml must be untouched when sdd-spec fails closed, got:\n%s", updated)
+	}
+}
+
+func TestResolveDispatchStatus_LegacyRawTextAndTranscript(t *testing.T) {
+	legacyProse := "**Status**: success\n**Summary**: Resuelto legacy Go."
+
+	gotRaw := hooks.ResolveDispatchStatusForTest(map[string]any{
+		"agent_type": "sdd-design",
+		"result":     legacyProse,
+	})
+	if gotRaw != "success" {
+		t.Errorf("expected status 'success' from legacy raw text, got %q", gotRaw)
+	}
+
+	workspace := t.TempDir()
+	transcriptPath := filepath.Join(workspace, "transcript.jsonl")
+	lineData, _ := json.Marshal(map[string]any{"role": "assistant", "content": legacyProse})
+	if err := os.WriteFile(transcriptPath, append(lineData, '\n'), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	gotTranscript := hooks.ResolveDispatchStatusForTest(map[string]any{
+		"agent_type":      "sdd-design",
+		"transcript_path": transcriptPath,
+	})
+	if gotTranscript != "success" {
+		t.Errorf("expected status 'success' from legacy transcript, got %q", gotTranscript)
+	}
+}
+
+func TestResolveDispatchStatus_LegacySpecFailClosed(t *testing.T) {
+	legacySpecProse := "**Status**: success\n**Summary**: Spec legacy sin ambiguity signals."
+
+	got := hooks.ResolveDispatchStatusForTest(map[string]any{
+		"agent_type": "sdd-spec",
+		"status":     "success",
+		"result":     legacySpecProse,
+	})
+	if got != "blocked" {
+		t.Errorf("expected status 'blocked' for legacy spec without ambiguity signals, got %q", got)
+	}
+}
+
+func TestSubagentStop_Integration_LegacyDispatchAndProjection(t *testing.T) {
+	workspace, statePath := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+
+	legacyProse := "Design work completed.\n**Status**: success\n**Summary**: Integración completa legacy en Go.\n**Artifacts**: `openspec/changes/strict-result-envelope/design.md`\n**Next**: sdd-tasks\n**Risks**: None\n**Skill Resolution**: injected"
+
+	input := map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-design",
+		"result":     legacyProse,
+	}
+
+	status := hooks.ResolveDispatchStatusForTest(input)
+	if status != "success" {
+		t.Errorf("expected dispatch status 'success', got %q", status)
+	}
+
+	hooks.PersistResultEnvelopeForTest(input, workspace)
+
+	updated, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(updated), `summary: "Integración completa legacy en Go."`) {
+		t.Errorf("expected state.yaml summary to be persisted, got:\n%s", updated)
+	}
+}
+
+

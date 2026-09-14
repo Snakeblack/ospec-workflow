@@ -1,0 +1,77 @@
+schema_version: 1
+change: remediate-cx1-envelope-projection
+status: verified
+last_updated: "2026-09-14T03:01:00Z"
+classification: normal
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "Remediación quirúrgica de los 3 findings contractuales de CX1 (fallback legacy en SubagentStop, autoridad de verify_outcome en reducer, y paridad estricta JS/Go/JSON-Schema)."
+  validated: true
+  validation_errors: []
+owner:
+  branch: fix/remediate-cx1-envelope-projection
+approvals:
+  - id: intent-briefing-001
+    gate: intent-briefing
+    decision: accepted
+    source: antigravity/ask_question
+    accepted_at: "2026-09-14T02:31:34Z"
+    synthesis: "Remediar los tres fallos de contrato de CX1: conectar el fallback legacy en persistResultEnvelope, añadir verify_outcome canónico y fase-aware con proyección condicional en PhaseCompletionReducer, y lograr paridad estricta con el JSON Schema en los validadores JS y Go con pruebas de aceptación."
+    scope:
+      in: "Fallback legacy en SubagentStop, verify_outcome canónico en result-envelope/v1 y sdd-verify, requerimiento explícito en reducer para marcar verified, paridad estricta JS/Go/Schema y tests de frontera."
+      out: "Rediseño arquitectónico, adición de nuevos subsistemas, consolidación de fases pre-K10."
+    applies_to:
+      - change-classification
+phases:
+  proposal:
+    status: done
+    artifact: openspec/changes/remediate-cx1-envelope-projection/proposal.md
+    summary: "Propuesta de remediación CX1: fallback legacy en SubagentStop, verify_outcome canónico y paridad estricta JS/Go/Schema."
+    key_decisions:
+      - "Conectar adaptLegacyEnvelope en SubagentStop preservando sdd-spec fail-closed"
+      - "Condicionar status verified en PhaseCompletionReducer a verify_outcome explícito"
+      - "Garantizar paridad estricta entre JSON Schema v1 y validadores JS y Go"
+  spec:
+    status: done
+    artifacts:
+      - openspec/changes/remediate-cx1-envelope-projection/specs/hooks/spec.md
+      - openspec/changes/remediate-cx1-envelope-projection/specs/lifecycle-kernel-runtime/spec.md
+      - openspec/changes/remediate-cx1-envelope-projection/specs/kernel-contract-schemas/spec.md
+      - openspec/changes/remediate-cx1-envelope-projection/specs/skills/spec.md
+    summary: "Especificaciones delta redactadas para hooks, lifecycle-kernel-runtime, kernel-contract-schemas y skills."
+  design:
+    status: done
+    artifact: openspec/changes/remediate-cx1-envelope-projection/design.md
+    summary: "Diseño de remediación CX1: fallback legacy en SubagentStop, verify_outcome canónico en reducer y paridad estricta entre Schema y validadores JS/Go."
+    key_decisions:
+      - "Fallback a adaptLegacyEnvelope en SubagentStop preservando fail-closed en sdd-spec"
+      - "Gating explícito de verify_outcome positivo en PhaseCompletionReducer"
+      - "Paridad estricta entre JSON Schema v1 y validadores JS/Go"
+  tasks:
+    status: done
+    artifact: openspec/changes/remediate-cx1-envelope-projection/tasks.md
+    summary: "Desglose TDD en 6 fases para remediación CX1: esquema, validadores JS/Go, reducer, hooks, skills y tests de integración con paridad."
+    key_decisions:
+      - "Desglose estricto TDD (RED, GREEN, REFACTOR) por componente y fase"
+      - "Preservación del presupuesto de 400 líneas en un único PR con bajo riesgo"
+      - "Cobertura completa y paridad determinista de validación cross-runtime JS y Go"
+  apply:
+    status: done
+    artifact: openspec/changes/remediate-cx1-envelope-projection/apply-progress.md
+    summary: "Remediación completa de envelope projection, schemas, validadores y hooks con suites en verde."
+    key_decisions:
+      - "Paridad estricta cross-runtime JS/Go para AdaptLegacyEnvelope y schema_version == 1"
+      - "PhaseCompletionReducer requiere verify_outcome positivo (PASS / PASS WITH WARNINGS) para verified"
+      - "SubagentStop adapta texto/transcripción preservando fail-closed en sdd-spec"
+  verify:
+    status: done
+    verdict: "PASS"
+    artifact: openspec/changes/remediate-cx1-envelope-projection/verify-report.md
+    summary: "Verificación exitosa de remediación CX1: 25/25 tareas completas, 29/29 escenarios validados con tests de ejecución en Node.js y Go sin regresiones."
+    key_decisions:
+      - "Fallback legacy conectado en SubagentStop preservando fail-closed en sdd-spec"
+      - "PhaseCompletionReducer exige verify_outcome positivo (PASS/PASS WITH WARNINGS) para proyectar verified"
+      - "Paridad estricta y determinista entre JSON Schema v1 y validadores JS/Go"
+  archive:
+    status: pending
