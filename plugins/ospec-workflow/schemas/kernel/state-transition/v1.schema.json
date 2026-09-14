@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/state-transition/v1",
+  "schema_version": 1,
+  "title": "next_transition / state-transition",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "execute",
+        "collect",
+        "decide",
+        "stop"
+      ]
+    },
+    "operation": {
+      "type": "string"
+    },
+    "command": {
+      "type": "string"
+    },
+    "arguments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "value": {},
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "kind",
+    "operation"
+  ],
+  "additionalProperties": false,
+  "if": {
+    "properties": {
+      "kind": {
+        "const": "execute"
+      }
+    },
+    "required": [
+      "kind"
+    ]
+  },
+  "then": {
+    "required": [
+      "command"
+    ]
+  }
+}

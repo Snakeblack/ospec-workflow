@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "turns": 10,
+  "patches": 5,
+  "commands": 20,
+  "wall_time_minutes": 30.5,
+  "changed_lines": 800,
+  "allowed_paths": [
+    "src/auth/**",
+    "tests/auth/**"
+  ]
+}

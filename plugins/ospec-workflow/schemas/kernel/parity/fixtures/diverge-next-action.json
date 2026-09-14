@@ -1,0 +1,19 @@
+{
+  "name": "diverge-next-action",
+  "human": {
+    "code": "contract-remediation",
+    "cause": "invalid-envelope",
+    "next_action": {
+      "kind": "decide",
+      "operation": "approve-remediation"
+    }
+  },
+  "envelope": {
+    "reason_code": "contract-remediation",
+    "cause": "invalid-envelope",
+    "next_transition": {
+      "kind": "stop",
+      "operation": "halt"
+    }
+  }
+}

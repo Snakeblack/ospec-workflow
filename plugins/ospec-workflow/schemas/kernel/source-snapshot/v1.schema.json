@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/source-snapshot/v1",
+  "schema_version": 1,
+  "type": "object",
+  "properties": {
+    "kind": {
+      "type": "string",
+      "const": "source-snapshot/v1"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "source_snapshot_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "repository_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "base_tree_digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "projection": {
+      "type": "string",
+      "enum": [
+        "workspace",
+        "staged",
+        "commit"
+      ]
+    },
+    "dependency_digests": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "source_snapshot_id",
+    "repository_id",
+    "base_tree_digest",
+    "projection"
+  ],
+  "additionalProperties": false
+}
