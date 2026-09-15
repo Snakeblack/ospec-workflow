@@ -1,204 +1,120 @@
-# Proporcionalidad del harness: trabajo mínimo con evidencia suficiente
+# Proporcionalidad del harness: seleccionar garantías y comprimir ejecución
 
-> **Estado:** diseño y análisis para futuros changes; no activa rutas, defaults ni aprobaciones.
-> **Corte:** 2026-09-05. [Arquitectura](harness-evolution.md) fija autoridades; el [roadmap](../roadmaps/harness-evolution.md#orden-recomendado-de-trabajo) fija prioridad y fichas de ejecución.
+> **Estado:** diseño operativo para cambios futuros. No activa rutas, defaults, aprobaciones ni sustituye el [roadmap](../roadmaps/harness-evolution.md).
+> **Relación:** [Arquitectura](harness-evolution.md) define autoridad y límites; este documento define cómo seleccionar, materializar, comprimir o escalar sin cambiarlos.
 
 ## Decisión
 
-Corregir primero la selección del proceso vigente y después reducir su peso documental.
-Un cambio fácil debe aprovechar `lite` cuando sea admisible, con sus cinco fases reales.
-La consolidación de fases e invocaciones es una evolución posterior del contrato runtime,
-no una interpretación libre de las instrucciones actuales.
-
-El objetivo es minimizar trabajo que no añade información, conservando el necesario para
-entender el cambio, implementarlo, verificarlo de forma independiente y recuperarlo.
-Menos tokens es una consecuencia a medir; no es una razón para omitir una obligación.
-
-Esta intervención mejora el propio desarrollo del harness: cada change posterior puede
-heredar una selección más precisa, artefactos más cortos y menos reconstrucción de contexto.
-No se afirma ahorro medido ni retorno financiero. La prioridad es beneficio esperado y
-reutilización inmediata, separada de la ruta técnica de promoción K7–K12.
-
-## Diagnóstico verificado del producto actual
-
-| Evidencia | Consecuencia |
-| --- | --- |
-| [`openspec/config.yaml`](../../openspec/config.yaml), bloque `routing`: `standard` por `project.status: active` precede a `lite`. | Un repositorio activo puede seleccionar el proceso completo antes de evaluar la clase pequeña. |
-| [`route-dispatcher.js`](../../scripts/lib/route-dispatcher.js), `matchConditions`: claves literales y comparación estricta; `classification` de la ruta no filtra esta función. | Metadata declarada y elegibilidad efectiva son contratos diferentes hoy. |
-| `lite` declara `[trivial, small]`, pero su condición exige `change.classification: small`. | Reordenar YAML no resuelve `trivial` ni la diferencia entre claves del contexto. |
-| [`change-classification.js`](../../scripts/lib/change-classification.js) define floors y vocabulario K1; declara fuera de alcance su conexión al routing vivo. | Tener `critical` en K1 no demuestra que una ruta legacy aplique ese mínimo. |
-| La tabla viva declara siete fases en standard y cinco en lite. | Lite evita spec y design; no equivale a una ejecución directa ni a una sola fase. |
-| [`real-repo.test.js`](../../scripts/configure/real-repo.test.js), pruebas de routing del repositorio. | La cobertura de helpers no sustituye una prueba completa de selección con la configuración real. |
-
-Reproducción del matching actual: con `classification: small` y `project.status: active`
-coincide standard. Añadir `change.classification: small` permite coincidir también a lite,
-pero sigue ganando standard por orden. `classification: trivial` por sí sola no satisface lite.
-Estas son observaciones del matching, no pruebas de que todos los entrypoints construyan
-exactamente ese mismo contexto; PP1 debe probar la cadena completa de entrada y selección.
-
-La [investigación de agosto](research/proportional-process-and-change-program.md) ya nombraba
-este defecto. La decisión nueva es priorizar su corrección como PP1, no esperar a K10.
-El cursor de un Change Program continúa diferido y sin slice: es otro problema.
-
-## Tres decisiones separadas
-
-| Decisión | Pregunta | Restricción |
-| --- | --- | --- |
-| Admisión y routing | ¿Qué obligaciones y ruta son admisibles? | Riesgo, alcance, incertidumbre e irreversibilidad; floors antes de preferencias o coste. |
-| Artefactos y contexto | ¿Cuánta representación requiere demostrar esas obligaciones? | Formatos vigentes, consumidores y evidencia completa; referencias antes que copias. |
-| Modelo e invocaciones | ¿Quién ejecuta cada responsabilidad y cuántas llamadas necesita? | Misma garantía, verificación independiente y contratos runtime; no resolver con agentes espejo baratos. |
-
-Una tarea barata de describir puede ser peligrosa de ejecutar. Dos líneas de autenticación
-exigen más assurance que un reemplazo mecánico en varios documentos. El número de archivos
-también informa coordinación y reviewability, pero no determina por sí solo el riesgo.
-Los gates vigentes por solapamiento SDD o tamaño de review siguen aplicando.
-
-Tampoco basta una etiqueta de intención. `hotfix` expresa urgencia, no una exención de
-seguridad. Una petición explícita de bugfix o refactor conserva su significado cuando sea
-admisible; si omite garantías necesarias, se eleva el proceso y se explica por qué.
-
-## Secuencia de decisión propuesta
-
-1. Recuperar el change y sus decisiones persistidas si existe; distinguir continuación de nueva admisión.
-2. Recoger solo señales suficientes: propósito, áreas afectadas, reversibilidad, interfaces y desconocidos materiales.
-3. Aplicar mínimos de riesgo y obligaciones. Autenticación, migraciones y contratos públicos no se degradan por tamaño o precio.
-4. Resolver desconocidos con exploración focal o una decisión de alcance cuando impidan determinar un mínimo seguro.
-5. Evaluar prioridades de contexto e intención y elegir la primera ruta **elegible** en la tabla compatible.
-6. Ajustar extensión documental y contexto a las obligaciones de esa ruta, sin inventar fases completadas.
-7. Registrar razones, supuestos materiales y señales que obligarían a reclasificar; medir coste y resultado.
-
-`unknown` no significa siempre standard ni autoriza lite por falta de evidencia.
-Una exploración pequeña puede localizar el cambio y despejar incertidumbre; si descubre
-una frontera de seguridad o efectos irreversibles, debe escalar antes de implementar.
-La política debe definir el comportamiento cuando no queda ninguna ruta elegible.
-
-En un change activo, el descubrimiento de auth, migración o mayor alcance eleva de forma
-monótona las obligaciones aplicables. No se rebajan automáticamente porque el diff final
-sea corto. Toda revisión de ruta debe conservar approvals, findings, budgets y evidencia;
-si cambia el contrato o candidato, se sigue el protocolo de successor vigente.
-
-## PP1: compatibilidad de elegibilidad y mínimos
-
-PP1 debe normalizar las señales `classification` y `change.classification` en una frontera
-explícita, definir precedencia o error ante conflicto y documentar cómo se consume la
-metadata `classification` sin romper rutas personalizadas existentes.
-No basta mover `lite` una posición hacia arriba.
-
-El vocabulario K1 (`direct`, `repair`, `bounded`, `planned`, `critical`) y el legacy
-(`trivial`, `small`, `normal`, `high-risk`) son distintos. La integración requiere un
-mapeo explícito de garantías y elegibilidad; copiar `critical` a un enum legacy no es diseño.
-
-La prioridad contextual de foundation, federated y brownfield debe conservarse; no se
-debe saltar una baseline necesaria por detectar pocas líneas. Dentro del conjunto elegible,
-el orden declarado sigue siendo significativo, incluidas tablas custom e intenciones
-explícitas. Los floors prevalecen sobre un hotfix que no pueda satisfacerlos.
-
-PP1 incluye los contratos de entrada, selección y explicación, las fixtures con la tabla
-real y la coherencia documental/multi-target necesaria. La deuda de documentación de
-[`sdd-routing.md`](../sdd-routing.md) pertenece a ese futuro change, no se declara resuelta aquí.
-
-Cambiar cómo se interpretan condiciones vacías o endurecer todos los casos de
-`validate-phase` sin ruta son hallazgos adyacentes: requieren análisis de compatibilidad
-propio. No deben entrar como limpieza oportunista que impida cerrar PP1.
-
-## PP2: compactar el contrato lite que ya existe
-
-La unidad inicial conserva esta secuencia:
+La proporcionalidad no reduce el listón por tener un cambio corto, un modelo más capaz o menos invocaciones. Determina las **obligaciones** que deben satisfacerse y permite elegir la ejecución y representación mínimas que las demuestren.
 
 ```text
-proposal-lite → tasks → apply → verify → archive
+Intención + aceptación
+  → garantías requeridas
+  → obligaciones
+  → ejecución y artefactos proporcionales
+  → candidato + evidencia
+  → verificación independiente
+  → cerrar, recuperar o escalar
 ```
 
-| Artefacto o paso | Contenido mínimo útil | Lo que no se puede simular |
+| Decisión | Responde | No decide |
 | --- | --- | --- |
-| `proposal-lite.md` | Problema observable, alcance/no alcance, aceptación y rollback proporcional. | Una spec o un design vacíos para satisfacer lectores incorrectos. |
-| `tasks.md` | Trabajo verificable, dependencias reales, forecast de review y referencias al contrato lite. | Tareas marcadas done por haber creado el documento. |
-| `apply-progress.md` | Progreso acumulado, evidencia y decisiones nuevas; leer y combinar al continuar. | Reemplazar historia por el último lote o fabricar RED/GREEN. |
-| `verify-report.md` | Contraste independiente con aceptación y evidencia; límites explícitos. | Repetir la narrativa de apply como verificación. |
-| Archive | Semántica de cierre y artefactos requeridos por el protocolo actual. | Marcar archive completado cuando el movimiento/receipt sigue pendiente. |
+| Admisión | Qué garantías y recipe son admisibles | Cuántos agentes o documentos usará el worker |
+| Obligaciones | Qué debe demostrarse y con qué evidencia | La estrategia interna para conseguirlo |
+| Ejecución | Qué responsabilidades puede combinar un worker | La autoridad del verifier, reviewer o delivery |
+| Materialización | Qué debe persistir para recovery y consumidores | Que un análisis efímero sea un artefacto por defecto |
 
-Primero se auditan consumidores y, donde exista un requisito incondicional de spec/design en lite, se corrige:
-skills, dependencias, validadores, recovery, renderer y targets deben aceptar de manera
-coherente `proposal-lite + tasks`. La lista definitiva sale de explorar sus contratos,
-no de crear documentos de relleno para evitar esa exploración.
+## Selección de garantías
 
-En standard se conservan spec y design cuando sus responsabilidades sean necesarias.
-Compactar significa expresar cada decisión una vez y referenciarla, no vaciar secciones
-obligatorias ni hacer que un formato de lite oculte incertidumbre arquitectónica.
+<a id="matriz-de-aceptación-para-cambios-futuros"></a>
 
-La primera reducción puede ser textual: menos duplicación entre resumen humano/envelope,
-menos repetición de matrices y lectura focal de artefactos requeridos. Mientras el contrato
-actual pida ambos formatos, ambos se conservan. CX1 cambia ese transporte de forma versionada.
-No se borran archivos o resúmenes que lectores vigentes todavía necesiten.
+La admisión recoge propósito, aceptación, scope, interfaces afectadas, reversibilidad y desconocidos materiales. Deriva obligaciones desde cuatro señales: **riesgo**, **incertidumbre**, **radio de impacto** y **reversibilidad**. Los floors de auth, migración, contrato público y efectos destructivos prevalecen sobre tamaño, urgencia, coste o intención `hotfix`.
 
-## Consolidación posterior: runtime antes que atajos
+1. Recuperar change, ruta y decisiones persistidas cuando es una continuación.
+2. Reducir desconocidos con exploración focal o decisión de alcance cuando impidan fijar un mínimo seguro.
+3. Aplicar floors y construir obligaciones: comportamiento, compatibilidad, rollback, evidence strategy, review o challenge cuando correspondan.
+4. Seleccionar la primera ruta legacy elegible, conservando prioridad contextual y el orden de tabla.
+5. Elegir ejecución, representación y contexto que cubran esas obligaciones.
+6. Registrar razones, supuestos materiales y señales que exigirían reclasificación.
 
-CX1 separa estado/completions mecánicos de la semántica de los agentes mediante envelope,
-renderer y reducer versionados. CX2 deriva vistas repetitivas y datos mecánicos del archive.
-Son cambios que ahorran redacción y reconciliación, no autorizaciones para saltar trabajo.
+`unknown` no autoriza un atajo ni obliga por sí mismo a un proceso completo: exige resolver el desconocido suficiente para admitir una ruta segura. Las recetas K10 (`Direct`, `Repair`, `Bounded`, `Planned`, `Critical`) y el vocabulario legacy (`trivial`, `small`, `normal`, `high-risk`) coexisten hasta que cada receta tenga su mapeo de garantías validado; no son equivalencias implícitas.
 
-Tras ese contrato runtime y la promoción correspondiente de recetas K10, una invocación
-podrá materializar varias responsabilidades compatibles sin fingir que ejecutó agentes
-ausentes. Debe poder demostrar qué capacidad se cumplió, con qué inputs, evidencia y salida.
-La verificación independiente permanece separada de la autoría del cambio.
+## Compresión de ejecución
 
-K10 generaliza el mínimo de obligaciones hacia capacidades; no obliga a que cada
-capacidad tenga documento y agente propios. La decisión se valida por receta/profile
-después de K9 y K10-delivery. Direct productivo sigue fuera del corto plazo.
-CX completo no es requisito de K7: la proyección CX5b para review depende de K7, no al revés.
+La capacidad observada puede cambiar la forma de cumplir una obligación, nunca su existencia. Una Bounded con contrato, scope congelado, verificación independiente y review requerida puede ejecutarse así:
 
-## Matriz de aceptación para cambios futuros
-
-| Caso | Decisión esperada | Evidencia de aceptación |
+| Forma | Ejecución | Garantías idénticas |
 | --- | --- | --- |
-| Cambio mecánico multarchivo en docs | Evaluar alcance/gates vigentes; permitir lite si sigue trivial/small y reversible. | No se fuerza spec/design por `project.status`; links y coherencia revisados. |
-| Bug pequeño reproducible | Conservar intención bugfix si es admisible; sin intención especial, lite puede ser elegible. | Reproducción, corrección y verificación independiente; no añadir fases por reflejo. |
-| Feature contenida | Lite solo si cumple criterios small y baja incertidumbre; standard si cambian contratos o decisiones materiales. | Criterios observables y dependencias; no elegir por pocas líneas estimadas. |
-| Dos líneas de auth | Floor de seguridad, incluso con `/sdd-lite` o intención hotfix. | Ruta que conserve obligaciones; rechazo/escala explicado antes de apply. |
-| Migración pequeña de datos | Elevar por irreversibilidad e integridad. | Recovery, compatibilidad y evidencia adversarial aplicables; no atajo por urgencia. |
-| Alcance incierto | Explorar focalmente o resolver alcance antes de admitir ejecución. | Desconocidos reducidos; transición trazable a ruta admisible. |
-| Tabla custom reordenada | Respetar primer match entre elegibles y prioridad contextual compatible. | Fixtures de orden, metadata, claves y conflictos; sin hardcodear nombres de rutas. |
-| Continuación de change normal | Mantener ruta/ledger; reducción futura requiere transición explícita compatible. | No downgrade silencioso, reset de budgets ni pérdida de aprobaciones. |
+| Varios workers | Descubrimiento/decomposición e implementación separados; luego freeze, verifier y review. | Contrato, paths permitidos, Candidate, evidencia, verifier y review. |
+| Un worker capaz | Un worker realiza análisis e implementación dentro del scope; luego freeze, verifier y review separados. | Contrato, paths permitidos, Candidate, evidencia, verifier y review. |
 
-La aceptación de PP1 debe cubrir la tabla real y fixtures de todos los targets generados,
-incluyendo fresh start, continuación y override. La de PP2 debe recorrer lectores de lite,
-validación, recovery y archive con ausencia **legítima** de spec/design.
-Un test aislado de helpers o una captura del YAML no demuestran esos comportamientos.
+La segunda forma no se presume por nombre de modelo ni por autoconfianza. Requiere perfil observado por tarea y fallback compatible. Tampoco convierte una Bounded en Direct: Direct sigue limitado a trabajo mecánico, reversible y sin cambio de comportamiento. El ejemplo completo, incluidas O1–O4 y su evidencia, está en la [arquitectura](harness-evolution.md#ejemplo-bounded-con-la-misma-garantía).
 
-## Medición y rollback
+## Materialización JIT y compatibilidad
 
-CX0 ya aporta instrumentación advisory; no parte de cero. Su carpeta archivada histórica
-contiene verify PASS, pero el estado de archive conserva una inconsistencia documental;
-el roadmap registra esa limitación sin inventar reconciliación ni ahorro medido.
+Persistir no equivale a producir una fase o un documento por cada paso. Un dato se materializa cuando soporta una decisión futura, recovery, trazabilidad o un consumidor vigente; de otro modo se mantiene como contexto efímero.
 
-Para comparar, conservar cohorts por riesgo, incertidumbre, ruta efectiva, fase, profile y
-host. Medir bytes/tokens de artefactos, lectura repetida, input/cached/uncached/output con
-cobertura declarada, invocaciones, latencia, preguntas materiales, rework, fallbacks y defectos
-detectados/escapados en los fixtures disponibles. Una reducción de fase no es un porcentaje de coste.
+| Clase | Siempre persiste | Puede derivarse o referenciarse | Efímero por defecto | Condición para materializar |
+| --- | --- | --- | --- | --- |
+| Intención | aceptación, scope/no-scope, restricciones y approvals materiales | baseline, fuentes canónicas y contexto estable | búsqueda local o razonamiento de trabajo | afecta alcance, contrato o decisión posterior |
+| Policy e identidad | policy/route persistida, Candidate, digests, permits y budgets | Execution/Assurance Graph y vistas de estado, si conservan entradas canónicas, digests, replay y contratos requeridos | elección interna de herramientas | recovery, replay o consumidor debe reconciliarlo |
+| Evidencia | receipts, resultados, provenance, findings y decisiones de cierre | renderers, tablas de cumplimiento y archive views | salida de herramientas sin valor probatorio | satisface obligación o explica un bloqueo |
+| Planificación | decisiones arquitectónicas y dependencias materiales | tareas desde contrato/grafo cuando el consumidor lo admite | checklist del worker y descomposición momentánea | otro actor debe ejecutarla, revisarla o reanudarla |
 
-| Intervención | Señal de beneficio | Límite / rollback |
+Antes de retirar o compactar un artefacto, se hace inventario de consumidores: skills, validadores, recovery, renderers, targets y archive. Mientras uno requiera el formato actual, se conserva adapter o representación compatible. No se infiere que un grafo persistido pueda desaparecer. PP2 mantiene `proposal-lite → tasks → apply → verify → archive`; CX1/CX2 pueden sustituir duplicación mecánica de forma versionada, con replay y fallback.
+
+## Escalado durante ejecución
+
+La clasificación inicial no es una promesa de complejidad total. Las señales nuevas elevan las obligaciones de forma monótona y disparan una transición tipada; no degradan automáticamente la ruta persistida ni reinician lineage, attempts, budgets o evidencia todavía válida por digest.
+
+| Señal descubierta | Obligación añadida | Acción |
 | --- | --- | --- |
-| PP1 | Menos selecciones standard injustificadas; razones y floors consistentes. | Revertir selección nueva para nuevas admisiones sin borrar decisiones activas; floors inseguros detienen ejecución. |
-| PP2 | Menos bytes y relecturas por change comparable; aceptación intacta. | Recuperar plantillas/lectores compatibles; conservar datos y evidencia ya persistidos. |
-| CX1/CX2 | Menos redacción mecánica y divergencia entre vistas. | Legacy adapter/renderer y replay compatibles; reconciliar operaciones desconocidas antes de mutar. |
-| Foundation/R2 | Menos redescubrimiento de propósito, restricciones y decisiones. | Referencias canónicas originales; stale visible y refresh explícito. |
+| Auth, migración, API pública o efecto irreversible | floor superior, compatibilidad, rollback y evidence strategy correspondiente | pausar, recompilar el subgrafo y escalar antes de ejecutar afectado |
+| Scope o dependencia inesperados | contrato/impacto adicional y paths revisados | clarificar o explorar focalmente; invalidar solo descendientes afectados |
+| Evidence stale, mismatch o check fallido | recolección o verificación adicional | recovery allowlisted con causa y presupuesto existentes; no inventa un riesgo mayor |
+| Cambio material de contrato o Candidate | successor y bindings nuevos | preservar historia; no reciclar evidencia de dependencia desconocida |
 
-No se fijan porcentajes de ahorro como criterio de aprobación sin baseline comparable.
-Toda optimización debe mostrar cero pérdida de obligaciones, trazabilidad o separación de
-autoridad en su corpus aplicable; una regresión material detiene la promoción.
+Reintentos idénticos pasan a diagnóstico acotado o estado terminal; nunca reinician budgets. Un cambio material requiere successor y la aprobación que exija el protocolo vigente. El rollback de una optimización restaura input, representación o ejecución compatible mediante la transición vigente. Nunca cambia la ruta persistida por sí solo ni borra datos de un change activo.
 
-## Relación con foundation y orden de inversión
+## Perfiles observados y fallback
 
-Una [foundation holística](harness-foundation-holistic.md) reduce incertidumbre reutilizable:
-propósito, usuarios, límites, operación y decisiones del ciclo de vida del software.
-Eso mejora la proporcionalidad porque permite distinguir lo conocido de lo que cada
-change debe descubrir. No convierte foundation en arquitecto universal ni exige cloud.
+Un perfil es evidencia limitada de que una ejecución comprimida sirve para una tarea y contexto determinados. No es una nueva autoridad, un store universal, `CapabilityProof` del host, `PolicySnapshot` ni un profile de routing.
 
-El orden recomendado empieza por PP1 y PP2, aprovecha CX1/CX2 y adelanta R2.1/R2.4 útil
-antes de inversiones extensas. R2.3/R2.6 pueden incorporar después curación de fuentes y
-una futura skill CNCF; R2.2 lleva ese conocimiento a consumidores por referencias.
-Los siete slices R2 existentes conservan identidad; no nace otra autoridad documental.
+| Campo operativo | Uso |
+| --- | --- |
+| Modelo, versión, effort y configuración | Identifican la ejecución reproducible; cualquier cambio los vuelve stale. |
+| Corpus y contexto | Delimitan fixtures, contract suite, tarea, inputs y target comparados. |
+| Provenance y cobertura | Distingue resultado runtime observado de narrativa del worker y muestra qué obligaciones se midieron. |
+| Frescura | Marca cuándo un cambio de policy, contrato, host, corpus o configuración vuelve el perfil stale. |
+| `unproven` y fallback | Ausencia de prueba elige la ejecución compatible completa; no autoriza una compresión. |
 
-Las fichas, slugs propuestos y dependencias están en el roadmap. Este documento define
-criterios de diseño; no es una segunda cola ni abre los changes. La ruta de promoción
-K7 → K8 → K9 → K10-delivery → K10 → K11/K12 se conserva.
+K9 puede comparar compresión en shadow/A-B focal. K11b puede consumir esas observaciones al elegir work orders y K12 ampliarlas longitudinalmente; ninguno es prerrequisito circular de K10 ni requiere por sí mismo un segundo host.
+
+## TDD, challenges y checks
+
+El contrato actual de Strict TDD sigue vigente: una optimización no puede saltar RED/GREEN donde la policy lo exige. La dirección futura puede evaluar evidencia discriminante por obligación —por ejemplo, challenges o mutation focal bajo corpus aplicable—, pero no afirma que un check verde, un challenge o un mutation score prueben corrección total. Solo una equivalencia demostrada, con provenance, comparación y rollback, puede cambiar una policy futura.
+
+## Medición, decisión y retirada
+
+Una simplificación se mantiene solo si el corpus aplicable muestra garantías comparables: cobertura de obligaciones, integridad de Candidate/evidence, separación de autoridad, recovery y defectos detectados/escapados. Se compara además coste, relecturas, latencia, fallbacks, trabajo repetido y carga de mantenimiento end-to-end.
+
+| Resultado observado | Decisión |
+| --- | --- |
+| Misma cobertura y calidad, menor coste o complejidad | Promover gradualmente por recipe/profile/target. |
+| Ahorro sin evidencia comparable | Mantener baseline compatible; no promover. |
+| Más defectos, señales perdidas o fallback frecuente | Restaurar ejecución o representación compatible y revisar el supuesto. |
+| Planner/router/role/contexto sin obligación o consumidor | Simplificar o retirar solo tras adapters, migración y evidencia de no regresión. |
+
+Esto evita una superestructura permanente: se mantienen mecanismos que preservan autoridad, recovery, verificación o decisión humana; se simplifican los que solo duplican representación o disciplina interna.
+
+## Referencia histórica: PP1 archivado
+
+<a id="pp1-compatibilidad-de-elegibilidad-y-mínimos"></a>
+
+PP1 resolvió el sombreado de `lite` por `standard` en repositorios activos: normaliza `classification` y `change.classification` fail-closed, filtra elegibilidad antes del first-match, aplica floors K1 y preserva rutas contextuales, orden custom y continuaciones. Su [archive report](../../openspec/changes/archive/2026-09-05-live-routing-eligibility-and-risk-floors/archive-report.md) registra `PASS`.
+
+Ese cierre gobierna el routing legacy actual; no activa Direct ni recetas K10, no convierte lite en una sola invocación y no resuelve cambios futuros de condiciones vacías o `validate-phase` sin ruta.
+
+## Límites
+
+Este documento no abre changes ni modifica la cadena de confianza `K7 → K8 → K9 → K10-delivery`. K10 se amplía receta a receta tras evaluación y promoción. Foundation puede reducir incertidumbre reutilizable, pero no se convierte en autoridad paralela ni en arquitecto universal. La prioridad y los IDs siguen en el roadmap.
