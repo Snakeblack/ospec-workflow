@@ -135,6 +135,21 @@ test("result-envelope v1 schema rejects invalid fixtures with path/rule", () => 
       expectedPath: "/question_gate/reason",
       expectedRule: "required",
     },
+    {
+      path: "schemas/kernel/result-envelope/v1/fixtures/invalid/blocked-missing-question-gate.json",
+      expectedPath: "/question_gate",
+      expectedRule: "required",
+    },
+    {
+      path: "schemas/kernel/result-envelope/v1/fixtures/invalid/empty-question-gate-fields.json",
+      expectedPath: "/question_gate/reason",
+      expectedRule: "minLength",
+    },
+    {
+      path: "schemas/kernel/result-envelope/v1/fixtures/invalid/empty-assumption-fields.json",
+      expectedPath: "/assumptions/0/id",
+      expectedRule: "minLength",
+    },
   ];
 
   for (const fixtureConfig of invalidFixtures) {

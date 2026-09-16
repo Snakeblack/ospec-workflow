@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.67.2] - 2026-09-17
+
+### Fixed
+- **Paridad canónica y conformidad diferencial de Result Envelope (CX1)**:
+  - **Regla condicional `if/then` en JSON Schema**: Incorporada la regla `if status == "blocked" -> then required: ["question_gate"]` en `schemas/kernel/result-envelope/v1/envelope.schema.json` y en el schema raíz de compatibilidad `schemas/kernel/result-envelope.schema.json`, cerrando la discrepancia estructural con los validadores de runtime (`REQ-kernel-contract-schemas-031`).
+  - **Restricción `minLength: 1` en campos de texto**: Añadido `minLength: 1` en `question_gate.reason`, `questions[].header`, `questions[].question`, `options[].label`, y en `assumptions` (`id`, `phase`, `statement`, `basis`), alineando la validación del schema con los chequeos de `isNonEmptyString` en JS y Go (`REQ-kernel-contract-schemas-031`).
+  - **Matriz de fixtures negativos atómicos**: Añadidos `blocked-missing-question-gate.json`, `empty-question-gate-fields.json` y `empty-assumption-fields.json` en `schemas/kernel/result-envelope/v1/fixtures/invalid/` para validar el rechazo determinista de casos de frontera.
+  - **Arnés de conformidad diferencial simétrico**: Creadas suites automatizadas en Node.js (`scripts/lib/result-envelope-conformance.test.js`) y Go (`internal/resultenvelope/conformance_test.go`) comprobando sobre la matriz completa de fixtures compartidos la invariante `schema.valid === js.valid === go.valid` (`REQ-skills-018`).
+  - **Sincronización del Roadmap**: Actualizada la tabla de lanes en `docs/roadmaps/harness-evolution.md` marcando CX1 como `implemented-archived`.
+  - **Transacción de archivo**: Cambio archivado en `openspec/changes/archive/2026-09-16-remediate-cx1-conformance-parity/` con 15/15 tareas y 24/24 escenarios verificados con pruebas en tiempo de ejecución.
+
 ## [2.67.1] - 2026-09-14
 
 ### Fixed

@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "change": "remediate-cx1-conformance-parity",
+  "source_fingerprint": "sha256:1777be2f6cdbb74bdcad4e13ee59035673ecdc676f7a133c0dfe4476d84280ec",
+  "spec_writes": [
+    {
+      "domain": "kernel-contract-schemas",
+      "source_delta": "specs/kernel-contract-schemas/spec-prepared.md",
+      "target": "openspec/specs/kernel-contract-schemas/spec.md",
+      "target_before_sha256": "sha256:3aebe40cd3bcdfb41d7f76a96318bfe4c5779239a68d1daaf57cb1247e7d9dd8",
+      "content_sha256": "sha256:0c8a6eb151d9984b1c0a41d6f277056bb95452d5e51840f993921eb073348d93"
+    },
+    {
+      "domain": "skills",
+      "source_delta": "specs/skills/spec-prepared.md",
+      "target": "openspec/specs/skills/spec.md",
+      "target_before_sha256": "sha256:e1294acb00494035077ba9fa39b8d04f4f0360eb22d03cc3f0dd070bd905b530",
+      "content_sha256": "sha256:a410959af3c81e427175d87c1cebfa50c2d64e4015ff8f4bf15fd97b92c19896"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260917-001-regla-condicional-if-then-y-minlength-1-en-schemas-json.md",
+      "content_sha256": "sha256:66f4bca59f4c3ce12fb8a68e6cccf568244ebc7a085d2f8a092a00b9814222db"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260917-002-matriz-compartida-de-fixtures-negativos-para-paridad-contractual.md",
+      "content_sha256": "sha256:229f4badbd45dc31e1ea6962bbd04860c1cbce68a76a1f3045ac77836d46161a"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260917-003-arnes-automatizado-de-conformidad-diferencial-simetrica-schema-js-go.md",
+      "content_sha256": "sha256:9ecde72d058326fe0442fe59f6c4061bab523a532b57f9472dbdfa3e2b427887"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "design.md",
+    "proposal.md",
+    "specs/kernel-contract-schemas/spec-prepared.md",
+    "specs/kernel-contract-schemas/spec.md",
+    "specs/skills/spec-prepared.md",
+    "specs/skills/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

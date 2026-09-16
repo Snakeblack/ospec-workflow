@@ -183,6 +183,7 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/result-envelope.js",
   "scripts/lib/result-envelope.test.js",
   "scripts/lib/result-envelope-schema-fixtures.test.js",
+  "scripts/lib/result-envelope-conformance.test.js",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [

@@ -1,7 +1,7 @@
 # Roadmap general — garantías verificables y ejecución adaptable
 
 > **Autoridad:** única fuente operativa del backlog transversal.
-> **Versión de referencia:** v2.67.1, 2026-09-14.
+> **Versión de referencia:** v2.67.2, 2026-09-17.
 > **Revisión de arquitectura y prioridades:** 2026-09-16; no cambia la versión publicada ni los estados de OpenSpec.
 > **Arquitectura:** [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md).
 > **Investigación no normativa:** [`../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md`](../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md) (P0–P27). Proporcionalidad de proceso y Change Program: [`../architecture/research/proportional-process-and-change-program.md`](../architecture/research/proportional-process-and-change-program.md).
@@ -2044,8 +2044,8 @@ El [verify histórico CX0](../../openspec/changes/archive/2026-09-02-cx0-context
 
 | Slice | Estado / dependencia | Entrega y gate |
 | --- | --- | --- |
-| CX0 — medición | `implemented-advisory` (v2.56.8); CX1 sigue pending | Tokens input/cached/uncached/output, artifact read/write, tool output, contexto único/duplicado, amplification y fallback; cada dato con schema/version, fuente y cobertura; P50/P90 por fase, clasificación, profile y host. Hallazgos 4R advisory no bloquean el corte. |
-| CX1 — envelope/state mecánico | `pending`, tras CX0 + K2/K2.1 | Migración gradual a envelope JSON-only + renderer humano y `PhaseCompletionReducer`; schemas versionados, legacy adapter, CAS/replay y fallback. Approvals, assumptions, gates, lineage y decisiones no se infieren ni cambian de autoridad. |
+| CX0 — medición | `implemented-advisory` (v2.56.8); CX1 implementado-archivado (v2.67.1 / v2.67.2) | Tokens input/cached/uncached/output, artifact read/write, tool output, contexto único/duplicado, amplification y fallback; cada dato con schema/version, fuente y cobertura; P50/P90 por fase, clasificación, profile y host. Hallazgos 4R advisory no bloquean el corte. |
+| CX1 — envelope/state mecánico | `implemented-archived` (v2.67.1 / v2.67.2), tras CX0 + K2/K2.1 | Migración a envelope JSON-only + renderer humano y `PhaseCompletionReducer`; schemas versionados (v1 y raíz con regla condicional if/then y minLength), fixtures negativos atómicos, suites de conformidad diferencial simétricas en Node y Go, legacy adapter, CAS/replay y fallback. Approvals, assumptions, gates, lineage y decisiones no se infieren ni cambian de autoridad. |
 | CX2 — views/archive renderer | `pending`, tras CX0/CX1 | Reconciliation/compliance/traceability como vistas derivadas; inventario, hashes, fechas y status de archive desde `archive-plan` + receipt. El agente conserva summary, riesgos y decisiones semánticas. |
 | CX3 — proyección shadow | `pending`, tras CX0 + K4a/K6a | `ContextProjection` content-addressed, reproducible, descartable y read-only; comparación `full` vs `compiled-shadow`, sin dispatch compacto todavía. |
 | CX4 — protocolos/bootstrap | `pending`, tras CX3 | Reglas compactas y módulos on-demand validados contra la proyección; no retirar compatibilidad full hasta promoción por fase/profile. |
