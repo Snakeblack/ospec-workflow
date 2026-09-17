@@ -1,7 +1,7 @@
 # Verification Report
 
 **Change**: remediate-cx1-strict-string-parity
-**Version**: N/A
+**Version**: 2.67.3
 **Mode**: Standard
 
 > Historial: los runs 1 (pre-remediación, PASS 28/28) y 2 (post Phase 5, PASS)
