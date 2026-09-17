@@ -249,6 +249,13 @@ function validateEnvelope(obj, context = {}) {
     errors.push("executive_summary must be a non-empty string");
   }
 
+  if (
+    Object.prototype.hasOwnProperty.call(obj, "detailed_report") &&
+    typeof obj.detailed_report !== "string"
+  ) {
+    errors.push("detailed_report must be a string");
+  }
+
   if (Object.prototype.hasOwnProperty.call(obj, "artifacts")) {
     if (!isArtifactsValid(obj.artifacts)) {
       errors.push('artifacts must be an array of paths or the literal string "inline"');

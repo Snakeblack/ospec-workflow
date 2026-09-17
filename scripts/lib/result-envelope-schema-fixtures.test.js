@@ -150,6 +150,16 @@ test("result-envelope v1 schema rejects invalid fixtures with path/rule", () => 
       expectedPath: "/assumptions/0/id",
       expectedRule: "minLength",
     },
+    {
+      path: "schemas/kernel/result-envelope/v1/fixtures/invalid/whitespace-only-required-strings.json",
+      expectedPath: "/executive_summary",
+      expectedRule: "pattern",
+    },
+    {
+      path: "schemas/kernel/result-envelope/v1/fixtures/invalid/non-string-detailed-report.json",
+      expectedPath: "/detailed_report",
+      expectedRule: "type",
+    },
   ];
 
   for (const fixtureConfig of invalidFixtures) {
@@ -188,4 +198,43 @@ test("result-envelope top-level schema compatibility with schemas/kernel/result-
   const schema = JSON.parse(fs.readFileSync(compatPath, "utf8"));
   assert.equal(schema.$id, "https://openspec.io/schemas/kernel/result-envelope/v1.schema.json");
   assert.equal(schema.schema_version, 1);
+});
+
+// F-a8097f47b57d3ff6: the root schema is a byte-for-byte copy of v1 with no
+// generation mechanism — this structural guard makes any unilateral edit to
+// either copy break the suite, so parity 1:1 can no longer rest on manual sync.
+test("result-envelope root schema keeps structural parity with v1 (deep strict equality)", () => {
+  const compatPath = path.join(ROOT, "schemas/kernel/result-envelope.schema.json");
+  const rootSchema = JSON.parse(fs.readFileSync(compatPath, "utf8"));
+  const v1Schema = readJson("schemas/kernel/result-envelope/v1/envelope.schema.json");
+  assert.deepStrictEqual(
+    rootSchema,
+    v1Schema,
+    "schemas/kernel/result-envelope.schema.json diverged from v1/envelope.schema.json — update both copies in lockstep"
+  );
+});
+
+// F-6f7aad9d4ee43fa6: the five top-level fixtures must be bound to their
+// valid//invalid/ corpus copies so the triphasic conformance loops (schema,
+// JS validator, Go validator) always evaluate the same content.
+test("result-envelope top-level fixtures stay identical to their valid//invalid/ corpus copies", () => {
+  const corpusCopies = [
+    { topLevel: "schemas/kernel/result-envelope/v1/fixtures/valid-v1.json", copy: "schemas/kernel/result-envelope/v1/fixtures/valid/valid-v1.json" },
+    { topLevel: "schemas/kernel/result-envelope/v1/fixtures/blocked-v1.json", copy: "schemas/kernel/result-envelope/v1/fixtures/valid/blocked-v1.json" },
+    { topLevel: "schemas/kernel/result-envelope/v1/fixtures/ambiguity-spec-v1.json", copy: "schemas/kernel/result-envelope/v1/fixtures/valid/ambiguity-spec-v1.json" },
+    { topLevel: "schemas/kernel/result-envelope/v1/fixtures/invalid-v1.json", copy: "schemas/kernel/result-envelope/v1/fixtures/invalid/invalid-v1.json" },
+    // legacy-unversioned is adapter input (out of remediation scope): its
+    // differential expectation stays "invalid for canonical v1 validators",
+    // which is exactly what the invalid/ copy asserts in all three runtimes.
+    { topLevel: "schemas/kernel/result-envelope/v1/fixtures/legacy-unversioned.json", copy: "schemas/kernel/result-envelope/v1/fixtures/invalid/legacy-unversioned.json" },
+  ];
+
+  for (const { topLevel, copy } of corpusCopies) {
+    assert.ok(fs.existsSync(path.join(ROOT, copy)), `corpus copy missing: ${copy}`);
+    assert.deepStrictEqual(
+      readJson(topLevel),
+      readJson(copy),
+      `${topLevel} diverged from ${copy} — edit the corpus copy or sync both`
+    );
+  }
 });

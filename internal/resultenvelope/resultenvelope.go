@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode"
 )
 
 // Enum values are declared as ordered slices (not just membership maps) so
@@ -105,9 +106,42 @@ func Extract(text string) (value map[string]any, found bool) {
 	return parsed, true
 }
 
+// isJSONFalsy mirrors JavaScript truthiness for JSON-decoded values: nil,
+// false, 0 and "" are falsy; every other type (objects, arrays, non-empty
+// scalars) is truthy. Keeps blocked-status error messages at byte parity with
+// the JS validator. See gen2 review (question_gate falsy message divergence).
+func isJSONFalsy(v any) bool {
+	switch t := v.(type) {
+	case nil:
+		return true
+	case bool:
+		return !t
+	case float64:
+		return t == 0
+	case string:
+		return t == ""
+	}
+	return false
+}
+
+// isECMAWhitespace reports whether r counts as whitespace under ECMA-262
+// trim() / "\s" semantics — the class shared by the JS runtime validator and
+// the schema "\\S" pattern. It differs from unicode.IsSpace in exactly two
+// code points: U+0085 (NEL) is NOT ECMA whitespace, while U+FEFF (BOM) IS.
+// See F-9cb30d71ec9aa7e5 (runtime parity remediation).
+func isECMAWhitespace(r rune) bool {
+	switch r {
+	case '\u0085':
+		return false
+	case '\uFEFF':
+		return true
+	}
+	return unicode.IsSpace(r)
+}
+
 func isNonEmptyString(v any) bool {
 	s, ok := v.(string)
-	return ok && strings.TrimSpace(s) != ""
+	return ok && strings.TrimFunc(s, isECMAWhitespace) != ""
 }
 
 func isArtifactsValid(v any) bool {
@@ -301,6 +335,12 @@ func ValidateForPhase(obj map[string]any, phase string) (valid bool, errs []stri
 		errs = append(errs, "executive_summary must be a non-empty string")
 	}
 
+	if v, ok := obj["detailed_report"]; ok {
+		if _, isString := v.(string); !isString {
+			errs = append(errs, "detailed_report must be a string")
+		}
+	}
+
 	if v, ok := obj["artifacts"]; ok {
 		if !isArtifactsValid(v) {
 			errs = append(errs, `artifacts must be an array of paths or the literal string "inline"`)
@@ -367,13 +407,16 @@ func ValidateForPhase(obj map[string]any, phase string) (valid bool, errs []stri
 	}
 
 	if status, _ := obj["status"].(string); status == "blocked" {
-		if obj["question_gate"] == nil {
+		if isJSONFalsy(obj["question_gate"]) {
 			errs = append(errs, "question_gate is required when status is blocked")
 		} else {
 			validateQuestionGate(obj["question_gate"], &errs)
 		}
-	} else if qg, ok := obj["question_gate"]; ok && qg != nil {
-		validateQuestionGate(qg, &errs)
+	} else if _, ok := obj["question_gate"]; ok {
+		// An explicit question_gate key — including a JSON null value — is
+		// validated structurally, mirroring the JS hasOwnProperty branch.
+		// See F-56ac2a291e91c857 (trust parity remediation).
+		validateQuestionGate(obj["question_gate"], &errs)
 	}
 
 	if v, ok := obj["assumptions"]; ok {

@@ -28,7 +28,8 @@
     },
     "executive_summary": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "pattern": "\\S"
     },
     "detailed_report": {
       "type": "string"
@@ -49,13 +50,15 @@
     },
     "next_recommended": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "pattern": "\\S"
     },
     "risks": {
       "oneOf": [
         {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "pattern": "\\S"
         },
         {
           "type": "array",
@@ -79,7 +82,8 @@
       "maxItems": 3,
       "items": {
         "type": "string",
-        "minLength": 1
+        "minLength": 1,
+        "pattern": "\\S"
       }
     },
     "assumptions": {
@@ -96,15 +100,18 @@
         "properties": {
           "id": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "pattern": "\\S"
           },
           "phase": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "pattern": "\\S"
           },
           "statement": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "pattern": "\\S"
           },
           "reversibility": {
             "type": "string",
@@ -115,7 +122,8 @@
           },
           "basis": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "pattern": "\\S"
           }
         }
       }
@@ -146,7 +154,8 @@
       "properties": {
         "reason": {
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "pattern": "\\S"
         },
         "questions": {
           "type": "array",
@@ -160,11 +169,13 @@
             "properties": {
               "header": {
                 "type": "string",
-                "minLength": 1
+                "minLength": 1,
+                "pattern": "\\S"
               },
               "question": {
                 "type": "string",
-                "minLength": 1
+                "minLength": 1,
+                "pattern": "\\S"
               },
               "options": {
                 "type": "array",
@@ -176,7 +187,8 @@
                   "properties": {
                     "label": {
                       "type": "string",
-                      "minLength": 1
+                      "minLength": 1,
+                      "pattern": "\\S"
                     },
                     "description": {
                       "type": "string"

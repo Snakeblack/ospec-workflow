@@ -130,6 +130,44 @@ test("validateEnvelope: status:blocked with question_gate is valid", () => {
   assert.equal(result.valid, true);
 });
 
+test("validateEnvelope: status:blocked with falsy question_gate keeps the required message", () => {
+  // Mirrors Go TestValidate_BlockedFalsyQuestionGateMessageParity: "", 0 and
+  // false must report "required", never "must be an object" (gen2 parity).
+  for (const falsy of ["", 0, false]) {
+    const result = validateEnvelope({
+      ...VALID_ENVELOPE,
+      status: "blocked",
+      question_gate: falsy,
+    });
+
+    assert.equal(result.valid, false);
+    assert.ok(
+      result.errors.includes("question_gate is required when status is blocked"),
+      `expected required message for ${String(falsy)}, got ${result.errors}`
+    );
+    assert.ok(!result.errors.includes("question_gate must be an object"));
+  }
+});
+
+test("validateEnvelope: explicit null question_gate on success is invalid", () => {
+  // Mirrors Go TestValidate_ExplicitNullQuestionGateOnNonBlockedStatus.
+  const result = validateEnvelope({ ...VALID_ENVELOPE, question_gate: null });
+
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.includes("question_gate must be an object"));
+});
+
+test("validateEnvelope: whitespace class matches ECMA (BOM rejected, NEL accepted)", () => {
+  // Mirrors Go TestValidate_WhitespaceClassMatchesECMA: trim()/\S ECMA treats
+  // U+FEFF as whitespace and U+0085 as a regular character.
+  const bom = validateEnvelope({ ...VALID_ENVELOPE, executive_summary: "\uFEFF" });
+  assert.equal(bom.valid, false);
+  assert.ok(bom.errors.includes("executive_summary must be a non-empty string"));
+
+  const nel = validateEnvelope({ ...VALID_ENVELOPE, executive_summary: "\u0085" });
+  assert.equal(nel.valid, true);
+});
+
 test("validateEnvelope: bad blocker_type enum value is invalid", () => {
   const result = validateEnvelope({
     ...VALID_ENVELOPE,
@@ -478,6 +516,25 @@ test("validateEnvelope: schema_version must be exactly 1", () => {
   const stringVersion = validateEnvelope({ ...VALID_ENVELOPE, schema_version: "1" });
   assert.equal(stringVersion.valid, false);
   assert.ok(stringVersion.errors.some((e) => e.includes("schema_version")));
+});
+
+test("validateEnvelope: non-string detailed_report is invalid", () => {
+  const numberResult = validateEnvelope({ ...VALID_ENVELOPE, detailed_report: 123 });
+  assert.equal(numberResult.valid, false);
+  assert.ok(numberResult.errors.includes("detailed_report must be a string"));
+
+  const booleanResult = validateEnvelope({ ...VALID_ENVELOPE, detailed_report: true });
+  assert.equal(booleanResult.valid, false);
+  assert.ok(booleanResult.errors.includes("detailed_report must be a string"));
+
+  const objectResult = validateEnvelope({ ...VALID_ENVELOPE, detailed_report: { text: "report" } });
+  assert.equal(objectResult.valid, false);
+  assert.ok(objectResult.errors.includes("detailed_report must be a string"));
+});
+
+test("validateEnvelope: string detailed_report is accepted", () => {
+  const result = validateEnvelope({ ...VALID_ENVELOPE, detailed_report: "Detailed content" });
+  assert.equal(result.valid, true);
 });
 
 // --- adaptLegacyEnvelope ----------------------------------------------------

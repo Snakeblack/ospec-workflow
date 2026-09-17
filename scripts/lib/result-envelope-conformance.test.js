@@ -92,44 +92,89 @@ test("differential conformance: all invalid fixtures fail schema and JS validato
   }
 });
 
-test("differential conformance: blocked fixture without question_gate is rejected by schema and JS", () => {
-  const fixturePath = path.join(INVALID_DIR, "blocked-missing-question-gate.json");
+function assertInvalidConformance(filename, { expectedRule, expectedPath, expectedJsError } = {}) {
+  const fixturePath = path.join(INVALID_DIR, filename);
   const content = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
 
   const schemaResult = validateInstance(schemaV1, content);
+  const rootSchemaResult = validateInstance(rootSchema, content);
   const jsResult = validateEnvelope(content);
 
-  assert.equal(schemaResult.valid, false);
-  assert.equal(jsResult.valid, false);
+  assert.equal(schemaResult.valid, false, `[v1 schema] ${filename} unexpectedly passed`);
+  assert.equal(rootSchemaResult.valid, false, `[root schema] ${filename} unexpectedly passed`);
+  assert.equal(jsResult.valid, false, `[JS validator] ${filename} unexpectedly passed`);
   assert.equal(schemaResult.valid, jsResult.valid);
-  assert.ok(schemaResult.errors.some((e) => e.rule === "required" && e.path === "/question_gate"));
-  assert.ok(jsResult.errors.some((err) => err.includes("question_gate is required when status is blocked")));
+  assert.equal(schemaResult.valid, rootSchemaResult.valid);
+
+  if (expectedRule) {
+    assert.ok(
+      schemaResult.errors.some((e) => e.rule === expectedRule && (!expectedPath || e.path === expectedPath)),
+      `[v1 schema] ${filename} expected rule ${expectedRule} at ${expectedPath || "any"}`
+    );
+    assert.ok(
+      rootSchemaResult.errors.some((e) => e.rule === expectedRule && (!expectedPath || e.path === expectedPath)),
+      `[root schema] ${filename} expected rule ${expectedRule} at ${expectedPath || "any"}`
+    );
+  }
+
+  if (expectedJsError) {
+    assert.ok(
+      jsResult.errors.some((err) => err.includes(expectedJsError)),
+      `[JS validator] ${filename} expected error containing "${expectedJsError}"`
+    );
+  }
+}
+
+test("differential conformance: blocked fixture without question_gate is rejected by schema and JS", () => {
+  assertInvalidConformance("blocked-missing-question-gate.json", {
+    expectedRule: "required",
+    expectedPath: "/question_gate",
+    expectedJsError: "question_gate is required when status is blocked",
+  });
 });
 
 test("differential conformance: empty question_gate text fields are rejected by schema and JS", () => {
-  const fixturePath = path.join(INVALID_DIR, "empty-question-gate-fields.json");
-  const content = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
-
-  const schemaResult = validateInstance(schemaV1, content);
-  const jsResult = validateEnvelope(content);
-
-  assert.equal(schemaResult.valid, false);
-  assert.equal(jsResult.valid, false);
-  assert.equal(schemaResult.valid, jsResult.valid);
-  assert.ok(schemaResult.errors.some((e) => e.rule === "minLength"));
-  assert.ok(jsResult.errors.some((err) => err.includes("must be a non-empty string")));
+  assertInvalidConformance("empty-question-gate-fields.json", {
+    expectedRule: "minLength",
+    expectedJsError: "must be a non-empty string",
+  });
 });
 
 test("differential conformance: empty assumption text fields are rejected by schema and JS", () => {
-  const fixturePath = path.join(INVALID_DIR, "empty-assumption-fields.json");
-  const content = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
-
-  const schemaResult = validateInstance(schemaV1, content);
-  const jsResult = validateEnvelope(content);
-
-  assert.equal(schemaResult.valid, false);
-  assert.equal(jsResult.valid, false);
-  assert.equal(schemaResult.valid, jsResult.valid);
-  assert.ok(schemaResult.errors.some((e) => e.rule === "minLength"));
-  assert.ok(jsResult.errors.some((err) => err.includes("must be a non-empty string")));
+  assertInvalidConformance("empty-assumption-fields.json", {
+    expectedRule: "minLength",
+    expectedJsError: "must be a non-empty string",
+  });
 });
+
+test("differential conformance: whitespace-only required strings fixture is rejected by schema and JS", () => {
+  assertInvalidConformance("whitespace-only-required-strings.json", {
+    expectedRule: "pattern",
+    expectedJsError: "must be a non-empty string",
+  });
+});
+
+test("differential conformance: non-string detailed_report fixture is rejected by schema and JS", () => {
+  assertInvalidConformance("non-string-detailed-report.json", {
+    expectedRule: "type",
+    expectedPath: "/detailed_report",
+    expectedJsError: "detailed_report must be a string",
+  });
+});
+
+test("differential conformance: explicit null question_gate on non-blocked status is rejected by schema and JS", () => {
+  assertInvalidConformance("null-question-gate.json", {
+    expectedRule: "type",
+    expectedPath: "/question_gate",
+    expectedJsError: "question_gate must be an object",
+  });
+});
+
+test("differential conformance: BOM-only (U+FEFF) whitespace strings are rejected by schema and JS", () => {
+  assertInvalidConformance("bom-whitespace-only-strings.json", {
+    expectedRule: "pattern",
+    expectedPath: "/executive_summary",
+    expectedJsError: "must be a non-empty string",
+  });
+});
+

@@ -1,0 +1,206 @@
+schema_version: 1
+change: remediate-cx1-strict-string-parity
+status: archived
+blocking_questions: []
+revision: 12
+last_updated: "2026-09-17T15:51:34.273Z"
+classification: high-risk
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "Remediación de paridad estricta para CX1 (pattern non-whitespace en schemas, validación de detailed_report en JS/Go y fixtures negativos diferenciales)."
+  validated: true
+  validation_errors: []
+owner:
+  branch: fix/remediate-cx1-strict-string-parity
+approvals:
+  - id: intent-briefing-001
+    gate: intent-briefing
+    decision: accepted
+    source: user_request
+    accepted_at: "2026-09-17T09:09:26Z"
+    synthesis: "Hardening de schemas con pattern: \\S, validación de detailed_report en JS y Go, adición de fixtures de whitespace-only y non-string detailed_report, y verificación de paridad diferencial estricta."
+    scope:
+      in: "schemas/kernel/result-envelope/v1/envelope.schema.json, schemas/kernel/result-envelope.schema.json, scripts/lib/result-envelope.js, internal/resultenvelope/resultenvelope.go, fixtures en schemas/kernel/result-envelope/v1/fixtures/invalid/, tests en scripts/lib/ y internal/resultenvelope/."
+      out: "Modificación de PhaseCompletionReducer, cambios en fallback legacy, cambios en verify_outcome o refactor estructural."
+    applies_to:
+      - change-classification
+  - id: quality-review-gate-001
+    gate: quality-review-gate
+    decision: halt-archive-register-followup
+    detail: "Archive frenado por quality-review-ambiguity-unresolved; se registra el gap estructural como FU1 en docs/roadmaps/harness-evolution.md y el change queda in_progress hasta resolución."
+    source: question_tool
+    accepted_at: "2026-09-17T10:14:41Z"
+    applies_to:
+      - sdd-archive
+  - id: quality-review-gate-002
+    gate: quality-review-gate
+    decision: reclassify-high-risk
+    detail: "Reclasificación a high-risk (contrato público kernel endurecido): clasificación determinística sufficient con 4 dominios, salta el router ambiguo y habilita el review completo antes del archive."
+    source: chat
+    accepted_at: "2026-09-17T10:30:00Z"
+    applies_to:
+      - quality-review-gate
+  - id: quality-review-gate-003
+    gate: quality-review-gate
+    decision: remediate-advisory-findings
+    detail: "Remediar 4 warnings in-scope (F-56ac2a291e91c857 question_gate:null Go, F-9cb30d71ec9aa7e5 whitespace Unicode, F-a8097f47b57d3ff6 paridad estructural schemas, F-6f7aad9d4ee43fa6 fixtures fuera de red trifasica) antes de archivar; trust-002/trust-004 (fallback legacy, fuera de scope aceptado) quedan como follow-up change propio. El candidate cambiara: se re-verificara y abrira lineage sucesor (new-candidate) antes del archive."
+    source: question_tool
+    accepted_at: "2026-09-17T10:55:00Z"
+    applies_to:
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: quality-review-gate-004
+    gate: quality-review-gate
+    decision: remediate-gen2-findings
+    detail: "Ronda 2 de remediacion pre-archive: fix del fixture NEL con byte 0x85 crudo (cobertura vacua), alineacion del mensaje de error para question_gate falsy no-null en status blocked (JS vs Go), y tests unitarios JS espejo (BOM/NEL/null-question-gate). Tras aplicar: re-verify corto y lineage gen3 con review del delta antes del archive."
+    source: question_tool
+    accepted_at: "2026-09-17T11:40:00Z"
+    applies_to:
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: quality-review-gate-005
+    gate: quality-review-gate
+    decision: archive-with-gen3-followups
+    detail: "Congelar gen3 aprobado (1 WARNING de mecanica de tests + 3 SUGGESTION, todos advisory; WARNING de trust sobre fixture NEL descartado como falso positivo con verificacion byte-level C2 85 valido) y archivar. Findings gen3 + trust-002/004 (legacy) quedan como follow-up change."
+    source: question_tool
+    accepted_at: "2026-09-17T12:30:00Z"
+    applies_to:
+      - sdd-archive
+baseline_fingerprints:
+  kernel-contract-schemas: 5683137bd5dd9665a6234851e1ccf10e4af6d74d7719ebad914f0dff3307c403
+  skills: cd4ee1034d799b08d725d6006923c2010dbe1dffa857200627416e1dfa733c20
+phases:
+  review-runtime:
+    status: done
+    artifact: "openspec/changes/remediate-cx1-strict-string-parity/verify-report.md"
+    summary: "Run 3 PASS: delta Phase 6 verificado con tests propios (Node 71/71, Go ok). Fixture NEL con C2 85 válido, paridad de mensaje falsy question_gate, espejos JS; re"
+    key_decisions:
+      - "Fixture NEL validado por bytes (C2 85) en lugar de confiar en el reporte de apply"
+      - "F-003c1013c1242c14 queda fuera del scope aprobado de Phase 6 como follow-up advisory"
+    last_payload_hash: "f7b67b259cae61dac554832193d751891793c4b5efd046e3d99e6ba47e77064a"
+  review-trust:
+    status: done
+    artifact: "openspec/changes/remediate-cx1-strict-string-parity/verify-report.md"
+    summary: "Run 3 PASS: delta Phase 6 verificado con tests propios (Node 71/71, Go ok). Fixture NEL con C2 85 válido, paridad de mensaje falsy question_gate, espejos JS; re"
+    key_decisions:
+      - "Fixture NEL validado por bytes (C2 85) en lugar de confiar en el reporte de apply"
+      - "F-003c1013c1242c14 queda fuera del scope aprobado de Phase 6 como follow-up advisory"
+    last_payload_hash: "f7b67b259cae61dac554832193d751891793c4b5efd046e3d99e6ba47e77064a"
+  review-evolution:
+    status: done
+    artifact: "openspec/changes/remediate-cx1-strict-string-parity/verify-report.md"
+    summary: "Run 3 PASS: delta Phase 6 verificado con tests propios (Node 71/71, Go ok). Fixture NEL con C2 85 válido, paridad de mensaje falsy question_gate, espejos JS; re"
+    key_decisions:
+      - "Fixture NEL validado por bytes (C2 85) en lugar de confiar en el reporte de apply"
+      - "F-003c1013c1242c14 queda fuera del scope aprobado de Phase 6 como follow-up advisory"
+    last_payload_hash: "f7b67b259cae61dac554832193d751891793c4b5efd046e3d99e6ba47e77064a"
+  review-efficiency:
+    status: done
+    artifact: "openspec/changes/remediate-cx1-strict-string-parity/verify-report.md"
+    summary: "Run 3 PASS: delta Phase 6 verificado con tests propios (Node 71/71, Go ok). Fixture NEL con C2 85 válido, paridad de mensaje falsy question_gate, espejos JS; re"
+    key_decisions:
+      - "Fixture NEL validado por bytes (C2 85) en lugar de confiar en el reporte de apply"
+      - "F-003c1013c1242c14 queda fuera del scope aprobado de Phase 6 como follow-up advisory"
+    last_payload_hash: "f7b67b259cae61dac554832193d751891793c4b5efd046e3d99e6ba47e77064a"
+  proposal:
+    status: done
+    artifact: openspec/changes/remediate-cx1-strict-string-parity/proposal.md
+    summary: "Propuesta definida para remediate-cx1-strict-string-parity: hardening con pattern \\S en schemas, validación de detailed_report en JS/Go y fixtures diferenciales."
+    key_decisions:
+      - "Endurecer schemas con pattern \\S para semántica isNonEmptyString"
+      - "Validar tipo string para detailed_report en runtimes JS y Go"
+      - "Añadir fixtures negativos diferenciales y verificar tres vías"
+  spec:
+    status: done
+    artifacts:
+      - openspec/changes/remediate-cx1-strict-string-parity/specs/kernel-contract-schemas/spec.md
+      - openspec/changes/remediate-cx1-strict-string-parity/specs/skills/spec.md
+    summary: "Especificaciones delta completadas para paridad estricta de strings y detailed_report en kernel-contract-schemas y skills."
+    key_decisions:
+      - "Exigir pattern \\S en campos con semántica isNonEmptyString en schemas result-envelope"
+      - "Exigir validación estricta de tipo string para detailed_report en runtimes JS y Go"
+  design:
+    status: done
+    artifact: openspec/changes/remediate-cx1-strict-string-parity/design.md
+    summary: "Diseño técnico completado para remediate-cx1-strict-string-parity con paridad estricta en schemas (pattern \\S), validación de detailed_report y fixtures."
+    key_decisions:
+      - "Hardening de schemas con pattern \\S para semántica isNonEmptyString"
+      - "Validar tipo string en runtime para detailed_report en JS y Go"
+      - "Matriz compartida de fixtures negativos con paridad trifásica estricta"
+  tasks:
+    status: done
+    artifact: openspec/changes/remediate-cx1-strict-string-parity/tasks.md
+    summary: "Desglose de tareas completado para remediate-cx1-strict-string-parity con reconciliación exhaustiva, 4 fases TDD y pronóstico de revisión de bajo volumen."
+    key_decisions:
+      - "Adopción de estrategia de entrega single-pr con riesgo de presupuesto Low"
+      - "Estructura en 4 fases TDD estrictas (RED -> GREEN -> REFACTOR)"
+      - "Trazabilidad completa para REQ-kernel-contract-schemas-031 y REQ-skills-018"
+  apply:
+    status: done
+    artifact: openspec/changes/remediate-cx1-strict-string-parity/apply-progress.md
+    summary: "Archive plan validado y emitido: 2 spec_writes con hashes verificados, 3 promociones ADR propuestas, reporte actualizado con 9 follow-ups advisory y contexto FU"
+    key_decisions:
+      - "Reutilizar y corregir el archive-plan.json del intento previo en vez de regenerarlo (hashes verificados contra bytes vivos)"
+      - "ADR-001/002/003 promovibles a docs/adr sin invalidación por verify (objetos 004-006 libres de colisión)"
+      - "accepted_warnings vacío en el plan: verify fue PASS limpio; los 9 findings del gate se registran como follow-ups, no como warnings aceptados"
+    last_payload_hash: "99bf5d93368a788cde4492d2ab7a05a67bae2294ef2e100db9b3e3a43b71819c"
+  verify:
+    status: done
+    verdict: "PASS"
+    artifact: openspec/changes/remediate-cx1-strict-string-parity/verify-report.md
+    summary: "Re-verificación post-remediación PASS: 19/19 tareas, 28/28 escenarios runtime-test, 4/4 findings del gate remediados, Node 68/68 y go test ./... verde."
+    key_decisions:
+      - "Full Discovery ejecutado por ausencia de verify_lineage en state.yaml"
+      - "Veredicto PASS: los 4 findings WARNING in-scope verificados con evidencia runtime-test y regresión cero"
+      - "Run 1 conservado y Run 2 añadido en verify-report.md (read-merge)"
+    last_payload_hash: "c7ace5c8bd84586e350c7bc56cf2573f9e04d524f811dc2cd8427a251f878f72"
+  archive:
+    status: done
+    summary: "Run 3 PASS: delta Phase 6 verificado con tests propios (Node 71/71, Go ok). Fixture NEL con C2 85 válido, paridad de mensaje falsy question_gate, espejos JS; re"
+    key_decisions:
+      - "Fixture NEL validado por bytes (C2 85) en lugar de confiar en el reporte de apply"
+      - "F-003c1013c1242c14 queda fuera del scope aprobado de Phase 6 como follow-up advisory"
+    last_payload_hash: "f7b67b259cae61dac554832193d751891793c4b5efd046e3d99e6ba47e77064a"
+gates:
+  quality-review-gate:
+    schema_version: 2
+    classification: high-risk
+    status: approved
+    terminal_reason: no-unresolved-blocking-findings
+    classification_status: sufficient
+    findings_summary: "0 BLOCKER, 0 CRITICAL, 5 WARNING, 4 SUGGESTION"
+    non_blocking_follow_ups:
+      - "F-56ac2a291e91c857 trust WARNING: Go omite question_gate:null explicito (resultenvelope.go:381)"
+      - "F-81c7b43233a3d682 trust WARNING: adaptLegacy JS coerciona schema_version falsy a 1 (result-envelope.js:438)"
+      - "F-9cb30d71ec9aa7e5 runtime WARNING: whitespace Unicode exotico U+FEFF/U+0085 rompe paridad trifasica (resultenvelope.go:108)"
+      - "F-a8097f47b57d3ff6 evolution WARNING: schema raiz copia manual de v1 sin test de paridad estructural"
+      - "F-6f7aad9d4ee43fa6 evolution WARNING: cinco fixtures de nivel superior fuera de la red trifasica"
+      - "F-55a71bba8e1613c6/F-9afc6fb1fd6127d4/F-b62491f94ed6768f/F-c8f5ddf32e0037b5 SUGGESTION: ver detalle en lenses del lineage"
+    selected_domains: [trust, runtime, evolution, efficiency]
+    previous_run:
+      classification: normal
+      status: blocked
+      blocker_reason: quality-review-ambiguity-unresolved
+      ambiguity_reasons:
+        - public-kernel-contract-unattributed
+    router:
+      classification_status: ambiguous
+      added_domains: []
+      reason: "ambiguity=public-kernel-contract-unattributed;added=none"
+    residual_evidence:
+      codes: [public-kernel-contract-unattributed]
+      capabilities:
+        - id: kernel-contract-schemas
+          total_paths: 11
+          truncated: false
+          fact_codes: []
+        - id: skills
+          total_paths: 11
+          truncated: false
+          fact_codes: []
+    previous_lineage: {"schema_version":2,"lineage_id":"sha256:64b0008e29dae4b02cd08c75e5f733e31ff8f45c545686947d4397905b3a58ce","generation":1,"predecessor_lineage_id":null,"migration":null,"recovery":null,"revision":9,"status":"approved","genesis":{"candidate":{"projection":"working-tree","base_tree":"sha256:b5180223165af3583fd0724209986caf2a62692654b74c525027dda592404330","candidate_tree":"sha256:adc59edc3c0b0aff1e1f632c1c842c29f3a2be8a4d1b7d9d1363e72926e7ef89","paths":["internal/resultenvelope/conformance_test.go","internal/resultenvelope/resultenvelope.go","internal/resultenvelope/resultenvelope_test.go","schemas/kernel/result-envelope.schema.json","schemas/kernel/result-envelope/v1/envelope.schema.json","schemas/kernel/result-envelope/v1/fixtures/invalid/non-string-detailed-report.json","schemas/kernel/result-envelope/v1/fixtures/invalid/whitespace-only-required-strings.json","scripts/lib/result-envelope-conformance.test.js","scripts/lib/result-envelope-schema-fixtures.test.js","scripts/lib/result-envelope.js","scripts/lib/result-envelope.test.js"],"diff_hash":"sha256:bd8c621c4a87916b3e979bc0f00cc27e8a02291593582bf660eba89a472e4be1","paths_digest":"sha256:d438bbe7832c07b307ef96db84ae187d180750fa8d0a33725fc47023861b2f93","authored_lines":328,"original_changed_lines":328},"candidate_id":"sha256:2de5c0b5712b8af1ded87e3c62e40988992d82d6665cf8decdc8b6a9228804ac","paths":["internal/resultenvelope/conformance_test.go","internal/resultenvelope/resultenvelope.go","internal/resultenvelope/resultenvelope_test.go","schemas/kernel/result-envelope.schema.json","schemas/kernel/result-envelope/v1/envelope.schema.json","schemas/kernel/result-envelope/v1/fixtures/invalid/non-string-detailed-report.json","schemas/kernel/result-envelope/v1/fixtures/invalid/whitespace-only-required-strings.json","scripts/lib/result-envelope-conformance.test.js","scripts/lib/result-envelope-schema-fixtures.test.js","scripts/lib/result-envelope.js","scripts/lib/result-envelope.test.js"],"classification":"high-risk","selected_domains":["trust","runtime","evolution","efficiency"],"evidence_fingerprint":"sha256:a404a447e9b8c8a62929166efc32cb9863e9996e16b67bbc691c56ae832e0a61","original_changed_lines":328,"authored_lines":328},"current_candidate_id":"sha256:2de5c0b5712b8af1ded87e3c62e40988992d82d6665cf8decdc8b6a9228804ac","current_candidate":{"projection":"working-tree","base_tree":"sha256:b5180223165af3583fd0724209986caf2a62692654b74c525027dda592404330","candidate_tree":"sha256:adc59edc3c0b0aff1e1f632c1c842c29f3a2be8a4d1b7d9d1363e72926e7ef89","paths":["internal/resultenvelope/conformance_test.go","internal/resultenvelope/resultenvelope.go","internal/resultenvelope/resultenvelope_test.go","schemas/kernel/result-envelope.schema.json","schemas/kernel/result-envelope/v1/envelope.schema.json","schemas/kernel/result-envelope/v1/fixtures/invalid/non-string-detailed-report.json","schemas/kernel/result-envelope/v1/fixtures/invalid/whitespace-only-required-strings.json","scripts/lib/result-envelope-conformance.test.js","scripts/lib/result-envelope-schema-fixtures.test.js","scripts/lib/result-envelope.js","scripts/lib/result-envelope.test.js"],"diff_hash":"sha256:bd8c621c4a87916b3e979bc0f00cc27e8a02291593582bf660eba89a472e4be1","paths_digest":"sha256:d438bbe7832c07b307ef96db84ae187d180750fa8d0a33725fc47023861b2f93","authored_lines":328,"original_changed_lines":328},"lenses":{"trust":{"selected":true,"status":"completed","request_id":"req-2","result_digest":"sha256:e027f02617e4d98db3f83440059c5421670a48f3b50c2b17bddb5e73ac417886","result":{"findings":[{"severity":"WARNING","summary":"resultenvelope.go:381 omite validar question_gate:null explicito en status no bloqueado; result-envelope.js:330-331 y envelope.schema.json:149 lo rechazan: Go acepta payloads que el contrato publico marca invalidos.","acceptance_criteria":"Envelope con status success y question_gate:null es rechazado identicamente por schema, JS y Go (fixture diferencial o check de paridad)."},{"severity":"WARNING","summary":"result-envelope.js:438 adaptLegacyEnvelope coerciona schema_version falsy (0/null/false) a 1 antes de validar; schema (const:1) y Go (resultenvelope.go:502-506) rechazan esos payloads: bypass de versionado solo por la via JS.","acceptance_criteria":"schema_version:0/null/false es rechazado o normalizado identicamente en JS, Go y schema."},{"severity":"SUGGESTION","summary":"resultenvelope.go:110 strings.TrimSpace no elimina U+FEFF (Cf) mientras s ECMA y trim() de JS si: string de solo BOM valido solo en Go (caso borde del hardening S).","acceptance_criteria":"Clase de whitespace compartida entre los tres validadores para el caso BOM (fixture ﻿)."},{"severity":"SUGGESTION","summary":"result-envelope.js:412-419 y resultenvelope.go:473-481 adaptLegacyEnvelope defaultea skill_resolution a injected cuando el valor de origen es ausente o irreconocible: senal de confianza degradada en la via legacy.","acceptance_criteria":"Valor irreconocible se mapea a none/fallback explicito, no a injected."},{"severity":"SUGGESTION","summary":"envelope.schema.json:45-47,63-67,216-233: items de arrays (artifacts, risks, senales de ambiguedad) solo exigen type:string sin minLength/pattern S: la forma array es mas laxa que la forma string del mismo campo (consistente en las tres vias).","acceptance_criteria":"items de arrays de texto con minLength:1 (+ pattern S si se decide) o asimetria documentada."}]},"operation":null,"result_request_id":"req-2"},"runtime":{"selected":true,"status":"completed","request_id":"req-3","result_digest":"sha256:cf65458de6c9bac6cf4ee8f90ab8c27a720bd9255c9345881fe333e87cb96604","result":{"findings":[{"severity":"WARNING","summary":"resultenvelope.go:108-111 TrimSpace (unicode.IsSpace) vs result-envelope.js:77-79 trim() (ECMA) vs pattern S del schema divergen en U+FEFF y U+0085: payloads con BOM/NEL validan distinto por runtime y rompen el invariante trifasico declarado.","acceptance_criteria":"Clase de whitespace explicita compartida (set ECMA en Go o pattern expandido en schema) + fixtures ﻿/ en la suite diferencial."},{"severity":"SUGGESTION","summary":"conformance_test.go:68-79 nunca evalua el JSON schema: la paridad Go-schema es inferida (mismo fixture set), no asertada; una divergencia sin fixture que la exponga pasa ambas suites en verde.","acceptance_criteria":"Matriz {fixture, go.valid} comparada mecanicamente en CI contra {fixture, schema.valid, js.valid} del suite Node."}]},"operation":null,"result_request_id":"req-3"},"evolution":{"selected":true,"status":"completed","request_id":"req-4","result_digest":"sha256:a24503c6c871fa809b95f88e3437664aac1a8b1758d8d4106879640b6ee4ff13","result":{"findings":[{"severity":"WARNING","summary":"schemas/kernel/result-envelope.schema.json:1-251 es copia byte a byte de v1 con el mismo $id (linea 3) y sin mecanismo de paridad: el test de compatibilidad (result-envelope-schema-fixtures.test.js:195-201) solo chequea $id y schema_version; la paridad 1:1 de tasks.md:26 se sostiene en copia manual.","acceptance_criteria":"Test deepEqual estructural entre ambos schemas (o generacion de la raiz desde v1): editar una sola copia rompe la suite."},{"severity":"WARNING","summary":"conformance_test.go:56,69 y result-envelope-conformance.test.js:14-15 solo iteran fixtures/valid y fixtures/invalid: cinco fixtures de nivel superior (valid-v1, blocked-v1, ambiguity-spec-v1, invalid-v1, legacy-unversioned) se validan solo contra el schema, fuera de la red trifasica.","acceptance_criteria":"Todo .json del corpus result-envelope evaluado por schema, validador JS y validador Go en la misma corrida (mover a valid//invalid/ o ampliar el glob)."}]},"operation":null,"result_request_id":"req-4"},"efficiency":{"selected":true,"status":"completed","request_id":"req-1","result_digest":"sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc","result":{"findings":[]},"operation":null,"result_request_id":"req-1"}},"findings":[{"id":"F-56ac2a291e91c857","owner":"trust","severity":"WARNING","summary":"resultenvelope.go:381 omite validar question_gate:null explicito en status no bloqueado; result-envelope.js:330-331 y envelope.schema.json:149 lo rechazan: Go acepta payloads que el contrato publico marca invalidos.","acceptance_criteria":"Envelope con status success y question_gate:null es rechazado identicamente por schema, JS y Go (fixture diferencial o check de paridad).","blocking":false,"resolution":"advisory"},{"id":"F-81c7b43233a3d682","owner":"trust","severity":"WARNING","summary":"result-envelope.js:438 adaptLegacyEnvelope coerciona schema_version falsy (0/null/false) a 1 antes de validar; schema (const:1) y Go (resultenvelope.go:502-506) rechazan esos payloads: bypass de versionado solo por la via JS.","acceptance_criteria":"schema_version:0/null/false es rechazado o normalizado identicamente en JS, Go y schema.","blocking":false,"resolution":"advisory"},{"id":"F-55a71bba8e1613c6","owner":"trust","severity":"SUGGESTION","summary":"resultenvelope.go:110 strings.TrimSpace no elimina U+FEFF (Cf) mientras s ECMA y trim() de JS si: string de solo BOM valido solo en Go (caso borde del hardening S).","acceptance_criteria":"Clase de whitespace compartida entre los tres validadores para el caso BOM (fixture ﻿).","blocking":false,"resolution":"advisory"},{"id":"F-9afc6fb1fd6127d4","owner":"trust","severity":"SUGGESTION","summary":"result-envelope.js:412-419 y resultenvelope.go:473-481 adaptLegacyEnvelope defaultea skill_resolution a injected cuando el valor de origen es ausente o irreconocible: senal de confianza degradada en la via legacy.","acceptance_criteria":"Valor irreconocible se mapea a none/fallback explicito, no a injected.","blocking":false,"resolution":"advisory"},{"id":"F-b62491f94ed6768f","owner":"trust","severity":"SUGGESTION","summary":"envelope.schema.json:45-47,63-67,216-233: items de arrays (artifacts, risks, senales de ambiguedad) solo exigen type:string sin minLength/pattern S: la forma array es mas laxa que la forma string del mismo campo (consistente en las tres vias).","acceptance_criteria":"items de arrays de texto con minLength:1 (+ pattern S si se decide) o asimetria documentada.","blocking":false,"resolution":"advisory"},{"id":"F-9cb30d71ec9aa7e5","owner":"runtime","severity":"WARNING","summary":"resultenvelope.go:108-111 TrimSpace (unicode.IsSpace) vs result-envelope.js:77-79 trim() (ECMA) vs pattern S del schema divergen en U+FEFF y U+0085: payloads con BOM/NEL validan distinto por runtime y rompen el invariante trifasico declarado.","acceptance_criteria":"Clase de whitespace explicita compartida (set ECMA en Go o pattern expandido en schema) + fixtures ﻿/ en la suite diferencial.","blocking":false,"resolution":"advisory"},{"id":"F-c8f5ddf32e0037b5","owner":"runtime","severity":"SUGGESTION","summary":"conformance_test.go:68-79 nunca evalua el JSON schema: la paridad Go-schema es inferida (mismo fixture set), no asertada; una divergencia sin fixture que la exponga pasa ambas suites en verde.","acceptance_criteria":"Matriz {fixture, go.valid} comparada mecanicamente en CI contra {fixture, schema.valid, js.valid} del suite Node.","blocking":false,"resolution":"advisory"},{"id":"F-a8097f47b57d3ff6","owner":"evolution","severity":"WARNING","summary":"schemas/kernel/result-envelope.schema.json:1-251 es copia byte a byte de v1 con el mismo $id (linea 3) y sin mecanismo de paridad: el test de compatibilidad (result-envelope-schema-fixtures.test.js:195-201) solo chequea $id y schema_version; la paridad 1:1 de tasks.md:26 se sostiene en copia manual.","acceptance_criteria":"Test deepEqual estructural entre ambos schemas (o generacion de la raiz desde v1): editar una sola copia rompe la suite.","blocking":false,"resolution":"advisory"},{"id":"F-6f7aad9d4ee43fa6","owner":"evolution","severity":"WARNING","summary":"conformance_test.go:56,69 y result-envelope-conformance.test.js:14-15 solo iteran fixtures/valid y fixtures/invalid: cinco fixtures de nivel superior (valid-v1, blocked-v1, ambiguity-spec-v1, invalid-v1, legacy-unversioned) se validan solo contra el schema, fuera de la red trifasica.","acceptance_criteria":"Todo .json del corpus result-envelope evaluado por schema, validador JS y validador Go en la misma corrida (mover a valid//invalid/ o ampliar el glob).","blocking":false,"resolution":"advisory"}],"findings_digest":"sha256:c8f4094511507e3d6054ab883179adfd7e1b7117f5712ca231807b8c70f45f58","correction_budget":{"limit_lines":164,"used_lines":0,"failed_attempts":0,"max_failed_attempts":3},"correction_history":[],"validation_history":[],"follow_ups":[],"pending_operation":null,"pending_correction":null,"terminal_reason":"no-unresolved-blocking-findings"}
+    lineage: {"schema_version":2,"lineage_id":"sha256:1d320b6178796917065c950db6726fd7cb1e09169144b8ebd734e0bf8708f459","generation":3,"predecessor_lineage_id":"sha256:5f62bae4f911241a5d807232cd56a9a81cf559a5d0ae7c81a5b977de0a8c7c28","migration":null,"recovery":null,"revision":9,"status":"approved","genesis":{"candidate":{"projection":"working-tree-post-gen2-remediation","base_tree":"sha256:b5180223165af3583fd0724209986caf2a62692654b74c525027dda592404330","candidate_tree":"sha256:023642154c343cc1592f62f4bba81dadcd3d5a88a700825bab495c2e8445af5f","paths":["internal/resultenvelope/conformance_test.go","internal/resultenvelope/resultenvelope.go","internal/resultenvelope/resultenvelope_test.go","schemas/kernel/result-envelope.schema.json","schemas/kernel/result-envelope/v1/envelope.schema.json","scripts/lib/result-envelope-conformance.test.js","scripts/lib/result-envelope-schema-fixtures.test.js","scripts/lib/result-envelope.js","scripts/lib/result-envelope.test.js"],"diff_hash":"sha256:86ae1f7ec61be48450680b5f783e672b0e1a59693f08d31ae8fe32ab34a464a9","paths_digest":"sha256:0fb39b4199bf874e8ce37e967aecc6f2594a8c1f8a7d4d9c1dfc4e9238b48734","authored_lines":562,"original_changed_lines":562},"candidate_id":"sha256:07e9292246842d62b39eec3b2d545b88513892f1229aa85242158bc50d6be1b3","paths":["internal/resultenvelope/conformance_test.go","internal/resultenvelope/resultenvelope.go","internal/resultenvelope/resultenvelope_test.go","schemas/kernel/result-envelope.schema.json","schemas/kernel/result-envelope/v1/envelope.schema.json","scripts/lib/result-envelope-conformance.test.js","scripts/lib/result-envelope-schema-fixtures.test.js","scripts/lib/result-envelope.js","scripts/lib/result-envelope.test.js"],"classification":"high-risk","selected_domains":["trust","runtime","evolution","efficiency"],"evidence_fingerprint":"sha256:532e7ab892e9bcf600fed10ecbb35ac42d5fd972220c7779ccbcc5de7676a24b","original_changed_lines":562,"authored_lines":562},"current_candidate_id":"sha256:07e9292246842d62b39eec3b2d545b88513892f1229aa85242158bc50d6be1b3","current_candidate":{"projection":"working-tree-post-gen2-remediation","base_tree":"sha256:b5180223165af3583fd0724209986caf2a62692654b74c525027dda592404330","candidate_tree":"sha256:023642154c343cc1592f62f4bba81dadcd3d5a88a700825bab495c2e8445af5f","paths":["internal/resultenvelope/conformance_test.go","internal/resultenvelope/resultenvelope.go","internal/resultenvelope/resultenvelope_test.go","schemas/kernel/result-envelope.schema.json","schemas/kernel/result-envelope/v1/envelope.schema.json","scripts/lib/result-envelope-conformance.test.js","scripts/lib/result-envelope-schema-fixtures.test.js","scripts/lib/result-envelope.js","scripts/lib/result-envelope.test.js"],"diff_hash":"sha256:86ae1f7ec61be48450680b5f783e672b0e1a59693f08d31ae8fe32ab34a464a9","paths_digest":"sha256:0fb39b4199bf874e8ce37e967aecc6f2594a8c1f8a7d4d9c1dfc4e9238b48734","authored_lines":562,"original_changed_lines":562},"lenses":{"trust":{"selected":true,"status":"completed","request_id":"gen3-req-2","result_digest":"sha256:91fa7d12e365ff5399c78de16affd40d7a1e48acbb64a0d2cbecdd5575ad5afe","result":{"findings":[{"severity":"SUGGESTION","summary":"El caso null de question_gate con status blocked no esta en las tablas de paridad (Go cubre false/0/\"\"; JS igual). Comportamiento consistente hoy (nil via isJSONFalsy -> required, igual que JS); es el caso limite donde una refactorizacion futura de isJSONFalsy podria divergir silenciosamente.","acceptance_criteria":"TestValidate_BlockedFalsyQuestionGateMessageParity y su espejo JS incluyen null/nil afirmando el mensaje required."}]},"operation":null,"result_request_id":"gen3-req-2"},"runtime":{"selected":true,"status":"completed","request_id":"gen3-req-3","result_digest":"sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc","result":{"findings":[]},"operation":null,"result_request_id":"gen3-req-3"},"evolution":{"selected":true,"status":"completed","request_id":"gen3-req-4","result_digest":"sha256:386e9071a42e9aa0e5afca30a2fc5f425d56c405bc281203bc1ae2b45cb01c4f","result":{"findings":[{"severity":"WARNING","summary":"La matriz falsy de question_gate (false/0/\"\") para status:blocked existe solo como tests inline espejados a mano, sin fixture diferencial: nada falla si un runtime agrega/quita un caso y el otro no. Los fixtures son el unico mecanismo que obliga a ambos runtimes (globs compartidos).","acceptance_criteria":"Cada caso falsy con status:blocked cubierto por fixture bajo fixtures/invalid/ o tabla compartida cargada por ambas suites de conformance."},{"severity":"SUGGESTION","summary":"Convencion de codificacion inconsistente entre fixtures gemelos: bom usa escape \\uFEFF, nel embebe bytes crudos C2 85; apply-progress.md 6.1 dice \"escape JSON\" contradiciendo el contenido real (funcional pero confuso).","acceptance_criteria":"Una sola convencion (recomendado escapes \\uXXXX) documentada durablemente para fixtures con code points no imprimibles."},{"severity":"SUGGESTION","summary":"El ancla de paridad JS-Go vive solo en Go: isJSONFalsy/isECMAWhitespace documentan el espejo, pero las contrapartes JS (truthiness question_gate result-envelope.js:324-326, isNonEmptyString :77-79) no referencian al espejo Go.","acceptance_criteria":"Comentarios breves en las contrapartes JS referenciando internal/resultenvelope y la decision ECMA-262."}]},"operation":null,"result_request_id":"gen3-req-4"},"efficiency":{"selected":true,"status":"completed","request_id":"gen3-req-1","result_digest":"sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc","result":{"findings":[]},"operation":null,"result_request_id":"gen3-req-1"}},"findings":[{"id":"F-cf17bb5efe2839fc","owner":"trust","severity":"SUGGESTION","summary":"El caso null de question_gate con status blocked no esta en las tablas de paridad (Go cubre false/0/\"\"; JS igual). Comportamiento consistente hoy (nil via isJSONFalsy -> required, igual que JS); es el caso limite donde una refactorizacion futura de isJSONFalsy podria divergir silenciosamente.","acceptance_criteria":"TestValidate_BlockedFalsyQuestionGateMessageParity y su espejo JS incluyen null/nil afirmando el mensaje required.","blocking":false,"resolution":"advisory"},{"id":"F-6fc1cc575dafa602","owner":"evolution","severity":"WARNING","summary":"La matriz falsy de question_gate (false/0/\"\") para status:blocked existe solo como tests inline espejados a mano, sin fixture diferencial: nada falla si un runtime agrega/quita un caso y el otro no. Los fixtures son el unico mecanismo que obliga a ambos runtimes (globs compartidos).","acceptance_criteria":"Cada caso falsy con status:blocked cubierto por fixture bajo fixtures/invalid/ o tabla compartida cargada por ambas suites de conformance.","blocking":false,"resolution":"advisory"},{"id":"F-dca37776d989b0f7","owner":"evolution","severity":"SUGGESTION","summary":"Convencion de codificacion inconsistente entre fixtures gemelos: bom usa escape \\uFEFF, nel embebe bytes crudos C2 85; apply-progress.md 6.1 dice \"escape JSON\" contradiciendo el contenido real (funcional pero confuso).","acceptance_criteria":"Una sola convencion (recomendado escapes \\uXXXX) documentada durablemente para fixtures con code points no imprimibles.","blocking":false,"resolution":"advisory"},{"id":"F-515ef4d8ac9d4bd8","owner":"evolution","severity":"SUGGESTION","summary":"El ancla de paridad JS-Go vive solo en Go: isJSONFalsy/isECMAWhitespace documentan el espejo, pero las contrapartes JS (truthiness question_gate result-envelope.js:324-326, isNonEmptyString :77-79) no referencian al espejo Go.","acceptance_criteria":"Comentarios breves en las contrapartes JS referenciando internal/resultenvelope y la decision ECMA-262.","blocking":false,"resolution":"advisory"}],"findings_digest":"sha256:22436a4965ca85b0840e375fd6d72f3d02a049159fec89408b0192792c545a3a","correction_budget":{"limit_lines":200,"used_lines":0,"failed_attempts":0,"max_failed_attempts":3},"correction_history":[],"validation_history":[],"follow_ups":[],"pending_operation":null,"pending_correction":null,"terminal_reason":"no-unresolved-blocking-findings"}
+    recorded_at: "2026-09-17T10:13:27Z"

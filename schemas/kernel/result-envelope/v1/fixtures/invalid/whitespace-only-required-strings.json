@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "status": "blocked",
+  "executive_summary": "   ",
+  "artifacts": "inline",
+  "next_recommended": "   ",
+  "risks": "   ",
+  "skill_resolution": "injected",
+  "blocker_type": "needs_user_decision",
+  "key_decisions": [
+    "   "
+  ],
+  "assumptions": [
+    {
+      "id": "   ",
+      "phase": "   ",
+      "statement": "   ",
+      "reversibility": "high",
+      "basis": "   "
+    }
+  ],
+  "question_gate": {
+    "reason": "   ",
+    "questions": [
+      {
+        "header": "   ",
+        "question": "   ",
+        "options": [
+          {
+            "label": "   "
+          }
+        ]
+      }
+    ]
+  }
+}
