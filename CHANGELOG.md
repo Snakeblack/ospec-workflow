@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Paridad de mensajes para `question_gate`**: `question_gate: null` explícito en status no bloqueado y valores falsy no-null (`false`/`0`/`""`) en status blocked producen mensajes idénticos en JS y Go (`isJSONFalsy`), con fixtures `null-question-gate.json` y tests de paridad espejados en ambos runtimes.
   - **Vinculación de fixtures top-level**: Los cinco fixtures de nivel superior del corpus quedan vinculados mecánicamente a sus copias en `valid/`//`invalid/` mediante tests de igualdad estructural (Node) y byte-a-byte (Go).
   - **Promociones ADR**: Publicados `docs/adr/adr-20260917-004` (hardening de schemas), `adr-20260917-005` (validación `detailed_report`) y `adr-20260917-006` (matriz compartida de fixtures).
-  - Ciclo SDD completo (change `remediate-cx1-strict-string-parity`, ruta standard, reclasificado high-risk): verificación PASS en 28/28 escenarios runtime-test y quality-review-gate aprobado en 3 generaciones con 2 rondas de remediación. Evidencia: Node 71/71 en 3 suites result-envelope, `go test ./...` 11/11 paquetes, regresión cero.
+  - Ciclo SDD completo (change archivado en `openspec/changes/archive/2026-09-17-remediate-cx1-strict-string-parity/`, ruta standard, reclasificado high-risk): verificación PASS en 28/28 escenarios runtime-test y quality-review-gate aprobado en 3 generaciones con 2 rondas de remediación. Evidencia: Node 71/71 en 3 suites result-envelope, `go test ./...` 11/11 paquetes, regresión cero.
 
 ## [2.67.2] - 2026-09-17
 
