@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.67.3] - 2026-09-17
+
+### Fixed
+- **Paridad estricta de strings en Result Envelope (CX1)**:
+  - **Patrón `\\S` en campos `isNonEmptyString`**: Incorporado `"pattern": "\\S"` junto a `minLength: 1` en `executive_summary`, `next_recommended`, rama string de `risks`, items de `key_decisions`, propiedades de `assumptions` y campos de texto de `question_gate` en `schemas/kernel/result-envelope/v1/envelope.schema.json` y el schema raíz, con paridad 1:1 entre ambos verificada por test `deepStrictEqual` estructural (`REQ-kernel-contract-schemas-031`).
+  - **Validación de tipo `string` para `detailed_report`**: Los validadores JS (`scripts/lib/result-envelope.js`) y Go (`internal/resultenvelope/resultenvelope.go`) rechazan valores no string con mensaje determinista `detailed_report must be a string` (`REQ-skills-018`).
+  - **Clase de whitespace alineada con ECMA-262**: Nueva helper `isECMAWhitespace` en Go (U+FEFF incluido, U+0085 excluido) espejando `trim()`/`\S` de ECMA, con fixtures diferenciales `bom-whitespace-only-strings.json` (inválido) y `nel-non-whitespace-strings.json` (válido) en la red trifásica.
+  - **Paridad de mensajes para `question_gate`**: `question_gate: null` explícito en status no bloqueado y valores falsy no-null (`false`/`0`/`""`) en status blocked producen mensajes idénticos en JS y Go (`isJSONFalsy`), con fixtures `null-question-gate.json` y tests de paridad espejados en ambos runtimes.
+  - **Vinculación de fixtures top-level**: Los cinco fixtures de nivel superior del corpus quedan vinculados mecánicamente a sus copias en `valid/`//`invalid/` mediante tests de igualdad estructural (Node) y byte-a-byte (Go).
+  - **Promociones ADR**: Publicados `docs/adr/adr-20260917-004` (hardening de schemas), `adr-20260917-005` (validación `detailed_report`) y `adr-20260917-006` (matriz compartida de fixtures).
+  - Ciclo SDD completo (change `remediate-cx1-strict-string-parity`, ruta standard, reclasificado high-risk): verificación PASS en 28/28 escenarios runtime-test y quality-review-gate aprobado en 3 generaciones con 2 rondas de remediación. Evidencia: Node 71/71 en 3 suites result-envelope, `go test ./...` 11/11 paquetes, regresión cero.
+
 ## [2.67.2] - 2026-09-17
 
 ### Fixed
