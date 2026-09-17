@@ -114,6 +114,13 @@ La etapa actual entrega análisis y documentación. Cada slug de abajo es **prop
 - **Medición:** volumen derivado, relecturas y errores de reconciliación. **Riesgo/rollback:** fuente incompleta o stale; restaurar vista legacy compatible sin cambiar el estado canónico.
 - **Estimación:** media; particionar renderer de archive si introduce una frontera independiente.
 
+#### FU1 — `quality-review-kernel-contract-attribution-gap` [observado 2026-09-17]
+
+- **Hallazgo:** en `remediate-cx1-strict-string-parity` (verify PASS, sin findings, design sin riesgos declarados), la clasificación determinística del `quality-review-gate` marcó `public-kernel-contract-unattributed` y el router residual confirmó `ambiguous` (evidencia residual sin `fact_codes`). Resultado: `quality-review-ambiguity-unresolved`, sin dispatch de especialistas ni archive permitido por el contrato vigente.
+- **Problema estructural:** un change que endurece el contrato público kernel y verifica limpio no genera hechos atribuibles, por lo que el gate queda trabado sin ruta de cierre documentada (no es `blocker_type` de fase ni tiene override como `quality-gates` policy).
+- **Condición de revalidación:** reproducir con otro change de contrato kernel limpio; si repite, explorar contrato de resolución de ambigüedad (atribución mínima por `capability_scopes` de contrato público, o override acotado con justificación análogo al de `quality-gates`).
+- **Impacto inmediato:** `remediate-cx1-strict-string-parity` queda `in_progress` con verify PASS y gate bloqueado hasta resolución.
+
 #### R2.1 — `foundation-knowledge-change-boundaries`
 
 - **Beneficio:** decisiones estables referenciables desde cada change; puede aprovechar PP2/CX1 sin depender de su implementación.

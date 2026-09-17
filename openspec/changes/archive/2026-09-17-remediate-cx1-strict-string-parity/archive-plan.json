@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "change": "remediate-cx1-strict-string-parity",
+  "source_fingerprint": "sha256:a34f1ae66a0094fc137182ab19914087dae5f9efcfb838af238483e25c3dcfe5",
+  "spec_writes": [
+    {
+      "domain": "kernel-contract-schemas",
+      "source_delta": "specs/kernel-contract-schemas/spec-prepared.md",
+      "target": "openspec/specs/kernel-contract-schemas/spec.md",
+      "target_before_sha256": "sha256:5683137bd5dd9665a6234851e1ccf10e4af6d74d7719ebad914f0dff3307c403",
+      "content_sha256": "sha256:8e5df4892bf25aa274810cbdcc55a7c339356b982f89b39d91e7d1c54923e8a8"
+    },
+    {
+      "domain": "skills",
+      "source_delta": "specs/skills/spec-prepared.md",
+      "target": "openspec/specs/skills/spec.md",
+      "target_before_sha256": "sha256:cd4ee1034d799b08d725d6006923c2010dbe1dffa857200627416e1dfa733c20",
+      "content_sha256": "sha256:3d8db495502d9085ab9e0fbf7bda0022009a35a4f9dce257db4d9a6f793bb23d"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260917-004-hardening-schemas-json-pattern-s-campos-isnonemptystring.md",
+      "content_sha256": "sha256:1e32567488b388b507a5b0b97a6013ed12c7b1d61c346546c7425e0ed7bb07fd"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260917-005-validacion-tipo-string-detailed-report-runtimes-js-go.md",
+      "content_sha256": "sha256:88bb54a9ab3c8aafda6a54d42f0247ba75b43cb88dba0416144fb30374f1ac66"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260917-006-matriz-compartida-fixtures-negativos-conformidad-diferencial-trifasica.md",
+      "content_sha256": "sha256:fdd6b24a8624118d11af61d35f21fd3482c02a630bebd7371f9768dccca2af25"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "design.md",
+    "proposal.md",
+    "specs/kernel-contract-schemas/spec-prepared.md",
+    "specs/kernel-contract-schemas/spec.md",
+    "specs/skills/spec-prepared.md",
+    "specs/skills/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

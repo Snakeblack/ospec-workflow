@@ -424,6 +424,31 @@ func TestValidate_SchemaVersionMustBeOne(t *testing.T) {
 	}
 }
 
+func TestValidate_DetailedReport(t *testing.T) {
+	t.Run("non-string detailed_report is invalid", func(t *testing.T) {
+		for _, badValue := range []any{123, true, map[string]any{"text": "report"}, []any{"line"}} {
+			envelope := validEnvelope()
+			envelope["detailed_report"] = badValue
+			valid, errs := resultenvelope.Validate(envelope)
+			if valid {
+				t.Errorf("expected valid=false for detailed_report %v", badValue)
+			}
+			if !containsSubstring(errs, "detailed_report must be a string") {
+				t.Errorf("expected error mentioning 'detailed_report must be a string', got: %v", errs)
+			}
+		}
+	})
+
+	t.Run("string detailed_report is accepted", func(t *testing.T) {
+		envelope := validEnvelope()
+		envelope["detailed_report"] = "Detailed content"
+		valid, errs := resultenvelope.Validate(envelope)
+		if !valid {
+			t.Errorf("expected valid=true for string detailed_report, got errors: %v", errs)
+		}
+	})
+}
+
 func TestValidate_ArtifactsNonStringItems(t *testing.T) {
 	envelope := validEnvelope()
 	envelope["artifacts"] = []any{"path.md", 42}
@@ -571,6 +596,57 @@ func TestValidate_WellFormedQuestionGate(t *testing.T) {
 	}
 }
 
+// ── Remediation: strict string parity (quality-review-gate follow-ups) ───────
+
+func TestValidate_ExplicitNullQuestionGateOnNonBlockedStatus(t *testing.T) {
+	envelope := validEnvelope()
+	envelope["question_gate"] = nil
+	valid, errs := resultenvelope.Validate(envelope)
+	if valid || !containsSubstring(errs, "question_gate must be an object") {
+		t.Errorf("expected rejection with 'question_gate must be an object' for explicit null question_gate on success status, got valid=%v errs=%v", valid, errs)
+	}
+}
+
+func TestValidate_WhitespaceClassMatchesECMA(t *testing.T) {
+	// U+FEFF (BOM) is ECMA whitespace: a BOM-only summary must be rejected.
+	bom := validEnvelope()
+	bom["executive_summary"] = "\uFEFF"
+	valid, errs := resultenvelope.Validate(bom)
+	if valid || !containsSubstring(errs, "executive_summary must be a non-empty string") {
+		t.Errorf("expected BOM-only executive_summary to be rejected, got valid=%v errs=%v", valid, errs)
+	}
+
+	// U+0085 (NEL) is NOT ECMA whitespace: a NEL-only summary is non-empty and valid.
+	nel := validEnvelope()
+	nel["executive_summary"] = "\u0085"
+	valid, errs = resultenvelope.Validate(nel)
+	if !valid {
+		t.Errorf("expected NEL-only executive_summary to be accepted (ECMA \\S matches U+0085), got errs=%v", errs)
+	}
+}
+
+func TestValidate_BlockedFalsyQuestionGateMessageParity(t *testing.T) {
+	// JS truthiness (!obj.question_gate) treats false/0/"" as missing when
+	// blocked; Go must emit the same message, not "must be an object".
+	// See gen2 review (question_gate falsy message divergence).
+	for name, value := range map[string]any{
+		"false":        false,
+		"zero":         float64(0),
+		"empty-string": "",
+	} {
+		envelope := validEnvelope()
+		envelope["status"] = "blocked"
+		envelope["question_gate"] = value
+		valid, errs := resultenvelope.Validate(envelope)
+		if valid || !containsSubstring(errs, "question_gate is required when status is blocked") {
+			t.Errorf("%s: expected 'question_gate is required when status is blocked', got valid=%v errs=%v", name, valid, errs)
+		}
+		if containsSubstring(errs, "question_gate must be an object") {
+			t.Errorf("%s: message diverged from JS truthiness semantics: %v", name, errs)
+		}
+	}
+}
+
 // ── AdaptLegacyEnvelope ───────────────────────────────────────────────────────
 
 func isOne(v any) bool {
@@ -601,13 +677,13 @@ func TestAdaptLegacyEnvelope_ValidV1Object(t *testing.T) {
 
 func TestAdaptLegacyEnvelope_UnversionedObjectWithSummary(t *testing.T) {
 	legacy := map[string]any{
-		"status":            "success",
-		"summary":           "Legacy summary field",
-		"artifacts":         []any{"openspec/changes/foo/design.md"},
-		"next_recommended":  "sdd-tasks",
-		"risks":             "None",
-		"skill_resolution":  "injected",
-		"key_decisions":     []any{"Decision 1"},
+		"status":           "success",
+		"summary":          "Legacy summary field",
+		"artifacts":        []any{"openspec/changes/foo/design.md"},
+		"next_recommended": "sdd-tasks",
+		"risks":            "None",
+		"skill_resolution": "injected",
+		"key_decisions":    []any{"Decision 1"},
 	}
 	adapted, ok, errs := resultenvelope.AdaptLegacyEnvelope(legacy)
 	if !ok {
