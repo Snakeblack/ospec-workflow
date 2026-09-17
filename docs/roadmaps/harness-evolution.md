@@ -114,12 +114,15 @@ La etapa actual entrega análisis y documentación. Cada slug de abajo es **prop
 - **Medición:** volumen derivado, relecturas y errores de reconciliación. **Riesgo/rollback:** fuente incompleta o stale; restaurar vista legacy compatible sin cambiar el estado canónico.
 - **Estimación:** media; particionar renderer de archive si introduce una frontera independiente.
 
-#### FU1 — `quality-review-kernel-contract-attribution-gap` [observado 2026-09-17]
+#### FU1 — `quality-review-kernel-contract-attribution-gap` [observado 2026-09-17 · resuelto 2026-09-18]
 
 - **Hallazgo:** en `remediate-cx1-strict-string-parity` (verify PASS, sin findings, design sin riesgos declarados), la clasificación determinística del `quality-review-gate` marcó `public-kernel-contract-unattributed` y el router residual confirmó `ambiguous` (evidencia residual sin `fact_codes`). Resultado: `quality-review-ambiguity-unresolved`, sin dispatch de especialistas ni archive permitido por el contrato vigente.
 - **Problema estructural:** un change que endurece el contrato público kernel y verifica limpio no genera hechos atribuibles, por lo que el gate queda trabado sin ruta de cierre documentada (no es `blocker_type` de fase ni tiene override como `quality-gates` policy).
-- **Condición de revalidación:** reproducir con otro change de contrato kernel limpio; si repite, explorar contrato de resolución de ambigüedad (atribución mínima por `capability_scopes` de contrato público, o override acotado con justificación análogo al de `quality-gates`).
-- **Impacto inmediato:** `remediate-cx1-strict-string-parity` queda `in_progress` con verify PASS y gate bloqueado hasta resolución.
+- **Resolución (change `fix-fu1-review-gate-attribution-gap`):** atribución mínima por `capability_scopes` de contrato kernel vía fact sintético `kernel-contract-change` (trust+evolution, fingerprint y audit normales), override declarativo acotado `quality_review.attribution_override` (justification obligatoria, scope, applies_to, fail-closed con registro en el gate audit), contrato de `resolution` del router residual, regla runtime per-capability que no enmascara otros códigos, y `createSuccessor` v2 nativo.
+- **Follow-ups derivados (registrados con criterio de tamaño):**
+  - **FU1a — phase reducer registra reviewers como "fases" en `state.yaml`:** tocar `scripts/hooks/subagent-stop.js` + `PhaseCompletionReducer` añadiría un segundo subsistema al diff del fix (presupuesto de review de 400 líneas bajo `single-pr`); requiere change propio.
+  - **FU1b — journal failed del `archive-transaction` bloquea re-runs con plan nuevo:** requiere decisión de contrato (reset de journal vs. nuevo tx id) que merece su propio change; mismo criterio de presupuesto.
+- **Impacto inmediato (histórico):** `remediate-cx1-strict-string-parity` quedó `in_progress` con verify PASS y gate bloqueado hasta resolución; cerrado con la resolución de este hallazgo.
 
 #### R2.1 — `foundation-knowledge-change-boundaries`
 
