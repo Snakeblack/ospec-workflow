@@ -17,6 +17,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { parseRoutingTable, selectRoute, ClassificationConflictError } = require("./lib/route-dispatcher.js");
 const { isSafeChangeName } = require("./lib/archive-plan.js");
+const { validateAttributionOverride } = require("./lib/review-dimensions.js");
 
 function parseArgs(argv) {
   const flags = {
@@ -166,6 +167,59 @@ function extractConfigDefaults(configContent) {
   return defaults;
 }
 
+// QRAR-002 adapter layer: reads the optional `quality_review.attribution_override`
+// block from openspec/config.yaml (commented out = strict no-op), validates it
+// fail-closed, and surfaces it so the orchestrator can pass the block to
+// planQualityReviewGate({ attributionOverride }). Kernel libs stay pure; this
+// CLI remains the only I/O adapter. Recognized subset: scalar values and
+// `- item` lists under the block keys (justification, scope, applies_to).
+function extractAttributionOverride(configContent) {
+  if (!configContent || typeof configContent !== "string") return null;
+  const lines = configContent.split(/\r?\n/);
+  const stripComment = (line) => line.replace(/\s+#.*$/, "");
+  let qualityReviewIndex = -1;
+  for (let index = 0; index < lines.length; index += 1) {
+    if (stripComment(lines[index]).trim() === "quality_review:") { qualityReviewIndex = index; break; }
+  }
+  if (qualityReviewIndex === -1) return null;
+  let overrideIndex = -1;
+  let overrideIndent = -1;
+  for (let index = qualityReviewIndex + 1; index < lines.length; index += 1) {
+    const line = stripComment(lines[index]);
+    if (line.trim() && line.match(/^\s*\S/)) {
+      const indent = line.match(/^\s*/)[0].length;
+      if (indent === 0) break;
+      const match = line.match(/^(\s*)attribution_override:\s*$/);
+      if (match) { overrideIndex = index; overrideIndent = match[1].length; break; }
+    }
+  }
+  if (overrideIndex === -1) return null;
+  const block = {};
+  let currentKey = null;
+  for (let index = overrideIndex + 1; index < lines.length; index += 1) {
+    const line = stripComment(lines[index]);
+    if (!line.trim()) continue;
+    const indent = line.match(/^\s*/)[0].length;
+    if (indent <= overrideIndent) break;
+    const scalar = line.match(/^\s*([a-z_]+):\s*(.*)$/);
+    const item = line.match(/^\s*-\s*(.*)$/);
+    if (scalar) {
+      currentKey = scalar[1];
+      const value = scalar[2].trim();
+      block[currentKey] = value ? unquote(value) : undefined;
+    } else if (item && currentKey) {
+      if (!Array.isArray(block[currentKey])) block[currentKey] = [];
+      block[currentKey].push(unquote(item[1].trim()));
+    }
+  }
+  const validation = validateAttributionOverride(block);
+  return { ...validation, block };
+}
+
+function unquote(value) {
+  return value.replace(/^['"]|['"]$/g, "");
+}
+
 function main(argv = process.argv.slice(2), deps = {}) {
   const log = deps.log || console.log;
   const error = deps.error || console.error;
@@ -185,6 +239,7 @@ function main(argv = process.argv.slice(2), deps = {}) {
   const configContent = fs.readFileSync(configPath, "utf8");
   const routes = parseRoutingTable(configContent);
   const configDefaults = extractConfigDefaults(configContent);
+  const attributionOverride = extractAttributionOverride(configContent);
 
   let stateInfo = { persistedRoute: null, classification: null, impact: {} };
   if (flags.changeName) {
@@ -304,8 +359,12 @@ function main(argv = process.argv.slice(2), deps = {}) {
 
   try {
     const result = selectRoute(routes, ctx, options);
-    log(JSON.stringify(result, null, 2));
+    const payload = attributionOverride ? { ...result, attribution_override: attributionOverride } : result;
+    log(JSON.stringify(payload, null, 2));
     if (result.status === "blocked") {
+      return exit(2);
+    }
+    if (attributionOverride && !attributionOverride.valid) {
       return exit(2);
     }
     return exit(0);
@@ -335,4 +394,5 @@ module.exports = {
   parseArgs,
   extractStateRouteInfo,
   extractConfigDefaults,
+  extractAttributionOverride,
 };

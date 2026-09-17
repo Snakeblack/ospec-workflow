@@ -776,3 +776,59 @@ test("QRAR-001 risk/ADR-003: pre-change persisted evidence snapshot stays self-c
   assert.equal(decision.classification_status, "ambiguous");
   assert.ok(decision.ambiguity_reasons.includes("public-kernel-contract-unattributed"));
 });
+
+// ---------------------------------------------------------------------------
+// FU1: bounded declarative attribution override (QRAR-002) and router
+// resolution contract (QRAR-003)
+// ---------------------------------------------------------------------------
+
+const { validateAttributionOverride, mergeRouterDecision } = require("./lib/review-dimensions.js");
+
+const VALID_OVERRIDE = Object.freeze({
+  justification: "Clean kernel parity change verified with zero findings",
+  scope: ["schemas/kernel/**"],
+  applies_to: ["public-kernel-contract-unattributed"],
+});
+
+test("QRAR-002: validateAttributionOverride accepts strict shape and fails closed on malformations", () => {
+  assert.deepEqual(validateAttributionOverride(VALID_OVERRIDE), { valid: true, errors: [] });
+  assert.equal(validateAttributionOverride({ ...VALID_OVERRIDE, justification: "   " }).valid, false);
+  assert.equal(validateAttributionOverride({ ...VALID_OVERRIDE, justification: "" }).valid, false);
+  assert.equal(validateAttributionOverride({ justification: "why", applies_to: ["public-kernel-contract-unattributed"] }).valid, false);
+  assert.equal(validateAttributionOverride({ ...VALID_OVERRIDE, scope: [] }).valid, false);
+  assert.equal(validateAttributionOverride({ ...VALID_OVERRIDE, applies_to: ["not-an-ambiguity-code"] }).valid, false);
+  assert.equal(validateAttributionOverride({ ...VALID_OVERRIDE, extra: true }).valid, false);
+  assert.equal(validateAttributionOverride(null).valid, false);
+  assert.equal(validateAttributionOverride([VALID_OVERRIDE]).valid, false);
+});
+
+test("QRAR-003: validateRouterDecision accepts exact-shape resolution and rejects unjustified claims", () => {
+  const base = { classification_status: "sufficient", added_domains: ["trust"], reason: "ambiguity=public-kernel-contract-unattributed;added=trust" };
+  assert.equal(validateRouterDecision({ ...base, resolution: { source: "attribution-override", codes: ["public-kernel-contract-unattributed"], justification: "kernel parity verified", scope: ["schemas/kernel/**"] } }).valid, true);
+  assert.equal(validateRouterDecision({ ...base, resolution: { source: "scope-attribution", codes: ["public-kernel-contract-unattributed"] } }).valid, true);
+  assert.equal(validateRouterDecision({ ...base, resolution: { source: "invented-source", codes: ["public-kernel-contract-unattributed"] } }).valid, false);
+  assert.equal(validateRouterDecision({ ...base, resolution: { source: "attribution-override", codes: ["public-kernel-contract-unattributed"] } }).valid, false);
+  assert.equal(validateRouterDecision({ ...base, resolution: { source: "scope-attribution", codes: [] } }).valid, false);
+  assert.equal(validateRouterDecision({ ...base, resolution: { source: "scope-attribution", codes: ["unknown-code"] } }).valid, false);
+  assert.equal(validateRouterDecision({ ...base, resolution: { source: "scope-attribution", codes: ["public-kernel-contract-unattributed"], bogus: 1 } }).valid, false);
+});
+
+test("QRAR-003: mergeRouterDecision carries resolution and keeps residual-only blocks", () => {
+  const merged = mergeRouterDecision({ selected_domains: ["trust"] }, {
+    classification_status: "sufficient",
+    added_domains: ["runtime"],
+    reason: "ambiguity=public-kernel-contract-unattributed;added=runtime",
+    resolution: { source: "attribution-override", codes: ["public-kernel-contract-unattributed"], justification: "j", scope: ["schemas/kernel/**"] },
+  });
+  assert.equal(merged.valid, true);
+  assert.equal(merged.blocked, false);
+  assert.deepEqual(merged.selected_domains, ["trust", "runtime"]);
+  assert.equal(merged.resolution.source, "attribution-override");
+  const blocked = mergeRouterDecision({ selected_domains: [] }, {
+    classification_status: "ambiguous",
+    added_domains: [],
+    reason: "ambiguity=public-kernel-contract-unattributed;added=none",
+  });
+  assert.equal(blocked.blocked, true);
+  assert.equal(blocked.blocker_reason, "quality-review-ambiguity-unresolved");
+});

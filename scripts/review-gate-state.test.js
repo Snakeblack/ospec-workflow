@@ -115,7 +115,7 @@ test("invalid contracts fail closed before specialist or archive dispatch", () =
 test("blocked audit persists only deterministic validation codes", () => {
   const secrets = [
     "Authorization: Bearer synthetic.jwt.value",
-    "AKIAIOSFODNN7EXAMPLE",
+    "AKIA" + "IOSFODNN7EXAMPLE",
     "arbitrary payload with user-controlled text",
   ];
   const adapterInvalid = planReviewGate({
@@ -345,4 +345,116 @@ test("v2 malformed router blocks with contract-remediation", () => {
 test("v1 legacy dispatch uses LEGACY_V1_REVIEWERS", () => {
   const plan = planReviewGate({ routeGates: ["4r-review-gate"], decision: decision("normal", ["risk"]) });
   assert.deepEqual(plan.dispatch, ["review-risk"]);
+});
+
+// ---------------------------------------------------------------------------
+// FU1: attribution override + resolution audit (QRAR-002, ROUTING-003 MODIFIED)
+// ---------------------------------------------------------------------------
+
+const KERNEL_DIFF = [
+  "diff --git a/schemas/kernel/result-envelope/v1/envelope.schema.json b/schemas/kernel/result-envelope/v1/envelope.schema.json",
+  "--- a/schemas/kernel/result-envelope/v1/envelope.schema.json",
+  "+++ b/schemas/kernel/result-envelope/v1/envelope.schema.json",
+  "@@ -0,0 +1 @@",
+  "+{ \"type\": \"object\" }",
+].join("\n");
+const KERNEL_PATH = "schemas/kernel/result-envelope/v1/envelope.schema.json";
+
+function kernelClassifier(overrides = {}) {
+  return classifyQualityReview(normalizeQualityReviewEvidence({
+    classification: "normal",
+    verify: { status: "success", findings: [] },
+    diff: KERNEL_DIFF,
+    paths: [KERNEL_PATH],
+    capabilities: ["kernel-contract"],
+    dependencies: [],
+    operationTypes: ["modify"],
+    designRisks: [],
+    ...overrides,
+  }));
+}
+
+const KERNEL_OVERRIDE = Object.freeze({
+  justification: "Clean kernel parity change verified with zero findings",
+  scope: ["schemas/kernel/**"],
+  applies_to: ["public-kernel-contract-unattributed"],
+});
+
+test("QRAR-002/ROUTING-003: valid override closes kernel ambiguity auditable and archive proceeds", () => {
+  const classifier = kernelClassifier();
+  assert.ok(classifier.ambiguity_reasons.includes("public-kernel-contract-unattributed"));
+  const plan = planReviewGate({ routeGates: ["quality-review-gate"], classifierDecision: classifier, attributionOverride: KERNEL_OVERRIDE });
+  assert.equal(plan.status, "done");
+  assert.equal(plan.archive_allowed, true);
+  assert.deepEqual(plan.dispatch, []);
+  assert.equal(plan.run_router, false);
+  assert.deepEqual(plan.gate.ambiguity_reasons, []);
+  assert.deepEqual(plan.gate.resolution, {
+    source: "attribution-override",
+    justification: KERNEL_OVERRIDE.justification,
+    scope: ["schemas/kernel/**"],
+    closed_codes: ["public-kernel-contract-unattributed"],
+  });
+});
+
+test("QRAR-002: override does not apply outside its declared codes or scope", () => {
+  const runtimeClassifier = classifyQualityReview(normalizeQualityReviewEvidence({
+    classification: "normal",
+    verify: { status: "success", findings: [] },
+    diff: "diff --git a/scripts/run.js b/scripts/run.js\n--- a/scripts/run.js\n+++ b/scripts/run.js\n@@ -0,0 +1 @@\n+const x = 1",
+    paths: ["scripts/run.js"],
+    capabilities: ["app"],
+    dependencies: [],
+    operationTypes: ["modify"],
+    designRisks: [],
+  }));
+  assert.ok(runtimeClassifier.ambiguity_reasons.includes("runtime-code-without-domain-attribution"));
+  const plan = planReviewGate({ routeGates: ["quality-review-gate"], classifierDecision: runtimeClassifier, attributionOverride: KERNEL_OVERRIDE });
+  assert.equal(plan.status, "blocked");
+  assert.equal(plan.run_router, true);
+  assert.ok(plan.gate.ambiguity_reasons.includes("runtime-code-without-domain-attribution"));
+  assert.equal(plan.gate.resolution, undefined);
+});
+
+test("QRAR-002: malformed override fails closed with structured validation error", () => {
+  const classifier = kernelClassifier();
+  const plan = planReviewGate({
+    routeGates: ["quality-review-gate"],
+    classifierDecision: classifier,
+    attributionOverride: { justification: "", scope: ["schemas/kernel/**"], applies_to: ["public-kernel-contract-unattributed"] },
+  });
+  assert.equal(plan.status, "blocked");
+  assert.equal(plan.gate.blocker_reason, "contract-remediation");
+  assert.deepEqual(plan.gate.validation_error_codes, ["attribution-override-invalid"]);
+  assert.ok(plan.gate.ambiguity_reasons.includes("public-kernel-contract-unattributed"));
+});
+
+test("QRAR-001/ROUTING-003: scope attribution records a resolution audit on the sufficient path", () => {
+  const classifier = kernelClassifier({ capability_scopes: [{ id: "kernel-contract", paths: [KERNEL_PATH] }] });
+  assert.equal(classifier.classification_status, "sufficient");
+  const plan = planReviewGate({ routeGates: ["quality-review-gate"], classifierDecision: classifier });
+  assert.equal(plan.status, "ready");
+  assert.deepEqual(plan.dispatch, ["review-trust", "review-evolution"]);
+  assert.equal(plan.gate.resolution.source, "scope-attribution");
+  assert.ok(plan.gate.resolution.scope.includes(KERNEL_PATH));
+  assert.deepEqual(plan.gate.ambiguity_reasons, []);
+});
+
+test("QRAR-003: router resolution closes codes without re-blocking and never re-derives them", () => {
+  const classifier = kernelClassifier();
+  const plan = planReviewGate({
+    routeGates: ["quality-review-gate"],
+    classifierDecision: classifier,
+    routerDecision: {
+      classification_status: "sufficient",
+      added_domains: ["trust"],
+      reason: "ambiguity=public-kernel-contract-unattributed;added=trust",
+      resolution: { source: "attribution-override", codes: ["public-kernel-contract-unattributed"], justification: "kernel parity verified clean", scope: ["schemas/kernel/**"] },
+    },
+  });
+  assert.equal(plan.status, "ready");
+  assert.deepEqual(plan.dispatch, ["review-trust"]);
+  assert.deepEqual(plan.gate.ambiguity_reasons, []);
+  assert.equal(plan.gate.resolution.source, "attribution-override");
+  assert.deepEqual(plan.gate.resolution.closed_codes, ["public-kernel-contract-unattributed"]);
 });

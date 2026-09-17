@@ -760,7 +760,10 @@ function validateRouterDecision(value) {
   const errors = [];
   if (!value || typeof value !== "object" || Array.isArray(value)) return { valid: false, errors: ["router decision must be an object"] };
   const keys = Object.keys(value).sort();
-  if (keys.join(",") !== "added_domains,classification_status,reason") errors.push("router decision must contain exactly classification_status, added_domains, reason");
+  const expectedKeys = value.resolution === undefined
+    ? "added_domains,classification_status,reason"
+    : "added_domains,classification_status,reason,resolution";
+  if (keys.join(",") !== expectedKeys) errors.push("router decision must contain exactly classification_status, added_domains, reason" + (value.resolution === undefined ? "" : ", resolution"));
   if (!["sufficient", "ambiguous"].includes(value.classification_status)) errors.push("unknown classification_status");
   if (!Array.isArray(value.added_domains)) errors.push("added_domains must be an array");
   else {
@@ -772,7 +775,69 @@ function validateRouterDecision(value) {
     if (Object.hasOwn(value, forbidden)) errors.push(`forbidden router key: ${forbidden}`);
   }
   if (typeof value.reason !== "string" || !ROUTER_REASON.test(value.reason)) errors.push("reason must use ambiguity=<codes>;added=<none|ids>");
+  if (value.resolution !== undefined) errors.push(...validateRouterResolution(value.resolution).errors);
   return { valid: errors.length === 0, errors };
+}
+
+// QRAR-003: the router contract accepts an optional exact-shape `resolution`
+// object. Only the two declared resolution sources may close an ambiguity
+// code; a decision claiming resolution without a valid source is
+// contract-invalid, and residual evidence without `fact_codes` still cannot
+// close anything on its own.
+function validateRouterResolution(resolution) {
+  const errors = [];
+  if (!resolution || typeof resolution !== "object" || Array.isArray(resolution)) return { valid: false, errors: ["resolution must be an object"] };
+  const allowedKeys = new Set(["source", "codes", "justification", "scope"]);
+  for (const key of Object.keys(resolution)) {
+    if (!allowedKeys.has(key)) errors.push(`resolution contains an unknown key: ${key}`);
+  }
+  if (!["scope-attribution", "attribution-override"].includes(resolution.source)) errors.push("resolution source must be scope-attribution or attribution-override");
+  if (!Array.isArray(resolution.codes) || !resolution.codes.length) errors.push("resolution codes must be a non-empty array");
+  else {
+    if (resolution.codes.some((code) => !AMBIGUITY_CODES.includes(code))) errors.push("resolution codes contain an unknown ambiguity code");
+    if (new Set(resolution.codes).size !== resolution.codes.length) errors.push("resolution codes must be unique");
+  }
+  if (resolution.source === "attribution-override") {
+    if (typeof resolution.justification !== "string" || !resolution.justification.trim()) errors.push("override resolution requires a non-empty justification");
+    if (!Array.isArray(resolution.scope) || !resolution.scope.length || resolution.scope.some((pattern) => typeof pattern !== "string" || !pattern.trim())) errors.push("override resolution requires a non-empty scope array");
+  } else {
+    if (resolution.justification !== undefined && (typeof resolution.justification !== "string" || !resolution.justification.trim())) errors.push("resolution justification must be a non-empty string");
+    if (resolution.scope !== undefined && (!Array.isArray(resolution.scope) || !resolution.scope.length)) errors.push("resolution scope must be a non-empty array");
+  }
+  return { valid: errors.length === 0, errors };
+}
+
+// QRAR-002: bounded declarative attribution override. Strict shape, fail-closed:
+// non-empty justification, non-empty scope path patterns, applies_to a non-empty
+// subset of the closed-world ambiguity codes. Absence of the block is a strict
+// no-op handled by the caller; a malformed block never silently bypasses.
+function validateAttributionOverride(block) {
+  const errors = [];
+  if (!block || typeof block !== "object" || Array.isArray(block)) return { valid: false, errors: ["attribution override must be an object"] };
+  const keys = Object.keys(block).sort();
+  if (keys.join(",") !== "applies_to,justification,scope") errors.push("attribution override must contain exactly justification, scope, applies_to");
+  else {
+    if (typeof block.justification !== "string" || !block.justification.trim()) errors.push("justification must be a non-empty string");
+    if (!Array.isArray(block.scope) || !block.scope.length || block.scope.some((pattern) => typeof pattern !== "string" || !pattern.trim())) errors.push("scope must be a non-empty array of path patterns");
+    if (!Array.isArray(block.applies_to) || !block.applies_to.length) errors.push("applies_to must be a non-empty array of ambiguity codes");
+    else {
+      if (block.applies_to.some((code) => !AMBIGUITY_CODES.includes(code))) errors.push("applies_to contains an unknown ambiguity code");
+      if (new Set(block.applies_to).size !== block.applies_to.length) errors.push("applies_to must not contain duplicate codes");
+    }
+  }
+  return { valid: errors.length === 0, errors };
+}
+
+// Override scope matching (assumption sdd-tasks-001, resolved): literal
+// prefix (`startsWith`, SELF_REVIEW_PREFIXES style) or `dir/**` recursive
+// subtree. Anything else is treated as a literal prefix.
+function pathMatchesScopePattern(value, pattern) {
+  const normalized = String(pattern).replace(/\/+$/, "") || "/";
+  if (normalized.endsWith("/**")) {
+    const base = normalized.slice(0, -3);
+    return value === base || value.startsWith(`${base}/`);
+  }
+  return value.startsWith(normalized);
 }
 
 function mergeRouterDecision(classifier, router) {
@@ -782,7 +847,7 @@ function mergeRouterDecision(classifier, router) {
     return { valid: true, blocked: true, blocker_reason: "quality-review-ambiguity-unresolved", dispatch: [], selected_domains: classifier.selected_domains };
   }
   const merged = canonicalDomainUnion(classifier.selected_domains, router.added_domains);
-  return { valid: true, blocked: false, selected_domains: merged, dispatch: merged.map((id) => require("./review-taxonomy.js").ACTIVE_V2_REVIEWERS[id]) };
+  return { valid: true, blocked: false, selected_domains: merged, dispatch: merged.map((id) => require("./review-taxonomy.js").ACTIVE_V2_REVIEWERS[id]), resolution: router.resolution || null };
 }
 
 function validateQualityEvidence(value) {
@@ -801,6 +866,8 @@ module.exports = {
   normalizeQualityReviewEvidence,
   classifyQualityReview,
   validateQualityEvidence,
+  validateAttributionOverride,
+  pathMatchesScopePattern,
   validateRouterDecision,
   mergeRouterDecision,
   QUALITY_DOMAINS: [...QUALITY_DOMAINS],

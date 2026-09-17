@@ -1,6 +1,6 @@
 "use strict";
 
-const { validateReviewDecision, classifyQualityReview, validateRouterDecision, mergeRouterDecision } = require("./review-dimensions.js");
+const { validateReviewDecision, classifyQualityReview, validateRouterDecision, mergeRouterDecision, validateAttributionOverride, pathMatchesScopePattern } = require("./review-dimensions.js");
 const { nextLineageAction, validateLineageForGate } = require("./review-lineage.js");
 const {
   detectMixedGateKeys,
@@ -42,7 +42,7 @@ function planReviewGate({
   classifierDecision,
   routerDecision = null,
   validationErrors = [],
-  admissionContext = "live-v2",
+  attributionOverride = null,
 } = {}) {
   const reviewGate = routeGates.find((name) => name === "quality-review-gate" || name === "4r-review-gate");
   if (!reviewGate) {
@@ -53,12 +53,12 @@ function planReviewGate({
     return planLegacyReviewGate({ routeGates, existingGate, decision, validationErrors });
   }
   if (reviewGate === "quality-review-gate") {
-    return planQualityReviewGate({ routeGates, existingGate, classifierDecision, routerDecision, validationErrors });
+    return planQualityReviewGate({ routeGates, existingGate, classifierDecision, routerDecision, validationErrors, attributionOverride });
   }
   return { status: "skipped", run_router: false, run_generalist: false, dispatch: [], archive_allowed: true, gate: clone(existingGate) };
 }
 
-function planQualityReviewGate({ routeGates = [], existingGate = {}, classifierDecision, routerDecision = null, validationErrors = [] } = {}) {
+function planQualityReviewGate({ routeGates = [], existingGate = {}, classifierDecision, routerDecision = null, validationErrors = [], attributionOverride = null } = {}) {
   if (!routeGates.includes("quality-review-gate")) {
     return { status: "skipped", run_router: false, run_generalist: false, dispatch: [], archive_allowed: true, gate: clone(existingGate) };
   }
@@ -69,6 +69,28 @@ function planQualityReviewGate({ routeGates = [], existingGate = {}, classifierD
   const mixed = detectMixedTaxonomy({ domains: classifierDecision.selected_domains, lineageSchemaVersion: 2 });
   if (mixed.mixed) return blockedGate(existingGate, ["mixed-taxonomy"]);
 
+  // QRAR-002: a malformed override always fails closed with a structured
+  // validation error; it is never a silent bypass and never a silent no-op.
+  // The classifier audit is preserved so the ambiguity stays visible and
+  // unresolved in the persisted gate.
+  if (attributionOverride !== null && attributionOverride !== undefined) {
+    const overrideValidation = validateAttributionOverride(attributionOverride);
+    if (!overrideValidation.valid) {
+      return {
+        status: "blocked",
+        run_router: false,
+        run_generalist: false,
+        dispatch: [],
+        archive_allowed: false,
+        gate: mergeReviewGateAudit(existingGate, {
+          ...buildV2GateAudit(classifierDecision, "blocked", null),
+          blocker_reason: "contract-remediation",
+          validation_error_codes: ["attribution-override-invalid"],
+        }),
+      };
+    }
+  }
+
   if (classifierDecision.classification_status === "sufficient" && !routerDecision) {
     const selected = classifierDecision.selected_domains;
     const status = selected.length ? "ready" : "done";
@@ -78,11 +100,51 @@ function planQualityReviewGate({ routeGates = [], existingGate = {}, classifierD
       run_generalist: false,
       dispatch: selected.map((id) => ACTIVE_V2_REVIEWERS[id]),
       archive_allowed: selected.length === 0,
-      gate: mergeReviewGateAudit(existingGate, buildV2GateAudit(classifierDecision, status, null)),
+      gate: mergeReviewGateAudit(existingGate, withResolutionAudit(
+        buildV2GateAudit(classifierDecision, status, null),
+        buildScopeAttributionResolution(classifierDecision),
+      )),
     };
   }
 
   if (classifierDecision.classification_status === "ambiguous" && !routerDecision) {
+    // QRAR-002 / ROUTING-003 MODIFIED: apply the declarative override to the
+    // codes it lists whose residual paths fall inside its scope. Closed codes
+    // never re-appear as unresolved ambiguity reasons in this evaluation.
+    const closure = applyAttributionOverride(classifierDecision, attributionOverride);
+    if (closure.closed_codes.length) {
+      const remainingReasons = classifierDecision.ambiguity_reasons.filter((code) => !closure.closed_codes.includes(code));
+      if (!remainingReasons.length) {
+        const selected = classifierDecision.selected_domains;
+        const status = selected.length ? "ready" : "done";
+        return {
+          status,
+          run_router: false,
+          run_generalist: false,
+          dispatch: selected.map((id) => ACTIVE_V2_REVIEWERS[id]),
+          archive_allowed: selected.length === 0,
+          gate: mergeReviewGateAudit(existingGate, {
+            ...buildV2GateAudit(classifierDecision, status, null),
+            ambiguity_reasons: remainingReasons,
+            resolution: closure.record,
+          }),
+        };
+      }
+      return {
+        status: "blocked",
+        run_router: true,
+        run_generalist: false,
+        dispatch: [],
+        archive_allowed: false,
+        gate: mergeReviewGateAudit(existingGate, {
+          ...buildV2GateAudit(classifierDecision, "blocked", null),
+          ambiguity_reasons: remainingReasons,
+          resolution: closure.record,
+          blocker_reason: "contract-remediation",
+          validation_error_codes: ["router-required"],
+        }),
+      };
+    }
     return {
       status: "blocked",
       run_router: true,
@@ -117,17 +179,79 @@ function planQualityReviewGate({ routeGates = [], existingGate = {}, classifierD
     if (!merged.valid) return blockedGate(existingGate, ["router-contract-invalid"]);
     const selected = merged.selected_domains;
     const status = selected.length ? "ready" : "done";
+    // QRAR-003: a router resolution closes exactly its declared codes; the
+    // gate MUST NOT re-derive a code the router just resolved.
+    const routerResolution = merged.resolution
+      ? {
+        ambiguity_reasons: classifierDecision.ambiguity_reasons.filter((code) => !merged.resolution.codes.includes(code)),
+        resolution: {
+          source: merged.resolution.source,
+          justification: merged.resolution.justification || null,
+          scope: merged.resolution.scope || null,
+          closed_codes: merged.resolution.codes.filter((code) => classifierDecision.ambiguity_reasons.includes(code)).sort(),
+        },
+      }
+      : {};
     return {
       status,
       run_router: false,
       run_generalist: false,
       dispatch: merged.dispatch,
       archive_allowed: selected.length === 0,
-      gate: mergeReviewGateAudit(existingGate, buildV2GateAudit(classifierDecision, status, routerDecision, selected)),
+      gate: mergeReviewGateAudit(existingGate, withResolutionAudit({
+        ...buildV2GateAudit(classifierDecision, status, routerDecision, selected),
+        ...routerResolution,
+      }, buildScopeAttributionResolution(classifierDecision))),
     };
   }
 
   return blockedGate(existingGate, ["decision-contract-invalid"]);
+}
+
+// QRAR-002: apply a validated override block to the classifier's ambiguity
+// codes. A code closes only when it is listed in `applies_to` AND some
+// residual capability path matches a scope pattern (prefix or `dir/**`).
+function applyAttributionOverride(classifierDecision, override) {
+  if (!override) return { closed_codes: [], record: null };
+  const residualPaths = [];
+  const residual = classifierDecision.residual_evidence;
+  if (residual && Array.isArray(residual.capabilities)) {
+    for (const capability of residual.capabilities) {
+      for (const residualPath of Array.isArray(capability.paths) ? capability.paths : []) residualPaths.push(residualPath);
+    }
+  }
+  const closedCodes = [];
+  for (const code of classifierDecision.ambiguity_reasons) {
+    if (!override.applies_to.includes(code)) continue;
+    const inScope = residualPaths.some((residualPath) => override.scope.some((pattern) => pathMatchesScopePattern(residualPath, pattern)));
+    if (inScope) closedCodes.push(code);
+  }
+  const record = closedCodes.length
+    ? { source: "attribution-override", justification: override.justification, scope: [...override.scope], closed_codes: [...new Set(closedCodes)].sort() }
+    : null;
+  return { closed_codes: [...new Set(closedCodes)].sort(), record };
+}
+
+// QRAR-001 / ROUTING-003 MODIFIED: when classification closed deterministically
+// via the kernel-contract synthetic fact, the audit records the resolution
+// source so scope attribution is auditable like an override closure.
+function buildScopeAttributionResolution(classifierDecision) {
+  if (!classifierDecision || classifierDecision.classification_status !== "sufficient" || classifierDecision.classification !== "normal") return null;
+  const facts = classifierDecision.evidence && classifierDecision.evidence.sources ? classifierDecision.evidence.sources.facts : [];
+  const kernelFacts = (Array.isArray(facts) ? facts : []).filter((fact) => fact && fact.code === "kernel-contract-change");
+  if (!kernelFacts.length) return null;
+  const scopePaths = [...new Set(kernelFacts.flatMap((fact) => String(fact.detail).split(",").map((item) => item.trim()).filter(Boolean)))].sort();
+  return {
+    source: "scope-attribution",
+    justification: "kernel-contract-change synthetic fact (schemas/kernel/** capability scope)",
+    scope: scopePaths,
+    closed_codes: [],
+  };
+}
+
+function withResolutionAudit(audit, resolution) {
+  if (!resolution) return audit;
+  return { ...audit, resolution };
 }
 
 function planLegacyReviewGate({ routeGates = [], existingGate = {}, decision, validationErrors = [] } = {}) {
@@ -201,8 +325,6 @@ function blockedGate(existingGate, validationErrorCodes) {
 
 function planLineageGate({ lineage, observed_candidate_id, downstream_gate = "status" } = {}) {
   const schemaVersion = lineage && lineage.schema_version === 2 ? 2 : 1;
-  const reviewerMap = schemaVersion === 2 ? ACTIVE_V2_REVIEWERS : LEGACY_V1_REVIEWERS;
-  const dimensionKey = schemaVersion === 2 ? "selected_domains" : "selected_dimensions";
   const nextAction = nextLineageAction(lineage);
   const dispatch = nextAction.type === "run-lenses"
     ? nextAction.dimensions.map((dimension) => reviewerForDomain(dimension, schemaVersion))
