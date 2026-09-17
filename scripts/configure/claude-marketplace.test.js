@@ -94,6 +94,7 @@ test("buildClaudeMarketplace forwards an injected generator seam", (t) => {
         calls.push(options);
         return { exitCode: 0, validation: null };
       },
+      validateAttributionSentinels: () => [],
     },
   );
 
@@ -101,4 +102,16 @@ test("buildClaudeMarketplace forwards an injected generator seam", (t) => {
   assert.equal(calls.length, 1);
   assert.equal(calls[0].target, "claude");
   assert.equal(calls[0].outDir, result.pluginDir);
+});
+
+test("INSTALL-026: marketplace build fails closed when attribution sentinels are stale", (t) => {
+  const out = tmp(t);
+  const build = buildClaudeMarketplace({ source: SOURCE, out, validate: false, marketplaceName: "ospec-tools", pluginName: "ospec-workflow" });
+  const dimensions = path.join(build.pluginDir, "scripts/lib/review-dimensions.js");
+  fs.writeFileSync(dimensions, fs.readFileSync(dimensions, "utf8").split("kernel-contract-change").join("STALE-SENTINEL"));
+
+  const { validateAttributionSentinels } = require("./claude-marketplace.js");
+  const errors = validateAttributionSentinels(build.pluginDir);
+
+  assert.ok(errors.some((error) => error.includes("attribution sentinel stale in scripts/lib/review-dimensions.js: missing kernel-contract-change")));
 });

@@ -130,7 +130,7 @@ test("validate rejects residual ${input: placeholder in opencode.json", (t) => {
   // Poison the generated opencode.json with an unresolved input placeholder.
   const cfg = JSON.parse(fs.readFileSync(path.join(out, "opencode.json"), "utf8"));
   cfg.mcp = cfg.mcp || {};
-  cfg.mcp.svc = { type: "local", command: ["npx"], enabled: true, environment: { RESIDUAL_KEY: "${input:RESIDUAL_KEY}" } };
+  cfg.mcp.svc = { type: "local", command: ["npx"], enabled: true, environment: { ["RESIDUAL_KEY"]: "${input:RESIDUAL_KEY}" } };
   fs.writeFileSync(path.join(out, "opencode.json"), JSON.stringify(cfg, null, 2));
 
   const result = validate(out);
@@ -153,4 +153,25 @@ test("validate rejects an agent that references a skill the tree does not ship",
   const result = validate(out);
 
   assert.ok(result.errors.some((error) => error.includes("references missing skill: skills/ghost/SKILL.md")));
+});
+
+test("INSTALL-026: attribution sentinels fail closed on a stale build", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false });
+  const dimensions = path.join(out, "scripts/lib/review-dimensions.js");
+  fs.writeFileSync(dimensions, fs.readFileSync(dimensions, "utf8").split("kernel-contract-change").join("STALE-SENTINEL"));
+
+  const result = validate(out);
+
+  assert.ok(result.errors.some((error) => error.includes("attribution sentinel stale in scripts/lib/review-dimensions.js: missing kernel-contract-change")));
+});
+
+test("INSTALL-026: attribution sentinels fail closed on an unmapped kernel tool reference", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false });
+  fs.rmSync(path.join(out, "scripts/lib/review-gate-state.js"));
+
+  const result = validate(out);
+
+  assert.ok(result.errors.some((error) => error.includes("attribution sentinel missing (unmapped kernel tool reference): scripts/lib/review-gate-state.js")));
 });

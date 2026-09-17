@@ -90,6 +90,31 @@ function addError(errors, message) {
   errors.push(message);
 }
 
+// INSTALL-026 (FU1): the quality-review attribution behavior must ship through
+// this target's runtime scripts and shared gate skill. A stale build (or an
+// unmapped kernel tool reference) fails validation.
+const ATTRIBUTION_SENTINELS = [
+  { rel: "scripts/lib/review-dimensions.js", needles: ["kernel-contract-change", "validateAttributionOverride"] },
+  { rel: "scripts/lib/review-gate-state.js", needles: ["attributionOverride", "attribution-override-invalid"] },
+  { rel: "scripts/lib/review-lineage.js", needles: ["taxonomy mismatch: a schema v2 predecessor"] },
+  { rel: "scripts/route-dispatch-run.js", needles: ["extractAttributionOverride"] },
+  { rel: "skills/_shared/gate-4r-review.md", needles: ["attribution_override"] },
+];
+
+function validateAttributionSentinels(root, errors) {
+  for (const { rel, needles } of ATTRIBUTION_SENTINELS) {
+    const abs = path.join(root, rel);
+    if (!fs.existsSync(abs)) {
+      addError(errors, `attribution sentinel missing (unmapped kernel tool reference): ${rel}`);
+      continue;
+    }
+    const content = fs.readFileSync(abs, "utf8");
+    for (const needle of needles) {
+      if (!content.includes(needle)) addError(errors, `attribution sentinel stale in ${rel}: missing ${needle}`);
+    }
+  }
+}
+
 function validateRequiredPaths(root, errors) {
   for (const { rel, type } of REQUIRED_PATHS) {
     const actual = pathType(root, rel);
@@ -304,6 +329,7 @@ function validate(root) {
   validateMcpResidualPlaceholders(absRoot, errors);
   validatePlugin(absRoot, errors);
   validateSkillReferences(absRoot, errors);
+  validateAttributionSentinels(absRoot, errors);
 
   return { errors, warnings };
 }
