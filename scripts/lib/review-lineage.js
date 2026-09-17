@@ -634,7 +634,32 @@ function createSuccessor(predecessor, input) {
   if (predecessor.recovery && predecessor.recovery.approval_reference === ref) {
     throw new Error(`approval reference ${ref} has already been used in predecessor lineage`);
   }
-  
+
+  // ROUTING-012 / QRAR-004: successor taxonomy MUST equal the predecessor's.
+  // A v2 (quality-domain) predecessor yields a v2 successor natively via
+  // startQualityReviewLineage; mixed taxonomies (4R owners against a v2
+  // predecessor, or a v1 successor forced from a v2 predecessor) fail closed
+  // with a structured TypeError before any successor state or budget is
+  // created. A v1 predecessor keeps producing v1 successors — no silent flip.
+  if (predecessor.schema_version === 2) {
+    if (input.selected_dimensions !== undefined || input.schema_version === 1) {
+      throw new TypeError("taxonomy mismatch: a schema v2 predecessor requires a v2 successor with quality-domain owners (selected_domains), not 4R selected_dimensions");
+    }
+    return startQualityReviewLineage({
+      classification: input.classification !== undefined ? input.classification : predecessor.genesis.classification,
+      evidence_fingerprint: typeof input.evidence_fingerprint === "string" && input.evidence_fingerprint ? input.evidence_fingerprint : predecessor.genesis.evidence_fingerprint,
+      candidate: input.candidate,
+      selected_domains: input.selected_domains !== undefined ? input.selected_domains : predecessor.genesis.selected_domains,
+    }, undefined, {
+      generation: predecessor.generation + 1,
+      predecessor_lineage_id: predecessor.lineage_id,
+      recovery: { reason: input.reason.trim(), approval_reference: ref },
+    });
+  }
+  if (input.selected_domains !== undefined || input.schema_version === 2) {
+    throw new TypeError("taxonomy mismatch: a schema v1 predecessor requires a v1 successor with 4R selected_dimensions, not quality-domain selected_domains");
+  }
+
   return startReviewLineage(input, undefined, {
     generation: predecessor.generation + 1,
     predecessor_lineage_id: predecessor.lineage_id,
