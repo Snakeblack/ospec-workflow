@@ -464,6 +464,7 @@ const V2_SIGNALS = Object.freeze({
   "network-flow": ["runtime"], "error-flow": ["runtime"], "retry-flow": ["runtime"], "timeout-flow": ["runtime"],
   "concurrency-flow": ["runtime"], "persistent-state-mutation": ["runtime"], "partial-failure-path": ["runtime"],
   "public-input-boundary": ["runtime"], "metadata-runtime": ["runtime"],
+  "kernel-contract-change": ["trust", "evolution"],
   "structural-complexity": ["evolution"], "public-contract-change": ["evolution"], "architectural-boundary-change": ["evolution"],
   "generated-contract-change": ["evolution"], "configuration-contract-change": ["evolution"],
   "loop-io": ["efficiency"], "repeated-network-flow": ["efficiency"], "unbounded-collection": ["efficiency"],
@@ -474,7 +475,7 @@ const V2_FACT_SOURCES = Object.freeze(Object.fromEntries(Object.keys(V2_SIGNALS)
   if (code.startsWith("verify-")) return [code, "verify"];
   if (code.startsWith("design-")) return [code, "design"];
   if (code === "dependency-trust-change") return [code, "dependency"];
-  if (code === "metadata-runtime" || code === "metadata-docs-only") return [code, "metadata"];
+  if (code === "metadata-runtime" || code === "metadata-docs-only" || code === "kernel-contract-change") return [code, "metadata"];
   return [code, "real-diff"];
 })));
 const V2_DERIVED_REASON_CODES = new Set(["high-risk-override", ...QUALITY_DOMAINS.map((id) => `no-${id}-signal`)]);
@@ -514,6 +515,10 @@ function normalizeQualityReviewEvidence(input) {
   if (dependencies.length) facts.push({ code: "dependency-trust-change", source: "dependency", detail: dependencies.join(","), attributed_capabilities: [] });
   if (capabilities.includes("runtime")) facts.push({ code: "metadata-runtime", source: "metadata", detail: "runtime", attributed_capabilities: [] });
   if (paths.length && paths.every((value) => /^(docs\/|.*\.md$)/.test(value))) facts.push({ code: "metadata-docs-only", source: "metadata", detail: paths.join(","), attributed_capabilities: [] });
+  for (const scope of capabilityScopes) {
+    const kernelPaths = scope.paths.filter((scopePath) => scopePath.startsWith("schemas/kernel/"));
+    if (kernelPaths.length) facts.push({ code: "kernel-contract-change", source: "metadata", detail: kernelPaths.join(","), attributed_capabilities: [scope.id] });
+  }
   facts = attributeFactsFromScopes(facts, capabilityScopes);
   const capabilityCoverage = buildCapabilityCoverage({ paths, capabilities, capabilityScopes, facts });
   const sources = { paths, capabilities, operation_types: operationTypes, dependencies, facts: sortFacts(facts), capability_scopes: capabilityScopes, capability_coverage: capabilityCoverage };
@@ -639,8 +644,7 @@ function classifyQualityReview(evidence) {
   if (pathsMatchSelfReview(evidence.sources.paths)) ambiguityReasons.push("self-review-infrastructure");
   if (pathsMatchGeneratedTargetRisk(evidence.sources.paths)) ambiguityReasons.push("generated-target-semantic-risk");
   if (pathsMatchKernelContract(evidence.sources.paths) && !globalDomains.length) ambiguityReasons.push("public-kernel-contract-unattributed");
-  const runtimePaths = evidence.sources.paths.filter(isRuntimeProductionPath);
-  if (runtimePaths.length && !globalDomains.length && behavioral.length <= 1) ambiguityReasons.push("runtime-code-without-domain-attribution");
+  if (hasUnattributedRuntimeSurface(evidence, behavioral)) ambiguityReasons.push("runtime-code-without-domain-attribution");
   if (behavioral.length > 3 && unattributed.length) ambiguityReasons.push("cross-capability-blast-radius");
   const selected = canonicalDomainUnion(globalDomains, behavioral.flatMap((item) => item.attributed_domains));
   if (ambiguityReasons.length) {
@@ -665,6 +669,28 @@ function deriveGlobalDomains(evidence) {
     for (const domain of V2_SIGNALS[fact.code] || []) selected.add(domain);
   }
   return QUALITY_DOMAINS.filter((id) => selected.has(id));
+}
+
+// Per-capability runtime attribution rule (FU1, REQ-routing-008 MODIFIED): the
+// old global guard (`runtimePaths.length && !globalDomains.length`) let any
+// global domain signal (e.g. the kernel-contract-change synthetic fact) mask an
+// unattributed runtime capability. The rule now fires when (a) a scoped
+// behavioral capability has runtime production paths in its scope and zero
+// attributed domains, or (b) runtime production paths uncovered by any scope
+// carry no fact-derived signal of their own.
+function hasUnattributedRuntimeSurface(evidence, behavioral) {
+  const scopes = Array.isArray(evidence.sources.capability_scopes) ? evidence.sources.capability_scopes : [];
+  const scopeById = new Map(scopes.map((scope) => [scope.id, scope]));
+  const scopedPaths = new Set(scopes.flatMap((scope) => scope.paths));
+  const uncoveredRuntime = evidence.sources.paths.filter((value) => isRuntimeProductionPath(value) && !scopedPaths.has(value));
+  if (uncoveredRuntime.length) {
+    const factDetailPaths = new Set(evidence.sources.facts.flatMap((fact) => String(fact.detail).split(",").map((item) => item.trim()).filter(Boolean)));
+    if (!uncoveredRuntime.some((value) => factDetailPaths.has(value))) return true;
+  }
+  return behavioral.some((item) => {
+    const scope = scopeById.get(item.id);
+    return Boolean(scope) && !item.attributed_domains.length && scope.paths.some((value) => isRuntimeProductionPath(value));
+  });
 }
 
 function canonicalDomainUnion(...lists) {
@@ -774,6 +800,7 @@ module.exports = {
   validateReviewDecision,
   normalizeQualityReviewEvidence,
   classifyQualityReview,
+  validateQualityEvidence,
   validateRouterDecision,
   mergeRouterDecision,
   QUALITY_DOMAINS: [...QUALITY_DOMAINS],
