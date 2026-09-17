@@ -1,0 +1,67 @@
+schema_version: 1
+change: remediate-cx1-conformance-parity
+status: verified
+last_updated: "2026-09-17T00:30:30Z"
+classification: normal
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "Remediación de paridad de contrato y conformidad diferencial para CX1 (envelope.schema.json ↔ JS ↔ Go), adición de fixtures faltantes y alineación del roadmap."
+  validated: true
+  validation_errors: []
+owner:
+  branch: fix/remediate-cx1-conformance-parity
+approvals:
+  - id: intent-briefing-001
+    gate: intent-briefing
+    decision: accepted
+    source: user_request
+    accepted_at: "2026-09-17T00:30:05Z"
+    synthesis: "Remediación quirúrgica de paridad estricta entre envelope.schema.json, JS y Go: if/then en schema para status: blocked, minLength: 1 en campos de texto, suite de conformidad diferencial unificada sobre fixtures y actualización de estado de CX1 en roadmap."
+    scope:
+      in: "envelope.schema.json v1, result-envelope.schema.json, fixtures válidos e inválidos, tests de conformidad diferencial en JS y Go, actualización de docs/roadmaps/harness-evolution.md."
+      out: "Modificación de PhaseCompletionReducer, cambios en fallback legacy, cambios en lógica de verify_outcome o refactor de arquitectura."
+    applies_to:
+      - change-classification
+phases:
+  proposal:
+    status: done
+    artifact: openspec/changes/remediate-cx1-conformance-parity/proposal.md
+    summary: "Propuesta definida para remediación de paridad canónica en envelope.schema.json, conformidad diferencial y alineación de CX1 en roadmap."
+    key_decisions:
+      - "Regla condicional if/then en envelope.schema.json para exigir question_gate cuando status sea blocked"
+      - "Restricción minLength: 1 en campos de texto obligatorios de question_gate y assumptions para paridad con JS y Go"
+      - "Suite diferencial unificada en Node y Go evaluada sobre matriz idéntica de fixtures compartidos"
+  spec:
+    status: done
+    artifacts:
+      - openspec/changes/remediate-cx1-conformance-parity/specs/kernel-contract-schemas/spec.md
+      - openspec/changes/remediate-cx1-conformance-parity/specs/skills/spec.md
+    summary: "Especificadas reglas condicionales para blocked, minLength: 1 en strings, matriz de fixtures negativos y conformidad diferencial estricta para CX1."
+  design:
+    status: done
+    artifact: openspec/changes/remediate-cx1-conformance-parity/design.md
+    summary: "Diseño de remediación CX1: regla if/then y minLength en schemas, matriz de fixtures negativos y arnés diferencial simétrico en Node y Go."
+    key_decisions:
+      - "Regla condicional if/then y minLength: 1 en schemas JSON v1 y raíz"
+      - "Matriz compartida de fixtures negativos para paridad de edge cases"
+      - "Arnés automatizado de conformidad diferencial simétrica en Node y Go"
+  tasks:
+    status: done
+    artifact: openspec/changes/remediate-cx1-conformance-parity/tasks.md
+    summary: "Desglose TDD completado para paridad CX1 en schemas, fixtures, tests diferenciales y roadmap."
+  apply:
+    status: done
+    artifact: openspec/changes/remediate-cx1-conformance-parity/apply-progress.md
+    summary: "Working on branch fix/remediate-cx1-conformance-parity. Paridad de envelope v1 y raíz remediada con suites diferenciales en Node y Go."
+  verify:
+    status: done
+    verdict: "PASS"
+    artifact: openspec/changes/remediate-cx1-conformance-parity/verify-report.md
+    summary: "Verificación exitosa: 15/15 tareas completadas, 24/24 escenarios con runtime-test y paridad diferencial estricta comprobada en JS y Go."
+    key_decisions:
+      - "Veredicto PASS confirmado con 100% de evidencia runtime-test (24/24 escenarios)"
+      - "Paridad diferencial tripartita comprobada entre JSON Schema, Node.js y Go"
+      - "Ausencia de regresiones en toda la suite Go y suites de kernel de Node"
+  archive:
+    status: pending

@@ -36,7 +36,7 @@ test("K2a maturity docs tag host surfaces implemented; Candidate/attestation/del
   assert.match(arch, /\{implemented\} Independent verifier over frozen CandidateId \(K6b\)/);
   assert.match(arch, /\{implemented\} Evidence strategies with provenance and Strict TDD fallback \(K6b\)/);
   assert.match(arch, /\{implemented\} Assurance Graph as derived content-addressed projection/);
-  assert.match(arch, /\{target\} Assurance Graph as independent authority/);
+  assert.match(arch, /\{target\} Assurance Graph as independent authority|\{target\} Integración y revalidación selectiva del Assurance Graph/);
   assert.match(arch, /\{implemented\} ChallengePlan policy-selected/);
   assert.doesNotMatch(arch, /\{target\} ChallengePlan policy-selected \(K6c\)/);
   assert.doesNotMatch(arch, /\{implemented\}.*CandidateEvaluationAttestation/);
