@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "change": "fix-fu1-review-gate-attribution-gap",
+  "source_fingerprint": "sha256:8ecd54d3ad048408ab581c75eac46c0eb2fa3dbb61d80e3f3b6dcb6f937c9626",
+  "spec_writes": [
+    {
+      "domain": "routing",
+      "source_delta": "specs/routing/spec-prepared.md",
+      "target": "openspec/specs/routing/spec.md",
+      "target_before_sha256": "sha256:36a02c0635bac4c9de477a09558f9cb021fa9b31b760930cb03c375a397243fa",
+      "content_sha256": "sha256:a36e8a95f031fea1858866d3f9bdb2f438c5ef8a1f30af951105db93afe49b5a"
+    },
+    {
+      "domain": "install",
+      "source_delta": "specs/install/spec-prepared.md",
+      "target": "openspec/specs/install/spec.md",
+      "target_before_sha256": "sha256:d6f731c564294bd47db06a97e843c9b2120b0f7c07b89641174f69832d51fb3a",
+      "content_sha256": "sha256:f8f8583f22cca561ac918919cfca04709f27af480ef3381aeb22266cd6857e53"
+    },
+    {
+      "domain": "quality-review-attribution-resolution",
+      "source_delta": "specs/quality-review-attribution-resolution/spec-prepared.md",
+      "target": "openspec/specs/quality-review-attribution-resolution/spec.md",
+      "target_before_sha256": null,
+      "content_sha256": "sha256:11af77c6fd956f53122cd846bbfb2a728a491a52d0391bdc062d949ec4b5402c"
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20260918-001-fact-sintetico-kernel-contract-change-en-el-normalizer.md",
+      "content_sha256": "sha256:d4a18e5a2488f1802c2efcfd25c126bf59a9c3017c89926eefa843abf3b18618"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20260918-002-override-de-atribucion-como-politica-pura-validada-consumida-por-el-gate-planner.md",
+      "content_sha256": "sha256:51f503872e5f9f6769bdc29455a93e609aa91000dd0b407d792c280be2d15c44"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20260918-003-compatibilidad-de-fingerprint-por-autoconsistencia-de-snapshot-sin-version-bump.md",
+      "content_sha256": "sha256:60b943eadcc9a7e50582fcafd1f611f8f0c6d32d254c1f7d28c6d44da42d666d"
+    },
+    {
+      "source": "decisions/adr-004.md",
+      "target": "docs/adr/adr-20260918-004-createsuccessor-ramifica-por-schema-version-del-predecesor.md",
+      "content_sha256": "sha256:671d86e1b15bd6e3bc662dd19eb191d2a3d666c60c907dc2cc1326fb2d4b93ed"
+    }
+  ],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "decisions/adr-004.md",
+    "design.md",
+    "proposal.md",
+    "specs/install/spec-prepared.md",
+    "specs/install/spec.md",
+    "specs/quality-review-attribution-resolution/spec-prepared.md",
+    "specs/quality-review-attribution-resolution/spec.md",
+    "specs/routing/spec-prepared.md",
+    "specs/routing/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}
