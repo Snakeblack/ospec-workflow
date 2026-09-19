@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "receipt_id": "rc-unbound-evaluation",
+  "candidate_id": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "kind": "delivery",
+  "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "outcome": "approved"
+}

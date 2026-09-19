@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "event_id": "e-1",
+  "type": "phase.completed",
+  "timestamp": "2026-08-03T00:00:00Z",
+  "payload": {
+    "phase": "apply"
+  },
+  "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+}

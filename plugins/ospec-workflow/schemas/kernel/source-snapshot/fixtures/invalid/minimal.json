@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "source_snapshot_id": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "repository_id": "repo-1",
+  "projection": "invalid-projection"
+}

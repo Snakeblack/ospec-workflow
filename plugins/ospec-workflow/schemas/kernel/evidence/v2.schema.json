@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/evidence/v2",
+  "title": "EvidenceV2",
+  "description": "Kernel Evidence Schema v2 with Candidate-bound provenance. Verdict is forbidden.",
+  "type": "object",
+  "schema_version": 2,
+  "required": [
+    "schema_version",
+    "kind",
+    "evidence_id",
+    "candidate_id",
+    "provenance",
+    "origin",
+    "digest",
+    "node_id"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2
+    },
+    "kind": {
+      "type": "string",
+      "const": "evidence/v2"
+    },
+    "evidence_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "provenance": {
+      "type": "string",
+      "enum": [
+        "runtime-observed",
+        "host-attested",
+        "tool-produced",
+        "model-reported",
+        "human-decision",
+        "external-unverified"
+      ]
+    },
+    "origin": {
+      "type": "string",
+      "minLength": 1
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "node_id": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": false
+}

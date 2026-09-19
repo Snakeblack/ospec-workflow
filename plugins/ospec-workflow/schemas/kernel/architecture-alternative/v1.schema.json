@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/architecture-alternative/v1",
+  "title": "ArchitectureAlternativeV1",
+  "type": "object",
+  "schema_version": 1,
+  "required": ["schema_version", "kind", "alternative_id", "candidate_id", "classification", "summary"],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "kind": { "type": "string", "const": "architecture-alternative/v1" },
+    "alternative_id": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "candidate_id": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "classification": { "type": "string", "enum": ["no-op", "local", "extend-pattern", "new-abstraction"] },
+    "summary": { "type": "string", "minLength": 1 },
+    "rationale": { "$ref": "#/$defs/rationale" }
+  },
+  "if": { "properties": { "classification": { "const": "new-abstraction" } }, "required": ["classification"] },
+  "then": { "required": ["rationale"] },
+  "additionalProperties": false,
+  "$defs": {
+    "rationale": {
+      "type": "object",
+      "required": ["problem", "consumers", "variability", "boundary", "simpler_alternative", "retirement_path"],
+      "properties": {
+        "problem": { "type": "string", "minLength": 1 },
+        "consumers": { "type": "string", "minLength": 1 },
+        "variability": { "type": "string", "minLength": 1 },
+        "boundary": { "type": "string", "minLength": 1 },
+        "simpler_alternative": { "type": "string", "minLength": 1 },
+        "retirement_path": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  }
+}

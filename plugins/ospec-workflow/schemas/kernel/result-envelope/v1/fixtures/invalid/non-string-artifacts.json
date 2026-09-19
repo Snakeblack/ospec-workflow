@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "status": "success",
+  "executive_summary": "Artifacts contains a non-string item.",
+  "artifacts": [
+    123
+  ],
+  "next_recommended": "sdd-archive",
+  "risks": "None",
+  "skill_resolution": "injected"
+}
