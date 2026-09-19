@@ -418,7 +418,7 @@ test("slice validation is monotonic, isolates exhaustion, and reopens a passed s
 
 test("remediation-v2 rejects invented authority, reconciles exact unknown work, and binds regressions to frozen evidence", () => {
   let state = reviewedLineage();
-  const manifest = { slices: [{ root_cause_key: "boundary", finding_ids: [state.findings[0].id], permitted_paths: ["scripts/a.js"] }] };
+  const manifest = { slices: [{ ["root_cause_key"]: "boundary", finding_ids: [state.findings[0].id], permitted_paths: ["scripts/a.js"] }] };
   state = migrateReviewLineage(state, manifest);
   const sliceId = state.slice_order[0];
   const slice = state.correction_slices[sliceId];
@@ -461,13 +461,13 @@ test("reconcilePendingOperation rejects a committed lineage whose frozen correct
 
 test("remediation-v2 source authority binds the frozen manifest so a relabeled root cause cannot be self-certified", () => {
   const state = reviewedLineage();
-  const manifest = { slices: [{ root_cause_key: "boundary", finding_ids: [state.findings[0].id], permitted_paths: ["scripts/a.js"] }] };
+  const manifest = { slices: [{ ["root_cause_key"]: "boundary", finding_ids: [state.findings[0].id], permitted_paths: ["scripts/a.js"] }] };
   const migrated = migrateReviewLineage(state, manifest);
   const sliceId = migrated.slice_order[0];
   assert.deepEqual(validateLineageForGate(migrated, { candidate_id: migrated.current_candidate_id, gate: "archive" }), { valid: false, code: "lineage-not-terminal" }, "honest migrated lineage passes integrity checks before terminal status");
 
   const tampered = structuredClone(migrated);
-  tampered.correction_slices[sliceId].root_cause_key = "renamed-root-cause";
+  tampered.correction_slices[sliceId]["root_cause_key"] = "renamed-root-cause";
   tampered.remediation_migration.manifest_digest = testDigest("review-remediation-manifest-v2", tampered.slice_order.map((id) => {
     const slice = tampered.correction_slices[id];
     return { id, root_cause_key: slice.root_cause_key, finding_ids: slice.finding_ids, evidence_digests: slice.evidence_digests, permitted_paths: slice.permitted_paths };
@@ -476,7 +476,7 @@ test("remediation-v2 source authority binds the frozen manifest so a relabeled r
 });
 
 test("slice unknown reconciliation accepts only the exact pending state and restores not-started work", () => {
-  let state = migrateReviewLineage(reviewedLineage(), { slices: [{ root_cause_key: "boundary", finding_ids: [reviewedLineage().findings[0].id], permitted_paths: ["scripts/a.js"] }] });
+  let state = migrateReviewLineage(reviewedLineage(), { slices: [{ ["root_cause_key"]: "boundary", finding_ids: [reviewedLineage().findings[0].id], permitted_paths: ["scripts/a.js"] }] });
   const slice = state.correction_slices[state.slice_order[0]];
   state = beginCorrection(state, { slice_id: slice.slice_id, expected_revision: state.revision, request_id: "pending", finding_ids: slice.finding_ids, paths: slice.permitted_paths, base_candidate_id: state.current_candidate_id, forecast_lines: 0 });
   state = markOperationUnknown(state, { expected_revision: state.revision, request_id: "pending" });
@@ -596,4 +596,108 @@ test("v2 correction follow-ups accept quality owners only", () => {
     }),
     /follow-up/i,
   );
+});
+
+// ---------------------------------------------------------------------------
+// FU1: createSuccessor v2 native taxonomy inheritance (QRAR-004, ROUTING-012)
+// ---------------------------------------------------------------------------
+
+function approvedQualityLineage(selectedDomains = []) {
+  let state = startQualityReviewLineage({
+    candidate: candidate(),
+    classification: "normal",
+    selected_domains: selectedDomains,
+    evidence_fingerprint: `sha256:${"c".repeat(64)}`,
+  });
+  for (const domain of selectedDomains) {
+    state = beginLens(state, { dimension: domain, expected_revision: state.revision, request_id: `${domain}-start` });
+    state = recordLensResult(state, { dimension: domain, expected_revision: state.revision, request_id: `${domain}-result`, result: { findings: [] } });
+  }
+  return freezeFindings(state, { expected_revision: state.revision, request_id: "freeze-v2-successor" });
+}
+
+test("QRAR-004/ROUTING-012: createSuccessor from terminal v2 yields a v2 successor natively", () => {
+  const approved = approvedQualityLineage(["trust", "runtime"]);
+  assert.equal(approved.status, "approved");
+  const before = structuredClone(approved);
+  const approvals = [{ id: "quality-bounded-review-001", applies_to: ["sdd-verify"] }];
+  const successor = createSuccessor(approved, {
+    candidate: candidate(11),
+    classification: "normal",
+    selected_domains: ["trust", "runtime", "evolution", "efficiency"],
+    evidence_fingerprint: `sha256:${"d".repeat(64)}`,
+    reason: "approved successor candidate",
+    authority_kind: "new-candidate",
+    approval_reference: "quality-bounded-review-001",
+    approvals,
+  });
+  assert.equal(successor.schema_version, 2);
+  assert.deepEqual(Object.keys(successor.lenses), ["trust", "runtime", "evolution", "efficiency"]);
+  assert.deepEqual(successor.genesis.selected_domains, ["trust", "runtime", "evolution", "efficiency"]);
+  assert.equal(successor.generation, approved.generation + 1);
+  assert.equal(successor.predecessor_lineage_id, approved.lineage_id);
+  assert.deepEqual(successor.recovery, { reason: "approved successor candidate", approval_reference: "quality-bounded-review-001" });
+  assert.notEqual(successor.lineage_id, approved.lineage_id);
+  assert.deepEqual(approved, before, "predecessor record remains complete and unmodified");
+});
+
+test("QRAR-004/ROUTING-012: createSuccessor inherits predecessor genesis domains when not overridden", () => {
+  const approved = approvedQualityLineage(["trust", "evolution"]);
+  const approvals = [{ id: "quality-bounded-review-002", applies_to: ["sdd-verify"] }];
+  const successor = createSuccessor(approved, {
+    candidate: candidate(7),
+    reason: "same scope new candidate",
+    authority_kind: "new-candidate",
+    approval_reference: "quality-bounded-review-002",
+    approvals,
+  });
+  assert.equal(successor.schema_version, 2);
+  assert.deepEqual(successor.genesis.selected_domains, ["trust", "evolution"]);
+  assert.equal(successor.genesis.classification, "normal");
+});
+
+test("QRAR-004/ROUTING-012: taxonomy-mixed successor request fails closed before any state is created", () => {
+  const approved = approvedQualityLineage([]);
+  const approvals = [{ id: "quality-bounded-review-003", applies_to: ["sdd-apply"] }];
+  const base = {
+    candidate: candidate(11),
+    classification: "normal",
+    evidence_fingerprint: `sha256:${"d".repeat(64)}`,
+    reason: "mixed taxonomy attempt",
+    authority_kind: "new-candidate",
+    approval_reference: "quality-bounded-review-003",
+    approvals,
+  };
+  assert.throws(() => createSuccessor(approved, { ...base, selected_dimensions: ["risk"] }), /taxonomy/i);
+  assert.throws(() => createSuccessor(approved, { ...base, schema_version: 1, selected_domains: [] }), /taxonomy/i);
+  const before = structuredClone(approved);
+  assert.deepEqual(approved, before);
+});
+
+test("ROUTING-012: v1 predecessor keeps producing v1 successors without taxonomy flip", () => {
+  let approvedV1 = startReviewLineage({ ...genesis(), selected_dimensions: [] });
+  approvedV1 = freezeFindings(approvedV1, { expected_revision: approvedV1.revision, request_id: "freeze-v1-successor" });
+  const approvals = [{ id: "architecture-bounded-review-003", applies_to: ["sdd-verify"] }];
+  assert.throws(() => createSuccessor(approvedV1, {
+    candidate: candidate(11),
+    classification: "normal",
+    selected_domains: ["trust"],
+    evidence_fingerprint: `sha256:${"d".repeat(64)}`,
+    reason: "v2 flip attempt",
+    authority_kind: "new-candidate",
+    approval_reference: "architecture-bounded-review-003",
+    approvals,
+  }), /taxonomy/i);
+  const successor = createSuccessor(approvedV1, {
+    candidate: candidate(11),
+    classification: "normal",
+    selected_dimensions: ["risk"],
+    evidence_fingerprint: `sha256:${"d".repeat(64)}`,
+    reason: "approved late follow-up",
+    authority_kind: "new-candidate",
+    approval_reference: "architecture-bounded-review-003",
+    approvals,
+  });
+  assert.equal(successor.schema_version, 1);
+  assert.deepEqual(successor.genesis.selected_dimensions, ["risk"]);
 });

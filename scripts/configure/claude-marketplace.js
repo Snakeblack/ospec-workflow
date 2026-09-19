@@ -65,6 +65,35 @@ function parseArgs(argv) {
   return args;
 }
 
+// INSTALL-026 (FU1): the quality-review attribution behavior must ship through
+// the Claude plugin's runtime scripts and shared gate skill. The external
+// `claude plugin validate` CLI cannot be extended, so the marketplace builder
+// enforces the same sentinels in-repo; a stale build (or an unmapped kernel
+// tool reference) fails the build.
+const ATTRIBUTION_SENTINELS = [
+  { rel: "scripts/lib/review-dimensions.js", needles: ["kernel-contract-change", "validateAttributionOverride"] },
+  { rel: "scripts/lib/review-gate-state.js", needles: ["attributionOverride", "attribution-override-invalid"] },
+  { rel: "scripts/lib/review-lineage.js", needles: ["taxonomy mismatch: a schema v2 predecessor"] },
+  { rel: "scripts/route-dispatch-run.js", needles: ["extractAttributionOverride"] },
+  { rel: "skills/_shared/gate-4r-review.md", needles: ["attribution_override"] },
+];
+
+function validateAttributionSentinels(pluginDir) {
+  const errors = [];
+  for (const { rel, needles } of ATTRIBUTION_SENTINELS) {
+    const abs = path.join(pluginDir, rel);
+    if (!fs.existsSync(abs)) {
+      errors.push(`attribution sentinel missing (unmapped kernel tool reference): ${rel}`);
+      continue;
+    }
+    const content = fs.readFileSync(abs, "utf8");
+    for (const needle of needles) {
+      if (!content.includes(needle)) errors.push(`attribution sentinel stale in ${rel}: missing ${needle}`);
+    }
+  }
+  return errors;
+}
+
 function buildClaudeMarketplace(options, deps = {}) {
   const outDir = path.resolve(options.out);
   const pluginDir = path.join(outDir, "plugins", options.pluginName);
@@ -73,6 +102,7 @@ function buildClaudeMarketplace(options, deps = {}) {
   fs.rmSync(outDir, { recursive: true, force: true });
 
   const runConfigureImpl = deps.runConfigure || runConfigure;
+  const validateAttributionSentinelsImpl = deps.validateAttributionSentinels || validateAttributionSentinels;
   const result = runConfigureImpl({
     sourceDir: path.resolve(options.source),
     target: "claude",
@@ -104,11 +134,15 @@ function buildClaudeMarketplace(options, deps = {}) {
 
   writeJson(path.join(outDir, ".claude-plugin", "marketplace.json"), marketplace);
 
+  const sentinelErrors = validateAttributionSentinelsImpl(pluginDir);
+
   return {
     outDir,
     pluginDir,
-    exitCode: result.exitCode,
-    validation: result.validation,
+    exitCode: sentinelErrors.length ? 1 : result.exitCode,
+    validation: sentinelErrors.length
+      ? { ...result.validation, stderr: `${(result.validation && result.validation.stderr) || ""}${sentinelErrors.map((error) => `error: ${error}\n`).join("")}` }
+      : result.validation,
   };
 }
 
@@ -132,4 +166,5 @@ if (require.main === module) {
 module.exports = {
   assertSafeOutDir,
   buildClaudeMarketplace,
+  validateAttributionSentinels,
 };

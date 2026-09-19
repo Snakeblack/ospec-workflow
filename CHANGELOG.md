@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.68.0] - 2026-09-18
+
+### Added
+- **Resolución de ambigüedad del Quality Review Gate (FU1)** — capability nueva `quality-review-attribution-resolution`:
+  - **Atribución por scopes de contrato kernel**: fact sintético `kernel-contract-change` (dominios `trust`+`evolution`, fuente `metadata`) emitido por `normalizeQualityReviewEvidence` cuando un `capability_scope` cubre `schemas/kernel/**`; fluye por el pipeline normal (fingerprint, cobertura per-capability, audit) y crea findings por sí solo nunca. Un change kernel limpio clasificado `normal` ya no termina en `quality-review-ambiguity-unresolved` (`REQ-quality-review-attribution-resolution-001`).
+  - **Override declarativo acotado `quality_review.attribution_override`** (patrón `quality_gates`, opt-in, comentado por defecto): `justification` obligatoria, `scope` de prefijos/globs `dir/**`, `applies_to` ⊆ códigos de ambigüedad cerrados; fail-closed con `validation_error_codes: ["attribution-override-invalid"]`, registro `{source, justification, scope, closed_codes}` en el gate audit y no reaparición del código cerrado (`REQ-quality-review-attribution-resolution-002`, `REQ-routing-003` MODIFIED).
+  - **Contrato `resolution` del router residual**: `validateRouterDecision`/`mergeRouterDecision` aceptan `resolution: {source: scope-attribution|attribution-override, codes, justification?, scope}` exact-shape; solo esas dos fuentes cierran un código; evidencia residual sin `fact_codes` sigue bloqueando (`REQ-quality-review-attribution-resolution-003`).
+  - **`createSuccessor` v2 nativo**: un linaje v2 terminal produce sucesores v2 vía `startQualityReviewLineage` heredando dominios del genesis; taxonomía mixta (4R contra v2, o v1 forzado) falla cerrado con `TypeError` estructurado antes de crear estado o presupuesto; v1 sigue produciendo v1 (`REQ-quality-review-attribution-resolution-004`, `REQ-routing-012`).
+  - **Regla runtime per-capability** (`REQ-routing-008` MODIFIED): `runtime-code-without-domain-attribution` dispara por capability sin atribución con paths runtime (scoped o descubiertos), sin enmascaramiento por señales globales.
+  - **Sentinels de propagación de build** (`REQ-install-026`): los validadores de los 4 targets in-scope y el builder del marketplace fallan cerrado ante builds stale o referencias kernel sin mapeo nativo; targets out-of-scope intactos en sus proyecciones diferenciadas.
+- **Documentación**: bloque comentado en `openspec/config.yaml`, ruta de cierre documentada en `skills/_shared/gate-4r-review.md`, FU1 marcado resuelto en el roadmap con follow-ups FU1a/FU1b, y 4 ADRs promovidos a `docs/adr/adr-20260918-00{1..4}`.
+
+### Fixed
+- La trampa FU1: un change de contrato kernel limpio sin señales léxicas quedaba trabado en `public-kernel-contract-unattributed` → `quality-review-ambiguity-unresolved` sin dispatch ni archive (hallazgo observado en `remediate-cx1-strict-string-parity`).
+- Ciclo SDD completo archivado en `openspec/changes/archive/2026-09-18-fix-fu1-review-gate-attribution-gap/`; requisitos, escenarios y suite focal verificados en runtime.
+
+### Changed
+- Ampliación documentada de la regla runtime: cambios con una sola capability runtime no atribuida que además portan un fact global (p.ej. `dependency-trust-change`) ahora clasifican `ambiguous` (semántica per-capability del spec); sin cambios en tests pineados.
+
 ## [2.67.3] - 2026-09-17
 
 ### Fixed

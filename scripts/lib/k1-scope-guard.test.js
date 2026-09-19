@@ -467,6 +467,15 @@ test("K1 scope guard: fixed routing and phase validation remain byte-equivalent 
             /(\s*name:\s*lite\n\s*classification:\s*\[trivial, small\]\n\s*conditions:\n\s*)project\.status:\s*active/g,
             "$1change.classification: small"
           )
+          // Sanctioned successor evolution (FU1, fix-fu1-review-gate-attribution-gap):
+          // the commented-out `quality_review.attribution_override` block is a strict
+          // no-op, so only its commented form (including its leading separator pair)
+          // is normalized away. An uncommented (active) block does not match and
+          // correctly fails the guard.
+          .replace(
+            /# -{20,}\n#\n# -{20,}\n# quality_review\.attribution_override:.*?- "public-kernel-contract-unattributed"\n/gs,
+            ""
+          )
           .replace(/\n{3,}/g, "\n\n");
       assert.equal(
         normalizeConfig(baseline.stdout),

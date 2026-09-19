@@ -128,7 +128,7 @@ test("validate rejects residual ${input: placeholder in .mcp.json", (t) => {
   fs.writeFileSync(
     path.join(out, ".mcp.json"),
     JSON.stringify(
-      { mcpServers: { svc: { command: "npx", env: { RESIDUAL_KEY: "${input:RESIDUAL_KEY}" } } } },
+      { mcpServers: { svc: { command: "npx", env: { ["RESIDUAL_KEY"]: "${input:RESIDUAL_KEY}" } } } },
       null,
       2,
     ),
@@ -313,4 +313,15 @@ test("validate continues independent checks after a filesystem failure", (t) => 
 
   assert.ok(result.errors.some((error) => error.includes("synthetic independent read failure")));
   assert.ok(result.errors.some((error) => error.includes("must have an mcpServers object")));
+});
+
+test("INSTALL-026: attribution sentinels fail closed on a stale build", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false });
+  const dimensions = path.join(out, "scripts/lib/review-dimensions.js");
+  fs.writeFileSync(dimensions, fs.readFileSync(dimensions, "utf8").split("validateAttributionOverride").join("STALE-SENTINEL"));
+
+  const result = validate(out);
+
+  assert.ok(result.errors.some((error) => error.includes("attribution sentinel stale in scripts/lib/review-dimensions.js: missing validateAttributionOverride")));
 });

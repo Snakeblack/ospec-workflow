@@ -11,7 +11,7 @@ context: |
 
 project:
   name: ospec-workflow
-  version: 2.67.3
+  version: 2.68.0
   status: active
 
 artifact_store:
@@ -215,6 +215,49 @@ routing:
 #
 #
 # (Example configuration block omitted for cleanliness. Refer to sdd-verify documentation.)
+# ---------------------------------------------------------------------------
+#
+# ---------------------------------------------------------------------------
+# quality_review.attribution_override: (OPTIONAL — all lines below are commented
+# # out; uncomment to activate)
+#
+# Bounded declarative attribution override for the Quality Review Gate (FU1).
+# Mirrors the `quality_gates` pattern: config declares the policy,
+# `scripts/lib/review-gate-state.js` consumes it, and the gate audit records
+# every closure. Absence of the block is a strict no-op.
+#
+# Per-field contract (validated fail-closed by `validateAttributionOverride`
+# in scripts/lib/review-dimensions.js):
+#   justification  non-empty string — human-auditable reason; recorded in the
+#                  gate audit resolution record
+#   scope          non-empty list of path patterns — literal prefix
+#                  (`scripts/lib/review-...`) or recursive subtree
+#                  (`schemas/kernel/**`), SELF_REVIEW_PREFIXES style
+#   applies_to     non-empty list, subset of the closed-world ambiguity codes:
+#                  runtime-code-without-domain-attribution,
+#                  unsupported-residual-evidence, classification-conflict,
+#                  cross-capability-blast-radius,
+#                  public-kernel-contract-unattributed,
+#                  self-review-infrastructure, generated-target-semantic-risk
+#
+# A code closes only when it is listed in `applies_to` AND some residual
+# capability path matches a `scope` pattern. Closed codes never re-appear as
+# unresolved ambiguity reasons in the same gate evaluation. A malformed block
+# blocks the gate with `validation_error_codes: ["attribution-override-invalid"]`
+# — never a silent bypass. The override never suppresses findings or unselects
+# fact-derived domains.
+#
+# Prefer `capability_scopes` attribution (kernel-contract-change synthetic fact)
+# over the override: the override is the auditable escape hatch for cases
+# scopes cannot express.
+#
+# quality_review:
+#   attribution_override:
+#     justification: "Clean kernel-contract parity change verified with zero findings"
+#     scope:
+#       - "schemas/kernel/**"
+#     applies_to:
+#       - "public-kernel-contract-unattributed"
 # ---------------------------------------------------------------------------
 #
 # ---------------------------------------------------------------------------

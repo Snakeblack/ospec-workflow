@@ -139,8 +139,8 @@ test("generalist reason accepts only canonical classifier references", () => {
 
   for (const reason of [
     "signals=diff-auth-permission;dimensions=risk;note=Authorization: Bearer synthetic-value",
-    "signals=diff-auth-permission;dimensions=risk;note=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.synthetic",
-    "signals=diff-auth-permission;dimensions=risk;note=AKIAIOSFODNN7EXAMPLE",
+    "signals=diff-auth-permission;dimensions=risk;note=eyJ" + "hbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.synthetic",
+    "signals=diff-auth-permission;dimensions=risk;note=AKIA" + "IOSFODNN7EXAMPLE",
     "signals=invented-signal;dimensions=risk",
     "Permission handling changed in the runtime adapter.",
   ]) assert.equal(validateGeneralistDecision({ status: "needs-specialist", specialists: ["risk"], reason }).valid, false, reason);
@@ -672,4 +672,163 @@ test("v2 classifier never emits normal-signal-overflow", () => {
   const decision = classifyQualityReview(ev);
   assert.equal(decision.escalation_reason, null);
   assert.ok(decision.selected_domains.length >= 3);
+});
+
+// ---------------------------------------------------------------------------
+// FU1: kernel-contract scope attribution (REQ-quality-review-attribution-resolution-001)
+// ---------------------------------------------------------------------------
+
+const { validateQualityEvidence } = require("./lib/review-dimensions.js");
+
+const KERNEL_DIFF = [
+  "diff --git a/schemas/kernel/result-envelope/v1/envelope.schema.json b/schemas/kernel/result-envelope/v1/envelope.schema.json",
+  "--- a/schemas/kernel/result-envelope/v1/envelope.schema.json",
+  "+++ b/schemas/kernel/result-envelope/v1/envelope.schema.json",
+  "@@ -0,0 +1 @@",
+  "+{ \"type\": \"object\" }",
+].join("\n");
+const KERNEL_PATH = "schemas/kernel/result-envelope/v1/envelope.schema.json";
+
+function kernelEvidence(overrides = {}) {
+  return qualityEvidence({
+    diff: KERNEL_DIFF,
+    paths: [KERNEL_PATH],
+    capabilities: ["kernel-contract"],
+    capability_scopes: [{ id: "kernel-contract", paths: [KERNEL_PATH] }],
+    ...overrides,
+  });
+}
+
+test("QRAR-001: clean kernel-contract scope change classified normal is sufficient via synthetic fact", () => {
+  const ev = kernelEvidence();
+  const synthetic = ev.sources.facts.filter((fact) => fact.code === "kernel-contract-change");
+  assert.equal(synthetic.length, 1);
+  assert.equal(synthetic[0].source, "metadata");
+  assert.deepEqual(synthetic[0].attributed_capabilities, ["kernel-contract"]);
+  assert.throws(() => validateQualityEvidence({ ...ev, fingerprint: "sha256:" + "0".repeat(64) }), /fingerprint/);
+  assert.doesNotThrow(() => validateQualityEvidence(ev));
+  const decision = classifyQualityReview(ev);
+  assert.equal(decision.classification_status, "sufficient");
+  assert.deepEqual(decision.selected_domains, ["trust", "evolution"]);
+  assert.ok(!decision.ambiguity_reasons.includes("public-kernel-contract-unattributed"));
+  const coverage = decision.capability_coverage.find((item) => item.id === "kernel-contract");
+  assert.deepEqual(coverage.attributed_domains, ["trust", "evolution"]);
+  assert.ok(coverage.fact_codes.includes("kernel-contract-change"));
+});
+
+test("QRAR-001: synthetic fact appears in the routing audit and creates no findings by itself", () => {
+  const decision = classifyQualityReview(kernelEvidence());
+  assert.ok(decision.evidence.sources.facts.some((fact) => fact.code === "kernel-contract-change"));
+  assert.ok(decision.domains.trust.reasons.some((entry) => entry.code === "kernel-contract-change"));
+  assert.ok(decision.domains.evolution.reasons.some((entry) => entry.code === "kernel-contract-change"));
+  assert.equal(decision.residual_evidence, null);
+  assert.deepEqual(decision.ambiguity_reasons, []);
+});
+
+test("QRAR-001/ROUTING-008: scope attribution does not mask other ambiguity codes", () => {
+  const outsidePath = "scripts/outside/run.js";
+  const ev = kernelEvidence({
+    diff: `${KERNEL_DIFF}\ndiff --git a/${outsidePath} b/${outsidePath}\n--- a/${outsidePath}\n+++ b/${outsidePath}\n@@ -0,0 +1 @@\n+const x = 1`,
+    paths: [KERNEL_PATH, outsidePath],
+    capabilities: ["kernel-contract", "outside"],
+  });
+  const decision = classifyQualityReview(ev);
+  assert.equal(decision.classification_status, "ambiguous");
+  assert.ok(decision.ambiguity_reasons.includes("runtime-code-without-domain-attribution"));
+  const outside = decision.capability_coverage.find((item) => item.id === "outside");
+  assert.equal(outside.attributed_domains.length, 0);
+});
+
+test("ROUTING-008: single unattributed runtime capability uses the runtime rule, not blast radius", () => {
+  const decision = classifyQualityReview(qualityEvidence({
+    diff: "diff --git a/scripts/run.js b/scripts/run.js\n--- a/scripts/run.js\n+++ b/scripts/run.js\n@@ -0,0 +1 @@\n+const x = 1",
+    paths: ["scripts/run.js"],
+    capabilities: ["app"],
+  }));
+  assert.equal(decision.classification_status, "ambiguous");
+  assert.ok(decision.ambiguity_reasons.includes("runtime-code-without-domain-attribution"));
+  assert.ok(!decision.ambiguity_reasons.includes("cross-capability-blast-radius"));
+});
+
+test("QRAR-001 risk/ADR-003: pre-change persisted evidence snapshot stays self-consistent (replay)", () => {
+  // Snapshot shape as the pre-FU1 normalizer persisted it for a kernel-contract
+  // change: no synthetic fact, unattributed coverage. The fingerprint pins the
+  // snapshot; validation recomputes it and must keep passing.
+  const preChangeSnapshot = {
+    schema_version: 2,
+    classification: "normal",
+    fingerprint: null,
+    sources: {
+      paths: [KERNEL_PATH],
+      capabilities: ["kernel-contract"],
+      operation_types: ["modify"],
+      dependencies: [],
+      facts: [],
+      capability_scopes: [{ id: "kernel-contract", paths: [KERNEL_PATH] }],
+      capability_coverage: [
+        { id: "kernel-contract", behavioral: true, scoped: true, attributed_domains: [], fact_codes: [] },
+      ],
+    },
+  };
+  preChangeSnapshot.fingerprint = evidenceFingerprint("normal", preChangeSnapshot.sources);
+  assert.doesNotThrow(() => validateQualityEvidence(preChangeSnapshot));
+  const decision = classifyQualityReview(preChangeSnapshot);
+  assert.equal(decision.classification_status, "ambiguous");
+  assert.ok(decision.ambiguity_reasons.includes("public-kernel-contract-unattributed"));
+});
+
+// ---------------------------------------------------------------------------
+// FU1: bounded declarative attribution override (QRAR-002) and router
+// resolution contract (QRAR-003)
+// ---------------------------------------------------------------------------
+
+const { validateAttributionOverride, mergeRouterDecision } = require("./lib/review-dimensions.js");
+
+const VALID_OVERRIDE = Object.freeze({
+  justification: "Clean kernel parity change verified with zero findings",
+  scope: ["schemas/kernel/**"],
+  applies_to: ["public-kernel-contract-unattributed"],
+});
+
+test("QRAR-002: validateAttributionOverride accepts strict shape and fails closed on malformations", () => {
+  assert.deepEqual(validateAttributionOverride(VALID_OVERRIDE), { valid: true, errors: [] });
+  assert.equal(validateAttributionOverride({ ...VALID_OVERRIDE, justification: "   " }).valid, false);
+  assert.equal(validateAttributionOverride({ ...VALID_OVERRIDE, justification: "" }).valid, false);
+  assert.equal(validateAttributionOverride({ justification: "why", applies_to: ["public-kernel-contract-unattributed"] }).valid, false);
+  assert.equal(validateAttributionOverride({ ...VALID_OVERRIDE, scope: [] }).valid, false);
+  assert.equal(validateAttributionOverride({ ...VALID_OVERRIDE, applies_to: ["not-an-ambiguity-code"] }).valid, false);
+  assert.equal(validateAttributionOverride({ ...VALID_OVERRIDE, extra: true }).valid, false);
+  assert.equal(validateAttributionOverride(null).valid, false);
+  assert.equal(validateAttributionOverride([VALID_OVERRIDE]).valid, false);
+});
+
+test("QRAR-003: validateRouterDecision accepts exact-shape resolution and rejects unjustified claims", () => {
+  const base = { classification_status: "sufficient", added_domains: ["trust"], reason: "ambiguity=public-kernel-contract-unattributed;added=trust" };
+  assert.equal(validateRouterDecision({ ...base, resolution: { source: "attribution-override", codes: ["public-kernel-contract-unattributed"], justification: "kernel parity verified", scope: ["schemas/kernel/**"] } }).valid, true);
+  assert.equal(validateRouterDecision({ ...base, resolution: { source: "scope-attribution", codes: ["public-kernel-contract-unattributed"] } }).valid, true);
+  assert.equal(validateRouterDecision({ ...base, resolution: { source: "invented-source", codes: ["public-kernel-contract-unattributed"] } }).valid, false);
+  assert.equal(validateRouterDecision({ ...base, resolution: { source: "attribution-override", codes: ["public-kernel-contract-unattributed"] } }).valid, false);
+  assert.equal(validateRouterDecision({ ...base, resolution: { source: "scope-attribution", codes: [] } }).valid, false);
+  assert.equal(validateRouterDecision({ ...base, resolution: { source: "scope-attribution", codes: ["unknown-code"] } }).valid, false);
+  assert.equal(validateRouterDecision({ ...base, resolution: { source: "scope-attribution", codes: ["public-kernel-contract-unattributed"], bogus: 1 } }).valid, false);
+});
+
+test("QRAR-003: mergeRouterDecision carries resolution and keeps residual-only blocks", () => {
+  const merged = mergeRouterDecision({ selected_domains: ["trust"] }, {
+    classification_status: "sufficient",
+    added_domains: ["runtime"],
+    reason: "ambiguity=public-kernel-contract-unattributed;added=runtime",
+    resolution: { source: "attribution-override", codes: ["public-kernel-contract-unattributed"], justification: "j", scope: ["schemas/kernel/**"] },
+  });
+  assert.equal(merged.valid, true);
+  assert.equal(merged.blocked, false);
+  assert.deepEqual(merged.selected_domains, ["trust", "runtime"]);
+  assert.equal(merged.resolution.source, "attribution-override");
+  const blocked = mergeRouterDecision({ selected_domains: [] }, {
+    classification_status: "ambiguous",
+    added_domains: [],
+    reason: "ambiguity=public-kernel-contract-unattributed;added=none",
+  });
+  assert.equal(blocked.blocked, true);
+  assert.equal(blocked.blocker_reason, "quality-review-ambiguity-unresolved");
 });

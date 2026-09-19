@@ -86,6 +86,30 @@ function readUtf8(root, rel, fsImpl = fs) {
   return fsImpl.readFileSync(path.join(root, rel), "utf8");
 }
 
+// INSTALL-026 (FU1): the quality-review attribution behavior must ship through
+// this target's runtime scripts and shared gate skill. A stale build (or an
+// unmapped kernel tool reference) fails validation.
+const ATTRIBUTION_SENTINELS = [
+  { rel: "scripts/lib/review-dimensions.js", needles: ["kernel-contract-change", "validateAttributionOverride"] },
+  { rel: "scripts/lib/review-gate-state.js", needles: ["attributionOverride", "attribution-override-invalid"] },
+  { rel: "scripts/lib/review-lineage.js", needles: ["taxonomy mismatch: a schema v2 predecessor"] },
+  { rel: "scripts/route-dispatch-run.js", needles: ["extractAttributionOverride"] },
+  { rel: "skills/_shared/gate-4r-review.md", needles: ["attribution_override"] },
+];
+
+function validateAttributionSentinels(root, errors, fsImpl = fs) {
+  for (const { rel, needles } of ATTRIBUTION_SENTINELS) {
+    if (!exists(root, rel, fsImpl)) {
+      addError(errors, `attribution sentinel missing (unmapped kernel tool reference): ${rel}`);
+      continue;
+    }
+    const content = readUtf8(root, rel, fsImpl);
+    for (const needle of needles) {
+      if (!content.includes(needle)) addError(errors, `attribution sentinel stale in ${rel}: missing ${needle}`);
+    }
+  }
+}
+
 const BINARY_MAGIC = [
   Buffer.from([0x4d, 0x5a]), // PE/COFF
   Buffer.from([0x7f, 0x45, 0x4c, 0x46]), // ELF
@@ -409,6 +433,7 @@ function validate(root, deps = {}) {
     ["hook scripts", () => validateHookScripts(absRoot, errors, fsImpl)],
     ["MCP", () => validateMcp(absRoot, errors, fsImpl)],
     ["MCP residual placeholders", () => validateMcpResidualPlaceholders(absRoot, errors, fsImpl)],
+    ["attribution sentinels", () => validateAttributionSentinels(absRoot, errors, fsImpl)],
   ];
   for (const [label, check] of checks) {
     runValidation(errors, label, check);

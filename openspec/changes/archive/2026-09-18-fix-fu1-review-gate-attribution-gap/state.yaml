@@ -1,0 +1,186 @@
+intent_gate:
+  status: archived
+  revision: 2
+  last_updated: "2026-09-18T00:00:00Z"
+  gate: intent-briefing
+  decision: accepted
+  synthesis: >
+    FU1 quality-review-kernel-contract-attribution-gap: un change que endurece el
+    contrato público kernel y verifica limpio no genera hechos atribuibles; la
+    clasificación determinística marca public-kernel-contract-unattributed, el
+    router residual confirma ambiguous, y el gate termina en
+    quality-review-ambiguity-unresolved sin ruta de cierre. Se ataca el contrato
+    de resolución de ambigüedad (atribución mínima por capability_scopes de
+    contrato público y/o override acotado tipo quality_gates), más la deuda
+    adjunta de CX1 (createSuccessor solo genera linajes v1; reducer de fases
+    registra reviewers como fases; journal failed del archive-transaction
+    bloquea re-runs), con propagación al build multi-target (claude, vscode,
+    copilot, opencode) y sus mapeos de tools nativos.
+  scope: >
+    scripts/lib/review-lineage.js, review-gate-state.js, route-dispatcher.js,
+    archive-transaction, skills/_shared/gate-4r-review.md, rules/, build
+    multi-target.
+  accepted_at: 2026-09-17T16:10:00Z
+  applies_to: [high-risk]
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "high-risk classification with project.status active; standard is the first matching eligible route; FLOOR_GUARANTEES bounded to standard tier."
+  validated: true
+  validation_errors: []
+owner:
+  author: Manuel Retamozo
+  branch: main
+approvals:
+  - id: intent-briefing-001
+    gate: intent-briefing
+    decision: accepted
+    source: askuserquestion
+    accepted_at: 2026-09-17T16:10:00Z
+    applies_to: [route-selection]
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: automatic
+    source: askuserquestion
+    accepted_at: 2026-09-17T16:12:00Z
+    applies_to: [all-phases]
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: single-pr
+    source: askuserquestion
+    accepted_at: 2026-09-17T16:12:00Z
+    applies_to: [sdd-tasks, sdd-apply]
+  - id: review-workload-001
+    gate: review-workload
+    decision: size:exception
+    source: askuserquestion
+    accepted_at: 2026-09-17T17:10:00Z
+    applies_to: [sdd-apply]
+phases:
+  tasks:
+    status: done
+    artifacts:
+      - "openspec/changes/fix-fu1-review-gate-attribution-gap/design.md"
+      - "openspec/changes/fix-fu1-review-gate-attribution-gap/decisions/adr-001.md"
+      - "openspec/changes/fix-fu1-review-gate-attribution-gap/decisions/adr-002.md"
+      - "openspec/changes/fix-fu1-review-gate-attribution-gap/decisions/adr-003.md"
+      - "openspec/changes/fix-fu1-review-gate-attribution-gap/decisions/adr-004.md"
+    summary: "Design FU1: fact sintético kernel-contract-change en el normalizador, override declarativo fail-closed en el gate, createSuccessor v2, propagación a 4 targets v"
+    key_decisions:
+      - "Fact sintético kernel-contract-change emitido en normalizeQualityReviewEvidence (pipeline normal, fingerprint válido)"
+      - "Override como política pura validada en review-dimensions y aplicada por planQualityReviewGate (fail-closed, audit)"
+      - "Fingerprint sin version bump: snapshots persistidos son auto-consistentes; compatibilidad vía tests de replay"
+    last_payload_hash: "e12cec3d06b86c55e44bfa41e4cb3c25d9b7930c9a8adb796d783c577292eb43"
+  design:
+    status: done
+    artifacts:
+      - "openspec/changes/fix-fu1-review-gate-attribution-gap/specs/quality-review-attribution-resolution/spec.md"
+      - "openspec/changes/fix-fu1-review-gate-attribution-gap/specs/routing/spec.md"
+      - "openspec/changes/fix-fu1-review-gate-attribution-gap/specs/install/spec.md"
+    summary: "Deltas de spec escritos: capability nueva quality-review-attribution-resolution (atribución por scopes kernel + override auditable + createSuccessor v2), routin"
+    last_payload_hash: "20f86864bdf2f4a0d191f4dbbfb3d3e264bd2a9b4a53e4f01ec1bd2038bf2072"
+  sdd-propose:
+    status: success
+    completed_at: 2026-09-17T16:20:00Z
+    summary: >
+      Proposal FU1: contrato de resolución de ambigüedad del quality-review-gate
+      (atribución mínima por capability_scopes + override declarativo opt-in tipo
+      quality_gates con justification obligatoria y audit), createSuccessor v2,
+      propagación multi-target (claude, vscode, github-copilot, opencode).
+      Reducer de fases y journal failed del archive-transaction partidos en
+      follow-ups por presupuesto de 400 líneas (strategy single-pr).
+    key_decisions:
+      - Override declarativo en openspec/config.yaml, patrón quality_gates, justification obligatoria + gate audit.
+      - createSuccessor v2 en scope; reducer de fases y journal failed fuera (follow-ups).
+      - La trampa FU1 solo dispara en clasificación normal (review-dimensions.js L624-633: high-risk siempre sufficient); tests deben cubrir normal explícitamente.
+  sdd-spec:
+    status: success
+    completed_at: 2026-09-17T16:30:00Z
+    summary: >
+      Capability nueva quality-review-attribution-resolution (5 REQ, 11 escenarios:
+      scope attribution cierra sufficient, override auditable fail-closed,
+      createSuccessor v2 sin taxonomía mixta, trampa FU1 explícita con
+      clasificación normal). Delta routing: REQ-routing-012 ADDED + 003/008
+      MODIFIED. Delta install: REQ-install-026 (4 targets con mapeos nativos).
+      Baseline del gate de calidad vive en openspec/specs/routing/spec.md, no en
+      quality-gates (política declarativa de sdd-verify, intocada).
+    key_decisions:
+      - Override modelado como capability nueva + MODIFIED en routing; dominio quality-gates intacto.
+      - REQ-install-026 continúa numeración existente (025).
+  clarify:
+    status: skipped
+  sdd-design:
+    status: success
+    completed_at: 2026-09-17T16:45:00Z
+    summary: >
+      Design + 4 ADRs: fact sintético kernel-contract-change emitido en
+      normalizeQualityReviewEvidence (pipeline normal, fingerprint válido);
+      override declarativo como política pura (validada en review-dimensions,
+      aplicada por planQualityReviewGate, fail-closed con audit; modelada como
+      key opcional estructurada 'resolution' que validateRouterDecision ya
+      acepta); createSuccessor v2 nativo; propagación vía BFS existente del
+      build. 0 archivos nuevos, 9 modificados + tests. TDD focused por capa,
+      replay con snapshots pre-change, dist tests auto-generados en temp dir.
+    key_decisions:
+      - Fact sintético fluye por fingerprint/audit, sin bypass del pipeline.
+      - Override fail-closed: key estructurada resolution, no regex en reason.
+      - Fingerprint sin version bump; compatibilidad vía tests de replay.
+      - REQUERIDO: regla runtime-code-without-domain-attribution debe volverse per-capability (review-dimensions.js L643) o el fact sintético enmascara otros códigos de ambigüedad.
+  sdd-apply:
+    status: done
+    completed_at: 2026-09-18T00:00:00Z
+    artifacts:
+      - "openspec/changes/fix-fu1-review-gate-attribution-gap/apply-progress.md"
+    summary: >
+      Apply ejecutado bajo ODD (workflow elegido por el usuario; dispatcher SDD
+      no usado) con los artefactos del change como contexto: phases 1-5
+      implementadas con TDD RED->GREEN, 7 work-unit commits en
+      fix/fu1-review-gate-attribution-gap (f88b8eba..536ffa39), tracking ODD en
+      odd/tasks/fix-fu1-review-gate-attribution-gap.md.
+    key_decisions:
+      - "Matching de scope del override: prefix literal + dir/** recursivo (resuelve sdd-tasks-001)"
+      - "Regla runtime per-capability: scoped con paths runtime sin atribuir, o runtime paths no cubiertos por scopes sin señal de facts"
+      - "Sentinel del target claude en claude-marketplace.js (CLI externo no extendible in-repo)"
+      - "K1 guard: normalización sancionada solo de la forma comentada del bloque override"
+  sdd-verify:
+    status: done
+    verdict: "PASS"
+    completed_at: 2026-09-18T00:00:00Z
+    artifacts:
+      - "openspec/changes/fix-fu1-review-gate-attribution-gap/verify-report.md"
+    summary: >
+      Verify PASS: npm test completo verde (All checks passed); build de 7
+      targets en temp dir; validate-github-copilot/opencode/vscode 0 errores;
+      marketplace claude exitCode 0; sentinels negativos fallan cerrado;
+      targets out-of-scope byte-equivalentes en proyecciones diferenciadas
+      (únicas diferencias: runtime compartido por construcción, sdd-design-001
+      confirmada); matriz de trazabilidad REQ->task->commit->test completa.
+    key_decisions:
+      - "Veredicto PASS sin warnings; follow-ups FU1a/FU1b registrados en roadmap"
+      - "Asunciones sdd-design-001/sdd-tasks-001/002 resueltas y documentadas"
+assumptions:
+  - id: sdd-design-001
+    phase: sdd-design
+    statement: "Interpretar REQ-install-026 byte-equivalence como aplicable a las proyecciones diferenciadas por target, no a los scripts/lib compartidos que se shippean idénticos a los 6 targets."
+    reversibility: high
+    basis: "scripts/configure/cli.js RUNTIME_ENTRY_SCRIPTS + BFS require-graph incluye review-dimensions/gate-state/lineage en todos los dists; igualdad estricta de bytes en codex/cursor es imposible sin filtro por target."
+    recorded_at: 2026-09-17T16:45:00Z
+    status: unresolved
+  - id: sdd-tasks-001
+    phase: sdd-tasks
+    statement: "El matching de scope del attribution_override usa prefix/glob consistente con el estilo de SELF_REVIEW_PREFIXES."
+    reversibility: high
+    basis: "Design (Open Questions) propone esa interpretación; detalle interno sin efecto observable en el contrato público."
+    recorded_at: 2026-09-17T17:05:00Z
+    status: unresolved
+  - id: sdd-tasks-002
+    phase: sdd-tasks
+    statement: "La interpretación de REQ-install-026 byte-equivalence en la tarea 5.3 sigue a sdd-design-001: aplica a proyecciones diferenciadas por target, no a scripts/lib compartidos."
+    reversibility: high
+    basis: "Directiva del orchestrator y Open Question del design; desvíos detectados en 5.3 se escalan como flag de verify."
+    recorded_at: 2026-09-17T17:05:00Z
+    status: unresolved
+baseline_fingerprints:
+  routing: 36a02c0635bac4c9de477a09558f9cb021fa9b31b760930cb03c375a397243fa
+  install: d6f731c564294bd47db06a97e843c9b2120b0f7c07b89641174f69832d51fb3a
+  quality-review-attribution-resolution: null
