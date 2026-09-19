@@ -1,7 +1,7 @@
 # Roadmap general — garantías verificables y ejecución adaptable
 
 > **Autoridad:** única fuente operativa del backlog transversal.
-> **Versión de referencia:** v2.67.3, 2026-09-17.
+> **Versión de referencia:** v2.68.0, 2026-09-18.
 > **Revisión de arquitectura y prioridades:** 2026-09-16; no cambia la versión publicada ni los estados de OpenSpec.
 > **Arquitectura:** [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md).
 > **Investigación no normativa:** [`../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md`](../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md) (P0–P27). Proporcionalidad de proceso y Change Program: [`../architecture/research/proportional-process-and-change-program.md`](../architecture/research/proportional-process-and-change-program.md).

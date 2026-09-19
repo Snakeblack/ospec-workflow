@@ -1,6 +1,7 @@
 # Verification Report
 
 **Change**: fix-fu1-review-gate-attribution-gap
+**Version**: 2.68.0
 **Mode**: ODD execution with SDD-format artifacts (user-directed); TDD RED→GREEN per layer
 **Candidate**: working tree of branch `fix/fu1-review-gate-attribution-gap` (commits `f88b8eba`..`536ffa39`)
 **Date**: 2026-09-18

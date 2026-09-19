@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - La trampa FU1: un change de contrato kernel limpio sin señales léxicas quedaba trabado en `public-kernel-contract-unattributed` → `quality-review-ambiguity-unresolved` sin dispatch ni archive (hallazgo observado en `remediate-cx1-strict-string-parity`).
+- Ciclo SDD completo archivado en `openspec/changes/archive/2026-09-18-fix-fu1-review-gate-attribution-gap/`; requisitos, escenarios y suite focal verificados en runtime.
 
 ### Changed
 - Ampliación documentada de la regla runtime: cambios con una sola capability runtime no atribuida que además portan un fact global (p.ej. `dependency-trust-change`) ahora clasifican `ambiguous` (semántica per-capability del spec); sin cambios en tests pineados.
