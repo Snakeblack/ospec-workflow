@@ -72,6 +72,7 @@ function loadTree(sourceDir, roots = SOURCE_ROOTS) {
 // half of the federation/explore/baseline skills and orchestrator CLI runners (such as route-dispatch-run.js).
 const RUNTIME_ENTRY_SCRIPTS = [
   "scripts/route-dispatch-run.js",
+  "scripts/validate-phase.js",
   "scripts/lib/review-dimensions.js",
   "scripts/lib/review-gate-state.js",
   "scripts/lib/review-lineage.js",
