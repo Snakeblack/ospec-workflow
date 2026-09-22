@@ -207,6 +207,60 @@ func (s *Store) FindActiveChanges() ([]*ActiveChange, error) {
 	return changes, nil
 }
 
+// RecoverOrphanStateBackups restores any state.yaml.bak whose primary state
+// file is absent before a caller discovers active changes. Each recovery is
+// rechecked while holding the state lock so it cannot race a concurrent writer.
+func (s *Store) RecoverOrphanStateBackups() error {
+	changesDir := filepath.Join(s.Workspace, "openspec", "changes")
+	entries, err := os.ReadDir(changesDir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("store.RecoverOrphanStateBackups: %w", err)
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() || entry.Name() == "archive" {
+			continue
+		}
+		statePath := filepath.Join(changesDir, entry.Name(), "state.yaml")
+		if _, err := os.Stat(statePath); err == nil {
+			continue
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("store.RecoverOrphanStateBackups: stat %s: %w", statePath, err)
+		}
+		if _, err := os.Stat(statePath + ".bak"); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return fmt.Errorf("store.RecoverOrphanStateBackups: stat backup %s: %w", statePath, err)
+		}
+		if err := WithLock(statePath, func() error { return recoverOrphanStateBackup(statePath) }); err != nil {
+			return fmt.Errorf("store.RecoverOrphanStateBackups: recover %s: %w", statePath, err)
+		}
+	}
+	return nil
+}
+
+func recoverOrphanStateBackup(statePath string) error {
+	if _, err := os.Stat(statePath); err == nil {
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("stat state file: %w", err)
+	}
+	backupPath := statePath + ".bak"
+	if _, err := os.Stat(backupPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("stat state backup: %w", err)
+	}
+	if err := os.Rename(backupPath, statePath); err != nil {
+		return fmt.Errorf("restore orphaned state backup: %w", err)
+	}
+	return nil
+}
+
 // ── WriteSessionSummary ───────────────────────────────────────────────────────
 
 // WriteSessionSummary atomically writes content to the session summary for

@@ -642,6 +642,204 @@ func createChangeWorkspace(t *testing.T, stateContent string) (workspace, stateP
 	return workspace, statePath
 }
 
+func TestSubagentStop_ProjectsEnvelopeWithReducerParity(t *testing.T) {
+	blockedEnvelope := validSubagentEnvelope()
+	blockedEnvelope["status"] = "blocked"
+	blockedEnvelope["blocker_type"] = "design-mismatch"
+	blockedEnvelope["question_gate"] = map[string]any{
+		"reason": "The implementation contradicts the approved design.",
+		"questions": []any{map[string]any{
+			"header": "Resolve design mismatch",
+			"question": "Should the implementation follow the approved design?",
+			"options": []any{map[string]any{"label": "follow-design"}},
+		}},
+	}
+	partialEnvelope := validSubagentEnvelope()
+	partialEnvelope["status"] = "partial"
+	verifyFailureEnvelope := validSubagentEnvelope()
+	verifyFailureEnvelope["verify_outcome"] = "FAIL"
+
+	cases := []struct {
+		name        string
+		phase       string
+		state       string
+		envelope    map[string]any
+		want        []string
+		replay      bool
+	}{
+		{
+			name:     "success advances state and records a replay hash",
+			phase:    "design",
+			state:    stateWithEmptyDesignSummary,
+			envelope: validSubagentEnvelope(),
+			want: []string{
+				"revision: 1",
+				"last_updated:",
+				"last_payload_hash:",
+				`summary: "Diseñó el flujo de persistencia del envelope."`,
+			},
+			replay: true,
+		},
+		{
+			name:  "blocked envelope records blocking question",
+			phase: "apply",
+			state: "change: strict-result-envelope\nstatus: applying\nphases:\n" +
+				"  apply:\n    status: pending\n    artifact: \"openspec/changes/strict-result-envelope/apply-progress.md\"\n    summary: \"\"\n",
+			envelope: blockedEnvelope,
+			want: []string{
+				"status: blocked",
+				"revision: 1",
+				"blocking_questions:",
+				`- "Should the implementation follow the approved design?"`,
+				"blocker_type: design-mismatch",
+			},
+		},
+		{
+			name:  "partial apply remains applying",
+			phase: "apply",
+			state: "change: strict-result-envelope\nstatus: ready-for-apply\nphases:\n  apply:\n    status: pending\n",
+			envelope: partialEnvelope,
+			want: []string{
+				"status: applying",
+				"    status: partial",
+			},
+		},
+		{
+			name:  "failed verification blocks state",
+			phase: "verify",
+			state: "change: strict-result-envelope\nstatus: ready-for-verify\nphases:\n  verify:\n    status: pending\n",
+			envelope: verifyFailureEnvelope,
+			want: []string{
+				"status: blocked",
+				"    status: done",
+				`verdict: "FAIL"`,
+				"blocking_questions:",
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			workspace, statePath := createChangeWorkspace(t, tc.state)
+			stdin, err := json.Marshal(map[string]any{
+				"cwd":        workspace,
+				"agent_type": "sdd-" + tc.phase,
+				"result":     buildFenceText(tc.envelope),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			result, code := runSubagentStop(t, stdin)
+			if code != 0 || !result.Continue {
+				t.Fatalf("hook must fail safe, code=%d result=%+v", code, result)
+			}
+			after, err := os.ReadFile(statePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, want := range tc.want {
+				if !strings.Contains(string(after), want) {
+					t.Errorf("projected state missing %q:\n%s", want, after)
+				}
+			}
+
+			if tc.replay {
+				first := string(after)
+				result, code := runSubagentStop(t, stdin)
+				if code != 0 || !result.Continue {
+					t.Fatalf("replayed hook must fail safe, code=%d result=%+v", code, result)
+				}
+				replayed, err := os.ReadFile(statePath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if string(replayed) != first {
+					t.Errorf("identical envelope replay must be a byte-for-byte no-op:\nfirst:\n%s\nreplayed:\n%s", first, replayed)
+				}
+			}
+		})
+	}
+}
+
+func TestSubagentStop_MalformedSequenceScalarStatePreservesBytesAndFailsSafe(t *testing.T) {
+	before := "change: example\n" +
+		"status: planning\n" +
+		"phases:\n" +
+		"  design:\n" +
+		"    status: pending\n" +
+		"    key_decisions:\n" +
+		"      - \"unterminated\n"
+	workspace, statePath := createChangeWorkspace(t, before)
+	stdin, err := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-design",
+		"result":     buildFenceText(validSubagentEnvelope()),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	output, code := hooks.Dispatch([]string{"subagent-stop"}, stdin)
+	if code != 0 || string(output) != `{"continue":true}` {
+		t.Fatalf("malformed state must emit the fail-safe continuation, code=%d output=%q", code, output)
+	}
+	after, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != before {
+		t.Fatalf("malformed sequence scalar must preserve state bytes:\nbefore=%q\nafter=%q", before, after)
+	}
+}
+
+func TestSubagentStop_ProjectionLockFailureIsFailSafe(t *testing.T) {
+	workspace, statePath := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+	if err := os.WriteFile(statePath+".lock", []byte("contended"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	stdin, err := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-design",
+		"result":     buildFenceText(validSubagentEnvelope()),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, code := hooks.Dispatch([]string{"subagent-stop"}, stdin)
+	if code != 0 || string(out) != `{"continue":true}` {
+		t.Fatalf("projection failure must emit exactly the fail-safe hook output, code=%d output=%q", code, out)
+	}
+	after, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != stateWithEmptyDesignSummary {
+		t.Fatalf("contended projection must leave state untouched:\n%s", after)
+	}
+}
+
+func TestProjectPhaseCompletion_CASConflictKeepsState(t *testing.T) {
+	workspace := t.TempDir()
+	statePath := filepath.Join(workspace, "state.yaml")
+	before := "change: strict-result-envelope\nstatus: applying\nrevision: 4\nphases:\n  design:\n    status: pending\n"
+	if err := os.WriteFile(statePath, []byte(before), 0644); err != nil {
+		t.Fatal(err)
+	}
+	staleRevision := 3
+	result := hooks.ProjectPhaseCompletion(statePath, "design", validSubagentEnvelope(), &staleRevision)
+	if result.OK || result.Outcome != "cas-conflict" || result.Code != "cas_conflict" {
+		t.Fatalf("expected a CAS conflict, got %+v", result)
+	}
+	after, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != before {
+		t.Fatalf("CAS conflict must not mutate state:\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+}
+
 func TestSubagentStop_PersistsValidEnvelopeFence(t *testing.T) {
 	workspace, statePath := createChangeWorkspace(t, stateWithEmptyDesignSummary)
 
@@ -795,7 +993,7 @@ func TestSubagentStop_MissingRequiredFieldFenceDoesNotWriteState(t *testing.T) {
 	}
 }
 
-func TestSubagentStop_DoesNotOverwriteNonEmptySummary(t *testing.T) {
+func TestSubagentStop_ProjectsDistinctEnvelopeOverLegacySummary(t *testing.T) {
 	workspace, statePath := createChangeWorkspace(t, stateWithNonEmptyDesignSummary)
 
 	stdin, _ := json.Marshal(map[string]any{
@@ -809,8 +1007,8 @@ func TestSubagentStop_DoesNotOverwriteNonEmptySummary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(after) != stateWithNonEmptyDesignSummary {
-		t.Errorf("must not overwrite an already non-empty summary, got:\n%s", after)
+	if !strings.Contains(string(after), `summary: "Diseñó el flujo de persistencia del envelope."`) || !strings.Contains(string(after), "last_payload_hash:") {
+		t.Errorf("a distinct legacy completion must receive reducer projection and replay protection, got:\n%s", after)
 	}
 }
 
@@ -873,7 +1071,7 @@ func TestSubagentStop_MixedKeyDecisionsOnlyPersistsStrings(t *testing.T) {
 	if !strings.Contains(string(updated), `- "A real decision"`) || !strings.Contains(string(updated), `- "Another real decision"`) {
 		t.Errorf("expected the string entries to be persisted, got:\n%s", updated)
 	}
-	if strings.Contains(string(updated), "42") || strings.Contains(string(updated), "nested") {
+	if strings.Contains(string(updated), `- "42"`) || strings.Contains(string(updated), `- "nested"`) {
 		t.Errorf("expected non-string key_decisions entries to be dropped, not stringified, got:\n%s", updated)
 	}
 }
@@ -1950,6 +2148,41 @@ func TestResolveDispatchStatus_LegacySpecFailClosed(t *testing.T) {
 	})
 	if got != "blocked" {
 		t.Errorf("expected status 'blocked' for legacy spec without ambiguity signals, got %q", got)
+	}
+}
+
+func TestSubagentStop_RecoversOrphanBackupBeforeActiveChangeDiscovery(t *testing.T) {
+	workspace := t.TempDir()
+	changeDir := filepath.Join(workspace, "openspec", "changes", "strict-result-envelope")
+	if err := os.MkdirAll(changeDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	statePath := filepath.Join(changeDir, "state.yaml")
+	backupPath := statePath + ".bak"
+	if err := os.WriteFile(backupPath, []byte(stateWithEmptyDesignSummary), 0644); err != nil {
+		t.Fatal(err)
+	}
+	stdin, err := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-design",
+		"result":     buildFenceText(validSubagentEnvelope()),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, code := runSubagentStop(t, stdin)
+	if code != 0 || !result.Continue {
+		t.Fatalf("hook must preserve its continuation protocol: code=%d result=%+v", code, result)
+	}
+	state, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatalf("hook must restore state.yaml before active-change discovery: %v", err)
+	}
+	if !strings.Contains(string(state), `summary: "Diseñó el flujo de persistencia del envelope."`) {
+		t.Fatalf("recovered active state was not projected:\n%s", state)
+	}
+	if _, err := os.Stat(backupPath); !os.IsNotExist(err) {
+		t.Fatalf("orphan backup must be consumed, stat error=%v", err)
 	}
 }
 

@@ -687,6 +687,54 @@ function setPhaseSummary(content, phase, { summary, keyDecisions = [] } = {}) {
   return nextLines.join(eol);
 }
 
+// This module writes state.yaml with a line-oriented projector rather than a
+// full YAML serializer. Validate the supported document subset while holding
+// the state lock so malformed nested YAML is never normalized or overwritten.
+function validateProjectableState(content) {
+  let change = false;
+  let status = false;
+  let phases = false;
+
+  for (const raw of String(content).split(/\r?\n/)) {
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    if (raw.includes("\t")) return false;
+
+    if (trimmed.startsWith("- ")) {
+      if (!isValidYamlScalar(trimmed.slice(2))) return false;
+      continue;
+    }
+
+    const match = trimmed.match(/^([^:\s][^:]*):\s*(.*)$/);
+    if (!match) return false;
+    const [, key, value] = match;
+    if (!isValidYamlScalar(value)) return false;
+    if (raw.match(/^\s*/)[0].length !== 0) continue;
+    if (key === "change") change = Boolean(value.trim());
+    if (key === "status") status = Boolean(value.trim());
+    if (key === "revision" && !/^\d+$/.test(value.trim())) return false;
+    if (key === "phases") {
+      if (value.trim() && !value.trim().startsWith("#")) return false;
+      phases = true;
+    }
+  }
+
+  return change && status && phases;
+}
+
+function isValidYamlScalar(rawValue) {
+  const value = String(rawValue).trim();
+  if (!value) return true;
+  if (value.startsWith('"')) {
+    try {
+      return typeof JSON.parse(value) === "string";
+    } catch {
+      return false;
+    }
+  }
+  return !value.startsWith("'") || (value.length >= 2 && value.endsWith("'"));
+}
+
 function parseStateYaml(content) {
   const result = {
     schema_version: 1,
@@ -1024,7 +1072,11 @@ async function projectPhaseCompletion({ changePath, phase, envelope, expectedRev
       return { ok: false, outcome: "read-failed", error: error.message };
     }
 
-    // 2. Parse currentState from state.yaml
+    // 2. Validate and parse state.yaml inside the lock. Doing this here
+    // prevents a pre-lock validation result from being raced by another writer.
+    if (!validateProjectableState(content)) {
+      return { ok: false, outcome: "malformed-state", code: "malformed_state", error: "malformed state.yaml" };
+    }
     const currentState = parseStateYaml(content);
 
     // 3. Execute pure reduction (timestamp injected at this I/O boundary)

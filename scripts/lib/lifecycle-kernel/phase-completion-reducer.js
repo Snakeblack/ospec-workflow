@@ -6,10 +6,36 @@ function clone(value) {
   return structuredClone(value);
 }
 
+// Canonical JSON is the replay boundary shared with the Go hook. Native
+// JSON.stringify preserves insertion order while Go maps do not, so hashing it
+// directly makes a persisted replay hash runtime-specific. Input envelopes are
+// JSON values; reject unsupported values instead of silently changing a hash.
+function canonicalJson(value) {
+  if (value === null || typeof value === "boolean" || typeof value === "string") {
+    return JSON.stringify(value);
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new TypeError("Replay payload contains a non-finite number");
+    }
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  }
+  if (typeof value === "object") {
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
+      .join(",")}}`;
+  }
+  throw new TypeError("Replay payload contains a non-JSON value");
+}
+
 function computePayloadHash(payload) {
   return crypto
     .createHash("sha256")
-    .update(JSON.stringify(payload))
+    .update(canonicalJson(payload), "utf8")
     .digest("hex");
 }
 
