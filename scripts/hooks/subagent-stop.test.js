@@ -402,6 +402,29 @@ test("malformed fence (invalid JSON) — validation fails safely, no write", asy
   assert.equal(untouchedState, STATE_WITH_EMPTY_DESIGN_SUMMARY);
 });
 
+test("unterminated nested YAML scalar fails closed and preserves state bytes", async (t) => {
+  const malformedState = [
+    "change: strict-result-envelope",
+    "status: applying",
+    "phases:",
+    "  design:",
+    '    summary: "unterminated',
+    "",
+  ].join("\n");
+  const { workspace, statePath } = await createChangeWorkspace(t, malformedState);
+
+  const result = await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-design",
+      result: buildFenceText(VALID_ENVELOPE),
+    },
+  });
+
+  assert.deepEqual(result, { status: "skipped", reason: "healthy-resolution" });
+  assert.equal(await fs.readFile(statePath, "utf8"), malformedState);
+});
+
 test("fence missing a required field — validation fails safely, no write", async (t) => {
   const { workspace, statePath } = await createChangeWorkspace(
     t,
@@ -1939,8 +1962,52 @@ test("SubagentStop: reducer or state write failure remains fail-safe [REQ-hooks-
     },
   });
 
-  // Hook must NEVER fail or exit non-zero; it must return fail-safely
-  assert.ok(hookResult);
+  // Hook must NEVER fail or exit non-zero; corrupted state must also remain
+  // byte-for-byte intact instead of being parsed as revision zero and replaced.
+  assert.deepEqual(hookResult, {
+    status: "skipped",
+    reason: "healthy-resolution",
+  });
+  assert.equal(
+    await fs.readFile(statePath, "utf8"),
+    "::: invalid yaml :::\n\t\t\t][][",
+  );
+});
+
+test("persistResultEnvelope logs projection failures and recovered errors without changing state", async (t) => {
+  const { workspace, statePath } = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_DESIGN_SUMMARY,
+  );
+
+  for (const scenario of [
+    {
+      name: "failed projection result",
+      project: async () => ({ ok: false, outcome: "write-failed", error: "injected write failure" }),
+      expected: /write-failed: injected write failure/,
+    },
+    {
+      name: "recovered projection error",
+      project: async () => { throw new Error("injected projection panic"); },
+      expected: /injected projection panic/,
+    },
+  ]) {
+    const logged = [];
+    await persistResultEnvelope({
+      input: {
+        cwd: workspace,
+        agent_type: "sdd-design",
+        result: buildFenceText(VALID_ENVELOPE),
+      },
+      workspace,
+      project: scenario.project,
+      log: (message) => logged.push(message),
+    });
+    assert.equal(logged.length, 1, scenario.name);
+    assert.match(logged[0], scenario.expected, scenario.name);
+  }
+
+  assert.equal(await fs.readFile(statePath, "utf8"), STATE_WITH_EMPTY_DESIGN_SUMMARY);
 });
 
 test("SubagentStop: prefixed sdd-spec dispatch enforces fail-closed validation [REQ-hooks-015]", async (t) => {
@@ -2095,7 +2162,7 @@ test("SubagentStop: resolveDispatchStatus resolves legacy raw text and transcrip
   assert.equal(statusFromTranscript, "success");
 });
 
-test("SubagentStop: resolveDispatchStatus rejects legacy sdd-spec success without ambiguity signals [REQ-hooks-015]", async (t) => {
+test("SubagentStop: resolveDispatchStatus rejects legacy sdd-spec success without ambiguity signals [REQ-hooks-015]", async () => {
   const legacySpecProse = [
     "**Status**: success",
     "**Summary**: Spec legacy sin ambiguity signals.",
