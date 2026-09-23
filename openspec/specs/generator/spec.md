@@ -2,7 +2,7 @@
 
 ## Overview
 
-The generator is the build pipeline that transforms the canonical source plugin tree into target-native file distributions for six supported targets: `claude`, `vscode`, `github-copilot`, `opencode`, `codex`, and `cursor`. It is composed of a pure transform layer (`scripts/lib/target-transform.js`) and an IO shell (`scripts/configure/cli.js`) that handles filesystem reads, writes, and validation.
+The generator is the build pipeline that transforms the canonical source plugin tree into target-native file distributions for seven supported targets: `claude`, `vscode`, `github-copilot`, `opencode`, `codex`, `cursor`, and `antigravity`. It is composed of a pure transform layer (`scripts/lib/target-transform.js`) and an IO shell (`scripts/configure/cli.js`) that handles filesystem reads, writes, and validation.
 
 ## Source files
 
@@ -45,7 +45,7 @@ The generator is the build pipeline that transforms the canonical source plugin 
 | `scripts/lib/federation-baseline-orchestrator.js` | baseline-orchestrator runtime |
 | `scripts/lib/strict-tdd-evidence-remediation.js` | Strict TDD evidence remediation reducer |
 
-All eight scripts and their transitive `require()` dependencies MUST be present in the dist of ALL six targets (`claude`, `vscode`, `github-copilot`, `opencode`, `codex`, `cursor`) under `scripts/lib/`.
+All eight scripts and their transitive `require()` dependencies MUST be present in the dist of ALL seven targets (`claude`, `vscode`, `github-copilot`, `opencode`, `codex`, `cursor`, `antigravity`) under `scripts/lib/`.
 And it MUST NOT include test files (`.test.js`) or generator-only modules (`target-*`, `frontmatter`, `model-resolver`, `configure/`) in the runtime script bundle. Transitive dependencies are subjected to the same exclusion check, preventing excluded files from being resolved or bundled.
 When `loadTree` reads files under `SOURCE_ROOTS` or a profile's optional `sourceRoots`, I/O failures MUST propagate and fail the configure run (no warn-and-skip).
 And it MUST silently skip any root that does not exist on disk.
@@ -59,7 +59,7 @@ The canonical `SOURCE_ROOTS` are:
 #### Scenario: Skill entry-point scripts present in dist
 
 - GIVEN the source tree contains the eight skill entry-point scripts under `scripts/lib/`
-- WHEN `gatherRuntimeScripts` runs during generation for any of the six targets (`claude`, `vscode`, `github-copilot`, `opencode`, `codex`, `cursor`)
+- WHEN `gatherRuntimeScripts` runs during generation for any of the seven targets (`claude`, `vscode`, `github-copilot`, `opencode`, `codex`, `cursor`, `antigravity`)
 - THEN `review-dimensions.js`, `review-gate-state.js`, `review-lineage.js`, `federation-marker.js`, `federation-explore.js`, `workspace-general-baseline.js`, `federation-baseline-orchestrator.js`, and `strict-tdd-evidence-remediation.js` MUST each appear in the collected runtime file set
 - AND they MUST be emitted under `scripts/lib/` in the output dist
 
@@ -189,7 +189,7 @@ And it MUST be possible to skip validation via `--no-validate` flag.
 Given the CLI is invoked as `node scripts/configure/cli.js --target <target> [--out dir] [--source dir] [--no-validate]`,
 When arguments are parsed,
 Then:
-- `--target` MUST be one of `claude`, `vscode`, `github-copilot`, `opencode`, `codex`, `cursor`; an unknown target causes exit code 2.
+- `--target` MUST be one of `claude`, `vscode`, `github-copilot`, `opencode`, `codex`, `cursor`, `antigravity`; an unknown target causes exit code 2.
 - `--out` defaults to `dist/<target>` relative to cwd.
 - `--source` defaults to cwd.
 - If `--target` is missing or invalid, the CLI MUST write a usage hint to stderr and set `process.exitCode = 2`.
@@ -564,7 +564,7 @@ A target profile MAY declare an agent-readonly policy. When declared, each liste
 
 ### Requirement: Cursor Target Profile And Tool Map {#REQ-generator-009}
 
-The generator MUST register `cursor` as a sixth supported target in the CLI profile
+The generator MUST register `cursor` among the seven supported targets in the CLI profile
 registry. The cursor profile MUST declare a Cursor-native `toolMap`: `read→Read`,
 `edit→Write`+`StrReplace` (primary `Write`), `search→Grep`+`Glob` (primary `Grep`),
 `execute→Shell`, `agent→Task`, and degradation markers for `vscode/askQuestions` and
@@ -802,7 +802,7 @@ leaking it into generated frontmatter/configuration.
 
 ### Requirement: Lite Contract Cross-Target Parity {#REQ-generator-017}
 
-Generation and validation MUST preserve the lite artifact contract across `claude`, `vscode`, `github-copilot`, `opencode`, `codex`, and `cursor`. Every generated target MUST retain equivalent route-aware producer, consumer, recovery, and archive instructions: a valid lite flow accepts absent spec/design artifacts, preserves `apply-progress` continuity and verification evidence, and does not add routes or merge phases. Target validation MUST fail when a target requires nonexistent lite spec/design artifacts or diverges from the source lite phase order and dependency behavior.
+Generation and validation MUST preserve the lite artifact contract across `claude`, `vscode`, `github-copilot`, `opencode`, `codex`, `cursor`, and `antigravity`. Every generated target MUST retain equivalent route-aware producer, consumer, recovery, and archive instructions: a valid lite flow accepts absent spec/design artifacts, preserves `apply-progress` continuity and verification evidence, and does not add routes or merge phases. Target validation MUST fail when a target requires nonexistent lite spec/design artifacts or diverges from the source lite phase order and dependency behavior.
 
 #### Scenario: All targets accept a complete lite inventory
 

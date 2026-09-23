@@ -6,7 +6,7 @@ const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 
-const { runConfigure } = require("./configure/cli.js");
+const { runConfigure, PROFILES } = require("./configure/cli.js");
 const { parseRoutingTable } = require("./lib/route-dispatcher.js");
 const { validatePhaseTransition } = require("./lib/flow-validator.js");
 const { resolveRemainingTasks } = require("./lib/apply-resume.js");
@@ -19,7 +19,7 @@ const {
 } = require("./lib/archive-transaction.js");
 
 const ROOT = path.resolve(__dirname, "..");
-const TARGETS = ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor"];
+const TARGETS = Object.keys(PROFILES);
 
 function tmpOut(t) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-compact-lite-"));
@@ -74,7 +74,38 @@ test("compact lite source contract has stable producers, independent verify, and
   assert.doesNotMatch(source, /create empty spec\/design/i, "lite contract must not use filler artifacts");
 });
 
-test("compact lite generator parity holds across six targets and rejects an unconditional standard read", (t) => {
+test("generator spec inventories every generated target consistently", () => {
+  const spec = fs.readFileSync(path.join(ROOT, "openspec/specs/generator/spec.md"), "utf8");
+  const inventory = TARGETS.map((target) => `\`${target}\``);
+  assert.equal(inventory.length, 7);
+  for (const statement of [
+    spec.split("\n").find((line) => line.startsWith("The generator is the build pipeline")),
+    spec.split("\n").find((line) => line.startsWith("All eight scripts and their transitive")),
+    spec.split("\n").find((line) => line.startsWith("- WHEN `gatherRuntimeScripts` runs during generation")),
+    spec.split("\n").find((line) => line.startsWith("- `--target` MUST be one of")),
+  ]) {
+    assert.ok(statement, "generator target statement must exist");
+    assert.deepEqual(statement.match(/`(?:claude|vscode|github-copilot|opencode|codex|cursor|antigravity)`/g), inventory);
+    if (!statement.startsWith("- `--target`")) assert.match(statement, /seven/i);
+  }
+});
+
+test("PP2/CX1 documentation distinguishes generated scripts from host enforcement", () => {
+  const spec = fs.readFileSync(path.join(ROOT, "openspec/specs/generator/spec.md"), "utf8");
+  const normative = spec.replace(/^\(Previously:[\s\S]*?\)\s*$/gm, "");
+  assert.doesNotMatch(normative, /(?:sixth|six|sexto|seis) supported target/i);
+  const doc = fs.readFileSync(path.join(ROOT, "docs/target-capabilities.md"), "utf8");
+  for (const target of TARGETS) assert.match(doc, new RegExp(`\\b${target}\\b`));
+  for (const state of ["enforced", "partial", "instructional", "unavailable"]) assert.match(doc, new RegExp(`\\b${state}\\b`));
+  assert.match(doc, /\| `cursor` \| instructional \| unavailable \|[^\n]*SubagentStop/i);
+  assert.match(doc, /Node scripts[^\n]*host-enforced/i);
+});
+
+test("compact lite generator parity holds across all seven profiles and rejects an unconditional standard read", (t) => {
+  assert.equal(TARGETS.length, 7);
+  assert.ok(TARGETS.includes("antigravity"));
+  const generatorSpec = fs.readFileSync(path.join(ROOT, "openspec/specs/generator/spec.md"), "utf8");
+  assert.match(generatorSpec, /Generation and validation MUST preserve the lite artifact contract across[^\n]*`antigravity`/);
   const sourceConfig = fs.readFileSync(path.join(ROOT, "openspec", "config.yaml"), "utf8");
   const lite = parseRoutingTable(sourceConfig).find((route) => route.name === "lite");
   assert.deepEqual(lite.phases, ["sdd-propose", "sdd-tasks", "sdd-apply", "sdd-verify", "sdd-archive"]);

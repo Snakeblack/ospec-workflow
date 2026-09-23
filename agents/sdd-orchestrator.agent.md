@@ -231,7 +231,7 @@ When creating a new change, also stamp its owner in the same `state.yaml` write 
 Run the route's `phases` in declared order.
 
 Before delegating any phase `PHASE_NAME` to a subagent:
-1. Run the command: `node scripts/configure/validate-phase.js PHASE_NAME ACTUAL_ROUTE_NAME CHANGE_NAME` (where `ACTUAL_ROUTE_NAME` is the route resolved in `state.yaml` and `CHANGE_NAME` is the active change).
+1. Run the command: `node scripts/validate-phase.js PHASE_NAME ACTUAL_ROUTE_NAME CHANGE_NAME` (where `ACTUAL_ROUTE_NAME` is the route resolved in `state.yaml` and `CHANGE_NAME` is the active change).
 2. If this command exits with exit code 1 (or outputs an error), you MUST halt execution, print the error message back to the user, and do NOT dispatch the subagent.
 3. If this command exits with exit code 0, proceed to launch the subagent.
 

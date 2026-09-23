@@ -1,9 +1,10 @@
 # Matriz de capacidades y paridad por target (D1/D2)
 
-Los seis targets generados NO son equivalentes: cada host expone tools y
+Los seis targets de la matriz histórica NO son equivalentes: cada host expone tools y
 lifecycle hooks distintos. Esta matriz declara qué capacidad existe dónde, qué
 degradación aplica cuando falta, y qué protecciones corren en cada target —
-para que nadie asuma garantías que su host no ejecuta.
+para que nadie asuma garantías que su host no ejecuta. La clasificación PP2/CX1
+de siete perfiles aparece más abajo y tiene un alcance distinto.
 
 Fuente de mapeo de tools: `scripts/lib/target-profiles/*.js` (`toolMap`).
 
@@ -15,7 +16,7 @@ Fuente de mapeo de tools: `scripts/lib/target-profiles/*.js` (`toolMap`).
 | Sub-agentes delegados | ✅ (`Task`/agents) | ✅ (`agent`) | parcial (sesión única) | ✅ (`task`) | ✅ (spawn) | ✅ (`Task`) |
 | Sub-agentes en paralelo | ✅ | ❌ (secuencial) | ❌ | ❌ | ❌ | parcial (Task async) |
 | Background tasks | ✅ (`run_in_background`) | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Lifecycle hooks del plugin | ✅ (los 5) | ❌ | ❌ | parcial (`SessionStart`, `PreToolUse`) | ✅ (bridge) | ✅ (camelCase map) |
+| Lifecycle hooks del plugin | ✅ (los 5) | ❌ | ❌ | parcial (`SessionStart`, `PreToolUse`) | ✅ (bridge) | parcial (camelCase map; sin `SubagentStop`) |
 | Fallback de modelos por tier | vía `models.yaml` | ✅ (orden declarado) | ❌ | ✅ | ✅ | vía `models.yaml` `cursor:` |
 
 Regla de generación: los prompts de un target NO deben instruir tools o
@@ -39,19 +40,21 @@ agente alucine o se trabe. Ante la duda, el prompt generado usa el mínimo comú
 
 | Protección | Mecanismo | claude | vscode | github-copilot | opencode | codex | cursor | Mitigación donde falta |
 |---|---|---|---|---|---|---|---|---|
-| AgentShield (secretos) | hook `PreToolUse` | ✅ | ❌ | ❌ | parcial | ✅ | ✅ | regla instruccional en `rules/` del target |
-| Token budget advisor | hook `PreToolUse` | ✅ | ❌ | ❌ | parcial | ✅ | ✅ | `skills/_shared/token-budget.md` (pasivo) |
-| Git collaboration guard | hook `PreToolUse` | ✅ | ❌ | ❌ | parcial | ✅ | ✅ | git hooks locales (`pre-commit`) |
-| No-model-attribution | 3 capas | ✅ (hook+git+regla) | git hook + regla | git hook + regla | git hook + regla | git hook + regla | git hook + regla | git hook cubre TODOS los targets |
+| AgentShield (secretos) | hook `PreToolUse` | ✅ | ❌ | ❌ | parcial | ✅ | parcial (según evento mapeado) | regla instruccional en `rules/` del target |
+| Token budget advisor | hook `PreToolUse` | ✅ | ❌ | ❌ | parcial | ✅ | parcial (según evento mapeado) | `skills/_shared/token-budget.md` (pasivo) |
+| Git collaboration guard | hook `PreToolUse` | ✅ | ❌ | ❌ | parcial | ✅ | parcial (según evento mapeado) | git hooks locales (`pre-commit`) |
+| No-model-attribution | 3 capas | ✅ (hook+git+regla) | git hook + regla | git hook + regla | git hook + regla | git hook + regla | git hook + regla | git hook cubre TODOS los targets al instalarse |
 | Strict TDD guard | git hook + regla | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — (git hook, host-agnóstico) |
-| Registry fresh / session state | `SessionStart`/`Stop` | ✅ | ❌ (registro por comando) | ❌ | parcial (`SessionStart`; sin `Stop`) | ✅ | ✅ | `sdd-init` regenera el registry on-demand |
+| Registry fresh / session state | `SessionStart`/`Stop` | ✅ | ❌ (registro por comando) | ❌ | parcial (`SessionStart`; sin `Stop`) | ✅ | parcial (según eventos mapeados) | `sdd-init` regenera el registry on-demand |
 
-Lectura correcta de esta tabla: **los git hooks locales son la única capa que
-corre igual en los seis targets**; las protecciones de lifecycle hooks son
-plenas en Claude Code, Codex y Cursor (mapa camelCase). Un usuario de
-vscode/copilot NO debe asumir que el token advisor o AgentShield corren para él
-— tiene la versión instruccional (defensa pasiva) generada en las rules de su
-target.
+Lectura correcta de esta tabla: **los git hooks locales son la única capa**
+compartida entre los seis targets cuando se instalan y se ejecuta la operación
+Git pertinente; no son hooks de lifecycle del host ni cubren toda ejecución.
+Las protecciones de lifecycle hooks dependen del evento realmente mapeado e
+invocado: Cursor no mapea `SubagentStop`, por lo que no se afirma paridad total.
+Un usuario de vscode/copilot NO debe asumir que el token advisor o AgentShield
+corren para él — tiene la versión instruccional (defensa pasiva) generada en las
+rules de su target.
 
 ## 4. K2a capability states and proof-backed Claude activation
 
@@ -73,3 +76,25 @@ Closed capability states: `enforced | partial | instructional | unavailable`.
   proof binding; degradación residual sigue en prosa compartida).
 - MCP server `ospec` read-only (D3) como canal uniforme de estado para los 6
   targets y hosts futuros.
+
+## 6. PP2/CX1 compatibility (seven generated profiles; separate scope)
+
+The preceding D1/D2 tables preserve historical tool and protection guidance;
+this section classifies only PP2 phase validation and CX1 automatic projection.
+It does not upgrade historical hook mappings into verified host execution.
+
+Seven generated profiles exist: `claude`, `vscode`, `github-copilot`, `opencode`, `codex`, `cursor`, `antigravity`. Generation is not evidence that a host runs a hook. Closed states: `enforced | partial | instructional | unavailable`. Here `enforced` requires observed host execution and proof, `partial` denotes a mapped but incomplete surface, `instructional` denotes guidance requiring explicit user/agent action, and `unavailable` denotes no mapped automatic path.
+
+| Profile | PP2 phase validation | CX1 automatic envelope projection | Evidence boundary |
+|---|---|---|---|
+| `claude` | instructional | partial | Native SubagentStop hook and Node reducer are wired; K2a CapabilityProof covers the Claude adapter only, not universal phase validation. |
+| `vscode` | instructional | unavailable | No verified SubagentStop bridge. |
+| `github-copilot` | instructional | partial | Generated `subagentStop` mapping; host invocation and equivalent projection are not proven here. |
+| `opencode` | instructional | unavailable | Plugin maps session start and pre-tool use, not SubagentStop. |
+| `codex` | instructional | partial | Generated native hooks mapping; host invocation and equivalent projection are not proven here. |
+| `cursor` | instructional | unavailable | Cursor deliberately omits SubagentStop from its camelCase event map. |
+| `antigravity` | instructional | partial | Seventh generated hooks profile; host invocation and equivalent projection are not proven here. |
+
+PP2: `scripts/validate-phase.js` is delivered with generated runtimes and can validate a phase when explicitly executed. Delivered Node scripts are **not host-enforced** proof of automatic invocation. CX1: the Node `SubagentStop` reducer validates envelopes and performs locked CAS/replay-safe projection when invoked; generation and mapping alone do not prove that a given host calls it. `partial` does not mean end-to-end host enforcement. No profile is claimed to mediate all shell commands, network operations, or connectors. Git hooks, where installed, are separate from host lifecycle hooks and cannot substitute for SubagentStop.
+
+Only the Claude Code real HostAdapter has K2a proof binding (`adapter_version`, `host_version`, fixture, `evidence_digest`); other adapters remain inactive stubs. This proof is scoped to its verified capabilities, not blanket PP2/CX1 enforcement. These classifications describe observed repository wiring, not independently verified behavior in every host version.
