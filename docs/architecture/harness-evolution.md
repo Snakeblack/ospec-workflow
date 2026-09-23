@@ -1,10 +1,10 @@
 # Arquitectura objetivo — harness gobernado por kernel, grafo y evidencia
 
-> **Autoridad:** fuente conceptual y estratégica del harness (responsabilidades y límites).
-> **Corte documental:** v2.68.0, revisado el 2026-09-18 (estado alineado al roadmap; se explicita kernel estable y ejecución adaptable por capacidad observada).
+> **Autoridad:** referencia del kernel estable y de sus contratos; la dirección arquitectónica y el roadmap de Adaptive tienen su fuente canónica en [`ospec-adaptive-critical-design.md`](ospec-adaptive-critical-design.md). Este documento no introduce prioridades Adaptive independientes.
+> **Corte documental:** v2.68.0, revisado el 2026-09-19 (estado alineado con la fuente canónica Adaptive; se explicita kernel estable y ejecución adaptable por capacidad observada).
 > **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1**, **K2a**, **K3**, **`k3-readiness-remediation`**, **K4a**, **K5**, **K6a**, **K4b**, **K6b**, **K6c** y **K6d** están cerrados. K6d aporta evidencia advisory; OpenSpec/Git/Candidate siguen siendo la única autoridad semántica y K7–K9 permanecen como trabajo objetivo.
-> **Roadmap:** orden, estado operativo y done criteria viven en [`../roadmaps/harness-evolution.md`](../roadmaps/harness-evolution.md).
-> **Precedencia documental:** ante diferencias de **orden o estado**, prevalece el roadmap; ante diferencias **conceptuales**, reconciliar antes de iniciar el slice.
+> **Roadmap operativo:** el backlog y los estados se proyectan en [`../roadmaps/harness-evolution.md`](../roadmaps/harness-evolution.md), que debe mantenerse alineado con la fuente canónica Adaptive y con código/OpenSpec.
+> **Precedencia documental:** para decisiones Adaptive prevalece `ospec-adaptive-critical-design.md`; para hechos de implementación prevalecen código/OpenSpec; este documento describe el kernel que ambos consumen. Una diferencia debe reconciliarse antes de iniciar el slice.
 > **Investigación no normativa:** la trazabilidad completa P0–P27 vive en [`research/harness-kernel-graph-evidence-roadmap-fusion.md`](research/harness-kernel-graph-evidence-roadmap-fusion.md). La proporcionalidad de proceso y el programa de changes viven en [`research/proportional-process-and-change-program.md`](research/proportional-process-and-change-program.md).
 
 **Guía de lectura:** [modelo operativo](#modelo-operativo) para el flujo; [autoridad e invariantes](#modelo-de-autoridad) para límites no negociables; [contratos técnicos](#kernel-determinista-y-execution-graph) para runtime y grafo; [migración](#estrategia-de-migración) para la secuencia; y [proporcionalidad](harness-proportionality.md) para la aplicación práctica.
@@ -182,7 +182,7 @@ El programa no cambia defaults por el solo hecho de cerrar O2B/K1/K2/K2.1/K2a: c
 
 **Sigue siendo deuda (dueños sin cambio):**
 
-- PP1 ya cableó los hard floors K1 y la elegibilidad al routing vivo; su archive conserva el contrato de compatibilidad. Sigue pendiente medir y compactar el proceso que ese routing selecciona (PP2/CX), sin reinterpretar ese cierre como recetas K10.
+- PP1 ya cableó los hard floors K1 y la elegibilidad al routing vivo; su archive conserva el contrato de compatibilidad. PP2 y CX1 están archivados y pasan a preflight de consumidores, migración y reconciliación; CX2 sigue condicionado a un consumidor concreto. Esto no se interpreta como recetas K10 ni como runtime Adaptive.
 - Recetas Direct/Repair/Bounded/Planned/Critical no están activas (K10, una a una, tras K9).
 - K6c ya entrega ChallengePlan/challenges proporcionales y K6d `complexity_delta` advisory; su integración con review/promoción K7/K9 permanece pendiente, sin reabrir esas primitivas.
 - K6b ya materializa el Assurance Graph como proyección verificable y evidence-bound; sigue pendiente integrar/revalidar sus relaciones en K7–K9, sin convertirlo en autoridad independiente de lifecycle, approval o delivery.
@@ -435,7 +435,7 @@ graph:
         - auth-contract-tests
 ```
 
-`read`, `search`, `edit` y `test` no son nodos; son acciones internas de un worker. Un nodo existe porque tiene objetivo, invariantes, dependencias, ownership y evidencia. El **Obligation Manifest** es una vista determinista del mismo Graph (no un tercer grafo ni store independiente): cada obligación `MUST` está implementada por un nodo, tiene evidencia requerida, o está aplazada mediante decisión explícita. El Manifest expresa qué debe demostrarse; el número de workers, pasos internos o documentos solo expresa cómo se obtiene esa demostración.
+`read`, `search`, `edit` y `test` no son nodos; son acciones internas de un worker. Un nodo existe porque tiene objetivo, invariantes, dependencias, ownership y evidencia. El **Obligation Manifest** es una vista determinista del mismo Graph (no un tercer grafo ni store independiente): cada obligación `MUST` conocida por el contrato está implementada por un nodo, tiene evidencia requerida, o está aplazada mediante decisión explícita. El Manifest expresa qué debe demostrarse dentro de las obligaciones conocidas; un evaluador independiente aún debe contrastar su completitud. El número de workers, pasos internos o documentos solo expresa cómo se obtiene esa demostración.
 
 ### Compilación e invalidación
 
@@ -564,7 +564,7 @@ Hard floors iniciales:
 
 La clasificación nombra sus `reasons` y produce fingerprint estable. El tier de review y la ruta salen de qué se tocó y con qué incertidumbre, no del tamaño del diff: un cambio documental masivo puede permanecer en Nivel 0; dos líneas sobre autenticación activan hard floor `critical`. Los conteos de líneas/archivos informan reviewability y delivery, pero no degradan un hard floor de riesgo.
 
-### Cinco rutas como recetas
+### Identificadores legacy y recipes composicionales
 
 | Ruta | Uso | Receta mínima |
 | --- | --- | --- |
@@ -574,11 +574,13 @@ La clasificación nombra sus `reasons` y produce fingerprint estable. El tier de
 | Planned | Dependencias cross-module | discover → contract → decisions → graph → execute → freeze → verify/review |
 | Critical | Seguridad, auth, datos, concurrencia, contratos públicos, destrucción | planned + irreversible-decision gates + failure/threat model + rollback + adversarial verify + specialist review |
 
-Las rutas no son nuevos orquestadores. Son recetas de compilación con hard floors, capabilities y evidence strategies.
+Los cinco nombres se conservan como identificadores legacy de compatibilidad y telemetría. No forman un enum de dimensiones homogéneas: cada profile futuro compone obligaciones, hard floors, capabilities y evidence strategies versionadas. Las recipes no son nuevos orquestadores y ninguna composición puede anular una obligación fuerte por elegir un profile barato.
 
 La tabla `routing:` de `openspec/config.yaml` (foundation, federated, bugfix, brownfield, refactor, hotfix, standard, lite) es el **producto actual**, no esas recetas. PP1 archivado hizo admisible `lite` para `trivial`/`small` elegibles, conectó floors K1 y conservó precedencia contextual, orden declarado e invariancia de continuaciones. `project.status: active` no es clasificación de change. La urgencia de hotfix tampoco exime de garantías. Ese cierre no autoriza Direct productivo ni degrada auth/API a “small”.
 
 La admisión combina riesgo, incertidumbre, radio de impacto e irreversibilidad antes de preferencias o coste. Después se ajustan por separado representación/contexto y modelo. Un desconocido material pide exploración focal o resolución de alcance, no un salto automático a standard ni permiso implícito para lite. Una continuación conserva ruta, lineage y budgets; el descubrimiento de riesgo eleva obligaciones de forma monótona y nunca causa downgrade silencioso ni reinicia evidence/attempts. La [matriz de proporcionalidad](harness-proportionality.md#matriz-de-aceptación-para-cambios-futuros) concreta ejemplos y compatibilidad custom/multi-target.
+
+La admisión de efectos es continua dentro de la capacidad declarada: cada operación material y cada ampliación de alcance vuelve a comprobar permiso, identidad, límites y resultado reconciliable. Shell, conectores, red o APIs fuera de la mediación observada se declaran como `partial|instructional|unavailable`; no se afirma enforcement universal por una instrucción de prompt.
 
 Las recetas K10 y el legacy `trivial`/`small`/`normal`/`high-risk` no son equivalencias implícitas. Hasta que un hito de compatibilidad publique el mapeo de garantías por dirección, ambos vocabularios coexisten: PP1 gobierna el routing actual y K10 solo se promueve receta a receta. Así se evita que menos invocaciones se interprete como la misma autoridad para quien produce, verifica o autoriza.
 
@@ -603,7 +605,7 @@ Proposal, spec, design y tasks conservan responsabilidades y formatos compatible
 
 **Perfil observado:** la decisión parte de evals/corpus y shadow runs por tarea, con provenance, frescura y fallback declarados; no usa identidad de modelo ni autoconfianza como assurance. Este perfil de ejecución no es `CapabilityProof` del host, `PolicySnapshot` ni un profile de routing, y no añade un schema o autoridad nueva.
 
-**Corto plazo PP2:** lite conserva proposal-lite, tasks, apply, verify y archive; no exige spec/design ficticios ni elimina fases para ahorrar llamadas.
+**Compatibilidad PP2/CX1:** PP2 conserva proposal-lite, tasks, apply, verify y archive; CX1 conserva envelope/reducer, CAS/replay y fallback legacy. El trabajo vigente es auditar consumidores y reconciliar divergencias; no exige una segunda implementación, no crea otro estado canónico y no activa Adaptive. El siguiente change nuevo es `adaptive-operation-identity-binding`.
 
 ### Clarify como evento
 
@@ -778,7 +780,7 @@ K7 es el bridge mínimo de autoridad sobre lineage y reducer existentes; la refu
 
 - *precision gate* y Flag/Do-Not-Flag densos en las lentes;
 - refutación acotada solo de BLOCKER/CRITICAL antes de freeze/corrección (techo 1|3 tasks; default `stands`);
-- severity floor: WARNING/SUGGESTION no abren correction;
+- severity floor: WARNING/SUGGESTION quedan como follow-up por defecto; una WARNING material frente a una obligación se eleva con razón explícita antes de decidir si consume correction;
 - lineage OpenSpec permanece el ledger canónico; no se adopta un store/CLI de review externo ni RDD de Gentle.
 
 El cambio arquitectónico de input sigue siendo: el linaje consumirá Candidate ID universal, Graph/evidence digests y classification reasons. CX5b, **después de K7**, podrá derivar una proyección por lens y una proyección de correction limitada a findings, paths, hunks, obligations y evidencia congelados. Cada lens es one-shot dentro del lineage: invalidar inputs no relanza discovery; un nuevo scope o hallazgo bloqueante requiere successor autorizado. No crea `.review` ni otro ledger; el lineage OpenSpec y los budgets existentes siguen mandando.
@@ -936,9 +938,9 @@ No se permite un change que combine kernel global, cinco rutas, seis targets, co
 
 ## Orden recomendado de trabajo
 
-El detalle operativo, estados y done criteria vive en el [roadmap](../roadmaps/harness-evolution.md#orden-recomendado-de-trabajo). Esta arquitectura solo fija la dependencia: la cadena de confianza es **K7 → K8 → K9 → K10-delivery** y K10 promueve cada receta por separado. K11a–K11d y K12 avanzan cuando sus capacidades lo permiten; no forman una cadena universal.
+El detalle operativo, estados y done criteria vive en el [roadmap](../roadmaps/harness-evolution.md#orden-recomendado-de-trabajo). Esta arquitectura solo fija la dependencia: la cadena de confianza es **K7 → K8 → K9 → K10-delivery**, con el baseline/oracle del K12 focal como prerequisito de evidencia antes de promocionar K9; K10 promueve cada recipe/profile por separado. K11a–K11d y el K12 longitudinal avanzan cuando sus capacidades lo permiten; no forman una cadena universal.
 
-PP1 ya cerró el routing vivo y sus floors. PP2, CX1/CX2 y R2 pueden reducir repetición o incertidumbre, pero no adelantan una receta K10, eliminan verificación independiente ni constituyen changes aprobados. K6d continúa como evidencia advisory y K7 es el siguiente slice técnicamente elegible.
+PP1 ya cerró el routing vivo y sus floors. PP2 y CX1 están archivados; su preflight de consumidores conserva fallback y no crea otra autoridad. CX2 y R2 pueden reducir repetición o incertidumbre, pero no adelantan una recipe K10, eliminan verificación independiente ni constituyen autorización de runtime. El siguiente change nuevo es `adaptive-operation-identity-binding`; K7 continúa técnicamente elegible y K12 focal puede avanzar en paralelo.
 
 La aplicación de estas reglas está en [proporcionalidad](harness-proportionality.md); la base de conocimiento reutilizable, en [foundation holística](harness-foundation-holistic.md). Antes de declarar ahorro, se miden por cohortes coste, relecturas, latencia, rework y conservación de evidencia.
 

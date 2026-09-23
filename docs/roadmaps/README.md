@@ -1,22 +1,25 @@
 # Roadmaps y arquitectura de ospec-workflow
 
-Esta carpeta contiene las únicas fuentes activas para la evolución del harness.
+Esta carpeta contiene las proyecciones activas del backlog. La fuente canónica para la dirección Adaptive y su análisis arquitectónico es [`../architecture/ospec-adaptive-critical-design.md`](../architecture/ospec-adaptive-critical-design.md).
+
+La auditoría de alineación sección por sección del roadmap se conserva en la sección **L** de esa fuente canónica; este README solo describe autoridad y mantenimiento.
 
 ## Autoridad
 
 | Archivo | Autoridad |
 | --- | --- |
-| [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md) | Arquitectura, principios, decisiones y problemas abiertos |
+| [`../architecture/ospec-adaptive-critical-design.md`](../architecture/ospec-adaptive-critical-design.md) | Fuente única de decisiones Adaptive, guardrails, análisis arquitectónico y dirección del roadmap |
+| [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md) | Referencia del kernel estable y sus contratos; no introduce prioridades Adaptive independientes |
 | [`../architecture/research/`](../architecture/research/) | Evidencia e hipótesis no normativas; pueden justificar una decisión, pero no establecer estado, prioridad ni arquitectura aceptada |
-| [`harness-evolution.md`](harness-evolution.md) | Backlog transversal, estado, orden y done criteria |
+| [`harness-evolution.md`](harness-evolution.md) | Proyección ejecutable del backlog transversal, estado, orden y done criteria |
 | [`targets/`](targets/) | Implementación específica de cada host |
 | `../../analisis-fino/archive/` | Historia y evidencia; nunca estado vigente |
 
 ## Regla de precedencia
 
 1. OpenSpec baseline y código probado.
-2. Análisis arquitectónico.
-3. Roadmap general.
+2. `ospec-adaptive-critical-design.md` para decisiones Adaptive y guardrails.
+3. `harness-evolution.md` para la proyección operativa de estado, orden y done criteria.
 4. Roadmap de target.
 5. Documentos archivados.
 
@@ -26,7 +29,7 @@ La investigación no forma parte de esta cadena de precedencia. Solo adquiere ef
 
 ## Flujo de mantenimiento
 
-- Cambio arquitectónico: actualizar análisis + roadmap dentro del mismo change.
+- Cambio arquitectónico Adaptive: actualizar la fuente canónica + la proyección del roadmap dentro del mismo change.
 - Cambio de implementación: actualizar roadmap al archivar.
 - Cambio exclusivo de target: actualizar subroadmap y estado agregado del general.
 - Hallazgo histórico resuelto: moverlo a archive; no mantenerlo como pendiente tachado indefinidamente.

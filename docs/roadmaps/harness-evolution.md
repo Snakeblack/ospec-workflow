@@ -1,10 +1,10 @@
 # Roadmap general — garantías verificables y ejecución adaptable
 
-> **Autoridad:** única fuente operativa del backlog transversal.
-> **Versión de referencia:** v2.68.0, 2026-09-18.
-> **Revisión de arquitectura y prioridades:** 2026-09-16; no cambia la versión publicada ni los estados de OpenSpec.
-> **Arquitectura:** [`../architecture/harness-evolution.md`](../architecture/harness-evolution.md).
-> **Investigación no normativa:** [`../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md`](../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md) (P0–P27). Proporcionalidad de proceso y Change Program: [`../architecture/research/proportional-process-and-change-program.md`](../architecture/research/proportional-process-and-change-program.md).
+> **Fuente canónica:** [`ospec-adaptive-critical-design.md`](../architecture/ospec-adaptive-critical-design.md) es la única fuente arquitectónica para Adaptive y sus garantías.
+> **Autoridad del roadmap:** este documento es la proyección ejecutable del backlog; ante una contradicción arquitectónica, prevalece el análisis canónico y el roadmap se reconcilia antes de iniciar un slice.
+> **Versión de referencia:** v2.68.0, 2026-09-19.
+> **Revisión de arquitectura y prioridades:** 2026-09-19; no cambia la versión publicada ni los estados de OpenSpec.
+> **Investigación no normativa:** [`harness-kernel-graph-evidence-roadmap-fusion.md`](../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md) (P0–P27). Proporcionalidad de proceso y Change Program: [`proportional-process-and-change-program.md`](../architecture/research/proportional-process-and-change-program.md). Estas referencias informan, pero no sustituyen, la fuente canónica.
 > **Regla de estado:** los hechos se contrastan con código/OpenSpec; este roadmap no cambia el estado de un change ni sustituye sus artefactos.
 
 <a id="decisión-y-ruta-crítica"></a>
@@ -22,9 +22,18 @@ OSPEC gobierna **obligaciones, evidencia y autoridad**; el modelo decide cómo e
 | Adaptar la ejecución a capacidad observada | Cada recipe/profile se compara con corpus y policy versionados; un perfil stale o no probado hace fallback, no baja el umbral. |
 | Promover solo lo demostrado | Defectos detectados y escapados, cobertura de obligaciones, independencia, recovery y coste por candidate aceptado (retries y esfuerzo humano incluidos) sostienen una decisión explícita. |
 
+### Guardas arquitectónicas no negociables
+
+- La admisión de efectos es continua: cubre cada operación material y cada ampliación de alcance, no solo el primer write; cada efecto conserva permiso, receipt, reconciliación y rollback/fallback cuando aplique.
+- La cobertura de obligaciones se contrasta con una referencia y un evaluador independientes; que el ejecutor declare y satisfaga su propio manifest no prueba cobertura suficiente.
+- No se crea un **Discovery Graph** autoritativo nuevo: la historia causal se deriva de eventos, Work Orders, candidates, evidencia y recuperación existentes, con el mínimo identificador que falte.
+- Dream-RSI y cualquier aprendizaje de política esperan a una política Adaptive fija, un evaluador congelado y una baseline focal reproducible; replay histórico no demuestra resultados de acciones nunca ejecutadas.
+- K12 focal y su baseline preceden a cualquier promoción K9; K9 compara de forma independiente y decide por ámbito, con policy/profile/host versionados.
+- Adaptive solo puede ser default dentro del ámbito tarea/profile/host/capabilities validado; el resto conserva `fixed`, fallback o una decisión explícita.
+
 ### Estado que se conserva y trabajo pendiente
 
-La base ya entregada comprende O2B, K1–K6d: lifecycle, Authority Store/permits, host de referencia y runner K2, Candidate/lineage, `Obligation Manifest`, ejecución aislada, verifier con provenance, challenges y delta advisory. `fixed` sigue como control/default. **K7 es next-eligible; K8, K9, K10-delivery y K10 siguen pendientes.** Ningún estado de OpenSpec cambia por este documento.
+La base ya entregada comprende O2B, K1–K6d: lifecycle, Authority Store/permits, host de referencia y runner K2, Candidate/lineage, `Obligation Manifest`, ejecución aislada, verifier con provenance, challenges y delta advisory. `fixed` sigue como control/default. Este roadmap no declara un runtime Adaptive implementado. **K7 es next-eligible; K8, K9, K10-delivery y K10 siguen pendientes.** Ningún estado de OpenSpec cambia por este documento.
 
 K7→K8→K9→K10-delivery es la cadena de autoridad y promoción: review con reducer, attestation Candidate-bound, comparación/revert y delivery limitado al profile promovido. K10 convierte garantías legacy en recipes/capacidades compatibles. K11 y K12 amplían solo aquello que una necesidad y evidencia concretas justifiquen; no son una cola lineal obligatoria.
 
@@ -32,13 +41,13 @@ K7→K8→K9→K10-delivery es la cadena de autoridad y promoción: review con r
 
 | Horizonte | Output acotado | Acceptance para continuar | No implica |
 | --- | --- | --- | --- |
-| Corto: compatibilidad y representaciones derivadas | PP2, CX1 y CX2 con adapters/renderers compatibles; mapa legacy→recipe para la receta que se evalúe. | Lectores migrados, fallback legacy, CAS/replay y recovery preservados; no se pierde información normativa. | Retirar formatos actuales, compactar dispatch o activar runtime. |
+| Corto: reconciliación de compatibilidad y representaciones derivadas | PP2 (**implementado/archivado**), CX1 (**implementado/archivado**) y CX2 (pendiente), con auditoría de compatibilidad, migración de consumidores y reconciliación sobre contratos existentes. | Estados archivados y evidencia de PP2/CX1 consumibles; fallback legacy, CAS/replay y recovery preservados; no se pierde información normativa. | Retirar formatos actuales, compactar dispatch, crear otro estado canónico o activar runtime Adaptive. |
 | Medio: contexto compacto comprobado | CX3/CX4 y corpus focal K12 sobre el runner K2; comparación `full`/`compiled-shadow` por tarea/policy/host. | Cobertura/digests equivalentes, fallback `full` y recovery sin regresión. | Compactar invocaciones, promover `compiled`, routing dinámico o múltiples hosts. |
 | Medio: ejecución compacta comprobada | Slice K10 de una recipe (p. ej. Bounded) que compara una o varias invocaciones semánticas con igual contrato. | Misma obligación, verifier independiente, defects detected/escaped, recovery y coste por candidate aceptado; K9 decide la promoción acotada. | Que CX3/CX4 demuestren por sí solos ejecución compacta, o que se active runtime/global enforcement. |
 | Medio: promoción limitada | K7, K8, K9 y K10-delivery para una recipe/profile/host; K10 puede formalizar la receta compatible. | K9 decide `promote\|revise\|reject` con corpus, policy y profile versionados; delivery verifica digests vivos y conserva `fixed` para lo no promovido. | Hook global, herencia entre profiles o autorización de rutas no evaluadas. |
 | Largo: ampliar por evidencia | K11b/K11c/K11d, K11a y la parte longitudinal/multi-target de K12, por slices. | Cada expansión prueba el contrato mínimo que consume y repite la comparación relevante. | Catálogo objetivo de roles, fan-out, segundo host o scheduler como prerequisitos universales. |
 
-La prioridad de inversión no cambia por sí sola los prerequisitos técnicos. PP2/CX1/CX2 son habilitadores tempranos de compatibilidad y reducción de materialización; K7 puede avanzar en paralelo. Todo cambio de dependencia futura debe documentar su prerequisito mínimo, su condición de validación y su rollback/fallback; nunca autoactiva un runtime.
+La prioridad de inversión no cambia por sí sola los prerequisitos técnicos. PP2 y CX1 ya están implementados/archivados y pasan a auditoría de compatibilidad, migración de consumidores y reconciliación; CX2 sigue pendiente como vista derivada con consumidor concreto. K7 puede avanzar en paralelo. Todo cambio de dependencia futura debe documentar su prerequisito mínimo, su condición de validación y su rollback/fallback; nunca autoactiva un runtime.
 
 ### Decisión por iniciativa futura
 
@@ -54,29 +63,42 @@ La prioridad de inversión no cambia por sí sola los prerequisitos técnicos. P
 | K11d roles/paridad | Contratos de fase/work order y equivalencia de assurance. | Número fijo de agentes y catálogo de roles. | Equivalencia K9 y contratos K10/CX1 en un host; K11a/ownership solo cuando el slice los use. | Consolidar con medidas de drift/mantenimiento; revisar si empeora assurance; retirar objetivo de ocho roles. |
 | K11a multi-target | Un contrato core, degradación honesta y paridad por host. | Rollout conjunto y policy específica del adapter. | K2a y la recipe/profile que se quiera llevar; K10-delivery solo si se pretende enforcement. | Expandir host a host con capabilities reales; diferir si no hay demanda/corpus. |
 | K12 corpus | Evidencia reproducible, defects detected/escaped, coverage, recovery y coste completo. | Escala longitudinal/multi-target hasta que haga falta. | Corpus focal sobre runner K2; cada vertical añade sus prerequisitos solo si la fixture lo ejerce. | Seguir si informa promoción/rollback; revisar cohortes débiles; diferir 10–30 changes y multi-target hasta probar capabilities. |
-| CX1/CX2/CX3–CX6 | Datos canónicos, lineage/budgets, policy y evidencia recuperables. | Renderers, vistas, proyecciones y deltas; nunca autoridad. | CX1 tras CX0+K2/K2.1; CX2 tras CX1; CX3 sobre K4a/K6a; cada consumidor migra antes de retirar full. | Promover por fase/profile tras equivalencia; fallback full para stale/mismatch; retirar solo formatos sin consumidores. |
+| PP2/CX1 (compatibilidad y proyección mecánica) | Datos canónicos, contratos lite, lineage/budgets, policy y evidencia recuperables. | Prosa lite y proyección mecánica; nunca autoridad nueva. | PP2 está archivado; CX1 y sus remediaciones están implementados/archivados. El entregable actual es auditar consumidores, migrar los que sigan stale y reconciliar fallback/CAS/replay. | Seguir con auditoría y migración por consumidor; conservar los adapters legacy; no crear un segundo kernel ni declarar Adaptive runtime. |
+| CX2–CX6 | Datos canónicos, lineage/budgets, policy y evidencia recuperables. | Renderers, vistas, proyecciones y deltas; nunca autoridad. | CX2 sigue pendiente tras CX1; CX3 sobre K4a/K6a; cada consumidor migra antes de retirar full. | Promover por fase/profile tras equivalencia; fallback full para stale/mismatch; retirar solo formatos sin consumidores. |
 
 <a id="ruta-rápida-para-ejecución"></a>
 
 ## Orden recomendado de trabajo
 
-Este es **orden de inversión**, no una cadena de prerrequisitos ni una autorización de runtime. PP1 ya está archivado en v2.63.0 y queda como ficha histórica. Las primeras inversiones pendientes, PP2/CX1/CX2, hacen compatibles las representaciones y reducen materialización; K7 conserva su condición de next-eligible y no espera que terminen. Cualquier promoción posterior mantiene quality gates, shadow/A-B y `fixed` como control/default.
+Este es **orden de inversión**, no una cadena de prerrequisitos ni una autorización de runtime. PP1 ya está archivado en v2.63.0 y queda como ficha histórica. PP2 y CX1 están implementados/archivados; las primeras inversiones actuales son auditar sus consumidores, migrar compatibilidad y reconciliar estados, mientras CX2 permanece pendiente. K7 conserva su condición de next-eligible y no espera que terminen. Cualquier promoción posterior mantiene quality gates, shadow/A-B y `fixed` como control/default.
+
+**Siguiente change nuevo:** `adaptive-operation-identity-binding`. La auditoría de consumidores de PP2/CX1 es preflight de compatibilidad; no abre otra implementación de PP2/CX1. Ese preflight debe inventariar efectos materiales por host y clasificar la cobertura como `enforced|partial|instructional|unavailable`; no se anuncia enforcement donde el host no lo demuestra. CX2 queda como lane mecánica posterior o paralela, solo con un consumidor concreto, y no puede sustituir el binding de identidad ni activar Adaptive globalmente.
 
 | Prioridad | Unidad propuesta | Habilitación que deja al siguiente trabajo | Dependencia técnica real |
 | ---: | --- | --- | --- |
-| 1 | PP2 — contrato lite compacto | Un lite puede conservar sus contratos vigentes sin persistir prosa repetida. | PP1 ya archivado y consumidores/formats vigentes; no CX1 ni K7. |
-| 2 | CX1 — envelope/state mecánico | Estado derivable y renderer compatible reducen duplicación mecánica sin mover autoridad. | CX0 + K2/K2.1; PP2 ofrece casos comparables, no bloquea el kernel. |
-| 3 | CX2 — vistas y archive renderer | Traceability y archive se leen como vistas reproducibles, no como trabajo manual. | CX1 y receipts/datos canónicos; no K7. |
-| 4 | R2.1 — fronteras de foundation | Menos redescubrimiento y duplicación de decisiones estables. | K1; puede avanzar en paralelo. |
-| 5 | R2.4/R2.2 — discovery y consumo focal | Contexto útil por referencia, con vigencia y fallback, antes de reutilizarlo. | R2.1 y gates humanos; no CX completo ni K7. |
-| 6 | CX3/CX4 + K12 focal | Comparación de contexto completo contra proyección derivada sobre el runner existente. | K4a/K6a y K2; no K11 ni corpus longitudinal. |
-| 7 | K10 recipe focal + K9 | Comparación de una o varias invocaciones con mismo contrato, obligations y verifier separado. | Mapa legacy→recipe y contrato runtime CX1; K7/K8/K9 y delivery para promoción/entrega; no CX3/CX4 ni K11b/K12 completo. |
+| 1 | PP2/CX1 — preflight de compatibilidad (archivados) | Auditar consumidores lite y envelope/reducer, migrar los que sigan stale y confirmar fallback legacy, CAS/replay, approvals, lineage y recovery. | [PP2 archivado](../../openspec/changes/archive/2026-09-11-compact-lite-contract-and-consumer-compatibility/state.yaml), [CX1 base archivado](../../openspec/changes/archive/2026-09-11-phase-envelope-state-mechanical-projection/state.yaml) y remediaciones; no crear otro estado canónico ni activar runtime. |
+| 2 | `adaptive-operation-identity-binding` — siguiente change nuevo | Vincular cada operación a `changePath`, `phase`, `expectedRevision` y `operation`; rechazar atribución ambigua y reconciliar unknown sin reintento ciego. | CX1/result-envelope/lifecycle existentes; conserva archivos y contratos legacy, fallback y rollback; no Adaptive global. |
+| 3 | CX2 — vistas y archive renderer (pendiente, lane de apoyo) | Traceability y archive se leen como vistas reproducibles desde datos canónicos, solo con un consumidor concreto. | Preflight PP2/CX1 y receipts canónicos; no sustituye el binding ni crea autoridad. |
+| 4 | K12 focal + oracle independiente | Baseline, referencia independiente de obligaciones y varianza para decidir si el piloto merece continuar. | K2 harness; fixtures focales; no corpus longitudinal ni multi-target. |
+| 5 | K7 mínimo + K8 consumible | Review authority y attestation ligada a Candidate, policy y operación, sin fan-out obligatorio ni autorización de delivery. | K3/K6b/K2.1 y binding de identidad; K8 no sustituye K10-delivery. |
+| 6 | Piloto Adaptive fijo + K10 recipe focal | Comparación aislada de una recipe/profile con obligaciones, verifier y recovery independientes. | Binding, K12 focal, K7/K8 y contrato runtime CX1; sin default global ni rutas encubiertas. |
+| 7 | K9 → K10-delivery del profile promovido | Promoción y enforcement únicamente para el ámbito demostrado; el resto conserva `fixed`/deferred. | K7/K8/K12 y host de referencia; no CX3/CX4 ni K11b/K12 completo. |
+
+Las lanes de apoyo R2.1/R2.4/R2.2, CX2, CX3/CX4 y CX5 pueden avanzar en paralelo cuando tengan consumidor y evidencia propios; no reordenan esta línea principal ni habilitan Adaptive por sí solas.
+
+Después del binding, la línea principal es **K12 focal + oracle independiente y K7/K8** (en paralelo cuando sus contratos lo permitan) → **piloto Adaptive fijo en ámbito aislado** → **K9** → **K10-delivery solo para el profile promovido**. CX2, R2 y CX3/CX4 son lanes de apoyo: solo avanzan con consumidor y evidencia propios y no reordenan esa línea.
+
+### `adaptive-operation-identity-binding` (propuesta, siguiente change nuevo)
+
+Después del preflight PP2/CX1, el primer consumidor Adaptive futuro debe vincular cada operación de forma explícita a `changePath`, `phase`, `expectedRevision` y `operation` antes de solicitar o ejecutar un efecto. El binding debe permitir comprobar identidad, alcance, revisión y operación concreta, y dejar un resultado reconciliable si el efecto termina en estado desconocido.
+
+Este slice conserva los archivos legacy y los contratos de fase actuales; añade un adapter de consumo medible, no una nueva autoridad ni un runtime Adaptive completo. Cada consumidor debe ofrecer fallback al flujo vigente y rollback a la representación anterior, con causa registrada para mismatch, stale, revisión inesperada o capacidad no observada. La propuesta queda pendiente de change OpenSpec, criterios de aceptación y evidencia; no se considera implementada por este roadmap.
 
 PP1/PP2 son identificadores locales de backlog, no nuevas rutas o autoridades. Las unidades R2 conservan los siete slices existentes; R2.3/R2.6 queda on-demand, no en la cola de habilitación. Prioridad no significa que las filas sean dependencias secuenciales ni que se deba posponer K7 hasta terminar CX o R2.
 
 ### Fichas iniciales para futuros changes
 
-La etapa actual entrega análisis y documentación. Cada slug de abajo es **propuesto**, pendiente de explorar contratos, confirmar alcance y planificar implementación. Las estimaciones pequeña/media describen trabajo esperado, no la clasificación definitiva: modificar routing/autoridad puede ser high-risk aunque tenga pocas líneas. Si el forecast supera 400 líneas o cruza fronteras de contrato, dividir al planificar con entregas verificables; no prometer ocho PRs pequeñas.
+La etapa actual entrega análisis y documentación. Las fichas de PP2 y CX1 documentan changes ya implementados/archivados y su reconciliación; las demás fichas son **propuestas**, pendientes de explorar contratos, confirmar alcance y planificar implementación. Las estimaciones pequeña/media describen trabajo esperado, no la clasificación definitiva: modificar routing/autoridad puede ser high-risk aunque tenga pocas líneas. Si el forecast supera 400 líneas o cruza fronteras de contrato, dividir al planificar con entregas verificables; no prometer ocho PRs pequeñas.
 
 #### PP1 — `live-routing-eligibility-and-risk-floors` [ARCHIVADO - v2.63.0]
 
@@ -87,23 +109,33 @@ La etapa actual entrega análisis y documentación. Cada slug de abajo es **prop
 - **Medición:** distribución de rutas justificadas, fases/invocaciones y obligaciones conservadas con cobertura declarada. **Riesgo/rollback:** compatibilidad de tablas custom; reversión para nuevas admisiones sin borrar ledgers activos ni habilitar rutas inseguras.
 - **Estimación:** media; tests de integración pertenecen a este change, no a una iniciativa posterior.
 
-#### PP2 — `compact-lite-contract-and-consumer-compatibility`
+#### PP2 — `compact-lite-contract-and-consumer-compatibility` [IMPLEMENTADO · ARCHIVADO · 2026-09-11]
 
-- **Beneficio:** cada lite posterior redacta y relee menos información; aprovecha la selección segura de PP1.
-- **Alcance:** compactar `proposal-lite`, tasks y resúmenes exigidos; auditar dependencias/consumidores y corregir requisitos incondicionales de spec/design donde existan; coherencia en apply, verify, archive, recovery y targets. **No alcance:** artefactos de relleno, eliminación de evidencia, fusión de fases o nueva ruta.
-- **Depende de:** PP1 como entrada segura y contratos vigentes; no del futuro reducer CX1 para reducir prosa compatible.
-- **Done:** las cinco fases actuales recorren un lite sin spec/design legítimamente ausentes; continuidad combina apply-progress; verify independiente y archive conservan contratos; un caso normal mantiene planificación suficiente.
-- **Medición:** bytes/tokens por artefacto y relecturas por cohortes, rework y errores de consumidores. **Riesgo/rollback:** lectores ocultos; restaurar formato compatible sin perder evidencia ni fabricar completions.
-- **Estimación:** media; separar migraciones si aparecen consumidores con fronteras independientes.
+- **Beneficio entregado:** el contrato lite conserva sus cinco fases, continuidad de `apply-progress`, evidencia y compatibilidad sin exigir spec/design cuando no corresponden.
+- **Alcance implementado:** compactar `proposal-lite`, tasks y resúmenes, y adaptar apply, verify, archive, recovery y targets. **Trabajo posterior:** auditoría de consumidores, migración de cualquier lector stale y reconciliación de fallback; no una segunda implementación ni una nueva ruta.
+- **Depende de:** PP1 archivado y contratos vigentes; CX1 no es una implementación pendiente de PP2.
+- **Cierre archivado:** las cinco fases recorren un lite sin spec/design legítimamente ausentes; verify independiente y archive conservan contratos; un caso normal mantiene planificación suficiente.
+- **Medición pendiente:** bytes/tokens por artefacto, relecturas, rework, errores de consumidores y divergencias de fallback por cohorte. **Riesgo/rollback:** lectores ocultos; restaurar formato compatible sin perder evidencia ni fabricar completions.
+- **Estimación:** auditoría/migración media; separar consumidores si aparecen fronteras independientes.
 
-#### CX1 — `phase-envelope-state-mechanical-projection`
+#### CX1 — `phase-envelope-state-mechanical-projection` [IMPLEMENTADO · ARCHIVADO · base 2026-09-11; remediaciones 2026-09-14–17]
 
-- **Beneficio:** PP2 reduce contenido semántico repetido; CX1 elimina después duplicación mecánica en todos los changes que adopten el contrato.
-- **Alcance:** envelope versionado, renderer humano y `PhaseCompletionReducer` del slice CX1. **No alcance:** consolidar planificación/invocaciones ni mover approvals al modelo.
-- **Depende de:** CX0 + K2/K2.1; equivalencia legacy/CAS/replay. PP2 no bloquea técnicamente este slice.
-- **Done:** igual estado/decisiones desde envelope y legacy; errores y outcomes desconocidos reconciliables; cero pérdida de approvals, assumptions, lineage y gates; fallback probado.
-- **Medición:** escritura de estado/salida duplicada y divergencias de render. **Riesgo/rollback:** migración de consumidores; adapter legacy preservado y replay sin reset de budgets.
-- **Estimación:** media; empezar por contrato y consumidor focal, expandir por slices si supera el presupuesto.
+- **Beneficio entregado:** envelope versionado, renderer humano y `PhaseCompletionReducer` reducen duplicación mecánica sin mover la autoridad semántica.
+- **Alcance implementado:** envelope, reducer, paridad JSON Schema/Node/Go, fixtures, legacy adapter, CAS/replay y fallback. **Trabajo posterior:** auditoría y migración de consumidores, con reconciliación de divergencias; no consolidar planificación/invocaciones ni mover approvals al modelo.
+- **Depende de:** CX0 + K2/K2.1; equivalencia legacy/CAS/replay ya entregada. PP2 está archivado y no abre un segundo estado canónico.
+- **Cierre archivado/verificado:** igual estado y decisiones desde envelope y legacy; errores y outcomes desconocidos reconciliables; sin pérdida de approvals, assumptions, lineage y gates; fallback probado.
+- **Evidencia de estado:** [base CX1](../../openspec/changes/archive/2026-09-11-phase-envelope-state-mechanical-projection/state.yaml), [remediación de proyección](../../openspec/changes/archive/2026-09-14-remediate-cx1-envelope-projection/state.yaml), [paridad de conformidad](../../openspec/changes/archive/2026-09-16-remediate-cx1-conformance-parity/state.yaml) y [paridad estricta](../../openspec/changes/archive/2026-09-17-remediate-cx1-strict-string-parity/state.yaml).
+- **Medición pendiente:** escritura de estado/salida duplicada, divergencias de render, consumidores migrados y recuperaciones de fallback. **Riesgo/rollback:** adapter legacy preservado y replay sin reset de budgets.
+- **Estimación:** auditoría/migración media; empezar por un consumidor focal y expandir solo si el forecast lo permite.
+
+#### `adaptive-operation-identity-binding` [SIGUIENTE · PROPUESTO]
+
+- **Beneficio:** impedir que un consumidor Adaptive atribuya completions, permisos o resultados al change, fase u operación equivocados, especialmente con varios changes activos o una revisión stale.
+- **Alcance:** contrato y adapter de consumo para `changePath`, `phase`, `expectedRevision` y `operation`; validación de identidad, alcance y revisión; estado `unknown` reconciliable; fallback y rollback al flujo legacy. **No alcance:** activar Adaptive globalmente, fusionar fases, crear otro estado canónico, cambiar verifier/reviewer o añadir un Discovery Graph.
+- **Depende de:** contratos CX1/result-envelope, lifecycle/CAS/permits y consumidores actuales. El preflight de PP2/CX1 debe registrar lectores auditados y cualquier migración necesaria antes de tocar la vía compartida.
+- **Done:** múltiples changes activos no se confunden; una fase u operación stale se rechaza; `status: success` no se convierte en aprobación funcional cuando `verify_outcome` falla; un resultado desconocido exige reconciliación antes de reintentar; legacy sigue funcionando con rollback probado; el inventario de efectos por host conserva `CapabilityProof` y no afirma mediación universal sobre shell, conectores, red o APIs fuera de alcance.
+- **Medición:** atribuciones correctas, rechazos de revisión/fase, reconciliaciones, fallbacks, reintentos evitados y coste de contexto. **Riesgo/rollback:** mantener adapter legacy y revertir el consumidor sin resetear budgets, lineage ni approvals.
+- **Estimación:** pequeña/media, pero con revisión de contrato; dividir si el cambio cruza más de un consumidor o supera el presupuesto de 400 líneas.
 
 #### CX2 — `derived-traceability-and-archive-views`
 
@@ -126,7 +158,7 @@ La etapa actual entrega análisis y documentación. Cada slug de abajo es **prop
 
 #### R2.1 — `foundation-knowledge-change-boundaries`
 
-- **Beneficio:** decisiones estables referenciables desde cada change; puede aprovechar PP2/CX1 sin depender de su implementación.
+- **Beneficio:** decisiones estables referenciables desde cada change; puede consumir PP2/CX1 sin duplicar su implementación.
 - **Alcance:** fijar reparto entre foundation, conocimiento externo, decisiones de change y fuentes existentes dentro de los artefactos actuales. **No alcance:** nuevo store normativo, agente arquitecto, cloud o wiki obligatorios.
 - **Depende de:** K1 y autoridades existentes. Diseño: [foundation holística](../architecture/harness-foundation-holistic.md).
 - **Done:** ejemplos de proyecto nuevo y repo existente ubican cada decisión una sola vez; gaps y fuentes distinguibles de requisitos aceptados; lectores pueden resolver referencias sin duplicación normativa.
@@ -164,6 +196,8 @@ K7/K8 y los gates K9/K10-delivery pueden retomar con las mejoras que existan, si
 
 ## Estado ejecutivo
 
+La lectura operativa actual es: **PP2/CX1 ya están cerrados**, su preflight de consumidores queda pendiente; el siguiente change nuevo es **`adaptive-operation-identity-binding`**; CX2 es una lane de apoyo; después se ejecutan K12 focal y K7/K8 antes del piloto fijo y K9.
+
 | Estado | ID | Resultado |
 | --- | --- | --- |
 | `done` | G0/G0.1 | Gobernanza y reconciliación documental |
@@ -188,11 +222,17 @@ K7/K8 y los gates K9/K10-delivery pueden retomar con las mejoras que existan, si
 | `done` | **K6b** | Verifier + provenance + Assurance Graph; persistencia durable de `runner-receipt/v1` en CAS `runner_receipts`, canal reemitido tras restart y bind de role en replay; archivado y publicado en v2.55.0 |
 | `done` | **K6c** | ChallengePlan policy-selected; catálogo de 9 tipos, mutaciones focales y control de budget (v2.56.0); integridad canónica/fail-closed cerrada en v2.56.1 (`k6c-integrity-remediation`); strategy binding, missing_tests/no-op y planner reject en v2.56.2 (`k6c-failclosed-integrity`); enforcement monotónico de mutation_budget en v2.56.4 (`k6c-budget-execution-failclosed`); restauración canónica de spec sin corrupción, validación fail-closed de integridad de archive y confinamiento estricto de runner sandboxed en v2.56.5 (`k6c-spec-integrity-and-runner-seam-remediation`) |
 | `done` | **K6d** | Complexity/architecture delta Candidate-bound advisory; verify PASS y archive cerrado en `2026-09-03-k6d-complexity-architecture-delta` |
+| `done` | **PP2** | Contrato lite compacto y consumidores compatibles; archivado en `2026-09-11-compact-lite-contract-and-consumer-compatibility` |
+| `done` | **CX1** | Envelope/state mecánico, reducer, paridad y fallback legacy; base archivada y remediaciones verificadas/cerradas entre 2026-09-11 y 2026-09-17 |
+| `pending` | **`adaptive-operation-identity-binding`** | **Siguiente change nuevo:** binding explícito de `changePath`, `phase`, `expectedRevision` y `operation`; no iniciado, sin runtime Adaptive global |
+| `pending` | **CX2** | Lane de apoyo: vistas derivadas de traceability/archive; solo con consumidor concreto y sin nueva autoridad |
 | `next-eligible` | K7 | Review authority; técnicamente desbloqueado, sin afirmar change iniciado |
 | `pending` | K8 | **Evaluation Attestation** |
 | `pending` | K9 | Gate de promoción shadow/replay/A-B (checkpoints intermedios ya validados) |
 | `pending` | K10-delivery | `DeliveryAuthorization` **acotada al profile K9**; relación Candidate por etapas; fixed/deferred para el resto |
-| `pending` | K10–K12 | Expansión adaptativa; K11a = multi-target; K12 = corpus/longitudinal (no el primer runner) |
+| `pending` | K12 focal | Baseline, oracle independiente y varianza antes de cualquier promoción K9; no es todavía el corpus longitudinal completo |
+| `pending` | K10 | Recipes/capacidades composicionales; piloto fijo antes de promoción, sin rutas encubiertas |
+| `pending` | K11a–K11d | Expansión multi-target, routing, ownership y roles solo por evidencia; no prerequisito del primer piloto |
 
 No se modifica el estado de OpenSpec desde este documento. El cierre de O2B se toma de `openspec/changes/archive/2026-07-31-fixed-policy-reference-baseline/`; el de K1, de `openspec/changes/archive/2026-08-03-k1-contract-suite/` y v2.37.0; el de K2, de `openspec/changes/archive/2026-08-04-k2-lifecycle-kernel/` y v2.38.0; el de K2.1, de `openspec/changes/archive/2026-08-04-k2-1-authority-store-permits/` y v2.39.0; el de K2a, de `openspec/changes/archive/2026-08-04-k2a-headless-conformance-host/` y v2.40.0.
 
@@ -216,7 +256,7 @@ No se modifica el estado de OpenSpec desde este documento. El cierre de O2B se t
 16. Todo budget agotado termina; no reinicia un agente idéntico.
 17. El roadmap registra propuesta y estado por separado; no inventa resultados.
 18. Un slice solo merece identidad propia cuando introduce una autoridad, frontera de dependencia, primitive reusable o gate terminal distinto.
-19. Ante diferencias de **orden o estado** con la arquitectura, prevalece este roadmap. Ante diferencias **conceptuales**, reconciliar antes de iniciar el slice.
+19. Ante cualquier contradicción arquitectónica, prevalece `ospec-adaptive-critical-design.md`; este roadmap solo proyecta backlog y orden operativo, y los estados se verifican con OpenSpec antes de iniciar el slice.
 
 Estados permitidos:
 
@@ -296,11 +336,12 @@ Base entregada:
 O2B → K1 → K2 → K2.1 → K2a → K3 → K4a → K5 → K6a → K4b → K6b → K6c → K6d
 
 Cadena de autoridad/promoción:
-K7 review authority → K8 Evaluation Attestation → K9 compare/promote → K10-delivery (solo profile promovido)
-                                                                     ↘ K10 recipes/capacidades compatibles
+K7 review authority → K8 Evaluation Attestation ────────────────→ K9 compare/promote → K10-delivery (solo profile promovido)
+K12 focal + oracle independiente ────────────────────────────────↗
+                                                               ↘ K10 recipes/capacidades compatibles
 
 Expansiones por capacidad demostrada:
-K12 corpus focal ───────→ usa runner K2 y añade verticales solo cuando las ejercita
+K12 corpus focal ───────→ usa runner K2, contrasta obligaciones y añade verticales solo cuando las ejercita
 K11b routing ───────────→ K2a + K6a + contrato de selección; K9 para promover un profile
 K11c ownership/worktrees → K2.1 + K3 + K5 + K6a; K11b solo si selecciona modelo
 K11d roles ─────────────→ K10 + CX1 + equivalencia K9; no exige catálogo de roles ni worktrees
@@ -670,7 +711,7 @@ irreversible
 
 - un efecto `irreversible` con resultado ambiguo **no** se reintenta automáticamente; produce `decide` o `stop`;
 - no se promete exactly-once falso sobre shell, Git, APIs o servicios externos;
-- adapters direct-write quedan bloqueados: toda mutación pasa por permit + CAS + clase de efecto.
+- toda mutación **mediada por el host** pasa por permit + CAS + clase de efecto; shell, conectores, red, APIs u otras superficies fuera de la capacidad declarada no se presentan como enforcement universal y deben marcarse `partial|instructional|unavailable` mediante `CapabilityProof`.
 
 #### Fuera de alcance
 
@@ -916,7 +957,7 @@ obligations:
       - auth-contract-tests
 ```
 
-  Cada obligación `MUST` → está implementada por un nodo → tiene evidencia requerida → o está aplazada mediante decisión explícita. Ventaja defendible: no solo demostrar que un candidato fue revisado, sino que ninguna obligación del contrato se perdió durante la compilación del trabajo;
+  Cada obligación `MUST` conocida por el contrato → está implementada por un nodo → tiene evidencia requerida → o está aplazada mediante decisión explícita. Ventaja defendible: detectar pérdidas entre las obligaciones declaradas y la compilación del trabajo; esto no demuestra que la interpretación semántica haya descubierto todas las obligaciones posibles;
 - compile de Repair (bug reproducible/localizado);
 - **`PolicySnapshot` de compile:** la decisión de policy usada para clasificar/compilar queda digesta y reproducible (bundle, classifier/compiler/runtime versions, `effectiveRules`);
 - validación/conformance de Execution Graph;
@@ -953,7 +994,8 @@ compact contract
 - nodos microscópicos `read/edit/test` son rechazados por contract/lint;
 - Graph ID es estable y está ligado al contract digest **y** al `policyBundleDigest` efectivo de compile;
 - el mismo contract bajo policies distintas produce Graph/policy digests distintos cuando las `effectiveRules` divergen;
-- Obligation Manifest: toda obligación `MUST` tiene `implemented_by` + `required_evidence` o defer explícito auditado;
+- Obligation Manifest: toda obligación `MUST` conocida por el contrato tiene `implemented_by` + `required_evidence` o defer explícito auditado; el manifest es una proyección de cobertura declarada y no demuestra por sí solo que no falten obligaciones.
+- La completitud se contrasta fuera del ejecutor mediante contratos/policy, análisis del diff y un evaluador u oracle independiente; K4a conserva el resultado como evidencia para K7/K9/K12.
 - clarify invalida solo descendants declarados;
 - dependency desconocida impide reutilizar output;
 - Work Order shape v2 valida en conformance con compilación determinista (sin ejecución);
@@ -1366,7 +1408,7 @@ La invalidación de una aprobación no autoriza a reciclar findings como aprobad
 #### Alcance
 
 - separar `ReviewAdapter` (invocación/presentación) de `ReviewReducer` (congelación, findings, budget, successor, finalize);
-- seleccionar review por obligaciones residuales y señales de riesgo/evidencia bajo el `PolicySnapshot` vigente; ausencia de residual demostrada permite no invocar modelo;
+- seleccionar review por obligaciones residuales y señales de riesgo/evidencia bajo el `PolicySnapshot` vigente; ausencia de residual solo permite no invocar modelo cuando queda registrada la descarga, su referencia independiente y la política que la justifica;
 - adaptar inputs del selector y lineage; el generalista o especialista no es universal: solo se invoca cuando la policy/obligación lo exige;
 - mapear lenses a signals del classifier/Graph bajo el `PolicySnapshot` vigente;
 - persistir `policy_digest` / `effectiveRules` relevantes en el gate de review (auditoría; no segunda autoridad);
@@ -1376,12 +1418,13 @@ La invalidación de una aprobación no autoriza a reciclar findings como aprobad
 - conservar one-shot/frozen findings/correction budgets;
 - impedir rediscovery y reset;
 - como extensiones evaluables: mejorar Flag/Do-Not-Flag, aplicar *precision gate* y refutar en batch solo BLOCKER/CRITICAL sin crear IDs, discovery o budget nuevo;
-- **severity floor:** WARNING/SUGGESTION se registran como follow-up/info y nunca abren el loop de corrección; solo findings severos que sobrevivan refutación (cuando el gate esté activo) consumen correction budget.
+- **severity floor:** WARNING/SUGGESTION se registran como follow-up/info y nunca abren el loop de corrección por defecto; si una WARNING resulta material frente a una obligación, el reducer debe elevarla a finding bloqueante con razón explícita. Solo findings severos que sobrevivan refutación (cuando el gate esté activo) consumen correction budget.
 
 #### Done criteria
 
 - el reducer conserva one-shot, findings congelados y budgets; ninguna lens/generalista se relanza dentro del mismo lineage;
-- la ausencia de review de modelo exige que policy, obligaciones y validación determinista prueben ausencia de residual material;
+- la ausencia de review de modelo exige que policy, obligaciones, validación determinista y una referencia independiente prueben la descarga del residual material; “ninguna lens” por sí sola no es evidencia;
+- el denominador de cobertura no lo fija el manifest del ejecutor: se conserva la fuente independiente, el análisis aplicado y cualquier obligación omitida detectada;
 - cualquier señal residual material selecciona la revisión/lens que exige la policy, sin convertir un generalista en paso universal;
 - positive dimensions siguen sin descartarse;
 - high-risk/overflow conserva full 4R;
@@ -1428,6 +1471,8 @@ La invalidación de una aprobación no autoriza a reciclar findings como aprobad
 - single writer
 
 No se añaden firmas criptográficas sin un trust root real.
+
+La emisión también consume el binding operativo común: `changePath`, `phase`, `expectedRevision` y `operation` deben identificar sin ambigüedad qué operación de evaluación se está cerrando. Un `status: success` de la fase no puede convertirse en aprobación funcional si `verify_outcome` es `FAIL`; una revisión, fase u operación stale se rechaza y un resultado desconocido se reconcilia antes de reintentar.
 
 **Policy Snapshot:** el mismo candidate puede ser aprobado bajo una policy y rechazado bajo otra. La attestation **debe** ligar un `PolicySnapshot` verificable; sin ese digest, la revalidación en K10-delivery quedaría indirecta.
 
@@ -1490,6 +1535,7 @@ Shape conceptual de la Candidate Evaluation Attestation:
 - ninguna superficie de evaluación depende de un proveedor de review externo;
 - fixtures: mismo candidate + policies distintas → attestations distintas / no intercambiables;
 - fixtures rechazan tratar `approved-for-evaluation` como pase de pre-commit/pre-push/pre-PR.
+- fixtures rechazan bindings de `changePath`, `phase`, `expectedRevision` u `operation` ausentes, stale o foreign;
 
 #### Gate
 
@@ -1502,6 +1548,8 @@ Extender `valid_for` requiere un change posterior con threat model y evidencia K
 **Conserva/rebasa:** P13/P26 parcial; O8; O2B como control.
 
 K9 sigue siendo el **único gate que promociona** `kernel-shadow → kernel`. No desaparece. Pero no se espera hasta K9 para descubrir que una abstracción no funciona: los checkpoints intermedios ya habrán emitido `continue` | `revise` | `reject`.
+
+K9 no puede decidir con shadow/replay aislados: requiere el baseline, el oracle independiente y la varianza del **K12 focal**. El primer diseño usa tareas emparejadas por snapshot, host, modelo/effort y evaluator; repeticiones y orden aleatorio; cachés y worktrees separados; holdout por familia de tareas; y márgenes de no inferioridad, mejora práctica y veto fijados antes de mirar resultados. La unidad estadística es la tarea, no cada repetición.
 
 #### Checkpoints previos (no sustituyen K9)
 
@@ -1542,9 +1590,11 @@ Ambas comparaciones registran veredictos/findings, evidence/challenges/provenanc
 #### Done criteria
 
 - calidad no inferior;
+- márgenes de no inferioridad, mejora práctica de coste/ceremonia y vetos de promoción están predeclarados y se reportan con numeradores, denominadores, intervalos y cohortes excluidas;
 - requisitos/evidencia/aprobaciones perdidos: 0;
 - señales materiales descartadas: 0;
 - replay determinista **bajo el mismo PolicySnapshot**;
+- replay solo afirma lo ocurrido en ramas y resultados registrados; no se usa como oracle contrafactual de acciones nunca ejecutadas;
 - stale Evaluation Attestations / Delivery Authorizations e invalid recoveries bloqueados (incluye policy drift);
 - defectos sembrados detectados;
 - fallback fixed/strict probado;
@@ -1656,7 +1706,8 @@ K9 demuestra Repair
 
 #### Alcance
 
-- recetas de cinco rutas;
+- recipes compatibles para los cinco identificadores heredados;
+- `Direct/Repair/Bounded/Planned/Critical` se conservan como identificadores de compatibilidad y telemetría, no como un enum de dimensiones homogéneas; cada recipe se materializa como un conjunto composicional/versionado de obligaciones, riesgo, coordinación y reversibilidad;
 - capabilities semánticas;
 - selector de evidence strategy;
 - hard floors y clamps;
@@ -1666,7 +1717,7 @@ K9 demuestra Repair
 
 #### Experimento focal de ejecución compacta
 
-La compactación de ejecución es un slice de K10, separado de la proyección de contexto CX: compara una o varias invocaciones semánticas desde el mismo `SourceSnapshot`, Change Contract y conjunto de obligaciones exigidas, bajo la misma política de garantías y el mismo contrato de verificación independiente. Cada brazo congela su propio `CandidateId` y vincula su grafo, evidencia y verdict a ese candidato; no se exige igualdad de bytes entre implementaciones ni se reutilizan attestations entre brazos. Bounded conserva sus floors y la separación worker/verifier/reviewer/delivery.
+La compactación de ejecución es un slice de K10, separado de la proyección de contexto CX: compara una o varias invocaciones semánticas desde el mismo `SourceSnapshot`, Change Contract y conjunto de obligaciones exigidas, bajo la misma política de garantías y el mismo contrato de verificación independiente. Cada brazo congela su propio `CandidateId` y vincula su grafo, evidencia y verdict a ese candidato; no se exige igualdad de bytes entre implementaciones ni se reutilizan attestations entre brazos. Bounded conserva sus floors y la separación worker/verifier/reviewer/delivery. Ninguna composición puede anular una obligación fuerte por elegir un profile barato.
 
 El prerequisito es el mapa validado legacy→recipe y el contrato runtime versionado de CX1 para representar outputs y completions combinados sin simular fases; no exige CX3/CX4 ni completar toda la lane CX. La promoción conserva K7/K8/K9 y K10-delivery según el alcance de evaluación y entrega. Un corpus focal versionado basta para el experimento inicial: K11b y K12 longitudinal/multi-target no son prerequisitos. Se registra modelo/versión/effort/configuración como provenance, no como prueba de calidad. Mismatch, profile stale/no probado, coverage incompleta o recovery no equivalente impiden la promoción y restauran una ejecución compatible mediante la transición vigente, sin cambiar automáticamente la ruta persistida ni reiniciar budgets.
 
@@ -1679,6 +1730,7 @@ El prerequisito es el mapa validado legacy→recipe y el contrato runtime versio
 - Critical exige irreversible decision, failure/threat model, rollback, adversarial verify y specialists;
 - capacidades omitidas tienen reason verificable;
 - responsabilidades semánticas no desaparecen al combinar invocaciones;
+- toda operación material y toda ampliación de alcance pasa por admisión de efectos y conserva permiso, receipt, reconciliación y fallback/rollback aplicable;
 - riesgo, incertidumbre, radio de impacto y reversibilidad determinan las obligaciones; la capacidad observada solo selecciona una ejecución admisible;
 - descubrimientos durante ejecución solo elevan obligaciones y preservan lineage, attempts, budgets y evidencia válida por digest;
 - los artefactos JIT conservan decisiones/evidencia necesarias para recovery y consumidores; los pasos internos prescindibles no se convierten en rituales persistidos;
@@ -1692,7 +1744,7 @@ Hasta promover recetas, la tabla `routing:` de `openspec/config.yaml` sigue sien
 
 #### Gate de rollout
 
-Activar una ruta cada vez, empezando Repair. Cada ruta nueva exige promoción (K9 o equivalente) **antes** de que K10-delivery la enforcee. Direct solo después de demostrar que el coste reducido no omite garantías. Ningún hook de un profile promovido bloquea profiles no evaluados. Las revisiones y challenges requeridos por policy se conservan aunque una ejecución use menos invocaciones.
+Activar un profile cada vez, empezando Repair. Cada profile nuevo exige promoción de **K9** **antes** de que K10-delivery lo enforcee. Direct solo después de demostrar que el coste reducido no omite garantías. Ningún hook de un profile promovido bloquea profiles no evaluados. Las revisiones y challenges requeridos por policy se conservan aunque una ejecución use menos invocaciones.
 
 ## Bloque 11 — plataforma por slices
 
@@ -1788,7 +1840,7 @@ Activar una ruta cada vez, empezando Repair. Cada ruta nueva exige promoción (K
 
 ### K12 — corpus, events de escala y calidad longitudinal — **pending**
 
-**Dependencias:** el corpus focal usa ya el Minimal Kernel Harness de K2. Cada vertical añade K4a–K8/K9 solo cuando la fixture evalúa esa garantía; longitudinal y multi-target esperan las capabilities que pretenden probar.
+**Dependencias:** el corpus focal usa ya el Minimal Kernel Harness de K2 y debe alimentar K9 antes de cualquier promoción. Cada vertical añade K4a–K8/K9 solo cuando la fixture evalúa esa garantía; longitudinal y multi-target esperan las capabilities que pretenden probar.
 
 **Absorbe/rebasa:** P25 (telemetría a escala), P27; resto de P26 (corpus/journeys); R1; O16+O17 como vistas.
 
@@ -1796,7 +1848,9 @@ Activar una ruta cada vez, empezando Repair. Cada ruta nueva exige promoción (K
 
 #### Corpus focal y escala posterior
 
-El primer corte no espera K11 ni una cohorte longitudinal: selecciona tareas/riesgos representativos y registra corpus, host, policy, profile/configuración y versión del contract suite. Su objetivo es comparar la misma assurance con ejecución compacta y producir evidencia para `continue|revise|reject`, no declarar K12 completo.
+El primer corte no espera K11 ni una cohorte longitudinal: ejecuta 20–30 tareas independientes, con tres repeticiones por policy cuando el coste lo permita, estratificadas por tarea local reversible, reparación de comportamiento, multi-módulo y escenario adversarial. Empareja snapshot, host, modelo/effort y evaluator; aleatoriza el orden; separa cachés y worktrees; registra abandonos, timeouts y bloqueos; reserva un holdout por familia de tareas y una adjudicación independiente de obligaciones. Su objetivo es comparar la misma assurance con ejecución compacta y producir evidencia para `continue|revise|reject`, no declarar K12 completo.
+
+Las fixtures `14+` de la sección siguiente son el catálogo de escala heredado y se incorporan después de validar el corpus focal; no sustituyen el piloto emparejado ni son por sí solas evidencia de promoción K9.
 
 #### Corpus fixtures de escala (14+)
 
@@ -1860,6 +1914,7 @@ La evidencia mecánica (comando nombrado y ejecutable) prevalece sobre anotacion
 - corpus 14+ corre sobre kernel real vía harness (extensión del de K2), sin intervención;
 - corpus focal versionado compara misma tarea/riesgo/policy/host antes de compactar o promover una recipe/profile;
 - informes registran defects detected/escaped, cobertura de obligaciones, independencia del verifier, recovery y coste completo por candidate aceptado;
+- un oracle independiente del ejecutor contrasta obligaciones aplicables y puede detectar omisiones del manifest autodeclarado;
 - decisión humana pendiente devuelve `halt`, nunca auto-approve;
 - assertions validan outputs estructurales;
 - event schema cubre lifecycle y coste a escala sin persistir razonamiento;
@@ -1903,8 +1958,12 @@ La evidencia mecánica (comando nombrado y ejecutable) prevalece sobre anotacion
 | R2 | pending | R2.1–R2.7 | Siete slices subordinados; no mezclar conocimiento y evidencia |
 | R4 | pending | K4a, después federación | Mismo Execution Graph |
 | Target roadmaps | activos/pending según host | K2a + K11a–K11d | Contrato de referencia temprano; expansión subordinada a core estable |
+| PP2 — `compact-lite-contract-and-consumer-compatibility` | **archived 2026-09-11** | Preflight de compatibilidad | Auditar/migrar consumidores; no reimplementar ni inferir runtime Adaptive |
+| CX1 — `phase-envelope-state-mechanical-projection` | **archived base + remediations 2026-09-11–17** | Preflight de compatibilidad | Reconciliar consumidores y fallback; no crear segundo estado canónico |
+| `adaptive-operation-identity-binding` | **proposed, next new change** | Identidad de operación y unknown reconciliation | Binding `changePath`/`phase`/`expectedRevision`/`operation`; conservar legacy |
+| CX2 — `derived-traceability-and-archive-views` | pending | Lane de apoyo | Solo con consumidor concreto; vista derivada sin autoridad |
 
-No queda ninguna iniciativa transversal anterior sin destino explícito.
+Las filas anteriores a PP2/CX1 conservan el **estado heredado** de la fusión histórica; no sustituyen la tabla ejecutiva ni implican que un change `pending` siga abierto cuando su implementación ya fue absorbida por K4a/K4b/K6a. No queda ninguna iniciativa transversal anterior sin destino explícito.
 
 ## Cobertura operativa P0–P27
 
@@ -1913,7 +1972,7 @@ No queda ninguna iniciativa transversal anterior sin destino explícito.
 | P0 invariantes | K1 materializa contratos; K2–K12 consumen y hacen enforcement por slice | conformance K1 sin confundir schema materializado con runtime terminado |
 | P1 kernel | K2 | deterministic transitions + Minimal Kernel Harness + model-based invariants |
 | P2 Execution Graph | K4a (compile/replay) + K4b (shadow orchestration) | compile antes de execute; Repair shadow |
-| P3 cinco rutas | K10 | rollout una a una |
+| P3 identificadores de rutas y recipes composicionales | K10 | mapeo legacy→obligaciones; rollout de profiles uno a uno |
 | P4 clasificación | K1/K4a | hard floors |
 | P5 capacidades | K10 | semantic responsibility coverage |
 | P6 clarify evento | K4a/K10 | partial invalidation |
@@ -1979,10 +2038,14 @@ Evidencia: verify `PASS`, gate 4R `approved` y archive `openspec/changes/archive
 
 - calidad no inferior;
 - cero obligaciones/evidencia/aprobaciones perdidas;
+- cobertura contrastada contra una referencia/oracle independiente, no solo contra el manifest del ejecutor;
 - cero señales materiales descartadas;
+- admisión de efectos continua, incluida toda ampliación de alcance, con unknown reconciliable;
 - fixed/strict fallback;
 - coste/latencia/complexity publicados;
-- capability honesta del host de referencia.
+- ceremony cost y control-surface medidos;
+- capability honesta del host de referencia;
+- promoción limitada a la combinación tarea/profile/host/capabilities evaluada, con márgenes y vetos predeclarados.
 
 ### Gate E — delivery real
 
@@ -2019,7 +2082,7 @@ Para cada change:
 7. **Portabilidad:** ¿qué target enforcea o degrada?
 8. **Retirada:** ¿qué implementación anterior queda deprecada y cuándo?
 
-Un reviewer no debe reconstruir estas respuestas desde el diff; cada change las expone en proposal/design/tasks y reports.
+Un reviewer no debe reconstruir estas respuestas desde el diff; cada change las expone en el registro durable exigido por la política: `proposal/spec/design/tasks` cuando corresponda, o contrato/journal compacto con la misma identidad, evidencia, recovery y retirada. Los reports conservan el resultado sin fabricar fases ausentes.
 
 ## Lanes subordinadas
 
@@ -2048,7 +2111,7 @@ Reglas:
 
 ### CX — eficiencia de contexto (no bloqueante)
 
-Lane subordinada de **contexto y representaciones derivadas**: reduce amplificación sin mover autoridades, defaults ni ruta crítica. K4a sigue siendo el único `ExecutionGraphCompiler`; `InputProjectionBuilder` solo deriva `ContextProjection` desde Graph/`capsule_inputs` y referencias canónicas. CX0 está implemented-advisory; CX1/CX2 tienen prioridad de habilitación reutilizable y no son requisito de K7. CX no demuestra ni autoriza compactar invocaciones: esa comparación pertenece al experimento focal de recipes K10/K9. Ninguna de las dos optimizaciones concede al productor autoridad de verifier, reviewer o delivery.
+Lane subordinada de **contexto y representaciones derivadas**: reduce amplificación sin mover autoridades, defaults ni ruta crítica. K4a sigue siendo el único `ExecutionGraphCompiler`; `InputProjectionBuilder` solo deriva `ContextProjection` desde Graph/`capsule_inputs` y referencias canónicas. CX0 está implemented-advisory; CX1 está implementado/archivado y CX2 sigue pendiente de un consumidor concreto. Ninguno es requisito de K7. CX no demuestra ni autoriza compactar invocaciones: esa comparación pertenece al experimento focal de recipes K10/K9. Ninguna de las dos optimizaciones concede al productor autoridad de verifier, reviewer o delivery.
 
 El [verify histórico CX0](../../openspec/changes/archive/2026-09-02-cx0-context-measurement/verify-report.md) registra PASS (12/12). Su carpeta está bajo archive, pero [state](../../openspec/changes/archive/2026-09-02-cx0-context-measurement/state.yaml) conserva `verified` y [archive-report](../../openspec/changes/archive/2026-09-02-cx0-context-measurement/archive-report.md) documenta movimiento pendiente. Se registra como limitación histórica; este roadmap no inventa reconciliación ni deduce ahorro medido de instrumentación existente.
 
@@ -2073,7 +2136,7 @@ Encaje: K9 puede consumir señales CX para comparar contexto y, por separado, se
 
 #### Hipótesis iniciales para CX0
 
-No son compromisos ni evidencia actual: CX0 debe ratificarlas o corregirlas antes de convertirlas en gates.
+No son compromisos, objetivos de aceptación ni evidencia actual: son valores ilustrativos para detectar qué debe medirse. CX0 debe contrastarlas con una baseline reproducible y una decisión de producto antes de que cualquier cifra pueda convertirse en gate; no deben presentarse como ahorro garantizado.
 
 | Cohorte/KPI | Hipótesis inicial |
 | --- | ---: |
@@ -2089,6 +2152,8 @@ El registro histórico de K4a (`5.478.420` prompt tokens; `70,9 %` en review reg
 R2 sigue subordinado al core. Puede avanzar por slice solo si no toca lifecycle, Execution Graph, Candidate/evidence authority ni defaults adaptive.
 
 El [diseño holístico](../architecture/harness-foundation-holistic.md) amplía descubrimiento dentro de los artefactos vigentes, cubriendo propósito y ciclo de vida del software según riesgo. Las fichas iniciales de arriba priorizan R2.1/R2.4 y R2.2; la futura skill CNCF se mapea a R2.3/R2.6 y sigue siendo on-demand. No exige OpenWiki, Starlight, cloud ni catálogo previo; R2.5 y R2.7 conservan su alcance posterior.
+
+La memoria opcional (incluido Engram) solo recupera contexto: cada observación lleva procedencia, revisión y contraste con el estado live. No concede permisos, sustituye aprobaciones/evaluadores ni se convierte en autoridad normativa; su caída no bloquea el trabajo y secretos/payloads completos quedan fuera por defecto. Una contradicción se conserva como conflicto investigable, no como verdad más reciente.
 
 | Slice | Destino | Dependencia/gate | Done criteria |
 | --- | --- | --- | --- |
@@ -2120,8 +2185,11 @@ Un Change Program (objetivo → children OpenSpec + cursor, ver investigación `
 
 - transitions deterministas y contract failures;
 - obligaciones/requisitos perdidos;
+- cobertura contrastada por oracle independiente y omisiones del manifest;
+- superficie de efectos mediada por host (`enforced|partial|instructional|unavailable`), intentos y ampliaciones de alcance;
 - Candidate/receipt mismatches;
 - recoveries ejecutadas, fallidas y terminales;
+- resultados `unknown` reconciliados, reintentos evitados y presupuestos preservados;
 - budgets agotados;
 - invocaciones, tokens input/cached/uncached/output, tools, tiempo y coste;
 - artifact read/write y tool-output tokens con schema/version, fuente y cobertura;
@@ -2130,6 +2198,8 @@ Un Change Program (objetivo → children OpenSpec + cursor, ver investigación `
 - challenges y mutantes detectados;
 - findings/correcciones/retries;
 - complexity delta;
+- ceremonia por tarea: interrupciones, handoffs, artefactos semánticos y lecturas repetidas;
+- experimento: repeticiones agrupadas por tarea, exposición/holdout y abandonos/timeouts;
 - señales descartadas: objetivo 0;
 - deprecations/compatibility paths activos;
 - guarantees por target;
@@ -2150,6 +2220,11 @@ Un Change Program (objetivo → children OpenSpec + cursor, ver investigación `
 | Hook global tras promover Repair | K10-delivery solo enforcea el profile K9; resto fixed/deferred; no bloquear Planned/Critical/Direct |
 | Challenges universales en K6c | `ChallengePlan` por policy/strategy; skipped auditado; no quemar tokens |
 | Assurance Graph como autoridad | Proyección derivada en K6b/K7; OpenSpec/Git/Candidate mandan |
+| Manifest autodeclarado como cobertura suficiente | Oracle/referencia independiente de obligaciones; el ejecutor no fija por sí solo el denominador |
+| Admisión solo en el primer write | Cada efecto material y ampliación de alcance pasa por mediación aplicable; unknown exige reconciliation |
+| Discovery Graph nuevo | Historia derivada de eventos, Work Orders, Candidates, evidencia y recovery; solo IDs causales mínimos |
+| Dream-RSI/aprendizaje de policy prematuro | Política Adaptive fija, evaluator congelado, holdout separado y ejecuciones nuevas antes de optimizar |
+| Memoria/Engram como autoridad | Contexto opcional con procedencia y contraste live; nunca permisos, policy, verdict o aprobación |
 | Successor ⇒ reejecutar todo | Invalidación selectiva por closure de `AssuranceEdge`; conservar independiente |
 | Overbuild de K2 | Solo invariantes ejecutables + puertos opacos; diferidas sin fingir enforcement |
 | K6a conoce Repair | K6a = primitives; K4b = orchestrator; dependencia K4b→K6a solamente |
@@ -2188,6 +2263,12 @@ Un Change Program (objetivo → children OpenSpec + cursor, ver investigación `
 - No instalar enforcement global en K10-delivery: solo el profile promovido por K9; el resto permanece fixed/deferred.
 - No ejecutar el cuarteto de challenges de K6c como pasos universales; exigir `ChallengePlan` proporcional.
 - No tratar el Assurance Graph como autoridad ni reejecutar verify/review completo si el closure selectivo basta.
+- No contar la cobertura del manifest del ejecutor como cobertura independiente de obligaciones.
+- No admitir efectos solo al inicio: exploración, lecturas con efecto, red, tests con hooks y ampliaciones de alcance requieren mediación aplicable.
+- No crear un Discovery Graph autoritativo nuevo para K12; derivar la historia desde datos canónicos.
+- No usar replay para afirmar resultados de acciones o ramas nunca ejecutadas.
+- No promover Adaptive globalmente por una etiqueta de capacidad; el ámbito validado es tarea/profile/host/capabilities.
+- No convertir Engram u otra memoria en autoridad de permisos, policy o verdict.
 - No aplazar el primer runner headless a K12; el Minimal Kernel Harness es obligación de K2.
 - No exigir TLA+ en K2; sí exigir modelo reducido + exploración + siete invariantes mínimas en CI.
 - No ejecutar worker runtime nuevo con autoridad en K4a; compile/replay primero, shadow execution en K4b tras K6a.
@@ -2261,3 +2342,5 @@ Un Change Program (objetivo → children OpenSpec + cursor, ver investigación `
 - 2026-08-31: K6c (`k6c-failclosed-integrity`) cierra el NO-GO residual: strategy binding en verifier/projector, `missing_tests`/no-op fail-closed, planner TypeError y `required` único + metaschema. Verify PASS WITH WARNINGS; 4R approved. Publicado en v2.56.2. K6c permanece `done`; K6d sigue `next-eligible`.
 - 2026-08-31: K6c (`k6c-budget-execution-failclosed`) remedia el enforcement de `mutation_budget` con consumo monotónico inline y causal failure `CHALLENGE_BUDGET_EXHAUSTED` inmediato, y clasifica estrictamente errores de spawn (`spawn_error`) y timeouts para impedir falsos positivos en `defects_detected`. Verify PASS; 4R approved. Publicado en v2.56.4. K6c queda cerrado en su totalidad; K6d permanece `next-eligible`.
 - 2026-08-31: se añade la lane subordinada CX para medir y reducir amplificación de contexto mediante proyecciones derivadas, sin mover `K6d` ni la ruta crítica; targets numéricos quedan como hipótesis hasta CX0.
+- 2026-09-03–09-17: K6d queda archivado como advisory; CX0/CX1 y sus remediaciones se implementan y archivan. PP2 (`compact-lite-contract-and-consumer-compatibility`) también queda archivado; sus consumidores siguen sujetos a preflight, migración y reconciliación.
+- 2026-09-19: la revisión canónica `ospec-adaptive-critical-design.md` reconcilia este roadmap sección por sección. El siguiente change nuevo es `adaptive-operation-identity-binding`; K12 focal + oracle independiente y K7/K8 preceden piloto fijo, K9 y K10-delivery acotado. CX2/R2/CX3/CX4 quedan lanes de apoyo.
