@@ -180,6 +180,26 @@ test("reducePhaseCompletion: replaying identical completion payload produces zer
   assert.deepEqual(replay.state, first.state);
 });
 
+test("reducePhaseCompletion: canonicalizes semantically identical envelopes despite key order and escaping [REQ-hooks-023]", () => {
+  const first = {
+    status: "success",
+    executive_summary: "Characters <>& and line separator \u2028 remain semantic content.",
+    artifacts: ["design.md"],
+    metadata: { z: "last", a: "first" },
+  };
+  const second = {
+    metadata: { a: "first", z: "last" },
+    artifacts: ["design.md"],
+    executive_summary: "Characters <>& and line separator \u2028 remain semantic content.",
+    status: "success",
+  };
+
+  const one = reducePhaseCompletion(sampleState(), { phase: "design", envelope: first }, { now: NOW });
+  const two = reducePhaseCompletion(sampleState(), { phase: "design", envelope: second }, { now: NOW });
+
+  assert.equal(one.state.phases.design.last_payload_hash, two.state.phases.design.last_payload_hash);
+});
+
 test("reducePhaseCompletion: re-exported from lifecycle-kernel/reducer.js [REQ-lifecycle-kernel-028]", () => {
   assert.equal(typeof exportedReducer, "function");
   assert.equal(exportedReducer, reducePhaseCompletion);

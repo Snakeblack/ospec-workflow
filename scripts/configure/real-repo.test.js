@@ -13,7 +13,7 @@ const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 
-const { runConfigure } = require("./cli.js");
+const { runConfigure, PROFILES } = require("./cli.js");
 const { validate } = require("./validate-github-copilot.js");
 const { validate: validateOpencode } = require("./validate-opencode.js");
 const { validate: validateCodex } = require("./validate-codex.js");
@@ -23,7 +23,6 @@ const {
   parseRoutingTable,
   validateRouteTable,
   selectRoute,
-  isRouteEligible,
 } = require("../lib/route-dispatcher.js");
 const { parse, getField } = require("../lib/frontmatter.js");
 const ROOT = path.resolve(__dirname, "..", "..");
@@ -61,6 +60,43 @@ test("real repo: all seven targets ship the engineering and review references", 
         `${target} dropped required shared reference ${reference}`,
       );
     }
+  }
+});
+
+test("real repo: generated phase validator executes in every target", (t) => {
+  for (const target of Object.keys(PROFILES)) {
+    const out = tmpOut(t);
+    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
+    const validator = path.join(out, "scripts/validate-phase.js");
+    assert.ok(fs.existsSync(validator), `${target} must ship validator`);
+    assert.ok(!fs.existsSync(path.join(out, "scripts/configure/validate-phase.js")));
+    const instructions = walk(out).filter((file) => !file.startsWith("scripts/"))
+      .map((file) => fs.readFileSync(path.join(out, file), "utf8")).join("\n");
+    assert.ok(!instructions.includes("node scripts/configure/validate-phase.js"), `${target} must not reference excluded validator`);
+    assert.match(instructions, /node scripts\/validate-phase\.js PHASE_NAME ACTUAL_ROUTE_NAME CHANGE_NAME/);
+    const change = `generated-validator-${process.pid}`;
+    const changeDir = path.join(out, "openspec/changes", change);
+    fs.mkdirSync(changeDir, { recursive: true });
+    fs.mkdirSync(path.join(out, "openspec"), { recursive: true });
+    if (target === "codex") {
+      const rejects = (route, diagnostic) => assert.throws(
+        () => execFileSync(process.execPath, [validator, "sdd-tasks", route, change], { cwd: out, stdio: "pipe" }),
+        (error) => error.status === 1 && diagnostic.test(error.stderr.toString()),
+      );
+      rejects("standard", /openspec\/config.yaml/);
+      fs.writeFileSync(path.join(out, "openspec/config.yaml"), fs.readFileSync(path.join(ROOT, "openspec/config.yaml")));
+      rejects("removed-route", /removed-route/);
+      rejects("None", /None/);
+      fs.writeFileSync(path.join(changeDir, "state.yaml"), "route:\n  actual_route: removed-route\n");
+      rejects("removed-route", /removed-route/);
+      fs.unlinkSync(path.join(changeDir, "state.yaml"));
+    } else {
+      fs.writeFileSync(path.join(out, "openspec/config.yaml"), fs.readFileSync(path.join(ROOT, "openspec/config.yaml")));
+    }
+    assert.throws(() => execFileSync(process.execPath, [validator, "sdd-tasks", "standard", change], { cwd: out, stdio: "pipe" }),
+      (error) => error.status === 1, `${target} must reject missing design`);
+    fs.writeFileSync(path.join(changeDir, "design.md"), "# Design\n");
+    assert.match(execFileSync(process.execPath, [validator, "sdd-tasks", "standard", change], { cwd: out, encoding: "utf8" }), /\[OK\]/);
   }
 });
 
@@ -1036,12 +1072,14 @@ test("real repo: route-dispatch-run executes directly from generated target outp
   assert.equal(parsed.classification, "small");
 });
 
-test("real repo: six target outputs retain the compact lite artifact contract", (t) => {
+test("real repo: all seven profile outputs retain the compact lite artifact contract", (t) => {
+  assert.equal(Object.keys(PROFILES).length, 7);
+  assert.ok(Object.hasOwn(PROFILES, "antigravity"));
   const sourceConfig = fs.readFileSync(path.join(ROOT, "openspec", "config.yaml"), "utf8");
   const lite = parseRoutingTable(sourceConfig).find((route) => route.name === "lite");
   assert.deepEqual(lite.phases, ["sdd-propose", "sdd-tasks", "sdd-apply", "sdd-verify", "sdd-archive"]);
 
-  for (const target of ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor"]) {
+  for (const target of Object.keys(PROFILES)) {
     const out = tmpOut(t);
     runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
     const text = walk(out).map((file) => fs.readFileSync(path.join(out, file), "utf8")).join("\n");

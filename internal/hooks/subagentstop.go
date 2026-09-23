@@ -20,7 +20,6 @@ import (
 	"github.com/snakeblack/ospec-workflow/internal/modelconfig"
 	"github.com/snakeblack/ospec-workflow/internal/resultenvelope"
 	"github.com/snakeblack/ospec-workflow/internal/store"
-	"github.com/snakeblack/ospec-workflow/internal/yamllite"
 )
 
 func init() {
@@ -556,11 +555,21 @@ func resolveCandidateEnvelope(input map[string]any) (map[string]any, bool) {
 // fence, malformed JSON, schema-invalid, no active change, non-"sdd-" agent,
 // lock/write failure) silently no-ops without panicking and without affecting
 // the hook's stdout.
+var projectPhaseCompletion = ProjectPhaseCompletion
+
+func logProjectionFailure(err error) {
+	// stderr is deliberately separate from hook stdout, which remains the
+	// stable continuation protocol even when persistence fails.
+	fmt.Fprintf(os.Stderr, "SubagentStop result-envelope projection failed: %v\n", err)
+}
+
 func persistResultEnvelope(input map[string]any, workspace string) {
 	defer func() {
 		// Fully fail-safe: envelope persistence must never crash SubagentStop
 		// or affect its existing skill_resolution behavior/exit status.
-		_ = recover()
+		if recovered := recover(); recovered != nil {
+			logProjectionFailure(fmt.Errorf("recovered projection panic: %v", recovered))
+		}
 	}()
 
 	candidate, found := resolveCandidateEnvelope(input)
@@ -580,33 +589,25 @@ func persistResultEnvelope(input map[string]any, workspace string) {
 	}
 
 	s := store.NewStore(workspace)
+	// Recover orphaned state backups before discovery; otherwise a missing
+	// primary state.yaml causes the store to skip an otherwise active change.
+	if err := s.RecoverOrphanStateBackups(); err != nil {
+		logProjectionFailure(err)
+		return
+	}
 	activeChanges, err := s.FindActiveChanges()
 	if err != nil || len(activeChanges) == 0 {
 		return
 	}
 	statePath := filepath.Join(activeChanges[0].ChangeDirectory, "state.yaml")
 
-	summary, _ := candidate["executive_summary"].(string)
-	var keyDecisions []string
-	if raw, ok := candidate["key_decisions"].([]any); ok {
-		for _, item := range raw {
-			if s, ok := item.(string); ok {
-				keyDecisions = append(keyDecisions, s)
-			}
-		}
+	// The projector owns the complete state transition: reducer semantics,
+	// replay hash, revision CAS boundary, advisory lock, and atomic commit.
+	// Its result is logged only to stderr because SubagentStop is fail-safe.
+	projection := projectPhaseCompletion(statePath, statePhaseKey, candidate, nil)
+	if !projection.OK {
+		logProjectionFailure(fmt.Errorf("%s: %s", projection.Outcome, projection.Error))
 	}
-
-	_ = store.WithLock(statePath, func() error {
-		fresh, readErr := os.ReadFile(statePath)
-		if readErr != nil {
-			return nil // fail-safe no-op
-		}
-		updated := yamllite.SetPhaseSummary(string(fresh), statePhaseKey, summary, keyDecisions)
-		if updated == string(fresh) {
-			return nil
-		}
-		return atomicWriteFile(statePath, updated)
-	})
 }
 
 // atomicWriteFile writes content to dst using a temp-file + rename pattern,

@@ -1,0 +1,49 @@
+name: Bug report
+description: Report a reproducible defect in ospec-workflow.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      description: Provide the installed plugin version or the commit being tested.
+      placeholder: "2.68.0"
+    validations:
+      required: true
+  - type: input
+    id: host-environment
+    attributes:
+      label: Host and environment
+      description: Include host and version (VS Code version if applicable), and state whether hooks and MCP were enabled.
+      placeholder: "VS Code version, Node version, OS, hooks/MCP status"
+    validations:
+      required: true
+  - type: textarea
+    id: observed-behavior
+    attributes:
+      label: Observed behavior
+      description: Describe what happened and which operation was affected.
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: Describe the result required by the current contract.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Provide minimal steps, inputs, and relevant state without secrets.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Additional evidence
+      description: Include test output or links to relevant contracts; redact secrets and private data.
+    validations:
+      required: false

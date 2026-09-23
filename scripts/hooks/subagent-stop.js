@@ -541,7 +541,20 @@ async function resolveCandidateEnvelope(input) {
  * into the active change's state.yaml via projectPhaseCompletion, per REQ-hooks-001/023/015.
  * Strictly additive and fail-safe: any failure at any step silently no-ops.
  */
-async function persistResultEnvelope({ input, workspace }) {
+function logProjectionFailure(error, log = console.error) {
+  try {
+    log(`SubagentStop result-envelope projection failed: ${error.message}`);
+  } catch {
+    // Logging must not affect the hook continuation either.
+  }
+}
+
+async function persistResultEnvelope({
+  input,
+  workspace,
+  project = projectPhaseCompletion,
+  log = console.error,
+}) {
   try {
     const candidate = await resolveCandidateEnvelope(input);
 
@@ -571,14 +584,18 @@ async function persistResultEnvelope({ input, workspace }) {
       return;
     }
 
-    await projectPhaseCompletion({
+    const projection = await project({
       changePath: activeChange.changePath,
       phase: statePhaseKey,
       envelope: candidate,
     });
-  } catch {
+    if (!projection?.ok) {
+      logProjectionFailure(new Error(`${projection?.outcome || "projection-failed"}: ${projection?.error || "unknown error"}`), log);
+    }
+  } catch (error) {
     // Fully fail-safe: envelope persistence must never affect SubagentStop's
     // existing skill_resolution behavior or exit status.
+    logProjectionFailure(error, log);
   }
 }
 
@@ -1226,7 +1243,16 @@ async function readJsonInput(stream = process.stdin) {
   }
 
   const input = Buffer.concat(chunks).toString("utf8").trim();
-  return input ? JSON.parse(input) : {};
+  if (!input) {
+    return {};
+  }
+  try {
+    return JSON.parse(input);
+  } catch {
+    // Invalid host input has no safe projection path; preserve the hook's
+    // fail-safe continuation rather than letting parsing throw at the boundary.
+    return {};
+  }
 }
 
 async function main() {
