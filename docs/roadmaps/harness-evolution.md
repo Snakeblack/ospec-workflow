@@ -2,7 +2,7 @@
 
 > **Fuente canónica:** [`ospec-adaptive-critical-design.md`](../architecture/ospec-adaptive-critical-design.md) es la única fuente arquitectónica para Adaptive y sus garantías.
 > **Autoridad del roadmap:** este documento es la proyección ejecutable del backlog; ante una contradicción arquitectónica, prevalece el análisis canónico y el roadmap se reconcilia antes de iniciar un slice.
-> **Versión de referencia:** v2.68.0, 2026-09-19.
+> **Versión de referencia:** v2.68.1, 2026-09-19.
 > **Revisión de arquitectura y prioridades:** 2026-09-19; no cambia la versión publicada ni los estados de OpenSpec.
 > **Investigación no normativa:** [`harness-kernel-graph-evidence-roadmap-fusion.md`](../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md) (P0–P27). Proporcionalidad de proceso y Change Program: [`proportional-process-and-change-program.md`](../architecture/research/proportional-process-and-change-program.md). Estas referencias informan, pero no sustituyen, la fuente canónica.
 > **Regla de estado:** los hechos se contrastan con código/OpenSpec; este roadmap no cambia el estado de un change ni sustituye sus artefactos.

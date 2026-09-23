@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.68.1] - 2026-09-23
+
+### Fixed
+- **Proyección CX1 en Go y Node (PR #195)**: `internal/hooks/phase-completion-reducer.go`, `internal/hooks/subagentstop.go`, `internal/store/store.go`, `scripts/hooks/subagent-stop.js` y `scripts/lib/lifecycle-kernel/phase-completion-reducer.js` alinean el reducer de `SubagentStop`, el replay idempotente, la actualización CAS bajo bloqueo y la recuperación de estado. `scripts/lib/ospec-state.js` rechaza YAML malformado sin sobrescribir el estado (fail-safe). La paridad está cubierta por tests de ambos runtimes; no implica que todos los hosts invoquen el hook.
+- **Preflight PP2 distribuido y paridad de targets (PR #196)**: `scripts/validate-phase.js` se distribuye como validador de fase ejecutable independiente; `scripts/configure/validate-phase.js`, `scripts/configure/cli.js` y `scripts/configure/real-repo.test.js` comprueban la entrega y ejecución en siete perfiles, incluido Antigravity. `openspec/specs/generator/spec.md` actualiza el contrato y `docs/target-capabilities.md` distingue validación instruccional, mapeo parcial y prueba de ejecución real del host; distribuir scripts no demuestra enforcement automático.
+
+La evidencia de integración de PR #195 y #196 incluye `npm test` (3385/3385 pruebas), pruebas Go en cuatro paquetes y CI en tres sistemas operativos; cubre código y generación, no la ejecución efectiva de hooks en cada host.
+
+**Verificación directa**: `node scripts/check.js` (3385 tests pasando, 0 fallos y 0 omitidos).
+
+### Changed
+- **Arquitectura y roadmap de OSPEC Adaptive**: `docs/architecture/ospec-adaptive-critical-design.md` establece la fuente canónica de decisiones Adaptive; `docs/architecture/harness-evolution.md`, `docs/roadmaps/README.md` y `docs/roadmaps/harness-evolution.md` alinean la autoridad documental y la proyección del backlog. Esta actualización documental independiente no activa el runtime Adaptive.
+
 ## [2.68.0] - 2026-09-18
 
 ### Added
