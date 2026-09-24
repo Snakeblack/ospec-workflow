@@ -154,6 +154,33 @@ baseline_fingerprints:
   assert.equal(facts.gatesSatisfied, true);
 });
 
+test("readArchiveGateFacts: accepts the current quality gate pass status", () => {
+  const facts = readArchiveGateFacts(`
+phases:
+  verify:
+    verdict: PASS
+gates:
+  quality-gates:
+    status: pass
+`);
+  assert.equal(facts.qualityGatesStatus, "pass");
+  assert.equal(facts.gatesSatisfied, true);
+});
+
+test("readArchiveGateFacts: a later verify status cannot replace a failed quality gate", () => {
+  const facts = readArchiveGateFacts(`
+gates:
+  quality-gates:
+    status: fail
+phases:
+  verify:
+    status: done
+    verdict: PASS
+`);
+  assert.equal(facts.qualityGatesStatus, "fail");
+  assert.equal(facts.gatesSatisfied, false);
+});
+
 test("readArchiveGateFacts: missing quality-gates block", () => {
   const text = `
 phases:

@@ -147,6 +147,7 @@ function readArchiveGateFacts(stateYamlText) {
       inPhases = true;
       inVerify = false;
       inGates = false;
+      inQualityGates = false;
       inBaseline = false;
       inApprovals = false;
       continue;
@@ -257,6 +258,7 @@ function readArchiveGateFacts(stateYamlText) {
   let qgOk = true;
   if (qualityGatesPresent) {
     qgOk =
+      qualityGatesStatus === "pass" ||
       qualityGatesStatus === "passed" ||
       qualityGatesStatus === "done" ||
       qualityGatesStatus === "approved" ||
