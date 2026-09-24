@@ -147,6 +147,7 @@ function readArchiveGateFacts(stateYamlText) {
       inPhases = true;
       inVerify = false;
       inGates = false;
+      inQualityGates = false;
       inBaseline = false;
       inApprovals = false;
       continue;
