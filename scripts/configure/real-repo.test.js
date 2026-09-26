@@ -73,7 +73,14 @@ test("real repo: generated phase validator executes in every target", (t) => {
     const instructions = walk(out).filter((file) => !file.startsWith("scripts/"))
       .map((file) => fs.readFileSync(path.join(out, file), "utf8")).join("\n");
     assert.ok(!instructions.includes("node scripts/configure/validate-phase.js"), `${target} must not reference excluded validator`);
-    assert.match(instructions, /node scripts\/validate-phase\.js PHASE_NAME ACTUAL_ROUTE_NAME CHANGE_NAME/);
+    assert.match(
+      instructions,
+      /node <pluginInstallRoot>\/scripts\/validate-phase\.js PHASE_NAME ACTUAL_ROUTE_NAME CHANGE_NAME --workspace <projectRoot>/,
+    );
+    assert.doesNotMatch(
+      instructions,
+      /node scripts\/validate-phase\.js PHASE_NAME ACTUAL_ROUTE_NAME CHANGE_NAME(?!\s+--workspace)/,
+    );
     const change = `generated-validator-${process.pid}`;
     const changeDir = path.join(out, "openspec/changes", change);
     fs.mkdirSync(changeDir, { recursive: true });

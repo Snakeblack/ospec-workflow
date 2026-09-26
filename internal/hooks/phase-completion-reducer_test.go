@@ -2,7 +2,9 @@ package hooks
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -228,6 +230,26 @@ func TestProjectPhaseCompletion_V267NestedQuestionGateHashMatchesNodeAndNoops(t 
 	}
 	if string(after) != before {
 		t.Fatalf("nested v2.67 noop must not mutate state")
+	}
+}
+
+func TestLegacyV267StatusFirstDigestDiffersFromFrozenOrder(t *testing.T) {
+	frozenHash, err := legacyV267PayloadHash(v267GoldenEnvelope())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if frozenHash != v267GoldenLegacyHash {
+		t.Fatalf("frozen-order digest must pin golden: got %s want %s", frozenHash, v267GoldenLegacyHash)
+	}
+
+	// Status-first serialization of the same semantic fields (not Go's frozen order).
+	statusFirstJSON := `{"status":"success","schema_version":1,"executive_summary":"v2.67 golden replay fixture.","artifacts":["openspec/changes/auth/design.md"],"next_recommended":"sdd-tasks","risks":"None","skill_resolution":"injected","key_decisions":["Decision A"]}`
+	statusFirstHash := fmt.Sprintf("%x", sha256.Sum256([]byte(statusFirstJSON)))
+	if statusFirstHash == frozenHash {
+		t.Fatalf("status-first JSON digest must not match schema_version-first frozen digest")
+	}
+	if statusFirstHash == v267GoldenLegacyHash {
+		t.Fatalf("status-first JSON digest must not equal the promised v2.67 legacy noop digest")
 	}
 }
 

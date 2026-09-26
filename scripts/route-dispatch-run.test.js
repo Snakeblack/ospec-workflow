@@ -13,6 +13,7 @@ const {
   extractStateRouteInfo,
   extractConfigDefaults,
 } = require("./route-dispatch-run.js");
+const { readPersistedRouteInfo } = require("./validate-phase.js");
 
 test("route-dispatch-run: parseArgs extracts flags and options correctly", () => {
   const flags = parseArgs([
@@ -185,6 +186,96 @@ route:
   } finally {
     fs.rmSync(changeDir, { recursive: true, force: true });
   }
+});
+
+test("route-dispatch-run: persisted route.actual_route is authority over --persisted-route [REQ-routing-016]", () => {
+  const tempChange = `test-route-authority-${Date.now()}`;
+  const changeDir = path.join(ROOT, "openspec", "changes", tempChange);
+  fs.mkdirSync(changeDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(changeDir, "state.yaml"),
+    [
+      `change: ${tempChange}`,
+      "classification: small",
+      "route:",
+      "  actual_route: lite",
+    ].join("\n"),
+    "utf8",
+  );
+
+  try {
+    let threw = false;
+    try {
+      execFileSync(
+        process.execPath,
+        [DISPATCH_SCRIPT, tempChange, "--persisted-route=standard"],
+        { cwd: ROOT, stdio: "pipe" },
+      );
+    } catch (err) {
+      threw = true;
+      assert.equal(err.status, 1);
+      const parsed = JSON.parse(err.stderr.toString());
+      assert.equal(parsed.code, "persisted_route_authority_conflict");
+      assert.equal(parsed.persisted_route, "lite");
+      assert.equal(parsed.supplied_route, "standard");
+    }
+    assert.equal(threw, true, "disagreeing --persisted-route must fail closed");
+
+    // Agreeing override is allowed; persisted R remains the selected route.
+    const ok = JSON.parse(
+      execFileSync(
+        process.execPath,
+        [DISPATCH_SCRIPT, tempChange, "--persisted-route=lite"],
+        { cwd: ROOT, encoding: "utf8" },
+      ),
+    );
+    assert.equal(ok.status, "success");
+    assert.equal(ok.name, "lite");
+  } finally {
+    fs.rmSync(changeDir, { recursive: true, force: true });
+  }
+});
+
+test("route-dispatch-run: extractStateRouteInfo ignores actual_route outside route block [REQ-routing-016]", () => {
+  const outOfBlock = extractStateRouteInfo(`
+change: sample
+actual_route: standard
+status: planning
+`);
+  assert.equal(outOfBlock.persistedRoute, null);
+  assert.equal(outOfBlock.routeSectionPresent, false);
+
+  const underRoute = extractStateRouteInfo(`
+change: sample
+route:
+  actual_route: lite
+`);
+  assert.equal(underRoute.persistedRoute, "lite");
+  assert.equal(underRoute.routeSectionPresent, true);
+});
+
+test("route-dispatch-run: indented route block matches validate-phase [REQ-routing-016]", () => {
+  const samples = {
+    "nested-only": "wrapper:\n  route:\n    actual_route: lite\n",
+    "policy-plus-nested": "route:\n  intended_route: standard\nwrapper:\n  route:\n    actual_route: lite\n",
+  };
+  const dir = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "route-parity-"));
+  try {
+    for (const [name, content] of Object.entries(samples)) {
+      const changeDir = path.join(dir, name);
+      fs.mkdirSync(changeDir);
+      fs.writeFileSync(path.join(changeDir, "state.yaml"), content);
+      const dispatch = extractStateRouteInfo(content);
+      const validate = readPersistedRouteInfo(changeDir);
+      assert.equal(dispatch.persistedRoute, validate.persistedRoute, name);
+      assert.equal(dispatch.routeSectionPresent, validate.routeSectionPresent, name);
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  assert.equal(extractStateRouteInfo(samples["nested-only"]).persistedRoute, null);
+  assert.equal(extractStateRouteInfo(samples["policy-plus-nested"]).persistedRoute, null);
+  assert.equal(extractStateRouteInfo(samples["policy-plus-nested"]).routeSectionPresent, true);
 });
 
 test("route-dispatch-run: extractStateRouteInfo strips quotes from classification and route", () => {

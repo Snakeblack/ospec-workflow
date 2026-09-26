@@ -231,7 +231,7 @@ When creating a new change, also stamp its owner in the same `state.yaml` write 
 Run the route's `phases` in declared order.
 
 Before delegating any phase `PHASE_NAME` to a subagent:
-1. Run the command: `node scripts/validate-phase.js PHASE_NAME ACTUAL_ROUTE_NAME CHANGE_NAME` (where `ACTUAL_ROUTE_NAME` is the route resolved in `state.yaml` and `CHANGE_NAME` is the active change).
+1. Run the command: `node <pluginInstallRoot>/scripts/validate-phase.js PHASE_NAME ACTUAL_ROUTE_NAME CHANGE_NAME --workspace <projectRoot>` (where `<pluginInstallRoot>` is the real plugin install root that contains `scripts/validate-phase.js`, `<projectRoot>` is the consumer project workspace, `ACTUAL_ROUTE_NAME` is the route resolved in `state.yaml`, and `CHANGE_NAME` is the active change). Do NOT use a project-relative `node scripts/validate-phase.js …` that assumes the consumer cwd is the plugin tree or omits `--workspace`.
 2. If this command exits with exit code 1 (or outputs an error), you MUST halt execution, print the error message back to the user, and do NOT dispatch the subagent.
 3. If this command exits with exit code 0, proceed to launch the subagent.
 

@@ -134,13 +134,6 @@ function extractStateRouteInfo(stateContent) {
     }
   }
 
-  if (!info.persistedRoute) {
-    const fallbackRouteMatch = stateContent.match(/route:\s*(?:\r?\n)(?:[ \t]+[^\r\n]+(?:\r?\n))*?[ \t]+actual_route:\s*([^\r\n#]+)/);
-    if (fallbackRouteMatch) {
-      info.persistedRoute = fallbackRouteMatch[1].trim().replace(/^["']|["']$/g, "");
-    }
-  }
-
   return info;
 }
 
@@ -350,20 +343,39 @@ function main(argv = process.argv.slice(2), deps = {}) {
     ctx.explicit_hotfix_intent = true;
   }
 
-  const persistedRoute =
+  // Persisted route.actual_route under the route: block is authoritative.
+  // A disagreeing --persisted-route (or context equivalent) fails closed.
+  const cliOrContextRoute =
     flags.persistedRoute ||
     (suppliedCtx && (suppliedCtx.persistedRoute || suppliedCtx.actual_route)) ||
-    stateInfo.persistedRoute ||
     null;
+  const statePersisted = stateInfo.persistedRoute || null;
+
+  if (
+    statePersisted &&
+    cliOrContextRoute &&
+    String(cliOrContextRoute) !== String(statePersisted)
+  ) {
+    error(JSON.stringify({
+      status: "error",
+      error: `persisted_route_authority_conflict: state.yaml route.actual_route='${statePersisted}' disagrees with --persisted-route/context='${cliOrContextRoute}'`,
+      code: "persisted_route_authority_conflict",
+      persisted_route: statePersisted,
+      supplied_route: cliOrContextRoute,
+    }, null, 2));
+    return exit(1);
+  }
+
+  const persistedRoute = statePersisted || cliOrContextRoute || null;
 
   const options = {};
   if (persistedRoute) {
     options.persistedRoute = persistedRoute;
   }
   // Enforce policy-bound persistence: state has `route:` but no non-empty
-  // actual_route (and CLI/context did not supply one) → fail closed in selectRoute.
-  // Explicit CLI --persisted-route bypasses the missing-section gap only when set.
-  if (stateInfo.routeSectionPresent && !flags.persistedRoute) {
+  // actual_route → fail closed in selectRoute. CLI may supply a route only when
+  // state has no authoritative persisted value (legacy / bootstrap).
+  if (stateInfo.routeSectionPresent && !statePersisted) {
     options.routeSectionPresent = true;
   }
 

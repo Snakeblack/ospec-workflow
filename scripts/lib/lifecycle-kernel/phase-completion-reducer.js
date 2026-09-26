@@ -40,7 +40,13 @@ function computePayloadHash(payload) {
 }
 
 /**
- * v2.67.0–v2.67.3 replay digest: sha256 of native JSON.stringify (insertion-order keys).
+ * v2.67.0–v2.67.3 legacy replay digest.
+ * Compatibility is promised ONLY for the frozen key order (schema_version first;
+ * nested question_gate reason→questions, question header→question→options,
+ * option label→description→recommended). Native JSON.stringify preserves the
+ * envelope's insertion order, so a semantically equal status-first object does
+ * NOT produce this digest and is not a promised legacy noop. Go freezes the
+ * same order explicitly; do not preserve original JSON bytes.
  * Used only for dual-accept compare; new writes always store the canonical hash.
  */
 function legacyV267PayloadHash(envelope) {
@@ -119,7 +125,8 @@ function reducePhaseCompletion(currentState, payload, options = {}) {
   }
 
   // Replay verification: noop-replay when stored hash matches canonical OR
-  // frozen v2.67 insertion-order digest; distinct re-runs without a match proceed.
+  // the frozen v2.67 key-order digest (schema_version-first contract). Other
+  // insertion orders are not a promised legacy noop.
   const payloadHash = computePayloadHash(envelope);
   const phaseEntry = current.phases?.[phase];
   if (isReplayHashMatch(phaseEntry?.last_payload_hash, envelope)) {
