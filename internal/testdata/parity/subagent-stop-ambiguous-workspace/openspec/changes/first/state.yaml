@@ -1,0 +1,7 @@
+change: first
+status: applying
+phases:
+  design:
+    status: done
+    artifact: "openspec/changes/first/design.md"
+    summary: ""

@@ -549,11 +549,51 @@ function logProjectionFailure(error, log = console.error) {
   }
 }
 
+async function resolveActiveChange({
+  input = {},
+  workspace,
+  mode,
+  now = () => new Date(),
+} = {}) {
+  try {
+    const openspecRoot = await findOpenSpecRoot(workspace);
+    const activeChanges = await findActiveChanges(openspecRoot);
+
+    if (activeChanges.length === 0) {
+      return { status: "no-active-change" };
+    }
+    if (activeChanges.length === 1) {
+      return { status: "single-active-change", activeChange: activeChanges[0] };
+    }
+
+    // Stop payloads do not carry an attested change identity. Do not use the
+    // mtime-ordered first item as a fallback: record only this workspace-wide,
+    // unauthenticated observation and leave all change-scoped lanes untouched.
+    try {
+      const store = await createArtifactStoreFromConfig({ mode, workspace });
+      await store.appendRuntimeEvent({
+        timestamp: resolveTimestamp(input, now),
+        agent: resolveAgentName(input),
+        event_type: "subagent-stop-audit",
+        action: "skip-change-scoped-observability",
+        reason: "ambiguous-active-change",
+        authentication: "none",
+      });
+    } catch {
+      // Audit transport is observable-only and cannot alter hook continuation.
+    }
+    return { status: "ambiguous-active-change" };
+  } catch {
+    return { status: "resolution-failed" };
+  }
+}
+
 async function persistResultEnvelope({
   input,
   workspace,
   project = projectPhaseCompletion,
   log = console.error,
+  activeChangeResolution,
 }) {
   try {
     const candidate = await resolveCandidateEnvelope(input);
@@ -577,8 +617,8 @@ async function persistResultEnvelope({
       return;
     }
 
-    const openspecRoot = await findOpenSpecRoot(workspace);
-    const activeChange = (await findActiveChanges(openspecRoot))[0];
+    const resolution = activeChangeResolution || await resolveActiveChange({ input, workspace });
+    const activeChange = resolution.activeChange;
 
     if (!activeChange) {
       return;
@@ -936,7 +976,7 @@ function phaseCostDiagnostic({ phase, reason, input }) {
  * estimation error, write/lock error) silently no-ops without throwing and
  * without affecting the hook's stdout.
  */
-async function persistPhaseCost({ input, workspace }) {
+async function persistPhaseCost({ input, workspace, activeChangeResolution }) {
   const canonicalAgentPhase = resolveCanonicalAgent(resolveAgentName(input));
   const statePhaseKey = canonicalAgentPhase === UNRESOLVED
     ? ""
@@ -946,11 +986,17 @@ async function persistPhaseCost({ input, workspace }) {
       return phaseCostDiagnostic({ phase: null, reason: "unsupported-agent", input });
     }
 
-    const openspecRoot = await findOpenSpecRoot(workspace);
-    const activeChange = (await findActiveChanges(openspecRoot))[0];
+    const resolution = activeChangeResolution || await resolveActiveChange({ input, workspace });
+    const activeChange = resolution.activeChange;
 
     if (!activeChange) {
-      return phaseCostDiagnostic({ phase: statePhaseKey, reason: "no-active-change", input });
+      return phaseCostDiagnostic({
+        phase: statePhaseKey,
+        reason: resolution.status === "ambiguous-active-change"
+          ? "ambiguous-active-change"
+          : "no-active-change",
+        input,
+      });
     }
 
     const tokenUsage = await resolveCodexTokenCountUsageAsync(input, workspace);
@@ -1126,14 +1172,28 @@ function resolveContextHost(input, env, claudeTelemetry) {
  * alimenta uso + firma). REQ-context-measurement-008: host por precedencia
  * ADR-002 con `env` inyectable.
  */
-async function persistContextMeasurement({ input, workspace, append = appendContextMeasurement, env = process.env }) {
+async function persistContextMeasurement({
+  input,
+  workspace,
+  append = appendContextMeasurement,
+  env = process.env,
+  activeChangeResolution,
+}) {
   const canonicalAgent = resolveCanonicalAgent(resolveAgentName(input));
   const phase = derivePhaseKey(canonicalAgent);
   try {
     if (!phase) return { status: "skipped", reason: "unsupported-agent" };
-    const openspecRoot = await findOpenSpecRoot(workspace);
-    const activeChange = (await findActiveChanges(openspecRoot))[0];
-    if (!activeChange) return { status: "skipped", reason: "no-active-change", phase };
+    const resolution = activeChangeResolution || await resolveActiveChange({ input, workspace });
+    const activeChange = resolution.activeChange;
+    if (!activeChange) {
+      return {
+        status: "skipped",
+        reason: resolution.status === "ambiguous-active-change"
+          ? "ambiguous-active-change"
+          : "no-active-change",
+        phase,
+      };
+    }
     const codexUsage = await resolveCodexTokenCountUsageAsync(input, workspace);
     const claudeTelemetry = codexUsage ? undefined : await extractClaudeTelemetry(input);
     const tokenUsage = codexUsage || claudeTelemetry?.usage;
@@ -1191,21 +1251,22 @@ async function runSubagentStop({
   now = () => new Date(),
 } = {}) {
   const workspace = resolveWorkspaceCwd(input.cwd, fallbackCwd);
+  const activeChangeResolution = await resolveActiveChange({ input, workspace, mode, now });
 
   // REQ-hooks-001: attempt the strict result-envelope fence extract/validate/
   // persist step BEFORE the existing skill_resolution evaluation below. This
   // is a pure side effect (state.yaml write) and never alters this function's
   // return value or the hook's stdout.
-  await persistResultEnvelope({ input, workspace });
+  await persistResultEnvelope({ input, workspace, activeChangeResolution });
 
   // REQ-hooks-001: per-dispatch phase-cost recording. Same fail-safe/ordering
   // contract as persistResultEnvelope above — pure side effect, never alters
   // this function's return value or the hook's stdout.
-  await persistPhaseCost({ input, workspace });
+  await persistPhaseCost({ input, workspace, activeChangeResolution });
 
   // CX0 is intentionally post-O1 and independently fail-safe.  Its return
   // value is diagnostic-only and never participates in the hook's stdout.
-  await persistContextMeasurement({ input, workspace });
+  await persistContextMeasurement({ input, workspace, activeChangeResolution });
 
   const resolution =
     findResolutionInInput(input) ||
@@ -1304,6 +1365,7 @@ module.exports = {
   persistResultEnvelope,
   resolveDispatchStatus,
   resolveHostBinding,
+  resolveActiveChange,
   runSubagentStop,
   normalizeDispatchCostContext,
   parseCodexTokenCountTranscript,

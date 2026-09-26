@@ -642,6 +642,126 @@ func createChangeWorkspace(t *testing.T, stateContent string) (workspace, stateP
 	return workspace, statePath
 }
 
+func TestSubagentStop_AmbiguousActiveChangesSkipChangeScopedObservability(t *testing.T) {
+	workspace := t.TempDir()
+	statePaths := make([]string, 0, 2)
+	for _, changeName := range []string{"first", "second"} {
+		changeDir := filepath.Join(workspace, "openspec", "changes", changeName)
+		if err := os.MkdirAll(changeDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		statePath := filepath.Join(changeDir, "state.yaml")
+		state := strings.Replace(stateWithEmptyDesignSummary, "strict-result-envelope", changeName, 1)
+		if err := os.WriteFile(statePath, []byte(state), 0644); err != nil {
+			t.Fatal(err)
+		}
+		statePaths = append(statePaths, statePath)
+	}
+
+	before := make([]string, len(statePaths))
+	for i, statePath := range statePaths {
+		data, err := os.ReadFile(statePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		before[i] = string(data)
+	}
+	stdin, err := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"timestamp":  "2026-09-26T10:00:00Z",
+		"agent_type": "sdd-design",
+		"result":     buildFenceText(validSubagentEnvelope()),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, code := runSubagentStop(t, stdin)
+	if code != 0 || !result.Continue || result.SystemMessage != "" {
+		t.Fatalf("ambiguous dispatch must preserve hook stdout, code=%d result=%+v", code, result)
+	}
+	for i, statePath := range statePaths {
+		after, err := os.ReadFile(statePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(after) != before[i] {
+			t.Fatalf("ambiguous dispatch must not mutate %s:\nbefore:\n%s\nafter:\n%s", statePath, before[i], after)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(workspace, ".ospec", "session")); !os.IsNotExist(err) {
+		t.Fatalf("ambiguous dispatch must not append phase costs, stat error=%v", err)
+	}
+	events := readSubagentEvents(t, workspace)
+	if len(events) != 1 {
+		t.Fatalf("runtime audit events: got %d, want 1", len(events))
+	}
+	event := events[0]
+	for field, want := range map[string]any{
+		"timestamp":      "2026-09-26T10:00:00Z",
+		"agent":          "sdd-design",
+		"event_type":     "subagent-stop-audit",
+		"action":         "skip-change-scoped-observability",
+		"reason":         "ambiguous-active-change",
+		"authentication": "none",
+	} {
+		if event[field] != want {
+			t.Errorf("audit event %s: got %v, want %v", field, event[field], want)
+		}
+	}
+	if _, guessedChange := event["change"]; guessedChange {
+		t.Errorf("audit event must not guess a change: %#v", event)
+	}
+}
+
+func TestSubagentStop_SingleActiveChangeRetainsProjectionAndPhaseCost(t *testing.T) {
+	workspace, statePath := createChangeWorkspace(t, stateWithEmptyDesignSummary)
+	stdin, err := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-design",
+		"status":     "success",
+		"result":     buildFenceText(validSubagentEnvelope()),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, code := runSubagentStop(t, stdin)
+	if code != 0 || !result.Continue || result.SystemMessage != "" {
+		t.Fatalf("single-active dispatch must preserve hook stdout, code=%d result=%+v", code, result)
+	}
+	after, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(after), `summary: "Diseñó el flujo de persistencia del envelope."`) {
+		t.Fatalf("single active change must retain envelope projection: %s", after)
+	}
+	if records := readPhaseCosts(t, workspace, "strict-result-envelope"); len(records) != 1 {
+		t.Fatalf("single active change phase costs: got %d, want 1", len(records))
+	}
+}
+
+func TestSubagentStop_NoActiveChangeRetainsNoOp(t *testing.T) {
+	workspace := t.TempDir()
+	stdin, err := json.Marshal(map[string]any{
+		"cwd":        workspace,
+		"agent_type": "sdd-design",
+		"result":     buildFenceText(validSubagentEnvelope()),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, code := runSubagentStop(t, stdin)
+	if code != 0 || !result.Continue || result.SystemMessage != "" {
+		t.Fatalf("no-active dispatch must preserve hook stdout, code=%d result=%+v", code, result)
+	}
+	if _, err := os.Stat(filepath.Join(workspace, ".ospec")); !os.IsNotExist(err) {
+		t.Fatalf("no-active dispatch must not create change-scoped artifacts, stat error=%v", err)
+	}
+}
+
 func TestSubagentStop_ProjectsEnvelopeWithReducerParity(t *testing.T) {
 	blockedEnvelope := validSubagentEnvelope()
 	blockedEnvelope["status"] = "blocked"
@@ -1618,6 +1738,10 @@ func TestSubagentStop_ParityFixtures(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve phase-cost fixture workspace: %v", err)
 	}
+	ambiguousWorkspaceAbs, err := filepath.Abs(filepath.Join("..", "testdata", "parity", "subagent-stop-ambiguous-workspace"))
+	if err != nil {
+		t.Fatalf("resolve ambiguous fixture workspace: %v", err)
+	}
 	pluginRoot, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatalf("resolve plugin root: %v", err)
@@ -1627,6 +1751,7 @@ func TestSubagentStop_ParityFixtures(t *testing.T) {
 	// stdin JSON text, mirroring parity-contract.test.js's prepareStdin.
 	escapedWorkspace := strings.ReplaceAll(workspaceAbs, `\`, `\\`)
 	escapedPhaseCostWorkspace := strings.ReplaceAll(phaseCostWorkspaceAbs, `\`, `\\`)
+	escapedAmbiguousWorkspace := strings.ReplaceAll(ambiguousWorkspaceAbs, `\`, `\\`)
 
 	type fixture struct {
 		Description    string `json:"description"`
@@ -1651,9 +1776,24 @@ func TestSubagentStop_ParityFixtures(t *testing.T) {
 				os.Remove(costFile)
 				defer os.Remove(costFile)
 			}
+			ambiguousStatePaths := []string{
+				filepath.Join(ambiguousWorkspaceAbs, "openspec", "changes", "first", "state.yaml"),
+				filepath.Join(ambiguousWorkspaceAbs, "openspec", "changes", "second", "state.yaml"),
+			}
+			var ambiguousStatesBefore []string
+			if strings.Contains(name, "ambiguous-active-change") {
+				for _, statePath := range ambiguousStatePaths {
+					state, err := os.ReadFile(statePath)
+					if err != nil {
+						t.Fatal(err)
+					}
+					ambiguousStatesBefore = append(ambiguousStatesBefore, string(state))
+				}
+			}
 
 			stdin := strings.ReplaceAll(fix.Stdin, "__SUBAGENT_STOP_FIXTURE_WORKSPACE__", escapedWorkspace)
 			stdin = strings.ReplaceAll(stdin, "__SUBAGENT_STOP_PHASE_COST_WORKSPACE__", escapedPhaseCostWorkspace)
+			stdin = strings.ReplaceAll(stdin, "__SUBAGENT_STOP_AMBIGUOUS_WORKSPACE__", escapedAmbiguousWorkspace)
 			stdout, _ := hooks.Dispatch([]string{"subagent-stop"}, []byte(stdin))
 
 			// SubagentStop's documented fail-open fixture (missing/malformed
@@ -1676,6 +1816,21 @@ func TestSubagentStop_ParityFixtures(t *testing.T) {
 
 			if string(stdout) != fix.ExpectedStdout {
 				t.Errorf("parity mismatch for %s\n  got:  %q\n  want: %q", name, stdout, fix.ExpectedStdout)
+			}
+
+			if strings.Contains(name, "ambiguous-active-change") {
+				if _, err := os.Stat(filepath.Join(ambiguousWorkspaceAbs, ".ospec", "session")); !os.IsNotExist(err) {
+					t.Errorf("ambiguous fixture must not append phase costs, stat error=%v", err)
+				}
+				for i, statePath := range ambiguousStatePaths {
+					after, err := os.ReadFile(statePath)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if string(after) != ambiguousStatesBefore[i] {
+						t.Errorf("ambiguous fixture must not project %s", statePath)
+					}
+				}
 			}
 
 			if strings.Contains(name, "phase-cost-active-change") {

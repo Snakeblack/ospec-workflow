@@ -551,6 +551,63 @@ test("no active change resolvable — envelope persistence is a safe no-op", asy
   );
 });
 
+test("multiple active changes remain unattributed and emit one observable-only audit", async (t) => {
+  const { workspace, statePath } = await createChangeWorkspace(
+    t,
+    STATE_WITH_EMPTY_DESIGN_SUMMARY,
+  );
+  const secondChange = path.join(workspace, "openspec", "changes", "second-active-change");
+  const secondStatePath = path.join(secondChange, "state.yaml");
+  await fs.mkdir(secondChange, { recursive: true });
+  await fs.writeFile(secondStatePath, STATE_WITH_EMPTY_DESIGN_SUMMARY, "utf8");
+
+  const result = await runSubagentStop({
+    input: {
+      cwd: workspace,
+      agent_type: "sdd-design",
+      status: "success",
+      result: buildFenceText(VALID_ENVELOPE),
+    },
+    now: () => new Date("2026-09-26T10:00:00.000Z"),
+  });
+
+  assert.deepEqual(result, { status: "skipped", reason: "healthy-resolution" });
+  assert.equal(await fs.readFile(statePath, "utf8"), STATE_WITH_EMPTY_DESIGN_SUMMARY);
+  assert.equal(await fs.readFile(secondStatePath, "utf8"), STATE_WITH_EMPTY_DESIGN_SUMMARY);
+  await assert.rejects(readPhaseCosts(workspace, "strict-result-envelope"), { code: "ENOENT" });
+  await assert.rejects(readPhaseCosts(workspace, "second-active-change"), { code: "ENOENT" });
+  await assert.rejects(readContextMeasurements(workspace, "strict-result-envelope"), { code: "ENOENT" });
+  await assert.rejects(readContextMeasurements(workspace, "second-active-change"), { code: "ENOENT" });
+  assert.deepEqual(await readEvents(workspace), [{
+    timestamp: "2026-09-26T10:00:00.000Z",
+    agent: "sdd-design",
+    event_type: "subagent-stop-audit",
+    action: "skip-change-scoped-observability",
+    reason: "ambiguous-active-change",
+    authentication: "none",
+  }]);
+});
+
+test("exported persistence helpers skip ambiguous active changes without selecting one", async (t) => {
+  const { workspace, statePath } = await createChangeWorkspace(t, STATE_WITH_EMPTY_DESIGN_SUMMARY);
+  const secondChange = path.join(workspace, "openspec", "changes", "second-active-change");
+  await fs.mkdir(secondChange, { recursive: true });
+  await fs.writeFile(path.join(secondChange, "state.yaml"), STATE_WITH_EMPTY_DESIGN_SUMMARY, "utf8");
+
+  await persistResultEnvelope({
+    input: { cwd: workspace, agent_type: "sdd-design", result: buildFenceText(VALID_ENVELOPE) },
+    workspace,
+  });
+  assert.equal((await persistPhaseCost({
+    input: { cwd: workspace, agent_type: "sdd-design", result: "cost" }, workspace,
+  })).reason, "ambiguous-active-change");
+  assert.equal((await persistContextMeasurement({
+    input: { cwd: workspace, agent_type: "sdd-design" }, workspace,
+  })).reason, "ambiguous-active-change");
+  assert.equal(await fs.readFile(statePath, "utf8"), STATE_WITH_EMPTY_DESIGN_SUMMARY);
+  await assert.rejects(fs.stat(path.join(workspace, ".ospec", "session")), { code: "ENOENT" });
+});
+
 test("persistResultEnvelope recovers an orphaned state.yaml.bak before its fresh re-read (CRITICAL remediation)", async (t) => {
   const workspace = await createWorkspace(t);
   const changeDir = path.join(

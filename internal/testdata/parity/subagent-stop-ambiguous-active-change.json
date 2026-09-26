@@ -1,0 +1,5 @@
+{
+  "description": "Ambiguous active-change fixture (AOO-3): two active states resolve without an attested change identity, so SubagentStop must preserve its stdout while skipping envelope projection and phase-cost persistence and appending one workspace-global unauthenticated audit event.",
+  "stdin": "{\"cwd\":\"__SUBAGENT_STOP_AMBIGUOUS_WORKSPACE__\",\"timestamp\":\"2026-09-26T10:00:00Z\",\"agent_type\":\"sdd-design\",\"status\":\"success\",\"result\":\"```json:result-envelope\\n{\\\"status\\\":\\\"success\\\",\\\"executive_summary\\\":\\\"Ambiguous fixture projection must not run.\\\",\\\"artifacts\\\":[],\\\"next_recommended\\\":\\\"sdd-tasks\\\",\\\"risks\\\":\\\"None\\\",\\\"skill_resolution\\\":\\\"injected\\\",\\\"key_decisions\\\":[]}\\n```\"}",
+  "expectedStdout": "{\"continue\":true}"
+}

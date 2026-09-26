@@ -1,0 +1,5 @@
+schema: spec-driven
+
+artifact_store:
+  mode: openspec
+  backend: openspec
