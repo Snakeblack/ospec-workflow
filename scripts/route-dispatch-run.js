@@ -85,6 +85,7 @@ function parseArgs(argv) {
 function extractStateRouteInfo(stateContent) {
   const info = {
     persistedRoute: null,
+    routeSectionPresent: false,
     classification: null,
     impact: {},
   };
@@ -102,6 +103,9 @@ function extractStateRouteInfo(stateContent) {
     const indent = line.match(/^\s*/)[0].length;
     if (indent === 0) {
       inRouteBlock = trimmed.startsWith("route:");
+      if (inRouteBlock) {
+        info.routeSectionPresent = true;
+      }
     }
 
     if (inRouteBlock) {
@@ -241,7 +245,7 @@ function main(argv = process.argv.slice(2), deps = {}) {
   const configDefaults = extractConfigDefaults(configContent);
   const attributionOverride = extractAttributionOverride(configContent);
 
-  let stateInfo = { persistedRoute: null, classification: null, impact: {} };
+  let stateInfo = { persistedRoute: null, routeSectionPresent: false, classification: null, impact: {} };
   if (flags.changeName) {
     if (!isSafeChangeName(flags.changeName)) {
       error(JSON.stringify({ error: `Invalid change-name: '${flags.changeName}'` }));
@@ -355,6 +359,12 @@ function main(argv = process.argv.slice(2), deps = {}) {
   const options = {};
   if (persistedRoute) {
     options.persistedRoute = persistedRoute;
+  }
+  // Enforce policy-bound persistence: state has `route:` but no non-empty
+  // actual_route (and CLI/context did not supply one) → fail closed in selectRoute.
+  // Explicit CLI --persisted-route bypasses the missing-section gap only when set.
+  if (stateInfo.routeSectionPresent && !flags.persistedRoute) {
+    options.routeSectionPresent = true;
   }
 
   try {

@@ -269,6 +269,167 @@ func writeCanonicalJSONString(builder *strings.Builder, value string) {
 	builder.WriteByte('"')
 }
 
+// legacyV267ResultEnvelopeKeyOrder freezes the Node v2.67.0–v2.67.3 insertion
+// order used by JSON.stringify for golden result-envelope fixtures. Remaining
+// keys append in UTF-16 lexical order. Known nested shapes use a frozen order.
+var legacyV267ResultEnvelopeKeyOrder = []string{
+	"schema_version",
+	"status",
+	"executive_summary",
+	"detailed_report",
+	"artifacts",
+	"next_recommended",
+	"risks",
+	"skill_resolution",
+	"key_decisions",
+	"assumptions",
+	"verify_outcome",
+	"blocker_type",
+	"question_gate",
+	"residual_ambiguity",
+	"public_contract_questions",
+	"conflicting_requirements",
+	"missing_acceptance_criteria",
+}
+
+// Nested maps freeze JSON.stringify order for the v2.67 question_gate shape. Unknown maps stay UTF-16.
+var legacyV267QuestionGateKeyOrder = []string{"reason", "questions"}
+var legacyV267QuestionKeyOrder = []string{"header", "question", "options", "multiSelect", "allowFreeformInput"}
+var legacyV267OptionKeyOrder = []string{"label", "description", "recommended"}
+
+func legacyV267InferPreferred(m map[string]any) []string {
+	if _, ok := m["schema_version"]; ok {
+		return legacyV267ResultEnvelopeKeyOrder
+	}
+	if _, ok := m["status"]; ok {
+		return legacyV267ResultEnvelopeKeyOrder
+	}
+	if _, ok := m["header"]; ok {
+		return legacyV267QuestionKeyOrder
+	}
+	if _, ok := m["question"]; ok {
+		return legacyV267QuestionKeyOrder
+	}
+	if _, ok := m["label"]; ok {
+		return legacyV267OptionKeyOrder
+	}
+	if _, ok := m["reason"]; ok {
+		return legacyV267QuestionGateKeyOrder
+	}
+	if _, ok := m["questions"]; ok {
+		return legacyV267QuestionGateKeyOrder
+	}
+	return nil
+}
+
+func legacyV267OrderedKeys(m map[string]any, preferred []string) []string {
+	seen := make(map[string]struct{}, len(m))
+	keys := make([]string, 0, len(m))
+	for _, key := range preferred {
+		if _, ok := m[key]; ok {
+			keys = append(keys, key)
+			seen[key] = struct{}{}
+		}
+	}
+	rest := make([]string, 0, len(m)-len(seen))
+	for key := range m {
+		if _, ok := seen[key]; !ok {
+			rest = append(rest, key)
+		}
+	}
+	sort.Slice(rest, func(i, j int) bool {
+		return compareUTF16Lexical(rest[i], rest[j]) < 0
+	})
+	return append(keys, rest...)
+}
+
+func writeLegacyV267ReplayJSON(builder *strings.Builder, value any, preferredKeys []string) error {
+	switch typed := value.(type) {
+	case nil:
+		builder.WriteString("null")
+	case bool:
+		if typed {
+			builder.WriteString("true")
+		} else {
+			builder.WriteString("false")
+		}
+	case string:
+		writeCanonicalJSONString(builder, typed)
+	case float64:
+		encoded, err := canonicalJSONNumber(typed)
+		if err != nil {
+			return err
+		}
+		builder.WriteString(encoded)
+	case float32:
+		encoded, err := canonicalJSONNumber(float64(typed))
+		if err != nil {
+			return err
+		}
+		builder.WriteString(encoded)
+	case int:
+		builder.WriteString(strconv.Itoa(typed))
+	case int64:
+		builder.WriteString(strconv.FormatInt(typed, 10))
+	case json.Number:
+		builder.WriteString(typed.String())
+	case []any:
+		builder.WriteByte('[')
+		for index, item := range typed {
+			if index > 0 {
+				builder.WriteByte(',')
+			}
+			if err := writeLegacyV267ReplayJSON(builder, item, nil); err != nil {
+				return err
+			}
+		}
+		builder.WriteByte(']')
+	case map[string]any:
+		preferred := preferredKeys
+		if preferred == nil {
+			preferred = legacyV267InferPreferred(typed)
+		}
+		keys := legacyV267OrderedKeys(typed, preferred)
+		builder.WriteByte('{')
+		for index, key := range keys {
+			if index > 0 {
+				builder.WriteByte(',')
+			}
+			writeCanonicalJSONString(builder, key)
+			builder.WriteByte(':')
+			if err := writeLegacyV267ReplayJSON(builder, typed[key], nil); err != nil {
+				return err
+			}
+		}
+		builder.WriteByte('}')
+	default:
+		return fmt.Errorf("unsupported legacy replay JSON value %T", value)
+	}
+	return nil
+}
+
+func legacyV267PayloadHash(envelope map[string]any) (string, error) {
+	var builder strings.Builder
+	if err := writeLegacyV267ReplayJSON(&builder, envelope, legacyV267ResultEnvelopeKeyOrder); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(builder.String()))), nil
+}
+
+func isReplayHashMatch(storedHash string, envelope map[string]any, canonicalHash string) (bool, error) {
+	if storedHash == "" {
+		return false, nil
+	}
+	if storedHash == canonicalHash {
+		return true, nil
+	}
+	legacyHash, err := legacyV267PayloadHash(envelope)
+	if err != nil {
+		return false, err
+	}
+	return storedHash == legacyHash, nil
+}
+
 func reducePhaseCompletion(current phaseCompletionState, phase string, envelope map[string]any, expectedRevision *int, now string) (phaseCompletionState, string, string, error) {
 	payload, err := canonicalReplayJSON(envelope)
 	if err != nil {
@@ -276,7 +437,11 @@ func reducePhaseCompletion(current phaseCompletionState, phase string, envelope 
 	}
 	payloadHash := fmt.Sprintf("%x", sha256.Sum256([]byte(payload)))
 	entry := current.Phases[phase]
-	if entry.LastPayloadHash == payloadHash {
+	matched, matchErr := isReplayHashMatch(entry.LastPayloadHash, envelope, payloadHash)
+	if matchErr != nil {
+		return current, "blocked", "invalid_envelope", matchErr
+	}
+	if matched {
 		return current, "noop-replay", "", nil
 	}
 	if expectedRevision != nil && current.Revision != *expectedRevision {

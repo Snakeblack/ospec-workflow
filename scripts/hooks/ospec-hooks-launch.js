@@ -38,6 +38,14 @@ const SUBCOMMANDS = new Set([
 // path, so emitting it here keeps the contract consistent.
 const CONTINUE = '{"continue":true}\n';
 
+// Cursor's hook stdin is UTF-8 and may start with U+FEFF. encoding/json
+// reports that byte as invalid character 'ï' and the fail-closed hook then
+// returns permissionDecision "ask", which Cursor rejects outright.
+function stripUtf8Bom(value) {
+  const text = String(value || "");
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+}
+
 function parseLastJson(stdout) {
   const lines = String(stdout || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   for (let index = lines.length - 1; index >= 0; index -= 1) {
@@ -143,7 +151,7 @@ function isCursorHost(scriptDir = __dirname, env = process.env, rawInput = "") {
     return true;
   }
   try {
-    const parsed = JSON.parse(String(rawInput || "") || "{}");
+    const parsed = JSON.parse(stripUtf8Bom(rawInput) || "{}");
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       return false;
     }
@@ -190,7 +198,7 @@ function isCursorHost(scriptDir = __dirname, env = process.env, rawInput = "") {
 function adaptCursorHookInput(subcommand, rawInput) {
   let parsed;
   try {
-    parsed = JSON.parse(String(rawInput || "") || "{}");
+    parsed = JSON.parse(stripUtf8Bom(rawInput) || "{}");
   } catch {
     return rawInput;
   }
@@ -399,7 +407,7 @@ function main(argv, scriptDir = __dirname) {
     return 0;
   }
 
-  const rawInput = fs.readFileSync(0, "utf8");
+  const rawInput = stripUtf8Bom(fs.readFileSync(0, "utf8"));
   const cursorHost = isCursorHost(scriptDir, process.env, rawInput);
   const { command, args } = resolveInvocation(sub, scriptDir);
   const input = cursorHost ? adaptCursorHookInput(sub, rawInput) : rawInput;
@@ -440,6 +448,7 @@ module.exports = {
   resolveInvocation,
   isClaudeCodeHost,
   normalizeCodexHookOutput,
+  stripUtf8Bom,
   isCursorInstall,
   isCursorHost,
   adaptCursorHookInput,

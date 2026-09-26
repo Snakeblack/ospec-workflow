@@ -2,7 +2,11 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { reducePhaseCompletion } = require("./phase-completion-reducer.js");
+const {
+  reducePhaseCompletion,
+  computePayloadHash,
+  legacyV267PayloadHash,
+} = require("./phase-completion-reducer.js");
 const { reducePhaseCompletion: exportedReducer } = require("./reducer.js");
 
 const NOW = "2026-09-12T00:00:00.000Z";
@@ -178,6 +182,136 @@ test("reducePhaseCompletion: replaying identical completion payload produces zer
   assert.deepEqual(replay.effects, []);
   assert.deepEqual(replay.events, []);
   assert.deepEqual(replay.state, first.state);
+});
+
+// Pinned v2.67.0–v2.67.3 insertion-order JSON.stringify sha256 of V267_GOLDEN_ENVELOPE.
+const V267_GOLDEN_LEGACY_HASH =
+  "05c6a85b59cf771d860309d7446cc3a496960eb45f8ef8ccaac08a33b0f15273";
+
+function v267GoldenEnvelope() {
+  return {
+    schema_version: 1,
+    status: "success",
+    executive_summary: "v2.67 golden replay fixture.",
+    artifacts: ["openspec/changes/auth/design.md"],
+    next_recommended: "sdd-tasks",
+    risks: "None",
+    skill_resolution: "injected",
+    key_decisions: ["Decision A"],
+  };
+}
+
+test("reducePhaseCompletion: v2.67 insertion-order hash replay is noop without revision bump [REQ-lifecycle-kernel-029]", () => {
+  const envelope = v267GoldenEnvelope();
+  const current = sampleState({
+    revision: 7,
+    phases: {
+      ...sampleState().phases,
+      design: {
+        status: "done",
+        summary: "Already projected.",
+        last_payload_hash: V267_GOLDEN_LEGACY_HASH,
+      },
+    },
+  });
+  const before = structuredClone(current);
+
+  const replay = reducePhaseCompletion(current, { phase: "design", envelope }, { now: NOW });
+
+  assert.equal(replay.ok, true);
+  assert.equal(replay.outcome, "noop-replay");
+  assert.equal(replay.state.revision, 7, "revision must not advance on v2.67 legacy noop");
+  assert.deepEqual(replay.effects, []);
+  assert.deepEqual(replay.events, []);
+  assert.deepEqual(replay.state, before);
+  assert.equal(
+    replay.state.phases.design.last_payload_hash,
+    V267_GOLDEN_LEGACY_HASH,
+    "noop must not rewrite stored legacy hash",
+  );
+});
+
+test("reducePhaseCompletion: unrelated payload Q is not noop against stored P hash [REQ-lifecycle-kernel-029]", () => {
+  const envelopeP = v267GoldenEnvelope();
+  const envelopeQ = {
+    ...v267GoldenEnvelope(),
+    executive_summary: "Unrelated payload Q — different completion.",
+  };
+  const current = sampleState({
+    revision: 7,
+    phases: {
+      ...sampleState().phases,
+      design: {
+        status: "done",
+        summary: "Already projected.",
+        last_payload_hash: V267_GOLDEN_LEGACY_HASH,
+      },
+    },
+  });
+
+  const result = reducePhaseCompletion(current, { phase: "design", envelope: envelopeQ }, { now: NOW });
+
+  assert.notEqual(result.outcome, "noop-replay");
+  assert.equal(result.outcome, "advanced");
+  assert.equal(result.state.revision, 8);
+  assert.notEqual(result.state.phases.design.last_payload_hash, V267_GOLDEN_LEGACY_HASH);
+  // Advances persist canonical hash only — never the legacy insertion-order form.
+  assert.equal(result.state.phases.design.last_payload_hash, computePayloadHash(envelopeQ));
+  assert.notEqual(result.state.phases.design.last_payload_hash, legacyV267PayloadHash(envelopeQ));
+  assert.ok(envelopeP.executive_summary !== envelopeQ.executive_summary);
+});
+
+const V267_NESTED_LEGACY_HASH = "561aca2ff1da87e00356c9eda97413514160fafd8ccd2ed00d00d184d99df4fb";
+
+function v267NestedEnvelope() {
+  return {
+    schema_version: 1,
+    status: "blocked",
+    executive_summary: "v2.67 nested question_gate replay fixture.",
+    artifacts: ["inline"],
+    next_recommended: "sdd-design",
+    risks: "None",
+    skill_resolution: "injected",
+    blocker_type: "design-mismatch",
+    question_gate: {
+      reason: "Need a decision.",
+      questions: [{
+        header: "Seam",
+        question: "Keep the seam?",
+        options: [{ label: "yes", description: "Keep it", recommended: true }],
+      }],
+    },
+  };
+}
+
+test("reducePhaseCompletion: v2.67 nested question_gate hash replay is noop in Node [REQ-lifecycle-kernel-029]", () => {
+  const envelope = v267NestedEnvelope();
+  assert.equal(legacyV267PayloadHash(envelope), V267_NESTED_LEGACY_HASH);
+  const current = sampleState({
+    revision: 7,
+    phases: {
+      ...sampleState().phases,
+      design: {
+        status: "done",
+        summary: "Already projected.",
+        last_payload_hash: V267_NESTED_LEGACY_HASH,
+      },
+    },
+  });
+  const before = structuredClone(current);
+  const replay = reducePhaseCompletion(current, { phase: "design", envelope }, { now: NOW });
+  assert.equal(replay.outcome, "noop-replay");
+  assert.equal(replay.state.revision, 7);
+  assert.deepEqual(replay.state, before);
+});
+
+test("reducePhaseCompletion: advances persist canonical hash not legacy form [REQ-lifecycle-kernel-029]", () => {
+  const envelope = v267GoldenEnvelope();
+  const result = reducePhaseCompletion(sampleState(), { phase: "design", envelope }, { now: NOW });
+  assert.equal(result.outcome, "advanced");
+  assert.equal(result.state.phases.design.last_payload_hash, computePayloadHash(envelope));
+  assert.notEqual(result.state.phases.design.last_payload_hash, V267_GOLDEN_LEGACY_HASH);
+  assert.equal(legacyV267PayloadHash(envelope), V267_GOLDEN_LEGACY_HASH);
 });
 
 test("reducePhaseCompletion: canonicalizes semantically identical envelopes despite key order and escaping [REQ-hooks-023]", () => {

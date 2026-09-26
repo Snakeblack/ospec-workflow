@@ -755,6 +755,25 @@ function selectRoute(routes, ctx, options = {}) {
       : null) ||
     resolveRouteName(opts.actual_route);
 
+  // Policy-bound: durable state has a `route:` section but no non-empty
+  // actual_route → fail closed. Whole-section absence (legacy) falls through
+  // to table evaluation below.
+  const routeSectionPresent = opts.routeSectionPresent === true;
+  if (routeSectionPresent && persistedRouteName === null) {
+    return {
+      status: "blocked",
+      blocker_type: "needs_user_decision",
+      route: null,
+      name: null,
+      classification: resolvedClassification,
+      floor,
+      reasons: [...floorProfile.reasons, "missing_actual_route"],
+      rationale:
+        "Change state declares a route section but lacks a non-empty route.actual_route. " +
+        "Fail closed without inventing or silently re-selecting a route.",
+    };
+  }
+
   if (persistedRouteName !== null) {
     const tableRoutes = Array.isArray(routes) ? routes : [];
     const persistedRouteObj = tableRoutes.find((r) => r.name === persistedRouteName);

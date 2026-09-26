@@ -139,6 +139,126 @@ func TestProjectPhaseCompletion_CrossRuntimeReplay(t *testing.T) {
 	}
 }
 
+// Pinned Node v2.67.0–v2.67.3 insertion-order sha256 of v267GoldenEnvelope().
+const v267GoldenLegacyHash = "05c6a85b59cf771d860309d7446cc3a496960eb45f8ef8ccaac08a33b0f15273"
+
+func v267GoldenEnvelope() map[string]any {
+	return map[string]any{
+		"schema_version":    1,
+		"status":            "success",
+		"executive_summary": "v2.67 golden replay fixture.",
+		"artifacts":         []any{"openspec/changes/auth/design.md"},
+		"next_recommended":  "sdd-tasks",
+		"risks":             "None",
+		"skill_resolution":  "injected",
+		"key_decisions":     []any{"Decision A"},
+	}
+}
+
+func TestProjectPhaseCompletion_V267InsertionOrderHashIsNoopReplay(t *testing.T) {
+	envelope := v267GoldenEnvelope()
+	legacyHash, err := legacyV267PayloadHash(envelope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if legacyHash != v267GoldenLegacyHash {
+		t.Fatalf("Go legacy hash must pin Node v2.67 digest: got %s want %s", legacyHash, v267GoldenLegacyHash)
+	}
+
+	statePath := filepath.Join(t.TempDir(), "state.yaml")
+	before := testStateWithHash(v267GoldenLegacyHash)
+	if err := os.WriteFile(statePath, []byte(before), 0644); err != nil {
+		t.Fatal(err)
+	}
+	result := ProjectPhaseCompletion(statePath, "design", envelope, nil)
+	if !result.OK || result.Outcome != "noop-replay" {
+		t.Fatalf("v2.67 legacy hash replay must be noop, got %+v", result)
+	}
+	after, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != before {
+		t.Fatalf("v2.67 noop must not mutate state:\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+	if !strings.Contains(string(after), "revision: 7") {
+		t.Fatalf("v2.67 noop must keep revision stable:\n%s", after)
+	}
+}
+
+const v267NestedLegacyHash = "561aca2ff1da87e00356c9eda97413514160fafd8ccd2ed00d00d184d99df4fb"
+
+func v267NestedEnvelope() map[string]any {
+	return map[string]any{
+		"schema_version": 1, "status": "blocked",
+		"executive_summary": "v2.67 nested question_gate replay fixture.",
+		"artifacts": []any{"inline"}, "next_recommended": "sdd-design",
+		"risks": "None", "skill_resolution": "injected", "blocker_type": "design-mismatch",
+		"question_gate": map[string]any{
+			"reason": "Need a decision.",
+			"questions": []any{map[string]any{
+				"header": "Seam", "question": "Keep the seam?",
+				"options": []any{map[string]any{"label": "yes", "description": "Keep it", "recommended": true}},
+			}},
+		},
+	}
+}
+
+func TestProjectPhaseCompletion_V267NestedQuestionGateHashMatchesNodeAndNoops(t *testing.T) {
+	envelope := v267NestedEnvelope()
+	legacyHash, err := legacyV267PayloadHash(envelope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if legacyHash != v267NestedLegacyHash {
+		t.Fatalf("Go nested legacy hash must pin Node v2.67 digest: got %s want %s", legacyHash, v267NestedLegacyHash)
+	}
+	statePath := filepath.Join(t.TempDir(), "state.yaml")
+	before := testStateWithHash(v267NestedLegacyHash)
+	if err := os.WriteFile(statePath, []byte(before), 0644); err != nil {
+		t.Fatal(err)
+	}
+	result := ProjectPhaseCompletion(statePath, "design", envelope, nil)
+	if !result.OK || result.Outcome != "noop-replay" {
+		t.Fatalf("nested v2.67 hash replay must be noop, got %+v", result)
+	}
+	after, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != before {
+		t.Fatalf("nested v2.67 noop must not mutate state")
+	}
+}
+
+func TestProjectPhaseCompletion_UnrelatedPayloadIsNotNoopAgainstStoredP(t *testing.T) {
+	envelopeQ := v267GoldenEnvelope()
+	envelopeQ["executive_summary"] = "Unrelated payload Q — different completion."
+
+	statePath := filepath.Join(t.TempDir(), "state.yaml")
+	before := testStateWithHash(v267GoldenLegacyHash)
+	if err := os.WriteFile(statePath, []byte(before), 0644); err != nil {
+		t.Fatal(err)
+	}
+	result := ProjectPhaseCompletion(statePath, "design", envelopeQ, nil)
+	if result.Outcome == "noop-replay" {
+		t.Fatalf("unrelated payload Q must not noop against P's stored hash, got %+v", result)
+	}
+	if !result.OK || result.Outcome != "advanced" {
+		t.Fatalf("unrelated Q must take normal reduce/CAS path, got %+v", result)
+	}
+	after, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(after), "revision: 7") {
+		t.Fatalf("unrelated Q must advance revision away from 7:\n%s", after)
+	}
+	if strings.Contains(string(after), v267GoldenLegacyHash) {
+		t.Fatalf("advance must not keep legacy hash of P:\n%s", after)
+	}
+}
+
 func TestProjectPhaseCompletion_CrossRuntimeReplayUsesUTF16KeyOrdering(t *testing.T) {
 	envelope := testProjectionEnvelope()
 	envelope["metadata"] = map[string]any{

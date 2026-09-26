@@ -8,6 +8,48 @@ const test = require("node:test");
 
 const { runPreCommit } = require("./pre-commit-hook.js");
 
+test("check.js does not inherit the commit git context", (t) => {
+  t.mock.method(process, "exit", () => {});
+  let childEnv = null;
+  t.mock.method(child_process, "spawnSync", (cmd, args, options) => {
+    if (cmd === "node" && args[0] === "scripts/check.js") {
+      childEnv = options && options.env;
+      return { status: 0, stdout: "", stderr: "" };
+    }
+    return { status: 0, stdout: "" };
+  });
+
+  const keys = [
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_PREFIX",
+  ];
+  const previous = {};
+  for (const key of keys) {
+    previous[key] = process.env[key];
+    process.env[key] = "hook-context";
+  }
+  try {
+    runPreCommit();
+    assert.ok(childEnv, "check.js must receive an explicit env");
+    for (const key of keys) {
+      assert.equal(childEnv[key], undefined, `${key} must not reach the test child`);
+    }
+    assert.equal(childEnv.Path || childEnv.PATH, process.env.Path || process.env.PATH);
+  } finally {
+    for (const key of keys) {
+      if (previous[key] === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = previous[key];
+      }
+    }
+  }
+});
+
 test.afterEach(() => {
   // En Node.js native test runner, los mocks se limpian automáticamente al terminar cada test si se registran a través de t.mock.
 });

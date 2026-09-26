@@ -52,8 +52,28 @@ gates:
 `;
   const info = extractStateRouteInfo(stateSample);
   assert.equal(info.persistedRoute, "lite");
+  assert.equal(info.routeSectionPresent, true);
   assert.equal(info.classification, "small");
   assert.equal(info.impact.auth_security, true);
+});
+
+test("route-dispatch-run: extractStateRouteInfo marks route section without actual_route [REQ-routing-016]", () => {
+  const policyBound = extractStateRouteInfo(`
+change: policy-bound
+route:
+  intended_route: standard
+status: planning
+`);
+  assert.equal(policyBound.routeSectionPresent, true);
+  assert.equal(policyBound.persistedRoute, null);
+
+  const legacy = extractStateRouteInfo(`
+change: pre-policy-legacy
+status: planning
+classification: small
+`);
+  assert.equal(legacy.routeSectionPresent, false);
+  assert.equal(legacy.persistedRoute, null);
 });
 
 test("route-dispatch-run: extractConfigDefaults extracts project.status, baseline.status, backend", () => {

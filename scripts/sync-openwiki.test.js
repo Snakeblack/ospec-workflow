@@ -28,14 +28,18 @@ const SYNC_SCRIPT_SRC = path.join(
   "sync-openwiki.mjs"
 );
 
-function runGit(args, cwd) {
+function gitIsolatedEnv() {
   const env = { ...process.env };
   delete env.GIT_DIR;
   delete env.GIT_WORK_TREE;
   delete env.GIT_INDEX_FILE;
   delete env.GIT_OBJECT_DIRECTORY;
   delete env.GIT_ALTERNATE_OBJECT_DIRECTORIES;
-  const result = spawnSync("git", args, { cwd, env, encoding: "utf8" });
+  return env;
+}
+
+function runGit(args, cwd) {
+  const result = spawnSync("git", args, { cwd, env: gitIsolatedEnv(), encoding: "utf8" });
   if (result.status !== 0) {
     throw new Error(`git ${args.join(" ")} failed: ${result.stderr}`);
   }
@@ -80,6 +84,7 @@ function setupProject(t, { pages, withGit = true, originUrl = null } = {}) {
 function runSync(webDocDir) {
   const result = spawnSync(process.execPath, [path.join("scripts", "sync-openwiki.mjs")], {
     cwd: webDocDir,
+    env: gitIsolatedEnv(),
     encoding: "utf8",
   });
   return result;

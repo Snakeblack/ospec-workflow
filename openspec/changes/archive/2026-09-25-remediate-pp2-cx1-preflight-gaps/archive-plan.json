@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "change": "remediate-pp2-cx1-preflight-gaps",
+  "source_fingerprint": "sha256:d250f7987978a10c8dabbaae7883cd6e01ad3b44f38dda192873a9ec67dfaa27",
+  "spec_writes": [
+    {
+      "domain": "lifecycle-kernel-runtime",
+      "source_delta": "specs/lifecycle-kernel-runtime/spec-prepared.md",
+      "target": "openspec/specs/lifecycle-kernel-runtime/spec.md",
+      "target_before_sha256": "sha256:128d3669690403e48eb09c567f0ce7160f14cb56c32890176d8a15713117f076",
+      "content_sha256": "sha256:7b35cf42d260b079402ba3ef96162ec80505692594f0767679b6302fa382fbe8"
+    },
+    {
+      "domain": "routing",
+      "source_delta": "specs/routing/spec-prepared.md",
+      "target": "openspec/specs/routing/spec.md",
+      "target_before_sha256": "sha256:08650d0620f7125836610320593249f21244dd5e6b4c5e8e8b362a8432acac09",
+      "content_sha256": "sha256:dfeda535e9b182ac14c8d792e4b4c04d24583c7d9e3619afc12d67fdd5984400"
+    },
+    {
+      "domain": "install",
+      "source_delta": "specs/install/spec-prepared.md",
+      "target": "openspec/specs/install/spec.md",
+      "target_before_sha256": "sha256:8c547a0564fc8b4a68d28bbc44f3432326427826bba1bf3b2b7c5113d00515ce",
+      "content_sha256": "sha256:f4876298a7a2e0a509d20f8ffdb5c264519d6b16757fca4f13f51f702915461e"
+    }
+  ],
+  "adr_promotions": [],
+  "archive_inventory": [
+    "apply-progress.md",
+    "archive-report.md",
+    "consumer-inventory.md",
+    "design.md",
+    "proposal.md",
+    "specs/install/spec-prepared.md",
+    "specs/install/spec.md",
+    "specs/lifecycle-kernel-runtime/spec-prepared.md",
+    "specs/lifecycle-kernel-runtime/spec.md",
+    "specs/routing/spec-prepared.md",
+    "specs/routing/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [
+    "Review workload: ~770 changed lines exceeds 400-line budget; accepted under approvals review-workload-002 (size:exception) and delivery-strategy-002 (exception-ok) for sdd-archive."
+  ],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}
