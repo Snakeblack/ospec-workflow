@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.68.3] - 2026-09-26
+
+### Fixed
+- **Pre-delegación con ruta real del plugin**: el comando del orquestador invoca `validate-phase` desde la raíz de instalación del plugin y pasa `--workspace` del proyecto. La aceptación es un proceso Node cuyo directorio de trabajo no contiene el script. Contrato: `REQ-agents-030`, `REQ-install-027`.
+- **Autoridad de `route.actual_route`**: `--persisted-route` no sustituye un valor persistido distinto; si discrepan, el dispatch falla cerrado. `extractStateRouteInfo` y `readPersistedRouteInfo` reconocen solo el bloque `route:` de columna 0. Un `route:` anidado no rellena `actual_route` ni evita `missing_actual_route`. Cierra `F-66efe8421b856f34`. Contrato: `REQ-routing-016`.
+- **Replay v2.67 acotado**: el noop histórico acepta solo el orden de claves congelado (`schema_version` primero y formas anidadas ya fijadas). Un sobre que empieza por `status` no es un noop prometido. No se conservan los bytes JSON originales. Contrato: `REQ-lifecycle-kernel-029`.
+
+Ciclo SDD completo (ruta standard): deltas de `agents`, `install`, `routing` y `lifecycle-kernel-runtime`; verificación PASS; quality review con dos hallazgos CRITICAL del mismo hueco de parser, resueltos en un slice. Archivado en `openspec/changes/archive/2026-09-26-close-pp2-cx1-preflight-guarantees/`.
+
 ## [2.68.2] - 2026-09-26
 
 ### Fixed

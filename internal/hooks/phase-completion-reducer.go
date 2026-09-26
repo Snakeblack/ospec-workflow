@@ -272,6 +272,10 @@ func writeCanonicalJSONString(builder *strings.Builder, value string) {
 // legacyV267ResultEnvelopeKeyOrder freezes the Node v2.67.0–v2.67.3 insertion
 // order used by JSON.stringify for golden result-envelope fixtures. Remaining
 // keys append in UTF-16 lexical order. Known nested shapes use a frozen order.
+// Legacy noop is promised ONLY for this frozen order (schema_version first).
+// A semantically equal envelope whose top-level insertion order starts with
+// status produces a different digest and is not a promised legacy noop.
+// Original JSON bytes are not preserved or required.
 var legacyV267ResultEnvelopeKeyOrder = []string{
 	"schema_version",
 	"status",

@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "change": "close-pp2-cx1-preflight-guarantees",
+  "source_fingerprint": "sha256:d5142abcca2f649a6fe2c9016a97b07e46ac2cb51751bae3653c7f0efd7c4a52",
+  "spec_writes": [
+    {
+      "domain": "agents",
+      "source_delta": "specs/agents/spec-prepared.md",
+      "target": "openspec/specs/agents/spec.md",
+      "target_before_sha256": "sha256:722499b7f9c706a99392037b8e37c3538bd472b7fad878435c5680f99487586f",
+      "content_sha256": "sha256:4c3babc957939b47f7edf2c37886d9efd1dba7b4b161f6138094add801a3a45d"
+    },
+    {
+      "domain": "install",
+      "source_delta": "specs/install/spec-prepared.md",
+      "target": "openspec/specs/install/spec.md",
+      "target_before_sha256": "sha256:1f897ef817b28b4b08b129919649690a00b779d1e362bb19839faa329d076dcd",
+      "content_sha256": "sha256:cca324d5adccb1c2dffc1a6cd90c9daba0ae688dac4bc1d8ba2bd67b20a5d007"
+    },
+    {
+      "domain": "routing",
+      "source_delta": "specs/routing/spec-prepared.md",
+      "target": "openspec/specs/routing/spec.md",
+      "target_before_sha256": "sha256:f4091577b7e37fee11377698f499f73ff7d8418fa15a287b23e64724781fd890",
+      "content_sha256": "sha256:8da2495eeee50e5eefb0bdecb820d98246aa23a6121b214ff782d888b20691b3"
+    },
+    {
+      "domain": "lifecycle-kernel-runtime",
+      "source_delta": "specs/lifecycle-kernel-runtime/spec-prepared.md",
+      "target": "openspec/specs/lifecycle-kernel-runtime/spec.md",
+      "target_before_sha256": "sha256:2a5fc3907d161f86650f8a6b1dc1ed4a19b9fbae685900b021117cdda32a7406",
+      "content_sha256": "sha256:1f2724f52630a71f17b862d26cdb4b6580e6d29ce2330e5d5ca7b86a4918ac0c"
+    }
+  ],
+  "adr_promotions": [],
+  "archive_inventory": [
+    ".review-lineage.json",
+    "apply-progress.md",
+    "archive-report.md",
+    "design.md",
+    "proposal.md",
+    "specs/agents/spec-prepared.md",
+    "specs/agents/spec.md",
+    "specs/install/spec-prepared.md",
+    "specs/install/spec.md",
+    "specs/lifecycle-kernel-runtime/spec-prepared.md",
+    "specs/lifecycle-kernel-runtime/spec.md",
+    "specs/routing/spec-prepared.md",
+    "specs/routing/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [],
+  "rollback": {
+    "strategy": "staging-rename"
+  }
+}

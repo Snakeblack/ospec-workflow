@@ -32,10 +32,8 @@ function readPersistedRouteInfo(changeDir) {
       }
     }
   }
-  if (!persistedRoute) {
-    const match = state.match(/^\s*actual_route:\s*["']?([^\s"'#]+)["']?\s*(?:#.*)?$/m);
-    if (match) persistedRoute = match[1];
-  }
+  // Out-of-block actual_route is never authoritative (parity with extractStateRouteInfo).
+  // Missing entire route: section remains the legacy pre-policy exception (routeSectionPresent=false).
   return { persistedRoute, routeSectionPresent };
 }
 

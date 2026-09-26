@@ -1,0 +1,94 @@
+change: close-pp2-cx1-preflight-guarantees
+status: proposed
+classification: high-risk
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "Clasificación high-risk determinista. Piso planned por public_api del comando del orquestador y del dispatcher. standard es la primera ruta elegible con project.status active."
+  validated: true
+  validation_errors: []
+owner:
+  author: Reconciliation Test
+  branch: fix/close-pp2-cx1-preflight-guarantees
+approvals:
+  - id: intent-briefing-001
+    gate: intent-briefing
+    decision: accepted
+    source: cursor/plain-chat
+    accepted_at: "2026-09-26T00:43:00Z"
+    applies_to:
+      - change-classification
+    synthesis: >
+      Cerrar las dos garantías que 2.68.2 dejó abiertas y acotar el replay
+      histórico. El comando de validación usa la ruta real del plugin y el
+      workspace del proyecto, y se prueba con un proceso Node separado. El
+      dispatcher obedece el actual_route guardado y usa el mismo criterio que
+      el validador. El noop v2.67 acepta solo el orden de claves congelado.
+    scope: >
+      Dentro: comando del orquestador con ruta de instalación y --workspace;
+      prueba de proceso independiente; autoridad de actual_route frente a
+      --persisted-route y frente a un actual_route fuera del bloque route:;
+      contrato de replay limitado al orden congelado (schema_version primero
+      y formas anidadas ya fijadas). Fuera: conservar los bytes JSON
+      originales, rediseñar PP2/CX1, y adaptive-operation-identity-binding.
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: automatic
+    source: cursor/plain-chat
+    accepted_at: "2026-09-25T22:10:00Z"
+    applies_to:
+      - sdd-propose
+      - sdd-spec
+      - sdd-design
+      - sdd-tasks
+      - sdd-apply
+      - sdd-verify
+      - sdd-archive
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: ask-on-risk
+    source: cursor/plain-chat
+    accepted_at: "2026-09-25T22:20:00Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+phases:
+  proposal:
+    status: done
+    artifact: openspec/changes/close-pp2-cx1-preflight-guarantees/proposal.md
+    summary: "Propuesta: plugin path + --workspace, actual_route autoridad, noop v2.67 solo orden congelado."
+  spec:
+    status: done
+    artifacts:
+      - openspec/changes/close-pp2-cx1-preflight-guarantees/specs/agents/spec.md
+      - openspec/changes/close-pp2-cx1-preflight-guarantees/specs/install/spec.md
+      - openspec/changes/close-pp2-cx1-preflight-guarantees/specs/routing/spec.md
+      - openspec/changes/close-pp2-cx1-preflight-guarantees/specs/lifecycle-kernel-runtime/spec.md
+    summary: "ADDED REQ-agents-030. MODIFIED 027, 016 y 029."
+  clarify:
+    status: skipped
+    reason: "shouldRunClarify=false: residual_ambiguity false y listas de preguntas vacías."
+  design:
+    status: done
+    artifact: openspec/changes/close-pp2-cx1-preflight-guarantees/design.md
+    summary: "Tres garantías cerradas, sin ADR. Prueba de proceso Node con cwd ajeno."
+  tasks:
+    status: done
+    artifact: openspec/changes/close-pp2-cx1-preflight-guarantees/tasks.md
+    summary: "10 tareas. Decision needed before apply: No. 400-line budget risk: Low. ~280–340 líneas."
+  apply:
+    status: done
+    artifact: openspec/changes/close-pp2-cx1-preflight-guarantees/apply-progress.md
+    summary: "10/10. Comando plugin+workspace, autoridad de actual_route, noop v2.67 solo orden congelado."
+  verify:
+    status: done
+    verdict: PASS
+    artifact: openspec/changes/close-pp2-cx1-preflight-guarantees/verify-report.md
+    summary: "PASS. 56 Node y 3 Go. Sin CRITICAL."
+baseline_fingerprints:
+  agents: "722499b7f9c706a99392037b8e37c3538bd472b7fad878435c5680f99487586f"
+  install: "1f897ef817b28b4b08b129919649690a00b779d1e362bb19839faa329d076dcd"
+  routing: "f4091577b7e37fee11377698f499f73ff7d8418fa15a287b23e64724781fd890"
+  lifecycle-kernel-runtime: "2a5fc3907d161f86650f8a6b1dc1ed4a19b9fbae685900b021117cdda32a7406"
+gates:
+  quality-review-gate: {"schema_version":2,"lineage_id":"sha256:96b85d5c83df965ccaed5723c0229f8a0bb1bd3cf7906c5622da9084017d5d88","generation":1,"predecessor_lineage_id":null,"migration":null,"recovery":null,"revision":12,"status":"approved","genesis":{"candidate":{"projection":"working-tree","base_tree":"289d047005cc8c94579d3eff36488cc9b937bf88","candidate_tree":"289d047005cc8c94579d3eff36488cc9b937bf88","paths":["agents/sdd-orchestrator.agent.md","internal/hooks/phase-completion-reducer.go","internal/hooks/phase-completion-reducer_test.go","scripts/configure/real-repo.test.js","scripts/configure/validate-phase.test.js","scripts/lib/lifecycle-kernel/phase-completion-reducer.js","scripts/lib/lifecycle-kernel/phase-completion-reducer.test.js","scripts/route-dispatch-run.js","scripts/route-dispatch-run.test.js","scripts/validate-phase.js"],"diff_hash":"sha256:760e8479b565327e9e16b6d5675b2665a2eeed7aec96f8985645ec27400db8aa","paths_digest":"sha256:549739c0b2213f948adef3b6a374460bef2cbf42b0f79e6cc72a83e5ce941ba8","authored_lines":262,"original_changed_lines":262},"candidate_id":"sha256:400f890c1da2535c1164becf990ffa86df2e45c6dda5c3c374e5696b7676e9d9","paths":["agents/sdd-orchestrator.agent.md","internal/hooks/phase-completion-reducer.go","internal/hooks/phase-completion-reducer_test.go","scripts/configure/real-repo.test.js","scripts/configure/validate-phase.test.js","scripts/lib/lifecycle-kernel/phase-completion-reducer.js","scripts/lib/lifecycle-kernel/phase-completion-reducer.test.js","scripts/route-dispatch-run.js","scripts/route-dispatch-run.test.js","scripts/validate-phase.js"],"classification":"high-risk","selected_domains":["trust","runtime","evolution","efficiency"],"evidence_fingerprint":"sha256:e9fcf403e77e3eecfbb848d2625df55f738e8ab1836d40864d9c30a69a1becc6","original_changed_lines":262,"authored_lines":262},"current_candidate_id":"sha256:665fd99ab0b3a5e16a9762bd9770566b4a56e5404ae58c42f9c61843e34f8655","current_candidate":{"projection":"working-tree","base_tree":"289d047005cc8c94579d3eff36488cc9b937bf88","candidate_tree":"289d047005cc8c94579d3eff36488cc9b937bf88","paths":["agents/sdd-orchestrator.agent.md","internal/hooks/phase-completion-reducer.go","internal/hooks/phase-completion-reducer_test.go","scripts/configure/real-repo.test.js","scripts/configure/validate-phase.test.js","scripts/lib/lifecycle-kernel/phase-completion-reducer.js","scripts/lib/lifecycle-kernel/phase-completion-reducer.test.js","scripts/route-dispatch-run.js","scripts/route-dispatch-run.test.js","scripts/validate-phase.js"],"diff_hash":"sha256:27da3849f82f23a6d2de0461fd3886e763afce889e18509880c3db1950620615","paths_digest":"sha256:549739c0b2213f948adef3b6a374460bef2cbf42b0f79e6cc72a83e5ce941ba8","authored_lines":262,"original_changed_lines":262},"lenses":{"trust":{"selected":true,"status":"completed","request_id":"lens-trust-001","result_digest":"sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc","result":{"findings":[]},"operation":null,"result_request_id":"lens-trust-001"},"runtime":{"selected":true,"status":"completed","request_id":"lens-runtime-001","result_digest":"sha256:f8ac49dba085ad7f22fca81905d5ee1dca7f520ad31e3df033f916f187453651","result":{"findings":[{"severity":"CRITICAL","summary":"scripts/route-dispatch-run.js extractStateRouteInfo fallback (lines 137-141) assigns persistedRoute from any file-wide route: + indented actual_route when the top-level route block has no non-empty actual_route. scripts/validate-phase.js readPersistedRouteInfo only accepts indent-0 route:. Nested route.actual_route lets dispatch continue while validate-phase fails closed. Breaks REQ-routing-016 parser parity.","acceptance_criteria":"Nested-only and top-level route: without actual_route plus nested route.actual_route fixtures make extractStateRouteInfo and readPersistedRouteInfo report identical persistedRoute and routeSectionPresent. Policy-bound missing top-level actual_route still fails closed with no nested substitution. Focused tests cover both fixtures."}]},"operation":null,"result_request_id":"lens-runtime-001"},"evolution":{"selected":true,"status":"completed","request_id":"lens-evolution-001","result_digest":"sha256:f824db778da2087d7bb68346060fea3593e3160555a2ef60304f3396f4377e3f","result":{"findings":[{"severity":"CRITICAL","summary":"REQ-routing-016 parser parity is incomplete: extractStateRouteInfo fallback matches any route: + indented actual_route, including nested blocks, and sets persistedRoute without setting routeSectionPresent. readPersistedRouteInfo only enters indent-0 route: and has no fallback. Indented route.actual_route is accepted by the dispatcher and ignored by validate-phase.","acceptance_criteria":"For indented/nested route:+actual_route fixtures and the existing column-0 cases, both parsers return identical persistedRoute and routeSectionPresent. Remove the dispatcher-only regex fallback or share one parser. Add a regression test that fails if they disagree on the indented fixture."}]},"operation":null,"result_request_id":"lens-evolution-001"},"efficiency":{"selected":true,"status":"completed","request_id":"lens-efficiency-001","result_digest":"sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc","result":{"findings":[]},"operation":null,"result_request_id":"lens-efficiency-001"}},"findings":[{"id":"F-7105b9967bdef631","owner":"runtime","severity":"CRITICAL","summary":"scripts/route-dispatch-run.js extractStateRouteInfo fallback (lines 137-141) assigns persistedRoute from any file-wide route: + indented actual_route when the top-level route block has no non-empty actual_route. scripts/validate-phase.js readPersistedRouteInfo only accepts indent-0 route:. Nested route.actual_route lets dispatch continue while validate-phase fails closed. Breaks REQ-routing-016 parser parity.","acceptance_criteria":"Nested-only and top-level route: without actual_route plus nested route.actual_route fixtures make extractStateRouteInfo and readPersistedRouteInfo report identical persistedRoute and routeSectionPresent. Policy-bound missing top-level actual_route still fails closed with no nested substitution. Focused tests cover both fixtures.","blocking":true,"resolution":"resolved"},{"id":"F-693006dcc36924eb","owner":"evolution","severity":"CRITICAL","summary":"REQ-routing-016 parser parity is incomplete: extractStateRouteInfo fallback matches any route: + indented actual_route, including nested blocks, and sets persistedRoute without setting routeSectionPresent. readPersistedRouteInfo only enters indent-0 route: and has no fallback. Indented route.actual_route is accepted by the dispatcher and ignored by validate-phase.","acceptance_criteria":"For indented/nested route:+actual_route fixtures and the existing column-0 cases, both parsers return identical persistedRoute and routeSectionPresent. Remove the dispatcher-only regex fallback or share one parser. Add a regression test that fails if they disagree on the indented fixture.","blocking":true,"resolution":"resolved"}],"findings_digest":"sha256:1feca2bf5434b344fd322b98ddd5c40dd61b5b1091cc8723b66e7eb5ff78011f","correction_budget":{"limit_lines":131,"used_lines":0,"failed_attempts":0,"max_failed_attempts":3},"correction_history":[],"validation_history":[],"follow_ups":[],"pending_operation":null,"pending_correction":null,"terminal_reason":"all-remediation-slices-passed","remediation_schema_version":2,"remediation_migration":{"source_digest":"sha256:fb334c5634a3a40b17bc2e538d2dfc405e91d82637c7a2c3c8168f9b20c2e359","manifest_digest":"sha256:8c0a1823afd15c810f421cd2f6e82b18d0faba852225271941e73eb59f950971","legacy_used_lines":0,"legacy_failed_attempts":0,"migrated_at":"deterministic"},"slice_order":["S-3071d45248678240"],"active_slice_id":null,"correction_slices":{"S-3071d45248678240":{"slice_id":"S-3071d45248678240","root_cause_key":"nested-route-parser-fallback","finding_ids":["F-693006dcc36924eb","F-7105b9967bdef631"],"evidence_digests":["sha256:a0ad513410a9ecf8a0e697bac7a4b6c01ee797eb3031e604094a25e2e9668e3e","sha256:e4e79a66162b5950d652967e9588cd3c1cdccc77028b9f39f8142bb10c5570e7"],"permitted_paths":["scripts/route-dispatch-run.js","scripts/route-dispatch-run.test.js"],"resolutions":{"F-693006dcc36924eb":"unresolved","F-7105b9967bdef631":"unresolved"},"status":"passed","used_lines":32,"failed_attempts":0,"limit_lines":131,"max_failed_attempts":3,"correction_history":[{"slice_id":"S-3071d45248678240","request_id":"slice-nested-route-001","finding_ids":["F-693006dcc36924eb","F-7105b9967bdef631"],"paths":["scripts/route-dispatch-run.js","scripts/route-dispatch-run.test.js"],"base_candidate_id":"sha256:400f890c1da2535c1164becf990ffa86df2e45c6dda5c3c374e5696b7676e9d9","forecast_lines":40,"actual_changed_lines":32,"record_request_id":"slice-nested-route-record-001","corrected_candidate_id":"sha256:665fd99ab0b3a5e16a9762bd9770566b4a56e5404ae58c42f9c61843e34f8655"}],"validation_history":[{"request_id":"slice-nested-route-validate-001","outcomes":[{"id":"F-693006dcc36924eb","status":"resolved"},{"id":"F-7105b9967bdef631","status":"resolved"}],"regression":{"detected":false,"evidence":["extractStateRouteInfo only enters route: at indent===0; no dispatcher regex fallback. Test indented route block matches validate-phase asserts parity with readPersistedRouteInfo on nested-only and policy-plus-nested."],"impacted_slices":[]},"result":"passed"}],"regression_history":[],"legacy_correction_refs":[],"legacy_validation_refs":[]}}}

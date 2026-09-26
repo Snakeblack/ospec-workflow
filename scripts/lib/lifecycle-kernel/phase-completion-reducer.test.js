@@ -305,6 +305,48 @@ test("reducePhaseCompletion: v2.67 nested question_gate hash replay is noop in N
   assert.deepEqual(replay.state, before);
 });
 
+test("reducePhaseCompletion: status-first insertion order is not a promised v2.67 legacy noop [REQ-lifecycle-kernel-029]", () => {
+  const frozen = v267GoldenEnvelope();
+  assert.equal(legacyV267PayloadHash(frozen), V267_GOLDEN_LEGACY_HASH);
+
+  // Semantically equal, but top-level insertion order starts with status.
+  const statusFirst = {
+    status: frozen.status,
+    schema_version: frozen.schema_version,
+    executive_summary: frozen.executive_summary,
+    artifacts: frozen.artifacts,
+    next_recommended: frozen.next_recommended,
+    risks: frozen.risks,
+    skill_resolution: frozen.skill_resolution,
+    key_decisions: frozen.key_decisions,
+  };
+  const statusFirstDigest = legacyV267PayloadHash(statusFirst);
+  assert.notEqual(
+    statusFirstDigest,
+    V267_GOLDEN_LEGACY_HASH,
+    "status-first JSON.stringify digest must not match schema_version-first frozen digest",
+  );
+
+  const current = sampleState({
+    revision: 7,
+    phases: {
+      ...sampleState().phases,
+      design: {
+        status: "done",
+        summary: "Already projected.",
+        last_payload_hash: V267_GOLDEN_LEGACY_HASH,
+      },
+    },
+  });
+  const result = reducePhaseCompletion(current, { phase: "design", envelope: statusFirst }, { now: NOW });
+  assert.notEqual(
+    result.outcome,
+    "noop-replay",
+    "status-first envelope must not be a promised legacy noop against frozen digest",
+  );
+  assert.equal(result.outcome, "advanced");
+});
+
 test("reducePhaseCompletion: advances persist canonical hash not legacy form [REQ-lifecycle-kernel-029]", () => {
   const envelope = v267GoldenEnvelope();
   const result = reducePhaseCompletion(sampleState(), { phase: "design", envelope }, { now: NOW });
