@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.68.4] - 2026-09-26
+
+### Fixed
+- **Hijo directo de `route.actual_route`**: el dispatcher y `validate-phase` comparten `parsePersistedRouteSection`. Solo cuenta un `actual_route` hijo directo del bloque `route:` de columna 0. Un `actual_route` más profundo no lo sustituye. Contrato: `REQ-routing-016`.
+- **Ausencia sin relleno externo**: si ese bloque existe y el hijo directo falta, el dispatch responde `missing_actual_route` antes de `--persisted-route` o el contexto. La ausencia del bloque `route:` entero sigue siendo la excepción legacy.
+
+**Verificación directa**: `node scripts/check.js` (3412 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.68.3] - 2026-09-26
 
 ### Fixed

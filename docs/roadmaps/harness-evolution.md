@@ -2,7 +2,7 @@
 
 > **Fuente canónica:** [`ospec-adaptive-critical-design.md`](../architecture/ospec-adaptive-critical-design.md) es la única fuente arquitectónica para Adaptive y sus garantías.
 > **Autoridad del roadmap:** este documento es la proyección ejecutable del backlog; ante una contradicción arquitectónica, prevalece el análisis canónico y el roadmap se reconcilia antes de iniciar un slice.
-> **Versión de referencia:** v2.68.3, 2026-09-26.
+> **Versión de referencia:** v2.68.4, 2026-09-26.
 > **Revisión de arquitectura y prioridades:** 2026-09-19; no cambia la versión publicada ni los estados de OpenSpec.
 > **Investigación no normativa:** [`harness-kernel-graph-evidence-roadmap-fusion.md`](../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md) (P0–P27). Proporcionalidad de proceso y Change Program: [`proportional-process-and-change-program.md`](../architecture/research/proportional-process-and-change-program.md). Estas referencias informan, pero no sustituyen, la fuente canónica.
 > **Regla de estado:** los hechos se contrastan con código/OpenSpec; este roadmap no cambia el estado de un change ni sustituye sus artefactos.
@@ -76,7 +76,7 @@ Este es **orden de inversión**, no una cadena de prerrequisitos ni una autoriza
 
 | Prioridad | Unidad propuesta | Habilitación que deja al siguiente trabajo | Dependencia técnica real |
 | ---: | --- | --- | --- |
-| 1 | PP2/CX1 — preflight de compatibilidad (garantías cerradas el 2026-09-26) | Replay v2.67 solo con orden de claves congelado, `validate-phase` con raíz de plugin y `--workspace`, y `route.actual_route` de columna 0 como autoridad compartida por el dispatcher y `validate-phase`. `F-66efe8421b856f34` queda cerrado. | [Cierre archivado](../../openspec/changes/archive/2026-09-26-close-pp2-cx1-preflight-guarantees/state.yaml); no crea otro estado canónico ni activa runtime. |
+| 1 | PP2/CX1 — preflight de compatibilidad (garantías cerradas el 2026-09-26) | Replay v2.67 solo con orden de claves congelado, `validate-phase` con raíz de plugin y `--workspace`, y `route.actual_route` hijo directo del bloque de columna 0. Un argumento o contexto no rellena esa ausencia. | [Cierre archivado](../../openspec/changes/archive/2026-09-26-close-pp2-cx1-preflight-guarantees/state.yaml); el ajuste de hijo directo va en v2.68.4 y no crea otro estado canónico ni activa runtime. |
 | 2 | `adaptive-operation-identity-binding` — siguiente change nuevo | Vincular cada operación a `changePath`, `phase`, `expectedRevision` y `operation`; rechazar atribución ambigua y reconciliar unknown sin reintento ciego. | CX1/result-envelope/lifecycle existentes; conserva archivos y contratos legacy, fallback y rollback; no Adaptive global. |
 | 3 | CX2 — vistas y archive renderer (pendiente, lane de apoyo) | Traceability y archive se leen como vistas reproducibles desde datos canónicos, solo con un consumidor concreto. | Preflight PP2/CX1 y receipts canónicos; no sustituye el binding ni crea autoridad. |
 | 4 | K12 focal + oracle independiente | Baseline, referencia independiente de obligaciones y varianza para decidir si el piloto merece continuar. | K2 harness; fixtures focales; no corpus longitudinal ni multi-target. |
