@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.69.0] - 2026-09-26
+
+### Added
+- **Adaptador aislado de identidad de operación**: `scripts/lib/operation-identity-binding.js` compara un binding explícito `{changePath, phase, expectedRevision, operation}` contra snapshots objetivo y registros candidatos del mismo `changePath`, y devuelve señales tipadas (`bound`, `rejected`, `reconciliation_required`) sin autorizar ni invocar efectos. Contradicciones entre snapshots, ambigüedad de candidatos y outcomes registrados fallan cerrados sin asignación por recencia; un `verify` exitoso no equivale a PASS funcional. Deliberadamente sin wiring a runtime: no es un canal confiable de despacho.
+
+### Fixed
+- **Atribución ambigua en `SubagentStop`**: Node (proyección de envelope, coste de fase y medición CX0) y Go (proyección y coste de fase) ya no eligen el change activo más reciente por `mtime` cuando hay varios activos: omiten toda escritura con alcance de change y registran exactamente un evento global de auditoría (`reason: ambiguous-active-change`, `authentication: none`, sin nombre de change adivinado). Con exactamente un change activo el flujo legacy y la salida del hook no cambian. Paridad Node/Go con fixture dedicado de dos changes activos.
+
+Cambio Orgánico (ODD, dos PRs apilados #201/#202); `size:exception` aceptado por el mantenedor para el slice indivisible del adaptador (658 líneas código+tests).
+
+**Verificación directa**: `node scripts/check.js` (3446 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.68.4] - 2026-09-26
 
 ### Fixed
