@@ -563,7 +563,64 @@ func logProjectionFailure(err error) {
 	fmt.Fprintf(os.Stderr, "SubagentStop result-envelope projection failed: %v\n", err)
 }
 
+type activeChangeResolution struct {
+	status       string
+	activeChange *store.ActiveChange
+}
+
+func appendAmbiguousActiveChangeAudit(s *store.Store, input map[string]any) {
+	event, err := json.Marshal(map[string]any{
+		"timestamp":      resolveTimestampFromInput(input),
+		"agent":          resolveAgentName(input),
+		"event_type":     "subagent-stop-audit",
+		"action":         "skip-change-scoped-observability",
+		"reason":         "ambiguous-active-change",
+		"authentication": "none",
+	})
+	if err == nil {
+		_ = s.AppendRuntimeEvent(event)
+	}
+}
+
+// resolveActiveChange selects a change-scoped target only when it is unique.
+// SubagentStop has no attested change identity, so an ambiguous workspace is
+// observable only: it emits one workspace-global audit and leaves all
+// change-scoped state untouched.
+func resolveActiveChange(input map[string]any, workspace string) activeChangeResolution {
+	s := store.NewStore(workspace)
+	activeChanges, err := s.FindActiveChanges()
+	if err != nil {
+		return activeChangeResolution{status: "resolution-failed"}
+	}
+	if len(activeChanges) > 1 {
+		appendAmbiguousActiveChangeAudit(s, input)
+		return activeChangeResolution{status: "ambiguous-active-change"}
+	}
+
+	// Preserve the legacy envelope recovery path only when no ambiguity was
+	// found. Recovery can restore an otherwise undiscoverable single state.
+	if err := s.RecoverOrphanStateBackups(); err != nil {
+		return activeChangeResolution{status: "resolution-failed"}
+	}
+	activeChanges, err = s.FindActiveChanges()
+	if err != nil {
+		return activeChangeResolution{status: "resolution-failed"}
+	}
+	if len(activeChanges) == 1 {
+		return activeChangeResolution{status: "single-active-change", activeChange: activeChanges[0]}
+	}
+	if len(activeChanges) > 1 {
+		appendAmbiguousActiveChangeAudit(s, input)
+		return activeChangeResolution{status: "ambiguous-active-change"}
+	}
+	return activeChangeResolution{status: "no-active-change"}
+}
+
 func persistResultEnvelope(input map[string]any, workspace string) {
+	persistResultEnvelopeWithActiveChange(input, workspace, resolveActiveChange(input, workspace))
+}
+
+func persistResultEnvelopeWithActiveChange(input map[string]any, workspace string, resolution activeChangeResolution) {
 	defer func() {
 		// Fully fail-safe: envelope persistence must never crash SubagentStop
 		// or affect its existing skill_resolution behavior/exit status.
@@ -588,18 +645,10 @@ func persistResultEnvelope(input map[string]any, workspace string) {
 		return
 	}
 
-	s := store.NewStore(workspace)
-	// Recover orphaned state backups before discovery; otherwise a missing
-	// primary state.yaml causes the store to skip an otherwise active change.
-	if err := s.RecoverOrphanStateBackups(); err != nil {
-		logProjectionFailure(err)
+	if resolution.activeChange == nil {
 		return
 	}
-	activeChanges, err := s.FindActiveChanges()
-	if err != nil || len(activeChanges) == 0 {
-		return
-	}
-	statePath := filepath.Join(activeChanges[0].ChangeDirectory, "state.yaml")
+	statePath := filepath.Join(resolution.activeChange.ChangeDirectory, "state.yaml")
 
 	// The projector owns the complete state transition: reducer semantics,
 	// replay hash, revision CAS boundary, advisory lock, and atomic commit.
@@ -1072,6 +1121,10 @@ func resolveDispatchStatus(input map[string]any) string {
 // marshal error, write/lock error, or a panic) silently no-ops without
 // crashing and without affecting the hook's stdout.
 func persistPhaseCost(input map[string]any, workspace string) {
+	persistPhaseCostWithActiveChange(input, workspace, resolveActiveChange(input, workspace))
+}
+
+func persistPhaseCostWithActiveChange(input map[string]any, workspace string, resolution activeChangeResolution) {
 	defer func() {
 		_ = recover()
 	}()
@@ -1086,12 +1139,11 @@ func persistPhaseCost(input map[string]any, workspace string) {
 		return
 	}
 
-	s := store.NewStore(workspace)
-	activeChanges, err := s.FindActiveChanges()
-	if err != nil || len(activeChanges) == 0 {
+	if resolution.activeChange == nil {
 		return
 	}
-	changeName := activeChanges[0].DirectoryName
+	changeName := resolution.activeChange.DirectoryName
+	s := store.NewStore(workspace)
 
 	tokenUsage := resolveCodexTokenCountUsage(input)
 	if tokenUsage == nil {
@@ -1185,22 +1237,21 @@ func (h *subagentStopHandler) Run(stdin []byte) ([]byte, int) {
 }
 
 func runSubagentStop(input map[string]any) ([]byte, int) {
+	cwd, _ := input["cwd"].(string)
+	workspace := resolveCwd(cwd)
+	// Resolve once so ambiguity produces exactly one workspace-global audit for
+	// both change-scoped lanes. The result never changes the hook stdout.
+	activeChangeResolution := resolveActiveChange(input, workspace)
+
 	// REQ-hooks-001: attempt the strict result-envelope fence extract/validate/
 	// persist step BEFORE the existing skill_resolution evaluation below. This
 	// is a pure side effect (state.yaml write) and never alters this
 	// function's return value or the hook's stdout.
-	if cwd, ok := input["cwd"].(string); ok {
-		workspace := resolveCwd(cwd)
-		persistResultEnvelope(input, workspace)
-		// REQ-hooks-001: per-dispatch phase-cost recording. Same fail-safe/
-		// ordering contract as persistResultEnvelope above — pure side effect,
-		// never alters this function's return value or the hook's stdout.
-		persistPhaseCost(input, workspace)
-	} else {
-		workspace := resolveCwd("")
-		persistResultEnvelope(input, workspace)
-		persistPhaseCost(input, workspace)
-	}
+	persistResultEnvelopeWithActiveChange(input, workspace, activeChangeResolution)
+	// REQ-hooks-001: per-dispatch phase-cost recording. Same fail-safe/
+	// ordering contract as persistResultEnvelope above — pure side effect,
+	// never alters this function's return value or the hook's stdout.
+	persistPhaseCostWithActiveChange(input, workspace, activeChangeResolution)
 
 	resolution := findResolutionInInput(input)
 	if resolution == "" {
@@ -1228,8 +1279,6 @@ func runSubagentStop(input map[string]any) ([]byte, int) {
 		"action":           "refresh-registry-next-delegation",
 	}
 
-	cwd, _ := input["cwd"].(string)
-	workspace := resolveCwd(cwd)
 	s := store.NewStore(workspace)
 
 	eventBytes, _ := json.Marshal(event)

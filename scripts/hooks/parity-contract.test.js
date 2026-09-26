@@ -132,13 +132,20 @@ const FIXTURE_FAMILY = [
         FIXTURES_DIR,
         "subagent-stop-phase-cost-workspace",
       );
+      const ambiguousWorkspace = path.join(
+        FIXTURES_DIR,
+        "subagent-stop-ambiguous-workspace",
+      );
       const escapedWorkspace = JSON.stringify(workspace).slice(1, -1);
       const escapedPhaseCostWorkspace = JSON.stringify(phaseCostWorkspace).slice(1, -1);
+      const escapedAmbiguousWorkspace = JSON.stringify(ambiguousWorkspace).slice(1, -1);
       return rawStdin
         .split("__SUBAGENT_STOP_FIXTURE_WORKSPACE__")
         .join(escapedWorkspace)
         .split("__SUBAGENT_STOP_PHASE_COST_WORKSPACE__")
-        .join(escapedPhaseCostWorkspace);
+        .join(escapedPhaseCostWorkspace)
+        .split("__SUBAGENT_STOP_AMBIGUOUS_WORKSPACE__")
+        .join(escapedAmbiguousWorkspace);
     },
   },
 ];
@@ -154,14 +161,32 @@ for (const family of FIXTURE_FAMILY) {
   );
 
   for (const name of fixtureFiles) {
-    test(`parity(js) · ${family.hook} · ${name}`, () => {
+    test(`parity(js) · ${family.hook} · ${name}`, (t) => {
       const phaseCostWorkspace = path.join(FIXTURES_DIR, "subagent-stop-phase-cost-workspace");
       const costFile = path.join(phaseCostWorkspace, ".ospec", "session", "demo", "phase-costs.jsonl");
+      const ambiguousWorkspace = path.join(FIXTURES_DIR, "subagent-stop-ambiguous-workspace");
+      const auditFile = path.join(ambiguousWorkspace, ".ospec", "runtime", "subagent-events.jsonl");
+      const ambiguousStateFiles = [
+        path.join(ambiguousWorkspace, "openspec", "changes", "first", "state.yaml"),
+        path.join(ambiguousWorkspace, "openspec", "changes", "second", "state.yaml"),
+      ];
+      let ambiguousStates;
 
       if (name.includes("phase-cost-active-change")) {
         try {
           fs.rmSync(costFile, { force: true });
         } catch {}
+      }
+      if (name.includes("ambiguous-active-change")) {
+        try {
+          fs.rmSync(auditFile, { force: true });
+        } catch {}
+        t.after(() => {
+          try {
+            fs.rmSync(auditFile, { force: true });
+          } catch {}
+        });
+        ambiguousStates = ambiguousStateFiles.map((file) => fs.readFileSync(file, "utf8"));
       }
 
       const fixture = JSON.parse(fs.readFileSync(path.join(FIXTURES_DIR, name), "utf8"));
@@ -188,6 +213,25 @@ for (const family of FIXTURE_FAMILY) {
         try {
           fs.rmSync(costFile, { force: true });
         } catch {}
+      }
+
+      if (name.includes("ambiguous-active-change")) {
+        assert.equal(fs.existsSync(path.join(ambiguousWorkspace, ".ospec", "session")), false,
+          "ambiguous active changes must not append phase costs");
+        assert.deepEqual(
+          ambiguousStateFiles.map((file) => fs.readFileSync(file, "utf8")),
+          ambiguousStates,
+          "ambiguous active changes must not project a result envelope",
+        );
+        const events = fs.readFileSync(auditFile, "utf8").trim().split("\n").map(JSON.parse);
+        assert.deepEqual(events, [{
+          timestamp: "2026-09-26T10:00:00Z",
+          agent: "sdd-design",
+          event_type: "subagent-stop-audit",
+          action: "skip-change-scoped-observability",
+          reason: "ambiguous-active-change",
+          authentication: "none",
+        }]);
       }
     });
   }
