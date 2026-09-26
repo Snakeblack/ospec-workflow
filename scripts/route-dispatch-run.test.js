@@ -258,6 +258,8 @@ test("route-dispatch-run: indented route block matches validate-phase [REQ-routi
   const samples = {
     "nested-only": "wrapper:\n  route:\n    actual_route: lite\n",
     "policy-plus-nested": "route:\n  intended_route: standard\nwrapper:\n  route:\n    actual_route: lite\n",
+    "nested-inside": "route:\n  actual_route: standard\n  wrapper:\n    actual_route: lite\n",
+    "nested-inside-only": "route:\n  intended_route: standard\n  wrapper:\n    actual_route: lite\n",
   };
   const dir = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "route-parity-"));
   try {
@@ -276,6 +278,52 @@ test("route-dispatch-run: indented route block matches validate-phase [REQ-routi
   assert.equal(extractStateRouteInfo(samples["nested-only"]).persistedRoute, null);
   assert.equal(extractStateRouteInfo(samples["policy-plus-nested"]).persistedRoute, null);
   assert.equal(extractStateRouteInfo(samples["policy-plus-nested"]).routeSectionPresent, true);
+  assert.equal(extractStateRouteInfo(samples["nested-inside"]).persistedRoute, "standard");
+  assert.equal(extractStateRouteInfo(samples["nested-inside-only"]).persistedRoute, null);
+  assert.equal(extractStateRouteInfo(samples["nested-inside-only"]).routeSectionPresent, true);
+});
+
+test("route-dispatch-run: missing direct actual_route rejects caller route [REQ-routing-016]", () => {
+  const tempChange = `test-missing-direct-${Date.now()}`;
+  const changeDir = path.join(ROOT, "openspec", "changes", tempChange);
+  fs.mkdirSync(changeDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(changeDir, "state.yaml"),
+    [
+      `change: ${tempChange}`,
+      "classification: small",
+      "route:",
+      "  intended_route: standard",
+      "  wrapper:",
+      "    actual_route: lite",
+    ].join("\n"),
+    "utf8",
+  );
+
+  const assertMissing = (args) => {
+    let threw = false;
+    try {
+      execFileSync(process.execPath, [DISPATCH_SCRIPT, tempChange, ...args], {
+        cwd: ROOT,
+        stdio: "pipe",
+      });
+    } catch (err) {
+      threw = true;
+      assert.equal(err.status, 2, args.join(" "));
+      const parsed = JSON.parse(err.stdout.toString());
+      assert.equal(parsed.status, "blocked");
+      assert.ok(parsed.reasons.includes("missing_actual_route"));
+      assert.equal(parsed.name, null);
+    }
+    assert.equal(threw, true, args.join(" "));
+  };
+
+  try {
+    assertMissing(["--persisted-route=standard"]);
+    assertMissing(["--context", JSON.stringify({ actual_route: "standard" })]);
+  } finally {
+    fs.rmSync(changeDir, { recursive: true, force: true });
+  }
 });
 
 test("route-dispatch-run: extractStateRouteInfo strips quotes from classification and route", () => {

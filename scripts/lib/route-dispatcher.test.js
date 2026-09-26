@@ -21,6 +21,7 @@ const {
   isRouteEligible,
   selectRoute,
   dispatchRoute,
+  parsePersistedRouteSection,
 } = require("./route-dispatcher.js");
 const { FLOOR_GUARANTEES } = require("./change-classification.js");
 
@@ -1365,6 +1366,8 @@ test("selectRoute fails closed when route section present without non-empty actu
     { routeSectionPresent: true, persistedRoute: "" },
     { routeSectionPresent: true, persistedRoute: null },
     { routeSectionPresent: true, persistedRoute: { actual_route: "" } },
+    { routeSectionPresent: true, persistedRoute: "lite" },
+    { routeSectionPresent: true, persistedRoute: "lite", actual_route: "standard" },
     { routeSectionPresent: true },
   ]) {
     const result = selectRoute(CANONICAL_TEST_ROUTES, ctx, options);
@@ -1381,6 +1384,30 @@ test("selectRoute fails closed when route section present without non-empty actu
       "must not silently re-select or lock a fabricated route",
     );
   }
+});
+
+test("parsePersistedRouteSection keeps only a direct child of column-0 route [REQ-routing-016]", () => {
+  const nestedInside = parsePersistedRouteSection(`
+route:
+  actual_route: standard
+  wrapper:
+    actual_route: lite
+`);
+  assert.equal(nestedInside.persistedRoute, "standard");
+  assert.equal(nestedInside.routeSectionPresent, true);
+
+  const nestedOnly = parsePersistedRouteSection(`
+route:
+  intended_route: standard
+  wrapper:
+    actual_route: lite
+`);
+  assert.equal(nestedOnly.persistedRoute, null);
+  assert.equal(nestedOnly.routeSectionPresent, true);
+
+  const outOfBlock = parsePersistedRouteSection("actual_route: lite\nstatus: planning\n");
+  assert.equal(outOfBlock.persistedRoute, null);
+  assert.equal(outOfBlock.routeSectionPresent, false);
 });
 
 test("selectRoute legacy exception: whole route section absent still evaluates table [REQ-routing-016]", () => {
