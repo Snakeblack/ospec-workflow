@@ -10,11 +10,11 @@
 
 When the runtime creates or updates a change that is subject to the current route-persistence policy, it MUST persist a non-empty `route.actual_route` in that change's `state.yaml` before any continuation or phase dispatch that depends on the selected route. A new or policy-bound change that lacks `route.actual_route` MUST fail closed: the dispatcher MUST NOT invent a route, MUST NOT silently re-select from the routing table as if no route were required, and MUST surface a blocking or rejection outcome that prevents unsafe continuation.
 
-When `state.yaml` already contains a non-empty `route.actual_route` under the `route:` block, that value is authoritative for continuation and phase validation. A `--persisted-route` (or equivalent CLI/context override) MUST NOT replace or override a different authoritative persisted `route.actual_route`. An `actual_route` key that appears outside the `route:` block MUST NOT count as the authoritative persisted route. The route parsers used by the route dispatcher and by `validate-phase` MUST agree on these rules (same recognition of the `route:` block, same treatment of out-of-block `actual_route`, same fail-closed outcomes) so the two surfaces cannot diverge on the same `state.yaml` (closes F-66efe8421b856f34).
+When `state.yaml` already contains a non-empty `route.actual_route` that is a direct child of the column-0 `route:` block, that value is authoritative for continuation and phase validation. A `--persisted-route` (or equivalent CLI/context override) MUST NOT replace or override a different authoritative persisted `route.actual_route`. An `actual_route` key that appears outside that block, or deeper than a direct child inside it, MUST NOT count as the authoritative persisted route and MUST NOT override the direct child. When the column-0 `route:` block is present and that direct child is absent or empty, the dispatcher MUST fail closed with `missing_actual_route` before considering `--persisted-route` or context; those external values MUST NOT fill the missing persisted route. External values MAY supply a route only when the entire `route:` section is absent. The route parsers used by the route dispatcher and by `validate-phase` MUST be the same parser for these rules (closes F-66efe8421b856f34).
 
 Changes that predate this persistence policy and already exist without a `route:` section (and therefore without `route.actual_route`) MAY continue under an explicit legacy exception. That exception MUST be narrowly scoped to pre-policy durable states, MUST remain independently testable, and MUST NOT authorize omitting `route.actual_route` on newly created or newly policy-bound changes. Continuation locking of an already persisted `route.actual_route` remains governed by REQ-routing-014.
 
-(Previously: Required persisting `route.actual_route` and fail-closed absence for policy-bound changes, with a legacy pre-policy exception, but did not make persisted `route.actual_route` authoritative over `--persisted-route`, did not exclude out-of-block `actual_route`, and did not require dispatcher/`validate-phase` parser parity.)
+(Previously: Required persisting `route.actual_route` and fail-closed absence for policy-bound changes, with a legacy pre-policy exception. A later revision made a persisted value authoritative over a disagreeing `--persisted-route` and ignored `actual_route` outside a column-0 `route:` block, but still accepted any indent of `actual_route` inside that block and still let a caller-supplied route fill a missing direct child.)
 
 #### Scenario: New change persists actual_route before continuation
 
@@ -55,12 +55,30 @@ Changes that predate this persistence policy and already exist without a `route:
 - THEN that out-of-block `actual_route` MUST NOT count as the authoritative persisted route
 - AND both parsers MUST agree on that outcome
 
+#### Scenario: Caller-supplied route does not fill a missing direct actual_route
+
+- GIVEN `state.yaml` has a column-0 `route:` section
+- AND that section has no non-empty direct-child `actual_route`
+- AND the caller supplies `--persisted-route` or an equivalent context route
+- WHEN the route dispatcher resolves continuation
+- THEN the outcome MUST fail closed with `missing_actual_route`
+- AND the supplied route MUST NOT be treated as the persisted route
+
+#### Scenario: Nested actual_route inside the route block is not authoritative
+
+- GIVEN `state.yaml` has a column-0 `route:` block whose direct child `actual_route` is R
+- AND a deeper key inside that block also has `actual_route` S
+- WHEN the dispatcher and `validate-phase` parse the file
+- THEN the authoritative persisted route MUST be R
+- AND a fixture with no direct-child `actual_route` MUST report absence even when a nested `actual_route` is present
+- AND both parsers MUST still report that the `route:` section is present
+
 #### Scenario: Dispatcher and validate-phase parsers match on route block authority
 
-- GIVEN the same `state.yaml` fixture that either has `route.actual_route`, an out-of-block `actual_route`, or a `route:` section without `actual_route`
+- GIVEN the same `state.yaml` fixture that either has a direct-child `route.actual_route`, an out-of-block `actual_route`, a nested `actual_route` inside `route:`, or a `route:` section without a direct child
 - WHEN `extractStateRouteInfo` (dispatcher) and `readPersistedRouteInfo` (`validate-phase`) each parse the fixture
 - THEN both MUST report the same authoritative persisted route (or the same absence)
-- AND MUST NOT diverge on whether a `route:` section is present or whether an out-of-block key counts
+- AND MUST NOT diverge on whether a `route:` section is present or whether a non-direct key counts
 
 ## 1. Overview
 

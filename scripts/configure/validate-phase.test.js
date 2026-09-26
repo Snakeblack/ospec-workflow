@@ -240,6 +240,27 @@ test("validate-phase: policy-bound route section without actual_route fails clos
   }
 });
 
+test("validate-phase: nested actual_route does not satisfy a missing direct child [REQ-routing-016]", () => {
+  const changeName = `test-nested-actual-${Date.now()}`;
+  const changeDir = path.join(ROOT, "openspec", "changes", changeName);
+  fs.mkdirSync(changeDir, { recursive: true });
+  fs.writeFileSync(path.join(changeDir, "design.md"), "Design");
+  fs.writeFileSync(
+    path.join(changeDir, "state.yaml"),
+    ["change: nested-actual", "route:", "  intended_route: standard", "  wrapper:", "    actual_route: lite"].join("\n"),
+  );
+
+  try {
+    assert.throws(
+      () => execSync(`node "${VALIDATE_SCRIPT}" sdd-tasks lite ${changeName}`, { stdio: "pipe" }),
+      (error) =>
+        error.status === 1 && /missing_actual_route|sin actual_route/.test(error.stderr.toString()),
+    );
+  } finally {
+    fs.rmSync(changeDir, { recursive: true, force: true });
+  }
+});
+
 test("validate-phase: in-repo coincident roots still pass [REQ-install-027]", () => {
   const changeName = `test-inrepo-${Date.now()}`;
   const changeDir = path.join(ROOT, "openspec", "changes", changeName);

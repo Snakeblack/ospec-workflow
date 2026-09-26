@@ -15,7 +15,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const { parseRoutingTable, selectRoute, ClassificationConflictError } = require("./lib/route-dispatcher.js");
+const { parseRoutingTable, selectRoute, parsePersistedRouteSection, ClassificationConflictError } = require("./lib/route-dispatcher.js");
 const { isSafeChangeName } = require("./lib/archive-plan.js");
 const { validateAttributionOverride } = require("./lib/review-dimensions.js");
 
@@ -83,9 +83,10 @@ function parseArgs(argv) {
 }
 
 function extractStateRouteInfo(stateContent) {
+  const routeInfo = parsePersistedRouteSection(stateContent);
   const info = {
-    persistedRoute: null,
-    routeSectionPresent: false,
+    persistedRoute: routeInfo.persistedRoute,
+    routeSectionPresent: routeInfo.routeSectionPresent,
     classification: null,
     impact: {},
   };
@@ -93,27 +94,12 @@ function extractStateRouteInfo(stateContent) {
   if (!stateContent || typeof stateContent !== "string") return info;
 
   const lines = stateContent.split(/\r?\n/);
-  let inRouteBlock = false;
 
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
 
     const lineWithoutInlineComment = line.replace(/\s+#.*$/, "");
-    const indent = line.match(/^\s*/)[0].length;
-    if (indent === 0) {
-      inRouteBlock = trimmed.startsWith("route:");
-      if (inRouteBlock) {
-        info.routeSectionPresent = true;
-      }
-    }
-
-    if (inRouteBlock) {
-      const match = lineWithoutInlineComment.match(/^\s*actual_route:\s*(.+)$/);
-      if (match) {
-        info.persistedRoute = match[1].trim().replace(/^["']|["']$/g, "");
-      }
-    }
 
     const classMatch = lineWithoutInlineComment.match(/^\s*classification:\s*(.+)$/);
     if (classMatch && !info.classification) {
@@ -343,15 +329,20 @@ function main(argv = process.argv.slice(2), deps = {}) {
     ctx.explicit_hotfix_intent = true;
   }
 
-  // Persisted route.actual_route under the route: block is authoritative.
-  // A disagreeing --persisted-route (or context equivalent) fails closed.
+  // A direct child of the column-0 route: block is authoritative.
+  // Absence of that child fails closed before --persisted-route or context
+  // can fill it. External values apply only when the whole route: section
+  // is absent (legacy). A disagreeing value still fails closed when state
+  // already has a direct child.
   const cliOrContextRoute =
     flags.persistedRoute ||
     (suppliedCtx && (suppliedCtx.persistedRoute || suppliedCtx.actual_route)) ||
     null;
   const statePersisted = stateInfo.persistedRoute || null;
+  const policyBoundMissing = stateInfo.routeSectionPresent && !statePersisted;
 
   if (
+    !policyBoundMissing &&
     statePersisted &&
     cliOrContextRoute &&
     String(cliOrContextRoute) !== String(statePersisted)
@@ -366,16 +357,13 @@ function main(argv = process.argv.slice(2), deps = {}) {
     return exit(1);
   }
 
-  const persistedRoute = statePersisted || cliOrContextRoute || null;
+  const persistedRoute = policyBoundMissing ? null : (statePersisted || cliOrContextRoute || null);
 
   const options = {};
   if (persistedRoute) {
     options.persistedRoute = persistedRoute;
   }
-  // Enforce policy-bound persistence: state has `route:` but no non-empty
-  // actual_route → fail closed in selectRoute. CLI may supply a route only when
-  // state has no authoritative persisted value (legacy / bootstrap).
-  if (stateInfo.routeSectionPresent && !statePersisted) {
+  if (policyBoundMissing) {
     options.routeSectionPresent = true;
   }
 

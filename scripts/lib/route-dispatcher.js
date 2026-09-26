@@ -756,10 +756,11 @@ function selectRoute(routes, ctx, options = {}) {
     resolveRouteName(opts.actual_route);
 
   // Policy-bound: durable state has a `route:` section but no non-empty
-  // actual_route → fail closed. Whole-section absence (legacy) falls through
-  // to table evaluation below.
+  // direct-child actual_route. The flag means that absence. A route name
+  // supplied in the same options MUST NOT fill it. Whole-section absence
+  // (legacy) leaves the flag unset and falls through to table evaluation.
   const routeSectionPresent = opts.routeSectionPresent === true;
-  if (routeSectionPresent && persistedRouteName === null) {
+  if (routeSectionPresent) {
     return {
       status: "blocked",
       blocker_type: "needs_user_decision",
@@ -769,8 +770,8 @@ function selectRoute(routes, ctx, options = {}) {
       floor,
       reasons: [...floorProfile.reasons, "missing_actual_route"],
       rationale:
-        "Change state declares a route section but lacks a non-empty route.actual_route. " +
-        "Fail closed without inventing or silently re-selecting a route.",
+        "Change state declares a route section but lacks a non-empty direct route.actual_route. " +
+        "Fail closed before any caller-supplied route can substitute for it.",
     };
   }
 
@@ -970,6 +971,61 @@ function classifyChange(ctx) {
   return { classification: null, confidence: "advisory" };
 }
 
+/**
+ * Read the authoritative persisted route from a change state.yaml body.
+ * Only a column-0 `route:` block counts. Inside it, only a direct child
+ * `actual_route` (least indent of that block) is authoritative. A deeper
+ * `actual_route` does not count and does not override the direct child.
+ * Absence of the whole `route:` section is the legacy exception.
+ *
+ * @param {string} stateContent
+ * @returns {{ persistedRoute: string|null, routeSectionPresent: boolean }}
+ */
+function parsePersistedRouteSection(stateContent) {
+  const info = { persistedRoute: null, routeSectionPresent: false };
+  if (!stateContent || typeof stateContent !== "string") return info;
+
+  const lines = stateContent.split(/\r?\n/);
+  let inRouteBlock = false;
+  /** @type {{ indent: number, text: string }[]} */
+  let block = [];
+
+  const finishBlock = () => {
+    if (!inRouteBlock) return;
+    let childIndent = null;
+    for (const entry of block) {
+      if (childIndent === null || entry.indent < childIndent) childIndent = entry.indent;
+    }
+    let value = null;
+    if (childIndent !== null) {
+      for (const entry of block) {
+        if (entry.indent !== childIndent) continue;
+        const match = entry.text.match(/^\s*actual_route:\s*(.*)$/);
+        if (!match) continue;
+        value = match[1].trim().replace(/^["']|["']$/g, "");
+      }
+    }
+    info.persistedRoute = value && value.length > 0 ? value : null;
+    block = [];
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const text = line.replace(/\s+#.*$/, "");
+    const indent = (line.match(/^\s*/) || [""])[0].length;
+    if (indent === 0) {
+      finishBlock();
+      inRouteBlock = trimmed.startsWith("route:");
+      if (inRouteBlock) info.routeSectionPresent = true;
+      continue;
+    }
+    if (inRouteBlock) block.push({ indent, text });
+  }
+  finishBlock();
+  return info;
+}
+
 // ---------------------------------------------------------------------------
 // Exports
 // ---------------------------------------------------------------------------
@@ -995,6 +1051,7 @@ module.exports = {
   isRouteEligible,
   selectRoute,
   dispatchRoute,
+  parsePersistedRouteSection,
 };
 
 

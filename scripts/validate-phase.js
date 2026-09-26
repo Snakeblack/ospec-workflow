@@ -3,7 +3,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const { parseRoutingTable } = require("./lib/route-dispatcher.js");
+const { parseRoutingTable, parsePersistedRouteSection } = require("./lib/route-dispatcher.js");
 const { validatePhaseTransition } = require("./lib/flow-validator.js");
 
 function readPersistedRouteInfo(changeDir) {
@@ -11,30 +11,7 @@ function readPersistedRouteInfo(changeDir) {
   if (!fs.existsSync(statePath)) {
     return { persistedRoute: null, routeSectionPresent: false };
   }
-  const state = fs.readFileSync(statePath, "utf8");
-  let routeSectionPresent = false;
-  let persistedRoute = null;
-  const lines = state.split(/\r?\n/);
-  let inRouteBlock = false;
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const indent = (line.match(/^\s*/) || [""])[0].length;
-    if (indent === 0) {
-      inRouteBlock = trimmed.startsWith("route:");
-      if (inRouteBlock) routeSectionPresent = true;
-    }
-    if (inRouteBlock) {
-      const match = line.replace(/\s+#.*$/, "").match(/^\s*actual_route:\s*(.+)$/);
-      if (match) {
-        const value = match[1].trim().replace(/^["']|["']$/g, "");
-        if (value.length > 0) persistedRoute = value;
-      }
-    }
-  }
-  // Out-of-block actual_route is never authoritative (parity with extractStateRouteInfo).
-  // Missing entire route: section remains the legacy pre-policy exception (routeSectionPresent=false).
-  return { persistedRoute, routeSectionPresent };
+  return parsePersistedRouteSection(fs.readFileSync(statePath, "utf8"));
 }
 
 function hasChangeLocalSpec(changeDir) {
