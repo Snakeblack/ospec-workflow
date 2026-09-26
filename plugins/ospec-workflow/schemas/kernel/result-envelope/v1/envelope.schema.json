@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openspec.io/schemas/kernel/result-envelope/v1.schema.json",
+  "title": "ResultEnvelopeV1",
+  "schema_version": 1,
+  "type": "object",
+  "required": [
+    "schema_version",
+    "status",
+    "executive_summary",
+    "artifacts",
+    "next_recommended",
+    "risks",
+    "skill_resolution"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "success",
+        "partial",
+        "blocked"
+      ]
+    },
+    "executive_summary": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "detailed_report": {
+      "type": "string"
+    },
+    "artifacts": {
+      "oneOf": [
+        {
+          "type": "string",
+          "const": "inline"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "next_recommended": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "risks": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "skill_resolution": {
+      "type": "string",
+      "enum": [
+        "injected",
+        "fallback-registry",
+        "fallback-path",
+        "none"
+      ]
+    },
+    "key_decisions": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S"
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "phase",
+          "statement",
+          "reversibility",
+          "basis"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "phase": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "reversibility": {
+            "type": "string",
+            "enum": [
+              "low",
+              "high"
+            ]
+          },
+          "basis": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        }
+      }
+    },
+    "blocker_type": {
+      "type": "string",
+      "enum": [
+        "needs_user_decision",
+        "design-mismatch",
+        "spec-change-required",
+        "workload-escalation"
+      ]
+    },
+    "verify_outcome": {
+      "type": "string",
+      "enum": [
+        "PASS",
+        "PASS WITH WARNINGS",
+        "FAIL"
+      ]
+    },
+    "question_gate": {
+      "type": "object",
+      "required": [
+        "reason",
+        "questions"
+      ],
+      "properties": {
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "header",
+              "question",
+              "options"
+            ],
+            "properties": {
+              "header": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "question": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "options": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "label"
+                  ],
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "recommended": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              },
+              "multiSelect": {
+                "type": "boolean"
+              },
+              "allowFreeformInput": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+    "residual_ambiguity": {
+      "type": "boolean"
+    },
+    "public_contract_questions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "conflicting_requirements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "missing_acceptance_criteria": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": true,
+  "if": {
+    "properties": {
+      "status": {
+        "const": "blocked"
+      }
+    },
+    "required": [
+      "status"
+    ]
+  },
+  "then": {
+    "required": [
+      "question_gate"
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "kind": "complexity-architecture-delta/v1",
+  "report_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "candidate_id": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "canonical_input_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "authority": "advisory",
+  "dimensions": {
+    "modules": { "status": "observed", "added": [], "removed": [], "changed": [] }, "interfaces": { "status": "observed", "added": [], "removed": [], "changed": [] }, "dependencies": { "status": "observed", "added": [], "removed": [], "changed": [] }, "configuration": { "status": "observed", "added": [], "removed": [], "changed": [] }, "states": { "status": "observed", "added": [], "removed": [], "changed": [] }, "compatibility": { "status": "observed", "added": [], "removed": [], "changed": [] }, "duplication": { "status": "unavailable", "reason": "not collected" }, "dead_code": { "status": "observed", "added": [], "removed": [], "changed": [] }, "public_api": { "status": "observed", "added": [], "removed": [], "changed": [] }
+  },
+  "alternatives": [],
+  "signals": []
+}

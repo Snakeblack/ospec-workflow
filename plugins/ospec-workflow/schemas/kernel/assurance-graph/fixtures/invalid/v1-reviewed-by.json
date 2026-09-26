@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "kind": "assurance-graph/v1",
+  "graph_id": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "candidate_id": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "nodes": [
+    {
+      "id": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "kind": "candidate"
+    }
+  ],
+  "edges": [
+    {
+      "from": "finding-1",
+      "relation": "reviewed-by",
+      "to": "lens-risk"
+    }
+  ]
+}

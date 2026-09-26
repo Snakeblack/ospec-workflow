@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "capsule_id": "capsule-bad-fp",
+  "fingerprint": "not-a-sha256-fingerprint",
+  "source_snapshot_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "dependencies": [
+    "src/index.js"
+  ],
+  "allowed_paths": [
+    "src/**"
+  ],
+  "environment": {}
+}
