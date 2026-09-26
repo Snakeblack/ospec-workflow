@@ -11,6 +11,7 @@ const {
   resolveBinary,
   resolveInvocation,
   normalizeCodexHookOutput,
+  stripUtf8Bom,
   isCursorInstall,
   adaptCursorHookInput,
   normalizeCursorHookOutput,
@@ -319,6 +320,13 @@ test("isCursorInstall detects .cursor path segments and OSPEC_TARGET=cursor", ()
   assert.equal(isCursorInstall(path.join("/repo", "scripts", "hooks"), {}), false);
   assert.equal(isCursorInstall(path.join("/repo", "scripts", "hooks"), { OSPEC_TARGET: "cursor" }), true);
   assert.equal(isCursorInstall(path.join("/repo", "scripts", "hooks"), { OSPEC_TARGET: "codex" }), false);
+});
+
+test("isCursorHost detects Cursor preToolUse when stdin starts with a UTF-8 BOM", () => {
+  const claudePluginDir = path.join("/home", "me", ".claude", "plugins", "cache", "ospec", "scripts", "hooks");
+  const payload = `\uFEFF${JSON.stringify({ hook_event_name: "preToolUse", tool_name: "Task" })}`;
+  assert.equal(stripUtf8Bom(payload).startsWith("{"), true);
+  assert.equal(isCursorHost(claudePluginDir, {}, payload), true);
 });
 
 test("isCursorHost detects Cursor-native stdin even from Claude plugin paths", () => {

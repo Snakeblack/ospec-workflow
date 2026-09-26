@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.68.2] - 2026-09-26
+
+### Fixed
+- **Replay v2.67 anidado en Node y Go**: `scripts/lib/lifecycle-kernel/phase-completion-reducer.js` y `internal/hooks/phase-completion-reducer.go` tratan un `last_payload_hash` de `JSON.stringify` (v2.67.0–v2.67.3), incluido `question_gate` con objetos anidados, como noop sin subir `revision`. Las escrituras nuevas siguen guardando solo el hash canónico. Contrato: `REQ-lifecycle-kernel-029`.
+- **Raíces separadas en `validate-phase`**: `scripts/validate-phase.js` y `scripts/configure/validate-phase.js` distinguen la raíz del plugin y el workspace del proyecto (`--workspace`, `OSPEC_PROJECT_ROOT` o el directorio de trabajo). Queda cubierto para Claude y Cursor, y el layout colapsado (openspec solo bajo el plugin) falla cerrado. Contrato: `REQ-install-027`.
+- **`route.actual_route` en changes nuevos**: `scripts/lib/route-dispatcher.js` y `scripts/route-dispatch-run.js` fallan cerrados si existe `route:` y falta `actual_route`. La ausencia del bloque `route:` completo sigue siendo la excepción legacy, con test. Contrato: `REQ-routing-016`.
+- **BOM en el launcher de hooks**: `scripts/hooks/ospec-hooks-launch.js` elimina `U+FEFF` del stdin antes de detectar el host. Un `preToolUse` de Cursor servido desde el plugin de Claude ya no responde `permission: "ask"`.
+- **Aislamiento del hook de commit**: `scripts/hooks/pre-commit-hook.js` no propaga `GIT_DIR` ni `GIT_INDEX_FILE` al proceso de `check.js`. Las pruebas que invocan git dejan de reescribir el índice del commit en curso.
+
+### Changed
+- **Presupuesto de revisión**: el diff de este patch superó 400 líneas y se aceptó como `size:exception` (`exception-ok`). `scripts/lib/review-lineage.js` exporta el arranque, el registro y la validación de slices de remediación.
+
+Ciclo SDD completo (ruta standard): deltas de `lifecycle-kernel-runtime`, `routing` e `install`; verificación PASS WITH WARNINGS; quality review con dos hallazgos CRITICAL resueltos. Archivado en `openspec/changes/archive/2026-09-25-remediate-pp2-cx1-preflight-gaps/`.
+
+**Verificación directa**: `node --test` del reducer, `validate-phase`, el launcher y el dispatch (186 pruebas, 0 fallos) y `go test ./internal/hooks/` del replay v2.67.
+
+**Follow-up abierto**: `F-66efe8421b856f34`. `scripts/validate-phase.js` todavía puede leer `actual_route` fuera del bloque `route:`, y `scripts/route-dispatch-run.js` no. No está corregido en esta versión.
+
 ## [2.68.1] - 2026-09-23
 
 ### Fixed

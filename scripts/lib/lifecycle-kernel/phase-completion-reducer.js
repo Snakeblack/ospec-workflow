@@ -39,6 +39,21 @@ function computePayloadHash(payload) {
     .digest("hex");
 }
 
+/**
+ * v2.67.0–v2.67.3 replay digest: sha256 of native JSON.stringify (insertion-order keys).
+ * Used only for dual-accept compare; new writes always store the canonical hash.
+ */
+function legacyV267PayloadHash(envelope) {
+  return crypto.createHash("sha256").update(JSON.stringify(envelope), "utf8").digest("hex");
+}
+
+function isReplayHashMatch(storedHash, envelope) {
+  if (typeof storedHash !== "string" || storedHash.length === 0) return false;
+  const canonical = computePayloadHash(envelope);
+  if (storedHash === canonical) return true;
+  return storedHash === legacyV267PayloadHash(envelope);
+}
+
 class MissingTimestampError extends Error {
   constructor() {
     super("options.now (ISO-8601 timestamp) is required: reducePhaseCompletion is pure and must not read the wall clock");
@@ -103,11 +118,11 @@ function reducePhaseCompletion(currentState, payload, options = {}) {
     };
   }
 
-  // Replay verification: noop-replay ONLY on a stored last_payload_hash match;
-  // distinct re-runs without a stored hash proceed through the CAS-gated apply.
+  // Replay verification: noop-replay when stored hash matches canonical OR
+  // frozen v2.67 insertion-order digest; distinct re-runs without a match proceed.
   const payloadHash = computePayloadHash(envelope);
   const phaseEntry = current.phases?.[phase];
-  if (phaseEntry?.last_payload_hash === payloadHash) {
+  if (isReplayHashMatch(phaseEntry?.last_payload_hash, envelope)) {
     return {
       ok: true,
       state: clone(current),
@@ -278,4 +293,6 @@ function reducePhaseCompletion(currentState, payload, options = {}) {
 
 module.exports = {
   reducePhaseCompletion,
+  computePayloadHash,
+  legacyV267PayloadHash,
 };

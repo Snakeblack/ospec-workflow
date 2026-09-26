@@ -1359,6 +1359,57 @@ test("selectRoute ignores empty string in persistedRoute and evaluates table nor
   assert.equal(result.name, "lite");
 });
 
+test("selectRoute fails closed when route section present without non-empty actual_route [REQ-routing-016]", () => {
+  const ctx = { classification: "small", "project.status": "active" };
+  for (const options of [
+    { routeSectionPresent: true, persistedRoute: "" },
+    { routeSectionPresent: true, persistedRoute: null },
+    { routeSectionPresent: true, persistedRoute: { actual_route: "" } },
+    { routeSectionPresent: true },
+  ]) {
+    const result = selectRoute(CANONICAL_TEST_ROUTES, ctx, options);
+    assert.equal(result.status, "blocked", `expected blocked for ${JSON.stringify(options)}`);
+    assert.equal(result.blocker_type, "needs_user_decision");
+    assert.ok(
+      result.reasons.includes("missing_actual_route"),
+      `expected missing_actual_route in ${JSON.stringify(result.reasons)}`,
+    );
+    assert.equal(result.route, null);
+    assert.equal(result.name, null);
+    assert.ok(
+      !result.reasons.includes("continuation_locked"),
+      "must not silently re-select or lock a fabricated route",
+    );
+  }
+});
+
+test("selectRoute legacy exception: whole route section absent still evaluates table [REQ-routing-016]", () => {
+  const result = selectRoute(
+    CANONICAL_TEST_ROUTES,
+    { classification: "small", "project.status": "active" },
+    { routeSectionPresent: false }
+  );
+  assert.equal(result.status, "success");
+  assert.equal(result.name, "lite");
+  assert.ok(!result.reasons.includes("missing_actual_route"));
+});
+
+test("selectRoute legacy exception does not cover policy-bound omission [REQ-routing-016]", () => {
+  const legacy = selectRoute(
+    CANONICAL_TEST_ROUTES,
+    { classification: "small", "project.status": "active" },
+    { routeSectionPresent: false, persistedRoute: "" }
+  );
+  const policyBound = selectRoute(
+    CANONICAL_TEST_ROUTES,
+    { classification: "small", "project.status": "active" },
+    { routeSectionPresent: true, persistedRoute: "" }
+  );
+  assert.equal(legacy.status, "success", "whole-route absence remains legacy table path");
+  assert.equal(policyBound.status, "blocked");
+  assert.ok(policyBound.reasons.includes("missing_actual_route"));
+});
+
 test("selectRoute flags floor violation when persisted route lacks phases under critical floor", () => {
   const result = selectRoute(
     CANONICAL_TEST_ROUTES,

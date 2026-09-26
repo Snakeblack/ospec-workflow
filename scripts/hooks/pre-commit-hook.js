@@ -7,6 +7,23 @@ const { classifySensitiveFile, scanContentForSecrets, MAX_SCAN_SIZE_BYTES } = re
 const { getStagedContent, getStagedBlobSize } = require("./lib/staged-validator.js");
 const { resolveTddMode } = require("../lib/tdd-mode.js");
 
+const GIT_HOOK_CONTEXT_VARS = [
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_INDEX_FILE",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_PREFIX",
+];
+
+function envWithoutGitHookContext(source = process.env) {
+  const env = { ...source };
+  for (const key of GIT_HOOK_CONTEXT_VARS) {
+    delete env[key];
+  }
+  return env;
+}
+
 function runPreCommit(options = {}) {
   // 1. Bypass por variable de entorno
   if (process.env.DISABLE_OSPEC_PRECOMMIT === "true") {
@@ -129,6 +146,7 @@ function runPreCommit(options = {}) {
     // Task 2.2: capture stdout/stderr via pipe instead of inheriting
     const checkResult = child_process.spawnSync("node", checkArgs, {
       cwd: repoRoot,
+      env: envWithoutGitHookContext(),
       stdio: "pipe",
       encoding: "utf8",
     });
@@ -280,4 +298,5 @@ if (require.main === module) {
 
 module.exports = {
   runPreCommit,
+  envWithoutGitHookContext,
 };

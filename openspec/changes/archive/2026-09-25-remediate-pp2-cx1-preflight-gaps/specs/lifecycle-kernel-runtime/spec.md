@@ -1,0 +1,47 @@
+# Delta for lifecycle-kernel-runtime
+
+## MODIFIED Requirements
+
+### Requirement: CAS and Replay Determinism for Phase State Projection {#REQ-lifecycle-kernel-029}
+
+State projections produced by `PhaseCompletionReducer` and committed to durable storage MUST enforce Compare-And-Swap (CAS) revision matching under advisory file locking (`withFileLock`). Replaying an identical phase completion payload against an already projected state MUST be idempotent: the kernel runtime MUST detect the replay through payload hashing or journal matching and return the converged state without advancing revision counters or duplicating journal records.
+
+When a durable state record stores a payload hash produced by the v2.67.0–v2.67.3 insertion-order `JSON.stringify` form of an already committed completion payload, the runtime MUST treat a replay of that same payload as a zero-delta idempotent convergence in both Node and Go. Recognition of that historical hash form MUST NOT bump `revision`, MUST NOT re-apply state mutations, and MUST NOT append duplicate journal records. The runtime MUST also continue to recognize the current canonical payload hash as an identical zero-delta replay. A payload whose stored hash matches neither the current canonical form nor the frozen v2.67.0–v2.67.3 insertion-order form MUST NOT be treated as that prior completion's replay solely on hash equality.
+
+(Previously: Replay detection required the current canonical payload hash only; v2.67.0–v2.67.3 insertion-order hashes were not accepted as zero-delta noop replays.)
+
+#### Scenario: Concurrent projection conflict triggers CAS conflict rejection
+
+- GIVEN a projection commit attempt with expected revision R
+- WHEN storage head revision has advanced to R+1 due to a concurrent write
+- THEN the commit MUST fail closed with a CAS conflict
+- AND authoritative state MUST remain unchanged
+
+#### Scenario: Replaying identical phase completion payload produces zero-delta idempotent convergence
+
+- GIVEN a change state that already committed completion payload P under the current canonical hash
+- WHEN the runtime reconciles or replays payload P
+- THEN the runtime MUST recognize the completed operation
+- AND MUST NOT re-execute state mutations or append duplicate journal records
+- AND MUST NOT advance `revision`
+
+#### Scenario: v2.67 insertion-order hash replay is a zero-delta noop in Node and Go
+
+- GIVEN durable state that already committed completion payload P with a stored hash from the v2.67.0–v2.67.3 insertion-order `JSON.stringify` form
+- WHEN the Node runtime and the Go runtime each reconcile or replay the same payload P
+- THEN both runtimes MUST recognize the completed operation as a zero-delta replay
+- AND MUST NOT bump `revision`, re-apply mutations, or append duplicate journal records
+
+#### Scenario: Unrelated payload hash is not treated as prior completion replay
+
+- GIVEN durable state that records a completion hash for payload P
+- AND a distinct completion payload Q whose hash matches neither the current canonical hash of P nor the frozen v2.67.0–v2.67.3 insertion-order hash of P
+- WHEN the runtime evaluates Q against that stored record
+- THEN it MUST NOT treat Q as an idempotent replay of P solely by hash equality
+
+#### Scenario: Recovery from interrupted write restores valid state without corruption
+
+- GIVEN an interrupted write during state projection
+- WHEN the runtime initializes or re-executes projection
+- THEN it MUST recover from backup (`.bak`) or journal state safely
+- AND MUST restore a consistent, non-corrupted state

@@ -1,0 +1,110 @@
+change: remediate-pp2-cx1-preflight-gaps
+status: proposed
+classification: high-risk
+route:
+  intended_route: standard
+  actual_route: standard
+  route_rationale: "Clasificación high-risk determinista. Piso critical por data_migration del hash de replay y public_api del reducer y del validador. standard es la primera ruta elegible con project.status active; validateRouteTable valid=true."
+  validated: true
+  validation_errors: []
+owner:
+  author: Reconciliation Test
+  branch: fix/pp2-cx1-preflight-remediation
+approvals:
+  - id: delivery-strategy-002
+    gate: delivery-strategy
+    decision: exception-ok
+    source: cursor/plain-chat
+    accepted_at: "2026-09-25T23:44:00Z"
+    applies_to:
+      - sdd-archive
+  - id: review-workload-002
+    gate: review-workload
+    decision: "size:exception"
+    source: cursor/plain-chat
+    accepted_at: "2026-09-25T23:44:00Z"
+    applies_to:
+      - sdd-archive
+  - id: review-workload-001
+    gate: review-workload
+    decision: single-pr
+    source: cursor/AskQuestion
+    accepted_at: "2026-09-25T23:20:00Z"
+    applies_to:
+      - sdd-apply
+  - id: delivery-strategy-001
+    gate: delivery-strategy
+    decision: ask-on-risk
+    source: cursor/AskQuestion
+    accepted_at: "2026-09-25T23:10:00Z"
+    applies_to:
+      - sdd-tasks
+      - sdd-apply
+  - id: execution-mode-001
+    gate: execution-mode
+    decision: automatic
+    source: cursor/plain-chat-numbered-gate
+    accepted_at: "2026-09-25T22:31:00Z"
+    applies_to:
+      - all-phases
+  - id: intent-briefing-001
+    gate: intent-briefing
+    decision: accepted
+    source: cursor/plain-chat-numbered-gate
+    accepted_at: "2026-09-25T22:24:00Z"
+    applies_to:
+      - change-classification
+    synthesis: >
+      Change correctivo acotado remediate-pp2-cx1-preflight-gaps sobre main 2.68.1.
+      Reconoce el replay de un state.yaml escrito con el hash de v2.67 en Node y en Go,
+      sin incrementar la revisión. Resuelve por separado el directorio del plugin y el
+      del proyecto para que validate-phase funcione instalado fuera del repo, al menos
+      en Claude y en otro target de instalación global. Exige actual_route en changes
+      nuevos, con una excepción legacy explícita y comprobable. Cierra con un inventario
+      breve de consumidores que confirme approvals, lineage y recovery.
+    scope: >
+      Dentro: compatibilidad de replay del hash previo en
+      scripts/lib/lifecycle-kernel/phase-completion-reducer.js e
+      internal/hooks/phase-completion-reducer.go; resolución de raíz de runtime y de
+      proyecto en scripts/validate-phase.js y su comando por target; política comprobable
+      de actual_route para changes nuevos frente a la excepción legacy; inventario breve
+      de consumidores (approvals, lineage, recovery). Fuera: una segunda implementación
+      de PP2 o CX1, runtime Adaptive global, y el change adaptive-operation-identity-binding.
+baseline_fingerprints:
+  lifecycle-kernel-runtime: "128d3669690403e48eb09c567f0ce7160f14cb56c32890176d8a15713117f076"
+  routing: "08650d0620f7125836610320593249f21244dd5e6b4c5e8e8b362a8432acac09"
+  install: "8c547a0564fc8b4a68d28bbc44f3432326427826bba1bf3b2b7c5113d00515ce"
+phases:
+  proposal:
+    status: done
+    artifact: openspec/changes/remediate-pp2-cx1-preflight-gaps/proposal.md
+    summary: "Proposal estándar: dual-hash v2.67, validate-phase dual-root, actual_route con excepción legacy e inventario de consumidores."
+  spec:
+    status: done
+    artifacts:
+      - openspec/changes/remediate-pp2-cx1-preflight-gaps/specs/lifecycle-kernel-runtime/spec.md
+      - openspec/changes/remediate-pp2-cx1-preflight-gaps/specs/routing/spec.md
+      - openspec/changes/remediate-pp2-cx1-preflight-gaps/specs/install/spec.md
+    summary: "Deltas: 029 modificado (hash v2.67 noop), 016 añadido (actual_route), 027 añadido (raíces separadas)."
+  clarify:
+    status: skipped
+    reason: "shouldRunClarify=false: residual_ambiguity false y public_contract_questions, conflicting_requirements y missing_acceptance_criteria vacíos."
+  design:
+    status: done
+    artifact: openspec/changes/remediate-pp2-cx1-preflight-gaps/design.md
+    summary: "Dual-hash v2.67 solo en comparación, actual_route con excepción legacy, y raíces plugin/proyecto en validate-phase. Sin ADR."
+  tasks:
+    status: done
+    artifact: openspec/changes/remediate-pp2-cx1-preflight-gaps/tasks.md
+    summary: "18 tareas. Decision needed before apply: Yes. Chained PRs recommended: No. Chain strategy: pending. 400-line budget risk: Medium."
+  apply:
+    status: done
+    artifact: openspec/changes/remediate-pp2-cx1-preflight-gaps/apply-progress.md
+    summary: "Dual-hash, actual_route y raíces de validate-phase implementados. 158 tests Node y PhaseCompletion en Go en verde."
+  verify:
+    status: done
+    verdict: "PASS WITH WARNINGS"
+    artifact: openspec/changes/remediate-pp2-cx1-preflight-gaps/verify-report.md
+    summary: "PASS WITH WARNINGS: requisitos 029, 016 y 027 en runtime; aviso por el tamano del diff."
+gates:
+  quality-review-gate: {"schema_version":2,"classification":"high-risk","classification_status":"sufficient","selected_domains":["trust","runtime","evolution","efficiency"],"status":"approved","terminal_reason":"all-remediation-slices-passed","findings_summary":"0 BLOCKER, 2 CRITICAL, 1 WARNING, 0 SUGGESTION","lineage":{"schema_version":2,"lineage_id":"sha256:17c2e3745f4e49fd00f49109c132db2743253fed63306969dc01a765425afc63","generation":1,"predecessor_lineage_id":null,"migration":null,"recovery":null,"revision":15,"status":"approved","genesis":{"candidate":{"projection":"working-tree","base_tree":"sha256:03956aa8e577440610e7a0110d5a99274f9310abebfa800fd77a418aefb9baf8","candidate_tree":"sha256:c070457b95ea9a59d0ee21c36d41e3dc72e23cde3f1fd03eb41d03c9f73077ab","paths":["internal/hooks/phase-completion-reducer.go","internal/hooks/phase-completion-reducer_test.go","scripts/configure/validate-phase.js","scripts/configure/validate-phase.test.js","scripts/hooks/ospec-hooks-launch.js","scripts/hooks/ospec-hooks-launch.test.js","scripts/lib/lifecycle-kernel/phase-completion-reducer.js","scripts/lib/lifecycle-kernel/phase-completion-reducer.test.js","scripts/lib/route-dispatcher.js","scripts/lib/route-dispatcher.test.js","scripts/route-dispatch-run.js","scripts/route-dispatch-run.test.js","scripts/validate-phase.js"],"diff_hash":"sha256:a480fb189f7e4065607e246a7efedb6c6dfdf3e5011f8dc3a0d8f1a3d9371375","paths_digest":"sha256:d60b916fa8e87e7b1d573220d36935f197aaf9a975d99f623223e426e994b293","authored_lines":793,"original_changed_lines":793},"candidate_id":"sha256:ddcbc0cfffe39f052336516d400c2a5b381e0c700b927ced869468ccb4c04529","paths":["internal/hooks/phase-completion-reducer.go","internal/hooks/phase-completion-reducer_test.go","scripts/configure/validate-phase.js","scripts/configure/validate-phase.test.js","scripts/hooks/ospec-hooks-launch.js","scripts/hooks/ospec-hooks-launch.test.js","scripts/lib/lifecycle-kernel/phase-completion-reducer.js","scripts/lib/lifecycle-kernel/phase-completion-reducer.test.js","scripts/lib/route-dispatcher.js","scripts/lib/route-dispatcher.test.js","scripts/route-dispatch-run.js","scripts/route-dispatch-run.test.js","scripts/validate-phase.js"],"classification":"high-risk","selected_domains":["trust","runtime","evolution","efficiency"],"evidence_fingerprint":"sha256:589f2e2bb945edb12820e4fc992c80ee8d9f4c2f3f5ce2e015d9dd78c8f6026b","original_changed_lines":793,"authored_lines":793},"current_candidate_id":"sha256:b337e8f665d7b05700a75113e6a4f182dabd1d795fe4ffd3767aa9ca8fcfbfd1","current_candidate":{"projection":"working-tree","base_tree":"sha256:03956aa8e577440610e7a0110d5a99274f9310abebfa800fd77a418aefb9baf8","candidate_tree":"sha256:2145257270d987d23b6ab82d4d609a0becc561c0aa07aa226eaff0c49ba5e4b7","paths":["internal/hooks/phase-completion-reducer.go","internal/hooks/phase-completion-reducer_test.go","scripts/configure/validate-phase.js","scripts/configure/validate-phase.test.js","scripts/hooks/ospec-hooks-launch.js","scripts/hooks/ospec-hooks-launch.test.js","scripts/lib/lifecycle-kernel/phase-completion-reducer.js","scripts/lib/lifecycle-kernel/phase-completion-reducer.test.js","scripts/lib/route-dispatcher.js","scripts/lib/route-dispatcher.test.js","scripts/route-dispatch-run.js","scripts/route-dispatch-run.test.js","scripts/validate-phase.js"],"diff_hash":"sha256:b003cf2f34467ccee2c1582d8f79cd05fba150e40063f161c4e442ea5d7fc684","paths_digest":"sha256:d60b916fa8e87e7b1d573220d36935f197aaf9a975d99f623223e426e994b293","authored_lines":915,"original_changed_lines":793},"lenses":{"trust":{"selected":true,"status":"completed","request_id":"preflight-trust","result_digest":"sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc","result":{"findings":[]},"operation":null,"result_request_id":"preflight-trust"},"runtime":{"selected":true,"status":"completed","request_id":"preflight-runtime","result_digest":"sha256:1e7394cd6316723cef5cf9ba1c764fe5b8db95790d94c9f6ade2114fdde5b14a","result":{"findings":[{"severity":"CRITICAL","summary":"Node legacyV267PayloadHash usa JSON.stringify (orden de insercion) en scripts/lib/lifecycle-kernel/phase-completion-reducer.js:46-47; Go writeLegacyV267ReplayJSON ordena claves anidadas UTF-16 (internal/hooks/phase-completion-reducer.go:353-367). Para question_gate {reason, questions} los digests divergen: un last_payload_hash v2.67 de Node no hace match en Go, no hay noop-replay y revision puede avanzar, contra REQ-lifecycle-kernel-029. El golden plano no cubre nesting.","acceptance_criteria":"Fixture golden anidado (question_gate mas un item en questions) con el orden de claves historico v2.67: Node y Go emiten el mismo digest legacy; con ese hash almacenado ambos devuelven noop-replay sin mutar revision ni estado; los advances siguen persistiendo solo el hash canonico."}]},"operation":null,"result_request_id":"preflight-runtime"},"evolution":{"selected":true,"status":"completed","request_id":"preflight-evolution","result_digest":"sha256:efc9cac6fa2d25ac33fce476eb42ef9b125ac26e55e92d68629b1ce19f723e47","result":{"findings":[{"severity":"CRITICAL","summary":"Contrato dual-accept Node/Go diverge en objetos anidados: Node usa JSON.stringify en phase-completion-reducer.js:46-47; Go pasa preferredKeys=nil a hijos en phase-completion-reducer.go:353 y :367 y ordena nested por UTF-16. Un envelope historico con question_gate genera un hash Node distinto del legacy Go, asi que Go puede no reconocer noop-replay y avanzar revision, violando REQ-lifecycle-kernel-029. El golden plano no cubre este caso.","acceptance_criteria":"Fixture golden con objeto anidado cuyo digest legacy Node este fijado: Node y Go deben ambos devolver noop-replay sin bump de revision ni mutacion de state, y los digests legacy deben ser iguales. El orden nested debe ser el de JSON.stringify, no un sort unilateral en Go."},{"severity":"WARNING","summary":"Dos parsers de state.yaml para route.actual_route discrepan: validate-phase readPersistedRouteInfo hace match global de actual_route (scripts/validate-phase.js:35-38), mientras extractStateRouteInfo limita el fallback al bloque route: (scripts/route-dispatch-run.js:137-141). Con route: presente, actual_route ausente bajo route: y un actual_route fuera de route:, validate-phase puede continuar y route-dispatch-run falla closed. Coste: fail-closed inconsistente (REQ-routing-016).","acceptance_criteria":"Un mismo fixture con route: presente, actual_route ausente o vacio bajo route:, y opcionalmente actual_route solo fuera de route:, produce el mismo veredicto fail-closed en validate-phase y route-dispatch-run. El fallback de actual_route queda acotado al bloque route: en ambos."}]},"operation":null,"result_request_id":"preflight-evolution"},"efficiency":{"selected":true,"status":"completed","request_id":"preflight-efficiency","result_digest":"sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc","result":{"findings":[]},"operation":null,"result_request_id":"preflight-efficiency"}},"findings":[{"id":"F-a03bc117fe7eef44","owner":"runtime","severity":"CRITICAL","summary":"Node legacyV267PayloadHash usa JSON.stringify (orden de insercion) en scripts/lib/lifecycle-kernel/phase-completion-reducer.js:46-47; Go writeLegacyV267ReplayJSON ordena claves anidadas UTF-16 (internal/hooks/phase-completion-reducer.go:353-367). Para question_gate {reason, questions} los digests divergen: un last_payload_hash v2.67 de Node no hace match en Go, no hay noop-replay y revision puede avanzar, contra REQ-lifecycle-kernel-029. El golden plano no cubre nesting.","acceptance_criteria":"Fixture golden anidado (question_gate mas un item en questions) con el orden de claves historico v2.67: Node y Go emiten el mismo digest legacy; con ese hash almacenado ambos devuelven noop-replay sin mutar revision ni estado; los advances siguen persistiendo solo el hash canonico.","blocking":true,"resolution":"resolved"},{"id":"F-71a2828de183a068","owner":"evolution","severity":"CRITICAL","summary":"Contrato dual-accept Node/Go diverge en objetos anidados: Node usa JSON.stringify en phase-completion-reducer.js:46-47; Go pasa preferredKeys=nil a hijos en phase-completion-reducer.go:353 y :367 y ordena nested por UTF-16. Un envelope historico con question_gate genera un hash Node distinto del legacy Go, asi que Go puede no reconocer noop-replay y avanzar revision, violando REQ-lifecycle-kernel-029. El golden plano no cubre este caso.","acceptance_criteria":"Fixture golden con objeto anidado cuyo digest legacy Node este fijado: Node y Go deben ambos devolver noop-replay sin bump de revision ni mutacion de state, y los digests legacy deben ser iguales. El orden nested debe ser el de JSON.stringify, no un sort unilateral en Go.","blocking":true,"resolution":"resolved"},{"id":"F-66efe8421b856f34","owner":"evolution","severity":"WARNING","summary":"Dos parsers de state.yaml para route.actual_route discrepan: validate-phase readPersistedRouteInfo hace match global de actual_route (scripts/validate-phase.js:35-38), mientras extractStateRouteInfo limita el fallback al bloque route: (scripts/route-dispatch-run.js:137-141). Con route: presente, actual_route ausente bajo route: y un actual_route fuera de route:, validate-phase puede continuar y route-dispatch-run falla closed. Coste: fail-closed inconsistente (REQ-routing-016).","acceptance_criteria":"Un mismo fixture con route: presente, actual_route ausente o vacio bajo route:, y opcionalmente actual_route solo fuera de route:, produce el mismo veredicto fail-closed en validate-phase y route-dispatch-run. El fallback de actual_route queda acotado al bloque route: en ambos.","blocking":false,"resolution":"advisory"}],"findings_digest":"sha256:d0eb0e3f718e0e8b9496f3e58a398646de93a8ed02a955f490f42e430d378330","correction_budget":{"limit_lines":200,"used_lines":0,"failed_attempts":0,"max_failed_attempts":3},"correction_history":[],"validation_history":[],"follow_ups":[],"pending_operation":null,"pending_correction":null,"terminal_reason":"all-remediation-slices-passed","remediation_schema_version":2,"remediation_migration":{"source_digest":"sha256:e6e62ef124becc4a87f5c181c05c9cf069f980d5b3056acc215cae163587c9fb","manifest_digest":"sha256:7cdadd37c4077d83b1604d55216b527ab87bd0d3b23031b30030894fa4f66001","legacy_used_lines":0,"legacy_failed_attempts":0,"migrated_at":"deterministic"},"slice_order":["S-cb133043f1dac118","S-9c36be48cd543166"],"active_slice_id":null,"correction_slices":{"S-cb133043f1dac118":{"slice_id":"S-cb133043f1dac118","root_cause_key":"F-71a2828de183a068","finding_ids":["F-71a2828de183a068"],"evidence_digests":["sha256:121c0b717ac8df6f266322dc696ea9937363259d9b3fab39693ce606f5b4e126"],"permitted_paths":["internal/hooks/phase-completion-reducer.go","internal/hooks/phase-completion-reducer_test.go","scripts/configure/validate-phase.js","scripts/configure/validate-phase.test.js","scripts/hooks/ospec-hooks-launch.js","scripts/hooks/ospec-hooks-launch.test.js","scripts/lib/lifecycle-kernel/phase-completion-reducer.js","scripts/lib/lifecycle-kernel/phase-completion-reducer.test.js","scripts/lib/route-dispatcher.js","scripts/lib/route-dispatcher.test.js","scripts/route-dispatch-run.js","scripts/route-dispatch-run.test.js","scripts/validate-phase.js"],"resolutions":{"F-71a2828de183a068":"unresolved"},"status":"passed","used_lines":119,"failed_attempts":0,"limit_lines":200,"max_failed_attempts":3,"correction_history":[{"slice_id":"S-cb133043f1dac118","request_id":"preflight-slice-1","finding_ids":["F-71a2828de183a068"],"paths":["internal/hooks/phase-completion-reducer.go","internal/hooks/phase-completion-reducer_test.go","scripts/lib/lifecycle-kernel/phase-completion-reducer.test.js"],"base_candidate_id":"sha256:ddcbc0cfffe39f052336516d400c2a5b381e0c700b927ced869468ccb4c04529","forecast_lines":120,"actual_changed_lines":119,"record_request_id":"preflight-slice-1-record","corrected_candidate_id":"sha256:b337e8f665d7b05700a75113e6a4f182dabd1d795fe4ffd3767aa9ca8fcfbfd1"}],"validation_history":[{"request_id":"preflight-slice-1-validate","outcomes":[{"id":"F-71a2828de183a068","status":"resolved"}],"regression":{"detected":false,"evidence":["Go nested key order matches JSON.stringify; Node and Go pin 561aca2ff1da87e00356c9eda97413514160fafd8ccd2ed00d00d184d99df4fb and assert noop-replay without revision bump."],"impacted_slices":[]},"result":"passed"}],"regression_history":[],"legacy_correction_refs":[],"legacy_validation_refs":[]},"S-9c36be48cd543166":{"slice_id":"S-9c36be48cd543166","root_cause_key":"F-a03bc117fe7eef44","finding_ids":["F-a03bc117fe7eef44"],"evidence_digests":["sha256:6fe601b9291bedbacb8a8dd5db6696ded7f3e2115feda2ee60bbb660bb286433"],"permitted_paths":["internal/hooks/phase-completion-reducer.go","internal/hooks/phase-completion-reducer_test.go","scripts/configure/validate-phase.js","scripts/configure/validate-phase.test.js","scripts/hooks/ospec-hooks-launch.js","scripts/hooks/ospec-hooks-launch.test.js","scripts/lib/lifecycle-kernel/phase-completion-reducer.js","scripts/lib/lifecycle-kernel/phase-completion-reducer.test.js","scripts/lib/route-dispatcher.js","scripts/lib/route-dispatcher.test.js","scripts/route-dispatch-run.js","scripts/route-dispatch-run.test.js","scripts/validate-phase.js"],"resolutions":{"F-a03bc117fe7eef44":"unresolved"},"status":"passed","used_lines":0,"failed_attempts":0,"limit_lines":200,"max_failed_attempts":3,"correction_history":[{"slice_id":"S-9c36be48cd543166","request_id":"preflight-slice-2","finding_ids":["F-a03bc117fe7eef44"],"paths":["internal/hooks/phase-completion-reducer.go","internal/hooks/phase-completion-reducer_test.go","scripts/lib/lifecycle-kernel/phase-completion-reducer.test.js"],"base_candidate_id":"sha256:b337e8f665d7b05700a75113e6a4f182dabd1d795fe4ffd3767aa9ca8fcfbfd1","forecast_lines":0,"actual_changed_lines":0,"record_request_id":"preflight-slice-2-record","corrected_candidate_id":"sha256:b337e8f665d7b05700a75113e6a4f182dabd1d795fe4ffd3767aa9ca8fcfbfd1"}],"validation_history":[{"request_id":"preflight-slice-2-validate","outcomes":[{"id":"F-a03bc117fe7eef44","status":"resolved"}],"regression":{"detected":false,"evidence":["Nested question_gate fixture pins 561aca2f in Node and Go; both tests assert noop-replay without revision or state mutation; advances store the canonical hash only."],"impacted_slices":[]},"result":"passed"}],"regression_history":[],"legacy_correction_refs":[],"legacy_validation_refs":[]}}},"recorded_at":"2026-09-25T23:55:00Z"}
