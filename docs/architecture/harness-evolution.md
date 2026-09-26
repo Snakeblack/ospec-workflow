@@ -1,7 +1,7 @@
 # Arquitectura objetivo — harness gobernado por kernel, grafo y evidencia
 
 > **Autoridad:** referencia del kernel estable y de sus contratos; la dirección arquitectónica y el roadmap de Adaptive tienen su fuente canónica en [`ospec-adaptive-critical-design.md`](ospec-adaptive-critical-design.md). Este documento no introduce prioridades Adaptive independientes.
-> **Corte documental:** v2.68.2, revisado el 2026-09-26 (estado alineado con la fuente canónica Adaptive; se explicita kernel estable y ejecución adaptable por capacidad observada).
+> **Corte documental:** v2.68.3, revisado el 2026-09-26 (estado alineado con la fuente canónica Adaptive; se explicita kernel estable y ejecución adaptable por capacidad observada).
 > **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1**, **K2a**, **K3**, **`k3-readiness-remediation`**, **K4a**, **K5**, **K6a**, **K4b**, **K6b**, **K6c** y **K6d** están cerrados. K6d aporta evidencia advisory; OpenSpec/Git/Candidate siguen siendo la única autoridad semántica y K7–K9 permanecen como trabajo objetivo.
 > **Roadmap operativo:** el backlog y los estados se proyectan en [`../roadmaps/harness-evolution.md`](../roadmaps/harness-evolution.md), que debe mantenerse alineado con la fuente canónica Adaptive y con código/OpenSpec.
 > **Precedencia documental:** para decisiones Adaptive prevalece `ospec-adaptive-critical-design.md`; para hechos de implementación prevalecen código/OpenSpec; este documento describe el kernel que ambos consumen. Una diferencia debe reconciliarse antes de iniciar el slice.
