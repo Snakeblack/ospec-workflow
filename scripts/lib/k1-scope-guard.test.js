@@ -184,6 +184,9 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/result-envelope.test.js",
   "scripts/lib/result-envelope-schema-fixtures.test.js",
   "scripts/lib/result-envelope-conformance.test.js",
+  // AIB isolated advisory successor; not part of the frozen K1 candidate.
+  "scripts/lib/operation-identity-binding.js",
+  "scripts/lib/operation-identity-binding.test.js",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [
@@ -406,6 +409,8 @@ test("K1 scope guard: K2 successor paths are excluded from K1 inventory governan
   assert.equal(isSuccessorK2Path("scripts/lib/verify-lineage-recheck.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/flow-validator.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/flow-validator.test.js"), true);
+  assert.equal(isSuccessorK2Path("scripts/lib/operation-identity-binding.js"), true);
+  assert.equal(isSuccessorK2Path("scripts/lib/operation-identity-binding.test.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/verify-lineage-recheck.test.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/transition-parity.js"), false);
   assert.equal(isSuccessorK2Path("scripts/lib/canonical-json.js"), false);
@@ -419,6 +424,7 @@ test("K1 scope guard: K2 successor paths are excluded from K1 inventory governan
   assert.equal(isAllowedK1Path("scripts/lib/flow-validator.js"), false);
   assert.equal(isK1GovernedImplementationPath("scripts/lib/lifecycle-kernel/reducer.js"), false);
   assert.equal(isK1GovernedImplementationPath("scripts/lib/flow-validator.js"), false);
+  assert.equal(isK1GovernedImplementationPath("scripts/lib/operation-identity-binding.js"), false);
   assert.equal(isK1GovernedImplementationPath("scripts/lib/canonical-json.js"), true);
 });
 
