@@ -23,6 +23,15 @@ const REQUIRED_RUN_MANIFEST_FIELDS = Object.freeze([
 const ALLOWED_TOP_LEVEL_KEYS = new Set([...REQUIRED_RUN_MANIFEST_FIELDS, "started_at", "completed_at"]);
 const STRATA = new Set(["local-reversible", "behavior-repair", "multi-module", "adversarial"]);
 const OUTCOME_STATUSES = new Set(["pass", "fail", "incomplete", "excluded"]);
+const MEASUREMENT_FIELDS = [
+  "phases_executed",
+  "effects_executed",
+  "events_recorded",
+  "wall_ms",
+  "interruptions",
+  "recoveries",
+];
+const ORACLE_FIELDS = ["applied", "reason"];
 const CATALOG_DIGEST_PATTERN = /^[a-f0-9]{64}$/;
 const RFC3339_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 
@@ -172,11 +181,52 @@ function validateRunManifestInternal(manifest, allowMissingRunId) {
     errors.push("run manifest outcome must be an object");
   } else {
     for (const key of Object.keys(manifest.outcome)) {
-      if (key !== "status" && key !== "note") errors.push(`run manifest outcome contains unknown field "${key}"`);
+      if (key !== "status" && key !== "note" && key !== "measurements" && key !== "oracle") {
+        errors.push(`run manifest outcome contains unknown field "${key}"`);
+      }
     }
     if (!OUTCOME_STATUSES.has(manifest.outcome.status)) errors.push("run manifest outcome status is invalid");
     if (manifest.outcome.note !== undefined && typeof manifest.outcome.note !== "string") {
       errors.push("run manifest outcome note must be a string");
+    }
+    if (Object.hasOwn(manifest.outcome, "measurements")) {
+      const { measurements } = manifest.outcome;
+      if (!isPlainObject(measurements)) {
+        errors.push("run manifest outcome measurements must be an object");
+      } else {
+        for (const key of Object.keys(measurements)) {
+          if (!MEASUREMENT_FIELDS.includes(key)) {
+            errors.push(`run manifest outcome measurements contains unknown field "${key}"`);
+          }
+        }
+        for (const field of MEASUREMENT_FIELDS) {
+          const valid = field === "wall_ms"
+            ? typeof measurements[field] === "number" && Number.isFinite(measurements[field]) && measurements[field] >= 0
+            : isIntegerAtLeast(measurements[field], 0);
+          if (!valid) {
+            const type = field === "wall_ms" ? "a number" : "an integer";
+            errors.push(`run manifest outcome measurements ${field} must be ${type} greater than or equal to 0`);
+          }
+        }
+      }
+    }
+    if (Object.hasOwn(manifest.outcome, "oracle")) {
+      const { oracle } = manifest.outcome;
+      if (!isPlainObject(oracle)) {
+        errors.push("run manifest outcome oracle must be an object");
+      } else {
+        for (const key of Object.keys(oracle)) {
+          if (!ORACLE_FIELDS.includes(key)) {
+            errors.push(`run manifest outcome oracle contains unknown field "${key}"`);
+          }
+        }
+        if (typeof oracle.applied !== "boolean") {
+          errors.push("run manifest outcome oracle applied must be a boolean");
+        }
+        if (!isNonEmptyString(oracle.reason)) {
+          errors.push("run manifest outcome oracle reason must be a non-empty string");
+        }
+      }
     }
   }
 

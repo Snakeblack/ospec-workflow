@@ -98,6 +98,59 @@
         },
         "note": {
           "type": "string"
+        },
+        "measurements": {
+          "type": "object",
+          "required": [
+            "phases_executed",
+            "effects_executed",
+            "events_recorded",
+            "wall_ms",
+            "interruptions",
+            "recoveries"
+          ],
+          "properties": {
+            "phases_executed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "effects_executed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "events_recorded": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "wall_ms": {
+              "type": "number",
+              "minimum": 0
+            },
+            "interruptions": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "recoveries": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        "oracle": {
+          "type": "object",
+          "required": ["applied", "reason"],
+          "properties": {
+            "applied": {
+              "type": "boolean"
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": ".*\\S.*"
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
