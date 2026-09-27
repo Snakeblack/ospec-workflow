@@ -1,6 +1,9 @@
 "use strict";
 
 const crypto = require("node:crypto");
+const { sha256Fingerprint } = require("./canonical-json.js");
+const { validateCandidateV2, computeCandidateId } = require("./execution-identities/index.js");
+const { countCanonicalCandidateDiff, validateK7ReviewBinding, createK7ReviewSelection } = require("./review-k7-binding.js");
 const { QUALITY_DOMAINS, LEGACY_DIMENSIONS, detectMixedTaxonomy } = require("./review-taxonomy.js");
 
 const DIMENSIONS = Object.freeze([...LEGACY_DIMENSIONS]);
@@ -10,6 +13,14 @@ const BLOCKING = new Set(["BLOCKER", "CRITICAL"]);
 const OUTCOMES = new Set(["resolved", "unresolved"]);
 const MAX_FAILED_ATTEMPTS = 3;
 const MAX_BUDGET_LINES = 200;
+const K7_BINDING_IDENTITY_FIELDS = Object.freeze([
+  "binding_id",
+  "policy_snapshot_id",
+  "policy_bundle_digest",
+  "verification_id",
+  "assurance_graph_id",
+  "residual_digest",
+]);
 
 function stableSerialize(value) {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
@@ -65,12 +76,12 @@ function normalizeCandidate(candidate) {
 }
 
 function selectedLensIds(state) {
-  if (state.schema_version === 2) return state.genesis.selected_domains;
+  if (state.schema_version >= 2) return state.genesis.selected_domains;
   return state.genesis.selected_dimensions;
 }
 
 function lensKeysForSchema(schemaVersion) {
-  return schemaVersion === 2 ? QUALITY : DIMENSIONS;
+  return schemaVersion >= 2 ? QUALITY : DIMENSIONS;
 }
 
 function migrateLineageTaxonomyV2(state) {
@@ -184,6 +195,127 @@ function startQualityReviewLineage(input, existing, meta = {}) {
   };
 }
 
+function startK7ReviewLineage(binding, reducerContext, meta = {}) {
+  const normalized = normalizeK7Genesis(binding, reducerContext, meta);
+  const lenses = Object.fromEntries(QUALITY.map((domain) => [domain, {
+    selected: normalized.genesis.selected_domains.includes(domain),
+    status: normalized.genesis.selected_domains.includes(domain) ? "pending" : "skipped",
+    request_id: null,
+    result_digest: null,
+    result: null,
+    operation: null,
+  }]));
+  return {
+    schema_version: 3,
+    lineage_id: normalized.lineageId,
+    generation: normalized.generation,
+    predecessor_lineage_id: meta.predecessor_lineage_id || null,
+    migration: null,
+    recovery: meta.recovery ? clone(meta.recovery) : null,
+    revision: 0,
+    status: "reviewing",
+    genesis: normalized.genesis,
+    ...k7BindingIdentity(normalized.genesis.k7_binding),
+    current_candidate_id: normalized.genesis.candidate_id,
+    current_candidate: clone(normalized.genesis.candidate),
+    lenses,
+    findings: [],
+    findings_digest: null,
+    correction_budget: {
+      limit_lines: Math.min(MAX_BUDGET_LINES, Math.ceil(normalized.genesis.original_changed_lines / 2)),
+      used_lines: 0,
+      failed_attempts: 0,
+      max_failed_attempts: MAX_FAILED_ATTEMPTS,
+    },
+    correction_history: [],
+    validation_history: [],
+    follow_ups: [],
+    pending_operation: null,
+    pending_correction: null,
+    terminal_reason: null,
+  };
+}
+
+function normalizeK7Genesis(binding, reducerContext, meta = {}) {
+  assertK7Binding(binding);
+  if (!reducerContext || typeof reducerContext !== "object" || Array.isArray(reducerContext) || Object.keys(reducerContext).length !== 1 || typeof reducerContext.candidate_diff !== "string") {
+    throw new TypeError("reducerContext must contain exactly canonical candidate_diff text");
+  }
+  const diffHash = sha256Fingerprint("candidate-diff/v1", reducerContext.candidate_diff);
+  if (diffHash !== binding.candidate.diff_hash) throw new TypeError("reducerContext candidate_diff digest does not match K7 binding Candidate");
+  const counted = countCanonicalCandidateDiff(reducerContext.candidate_diff);
+  const candidatePaths = new Set(binding.candidate.paths);
+  if (counted.paths.some((diffPath) => !candidatePaths.has(diffPath))) {
+    throw new TypeError("candidate_diff paths escape K7 binding Candidate paths");
+  }
+  const selectedDomains = [...binding.selection.selected_domains];
+  const genesis = {
+    candidate: clone(binding.candidate),
+    candidate_id: binding.candidate_id,
+    paths: counted.paths,
+    classification: "normal",
+    selected_domains: selectedDomains,
+    evidence_fingerprint: binding.verification_id,
+    original_changed_lines: counted.changed_lines,
+    authored_lines: counted.added_lines,
+    removed_lines: counted.removed_lines,
+    k7_binding: clone(binding),
+  };
+  const generation = meta.generation || 1;
+  assertCount(generation, "generation");
+  if (generation < 1) throw new TypeError("generation must be positive");
+  return {
+    genesis,
+    generation,
+    lineageId: digest("review-lineage-v3", {
+      binding_id: binding.binding_id,
+      candidate_id: genesis.candidate_id,
+      paths: genesis.paths,
+      added_lines: genesis.authored_lines,
+      removed_lines: genesis.removed_lines,
+      selected_domains: genesis.selected_domains,
+      generation,
+      predecessor_lineage_id: meta.predecessor_lineage_id || null,
+    }),
+  };
+}
+
+function k7BindingIdentity(binding) {
+  return Object.fromEntries(K7_BINDING_IDENTITY_FIELDS.map((field) => [field, binding[field]]));
+}
+
+function assertK7Binding(binding) {
+  const validated = validateK7ReviewBinding(binding);
+  if (!validated.ok) throw new TypeError(`K7 binding integrity check failed: ${validated.error}`);
+  assertK7BindingIdentity(binding);
+}
+
+function assertK7BindingIdentity(binding) {
+  const { binding_id, ...body } = binding || {};
+  if (
+    !binding || binding.schema_version !== 1 || binding.kind !== "k7-review-binding/v1" ||
+    typeof binding_id !== "string" || binding_id !== sha256Fingerprint("k7-review-binding/v1", body) ||
+    !binding.candidate || !validateCandidateV2(binding.candidate) ||
+    binding.candidate_id !== binding.candidate.candidate_id || binding.candidate_id !== computeCandidateId(binding.candidate) ||
+    !binding.selection || binding.selection.kind !== "k7-review-selection/v1" || binding.selection.schema_version !== 1 ||
+    binding.selection.no_model !== false || !Array.isArray(binding.selection.selected_domains) ||
+    binding.selection.selected_domains.length === 0 ||
+    binding.selection.selected_domains.some((domain) => !QUALITY.includes(domain)) ||
+    new Set(binding.selection.selected_domains).size !== binding.selection.selected_domains.length
+  ) throw new TypeError("K7 binding identity integrity check failed");
+}
+
+function assertK7IssuanceReplay(state, issuance) {
+  if (!issuance || typeof issuance !== "object" || Array.isArray(issuance)) {
+    throw new Error("K7_ISSUANCE_REPLAY_REQUIRED: original K7 issuance inputs are required");
+  }
+  const replay = createK7ReviewSelection(issuance);
+  if (!replay.ok || replay.binding_id !== state.genesis.k7_binding.binding_id) {
+    throw new Error("K7_ISSUANCE_REPLAY_REQUIRED: issuance does not reproduce the genesis binding");
+  }
+  return replay.binding;
+}
+
 function normalizeQualityGenesis(input, meta = {}) {
   if (!input || typeof input !== "object") throw new TypeError("lineage genesis is required");
   if (!["normal", "high-risk"].includes(input.classification)) throw new TypeError("classification must be normal or high-risk");
@@ -294,7 +426,7 @@ function startReviewLineage(input, existing, meta = {}) {
 function beginLens(state, input) {
   const dimension = input.dimension;
   assertLineage(state);
-  const allowed = state.schema_version === 2 ? QUALITY : DIMENSIONS;
+  const allowed = state.schema_version >= 2 ? QUALITY : DIMENSIONS;
   const selected = selectedLensIds(state);
   if (!allowed.includes(dimension) || !selected.includes(dimension)) throw new Error("lens dimension is not selected in genesis");
   assertExpectedRevision(state, input && input.expected_revision);
@@ -316,7 +448,7 @@ function recordLensResult(state, input) {
   assertRequestId(input.request_id);
   if (state.status !== "reviewing") throw new Error(`lens result is not allowed in status ${state.status}`);
   const dimension = input.dimension;
-  if (!((state.schema_version === 2 ? QUALITY : DIMENSIONS).includes(dimension)) || !selectedLensIds(state).includes(dimension)) throw new Error("lens dimension is not selected in genesis");
+  if (!((state.schema_version >= 2 ? QUALITY : DIMENSIONS).includes(dimension)) || !selectedLensIds(state).includes(dimension)) throw new Error("lens dimension is not selected in genesis");
   const normalized = normalizeLensResult(input.result);
   const resultDigest = digest("review-lens-result-v1", normalized);
   const lens = state.lenses[dimension];
@@ -346,6 +478,7 @@ function normalizeFinding(finding) {
 
 function freezeFindings(state, input) {
   const next = prepareMutation(state, input, "freeze-findings", ["reviewing"]);
+  if (state.schema_version === 3) assertK7IssuanceReplay(state, input && input.issuance);
   const selected = selectedLensIds(next);
   if (selected.some((dimension) => next.lenses[dimension].status !== "completed")) throw new Error("all selected lenses must complete before findings freeze");
   const seen = new Set();
@@ -427,12 +560,12 @@ function recordCorrection(state, input) {
   if (state.status === "validating") {
     const previous = state.correction_history.at(-1);
     if (previous && previous.record_request_id === input.request_id) {
-      const retryCandidate = normalizeCandidate(input.corrected_candidate);
+      const retryCandidate = normalizeCorrectionCandidate(state, input.corrected_candidate);
       const retry = {
         base_candidate_id: input.base_candidate_id,
         paths: canonicalStringList(input.paths, "correction paths").map(canonicalPath).sort(),
         actual_changed_lines: input.actual_changed_lines,
-        corrected_candidate_id: digest("review-candidate-v1", retryCandidate),
+        corrected_candidate_id: correctionCandidateId(state, retryCandidate),
       };
       const recorded = {
         base_candidate_id: previous.base_candidate_id,
@@ -453,10 +586,16 @@ function recordCorrection(state, input) {
   const paths = canonicalStringList(input.paths, "correction paths").map(canonicalPath).sort();
   if (paths.some((path) => !pending.paths.includes(path)) || paths.some((path) => !next.genesis.paths.includes(path))) throw new Error("actual correction paths exceed forecast or genesis");
   if (next.correction_budget.used_lines + input.actual_changed_lines > next.correction_budget.limit_lines) throw new Error("cumulative correction line budget exceeded");
-  const correctedCandidate = normalizeCandidate(input.corrected_candidate);
+  const correctedCandidate = normalizeCorrectionCandidate(next, input.corrected_candidate);
   if (stableSerialize(correctedCandidate.paths) !== stableSerialize(next.genesis.paths)) throw new Error("corrected candidate paths must equal frozen genesis paths");
-  if (correctedCandidate.original_changed_lines !== next.genesis.original_changed_lines || correctedCandidate.authored_lines !== next.genesis.authored_lines) throw new Error("corrected candidate changed_lines counts are immutable");
-  const correctedCandidateId = digest("review-candidate-v1", correctedCandidate);
+  if (next.schema_version === 3) {
+    if (correctedCandidate.predecessor_id !== next.current_candidate_id || correctedCandidate.relation !== "changed") {
+      throw new Error("K7 corrected Candidate must be an explicit successor of the current Candidate");
+    }
+  } else if (correctedCandidate.original_changed_lines !== next.genesis.original_changed_lines || correctedCandidate.authored_lines !== next.genesis.authored_lines) {
+    throw new Error("corrected candidate changed_lines counts are immutable");
+  }
+  const correctedCandidateId = correctionCandidateId(next, correctedCandidate);
   next.correction_budget.used_lines += input.actual_changed_lines;
   next.current_candidate = correctedCandidate;
   next.current_candidate_id = correctedCandidateId;
@@ -470,6 +609,18 @@ function recordCorrection(state, input) {
   next.status = "validating";
   next.pending_operation = null;
   return commit(next);
+}
+
+function normalizeCorrectionCandidate(state, candidate) {
+  if (state.schema_version !== 3) return normalizeCandidate(candidate);
+  if (!validateCandidateV2(candidate) || candidate.candidate_id !== computeCandidateId(candidate)) {
+    throw new TypeError("K7 corrected_candidate must be canonical Candidate v2");
+  }
+  return clone(candidate);
+}
+
+function correctionCandidateId(state, candidate) {
+  return state.schema_version === 3 ? candidate.candidate_id : digest("review-candidate-v1", candidate);
 }
 
 function applyTargetedValidation(state, input) {
@@ -532,7 +683,7 @@ function applyTargetedValidation(state, input) {
 }
 
 function normalizeFollowUps(value, schemaVersion = 1) {
-  const owners = schemaVersion === 2 ? QUALITY : DIMENSIONS;
+  const owners = schemaVersion >= 2 ? QUALITY : DIMENSIONS;
   if (!Array.isArray(value)) throw new TypeError("follow_ups must be an array");
   return value.map((followUp) => {
     if (!followUp || Object.keys(followUp).sort().join(",") !== "owner,summary" || !owners.includes(followUp.owner) || typeof followUp.summary !== "string" || followUp.summary.trim().length === 0 || followUp.summary.length > 500) {
@@ -600,6 +751,16 @@ function validateLineageForGate(state, input) {
   if (!input || !["status", "verify", "delivery", "archive"].includes(input.gate)) return { valid: false, code: "unknown-gate" };
   if (state.status === "reconciliation-required" || (state.pending_operation && state.pending_operation.status === "unknown") || Object.values(state.lenses).some((lens) => lens.operation && lens.operation.status === "unknown")) return { valid: false, code: "reconciliation-required" };
   if (input.candidate_id !== state.current_candidate_id) return { valid: false, code: "candidate-drift" };
+  if (state.schema_version === 3) {
+    const binding = state.genesis.k7_binding;
+    if (input.binding_id !== binding.binding_id) return { valid: false, code: "binding-drift" };
+    if (input.policy_snapshot_id !== binding.policy_snapshot_id) return { valid: false, code: "policy-drift" };
+    try {
+      assertK7IssuanceReplay(state, input.issuance);
+    } catch {
+      return { valid: false, code: "K7_ISSUANCE_REPLAY_REQUIRED" };
+    }
+  }
   if (state.status !== "approved") return { valid: false, code: TERMINAL.has(state.status) ? `lineage-${state.status}` : "lineage-not-terminal" };
   return { valid: true, code: "lineage-approved" };
 }
@@ -633,6 +794,34 @@ function createSuccessor(predecessor, input) {
   }
   if (predecessor.recovery && predecessor.recovery.approval_reference === ref) {
     throw new Error(`approval reference ${ref} has already been used in predecessor lineage`);
+  }
+
+  if (predecessor.schema_version === 3) {
+    if (input.selected_dimensions !== undefined || input.selected_domains !== undefined || !input.reducerContext) {
+      throw new TypeError("a schema v3 predecessor requires reducerContext for its explicit successor");
+    }
+    if (!input.issuance || typeof input.issuance !== "object") {
+      throw new Error("K7_ISSUANCE_REPLAY_REQUIRED: successor requires original K7 issuance inputs");
+    }
+    const replay = createK7ReviewSelection(input.issuance);
+    if (!replay.ok) throw new Error(`K7_ISSUANCE_REPLAY_REQUIRED: ${replay.error || replay.reason_code}`);
+    if (input.binding && input.binding.binding_id !== replay.binding_id) {
+      throw new Error("K7_ISSUANCE_REPLAY_REQUIRED: supplied binding differs from successor issuance");
+    }
+    const binding = replay.binding;
+    const predecessorBinding = predecessor.genesis.k7_binding;
+    if (
+      binding.candidate_id === predecessorBinding.candidate_id &&
+      binding.policy_snapshot_id === predecessorBinding.policy_snapshot_id &&
+      binding.policy_bundle_digest === predecessorBinding.policy_bundle_digest
+    ) {
+      throw new TypeError("K7 successor requires changed Candidate or Policy binding identity");
+    }
+    return startK7ReviewLineage(binding, input.reducerContext, {
+      generation: predecessor.generation + 1,
+      predecessor_lineage_id: predecessor.lineage_id,
+      recovery: { reason: input.reason.trim(), approval_reference: ref },
+    });
   }
 
   // ROUTING-012 / QRAR-004: successor taxonomy MUST equal the predecessor's.
@@ -897,6 +1086,9 @@ function beginSliceCorrection(state, input) {
   if (input.base_candidate_id !== state.current_candidate_id) throw new Error("correction base candidate mismatch");
   assertCount(input.forecast_lines, "forecast_lines");
   if (input.forecast_lines > slice.limit_lines - slice.used_lines) throw new Error("slice correction forecast exceeds fixed budget");
+  if (state.schema_version === 3 && input.forecast_lines > state.correction_budget.limit_lines - state.correction_budget.used_lines) {
+    throw new Error("K7 global correction forecast exceeds fixed budget");
+  }
   const next = clone(state);
   next.active_slice_id = id;
   next.correction_slices[id].status = "correcting";
@@ -932,10 +1124,17 @@ function recordSliceCorrection(state, input) {
   }
   const paths = canonicalStringList(input.paths, "correction paths").map(canonicalPath).sort();
   if (stableSerialize(paths) !== stableSerialize(pending.paths)) throw new Error("actual correction paths must equal persisted pending paths");
-  const corrected = normalizeCandidate(input.corrected_candidate);
+  const corrected = normalizeCorrectionCandidate(next, input.corrected_candidate);
   if (stableSerialize(corrected.paths) !== stableSerialize(next.genesis.paths)) throw new Error("corrected candidate paths must equal frozen genesis paths");
-  const corrected_candidate_id = digest("review-candidate-v1", corrected);
+  if (next.schema_version === 3 && (corrected.predecessor_id !== next.current_candidate_id || corrected.relation !== "changed")) {
+    throw new Error("K7 corrected Candidate must be an explicit successor of the current Candidate");
+  }
+  const corrected_candidate_id = correctionCandidateId(next, corrected);
+  if (next.schema_version === 3 && next.correction_budget.used_lines + input.actual_changed_lines > next.correction_budget.limit_lines) {
+    throw new Error("K7 global correction budget exceeded");
+  }
   slice.used_lines += input.actual_changed_lines;
+  if (next.schema_version === 3) next.correction_budget.used_lines += input.actual_changed_lines;
   slice.correction_history.push({
     ...pending,
     actual_changed_lines: input.actual_changed_lines,
@@ -1046,13 +1245,14 @@ function assertRequestId(value) {
 
 function assertLineage(state) {
   if (!state || typeof state !== "object") throw new TypeError("lineage state must be an object");
-  if (![1, 2].includes(state.schema_version)) throw new TypeError("schema_version must be 1 or 2");
-  if (state.schema_version === 2 && !Array.isArray(state.genesis.selected_domains)) {
+  if (![1, 2, 3].includes(state.schema_version)) throw new TypeError("schema_version must be 1, 2, or 3");
+  if (state.schema_version >= 2 && !Array.isArray(state.genesis.selected_domains)) {
     throw new TypeError("schema_version integrity check failed");
   }
   if (state.schema_version === 1 && Array.isArray(state.genesis.selected_domains)) {
     throw new TypeError("schema_version integrity check failed");
   }
+  if (state.schema_version === 3) return assertLineageV3(state);
   if (state.schema_version === 2) return assertLineageV2(state);
   return assertLineageV1(state);
 }
@@ -1180,6 +1380,43 @@ function assertLineageV2(state) {
   if (state.lineage_id !== expectedLineageId) throw new TypeError("lineage_id integrity check failed");
 }
 
+function assertLineageV3(state) {
+  if (!Number.isSafeInteger(state.revision) || state.revision < 0 || !Number.isSafeInteger(state.generation) || state.generation < 1 || (state.generation === 1 ? state.predecessor_lineage_id !== null : typeof state.predecessor_lineage_id !== "string" || state.predecessor_lineage_id.length === 0)) throw new TypeError("K7 lineage generation integrity check failed");
+  if (!state.genesis || typeof state.genesis !== "object") throw new TypeError("K7 lineage genesis is required");
+  const genesis = state.genesis;
+  assertK7BindingIdentity(genesis.k7_binding);
+  for (const field of K7_BINDING_IDENTITY_FIELDS) {
+    if (state[field] !== genesis.k7_binding[field]) throw new TypeError("K7 persisted binding identity drift detected");
+  }
+  if (
+    genesis.candidate_id !== genesis.k7_binding.candidate_id ||
+    stableSerialize(genesis.candidate) !== stableSerialize(genesis.k7_binding.candidate) ||
+    stableSerialize(genesis.selected_domains) !== stableSerialize(genesis.k7_binding.selection.selected_domains) ||
+    !Array.isArray(genesis.paths) || genesis.paths.length === 0 ||
+    genesis.paths.some((path) => !genesis.candidate.paths.includes(path)) ||
+    !Number.isSafeInteger(genesis.authored_lines) || !Number.isSafeInteger(genesis.removed_lines) ||
+    genesis.original_changed_lines !== genesis.authored_lines + genesis.removed_lines ||
+    !state.current_candidate || !validateCandidateV2(state.current_candidate) ||
+    state.current_candidate_id !== state.current_candidate.candidate_id ||
+    state.current_candidate_id !== computeCandidateId(state.current_candidate)
+  ) throw new TypeError("K7 lineage genesis integrity check failed");
+  const expectedLineageId = digest("review-lineage-v3", {
+    binding_id: genesis.k7_binding.binding_id,
+    candidate_id: genesis.candidate_id,
+    paths: genesis.paths,
+    added_lines: genesis.authored_lines,
+    removed_lines: genesis.removed_lines,
+    selected_domains: genesis.selected_domains,
+    generation: state.generation,
+    predecessor_lineage_id: state.predecessor_lineage_id,
+  });
+  if (state.lineage_id !== expectedLineageId) throw new TypeError("lineage_id integrity check failed");
+  if (!state.lenses || QUALITY.some((domain) => !state.lenses[domain])) throw new TypeError("K7 lineage lens integrity check failed");
+  if (!state.correction_budget || state.correction_budget.limit_lines !== Math.min(MAX_BUDGET_LINES, Math.ceil(genesis.original_changed_lines / 2)) || !Number.isSafeInteger(state.correction_budget.used_lines) || state.correction_budget.used_lines < 0 || state.correction_budget.used_lines > state.correction_budget.limit_lines || !Number.isSafeInteger(state.correction_budget.failed_attempts) || state.correction_budget.failed_attempts < 0 || state.correction_budget.failed_attempts > MAX_FAILED_ATTEMPTS || state.correction_budget.max_failed_attempts !== MAX_FAILED_ATTEMPTS) throw new TypeError("K7 lineage budget integrity check failed");
+  if (!Array.isArray(state.findings) || state.findings_digest !== null && typeof state.findings_digest !== "string") throw new TypeError("K7 lineage findings integrity check failed");
+  if (isRemediationV2(state)) assertRemediationV2(state);
+}
+
 function assertRemediationV2(state) {
   if (state.remediation_schema_version !== 2 || !state.remediation_migration || typeof state.remediation_migration !== "object") throw new TypeError("remediation-v2 integrity check failed");
   for (const key of ["source_digest", "manifest_digest"]) if (typeof state.remediation_migration[key] !== "string" || !state.remediation_migration[key].startsWith("sha256:")) throw new TypeError("remediation migration digest integrity check failed");
@@ -1205,6 +1442,7 @@ function assertRemediationV2(state) {
     manifest.push({ id, root_cause_key: slice.root_cause_key, finding_ids, evidence_digests, permitted_paths });
   }
   if (stableSerialize(seen.sort()) !== stableSerialize(blocking)) throw new TypeError("remediation slice finding partition integrity check failed");
+  if (state.schema_version === 3 && state.correction_budget.used_lines !== Object.values(state.correction_slices).reduce((total, slice) => total + slice.used_lines, 0)) throw new TypeError("K7 global remediation budget integrity check failed");
   if (state.remediation_migration.manifest_digest !== remediationManifestDigest(state)) throw new TypeError("remediation manifest digest integrity check failed");
   if (state.active_slice_id !== null && (!state.correction_slices[state.active_slice_id] || !["correcting", "validating"].includes(state.correction_slices[state.active_slice_id].status))) throw new TypeError("remediation active slice integrity check failed");
 }
@@ -1234,7 +1472,7 @@ function verifyLineageInvariants(pre, post) {
     }
   }
   
-  for (const dim of DIMENSIONS) {
+  for (const dim of lensKeysForSchema(pre.schema_version)) {
     const lPre = pre.lenses[dim];
     const lPost = post.lenses[dim];
     if (lPre.status === "completed") {
@@ -1269,6 +1507,7 @@ module.exports = {
   migrateLineageTaxonomyV2,
   startReviewLineage,
   startQualityReviewLineage,
+  startK7ReviewLineage,
   beginLens,
   recordLensResult,
   freezeFindings,

@@ -4,6 +4,8 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 
 const { freezeCandidate, computeSourceSnapshotId } = require("./execution-identities/index.js");
+const { startK7ReviewLineage, beginLens, recordLensResult, freezeFindings, beginCorrection, recordCorrection, applyTargetedValidation, createSuccessor } = require("./review-lineage.js");
+const { planLineageGate } = require("./review-gate-state.js");
 const { compileExecutionGraph, createPolicySnapshot } = require("./execution-graph/index.js");
 const { computeTreeDigest } = require("./worker-workspace.js");
 const { verifyCandidate } = require("./independent-verifier/index.js");
@@ -11,6 +13,7 @@ const { createTestRunnerReceiptChannel } = require("./test-support/k6b-runner-re
 const {
   createK7ReviewSelection,
   parseK7ReviewRules,
+  countCanonicalCandidateDiff,
 } = require("./review-k7-binding.js");
 
 const NODE = {
@@ -41,7 +44,7 @@ const CONTRACT = {
   obligations: [OBLIGATION],
 };
 
-function makeK6bResult(effectiveRules, { obligations = [OBLIGATION] } = {}) {
+function makeK6bResult(effectiveRules, { obligations = [OBLIGATION], diffText = undefined } = {}) {
   const files = { "src/index.js": "module.exports = 1;\n" };
   const tree = computeTreeDigest(files);
   const candidate = freezeCandidate({
@@ -49,7 +52,9 @@ function makeK6bResult(effectiveRules, { obligations = [OBLIGATION] } = {}) {
     projection: "workspace",
     base_tree: tree,
     candidate_tree: tree,
-    diff_hash: "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    ...(diffText === undefined
+      ? { diff_hash: "sha256:1111111111111111111111111111111111111111111111111111111111111111" }
+      : { diffText }),
     paths: Object.keys(files),
   });
   const sourceSnapshot = {
@@ -126,6 +131,13 @@ function selectionInput(effectiveRules, residual, options) {
   return { ...makeK6bResult(effectiveRules, options), residual };
 }
 
+function issueK7Binding(effectiveRules, residual, options) {
+  const input = selectionInput(effectiveRules, residual, options);
+  const issued = createK7ReviewSelection(input);
+  assert.equal(issued.ok, true, issued.error || issued.reason_code);
+  return { input, binding: issued.binding };
+}
+
 function selfAssertedNoModelDischarge(input) {
   // This has the former K7-1 shape, but its caller-controlled reference cannot
   // establish an independent coverage denominator.
@@ -145,6 +157,201 @@ function selfAssertedNoModelDischarge(input) {
     },
   };
 }
+
+test("K7 canonical diff counter deterministically rejects malformed or truncated line claims", () => {
+  const diff = [
+    "diff --git a/src/index.js b/src/index.js",
+    "--- a/src/index.js",
+    "+++ b/src/index.js",
+    "@@ -1 +1 @@",
+    "-module.exports = 0;",
+    "+module.exports = 1;",
+  ].join("\n");
+  assert.deepEqual(countCanonicalCandidateDiff(diff), {
+    added_lines: 1, removed_lines: 1, changed_lines: 2, paths: ["src/index.js"],
+  });
+  assert.throws(() => countCanonicalCandidateDiff(diff.replace("@@ -1 +1 @@", "@@ -2 +1,2 @@")), /count mismatch/i);
+  assert.throws(() => countCanonicalCandidateDiff(diff.replace("+++ b/src/index.js", "+++ b/../escape.js")), /marker|path/i);
+});
+
+const K7_DIFF = [
+  "diff --git a/src/index.js b/src/index.js",
+  "--- a/src/index.js",
+  "+++ b/src/index.js",
+  "@@ -1 +1 @@",
+  "-module.exports = 0;",
+  "+module.exports = 1;",
+].join("\n");
+
+function correctedK7Candidate(predecessor) {
+  return freezeCandidate({
+    repository_id: predecessor.repository_id,
+    projection: predecessor.projection,
+    base_tree: predecessor.base_tree,
+    candidate_tree: `sha256:${"f".repeat(64)}`,
+    diffText: K7_DIFF,
+    paths: predecessor.paths,
+    predecessorCandidate: predecessor,
+  });
+}
+
+test("K7 lineage revalidates issuance, records corrections, and blocks policy drift", () => {
+  const { binding, input } = issueK7Binding([`k7/v1:obligation:${OBLIGATION.id}=runtime`], {
+    obligations: [{ id: OBLIGATION.id, material: true }], signals: [],
+  }, { diffText: K7_DIFF });
+  const forgedBody = { ...binding, selection: { ...binding.selection, selected_domains: ["trust"] } };
+  delete forgedBody.binding_id;
+  forgedBody.binding_id = require("./canonical-json.js").sha256Fingerprint("k7-review-binding/v1", forgedBody);
+  assert.throws(() => startK7ReviewLineage(forgedBody, { candidate_diff: K7_DIFF }), /issuance|integrity/i);
+
+  let lineage = startK7ReviewLineage(binding, { candidate_diff: K7_DIFF });
+  lineage = beginLens(lineage, { dimension: "runtime", expected_revision: lineage.revision, request_id: "runtime-start" });
+  lineage = recordLensResult(lineage, {
+    dimension: "runtime", expected_revision: lineage.revision, request_id: "runtime-result",
+    result: { findings: [{ severity: "CRITICAL", summary: "repair boundary", acceptance_criteria: "preserve K7 binding" }] },
+  });
+  lineage = freezeFindings(lineage, { expected_revision: lineage.revision, request_id: "freeze", issuance: input });
+  const finding = lineage.findings[0].id;
+  lineage = beginCorrection(lineage, {
+    expected_revision: lineage.revision, request_id: "correct", finding_ids: [finding], paths: ["src/index.js"],
+    base_candidate_id: lineage.current_candidate_id, forecast_lines: 1,
+  });
+  const corrected = correctedK7Candidate(lineage.current_candidate);
+  lineage = recordCorrection(lineage, {
+    expected_revision: lineage.revision, request_id: "record", base_candidate_id: lineage.pending_correction.base_candidate_id,
+    paths: ["src/index.js"], actual_changed_lines: 1, corrected_candidate: corrected,
+  });
+  lineage = applyTargetedValidation(lineage, {
+    expected_revision: lineage.revision, request_id: "validate", outcomes: [{ id: finding, status: "resolved" }],
+    regression: { detected: false, evidence: ["focused test passed"] }, follow_ups: [],
+  });
+  assert.equal(lineage.status, "approved");
+  assert.equal(lineage.correction_budget.used_lines, 1);
+  const admitted = planLineageGate({
+    lineage, observed_candidate_id: lineage.current_candidate_id,
+    observed_binding_id: binding.binding_id, observed_policy_snapshot_id: binding.policy_snapshot_id, issuance: input, downstream_gate: "archive",
+  });
+  assert.equal(admitted.archive_allowed, true);
+  const drifted = planLineageGate({
+    lineage, observed_candidate_id: lineage.current_candidate_id,
+    observed_binding_id: binding.binding_id, observed_policy_snapshot_id: `sha256:${"e".repeat(64)}`, downstream_gate: "archive",
+  });
+  assert.equal(drifted.status, "policy-drift");
+  assert.equal(drifted.archive_allowed, false);
+});
+
+test("K7 authority transitions require issuance replay and successors replay new issuance", () => {
+  const { binding, input } = issueK7Binding([`k7/v1:obligation:${OBLIGATION.id}=runtime`], {
+    obligations: [{ id: OBLIGATION.id, material: true }], signals: [],
+  }, { diffText: K7_DIFF });
+  let lineage = startK7ReviewLineage(binding, { candidate_diff: K7_DIFF });
+  lineage = beginLens(lineage, { dimension: "runtime", expected_revision: lineage.revision, request_id: "empty-start" });
+  lineage = recordLensResult(lineage, { dimension: "runtime", expected_revision: lineage.revision, request_id: "empty-result", result: { findings: [] } });
+  assert.throws(() => freezeFindings(lineage, { expected_revision: lineage.revision, request_id: "missing-issuance" }), /K7_ISSUANCE_REPLAY_REQUIRED/);
+
+  const mutated = structuredClone(lineage);
+  mutated.genesis.k7_binding.policy_snapshot_id = `sha256:${"d".repeat(64)}`;
+  const { binding_id: _ignored, ...mutatedBody } = mutated.genesis.k7_binding;
+  mutated.genesis.k7_binding.binding_id = require("./canonical-json.js").sha256Fingerprint("k7-review-binding/v1", mutatedBody);
+  mutated.binding_id = mutated.genesis.k7_binding.binding_id;
+  mutated.policy_snapshot_id = mutated.genesis.k7_binding.policy_snapshot_id;
+  mutated.lineage_id = require("./canonical-json.js").sha256Fingerprint("review-lineage-v3", {
+    binding_id: mutated.binding_id, candidate_id: mutated.genesis.candidate_id, paths: mutated.genesis.paths,
+    added_lines: mutated.genesis.authored_lines, removed_lines: mutated.genesis.removed_lines,
+    selected_domains: mutated.genesis.selected_domains, generation: mutated.generation,
+    predecessor_lineage_id: mutated.predecessor_lineage_id,
+  });
+  assert.throws(() => freezeFindings(mutated, { expected_revision: mutated.revision, request_id: "forged-issuance", issuance: input }), /K7_ISSUANCE_REPLAY_REQUIRED/);
+
+  lineage = freezeFindings(lineage, { expected_revision: lineage.revision, request_id: "approved", issuance: input });
+  const successorIssue = issueK7Binding([`k7/v1:obligation:${OBLIGATION.id}=trust`], {
+    obligations: [{ id: OBLIGATION.id, material: true }], signals: [],
+  }, { diffText: K7_DIFF });
+  const approvals = [{ id: "architecture-bounded-review-001", applies_to: ["sdd-verify"] }];
+  const successorBase = {
+    reason: "policy selection changed", authority_kind: "new-scope",
+    approval_reference: "architecture-bounded-review-001", approvals,
+    reducerContext: { candidate_diff: K7_DIFF },
+  };
+  assert.throws(() => createSuccessor(lineage, successorBase), /K7_ISSUANCE_REPLAY_REQUIRED/);
+  const successor = createSuccessor(lineage, { ...successorBase, issuance: successorIssue.input, binding: successorIssue.binding });
+  assert.equal(successor.schema_version, 3);
+  assert.equal(successor.generation, 2);
+  assert.equal(successor.genesis.k7_binding.binding_id, successorIssue.binding.binding_id);
+});
+
+test("K7 remediation slices share one global correction budget", () => {
+  const secondObligation = { ...OBLIGATION, id: "req-repair-002" };
+  const diff = [
+    "diff --git a/src/index.js b/src/index.js",
+    "--- a/src/index.js",
+    "+++ b/src/index.js",
+    "@@ -1,2 +1,2 @@",
+    "-module.exports = 0;",
+    "-module.exports = 1;",
+    "+module.exports = 2;",
+    "+module.exports = 3;",
+  ].join("\n");
+  const { binding, input } = issueK7Binding([
+    `k7/v1:obligation:${OBLIGATION.id}=runtime`,
+    `k7/v1:obligation:${secondObligation.id}=trust`,
+  ], {
+    obligations: [
+      { id: OBLIGATION.id, material: true },
+      { id: secondObligation.id, material: true },
+    ],
+    signals: [],
+  }, { obligations: [OBLIGATION, secondObligation], diffText: diff });
+  let lineage = startK7ReviewLineage(binding, { candidate_diff: diff });
+  for (const domain of ["trust", "runtime"]) {
+    lineage = beginLens(lineage, { dimension: domain, expected_revision: lineage.revision, request_id: `${domain}-start` });
+    lineage = recordLensResult(lineage, {
+      dimension: domain, expected_revision: lineage.revision, request_id: `${domain}-result`,
+      result: { findings: [{ severity: "CRITICAL", summary: `repair ${domain}`, acceptance_criteria: `preserve ${domain}` }] },
+    });
+  }
+  lineage = freezeFindings(lineage, { expected_revision: lineage.revision, request_id: "freeze", remediation_v2: true, issuance: input });
+  const firstSlice = lineage.slice_order[0];
+  const firstFindingIds = lineage.correction_slices[firstSlice].finding_ids;
+  lineage = beginCorrection(lineage, {
+    expected_revision: lineage.revision, request_id: "slice-one", slice_id: firstSlice,
+    finding_ids: firstFindingIds, paths: ["src/index.js"], base_candidate_id: lineage.current_candidate_id, forecast_lines: 2,
+  });
+  const corrected = freezeCandidate({
+    repository_id: lineage.current_candidate.repository_id, projection: lineage.current_candidate.projection,
+    base_tree: lineage.current_candidate.base_tree, candidate_tree: `sha256:${"e".repeat(64)}`,
+    diffText: diff, paths: lineage.current_candidate.paths, predecessorCandidate: lineage.current_candidate,
+  });
+  lineage = recordCorrection(lineage, {
+    expected_revision: lineage.revision, request_id: "slice-one-record", base_candidate_id: lineage.pending_correction.base_candidate_id,
+    paths: ["src/index.js"], actual_changed_lines: 2, corrected_candidate: corrected,
+  });
+  lineage = applyTargetedValidation(lineage, {
+    expected_revision: lineage.revision, request_id: "slice-one-validate",
+    outcomes: firstFindingIds.map((id) => ({ id, status: "resolved" })),
+    regression: { detected: false, evidence: ["slice validation passed"] }, follow_ups: [],
+  });
+  assert.equal(lineage.correction_budget.used_lines, 2);
+  const resetBudget = { ...lineage, correction_budget: { ...lineage.correction_budget, used_lines: 0 } };
+  assert.throws(() => beginCorrection(resetBudget, {
+    expected_revision: resetBudget.revision, request_id: "persisted-reset", slice_id: lineage.slice_order[1],
+    finding_ids: lineage.correction_slices[lineage.slice_order[1]].finding_ids, paths: ["src/index.js"],
+    base_candidate_id: lineage.current_candidate_id, forecast_lines: 1,
+  }), /global remediation budget integrity/i);
+  const resetSlice = structuredClone(lineage);
+  resetSlice.correction_slices[firstSlice].used_lines = 0;
+  assert.throws(() => beginCorrection(resetSlice, {
+    expected_revision: resetSlice.revision, request_id: "slice-reset", slice_id: resetSlice.slice_order[1],
+    finding_ids: resetSlice.correction_slices[resetSlice.slice_order[1]].finding_ids, paths: ["src/index.js"],
+    base_candidate_id: resetSlice.current_candidate_id, forecast_lines: 1,
+  }), /global remediation budget integrity/i);
+  const secondSlice = lineage.slice_order.find((id) => id !== firstSlice);
+  assert.throws(() => beginCorrection(lineage, {
+    expected_revision: lineage.revision, request_id: "slice-two", slice_id: secondSlice,
+    finding_ids: lineage.correction_slices[secondSlice].finding_ids, paths: ["src/index.js"],
+    base_candidate_id: lineage.current_candidate_id, forecast_lines: 1,
+  }), /global correction forecast/i);
+});
 
 test("K7-1 selects different required domains for the same contract-covered material obligation under different policies", () => {
   const residual = { obligations: [{ id: OBLIGATION.id, material: true }], signals: [] };

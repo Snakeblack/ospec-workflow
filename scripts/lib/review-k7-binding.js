@@ -147,6 +147,93 @@ function computeResidualDigest(residual) {
   return computeNormalizedResidualDigest(normalized.residual);
 }
 
+/**
+ * Counts a canonical unified diff without trusting caller-provided line totals.
+ * The same parser is used by K7 lineage genesis and is deliberately strict:
+ * malformed headers, hunk counts, or repository-escaping paths are rejected.
+ */
+function countCanonicalCandidateDiff(diffBytes) {
+  if (typeof diffBytes !== "string" || diffBytes.length === 0) {
+    throw new TypeError("candidate_diff must be non-empty canonical unified diff text");
+  }
+  const lines = diffBytes.replaceAll("\r\n", "\n").split("\n");
+  if (lines.at(-1) === "") lines.pop();
+  let added_lines = 0;
+  let removed_lines = 0;
+  const paths = new Set();
+  let index = 0;
+  while (index < lines.length) {
+    const section = /^diff --git a\/(.+) b\/(.+)$/.exec(lines[index]);
+    if (!section) throw new TypeError(`candidate_diff requires diff --git header at line ${index + 1}`);
+    const oldPath = canonicalDiffPath(section[1]);
+    const newPath = canonicalDiffPath(section[2]);
+    index += 1;
+    let oldMarker = null;
+    let newMarker = null;
+    let hunks = 0;
+    while (index < lines.length && !lines[index].startsWith("diff --git ")) {
+      const hunk = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(?: .*)?$/.exec(lines[index]);
+      if (!hunk) {
+        if (lines[index].startsWith("--- ")) {
+          if (oldMarker !== null) throw new TypeError(`candidate_diff duplicate old marker at line ${index + 1}`);
+          oldMarker = canonicalDiffMarker(lines[index].slice(4), oldPath, "a");
+        } else if (lines[index].startsWith("+++ ")) {
+          if (oldMarker === null || newMarker !== null) throw new TypeError(`candidate_diff invalid new marker at line ${index + 1}`);
+          newMarker = canonicalDiffMarker(lines[index].slice(4), newPath, "b");
+        } else if (lines[index].startsWith("@@") || !/^(?:index |(?:new|deleted) file mode |(?:old|new) mode |(?:dis)?similarity index |(?:rename|copy) (?:from|to) )/.test(lines[index])) {
+          throw new TypeError(`candidate_diff invalid metadata at line ${index + 1}`);
+        }
+        index += 1;
+        continue;
+      }
+      if (oldMarker === null || newMarker === null) throw new TypeError(`candidate_diff hunk lacks file markers at line ${index + 1}`);
+      hunks += 1;
+      const expectedOld = hunk[2] === undefined ? 1 : Number(hunk[2]);
+      const expectedNew = hunk[4] === undefined ? 1 : Number(hunk[4]);
+      let actualOld = 0;
+      let actualNew = 0;
+      index += 1;
+      while (index < lines.length && !lines[index].startsWith("diff --git ") && !lines[index].startsWith("@@")) {
+        const line = lines[index];
+        if (line === "\\ No newline at end of file") { index += 1; continue; }
+        if (!/^[ +\-]/.test(line)) throw new TypeError(`candidate_diff invalid hunk content at line ${index + 1}`);
+        if (line[0] !== "+") actualOld += 1;
+        if (line[0] !== "-") actualNew += 1;
+        if (line[0] === "+") added_lines += 1;
+        if (line[0] === "-") removed_lines += 1;
+        index += 1;
+      }
+      if (actualOld !== expectedOld || actualNew !== expectedNew) throw new TypeError(`candidate_diff hunk count mismatch at line ${index + 1}`);
+    }
+    if (hunks === 0) throw new TypeError(`candidate_diff section for ${newPath} has no hunk`);
+    if (oldMarker !== "/dev/null") paths.add(oldPath);
+    if (newMarker !== "/dev/null") paths.add(newPath);
+  }
+  if (paths.size === 0) throw new TypeError("candidate_diff must affect at least one repository path");
+  return Object.freeze({
+    added_lines,
+    removed_lines,
+    changed_lines: added_lines + removed_lines,
+    paths: [...paths].sort(),
+  });
+}
+
+function canonicalDiffPath(value) {
+  if (typeof value !== "string" || value.length === 0 || value.includes("\0")) throw new TypeError("candidate_diff path is invalid");
+  const normalized = value.replaceAll("\\", "/");
+  if (normalized.startsWith("/") || normalized.split("/").some((part) => part === "" || part === "." || part === "..")) {
+    throw new TypeError(`candidate_diff path escapes repository: ${value}`);
+  }
+  return normalized;
+}
+
+function canonicalDiffMarker(value, expectedPath, prefix) {
+  const marker = value.trim().split("\t")[0];
+  if (marker === "/dev/null") return marker;
+  if (marker !== `${prefix}/${expectedPath}`) throw new TypeError(`candidate_diff ${prefix === "a" ? "old" : "new"} marker does not match diff header`);
+  return expectedPath;
+}
+
 function validateCandidate(candidate) {
   try {
     if (!validateCandidateV2(candidate) || candidate.kind !== "candidate/v2" || candidate.schema_version !== 2) {
@@ -420,6 +507,8 @@ function createK7ReviewSelection(input) {
   const bindingBody = {
     schema_version: 1,
     kind: "k7-review-binding/v1",
+    issuance: input,
+    candidate: input.candidate,
     candidate_id: input.candidate.candidate_id,
     source_snapshot_id: input.sourceSnapshot.source_snapshot_id,
     contract_digest: input.contract.contract_digest,
@@ -436,8 +525,27 @@ function createK7ReviewSelection(input) {
   return { ok: true, binding_id: binding.binding_id, binding: deepFreeze(binding), selection: binding.selection };
 }
 
+/**
+ * Replays K7 issuance rather than trusting a caller-supplied self-hash.
+ * A binding is valid only when the full Candidate/Policy/K6b/residual issuance
+ * reproduces byte-for-byte the presented binding and its identity.
+ */
+function validateK7ReviewBinding(binding) {
+  if (!isRecord(binding) || !isRecord(binding.issuance)) {
+    return fail("K7_BINDING_ISSUANCE_INVALID", "K7 binding must retain its full validated issuance");
+  }
+  const issued = createK7ReviewSelection(binding.issuance);
+  if (!issued.ok) return fail("K7_BINDING_ISSUANCE_INVALID", issued.error || issued.reason_code);
+  if (binding.binding_id !== issued.binding_id || stableSerialize(binding) !== stableSerialize(issued.binding)) {
+    return fail("K7_BINDING_ISSUANCE_INVALID", "K7 binding differs from its revalidated issuance");
+  }
+  return { ok: true, binding: issued.binding };
+}
+
 module.exports = {
   parseK7ReviewRules,
   computeResidualDigest,
+  countCanonicalCandidateDiff,
   createK7ReviewSelection,
+  validateK7ReviewBinding,
 };
