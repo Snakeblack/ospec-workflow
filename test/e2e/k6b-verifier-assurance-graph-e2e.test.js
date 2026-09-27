@@ -14,6 +14,7 @@ const {
   replayAssuranceGraph,
   projectAssuranceGraph,
 } = require("../../scripts/lib/assurance-graph/index.js");
+const { createReducerIssuedK7Lineage } = require("../../scripts/fixtures/k7-review-authority/reducer-issued-lineage.js");
 
 const SAMPLE_NODES = [
   {
@@ -148,6 +149,23 @@ test("E2E: complete lifecycle - verification, projection, reconciliation, and cr
   });
   assert.equal(replayResult.ok, true, replayResult.error || replayResult.reason_code);
   assert.equal(replayResult.graph.graph_id, projectedGraph.graph_id);
+});
+
+test("E2E: K7 review relations remain a reducer-derived Assurance Graph projection", () => {
+  const { candidate, executionGraph, verified, issuance, lineage } = createReducerIssuedK7Lineage();
+  const canonicalInput = {
+    candidate,
+    executionGraph,
+    evidence: verified.evidence,
+    assessments: verified.assessments,
+    verification: verified.verification,
+    reviewLineage: lineage,
+    reviewIssuance: issuance,
+  };
+  const projected = projectAssuranceGraph(canonicalInput);
+  assert.equal(projected.ok, true, projected.error || projected.reason_code);
+  assert.equal(projected.graph.edges.some((edge) => edge.relation === "reviewed-by"), true);
+  assert.equal(reconcileAssuranceGraph(projected.graph, canonicalInput).ok, true);
 });
 
 test("E2E Adversarial: caller metadata injection in raw evidence is rejected before evaluation", () => {

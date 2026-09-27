@@ -72,7 +72,9 @@
             "test-evidence",
             "verification-decision",
             "challenge-plan",
-            "challenge-result"
+            "challenge-result",
+            "review-finding",
+            "review-lens"
           ]
         }
       },
@@ -96,12 +98,30 @@
             "verified-by",
             "satisfies",
             "derived-from",
+            "reviewed-by",
             "invalidates"
           ]
         },
         "to": {
           "type": "string",
           "minLength": 1
+        }
+      },
+      "if": {
+        "properties": {
+          "relation": {
+            "const": "reviewed-by"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "from": {
+            "pattern": "^review-finding:"
+          },
+          "to": {
+            "pattern": "^review-lens:"
+          }
         }
       },
       "additionalProperties": false

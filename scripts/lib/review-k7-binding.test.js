@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 
 const { freezeCandidate, computeSourceSnapshotId } = require("./execution-identities/index.js");
-const { startK7ReviewLineage, beginLens, recordLensResult, freezeFindings, beginCorrection, recordCorrection, applyTargetedValidation, createSuccessor } = require("./review-lineage.js");
+const { startK7ReviewLineage, beginLens, recordLensResult, freezeFindings, beginCorrection, recordCorrection, applyTargetedValidation, createSuccessor, validateK7LineageForProjection } = require("./review-lineage.js");
 const { planLineageGate } = require("./review-gate-state.js");
 const { compileExecutionGraph, createPolicySnapshot } = require("./execution-graph/index.js");
 const { computeTreeDigest } = require("./worker-workspace.js");
@@ -238,6 +238,61 @@ test("K7 lineage revalidates issuance, records corrections, and blocks policy dr
   });
   assert.equal(drifted.status, "policy-drift");
   assert.equal(drifted.archive_allowed, false);
+});
+
+test("K7 projection validator authenticates frozen findings and one-shot lens results", () => {
+  const { binding, input } = issueK7Binding([`k7/v1:obligation:${OBLIGATION.id}=runtime`], {
+    obligations: [{ id: OBLIGATION.id, material: true }], signals: [],
+  }, { diffText: K7_DIFF });
+  let lineage = startK7ReviewLineage(binding, { candidate_diff: K7_DIFF });
+  lineage = beginLens(lineage, { dimension: "runtime", expected_revision: lineage.revision, request_id: "projection-start" });
+  lineage = recordLensResult(lineage, {
+    dimension: "runtime", expected_revision: lineage.revision, request_id: "projection-result",
+    result: { findings: [{ severity: "CRITICAL", summary: "projection finding", acceptance_criteria: "bind frozen output" }] },
+  });
+  lineage = freezeFindings(lineage, { expected_revision: lineage.revision, request_id: "projection-freeze", issuance: input });
+  assert.throws(() => validateK7LineageForProjection(lineage), /K7_ISSUANCE_REPLAY_REQUIRED/);
+  assert.doesNotThrow(() => validateK7LineageForProjection(lineage, input));
+
+  const selfHashedBinding = structuredClone(lineage);
+  selfHashedBinding.genesis.k7_binding.policy_snapshot_id = `sha256:${"e".repeat(64)}`;
+  const { binding_id: _ignored, ...bindingBody } = selfHashedBinding.genesis.k7_binding;
+  selfHashedBinding.genesis.k7_binding.binding_id = require("./canonical-json.js").sha256Fingerprint("k7-review-binding/v1", bindingBody);
+  selfHashedBinding.binding_id = selfHashedBinding.genesis.k7_binding.binding_id;
+  selfHashedBinding.policy_snapshot_id = selfHashedBinding.genesis.k7_binding.policy_snapshot_id;
+  selfHashedBinding.lineage_id = require("./canonical-json.js").sha256Fingerprint("review-lineage-v3", {
+    binding_id: selfHashedBinding.binding_id, candidate_id: selfHashedBinding.genesis.candidate_id,
+    paths: selfHashedBinding.genesis.paths, added_lines: selfHashedBinding.genesis.authored_lines,
+    removed_lines: selfHashedBinding.genesis.removed_lines, selected_domains: selfHashedBinding.genesis.selected_domains,
+    generation: selfHashedBinding.generation, predecessor_lineage_id: selfHashedBinding.predecessor_lineage_id,
+  });
+  for (const finding of selfHashedBinding.findings) {
+    const raw = { severity: finding.severity, summary: finding.summary, acceptance_criteria: finding.acceptance_criteria };
+    finding.id = `F-${require("./canonical-json.js").sha256Fingerprint("review-finding-id-v1", { lineage_id: selfHashedBinding.lineage_id, owner: finding.owner, finding: raw }).slice(7, 23)}`;
+  }
+  selfHashedBinding.findings_digest = require("./canonical-json.js").sha256Fingerprint("review-findings-v1", selfHashedBinding.findings.map((finding) => ({ ...finding, resolution: finding.blocking ? "unresolved" : "advisory" })));
+  assert.throws(() => validateK7LineageForProjection(selfHashedBinding, input), /K7_ISSUANCE_REPLAY_REQUIRED/);
+
+  const forgedFinding = structuredClone(lineage);
+  forgedFinding.findings[0].summary = "caller asserted finding";
+  assert.throws(() => validateK7LineageForProjection(forgedFinding, input), /findings|integrity/i);
+
+  const forgedLens = structuredClone(lineage);
+  forgedLens.lenses.runtime.result.findings[0].summary = "caller altered lens";
+  assert.throws(() => validateK7LineageForProjection(forgedLens, input), /lens|digest|integrity/i);
+
+  const recomputedForgery = structuredClone(lineage);
+  const forged = recomputedForgery.findings[0];
+  forged.summary = "caller recomputed finding";
+  const rawFinding = { severity: forged.severity, summary: forged.summary, acceptance_criteria: forged.acceptance_criteria };
+  forged.id = `F-${require("./canonical-json.js").sha256Fingerprint("review-finding-id-v1", { lineage_id: recomputedForgery.lineage_id, owner: forged.owner, finding: rawFinding }).slice(7, 23)}`;
+  recomputedForgery.findings_digest = require("./canonical-json.js").sha256Fingerprint("review-findings-v1", recomputedForgery.findings.map((finding) => ({ ...finding, resolution: finding.blocking ? "unresolved" : "advisory" })));
+  assert.throws(() => validateK7LineageForProjection(recomputedForgery, input), /findings|lens|integrity/i);
+
+  const forgedTerminal = structuredClone(lineage);
+  forgedTerminal.status = "approved";
+  forgedTerminal.terminal_reason = "caller asserted approval";
+  assert.throws(() => validateK7LineageForProjection(forgedTerminal, input), /terminal|unresolved|lifecycle/i);
 });
 
 test("K7 authority transitions require issuance replay and successors replay new issuance", () => {

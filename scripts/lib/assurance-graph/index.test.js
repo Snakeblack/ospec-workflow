@@ -23,6 +23,10 @@ const { readRunnerReceiptChannel } = require("../independent-verifier/runner-rec
 const { canonicalize, computeGraphId } = require("./projector.js");
 const { createChallengePlan } = require("../adversarial-challenges/planner.js");
 const { emitChallengeResult } = require("../adversarial-challenges/runner.js");
+const { createReducerIssuedK7Lineage } = require("../../fixtures/k7-review-authority/reducer-issued-lineage.js");
+const { createSuccessorPolicyDriftFixture } = require("../../fixtures/k7-review-authority/successor-policy-drift.js");
+const forgedReviewedEdge = require("../../fixtures/k7-review-authority/forged-reviewed-edge.json");
+const k8AttestationNode = require("../../fixtures/k7-review-authority/k8-attestation-node.json");
 
 const SAMPLE_NODES = [
   {
@@ -362,25 +366,75 @@ test("REQ-assurance-graph-002: same inputs yield the same digest and edges despi
   assert.deepEqual(first.graph.edges, second.graph.edges);
 });
 
-test("REQ-assurance-graph-002: forbidden reviewed-by and K7/K8 subjects fail closed", () => {
-  const { candidate, executionGraph, verified } = verifiedProjection();
-  const reviewed = projectAssuranceGraph({
+test("REQ-assurance-graph-002: only reducer-issued K7 findings and lenses derive reviewed-by edges", () => {
+  const { candidate, executionGraph, verified, issuance, lineage } = createReducerIssuedK7Lineage();
+  const canonicalInput = {
     candidate,
     executionGraph,
     evidence: verified.evidence,
+    assessments: verified.assessments,
     verification: verified.verification,
-    additionalEdges: [{ from: "finding-1", relation: "reviewed-by", to: "lens-risk" }],
+    reviewLineage: lineage,
+    reviewIssuance: issuance,
+  };
+  const missingIssuance = projectAssuranceGraph({ ...canonicalInput, reviewIssuance: undefined });
+  assert.equal(missingIssuance.ok, false);
+  assert.equal(missingIssuance.reason_code, "K7_ISSUANCE_REPLAY_REQUIRED");
+
+  const reviewed = projectAssuranceGraph(canonicalInput);
+  assert.equal(reviewed.ok, true, reviewed.error || reviewed.reason_code);
+  assert.equal(reviewed.graph.nodes.some((node) => node.kind === "review-finding"), true);
+  assert.equal(reviewed.graph.nodes.some((node) => node.kind === "review-lens"), true);
+  assert.equal(reviewed.graph.edges.some((edge) => edge.relation === "reviewed-by"), true);
+  assert.equal(reconcileAssuranceGraph(reviewed.graph, canonicalInput).ok, true);
+
+  const forged = projectAssuranceGraph({
+    ...canonicalInput,
+    additionalEdges: [forgedReviewedEdge],
   });
-  assert.equal(reviewed.ok, false);
-  assert.equal(reviewed.reason_code, "FORBIDDEN_RELATION");
+  assert.equal(forged.ok, false);
+  assert.equal(forged.reason_code, "FORBIDDEN_RELATION");
+
+  const forgedStored = withStoredGraphId({
+    ...reviewed.graph,
+    edges: [...reviewed.graph.edges, forgedReviewedEdge],
+  });
+  assert.equal(reconcileAssuranceGraph(forgedStored, canonicalInput).reason_code, "GRAPH_DIVERGENCE");
 
   const attestation = projectAssuranceGraph({
     candidate,
     executionGraph,
-    additionalNodes: [{ id: "attestation-1", kind: "attestation" }],
+    additionalNodes: [k8AttestationNode],
   });
   assert.equal(attestation.ok, false);
   assert.equal(attestation.reason_code, "FORBIDDEN_RELATION");
+});
+
+test("REQ-assurance-graph-003: a reducer-issued policy successor invalidates only review-derived nodes", () => {
+  const { candidate, executionGraph, verified, issuance, lineage, rawPredecessorLineage, successor, successorIssuance } = createSuccessorPolicyDriftFixture();
+  const canonicalInput = {
+    candidate,
+    executionGraph,
+    evidence: verified.evidence,
+    assessments: verified.assessments,
+    verification: verified.verification,
+    reviewLineage: lineage,
+    reviewIssuance: issuance,
+    successorReviewIssuance: successorIssuance,
+  };
+  const projected = projectAssuranceGraph(canonicalInput);
+  assert.equal(projected.ok, true, projected.error || projected.reason_code);
+  const successorLens = projected.graph.nodes.find((node) => node.kind === "review-lens" && node.id.includes(successor.lineage_id));
+  assert.ok(successorLens);
+  const closure = computeInvalidationClosure(projected.graph, { changedSubjectIds: [successorLens.id] });
+  assert.equal(closure.invalidated_node_ids.some((id) => id.includes(lineage.lineage_id)), true);
+  assert.equal(closure.preserved_evidence_ids.length, verified.evidence.length);
+  assert.equal(closure.edges.some((edge) => edge.relation === "invalidates"), true);
+
+  const stale = projectAssuranceGraph({ ...canonicalInput, reviewLineage: rawPredecessorLineage });
+  assert.equal(stale.ok, true, stale.error || stale.reason_code);
+  assert.equal(stale.graph.edges.some((edge) => edge.relation === "invalidates"), false);
+  assert.equal(reconcileAssuranceGraph(stale.graph, canonicalInput).reason_code, "GRAPH_DIVERGENCE");
 });
 
 test("REQ-assurance-graph-001: matching canonical inputs project; divergence fails closed", () => {

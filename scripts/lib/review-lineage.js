@@ -817,11 +817,14 @@ function createSuccessor(predecessor, input) {
     ) {
       throw new TypeError("K7 successor requires changed Candidate or Policy binding identity");
     }
-    return startK7ReviewLineage(binding, input.reducerContext, {
+    const successor = startK7ReviewLineage(binding, input.reducerContext, {
       generation: predecessor.generation + 1,
       predecessor_lineage_id: predecessor.lineage_id,
       recovery: { reason: input.reason.trim(), approval_reference: ref },
     });
+    // The predecessor transition is an immutable receipt carried with the
+    // successor; callers persist `predecessor_state` before projecting it.
+    return { ...successor, predecessor_state: recordK7SuccessorAuthorization(predecessor, successor) };
   }
 
   // ROUTING-012 / QRAR-004: successor taxonomy MUST equal the predecessor's.
@@ -1411,10 +1414,137 @@ function assertLineageV3(state) {
     predecessor_lineage_id: state.predecessor_lineage_id,
   });
   if (state.lineage_id !== expectedLineageId) throw new TypeError("lineage_id integrity check failed");
-  if (!state.lenses || QUALITY.some((domain) => !state.lenses[domain])) throw new TypeError("K7 lineage lens integrity check failed");
+  assertK7LensIntegrity(state);
   if (!state.correction_budget || state.correction_budget.limit_lines !== Math.min(MAX_BUDGET_LINES, Math.ceil(genesis.original_changed_lines / 2)) || !Number.isSafeInteger(state.correction_budget.used_lines) || state.correction_budget.used_lines < 0 || state.correction_budget.used_lines > state.correction_budget.limit_lines || !Number.isSafeInteger(state.correction_budget.failed_attempts) || state.correction_budget.failed_attempts < 0 || state.correction_budget.failed_attempts > MAX_FAILED_ATTEMPTS || state.correction_budget.max_failed_attempts !== MAX_FAILED_ATTEMPTS) throw new TypeError("K7 lineage budget integrity check failed");
-  if (!Array.isArray(state.findings) || state.findings_digest !== null && typeof state.findings_digest !== "string") throw new TypeError("K7 lineage findings integrity check failed");
+  assertK7FrozenFindingsIntegrity(state);
+  assertK7LifecycleIntegrity(state);
+  assertK7CorrectionIntegrity(state);
+  assertK7SuccessorAuthorization(state);
   if (isRemediationV2(state)) assertRemediationV2(state);
+}
+
+function assertK7LensIntegrity(state) {
+  if (!state.lenses || typeof state.lenses !== "object") throw new TypeError("K7 lineage lens integrity check failed");
+  const selected = new Set(state.genesis.selected_domains);
+  for (const domain of QUALITY) {
+    const lens = state.lenses[domain];
+    if (!lens || typeof lens !== "object" || lens.selected !== selected.has(domain)) throw new TypeError("K7 lineage lens selection integrity check failed");
+    if (selected.has(domain)) {
+      if (!["pending", "running", "completed"].includes(lens.status)) throw new TypeError("K7 selected lens state is invalid");
+      if (lens.status === "completed") {
+        if (typeof lens.request_id !== "string" || typeof lens.result_request_id !== "string" || !lens.result || typeof lens.result_digest !== "string" || lens.operation !== null) throw new TypeError("K7 completed lens is incomplete");
+        const normalized = normalizeLensResult(lens.result);
+        if (stableSerialize(normalized) !== stableSerialize(lens.result) || lens.result_digest !== digest("review-lens-result-v1", normalized)) throw new TypeError("K7 lens result digest mismatch");
+      } else if (lens.result !== null || lens.result_digest !== null) {
+        throw new TypeError("K7 uncompleted lens cannot carry a result");
+      }
+    } else if (lens.status !== "skipped" || lens.request_id !== null || lens.result_digest !== null || lens.result !== null || lens.operation !== null) {
+      throw new TypeError("K7 unselected lens integrity check failed");
+    }
+  }
+}
+
+function assertK7FrozenFindingsIntegrity(state) {
+  if (!Array.isArray(state.findings)) throw new TypeError("K7 lineage findings integrity check failed");
+  if (state.findings_digest === null) {
+    if (state.findings.length !== 0) throw new TypeError("K7 findings must be empty before freezing");
+    return;
+  }
+  if (typeof state.findings_digest !== "string" || !state.genesis.selected_domains.every((domain) => state.lenses[domain].status === "completed")) throw new TypeError("K7 frozen findings state is incomplete");
+  const seen = new Set();
+  const frozen = state.findings.map((finding) => {
+    if (!finding || Object.keys(finding).sort().join(",") !== "acceptance_criteria,blocking,id,owner,resolution,severity,summary" || !state.genesis.selected_domains.includes(finding.owner)) throw new TypeError("K7 frozen finding shape is invalid");
+    const raw = normalizeFinding(finding);
+    const blocking = BLOCKING.has(raw.severity);
+    const expectedId = `F-${digest("review-finding-id-v1", { lineage_id: state.lineage_id, owner: finding.owner, finding: raw }).slice("sha256:".length, "sha256:".length + 16)}`;
+    if (finding.id !== expectedId || finding.blocking !== blocking || !["resolved", "unresolved", "advisory"].includes(finding.resolution) || (blocking ? !["resolved", "unresolved"].includes(finding.resolution) : finding.resolution !== "advisory")) throw new TypeError("K7 frozen finding integrity check failed");
+    const contentKey = `${finding.owner}:${digest("review-finding-content-v1", raw)}`;
+    if (seen.has(contentKey)) throw new TypeError("K7 frozen findings contain duplicate content");
+    seen.add(contentKey);
+    return { ...finding, resolution: blocking ? "unresolved" : "advisory" };
+  });
+  const expectedFrozen = [];
+  for (const owner of state.genesis.selected_domains) {
+    for (const raw of state.lenses[owner].result.findings) {
+      const normalized = normalizeFinding(raw);
+      const blocking = BLOCKING.has(normalized.severity);
+      expectedFrozen.push({
+        id: `F-${digest("review-finding-id-v1", { lineage_id: state.lineage_id, owner, finding: normalized }).slice("sha256:".length, "sha256:".length + 16)}`,
+        owner,
+        ...normalized,
+        blocking,
+        resolution: blocking ? "unresolved" : "advisory",
+      });
+    }
+  }
+  if (stableSerialize(frozen) !== stableSerialize(expectedFrozen)) throw new TypeError("K7 frozen findings do not match authenticated lens results");
+  if (state.findings_digest !== digest("review-findings-v1", frozen)) throw new TypeError("K7 findings digest mismatch");
+}
+
+function assertK7LifecycleIntegrity(state) {
+  if (state.findings_digest === null) {
+    if (!["reviewing", "reconciliation-required"].includes(state.status)) throw new TypeError("K7 lifecycle cannot terminate before findings freeze");
+    return;
+  }
+  const unresolved = state.findings.filter((finding) => finding.blocking && finding.resolution === "unresolved");
+  if (state.status === "approved" && unresolved.length > 0) throw new TypeError("K7 approved lineage has unresolved blocking findings");
+  if (["correction-required", "correcting", "validating"].includes(state.status) && unresolved.length === 0) throw new TypeError("K7 correction lifecycle has no unresolved blocking finding");
+  if (state.status === "exhausted" && state.correction_budget.failed_attempts < MAX_FAILED_ATTEMPTS) throw new TypeError("K7 exhausted lineage lacks failed attempts");
+}
+
+function assertK7CorrectionIntegrity(state) {
+  if (!Array.isArray(state.correction_history) || !Array.isArray(state.validation_history)) throw new TypeError("K7 correction history integrity check failed");
+  if (isRemediationV2(state)) return;
+  const usedLines = state.correction_history.reduce((total, entry) => total + (entry && entry.actual_changed_lines || 0), 0);
+  const failedAttempts = state.validation_history.filter((entry) => entry && entry.result === "failed").length;
+  if (usedLines !== state.correction_budget.used_lines || failedAttempts !== state.correction_budget.failed_attempts) throw new TypeError("K7 correction budget does not match immutable history");
+  if (state.current_candidate_id === state.genesis.candidate_id) {
+    if (state.correction_history.length !== 0 || stableSerialize(state.current_candidate) !== stableSerialize(state.genesis.candidate)) throw new TypeError("K7 current Candidate diverges without a correction history");
+    return;
+  }
+  const lastCorrection = state.correction_history.at(-1);
+  if (!lastCorrection || state.current_candidate_id !== lastCorrection.corrected_candidate_id || state.current_candidate.predecessor_id !== lastCorrection.base_candidate_id || state.current_candidate.relation !== "changed") throw new TypeError("K7 corrected Candidate successor linkage failed");
+}
+
+function successorAuthorizationDigest(record) {
+  const body = { ...record };
+  delete body.authorization_digest;
+  return digest("k7-successor-authorization-v1", body);
+}
+
+function assertK7SuccessorAuthorization(state) {
+  const record = state.successor_authorization;
+  if (record === undefined) return;
+  if (!TERMINAL.has(state.status) || !record || Object.keys(record).sort().join(",") !== "authorization_digest,kind,predecessor_binding_id,predecessor_findings_digest,predecessor_lineage_id,predecessor_revision,successor_binding_id,successor_candidate_id,successor_lineage_id,successor_policy_snapshot_id,successor_selected_domains" || record.kind !== "k7-successor-authorization/v1" || record.predecessor_lineage_id !== state.lineage_id || record.predecessor_binding_id !== state.binding_id || record.predecessor_findings_digest !== state.findings_digest || record.predecessor_revision !== state.revision - 1 || !Array.isArray(record.successor_selected_domains) || record.successor_selected_domains.length === 0 || record.successor_selected_domains.some((domain) => !QUALITY.includes(domain)) || new Set(record.successor_selected_domains).size !== record.successor_selected_domains.length || record.authorization_digest !== successorAuthorizationDigest(record)) {
+    throw new TypeError("K7 successor authorization integrity check failed");
+  }
+}
+
+function recordK7SuccessorAuthorization(predecessor, successor) {
+  const next = clone(predecessor);
+  const record = {
+    kind: "k7-successor-authorization/v1",
+    predecessor_lineage_id: predecessor.lineage_id,
+    predecessor_revision: predecessor.revision,
+    predecessor_binding_id: predecessor.binding_id,
+    predecessor_findings_digest: predecessor.findings_digest,
+    successor_lineage_id: successor.lineage_id,
+    successor_binding_id: successor.binding_id,
+    successor_candidate_id: successor.current_candidate_id,
+    successor_policy_snapshot_id: successor.policy_snapshot_id,
+    successor_selected_domains: [...successor.genesis.selected_domains],
+  };
+  record.authorization_digest = successorAuthorizationDigest(record);
+  next.successor_authorization = record;
+  next.revision += 1;
+  return next;
+}
+
+function validateK7LineageForProjection(state, issuance) {
+  assertLineage(state);
+  if (state.schema_version !== 3) throw new TypeError("K7 projection requires a schema v3 lineage");
+  assertK7IssuanceReplay(state, issuance);
+  return clone(state);
 }
 
 function assertRemediationV2(state) {
@@ -1520,6 +1650,7 @@ module.exports = {
   markOperationUnknown,
   reconcilePendingOperation,
   validateLineageForGate,
+  validateK7LineageForProjection,
   createSuccessor,
   terminateLineage,
   nextLineageAction,
