@@ -179,7 +179,19 @@ function executorOutcome(result) {
   if (result.note !== undefined && typeof result.note !== "string") {
     throw new RunnerError("executor result note must be a string", "INVALID_EXECUTOR_RESULT");
   }
-  return result.note === undefined ? { status: result.status } : { status: result.status, note: result.note };
+  // Preserve the executor's structured records; buildRunManifest enforces their
+  // complete-record fail-closed shapes (unknown keys, missing fields, types).
+  if (result.measurements !== undefined && !isPlainObject(result.measurements)) {
+    throw new RunnerError("executor result measurements must be an object", "INVALID_EXECUTOR_RESULT");
+  }
+  if (result.oracle !== undefined && !isPlainObject(result.oracle)) {
+    throw new RunnerError("executor result oracle must be an object", "INVALID_EXECUTOR_RESULT");
+  }
+  const outcome = { status: result.status };
+  if (result.note !== undefined) outcome.note = result.note;
+  if (result.measurements !== undefined) outcome.measurements = result.measurements;
+  if (result.oracle !== undefined) outcome.oracle = result.oracle;
+  return outcome;
 }
 
 /**
