@@ -22,10 +22,17 @@ const runValidator = (profile, outDir) => {
   return defaultRunValidator(profile, outDir);
 };
 
-test("classifier and reducer are explicit generated runtime roots", () => {
-  assert.ok(gatherRuntimeScripts(ROOT).some((file) => file.path === "scripts/lib/review-dimensions.js"));
-  assert.ok(gatherRuntimeScripts(ROOT).some((file) => file.path === "scripts/lib/review-gate-state.js"));
-  assert.ok(gatherRuntimeScripts(ROOT).some((file) => file.path === "scripts/lib/review-lineage.js"));
+test("classifier and K7 reducer dependencies are explicit generated runtime roots", () => {
+  const runtimePaths = gatherRuntimeScripts(ROOT).map((file) => file.path);
+  for (const required of [
+    "scripts/lib/review-dimensions.js",
+    "scripts/lib/review-gate-state.js",
+    "scripts/lib/review-lineage.js",
+    "scripts/lib/review-k7-binding.js",
+    "scripts/lib/assurance-graph/projector.js",
+  ]) {
+    assert.ok(runtimePaths.includes(required), `missing generated runtime root: ${required}`);
+  }
 });
 
 test("all six generated targets carry generalist, classifier, gate, audit, and competence boundary", (t) => {
@@ -42,6 +49,8 @@ test("all six generated targets carry generalist, classifier, gate, audit, and c
     const classifier = fs.readFileSync(path.join(out, "scripts/lib/review-dimensions.js"), "utf8");
     const reducer = fs.readFileSync(path.join(out, "scripts/lib/review-gate-state.js"), "utf8");
     const lineage = fs.readFileSync(path.join(out, "scripts/lib/review-lineage.js"), "utf8");
+    const k7Binding = fs.readFileSync(path.join(out, "scripts/lib/review-k7-binding.js"), "utf8");
+    const graphProjector = fs.readFileSync(path.join(out, "scripts/lib/assurance-graph/projector.js"), "utf8");
     const correctionSkill = fs.readFileSync(path.join(out, "skills/review-correction/SKILL.md"), "utf8");
     const gate = fs.readFileSync(path.join(out, "skills/_shared/gate-4r-review.md"), "utf8");
     const models = fs.readFileSync(path.join(out, "models.yaml"), "utf8");
@@ -58,6 +67,16 @@ test("all six generated targets carry generalist, classifier, gate, audit, and c
       assert.ok(haystack.includes(marker.toLowerCase()) || haystack.includes("deterministic-first"), `${target} missing ${marker}`);
     }
     assert.match(orchestrator + gate, /review-lineage\.js/);
+    assert.match(gate, /K7 v3 review authority/);
+    assert.match(gate, /reducer-only authority/);
+    assert.match(gate, /start, freeze, finalize, successor, and projection/i);
+    assert.match(gate, /obligations-only/i);
+    assert.match(gate, /signals and no-model.*deferred.*fail closed/is);
+    assert.match(gate, /presentation-only/i);
+    assert.match(k7Binding, /K7_SIGNAL_DENOMINATOR_UNAVAILABLE/);
+    assert.match(k7Binding, /K7_NO_MODEL_DEFERRED/);
+    assert.match(lineage, /K7_ISSUANCE_REPLAY_REQUIRED/);
+    assert.match(graphProjector, /K7_ISSUANCE_REPLAY_REQUIRED/);
     assert.doesNotMatch(orchestrator + gate, /planBoundedRereview|owner[- ]rereview|owning dimension/i);
     assert.match(models, /^\s*review-change: (?:premium|default|cheap)$/m, `${target} model registration`);
     assert.match(models, /^\s*review-correction: (?:premium|default|cheap)$/m, `${target} correction model registration`);
