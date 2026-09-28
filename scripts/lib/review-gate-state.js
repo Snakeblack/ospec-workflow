@@ -323,8 +323,8 @@ function blockedGate(existingGate, validationErrorCodes) {
   };
 }
 
-function planLineageGate({ lineage, observed_candidate_id, downstream_gate = "status" } = {}) {
-  const schemaVersion = lineage && lineage.schema_version === 2 ? 2 : 1;
+function planLineageGate({ lineage, observed_candidate_id, observed_binding_id, observed_policy_snapshot_id, issuance, downstream_gate = "status" } = {}) {
+  const schemaVersion = lineage && lineage.schema_version >= 2 ? 2 : 1;
   const nextAction = nextLineageAction(lineage);
   const dispatch = nextAction.type === "run-lenses"
     ? nextAction.dimensions.map((dimension) => reviewerForDomain(dimension, schemaVersion))
@@ -332,7 +332,13 @@ function planLineageGate({ lineage, observed_candidate_id, downstream_gate = "st
       ? ["review-correction"]
       : [];
   const downstream = ["verify", "delivery", "archive"].includes(downstream_gate)
-    ? validateLineageForGate(lineage, { candidate_id: observed_candidate_id, gate: downstream_gate })
+    ? validateLineageForGate(lineage, {
+      candidate_id: observed_candidate_id,
+      binding_id: observed_binding_id,
+      policy_snapshot_id: observed_policy_snapshot_id,
+      issuance,
+      gate: downstream_gate,
+    })
     : null;
   const mutableAction = ["correct", "record-correction", "targeted-validation"].includes(nextAction.type);
   const migrationRequired = mutableAction && lineage && lineage.remediation_schema_version !== 2;

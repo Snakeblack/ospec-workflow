@@ -1,9 +1,9 @@
 "use strict";
 
 /**
- * Cycle-safe selective invalidation over the four K6b relations.
+ * Cycle-safe selective invalidation over K6b and derived K7 review relations.
  *
- * `from --derived-from|verified-by|satisfies--> to` means `from` depends on `to`.
+ * `from --derived-from|verified-by|reviewed-by|satisfies--> to` means `from` depends on `to`.
  * `from --invalidates--> to` means `from` directly invalidates `to`.
  *
  * @param {object} graph
@@ -28,6 +28,7 @@ function computeInvalidationClosure(graph, opts = {}) {
     } else if (
       edge.relation === "derived-from" ||
       edge.relation === "verified-by" ||
+      edge.relation === "reviewed-by" ||
       edge.relation === "satisfies"
     ) {
       add(dependents, edge.to, edge.from);
@@ -73,7 +74,7 @@ function computeInvalidationClosure(graph, opts = {}) {
  * 1. Seeds are the destinations (`edge.to`) of `invalidates` edges, not the
  *    changed subjects / predecessor-successor candidate ids.
  * 2. The BFS then uses the same dependents + invalidatesForward pair as the
- *    closure (`from --derived-from|verified-by|satisfies--> to` makes `from`
+ *    closure (`from --derived-from|verified-by|reviewed-by|satisfies--> to` makes `from`
  *    depend on `to`; `invalidates` walks forward).
  *
  * @param {object} graph

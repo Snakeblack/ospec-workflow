@@ -189,6 +189,9 @@ const SUCCESSOR_K2_EXACT = new Set([
   // K12 campaign CLI successor; not part of the frozen K1 candidate.
   "scripts/k12-campaign.js",
   "scripts/lib/operation-identity-binding.test.js",
+  // K7-1 binds policy-selected review without reopening the frozen K1 candidate.
+  "scripts/lib/review-k7-binding.js",
+  "scripts/lib/review-k7-binding.test.js",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [

@@ -4,7 +4,15 @@ The post-verify gate runs only when the active `bugfix`, `refactor`, or `standar
 
 `scripts/lib/review-lineage.js` is the executable authority for review identity, budgets, attempts, and legal transitions. `scripts/lib/review-gate-state.js` adapts only its authorized `next_action`. The orchestrator MUST persist the returned state and MUST NOT reinterpret dispatch or archive decisions. Both reducers are pure; the orchestrator remains the only I/O and agent-dispatch adapter.
 
-Legacy in-flight lineages under `schema_version: 1` and `gates.4r-review-gate` continue via `LEGACY_V1_REVIEWERS` until terminal state or explicit pristine `migrateLineageTaxonomyV2`. New writes use `gates.quality-review-gate` with `schema_version: 2` only.
+Legacy in-flight lineages under `schema_version: 1` and `gates.4r-review-gate` continue via `LEGACY_V1_REVIEWERS` until terminal state or explicit pristine `migrateLineageTaxonomyV2`. Non-K7 writes use `gates.quality-review-gate` with `schema_version: 2`; K7 uses its separate `schema_version: 3` lineage.
+
+#### K7 v3 review authority
+
+For K7, `review-lineage.js` is the reducer-only authority: it alone freezes selection/findings, consumes correction budget, authorizes successors, and finalizes a lineage. `review-gate-state.js` and every adapter are presentation-only: they persist, dispatch, or present reducer-issued actions and MUST NOT grant authority.
+
+`createK7ReviewSelection` replays the full Candidate/PolicySnapshot/contract/K6b issuance to bind a K7 lineage. Across start, freeze, finalize, successor, and projection, start validates the embedded issuance with `K7_BINDING_ISSUANCE_INVALID` (or related typed codes); freeze, approval-bearing finalize, successor, and projection require original issuance replay and otherwise fail closed with `K7_ISSUANCE_REPLAY_REQUIRED`. Terminal `escalated`/`invalidated` closures validate lineage integrity without replay and grant no approval. The Assurance Graph only derives `reviewed-by` and `invalidates` relations from that reducer-authenticated lineage; it never becomes authority.
+
+K7 v3 selection is policy-bound and obligations-only: effective K7 policy rules map every material contract obligation to a review domain. Signals and no-model are deferred and fail closed (`K7_SIGNAL_DENOMINATOR_UNAVAILABLE` / `K7_NO_MODEL_DEFERRED`) until an independent residual-coverage source exists. Do not duplicate this lineage contract in individual agent prompts; this shared protocol and the reducers remain its single dispatch contract.
 
 #### Deterministic-first contract pipeline
 

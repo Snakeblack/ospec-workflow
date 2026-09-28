@@ -310,6 +310,10 @@ function replayAssuranceGraph(persistable = {}) {
     requireChallengeVerification: persistable.requireChallengeVerification || persistable.require_challenge_verification,
     policySnapshot: persistable.policySnapshot,
     evidenceStrategy: persistable.evidenceStrategy,
+    reviewLineage: persistable.reviewLineage || persistable.review_lineage,
+    reviewIssuance: persistable.reviewIssuance || persistable.review_issuance,
+    successorReviewLineage: persistable.successorReviewLineage || persistable.successor_review_lineage,
+    successorReviewIssuance: persistable.successorReviewIssuance || persistable.successor_review_issuance,
   });
 }
 

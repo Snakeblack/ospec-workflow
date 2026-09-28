@@ -3,7 +3,7 @@
 const { sha256Fingerprint } = require("../canonical-json.js");
 const { validateChallengeResultSet } = require("../adversarial-challenges/integrity.js");
 
-const ALLOWED_RELATIONS = Object.freeze(["verified-by", "satisfies", "derived-from", "invalidates"]);
+const ALLOWED_RELATIONS = Object.freeze(["verified-by", "satisfies", "derived-from", "reviewed-by", "invalidates"]);
 const ALLOWED_NODE_KINDS = Object.freeze([
   "requirement",
   "graph-node",
@@ -14,6 +14,8 @@ const ALLOWED_NODE_KINDS = Object.freeze([
   "verification-decision",
   "challenge-plan",
   "challenge-result",
+  "review-finding",
+  "review-lens",
 ]);
 const FORBIDDEN_KINDS = Object.freeze([
   "finding",
@@ -103,6 +105,92 @@ function pushEdge(edges, from, relation, to) {
   edges.push({ from, relation, to });
 }
 
+function isReviewNode(node) {
+  return node && (node.kind === "review-finding" || node.kind === "review-lens");
+}
+
+function rejectCallerInventedReviewSubjects(input) {
+  const nodes = Array.isArray(input.additionalNodes) ? input.additionalNodes : [];
+  const edges = Array.isArray(input.additionalEdges) ? input.additionalEdges : [];
+  if (nodes.some(isReviewNode) || edges.some((edge) => edge && (edge.relation === "reviewed-by" || (typeof edge.from === "string" && edge.from.startsWith("review-")) || (typeof edge.to === "string" && edge.to.startsWith("review-"))))) {
+    return fail("FORBIDDEN_RELATION", "review graph subjects must be derived from a reducer-issued K7 lineage");
+  }
+  return { ok: true };
+}
+
+function readSingleReviewLineage(input, camelCase, snakeCase) {
+  const camel = input[camelCase];
+  const snake = input[snakeCase];
+  if (camel !== undefined && snake !== undefined && camel !== snake) return fail("GRAPH_DIVERGENCE", `${camelCase} and ${snakeCase} disagree`);
+  return { ok: true, lineage: camel === undefined ? snake : camel };
+}
+
+function deriveReviewProjection(input, candidate) {
+  const base = readSingleReviewLineage(input, "reviewLineage", "review_lineage");
+  if (!base.ok) return base;
+  if (!base.lineage) return { ok: true, nodes: [], edges: [] };
+  const issuanceInput = readSingleReviewLineage(input, "reviewIssuance", "review_issuance");
+  if (!issuanceInput.ok) return issuanceInput;
+  if (!issuanceInput.lineage) return fail("K7_ISSUANCE_REPLAY_REQUIRED", "K7 review projection requires original issuance inputs");
+  let lineage;
+  try {
+    lineage = require("../review-lineage.js").validateK7LineageForProjection(base.lineage, issuanceInput.lineage);
+  } catch (error) {
+    const reason = String(error.message || error).startsWith("K7_ISSUANCE_REPLAY_REQUIRED") ? "K7_ISSUANCE_REPLAY_REQUIRED" : "GRAPH_DIVERGENCE";
+    return fail(reason, `K7 review lineage is not reducer-authenticated: ${error.message}`);
+  }
+  if (lineage.findings_digest === null || lineage.current_candidate_id !== candidate.candidate_id || lineage.genesis.k7_binding.verification_id !== (input.verification && input.verification.verification_id)) {
+    return fail("GRAPH_DIVERGENCE", "K7 review lineage does not bind this frozen Candidate and Verification");
+  }
+  const nodes = [];
+  const edges = [];
+  const lensIds = new Map();
+  for (const domain of lineage.genesis.selected_domains) {
+    const lens = lineage.lenses[domain];
+    if (!lens || lens.status !== "completed") return fail("GRAPH_DIVERGENCE", "K7 review projection requires frozen completed lenses");
+    const lensId = `review-lens:${lineage.lineage_id}:${domain}`;
+    lensIds.set(domain, lensId);
+    pushNode(nodes, lensId, "review-lens");
+  }
+  for (const finding of lineage.findings) {
+    const findingId = `review-finding:${lineage.lineage_id}:${finding.id}`;
+    pushNode(nodes, findingId, "review-finding");
+    pushEdge(edges, findingId, "reviewed-by", lensIds.get(finding.owner));
+  }
+
+  const successorInput = readSingleReviewLineage(input, "successorReviewLineage", "successor_review_lineage");
+  if (!successorInput.ok) return successorInput;
+  const authorization = lineage.successor_authorization;
+  if (!authorization) {
+    if (successorInput.lineage) return fail("GRAPH_DIVERGENCE", "external successor cannot authorize K7 invalidation without a predecessor receipt");
+    return { ok: true, nodes, edges };
+  }
+  const successorIssuance = readSingleReviewLineage(input, "successorReviewIssuance", "successor_review_issuance");
+  if (!successorIssuance.ok) return successorIssuance;
+  if (!successorIssuance.lineage) return fail("K7_ISSUANCE_REPLAY_REQUIRED", "K7 successor invalidation requires original issuance inputs");
+  const successorBinding = require("../review-k7-binding.js").createK7ReviewSelection(successorIssuance.lineage);
+  if (!successorBinding.ok || successorBinding.binding_id !== authorization.successor_binding_id) return fail("K7_ISSUANCE_REPLAY_REQUIRED", "K7 successor receipt does not replay its original binding");
+  for (const domain of authorization.successor_selected_domains) {
+    const successorLensId = `review-lens:${authorization.successor_lineage_id}:${domain}`;
+    pushNode(nodes, successorLensId, "review-lens");
+    for (const node of nodes.filter(isReviewNode)) {
+      if (node.id !== successorLensId && node.id.includes(lineage.lineage_id)) pushEdge(edges, successorLensId, "invalidates", node.id);
+    }
+  }
+  if (!successorInput.lineage) return { ok: true, nodes, edges };
+
+  let successor;
+  try {
+    successor = require("../review-lineage.js").validateK7LineageForProjection(successorInput.lineage, successorIssuance.lineage);
+  } catch (error) {
+    return fail("K7_ISSUANCE_REPLAY_REQUIRED", `K7 successor lineage is not reducer-authenticated: ${error.message}`);
+  }
+  if (successor.lineage_id !== authorization.successor_lineage_id || successor.binding_id !== authorization.successor_binding_id || successor.current_candidate_id !== authorization.successor_candidate_id || successor.policy_snapshot_id !== authorization.successor_policy_snapshot_id || JSON.stringify(successor.genesis.selected_domains) !== JSON.stringify(authorization.successor_selected_domains)) {
+    return fail("GRAPH_DIVERGENCE", "K7 successor corroboration differs from the predecessor receipt");
+  }
+  return { ok: true, nodes, edges };
+}
+
 function computeGraphId(payload) {
   return sha256Fingerprint("assurance-graph/v1", {
     candidate_id: payload.candidate_id,
@@ -168,6 +256,9 @@ function projectAssuranceGraph(input = {}) {
   if (!candidate || typeof candidate.candidate_id !== "string") {
     return fail("GRAPH_PROJECTION_FAILED", "frozen candidate is required to project");
   }
+
+  const callerReview = rejectCallerInventedReviewSubjects(input);
+  if (!callerReview.ok) return callerReview;
 
   const nodes = [];
   const edges = [];
@@ -242,6 +333,11 @@ function projectAssuranceGraph(input = {}) {
       pushEdge(edges, verification.verification_id, "verified-by", evidenceId);
     }
   }
+
+  const reviewProjection = deriveReviewProjection(input, candidate);
+  if (!reviewProjection.ok) return reviewProjection;
+  nodes.push(...reviewProjection.nodes);
+  edges.push(...reviewProjection.edges);
 
   for (const extra of input.additionalEdges || []) {
     edges.push(extra);

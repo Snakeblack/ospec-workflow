@@ -1,0 +1,5 @@
+{
+  "from": "review-finding:caller",
+  "relation": "reviewed-by",
+  "to": "review-lens:caller"
+}
