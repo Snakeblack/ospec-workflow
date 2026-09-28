@@ -186,6 +186,8 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/result-envelope-conformance.test.js",
   // AIB isolated advisory successor; not part of the frozen K1 candidate.
   "scripts/lib/operation-identity-binding.js",
+  // K12 campaign CLI successor; not part of the frozen K1 candidate.
+  "scripts/k12-campaign.js",
   "scripts/lib/operation-identity-binding.test.js",
   // K7-1 binds policy-selected review without reopening the frozen K1 candidate.
   "scripts/lib/review-k7-binding.js",
@@ -210,6 +212,9 @@ const SUCCESSOR_K2_PREFIXES = [
   "scripts/lib/assurance-graph/",
   "scripts/lib/adversarial-challenges/",
   "scripts/lib/complexity-architecture-delta/",
+  // K12 focal corpus successor (fixed baseline, obligations oracle, run manifests).
+  "scripts/lib/k12/",
+  "schemas/kernel/run-manifest/",
   "schemas/kernel/operation-permit/",
   "schemas/kernel/operation-receipt/",
   "schemas/kernel/effect-class/",
@@ -414,6 +419,10 @@ test("K1 scope guard: K2 successor paths are excluded from K1 inventory governan
   assert.equal(isSuccessorK2Path("scripts/lib/flow-validator.test.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/operation-identity-binding.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/operation-identity-binding.test.js"), true);
+  assert.equal(isSuccessorK2Path("scripts/lib/k12/obligation-oracle.js"), true);
+  assert.equal(isSuccessorK2Path("scripts/lib/k12/obligation-oracle.test.js"), true);
+  assert.equal(isSuccessorK2Path("scripts/k12-campaign.js"), true);
+  assert.equal(isSuccessorK2Path("schemas/kernel/run-manifest/v1.schema.json"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/verify-lineage-recheck.test.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/transition-parity.js"), false);
   assert.equal(isSuccessorK2Path("scripts/lib/canonical-json.js"), false);
@@ -428,6 +437,8 @@ test("K1 scope guard: K2 successor paths are excluded from K1 inventory governan
   assert.equal(isK1GovernedImplementationPath("scripts/lib/lifecycle-kernel/reducer.js"), false);
   assert.equal(isK1GovernedImplementationPath("scripts/lib/flow-validator.js"), false);
   assert.equal(isK1GovernedImplementationPath("scripts/lib/operation-identity-binding.js"), false);
+  assert.equal(isK1GovernedImplementationPath("scripts/lib/k12/obligation-oracle.js"), false);
+  assert.equal(isK1GovernedImplementationPath("scripts/k12-campaign.js"), false);
   assert.equal(isK1GovernedImplementationPath("scripts/lib/canonical-json.js"), true);
 });
 
