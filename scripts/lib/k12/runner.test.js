@@ -218,3 +218,36 @@ test("integrates the real seed cohort through a two-repetition usable baseline",
   assert.equal(summary.overall.tasks_total, 11);
   assert.equal(summary.overall.runs_total, 22);
 });
+
+test("executePlan preserves executor measurements and oracle in the completed outcome", async () => {
+  const cohort = loadCohort(seedCatalogPath, seedTasksDir);
+  const plan = planRuns(cohort, options(seedRoot, { repetitions: 1 }));
+  const measurements = {
+    phases_executed: 3,
+    effects_executed: 3,
+    events_recorded: 6,
+    wall_ms: 11,
+    interruptions: 0,
+    recoveries: 0,
+  };
+  const oracle = { applied: false, reason: "no observed contract for fixture x" };
+  const { runs } = await executePlan(plan, async () => ({
+    status: "pass",
+    note: "machinery-baseline ok",
+    measurements,
+    oracle,
+  }), { now: () => "2026-09-27T00:00:00.000Z" });
+  for (const run of runs) {
+    assert.deepEqual(run.outcome.measurements, measurements);
+    assert.deepEqual(run.outcome.oracle, oracle);
+  }
+});
+
+test("executePlan rejects an executor result with malformed measurements", async () => {
+  const cohort = loadCohort(seedCatalogPath, seedTasksDir);
+  const plan = planRuns(cohort, options(seedRoot, { repetitions: 1 }));
+  await assert.rejects(
+    () => executePlan(plan, async () => ({ status: "pass", measurements: { phases_executed: "many" } })),
+    /measurements/
+  );
+});

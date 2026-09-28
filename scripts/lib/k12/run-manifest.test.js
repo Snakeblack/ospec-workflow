@@ -67,6 +67,76 @@ test("rejects each fail-closed manifest rule with RunManifestError", () => {
   }
 });
 
+test("builds and freezes a manifest with complete measurements and oracle records", () => {
+  const manifest = buildRunManifest({
+    ...validInput(),
+    outcome: {
+      status: "pass",
+      note: "all checks passed",
+      measurements: {
+        phases_executed: 4,
+        effects_executed: 3,
+        events_recorded: 12,
+        wall_ms: 150.5,
+        interruptions: 0,
+        recoveries: 1,
+      },
+      oracle: { applied: true, reason: "compared against catalog digest" },
+    },
+  });
+
+  assert.equal(Object.isFrozen(manifest.outcome.measurements), true);
+  assert.equal(Object.isFrozen(manifest.outcome.oracle), true);
+});
+
+test("rejects incomplete or unknown outcome measurements and oracle fields", () => {
+  const completeMeasurements = {
+    phases_executed: 4,
+    effects_executed: 3,
+    events_recorded: 12,
+    wall_ms: 150.5,
+    interruptions: 0,
+    recoveries: 1,
+  };
+  const sparseMeasurements = {
+    phases_executed: 4,
+    effects_executed: 3,
+    events_recorded: 12,
+    wall_ms: 150.5,
+    interruptions: 0,
+  };
+  const cases = [
+    {
+      ...validInput(),
+      outcome: { status: "pass", measurements: sparseMeasurements },
+    },
+    {
+      ...validInput(),
+      outcome: { status: "pass", measurements: { ...completeMeasurements, extra: 1 } },
+    },
+    {
+      ...validInput(),
+      outcome: { status: "pass", oracle: { applied: true, reason: "checked", extra: true } },
+    },
+    {
+      ...validInput(),
+      outcome: { status: "pass", oracle: { applied: false } },
+    },
+  ];
+
+  for (const input of cases) {
+    assert.throws(() => buildRunManifest(input), RunManifestError);
+  }
+});
+
+test("keeps legacy status and note outcomes valid with the pre-extension run_id", () => {
+  const manifest = buildRunManifest(validInput());
+
+  assert.equal(manifest.outcome.status, "pass");
+  assert.equal(manifest.outcome.note, "all checks passed");
+  assert.equal(manifest.run_id, "fe230ebc245f1bfae74f55e0b08eb53f");
+});
+
 test("validates manifests without throwing", () => {
   const invalid = validateRunManifest({ ...validInput(), repetition_index: 3 });
   const valid = validateRunManifest(buildRunManifest(validInput()));
@@ -75,6 +145,61 @@ test("validates manifests without throwing", () => {
   assert.ok(Array.isArray(invalid.errors));
   assert.ok(invalid.errors.length > 0);
   assert.deepEqual(valid, { valid: true, errors: [] });
+});
+
+test("collects errors for each new outcome validation violation without throwing", () => {
+  const completeMeasurements = {
+    phases_executed: 4,
+    effects_executed: 3,
+    events_recorded: 12,
+    wall_ms: 150.5,
+    interruptions: 0,
+    recoveries: 1,
+  };
+  const sparseMeasurements = {
+    effects_executed: 3,
+    events_recorded: 12,
+    wall_ms: 150.5,
+    interruptions: 0,
+    recoveries: 1,
+  };
+  const cases = [
+    {
+      manifest: {
+        ...validInput(),
+        outcome: { status: "pass", measurements: sparseMeasurements },
+      },
+      expectedError: "run manifest outcome measurements phases_executed must be an integer greater than or equal to 0",
+    },
+    {
+      manifest: {
+        ...validInput(),
+        outcome: { status: "pass", measurements: { ...completeMeasurements, unknown: 1 } },
+      },
+      expectedError: "run manifest outcome measurements contains unknown field \"unknown\"",
+    },
+    {
+      manifest: {
+        ...validInput(),
+        outcome: { status: "pass", oracle: { applied: true, reason: "checked", unknown: true } },
+      },
+      expectedError: "run manifest outcome oracle contains unknown field \"unknown\"",
+    },
+    {
+      manifest: {
+        ...validInput(),
+        outcome: { status: "pass", oracle: { applied: false } },
+      },
+      expectedError: "run manifest outcome oracle reason must be a non-empty string",
+    },
+  ];
+
+  for (const { manifest, expectedError } of cases) {
+    assert.doesNotThrow(() => validateRunManifest(manifest));
+    const validation = validateRunManifest(manifest);
+    assert.equal(validation.valid, false);
+    assert.ok(validation.errors.includes(expectedError));
+  }
 });
 
 test("produces a stable digest across key permutation", () => {

@@ -20,11 +20,12 @@ only; no second executable policy exists yet.
 
 ## Growth path (not yet built)
 
-- **Operational campaign bridge**: an executor that materializes each task
-  workspace and drives it through the K2 Minimal Kernel Harness / conformance
-  host (adversarial stratum via fault injection), recording O1 phase costs and
-  CX0 context measurements into each run's outcome. The injectable-executor
-  seam in `runner.js` is the integration point.
+- **Operational campaign bridge**: `campaign-executor.js` materializes each
+  task workspace and runs the fixed lifecycle through the K2 Minimal Kernel
+  Harness, with interruption and recovery for adversarial fixtures. Run the
+  three-repetition machinery baseline with
+  `node scripts/k12-campaign.js --seed <seed>`. This measures lifecycle
+  machinery only; model-level quality still requires real agents.
 - **Corpus growth**: seed 11 tasks → 20–30 tasks × 3 repetitions per policy,
   stratified, with holdout rotation and exposure logging.
 - **Margins**: non-inferiority/practical-improvement/veto margins are a
