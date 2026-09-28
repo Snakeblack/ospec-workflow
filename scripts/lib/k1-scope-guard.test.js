@@ -268,6 +268,8 @@ const SUCCESSOR_K2_PREFIXES = [
   "schemas/kernel/result-envelope.schema.json",
   // K8 candidate evaluation attestation schema family.
   "schemas/kernel/candidate-evaluation-attestation/",
+  // K8 pure constructor/validator library (WU2).
+  "scripts/lib/evaluation-attestation/",
 ];
 
 const PROTECTED_BASELINE_PATHS = [
@@ -426,6 +428,8 @@ test("K1 scope guard: K2 successor paths are excluded from K1 inventory governan
   assert.equal(isSuccessorK2Path("scripts/lib/k12/obligation-oracle.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/k12/obligation-oracle.test.js"), true);
   assert.equal(isSuccessorK2Path("scripts/k12-campaign.js"), true);
+  assert.equal(isSuccessorK2Path("scripts/lib/evaluation-attestation/index.js"), true);
+  assert.equal(isSuccessorK2Path("scripts/lib/evaluation-attestation/index.test.js"), true);
   assert.equal(isSuccessorK2Path("schemas/kernel/run-manifest/v1.schema.json"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/verify-lineage-recheck.test.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/transition-parity.js"), false);
@@ -442,6 +446,7 @@ test("K1 scope guard: K2 successor paths are excluded from K1 inventory governan
   assert.equal(isK1GovernedImplementationPath("scripts/lib/flow-validator.js"), false);
   assert.equal(isK1GovernedImplementationPath("scripts/lib/operation-identity-binding.js"), false);
   assert.equal(isK1GovernedImplementationPath("scripts/lib/k12/obligation-oracle.js"), false);
+  assert.equal(isK1GovernedImplementationPath("scripts/lib/evaluation-attestation/index.js"), false);
   assert.equal(isK1GovernedImplementationPath("scripts/k12-campaign.js"), false);
   assert.equal(isK1GovernedImplementationPath("scripts/lib/canonical-json.js"), true);
 });
