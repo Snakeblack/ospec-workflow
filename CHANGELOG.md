@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.70.0] - 2026-09-28
+
+### Added
+- **K12 focal — contrato de medición (PR #204)**: oracle independiente de obligaciones por fixture (`scripts/lib/k12/obligation-oracle.js`), `RunManifest v1` (`schemas/kernel/run-manifest/`), cohorte semilla de 11 tareas estratificadas en 4 estratos con 4 familias de holdout y runner determinista con repeticiones de orden sembrado, aislamiento por corrida y reporte de varianza agrupado por tarea. Solo instrumentación: `fixed` sigue siendo la única política medida.
+- **K12 campaña operativa de machinery (PR #205)**: ejecutor determinista que materializa cada tarea en worktree aislado, la pasa por el harness K2, inyecta `interrupt+recover` en el estrato adversarial dentro de budgets y registra `measurements`/`oracle` en el outcome del RunManifest. CLI `scripts/k12-campaign.js` que emite el baseline de machinery de la cohorte semilla (11 tareas × 3 = 33 runs, verdict `usable-baseline`; oracle honesto `applied:false` en fixtures sin contrato observado).
+- **K7 mínimo — review authority (PR #206)**: binding validado `scripts/lib/review-k7-binding.js` con gramática tipada cerrada `k7/v1:` sobre `PolicySnapshot.effective_rules` (fail-closed ante reglas desconocidas/duplicadas/conflictivas), denominador residual por obligaciones MUST del contrato y validación integral de Candidate v2 canónico, PolicySnapshot, Execution Graph + SourceSnapshot, verificación K6b PASS y equivalencia exacta evidencia presentada/replay. Lineage `schema_version: 3` gobernado por el reducer (`startK7ReviewLineage` exige replay completo de la emisión y contexto de diff canónico re-derivado; freeze/finalize-aprobatorio/successor requieren `K7_ISSUANCE_REPLAY_REQUIRED`; presupuesto global de slices; drift de policy/binding invalida con successor explícito); gate presentation-only. Proyección derivada de relaciones de review en el Assurance Graph (`reviewed-by`/`invalidates` solo desde estados v3 autenticados; receipt inmutable de successor dirige la invalidación; evidencia independiente K6b conserva digests; K8 sigue rechazado). Protocolo v3 documentado en `skills/_shared/gate-4r-review.md` con paridad selective-4r. Signals/no-model quedan fail-closed como deuda explícita hasta un oráculo residual independiente; K7 permanece `pending/next-eligible` hasta aceptación. Cambio Orgánico (ODD), verificación adversarial independiente por slice.
+
+**Verificación directa**: `node scripts/check.js` (3493 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.69.0] - 2026-09-26
 
 ### Added
