@@ -304,10 +304,27 @@ async function issueCandidateEvaluationAttestation(input) {
     );
   }
   if (!cas || cas.ok === false) {
+    // The authority store marks a lost race only with code "cas-conflict"
+    // (revision mismatch at the outer CAS guard or at the backing store's own
+    // revision check, which it propagates verbatim). Any other typed {ok:false}
+    // — durability error, inner-commit failure, guard rejection — is a commit
+    // failure, not a race; the store's code is preserved verbatim so callers
+    // reconciling or diagnosing see the real cause.
+    const cause = cas ? cas.code : "cas-unavailable";
+    const base = { subject_id: subjectId, revision: cas ? cas.revision : null, cause };
+    if (cause === "cas-conflict") {
+      return fail(
+        "EVALUATION_ISSUANCE_CAS_CONFLICT",
+        `stale writer lost the CAS race: ${cause}`,
+        base
+      );
+    }
     return fail(
-      "EVALUATION_ISSUANCE_CAS_CONFLICT",
-      `stale writer lost the CAS race: ${cas ? cas.code : "cas-unavailable"}`,
-      { subject_id: subjectId, revision: cas ? cas.revision : null, cause: cas ? cas.code : "cas-unavailable" }
+      "EVALUATION_ISSUANCE_COMMIT_FAILED",
+      cas
+        ? `authority store commit failed: ${cause}`
+        : "authority store compareAndSwap returned no typed result",
+      base
     );
   }
 

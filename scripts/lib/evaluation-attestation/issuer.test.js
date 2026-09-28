@@ -183,13 +183,22 @@ function defaultChain() {
 
 /**
  * Durable inner store double: persists state, journal, and the authority bag
- * atomically in one record (REQ-authority-store-005/011/013 fidelity that the
- * plain MemoryStore lacks), enforces expectedRevision across store instances,
- * and can simulate an unknown-outcome interruption around the durable commit.
+ * (consumed permits + receipts) atomically in one record — REQ-authority-store-005
+ * fidelity that the plain MemoryStore lacks. It deliberately does NOT persist
+ * budgets or runner_receipts, so it must not be cited as REQ-authority-store-011
+ * four-component atomic-record fidelity. It enforces expectedRevision across
+ * store instances (the in-memory analogue of REQ-authority-store-013 restart
+ * preservation, without disk), and can simulate an unknown-outcome interruption
+ * or a typed non-conflict durable-commit failure.
  */
-function createDurableEvaluationInner({ crash = null, onFirstCommit = null } = {}) {
+function createDurableEvaluationInner({
+  crash = null,
+  onFirstCommit = null,
+  failCommit = null,
+} = {}) {
   let head = { state: {}, journal: [], authority: { permits: {}, receipts: {} } };
   let crashesLeft = crash ? crash.times : 0;
+  let failuresLeft = failCommit ? failCommit.times : 0;
   let hookArmed = typeof onFirstCommit === "function";
   let hookRunning = false;
   const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -218,6 +227,10 @@ function createDurableEvaluationInner({ crash = null, onFirstCommit = null } = {
       const currentRevision = computeRevision(head.state, head.journal, head.authority, {});
       if (payload.expectedRevision != null && payload.expectedRevision !== currentRevision) {
         return { ok: false, code: "cas-conflict", revision: currentRevision };
+      }
+      if (failuresLeft > 0) {
+        failuresLeft -= 1;
+        return { ok: false, code: failCommit.code, revision: currentRevision };
       }
       head = {
         state: payload.state !== undefined ? clone(payload.state) : head.state,
@@ -423,6 +436,29 @@ test("stale writer loses: a competing revision between authorization and CAS fai
   assert.equal(after.authority.receipts[issued.permit.permit_id], undefined);
   assert.equal(issued.ledger.get(issued.permit.permit_id).consumed, false);
   assert.ok(after.journal.some((entry) => entry.effect_id === "competitor:journal-tick"));
+});
+
+test("non-conflict typed CAS failure is classified as commit failure, not a lost race", async () => {
+  const chain = defaultChain();
+  const { attestation, subjectId, store } = buildRig(chain, {
+    failCommit: { times: 1, code: "durability-error" },
+  });
+  const issued = await mintEmissionPermit(store, subjectId, attestation);
+
+  const result = await issueCandidateEvaluationAttestation(
+    issuanceInput(store, issued.ledger, issued.permit, chain)
+  );
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "EVALUATION_ISSUANCE_COMMIT_FAILED");
+  assert.equal(result.cause, "durability-error");
+  assert.ok(result.error.includes("durability-error"));
+
+  const after = await store.load(subjectId);
+  assert.equal(after.state.attestations, undefined);
+  assert.equal(after.authority.permits[issued.permit.permit_id], undefined);
+  assert.equal(after.authority.receipts[issued.permit.permit_id], undefined);
+  assert.equal(after.journal.length, 0);
+  assert.equal(issued.ledger.get(issued.permit.permit_id).consumed, false);
 });
 
 test("stale permit is rejected typed when the head advanced before issuance", async () => {
