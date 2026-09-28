@@ -10,6 +10,7 @@ const {
   projectAssuranceGraph,
   reconcileAssuranceGraph,
   replayAssuranceGraph,
+  validateReplayAssessments,
   rejectForbidden,
   computeInvalidationClosure,
   emitEquivalenceManifest,
@@ -19,7 +20,7 @@ const {
 const { verifyCandidate, verifyCandidateWithChallenges } = require("../independent-verifier/index.js");
 const { computeAssessmentId } = require("../independent-verifier/assessment.js");
 const { createTestRunnerReceiptChannel, createTestRunnerReceiptChannelFromReceipts } = require("../test-support/k6b-runner-receipt.js");
-const { readRunnerReceiptChannel } = require("../independent-verifier/runner-receipt.js");
+const { createRunnerReceipt, readRunnerReceiptChannel } = require("../independent-verifier/runner-receipt.js");
 const { canonicalize, computeGraphId } = require("./projector.js");
 const { createChallengePlan } = require("../adversarial-challenges/planner.js");
 const { emitChallengeResult } = require("../adversarial-challenges/runner.js");
@@ -1112,6 +1113,31 @@ test("REQ-assurance-graph-006 [Adversarial]: missing persisted runner-receipt fa
   }));
   assert.equal(replayed.ok, false);
   assert.equal(replayed.reason_code, "GRAPH_DIVERGENCE");
+});
+
+test("REQ-assurance-graph-006 [Adversarial]: legal assessment token absent from trusted receipt fails closed", () => {
+  const projection = verifiedProjection();
+  const gate = readRunnerReceiptChannel(projection.runnerReceiptChannel);
+  assert.equal(gate.ok, true);
+  const claim = projection.verified.assessments.find((assessment) => assessment.evidence_requirements_satisfied?.length);
+  assert.ok(claim);
+  const receipt = gate.receipts.find((item) => item.evidence_id === claim.evidence_id);
+  assert.ok(receipt);
+  const withoutToken = createRunnerReceipt({ ...receipt, satisfied_tokens: [] });
+  const runnerReceiptChannel = createTestRunnerReceiptChannelFromReceipts(
+    gate.receipts.map((item) => item.receipt_id === receipt.receipt_id ? withoutToken : item)
+  );
+  assert.equal(readRunnerReceiptChannel(runnerReceiptChannel).ok, true);
+  const evidence = projection.verified.replay_evidence.map((item) =>
+    item.evidence.evidence_id === claim.evidence_id
+      ? { ...item, runner_receipt_id: withoutToken.receipt_id }
+      : item
+  );
+
+  const replayed = validateReplayAssessments(replayBundle(projection, { evidence, runnerReceiptChannel }));
+  assert.equal(replayed.ok, false);
+  assert.equal(replayed.reason_code, "GRAPH_DIVERGENCE");
+  assert.equal(replayed.error, "assessment coverage is not attested by its trusted runner receipt");
 });
 
 test("REQ-assurance-graph-006 [Adversarial]: mutated assessment role with recomputed assessment_id fails closed", () => {

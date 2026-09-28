@@ -33,7 +33,7 @@ OSPEC gobierna **obligaciones, evidencia y autoridad**; el modelo decide cómo e
 
 ### Estado que se conserva y trabajo pendiente
 
-La base ya entregada comprende O2B, K1–K6d: lifecycle, Authority Store/permits, host de referencia y runner K2, Candidate/lineage, `Obligation Manifest`, ejecución aislada, verifier con provenance, challenges y delta advisory. `fixed` sigue como control/default. Este roadmap no declara un runtime Adaptive implementado. **K12 focal es el siguiente change nuevo; K7 es next-eligible; K8, K9, K10-delivery y K10 siguen pendientes.** Ningún estado de OpenSpec cambia por este documento.
+La base ya entregada comprende O2B, K1–K6d: lifecycle, Authority Store/permits, host de referencia y runner K2, Candidate/lineage, `Obligation Manifest`, ejecución aislada, verifier con provenance, challenges y delta advisory. En v2.70.0 se entregaron además el primer corte K12 focal, su campaña de maquinaria (11 tareas × 3, no evaluación de modelos) y el mínimo K7 Candidate/Policy/K6b. `fixed` sigue como control/default. Este roadmap no declara un runtime Adaptive implementado. **K8 es el siguiente slice elegible en el ámbito que el mínimo K7 puede aprobar; K7 signals/no-model permanece diferido y fail-closed. K9, K10-delivery, K10 y la expansión K12 siguen pendientes.** Ningún estado de OpenSpec cambia por este documento.
 
 K7→K8→K9→K10-delivery es la cadena de autoridad y promoción: review con reducer, attestation Candidate-bound, comparación/revert y delivery limitado al profile promovido. K10 convierte garantías legacy en recipes/capacidades compatibles. K11 y K12 amplían solo aquello que una necesidad y evidencia concretas justifiquen; no son una cola lineal obligatoria.
 
@@ -47,7 +47,7 @@ K7→K8→K9→K10-delivery es la cadena de autoridad y promoción: review con r
 | Medio: promoción limitada | K7, K8, K9 y K10-delivery para una recipe/profile/host; K10 puede formalizar la receta compatible. | K9 decide `promote\|revise\|reject` con corpus, policy y profile versionados; delivery verifica digests vivos y conserva `fixed` para lo no promovido. | Hook global, herencia entre profiles o autorización de rutas no evaluadas. |
 | Largo: ampliar por evidencia | K11b/K11c/K11d, K11a y la parte longitudinal/multi-target de K12, por slices. | Cada expansión prueba el contrato mínimo que consume y repite la comparación relevante. | Catálogo objetivo de roles, fan-out, segundo host o scheduler como prerequisitos universales. |
 
-La prioridad de inversión no cambia por sí sola los prerequisitos técnicos. PP2 y CX1 ya están implementados/archivados y pasan a auditoría de compatibilidad, migración de consumidores y reconciliación; CX2 sigue pendiente como vista derivada con consumidor concreto. K7 puede avanzar en paralelo. Todo cambio de dependencia futura debe documentar su prerequisito mínimo, su condición de validación y su rollback/fallback; nunca autoactiva un runtime.
+La prioridad de inversión no cambia por sí sola los prerequisitos técnicos. PP2 y CX1 ya están implementados/archivados y pasan a auditoría de compatibilidad, migración de consumidores y reconciliación; CX2 sigue pendiente como vista derivada con consumidor concreto. La extensión K7 diferida puede avanzar por separado sin habilitar aprobaciones no demostradas en K8. Todo cambio de dependencia futura debe documentar su prerequisito mínimo, su condición de validación y su rollback/fallback; nunca autoactiva un runtime.
 
 ### Decisión por iniciativa futura
 
@@ -70,23 +70,23 @@ La prioridad de inversión no cambia por sí sola los prerequisitos técnicos. P
 
 ## Orden recomendado de trabajo
 
-Este es **orden de inversión**, no una cadena de prerrequisitos ni una autorización de runtime. PP1 ya está archivado en v2.63.0 y queda como ficha histórica. PP2 y CX1 están implementados/archivados; las primeras inversiones actuales son auditar sus consumidores, migrar compatibilidad y reconciliar estados, mientras CX2 permanece pendiente. K7 conserva su condición de next-eligible y no espera que terminen. Cualquier promoción posterior mantiene quality gates, shadow/A-B y `fixed` como control/default.
+Este es **orden de inversión**, no una cadena de prerrequisitos ni una autorización de runtime. PP1, PP2 y CX1 están archivados; el preflight de compatibilidad de PP2/CX1 y el binding operativo también se entregaron. CX2 permanece como lane condicionada a un consumidor concreto. El primer corte K12 y el mínimo K7 se publicaron en v2.70.0; ninguna promoción cambia `fixed` sin quality gates y shadow/A-B.
 
-**Siguiente change nuevo:** `k12-focal-baseline` (K12 focal: baseline `fixed`, oracle independiente de obligaciones y varianza por tarea). La auditoría de consumidores de PP2/CX1 es preflight de compatibilidad; no abre otra implementación de PP2/CX1. Ese preflight debe inventariar efectos materiales por host y clasificar la cobertura como `enforced|partial|instructional|unavailable`; no se anuncia enforcement donde el host no lo demuestra. CX2 queda como lane mecánica posterior o paralela, solo con un consumidor concreto, y no puede sustituir el binding de identidad ni activar Adaptive globalmente.
+**Siguiente slice elegible: K8**, después de este triage focal. K8 consume únicamente review/verification válidos del mínimo K7; signals/no-model sin oracle independiente siguen fail-closed y no producen attestation aprobatoria. La campaña K12 publicada mide maquinaria `fixed`, no calidad de agentes ni margen para K9. El preflight PP2/CX1 conserva su inventario `enforced|partial|instructional|unavailable` sin habilitar Adaptive global; CX2 no sustituye el binding de identidad.
 
 | Prioridad | Unidad propuesta | Habilitación que deja al siguiente trabajo | Dependencia técnica real |
 | ---: | --- | --- | --- |
 | 1 | PP2/CX1 — preflight de compatibilidad (garantías cerradas el 2026-09-26) | Replay v2.67 solo con orden de claves congelado, `validate-phase` con raíz de plugin y `--workspace`, y `route.actual_route` hijo directo del bloque de columna 0. Un argumento o contexto no rellena esa ausencia. | [Cierre archivado](../../openspec/changes/archive/2026-09-26-close-pp2-cx1-preflight-guarantees/state.yaml); el ajuste de hijo directo va en v2.68.4 y no crea otro estado canónico ni activa runtime. |
 | 2 | `adaptive-operation-identity-binding` — **entregado en v2.69.0** (adaptador aislado `scripts/lib/operation-identity-binding.js` + gate de ambigüedad SubagentStop Node/Go con auditoría observable; ejecutado por ODD, sin change OpenSpec archivado; host binding `authentication: "none"`) | Vincular cada operación a `changePath`, `phase`, `expectedRevision` y `operation`; rechazar atribución ambigua y reconciliar unknown sin reintento ciego. El canal dispatch→stop sin clave atestada documentada queda honestamente observable-only. | CX1/result-envelope/lifecycle existentes; conserva archivos y contratos legacy, fallback y rollback; no Adaptive global. |
 | 3 | CX2 — vistas y archive renderer (pendiente, lane de apoyo) | Traceability y archive se leen como vistas reproducibles desde datos canónicos, solo con un consumidor concreto. | Preflight PP2/CX1 y receipts canónicos; no sustituye el binding ni crea autoridad. |
-| 4 | K12 focal + oracle independiente | Baseline, referencia independiente de obligaciones y varianza para decidir si el piloto merece continuar. | K2 harness; fixtures focales; no corpus longitudinal ni multi-target. |
-| 5 | K7 mínimo + K8 consumible | Review authority y attestation ligada a Candidate, policy y operación, sin fan-out obligatorio ni autorización de delivery. | K3/K6b/K2.1 y binding de identidad; K8 no sustituye K10-delivery. |
+| 4 | K12 focal + campaña de maquinaria — **entregados v2.70.0** | Oracle de obligaciones por fixture, baseline `fixed` de 11 tareas × 3 y varianza; calidad de modelo/escala emparejada aún pendiente. | K2 harness; no demuestra promoción K9 ni corpus longitudinal/multi-target. |
+| 5 | K7 mínimo — **entregado v2.70.0** → K8 **siguiente** | Binding de review Candidate/Policy/K6b y attestation ligada a Candidate, policy y operación, sin autorización de delivery. | K8 usa únicamente cierres K7 válidos; signals/no-model sin oracle siguen fail-closed; K3/K6b/K2.1 y binding operativo. |
 | 6 | Piloto Adaptive fijo + K10 recipe focal | Comparación aislada de una recipe/profile con obligaciones, verifier y recovery independientes. | Binding, K12 focal, K7/K8 y contrato runtime CX1; sin default global ni rutas encubiertas. |
 | 7 | K9 → K10-delivery del profile promovido | Promoción y enforcement únicamente para el ámbito demostrado; el resto conserva `fixed`/deferred. | K7/K8/K12 y host de referencia; no CX3/CX4 ni K11b/K12 completo. |
 
 Las lanes de apoyo R2.1/R2.4/R2.2, CX2, CX3/CX4 y CX5 pueden avanzar en paralelo cuando tengan consumidor y evidencia propios; no reordenan esta línea principal ni habilitan Adaptive por sí solas.
 
-Tras la entrega del binding (v2.69.0), la línea principal es **K12 focal + oracle independiente y K7/K8** (en paralelo cuando sus contratos lo permitan) → **piloto Adaptive fijo en ámbito aislado** → **K9** → **K10-delivery solo para el profile promovido**. CX2, R2 y CX3/CX4 son lanes de apoyo: solo avanzan con consumidor y evidencia propios y no reordenan esa línea.
+Con K12 focal/campaña y el mínimo K7 entregados en v2.70.0, la línea principal continúa **K8 en ámbito K7 demostrable** → **piloto Adaptive fijo en ámbito aislado con la medición K12 que aún falte** → **K9** → **K10-delivery solo para el profile promovido**. CX2, R2 y CX3/CX4 son lanes de apoyo: solo avanzan con consumidor y evidencia propios y no reordenan esa línea.
 
 ### `adaptive-operation-identity-binding` (entregado · v2.69.0 · ODD)
 
@@ -197,7 +197,7 @@ K7/K8 y los gates K9/K10-delivery pueden retomar con las mejoras que existan, si
 
 ## Estado ejecutivo
 
-La lectura operativa actual es: **PP2/CX1 ya están cerrados** y las garantías de preflight quedaron archivadas el 2026-09-26 (`F-66efe8421b856f34` cerrado); **`adaptive-operation-identity-binding` está entregado en v2.69.0** (adaptador aislado + gate de ambigüedad SubagentStop Node/Go; ejecutado por ODD, sin change OpenSpec archivado); el siguiente change nuevo es **K12 focal + oracle independiente**; CX2 es una lane de apoyo; después se ejecutan K7/K8 antes del piloto fijo y K9.
+La lectura operativa actual es: **PP2/CX1 y su preflight están cerrados**; **`adaptive-operation-identity-binding` está entregado en v2.69.0** (ODD, sin change OpenSpec archivado); **K12 focal/campaña de maquinaria y el mínimo K7 están publicados en v2.70.0** (ODD, sin declarar un cierre OpenSpec de K7/K12 completos). K8 es el siguiente slice elegible, con signals/no-model K7 fail-closed; CX2 es una lane de apoyo. El piloto fijo y K9 esperan la evidencia de comparación que aún falta.
 
 | Estado | ID | Resultado |
 | --- | --- | --- |
@@ -227,11 +227,12 @@ La lectura operativa actual es: **PP2/CX1 ya están cerrados** y las garantías 
 | `done` | **CX1** | Envelope/state mecánico, reducer, paridad y fallback legacy; base archivada y remediaciones verificadas/cerradas entre 2026-09-11 y 2026-09-17 |
 | `done` | **`adaptive-operation-identity-binding`** | **Entregado en v2.69.0** (PRs #201/#202; adaptador aislado + gate de ambigüedad SubagentStop con auditoría observable; ODD, sin change OpenSpec archivado; binding explícito de `changePath`/`phase`/`expectedRevision`/`operation`; sin runtime Adaptive global) |
 | `pending` | **CX2** | Lane de apoyo: vistas derivadas de traceability/archive; solo con consumidor concreto y sin nueva autoridad |
-| `next-eligible` | K7 | Review authority; técnicamente desbloqueado, sin afirmar change iniciado |
-| `pending` | K8 | **Evaluation Attestation** |
+| `done` | **K7 mínimo (ODD)** | Binding Candidate/Policy/K6b, lineage v3 reducer-only y grafo derivado entregados en v2.70.0 (PR #206); signals/no-model diferidos fail-closed, K7 completo no cerrado por OpenSpec |
+| `next-eligible` | K8 | **Evaluation Attestation** solo para cierres K7 verificables; no autoriza delivery |
 | `pending` | K9 | Gate de promoción shadow/replay/A-B (checkpoints intermedios ya validados) |
 | `pending` | K10-delivery | `DeliveryAuthorization` **acotada al profile K9**; relación Candidate por etapas; fixed/deferred para el resto |
-| `pending` | **K12 focal** | **Siguiente change nuevo:** baseline `fixed`, oracle independiente de obligaciones y varianza por tarea antes de cualquier promoción K9; no es todavía el corpus longitudinal completo |
+| `done` | **K12 focal/campaña de maquinaria (ODD)** | PRs #204/#205 publicados en v2.70.0: oracle por fixture, 11 tareas × 3 runs `fixed` y varianza; no calidad de agentes ni evidencia de promoción K9 |
+| `pending` | **K12 expansión** | Cohorte emparejada, calidad de modelo, 10–30 changes longitudinales y multi-target por capacidades demostradas |
 | `pending` | K10 | Recipes/capacidades composicionales; piloto fijo antes de promoción, sin rutas encubiertas |
 | `pending` | K11a–K11d | Expansión multi-target, routing, ownership y roles solo por evidencia; no prerequisito del primer piloto |
 
@@ -366,7 +367,7 @@ Entregado:
 - separación entre autoridad, targets y análisis;
 - historial no normativo fuera de la ruta operativa.
 
-G0/G0.1 registró el corte histórico post-k2a-1, cuando K3 era next-eligible. El estado vigente reconoce K3–K6d cerrados y K7 next-eligible, como detalla la tabla ejecutiva. Se conserva la dirección kernel/Execution Graph/Assurance Graph sin reabrir los changes entregados.
+G0/G0.1 registró el corte histórico post-k2a-1, cuando K3 era next-eligible. El estado vigente reconoce K3–K6d cerrados, el mínimo K7 publicado y K8 next-eligible en ámbito verificable, como detalla la tabla ejecutiva. Se conserva la dirección kernel/Execution Graph/Assurance Graph sin reabrir los changes entregados.
 
 ### O2A — infraestructura de benchmark — **done**
 
@@ -1387,7 +1388,7 @@ No retirar universalidad de Strict TDD hasta que K6b/K6c/K9 demuestren que cada 
 | `ReviewAdapter` | Invoca modelos y presenta decisiones; no congela tier/lenses ni concede aprobación |
 | `ReviewReducer` | Congela tier y lenses; admite findings; consume correction budget; crea successor; finaliza review |
 
-El mínimo de K7 adapta el reducer y el lineage ya entregados a Candidate, PolicySnapshot y evidencia de K6b. La corrección sigue siendo focal mediante `review-correction`, limitada a IDs/paths congelados. Refutación batch, tiers más ricos, nuevas lenses y optimización de prompts son experimentos posteriores y no prerrequisitos de la autoridad.
+El mínimo de K7, entregado en v2.70.0 por ODD (PR #206), adapta el reducer y el lineage ya entregados a Candidate, PolicySnapshot y evidencia de K6b. La corrección sigue siendo focal mediante `review-correction`, limitada a IDs/paths congelados. Signals/no-model requieren un oracle independiente todavía ausente y permanecen fail-closed; no son aprobación implícita para K8. Refutación batch, tiers más ricos, nuevas lenses y optimización de prompts son experimentos posteriores y no prerrequisitos de la autoridad.
 
 **Assurance Graph (con K6b):** el review extiende la proyección con edges `reviewed-by` / `invalidates` sobre findings y lenses; no inventa una segunda autoridad. Un candidate/policy/evidencia que cambie invalida la aprobación anterior. Reabrir discovery exige un **successor explícito y autorizado**: no relanza un generalista ni una lens dentro del mismo lineage.
 
@@ -1845,7 +1846,7 @@ Activar un profile cada vez, empezando Repair. Cada profile nuevo exige promoci�
 
 **Absorbe/rebasa:** P25 (telemetría a escala), P27; resto de P26 (corpus/journeys); R1; O16+O17 como vistas.
 
-**No redefine el primer runner:** el Minimal Kernel Harness vive en K2. K12 escala corpus, longitudinal y multi-target evaluation.
+**No redefine el primer runner:** el Minimal Kernel Harness vive en K2. El primer corte K12 publicado en v2.70.0 aporta oracle por fixture y campaña de maquinaria `fixed` de 11 tareas × 3; no evalúa calidad de agentes ni cumple la cohorte emparejada 20–30 tareas o la evidencia longitudinal. K12 completo sigue pendiente de escala, comparación y multi-target.
 
 #### Corpus focal y escala posterior
 
@@ -2349,3 +2350,4 @@ Un Change Program (objetivo → children OpenSpec + cursor, ver investigación `
 - 2026-09-27 (rama `feat/k12-focal-baseline`, PR #204): primer corte del contrato de medición K12 focal implementado — oracle independiente de obligaciones por fixture (`scripts/lib/k12/obligation-oracle.js`), `RunManifest v1` (`schemas/kernel/run-manifest/v1.schema.json`), cohorte semilla de 11 tareas estratificadas en 4 estratos con 4 familias de holdout (`scripts/evals/__fixtures__/k12/`) y runner determinista con repeticiones de orden sembrado, aislamiento por corrida y reporte de varianza agrupado por tarea (`scripts/lib/k12/runner.js`). Solo instrumentación: `fixed` sigue siendo la única política medida; el puente ejecutor al harness K2, el crecimiento a 20–30 tareas × 3 y los márgenes de decisión quedan para la campaña operativa posterior. No cambia estados de OpenSpec.
 - 2026-09-27 (rama `feat/k12-campaign-bridge`, stackeada sobre `feat/k12-focal-baseline`, PR #205): campaña operativa de machinery — ejecutor determinista que materializa cada tarea en worktree aislado, la pasa por el harness K2 (start/efectos/complete; el kernel no expone `execute` y la etapa se representa con el effectExecutor), inyecta interrupt+recover en el estrato adversarial dentro de budgets, registra `measurements`/`oracle` en el outcome del RunManifest, y CLI `scripts/k12-campaign.js` que emite el baseline de machinery de la cohorte semilla (11 tareas × 3 = 33 runs, verdict `usable-baseline`). Oracle honesto: `applied:false` para fixtures sin contrato observado; la calidad a nivel modelo exige agentes reales y sigue pendiente. No cambia estados de OpenSpec.
 - 2026-09-27 (rama `feat/k7-review-authority`, PR #206): entrega el mínimo K7 de binding Candidate/Policy/K6b, lineage v3 gobernado por reducer y proyección derivada de relaciones de review en el Assurance Graph. Signals/no-model permanecen deuda explícita y fail-closed por falta de oracle independiente; K7 sigue pending/next-eligible hasta aceptación.
+- 2026-09-28: PRs #204/#205/#206 y el PR de release #207 se fusionan; el tag local v2.70.0 contiene el resultado. K12 focal/campaña de maquinaria y mínimo K7 quedan entregados por ODD; K8 pasa a siguiente slice elegible en el ámbito K7 verificable. No se declara K7 completo ni una comparación de calidad de modelos; `fixed` permanece default. El triage pre-K8 de deuda histórica se documenta en [`docs/analysis/2026-09-28-pre-k8-debt-triage.md`](../analysis/2026-09-28-pre-k8-debt-triage.md).
