@@ -1,7 +1,9 @@
 ---
 title: Known Issues
-last_updated: 2026-09-05
+last_updated: 2026-09-28
 ---
+
+> **Registro histórico, no lista de bloqueos vigentes.** Las severidades siguientes corresponden a la fecha de cada hallazgo; no se renuevan automáticamente tras archive o remediaciones posteriores. El [triage pre-K8](../../docs/analysis/2026-09-28-pre-k8-debt-triage.md) conserva estas 57 entradas sin declararlas todas resueltas: `npm test` y `go test ./...` pasan en v2.70.0, y el hueco de prueba AG-006 directamente pertinente al binding de evidencia K8 tiene ya una regresión focal. La señal de timeout bajo carga se observa sin convertirla en bloqueo confirmado. Antes de tratar una entrada antigua como prerrequisito de K8 hay que reproducirla en el árbol actual y demostrar su dependencia con Candidate/contract/evidence/findings/policy/CAS; las otras conservan su dueño histórico o su lane del roadmap.
 
 ## Design de extend-bench-agent-coverage promete canonicalizacion de la via de envelope que no ocurre
 - severity: WARNING
