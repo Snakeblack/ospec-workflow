@@ -68,7 +68,14 @@ function listScenarioNames() {
   }
   return fs
     .readdirSync(FIXTURES_ROOT, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && entry.name !== "benchmark")
+    .filter(
+      (entry) =>
+        entry.isDirectory() &&
+        entry.name !== "benchmark" &&
+        // Only golden scenario directories count; non-scenario fixture trees
+        // (e.g. the K12 focal corpus under k12/) carry no scenario.json.
+        fs.existsSync(path.join(FIXTURES_ROOT, entry.name, "scenario.json"))
+    )
     .map((entry) => entry.name)
     .sort();
 }

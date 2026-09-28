@@ -3,7 +3,7 @@
 > **Fuente canónica:** [`ospec-adaptive-critical-design.md`](../architecture/ospec-adaptive-critical-design.md) es la única fuente arquitectónica para Adaptive y sus garantías.
 > **Autoridad del roadmap:** este documento es la proyección ejecutable del backlog; ante una contradicción arquitectónica, prevalece el análisis canónico y el roadmap se reconcilia antes de iniciar un slice.
 > **Versión de referencia:** v2.69.0, 2026-09-26.
-> **Revisión de arquitectura y prioridades:** 2026-09-19; no cambia la versión publicada ni los estados de OpenSpec.
+> **Revisión de arquitectura y prioridades:** 2026-09-19; reconciliado el 2026-09-27 tras la entrega del binding en v2.69.0; no cambia la versión publicada ni los estados de OpenSpec.
 > **Investigación no normativa:** [`harness-kernel-graph-evidence-roadmap-fusion.md`](../architecture/research/harness-kernel-graph-evidence-roadmap-fusion.md) (P0–P27). Proporcionalidad de proceso y Change Program: [`proportional-process-and-change-program.md`](../architecture/research/proportional-process-and-change-program.md). Estas referencias informan, pero no sustituyen, la fuente canónica.
 > **Regla de estado:** los hechos se contrastan con código/OpenSpec; este roadmap no cambia el estado de un change ni sustituye sus artefactos.
 
@@ -33,7 +33,7 @@ OSPEC gobierna **obligaciones, evidencia y autoridad**; el modelo decide cómo e
 
 ### Estado que se conserva y trabajo pendiente
 
-La base ya entregada comprende O2B, K1–K6d: lifecycle, Authority Store/permits, host de referencia y runner K2, Candidate/lineage, `Obligation Manifest`, ejecución aislada, verifier con provenance, challenges y delta advisory. `fixed` sigue como control/default. Este roadmap no declara un runtime Adaptive implementado. **K7 es next-eligible; K8, K9, K10-delivery y K10 siguen pendientes.** Ningún estado de OpenSpec cambia por este documento.
+La base ya entregada comprende O2B, K1–K6d: lifecycle, Authority Store/permits, host de referencia y runner K2, Candidate/lineage, `Obligation Manifest`, ejecución aislada, verifier con provenance, challenges y delta advisory. `fixed` sigue como control/default. Este roadmap no declara un runtime Adaptive implementado. **K12 focal es el siguiente change nuevo; K7 es next-eligible; K8, K9, K10-delivery y K10 siguen pendientes.** Ningún estado de OpenSpec cambia por este documento.
 
 K7→K8→K9→K10-delivery es la cadena de autoridad y promoción: review con reducer, attestation Candidate-bound, comparación/revert y delivery limitado al profile promovido. K10 convierte garantías legacy en recipes/capacidades compatibles. K11 y K12 amplían solo aquello que una necesidad y evidencia concretas justifiquen; no son una cola lineal obligatoria.
 
@@ -72,12 +72,12 @@ La prioridad de inversión no cambia por sí sola los prerequisitos técnicos. P
 
 Este es **orden de inversión**, no una cadena de prerrequisitos ni una autorización de runtime. PP1 ya está archivado en v2.63.0 y queda como ficha histórica. PP2 y CX1 están implementados/archivados; las primeras inversiones actuales son auditar sus consumidores, migrar compatibilidad y reconciliar estados, mientras CX2 permanece pendiente. K7 conserva su condición de next-eligible y no espera que terminen. Cualquier promoción posterior mantiene quality gates, shadow/A-B y `fixed` como control/default.
 
-**Siguiente change nuevo:** `adaptive-operation-identity-binding`. La auditoría de consumidores de PP2/CX1 es preflight de compatibilidad; no abre otra implementación de PP2/CX1. Ese preflight debe inventariar efectos materiales por host y clasificar la cobertura como `enforced|partial|instructional|unavailable`; no se anuncia enforcement donde el host no lo demuestra. CX2 queda como lane mecánica posterior o paralela, solo con un consumidor concreto, y no puede sustituir el binding de identidad ni activar Adaptive globalmente.
+**Siguiente change nuevo:** `k12-focal-baseline` (K12 focal: baseline `fixed`, oracle independiente de obligaciones y varianza por tarea). La auditoría de consumidores de PP2/CX1 es preflight de compatibilidad; no abre otra implementación de PP2/CX1. Ese preflight debe inventariar efectos materiales por host y clasificar la cobertura como `enforced|partial|instructional|unavailable`; no se anuncia enforcement donde el host no lo demuestra. CX2 queda como lane mecánica posterior o paralela, solo con un consumidor concreto, y no puede sustituir el binding de identidad ni activar Adaptive globalmente.
 
 | Prioridad | Unidad propuesta | Habilitación que deja al siguiente trabajo | Dependencia técnica real |
 | ---: | --- | --- | --- |
 | 1 | PP2/CX1 — preflight de compatibilidad (garantías cerradas el 2026-09-26) | Replay v2.67 solo con orden de claves congelado, `validate-phase` con raíz de plugin y `--workspace`, y `route.actual_route` hijo directo del bloque de columna 0. Un argumento o contexto no rellena esa ausencia. | [Cierre archivado](../../openspec/changes/archive/2026-09-26-close-pp2-cx1-preflight-guarantees/state.yaml); el ajuste de hijo directo va en v2.68.4 y no crea otro estado canónico ni activa runtime. |
-| 2 | `adaptive-operation-identity-binding` — siguiente change nuevo | Vincular cada operación a `changePath`, `phase`, `expectedRevision` y `operation`; rechazar atribución ambigua y reconciliar unknown sin reintento ciego. | CX1/result-envelope/lifecycle existentes; conserva archivos y contratos legacy, fallback y rollback; no Adaptive global. |
+| 2 | `adaptive-operation-identity-binding` — **entregado en v2.69.0** (adaptador aislado `scripts/lib/operation-identity-binding.js` + gate de ambigüedad SubagentStop Node/Go con auditoría observable; ejecutado por ODD, sin change OpenSpec archivado; host binding `authentication: "none"`) | Vincular cada operación a `changePath`, `phase`, `expectedRevision` y `operation`; rechazar atribución ambigua y reconciliar unknown sin reintento ciego. El canal dispatch→stop sin clave atestada documentada queda honestamente observable-only. | CX1/result-envelope/lifecycle existentes; conserva archivos y contratos legacy, fallback y rollback; no Adaptive global. |
 | 3 | CX2 — vistas y archive renderer (pendiente, lane de apoyo) | Traceability y archive se leen como vistas reproducibles desde datos canónicos, solo con un consumidor concreto. | Preflight PP2/CX1 y receipts canónicos; no sustituye el binding ni crea autoridad. |
 | 4 | K12 focal + oracle independiente | Baseline, referencia independiente de obligaciones y varianza para decidir si el piloto merece continuar. | K2 harness; fixtures focales; no corpus longitudinal ni multi-target. |
 | 5 | K7 mínimo + K8 consumible | Review authority y attestation ligada a Candidate, policy y operación, sin fan-out obligatorio ni autorización de delivery. | K3/K6b/K2.1 y binding de identidad; K8 no sustituye K10-delivery. |
@@ -86,9 +86,9 @@ Este es **orden de inversión**, no una cadena de prerrequisitos ni una autoriza
 
 Las lanes de apoyo R2.1/R2.4/R2.2, CX2, CX3/CX4 y CX5 pueden avanzar en paralelo cuando tengan consumidor y evidencia propios; no reordenan esta línea principal ni habilitan Adaptive por sí solas.
 
-Después del binding, la línea principal es **K12 focal + oracle independiente y K7/K8** (en paralelo cuando sus contratos lo permitan) → **piloto Adaptive fijo en ámbito aislado** → **K9** → **K10-delivery solo para el profile promovido**. CX2, R2 y CX3/CX4 son lanes de apoyo: solo avanzan con consumidor y evidencia propios y no reordenan esa línea.
+Tras la entrega del binding (v2.69.0), la línea principal es **K12 focal + oracle independiente y K7/K8** (en paralelo cuando sus contratos lo permitan) → **piloto Adaptive fijo en ámbito aislado** → **K9** → **K10-delivery solo para el profile promovido**. CX2, R2 y CX3/CX4 son lanes de apoyo: solo avanzan con consumidor y evidencia propios y no reordenan esa línea.
 
-### `adaptive-operation-identity-binding` (propuesta, siguiente change nuevo)
+### `adaptive-operation-identity-binding` (entregado · v2.69.0 · ODD)
 
 Después del preflight PP2/CX1, el primer consumidor Adaptive futuro debe vincular cada operación de forma explícita a `changePath`, `phase`, `expectedRevision` y `operation` antes de solicitar o ejecutar un efecto. El binding debe permitir comprobar identidad, alcance, revisión y operación concreta, y dejar un resultado reconciliable si el efecto termina en estado desconocido.
 
@@ -128,8 +128,9 @@ La etapa actual entrega análisis y documentación. Las fichas de PP2 y CX1 docu
 - **Medición pendiente:** escritura de estado/salida duplicada, divergencias de render, consumidores migrados y recuperaciones de fallback. **Riesgo/rollback:** adapter legacy preservado y replay sin reset de budgets.
 - **Estimación:** auditoría/migración media; empezar por un consumidor focal y expandir solo si el forecast lo permite.
 
-#### `adaptive-operation-identity-binding` [SIGUIENTE · PROPUESTO]
+#### `adaptive-operation-identity-binding` [ENTREGADO · v2.69.0 · ODD]
 
+- **Entrega (2026-09-26):** adaptador de consumo aislado y testeable `scripts/lib/operation-identity-binding.js` (+tests, PR #201, excepción de tamaño declarada) y gate de ambigüedad SubagentStop Node/Go (PR #202): con múltiples changes activos no se elige el más nuevo por mtime, se expone razón tipada ambigua/sin atribuir y se registra evento de auditoría observable vía `subagent-events.jsonl` sin mutación change-scoped en esa vía; fixture de paridad incluida. Publicado en v2.69.0 con verificación directa 3446/3446. La reconciliación `unknown` del adaptador es advisory: sin clave atestada documentada entre PreToolUse (`tool_use_id`) y SubagentStop (`agent_id`), el binding del host conserva `authentication: "none"` y no se declara canal confiable ni runtime Adaptive global.
 - **Beneficio:** impedir que un consumidor Adaptive atribuya completions, permisos o resultados al change, fase u operación equivocados, especialmente con varios changes activos o una revisión stale.
 - **Alcance:** contrato y adapter de consumo para `changePath`, `phase`, `expectedRevision` y `operation`; validación de identidad, alcance y revisión; estado `unknown` reconciliable; fallback y rollback al flujo legacy. **No alcance:** activar Adaptive globalmente, fusionar fases, crear otro estado canónico, cambiar verifier/reviewer o añadir un Discovery Graph.
 - **Depende de:** contratos CX1/result-envelope, lifecycle/CAS/permits y consumidores actuales. El preflight de PP2/CX1 debe registrar lectores auditados y cualquier migración necesaria antes de tocar la vía compartida.
@@ -196,7 +197,7 @@ K7/K8 y los gates K9/K10-delivery pueden retomar con las mejoras que existan, si
 
 ## Estado ejecutivo
 
-La lectura operativa actual es: **PP2/CX1 ya están cerrados** y las garantías de preflight quedaron archivadas el 2026-09-26 (`F-66efe8421b856f34` cerrado); el siguiente change nuevo es **`adaptive-operation-identity-binding`**; CX2 es una lane de apoyo; después se ejecutan K12 focal y K7/K8 antes del piloto fijo y K9.
+La lectura operativa actual es: **PP2/CX1 ya están cerrados** y las garantías de preflight quedaron archivadas el 2026-09-26 (`F-66efe8421b856f34` cerrado); **`adaptive-operation-identity-binding` está entregado en v2.69.0** (adaptador aislado + gate de ambigüedad SubagentStop Node/Go; ejecutado por ODD, sin change OpenSpec archivado); el siguiente change nuevo es **K12 focal + oracle independiente**; CX2 es una lane de apoyo; después se ejecutan K7/K8 antes del piloto fijo y K9.
 
 | Estado | ID | Resultado |
 | --- | --- | --- |
@@ -224,13 +225,13 @@ La lectura operativa actual es: **PP2/CX1 ya están cerrados** y las garantías 
 | `done` | **K6d** | Complexity/architecture delta Candidate-bound advisory; verify PASS y archive cerrado en `2026-09-03-k6d-complexity-architecture-delta` |
 | `done` | **PP2** | Contrato lite compacto y consumidores compatibles; archivado en `2026-09-11-compact-lite-contract-and-consumer-compatibility` |
 | `done` | **CX1** | Envelope/state mecánico, reducer, paridad y fallback legacy; base archivada y remediaciones verificadas/cerradas entre 2026-09-11 y 2026-09-17 |
-| `pending` | **`adaptive-operation-identity-binding`** | **Siguiente change nuevo:** binding explícito de `changePath`, `phase`, `expectedRevision` y `operation`; no iniciado, sin runtime Adaptive global |
+| `done` | **`adaptive-operation-identity-binding`** | **Entregado en v2.69.0** (PRs #201/#202; adaptador aislado + gate de ambigüedad SubagentStop con auditoría observable; ODD, sin change OpenSpec archivado; binding explícito de `changePath`/`phase`/`expectedRevision`/`operation`; sin runtime Adaptive global) |
 | `pending` | **CX2** | Lane de apoyo: vistas derivadas de traceability/archive; solo con consumidor concreto y sin nueva autoridad |
 | `next-eligible` | K7 | Review authority; técnicamente desbloqueado, sin afirmar change iniciado |
 | `pending` | K8 | **Evaluation Attestation** |
 | `pending` | K9 | Gate de promoción shadow/replay/A-B (checkpoints intermedios ya validados) |
 | `pending` | K10-delivery | `DeliveryAuthorization` **acotada al profile K9**; relación Candidate por etapas; fixed/deferred para el resto |
-| `pending` | K12 focal | Baseline, oracle independiente y varianza antes de cualquier promoción K9; no es todavía el corpus longitudinal completo |
+| `pending` | **K12 focal** | **Siguiente change nuevo:** baseline `fixed`, oracle independiente de obligaciones y varianza por tarea antes de cualquier promoción K9; no es todavía el corpus longitudinal completo |
 | `pending` | K10 | Recipes/capacidades composicionales; piloto fijo antes de promoción, sin rutas encubiertas |
 | `pending` | K11a–K11d | Expansión multi-target, routing, ownership y roles solo por evidencia; no prerequisito del primer piloto |
 
@@ -1960,7 +1961,7 @@ La evidencia mecánica (comando nombrado y ejecutable) prevalece sobre anotacion
 | Target roadmaps | activos/pending según host | K2a + K11a–K11d | Contrato de referencia temprano; expansión subordinada a core estable |
 | PP2 — `compact-lite-contract-and-consumer-compatibility` | **archived 2026-09-11** | Preflight de compatibilidad | Auditar/migrar consumidores; no reimplementar ni inferir runtime Adaptive |
 | CX1 — `phase-envelope-state-mechanical-projection` | **archived base + remediations 2026-09-11–17** | Preflight de compatibilidad | Reconciliar consumidores y fallback; no crear segundo estado canónico |
-| `adaptive-operation-identity-binding` | **proposed, next new change** | Identidad de operación y unknown reconciliation | Binding `changePath`/`phase`/`expectedRevision`/`operation`; conservar legacy |
+| `adaptive-operation-identity-binding` | **delivered in v2.69.0 (ODD, no OpenSpec change archived)** | Identidad de operación y unknown reconciliation | Adapter `scripts/lib/operation-identity-binding.js` + SubagentStop ambiguity gate Node/Go; binding `changePath`/`phase`/`expectedRevision`/`operation`; legacy conservado |
 | CX2 — `derived-traceability-and-archive-views` | pending | Lane de apoyo | Solo con consumidor concreto; vista derivada sin autoridad |
 
 Las filas anteriores a PP2/CX1 conservan el **estado heredado** de la fusión histórica; no sustituyen la tabla ejecutiva ni implican que un change `pending` siga abierto cuando su implementación ya fue absorbida por K4a/K4b/K6a. No queda ninguna iniciativa transversal anterior sin destino explícito.
@@ -2344,3 +2345,5 @@ Un Change Program (objetivo → children OpenSpec + cursor, ver investigación `
 - 2026-08-31: se añade la lane subordinada CX para medir y reducir amplificación de contexto mediante proyecciones derivadas, sin mover `K6d` ni la ruta crítica; targets numéricos quedan como hipótesis hasta CX0.
 - 2026-09-03–09-17: K6d queda archivado como advisory; CX0/CX1 y sus remediaciones se implementan y archivan. PP2 (`compact-lite-contract-and-consumer-compatibility`) también queda archivado; sus consumidores siguen sujetos a preflight, migración y reconciliación.
 - 2026-09-19: la revisión canónica `ospec-adaptive-critical-design.md` reconcilia este roadmap sección por sección. El siguiente change nuevo es `adaptive-operation-identity-binding`; K12 focal + oracle independiente y K7/K8 preceden piloto fijo, K9 y K10-delivery acotado. CX2/R2/CX3/CX4 quedan lanes de apoyo.
+- 2026-09-27: reconciliación post-entrega. `adaptive-operation-identity-binding` queda entregado en v2.69.0 (PRs #201/#202, release #203; adaptador aislado, gate de ambigüedad SubagentStop Node/Go con auditoría observable, `authentication: "none"` por ausencia de clave atestada documentada en el contrato del host; ejecutado por ODD sin change OpenSpec archivado). El siguiente change nuevo pasa a ser `k12-focal-baseline` (K12 focal: baseline `fixed`, oracle independiente, varianza). Ningún estado de OpenSpec cambia por esta reconciliación.
+- 2026-09-27 (rama `feat/k12-focal-baseline`, pendiente de PR): primer corte del contrato de medición K12 focal implementado — oracle independiente de obligaciones por fixture (`scripts/lib/k12/obligation-oracle.js`), `RunManifest v1` (`schemas/kernel/run-manifest/v1.schema.json`), cohorte semilla de 11 tareas estratificadas en 4 estratos con 4 familias de holdout (`scripts/evals/__fixtures__/k12/`) y runner determinista con repeticiones de orden sembrado, aislamiento por corrida y reporte de varianza agrupado por tarea (`scripts/lib/k12/runner.js`). Solo instrumentación: `fixed` sigue siendo la única política medida; el puente ejecutor al harness K2, el crecimiento a 20–30 tareas × 3 y los márgenes de decisión quedan para la campaña operativa posterior. No cambia estados de OpenSpec.
