@@ -1186,35 +1186,35 @@ function makeCursorHooksSource() {
           SessionStart: [
             {
               type: "command",
-              command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js session-start",
+              command: "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js\" session-start",
               timeout: 5,
             },
           ],
           PreToolUse: [
             {
               type: "command",
-              command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js pre-tool-use",
+              command: "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js\" pre-tool-use",
               timeout: 5,
             },
           ],
           PreCompact: [
             {
               type: "command",
-              command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js pre-compact",
+              command: "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js\" pre-compact",
               timeout: 5,
             },
           ],
           SubagentStop: [
             {
               type: "command",
-              command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js subagent-stop",
+              command: "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js\" subagent-stop",
               timeout: 5,
             },
           ],
           Stop: [
             {
               type: "command",
-              command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js stop",
+              command: "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js\" stop",
               timeout: 5,
             },
           ],
@@ -1313,7 +1313,7 @@ test("cursor drops unmapped source hook events", () => {
       content: JSON.stringify({
         hooks: {
           FutureEvent: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/x.js", timeout: 1 }],
-          Stop: [{ type: "command", command: "node ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js stop", timeout: 5 }],
+          Stop: [{ type: "command", command: "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js\" stop", timeout: 5 }],
         },
       }),
     },
