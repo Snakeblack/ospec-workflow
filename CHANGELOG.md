@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.71.0] - 2026-10-01
+
+### Added
+- **K8 mínimo — CandidateEvaluationAttestation (PRs #209/#211)**: schema `candidate-evaluation-attestation/v1` con 8 fixtures, registro en manifest/claims/k1-compat y entradas sucesoras del scope-guard; constructor/validador puro (`scripts/lib/evaluation-attestation/index.js`) con 16 reason codes `EVALUATION_*` y drift de candidato fail-closed (exige binding K7 fresco: sin binding no se emite attestation aprobatoria); issuer por CAS (`issuer.js`) con OperationPermit de un solo uso (replay converge, stale pierde, reconciliación bidireccional) que distingue `EVALUATION_ISSUANCE_COMMIT_FAILED` de `EVALUATION_CAS_CONFLICT`. `approved-for-evaluation` nunca es pase de delivery; K7 no-model sigue fail-closed (`K7_NO_MODEL_DEFERRED` → cero attestation). Library-only, sin CLI. Roadmap K8 reconciliado. (#210 quedó cerrado automáticamente por GitHub al fusionarse la rama base; su contenido llegó íntegro vía #211.)
+
+### Changed
+- **Rename de la familia OpenAI en el catálogo (PR #212)**: slugs Codex `gpt-5.6-sol/terra/luna` → `gpt-6.1-sol`/`gpt-6-terra`/`gpt-6-luna` y labels de copilot `GPT-5.6 Sol/Terra/Luna` → `gpt-6 Sol/Terra/Luna`, alineado con la identidad vigente de los modelos. Contrato del test sdd-document, tabla de tiers de `docs/model-routing.md` y escenarios de spec de generator actualizados en consecuencia. Advisories no bloqueantes de la revisión nativa registrados en #213.
+
+### Fixed
+- **Quoting de la raíz del plugin en hooks (PR #214)**: los cinco comandos de `hooks/hooks.json` envuelven la ruta del launcher en comillas dobles, la forma que exige el validador oficial del CLI de Claude (con `--strict` los warnings de variable sin quotear son errores); restaura el E2E contra el CLI real.
+
+**Verificación directa**: `node scripts/check.js` (3520 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.70.0] - 2026-09-28
 
 ### Added
