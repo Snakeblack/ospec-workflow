@@ -262,7 +262,7 @@ test("sdd-document generated outputs use cheap models or fail-soft omission", (t
   const { runConfigure } = require("./configure/cli.js");
   const cases = [
     ["claude", "agents/sdd-document.md", "haiku"],
-    ["vscode", "agents/sdd-document.agent.md", ["GPT-5.6 Luna (copilot)"]],
+    ["vscode", "agents/sdd-document.agent.md", ["gpt-6 Luna (copilot)"]],
     ["opencode", ".opencode/agents/sdd-document.md", "zai-coding-plan/glm-5.3-flash"],
   ];
   for (const [target, relative, expected] of cases) {
@@ -274,12 +274,12 @@ test("sdd-document generated outputs use cheap models or fail-soft omission", (t
   const githubOut = tmpOut(t);
   runConfigure({ sourceDir: ROOT_DIR, target: "github-copilot", outDir: githubOut, validate: false });
   const github = fsSync.readFileSync(path.join(githubOut, ".github/agents/sdd-document.agent.md"), "utf8");
-  assert.deepEqual(getField(parse(github).frontmatter, "model").value, ["GPT-5.6 Luna (copilot)"]);
+  assert.deepEqual(getField(parse(github).frontmatter, "model").value, ["gpt-6 Luna (copilot)"]);
 
   const codexOut = tmpOut(t);
   runConfigure({ sourceDir: ROOT_DIR, target: "codex", outDir: codexOut, validate: false });
   const codex = fsSync.readFileSync(path.join(codexOut, ".codex/agents/sdd-document.toml"), "utf8");
-  assert.match(codex, /^model = "gpt-5\.6-luna"$/m);
+  assert.match(codex, /^model = "gpt-6-luna"$/m);
   assert.match(codex, /^model_reasoning_effort = "low"$/m);
 });
 

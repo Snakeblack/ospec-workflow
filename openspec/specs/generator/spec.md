@@ -464,14 +464,14 @@ invalid policies, and verify generated model parity against that YAML mapping.
 
 - GIVEN any SDD agent assigned to `default` in `models.yaml` is generated for Codex
 - WHEN model policy is injected
-- THEN its model MUST be `gpt-5.6-terra`
+- THEN its model MUST be `gpt-6-terra`
 - AND its reasoning effort MUST be `medium`
 
 #### Scenario: Cheap tier resolves to Luna low on Codex
 
 - GIVEN any SDD agent assigned to `cheap` in `models.yaml` is generated for Codex
 - WHEN model policy is injected
-- THEN its model MUST be `gpt-5.6-luna`
+- THEN its model MUST be `gpt-6-luna`
 - AND its reasoning effort MUST be `low`
 
 #### Scenario: Structural policy defects fail the contract
