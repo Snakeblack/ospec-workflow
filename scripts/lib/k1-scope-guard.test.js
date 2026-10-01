@@ -192,6 +192,8 @@ const SUCCESSOR_K2_EXACT = new Set([
   // K7-1 binds policy-selected review without reopening the frozen K1 candidate.
   "scripts/lib/review-k7-binding.js",
   "scripts/lib/review-k7-binding.test.js",
+  // K8 candidate evaluation attestation schema boundary (WU1).
+  "scripts/lib/k8-schema-fixtures.test.js",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [
@@ -264,6 +266,8 @@ const SUCCESSOR_K2_PREFIXES = [
   "schemas/kernel/complexity-architecture-delta/",
   "schemas/kernel/result-envelope/",
   "schemas/kernel/result-envelope.schema.json",
+  // K8 candidate evaluation attestation schema family.
+  "schemas/kernel/candidate-evaluation-attestation/",
 ];
 
 const PROTECTED_BASELINE_PATHS = [

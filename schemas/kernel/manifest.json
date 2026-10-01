@@ -260,6 +260,11 @@
       "path": "schemas/kernel/result-envelope/v1/envelope.schema.json",
       "$id": "https://openspec.io/schemas/kernel/result-envelope/v1.schema.json",
       "schema_version": 1
+    },
+    "candidate-evaluation-attestation": {
+      "path": "schemas/kernel/candidate-evaluation-attestation/v1.schema.json",
+      "$id": "ospec://schemas/kernel/candidate-evaluation-attestation/v1",
+      "schema_version": 1
     }
   }
 }
