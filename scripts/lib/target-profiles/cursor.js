@@ -76,7 +76,7 @@ module.exports = {
     AskUserQuestion: { degrade: ASK_GATE },
   },
 
-  drop: [".claude-plugin/", ".mcp.json"],
+  drop: [".claude-plugin/", ".mcp.json", "rules/engram-session-memory.instructions.md"],
 
   validate: ["node", "scripts/configure/validate-cursor.js", "{out}"],
 };

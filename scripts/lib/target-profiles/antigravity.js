@@ -39,7 +39,7 @@ module.exports = {
     applyTo: "**",
   },
 
-  drop: [".claude-plugin/", ".codex-plugin/", ".github/", ".opencode/"],
+  drop: [".claude-plugin/", ".codex-plugin/", ".github/", ".opencode/", "rules/engram-session-memory.instructions.md"],
 
   validate: ["node", "scripts/configure/validate-antigravity.js", "{out}"],
 };

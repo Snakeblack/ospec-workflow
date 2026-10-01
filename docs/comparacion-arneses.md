@@ -67,7 +67,7 @@ El análisis evalúa cada arnés a través de 7 dimensiones arquitectónicas cla
 *   **Spec Kit (6/10):** Escrito en Python (usando `uv`). Es agnóstico por operar sobre archivos del espacio de trabajo, pero no se compila como plugin de IDE de forma nativa.
 
 ### F. Gestión de Memoria
-*   **`ospec-workflow` (9/10):** Integración nativa con Engram (SQLite + FTS5) para almacenar memoria semántica de largo plazo, complementado con archivos de estado serializados en `.ospec/` para garantizar la continuidad cross-session.
+*   **`ospec-workflow` (9/10):** Memoria de sesión opcional y no autoritativa mediante un adaptador del host (en Claude Code, el plugin oficial de Engram, activable con `--with-engram`); la continuidad cross-session la garantizan `openspec/` y `state.yaml`, que siguen siendo la fuente de verdad.
 *   **Gentle AI (9/10):** Desarrolló el protocolo de memoria persistente Engram (SQLite y API HTTP/MCP).
 *   **ECC (8/10):** Almacena y carga metadatos de sesión y del proyecto mediante hooks automáticos de persistencia de contexto.
 *   **Spec Kit (2/10):** No integra motores de memoria ni bases de datos vectoriales/FTS. El estado del proyecto reside estrictamente en el historial git y la documentación.
