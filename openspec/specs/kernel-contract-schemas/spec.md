@@ -892,7 +892,12 @@ The suite MUST publish `assurance-graph/v1.schema.json`
 Required fields: `schema_version`, `graph_id` (`^sha256:[a-f0-9]{64}$`),
 `candidate_id` (`^sha256:[a-f0-9]{64}$`), `nodes` (array), and `edges` (array
 of `{from, relation, to}` with `relation` in
-`verified-by | satisfies | derived-from | invalidates`). The schema MUST
+`verified-by | satisfies | derived-from | reviewed-by | invalidates`). Node
+`kind` MUST be one of `requirement | graph-node | work-order | source |
+candidate | test-evidence | verification-decision | challenge-plan |
+challenge-result | review-finding | review-lens`. An edge with
+`relation: "reviewed-by"` MUST have `from` matching `^review-finding:` and `to`
+matching `^review-lens:`. The schema MUST
 enforce `additionalProperties: false` and MUST NOT alias
 CandidateEvaluationAttestation or DeliveryAuthorization. An optional
 equivalence-manifest object MAY appear with a distinct `kind` and MUST NOT
@@ -900,17 +905,31 @@ validate as attestation or authorization. The family MUST ship valid fixtures
 and invalid fixtures for missing fields, unknown relation, and malformed
 digests.
 
+(Previously: edge relations were the closed set `verified-by | satisfies | derived-from | invalidates` and `reviewed-by` was an unknown relation. K7 adds `reviewed-by` and the `challenge-plan`, `challenge-result`, `review-finding`, and `review-lens` node kinds; this is additive for existing graphs.)
+
 #### Scenario: Valid assurance-graph fixture passes
 
-- GIVEN a complete assurance-graph/v1 payload with four-relation edges and matching graph_id digest form
+- GIVEN a complete assurance-graph/v1 payload with edges using the published relations and matching graph_id digest form
 - WHEN validated against `assurance-graph/v1.schema.json`
 - THEN validation MUST succeed
 
 #### Scenario: Unknown relation or attestation alias fails closed
 
-- GIVEN an edge with `relation: "reviewed-by"` or a graph payload that validates as CandidateEvaluationAttestation
+- GIVEN an edge with a relation outside the published set (for example `relation: "approved-by"`) or a graph payload that validates as CandidateEvaluationAttestation
 - WHEN schema validation runs
 - THEN validation MUST fail closed
+
+#### Scenario: Reviewed-by edge between review finding and review lens validates
+
+- GIVEN an edge `{from: "review-finding:<id>", relation: "reviewed-by", to: "review-lens:<id>"}` with nodes of kind `review-finding` and `review-lens`
+- WHEN validated against `assurance-graph/v1.schema.json`
+- THEN validation MUST succeed
+
+#### Scenario: Reviewed-by edge with wrong endpoint prefixes fails closed
+
+- GIVEN a `reviewed-by` edge whose `from` does not start with `review-finding:` or whose `to` does not start with `review-lens:`
+- WHEN schema validation runs
+- THEN validation MUST fail closed identifying the endpoint pattern violation
 
 ### Requirement: Assessment Schema Family V2 Publication And V1 Backward Compatibility {#REQ-kernel-contract-schemas-027}
 
@@ -1229,3 +1248,75 @@ The schema family MUST ship with valid fixtures and invalid fixtures exercising 
 - GIVEN the backward-compatible schema `schemas/kernel/result-envelope.schema.json`
 - WHEN evaluated against the valid and invalid fixture suite
 - THEN it MUST reject blocked envelopes without question_gate, empty strings, whitespace-only strings, and non-string detailed_report identically to v1
+
+### Requirement: Candidate Evaluation Attestation V1 Schema Family {#REQ-kernel-contract-schemas-032}
+
+The contract suite MUST publish `schemas/kernel/candidate-evaluation-attestation/v1.schema.json` (`$id: "ospec://schemas/kernel/candidate-evaluation-attestation/v1"`, `schema_version: 1`, `kind: "candidate-evaluation-attestation"`) describing a frozen Candidate bound to its contract, graph, evidence root, frozen findings, and effective PolicySnapshot digests. The schema MUST require `schema_version`, `kind`, `attestation_id`, `candidate_id`, `contract_digest`, `graph_digest`, `evidence_root_digest`, `findings_digest`, `policy_digest`, `expected_revision`, `authority_revision`, `issuer_version`, `runtime_version`, `outcome`, `valid_for`, and `issued_at`, and MUST set `additionalProperties: false`.
+
+Every identity and digest field (`attestation_id`, `candidate_id`, `contract_digest`, `graph_digest`, `evidence_root_digest`, `findings_digest`, `policy_digest`, `expected_revision`, `authority_revision`) MUST match `^sha256:[a-f0-9]{64}$`. `issuer_version`, `runtime_version`, and `issued_at` MUST be non-empty strings. `outcome` MUST be constrained to the single value `approved-for-evaluation` and `valid_for` to the single value `evaluation`; the schema declares evaluation approval only and MUST NOT authorize delivery.
+
+The family MUST be registered in `schemas/kernel/manifest.json` (key `candidate-evaluation-attestation`, path `schemas/kernel/candidate-evaluation-attestation/v1.schema.json`, `schema_version: 1`) and in `schemas/kernel/contract-claims.json` with the same required fields and the closed enums for `kind`, `outcome`, and `valid_for`. The family directory MUST be listed among the additive, K1-excluded paths in `listK1SchemaFiles` (`scripts/lib/lifecycle-kernel/k1-compat.js`) so it is not part of the frozen K1 baseline pin.
+
+#### Scenario: Well-formed attestation payload validates
+
+- GIVEN a payload carrying all required fields with `kind: "candidate-evaluation-attestation"`, `outcome: "approved-for-evaluation"`, `valid_for: "evaluation"`, `sha256:`-prefixed 64-hex digests, and non-empty version and timestamp strings
+- WHEN validated against `candidate-evaluation-attestation/v1.schema.json`
+- THEN validation MUST succeed
+
+#### Scenario: Missing required field or unknown property fails closed
+
+- GIVEN a payload that omits any required field (for example `policy_digest`) or adds a property outside the schema
+- WHEN validated against the schema
+- THEN validation MUST fail closed identifying the missing or unexpected property
+
+#### Scenario: Malformed digest or out-of-enum value fails closed
+
+- GIVEN a payload whose digest field does not match `^sha256:[a-f0-9]{64}$`, or whose `kind`, `outcome`, or `valid_for` differs from the single permitted value
+- WHEN validated against the schema
+- THEN validation MUST fail closed identifying the violating property
+
+#### Scenario: Attestation does not alias delivery authorization
+
+- GIVEN a payload shaped as a Delivery Authorization (a different `kind` or `outcome` than the attestation constants)
+- WHEN validated against the attestation schema
+- THEN validation MUST fail closed because the closed `kind`, `outcome`, and `valid_for` values differ
+
+#### Scenario: Attestation family is registered and excluded from the K1 pin
+
+- GIVEN `schemas/kernel/manifest.json`, `schemas/kernel/contract-claims.json`, and `listK1SchemaFiles`
+- WHEN the `candidate-evaluation-attestation` family is inspected
+- THEN it MUST be registered in the manifest and claims with matching required fields and enums, and its directory MUST be on the additive exclusion list so the K1 frozen baseline is unchanged
+
+### Requirement: Run Manifest V1 Schema Family {#REQ-kernel-contract-schemas-033}
+
+The contract suite MUST publish `schemas/kernel/run-manifest/v1.schema.json` (`$id: "ospec://schemas/kernel/run-manifest/v1"`, `schema_version: 1`) recording a derived K12 corpus execution measurement. The schema MUST require `schema_version`, `run_id`, `cohort_id`, `fixture_id`, `stratum`, `policy`, `repetition_index`, `repetitions_total`, `order_seed`, `worktree_path`, `cache_namespace`, `evaluator`, `host`, `catalog_digest`, `outcome`, and `versions`, MUST set `additionalProperties: false` at the root, and MAY carry optional `started_at` and `completed_at` as `date-time` strings.
+
+Field constraints: `run_id`, `cohort_id`, `fixture_id`, `order_seed`, `worktree_path`, `cache_namespace`, `evaluator`, and `host` MUST be non-empty strings; `stratum` MUST be one of `local-reversible | behavior-repair | multi-module | adversarial`; `policy` MUST be `fixed`; `repetition_index` MUST be an integer >= 0 and `repetitions_total` an integer >= 1; `catalog_digest` MUST match `^[a-f0-9]{64}$` (bare hex, without a `sha256:` prefix).
+
+`outcome` MUST be an object requiring `status` (`pass | fail | incomplete | excluded`) with optional `note` (string), optional `measurements`, and optional `oracle`, and MUST disallow other properties. When present, `measurements` MUST require `phases_executed`, `effects_executed`, `events_recorded`, `wall_ms`, `interruptions`, and `recoveries` (non-negative; all integers except `wall_ms`, which is a non-negative number) and disallow other properties. When present, `oracle` MUST require `applied` (boolean) and `reason` (a non-empty string containing at least one non-whitespace character) and disallow other properties. `versions` MUST be an object requiring a non-empty string `runner_version` and MAY carry additional string-valued entries.
+
+The family directory MUST be listed among the additive, K1-excluded paths in `listK1SchemaFiles` (`scripts/lib/lifecycle-kernel/k1-compat.js`) so it is not part of the frozen K1 baseline pin. This family is not registered in `schemas/kernel/manifest.json` or `schemas/kernel/contract-claims.json`.
+
+#### Scenario: Complete run manifest validates
+
+- GIVEN a payload with all required fields, a permitted `stratum`, `policy: "fixed"`, a 64-hex `catalog_digest`, `outcome.status: "pass"`, and `versions.runner_version`
+- WHEN validated against `run-manifest/v1.schema.json`
+- THEN validation MUST succeed
+
+#### Scenario: Missing required field or unknown root property fails closed
+
+- GIVEN a payload omitting any required field or adding a property outside the schema
+- WHEN validated against the schema
+- THEN validation MUST fail closed identifying the missing or unexpected property
+
+#### Scenario: Out-of-range enum, index, or digest fails closed
+
+- GIVEN a payload with an unlisted `stratum`, `policy` other than `fixed`, `repetition_index < 0`, `repetitions_total < 1`, or a `catalog_digest` that is not 64 lowercase hex characters
+- WHEN validated against the schema
+- THEN validation MUST fail closed identifying the violating property
+
+#### Scenario: Outcome measurements and oracle are closed objects
+
+- GIVEN an `outcome` whose `measurements` omits a required counter or contains a negative value, or whose `oracle.reason` is empty or whitespace-only
+- WHEN validated against the schema
+- THEN validation MUST fail closed identifying the violating property
