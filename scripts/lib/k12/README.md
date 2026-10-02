@@ -9,7 +9,7 @@ baseline. It is derived measurement tooling — it grants no operational
 authority and does not activate any Adaptive runtime. `fixed` is the control
 policy; the Adaptive Repair pilot adds one recorded arm, `adaptive-repair-v1`
 (see [`docs/analysis/2026-10-02-adaptive-pilot-scoping.md`](../../../docs/analysis/2026-10-02-adaptive-pilot-scoping.md)).
-No executor for that arm exists yet (pilot slice P2).
+The deterministic pilot executor runs both arms (pilot slice P2a).
 
 ## Modules
 
@@ -18,6 +18,7 @@ No executor for that arm exists yet (pilot slice P2).
 | `obligation-oracle.js` | Versioned catalog of expected obligations per fixture, external to the task-contract producer. `compareObligations` reports `missing`/`unexpected`/`matched`; the verdict fails only when a catalog `must` obligation is absent from the observed manifest/executionGraph. Complements the K6b verifier: it detects omissions the executor's own contract cannot see. |
 | `run-manifest.js` | `RunManifest v1` (`schemas/kernel/run-manifest/v1.schema.json`): binds one run to fixture, policy, repetition, order seed, isolated worktree/cache namespace, evaluator, host, oracle catalog digest, and outcome. Fail-closed builder; deterministic content-derived `run_id`; canonical digest. |
 | `cohort.js` | Loads and shape-validates a cohort: bidirectional catalog↔workspace matching, strata coverage, holdout families. The seed cohort lives at `scripts/evals/__fixtures__/k12/` (11 tasks, 4 strata, 4 holdout families). |
+| `pilot-executor.js` | Deterministic Adaptive Repair pilot executor (P2a). Per fixture, a scripted worker output (`pilot.json`: base files, one patch, declared obligations, allowed paths) feeds both arms. Each arm compiles its own Execution Graph under its own `PolicySnapshot`, then the patch runs through the K4b pure stages (`integrateWorkResultPatches`, K3 Candidate freeze), the K6b verifier and `compareObligations` (oracle applied). Arm plans come from the live routing table (`lite` for local-reversible, `bugfix` for behavior-repair); the Repair recipe compresses phases and inherits every control gate. It does not measure worker isolation (K6a) or model quality; phase counts are a declared hypothesis. Other strata are recorded as excluded. Run with `node scripts/k12-campaign.js --paired --seed <seed>`. |
 | `runner.js` | `planRuns` (deterministic seeded shuffle per repetition; unique worktree/cache per run; planned manifests never claim outcomes), `executePlan` (sequential, injectable executor, immutable records), `summarizeCohort` (task-grouped variance: repetitions are correlated, the task is the statistical unit; explicit numerators/denominators; exclusions listed, never dropped; `usable-baseline` verdict only for complete cohorts; rejects mixed policies), `planPairedRuns` (both arms per fixture repetition, same task order as `planRuns`, seeded arm order, per-arm worktree/cache), `summarizePairedCohort` (per-task paired deltas adaptive − fixed, cohort mean/sd/95% t interval over tasks, regressions as veto candidates, excluded pairs listed, unapplied oracles counted, `usable-comparison` only when every pair is complete). |
 
 ## Growth path (not yet built)

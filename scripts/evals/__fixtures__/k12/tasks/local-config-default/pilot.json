@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "files": {
+    "src/config.js": "module.exports = { timeoutMs: 0 };\n"
+  },
+  "patch": "--- a/src/config.js\n+++ b/src/config.js\n@@ -1,1 +1,1 @@\n-module.exports = { timeoutMs: 0 };\n+module.exports = { timeoutMs: 5000 };\n",
+  "allowed_paths": [
+    "src/config.js"
+  ],
+  "obligations": [
+    {
+      "id": "tests-pass",
+      "criticality": "must",
+      "required_evidence": [
+        "focused-test-output"
+      ]
+    },
+    {
+      "id": "behavior-preserved",
+      "criticality": "should",
+      "required_evidence": [
+        "before-after-example"
+      ]
+    }
+  ]
+}

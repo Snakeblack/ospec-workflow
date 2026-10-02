@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "files": {
+    "src/adapter.js": "function adapt(input) {\n  return { id: input.id };\n}\nmodule.exports = { adapt };\n"
+  },
+  "patch": "--- a/src/adapter.js\n+++ b/src/adapter.js\n@@ -1,4 +1,4 @@\n-function adapt(input) {\n-  return { id: input.id };\n-}\n-module.exports = { adapt };\n+function adapt(input) {\n+  return { id: input.id !== undefined ? input.id : input.legacyId };\n+}\n+module.exports = { adapt };\n",
+  "allowed_paths": [
+    "src/adapter.js"
+  ],
+  "obligations": [
+    {
+      "id": "behavior-preserved",
+      "criticality": "must",
+      "required_evidence": [
+        "compatibility-test-output"
+      ]
+    },
+    {
+      "id": "no-scope-drift",
+      "criticality": "should",
+      "required_evidence": [
+        "changed-files-list"
+      ]
+    }
+  ]
+}

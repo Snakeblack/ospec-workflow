@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "files": {
+    "src/store.js": "function update(store, key, value) {\n  store.version += 1;\n  store.data[key] = value;\n}\nmodule.exports = { update };\n"
+  },
+  "patch": "--- a/src/store.js\n+++ b/src/store.js\n@@ -1,5 +1,6 @@\n-function update(store, key, value) {\n-  store.version += 1;\n-  store.data[key] = value;\n-}\n-module.exports = { update };\n+function update(store, key, value) {\n+  if (store.data[key] === value) return;\n+  store.version += 1;\n+  store.data[key] = value;\n+}\n+module.exports = { update };\n",
+  "allowed_paths": [
+    "src/store.js"
+  ],
+  "obligations": [
+    {
+      "id": "tests-pass",
+      "criticality": "must",
+      "required_evidence": [
+        "focused-test-output"
+      ]
+    },
+    {
+      "id": "no-scope-drift",
+      "criticality": "must",
+      "required_evidence": [
+        "changed-files-list"
+      ]
+    }
+  ]
+}

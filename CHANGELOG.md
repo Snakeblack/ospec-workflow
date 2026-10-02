@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.75.0] - 2026-10-03
+
+### Added
+- **Piloto Adaptive Repair — P2a, ejecutor determinista (K12)**: `scripts/lib/k12/pilot-executor.js` ejecuta los dos brazos del piloto sobre la misma salida guionizada del worker (`pilot.json` por fixture: archivos base, un parche, obligaciones declaradas y rutas permitidas) en los estratos local-reversible y behavior-repair. Cada brazo compila su Execution Graph bajo su propio `PolicySnapshot` y pasa el parche por las etapas puras de K4b (`integrateWorkResultPatches` y Candidate K3), el verifier K6b y el oracle K12, ahora aplicado (`oracle.applied: true`). Los planes de control salen de la tabla de routing viva (`lite` y `bugfix`); la receta Repair comprime fases y hereda todos los gates de control. Los demás estratos quedan como excluidos. No mide aislamiento del worker (K6a) ni calidad de modelo, y el número de fases es una hipótesis declarada.
+- **`node scripts/k12-campaign.js --paired`**: corre la campaña emparejada y resume con `summarizePairedCohort` (sale con 1 si no es `usable-comparison`). Con la cohorte semilla da 6 tareas comparables, 0 regresiones y −2 fases por tarea.
+
+### Changed
+- **Análisis del piloto**: el brazo Repair usa las etapas puras de K4b en lugar de `orchestrateRepairShadow` (exige aislamiento K6a real y prohíbe ejecutores inyectados); P2 se divide en P2a y P2b.
+
+**Verificación directa**: `node scripts/check.js` (3589 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.74.0] - 2026-10-02
 
 ### Added
