@@ -102,7 +102,7 @@ Chain strategy: stacked-to-main
 - [x] 7.1 Generate Claude output and inspect: verify addendum present in rules tree, `.mcp.json` has no `engram` server, hooks.json has no `engram` memory hooks. [REQ-session-memory-008/009]
 - [x] 7.2 Generate all non-Claude profiles and verify addendum is absent from each. Verify only sdd-phase-common table text differs from baseline. [REQ-generator-018]
 - [x] 7.3 Run `npm run setup:claude` with no --with-engram and verify guidance is printed only (no mutations) and exit code is 0. [REQ-install-029]
-- [x] 7.4 If Engram CLI is available locally for testing: run `npm run setup:claude -- --with-engram` and verify idempotency (second run reports "already configured"). [REQ-install-030]
+- [x] 7.4 Idempotency of `--with-engram` (second run reports "already configured") is covered by simulated injected-spawn tests only; it was NOT exercised end-to-end with the real Engram/Claude CLI (a real run mutated user config and was reverted, so it must not be repeated). [REQ-install-030]
 
 ---
 

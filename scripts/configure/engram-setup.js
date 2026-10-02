@@ -21,8 +21,9 @@ const PLUGIN_ID = "engram@engram";
 const BINARY_CANDIDATES = ["engram", "engram.exe"];
 const DEFAULT_TIMEOUT_MS = 10000;
 const PLUGIN_RE = /\bengram@[\w.-]+/;
-// Plugin-provided servers are listed as `plugin:<plugin>:<server>`; a user-scoped
-// registration (`engram setup claude-code`) is listed as plain `engram`.
+// Matches a plain or `plugin:engram:`-prefixed `engram` line if one is ever listed.
+// Real Claude Code does NOT list plugin-provided servers in `claude mcp list`, so this
+// is only a secondary signal; a registered plugin (PLUGIN_RE) is the primary one.
 const MCP_RE = /^(?:plugin:engram:)?engram\b/m;
 const MARKETPLACE_RE = /\bengram\b/i;
 const VERSION_RE = /\d+\.\d+\.\d+(?:[-+][\w.]+)?/;
@@ -131,6 +132,7 @@ function guidance(detection, claudeBin) {
     lines.push(
       "  - Engram binary found but the plugin is not registered in Claude Code.",
       "    Run `npm run setup:claude -- --with-engram` to install the plugin (no changes made now).",
+      "    The upstream plugin hooks need bash, jq and curl (Git Bash on Windows).",
     );
   }
   return `${lines.join("\n")}\n`;

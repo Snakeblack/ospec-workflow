@@ -170,6 +170,28 @@ test("run: without --with-engram it prints guidance and spawns nothing mutating"
   assert.match(stdout.value, /--with-engram/);
 });
 
+test("run: guidance for a found binary with an unregistered plugin carries the bash/jq/curl notice (REQ-install-029)", () => {
+  const spawn = makeSpawn({ ...FULL_ABSENT, "engram version": ok("engram 1.0.0"), "engram doctor --json": ok("{}") });
+  const stdout = writer();
+  runEngramStep({ argv: [], claudeBin: CLAUDE, spawn, stdout, stderr: writer() });
+  assert.match(stdout.value, /not registered/);
+  assert.match(stdout.value, /bash/);
+  assert.match(stdout.value, /jq/);
+  assert.match(stdout.value, /curl/);
+  assert.deepEqual(mutations(spawn.calls), []);
+});
+
+test("run: an engram doctor failure or timeout is warned through runEngramStep without mutating or throwing", () => {
+  for (const doctor of [fail(1, "doctor broke"), errored("ETIMEDOUT")]) {
+    const spawn = makeSpawn({ ...FULL_ABSENT, "engram version": ok("engram 1.0.0"), "engram doctor --json": doctor });
+    const stdout = writer();
+    const stderr = writer();
+    assert.equal(runEngramStep({ argv: [], claudeBin: CLAUDE, spawn, stdout, stderr }), undefined);
+    assert.match(stderr.value, /warning: engram doctor reported "(error|timeout)"/);
+    assert.deepEqual(mutations(spawn.calls), []);
+  }
+});
+
 test("run: with opt-in installs the plugin and skips setup when the re-probe shows the plugin", () => {
   let installed = false;
   const spawn = makeSpawn({

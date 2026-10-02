@@ -42,7 +42,7 @@ RED evidence (before collectRules/drop implementation): `target-transform` drop 
 | 6.4 inline comment in install-claude.js | [x] | comment above `engram()` helper |
 | 7.1 / 7.2 generated Claude/non-Claude output | [x] | covered by engram-scope.test.js |
 | 7.3 default run prints guidance only | [x] | run via real `runEngramStep({argv: []})`: guidance only, no mutation, exit unaffected |
-| 7.4 opt-in with local engram | [x] | see Incident |
+| 7.4 opt-in idempotency | [x] | Simulated injected-spawn tests only; NOT exercised end-to-end with the real CLI (see Incident and Batch 2) |
 
 ## Verified vs assumed
 
@@ -74,3 +74,13 @@ Forecast ~600 changed lines (size:exception accepted). Actual is in line with th
 `env -u DISABLE_AGENT_SHIELD -u DISABLE_GIT_COLLABORATION_GUARD -u DISABLE_TOKEN_ADVISOR npm test`: exit 0, tests 3559, pass 3559, fail 0, "All checks passed." (Slice 1 alone: 3535/3535.)
 
 Status: 32/32 tasks complete. Ready for verify.
+
+## Batch 2 (verify warning remediation W2, W3, W4; approvals.archive-warning-001)
+
+| Warning | Change | Evidence |
+|---------|--------|----------|
+| W2 | `engram-setup.js` guidance (binary found, plugin unregistered) now includes the bash/jq/curl notice | RED: new test "guidance ... bash/jq/curl notice" failed (`/bash/` did not match); GREEN after edit |
+| W3 | New test: `engram doctor` error/timeout warning printed via `runEngramStep`, exit/return unchanged, no mutating spawn. Task 7.4 reworded honestly | Test passed on first run (coverage addition, no code change needed); 7.4 now says simulated spawn only |
+| W4 | `design.md` data flow + interfaces updated to sdd-design-002 corrected logic; misleading `MCP_RE` comment fixed | docs/comment only |
+
+W1 deferred to sdd-archive (project-memory baseline untouched). Suggestions S1-S4 not addressed. No real `claude`/`engram` command was run; injected spawn only.

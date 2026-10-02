@@ -76,8 +76,12 @@ setup:claude [--with-engram]
                    detect: engram version · doctor --json · claude plugin list · claude mcp list
                    no opt-in ─▶ guidance only
                    opt-in & claude CLI present:
+                     plugin OR mcp registered ─▶ "already configured", no mutation
+                       (a registered plugin = configured: `claude mcp list` does not
+                        list plugin-provided servers)
                      plugin absent ─▶ marketplace add (if missing) + plugin install
-                     re-probe mcp ─▶ absent ─▶ engram setup claude-code
+                     re-probe plugin+mcp ─▶ both still absent ─▶ engram setup claude-code
+                       (conditional fallback only; needs bash/jq/curl)
                      each failure ─▶ warning
 ```
 
@@ -107,9 +111,13 @@ detectEngram({ spawn, claudeBin, timeoutMs = 10000 }) -> {
   binary: { found, bin, version },            // candidates: engram, engram.exe
   doctor: "ok" | "warn" | "error" | "timeout" | "skipped",
   plugin: "registered" | "absent" | "unknown", // /\bengram@[\w.-]+/ in `claude plugin list`
-  mcp:    "registered" | "absent" | "unknown", // /^(plugin:engram:)?engram\b/m in `claude mcp list`
+  mcp:    "registered" | "absent" | "unknown", // /^(plugin:engram:)?engram\b/m in `claude mcp list`; secondary signal only (plugin-provided servers are not listed there)
 }
-planEngramActions(detection, { optIn }) -> Array<{ id, bin, argv }> // [] unless optIn && claudeBin
+// [] unless optIn && claudeBin && binary found; also [] when plugin OR mcp is registered
+// (registered plugin = configured) or any probe is "unknown". `setup-claude-code` is a
+// conditional fallback (needs jq/curl): the runner re-probes after the plugin install and
+// skips it when the plugin or MCP is now visible.
+planEngramActions(detection, { optIn, claudeBin }) -> Array<{ id, bin, argv }>
 runEngramStep({ argv, claudeBin, spawn, stdout, stderr }) -> void   // never throws
 ```
 
