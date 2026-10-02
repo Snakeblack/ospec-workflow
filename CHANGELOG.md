@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.73.1] - 2026-10-02
+
+### Fixed
+- **Emisión de attestation K8 (revisión trust de v2.73.0)**:
+  - **Reconciliación por replay**: un outcome registrado o desconocido en la operación ligada se evalúa después del check de replay exacto. Así, re-presentar los mismos inputs tras una interrupción converge aunque el llamador haya marcado la operación como `unknown`. Sin replay sigue devolviendo `EVALUATION_OPERATION_BINDING_RECONCILIATION_REQUIRED` sin consumir el permit, y un target sin identidad resoluble se rechaza antes de leer el store.
+  - **Cierre único por subject**: un segundo permit ya no puede re-emitir una attestation emitida (`EVALUATION_ISSUANCE_ALREADY_ISSUED`) ni cerrar otra vez una operación de evaluación ya cerrada en el mismo subject (`EVALUATION_OPERATION_ALREADY_CLOSED`).
+  - **Alcance del binding aclarado**: el binding operativo y su registro son snapshots aportados por el llamador; el resolver solo prueba su consistencia mutua, y la identidad la autentica el digest de argumentos del permit. La emisión no verifica la operación contra un registro vivo; quien mintea el permit debe leer ese registro de una fuente confiable. Corrige la descripción de v2.73.0, que lo presentaba como una resolución contra el registro de la operación.
+
+### Changed
+- **Specs reconciliadas**: `kernel-contract-schemas` documenta el schema de attestation (REQ-032) y `run-manifest/v1` de K12 (REQ-033), y REQ-026 recoge las relaciones `reviewed-by`/`invalidates` y los nodos de review de K7. Nuevo dominio baseline `evaluation-attestation` (REQ-001 a REQ-018) para el constructor/validador y el issuer de K8.
+
+**Verificación directa**: `node scripts/check.js` (3575 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.73.0] - 2026-10-02
 
 ### Added
