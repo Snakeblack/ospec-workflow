@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.76.0] - 2026-10-03
+
+### Added
+- **Piloto Adaptive Repair — P2b, defectos sembrados (K12)**: `pilot.json` v2 declara un check real por rol de evidencia (acceptance, invariants, contract, negative), ejecutado en `node:vm` sobre los archivos del candidate; solo los checks que pasan producen evidencia y receipt del runner K6b, y los de aceptación deben fallar sobre la base (reproducción, etapa compartida por ambos brazos). Cada fixture siembra cuatro variantes con etapa de detección declarada: `scope-drift` (integración K4b), `complacent-test` (reproducción), `wrong-patch` (verify) y `stale-receipt` (verify, por binding del receipt). Las variantes aceptadas cuentan como escapadas; las rechazadas en otra etapa fallan la corrida como fixture mal atribuido.
+- **`outcome.defects` en `RunManifest v1`** (aditivo, autoconsistente: `seeded`, `detected`, `escaped`) y recuentos por brazo en `summarizePairedCohort`, con los escapes exclusivos del brazo Adaptive como `defect_regressions` (candidatos a veto). Con la cohorte semilla ambos brazos detectan 24/24 por repetición y no hay regresiones de defectos.
+
+### Changed
+- **Análisis del piloto**: la recuperación en adversarial pasa a un slice propio (P2c). Límite conocido registrado: K6b juzga por presencia de evidencia que pasa por rol.
+
+**Verificación directa**: `node scripts/check.js` (3598 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.75.0] - 2026-10-03
 
 ### Added
