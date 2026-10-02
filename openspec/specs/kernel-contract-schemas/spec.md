@@ -1291,11 +1291,13 @@ The family MUST be registered in `schemas/kernel/manifest.json` (key `candidate-
 
 The contract suite MUST publish `schemas/kernel/run-manifest/v1.schema.json` (`$id: "ospec://schemas/kernel/run-manifest/v1"`, `schema_version: 1`) recording a derived K12 corpus execution measurement. The schema MUST require `schema_version`, `run_id`, `cohort_id`, `fixture_id`, `stratum`, `policy`, `repetition_index`, `repetitions_total`, `order_seed`, `worktree_path`, `cache_namespace`, `evaluator`, `host`, `catalog_digest`, `outcome`, and `versions`, MUST set `additionalProperties: false` at the root, and MAY carry optional `started_at` and `completed_at` as `date-time` strings.
 
-Field constraints: `run_id`, `cohort_id`, `fixture_id`, `order_seed`, `worktree_path`, `cache_namespace`, `evaluator`, and `host` MUST be non-empty strings; `stratum` MUST be one of `local-reversible | behavior-repair | multi-module | adversarial`; `policy` MUST be `fixed`; `repetition_index` MUST be an integer >= 0 and `repetitions_total` an integer >= 1; `catalog_digest` MUST match `^[a-f0-9]{64}$` (bare hex, without a `sha256:` prefix).
+Field constraints: `run_id`, `cohort_id`, `fixture_id`, `order_seed`, `worktree_path`, `cache_namespace`, `evaluator`, and `host` MUST be non-empty strings; `stratum` MUST be one of `local-reversible | behavior-repair | multi-module | adversarial`; `policy` MUST be one of `fixed | adaptive-repair-v1` (`fixed` is the control arm; `adaptive-repair-v1` is the fixed Adaptive Repair pilot arm, and recording it grants no authority and changes no default); `repetition_index` MUST be an integer >= 0 and `repetitions_total` an integer >= 1; `catalog_digest` MUST match `^[a-f0-9]{64}$` (bare hex, without a `sha256:` prefix).
 
 `outcome` MUST be an object requiring `status` (`pass | fail | incomplete | excluded`) with optional `note` (string), optional `measurements`, and optional `oracle`, and MUST disallow other properties. When present, `measurements` MUST require `phases_executed`, `effects_executed`, `events_recorded`, `wall_ms`, `interruptions`, and `recoveries` (non-negative; all integers except `wall_ms`, which is a non-negative number) and disallow other properties. When present, `oracle` MUST require `applied` (boolean) and `reason` (a non-empty string containing at least one non-whitespace character) and disallow other properties. `versions` MUST be an object requiring a non-empty string `runner_version` and MAY carry additional string-valued entries.
 
 The family directory MUST be listed among the additive, K1-excluded paths in `listK1SchemaFiles` (`scripts/lib/lifecycle-kernel/k1-compat.js`) so it is not part of the frozen K1 baseline pin. This family is not registered in `schemas/kernel/manifest.json` or `schemas/kernel/contract-claims.json`.
+
+(Previously: `policy` MUST be `fixed`. The Adaptive Repair pilot (P1) adds the `adaptive-repair-v1` arm additively within v1; `fixed`-only payloads remain valid.)
 
 #### Scenario: Complete run manifest validates
 
@@ -1311,9 +1313,16 @@ The family directory MUST be listed among the additive, K1-excluded paths in `li
 
 #### Scenario: Out-of-range enum, index, or digest fails closed
 
-- GIVEN a payload with an unlisted `stratum`, `policy` other than `fixed`, `repetition_index < 0`, `repetitions_total < 1`, or a `catalog_digest` that is not 64 lowercase hex characters
+- GIVEN a payload with an unlisted `stratum`, `policy` other than `fixed` or `adaptive-repair-v1`, `repetition_index < 0`, `repetitions_total < 1`, or a `catalog_digest` that is not 64 lowercase hex characters
 - WHEN validated against the schema
 - THEN validation MUST fail closed identifying the violating property
+
+#### Scenario: Pilot arm validates and unknown arms fail closed
+
+- GIVEN an otherwise complete payload with `policy: "adaptive-repair-v1"`, and another with `policy: "kernel-shadow"`
+- WHEN validated against the schema
+- THEN the `adaptive-repair-v1` payload MUST validate
+- AND the `kernel-shadow` payload MUST fail closed identifying `policy`
 
 #### Scenario: Outcome measurements and oracle are closed objects
 

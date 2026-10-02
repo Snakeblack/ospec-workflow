@@ -6,6 +6,7 @@ const { resolve } = require("node:path");
 const test = require("node:test");
 
 const {
+  POLICIES,
   REQUIRED_RUN_MANIFEST_FIELDS,
   RunManifestError,
   buildRunManifest,
@@ -226,6 +227,23 @@ test("produces a stable digest across key permutation", () => {
   };
 
   assert.equal(runManifestDigest(manifest), runManifestDigest(reordered));
+});
+
+test("accepts exactly the fixed control and adaptive-repair-v1 pilot arms", () => {
+  assert.deepEqual(POLICIES, ["fixed", "adaptive-repair-v1"]);
+  const adaptive = buildRunManifest({ ...validInput(), policy: "adaptive-repair-v1" });
+  assert.equal(adaptive.policy, "adaptive-repair-v1");
+  assert.notEqual(adaptive.run_id, buildRunManifest(validInput()).run_id);
+
+  for (const policy of ["kernel", "kernel-shadow", "adaptive", "", undefined]) {
+    const validation = validateRunManifest({ ...buildRunManifest(validInput()), policy });
+    assert.equal(validation.valid, false, String(policy));
+    assert.ok(validation.errors.includes("run manifest policy must be one of fixed, adaptive-repair-v1"));
+  }
+
+  const schemaPath = resolve(__dirname, "../../../schemas/kernel/run-manifest/v1.schema.json");
+  const schema = JSON.parse(readFileSync(schemaPath, "utf8"));
+  assert.deepEqual(schema.properties.policy.enum, POLICIES);
 });
 
 test("keeps schema required fields synchronized with the module", () => {

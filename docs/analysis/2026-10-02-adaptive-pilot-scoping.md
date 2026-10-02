@@ -1,0 +1,81 @@
+# Piloto Adaptive fijo — análisis de alcance (prioridad 6)
+
+> **Fecha:** 2026-10-02 · **Base:** v2.73.1 · **Naturaleza:** análisis previo; no cambia estados de OpenSpec ni el roadmap.
+> **Fuentes:** [`ospec-adaptive-critical-design.md`](../architecture/ospec-adaptive-critical-design.md) («Evaluación mínima útil», regla contra la sobreingeniería) y [`harness-evolution.md`](../roadmaps/harness-evolution.md) (K9, K10, K12, Gate de rollout).
+
+## Pregunta que responde el piloto
+
+¿Una política Adaptive **fija** (sin aprendizaje) para una receta reduce ceremonia y coste sin degradar cobertura de obligaciones, evidencia, autoridad ni recovery frente a `fixed`, en un ámbito aislado y reversible? El resultado es un checkpoint `continue | revise | reject` que alimenta K9; el piloto no promueve nada ni cambia defaults.
+
+## 1. Receta: Repair en el host de referencia
+
+| Criterio | Repair | Bounded | Direct |
+| --- | --- | --- | --- |
+| Gate de rollout K10 | «Activar un profile cada vez, **empezando Repair**» | Después | «Solo después de demostrar que el coste reducido no omite garantías» |
+| Brazo ejecutable existente | `orchestrateRepairShadow` (K4b) ya ejecuta grafos Repair aislados y compara contra el baseline `fixed` (`compareShadowExecution`) | No existe | No existe |
+| Reversibilidad (el canónico exige tareas reversibles en el primer ámbito) | Sí | Depende de la descomposición | Sí, pero sin margen de assurance que medir |
+| Garantías comprobables | Reproducción, regresión, verify ligado al candidate (K6b), review residual (K7) y attestation (K8) | Contrato, descomposición y review | Mínimas |
+
+**Recomendación: Repair.** Es la única receta con brazo ejecutable, encaja con el gate de rollout y sus garantías se pueden medir con lo ya entregado (K6b/K7/K8).
+
+## 2. Qué existe y qué falta (K12 focal)
+
+| Pieza | Estado en v2.73.1 | Hueco para el piloto |
+| --- | --- | --- |
+| Oracle independiente (`k12/obligation-oracle.js`) | Catálogo versionado por fixture; `compareObligations` | **No se aplica en la campaña**: `campaign-executor.js` reporta `oracle.applied: false` («no observed contract») |
+| `RunManifest v1` | Bind de fixture, seed, worktree/cache y evaluator | `policy` tiene el enum `["fixed"]`: **no admite un segundo brazo** |
+| Cohorte semilla | 11 tareas en 4 estratos (3 local-reversible, 3 behavior-repair, 3 multi-module y 2 adversarial) y 4 familias de holdout | El canónico pide 20–30 tareas; **solo 3 son de reparación** |
+| Runner (`planRuns`, `summarizeCohort`) | Orden con seed, la tarea como unidad estadística y exclusiones listadas | **Una sola política**: no hay plan emparejado por tarea ni diferencias pareadas con intervalos agrupados |
+| Ejecutor de campaña | Lifecycle sintético de un nodo sobre el harness K2: mide **maquinaria**, no candidates | No produce un Candidate real por tarea ni pasa por K6b/K7/K8 |
+| Brazo Repair (K4b) | Orquestación shadow con cadena de identidades y comparación contra `fixed` | No está conectado al runner K12 ni emite `RunManifest` |
+| K8 | Attestation ligada a candidate, policy y operación | Falta mostrar con fixtures que las attestations de cada brazo, bajo su `PolicySnapshot`, no son intercambiables (done criterion K9) |
+| Márgenes y vetos | Deliberadamente no inventados | **Decisión de producto obligatoria antes de ejecutar** |
+
+## 3. Diseño de la comparación
+
+Primero la **equivalencia de mecanismo** de K9; la calibración de profile con modelos reales va después.
+
+- **Brazos:** `fixed` (las rutas actuales de `routing:`) frente a `adaptive-repair-v1` (receta Repair vía K4b), cada uno con su `PolicySnapshot` declarado.
+- **Se mantienen fijos:** fixture, `SourceSnapshot`, obligaciones del catálogo, budgets, host, verifier independiente (K6b), oracle (K12) y evaluator.
+- **Puede variar:** la representación, la receta y el número de invocaciones y artefactos.
+- **Ejecutor inicial determinista:** la salida del worker por tarea es un parche guionizado e idéntico en ambos brazos, con variantes de defecto sembrado: parche incorrecto, test complaciente, scope drift y receipt obsoleto. Esto aísla el mecanismo: mide si la receta conserva cobertura, evidencia, autoridad y recovery con menos ceremonia, y si detecta los defectos sembrados. **No** mide la calidad de los modelos; eso es la fase de calibración con agentes reales.
+- **Emparejamiento:** los dos brazos por tarea comparten seed; el orden de los brazos se aleatoriza; worktrees y cachés van separados; 3 repeticiones por brazo.
+- **Unidad estadística:** la tarea (las repeticiones están correlacionadas). Se usan diferencias pareadas por tarea con intervalos agrupados, y se publican numeradores, denominadores y exclusiones.
+- **Holdout:** se reserva una familia por estrato, sin consultarla durante el ajuste; se registra la exposición.
+
+### Métricas (del canónico)
+
+| Dimensión | Medida en el piloto determinista |
+| --- | --- |
+| Cobertura | Obligaciones `must` omitidas frente al oracle (objetivo: 0) |
+| Calidad | Defectos sembrados detectados/escapados por brazo |
+| Autoridad | Efectos fuera de permiso, intentos de bypass y comportamiento ante unknown (fault injection en adversarial) |
+| Recovery | Recuperación correcta tras interrupciones inyectadas; reintentos dentro del límite |
+| Ceremonia | Fases, artefactos semánticos, handoffs e invocaciones por tarea |
+| Coste | Invocaciones, `wall_ms` y reintentos por candidate aceptado (los tokens solo con agentes reales) |
+| Varianza | Dispersión por tarea y colas, no solo medias |
+| Complejidad | Inventario antes/después de autoridades, schemas y reglas duplicadas que añade el piloto |
+
+## 4. Slices propuestos (pequeños, directos, uno por PR)
+
+| Slice | Contenido | Done |
+| --- | --- | --- |
+| **P1 — Brazo y plan emparejado** | `RunManifest` admite `adaptive-repair-v1` (versión o extensión del enum, con fixtures y spec en `kernel-contract-schemas`); `planPairedRuns` y `summarizePairedCohort` (diferencias pareadas por tarea, intervalos agrupados, exclusiones) | Determinismo byte a byte; `fixed` sigue siendo el default; la cohorte incompleta no da veredicto |
+| **P2 — Ejecutor determinista con oracle aplicado** | Por fixture: parche guionizado → Candidate (K3) → verify K6b → `compareObligations` aplicado (`oracle.applied: true`); el brazo Repair se ejecuta vía `orchestrateRepairShadow` | Ambos brazos producen `RunManifest` completos sobre la misma cohorte; las omisiones del manifest autodeclarado se detectan |
+| **P3 — Cohorte del piloto** | De 11 a 20–24 tareas, con peso en behavior-repair y local-reversible, adversarial para autoridad y recovery, sin migraciones ni efectos externos; variantes de defecto sembrado; holdout por familia | `validateCohortShape` verde; el catálogo del oracle está versionado |
+| **P4 — Márgenes, ejecución e informe** | Márgenes de no inferioridad, mejora práctica y vetos **predeclarados** (decisión de producto); campaña emparejada de 3 repeticiones; informe y checkpoint `continue / revise / reject` | Informe con intervalos y cohortes excluidas; veto ante cualquier `must` omitida o efecto fuera de permiso |
+| Después | Calibración con agentes reales (modelo/effort versionados), luego K9 | Fuera de este alcance |
+
+**Rollback:** todo es tooling de medición library-only, sin autoridad operativa; si se retira, `fixed` y el routing actual no cambian.
+
+## 5. Decisiones abiertas para el usuario
+
+1. **Receta:** Repair (recomendado).
+2. **Primer ejecutor:** determinista (recomendado; barato, reproducible y aísla el mecanismo) o directamente agentes reales (mide calidad de modelo, pero cuesta tokens y añade varianza y dependencia del host).
+3. **Márgenes y vetos:** no se fijan ahora. Se proponen antes de P4, con el baseline de P2/P3 delante. Vetos candidatos no numéricos: cualquier obligación `must` omitida, cualquier efecto fuera de permiso y cualquier recovery inválida.
+
+## Riesgos
+
+- **Sobreinterpretar el piloto determinista:** demuestra conservación de garantías y menor ceremonia, no superioridad de calidad. El informe lo dice explícitamente.
+- **Muestra pequeña:** 20–30 tareas encuentran defectos de diseño y estiman varianza; no demuestran seguridad (canónico).
+- **Sobreingeniería:** cada abstracción nueva (brazo, plan emparejado) debe responder a las cinco preguntas de la regla J. Se reutiliza K4b/K12/K6b, sin un runner paralelo.
