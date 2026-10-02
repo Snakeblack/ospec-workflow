@@ -74,35 +74,35 @@ Chain strategy: stacked-to-main
 
 ## Phase 4: Installer Infrastructure (Slice 2)
 
-- [ ] 4.1 Create `scripts/configure/engram-setup.js` with: detectEngram({ spawn, claudeBin, timeoutMs }), planEngramActions(detection, { optIn }), runEngramStep({ argv, claudeBin, spawn, stdout, stderr }). Implement fail-open semantics: detection errors/timeouts → warnings, no mutation without optIn. [REQ-install-028/029/030] [ADR-002]
-- [ ] 4.2 Within detectEngram: probe for engram binary (candidates: `engram`, `engram.exe`), run `engram doctor --json` (10s timeout default, regex parse version), run `claude plugin list` (regex for `/\bengram@[\w.-]+/`), run `claude mcp list` (regex for `/^(plugin:engram:)?engram\b/m`). Return structure with binary, doctor, plugin, mcp fields. [REQ-install-028] [ADR-002]
-- [ ] 4.3 Within planEngramActions: if optIn && claudeBin && binary.found, return array of argv objects: [{ id: 'plugin-marketplace-add', argv }, { id: 'plugin-install', argv }, { id: 'setup-claude-code', argv (conditional if no MCP) }]. If any detection is 'unknown', return []. [REQ-install-029/030] [ADR-002]
-- [ ] 4.4 Within runEngramStep: iterate planEngramActions result, spawn each argv with injected spawn, catch errors (including ENOENT/ETIMEDOUT), log warning, never throw. Always return void. [REQ-install-028] [ADR-002]
-- [ ] 4.5 Modify `scripts/configure/install-claude.js`: parse CLI flag `--with-engram` into opts.engramOptIn boolean. Inject `deps.engramStep` (module-level or testable). On success path after ospec install and if claudeBin present (or if ospec CLI absent), call `runEngramStep(detectEngram(...), opts.engramOptIn)`. Never alter exit code on Engram failure. [REQ-install-028/029/030] [ADR-002]
-- [ ] 4.6 Add `--build-only` skip logic to install-claude.js: if opts.buildOnly is true, skip Engram step entirely. [Design spec: `--build-only` skips Engram]
-- [ ] 4.7 Update `README.md` and `README.es.md` with one-line note on `--with-engram` flag and bash/Git Bash requirement for upstream plugin. [Design scope]
+- [x] 4.1 Create `scripts/configure/engram-setup.js` with: detectEngram({ spawn, claudeBin, timeoutMs }), planEngramActions(detection, { optIn }), runEngramStep({ argv, claudeBin, spawn, stdout, stderr }). Implement fail-open semantics: detection errors/timeouts → warnings, no mutation without optIn. [REQ-install-028/029/030] [ADR-002]
+- [x] 4.2 Within detectEngram: probe for engram binary (candidates: `engram`, `engram.exe`), run `engram doctor --json` (10s timeout default, regex parse version), run `claude plugin list` (regex for `/\bengram@[\w.-]+/`), run `claude mcp list` (regex for `/^(plugin:engram:)?engram\b/m`). Return structure with binary, doctor, plugin, mcp fields. [REQ-install-028] [ADR-002]
+- [x] 4.3 Within planEngramActions: if optIn && claudeBin && binary.found, return array of argv objects: [{ id: 'plugin-marketplace-add', argv }, { id: 'plugin-install', argv }, { id: 'setup-claude-code', argv (conditional if no MCP) }]. If any detection is 'unknown', return []. [REQ-install-029/030] [ADR-002]
+- [x] 4.4 Within runEngramStep: iterate planEngramActions result, spawn each argv with injected spawn, catch errors (including ENOENT/ETIMEDOUT), log warning, never throw. Always return void. [REQ-install-028] [ADR-002]
+- [x] 4.5 Modify `scripts/configure/install-claude.js`: parse CLI flag `--with-engram` into opts.engramOptIn boolean. Inject `deps.engramStep` (module-level or testable). On success path after ospec install and if claudeBin present (or if ospec CLI absent), call `runEngramStep(detectEngram(...), opts.engramOptIn)`. Never alter exit code on Engram failure. [REQ-install-028/029/030] [ADR-002]
+- [x] 4.6 Add `--build-only` skip logic to install-claude.js: if opts.buildOnly is true, skip Engram step entirely. [Design spec: `--build-only` skips Engram]
+- [x] 4.7 Update `README.md` and `README.es.md` with one-line note on `--with-engram` flag and bash/Git Bash requirement for upstream plugin. [Design scope]
 
 ## Phase 5: Testing and Validation (Slice 2 integration)
 
-- [ ] 5.1 Create/modify `scripts/configure/engram-setup.test.js`: mock spawn for scenarios: binary absent, doctor fails, timeout, plugin already registered, MCP already registered, both absent. Assert detect result, plan result, and run side-effects (no mutations without optIn, idempotent re-check after plugin install). [REQ-install-028/029/030]
-- [ ] 5.2 Modify `scripts/configure/install-claude.test.js`: add test for --with-engram flag parsing, injection of engramStep mock, Engram failure does not alter exit code, --build-only skips Engram step entirely. [REQ-install-028] [ADR-002]
-- [ ] 5.3 Static scan of `scripts/configure/install-*.js` (other installers for GitHub Copilot, opencode, etc.): verify only `install-claude.js` references `engram-setup`. Assert no Engram detection in other installers. [REQ-install-028]
-- [ ] 5.4 Run full `npm test` with `env -u DISABLE_AGENT_SHIELD -u DISABLE_GIT_COLLABORATION_GUARD -u DISABLE_TOKEN_ADVISOR`: verify all tests pass, including new contract/scope tests. (Session may have exported these; unset them for test stability.) [Design testing requirement]
-- [ ] 5.5 Verify assumption sdd-design-002: if test fixtures include real or mocked engram CLI output, confirm that plugin install + re-probe logic skips setup if MCP already present. [Design assumption validation]
+- [x] 5.1 Create/modify `scripts/configure/engram-setup.test.js`: mock spawn for scenarios: binary absent, doctor fails, timeout, plugin already registered, MCP already registered, both absent. Assert detect result, plan result, and run side-effects (no mutations without optIn, idempotent re-check after plugin install). [REQ-install-028/029/030]
+- [x] 5.2 Modify `scripts/configure/install-claude.test.js`: add test for --with-engram flag parsing, injection of engramStep mock, Engram failure does not alter exit code, --build-only skips Engram step entirely. [REQ-install-028] [ADR-002]
+- [x] 5.3 Static scan of `scripts/configure/install-*.js` (other installers for GitHub Copilot, opencode, etc.): verify only `install-claude.js` references `engram-setup`. Assert no Engram detection in other installers. [REQ-install-028]
+- [x] 5.4 Run full `npm test` with `env -u DISABLE_AGENT_SHIELD -u DISABLE_GIT_COLLABORATION_GUARD -u DISABLE_TOKEN_ADVISOR`: verify all tests pass, including new contract/scope tests. (Session may have exported these; unset them for test stability.) [Design testing requirement]
+- [x] 5.5 Verify assumption sdd-design-002: if test fixtures include real or mocked engram CLI output, confirm that plugin install + re-probe logic skips setup if MCP already present. [Design assumption validation]
 
 ## Phase 6: Documentation and Edge Cases (Slice 2 final)
 
-- [ ] 6.1 Audit `openspec/specs/project-memory/spec.md` for stale claims; confirm no edit needed in apply (sdd-archive will merge REQ-project-memory-001, which includes Purpose/row updates). Note baseline_fingerprints.project-memory is recorded; manual baseline update by archive. [Design assumption sdd-design-003]
-- [ ] 6.2 Verify that no test reads `dist/` (gitignored). All generator tests self-generate into `mkdtemp` and clean up. Spot-check test output paths. [Design requirement: self-generate, never read gitignored dist]
-- [ ] 6.3 In addendum file: review prose for policy-adjacent phrasing. Ensure k1-prose-authority compliance: any sentence pairing recall/conversation with decision/state must carry prohibition token (MUST NOT/never). [Design constraint: k1-prose-authority]
-- [ ] 6.4 Add inline comment in install-claude.js marking Engram step: "Engram integration is optional, non-authoritative, and fail-open per REQ-install-028." [Design rationale documentation]
+- [x] 6.1 Audit `openspec/specs/project-memory/spec.md` for stale claims; confirm no edit needed in apply (sdd-archive will merge REQ-project-memory-001, which includes Purpose/row updates). Note baseline_fingerprints.project-memory is recorded; manual baseline update by archive. [Design assumption sdd-design-003]
+- [x] 6.2 Verify that no test reads `dist/` (gitignored). All generator tests self-generate into `mkdtemp` and clean up. Spot-check test output paths. [Design requirement: self-generate, never read gitignored dist]
+- [x] 6.3 In addendum file: review prose for policy-adjacent phrasing. Ensure k1-prose-authority compliance: any sentence pairing recall/conversation with decision/state must carry prohibition token (MUST NOT/never). [Design constraint: k1-prose-authority]
+- [x] 6.4 Add inline comment in install-claude.js marking Engram step: "Engram integration is optional, non-authoritative, and fail-open per REQ-install-028." [Design rationale documentation]
 
 ## Phase 7: Final Integration Checks
 
-- [ ] 7.1 Generate Claude output and inspect: verify addendum present in rules tree, `.mcp.json` has no `engram` server, hooks.json has no `engram` memory hooks. [REQ-session-memory-008/009]
-- [ ] 7.2 Generate all non-Claude profiles and verify addendum is absent from each. Verify only sdd-phase-common table text differs from baseline. [REQ-generator-018]
-- [ ] 7.3 Run `npm run setup:claude` with no --with-engram and verify guidance is printed only (no mutations) and exit code is 0. [REQ-install-029]
-- [ ] 7.4 If Engram CLI is available locally for testing: run `npm run setup:claude -- --with-engram` and verify idempotency (second run reports "already configured"). [REQ-install-030]
+- [x] 7.1 Generate Claude output and inspect: verify addendum present in rules tree, `.mcp.json` has no `engram` server, hooks.json has no `engram` memory hooks. [REQ-session-memory-008/009]
+- [x] 7.2 Generate all non-Claude profiles and verify addendum is absent from each. Verify only sdd-phase-common table text differs from baseline. [REQ-generator-018]
+- [x] 7.3 Run `npm run setup:claude` with no --with-engram and verify guidance is printed only (no mutations) and exit code is 0. [REQ-install-029]
+- [x] 7.4 If Engram CLI is available locally for testing: run `npm run setup:claude -- --with-engram` and verify idempotency (second run reports "already configured"). [REQ-install-030]
 
 ---
 
