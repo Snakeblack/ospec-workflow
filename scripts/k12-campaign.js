@@ -1,15 +1,25 @@
 #!/usr/bin/env node
 "use strict";
 
+const { readFileSync } = require("node:fs");
 const { mkdir, mkdtemp, writeFile } = require("node:fs/promises");
 const { tmpdir } = require("node:os");
 const { join, resolve } = require("node:path");
 
 const { loadCohort, validateCohortShape } = require("./lib/k12/cohort.js");
 const { createHarnessCampaignExecutor } = require("./lib/k12/campaign-executor.js");
-const { executePlan, planRuns, summarizeCohort } = require("./lib/k12/runner.js");
+const { createDeterministicPilotExecutor } = require("./lib/k12/pilot-executor.js");
+const {
+  executePlan,
+  planPairedRuns,
+  planRuns,
+  summarizeCohort,
+  summarizePairedCohort,
+} = require("./lib/k12/runner.js");
+const { parseRoutingTable } = require("./lib/route-dispatcher.js");
 
 const fixtureRoot = join(__dirname, "evals", "__fixtures__", "k12");
+const configPath = join(__dirname, "..", "openspec", "config.yaml");
 
 function parseArgs(argv) {
   const options = {
@@ -19,12 +29,17 @@ function parseArgs(argv) {
     tasksDir: join(fixtureRoot, "tasks"),
     out: null,
     faults: true,
+    paired: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--no-faults") {
       options.faults = false;
+      continue;
+    }
+    if (arg === "--paired") {
+      options.paired = true;
       continue;
     }
     if (!["--repetitions", "--seed", "--cohort-path", "--tasks-dir", "--out"].includes(arg)) {
@@ -65,25 +80,40 @@ async function main() {
 
   const campaignRoot = await mkdtemp(join(tmpdir(), "k12-campaign-"));
   console.log(`campaign_root=${campaignRoot}`);
-  const plan = planRuns(cohort, {
+  const planOptions = {
     repetitions: options.repetitions,
     order_seed: options.seed,
     cohort_id: `seed-${cohort.catalog.catalog_version}`,
     base_worktree_root: join(campaignRoot, "worktrees"),
     base_cache_root: join(campaignRoot, "cache"),
-    evaluator: "minimal-kernel-harness",
+    evaluator: options.paired ? "k12-pilot-deterministic" : "minimal-kernel-harness",
     host: "node",
-    runner_version: "k12-campaign/v1",
-  });
-  const completed = await executePlan(
-    plan,
-    createHarnessCampaignExecutor({ cohort, faults: options.faults }),
-  );
-  const summary = summarizeCohort(completed);
-  const { overall } = summary;
-  console.log(
-    `tasks=${overall.tasks_total} runs=${overall.runs_total} pass=${overall.runs_pass} fail=${overall.runs_fail}`,
-  );
+    runner_version: options.paired ? "k12-pilot/v1" : "k12-campaign/v1",
+  };
+  let summary;
+  if (options.paired) {
+    // Deterministic Adaptive Repair pilot (P2a): both arms per fixture repetition.
+    const routes = parseRoutingTable(readFileSync(configPath, "utf8"));
+    const completed = await executePlan(
+      planPairedRuns(cohort, planOptions),
+      createDeterministicPilotExecutor({ catalog: cohort.catalog, routes }),
+    );
+    summary = summarizePairedCohort(completed);
+    const { totals } = summary;
+    console.log(
+      `tasks=${totals.tasks_total} comparable=${totals.tasks_comparable} pairs=${totals.pairs_total} excluded=${totals.pairs_excluded} regressions=${summary.regressions.length}`,
+    );
+  } else {
+    const completed = await executePlan(
+      planRuns(cohort, planOptions),
+      createHarnessCampaignExecutor({ cohort, faults: options.faults }),
+    );
+    summary = summarizeCohort(completed);
+    const { overall } = summary;
+    console.log(
+      `tasks=${overall.tasks_total} runs=${overall.runs_total} pass=${overall.runs_pass} fail=${overall.runs_fail}`,
+    );
+  }
   console.log(JSON.stringify(summary, null, 2));
 
   if (options.out) {
@@ -91,7 +121,8 @@ async function main() {
     await mkdir(resolve(outputPath, ".."), { recursive: true });
     await writeFile(outputPath, `${JSON.stringify(summary, null, 2)}\n`, "utf8");
   }
-  if (summary.verdict !== "usable-baseline") process.exitCode = 1;
+  const expected = options.paired ? "usable-comparison" : "usable-baseline";
+  if (summary.verdict !== expected) process.exitCode = 1;
 }
 
 main().catch((error) => {

@@ -61,12 +61,17 @@ Primero la **equivalencia de mecanismo** de K9; la calibración de profile con m
 | Slice | Contenido | Done |
 | --- | --- | --- |
 | **P1 — Brazo y plan emparejado** | `RunManifest` admite `adaptive-repair-v1` (versión o extensión del enum, con fixtures y spec en `kernel-contract-schemas`); `planPairedRuns` y `summarizePairedCohort` (diferencias pareadas por tarea, intervalos agrupados, exclusiones) | Determinismo byte a byte; `fixed` sigue siendo el default; la cohorte incompleta no da veredicto |
-| **P2 — Ejecutor determinista con oracle aplicado** | Por fixture: parche guionizado → Candidate (K3) → verify K6b → `compareObligations` aplicado (`oracle.applied: true`); el brazo Repair se ejecuta vía `orchestrateRepairShadow` | Ambos brazos producen `RunManifest` completos sobre la misma cohorte; las omisiones del manifest autodeclarado se detectan |
+| **P2a — Ejecutor determinista con oracle aplicado** (entregado v2.75.0) | Por fixture: parche guionizado → etapas puras de K4b (`integrateWorkResultPatches` + Candidate K3) → verify K6b → `compareObligations` aplicado (`oracle.applied: true`), en los estratos local-reversible y behavior-repair | Ambos brazos producen `RunManifest` completos sobre la misma cohorte; las omisiones del manifest autodeclarado se detectan |
+| **P2b — Defectos sembrados y recovery** | Variantes de defecto sembrado (parche incorrecto, test complaciente, scope drift, receipt obsoleto) y recuperación en adversarial | Defectos detectados/escapados por brazo; recovery correcta tras interrupciones inyectadas |
 | **P3 — Cohorte del piloto** | De 11 a 20–24 tareas, con peso en behavior-repair y local-reversible, adversarial para autoridad y recovery, sin migraciones ni efectos externos; variantes de defecto sembrado; holdout por familia | `validateCohortShape` verde; el catálogo del oracle está versionado |
 | **P4 — Márgenes, ejecución e informe** | Márgenes de no inferioridad, mejora práctica y vetos **predeclarados** (decisión de producto); campaña emparejada de 3 repeticiones; informe y checkpoint `continue / revise / reject` | Informe con intervalos y cohortes excluidas; veto ante cualquier `must` omitida o efecto fuera de permiso |
 | Después | Calibración con agentes reales (modelo/effort versionados), luego K9 | Fuera de este alcance |
 
 **Rollback:** todo es tooling de medición library-only, sin autoridad operativa; si se retira, `fixed` y el routing actual no cambian.
+
+### Ajuste de P2 (2026-10-02)
+
+`orchestrateRepairShadow` exige aislamiento K6a real (pruebas de capacidad del host) y su spec prohíbe inyectar un ejecutor alternativo. Decisión del usuario: el brazo Repair compone las **etapas puras de K4b** (integración de parches y congelación del Candidate) con el parche guionizado en lugar del worker aislado. El piloto determinista no mide aislamiento (K6a ya lo prueba) y el informe lo declara. P2 se divide en P2a y P2b. El brazo Adaptive hereda todos los gates de la ruta de control y solo comprime fases.
 
 ## 5. Decisiones abiertas para el usuario
 

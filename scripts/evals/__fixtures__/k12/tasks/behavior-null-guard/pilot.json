@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "files": {
+    "src/length.js": "module.exports = (value) => value.length;\n"
+  },
+  "patch": "--- a/src/length.js\n+++ b/src/length.js\n@@ -1,1 +1,1 @@\n-module.exports = (value) => value.length;\n+module.exports = (value) => (value == null ? 0 : value.length);\n",
+  "allowed_paths": [
+    "src/length.js"
+  ],
+  "obligations": [
+    {
+      "id": "behavior-preserved",
+      "criticality": "must",
+      "required_evidence": [
+        "regression-test-output"
+      ]
+    },
+    {
+      "id": "tests-pass",
+      "criticality": "must",
+      "required_evidence": [
+        "focused-test-output"
+      ]
+    }
+  ]
+}

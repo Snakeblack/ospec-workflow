@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "files": {
+    "src/retry.js": "function delayFor(attempt) {\n  return 0;\n}\nmodule.exports = { delayFor };\n"
+  },
+  "patch": "--- a/src/retry.js\n+++ b/src/retry.js\n@@ -1,4 +1,4 @@\n-function delayFor(attempt) {\n-  return 0;\n-}\n-module.exports = { delayFor };\n+function delayFor(attempt) {\n+  return Math.min(1000 * 2 ** attempt, 30000);\n+}\n+module.exports = { delayFor };\n",
+  "allowed_paths": [
+    "src/retry.js"
+  ],
+  "obligations": [
+    {
+      "id": "recovery-no-retry-storm",
+      "criticality": "must",
+      "required_evidence": [
+        "retry-log"
+      ]
+    },
+    {
+      "id": "tests-pass",
+      "criticality": "must",
+      "required_evidence": [
+        "focused-test-output"
+      ]
+    }
+  ]
+}

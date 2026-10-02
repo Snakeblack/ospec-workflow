@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "files": {
+    "src/validate.js": "function validate(name) {\n  if (!name) throw new Error(\"invalid\");\n}\nmodule.exports = { validate };\n"
+  },
+  "patch": "--- a/src/validate.js\n+++ b/src/validate.js\n@@ -1,4 +1,4 @@\n-function validate(name) {\n-  if (!name) throw new Error(\"invalid\");\n-}\n-module.exports = { validate };\n+function validate(name) {\n+  if (!name) throw new Error(\"name is required\");\n+}\n+module.exports = { validate };\n",
+  "allowed_paths": [
+    "src/validate.js"
+  ],
+  "obligations": [
+    {
+      "id": "behavior-preserved",
+      "criticality": "must",
+      "required_evidence": [
+        "regression-test-output"
+      ]
+    },
+    {
+      "id": "tests-pass",
+      "criticality": "should",
+      "required_evidence": [
+        "focused-test-output"
+      ]
+    }
+  ]
+}
