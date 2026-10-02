@@ -9,6 +9,7 @@
 // Usage:
 //   node scripts/configure/install-claude.js            # build + add/update + install/update
 //   node scripts/configure/install-claude.js --build-only  # build only (use /reload-plugins in-session)
+//   node scripts/configure/install-claude.js --with-engram # also register the optional Engram plugin (opt-in)
 //
 // Why a wrapper: the README dance was five manual commands (build, two validate
 // calls, Resolve-Path + marketplace add, install). The build already runs the
@@ -20,6 +21,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { buildClaudeMarketplace } = require("./claude-marketplace.js");
 const { copyBinaryToTree } = require("./install-target.js");
+const { runEngramStep } = require("./engram-setup.js");
 
 const MARKETPLACE = "ospec-tools";
 const PLUGIN = "ospec-workflow";
@@ -84,6 +86,9 @@ function main(argv = process.argv.slice(2), deps = {}) {
   const resolveClaudeBinImpl = deps.resolveClaudeBin || resolveClaudeBin;
   const buildClaudeMarketplaceImpl = deps.buildClaudeMarketplace || buildClaudeMarketplace;
   const copyBinaryToTreeImpl = deps.copyBinaryToTree || copyBinaryToTree;
+  const runImpl = deps.run || run;
+  const listOutputImpl = deps.listOutput || listOutput;
+  const engramStepImpl = deps.engramStep || runEngramStep;
   const bin = resolveClaudeBinImpl();
 
   const build = buildClaudeMarketplaceImpl({
@@ -112,31 +117,44 @@ function main(argv = process.argv.slice(2), deps = {}) {
     return 0;
   }
 
+  // Engram integration is optional, non-authoritative, and fail-open per REQ-install-028:
+  // it never alters the exit code, and is skipped on build/ospec-install failure and --build-only.
+  const engram = () => {
+    try {
+      engramStepImpl({ argv, claudeBin: bin, stdout, stderr });
+    } catch (error) {
+      stderr.write(`warning: Engram step skipped (${error.message}); continuing.\n`);
+    }
+  };
+
   if (!bin) {
     stdout.write(
       "\n'claude' CLI not found on PATH; marketplace not (re)registered.\n" +
         `Built artifact is ready at ${build.outDir}.\n`,
     );
+    engram();
     return 0;
   }
 
   try {
     // Marketplace: add the first time, refresh on every subsequent run.
-    if (listOutput(bin, ["plugin", "marketplace", "list"]).includes(MARKETPLACE)) {
-      run(bin, ["plugin", "marketplace", "update", MARKETPLACE]);
+    if (listOutputImpl(bin, ["plugin", "marketplace", "list"]).includes(MARKETPLACE)) {
+      runImpl(bin, ["plugin", "marketplace", "update", MARKETPLACE]);
     } else {
-      run(bin, ["plugin", "marketplace", "add", build.outDir, "--scope", "user"]);
+      runImpl(bin, ["plugin", "marketplace", "add", build.outDir, "--scope", "user"]);
     }
 
     // Plugin: install the first time, update on every subsequent run. Both the
     // detection and the update use the qualified `name@marketplace` id — the bare
     // name is ambiguous to the CLI and `plugin update <name>` reports "not found".
     const pluginId = `${PLUGIN}@${MARKETPLACE}`;
-    if (listOutput(bin, ["plugin", "list"]).includes(pluginId)) {
-      run(bin, ["plugin", "update", pluginId]);
+    if (listOutputImpl(bin, ["plugin", "list"]).includes(pluginId)) {
+      runImpl(bin, ["plugin", "update", pluginId]);
     } else {
-      run(bin, ["plugin", "install", pluginId]);
+      runImpl(bin, ["plugin", "install", pluginId]);
     }
+
+    engram();
 
     stdout.write("\nDone. Restart Claude Code or run /reload-plugins to apply.\n");
     return 0;

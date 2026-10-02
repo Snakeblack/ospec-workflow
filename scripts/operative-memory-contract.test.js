@@ -381,3 +381,53 @@ test("sdd-verify/SKILL.md documenta prepend newest-first y creación lazy", () =
     "sdd-verify/SKILL.md B4 debe cubrir también los campos area y workaround, no solo el summary (pin B4: campos no-heading)",
   );
 });
+
+// ---------------------------------------------------------------------------
+// add-engram-session-memory (REQ-session-memory-010, REQ-skills-020): no false
+// "native/built-in" Engram claims; neutral Session memory row.
+// ---------------------------------------------------------------------------
+
+const NATIVE_CLAIM_DOCS = [
+  "openspec/specs/project-memory/spec.md",
+  "skills/_shared/sdd-phase-common.md",
+  "docs/comparacion-arneses.md",
+];
+
+test("los tres documentos no afirman una integración nativa/built-in con Engram", () => {
+  for (const relative of NATIVE_CLAIM_DOCS) {
+    const content = readFileOrFail(path.join(ROOT, relative), relative);
+    for (const line of content.split(/\r?\n/)) {
+      if (!/engram/i.test(line)) continue;
+      assert.doesNotMatch(
+        line,
+        /nativ[ao]?|built-in|integrad[oa] de serie|bundled/i,
+        `${relative} afirma integración nativa/built-in con Engram: ${line.trim()}`,
+      );
+    }
+  }
+});
+
+test("sdd-phase-common.md: la fila Session memory es neutral y referencia session-memory", () => {
+  const content = readFileOrFail(
+    path.join(ROOT, "skills/_shared/sdd-phase-common.md"),
+    "skills/_shared/sdd-phase-common.md",
+  );
+  const row = content.split(/\r?\n/).find((line) => line.startsWith("| Session memory |"));
+  assert.ok(row, "debe existir la fila Session memory");
+  assert.match(row, /optional, non-authoritative host adapter/i);
+  assert.match(row, /`session-memory`/);
+  assert.doesNotMatch(row, /engram plugin/i);
+});
+
+test("sdd-phase-common.md: la Phase-Read Table solo lista archivos de openspec/memory", () => {
+  const content = readFileOrFail(
+    path.join(ROOT, "skills/_shared/sdd-phase-common.md"),
+    "skills/_shared/sdd-phase-common.md",
+  );
+  const start = content.indexOf("| `sdd-");
+  const rows = content.slice(start).split(/\r?\n/).filter((line) => /^\| `sdd-[a-z-]+` \|/.test(line));
+  assert.ok(rows.length > 0, "debe haber filas de la Phase-Read Table");
+  for (const row of rows.slice(0, 5)) {
+    assert.doesNotMatch(row, /engram|mem_/i, `la fila ${row} no debe obtener obligaciones de Engram`);
+  }
+});

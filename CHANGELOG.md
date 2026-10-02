@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.72.0] - 2026-10-02
+
+### Added
+- **Memoria de sesión con Engram, opcional y no autoritativa (target Claude Code)**: addendum `rules/engram-session-memory.instructions.md` confinado a Claude (los perfiles copilot, vscode, opencode, codex, cursor y antigravity lo descartan vía `drop`, y `collectRules` respeta esa lista). Protocolo slim: recall después de enrutar por `state.yaml`, punteros de fase SDD con `topic_key`, guardado solo desde el orquestador y recall tratado como dato no confiable. OpenSpec y el Authority Store siguen siendo la fuente de verdad; la caída o ausencia de Engram nunca bloquea.
+- **Detección e instalación opt-in en `setup:claude`**: nuevo `scripts/configure/engram-setup.js` fail-open. Detecta binario, plugin, marketplace y servidor MCP, e imprime guía (incluido el requisito bash/jq/curl). Con `--with-engram` registra el marketplace y el plugin upstream `engram@engram`, y solo recurre a `engram setup claude-code` si el plugin no queda registrado.
+- **Spec `session-memory`** (10 requisitos) y deltas de `install` (REQ-install-028/029/030), `generator` (REQ-generator-018) y `skills` (REQ-skills-020). ADR-001..003 promovidos a `docs/adr/`.
+
+### Changed
+- **Deriva documental corregida**: `project-memory` (Purpose y fila *Session memory*), `sdd-phase-common` y `docs/comparacion-arneses.md` ya no afirman una integración con Engram que no existía; describen un adaptador opcional definido por `session-memory`.
+
+Ciclo SDD completo (ruta standard, high-risk): verificación PASS WITH WARNINGS (W1–W4 resueltos) y quality review con cuatro dominios, 0 BLOCKER/CRITICAL; los 3 WARNING y 6 SUGGESTION advisory (pin de la fuente upstream, cortocircuito ante fallo parcial, regex de detección, coste de las sondas y alcance del contract test) quedan como follow-up. Archivado en `openspec/changes/archive/2026-10-02-add-engram-session-memory/`.
+
+**Verificación directa**: `node scripts/check.js` (3561 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.71.0] - 2026-10-01
 
 ### Added

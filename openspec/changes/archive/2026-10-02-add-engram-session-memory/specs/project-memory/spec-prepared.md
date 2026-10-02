@@ -58,7 +58,7 @@ Each file MUST begin with a YAML frontmatter block declaring at least `title` an
 
 ### Requirement: Session Memory Is an Optional Adapter Outside the Store {#REQ-project-memory-001}
 
-The "Session memory" row of the Ownership Boundary table and the Purpose text MUST describe session memory as an OPTIONAL adapter defined by the `session-memory` domain, not as a mandatory dependency. Its owner is the user's Engram plugin (runtime); it is non-authoritative and MUST NOT be required by any phase read/write contract of this domain. Engram MUST store pointers only and MUST NOT duplicate normative content kept in `openspec/memory/*.md` or specs.
+The "Session memory" row of the Ownership Boundary table and the Purpose text MUST describe session memory as an OPTIONAL adapter defined by the `session-memory` domain, not as a built-in dependency. Its owner is the user's Engram plugin (runtime); it is non-authoritative and MUST NOT be required by any phase read/write contract of this domain. Engram MUST store pointers only and MUST NOT duplicate normative content kept in `openspec/memory/*.md` or specs.
 
 #### Scenario: Boundary table wording
 

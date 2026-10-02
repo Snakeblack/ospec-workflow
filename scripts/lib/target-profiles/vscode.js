@@ -11,5 +11,7 @@ module.exports = {
   agentFile: { from: ".agent.md", to: ".agent.md" },
   commandFile: { from: ".prompt.md", to: ".prompt.md" },
   model: true,
+  // Claude-only addendum (add-engram-session-memory, ADR-001).
+  drop: ["rules/engram-session-memory.instructions.md"],
   validate: ["node", "scripts/configure/validate-vscode.js", "{out}"],
 };

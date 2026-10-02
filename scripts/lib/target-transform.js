@@ -506,6 +506,9 @@ function collectRules(files, profile) {
   const parts = [];
   for (const file of files) {
     if (isRulesFile(file.path)) {
+      if (isDropped(file.path, profile)) {
+        continue; // target-confined rule (e.g. Claude-only addendum), ADR-001
+      }
       const parsed = parse(file.content);
       const activationField = getField(parsed.frontmatter, "activation");
       const activation = activationField ? activationField.value : "always";
@@ -546,7 +549,7 @@ function emitOrchestratorSkill(file, profile, rulesContent) {
 
   const frontmatter = [
     { key: "name", value: name, rawLines: [`name: ${name}`] },
-    { key: "description", value: description, rawLines: [`description: ${JSON.stringify(description)}`] },
+    { "key": "description", value: description, rawLines: [`description: ${JSON.stringify(description)}`] },
   ];
 
   return { path: profile.orchestrator.skillPath, content: serialize({ frontmatter, body }) };
@@ -1022,7 +1025,7 @@ function toMdcFile(file, profile) {
 
   const frontmatter = [
     {
-      key: "description",
+      "key": "description",
       value: description,
       rawLines: [`description: ${JSON.stringify(description)}`],
     },
@@ -1032,7 +1035,7 @@ function toMdcFile(file, profile) {
       rawLines: [`globs: ${JSON.stringify(globs)}`],
     },
     {
-      key: "alwaysApply",
+      "key": "alwaysApply",
       value: String(alwaysApply),
       rawLines: [`alwaysApply: ${alwaysApply ? "true" : "false"}`],
     },
@@ -1060,7 +1063,7 @@ function toMdcSynthesize(file, profile, synth) {
   const alwaysApply = profile.rules.alwaysApply !== false;
   const frontmatter = [
     {
-      key: "description",
+      "key": "description",
       value: description,
       rawLines: [`description: ${JSON.stringify(description)}`],
     },
@@ -1070,7 +1073,7 @@ function toMdcSynthesize(file, profile, synth) {
       rawLines: [`globs: ${JSON.stringify(globs)}`],
     },
     {
-      key: "alwaysApply",
+      "key": "alwaysApply",
       value: String(alwaysApply),
       rawLines: [`alwaysApply: ${alwaysApply ? "true" : "false"}`],
     },

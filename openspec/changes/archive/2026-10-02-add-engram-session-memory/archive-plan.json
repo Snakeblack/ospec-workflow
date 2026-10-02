@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "change": "add-engram-session-memory",
+  "source_fingerprint": "sha256:1aeb1a0d2bb5bf2c9c0a880116d6ff78204c0625dfe95788d2a5f8a47bc5251d",
+  "spec_writes": [
+    {
+      "domain": "project-memory",
+      "source_delta": "specs/project-memory/spec-prepared.md",
+      "target": "openspec/specs/project-memory/spec.md",
+      "target_before_sha256": "sha256:accd3fe99040b11acd54a43194c126e469e84012c136806c072da5e1c9950e8c",
+      "content_sha256": "sha256:d024ddb866952d232915d8b7a982c4a761c6d8532c72fd5b72c9e8be22920055",
+      "action": "merge",
+      "merge_strategy": "semantic-preserve-non-delta",
+      "notes": "W1 (spec-gap) resolved: Purpose sentence rewritten to describe Engram as optional, non-authoritative adapter composed via upstream plugin. 'Session memory' row in Ownership Boundary table rewritten to reference session-memory spec and name optional adapter (replaces 'engram plugin' with descriptive wording). All other requirements preserved. REQ-project-memory-001 added (ADDED section from delta)."
+    },
+    {
+      "domain": "session-memory",
+      "source_delta": "specs/session-memory/spec.md",
+      "target": "openspec/specs/session-memory/spec.md",
+      "target_before_sha256": null,
+      "content_sha256": "sha256:8aa900b7eba2291101d6400d122bbbed1bddda311f9855abf882f00a8fa2d5d7",
+      "action": "create",
+      "merge_strategy": "n/a",
+      "notes": "New spec: defines optional, non-authoritative Engram integration protocol. 10 requirements (REQ-session-memory-001 through REQ-session-memory-010) covering graceful absence, non-authority principle, untrusted recall, contradiction resolution, pointer protocol, orchestrator recall, no ospec MCP/hooks, Claude-only addendum, and documentation claims."
+    },
+    {
+      "domain": "install",
+      "source_delta": "specs/install/spec-prepared.md",
+      "target": "openspec/specs/install/spec.md",
+      "target_before_sha256": "sha256:59ca924040483b1a661608c9d8a381c4645955ea248880f9fa0d77a5c87a799b",
+      "content_sha256": "sha256:9cf742916d367c67d04e95825bd00b6b99fc8c5ee051e4709b446f1b3ed3d9b2",
+      "action": "merge",
+      "merge_strategy": "semantic-preserve-non-delta",
+      "notes": "3 ADDED requirements: REQ-install-028 (Engram detection fail-open), REQ-install-029 (Engram opt-in), REQ-install-030 (Engram idempotency). All existing requirements preserved."
+    },
+    {
+      "domain": "generator",
+      "source_delta": "specs/generator/spec-prepared.md",
+      "target": "openspec/specs/generator/spec.md",
+      "target_before_sha256": "sha256:e3f08e139964599df94b63733814f824cfefe98b3b292ffdb2a3227cb959d48a",
+      "content_sha256": "sha256:548c0444f3c02297c5ffd171738b3db3834f1edf0d2621b7685f2944f83e295b",
+      "action": "merge",
+      "merge_strategy": "semantic-preserve-non-delta",
+      "notes": "1 ADDED requirement: REQ-generator-018 (Engram addendum confined to Claude target). All existing requirements preserved."
+    },
+    {
+      "domain": "skills",
+      "source_delta": "specs/skills/spec-prepared.md",
+      "target": "openspec/specs/skills/spec.md",
+      "target_before_sha256": "sha256:233d20b1323f8e42c5bd6f3bc9c216f66bfc6d33380419238675e5cadb16b139",
+      "content_sha256": "sha256:f83db156e3acedeb38955f098ed3e5f1ed1e4cdb452679a19e099f28255bb62e",
+      "action": "merge",
+      "merge_strategy": "semantic-preserve-non-delta",
+      "notes": "1 ADDED requirement: REQ-skills-020 (sdd-phase-common memory table host-neutral). All existing requirements preserved."
+    }
+  ],
+  "adr_promotions": [
+    {
+      "source": "decisions/adr-001.md",
+      "target": "docs/adr/adr-20261002-001-claude-only-engram-addendum-via-rules-drop-collectrules.md",
+      "content_sha256": "sha256:50834f3603db8734c81168e12f97bda5ba9112b992632884224f9305f1e36782",
+      "title": "ADR-001: Claude-only Engram addendum via rules/ + profile drop, with collectRules honoring drop",
+      "decision_date": "2026-10-02",
+      "status": "proposed"
+    },
+    {
+      "source": "decisions/adr-002.md",
+      "target": "docs/adr/adr-20261002-002-setup-claude-engram-opt-in-via-flag-fail-open-engram-setup.md",
+      "content_sha256": "sha256:b6d42b0c2ce2642e02fb05abd89ef0bbfbed67f3bc9afe895d7ac26e321005e8",
+      "title": "ADR-002: setup:claude Engram opt-in via --with-engram and a fail-open engram-setup module",
+      "decision_date": "2026-10-02",
+      "status": "proposed",
+      "follow_up_note": "ADR-002 Decision paragraph requires alignment with sdd-design-002 correction; see archive-report F1 follow-up"
+    },
+    {
+      "source": "decisions/adr-003.md",
+      "target": "docs/adr/adr-20261002-003-orchestrator-only-engram-saves-recall-after-state-non-authority.md",
+      "content_sha256": "sha256:a206f6522c360d3346464c243fba9184efccbac1043fbf3c9f3813020b0fba7b",
+      "title": "ADR-003: Orchestrator-only Engram saves; recall after state.yaml routing; no ospec hook changes",
+      "decision_date": "2026-10-02",
+      "status": "proposed"
+    }
+  ],
+  "archive_inventory": [
+    ".ospec/session/latest.md",
+    "apply-progress.md",
+    "archive-report.md",
+    "decisions/adr-001.md",
+    "decisions/adr-002.md",
+    "decisions/adr-003.md",
+    "design.md",
+    "proposal.md",
+    "specs/generator/spec-prepared.md",
+    "specs/generator/spec.md",
+    "specs/install/spec-prepared.md",
+    "specs/install/spec.md",
+    "specs/project-memory/spec-prepared.md",
+    "specs/project-memory/spec.md",
+    "specs/session-memory/spec.md",
+    "specs/skills/spec-prepared.md",
+    "specs/skills/spec.md",
+    "state.yaml",
+    "tasks.md",
+    "verify-report.md"
+  ],
+  "accepted_warnings": [
+    {
+      "id": "archive-warning-001",
+      "gate": "archive-warning",
+      "decision": "remediate-W2-W4-before-quality-review; W1 deferred to sdd-archive",
+      "status": "resolved",
+      "resolution": "W2–W4 resolved in remediation commit 55363668. W1 (spec-gap) resolved by sdd-archive spec rewrite (project-memory Purpose + Session memory row). No blocker or critical findings."
+    },
+    {
+      "id": "archive-warning-002",
+      "gate": "archive-warning",
+      "decision": "archive-with-follow-up (4R 3 WARNING + 6 SUGGESTION advisory -> follow-up patch change)",
+      "status": "accepted",
+      "resolution": "9 4R findings recorded as explicit follow-up work in archive-report.md (engram-setup.js supply-chain, failure handling, regex tightening, probe efficiency; contract-test scope/allowlist; shared constants). Verify suggestions S1–S3 and observations F1–F3 also included as follow-ups. Non-blocking to archive and release; scheduled for maintenance patch."
+    }
+  ],
+  "rollback": {
+    "strategy": "staging-rename",
+    "description": "Prepared content is change-local only until runtime commit. Source change folder remains at active path; runtime deletes after full stale-baseline match and atomic write to live specs/ADRs."
+  },
+  "notes": "Archive executed under Plan-and-Report contract (SKILL.md Step 5). Spec_writes include semantic preparation (merge deltas into existing + W1 baseline rewrite). ADR promotions proposed for runtime commit. No live spec writes performed by executor; no change folder moved/deleted by executor. All 9 4R findings (0 blocker, 0 critical; 3 warning advisory, 6 suggestion advisory) recorded as follow-ups per approval context."
+}

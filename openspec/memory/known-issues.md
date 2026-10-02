@@ -1,9 +1,37 @@
 ---
 title: Known Issues
-last_updated: 2026-09-28
+last_updated: 2026-10-02
 ---
 
 > **Registro histórico, no lista de bloqueos vigentes.** Las severidades siguientes corresponden a la fecha de cada hallazgo; no se renuevan automáticamente tras archive o remediaciones posteriores. El [triage pre-K8](../../docs/analysis/2026-09-28-pre-k8-debt-triage.md) conserva estas 57 entradas sin declararlas todas resueltas: `npm test` y `go test ./...` pasan en v2.70.0, y el hueco de prueba AG-006 directamente pertinente al binding de evidencia K8 tiene ya una regresión focal. La señal de timeout bajo carga se observa sin convertirla en bloqueo confirmado. Antes de tratar una entrada antigua como prerrequisito de K8 hay que reproducirla en el árbol actual y demostrar su dependencia con Candidate/contract/evidence/findings/policy/CAS; las otras conservan su dueño histórico o su lane del roadmap.
+
+## REQ-project-memory-001 deferred to archive; spec Archive note says apply while design assigns sdd-archive
+- severity: WARNING
+- area: openspec/specs/project-memory/spec.md (Session memory row, Purpose)
+- workaround: sdd-archive must rewrite the row and Purpose to an optional adapter referencing session-memory
+- change: add-engram-session-memory
+- date: 2026-10-02
+
+## setup:claude default guidance omits the bash/jq/curl warning when the engram binary exists but the plugin is unregistered
+- severity: WARNING
+- area: scripts/configure/engram-setup.js guidance()
+- workaround: README documents the requirement
+- change: add-engram-session-memory
+- date: 2026-10-02
+
+## Engram opt-in idempotency (task 7.4) only proven with simulated spawn, never re-run against the real Claude CLI
+- severity: WARNING
+- area: scripts/configure/engram-setup.js, scripts/configure/engram-setup.test.js
+- workaround: none
+- change: add-engram-session-memory
+- date: 2026-10-02
+
+## design.md for add-engram-session-memory keeps pre-correction Engram fallback semantics and a stale plugin MCP list format claim
+- severity: WARNING
+- area: openspec/changes/add-engram-session-memory/design.md, scripts/configure/engram-setup.js MCP_RE comment
+- workaround: apply-progress and state.yaml sdd-design-002 correction record the real behavior
+- change: add-engram-session-memory
+- date: 2026-10-02
 
 ## Design de extend-bench-agent-coverage promete canonicalizacion de la via de envelope que no ocurre
 - severity: WARNING
