@@ -62,7 +62,8 @@ Primero la **equivalencia de mecanismo** de K9; la calibración de profile con m
 | --- | --- | --- |
 | **P1 — Brazo y plan emparejado** | `RunManifest` admite `adaptive-repair-v1` (versión o extensión del enum, con fixtures y spec en `kernel-contract-schemas`); `planPairedRuns` y `summarizePairedCohort` (diferencias pareadas por tarea, intervalos agrupados, exclusiones) | Determinismo byte a byte; `fixed` sigue siendo el default; la cohorte incompleta no da veredicto |
 | **P2a — Ejecutor determinista con oracle aplicado** (entregado v2.75.0) | Por fixture: parche guionizado → etapas puras de K4b (`integrateWorkResultPatches` + Candidate K3) → verify K6b → `compareObligations` aplicado (`oracle.applied: true`), en los estratos local-reversible y behavior-repair | Ambos brazos producen `RunManifest` completos sobre la misma cohorte; las omisiones del manifest autodeclarado se detectan |
-| **P2b — Defectos sembrados y recovery** | Variantes de defecto sembrado (parche incorrecto, test complaciente, scope drift, receipt obsoleto) y recuperación en adversarial | Defectos detectados/escapados por brazo; recovery correcta tras interrupciones inyectadas |
+| **P2b — Defectos sembrados** (entregado) | Checks reales por rol observados sobre los archivos del candidate y variantes de defecto sembrado (parche incorrecto, test complaciente, scope drift, receipt obsoleto) con etapa de detección declarada; `outcome.defects` en `RunManifest` | Defectos detectados/escapados por brazo; las variantes rechazadas en otra etapa marcan el fixture como mal atribuido |
+| **P2c — Recovery en adversarial** | Scripts piloto para los fixtures adversariales y composición con el harness K2 (interrupción inyectada y `recover`) | Recovery correcta tras interrupciones inyectadas; reintentos dentro del límite |
 | **P3 — Cohorte del piloto** | De 11 a 20–24 tareas, con peso en behavior-repair y local-reversible, adversarial para autoridad y recovery, sin migraciones ni efectos externos; variantes de defecto sembrado; holdout por familia | `validateCohortShape` verde; el catálogo del oracle está versionado |
 | **P4 — Márgenes, ejecución e informe** | Márgenes de no inferioridad, mejora práctica y vetos **predeclarados** (decisión de producto); campaña emparejada de 3 repeticiones; informe y checkpoint `continue / revise / reject` | Informe con intervalos y cohortes excluidas; veto ante cualquier `must` omitida o efecto fuera de permiso |
 | Después | Calibración con agentes reales (modelo/effort versionados), luego K9 | Fuera de este alcance |
@@ -72,6 +73,16 @@ Primero la **equivalencia de mecanismo** de K9; la calibración de profile con m
 ### Ajuste de P2 (2026-10-02)
 
 `orchestrateRepairShadow` exige aislamiento K6a real (pruebas de capacidad del host) y su spec prohíbe inyectar un ejecutor alternativo. Decisión del usuario: el brazo Repair compone las **etapas puras de K4b** (integración de parches y congelación del Candidate) con el parche guionizado en lugar del worker aislado. El piloto determinista no mide aislamiento (K6a ya lo prueba) y el informe lo declara. P2 se divide en P2a y P2b. El brazo Adaptive hereda todos los gates de la ruta de control y solo comprime fases.
+
+### Ajuste de P2b (2026-10-03)
+
+- **Evidencia observada, no guionizada.** `pilot.json` pasa a la v2: cada fixture declara un check por rol de evidencia (acceptance, invariants, contract, negative) que se ejecuta en `node:vm` sobre los archivos en memoria. Solo un check que pasa produce evidencia y receipt del runner; uno que falla deja su rol sin evidencia y el verifier K6b lo rechaza.
+- **Reproducción como etapa compartida.** Los checks de aceptación tienen que fallar sobre la base. Los dos brazos la ejecutan: la receta Repair tiene la fase `reproduce` y las rutas de control pasan por `sdd-apply` con TDD (RED antes de GREEN).
+- **Etapa de detección declarada por tipo de defecto:** `scope-drift` en la integración (`CONTAINMENT_VIOLATION`), `complacent-test` en la reproducción, `wrong-patch` en el verify (falta la evidencia de un rol) y `stale-receipt` en el verify (`RUNNER_RECEIPT_BINDING_MISMATCH`: la evidencia reutilizada no declara sujeto, así que solo la delata el binding del receipt). Como control, reproducir el mismo receipt sobre un candidate idéntico se acepta. Un rechazo en otra etapa falla la corrida como fixture mal atribuido.
+- **Paridad esperada.** Los dos brazos comparten todas las etapas de detección, así que el resultado esperado es la misma detección en ambos. Eso es lo que el piloto tiene que demostrar: la receta comprime fases sin perder ninguna etapa de detección. Un defecto que escapa en los dos brazos es un hallazgo sobre el harness, no sobre la receta. `defect_regressions` solo lista los escapes exclusivos del brazo Adaptive.
+- **Resultado con la cohorte semilla:** 6 tareas × 4 defectos por brazo y repetición; ambos brazos detectan 24/24 por repetición, sin regresiones de defectos.
+- **Recovery** pasa a P2c: necesita scripts para los fixtures adversariales y componer con el harness K2.
+- **Límite conocido:** K6b juzga por la presencia de evidencia que pasa por rol. Con dos checks del mismo rol, uno que falla no bloquea si el otro pasa. Los fixtures usan un check por rol, y se registra para la calibración.
 
 ## 5. Decisiones abiertas para el usuario
 

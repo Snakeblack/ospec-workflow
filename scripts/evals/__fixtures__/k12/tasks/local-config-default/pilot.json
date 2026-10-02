@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "files": {
     "src/config.js": "module.exports = { timeoutMs: 0 };\n"
   },
@@ -21,6 +21,57 @@
       "required_evidence": [
         "before-after-example"
       ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "timeout-default",
+      "role": "acceptance",
+      "source": "assert.equal(require(\"src/config.js\").timeoutMs, 5000);"
+    },
+    {
+      "id": "single-setting",
+      "role": "invariants",
+      "source": "assert.deepEqual(Object.keys(require(\"src/config.js\")), [\"timeoutMs\"]);"
+    },
+    {
+      "id": "timeout-is-number",
+      "role": "contract",
+      "source": "assert.equal(typeof require(\"src/config.js\").timeoutMs, \"number\");"
+    },
+    {
+      "id": "timeout-positive",
+      "role": "negative",
+      "source": "assert.ok(require(\"src/config.js\").timeoutMs > 0);"
+    }
+  ],
+  "defects": [
+    {
+      "id": "wrong-patch",
+      "kind": "wrong-patch",
+      "patch": "--- a/src/config.js\n+++ b/src/config.js\n@@ -1,1 +1,1 @@\n-module.exports = { timeoutMs: 0 };\n+module.exports = { timeoutMs: \"5000\" };\n"
+    },
+    {
+      "id": "complacent-test",
+      "kind": "complacent-test",
+      "patch": "--- a/src/config.js\n+++ b/src/config.js\n@@ -1,1 +1,1 @@\n-module.exports = { timeoutMs: 0 };\n+module.exports = { timeoutMs: \"5000\" };\n",
+      "checks": [
+        {
+          "id": "timeout-default",
+          "role": "acceptance",
+          "source": "assert.ok(\"timeoutMs\" in require(\"src/config.js\"));"
+        }
+      ]
+    },
+    {
+      "id": "scope-drift",
+      "kind": "scope-drift",
+      "patch": "--- a/src/config.js\n+++ b/src/config.js\n@@ -1,1 +1,1 @@\n-module.exports = { timeoutMs: 0 };\n+module.exports = { timeoutMs: 5000 };\n--- /dev/null\n+++ b/src/unrelated.js\n@@ -0,0 +1 @@\n+module.exports = {};\n"
+    },
+    {
+      "id": "stale-receipt",
+      "kind": "stale-receipt",
+      "patch": "--- a/src/config.js\n+++ b/src/config.js\n@@ -1,1 +1,1 @@\n-module.exports = { timeoutMs: 0 };\n+module.exports = { timeoutMs: \"5000\" };\n"
     }
   ]
 }

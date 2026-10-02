@@ -259,10 +259,14 @@ function executorOutcome(result) {
   if (result.oracle !== undefined && !isPlainObject(result.oracle)) {
     throw new RunnerError("executor result oracle must be an object", "INVALID_EXECUTOR_RESULT");
   }
+  if (result.defects !== undefined && !isPlainObject(result.defects)) {
+    throw new RunnerError("executor result defects must be an object", "INVALID_EXECUTOR_RESULT");
+  }
   const outcome = { status: result.status };
   if (result.note !== undefined) outcome.note = result.note;
   if (result.measurements !== undefined) outcome.measurements = result.measurements;
   if (result.oracle !== undefined) outcome.oracle = result.oracle;
+  if (result.defects !== undefined) outcome.defects = result.defects;
   return outcome;
 }
 
@@ -489,7 +493,35 @@ function groupPairs(runs) {
     }
     pair.arms[run.policy] = run;
   }
+  for (const pair of pairs.values()) {
+    // Both arms consume the same scripted worker output, so arms that ran the
+    // seeded variants must agree on how many; an arm whose clean output failed
+    // reports none and surfaces as a pass-rate regression instead.
+    const seeded = PAIRED_ARMS
+      .filter((arm) => pair.arms[arm] && pair.arms[arm].outcome.defects)
+      .map((arm) => pair.arms[arm].outcome.defects.seeded);
+    if (new Set(seeded).size > 1) {
+      reject(`paired runs for ${pair.fixture_id} r${pair.repetition_index} disagree on seeded defects`, "INVALID_COMPLETED_RUNS");
+    }
+  }
   return [...pairs.values()];
+}
+
+/**
+ * Sums seeded-defect tallies of one arm over a task's paired repetitions; the
+ * escaped ids are the union across repetitions.
+ */
+function armDefectTally(paired, armIndex) {
+  const tally = { seeded: 0, detected: 0, escaped: [] };
+  for (const arms of paired) {
+    const defects = arms[armIndex].outcome.defects;
+    if (!defects) continue;
+    tally.seeded += defects.seeded;
+    tally.detected += defects.detected;
+    tally.escaped.push(...defects.escaped.filter((id) => !tally.escaped.includes(id)));
+  }
+  tally.escaped.sort();
+  return tally;
 }
 
 function pairedTaskReport(task) {
@@ -506,6 +538,10 @@ function pairedTaskReport(task) {
   }
   const controlRate = passRate(0);
   const adaptiveRate = passRate(1);
+  const seededAny = task.paired.some((arms) => arms.some((run) => run.outcome.defects));
+  const defects = seededAny
+    ? { [PAIRED_ARMS[0]]: armDefectTally(task.paired, 0), [PAIRED_ARMS[1]]: armDefectTally(task.paired, 1) }
+    : null;
   return {
     fixture_id: task.fixture_id,
     stratum: task.stratum,
@@ -514,9 +550,39 @@ function pairedTaskReport(task) {
     pass_rate: { [PAIRED_ARMS[0]]: controlRate, [PAIRED_ARMS[1]]: adaptiveRate },
     pass_rate_delta: count === 0 ? null : round(adaptiveRate - controlRate),
     measurement_delta: measurementDelta,
+    defects,
     regression: count > 0 && controlRate === 1 && adaptiveRate < 1,
     improvement: count > 0 && adaptiveRate === 1 && controlRate < 1,
   };
+}
+
+/**
+ * Seeded defects the adaptive arm let escape while the control arm detected
+ * them: veto candidates, like pass-rate regressions.
+ */
+function defectRegressions(fixtures) {
+  return fixtures
+    .filter((task) => task.defects)
+    .map((task) => ({
+      fixture_id: task.fixture_id,
+      escaped: task.defects[PAIRED_ARMS[1]].escaped
+        .filter((id) => !task.defects[PAIRED_ARMS[0]].escaped.includes(id)),
+    }))
+    .filter((entry) => entry.escaped.length > 0);
+}
+
+/** Per-arm seeded/detected/escaped counts over the comparable tasks. */
+function cohortDefectTotals(comparable) {
+  return Object.fromEntries(PAIRED_ARMS.map((arm) => {
+    const totals = { seeded: 0, detected: 0, escaped: 0 };
+    for (const task of comparable) {
+      if (!task.defects) continue;
+      totals.seeded += task.defects[arm].seeded;
+      totals.detected += task.defects[arm].detected;
+    }
+    totals.escaped = totals.seeded - totals.detected;
+    return [arm, totals];
+  }));
 }
 
 /**
@@ -527,7 +593,9 @@ function pairedTaskReport(task) {
  * makes the comparison incomplete. Repetitions are averaged per task first,
  * then the cohort interval runs over tasks. Regressions (fixed passed every
  * paired repetition, adaptive failed at least one) are listed as veto
- * candidates. Nothing here decides promotion.
+ * candidates, and so are seeded defects only the adaptive arm let escape
+ * (`defect_regressions`); seeded-defect tallies stay orthogonal to the pass
+ * rate. Nothing here decides promotion.
  * @param {object[]|{ runs: object[] }} completedRuns Completed paired run manifests.
  * @returns {object} Per-task paired report, cohort intervals, exclusions, totals, and verdict.
  */
@@ -601,6 +669,7 @@ function summarizePairedCohort(completedRuns) {
     },
     regressions: fixtures.filter((task) => task.regression).map((task) => task.fixture_id),
     improvements: fixtures.filter((task) => task.improvement).map((task) => task.fixture_id),
+    defect_regressions: defectRegressions(fixtures),
     exclusions,
     totals: {
       tasks_total: fixtures.length,
@@ -610,6 +679,7 @@ function summarizePairedCohort(completedRuns) {
       pairs_incomplete: incomplete,
       pairs_excluded: exclusions.length,
       runs_oracle_unapplied: oracleUnapplied,
+      defects: cohortDefectTotals(comparable),
     },
     verdict: verdictReason === undefined ? "usable-comparison" : "incomplete-comparison",
     ...(verdictReason === undefined ? {} : { verdict_reason: verdictReason }),

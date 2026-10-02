@@ -1293,11 +1293,11 @@ The contract suite MUST publish `schemas/kernel/run-manifest/v1.schema.json` (`$
 
 Field constraints: `run_id`, `cohort_id`, `fixture_id`, `order_seed`, `worktree_path`, `cache_namespace`, `evaluator`, and `host` MUST be non-empty strings; `stratum` MUST be one of `local-reversible | behavior-repair | multi-module | adversarial`; `policy` MUST be one of `fixed | adaptive-repair-v1` (`fixed` is the control arm; `adaptive-repair-v1` is the fixed Adaptive Repair pilot arm, and recording it grants no authority and changes no default); `repetition_index` MUST be an integer >= 0 and `repetitions_total` an integer >= 1; `catalog_digest` MUST match `^[a-f0-9]{64}$` (bare hex, without a `sha256:` prefix).
 
-`outcome` MUST be an object requiring `status` (`pass | fail | incomplete | excluded`) with optional `note` (string), optional `measurements`, and optional `oracle`, and MUST disallow other properties. When present, `measurements` MUST require `phases_executed`, `effects_executed`, `events_recorded`, `wall_ms`, `interruptions`, and `recoveries` (non-negative; all integers except `wall_ms`, which is a non-negative number) and disallow other properties. When present, `oracle` MUST require `applied` (boolean) and `reason` (a non-empty string containing at least one non-whitespace character) and disallow other properties. `versions` MUST be an object requiring a non-empty string `runner_version` and MAY carry additional string-valued entries.
+`outcome` MUST be an object requiring `status` (`pass | fail | incomplete | excluded`) with optional `note` (string), optional `measurements`, optional `oracle`, and optional `defects`, and MUST disallow other properties. When present, `measurements` MUST require `phases_executed`, `effects_executed`, `events_recorded`, `wall_ms`, `interruptions`, and `recoveries` (non-negative; all integers except `wall_ms`, which is a non-negative number) and disallow other properties. When present, `oracle` MUST require `applied` (boolean) and `reason` (a non-empty string containing at least one non-whitespace character) and disallow other properties. When present, `defects` MUST require `seeded` and `detected` (integers >= 0) and `escaped` (an array of unique non-empty strings naming the seeded variants the pipeline accepted) and disallow other properties; the module MUST additionally reject a tally where `detected` plus the number of `escaped` entries differs from `seeded`. `versions` MUST be an object requiring a non-empty string `runner_version` and MAY carry additional string-valued entries.
 
 The family directory MUST be listed among the additive, K1-excluded paths in `listK1SchemaFiles` (`scripts/lib/lifecycle-kernel/k1-compat.js`) so it is not part of the frozen K1 baseline pin. This family is not registered in `schemas/kernel/manifest.json` or `schemas/kernel/contract-claims.json`.
 
-(Previously: `policy` MUST be `fixed`. The Adaptive Repair pilot (P1) adds the `adaptive-repair-v1` arm additively within v1; `fixed`-only payloads remain valid.)
+(Previously: `policy` MUST be `fixed`, and `outcome` carried no `defects`. The Adaptive Repair pilot adds the `adaptive-repair-v1` arm (P1) and the seeded-defect tally (P2b) additively within v1; payloads without them remain valid.)
 
 #### Scenario: Complete run manifest validates
 
@@ -1329,3 +1329,10 @@ The family directory MUST be listed among the additive, K1-excluded paths in `li
 - GIVEN an `outcome` whose `measurements` omits a required counter or contains a negative value, or whose `oracle.reason` is empty or whitespace-only
 - WHEN validated against the schema
 - THEN validation MUST fail closed identifying the violating property
+
+#### Scenario: Seeded-defect tally is closed and self-consistent
+
+- GIVEN an `outcome.defects` of `{ seeded: 3, detected: 2, escaped: ["complacent-test"] }`, and others that omit `escaped`, repeat an escaped id, add an unknown field, or report `{ seeded: 3, detected: 1, escaped: ["a"] }`
+- WHEN validated by the RunManifest module
+- THEN the first MUST validate
+- AND each of the others MUST fail closed identifying `outcome.defects`

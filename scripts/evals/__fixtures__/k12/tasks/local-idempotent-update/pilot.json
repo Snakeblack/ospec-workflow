@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "files": {
     "src/store.js": "function update(store, key, value) {\n  store.version += 1;\n  store.data[key] = value;\n}\nmodule.exports = { update };\n"
   },
@@ -21,6 +21,57 @@
       "required_evidence": [
         "changed-files-list"
       ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "same-value-keeps-version",
+      "role": "acceptance",
+      "source": "const store = { version: 1, data: { a: 1 } }; require(\"src/store.js\").update(store, \"a\", 1); assert.equal(store.version, 1);"
+    },
+    {
+      "id": "new-key-bumps-version",
+      "role": "invariants",
+      "source": "const store = { version: 1, data: {} }; require(\"src/store.js\").update(store, \"a\", 2); assert.deepEqual(store, { version: 2, data: { a: 2 } });"
+    },
+    {
+      "id": "exports-update",
+      "role": "contract",
+      "source": "assert.equal(typeof require(\"src/store.js\").update, \"function\");"
+    },
+    {
+      "id": "changed-value-bumps-version",
+      "role": "negative",
+      "source": "const store = { version: 1, data: { a: 1 } }; require(\"src/store.js\").update(store, \"a\", 2); assert.deepEqual(store, { version: 2, data: { a: 2 } });"
+    }
+  ],
+  "defects": [
+    {
+      "id": "wrong-patch",
+      "kind": "wrong-patch",
+      "patch": "--- a/src/store.js\n+++ b/src/store.js\n@@ -1,5 +1,6 @@\n-function update(store, key, value) {\n-  store.version += 1;\n-  store.data[key] = value;\n-}\n-module.exports = { update };\n+function update(store, key, value) {\n+  if (key in store.data) return;\n+  store.version += 1;\n+  store.data[key] = value;\n+}\n+module.exports = { update };\n"
+    },
+    {
+      "id": "complacent-test",
+      "kind": "complacent-test",
+      "patch": "--- a/src/store.js\n+++ b/src/store.js\n@@ -1,5 +1,6 @@\n-function update(store, key, value) {\n-  store.version += 1;\n-  store.data[key] = value;\n-}\n-module.exports = { update };\n+function update(store, key, value) {\n+  if (key in store.data) return;\n+  store.version += 1;\n+  store.data[key] = value;\n+}\n+module.exports = { update };\n",
+      "checks": [
+        {
+          "id": "same-value-keeps-version",
+          "role": "acceptance",
+          "source": "assert.equal(typeof require(\"src/store.js\").update, \"function\");"
+        }
+      ]
+    },
+    {
+      "id": "scope-drift",
+      "kind": "scope-drift",
+      "patch": "--- a/src/store.js\n+++ b/src/store.js\n@@ -1,5 +1,6 @@\n-function update(store, key, value) {\n-  store.version += 1;\n-  store.data[key] = value;\n-}\n-module.exports = { update };\n+function update(store, key, value) {\n+  if (store.data[key] === value) return;\n+  store.version += 1;\n+  store.data[key] = value;\n+}\n+module.exports = { update };\n--- /dev/null\n+++ b/src/unrelated.js\n@@ -0,0 +1 @@\n+module.exports = {};\n"
+    },
+    {
+      "id": "stale-receipt",
+      "kind": "stale-receipt",
+      "patch": "--- a/src/store.js\n+++ b/src/store.js\n@@ -1,5 +1,6 @@\n-function update(store, key, value) {\n-  store.version += 1;\n-  store.data[key] = value;\n-}\n-module.exports = { update };\n+function update(store, key, value) {\n+  if (key in store.data) return;\n+  store.version += 1;\n+  store.data[key] = value;\n+}\n+module.exports = { update };\n"
     }
   ]
 }

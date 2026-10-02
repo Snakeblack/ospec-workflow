@@ -35,6 +35,8 @@ const MEASUREMENT_FIELDS = [
   "recoveries",
 ];
 const ORACLE_FIELDS = ["applied", "reason"];
+const DEFECT_FIELDS = ["seeded", "detected", "escaped"];
+const OUTCOME_FIELDS = new Set(["status", "note", "measurements", "oracle", "defects"]);
 const CATALOG_DIGEST_PATTERN = /^[a-f0-9]{64}$/;
 const RFC3339_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 
@@ -58,6 +60,30 @@ function isNonEmptyString(value) {
 
 function isIntegerAtLeast(value, minimum) {
   return Number.isInteger(value) && value >= minimum;
+}
+
+// Seeded-defect tally for one run: every seeded variant is either detected
+// (the pipeline rejected it) or escaped (listed by id).
+function defectErrors(defects) {
+  if (!isPlainObject(defects)) return ["run manifest outcome defects must be an object"];
+  const errors = [];
+  for (const key of Object.keys(defects)) {
+    if (!DEFECT_FIELDS.includes(key)) errors.push(`run manifest outcome defects contains unknown field "${key}"`);
+  }
+  for (const field of ["seeded", "detected"]) {
+    if (!isIntegerAtLeast(defects[field], 0)) {
+      errors.push(`run manifest outcome defects ${field} must be an integer greater than or equal to 0`);
+    }
+  }
+  const { escaped } = defects;
+  const escapedValid = Array.isArray(escaped) && escaped.every(isNonEmptyString)
+    && new Set(escaped).size === escaped.length;
+  if (!escapedValid) {
+    errors.push("run manifest outcome defects escaped must be an array of unique non-empty strings");
+  } else if (errors.length === 0 && defects.detected + escaped.length !== defects.seeded) {
+    errors.push("run manifest outcome defects detected plus escaped must equal seeded");
+  }
+  return errors;
 }
 
 function canonicalJson(value) {
@@ -184,7 +210,7 @@ function validateRunManifestInternal(manifest, allowMissingRunId) {
     errors.push("run manifest outcome must be an object");
   } else {
     for (const key of Object.keys(manifest.outcome)) {
-      if (key !== "status" && key !== "note" && key !== "measurements" && key !== "oracle") {
+      if (!OUTCOME_FIELDS.has(key)) {
         errors.push(`run manifest outcome contains unknown field "${key}"`);
       }
     }
@@ -231,6 +257,7 @@ function validateRunManifestInternal(manifest, allowMissingRunId) {
         }
       }
     }
+    if (Object.hasOwn(manifest.outcome, "defects")) errors.push(...defectErrors(manifest.outcome.defects));
   }
 
   if (!isPlainObject(manifest.versions)) {
