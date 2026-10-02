@@ -797,3 +797,109 @@ test("operation binding with unknown keys or a non-object shape is an invalid en
   }
   await assertNothingWritten(store, subjectId, issued.ledger, issued.permit);
 });
+
+const UNKNOWN_OUTCOME_BINDING = Object.freeze({
+  ...OPERATION_IDENTITY,
+  target: { ...OPERATION_TARGET, lastOutcome: "unknown" },
+});
+
+test("a second permit cannot re-emit an attestation the subject already holds", async () => {
+  const chain = defaultChain();
+  const { attestation, subjectId, store, input } = await issueOnce(chain);
+  const before = await store.load(subjectId);
+
+  const second = await mintEmissionPermit(store, subjectId, attestation);
+  const result = await issueCandidateEvaluationAttestation({
+    ...input,
+    permitLedger: second.ledger,
+    operationPermit: second.permit,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "EVALUATION_ISSUANCE_ALREADY_ISSUED");
+
+  const after = await store.load(subjectId);
+  assert.equal(after.revision, before.revision);
+  assert.equal(Object.keys(after.authority.receipts).length, 1);
+  assert.equal(after.journal.length, 1);
+  assert.equal(second.ledger.get(second.permit.permit_id).consumed, false);
+});
+
+test("an evaluation operation closed once cannot be closed again by another attestation", async () => {
+  const chain = defaultChain();
+  const { subjectId, store, input, result: first } = await issueOnce(chain);
+  const before = await store.load(subjectId);
+
+  const laterAttestation = pureAttestationFor(chain, { issued_at: ISSUED_AT_LATER });
+  assert.notEqual(laterAttestation.attestation_id, first.attestation.attestation_id);
+  const second = await mintEmissionPermit(store, subjectId, laterAttestation);
+  const result = await issueCandidateEvaluationAttestation({
+    ...input,
+    permitLedger: second.ledger,
+    operationPermit: second.permit,
+    issued_at: ISSUED_AT_LATER,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "EVALUATION_OPERATION_ALREADY_CLOSED");
+
+  const after = await store.load(subjectId);
+  assert.equal(after.revision, before.revision);
+  assert.equal(Object.keys(after.state.attestations).length, 1);
+  assert.equal(second.ledger.get(second.permit.permit_id).consumed, false);
+});
+
+test("exact replay still converges after the caller marks the interrupted operation unknown", async () => {
+  const chain = defaultChain();
+  const { attestation, subjectId, store } = buildRig(chain, {
+    crash: { mode: "after", times: 1 },
+  });
+  const issued = await mintEmissionPermit(store, subjectId, attestation);
+  const interrupted = await issueCandidateEvaluationAttestation(
+    issuanceInput(store, issued.ledger, issued.permit, chain)
+  );
+  assert.equal(interrupted.reason_code, "EVALUATION_ISSUANCE_INTERRUPTED");
+
+  const reconciled = await issueCandidateEvaluationAttestation(
+    issuanceInput(store, issued.ledger, issued.permit, chain, { operationBinding: UNKNOWN_OUTCOME_BINDING })
+  );
+  assert.equal(reconciled.ok, true, reconciled.error || reconciled.reason_code);
+  assert.equal(reconciled.replayed, true);
+  assert.deepEqual(reconciled.attestation, attestation);
+  assert.deepEqual(reconciled.operation_identity, OPERATION_IDENTITY);
+});
+
+test("an unknown outcome without a committed emission fails closed and consumes nothing", async () => {
+  const chain = defaultChain();
+  const { attestation, subjectId, store } = buildRig(chain, {
+    crash: { mode: "before", times: 1 },
+  });
+  const issued = await mintEmissionPermit(store, subjectId, attestation);
+  const interrupted = await issueCandidateEvaluationAttestation(
+    issuanceInput(store, issued.ledger, issued.permit, chain)
+  );
+  assert.equal(interrupted.reason_code, "EVALUATION_ISSUANCE_INTERRUPTED");
+
+  const result = await issueCandidateEvaluationAttestation(
+    issuanceInput(store, issued.ledger, issued.permit, chain, { operationBinding: UNKNOWN_OUTCOME_BINDING })
+  );
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "EVALUATION_OPERATION_BINDING_RECONCILIATION_REQUIRED");
+  assert.deepEqual(result.operation_binding_reasons, ["target.unknown_outcome"]);
+  await assertNothingWritten(store, subjectId, issued.ledger, issued.permit);
+});
+
+test("a target record without a resolvable identity requires reconciliation before any store read", async () => {
+  const chain = defaultChain();
+  const { attestation, subjectId, store } = buildRig(chain);
+  const issued = await mintEmissionPermit(store, subjectId, attestation);
+  const { revision, ...targetWithoutRevision } = OPERATION_TARGET;
+  assert.equal(typeof revision, "string");
+  const result = await issueCandidateEvaluationAttestation(
+    issuanceInput(store, issued.ledger, issued.permit, chain, {
+      operationBinding: { ...OPERATION_IDENTITY, target: targetWithoutRevision },
+    })
+  );
+  assert.equal(result.reason_code, "EVALUATION_OPERATION_BINDING_RECONCILIATION_REQUIRED");
+  assert.deepEqual(result.operation_binding_reasons, ["target.unresolved_identity"]);
+  assert.equal(result.subject_id, undefined);
+  await assertNothingWritten(store, subjectId, issued.ledger, issued.permit);
+});
