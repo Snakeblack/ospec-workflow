@@ -34,6 +34,21 @@ const ISSUER_VERSION = "ospec-issuer/1.0.0";
 const ISSUED_AT = "2026-09-28T10:00:00.000Z";
 const ISSUED_AT_LATER = "2026-09-28T11:00:00.000Z";
 
+// The evaluation operation this emission closes, and its recorded state.
+const OPERATION_IDENTITY = Object.freeze({
+  changePath: "openspec/changes/k8-issuer",
+  phase: "sdd-verify",
+  expectedRevision: "rev-verify-7",
+  operation: "close-evaluation",
+});
+const OPERATION_TARGET = Object.freeze({
+  changePath: OPERATION_IDENTITY.changePath,
+  phase: OPERATION_IDENTITY.phase,
+  revision: OPERATION_IDENTITY.expectedRevision,
+  operation: OPERATION_IDENTITY.operation,
+});
+const OPERATION_BINDING = Object.freeze({ ...OPERATION_IDENTITY, target: OPERATION_TARGET });
+
 const NODE = {
   node_id: "repair-core",
   kind: "repair-action/v1",
@@ -278,14 +293,14 @@ function buildRig(chain, innerOptions = {}) {
   return { chain, attestation, subjectId, inner, store };
 }
 
-async function mintEmissionPermit(store, subjectId, attestation) {
+async function mintEmissionPermit(store, subjectId, attestation, operationIdentity = OPERATION_IDENTITY) {
   const head = await store.load(subjectId);
   assert.equal(head.ok, true, head.code);
   return issueFixturePermit({
     operation: ISSUE_OPERATION,
     headRevision: head.revision,
     subject_id: subjectId,
-    arguments: emissionPermitArguments(subjectId, attestation.attestation_id),
+    arguments: emissionPermitArguments(subjectId, attestation.attestation_id, operationIdentity),
   });
 }
 
@@ -298,6 +313,7 @@ function issuanceInput(store, permitLedger, permit, chain, overrides = {}) {
     lineage: chain.lineage,
     issuance: chain.input,
     phase: { status: "success", verify_outcome: "PASS" },
+    operationBinding: OPERATION_BINDING,
     issuer_version: ISSUER_VERSION,
     runtime_version: `node/${process.versions.node}`,
     issued_at: ISSUED_AT,
@@ -517,7 +533,7 @@ test("K7_NO_MODEL_DEFERRED writes nothing and consumes nothing", async () => {
     operation: ISSUE_OPERATION,
     headRevision: head.revision,
     subject_id: subjectId,
-    arguments: emissionPermitArguments(subjectId, `sha256:${"9".repeat(64)}`),
+    arguments: emissionPermitArguments(subjectId, `sha256:${"9".repeat(64)}`, OPERATION_IDENTITY),
   });
 
   const result = await issueCandidateEvaluationAttestation({
@@ -528,6 +544,7 @@ test("K7_NO_MODEL_DEFERRED writes nothing and consumes nothing", async () => {
     lineage: null,
     issuance: noModelInput,
     phase: { status: "success", verify_outcome: "PASS" },
+    operationBinding: OPERATION_BINDING,
     issuer_version: ISSUER_VERSION,
     runtime_version: `node/${process.versions.node}`,
     issued_at: ISSUED_AT,
@@ -641,6 +658,7 @@ test("issuer rejects malformed envelopes and non-CAS stores", async () => {
     "lineage",
     "issuance",
     "phase",
+    "operationBinding",
     "issuer_version",
     "runtime_version",
     "issued_at",
@@ -663,4 +681,119 @@ test("issuer rejects malformed envelopes and non-CAS stores", async () => {
   assert.equal(after.state.attestations, undefined);
   assert.equal(after.journal.length, 0);
   assert.deepEqual(after.authority.receipts, {});
+});
+
+async function assertNothingWritten(store, subjectId, ledger, permit) {
+  const after = await store.load(subjectId);
+  assert.equal(after.state.attestations, undefined);
+  assert.deepEqual(after.authority.receipts, {});
+  assert.equal(after.journal.length, 0);
+  assert.equal(ledger.get(permit.permit_id).consumed, false);
+}
+
+test("emission records the bound operation identity in permit arguments, journal, and result", async () => {
+  const chain = defaultChain();
+  const { attestation, subjectId, store, result } = await issueOnce(chain);
+  assert.equal(result.ok, true, result.error || result.reason_code);
+  assert.deepEqual(result.operation_identity, OPERATION_IDENTITY);
+
+  const after = await store.load(subjectId);
+  const [entry] = after.journal.filter(
+    (record) => record.effect_id === `emit-attestation:${attestation.attestation_id}`
+  );
+  assert.deepEqual(entry.result.operation_identity, OPERATION_IDENTITY);
+
+  assert.throws(() => emissionPermitArguments(subjectId, attestation.attestation_id), TypeError);
+  assert.throws(
+    () => emissionPermitArguments(subjectId, attestation.attestation_id, { ...OPERATION_IDENTITY, phase: "" }),
+    TypeError
+  );
+});
+
+test("absent operation binding fails closed, including the legacy single-candidate passthrough", async () => {
+  const chain = defaultChain();
+  for (const operationBinding of [{}, { target: OPERATION_TARGET }, { candidates: [OPERATION_TARGET] }]) {
+    const { attestation, subjectId, store } = buildRig(chain);
+    const issued = await mintEmissionPermit(store, subjectId, attestation);
+    const result = await issueCandidateEvaluationAttestation(
+      issuanceInput(store, issued.ledger, issued.permit, chain, { operationBinding })
+    );
+    assert.equal(result.ok, false);
+    assert.equal(result.reason_code, "EVALUATION_OPERATION_BINDING_ABSENT", JSON.stringify(operationBinding));
+    await assertNothingWritten(store, subjectId, issued.ledger, issued.permit);
+  }
+});
+
+test("stale, foreign, or malformed operation bindings are rejected before any write", async () => {
+  const chain = defaultChain();
+  const cases = [
+    [{ ...OPERATION_BINDING, expectedRevision: "rev-verify-6" }, "binding.revision_mismatch"],
+    [{ ...OPERATION_BINDING, changePath: "openspec/changes/other" }, "binding.change_mismatch"],
+    [{ ...OPERATION_BINDING, phase: "sdd-apply" }, "binding.phase_mismatch"],
+    [{ ...OPERATION_BINDING, operation: "close-apply" }, "binding.operation_mismatch"],
+    [{ changePath: OPERATION_IDENTITY.changePath, phase: OPERATION_IDENTITY.phase, target: OPERATION_TARGET }, "binding.malformed"],
+    [{ ...OPERATION_IDENTITY }, "binding.record_not_found"],
+    [
+      { ...OPERATION_BINDING, candidates: [{ ...OPERATION_TARGET, revision: "rev-verify-8" }] },
+      "input.contradictory_snapshots",
+    ],
+  ];
+  for (const [operationBinding, reason] of cases) {
+    const { attestation, subjectId, store } = buildRig(chain);
+    const issued = await mintEmissionPermit(store, subjectId, attestation);
+    const result = await issueCandidateEvaluationAttestation(
+      issuanceInput(store, issued.ledger, issued.permit, chain, { operationBinding })
+    );
+    assert.equal(result.ok, false, reason);
+    assert.equal(result.reason_code, "EVALUATION_OPERATION_BINDING_REJECTED", reason);
+    assert.deepEqual(result.operation_binding_reasons, [reason]);
+    await assertNothingWritten(store, subjectId, issued.ledger, issued.permit);
+  }
+});
+
+test("a recorded or unknown outcome on the bound operation requires reconciliation, not emission", async () => {
+  const chain = defaultChain();
+  for (const [lastOutcome, reason] of [
+    ["success", "outcome.recorded_success"],
+    ["failure", "outcome.recorded_failure"],
+    ["unknown", "target.unknown_outcome"],
+  ]) {
+    const { attestation, subjectId, store } = buildRig(chain);
+    const issued = await mintEmissionPermit(store, subjectId, attestation);
+    const operationBinding = { ...OPERATION_IDENTITY, target: { ...OPERATION_TARGET, lastOutcome } };
+    const result = await issueCandidateEvaluationAttestation(
+      issuanceInput(store, issued.ledger, issued.permit, chain, { operationBinding })
+    );
+    assert.equal(result.ok, false, lastOutcome);
+    assert.equal(result.reason_code, "EVALUATION_OPERATION_BINDING_RECONCILIATION_REQUIRED", lastOutcome);
+    assert.deepEqual(result.operation_binding_reasons, [reason]);
+    await assertNothingWritten(store, subjectId, issued.ledger, issued.permit);
+  }
+});
+
+test("a permit minted for another evaluation operation cannot authorize the emission", async () => {
+  const chain = defaultChain();
+  const { attestation, subjectId, store } = buildRig(chain);
+  const otherIdentity = { ...OPERATION_IDENTITY, expectedRevision: "rev-verify-6" };
+  const issued = await mintEmissionPermit(store, subjectId, attestation, otherIdentity);
+  const result = await issueCandidateEvaluationAttestation(
+    issuanceInput(store, issued.ledger, issued.permit, chain)
+  );
+  assert.equal(result.ok, false);
+  assert.equal(result.reason_code, "EVALUATION_ISSUANCE_PERMIT_REJECTED");
+  assert.equal(result.cause, "unauthorized");
+  await assertNothingWritten(store, subjectId, issued.ledger, issued.permit);
+});
+
+test("operation binding with unknown keys or a non-object shape is an invalid envelope", async () => {
+  const chain = defaultChain();
+  const { attestation, subjectId, store } = buildRig(chain);
+  const issued = await mintEmissionPermit(store, subjectId, attestation);
+  for (const operationBinding of [null, "bound", [OPERATION_IDENTITY], { ...OPERATION_BINDING, bypass: true }]) {
+    const result = await issueCandidateEvaluationAttestation(
+      issuanceInput(store, issued.ledger, issued.permit, chain, { operationBinding })
+    );
+    assert.equal(result.reason_code, "EVALUATION_ISSUANCE_INPUT_INVALID", JSON.stringify(operationBinding));
+  }
+  await assertNothingWritten(store, subjectId, issued.ledger, issued.permit);
 });
