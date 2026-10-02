@@ -22,6 +22,9 @@ const REQUIRED_RUN_MANIFEST_FIELDS = Object.freeze([
 ]);
 const ALLOWED_TOP_LEVEL_KEYS = new Set([...REQUIRED_RUN_MANIFEST_FIELDS, "started_at", "completed_at"]);
 const STRATA = new Set(["local-reversible", "behavior-repair", "multi-module", "adversarial"]);
+// `fixed` is the control arm; `adaptive-repair-v1` is the fixed Adaptive Repair
+// pilot arm. Recording an arm grants it no authority and changes no default.
+const POLICIES = Object.freeze(["fixed", "adaptive-repair-v1"]);
 const OUTCOME_STATUSES = new Set(["pass", "fail", "incomplete", "excluded"]);
 const MEASUREMENT_FIELDS = [
   "phases_executed",
@@ -149,7 +152,7 @@ function validateRunManifestInternal(manifest, allowMissingRunId) {
     }
   }
   if (!STRATA.has(manifest.stratum)) errors.push("run manifest stratum is invalid");
-  if (manifest.policy !== "fixed") errors.push("run manifest policy must be fixed");
+  if (!POLICIES.includes(manifest.policy)) errors.push(`run manifest policy must be one of ${POLICIES.join(", ")}`);
   if (!isIntegerAtLeast(manifest.repetition_index, 0)) {
     errors.push("run manifest repetition_index must be an integer greater than or equal to 0");
   }
@@ -287,6 +290,7 @@ function runManifestDigest(manifest) {
 }
 
 module.exports = {
+  POLICIES,
   REQUIRED_RUN_MANIFEST_FIELDS,
   RunManifestError,
   buildRunManifest,

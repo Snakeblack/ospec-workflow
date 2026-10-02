@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.74.0] - 2026-10-02
+
+### Added
+- **Piloto Adaptive fijo — P1, brazo y comparación emparejada (K12)**: `RunManifest v1` admite de forma aditiva el brazo `adaptive-repair-v1` además del control `fixed` (REQ-kernel-contract-schemas-033 modificado). `planPairedRuns` (`scripts/lib/k12/runner.js`) planifica ambos brazos por repetición de cada fixture con el mismo orden de tareas que `planRuns`, orden de brazos sembrado y worktree/cache aislados por brazo. `summarizePairedCohort` reporta por tarea la tasa de pase y los deltas de medición (adaptive − fixed), la media, la desviación y el intervalo t del 95 % sobre tareas (la tarea es la unidad estadística), las regresiones como candidatas a veto, los pares excluidos y los oráculos no aplicados; solo da `usable-comparison` cuando todos los pares están completos. `summarizeCohort` rechaza mezclar políticas. No existe aún ejecutor del brazo Adaptive (P2), nada se promueve y `fixed` sigue siendo el default.
+- **Análisis de alcance del piloto** (`docs/analysis/2026-10-02-adaptive-pilot-scoping.md`): receta Repair en el host de referencia, ejecutor determinista primero, huecos de K12 y slices P1–P4.
+
+### Changed
+- **Roadmap**: historial con el análisis y la entrega de P1; versión de referencia y corte documental en v2.74.0.
+
+**Verificación directa**: `node scripts/check.js` (3581 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.73.1] - 2026-10-02
 
 ### Fixed

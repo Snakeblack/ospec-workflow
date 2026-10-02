@@ -46,7 +46,7 @@
     },
     "policy": {
       "type": "string",
-      "enum": ["fixed"]
+      "enum": ["fixed", "adaptive-repair-v1"]
     },
     "repetition_index": {
       "type": "integer",
