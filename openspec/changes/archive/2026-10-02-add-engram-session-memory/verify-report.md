@@ -1,6 +1,7 @@
 ## Verification Report
 
 **Change**: add-engram-session-memory
+**Version**: 2.72.0
 **Route**: standard (high-risk) — `state.yaml.route.actual_route: standard`
 **Mode**: openspec · TDD mode `focused` (config `testing.tdd_mode: focused`; strict TDD module not loaded)
 **Candidate**: branch `feat/add-engram-session-memory`, commits `ee6931a6` (slice 1) + `a6bd641c` (slice 2) on top of `main`
