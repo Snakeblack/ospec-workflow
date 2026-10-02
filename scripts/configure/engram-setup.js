@@ -2,9 +2,15 @@
 
 // Optional, non-authoritative Engram session-memory step for `setup:claude`
 // (add-engram-session-memory, ADR-002). ospec composes with the official upstream
-// `engram` plugin: it never ships its own MCP entry or memory hooks. This module
-// only (1) detects what is installed, (2) plans the registration actions and
-// (3) runs them when the user opted in with `--with-engram`.
+// Engram integration: it never ships its own MCP entry or memory hooks. This module
+// only (1) detects what is installed, (2) plans the registration action and
+// (3) runs it when the user opted in with `--with-engram`.
+//
+// Engram needs TWO pieces in Claude Code: the upstream `engram@engram` plugin (hooks
+// and skill, no MCP server) and a user-scope `engram` MCP server (the mem_* tools),
+// which only `engram setup claude-code` registers via `claude mcp add`. Both must be
+// present to count as configured; the upstream setup is idempotent and adds whichever
+// piece is missing, so it is the single mutating action.
 //
 // Semantics are deliberately the opposite of install-claude.js `run`/`listOutput`
 // (REQ-install-014 aborts on failure): every probe or action here is fail-open.
@@ -15,17 +21,14 @@
 
 const { spawnSync } = require("node:child_process");
 
-const MARKETPLACE_SOURCE = "Gentleman-Programming/engram";
 const MARKETPLACE_NAME = "engram";
-const PLUGIN_ID = "engram@engram";
 const BINARY_CANDIDATES = ["engram", "engram.exe"];
 const DEFAULT_TIMEOUT_MS = 10000;
-const PLUGIN_RE = /\bengram@[\w.-]+/;
-// Matches a plain or `plugin:engram:`-prefixed `engram` line if one is ever listed.
-// Real Claude Code does NOT list plugin-provided servers in `claude mcp list`, so this
-// is only a secondary signal; a registered plugin (PLUGIN_RE) is the primary one.
-const MCP_RE = /^(?:plugin:engram:)?engram\b/m;
-const MARKETPLACE_RE = /\bengram\b/i;
+const SETUP_TIMEOUT_MS = 120000;
+// `claude plugin list` prints the id as a standalone word, e.g. `  > engram@engram`.
+const PLUGIN_RE = /(?:^|\s)engram@engram(?:\s|$)/m;
+// `claude mcp list` prints "engram: <command> - <status>" for the user-scope server.
+const MCP_RE = /^(?:plugin:engram:)?engram:\s/m;
 const VERSION_RE = /\d+\.\d+\.\d+(?:[-+][\w.]+)?/;
 
 function defaultSpawn(bin, args, options) {
@@ -87,33 +90,23 @@ function detectEngram({ spawn = defaultSpawn, claudeBin = null, timeoutMs = DEFA
   return {
     binary,
     doctor: probeDoctor(spawn, binary, timeoutMs),
-    marketplace: probeList(spawn, claudeBin, ["plugin", "marketplace", "list"], MARKETPLACE_RE, timeoutMs),
     plugin: probeList(spawn, claudeBin, ["plugin", "list"], PLUGIN_RE, timeoutMs),
     mcp: probeList(spawn, claudeBin, ["mcp", "list"], MCP_RE, timeoutMs),
   };
 }
 
-// Pure. Returns the ordered mutating actions, or [] when there is nothing safe to
-// do: no opt-in, no claude CLI, no engram binary, anything already registered, or
-// any probe we could not read. Verified against a real Claude Code install: the
-// upstream plugin provides the MCP server itself and `claude mcp list` does not
-// show plugin-provided servers, so a registered plugin counts as configured.
-// `engram setup claude-code` is an alternative path (it installs that same plugin
-// and needs jq/curl), so it is only a conditional fallback: the runner re-probes
-// after the plugin install and skips it when the plugin or MCP is now visible.
+function isConfigured(detection) {
+  return detection.plugin === "registered" && detection.mcp === "registered";
+}
+
+// Pure. Returns the mutating actions, or [] when there is nothing safe to do: no
+// opt-in, no claude CLI, no engram binary, already configured, or any probe we
+// could not read. A registered plugin alone is NOT configured: it ships no MCP server.
 function planEngramActions(detection, { optIn = false, claudeBin = null } = {}) {
   if (!optIn || !claudeBin || !detection || !detection.binary || !detection.binary.found) return [];
-  const { plugin, mcp, marketplace } = detection;
-  if (plugin === "registered" || mcp === "registered") return [];
-  if (plugin === "unknown" || mcp === "unknown" || marketplace === "unknown") return [];
-
-  const actions = [];
-  if (marketplace === "absent") {
-    actions.push({ id: "plugin-marketplace-add", bin: claudeBin, argv: ["plugin", "marketplace", "add", MARKETPLACE_SOURCE] });
-  }
-  actions.push({ id: "plugin-install", bin: claudeBin, argv: ["plugin", "install", PLUGIN_ID] });
-  actions.push({ id: "setup-claude-code", bin: detection.binary.bin, argv: ["setup", "claude-code"] });
-  return actions;
+  if (isConfigured(detection)) return [];
+  if (detection.plugin === "unknown" || detection.mcp === "unknown") return [];
+  return [{ id: "setup-claude-code", bin: detection.binary.bin, argv: ["setup", "claude-code"] }];
 }
 
 function guidance(detection, claudeBin) {
@@ -124,14 +117,16 @@ function guidance(detection, claudeBin) {
       "    To enable it: install Engram (https://github.com/Gentleman-Programming/engram), then run",
       "    `npm run setup:claude -- --with-engram`. The upstream plugin hooks need bash, jq and curl (Git Bash on Windows).",
     );
-  } else if (detection.plugin === "registered" || detection.mcp === "registered") {
+  } else if (isConfigured(detection)) {
     lines.push("  - Engram is already configured; nothing to do.");
   } else if (!claudeBin || detection.plugin === "unknown" || detection.mcp === "unknown") {
     lines.push("  - Engram binary found, but plugin/MCP state could not be read; no changes were made.");
   } else {
     lines.push(
-      "  - Engram binary found but the plugin is not registered in Claude Code.",
-      "    Run `npm run setup:claude -- --with-engram` to install the plugin (no changes made now).",
+      detection.plugin === "registered"
+        ? "  - Engram plugin found, but the Engram MCP server is not registered: mem_* tools are unavailable."
+        : "  - Engram binary found but the plugin is not registered in Claude Code.",
+      "    Run `npm run setup:claude -- --with-engram` (runs `engram setup claude-code`; no changes made now).",
       "    The upstream plugin hooks need bash, jq and curl (Git Bash on Windows).",
     );
   }
@@ -158,33 +153,29 @@ function runEngramStep({ argv = [], claudeBin = null, spawn = defaultSpawn, stdo
 
     const plan = planEngramActions(detection, { optIn, claudeBin });
     if (plan.length === 0) {
-      stdout.write(
-        detection.plugin === "registered" || detection.mcp === "registered"
-          ? "\nEngram is already configured; nothing to do.\n"
-          : guidance(detection, claudeBin),
-      );
+      stdout.write(isConfigured(detection) ? "\nEngram is already configured; nothing to do.\n" : guidance(detection, claudeBin));
       return;
     }
 
     stdout.write("\nConfiguring Engram session memory (--with-engram):\n");
     for (const action of plan) {
-      if (action.id === "setup-claude-code") {
-        // Re-probe after the plugin install: the plugin provides the MCP itself, so
-        // the fallback only runs when neither the plugin nor an MCP server is visible.
-        const plugin = probeList(spawn, claudeBin, ["plugin", "list"], PLUGIN_RE, timeoutMs);
-        const mcp = probeList(spawn, claudeBin, ["mcp", "list"], MCP_RE, timeoutMs);
-        if (plugin !== "absent" || mcp !== "absent") {
-          stdout.write("  - Engram plugin/MCP already visible after the install; skipping `engram setup claude-code`.\n");
-          continue;
-        }
-      }
-      const result = safeSpawn(spawn, action.bin, action.argv, 120000);
+      const result = safeSpawn(spawn, action.bin, action.argv, SETUP_TIMEOUT_MS);
       if (result.error || result.status !== 0) {
         const reason = result.error ? result.error.code || result.error.message : `exit ${result.status}`;
         stderr.write(`warning: \`${describe(action)}\` failed (${reason}); continuing. Engram is optional.\n`);
-      } else {
-        stdout.write(`  - ${describe(action)}: ok\n`);
+        return;
       }
+      stdout.write(`  - ${describe(action)}: ok\n`);
+    }
+
+    // Confirm the piece that provides the mem_* tools actually landed.
+    if (probeList(spawn, claudeBin, ["mcp", "list"], MCP_RE, timeoutMs) === "registered") {
+      stdout.write("  - Engram MCP server registered (mem_* tools). Restart Claude Code to load it.\n");
+    } else {
+      stderr.write(
+        "warning: Engram MCP server is still not visible in `claude mcp list`; mem_* tools will be unavailable.\n" +
+          "  Run `engram setup claude-code` manually and check its output. Engram is optional.\n",
+      );
     }
   } catch (error) {
     try {

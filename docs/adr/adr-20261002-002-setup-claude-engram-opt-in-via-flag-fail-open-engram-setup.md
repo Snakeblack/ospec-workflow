@@ -17,3 +17,6 @@ Opt-in is the CLI flag `--with-engram` (`npm run setup:claude -- --with-engram`)
 
 ## Consequences
 New public flag; the TUI path gets guidance only. Detection depends on upstream CLI output formats, pinned by fixtures. Reversible: removing the flag keeps the guidance-only behavior.
+
+## Amendment (v2.72.1, 2026-10-02)
+Checked against a real install: the upstream `engram@engram` plugin ships hooks and a skill but **no MCP server**. The `mem_*` tools come from a user-scope `engram` MCP server that only `engram setup claude-code` registers (via `claude mcp add`). So the v2.72.0 rule "a registered plugin counts as configured" was wrong. Now "configured" means plugin AND MCP server. With opt-in, the single mutating action is the idempotent `engram setup claude-code`, followed by a re-check of `claude mcp list`. REQ-install-030 was updated to match.
