@@ -8,6 +8,7 @@ const {
   assertNotReceiptV1,
 } = require("../lifecycle-kernel/permits.js");
 const { createJournalRecord } = require("../lifecycle-kernel/journal.js");
+const { resolveOperationIdentityBinding } = require("../operation-identity-binding.js");
 const { createCandidateEvaluationAttestation } = require("./index.js");
 
 const ISSUE_OPERATION = "issue-candidate-evaluation-attestation";
@@ -23,6 +24,10 @@ const PERMIT_REJECTION_CODES = Object.freeze({
   "permit-reuse": "EVALUATION_ISSUANCE_PERMIT_REUSE",
   "stale-permit": "EVALUATION_ISSUANCE_PERMIT_STALE",
 });
+
+// The four fields that name which evaluation operation an emission closes.
+const OPERATION_IDENTITY_FIELDS = Object.freeze(["changePath", "phase", "expectedRevision", "operation"]);
+const OPERATION_BINDING_KEYS = Object.freeze([...OPERATION_IDENTITY_FIELDS, "target", "candidates"]);
 
 function fail(reason_code, error, extra = {}) {
   return { ok: false, reason_code, error: error || reason_code, ...extra };
@@ -56,17 +61,75 @@ function computeEvaluationSubjectId({ candidate_id, policy_digest } = {}) {
   })}`;
 }
 
+function pickOperationIdentity(source) {
+  const identity = {};
+  for (const field of OPERATION_IDENTITY_FIELDS) identity[field] = source[field];
+  return Object.freeze(identity);
+}
+
 /**
  * The emission arguments a permit must be minted over: the operation, the CAS
- * subject, and the attestation identity. A permit minted over anything else
- * cannot authorize this emission.
+ * subject, the attestation identity, and the bound evaluation operation
+ * identity. A permit minted over anything else, including a permit minted for
+ * another (or a stale revision of the same) evaluation operation, cannot
+ * authorize this emission.
  */
-function emissionPermitArguments(subjectId, attestationId) {
+function emissionPermitArguments(subjectId, attestationId, operationIdentity) {
+  if (!isRecord(operationIdentity) ||
+    OPERATION_IDENTITY_FIELDS.some((field) => typeof operationIdentity[field] !== "string" || operationIdentity[field] === "")) {
+    throw new TypeError(
+      "emissionPermitArguments requires an operation identity with non-empty changePath, phase, expectedRevision, and operation"
+    );
+  }
   return Object.freeze({
     operation: ISSUE_OPERATION,
     subject_id: subjectId,
     attestation_id: attestationId,
+    operation_identity: pickOperationIdentity(operationIdentity),
   });
+}
+
+/**
+ * Consumes the common operation identity binding: the emission must name, by
+ * {changePath, phase, expectedRevision, operation}, exactly one evaluation
+ * operation whose recorded state matches and has no recorded outcome yet. Only
+ * a `bound` decision admits the emission; an absent binding (including the
+ * legacy single-candidate passthrough), a malformed, stale, or foreign binding,
+ * and any recorded or unknown outcome all fail closed before any store read.
+ */
+function authenticateOperationBinding(operationBinding) {
+  if (!isRecord(operationBinding) ||
+    Object.keys(operationBinding).some((key) => !OPERATION_BINDING_KEYS.includes(key))) {
+    return fail(
+      "EVALUATION_ISSUANCE_INPUT_INVALID",
+      "operationBinding must be an object with only changePath, phase, expectedRevision, operation, target, and candidates"
+    );
+  }
+  // The resolver would hand an absent binding to its legacy passthrough; an
+  // emission never accepts that, whatever the candidate records say.
+  if (OPERATION_IDENTITY_FIELDS.every((field) => operationBinding[field] === undefined)) {
+    return fail(
+      "EVALUATION_OPERATION_BINDING_ABSENT",
+      "evaluation attestation emission requires an explicit {changePath, phase, expectedRevision, operation} binding"
+    );
+  }
+  const decision = resolveOperationIdentityBinding(operationBinding);
+  const extra = { operation_binding_reasons: decision.reasons };
+  if (decision.status === "bound") {
+    return { ok: true, identity: pickOperationIdentity(decision.binding) };
+  }
+  if (decision.status === "reconciliation_required") {
+    return fail(
+      "EVALUATION_OPERATION_BINDING_RECONCILIATION_REQUIRED",
+      `evaluation operation needs reconciliation before emission: ${decision.reasons.join(", ")}`,
+      extra
+    );
+  }
+  return fail(
+    "EVALUATION_OPERATION_BINDING_REJECTED",
+    `evaluation operation binding is malformed, stale, or foreign: ${decision.reasons.join(", ")}`,
+    extra
+  );
 }
 
 function freshLedgerState() {
@@ -86,6 +149,11 @@ function normalizeLedgerState(state) {
  * (every constructor rejection, including EVALUATION_K7_NO_MODEL_DEFERRED, is
  * returned verbatim before any store read or write), and the store write is a
  * permit-authorized compareAndSwap on the deterministic evaluation subject.
+ * The emission consumes the common operation identity binding
+ * ({changePath, phase, expectedRevision, operation}): only an exact `bound`
+ * match admits it, and the bound identity is part of the permit arguments, so
+ * a permit minted for another or a stale evaluation operation cannot authorize
+ * it.
  *
  * Ordering follows the kernel house pattern: load head, exact-replay check by
  * permit receipt, authorize against the head revision, then one atomic CAS
@@ -96,7 +164,7 @@ function normalizeLedgerState(state) {
  * the commit landed, a fresh authorized CAS when it did not).
  *
  * @returns {Promise<
- *   | { ok: true, attestation: object, subject_id: string, revision: string, replayed: boolean, converged: boolean, operation_receipt: object }
+ *   | { ok: true, attestation: object, subject_id: string, revision: string, replayed: boolean, converged: boolean, operation_identity: object, operation_receipt: object }
  *   | { ok: false, reason_code: string, error: string }
  * >}
  */
@@ -109,6 +177,7 @@ async function issueCandidateEvaluationAttestation(input) {
     "lineage",
     "issuance",
     "phase",
+    "operationBinding",
     "issuer_version",
     "runtime_version",
     "issued_at",
@@ -116,7 +185,7 @@ async function issueCandidateEvaluationAttestation(input) {
   if (!isRecord(input) || !exactKeys(input, requiredKeys)) {
     return fail(
       "EVALUATION_ISSUANCE_INPUT_INVALID",
-      "input must contain exactly store, permitLedger, operationPermit, and the WU2 constructor inputs (binding, lineage, issuance, phase, issuer_version, runtime_version, issued_at)"
+      "input must contain exactly store, permitLedger, operationPermit, operationBinding, and the WU2 constructor inputs (binding, lineage, issuance, phase, issuer_version, runtime_version, issued_at)"
     );
   }
   const { store, permitLedger } = input;
@@ -142,6 +211,12 @@ async function issueCandidateEvaluationAttestation(input) {
   if (!created.ok) return created;
   const attestation = created.attestation;
 
+  // A successful phase closure alone does not say which evaluation operation
+  // is being closed; an absent, stale, or foreign binding writes nothing.
+  const operationBinding = authenticateOperationBinding(input.operationBinding);
+  if (!operationBinding.ok) return operationBinding;
+  const operationIdentity = operationBinding.identity;
+
   const subjectId = computeEvaluationSubjectId({
     candidate_id: attestation.candidate_id,
     policy_digest: attestation.policy_digest,
@@ -166,7 +241,7 @@ async function issueCandidateEvaluationAttestation(input) {
     );
   }
 
-  const emissionArgs = emissionPermitArguments(subjectId, attestation.attestation_id);
+  const emissionArgs = emissionPermitArguments(subjectId, attestation.attestation_id, operationIdentity);
   const argumentsDigest = sha256Fingerprint("permit:arguments", emissionArgs);
 
   // Exact replay first (REQ-operation-permits-006 / REQ-authority-store-004):
@@ -200,6 +275,7 @@ async function issueCandidateEvaluationAttestation(input) {
       revision: headRevision,
       replayed: true,
       converged: true,
+      operation_identity: operationIdentity,
       operation_receipt: replayReceipt,
     };
   }
@@ -282,6 +358,7 @@ async function issueCandidateEvaluationAttestation(input) {
         attestation_id: attestation.attestation_id,
         subject_id: subjectId,
         permit_id: permit.permit_id,
+        operation_identity: operationIdentity,
       },
     }),
   ];
@@ -360,6 +437,7 @@ async function issueCandidateEvaluationAttestation(input) {
     revision: cas.revision,
     replayed: false,
     converged: cas.converged === true,
+    operation_identity: operationIdentity,
     operation_receipt: committed,
   };
 }

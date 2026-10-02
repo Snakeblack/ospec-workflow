@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.73.0] - 2026-10-02
+
+### Added
+- **K8 — binding operativo en la emisión de attestation**: `issueCandidateEvaluationAttestation` (`scripts/lib/evaluation-attestation/issuer.js`) exige un `operationBinding` explícito `{changePath, phase, expectedRevision, operation}` y lo resuelve con `resolveOperationIdentityBinding` contra el registro de la operación de evaluación. Solo una coincidencia exacta `bound` admite la emisión: un binding ausente (incluido el passthrough legacy de candidato único) devuelve `EVALUATION_OPERATION_BINDING_ABSENT`; uno malformado, stale o ajeno, o con snapshots contradictorios, devuelve `EVALUATION_OPERATION_BINDING_REJECTED`; y un resultado ya registrado o desconocido devuelve `EVALUATION_OPERATION_BINDING_RECONCILIATION_REQUIRED`. Todos se rechazan antes de leer o escribir el store y sin consumir el permit. La identidad ligada entra en los argumentos del permit (un permit emitido para otra operación o revisión no autoriza la emisión) y queda registrada en el journal y en el resultado. Cierra el done criterion K8 de bindings ausentes, stale o ajenos; `approved-for-evaluation` sigue sin ser pase de delivery.
+
+### Changed
+- **Roadmap reconciliado**: el mínimo K8 pasa a `done` (ODD, v2.71.0 + v2.73.0) y el siguiente slice elegible es el piloto Adaptive fijo en ámbito aislado. Versión de referencia y corte documental en v2.73.0.
+
+**Verificación directa**: `node scripts/check.js` (3570 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.72.1] - 2026-10-02
 
 ### Fixed
