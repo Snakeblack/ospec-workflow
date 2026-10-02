@@ -151,6 +151,31 @@
             }
           },
           "additionalProperties": false
+        },
+        "defects": {
+          "type": "object",
+          "description": "Seeded-defect tally; detected plus the escaped count equals seeded (enforced by the module).",
+          "required": ["seeded", "detected", "escaped"],
+          "properties": {
+            "seeded": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "detected": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "escaped": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": ".*\\S.*"
+              },
+              "uniqueItems": true
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "files": {
     "src/length.js": "module.exports = (value) => value.length;\n"
   },
@@ -21,6 +21,57 @@
       "required_evidence": [
         "focused-test-output"
       ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "null-returns-zero",
+      "role": "acceptance",
+      "source": "assert.equal(require(\"src/length.js\")(null), 0);"
+    },
+    {
+      "id": "valid-input-unchanged",
+      "role": "invariants",
+      "source": "assert.equal(require(\"src/length.js\")(\"abc\"), 3);"
+    },
+    {
+      "id": "exports-function",
+      "role": "contract",
+      "source": "assert.equal(typeof require(\"src/length.js\"), \"function\");"
+    },
+    {
+      "id": "undefined-returns-zero",
+      "role": "negative",
+      "source": "assert.equal(require(\"src/length.js\")(undefined), 0);"
+    }
+  ],
+  "defects": [
+    {
+      "id": "wrong-patch",
+      "kind": "wrong-patch",
+      "patch": "--- a/src/length.js\n+++ b/src/length.js\n@@ -1,1 +1,1 @@\n-module.exports = (value) => value.length;\n+module.exports = (value) => (value == null ? -1 : value.length);\n"
+    },
+    {
+      "id": "complacent-test",
+      "kind": "complacent-test",
+      "patch": "--- a/src/length.js\n+++ b/src/length.js\n@@ -1,1 +1,1 @@\n-module.exports = (value) => value.length;\n+module.exports = (value) => (value == null ? -1 : value.length);\n",
+      "checks": [
+        {
+          "id": "null-returns-zero",
+          "role": "acceptance",
+          "source": "assert.equal(typeof require(\"src/length.js\"), \"function\");"
+        }
+      ]
+    },
+    {
+      "id": "scope-drift",
+      "kind": "scope-drift",
+      "patch": "--- a/src/length.js\n+++ b/src/length.js\n@@ -1,1 +1,1 @@\n-module.exports = (value) => value.length;\n+module.exports = (value) => (value == null ? 0 : value.length);\n--- /dev/null\n+++ b/src/unrelated.js\n@@ -0,0 +1 @@\n+module.exports = {};\n"
+    },
+    {
+      "id": "stale-receipt",
+      "kind": "stale-receipt",
+      "patch": "--- a/src/length.js\n+++ b/src/length.js\n@@ -1,1 +1,1 @@\n-module.exports = (value) => value.length;\n+module.exports = (value) => (value == null ? -1 : value.length);\n"
     }
   ]
 }

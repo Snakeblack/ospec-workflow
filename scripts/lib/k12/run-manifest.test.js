@@ -252,3 +252,35 @@ test("keeps schema required fields synchronized with the module", () => {
 
   assert.deepEqual(schema.required, REQUIRED_RUN_MANIFEST_FIELDS);
 });
+
+test("records seeded-defect outcomes as a closed, self-consistent object", () => {
+  const manifest = buildRunManifest({
+    ...validInput(),
+    outcome: { status: "pass", defects: { seeded: 3, detected: 2, escaped: ["complacent-test"] } },
+  });
+  assert.deepEqual(manifest.outcome.defects, { seeded: 3, detected: 2, escaped: ["complacent-test"] });
+  assert.equal(Object.isFrozen(manifest.outcome.defects.escaped), true);
+
+  const cases = [
+    [{ seeded: 2, detected: 2 }, "run manifest outcome defects escaped must be an array of unique non-empty strings"],
+    [{ seeded: 2, detected: 2, escaped: [], extra: 1 }, "run manifest outcome defects contains unknown field \"extra\""],
+    [{ seeded: -1, detected: 0, escaped: [] }, "run manifest outcome defects seeded must be an integer greater than or equal to 0"],
+    [{ seeded: 2, detected: 1.5, escaped: [] }, "run manifest outcome defects detected must be an integer greater than or equal to 0"],
+    [{ seeded: 2, detected: 0, escaped: ["a", "a"] }, "run manifest outcome defects escaped must be an array of unique non-empty strings"],
+    [{ seeded: 2, detected: 0, escaped: ["a", " "] }, "run manifest outcome defects escaped must be an array of unique non-empty strings"],
+    [{ seeded: 3, detected: 1, escaped: ["a"] }, "run manifest outcome defects detected plus escaped must equal seeded"],
+  ];
+  for (const [defects, expectedError] of cases) {
+    const validation = validateRunManifest({ ...validInput(), outcome: { status: "pass", defects } });
+    assert.equal(validation.valid, false, JSON.stringify(defects));
+    assert.ok(validation.errors.includes(expectedError), `${JSON.stringify(defects)}: ${validation.errors.join("; ")}`);
+  }
+  assert.equal(validateRunManifest({ ...validInput(), outcome: { status: "pass", defects: [] } }).valid, false);
+
+  const schemaPath = resolve(__dirname, "../../../schemas/kernel/run-manifest/v1.schema.json");
+  const schema = JSON.parse(readFileSync(schemaPath, "utf8"));
+  const defectsSchema = schema.properties.outcome.properties.defects;
+  assert.deepEqual(defectsSchema.required, ["seeded", "detected", "escaped"]);
+  assert.equal(defectsSchema.additionalProperties, false);
+  assert.equal(defectsSchema.properties.escaped.uniqueItems, true);
+});

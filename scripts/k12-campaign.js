@@ -92,7 +92,7 @@ async function main() {
   };
   let summary;
   if (options.paired) {
-    // Deterministic Adaptive Repair pilot (P2a): both arms per fixture repetition.
+    // Deterministic Adaptive Repair pilot (P2a/P2b): both arms per fixture repetition, with seeded defects.
     const routes = parseRoutingTable(readFileSync(configPath, "utf8"));
     const completed = await executePlan(
       planPairedRuns(cohort, planOptions),
@@ -100,8 +100,10 @@ async function main() {
     );
     summary = summarizePairedCohort(completed);
     const { totals } = summary;
+    const defects = (arm) => `${totals.defects[arm].detected}/${totals.defects[arm].seeded}`;
     console.log(
-      `tasks=${totals.tasks_total} comparable=${totals.tasks_comparable} pairs=${totals.pairs_total} excluded=${totals.pairs_excluded} regressions=${summary.regressions.length}`,
+      `tasks=${totals.tasks_total} comparable=${totals.tasks_comparable} pairs=${totals.pairs_total} excluded=${totals.pairs_excluded} regressions=${summary.regressions.length}`
+      + ` defects_detected fixed=${defects("fixed")} adaptive=${defects("adaptive-repair-v1")} defect_regressions=${summary.defect_regressions.length}`,
     );
   } else {
     const completed = await executePlan(

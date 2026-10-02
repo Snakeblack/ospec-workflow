@@ -363,6 +363,10 @@ test("summarizePairedCohort reports per-task paired deltas, regressions, and t i
       pairs_incomplete: 0,
       pairs_excluded: 0,
       runs_oracle_unapplied: { fixed: 0, "adaptive-repair-v1": 0 },
+      defects: {
+        fixed: { seeded: 0, detected: 0, escaped: 0 },
+        "adaptive-repair-v1": { seeded: 0, detected: 0, escaped: 0 },
+      },
     });
     assert.equal(Object.isFrozen(report), true);
   } finally {
@@ -423,4 +427,72 @@ test("summarizePairedCohort rejects duplicate arms, foreign arms, and inconsiste
   assert.throws(() => summarizePairedCohort([...runs.slice(1), { ...runs[0], policy: "kernel" }]), isInvalid);
   assert.throws(() => summarizePairedCohort([...runs.slice(1), { ...runs[0], stratum: "adversarial" }]), isInvalid);
   assert.throws(() => summarizePairedCohort("runs"), isInvalid);
+});
+
+test("summarizePairedCohort tallies seeded defects per arm and lists adaptive escapes as veto candidates", async () => {
+  const { root, cohort } = await syntheticCohort([fixture("alpha"), fixture("bravo", "behavior-repair")]);
+  try {
+    const plan = planPairedRuns(cohort, options(root, { repetitions: 2 }));
+    const { runs } = await executePlan(plan, async (manifest) => {
+      const adaptive = manifest.policy === "adaptive-repair-v1";
+      // Both arms see the same two seeded defects; adaptive lets one escape on bravo r1.
+      const escapes = adaptive && manifest.fixture_id === "bravo" && manifest.repetition_index === 1;
+      return {
+        status: "pass",
+        measurements: pilotMeasurements(adaptive ? 3 : 5, 10),
+        oracle: { applied: true, reason: "catalog compared" },
+        defects: { seeded: 2, detected: escapes ? 1 : 2, escaped: escapes ? ["complacent-test"] : [] },
+      };
+    }, FIXED_CLOCK);
+    assert.equal(runs[0].outcome.defects.seeded, 2);
+
+    const report = summarizePairedCohort(runs);
+    assert.equal(report.verdict, "usable-comparison");
+    const bravo = report.fixtures.find((task) => task.fixture_id === "bravo");
+    assert.deepEqual(bravo.defects, {
+      fixed: { seeded: 4, detected: 4, escaped: [] },
+      "adaptive-repair-v1": { seeded: 4, detected: 3, escaped: ["complacent-test"] },
+    });
+    assert.deepEqual(report.defect_regressions, [{ fixture_id: "bravo", escaped: ["complacent-test"] }]);
+    assert.deepEqual(report.totals.defects, {
+      fixed: { seeded: 8, detected: 8, escaped: 0 },
+      "adaptive-repair-v1": { seeded: 8, detected: 7, escaped: 1 },
+    });
+    // Pass rate stays orthogonal to defect detection.
+    assert.deepEqual(report.regressions, []);
+
+    const mismatched = runs.map((run) => (run.policy === "fixed" && run.fixture_id === "alpha" && run.repetition_index === 0
+      ? { ...run, outcome: { ...run.outcome, defects: { seeded: 1, detected: 1, escaped: [] } } }
+      : run));
+    assert.throws(() => summarizePairedCohort(mismatched), (error) => error.code === "INVALID_COMPLETED_RUNS");
+
+    // An arm whose clean output failed reports no defects: a pass-rate regression, not a malformed pair.
+    const cleanFailure = runs.map((run) => (run.policy === "adaptive-repair-v1" && run.fixture_id === "alpha" && run.repetition_index === 0
+      ? { ...run, outcome: { status: "fail", measurements: run.outcome.measurements, oracle: run.outcome.oracle } }
+      : run));
+    const degraded = summarizePairedCohort(cleanFailure);
+    assert.deepEqual(degraded.regressions, ["alpha"]);
+    assert.deepEqual(degraded.fixtures.find((task) => task.fixture_id === "alpha").defects["adaptive-repair-v1"],
+      { seeded: 2, detected: 2, escaped: [] });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("summarizePairedCohort reports no defect tally when no run seeded defects", async () => {
+  const { root, cohort } = await syntheticCohort([fixture("alpha")]);
+  try {
+    const { runs } = await executePlan(planPairedRuns(cohort, options(root, { repetitions: 1 })), async () => ({
+      status: "pass",
+    }), FIXED_CLOCK);
+    const report = summarizePairedCohort(runs);
+    assert.equal(report.fixtures[0].defects, null);
+    assert.deepEqual(report.defect_regressions, []);
+    assert.deepEqual(report.totals.defects, {
+      fixed: { seeded: 0, detected: 0, escaped: 0 },
+      "adaptive-repair-v1": { seeded: 0, detected: 0, escaped: 0 },
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });

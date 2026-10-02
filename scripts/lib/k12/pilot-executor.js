@@ -1,25 +1,39 @@
 "use strict";
 
-// Deterministic executor for the Adaptive Repair pilot, slice P2a
+// Deterministic executor for the Adaptive Repair pilot, slices P2a and P2b
 // (docs/analysis/2026-10-02-adaptive-pilot-scoping.md). Each fixture carries a
 // scripted worker output (`pilot.json`): base files, one patch, the obligations
-// the executor declares, and the allowed paths. Both arms consume the SAME
-// scripted output, so the comparison isolates the mechanism: each arm compiles
-// its own execution graph under its own PolicySnapshot, then the patch runs
-// through the real K4b pure stages (patch integration and K3 Candidate freeze),
-// the K6b independent verifier, and the K12 obligations oracle.
+// the executor declares, the allowed paths, the checks that observe behavior,
+// and optional seeded-defect variants. Both arms consume the SAME scripted
+// output, so the comparison isolates the mechanism: each arm compiles its own
+// execution graph under its own PolicySnapshot, then every output runs through
+// reproduction (acceptance checks must fail on the base), the real K4b pure
+// stages (patch integration and K3 Candidate freeze), runtime observation of
+// the checks against the candidate files, the K6b independent verifier, and the
+// K12 obligations oracle.
+//
+// Seeded defects (P2b) are scripted variants that the pipeline must reject at a
+// declared stage. A variant the pipeline accepts escaped; a variant rejected at
+// another stage marks the fixture as misattributed. Both arms share every
+// detection stage (the control routes run sdd-apply under TDD, so they also
+// reproduce first), so detection parity is the expected result: it shows the
+// Repair recipe compresses phases without dropping a detection stage.
 //
 // What this does NOT measure: worker isolation (K6a proves it; the scripted
 // patch replaces the isolated worker) and model quality (no model runs). The
 // phase plan per arm is declared, so phase counts are a recorded hypothesis,
-// not an observation. Evidence is scripted through the K6b test runner
-// authority (collector `node-test`), never presented as a real test run.
+// not an observation. Checks run in a node:vm context over the fixture's own
+// in-memory files: repository-owned fixtures, not a sandbox for untrusted code.
+// Only passing checks yield runtime evidence through the K6b test runner
+// authority (collector `node-test`).
 //
 // This is measurement tooling: it grants no authority, writes no store, and
 // changes no route or default.
 
+const assert = require("node:assert/strict");
 const { existsSync, readFileSync } = require("node:fs");
 const { join } = require("node:path");
+const vm = require("node:vm");
 
 const { sha256Fingerprint } = require("../canonical-json.js");
 const { computeTreeDigest } = require("../worker-workspace.js");
@@ -32,12 +46,16 @@ const { compareObligations } = require("./obligation-oracle.js");
 const { PAIRED_ARMS } = require("./runner.js");
 
 const PILOT_SCRIPT_FILE = "pilot.json";
-const PILOT_SCRIPT_KEYS = Object.freeze(["schema_version", "files", "patch", "allowed_paths", "obligations"]);
+const PILOT_SCRIPT_SCHEMA_VERSION = 2;
+const PILOT_SCRIPT_KEYS = Object.freeze([
+  "schema_version", "files", "patch", "allowed_paths", "obligations", "checks", "defects",
+]);
 const NODE_ID = "repair";
 const EVIDENCE_ROLES = Object.freeze(["acceptance", "invariants", "contract", "negative"]);
 const COLLECTOR = Object.freeze({ id: "node-test", transport: "tool-execution-transport" });
-// The live route each P2a stratum takes under the fixed control policy. Other
-// strata are outside P2a and are recorded as excluded, never silently passed.
+const CHECK_TIMEOUT_MS = 1000;
+// The live route each pilot stratum takes under the fixed control policy. Other
+// strata are outside the pilot and are recorded as excluded, never silently passed.
 const FIXED_ROUTE_BY_STRATUM = Object.freeze({
   "local-reversible": "lite",
   "behavior-repair": "bugfix",
@@ -46,6 +64,17 @@ const FIXED_ROUTE_BY_STRATUM = Object.freeze({
 // Candidate-bound verify"). It compresses phases only: it inherits every gate
 // of the control route, so no composition drops a review the control requires.
 const REPAIR_RECIPE_PHASES = Object.freeze(["reproduce", "repair", "verify"]);
+// Seeded-defect kinds and the stage that must reject each one:
+// - wrong-patch: applies but breaks a checked behavior, so a role loses its evidence;
+// - complacent-test: a weakened acceptance check that already passes on the base;
+// - scope-drift: the patch also touches a path outside the allowed paths;
+// - stale-receipt: evidence observed on an earlier candidate, reused after the patch changed.
+const DEFECT_STAGE_BY_KIND = Object.freeze({
+  "wrong-patch": "verify",
+  "complacent-test": "reproduction",
+  "scope-drift": "integration",
+  "stale-receipt": "verify",
+});
 
 class PilotExecutorError extends Error {
   constructor(message, code = "INVALID_PILOT_EXECUTOR") {
@@ -63,8 +92,12 @@ function isNonEmptyString(value) {
   return typeof value === "string" && value.trim() !== "";
 }
 
+function hasOnlyKeys(value, keys) {
+  return Object.keys(value).every((key) => keys.includes(key));
+}
+
 /**
- * Resolves both arms' phase plans per P2a stratum from the live routing table.
+ * Resolves both arms' phase plans per pilot stratum from the live routing table.
  * @param {object[]} routes Entries from route-dispatcher parseRoutingTable.
  * @returns {object} `{ [stratum]: { fixed: plan, "adaptive-repair-v1": plan } }`.
  * @throws {PilotExecutorError} When a control route is missing or malformed.
@@ -88,7 +121,7 @@ function resolveArmPlans(routes) {
 
 function validateObligation(obligation, index) {
   return isPlainObject(obligation)
-    && Object.keys(obligation).every((key) => ["id", "criticality", "required_evidence"].includes(key))
+    && hasOnlyKeys(obligation, ["id", "criticality", "required_evidence"])
     && isNonEmptyString(obligation.id)
     && ["must", "should"].includes(obligation.criticality)
     && Array.isArray(obligation.required_evidence)
@@ -96,6 +129,59 @@ function validateObligation(obligation, index) {
     && obligation.required_evidence.every(isNonEmptyString)
     ? null
     : `pilot script obligation ${index} must have id, criticality must|should, and non-empty required_evidence`;
+}
+
+function isValidCheck(check) {
+  return isPlainObject(check)
+    && hasOnlyKeys(check, ["id", "role", "source"])
+    && isNonEmptyString(check.id)
+    && EVIDENCE_ROLES.includes(check.role)
+    && isNonEmptyString(check.source);
+}
+
+function validateChecks(checks) {
+  if (!Array.isArray(checks) || checks.length === 0) return ["pilot script checks must be a non-empty array"];
+  const errors = [];
+  checks.forEach((check, index) => {
+    if (!isValidCheck(check)) {
+      errors.push(`pilot script check ${index} must have id, role (${EVIDENCE_ROLES.join("|")}), and source`);
+    }
+  });
+  if (errors.length > 0) return errors;
+  if (new Set(checks.map((check) => check.id)).size !== checks.length) errors.push("pilot script check ids must be unique");
+  if (!checks.some((check) => check.role === "acceptance")) {
+    errors.push("pilot script needs at least one acceptance check to reproduce the defect on the base");
+  }
+  return errors;
+}
+
+function validateDefect(defect, index, checkIds) {
+  const prefix = `pilot script defect ${index}`;
+  if (!isPlainObject(defect) || !hasOnlyKeys(defect, ["id", "kind", "patch", "checks"])
+    || !isNonEmptyString(defect.id) || !Object.hasOwn(DEFECT_STAGE_BY_KIND, defect.kind)
+    || !isNonEmptyString(defect.patch)) {
+    return `${prefix} must have id, kind (${Object.keys(DEFECT_STAGE_BY_KIND).join("|")}), and patch`;
+  }
+  if (defect.kind !== "complacent-test") {
+    return defect.checks === undefined ? null : `${prefix} (${defect.id}) may carry checks only for complacent-test`;
+  }
+  if (!Array.isArray(defect.checks) || defect.checks.length === 0 || !defect.checks.every(isValidCheck)) {
+    return `${prefix} (${defect.id}): complacent-test requires checks that weaken existing ones`;
+  }
+  return defect.checks.every((check) => checkIds.includes(check.id))
+    ? null
+    : `${prefix} (${defect.id}): complacent-test checks must override existing check ids`;
+}
+
+function validateDefects(defects, checks) {
+  if (defects === undefined) return [];
+  if (!Array.isArray(defects)) return ["pilot script defects must be an array"];
+  const checkIds = Array.isArray(checks) ? checks.map((check) => check && check.id) : [];
+  const errors = defects.map((defect, index) => validateDefect(defect, index, checkIds)).filter(Boolean);
+  if (errors.length === 0 && new Set(defects.map((defect) => defect.id)).size !== defects.length) {
+    errors.push("pilot script defect ids must be unique");
+  }
+  return errors;
 }
 
 /**
@@ -116,7 +202,9 @@ function loadPilotScript(taskPath) {
   if (!isPlainObject(script)) return { script: null, error: "pilot script must be an object" };
   const unknown = Object.keys(script).filter((key) => !PILOT_SCRIPT_KEYS.includes(key));
   if (unknown.length > 0) errors.push(`pilot script has unknown keys: ${unknown.join(", ")}`);
-  if (script.schema_version !== 1) errors.push("pilot script schema_version must be 1");
+  if (script.schema_version !== PILOT_SCRIPT_SCHEMA_VERSION) {
+    errors.push(`pilot script schema_version must be ${PILOT_SCRIPT_SCHEMA_VERSION}`);
+  }
   if (!isPlainObject(script.files) || Object.keys(script.files).length === 0
     || !Object.values(script.files).every((content) => typeof content === "string")) {
     errors.push("pilot script files must map paths to string contents");
@@ -134,7 +222,39 @@ function loadPilotScript(taskPath) {
       if (error) errors.push(error);
     });
   }
+  errors.push(...validateChecks(script.checks), ...validateDefects(script.defects, script.checks));
   return errors.length > 0 ? { script: null, error: errors.join("; ") } : { script, error: null };
+}
+
+/**
+ * Runs one check against in-memory files in a fresh vm context. Modules and the
+ * check share the context, so values compare without cross-realm surprises.
+ * @returns {boolean} Whether the check passed.
+ */
+function checkPasses(files, check) {
+  const context = vm.createContext({ assert });
+  const modules = new Map();
+  const requireFile = (specifier) => {
+    const path = String(specifier).replace(/^\.\//, "");
+    if (!Object.hasOwn(files, path)) throw new Error(`module not found: ${specifier}`);
+    if (!modules.has(path)) {
+      const module = { exports: {} };
+      modules.set(path, module);
+      const factory = vm.runInContext(`(function (module, exports, require) {\n${files[path]}\n})`, context, {
+        filename: path,
+        timeout: CHECK_TIMEOUT_MS,
+      });
+      factory(module, module.exports, requireFile);
+    }
+    return modules.get(path).exports;
+  };
+  context.require = requireFile;
+  try {
+    vm.runInContext(check.source, context, { filename: `check:${check.id}`, timeout: CHECK_TIMEOUT_MS });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function measurements(plan, effectsExecuted, wallMs) {
@@ -158,7 +278,7 @@ function oracleRecord(comparison, reasonWhenUnapplied) {
   };
 }
 
-function buildArmPipeline(fixtureId, policy, script) {
+function buildArm(fixtureId, policy, script) {
   const files = { ...script.files };
   const sourceSnapshot = {
     schema_version: 1,
@@ -196,72 +316,134 @@ function buildArmPipeline(fixtureId, policy, script) {
     version: 1,
     contract_digest: sha256Fingerprint("k12-pilot-contract/v1", contractBody),
   };
-  return { files, sourceSnapshot, policySnapshot, node, obligations, contract };
-}
-
-async function runArm(fixtureId, policy, script, catalogFixture) {
-  const arm = buildArmPipeline(fixtureId, policy, script);
   const executionGraph = compileExecutionGraph({
-    contract: arm.contract,
-    policySnapshot: arm.policySnapshot,
-    sourceSnapshot: arm.sourceSnapshot,
-    nodes: [arm.node],
-    obligations: arm.obligations,
+    contract,
+    policySnapshot,
+    sourceSnapshot,
+    nodes: [node],
+    obligations,
   });
-  const comparison = compareObligations(catalogFixture, executionGraph.obligations);
-
   const workOrderId = sha256Fingerprint("k12-pilot-work-order/v1", {
     graph_id: executionGraph.graph_id,
     node_id: NODE_ID,
   });
-  const integrated = await integrateWorkResultPatches(arm.sourceSnapshot, [{
-    work_order_id: workOrderId,
-    source_snapshot_id: arm.sourceSnapshot.source_snapshot_id,
-    patch: script.patch,
-    commands: [],
-    logs: [],
-    exit_code: 0,
-    filesystem_inventory: [],
-  }], { files: arm.files, workOrders: [{ work_order_id: workOrderId, allowed_paths: arm.node.allowed_paths }] });
-  if (!integrated.ok) {
-    return { comparison, effects: 0, failure: `integration:${integrated.reason_code || "failed"}` };
-  }
+  return { files, sourceSnapshot, policySnapshot, node, contract, executionGraph, workOrderId };
+}
 
-  const rawEvidence = EVIDENCE_ROLES.map((role) => ({
-    bytes: `${role}: scripted pilot evidence for ${fixtureId}`,
+/**
+ * Observes the checks against one candidate's files. Only passing checks yield
+ * runtime evidence and a runner receipt bound to that candidate.
+ */
+function observeChecks(arm, candidate, candidateFiles, checks) {
+  const passed = checks.filter((check) => checkPasses(candidateFiles, check));
+  const rawEvidence = passed.map((check) => ({
+    bytes: `${check.role}:${check.id}: passed`,
     provenance: "runtime-observed",
-    origin: `role:${role}`,
+    origin: `check:${check.id}`,
     node_id: NODE_ID,
+    candidate_id: candidate.candidate_id,
   }));
   const runnerReceiptChannel = createTestRunnerReceiptChannel({
-    candidate: integrated.candidate,
-    executionGraph,
+    candidate,
+    executionGraph: arm.executionGraph,
     rawEvidence,
-    receiptSpecs: EVIDENCE_ROLES.map((role) => ({
-      role,
+    receiptSpecs: passed.map((check) => ({
+      role: check.role,
       node_id: NODE_ID,
       evidence_requirements_satisfied: arm.node.required_evidence,
     })),
     collector: COLLECTOR,
   });
+  return { rawEvidence, runnerReceiptChannel };
+}
+
+/**
+ * Evidence observed on an earlier candidate, replayed after the patch changed.
+ * The worker strips the evidence's subject claim, so only the runner receipt
+ * binding (which the worker cannot re-mint) can expose the replay.
+ */
+function replayStaleObservation(arm, earlier, checks) {
+  const stale = observeChecks(arm, earlier.candidate, earlier.candidateFiles, checks);
+  return {
+    rawEvidence: stale.rawEvidence.map(({ candidate_id: _replayedSubject, ...raw }) => raw),
+    runnerReceiptChannel: stale.runnerReceiptChannel,
+  };
+}
+
+/**
+ * Runs one worker output through reproduction, K4b integration, observation, and
+ * K6b verify. `staleFrom` replays evidence observed on an earlier candidate.
+ * @returns {Promise<{ stage: string|null, reason?: string, effects: number, candidate?: object, candidateFiles?: object }>}
+ */
+async function runPipeline(arm, output) {
+  const reproducing = output.checks.filter((check) => check.role === "acceptance");
+  const passingOnBase = reproducing.filter((check) => checkPasses(arm.files, check)).map((check) => check.id);
+  if (passingOnBase.length > 0) {
+    return { stage: "reproduction", reason: `acceptance-passes-on-base ${passingOnBase.join(", ")}`, effects: 0 };
+  }
+
+  const integrated = await integrateWorkResultPatches(arm.sourceSnapshot, [{
+    work_order_id: arm.workOrderId,
+    source_snapshot_id: arm.sourceSnapshot.source_snapshot_id,
+    patch: output.patch,
+    commands: [],
+    logs: [],
+    exit_code: 0,
+    filesystem_inventory: [],
+  }], { files: arm.files, workOrders: [{ work_order_id: arm.workOrderId, allowed_paths: arm.node.allowed_paths }] });
+  if (!integrated.ok) return { stage: "integration", reason: integrated.reason_code || "failed", effects: 0 };
+
+  const candidateFiles = Object.fromEntries(integrated.candidateFiles);
+  const observation = output.staleFrom
+    ? replayStaleObservation(arm, output.staleFrom, output.checks)
+    : observeChecks(arm, integrated.candidate, candidateFiles, output.checks);
   const verified = verifyCandidate({
     candidate: integrated.candidate,
-    executionGraph,
+    executionGraph: arm.executionGraph,
     policySnapshot: arm.policySnapshot,
     contract: arm.contract,
     sourceSnapshot: arm.sourceSnapshot,
-    repository: { files: Object.fromEntries(integrated.candidateFiles) },
+    repository: { files: candidateFiles },
     collector: COLLECTOR,
     declaredStrategy: "feature",
-    rawEvidence,
-    runnerReceiptChannel,
+    rawEvidence: observation.rawEvidence,
+    runnerReceiptChannel: observation.runnerReceiptChannel,
   });
   const verdict = verified && verified.verification ? verified.verification.verdict : null;
   if (!verified || verified.ok !== true || verdict !== "PASS") {
-    return { comparison, effects: 1, failure: `verify:${(verified && verified.reason_code) || verdict || "failed"}` };
+    return { stage: "verify", reason: (verified && verified.reason_code) || verdict || "failed", effects: 1 };
   }
-  if (comparison.verdict !== "pass") return { comparison, effects: 1, failure: "oracle:missing-must" };
-  return { comparison, effects: 1, failure: null, candidateId: integrated.candidate.candidate_id };
+  return { stage: null, effects: 1, candidate: integrated.candidate, candidateFiles };
+}
+
+function defectOutput(script, defect, clean) {
+  const overrides = new Map((defect.checks || []).map((check) => [check.id, check]));
+  return {
+    patch: defect.patch,
+    checks: script.checks.map((check) => overrides.get(check.id) || check),
+    staleFrom: defect.kind === "stale-receipt" ? clean : null,
+  };
+}
+
+/**
+ * Runs every seeded defect variant; each must be rejected at its declared stage.
+ * @returns {Promise<{ defects: object, misattributed: string[] }>}
+ */
+async function runSeededDefects(arm, script, clean) {
+  const tally = { seeded: 0, detected: 0, escaped: [] };
+  const misattributed = [];
+  for (const defect of script.defects || []) {
+    tally.seeded += 1;
+    const result = await runPipeline(arm, defectOutput(script, defect, clean));
+    if (!result.stage) {
+      tally.escaped.push(defect.id);
+      continue;
+    }
+    tally.detected += 1;
+    const expected = DEFECT_STAGE_BY_KIND[defect.kind];
+    if (result.stage !== expected) misattributed.push(`${defect.id} expected ${expected}, rejected at ${result.stage}`);
+  }
+  return { defects: tally, misattributed };
 }
 
 /**
@@ -294,7 +476,7 @@ function createDeterministicPilotExecutor(options = {}) {
       return result("fail", "invalid-run", null);
     }
     if (!plans[manifest.stratum]) {
-      return result("excluded", `stratum ${manifest.stratum} is outside pilot slice P2a`, null);
+      return result("excluded", `stratum ${manifest.stratum} is outside the pilot strata`, null);
     }
     const catalogFixture = catalogById.get(fixtureId);
     if (!catalogFixture) return result("fail", "fixture-not-in-catalog", null);
@@ -303,12 +485,22 @@ function createDeterministicPilotExecutor(options = {}) {
     if (!loaded.script) return result("excluded", "no pilot script for fixture", null);
 
     try {
-      const outcome = await runArm(fixtureId, manifest.policy, loaded.script, catalogFixture);
+      const arm = buildArm(fixtureId, manifest.policy, loaded.script);
+      const comparison = compareObligations(catalogFixture, arm.executionGraph.obligations);
       const planNote = `${plan.route}: ${plan.phases.length} phases, ${plan.gates.length} gates`;
-      if (outcome.failure) {
-        return result("fail", `${outcome.failure} (${planNote})`, outcome.comparison, outcome.effects);
+      const clean = await runPipeline(arm, { patch: loaded.script.patch, checks: loaded.script.checks, staleFrom: null });
+      if (clean.stage) {
+        return result("fail", `${clean.stage}:${clean.reason} (${planNote})`, comparison, clean.effects);
       }
-      return result("pass", `verify PASS (${planNote})`, outcome.comparison, outcome.effects);
+      if (comparison.verdict !== "pass") return result("fail", `oracle:missing-must (${planNote})`, comparison, clean.effects);
+      if (!loaded.script.defects) return result("pass", `verify PASS (${planNote})`, comparison, clean.effects);
+
+      const seeded = await runSeededDefects(arm, loaded.script, clean);
+      const defectNote = `defects detected ${seeded.defects.detected}/${seeded.defects.seeded}`;
+      const outcome = seeded.misattributed.length > 0
+        ? result("fail", `defect-misattributed: ${seeded.misattributed.join("; ")} (${planNote})`, comparison, clean.effects)
+        : result("pass", `verify PASS; ${defectNote} (${planNote})`, comparison, clean.effects);
+      return { ...outcome, defects: seeded.defects };
     } catch (error) {
       const code = error && error.code ? error.code : "executor-error";
       return result("fail", `${code}: ${error && error.message}`, null, 0, `pipeline aborted before the oracle (${code})`);
@@ -317,6 +509,7 @@ function createDeterministicPilotExecutor(options = {}) {
 }
 
 module.exports = {
+  DEFECT_STAGE_BY_KIND,
   FIXED_ROUTE_BY_STRATUM,
   PILOT_SCRIPT_FILE,
   PilotExecutorError,

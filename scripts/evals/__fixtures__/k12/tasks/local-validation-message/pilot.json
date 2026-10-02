@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "files": {
     "src/validate.js": "function validate(name) {\n  if (!name) throw new Error(\"invalid\");\n}\nmodule.exports = { validate };\n"
   },
@@ -21,6 +21,57 @@
       "required_evidence": [
         "focused-test-output"
       ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "empty-name-message",
+      "role": "acceptance",
+      "source": "assert.throws(() => require(\"src/validate.js\").validate(\"\"), /name is required/);"
+    },
+    {
+      "id": "valid-name-accepted",
+      "role": "invariants",
+      "source": "assert.doesNotThrow(() => require(\"src/validate.js\").validate(\"ok\"));"
+    },
+    {
+      "id": "exports-validate",
+      "role": "contract",
+      "source": "assert.equal(typeof require(\"src/validate.js\").validate, \"function\");"
+    },
+    {
+      "id": "missing-name-message",
+      "role": "negative",
+      "source": "assert.throws(() => require(\"src/validate.js\").validate(undefined), /name is required/);"
+    }
+  ],
+  "defects": [
+    {
+      "id": "wrong-patch",
+      "kind": "wrong-patch",
+      "patch": "--- a/src/validate.js\n+++ b/src/validate.js\n@@ -1,4 +1,4 @@\n-function validate(name) {\n-  if (!name) throw new Error(\"invalid\");\n-}\n-module.exports = { validate };\n+function validate(name) {\n+  if (!name) throw new Error(\"name required\");\n+}\n+module.exports = { validate };\n"
+    },
+    {
+      "id": "complacent-test",
+      "kind": "complacent-test",
+      "patch": "--- a/src/validate.js\n+++ b/src/validate.js\n@@ -1,4 +1,4 @@\n-function validate(name) {\n-  if (!name) throw new Error(\"invalid\");\n-}\n-module.exports = { validate };\n+function validate(name) {\n+  if (!name) throw new Error(\"name required\");\n+}\n+module.exports = { validate };\n",
+      "checks": [
+        {
+          "id": "empty-name-message",
+          "role": "acceptance",
+          "source": "assert.equal(typeof require(\"src/validate.js\").validate, \"function\");"
+        }
+      ]
+    },
+    {
+      "id": "scope-drift",
+      "kind": "scope-drift",
+      "patch": "--- a/src/validate.js\n+++ b/src/validate.js\n@@ -1,4 +1,4 @@\n-function validate(name) {\n-  if (!name) throw new Error(\"invalid\");\n-}\n-module.exports = { validate };\n+function validate(name) {\n+  if (!name) throw new Error(\"name is required\");\n+}\n+module.exports = { validate };\n--- /dev/null\n+++ b/src/unrelated.js\n@@ -0,0 +1 @@\n+module.exports = {};\n"
+    },
+    {
+      "id": "stale-receipt",
+      "kind": "stale-receipt",
+      "patch": "--- a/src/validate.js\n+++ b/src/validate.js\n@@ -1,4 +1,4 @@\n-function validate(name) {\n-  if (!name) throw new Error(\"invalid\");\n-}\n-module.exports = { validate };\n+function validate(name) {\n+  if (!name) throw new Error(\"name required\");\n+}\n+module.exports = { validate };\n"
     }
   ]
 }
