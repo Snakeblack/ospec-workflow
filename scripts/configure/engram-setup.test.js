@@ -110,6 +110,23 @@ test("detect: plugin and MCP registration are recognised, including the plugin: 
   assert.equal(bare.mcp, "registered");
 });
 
+test("detect: lookalike plugin or MCP names do not count as registered", () => {
+  const spawn = makeSpawn({
+    ...FULL_ABSENT,
+    "claude plugin list": ok("  > my-engram@other\n  > engram@fork\n"),
+    "claude mcp list": ok("my-engram: x - Connected\nengram-fork: y - Connected\n"),
+  });
+  const d = detectEngram({ spawn, claudeBin: CLAUDE });
+  assert.equal(d.plugin, "absent");
+  assert.equal(d.mcp, "absent");
+});
+
+test("detect: does not probe the marketplace list (setup owns the marketplace)", () => {
+  const spawn = makeSpawn({ ...FULL_ABSENT, "engram version": ok("engram 1.0.0"), "engram doctor --json": ok("{}") });
+  detectEngram({ spawn, claudeBin: CLAUDE });
+  assert.ok(!spawn.calls.some((c) => c.includes("marketplace")));
+});
+
 test("detect: claude CLI missing or failing yields unknown, not absent", () => {
   assert.equal(detectEngram({ spawn: makeSpawn(FULL_ABSENT), claudeBin: null }).plugin, "unknown");
   const spawn = makeSpawn({ ...FULL_ABSENT, "claude plugin list": errored("ETIMEDOUT"), "claude mcp list": fail(2) });
@@ -120,7 +137,7 @@ test("detect: claude CLI missing or failing yields unknown, not absent", () => {
 
 // --- planning (REQ-install-029/030) ----------------------------------------
 
-const FOUND = { binary: { found: true, bin: "engram", version: "1.0.0" }, doctor: "ok", marketplace: "absent" };
+const FOUND = { binary: { found: true, bin: "engram", version: "1.0.0" }, doctor: "ok" };
 
 test("plan: no opt-in never plans a mutation", () => {
   assert.deepEqual(planEngramActions({ ...FOUND, plugin: "absent", mcp: "absent" }, { optIn: false, claudeBin: CLAUDE }), []);
@@ -137,25 +154,24 @@ test("plan: any unknown detection plans nothing (fail-open)", () => {
   assert.deepEqual(planEngramActions({ ...FOUND, plugin: "absent", mcp: "unknown" }, { optIn: true, claudeBin: CLAUDE }), []);
 });
 
-test("plan: opt-in with plugin and MCP absent installs the plugin first, then a conditional setup fallback", () => {
-  const plan = planEngramActions({ ...FOUND, plugin: "absent", mcp: "absent" }, { optIn: true, claudeBin: CLAUDE });
-  assert.deepEqual(plan.map((a) => a.id), ["plugin-marketplace-add", "plugin-install", "setup-claude-code"]);
-  assert.deepEqual(plan[0].argv, ["plugin", "marketplace", "add", "Gentleman-Programming/engram"]);
-  assert.deepEqual(plan[1].argv, ["plugin", "install", "engram@engram"]);
-  assert.equal(plan[2].bin, "engram");
-  assert.deepEqual(plan[2].argv, ["setup", "claude-code"]);
+test("plan: opt-in with anything missing runs only the canonical upstream setup", () => {
+  // `engram setup claude-code` is idempotent upstream: it adds the marketplace,
+  // installs the plugin (hooks) and registers the user-scope MCP server (mem_* tools).
+  for (const [plugin, mcp] of [["absent", "absent"], ["registered", "absent"], ["absent", "registered"]]) {
+    const plan = planEngramActions({ ...FOUND, plugin, mcp }, { optIn: true, claudeBin: CLAUDE });
+    assert.deepEqual(plan.map((a) => a.id), ["setup-claude-code"], `plugin=${plugin} mcp=${mcp}`);
+    assert.equal(plan[0].bin, "engram");
+    assert.deepEqual(plan[0].argv, ["setup", "claude-code"]);
+  }
 });
 
-test("plan: a registered marketplace is not added again", () => {
-  const plan = planEngramActions({ ...FOUND, marketplace: "registered", plugin: "absent", mcp: "absent" }, { optIn: true, claudeBin: CLAUDE });
-  assert.deepEqual(plan.map((a) => a.id), ["plugin-install", "setup-claude-code"]);
+test("plan: a registered plugin without the MCP server is NOT configured (the plugin ships no MCP)", () => {
+  const plan = planEngramActions({ ...FOUND, plugin: "registered", mcp: "absent" }, { optIn: true, claudeBin: CLAUDE });
+  assert.notDeepEqual(plan, []);
 });
 
-test("plan: plugin or MCP already registered plans nothing (idempotent)", () => {
+test("plan: plugin and MCP both registered plans nothing (idempotent)", () => {
   assert.deepEqual(planEngramActions({ ...FOUND, plugin: "registered", mcp: "registered" }, { optIn: true, claudeBin: CLAUDE }), []);
-  // Real Claude Code does not list plugin-provided servers in `mcp list`, so a registered plugin is enough.
-  assert.deepEqual(planEngramActions({ ...FOUND, plugin: "registered", mcp: "absent" }, { optIn: true, claudeBin: CLAUDE }), []);
-  assert.deepEqual(planEngramActions({ ...FOUND, plugin: "absent", mcp: "registered" }, { optIn: true, claudeBin: CLAUDE }), []);
 });
 
 // --- execution (never throws, never mutates without opt-in) -----------------
@@ -192,32 +208,50 @@ test("run: an engram doctor failure or timeout is warned through runEngramStep w
   }
 });
 
-test("run: with opt-in installs the plugin and skips setup when the re-probe shows the plugin", () => {
-  let installed = false;
+test("run: with opt-in and the plugin registered but no MCP, runs setup and confirms the MCP", () => {
+  let setupDone = false;
   const spawn = makeSpawn({
     ...FULL_ABSENT,
     "engram version": ok("engram 1.0.0"),
     "engram doctor --json": ok("{}"),
-    "claude plugin marketplace add": ok(),
-    "claude plugin install": () => { installed = true; return ok(); },
-    "claude plugin list": () => ok(installed ? "  > engram@engram\n" : "  > ospec-workflow@ospec-tools\n"),
+    "claude plugin list": ok("  > engram@engram\n"),
+    "claude mcp list": () => ok(setupDone ? "engram: /abs/engram mcp --tools=agent - Connected\n" : "context7: x - Connected\n"),
+    "engram setup claude-code": () => { setupDone = true; return ok(); },
   });
   const stdout = writer();
-  runEngramStep({ argv: ["--with-engram"], claudeBin: CLAUDE, spawn, stdout, stderr: writer() });
-  assert.deepEqual(mutations(spawn.calls), ["claude plugin marketplace add Gentleman-Programming/engram", "claude plugin install engram@engram"]);
+  const stderr = writer();
+  runEngramStep({ argv: ["--with-engram"], claudeBin: CLAUDE, spawn, stdout, stderr });
+  assert.deepEqual(mutations(spawn.calls), ["engram setup claude-code"]);
+  assert.match(stdout.value, /MCP server registered/);
+  assert.doesNotMatch(stderr.value, /warning/);
 });
 
-test("run: with opt-in runs setup claude-code when no MCP is visible after the plugin install", () => {
+test("run: with opt-in, a setup that leaves no MCP server visible warns with the manual fix", () => {
   const spawn = makeSpawn({
     ...FULL_ABSENT,
     "engram version": ok("engram 1.0.0"),
     "engram doctor --json": ok("{}"),
-    "claude plugin marketplace add": ok(),
-    "claude plugin install": ok(),
     "engram setup claude-code": ok(),
   });
-  runEngramStep({ argv: ["--with-engram"], claudeBin: CLAUDE, spawn, stdout: writer(), stderr: writer() });
-  assert.ok(spawn.calls.includes("engram setup claude-code"));
+  const stderr = writer();
+  runEngramStep({ argv: ["--with-engram"], claudeBin: CLAUDE, spawn, stdout: writer(), stderr });
+  assert.match(stderr.value, /warning: .*MCP server .*not visible/);
+  assert.match(stderr.value, /engram setup claude-code/);
+});
+
+test("run: guidance for a registered plugin without MCP says mem_* tools are missing and mutates nothing", () => {
+  const spawn = makeSpawn({
+    ...FULL_ABSENT,
+    "engram version": ok("engram 1.0.0"),
+    "engram doctor --json": ok("{}"),
+    "claude plugin list": ok("  > engram@engram\n"),
+  });
+  const stdout = writer();
+  runEngramStep({ argv: [], claudeBin: CLAUDE, spawn, stdout, stderr: writer() });
+  assert.match(stdout.value, /MCP server is not registered/);
+  assert.match(stdout.value, /--with-engram/);
+  assert.doesNotMatch(stdout.value, /already configured/);
+  assert.deepEqual(mutations(spawn.calls), []);
 });
 
 test("run: with opt-in and everything registered reports already configured and mutates nothing", () => {

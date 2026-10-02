@@ -74,7 +74,7 @@ Una vez cargado el plugin en tu agente de chat:
   npm run setup:claude
   ```
   *(Dentro de la sesión de Claude Code, escribe `/reload-plugins` para aplicar cambios).*
-- **Memoria de sesión opcional con Engram**: `npm run setup:claude -- --with-engram` instala además el plugin `engram` oficial (opt-in; sin la bandera solo se muestra una guía). Sus hooks requieren bash, jq y curl (Git Bash en Windows). Engram no es autoritativo: OpenSpec y `state.yaml` siguen siendo la fuente de verdad.
+- **Memoria de sesión opcional con Engram**: `npm run setup:claude -- --with-engram` ejecuta además el `engram setup claude-code` oficial, que instala el plugin `engram` (hooks) y registra el servidor MCP `engram` (herramientas `mem_*`); hacen falta ambos (opt-in; sin la bandera solo se muestra una guía). Sus hooks requieren bash, jq y curl (Git Bash en Windows). Engram no es autoritativo: OpenSpec y `state.yaml` siguen siendo la fuente de verdad.
 - **Reconstrucción rápida durante el desarrollo**:
   ```powershell
   npm run reload:claude

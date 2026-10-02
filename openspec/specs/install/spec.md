@@ -1166,10 +1166,16 @@ By default `setup:claude` MUST only print guidance for `engram setup claude-code
 
 ### Requirement: Engram Registration Is Idempotent {#REQ-install-030}
 
-When the `engram` plugin or MCP server is already registered, `setup:claude` MUST NOT register it again, even with opt-in, and MUST report it as already configured. Re-running MUST converge to the same state.
+Engram counts as configured only when BOTH the upstream `engram@engram` plugin (hooks) AND the user-scope `engram` MCP server (the `mem_*` tools, visible in `claude mcp list`) are registered; the upstream plugin ships no MCP server, so a registered plugin alone is NOT configured. When both are registered, `setup:claude` MUST NOT register anything again, even with opt-in, and MUST report it as already configured. When either is missing and the user opted in, `setup:claude` MUST run the idempotent upstream `engram setup claude-code` as its single mutating action, then re-check the MCP server and warn (without failing) when it is still not visible. Re-running MUST converge to the same state.
 
 #### Scenario: Already registered
 
 - GIVEN the Engram MCP server and plugin are already registered
 - WHEN `setup:claude` runs with opt-in
 - THEN no registration command is issued and the output states it is already configured
+
+#### Scenario: Plugin registered without MCP server
+
+- GIVEN the `engram@engram` plugin is registered but no `engram` MCP server is listed
+- WHEN `setup:claude` runs with opt-in
+- THEN `engram setup claude-code` runs and the output confirms the MCP server, or a warning names the manual fix when it is still absent

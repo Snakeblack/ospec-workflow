@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.72.1] - 2026-10-02
+
+### Fixed
+- **`setup:claude --with-engram` dejaba Engram sin herramientas `mem_*`**: el plugin upstream `engram@engram` solo trae hooks y skill, no servidor MCP. El servidor MCP de usuario `engram` (las herramientas `mem_*`) solo lo registra `engram setup claude-code`, y la v2.72.0 se lo saltaba porque daba el plugin registrado por configurado. Ahora "configurado" exige plugin **y** servidor MCP. Con opt-in, la única acción mutante es el idempotente `engram setup claude-code`, que agrega la pieza que falte. Después se comprueba `claude mcp list` y, si el servidor sigue ausente, se avisa con el arreglo manual. Validado de punta a punta con el CLI real: sin el MCP lo vuelve a registrar y la segunda corrida informa "already configured".
+- **Detección más estricta y menos sondas**: los regex del plugin y del MCP se anclan a `engram@engram` y a `engram:`, así que nombres parecidos (`my-engram`, `engram@fork`) ya no cuentan como registrados. Se elimina la sonda del marketplace, porque ahora la gestiona el setup upstream, y desaparece la cascada de acciones encadenadas ante un fallo parcial.
+- REQ-install-030 corregido (plugin Y MCP, nuevo escenario *Plugin registered without MCP server*); enmienda en ADR-002; READMEs actualizados.
+
+**Verificación directa**: `node scripts/check.js` (3564 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.72.0] - 2026-10-02
 
 ### Added

@@ -99,7 +99,7 @@ Choose a target, edit models when that target supports it, review the summary, t
   npm run setup:claude
   ```
   *(Inside the Claude Code session, type `/reload-plugins` to apply changes).*
-- **Optional Engram session memory**: `npm run setup:claude -- --with-engram` also installs the upstream `engram` plugin (opt-in; without the flag only guidance is printed). Its hooks require bash, jq and curl (Git Bash on Windows). Engram is non-authoritative: OpenSpec and `state.yaml` remain the source of truth.
+- **Optional Engram session memory**: `npm run setup:claude -- --with-engram` also runs the upstream `engram setup claude-code`, which installs the `engram` plugin (hooks) and registers the `engram` MCP server (`mem_*` tools); both are required (opt-in; without the flag only guidance is printed). Its hooks require bash, jq and curl (Git Bash on Windows). Engram is non-authoritative: OpenSpec and `state.yaml` remain the source of truth.
 - **Fast rebuild during development**:
   ```powershell
   npm run reload:claude
