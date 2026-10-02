@@ -90,12 +90,20 @@ function emissionPermitArguments(subjectId, attestationId, operationIdentity) {
 }
 
 /**
- * Consumes the common operation identity binding: the emission must name, by
+ * Consumes the common operation identity binding. The emission must name, by
  * {changePath, phase, expectedRevision, operation}, exactly one evaluation
- * operation whose recorded state matches and has no recorded outcome yet. Only
- * a `bound` decision admits the emission; an absent binding (including the
- * legacy single-candidate passthrough), a malformed, stale, or foreign binding,
- * and any recorded or unknown outcome all fail closed before any store read.
+ * operation. The binding and its target/candidate records are caller-supplied
+ * snapshots: the resolver only proves they are mutually consistent, never that
+ * they reflect the live operation record. What authenticates the identity is
+ * the permit, whose arguments digest covers it (see emissionPermitArguments);
+ * whoever mints the permit owns reading the operation record from a trusted
+ * source.
+ *
+ * Structural rejections (absent binding, including the legacy single-candidate
+ * passthrough, and malformed, mismatched, or contradictory snapshots) fail
+ * closed here, before any store read. A recorded or unknown outcome is
+ * returned as `pending_reconciliation` instead: the issuer still lets an exact
+ * replay of a committed emission converge, and only otherwise fails closed.
  */
 function authenticateOperationBinding(operationBinding) {
   if (!isRecord(operationBinding) ||
@@ -116,7 +124,12 @@ function authenticateOperationBinding(operationBinding) {
   const decision = resolveOperationIdentityBinding(operationBinding);
   const extra = { operation_binding_reasons: decision.reasons };
   if (decision.status === "bound") {
-    return { ok: true, identity: pickOperationIdentity(decision.binding) };
+    return { ok: true, identity: pickOperationIdentity(decision.binding), pending_reconciliation: null };
+  }
+  // An exactly matched record whose only problem is its recorded outcome keeps
+  // its identity; an unresolved target identity cannot be bound at all.
+  if (decision.status === "reconciliation_required" && decision.binding !== null && decision.record !== null) {
+    return { ok: true, identity: pickOperationIdentity(decision.binding), pending_reconciliation: decision.reasons };
   }
   if (decision.status === "reconciliation_required") {
     return fail(
@@ -156,7 +169,9 @@ function normalizeLedgerState(state) {
  * it.
  *
  * Ordering follows the kernel house pattern: load head, exact-replay check by
- * permit receipt, authorize against the head revision, then one atomic CAS
+ * permit receipt, then (only when there is no exact replay) the recorded
+ * outcome gate and the single-closure guard, authorize against the head
+ * revision, then one atomic CAS
  * carrying next_state, next_journal, the consumed permit, and its
  * OperationReceipt in the winning revision. A competing revision between
  * authorization and CAS fails closed; an interruption with an unknown outcome
@@ -216,6 +231,7 @@ async function issueCandidateEvaluationAttestation(input) {
   const operationBinding = authenticateOperationBinding(input.operationBinding);
   if (!operationBinding.ok) return operationBinding;
   const operationIdentity = operationBinding.identity;
+  const operationIdentityKey = stableSerialize(operationIdentity);
 
   const subjectId = computeEvaluationSubjectId({
     candidate_id: attestation.candidate_id,
@@ -280,6 +296,16 @@ async function issueCandidateEvaluationAttestation(input) {
     };
   }
 
+  // No exact replay: a recorded or unknown outcome on the bound operation must
+  // be reconciled externally before any fresh emission.
+  if (operationBinding.pending_reconciliation) {
+    return fail(
+      "EVALUATION_OPERATION_BINDING_RECONCILIATION_REQUIRED",
+      `evaluation operation needs reconciliation before emission: ${operationBinding.pending_reconciliation.join(", ")}`,
+      { operation_binding_reasons: operationBinding.pending_reconciliation, subject_id: subjectId, revision: headRevision }
+    );
+  }
+
   const auth = authorizeOperationWithPermit({
     operation: ISSUE_OPERATION,
     operationPermit: permit,
@@ -295,6 +321,28 @@ async function issueCandidateEvaluationAttestation(input) {
       PERMIT_REJECTION_CODES[auth.code] || "EVALUATION_ISSUANCE_PERMIT_REJECTED",
       `permit authorization failed: ${auth.code}`,
       { subject_id: subjectId, revision: headRevision, cause: auth.code }
+    );
+  }
+
+  // One operation, one closure: a second permit cannot re-emit an attestation
+  // this subject already holds, nor close an evaluation operation that an
+  // earlier emission on this subject already closed.
+  if (Object.prototype.hasOwnProperty.call(ledgerState.attestations, attestation.attestation_id)) {
+    return fail(
+      "EVALUATION_ISSUANCE_ALREADY_ISSUED",
+      "this attestation was already issued under another permit; re-present that permit to replay it",
+      { subject_id: subjectId, revision: headRevision }
+    );
+  }
+  const closedBy = (Array.isArray(loaded.journal) ? loaded.journal : []).find(
+    (entry) => isRecord(entry) && isRecord(entry.result) && isRecord(entry.result.operation_identity) &&
+      stableSerialize(entry.result.operation_identity) === operationIdentityKey
+  );
+  if (closedBy) {
+    return fail(
+      "EVALUATION_OPERATION_ALREADY_CLOSED",
+      `evaluation operation was already closed by attestation ${closedBy.result.attestation_id}`,
+      { subject_id: subjectId, revision: headRevision }
     );
   }
 
