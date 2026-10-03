@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.79.0] - 2026-10-03
+
+### Added
+- **Piloto Adaptive Repair — P4, checkpoint (K12)**: `scripts/lib/k12/pilot-checkpoint.js` convierte la campaña emparejada en una decisión `continue | revise | reject`. Los vetos son fijos y no elegibles: obligación `must` omitida, fallo escapado, defecto que solo escapa en Adaptive y regresión de aprobación. Solo lo elegible se predeclara en `scripts/evals/__fixtures__/k12/pilot-margins.json` (`k12-pilot-margins-1`): no inferioridad (límite inferior del IC95 ≥ 0), mejora práctica (Δ fases ≤ −1) y una familia holdout por estrato. Los márgenes se cargan antes de cualquier corrida y su digest queda en el resultado; `k12-campaign.js --paired` imprime el checkpoint y sale con 1 ante `reject`.
+- **Informe del piloto** (`docs/analysis/2026-10-03-adaptive-pilot-report.md`): con 3 repeticiones (66 pares) ambos brazos detectan 216/216 defectos, no se activa ningún veto, se cumplen todos los márgenes (también en el holdout) y el checkpoint es `continue`. El informe declara lo que no demuestra (calidad con agentes reales, coste, holdout limpio, destino de la traza) y recomienda una calibración mínima con agentes antes de K9.
+
+**Verificación directa**: `node scripts/check.js` (3613 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.78.0] - 2026-10-03
 
 ### Added
