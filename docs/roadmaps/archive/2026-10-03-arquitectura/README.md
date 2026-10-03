@@ -7,10 +7,10 @@ Son historia. Algunos se citan como **insumo** de un ítem del roadmap: ese íte
 | Documento | Qué recoge | Insumo de |
 | --- | --- | --- |
 | [`harness-evolution.md`](harness-evolution.md) | Arquitectura objetivo del kernel: autoridad e invariantes, Candidate, Execution Graph, Assurance Graph, recetas y registro de madurez (corte v2.81.1) | E1.5 (cablear, congelar o retirar cada módulo) |
-| [`ospec-adaptive-critical-design.md`](ospec-adaptive-critical-design.md) | Revisión crítica de OSPEC Adaptive (2026-09-19, base v2.68.0) y sus guardas | E4.2 (receta Repair); el resto de Adaptive está aparcado |
-| [`harness-proportionality.md`](harness-proportionality.md) | Selección de garantías, compresión de ejecución y escalado | E4.1–E4.3 |
-| [`harness-foundation-holistic.md`](harness-foundation-holistic.md) | Foundation holística (antes R2): matriz de cobertura, escenarios de calidad y skill `cncf-landscape` | E2.3 y E6.2 |
-| [`research/proportional-process-and-change-program.md`](research/proportional-process-and-change-program.md) | Las dos escalas de proporcionalidad y el Change Program (v2.49.0) | E4.4 |
+| [`ospec-adaptive-critical-design.md`](ospec-adaptive-critical-design.md) | Revisión crítica de OSPEC Adaptive (2026-09-19, base v2.68.0) y sus guardas | E1.4 (obligación de reproducción, antes receta Repair); el resto de Adaptive está aparcado |
+| [`harness-proportionality.md`](harness-proportionality.md) | Selección de garantías, compresión de ejecución y escalado | E1.3–E1.4 (señales y obligaciones de IDD) |
+| [`harness-foundation-holistic.md`](harness-foundation-holistic.md) | Foundation holística (antes R2): matriz de cobertura, escenarios de calidad y skill `cncf-landscape` | E2.3 y E5.2 |
+| [`research/proportional-process-and-change-program.md`](research/proportional-process-and-change-program.md) | Las dos escalas de proporcionalidad y el Change Program (v2.49.0) | E5.5 |
 | [`research/harness-kernel-graph-evidence-roadmap-fusion.md`](research/harness-kernel-graph-evidence-roadmap-fusion.md) | Fusión de la propuesta P0–P27 con el kernel (v2.35.0) | — |
 | [`research/proof-carrying-change-compiler.md`](research/proof-carrying-change-compiler.md) | Tesis *proof-carrying* (2026-07-18), origen de K4a y K6b | — |
 

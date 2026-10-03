@@ -24,7 +24,7 @@ Si dos documentos discrepan, se verifica el código y se corrige primero el de m
 
 ## Mantenimiento
 
-- Cada ítem del roadmap se entrega como change OpenSpec con ospec-workflow (`/sdd-new <change>`).
-- Al archivar un change se actualizan su fila en la tabla de estado y la versión de referencia.
+- Cada ítem se entrega como un cambio con su rama y su PR: de forma directa hasta E1.6 y con IDD después (ver «Cómo se ejecuta este roadmap»). SDD es un modo opcional, no la vía por defecto.
+- Al cerrar un ítem se actualizan su fila en la tabla de estado y la versión de referencia.
 - Al cerrar una etapa se registra el checkpoint `continue | revise` con las métricas de la tabla de objetivos.
 - Un hallazgo resuelto no se mantiene como pendiente tachado: se mueve al historial.

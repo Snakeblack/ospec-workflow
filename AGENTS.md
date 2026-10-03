@@ -1,6 +1,6 @@
 ## Post-Archive Flow (Release and Publication)
 
-Immediately after successfully completing the `sdd-archive` phase of any change, the agent **MUST** propose and initiate the release and publication workflow in this repository. The steps to follow are:
+Immediately after a change is closed (the `sdd-archive` phase in SDD mode, or the completion of a direct change such as a roadmap item), the agent **MUST** propose and initiate the release and publication workflow in this repository. The steps to follow are:
 
 1. **Version Update:**
    - Ask the user if the change corresponds to a `patch`, `minor`, or `major` version increment, or if they want to define a specific version.

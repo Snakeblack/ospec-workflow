@@ -5,4 +5,5 @@
 - **Arquitectura:** [`architecture/`](architecture/README.md) queda reservada para la arquitectura vigente de ospec (E2.6). No fija prioridades.
 - **Historia:** [`roadmaps/archive/`](roadmaps/archive/), que incluye la arquitectura objetivo del programa K1–K12, nunca es estado vigente.
 - **Precedencia ante una discrepancia:** OpenSpec y código, después roadmap, después arquitectura. Se corrige primero la fuente de mayor precedencia.
-- **Al archivar un change:** actualizar su fila en el roadmap y la versión de referencia; seguir el flujo de release de `AGENTS.md`.
+- **Al cerrar un ítem:** actualizar su fila en el roadmap y la versión de referencia; seguir el flujo de release de `AGENTS.md`.
+- **Flujo:** SDD es un modo opcional. No abras `/sdd-new` para un ítem del roadmap salvo que el ítem lo pida; hasta E1.6 se trabaja de forma directa.
