@@ -29,7 +29,6 @@ const PACKAGE_JSON = path.join(ROOT, "package.json");
 const OPENSPEC_CONFIG = path.join(ROOT, "openspec", "config.yaml");
 const CHANGELOG = path.join(ROOT, "CHANGELOG.md");
 const ROADMAP = path.join(ROOT, "docs", "roadmaps", "harness-evolution.md");
-const ARCHITECTURE = path.join(ROOT, "docs", "architecture", "harness-evolution.md");
 
 function readJson(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
@@ -70,11 +69,10 @@ test("openspec/config.yaml version matches the plugin manifest version", () => {
   );
 });
 
-test("release version matches changelog, roadmap, architecture, verify report, and tag", () => {
+test("release version matches changelog, roadmap, verify report, and tag", () => {
   const packageVersion = readJson(PACKAGE_JSON).version;
   const changelogText = fs.readFileSync(CHANGELOG, "utf8");
   const roadmapText = fs.readFileSync(ROADMAP, "utf8");
-  const architectureText = fs.readFileSync(ARCHITECTURE, "utf8");
   const latestRelease = changelogText.match(/^## \[(\d+\.\d+\.\d+)\].*$/m);
   assert.ok(latestRelease, "CHANGELOG.md must start with a semantic release section");
   assert.equal(latestRelease[1], packageVersion, "latest changelog release must match package.json");
@@ -104,14 +102,11 @@ test("release version matches changelog, roadmap, architecture, verify report, a
   }
 
   const roadmapVersion = roadmapText.match(/^> \*\*Versión de referencia:\*\* v(\d+\.\d+\.\d+),/m);
-  const architectureVersion = architectureText.match(/^> \*\*Corte documental:\*\* v(\d+\.\d+\.\d+),/m);
   assert.ok(roadmapVersion, "roadmap must declare its reference version");
-  assert.ok(architectureVersion, "architecture must declare its document version");
   if (reportVersion) {
     assert.equal(reportVersion[1], packageVersion, "release verify-report version must match package.json");
   }
   assert.equal(roadmapVersion[1], packageVersion, "roadmap reference must match package.json");
-  assert.equal(architectureVersion[1], packageVersion, "architecture cut must match package.json");
 
   if (process.env.GITHUB_REF_TYPE === "tag") {
     assert.equal(process.env.GITHUB_REF_NAME, `v${packageVersion}`, "published tag must match package.json");

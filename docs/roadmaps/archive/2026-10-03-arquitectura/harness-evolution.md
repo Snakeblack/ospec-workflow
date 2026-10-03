@@ -1,9 +1,11 @@
 # Arquitectura objetivo — harness gobernado por kernel, grafo y evidencia
 
-> **Autoridad:** referencia del kernel estable y de sus contratos. Desde el 2026-10-03 la dirección y la prioridad las fija el [roadmap único](../roadmaps/harness-evolution.md); E1.5 decide qué piezas del kernel se cablean, se congelan o se retiran. Este documento no introduce prioridades.
+> **Archivado el 2026-10-03.** Documento del programa K1–K12: no describe la arquitectura vigente ni fija prioridades. La dirección vive en el [roadmap único](../../harness-evolution.md); el índice del archivo está en [README](README.md).
+
+> **Autoridad:** referencia del kernel estable y de sus contratos. Desde el 2026-10-03 la dirección y la prioridad las fija el [roadmap único](../../harness-evolution.md); E1.5 decide qué piezas del kernel se cablean, se congelan o se retiran. Este documento no introduce prioridades.
 > **Corte documental:** v2.81.1, revisado el 2026-10-03 (la dirección pasa al roadmap único; este documento queda como referencia del kernel).
 > **Estado verificado:** O3, O4+O5/O4.1, O4.2, O6A, O2B, **K1**, **K2**, **K2.1**, **K2a**, **K3**, **`k3-readiness-remediation`**, **K4a**, **K5**, **K6a**, **K4b**, **K6b**, **K6c** y **K6d** están cerrados. K6d aporta evidencia advisory; OpenSpec/Git/Candidate siguen siendo la única autoridad semántica y K7–K9 permanecen como trabajo objetivo.
-> **Roadmap:** dirección, backlog y estados viven en [`../roadmaps/harness-evolution.md`](../roadmaps/harness-evolution.md); el roadmap K1–K12 anterior está en [`../roadmaps/archive/`](../roadmaps/archive/2026-10-03-harness-evolution-kernel.md).
+> **Roadmap:** dirección, backlog y estados viven en [`../roadmaps/harness-evolution.md`](../../harness-evolution.md); el roadmap K1–K12 anterior está en [`../roadmaps/archive/`](../2026-10-03-harness-evolution-kernel.md).
 > **Precedencia documental:** código/OpenSpec, después el roadmap único y después este documento; `ospec-adaptive-critical-design.md` queda como referencia de las guardas Adaptive aparcadas. Una diferencia debe reconciliarse antes de iniciar el change.
 > **Investigación no normativa:** la trazabilidad completa P0–P27 vive en [`research/harness-kernel-graph-evidence-roadmap-fusion.md`](research/harness-kernel-graph-evidence-roadmap-fusion.md). La proporcionalidad de proceso y el programa de changes viven en [`research/proportional-process-and-change-program.md`](research/proportional-process-and-change-program.md).
 
@@ -938,7 +940,7 @@ No se permite un change que combine kernel global, cinco rutas, seis targets, co
 
 ## Orden recomendado de trabajo
 
-El detalle operativo, estados y done criteria vive en el [roadmap](../roadmaps/harness-evolution.md#orden-recomendado-de-trabajo). Esta arquitectura solo fija la dependencia: la cadena de confianza es **K7 → K8 → K9 → K10-delivery**, con el baseline/oracle del K12 focal como prerequisito de evidencia antes de promocionar K9; K10 promueve cada recipe/profile por separado. K11a–K11d y el K12 longitudinal avanzan cuando sus capacidades lo permiten; no forman una cadena universal.
+El detalle operativo, estados y done criteria vive en el [roadmap](../../harness-evolution.md#orden-recomendado-de-trabajo). Esta arquitectura solo fija la dependencia: la cadena de confianza es **K7 → K8 → K9 → K10-delivery**, con el baseline/oracle del K12 focal como prerequisito de evidencia antes de promocionar K9; K10 promueve cada recipe/profile por separado. K11a–K11d y el K12 longitudinal avanzan cuando sus capacidades lo permiten; no forman una cadena universal.
 
 PP1 ya cerró el routing vivo y sus floors. PP2 y CX1 están archivados; su preflight de consumidores conserva fallback y no crea otra autoridad. CX2 y R2 pueden reducir repetición o incertidumbre, pero no adelantan una recipe K10, eliminan verificación independiente ni constituyen autorización de runtime. El siguiente change nuevo es `adaptive-operation-identity-binding`; K7 continúa técnicamente elegible y K12 focal puede avanzar en paralelo.
 

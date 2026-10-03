@@ -1,10 +1,12 @@
 # Análisis de fusión: kernel, grafo y evidencia
 
+> **Archivado el 2026-10-03.** Documento del programa K1–K12: no describe la arquitectura vigente ni fija prioridades. La dirección vive en el [roadmap único](../../../harness-evolution.md); el índice del archivo está en [README](../README.md).
+
 > **Estatus:** investigación tracked no normativa; no define estado, prioridad ni autorización de implementación.
 > **Corte:** repositorio v2.35.0 inspeccionado el 2026-07-29.
 > **Origen:** promoción tracked del análisis exhaustivo conservado en `analisis-fino/`; la copia local ignorada no es autoridad.
 > **Fuentes:** propuesta P0–P27 adjunta, arquitectura y roadmap activos, investigación `proof-carrying-change-compiler` y estado/verify del change O2B.
-> **Autoridad vigente:** [`../harness-evolution.md`](../harness-evolution.md) para arquitectura y [`../../roadmaps/harness-evolution.md`](../../roadmaps/harness-evolution.md) para prioridad, estado y done criteria.
+> **Autoridad vigente:** [`../harness-evolution.md`](../harness-evolution.md) para arquitectura y [`../../roadmaps/harness-evolution.md`](../../../harness-evolution.md) para prioridad, estado y done criteria.
 
 ## Dictamen
 

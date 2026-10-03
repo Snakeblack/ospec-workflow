@@ -1,7 +1,7 @@
 # Piloto Adaptive fijo — análisis de alcance (prioridad 6)
 
 > **Fecha:** 2026-10-02 · **Base:** v2.73.1 · **Naturaleza:** análisis previo; no cambia estados de OpenSpec ni el roadmap.
-> **Fuentes:** [`ospec-adaptive-critical-design.md`](../architecture/ospec-adaptive-critical-design.md) («Evaluación mínima útil», regla contra la sobreingeniería) y [`harness-evolution.md`](../roadmaps/harness-evolution.md) (K9, K10, K12, Gate de rollout).
+> **Fuentes:** [`ospec-adaptive-critical-design.md`](../roadmaps/archive/2026-10-03-arquitectura/ospec-adaptive-critical-design.md) («Evaluación mínima útil», regla contra la sobreingeniería) y [`harness-evolution.md`](../roadmaps/harness-evolution.md) (K9, K10, K12, Gate de rollout).
 
 ## Pregunta que responde el piloto
 

@@ -1,6 +1,8 @@
 # Foundation holística y proporcional
 
-**Estado: diseño objetivo para futuros changes; no implementado por este documento.** Desde el 2026-10-03 se implementa en la Etapa 2 del [roadmap único](../roadmaps/harness-evolution.md#etapa-2--foundation-de-verdad-descubrimiento-de-arquitectura) (E2.1–E2.5). Las referencias a R2 de este documento corresponden al roadmap archivado.
+> **Archivado el 2026-10-03.** Documento del programa K1–K12: no describe la arquitectura vigente ni fija prioridades. La dirección vive en el [roadmap único](../../harness-evolution.md); el índice del archivo está en [README](README.md).
+
+**Estado: diseño objetivo para futuros changes; no implementado por este documento.** Desde el 2026-10-03 se implementa en la Etapa 2 del [roadmap único](../../harness-evolution.md#etapa-2--foundation-de-verdad-descubrimiento-de-arquitectura) (E2.1–E2.5). Las referencias a R2 de este documento corresponden al roadmap archivado.
 La propuesta amplía el descubrimiento dentro de `sdd-foundation` para conectar necesidad de negocio, diseño del software y viabilidad de su construcción y uso.
 Mantiene los artefactos existentes y ajusta la profundidad al riesgo y a la incertidumbre.
 
@@ -9,7 +11,7 @@ No se añade un agente arquitecto ni una fase universal a cada change.
 
 ## Encaje y alcance
 
-La secuencia, prioridad y gates continúan en el [roadmap del harness](../roadmaps/harness-evolution.md), sección R2.
+La secuencia, prioridad y gates continúan en el [roadmap del harness](../../harness-evolution.md), sección R2.
 Este análisis concreta R2; no abre changes, completa slices ni modifica autoridad de runtime.
 
 | Slice existente | Aportación de este diseño |
@@ -24,9 +26,9 @@ Este análisis concreta R2; no abre changes, completa slices ni modifica autorid
 
 ### Capacidades presentes y ampliación propuesta
 
-El [skill actual](../../skills/sdd-foundation/SKILL.md) ya contempla documentación
+El [skill actual](../../../../skills/sdd-foundation/SKILL.md) ya contempla documentación
 existente, ingesta, descubrimiento guiado, gaps, restricciones, stack y artefactos fundacionales.
-Su [guía de detalle](../../skills/sdd-foundation/references/foundation-details.md)
+Su [guía de detalle](../../../../skills/sdd-foundation/references/foundation-details.md)
 incluye arquitectura, testing, destino de entrega y comandos esperados sin verificarlos como ejecutados.
 
 | Presente | Objetivo adicional |

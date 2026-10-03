@@ -7,10 +7,10 @@ Desde el 2026-10-03 hay **un solo roadmap**: [`harness-evolution.md`](harness-ev
 | Archivo | Papel |
 | --- | --- |
 | [`harness-evolution.md`](harness-evolution.md) | Fuente única de dirección, prioridad, estado y done criteria |
-| [`../architecture/`](../architecture/) | Referencia técnica de diseño (kernel, foundation holística, proporcionalidad). Informa los ítems del roadmap, pero no fija prioridades |
+| [`../architecture/`](../architecture/README.md) | Arquitectura vigente de ospec, que generará E2.6. No fija prioridades |
 | [`../analysis/`](../analysis/) | Evidencia fechada |
 | [`targets/`](targets/) | Notas por host; su estado agregado se refleja en E6.1 del roadmap |
-| [`archive/`](archive/) | Roadmaps anteriores (K1–K12 hasta v2.81.0). Historia, nunca estado vigente |
+| [`archive/`](archive/) | Roadmap K1–K12 (hasta v2.81.0) y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md). Historia, nunca estado vigente; algunos documentos son insumo de un ítem concreto |
 
 ## Precedencia
 

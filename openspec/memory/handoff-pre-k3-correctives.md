@@ -124,7 +124,7 @@ Claude solo marca enforced lo demostrado
 
 - Análisis pre-K3 (origen humano): ver transcript / mensaje “REVISE BEFORE K3” en sesión 2026-08-05
 - Roadmap: `docs/roadmaps/harness-evolution.md`
-- Arquitectura: `docs/architecture/harness-evolution.md`
+- Arquitectura: `docs/roadmaps/archive/2026-10-03-arquitectura/harness-evolution.md` (archivada el 2026-10-03)
 - Target capabilities: `docs/target-capabilities.md`
 - Código K2a: `scripts/lib/` (host adapter, capability proof, headless conformance host)
 - Known issues: `openspec/memory/known-issues.md` (W4 harness-alone)

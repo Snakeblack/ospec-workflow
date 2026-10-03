@@ -21,7 +21,7 @@ test("Phase 10: k3-readiness-remediation state.yaml and archive-report.md have t
 });
 
 test("Phase 10: roadmap evolution docs reflect reconciled k3-readiness-remediation and K4a status", () => {
-  const archDoc = fs.readFileSync(path.resolve(__dirname, "../../docs/architecture/harness-evolution.md"), "utf8");
+  const archDoc = fs.readFileSync(path.resolve(__dirname, "../../docs/roadmaps/archive/2026-10-03-arquitectura/harness-evolution.md"), "utf8");
   const roadmapDoc = fs.readFileSync(path.resolve(__dirname, "../../docs/roadmaps/harness-evolution.md"), "utf8");
 
   assert.equal(archDoc.includes("`k3-readiness-remediation` debe verificar y archivarse"), false, "Architecture doc must not report stale k3-readiness-remediation requirement");

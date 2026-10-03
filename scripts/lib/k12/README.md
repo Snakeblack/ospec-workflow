@@ -2,7 +2,7 @@
 
 First cut of the K12 focal slice (roadmap priority 4; canonical design:
 "Evaluación mínima útil: K12 focal antes de K9" in
-`docs/architecture/ospec-adaptive-critical-design.md`). This directory holds
+`docs/roadmaps/archive/2026-10-03-arquitectura/ospec-adaptive-critical-design.md`). This directory holds
 the **measurement contract** for the focal corpus: what a run is, what the
 independent obligations oracle expects, and how repetitions aggregate into a
 baseline. It is derived measurement tooling — it grants no operational

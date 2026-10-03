@@ -9,7 +9,7 @@ const ROOT = path.resolve(__dirname, "..", "..");
 
 test("K2.1 maturity docs tag Authority Store/permits/effects as implemented; later slices stay target", () => {
   const arch = fs.readFileSync(
-    path.join(ROOT, "docs", "architecture", "harness-evolution.md"),
+    path.join(ROOT, "docs", "roadmaps", "archive", "2026-10-03-arquitectura", "harness-evolution.md"),
     "utf8"
   );
   const roadmap = fs.readFileSync(
