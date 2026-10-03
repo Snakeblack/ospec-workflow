@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.81.0] - 2026-10-03
+
+### Added
+- **Engram automático en todos los targets**: `setup:claude`, `setup:codex`, `setup:antigravity`, `setup:opencode`, `setup:cursor`, `setup:vscode` y `setup:copilot` configuran Engram al terminar la instalación global si el binario `engram` está en el PATH. Cada uno ejecuta el `engram setup <agente>` oficial (`claude-code`, `codex`, `antigravity-cli`, `opencode`, `cursor`, `vscode-copilot`) y vuelve a comprobar que el host tenga el servidor MCP y su pieza de protocolo. Copilot CLI, que no tiene setup oficial, recibe una entrada `engram mcp --tools=agent` en `~/.copilot/mcp-config.json` que conserva los demás servidores. `--no-engram` omite el paso. Sin el binario, el instalador solo muestra cómo instalarlo. El paso es idempotente, nunca cambia el código de salida y no se ejecuta con `--dry-run`, `--dest` ni un repo de destino.
+- **Modo seguro de Windows medido (Claude Code)**: tras configurar Engram, una sonda de fork en Git Bash (dirname/date/jq/curl ×3, presupuesto de 1,5 s) decide si se puede desactivar el modo seguro del hook oficial, que apaga la captura de prompts y los recordatorios de guardado. Si la sonda es rápida, escribe `ENGRAM_CLAUDE_WINDOWS_BASH_SAFE_MODE=0` en `~/.claude/settings.json`. Nunca pisa un valor que ya hayas puesto.
+
+### Changed
+- **Addendum de memoria neutral y en todos los targets**: `rules/engram-session-memory.instructions.md` deja de ser exclusivo de Claude y se elimina su `drop` en los perfiles. Si el host no inyectó contexto de Engram al arrancar, permite un único `mem_context` como pista. El output generado sigue sin registrar Engram en ningún MCP ni hook.
+- **`--with-engram` queda obsoleto**: se acepta sin efecto, porque el paso ahora es automático. La TUI del instalador también lo ejecuta.
+- **ADR-20261003-001** reemplaza los ADR-20261002-001 (addendum solo para Claude) y ADR-20261002-002 (opt-in). Se actualizan REQ-install-028..030, se añade REQ-install-031 y se actualizan REQ-session-memory-008/009 y REQ-generator-018.
+
+**Verificación directa**: `node scripts/check.js` (3634 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.80.0] - 2026-10-03
 
 ### Added
