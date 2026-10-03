@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.81.3, 2026-10-03.
+> **Versión de referencia:** v2.82.0, 2026-10-03.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -111,7 +111,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 
 | Estado | ID | Change | Tipo |
 | --- | --- | --- | --- |
-| `next-eligible` | **E0.0** | `measure-context-baseline` | medición |
+| `done` | **E0.0** | `measure-context-baseline` | medición |
 | `next-eligible` | **E0.1** | `fix-phase-agent-skill-loading` | bugfix |
 | `pending` | **E0.2** | `scope-always-on-instructions` | refactor |
 | `pending` | **E0.3** | `curate-skill-catalog` | refactor |
@@ -139,7 +139,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E0.0 y E0.1. E0.1 sigue siendo urgente aunque SDD pase a opcional: falla hoy a los usuarios del modo SDD y a los revisores que IDD reutiliza, y afecta a cualquier medición con agentes reales. E1.1 puede empezar ya, porque solo fija el contrato.
+**▶ SIGUIENTE:** E0.1. Sigue siendo urgente aunque SDD pase a opcional: falla hoy a los usuarios del modo SDD y a los revisores que IDD reutiliza, y afecta a cualquier medición con agentes reales. E1.1 puede empezar ya, porque solo fija el contrato.
 
 **Dependencias:**
 
@@ -167,6 +167,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Objetivo:** fijar los números de partida antes de cambiar nada.
 - **Alcance:** script que construye los 7 targets en un directorio temporal y emite, por target, los bytes cargados siempre, el tamaño del orquestador, los bytes que lee cada fase o agente (agente, skill y `_shared`) y el número de skills listadas. Fixture versionado con esos valores y test de CI que los usa como techo.
 - **Hecho cuando:** el informe reproduce las cifras de la auditoría y el test falla si algún valor sube.
+- **Entregado en v2.82.0:** `node scripts/measure-context-baseline.js` mide en memoria, con techos en `scripts/fixtures/context-baseline.json` comprobados por `scripts/lib/context-baseline.test.js`. Línea base y método en [target-capabilities §7](../target-capabilities.md#7-coste-de-contexto-por-target-e00).
 
 ### E0.1 — `fix-phase-agent-skill-loading`
 
