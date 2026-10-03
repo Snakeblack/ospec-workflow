@@ -1,0 +1,79 @@
+{
+  "schema_version": 2,
+  "files": {
+    "src/core/parse.js": "module.exports = (input) => Number(input);\n",
+    "src/api/handler.js": "const parse = require(\"src/core/parse.js\");\nmodule.exports = (query) => ({ status: 200, body: parse(query.limit) });\n"
+  },
+  "patch": "--- a/src/core/parse.js\n+++ b/src/core/parse.js\n@@ -1,1 +1,4 @@\n-module.exports = (input) => Number(input);\n+module.exports = (input) => {\n+  const value = Number(input);\n+  return Number.isFinite(value) ? { ok: true, value } : { ok: false };\n+};\n--- a/src/api/handler.js\n+++ b/src/api/handler.js\n@@ -1,2 +1,5 @@\n-const parse = require(\"src/core/parse.js\");\n-module.exports = (query) => ({ status: 200, body: parse(query.limit) });\n+const parse = require(\"src/core/parse.js\");\n+module.exports = (query) => {\n+  const parsed = parse(query.limit);\n+  return parsed.ok ? { status: 200, body: parsed.value } : { status: 400, body: \"invalid limit\" };\n+};\n",
+  "allowed_paths": [
+    "src/core/parse.js",
+    "src/api/handler.js"
+  ],
+  "obligations": [
+    {
+      "id": "behavior-preserved",
+      "criticality": "must",
+      "required_evidence": [
+        "integration-test-output"
+      ]
+    },
+    {
+      "id": "no-scope-drift",
+      "criticality": "should",
+      "required_evidence": [
+        "changed-files-list"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "invalid-limit-is-400",
+      "role": "acceptance",
+      "source": "assert.equal(require(\"src/api/handler.js\")({ limit: \"abc\" }).status, 400);"
+    },
+    {
+      "id": "valid-limit-unchanged",
+      "role": "invariants",
+      "source": "assert.deepEqual(require(\"src/api/handler.js\")({ limit: \"5\" }), { status: 200, body: 5 });"
+    },
+    {
+      "id": "core-parse-result",
+      "role": "contract",
+      "source": "assert.deepEqual(require(\"src/core/parse.js\")(\"7\"), { ok: true, value: 7 });"
+    },
+    {
+      "id": "missing-limit-is-400",
+      "role": "negative",
+      "source": "assert.equal(require(\"src/api/handler.js\")({}).status, 400);"
+    }
+  ],
+  "defects": [
+    {
+      "id": "wrong-patch",
+      "kind": "wrong-patch",
+      "patch": "--- a/src/core/parse.js\n+++ b/src/core/parse.js\n@@ -1,1 +1,4 @@\n-module.exports = (input) => Number(input);\n+module.exports = (input) => {\n+  const value = Number(input);\n+  return Number.isFinite(value) ? { ok: true, value } : { ok: false };\n+};\n"
+    },
+    {
+      "id": "complacent-test",
+      "kind": "complacent-test",
+      "patch": "--- a/src/core/parse.js\n+++ b/src/core/parse.js\n@@ -1,1 +1,4 @@\n-module.exports = (input) => Number(input);\n+module.exports = (input) => {\n+  const value = Number(input);\n+  return Number.isFinite(value) ? { ok: true, value } : { ok: false };\n+};\n",
+      "checks": [
+        {
+          "id": "invalid-limit-is-400",
+          "role": "acceptance",
+          "source": "assert.equal(typeof require(\"src/api/handler.js\"), \"function\");"
+        }
+      ]
+    },
+    {
+      "id": "scope-drift",
+      "kind": "scope-drift",
+      "patch": "--- a/src/core/parse.js\n+++ b/src/core/parse.js\n@@ -1,1 +1,4 @@\n-module.exports = (input) => Number(input);\n+module.exports = (input) => {\n+  const value = Number(input);\n+  return Number.isFinite(value) ? { ok: true, value } : { ok: false };\n+};\n--- a/src/api/handler.js\n+++ b/src/api/handler.js\n@@ -1,2 +1,5 @@\n-const parse = require(\"src/core/parse.js\");\n-module.exports = (query) => ({ status: 200, body: parse(query.limit) });\n+const parse = require(\"src/core/parse.js\");\n+module.exports = (query) => {\n+  const parsed = parse(query.limit);\n+  return parsed.ok ? { status: 200, body: parsed.value } : { status: 400, body: \"invalid limit\" };\n+};\n--- /dev/null\n+++ b/src/unrelated.js\n@@ -0,0 +1,1 @@\n+module.exports = {};\n"
+    },
+    {
+      "id": "stale-receipt",
+      "kind": "stale-receipt",
+      "patch": "--- a/src/core/parse.js\n+++ b/src/core/parse.js\n@@ -1,1 +1,4 @@\n-module.exports = (input) => Number(input);\n+module.exports = (input) => {\n+  const value = Number(input);\n+  return Number.isFinite(value) ? { ok: true, value } : { ok: false };\n+};\n"
+    }
+  ]
+}

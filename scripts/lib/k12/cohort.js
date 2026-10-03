@@ -166,8 +166,48 @@ function validateCohortShape(cohort) {
   return { valid: errors.length === 0, errors };
 }
 
+// Adaptive Repair pilot cohort (slice P3): 20–24 tasks, weighted toward the
+// repair strata, with two holdout families per stratum so one can be reserved.
+const PILOT_COHORT_SIZE = Object.freeze({ min: 20, max: 24 });
+const PILOT_WEIGHTED_STRATA = Object.freeze(["local-reversible", "behavior-repair"]);
+const PILOT_MIN_FAMILIES_PER_STRATUM = 2;
+
+/**
+ * Validates the Adaptive Repair pilot cohort on top of the seed shape, without throwing.
+ *
+ * @param {object} cohort A cohort returned by loadCohort or a synthetic cohort.
+ * @returns {{ valid: boolean, errors: string[] }}
+ */
+function validatePilotCohortShape(cohort) {
+  const base = validateCohortShape(cohort);
+  if (!base.valid) return base;
+
+  const errors = [];
+  const fixtures = cohort.catalog.fixtures;
+  if (fixtures.length < PILOT_COHORT_SIZE.min || fixtures.length > PILOT_COHORT_SIZE.max) {
+    errors.push(`pilot cohort must contain ${PILOT_COHORT_SIZE.min}-${PILOT_COHORT_SIZE.max} fixtures, found ${fixtures.length}`);
+  }
+  const byStratum = Object.fromEntries(STRATA.map((stratum) => [stratum, fixtures.filter((fixture) => fixture.stratum === stratum)]));
+  const otherStrata = STRATA.filter((stratum) => !PILOT_WEIGHTED_STRATA.includes(stratum));
+  for (const weighted of PILOT_WEIGHTED_STRATA) {
+    for (const other of otherStrata) {
+      if (byStratum[weighted].length < byStratum[other].length) {
+        errors.push(`pilot stratum "${weighted}" must not have fewer fixtures than "${other}"`);
+      }
+    }
+  }
+  for (const stratum of STRATA) {
+    const families = new Set(byStratum[stratum].map((fixture) => fixture.holdout_family).filter(Boolean));
+    if (families.size < PILOT_MIN_FAMILIES_PER_STRATUM) {
+      errors.push(`pilot stratum "${stratum}" needs at least ${PILOT_MIN_FAMILIES_PER_STRATUM} holdout families to reserve one`);
+    }
+  }
+  return { valid: errors.length === 0, errors };
+}
+
 module.exports = {
   CohortError,
   loadCohort,
   validateCohortShape,
+  validatePilotCohortShape,
 };

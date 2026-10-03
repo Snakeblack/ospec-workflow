@@ -144,9 +144,9 @@ test("executes the real seed cohort through the runner as a usable machinery bas
     const summary = summarizeCohort(completed);
 
     assert.equal(summary.verdict, "usable-baseline");
-    assert.equal(summary.overall.tasks_total, 11);
-    assert.equal(summary.overall.runs_total, 22);
-    assert.equal(summary.overall.runs_pass, 22);
+    assert.equal(summary.overall.tasks_total, cohort.tasks.length);
+    assert.equal(summary.overall.runs_total, cohort.tasks.length * 2);
+    assert.equal(summary.overall.runs_pass, cohort.tasks.length * 2);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

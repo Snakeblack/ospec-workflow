@@ -1,0 +1,59 @@
+{
+  "schema_version": 2,
+  "files": {
+    "src/role.js": "module.exports = (user) => user.role === \"admin\" || user.role === \"owner\" || user.role;\n"
+  },
+  "patch": "--- a/src/role.js\n+++ b/src/role.js\n@@ -1,1 +1,1 @@\n-module.exports = (user) => user.role === \"admin\" || user.role === \"owner\" || user.role;\n+module.exports = (user) => user.role === \"admin\" || user.role === \"owner\";\n",
+  "allowed_paths": [
+    "src/role.js"
+  ],
+  "obligations": [
+    {
+      "id": "authority-respected",
+      "criticality": "must",
+      "required_evidence": [
+        "authorization-log"
+      ]
+    },
+    {
+      "id": "no-bypass",
+      "criticality": "must",
+      "required_evidence": [
+        "audit-trace"
+      ]
+    },
+    {
+      "id": "tests-pass",
+      "criticality": "should",
+      "required_evidence": [
+        "focused-test-output"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "viewer-not-privileged",
+      "role": "acceptance",
+      "source": "assert.equal(require(\"src/role.js\")({ role: \"viewer\" }), false);"
+    },
+    {
+      "id": "admin-privileged",
+      "role": "invariants",
+      "source": "assert.equal(require(\"src/role.js\")({ role: \"admin\" }), true);"
+    },
+    {
+      "id": "exports-function",
+      "role": "contract",
+      "source": "assert.equal(typeof require(\"src/role.js\"), \"function\");"
+    },
+    {
+      "id": "missing-role-not-privileged",
+      "role": "negative",
+      "source": "assert.equal(require(\"src/role.js\")({}), false);"
+    }
+  ],
+  "faults": [
+    "bypass-without-permit",
+    "interrupt-pre-effect"
+  ]
+}

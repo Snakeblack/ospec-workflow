@@ -1,6 +1,6 @@
 "use strict";
 
-// Deterministic executor for the Adaptive Repair pilot, slices P2a and P2b
+// Deterministic executor for the Adaptive Repair pilot, slices P2a to P3
 // (docs/analysis/2026-10-02-adaptive-pilot-scoping.md). Each fixture carries a
 // scripted worker output (`pilot.json`): base files, one patch, the obligations
 // the executor declares, the allowed paths, the checks that observe behavior,
@@ -69,11 +69,15 @@ const COLLECTOR = Object.freeze({ id: "node-test", transport: "tool-execution-tr
 const CHECK_TIMEOUT_MS = 1000;
 // The live route each pilot stratum takes under the fixed control policy. Other
 // strata are outside the pilot and are recorded as excluded, never silently passed.
-// Adversarial fixtures script a small repair under injected faults, so their
-// control is the bugfix route too.
+// Adversarial fixtures script a small repair under injected faults, and
+// multi-module fixtures script a repair that spans modules (classification
+// normal with explicit bugfix intent), so their control is the bugfix route too.
+// A multi-module repair stays one node whose allowed paths cover every touched
+// module: decomposing it into nodes belongs to the Bounded recipe, not Repair.
 const FIXED_ROUTE_BY_STRATUM = Object.freeze({
   "local-reversible": "lite",
   "behavior-repair": "bugfix",
+  "multi-module": "bugfix",
   adversarial: "bugfix",
 });
 // Repair recipe under test (roadmap K10: "Repair conserva reproducción y

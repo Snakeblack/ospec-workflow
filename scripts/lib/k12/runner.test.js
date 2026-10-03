@@ -218,8 +218,8 @@ test("integrates the real seed cohort through a two-repetition usable baseline",
   const summary = summarizeCohort(completed.runs);
 
   assert.equal(summary.verdict, "usable-baseline");
-  assert.equal(summary.overall.tasks_total, 11);
-  assert.equal(summary.overall.runs_total, 22);
+  assert.equal(summary.overall.tasks_total, cohort.tasks.length);
+  assert.equal(summary.overall.runs_total, cohort.tasks.length * 2);
 });
 
 test("executePlan preserves executor measurements and oracle in the completed outcome", async () => {

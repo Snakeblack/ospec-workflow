@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "catalog_version": "k12-seed-1",
+  "catalog_version": "k12-pilot-1",
   "fixtures": [
     {
       "fixture_id": "local-config-default",
@@ -22,6 +22,33 @@
     },
     {
       "fixture_id": "local-validation-message",
+      "stratum": "local-reversible",
+      "holdout_family": "compatibility",
+      "obligations": [
+        { "id": "behavior-preserved", "criticality": "must", "required_evidence": ["regression-test-output"] },
+        { "id": "tests-pass", "criticality": "should", "required_evidence": ["focused-test-output"] }
+      ]
+    },
+    {
+      "fixture_id": "local-slug-trim",
+      "stratum": "local-reversible",
+      "holdout_family": "compatibility",
+      "obligations": [
+        { "id": "tests-pass", "criticality": "must", "required_evidence": ["focused-test-output"] },
+        { "id": "behavior-preserved", "criticality": "should", "required_evidence": ["before-after-example"] }
+      ]
+    },
+    {
+      "fixture_id": "local-percent-format",
+      "stratum": "local-reversible",
+      "holdout_family": "local-contract",
+      "obligations": [
+        { "id": "tests-pass", "criticality": "must", "required_evidence": ["focused-test-output"] },
+        { "id": "no-scope-drift", "criticality": "must", "required_evidence": ["changed-files-list"] }
+      ]
+    },
+    {
+      "fixture_id": "local-locale-fallback",
       "stratum": "local-reversible",
       "holdout_family": "compatibility",
       "obligations": [
@@ -57,6 +84,42 @@
       ]
     },
     {
+      "fixture_id": "behavior-page-slice",
+      "stratum": "behavior-repair",
+      "holdout_family": "compatibility",
+      "obligations": [
+        { "id": "behavior-preserved", "criticality": "must", "required_evidence": ["regression-test-output"] },
+        { "id": "tests-pass", "criticality": "must", "required_evidence": ["focused-test-output"] }
+      ]
+    },
+    {
+      "fixture_id": "behavior-cache-overwrite",
+      "stratum": "behavior-repair",
+      "holdout_family": "recovery",
+      "obligations": [
+        { "id": "behavior-preserved", "criticality": "must", "required_evidence": ["regression-test-output"] },
+        { "id": "tests-pass", "criticality": "must", "required_evidence": ["focused-test-output"] }
+      ]
+    },
+    {
+      "fixture_id": "behavior-retry-limit",
+      "stratum": "behavior-repair",
+      "holdout_family": "recovery",
+      "obligations": [
+        { "id": "recovery-no-retry-storm", "criticality": "must", "required_evidence": ["retry-log"] },
+        { "id": "tests-pass", "criticality": "must", "required_evidence": ["focused-test-output"] }
+      ]
+    },
+    {
+      "fixture_id": "behavior-unicode-count",
+      "stratum": "behavior-repair",
+      "holdout_family": "compatibility",
+      "obligations": [
+        { "id": "behavior-preserved", "criticality": "must", "required_evidence": ["compatibility-test-output"] },
+        { "id": "no-scope-drift", "criticality": "should", "required_evidence": ["changed-files-list"] }
+      ]
+    },
+    {
       "fixture_id": "multi-api-contract",
       "stratum": "multi-module",
       "holdout_family": "compatibility",
@@ -84,6 +147,24 @@
       ]
     },
     {
+      "fixture_id": "multi-config-propagation",
+      "stratum": "multi-module",
+      "holdout_family": "local-contract",
+      "obligations": [
+        { "id": "tests-pass", "criticality": "must", "required_evidence": ["integration-test-output"] },
+        { "id": "no-scope-drift", "criticality": "must", "required_evidence": ["changed-files-list"] }
+      ]
+    },
+    {
+      "fixture_id": "multi-error-mapping",
+      "stratum": "multi-module",
+      "holdout_family": "recovery",
+      "obligations": [
+        { "id": "behavior-preserved", "criticality": "must", "required_evidence": ["integration-test-output"] },
+        { "id": "tests-pass", "criticality": "should", "required_evidence": ["focused-test-output"] }
+      ]
+    },
+    {
       "fixture_id": "adversarial-interrupted-recovery",
       "stratum": "adversarial",
       "holdout_family": "recovery",
@@ -95,6 +176,25 @@
     },
     {
       "fixture_id": "adversarial-authority-boundary",
+      "stratum": "adversarial",
+      "holdout_family": "authority",
+      "obligations": [
+        { "id": "authority-respected", "criticality": "must", "required_evidence": ["authorization-log"] },
+        { "id": "no-bypass", "criticality": "must", "required_evidence": ["audit-trace"] },
+        { "id": "tests-pass", "criticality": "should", "required_evidence": ["focused-test-output"] }
+      ]
+    },
+    {
+      "fixture_id": "adversarial-replay-idempotence",
+      "stratum": "adversarial",
+      "holdout_family": "recovery",
+      "obligations": [
+        { "id": "recovery-no-retry-storm", "criticality": "must", "required_evidence": ["recovery-log", "retry-count"] },
+        { "id": "behavior-preserved", "criticality": "must", "required_evidence": ["post-recovery-test-output"] }
+      ]
+    },
+    {
+      "fixture_id": "adversarial-role-escalation",
       "stratum": "adversarial",
       "holdout_family": "authority",
       "obligations": [
