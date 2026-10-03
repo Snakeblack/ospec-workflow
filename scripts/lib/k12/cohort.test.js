@@ -10,6 +10,7 @@ const {
   CohortError,
   loadCohort,
   validateCohortShape,
+  validatePilotCohortShape,
 } = require("./cohort.js");
 
 const seedRoot = join(__dirname, "../../evals/__fixtures__/k12");
@@ -113,4 +114,43 @@ test("reports strata coverage counts that match the catalog", () => {
   );
 
   assert.deepEqual(cohort.strata_coverage, expected);
+});
+
+test("the real cohort satisfies the Adaptive Repair pilot shape", () => {
+  const cohort = loadCohort(seedCatalogPath, seedTasksDir);
+
+  assert.deepEqual(validatePilotCohortShape(cohort), { valid: true, errors: [] });
+  assert.deepEqual(cohort.strata_coverage, {
+    "local-reversible": 6,
+    "behavior-repair": 7,
+    "multi-module": 5,
+    adversarial: 4,
+  });
+});
+
+function pilotCohort(counts, familiesPerStratum = 2) {
+  const fixtures = Object.entries(counts).flatMap(([stratum, count]) => Array.from({ length: count }, (_, index) => (
+    fixture(`${stratum}-${index}`, stratum, `${stratum}-family-${index % familiesPerStratum}`)
+  )));
+  return { catalog: { fixtures } };
+}
+
+test("reports pilot cohorts that are undersized, unweighted, or without a reservable holdout family", () => {
+  const balanced = { "local-reversible": 6, "behavior-repair": 6, "multi-module": 5, adversarial: 4 };
+  assert.deepEqual(validatePilotCohortShape(pilotCohort(balanced)), { valid: true, errors: [] });
+
+  const cases = [
+    [pilotCohort({ "local-reversible": 4, "behavior-repair": 4, "multi-module": 3, adversarial: 3 }), /must contain 20-24 fixtures, found 14/],
+    [pilotCohort({ "local-reversible": 7, "behavior-repair": 7, "multi-module": 7, adversarial: 4 }), /must contain 20-24 fixtures, found 25/],
+    [pilotCohort({ "local-reversible": 4, "behavior-repair": 8, "multi-module": 6, adversarial: 4 }), /"local-reversible" must not have fewer fixtures than "multi-module"/],
+    [pilotCohort(balanced, 1), /"adversarial" needs at least 2 holdout families/],
+  ];
+  for (const [cohort, pattern] of cases) {
+    const result = validatePilotCohortShape(cohort);
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((error) => pattern.test(error)), result.errors.join("; "));
+  }
+  // The seed shape still gates first: a missing stratum is reported by validateCohortShape.
+  const missingStratum = validatePilotCohortShape(pilotCohort({ "local-reversible": 10, "behavior-repair": 10 }));
+  assert.ok(missingStratum.errors.some((error) => error.includes('stratum "multi-module" is missing')));
 });

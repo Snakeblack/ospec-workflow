@@ -1,0 +1,79 @@
+{
+  "schema_version": 2,
+  "files": {
+    "src/state/store.js": "module.exports = () => {\n  let state = \"idle\";\n  return { get: () => state, set: (next) => { state = next; } };\n};\n",
+    "src/ui/view.js": "module.exports = (store) => {\n  const label = store.get();\n  return { label: () => label };\n};\n"
+  },
+  "patch": "--- a/src/state/store.js\n+++ b/src/state/store.js\n@@ -1,4 +1,9 @@\n-module.exports = () => {\n-  let state = \"idle\";\n-  return { get: () => state, set: (next) => { state = next; } };\n-};\n+module.exports = () => {\n+  let state = \"idle\";\n+  const listeners = [];\n+  return {\n+    get: () => state,\n+    set: (next) => { state = next; listeners.forEach((listener) => listener(next)); },\n+    subscribe: (listener) => { listeners.push(listener); },\n+  };\n+};\n--- a/src/ui/view.js\n+++ b/src/ui/view.js\n@@ -1,4 +1,5 @@\n-module.exports = (store) => {\n-  const label = store.get();\n-  return { label: () => label };\n-};\n+module.exports = (store) => {\n+  let label = store.get();\n+  store.subscribe((next) => { label = next; });\n+  return { label: () => label };\n+};\n",
+  "allowed_paths": [
+    "src/state/store.js",
+    "src/ui/view.js"
+  ],
+  "obligations": [
+    {
+      "id": "tests-pass",
+      "criticality": "must",
+      "required_evidence": [
+        "integration-test-output"
+      ]
+    },
+    {
+      "id": "behavior-preserved",
+      "criticality": "must",
+      "required_evidence": [
+        "state-transition-trace"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "view-follows-store",
+      "role": "acceptance",
+      "source": "const store = require(\"src/state/store.js\")(); const view = require(\"src/ui/view.js\")(store); store.set(\"busy\"); assert.equal(view.label(), \"busy\");"
+    },
+    {
+      "id": "initial-label",
+      "role": "invariants",
+      "source": "const store = require(\"src/state/store.js\")(); const view = require(\"src/ui/view.js\")(store); assert.equal(view.label(), \"idle\");"
+    },
+    {
+      "id": "store-notifies",
+      "role": "contract",
+      "source": "const store = require(\"src/state/store.js\")(); const seen = []; store.subscribe((next) => seen.push(next)); store.set(\"done\"); assert.deepEqual(seen, [\"done\"]);"
+    },
+    {
+      "id": "returns-to-idle",
+      "role": "negative",
+      "source": "const store = require(\"src/state/store.js\")(); const view = require(\"src/ui/view.js\")(store); store.set(\"busy\"); store.set(\"idle\"); assert.equal(view.label(), \"idle\");"
+    }
+  ],
+  "defects": [
+    {
+      "id": "wrong-patch",
+      "kind": "wrong-patch",
+      "patch": "--- a/src/state/store.js\n+++ b/src/state/store.js\n@@ -1,4 +1,9 @@\n-module.exports = () => {\n-  let state = \"idle\";\n-  return { get: () => state, set: (next) => { state = next; } };\n-};\n+module.exports = () => {\n+  let state = \"idle\";\n+  const listeners = [];\n+  return {\n+    get: () => state,\n+    set: (next) => { state = next; listeners.forEach((listener) => listener(next)); },\n+    subscribe: (listener) => { listeners.push(listener); },\n+  };\n+};\n"
+    },
+    {
+      "id": "complacent-test",
+      "kind": "complacent-test",
+      "patch": "--- a/src/state/store.js\n+++ b/src/state/store.js\n@@ -1,4 +1,9 @@\n-module.exports = () => {\n-  let state = \"idle\";\n-  return { get: () => state, set: (next) => { state = next; } };\n-};\n+module.exports = () => {\n+  let state = \"idle\";\n+  const listeners = [];\n+  return {\n+    get: () => state,\n+    set: (next) => { state = next; listeners.forEach((listener) => listener(next)); },\n+    subscribe: (listener) => { listeners.push(listener); },\n+  };\n+};\n",
+      "checks": [
+        {
+          "id": "view-follows-store",
+          "role": "acceptance",
+          "source": "const store = require(\"src/state/store.js\")(); assert.equal(require(\"src/ui/view.js\")(store).label(), \"idle\");"
+        }
+      ]
+    },
+    {
+      "id": "scope-drift",
+      "kind": "scope-drift",
+      "patch": "--- a/src/state/store.js\n+++ b/src/state/store.js\n@@ -1,4 +1,9 @@\n-module.exports = () => {\n-  let state = \"idle\";\n-  return { get: () => state, set: (next) => { state = next; } };\n-};\n+module.exports = () => {\n+  let state = \"idle\";\n+  const listeners = [];\n+  return {\n+    get: () => state,\n+    set: (next) => { state = next; listeners.forEach((listener) => listener(next)); },\n+    subscribe: (listener) => { listeners.push(listener); },\n+  };\n+};\n--- a/src/ui/view.js\n+++ b/src/ui/view.js\n@@ -1,4 +1,5 @@\n-module.exports = (store) => {\n-  const label = store.get();\n-  return { label: () => label };\n-};\n+module.exports = (store) => {\n+  let label = store.get();\n+  store.subscribe((next) => { label = next; });\n+  return { label: () => label };\n+};\n--- /dev/null\n+++ b/src/unrelated.js\n@@ -0,0 +1,1 @@\n+module.exports = {};\n"
+    },
+    {
+      "id": "stale-receipt",
+      "kind": "stale-receipt",
+      "patch": "--- a/src/state/store.js\n+++ b/src/state/store.js\n@@ -1,4 +1,9 @@\n-module.exports = () => {\n-  let state = \"idle\";\n-  return { get: () => state, set: (next) => { state = next; } };\n-};\n+module.exports = () => {\n+  let state = \"idle\";\n+  const listeners = [];\n+  return {\n+    get: () => state,\n+    set: (next) => { state = next; listeners.forEach((listener) => listener(next)); },\n+    subscribe: (listener) => { listeners.push(listener); },\n+  };\n+};\n"
+    }
+  ]
+}

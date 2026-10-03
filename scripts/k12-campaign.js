@@ -6,7 +6,7 @@ const { mkdir, mkdtemp, writeFile } = require("node:fs/promises");
 const { tmpdir } = require("node:os");
 const { join, resolve } = require("node:path");
 
-const { loadCohort, validateCohortShape } = require("./lib/k12/cohort.js");
+const { loadCohort, validateCohortShape, validatePilotCohortShape } = require("./lib/k12/cohort.js");
 const { createHarnessCampaignExecutor } = require("./lib/k12/campaign-executor.js");
 const { createDeterministicPilotExecutor } = require("./lib/k12/pilot-executor.js");
 const {
@@ -71,7 +71,7 @@ function parseArgs(argv) {
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const cohort = loadCohort(resolve(options.cohortPath), resolve(options.tasksDir));
-  const validation = validateCohortShape(cohort);
+  const validation = options.paired ? validatePilotCohortShape(cohort) : validateCohortShape(cohort);
   if (!validation.valid) {
     for (const error of validation.errors) console.error(error);
     process.exitCode = 1;
@@ -92,7 +92,7 @@ async function main() {
   };
   let summary;
   if (options.paired) {
-    // Deterministic Adaptive Repair pilot (P2a/P2b): both arms per fixture repetition, with seeded defects.
+    // Deterministic Adaptive Repair pilot (P2a–P3): both arms per fixture repetition, with seeded defects and injected faults.
     const routes = parseRoutingTable(readFileSync(configPath, "utf8"));
     const completed = await executePlan(
       planPairedRuns(cohort, planOptions),

@@ -1,0 +1,77 @@
+{
+  "schema_version": 2,
+  "files": {
+    "src/greet.js": "module.exports = (name, locale) => (locale === \"es\" ? `Hola ${name}` : `Hello ${name}`);\n"
+  },
+  "patch": "--- a/src/greet.js\n+++ b/src/greet.js\n@@ -1,1 +1,1 @@\n-module.exports = (name, locale) => (locale === \"es\" ? `Hola ${name}` : `Hello ${name}`);\n+module.exports = (name, locale) => ((locale || \"\").startsWith(\"es\") ? `Hola ${name}` : `Hello ${name}`);\n",
+  "allowed_paths": [
+    "src/greet.js"
+  ],
+  "obligations": [
+    {
+      "id": "behavior-preserved",
+      "criticality": "must",
+      "required_evidence": [
+        "regression-test-output"
+      ]
+    },
+    {
+      "id": "tests-pass",
+      "criticality": "should",
+      "required_evidence": [
+        "focused-test-output"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "regional-spanish",
+      "role": "acceptance",
+      "source": "assert.equal(require(\"src/greet.js\")(\"Ana\", \"es-AR\"), \"Hola Ana\");"
+    },
+    {
+      "id": "plain-spanish-unchanged",
+      "role": "invariants",
+      "source": "assert.equal(require(\"src/greet.js\")(\"Ana\", \"es\"), \"Hola Ana\");"
+    },
+    {
+      "id": "english-greeting",
+      "role": "contract",
+      "source": "assert.equal(require(\"src/greet.js\")(\"Ann\", \"en\"), \"Hello Ann\");"
+    },
+    {
+      "id": "missing-locale-falls-back",
+      "role": "negative",
+      "source": "assert.equal(require(\"src/greet.js\")(\"Ann\"), \"Hello Ann\");"
+    }
+  ],
+  "defects": [
+    {
+      "id": "wrong-patch",
+      "kind": "wrong-patch",
+      "patch": "--- a/src/greet.js\n+++ b/src/greet.js\n@@ -1,1 +1,1 @@\n-module.exports = (name, locale) => (locale === \"es\" ? `Hola ${name}` : `Hello ${name}`);\n+module.exports = (name, locale) => (locale.startsWith(\"es\") ? `Hola ${name}` : `Hello ${name}`);\n"
+    },
+    {
+      "id": "complacent-test",
+      "kind": "complacent-test",
+      "patch": "--- a/src/greet.js\n+++ b/src/greet.js\n@@ -1,1 +1,1 @@\n-module.exports = (name, locale) => (locale === \"es\" ? `Hola ${name}` : `Hello ${name}`);\n+module.exports = (name, locale) => (locale.startsWith(\"es\") ? `Hola ${name}` : `Hello ${name}`);\n",
+      "checks": [
+        {
+          "id": "regional-spanish",
+          "role": "acceptance",
+          "source": "assert.equal(require(\"src/greet.js\")(\"Ana\", \"es\"), \"Hola Ana\");"
+        }
+      ]
+    },
+    {
+      "id": "scope-drift",
+      "kind": "scope-drift",
+      "patch": "--- a/src/greet.js\n+++ b/src/greet.js\n@@ -1,1 +1,1 @@\n-module.exports = (name, locale) => (locale === \"es\" ? `Hola ${name}` : `Hello ${name}`);\n+module.exports = (name, locale) => ((locale || \"\").startsWith(\"es\") ? `Hola ${name}` : `Hello ${name}`);\n--- /dev/null\n+++ b/src/unrelated.js\n@@ -0,0 +1,1 @@\n+module.exports = {};\n"
+    },
+    {
+      "id": "stale-receipt",
+      "kind": "stale-receipt",
+      "patch": "--- a/src/greet.js\n+++ b/src/greet.js\n@@ -1,1 +1,1 @@\n-module.exports = (name, locale) => (locale === \"es\" ? `Hola ${name}` : `Hello ${name}`);\n+module.exports = (name, locale) => (locale.startsWith(\"es\") ? `Hola ${name}` : `Hello ${name}`);\n"
+    }
+  ]
+}

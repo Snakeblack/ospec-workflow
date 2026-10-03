@@ -1,0 +1,77 @@
+{
+  "schema_version": 2,
+  "files": {
+    "src/page.js": "module.exports = (items, page, size) => items.slice(page * size, page * size + size - 1);\n"
+  },
+  "patch": "--- a/src/page.js\n+++ b/src/page.js\n@@ -1,1 +1,1 @@\n-module.exports = (items, page, size) => items.slice(page * size, page * size + size - 1);\n+module.exports = (items, page, size) => items.slice(page * size, page * size + size);\n",
+  "allowed_paths": [
+    "src/page.js"
+  ],
+  "obligations": [
+    {
+      "id": "behavior-preserved",
+      "criticality": "must",
+      "required_evidence": [
+        "regression-test-output"
+      ]
+    },
+    {
+      "id": "tests-pass",
+      "criticality": "must",
+      "required_evidence": [
+        "focused-test-output"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "full-first-page",
+      "role": "acceptance",
+      "source": "assert.deepEqual(require(\"src/page.js\")([1, 2, 3, 4], 0, 2), [1, 2]);"
+    },
+    {
+      "id": "partial-last-page",
+      "role": "invariants",
+      "source": "assert.deepEqual(require(\"src/page.js\")([1, 2, 3], 1, 2), [3]);"
+    },
+    {
+      "id": "empty-items",
+      "role": "contract",
+      "source": "assert.deepEqual(require(\"src/page.js\")([], 0, 5), []);"
+    },
+    {
+      "id": "out-of-range-page",
+      "role": "negative",
+      "source": "assert.deepEqual(require(\"src/page.js\")([1, 2], 5, 2), []);"
+    }
+  ],
+  "defects": [
+    {
+      "id": "wrong-patch",
+      "kind": "wrong-patch",
+      "patch": "--- a/src/page.js\n+++ b/src/page.js\n@@ -1,1 +1,1 @@\n-module.exports = (items, page, size) => items.slice(page * size, page * size + size - 1);\n+module.exports = (items, page, size) => items.slice(page * size + 1, page * size + size + 1);\n"
+    },
+    {
+      "id": "complacent-test",
+      "kind": "complacent-test",
+      "patch": "--- a/src/page.js\n+++ b/src/page.js\n@@ -1,1 +1,1 @@\n-module.exports = (items, page, size) => items.slice(page * size, page * size + size - 1);\n+module.exports = (items, page, size) => items.slice(page * size + 1, page * size + size + 1);\n",
+      "checks": [
+        {
+          "id": "full-first-page",
+          "role": "acceptance",
+          "source": "assert.deepEqual(require(\"src/page.js\")([], 0, 5), []);"
+        }
+      ]
+    },
+    {
+      "id": "scope-drift",
+      "kind": "scope-drift",
+      "patch": "--- a/src/page.js\n+++ b/src/page.js\n@@ -1,1 +1,1 @@\n-module.exports = (items, page, size) => items.slice(page * size, page * size + size - 1);\n+module.exports = (items, page, size) => items.slice(page * size, page * size + size);\n--- /dev/null\n+++ b/src/unrelated.js\n@@ -0,0 +1,1 @@\n+module.exports = {};\n"
+    },
+    {
+      "id": "stale-receipt",
+      "kind": "stale-receipt",
+      "patch": "--- a/src/page.js\n+++ b/src/page.js\n@@ -1,1 +1,1 @@\n-module.exports = (items, page, size) => items.slice(page * size, page * size + size - 1);\n+module.exports = (items, page, size) => items.slice(page * size + 1, page * size + size + 1);\n"
+    }
+  ]
+}

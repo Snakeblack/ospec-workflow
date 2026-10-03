@@ -1,0 +1,79 @@
+{
+  "schema_version": 2,
+  "files": {
+    "src/config/defaults.js": "module.exports = { retries: 3 };\n",
+    "src/net/client.js": "const defaults = require(\"src/config/defaults.js\");\nmodule.exports = (options = {}) => ({ retries: options.retries ?? defaults.retries, timeoutMs: options.timeoutMs });\n"
+  },
+  "patch": "--- a/src/config/defaults.js\n+++ b/src/config/defaults.js\n@@ -1,1 +1,1 @@\n-module.exports = { retries: 3 };\n+module.exports = { retries: 3, timeoutMs: 5000 };\n--- a/src/net/client.js\n+++ b/src/net/client.js\n@@ -1,2 +1,2 @@\n-const defaults = require(\"src/config/defaults.js\");\n-module.exports = (options = {}) => ({ retries: options.retries ?? defaults.retries, timeoutMs: options.timeoutMs });\n+const defaults = require(\"src/config/defaults.js\");\n+module.exports = (options = {}) => ({ retries: options.retries ?? defaults.retries, timeoutMs: options.timeoutMs ?? defaults.timeoutMs });\n",
+  "allowed_paths": [
+    "src/config/defaults.js",
+    "src/net/client.js"
+  ],
+  "obligations": [
+    {
+      "id": "tests-pass",
+      "criticality": "must",
+      "required_evidence": [
+        "integration-test-output"
+      ]
+    },
+    {
+      "id": "no-scope-drift",
+      "criticality": "must",
+      "required_evidence": [
+        "changed-files-list"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "default-timeout",
+      "role": "acceptance",
+      "source": "assert.equal(require(\"src/net/client.js\")().timeoutMs, 5000);"
+    },
+    {
+      "id": "explicit-timeout-wins",
+      "role": "invariants",
+      "source": "assert.equal(require(\"src/net/client.js\")({ timeoutMs: 10 }).timeoutMs, 10);"
+    },
+    {
+      "id": "config-declares-timeout",
+      "role": "contract",
+      "source": "assert.equal(require(\"src/config/defaults.js\").timeoutMs, 5000);"
+    },
+    {
+      "id": "zero-retries-kept",
+      "role": "negative",
+      "source": "assert.equal(require(\"src/net/client.js\")({ retries: 0 }).retries, 0);"
+    }
+  ],
+  "defects": [
+    {
+      "id": "wrong-patch",
+      "kind": "wrong-patch",
+      "patch": "--- a/src/config/defaults.js\n+++ b/src/config/defaults.js\n@@ -1,1 +1,1 @@\n-module.exports = { retries: 3 };\n+module.exports = { retries: 3, timeoutMs: 5000 };\n"
+    },
+    {
+      "id": "complacent-test",
+      "kind": "complacent-test",
+      "patch": "--- a/src/config/defaults.js\n+++ b/src/config/defaults.js\n@@ -1,1 +1,1 @@\n-module.exports = { retries: 3 };\n+module.exports = { retries: 3, timeoutMs: 5000 };\n",
+      "checks": [
+        {
+          "id": "default-timeout",
+          "role": "acceptance",
+          "source": "assert.equal(require(\"src/net/client.js\")().retries, 3);"
+        }
+      ]
+    },
+    {
+      "id": "scope-drift",
+      "kind": "scope-drift",
+      "patch": "--- a/src/config/defaults.js\n+++ b/src/config/defaults.js\n@@ -1,1 +1,1 @@\n-module.exports = { retries: 3 };\n+module.exports = { retries: 3, timeoutMs: 5000 };\n--- a/src/net/client.js\n+++ b/src/net/client.js\n@@ -1,2 +1,2 @@\n-const defaults = require(\"src/config/defaults.js\");\n-module.exports = (options = {}) => ({ retries: options.retries ?? defaults.retries, timeoutMs: options.timeoutMs });\n+const defaults = require(\"src/config/defaults.js\");\n+module.exports = (options = {}) => ({ retries: options.retries ?? defaults.retries, timeoutMs: options.timeoutMs ?? defaults.timeoutMs });\n--- /dev/null\n+++ b/src/unrelated.js\n@@ -0,0 +1,1 @@\n+module.exports = {};\n"
+    },
+    {
+      "id": "stale-receipt",
+      "kind": "stale-receipt",
+      "patch": "--- a/src/config/defaults.js\n+++ b/src/config/defaults.js\n@@ -1,1 +1,1 @@\n-module.exports = { retries: 3 };\n+module.exports = { retries: 3, timeoutMs: 5000 };\n"
+    }
+  ]
+}

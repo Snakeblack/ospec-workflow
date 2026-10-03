@@ -27,7 +27,7 @@ const seedRoot = join(__dirname, "../../evals/__fixtures__/k12");
 const seedCatalogPath = join(seedRoot, "oracle-catalog.json");
 const seedTasksDir = join(seedRoot, "tasks");
 const FIXED_CLOCK = { now: () => "2026-10-02T00:00:00.000Z" };
-const P2A_STRATA = Object.keys(FIXED_ROUTE_BY_STRATUM);
+const PILOT_STRATA = Object.keys(FIXED_ROUTE_BY_STRATUM);
 
 function liveRoutes() {
   return parseRoutingTable(readFileSync(join(repoRoot, "openspec/config.yaml"), "utf8"));
@@ -140,7 +140,7 @@ async function syntheticCohort(scripts) {
 test("arm plans mirror the live control routes and the Adaptive arm inherits every control gate", () => {
   const routes = liveRoutes();
   const plans = resolveArmPlans(routes);
-  assert.deepEqual(Object.keys(plans).sort(), [...P2A_STRATA].sort());
+  assert.deepEqual(Object.keys(plans).sort(), [...PILOT_STRATA].sort());
   for (const [stratum, routeName] of Object.entries(FIXED_ROUTE_BY_STRATUM)) {
     const route = routes.find((entry) => entry.name === routeName);
     assert.deepEqual(plans[stratum].fixed, { route: routeName, phases: route.phases, gates: route.gates || [] });
@@ -159,54 +159,79 @@ test("arm plans mirror the live control routes and the Adaptive arm inherits eve
   assert.throws(() => createDeterministicPilotExecutor({ catalog: null, routes }), PilotExecutorError);
 });
 
-test("the seed cohort yields a usable paired comparison with the oracle applied on every pilot run", async () => {
+// Expected kernel response per adversarial fixture: every fault is contained, an
+// interruption counts once, and only the pre-effect one is recoverable (the
+// mid-executor one must fail closed; the bypass never reaches an effect).
+const SEED_FAULT_COUNTS = Object.freeze({
+  "adversarial-interrupted-recovery": { interruptions: 2, recoveries: 1 },
+  "adversarial-authority-boundary": { interruptions: 1, recoveries: 0 },
+  "adversarial-replay-idempotence": { interruptions: 1, recoveries: 1 },
+  "adversarial-role-escalation": { interruptions: 1, recoveries: 1 },
+});
+
+test("the pilot cohort yields a usable paired comparison with the oracle applied on every run", async () => {
   const cohort = loadCohort(seedCatalogPath, seedTasksDir);
   const { runs } = await runPaired(cohort, 2);
 
-  const pilotRuns = runs.filter((run) => P2A_STRATA.includes(run.stratum));
-  assert.equal(pilotRuns.length, 8 * 2 * 2);
-  for (const run of pilotRuns) {
+  assert.equal(cohort.tasks.length, 22);
+  assert.equal(runs.length, 22 * 2 * 2);
+  for (const run of runs) {
     assert.equal(run.outcome.status, "pass", `${run.fixture_id} ${run.policy}: ${run.outcome.note}`);
     assert.equal(run.outcome.oracle.applied, true);
     assert.match(run.outcome.oracle.reason, /no must obligation missing/);
     assert.equal(run.outcome.measurements.effects_executed, 1);
   }
-  for (const run of pilotRuns.filter((entry) => entry.stratum !== "adversarial")) {
+  const repairRuns = runs.filter((entry) => entry.stratum !== "adversarial");
+  for (const run of repairRuns) {
     // Every repair fixture seeds the four defect kinds; both arms must reject all of them.
     assert.deepEqual(run.outcome.defects, { seeded: 4, detected: 4, escaped: [] }, run.outcome.note);
   }
-  // Adversarial fixtures inject kernel faults: every fault is contained and only the
-  // pre-effect interruption is recoverable (the mid-executor one must fail closed).
-  const faultsOf = (fixtureId) => pilotRuns.filter((run) => run.fixture_id === fixtureId);
-  for (const run of faultsOf("adversarial-interrupted-recovery")) {
+  const adversarialIds = cohort.tasks.filter((task) => task.stratum === "adversarial").map((task) => task.fixture_id);
+  assert.deepEqual(adversarialIds.sort(), Object.keys(SEED_FAULT_COUNTS).sort());
+  for (const run of runs.filter((entry) => entry.stratum === "adversarial")) {
+    const expected = SEED_FAULT_COUNTS[run.fixture_id];
     assert.match(run.outcome.note, /faults contained 2\/2/);
-    assert.equal(run.outcome.measurements.interruptions, 2);
-    assert.equal(run.outcome.measurements.recoveries, 1);
-  }
-  for (const run of faultsOf("adversarial-authority-boundary")) {
-    assert.match(run.outcome.note, /faults contained 2\/2/);
-    assert.equal(run.outcome.measurements.interruptions, 1);
-    assert.equal(run.outcome.measurements.recoveries, 0);
-  }
-  for (const run of runs.filter((entry) => !P2A_STRATA.includes(entry.stratum))) {
-    assert.equal(run.outcome.status, "excluded");
-    assert.match(run.outcome.note, /outside the pilot strata/);
+    assert.equal(run.outcome.measurements.interruptions, expected.interruptions, run.fixture_id);
+    assert.equal(run.outcome.measurements.recoveries, expected.recoveries, run.fixture_id);
   }
 
   const report = summarizePairedCohort(runs);
+  const seeded = (repairRuns.length / 2) * 4;
   assert.equal(report.verdict, "usable-comparison");
-  assert.equal(report.totals.tasks_comparable, 8);
-  assert.equal(report.totals.pairs_excluded, 3 * 2);
+  assert.equal(report.totals.tasks_comparable, 22);
+  assert.equal(report.totals.pairs_excluded, 0);
   assert.deepEqual(report.regressions, []);
   assert.deepEqual(report.defect_regressions, []);
   assert.deepEqual(report.totals.defects, {
-    fixed: { seeded: 48, detected: 48, escaped: 0 },
-    "adaptive-repair-v1": { seeded: 48, detected: 48, escaped: 0 },
+    fixed: { seeded, detected: seeded, escaped: 0 },
+    "adaptive-repair-v1": { seeded, detected: seeded, escaped: 0 },
   });
-  assert.deepEqual(report.cohort.pass_rate_delta, { tasks: 8, mean: 0, sd: 0, ci95: [0, 0] });
+  assert.deepEqual(report.cohort.pass_rate_delta, { tasks: 22, mean: 0, sd: 0, ci95: [0, 0] });
   // Ceremony is a declared plan, so the -2 phase delta is the hypothesis under test, not an observation.
-  assert.deepEqual(report.cohort.measurement_delta.phases_executed, { tasks: 8, mean: -2, sd: 0, ci95: [-2, -2] });
-  assert.deepEqual(report.cohort.measurement_delta.effects_executed, { tasks: 8, mean: 0, sd: 0, ci95: [0, 0] });
+  assert.deepEqual(report.cohort.measurement_delta.phases_executed, { tasks: 22, mean: -2, sd: 0, ci95: [-2, -2] });
+  assert.deepEqual(report.cohort.measurement_delta.effects_executed, { tasks: 22, mean: 0, sd: 0, ci95: [0, 0] });
+});
+
+test("multi-module fixtures script one repair across several modules", () => {
+  const cohort = loadCohort(seedCatalogPath, seedTasksDir);
+  const multiModule = cohort.tasks.filter((task) => task.stratum === "multi-module");
+  assert.ok(multiModule.length >= 2);
+  for (const task of multiModule) {
+    const { script, error } = loadPilotScript(task.task_path);
+    assert.equal(error, null, task.fixture_id);
+    const touched = [...script.patch.matchAll(/^\+\+\+ b\/(.+)$/gm)].map((match) => match[1]);
+    assert.ok(touched.length >= 2, `${task.fixture_id} patch touches ${touched.length} file(s)`);
+    assert.ok(touched.every((path) => script.allowed_paths.includes(path)), task.fixture_id);
+    assert.equal(new Set(touched.map((path) => path.split("/").slice(0, -1).join("/"))).size >= 2, true, task.fixture_id);
+  }
+});
+
+test("a run outside the pilot strata is recorded as excluded, never passed", async () => {
+  const executor = createDeterministicPilotExecutor({ catalog: { fixtures: [] }, routes: liveRoutes() });
+  const outcome = await executor({ fixture_id: "x", policy: "fixed", stratum: "migration" }, { task_path: tmpdir() });
+  assert.equal(outcome.status, "excluded");
+  assert.match(outcome.note, /outside the pilot strata/);
+  assert.equal(outcome.oracle.applied, false);
 });
 
 test("paired outcomes are deterministic across executions apart from wall time", async () => {
@@ -331,7 +356,7 @@ test("the campaign CLI runs the paired pilot and exits 0 on a usable comparison"
     encoding: "utf8",
   });
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /tasks=11 comparable=8 pairs=11 excluded=3 regressions=0 defects_detected fixed=24\/24 adaptive=24\/24 defect_regressions=0/);
+  assert.match(result.stdout, /tasks=22 comparable=22 pairs=22 excluded=0 regressions=0 defects_detected fixed=72\/72 adaptive=72\/72 defect_regressions=0/);
   assert.match(result.stdout, /"verdict": "usable-comparison"/);
 });
 

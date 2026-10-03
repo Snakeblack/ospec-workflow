@@ -1,0 +1,77 @@
+{
+  "schema_version": 2,
+  "files": {
+    "src/cache.js": "module.exports = () => {\n  const entries = new Map();\n  return {\n    get: (key) => entries.get(key),\n    set: (key, value) => { if (!entries.has(key)) entries.set(key, value); },\n  };\n};\n"
+  },
+  "patch": "--- a/src/cache.js\n+++ b/src/cache.js\n@@ -1,7 +1,7 @@\n-module.exports = () => {\n-  const entries = new Map();\n-  return {\n-    get: (key) => entries.get(key),\n-    set: (key, value) => { if (!entries.has(key)) entries.set(key, value); },\n-  };\n-};\n+module.exports = () => {\n+  const entries = new Map();\n+  return {\n+    get: (key) => entries.get(key),\n+    set: (key, value) => { entries.set(key, value); },\n+  };\n+};\n",
+  "allowed_paths": [
+    "src/cache.js"
+  ],
+  "obligations": [
+    {
+      "id": "behavior-preserved",
+      "criticality": "must",
+      "required_evidence": [
+        "regression-test-output"
+      ]
+    },
+    {
+      "id": "tests-pass",
+      "criticality": "must",
+      "required_evidence": [
+        "focused-test-output"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "overwrite-wins",
+      "role": "acceptance",
+      "source": "const cache = require(\"src/cache.js\")(); cache.set(\"a\", 1); cache.set(\"a\", 2); assert.equal(cache.get(\"a\"), 2);"
+    },
+    {
+      "id": "first-write-kept",
+      "role": "invariants",
+      "source": "const cache = require(\"src/cache.js\")(); cache.set(\"a\", 1); assert.equal(cache.get(\"a\"), 1);"
+    },
+    {
+      "id": "cache-surface",
+      "role": "contract",
+      "source": "const cache = require(\"src/cache.js\")(); assert.equal(typeof cache.get, \"function\"); assert.equal(typeof cache.set, \"function\");"
+    },
+    {
+      "id": "missing-key-undefined",
+      "role": "negative",
+      "source": "const cache = require(\"src/cache.js\")(); assert.equal(cache.get(\"missing\"), undefined);"
+    }
+  ],
+  "defects": [
+    {
+      "id": "wrong-patch",
+      "kind": "wrong-patch",
+      "patch": "--- a/src/cache.js\n+++ b/src/cache.js\n@@ -1,7 +1,7 @@\n-module.exports = () => {\n-  const entries = new Map();\n-  return {\n-    get: (key) => entries.get(key),\n-    set: (key, value) => { if (!entries.has(key)) entries.set(key, value); },\n-  };\n-};\n+module.exports = () => {\n+  const entries = new Map();\n+  return {\n+    get: (key) => entries.get(key),\n+    set: (key, value) => { if (entries.has(key)) entries.delete(key); else entries.set(key, value); },\n+  };\n+};\n"
+    },
+    {
+      "id": "complacent-test",
+      "kind": "complacent-test",
+      "patch": "--- a/src/cache.js\n+++ b/src/cache.js\n@@ -1,7 +1,7 @@\n-module.exports = () => {\n-  const entries = new Map();\n-  return {\n-    get: (key) => entries.get(key),\n-    set: (key, value) => { if (!entries.has(key)) entries.set(key, value); },\n-  };\n-};\n+module.exports = () => {\n+  const entries = new Map();\n+  return {\n+    get: (key) => entries.get(key),\n+    set: (key, value) => { if (entries.has(key)) entries.delete(key); else entries.set(key, value); },\n+  };\n+};\n",
+      "checks": [
+        {
+          "id": "overwrite-wins",
+          "role": "acceptance",
+          "source": "const cache = require(\"src/cache.js\")(); cache.set(\"a\", 1); assert.equal(cache.get(\"a\"), 1);"
+        }
+      ]
+    },
+    {
+      "id": "scope-drift",
+      "kind": "scope-drift",
+      "patch": "--- a/src/cache.js\n+++ b/src/cache.js\n@@ -1,7 +1,7 @@\n-module.exports = () => {\n-  const entries = new Map();\n-  return {\n-    get: (key) => entries.get(key),\n-    set: (key, value) => { if (!entries.has(key)) entries.set(key, value); },\n-  };\n-};\n+module.exports = () => {\n+  const entries = new Map();\n+  return {\n+    get: (key) => entries.get(key),\n+    set: (key, value) => { entries.set(key, value); },\n+  };\n+};\n--- /dev/null\n+++ b/src/unrelated.js\n@@ -0,0 +1,1 @@\n+module.exports = {};\n"
+    },
+    {
+      "id": "stale-receipt",
+      "kind": "stale-receipt",
+      "patch": "--- a/src/cache.js\n+++ b/src/cache.js\n@@ -1,7 +1,7 @@\n-module.exports = () => {\n-  const entries = new Map();\n-  return {\n-    get: (key) => entries.get(key),\n-    set: (key, value) => { if (!entries.has(key)) entries.set(key, value); },\n-  };\n-};\n+module.exports = () => {\n+  const entries = new Map();\n+  return {\n+    get: (key) => entries.get(key),\n+    set: (key, value) => { if (entries.has(key)) entries.delete(key); else entries.set(key, value); },\n+  };\n+};\n"
+    }
+  ]
+}
