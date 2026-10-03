@@ -77,6 +77,14 @@ When the resolved scope is D, write `.last-update.json` under
 does NOT carry its own separate `.last-update.json`. Set `scope_choice:
 "D"` in that file, per Step 6.6 of `SKILL.md`.
 
+The web reads two fields from it, so keep them current on every scope D run:
+
+- `doc_language` becomes Starlight's monolingual `root` locale in
+  `astro.config.mjs` (UI strings and `<html lang>`; English when absent).
+- `section_labels` gives each wiki subdirectory its sidebar group label, written
+  in `doc_language`; a subdirectory without an entry falls back to its
+  humanized directory name. Write one entry per existing subdirectory.
+
 ## 5. Report
 
 In the return envelope, list both `openwiki/` and `web-doc/` artifacts

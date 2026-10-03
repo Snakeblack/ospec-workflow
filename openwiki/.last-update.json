@@ -20,5 +20,22 @@
     "filesSkipped": 3
   },
   "doc_language": "es",
-  "scope_choice": "D"
+  "scope_choice": "D",
+  "section_labels": {
+    "installation": "Instalación",
+    "evolution": "Evolución y roadmap",
+    "architecture": "Arquitectura",
+    "orchestration": "Orquestación",
+    "kernel-runtime": "Runtime del kernel",
+    "agents-skills": "Agentes y skills",
+    "rules-system": "Sistema de reglas",
+    "model-routing": "Ruteo de modelos",
+    "hooks-runtime": "Hooks",
+    "security": "Seguridad",
+    "contract-lint": "Lint de contratos",
+    "state-management": "Estado y persistencia",
+    "testing-quality": "Testing y calidad",
+    "generator": "Generador multi-target",
+    "workspace-federation": "Federación multi-repo"
+  }
 }

@@ -574,3 +574,42 @@ test("prunes the output page when the corresponding openwiki source page is dele
   assert.ok(!outExists(webDocDir, "remove.md"), "remove.md output must be pruned after its source is deleted");
   assert.ok(outExists(webDocDir, "keep.md"), "keep.md output must remain untouched");
 });
+
+test("labels sidebar groups from section_labels in .last-update.json and falls back to humanized names", (t) => {
+  const { openwikiDir, webDocDir } = setupProject(t, {
+    pages: {
+      "quickstart.md": "# Inicio rápido\n\n- [Seguridad](security/guardrails.md)\n",
+      "security/guardrails.md": "# Guardrails\n\nContenido.\n",
+      "hooks-runtime/lifecycle.md": "# Ciclo de vida\n\nContenido.\n",
+    },
+  });
+  fs.writeFileSync(
+    path.join(openwikiDir, ".last-update.json"),
+    JSON.stringify({ doc_language: "es", section_labels: { security: "Seguridad" } }),
+    "utf8"
+  );
+
+  const result = runSync(webDocDir);
+  assert.equal(result.status, 0, result.stderr);
+
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(webDocDir, "src", "sidebar.generated.json"), "utf8")
+  );
+  const labels = Object.fromEntries(manifest.groups.map((g) => [g.directory, g.label]));
+  assert.equal(labels.security, "Seguridad", "a generator-declared label wins over the directory name");
+  assert.equal(labels["hooks-runtime"], "Hooks Runtime", "directories without a declared label keep the humanized name");
+});
+
+test("ignores an unreadable .last-update.json and keeps humanized group labels", (t) => {
+  const { openwikiDir, webDocDir } = setupProject(t, {
+    pages: { "quickstart.md": "# Inicio\n", "security/guardrails.md": "# Guardrails\n" },
+  });
+  fs.writeFileSync(path.join(openwikiDir, ".last-update.json"), "{ not json", "utf8");
+
+  const result = runSync(webDocDir);
+  assert.equal(result.status, 0, result.stderr);
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(webDocDir, "src", "sidebar.generated.json"), "utf8")
+  );
+  assert.equal(manifest.groups[0].label, "Security");
+});

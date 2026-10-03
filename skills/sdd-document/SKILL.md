@@ -321,13 +321,20 @@ After all wiki files are written and Steps 6.4–6.5 have finished, generate (or
     "filesSkipped": [{ "file": "<path relative to output dir>", "reason": "<why skipped>" }]
   },
   "doc_language": "resolved language code from the batched gate (e.g. en, es)",
-  "scope_choice": "resolved scope option: A | B | C | D"
+  "scope_choice": "resolved scope option: A | B | C | D",
+  "section_labels": { "<subdirectory>": "short group label written in doc_language" }
 }
 ```
 
 `sections` MUST list every existing wiki page in the output directory after the run (the complete list, including pages carried over unchanged from prior runs — not only pages written by this run). The invariant is `sections` == the recursive set of `*.md` files under the output dir (excluding `_plan.md` if it has not yet been deleted).
 
 `stats.filesSkipped` MUST be an array of objects `[{ "file": "<path>", "reason": "<reason>" }]` identifying each skipped file and why. A bare numeric count without identities or reasons does NOT satisfy this field.
+
+`section_labels` maps every wiki subdirectory to a short group name written in
+`doc_language` (e.g. `"security": "Seguridad"`). Under scope D the Starlight
+sidebar uses it for group labels and `doc_language` sets the site UI locale;
+keep one entry per existing subdirectory on every run (same invariant as
+`sections`). Without it the sidebar falls back to the directory names.
 
 `doc_language` and `scope_choice` exist so a subsequent update-mode run can
 skip the batched gate (Step 3) by reading these persisted values instead of
