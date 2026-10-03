@@ -1,5 +1,7 @@
 # Investigación: proof-carrying change compiler
 
+> **Archivado el 2026-10-03.** Documento del programa K1–K12: no describe la arquitectura vigente ni fija prioridades. La dirección vive en el [roadmap único](../../../harness-evolution.md); el índice del archivo está en [README](../README.md).
+
 > **Estatus:** investigación no normativa, condensada a partir de una auditoría estática independiente del repositorio.
 > **Corte de la auditoría:** 2026-07-18.
 > **Uso permitido:** aportar evidencia e hipótesis para futuros changes y decisiones arquitectónicas.
@@ -24,12 +26,12 @@ La primera prueba debe limitarse a `verify`: tiene suficientes contratos, gates,
 | Hecho | Evidencia en el repositorio | Implicación para la hipótesis |
 | --- | --- | --- |
 | OpenSpec y Git son la autoridad canónica del change. | [Arquitectura activa](../harness-evolution.md#3-principios-invariantes) y contratos de persistencia del repositorio. | El experimento debe ser complementario y no crear otra autoridad. |
-| El orquestador coordina agentes de fase y todavía conserva reglas extensas de routing, gates, recuperación e inyección de contexto. | [`agents/sdd-orchestrator.agent.md`](../../../agents/sdd-orchestrator.agent.md) | Existe una oportunidad de extraer transiciones repetibles, pero no se ha demostrado aún su tamaño ni beneficio neto. |
-| Ya existen piezas deterministas para envelopes, routing, quality gates, estado, artefactos y review. | [`scripts/lib/`](../../../scripts/lib/) | O20A debe reutilizar contratos y reducers existentes, no crear un segundo framework paralelo. |
-| El runtime de hooks captura y reconstruye resultados de varios hosts. | [`scripts/hooks/subagent-stop.js`](../../../scripts/hooks/subagent-stop.js) y [`scripts/hooks/session-start.js`](../../../scripts/hooks/session-start.js) | `Work Order`/`Work Result` puede probarse como frontera tipada, manteniendo la degradación confinada al adapter. |
-| El repositorio genera y prueba cinco targets con capacidades distintas. | [`scripts/lib/target-profiles/`](../../../scripts/lib/target-profiles/) y [`scripts/configure/real-repo.test.js`](../../../scripts/configure/real-repo.test.js) | Cualquier garantía nueva debe declarar degradación por target; no puede asumirse enforcement uniforme. |
-| Existe infraestructura de evals y benchmark, pero la baseline fixed-policy completa sigue pendiente. | [`scripts/evals/README.md`](../../../scripts/evals/README.md) y [O2B](../../roadmaps/harness-evolution.md#o2b-baseline-fija-fixed-policy--pending) | La vertical debe apoyarse en una baseline reproducible antes de influir en el flujo por defecto. |
-| La arquitectura ya prevé invocation kernel, evidencia estructurada, phase capsules, validadores y verificación headless. | [Arquitectura activa](../harness-evolution.md) y [roadmap general](../../roadmaps/harness-evolution.md) | La propuesta aporta un eje integrador experimental; no debe duplicar esas iniciativas sin un gate. |
+| El orquestador coordina agentes de fase y todavía conserva reglas extensas de routing, gates, recuperación e inyección de contexto. | [`agents/sdd-orchestrator.agent.md`](../../../../../agents/sdd-orchestrator.agent.md) | Existe una oportunidad de extraer transiciones repetibles, pero no se ha demostrado aún su tamaño ni beneficio neto. |
+| Ya existen piezas deterministas para envelopes, routing, quality gates, estado, artefactos y review. | [`scripts/lib/`](../../../../../scripts/lib/) | O20A debe reutilizar contratos y reducers existentes, no crear un segundo framework paralelo. |
+| El runtime de hooks captura y reconstruye resultados de varios hosts. | [`scripts/hooks/subagent-stop.js`](../../../../../scripts/hooks/subagent-stop.js) y [`scripts/hooks/session-start.js`](../../../../../scripts/hooks/session-start.js) | `Work Order`/`Work Result` puede probarse como frontera tipada, manteniendo la degradación confinada al adapter. |
+| El repositorio genera y prueba cinco targets con capacidades distintas. | [`scripts/lib/target-profiles/`](../../../../../scripts/lib/target-profiles/) y [`scripts/configure/real-repo.test.js`](../../../../../scripts/configure/real-repo.test.js) | Cualquier garantía nueva debe declarar degradación por target; no puede asumirse enforcement uniforme. |
+| Existe infraestructura de evals y benchmark, pero la baseline fixed-policy completa sigue pendiente. | [`scripts/evals/README.md`](../../../../../scripts/evals/README.md) y [O2B](../../../harness-evolution.md#o2b-baseline-fija-fixed-policy--pending) | La vertical debe apoyarse en una baseline reproducible antes de influir en el flujo por defecto. |
+| La arquitectura ya prevé invocation kernel, evidencia estructurada, phase capsules, validadores y verificación headless. | [Arquitectura activa](../harness-evolution.md) y [roadmap general](../../../harness-evolution.md) | La propuesta aporta un eje integrador experimental; no debe duplicar esas iniciativas sin un gate. |
 
 ### Límites de la auditoría
 
@@ -95,11 +97,11 @@ O20A solo puede recomendar promoción si aporta evidencia reproducible de:
 - reanudación y degradaciones por target explícitas;
 - coste y complejidad operativa justificados por resultados medidos.
 
-Cumplir estos criterios no promueve automáticamente la arquitectura. El resultado debe cerrar el gate documentado en [O20A](../../roadmaps/harness-evolution.md#o20a-proof-carrying-verify-kernel--pending) y convertirse, si procede, en changes OpenSpec y decisiones aceptadas en la [arquitectura activa](../harness-evolution.md).
+Cumplir estos criterios no promueve automáticamente la arquitectura. El resultado debe cerrar el gate documentado en [O20A](../../../harness-evolution.md#o20a-proof-carrying-verify-kernel--pending) y convertirse, si procede, en changes OpenSpec y decisiones aceptadas en la [arquitectura activa](../harness-evolution.md).
 
 ## Referencias internas
 
 - [Arquitectura y evolución del harness](../harness-evolution.md)
-- [Roadmap general](../../roadmaps/harness-evolution.md)
-- [Infraestructura de evals](../../../scripts/evals/README.md)
-- [Orquestador actual](../../../agents/sdd-orchestrator.agent.md)
+- [Roadmap general](../../../harness-evolution.md)
+- [Infraestructura de evals](../../../../../scripts/evals/README.md)
+- [Orquestador actual](../../../../../agents/sdd-orchestrator.agent.md)

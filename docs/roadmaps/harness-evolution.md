@@ -1,7 +1,7 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.81.1, 2026-10-03.
-> **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. La arquitectura (`docs/architecture/`) es referencia técnica, el análisis fechado (`docs/analysis/`) es evidencia y el roadmap K1–K12 anterior está [archivado](archive/2026-10-03-harness-evolution-kernel.md).
+> **Versión de referencia:** v2.81.2, 2026-10-03.
+> **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) (skills, carga *lazy*, instrucciones por target, orquestador y comparación con gentle-ai).
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
 
@@ -183,6 +183,7 @@ E1.5 puede ir en paralelo desde E1.1. E2.1–E2.2 pueden empezar tras E0.4 si E1
 
 - **Problema:** de unas 50 k líneas de `scripts/lib`, solo unas 9 k son alcanzables desde los hooks y los comandos que se ejecutan en un proyecto consumidor.
 - **Alcance:** inventario de cada módulo no cableado (Execution Graph, Authority Store, Assurance Graph, verifier independiente, Repair shadow, K12, attestation, lifecycle-model, worker-*), con una decisión por módulo: **cablear** (indicando la etapa que lo consume), **congelar** (se mantiene sin inversión) o **retirar** (se borra junto con sus tests).
+- **Incluye** los tests y checkers que leen la [arquitectura archivada](archive/2026-10-03-arquitectura/harness-evolution.md) (`k1-maturity`, `k21-maturity-docs`, `k2a-maturity-docs`, `k3-readiness-reconciliation` y `roadmap-reconciliation`): como el documento ya no cambia, se retiran o se reescriben contra el código.
 - **Hecho cuando:** ningún módulo queda sin etapa dueña o sin decisión explícita.
 
 ## Etapa 2 — Foundation de verdad: descubrimiento de arquitectura
@@ -236,7 +237,7 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
 
 ### E2.3 — `foundation-discovery-rounds`
 
-- **Alcance:** reescribir `sdd-foundation` sobre el ciclo descrito (rondas reanudables, ingestión de fuentes y documentos `docs/product/*`, `docs/architecture/*` y `docs/roadmap*.md` actualizados de forma incremental). Absorbe el diseño de [foundation holística](../architecture/harness-foundation-holistic.md) (antes R2.1/R2.4).
+- **Alcance:** reescribir `sdd-foundation` sobre el ciclo descrito (rondas reanudables, ingestión de fuentes y documentos `docs/product/*`, `docs/architecture/*` y `docs/roadmap*.md` actualizados de forma incremental). Absorbe el diseño de [foundation holística](archive/2026-10-03-arquitectura/harness-foundation-holistic.md) (antes R2.1/R2.4, archivado como insumo).
 - **Hecho cuando:** ningún scaffold ni código se genera sin aprobación, y los escenarios de aceptación de ese diseño (CLI local, SaaS pequeño, regulado, brownfield, fuente desactualizada y change pequeño posterior) se cumplen.
 
 ### E2.4 — `decision-records-model`
@@ -295,6 +296,8 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
 
 **Resultado de la etapa:** el harness decide la profundidad con señales reales y la explica. Lo pequeño se queda pequeño y lo arquitectónico recibe atención.
 
+**Insumos archivados:** [proporcionalidad del harness](archive/2026-10-03-arquitectura/harness-proportionality.md) (E4.1–E4.3) y las guardas de la [revisión crítica de Adaptive](archive/2026-10-03-arquitectura/ospec-adaptive-critical-design.md) (E4.2).
+
 ### E4.1 — `impact-based-classification`
 
 - **Alcance:** el CLI calcula señales (impacto en ADR, atributos de calidad tocados, contrato público, migración de datos, frontera de seguridad y tamaño previsto) y deriva la ruta con mínimos de riesgo. Sustituye la clasificación "trivial/small/normal/high-risk" hecha a ojo e incluye la razón en el gate.
@@ -315,7 +318,7 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
 
 ### E4.4 — `change-program`
 
-- **Alcance:** un objetivo grande (como una etapa de este roadmap) se gestiona como programa con changes hijos y cursor; `/sdd-continue` reanuda el programa. Se basa en la investigación [proporcionalidad y Change Program](../architecture/research/proportional-process-and-change-program.md).
+- **Alcance:** un objetivo grande (como una etapa de este roadmap) se gestiona como programa con changes hijos y cursor; `/sdd-continue` reanuda el programa. Se basa en la investigación [proporcionalidad y Change Program](archive/2026-10-03-arquitectura/research/proportional-process-and-change-program.md).
 - **Hecho cuando:** una etapa de este roadmap puede ejecutarse como programa de principio a fin.
 
 ## Etapa 5 — Demostrar que es mejor
@@ -393,3 +396,4 @@ Lo que ya existe y en qué etapa se aprovecha. El detalle de cada pieza está en
 
 - 2026-07-02 → 2026-10-03: programa K1–K12 y lanes O, PP, CX y R2 (ver el [roadmap archivado](archive/2026-10-03-harness-evolution-kernel.md#historial-consolidado)).
 - 2026-10-03: auditoría de skills, carga *lazy*, instrucciones por target, orquestador y comparación con gentle-ai. El roadmap K1–K12 se archiva y se sustituye por este roadmap único en seis etapas. K9 con un solo profile pasa a E4.2, detrás de la corrección de carga de skills (E0.1). K10-delivery, K11, K12 longitudinal, CX2–CX6 y Dream-RSI quedan aparcados con criterio de reapertura.
+- 2026-10-03: la arquitectura objetivo del kernel, Adaptive, proporcionalidad, foundation holística y la investigación salen de `docs/architecture/` hacia [`archive/2026-10-03-arquitectura/`](archive/2026-10-03-arquitectura/README.md). La carpeta queda reservada para la arquitectura vigente (E2.6) y `docs/README.md` vuelve a ser el índice de la documentación.

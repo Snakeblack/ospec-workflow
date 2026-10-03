@@ -1,9 +1,11 @@
 # Investigación: proporcionalidad de proceso y programa de changes
 
+> **Archivado el 2026-10-03.** Documento del programa K1–K12: no describe la arquitectura vigente ni fija prioridades. La dirección vive en el [roadmap único](../../../harness-evolution.md); el índice del archivo está en [README](../README.md).
+
 > **Estatus:** investigación tracked no normativa; no define estado, prioridad ni autorización de implementación.
 > **Corte:** repositorio v2.49.0 inspeccionado el 2026-08-27.
 > **Origen:** análisis de la tabla viva de routing, `sdd-continue`, `delivery_strategy` y el hueco entre recetas K10 y federación R4.
-> **Autoridad vigente:** [`../harness-evolution.md`](../harness-evolution.md) para arquitectura y [`../../roadmaps/harness-evolution.md`](../../roadmaps/harness-evolution.md) para prioridad, estado y done criteria.
+> **Autoridad vigente:** [`../harness-evolution.md`](../harness-evolution.md) para arquitectura y [`../../roadmaps/harness-evolution.md`](../../../harness-evolution.md) para prioridad, estado y done criteria.
 > **No sustituye** la investigación P0–P27 ([`harness-kernel-graph-evidence-roadmap-fusion.md`](harness-kernel-graph-evidence-roadmap-fusion.md)).
 
 ## Dictamen

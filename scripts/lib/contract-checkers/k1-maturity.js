@@ -4,6 +4,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const CHECKER = "k1-maturity";
+// Archived with the K1–K12 programme on 2026-10-03; E1.5 decides whether this checker stays.
+const REGISTER_PATH = "docs/roadmaps/archive/2026-10-03-arquitectura/harness-evolution.md";
 const TAG_RE = /\{(implemented|target|experimental)\}/;
 
 /**
@@ -51,7 +53,7 @@ function extractMaturityEntries(text) {
  */
 function check(ctx) {
   const root = ctx.root;
-  const rel = "docs/architecture/harness-evolution.md";
+  const rel = REGISTER_PATH;
   const abs = path.join(root, rel);
   const offenders = [];
 
@@ -134,4 +136,4 @@ function check(ctx) {
   return offenders;
 }
 
-module.exports = { check, extractMaturityEntries, TAG_RE };
+module.exports = { check, extractMaturityEntries, TAG_RE, REGISTER_PATH };

@@ -81,7 +81,7 @@ test("K3 readiness: historical state snapshots name Git HEAD as their before pro
 
 test("K3 readiness: documentation reflects archived k3-readiness-remediation and K4a status", () => {
   const roadmap = fs.readFileSync(path.join(ROOT, "docs/roadmaps/harness-evolution.md"), "utf8");
-  const architecture = fs.readFileSync(path.join(ROOT, "docs/architecture/harness-evolution.md"), "utf8");
+  const architecture = fs.readFileSync(path.join(ROOT, "docs/roadmaps/archive/2026-10-03-arquitectura/harness-evolution.md"), "utf8");
   assert.match(roadmap, /k3-readiness-remediation.*archivado|k3-readiness-remediation.*done/i);
   assert.match(roadmap, /K4a.*done|K4a.*verificado|next-eligible.*K4a|K4a.*next-eligible/i);
   assert.match(architecture, /k3-readiness-remediation/i);

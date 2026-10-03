@@ -1,6 +1,8 @@
 # Proporcionalidad del harness: seleccionar garantías y comprimir ejecución
 
-> **Estado:** diseño operativo para cambios futuros. No activa rutas, defaults, aprobaciones ni sustituye el [roadmap](../roadmaps/harness-evolution.md).
+> **Archivado el 2026-10-03.** Documento del programa K1–K12: no describe la arquitectura vigente ni fija prioridades. La dirección vive en el [roadmap único](../../harness-evolution.md); el índice del archivo está en [README](README.md).
+
+> **Estado:** diseño operativo para cambios futuros. No activa rutas, defaults, aprobaciones ni sustituye el [roadmap](../../harness-evolution.md).
 > **Relación:** [Arquitectura](harness-evolution.md) define autoridad y límites; este documento define cómo seleccionar, materializar, comprimir o escalar sin cambiarlos.
 
 ## Decisión
@@ -111,7 +113,7 @@ Esto evita una superestructura permanente: se mantienen mecanismos que preservan
 
 <a id="pp1-compatibilidad-de-elegibilidad-y-mínimos"></a>
 
-PP1 resolvió el sombreado de `lite` por `standard` en repositorios activos: normaliza `classification` y `change.classification` fail-closed, filtra elegibilidad antes del first-match, aplica floors K1 y preserva rutas contextuales, orden custom y continuaciones. Su [archive report](../../openspec/changes/archive/2026-09-05-live-routing-eligibility-and-risk-floors/archive-report.md) registra `PASS`.
+PP1 resolvió el sombreado de `lite` por `standard` en repositorios activos: normaliza `classification` y `change.classification` fail-closed, filtra elegibilidad antes del first-match, aplica floors K1 y preserva rutas contextuales, orden custom y continuaciones. Su [archive report](../../../../openspec/changes/archive/2026-09-05-live-routing-eligibility-and-risk-floors/archive-report.md) registra `PASS`.
 
 Ese cierre gobierna el routing legacy actual; no activa Direct ni recetas K10, no convierte lite en una sola invocación y no resuelve cambios futuros de condiciones vacías o `validate-phase` sin ruta.
 
