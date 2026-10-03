@@ -18,6 +18,7 @@ const SHARED_REF = /_shared\/([A-Za-z0-9][A-Za-z0-9._-]*\.md)/g;
 const ORCHESTRATOR = /(^|\/)sdd-orchestrator(\/SKILL\.md|\.agent\.md|\.md|\.toml)$/;
 const AGENT_FILE = /(^|\/)agents\/([^/]+?)(\.agent\.md|\.md|\.toml)$/;
 const SKILL_FILE = /^skills\/(.+\/)?SKILL\.md$/;
+const EMBEDDED_SECTION = /^## Embedded references$/m;
 const CEILING_METRICS = ["always_on_bytes", "orchestrator_bytes", "skills_installed", "skills_listed", "skill_listing_bytes"];
 
 function bytes(content) {
@@ -58,8 +59,11 @@ function refs(text, pattern, toPath) {
 }
 
 function measureAgent(content, byPath) {
-  const skills = refs(content, SKILL_REF, (name) => `skills/${name}/SKILL.md`);
-  const sources = [content, ...skills.map((skill) => byPath.get(skill) ?? "")];
+  // Embedded files (E0.1) already count in the agent's bytes; what they name
+  // in turn is not followed, as with references between `_shared` files.
+  const own = content.split(EMBEDDED_SECTION)[0];
+  const skills = refs(own, SKILL_REF, (name) => `skills/${name}/SKILL.md`);
+  const sources = [own, ...skills.map((skill) => byPath.get(skill) ?? "")];
   const shared = sources.flatMap((text) => refs(text, SHARED_REF, (name) => `skills/_shared/${name}`));
   const wanted = [...new Set([...skills, ...shared])].sort();
   const reads = {};

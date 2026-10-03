@@ -106,6 +106,17 @@ test("measures each agent with the skill and _shared references it declares", ()
   assert.ok(report.agents["review-risk"].reads["skills/_shared/judgment.md"]);
 });
 
+test("counts embedded references in the agent's bytes without following what they name", () => {
+  const agent = `${kb(10)} read «sdd-apply»\n\n## Embedded references\n\n### «sdd-apply»\n\n${kb(100)} see \`_shared/deep.md\` (installed ospec skills, not this project)\n`;
+  const report = measureTarget([
+    file("agents/sdd-apply.md", agent),
+    file("skills/_shared/deep.md", kb(5000)),
+  ]);
+  const apply = report.agents["sdd-apply"];
+  assert.deepEqual(apply.reads, {});
+  assert.equal(apply.read_bytes, apply.agent_bytes);
+});
+
 test("flags any metric above its ceiling and any metric without one", () => {
   const report = {
     targets: {

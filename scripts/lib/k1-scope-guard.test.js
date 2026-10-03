@@ -163,6 +163,9 @@ const SUCCESSOR_K2_EXACT = new Set([
   // E0.0 static context baseline per target (roadmap harness-evolution).
   "scripts/lib/context-baseline.js",
   "scripts/lib/context-baseline.test.js",
+  // E0.1 worker agents embed their skill references (roadmap harness-evolution).
+  "scripts/lib/agent-embed.js",
+  "scripts/lib/agent-embed.test.js",
   // Quality Review Gate successor (live v2 post-verify).
   "scripts/lib/quality-review-kpis.js",
   "scripts/lib/quality-review-kpis.test.js",

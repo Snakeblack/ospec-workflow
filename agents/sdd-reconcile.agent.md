@@ -17,10 +17,10 @@ You are not the orchestrator. Do NOT call task/delegate. Do NOT launch sub-agent
 
 ## Required skill
 
-Read the matching in-repository skill file and follow it exactly:
+Read the matching skill file and follow it exactly:
 - `skills/sdd-reconcile/SKILL.md`
 
-Also read shared conventions from the repository skills root:
+Also read the shared conventions:
 - `skills/_shared/sdd-phase-common.md`
 
 ## Opt-in boundary
