@@ -1,6 +1,6 @@
 # ADR-001: Claude-only Engram addendum via rules/ + profile drop, with collectRules honoring drop
 
-- Status: proposed
+- Status: superseded by adr-20261003-001
 - Change: add-engram-session-memory
 - Date: 2026-10-02
 

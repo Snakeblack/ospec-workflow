@@ -99,7 +99,7 @@ Choose a target, edit models when that target supports it, review the summary, t
   npm run setup:claude
   ```
   *(Inside the Claude Code session, type `/reload-plugins` to apply changes).*
-- **Optional Engram session memory**: `npm run setup:claude -- --with-engram` also runs the upstream `engram setup claude-code`, which installs the `engram` plugin (hooks) and registers the `engram` MCP server (`mem_*` tools); both are required (opt-in; without the flag only guidance is printed). Its hooks require bash, jq and curl (Git Bash on Windows). Engram is non-authoritative: OpenSpec and `state.yaml` remain the source of truth.
+- **Engram session memory**: configured automatically when the `engram` binary is on PATH (`--no-engram` to skip); see [Engram session memory](#-engram-session-memory-every-target).
 - **Fast rebuild during development**:
   ```powershell
   npm run reload:claude
@@ -166,6 +166,12 @@ Choose a target, edit models when that target supports it, review the summary, t
   ```
 
 See the [installation guide](docs/plugin-installation.md) for more details on native global installation and the hooks runtime.
+
+### 🧠 Engram session memory (every target)
+Every `npm run setup:<target>` (Claude, Codex, Antigravity, opencode, Cursor, VS Code, Copilot CLI) configures [Engram](https://github.com/Gentleman-Programming/engram) automatically when the `engram` binary is on PATH. It runs the upstream `engram setup <agent>` (`claude-code`, `codex`, `antigravity-cli`, `opencode`, `cursor`, `vscode-copilot`). Copilot CLI has no upstream setup, so the installer adds an `engram mcp` entry to `~/.copilot/mcp-config.json` instead. The step is idempotent and fail-open, and it never changes the install exit code. Pass `--no-engram` to skip it (`npm run setup:codex -- --no-engram`). Without the binary, the installer only prints install guidance.
+- **Claude Code on Windows**: a short Git Bash fork probe decides whether the upstream hook's safe mode can be turned off (`ENGRAM_CLAUDE_WINDOWS_BASH_SAFE_MODE=0` in `~/.claude/settings.json`). The safe mode disables prompt capture and save reminders. A value you already set is never overwritten. The upstream hooks need bash, jq and curl.
+- **Cursor**: Cursor does not read global rule files, so paste `~/.cursor/engram-memory-protocol.md` into Settings → Rules → User Rules once.
+- Every target ships the same host-neutral SDD memory addendum. Engram is non-authoritative: OpenSpec and `state.yaml` remain the source of truth.
 
 ## What's included
 

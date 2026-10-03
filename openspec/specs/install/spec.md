@@ -1132,50 +1132,66 @@ Acceptance of the global-install root split MUST include an independent Node pro
 
 ## ADDED Requirements
 
-### Requirement: setup:claude Detects Engram Fail-Open {#REQ-install-028}
+### Requirement: Target Installers Detect Engram Fail-Open {#REQ-install-028}
 
-`setup:claude` MUST detect, by capability and not by version, whether the Engram binary is on PATH, what `engram doctor` (JSON output where available) reports, and whether the `engram` plugin/MCP server is already registered. Detection MUST be non-fatal: absence, probe failure or timeout MUST NOT change the build/registration outcome, exit code, or the existing REQ-install-014 exit-code checks for ospec's own steps. No other target installer MAY perform Engram detection. The installer MUST NOT download or install the Engram binary.
+Every global target installer (`setup:claude`, `setup:codex`, `setup:antigravity`, `setup:opencode`, `setup:cursor`, `setup:vscode`, `setup:copilot`) MUST detect, by capability and not by version, whether the Engram binary is on PATH, what `engram doctor` (JSON output where available) reports, and whether the host already has both the `engram` MCP server and its memory-protocol piece (Claude/Codex: the `engram@engram` plugin; Antigravity: the marked GEMINI.md block; OpenCode: `plugins/engram.ts`; Cursor: `engram-memory-protocol.md`; VS Code: `prompts/engram.instructions.md`; Copilot CLI: no separate piece). Detection MUST be non-fatal: absence, probe failure or timeout MUST NOT change the install outcome, the exit code, or the existing REQ-install-014 exit-code checks for ospec's own steps. The step MUST NOT run on `--dry-run`, `--build-only`, a custom `--dest`/repo destination, or after a failed install. The installers MUST NOT download or install the Engram binary.
 
 #### Scenario: Engram absent
 
 - GIVEN no Engram binary on PATH
-- WHEN `npm run setup:claude` runs
-- THEN it prints informational guidance only and exits 0 if ospec's own steps succeed
+- WHEN any `npm run setup:<target>` runs
+- THEN it prints informational install guidance only and exits 0 if ospec's own steps succeed
 
 #### Scenario: Doctor probe fails
 
 - GIVEN the binary exists but `engram doctor` errors or times out
-- WHEN `setup:claude` runs
+- WHEN a target installer runs
 - THEN a warning is printed and the exit code is unaffected
 
-### Requirement: Engram Setup Execution Requires Explicit Opt-In {#REQ-install-029}
+### Requirement: Engram Setup Runs Automatically Unless Disabled {#REQ-install-029}
 
-By default `setup:claude` MUST only print guidance for `engram setup claude-code` and installing the upstream `engram` plugin. It MUST execute those commands only after an explicit user opt-in. The guidance SHOULD warn that the upstream plugin may require bash (Git Bash on Windows). Without opt-in, no Engram-related command that mutates user configuration MAY run.
+When the Engram binary is on PATH and the host is not fully configured, the installer MUST configure it automatically: it MUST run the idempotent upstream `engram setup <agent>` for the target (`claude-code`, `codex`, `antigravity-cli`, `opencode`, `cursor`, `vscode-copilot`). Copilot CLI has no upstream setup, so the installer MUST instead merge a stdio `engram mcp --tools=agent` entry into `~/.copilot/mcp-config.json`, preserving every other key and server and never rewriting an unparseable file. `--no-engram` MUST disable every Engram mutation and print how to enable it. The legacy `--with-engram` flag MUST be accepted without effect. Any failure MUST be reported as a warning without failing ospec's own install. Embedded or test invocations of an installer `main` MUST NOT reach the real upstream setup unless the caller injects the step (the CLI entry and the TUI adapter do).
 
-#### Scenario: Default run does not mutate Engram config
+#### Scenario: Default run configures Engram
 
-- GIVEN Engram is installed but not registered and no opt-in was given
-- WHEN `setup:claude` runs
-- THEN no registration or plugin-install command is executed and guidance is printed
+- GIVEN Engram is installed but not registered for the target host
+- WHEN `npm run setup:<target>` runs without flags
+- THEN the target's upstream setup (or the Copilot CLI MCP merge) runs once and the result is re-checked
 
-#### Scenario: Opt-in executes upstream setup
+#### Scenario: Opt-out
 
-- GIVEN the user explicitly opted in
-- WHEN `setup:claude` runs
-- THEN the upstream setup/plugin commands run and a non-zero result is reported as a warning without failing ospec's own install
+- GIVEN the user passes `--no-engram`
+- WHEN the installer runs
+- THEN no Engram-related command that mutates user configuration runs and guidance is printed
 
 ### Requirement: Engram Registration Is Idempotent {#REQ-install-030}
 
-Engram counts as configured only when BOTH the upstream `engram@engram` plugin (hooks) AND the user-scope `engram` MCP server (the `mem_*` tools, visible in `claude mcp list`) are registered; the upstream plugin ships no MCP server, so a registered plugin alone is NOT configured. When both are registered, `setup:claude` MUST NOT register anything again, even with opt-in, and MUST report it as already configured. When either is missing and the user opted in, `setup:claude` MUST run the idempotent upstream `engram setup claude-code` as its single mutating action, then re-check the MCP server and warn (without failing) when it is still not visible. Re-running MUST converge to the same state.
+Engram counts as configured for a host only when BOTH its `engram` MCP server (the `mem_*` tools) and its memory-protocol piece are present. A single piece alone is NOT configured, and any piece that cannot be read (for example a missing `claude`/`codex` CLI or an unparseable config) MUST lead to no change. When both are present, the installer MUST NOT register anything again and MUST report it as already configured. After a setup action, the installer MUST re-check both pieces and warn (without failing) when one is still missing, naming the manual fix. Re-running MUST converge to the same state.
 
 #### Scenario: Already registered
 
-- GIVEN the Engram MCP server and plugin are already registered
-- WHEN `setup:claude` runs with opt-in
+- GIVEN the Engram MCP server and protocol piece are already present for the host
+- WHEN the installer runs
 - THEN no registration command is issued and the output states it is already configured
 
 #### Scenario: Plugin registered without MCP server
 
-- GIVEN the `engram@engram` plugin is registered but no `engram` MCP server is listed
-- WHEN `setup:claude` runs with opt-in
-- THEN `engram setup claude-code` runs and the output confirms the MCP server, or a warning names the manual fix when it is still absent
+- GIVEN the Claude `engram@engram` plugin is registered but no `engram` MCP server is listed
+- WHEN `setup:claude` runs
+- THEN `engram setup claude-code` runs and the output confirms the configuration, or a warning names the manual fix when it is still incomplete
+
+### Requirement: Windows Prompt-Capture Safe Mode Is Decided by Measurement {#REQ-install-031}
+
+On Windows, after Engram is configured for Claude Code, `setup:claude` MUST decide the upstream hook's Git Bash safe mode with a bounded fork probe instead of leaving prompt capture silently disabled. When the probe succeeds within its budget, it MUST merge `ENGRAM_CLAUDE_WINDOWS_BASH_SAFE_MODE=0` into the `env` block of `~/.claude/settings.json`, preserving every other setting. When the probe is slow, fails or Git Bash is not found, it MUST keep the safe mode and print how to override it. It MUST NOT overwrite a value the user already set (in settings or the environment), MUST NOT rewrite an unparseable settings file, and MUST NOT run on other targets or platforms.
+
+#### Scenario: Fast forks
+
+- GIVEN Windows, Engram configured for Claude Code, and a fork probe within budget
+- WHEN `setup:claude` runs
+- THEN `ENGRAM_CLAUDE_WINDOWS_BASH_SAFE_MODE=0` is written and other settings are kept
+
+#### Scenario: User already decided
+
+- GIVEN the variable is already set by the user
+- WHEN `setup:claude` runs
+- THEN no probe runs and the value is left unchanged

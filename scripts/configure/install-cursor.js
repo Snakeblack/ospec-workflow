@@ -5,6 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 
 const { runConfigure } = require("./cli.js");
+const { runEngramStep, withEngramStep } = require("./engram-setup.js");
 const { copyBinaryToTree } = require("./install-target.js");
 const { validateInstalled: validateInstalledCursor } = require("./validate-cursor.js");
 const {
@@ -309,7 +310,7 @@ function installHooksJson(outDir, cursorRoot, deps = {}) {
   mutateFs("write hooks", destPath, () => fsImpl.writeFileSync(destPath, content), retryOptions);
 }
 
-function main(argv, deps = {}) {
+function install(argv, deps = {}) {
   const args = parseArgs(argv);
   const cwd = deps.cwd || process.cwd();
   const fsImpl = deps.fs || fs;
@@ -456,9 +457,18 @@ function main(argv, deps = {}) {
   }
 }
 
+// Optional Engram session memory runs after a successful global install
+// (engram-per-target, adr-20261003-001); `--no-engram` turns it off.
+const main = withEngramStep("cursor", install, {
+  eligible(argv) {
+    const args = parseArgs(argv);
+    return !args.error && !args.dryRun;
+  },
+});
+
 if (require.main === module) {
   try {
-    process.exitCode = main(process.argv.slice(2));
+    process.exitCode = main(process.argv.slice(2), { engramStep: runEngramStep });
   } catch (error) {
     process.stderr.write(`fatal: ${error.stack || error.message || error}\n`);
     process.exitCode = 1;

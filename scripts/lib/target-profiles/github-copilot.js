@@ -66,7 +66,7 @@ module.exports = {
   // Drop only the Claude plugin manifest. .mcp.json and hooks are KEPT (hooks are
   // reshaped to .github/hooks/; .mcp.json is normalized via normalizeMcpPlaceholders),
   // and skills/ ships so agent "Skills to load before work" references resolve.
-  drop: [".claude-plugin/", "rules/engram-session-memory.instructions.md"],
+  drop: [".claude-plugin/"],
 
   // Copilot uses the same curated selector surface as VS Code.  The adapter
   // keeps choice IDs opaque, while the generator receives the native value.

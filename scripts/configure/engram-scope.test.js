@@ -1,8 +1,11 @@
 "use strict";
 
-// REQ-session-memory-008/009, REQ-generator-018: the Engram addendum is confined
-// to the Claude target. Every test self-generates into a temp dir via
-// runConfigure; it never reads the gitignored ROOT/dist tree.
+// REQ-session-memory-008/009, REQ-generator-018 (engram-per-target, adr-20261003-001):
+// every target ships the host-neutral Engram addendum on its orchestrator
+// instruction surface, and no generated MCP config or hooks file registers
+// Engram (registration happens at install time through the upstream setup).
+// Every test self-generates into a temp dir via runConfigure; it never reads the
+// gitignored ROOT/dist tree.
 
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -14,9 +17,18 @@ const { runConfigure, PROFILES } = require("./cli.js");
 
 const ROOT = path.resolve(__dirname, "..", "..");
 const ADDENDUM_PATH = "rules/engram-session-memory.instructions.md";
-const HEADING = "# Engram Session Memory (Claude Code, optional)";
-// Neutral host-adapter table row allowed in the shared phase protocol (REQ-skills-020).
-const NEUTRAL_ALLOWLIST = /(^|\/)skills\/_shared\/sdd-phase-common\.md$/;
+const HEADING = "# Engram Session Memory (optional)";
+// Where each target folds the addendum.
+const SURFACES = {
+  claude: /^skills\/sdd-orchestrator\/SKILL\.md$/,
+  codex: /^AGENTS\.md$/,
+  "github-copilot": /^\.github\/instructions\/engram-session-memory\.instructions\.md$/,
+  opencode: /^\.opencode\/instructions\/engram-session-memory\.instructions\.md$/,
+  cursor: /^rules\/engram-session-memory\.mdc$/,
+  vscode: /^rules\/engram-session-memory\.instructions\.md$/,
+  antigravity: /^rules\/engram-session-memory\.instructions\.md$/,
+};
+const CONFIG_FILE = /(^|\/)(\.mcp\.json|mcp[-_]config\.json|opencode\.jsonc?|hooks\.json|config\.toml)$/;
 
 function generate(t, target) {
   const out = fs.mkdtempSync(path.join(os.tmpdir(), `ospec-engram-${target}-`));
@@ -26,33 +38,26 @@ function generate(t, target) {
   return { out, files: result.files };
 }
 
-test("the addendum source exists with the expected heading", () => {
+test("the addendum source exists with the host-neutral heading", () => {
   const source = fs.readFileSync(path.join(ROOT, ADDENDUM_PATH), "utf8");
   assert.ok(source.includes(HEADING));
+  assert.doesNotMatch(source, /Claude Code/, "the addendum must not be Claude-specific");
 });
 
-test("claude output inlines the addendum into the orchestrator skill and registers no Engram MCP/hook", (t) => {
-  const { files } = generate(t, "claude");
-  const orchestrator = files.find((f) => /skills\/sdd-orchestrator\/SKILL\.md$/.test(f.path));
-  assert.ok(orchestrator, "claude emits the orchestrator skill");
-  assert.ok(orchestrator.content.includes(HEADING), "orchestrator skill carries the addendum");
-  assert.ok(!files.some((f) => f.path === ADDENDUM_PATH), "no standalone rules file in claude output");
-
-  const mcp = files.find((f) => f.path === ".mcp.json");
-  if (mcp) assert.doesNotMatch(mcp.content, /engram/i);
-  const hooks = files.find((f) => /hooks\/hooks\.json$/.test(f.path));
-  if (hooks) assert.doesNotMatch(hooks.content, /engram/i);
+test("every generator target has a declared addendum surface", () => {
+  assert.deepEqual(Object.keys(SURFACES).sort(), Object.keys(PROFILES).sort());
 });
 
-for (const target of Object.keys(PROFILES).filter((id) => id !== "claude")) {
-  test(`${target} output has no Engram addendum, MCP entry or hook`, (t) => {
+for (const target of Object.keys(PROFILES)) {
+  test(`${target} output carries the addendum once and registers no Engram MCP/hook`, (t) => {
     const { out, files } = generate(t, target);
-    for (const file of files) {
-      assert.ok(!file.content.includes(HEADING), `${target}: ${file.path} contains the addendum heading`);
-      if (NEUTRAL_ALLOWLIST.test(file.path)) continue;
-      assert.doesNotMatch(file.content, /engram/i, `${target}: ${file.path} mentions Engram`);
+    const carriers = files.filter((f) => f.content.includes(HEADING)).map((f) => f.path);
+    assert.equal(carriers.length, 1, `${target}: addendum carriers ${JSON.stringify(carriers)}`);
+    assert.match(carriers[0], SURFACES[target]);
+    assert.ok(fs.existsSync(path.join(out, carriers[0])), `${target}: ${carriers[0]} published`);
+
+    for (const file of files.filter((f) => CONFIG_FILE.test(f.path))) {
+      assert.doesNotMatch(file.content, /engram/i, `${target}: ${file.path} registers Engram`);
     }
-    // Same check against what was actually published to disk.
-    assert.ok(!fs.existsSync(path.join(out, ADDENDUM_PATH)), `${target}: addendum file published`);
   });
 }

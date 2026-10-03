@@ -89,25 +89,25 @@ On `/sdd-continue` and after context compaction, the orchestrator MAY recall `sd
 - WHEN `/sdd-continue` runs
 - THEN the next phase is resolved from `state.yaml` identically to baseline
 
-### Requirement: No ospec-Owned Engram MCP or Hooks {#REQ-session-memory-008}
+### Requirement: No Engram MCP or Hooks in Generated Output {#REQ-session-memory-008}
 
-ospec MUST NOT register an Engram entry in any generated `.mcp.json` or MCP config, nor declare Engram memory hooks in any generated hooks file. Engram registration is delegated to the upstream plugin.
+ospec MUST NOT register an Engram entry in any generated `.mcp.json` or MCP config, nor declare Engram memory hooks in any generated hooks file. Engram registration happens only at install time, through the upstream `engram setup <agent>` or, for Copilot CLI (no upstream setup), the installer's merge of an `engram mcp` entry into the user's `~/.copilot/mcp-config.json` (REQ-install-029).
 
-#### Scenario: Generated Claude output inspected
+#### Scenario: Generated output inspected
 
-- GIVEN a Claude build is generated
-- WHEN `.mcp.json` and `hooks/hooks.json` are inspected
-- THEN neither contains an `engram` server or Engram memory hook
+- GIVEN a build is generated for any target
+- WHEN its MCP config and hooks files are inspected
+- THEN none contains an `engram` server or Engram memory hook
 
-### Requirement: Claude-Only Addendum Scope {#REQ-session-memory-009}
+### Requirement: Host-Neutral Addendum on Every Target {#REQ-session-memory-009}
 
-The Engram addendum (rules) MUST be present only in generated Claude output. Non-Claude targets (`github-copilot`, `opencode`, `codex`, `cursor`, `vscode`, `antigravity`) MUST NOT receive the addendum, Engram MCP config, or Engram hooks.
+The Engram addendum (rules) MUST be host-neutral and MUST be present exactly once in the generated output of every target (`claude`, `codex`, `github-copilot`, `opencode`, `cursor`, `vscode`, `antigravity`), on the surface that reaches the orchestrator. When the host injected no Engram context at session start, the addendum MAY let the orchestrator call `mem_context` once as a hint under the same trust boundary.
 
-#### Scenario: Non-Claude target output
+#### Scenario: Any target output
 
-- GIVEN output is generated for any non-Claude target
-- WHEN the tree is searched for the addendum or `engram` MCP/hook entries
-- THEN none is found
+- GIVEN output is generated for any target
+- WHEN the tree is searched for the addendum heading
+- THEN exactly one file carries it and no MCP/hook file mentions Engram
 
 ### Requirement: Documentation Makes No False Integration Claims {#REQ-session-memory-010}
 

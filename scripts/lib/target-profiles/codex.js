@@ -78,7 +78,7 @@ module.exports = {
   hooks: { format: "codex", source: "hooks/hooks.json", location: "hooks.json" },
 
   // Drop the Claude/VS Code/plugin specific files since Codex is no longer a plugin.
-  drop: [".claude-plugin/", ".mcp.json", "rules/engram-session-memory.instructions.md"],
+  drop: [".claude-plugin/", ".mcp.json"],
   managedRoots: [".mcp.json"],
 
   validate: ["node", "scripts/configure/validate-codex.js", "{out}"],

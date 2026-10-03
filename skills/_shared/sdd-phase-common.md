@@ -49,7 +49,7 @@ Phases not listed (`sdd-propose`, `sdd-init`, `sdd-baseline`, `sdd-explore`) MAY
 | Behavior specs | `openspec/specs/{domain}/spec.md` | SDD workflow | Normative requirements and scenarios |
 | Foundation docs | `docs/architecture/`, `docs/product/` | Human / foundation phase | Product and architecture baseline |
 | Operative memory | `openspec/memory/*.md` | SDD phases (prepend) | Rationale, conventions, known issues |
-| Session memory | Optional, non-authoritative host adapter (e.g. Engram on Claude Code; see `session-memory`) | Runtime | Cross-session user/agent memory |
+| Session memory | Optional, non-authoritative host adapter (e.g. Engram, set up per host by the target installers; see `session-memory`) | Runtime | Cross-session user/agent memory |
 
 Memory entries MUST NOT restate content that belongs in foundation docs or specs. Use cross-links to the authoritative source.
 

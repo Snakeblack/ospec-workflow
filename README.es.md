@@ -74,7 +74,7 @@ Una vez cargado el plugin en tu agente de chat:
   npm run setup:claude
   ```
   *(Dentro de la sesión de Claude Code, escribe `/reload-plugins` para aplicar cambios).*
-- **Memoria de sesión opcional con Engram**: `npm run setup:claude -- --with-engram` ejecuta además el `engram setup claude-code` oficial, que instala el plugin `engram` (hooks) y registra el servidor MCP `engram` (herramientas `mem_*`); hacen falta ambos (opt-in; sin la bandera solo se muestra una guía). Sus hooks requieren bash, jq y curl (Git Bash en Windows). Engram no es autoritativo: OpenSpec y `state.yaml` siguen siendo la fuente de verdad.
+- **Memoria de sesión con Engram**: se configura automáticamente si el binario `engram` está en el PATH (`--no-engram` para omitirlo); ver [Memoria de sesión con Engram](#-memoria-de-sesión-con-engram-todos-los-targets).
 - **Reconstrucción rápida durante el desarrollo**:
   ```powershell
   npm run reload:claude
@@ -141,6 +141,12 @@ Una vez cargado el plugin en tu agente de chat:
   ```
 
 Consulta la [guía de instalación](docs/plugin-installation.md) para más detalles sobre la instalación nativa global y el runtime de hooks.
+
+### 🧠 Memoria de sesión con Engram (todos los targets)
+Cada `npm run setup:<target>` (Claude, Codex, Antigravity, opencode, Cursor, VS Code, Copilot CLI) configura [Engram](https://github.com/Gentleman-Programming/engram) automáticamente si el binario `engram` está en el PATH. Para ello ejecuta el `engram setup <agente>` oficial (`claude-code`, `codex`, `antigravity-cli`, `opencode`, `cursor`, `vscode-copilot`). Copilot CLI no tiene setup oficial, así que en su caso el instalador añade una entrada `engram mcp` a `~/.copilot/mcp-config.json`. El paso es idempotente y fail-open, y nunca cambia el código de salida de la instalación. Para omitirlo, usa `--no-engram` (`npm run setup:codex -- --no-engram`). Sin el binario, el instalador solo muestra cómo instalarlo.
+- **Claude Code en Windows**: una sonda corta de fork en Git Bash decide si se puede desactivar el modo seguro del hook oficial (`ENGRAM_CLAUDE_WINDOWS_BASH_SAFE_MODE=0` en `~/.claude/settings.json`). Ese modo seguro desactiva la captura de prompts y los recordatorios de guardado. Si ya tienes un valor, nunca se sobrescribe. Los hooks oficiales necesitan bash, jq y curl.
+- **Cursor**: Cursor no lee reglas globales desde disco, así que hay que pegar una vez `~/.cursor/engram-memory-protocol.md` en Settings → Rules → User Rules.
+- Todos los targets llevan el mismo addendum de memoria SDD, neutral respecto al host. Engram no es autoritativo: OpenSpec y `state.yaml` siguen siendo la fuente de verdad.
 
 ## Qué incluye
 

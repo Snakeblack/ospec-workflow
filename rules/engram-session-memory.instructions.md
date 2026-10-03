@@ -1,18 +1,19 @@
 ---
-description: 'Optional Engram session memory addendum for the Claude Code orchestrator (non-authoritative).'
+description: 'Optional Engram session memory addendum for the SDD orchestrator on every host (non-authoritative).'
 applyTo: 'agents/**/*.agent.md'
 ---
 
-# Engram Session Memory (Claude Code, optional)
+# Engram Session Memory (optional)
 
-Engram is optional, disposable and non-authoritative cross-session working memory provided by the upstream `engram` plugin. OpenSpec artifacts, `state.yaml` and the Authority Store remain the only sources of truth. This addendum adds only the SDD pointer convention; the plugin owns MCP registration and memory hooks.
+Engram is optional, disposable and non-authoritative cross-session working memory. The ospec installers register it per host through the upstream integration (`engram setup <agent>`, or an `engram mcp` entry where no upstream setup exists). OpenSpec artifacts, `state.yaml` and the Authority Store remain the only sources of truth. This addendum adds only the SDD pointer convention; the host integration owns MCP registration and any memory hooks.
 
 ## Applicability Guard
 
 - Apply this addendum only when the Engram `mem_*` tools are present in the main session. When they are absent, skip every step here and behave exactly as without Engram.
 - Only the orchestrator saves and recalls. Phase agents and skills never call `mem_*` tools.
 - A failed or timed-out Engram call is ignored: never retry, never block a phase or a gate because of it.
-- Do not duplicate what the plugin already does (session start context, compaction recovery, prompt capture). Add only phase pointers.
+- Do not duplicate what the host integration already does (session start context, compaction recovery, prompt capture). Add only phase pointers.
+- When the host injected no Engram context at session start, the orchestrator MAY call `mem_context` once for the current project as a hint; the Trust Boundary below applies to it.
 
 ## Trust Boundary
 
