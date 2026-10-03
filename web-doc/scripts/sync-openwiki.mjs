@@ -45,6 +45,7 @@ const CACHE_PATH = join(CWD, ".sync-cache.json");
 const SIDEBAR_MANIFEST_PATH = join(CWD, "src", "sidebar.generated.json");
 const QUICKSTART_PAGE = "quickstart.md";
 const EXCLUDED_FILES = new Set([".last-update.json", "_plan.md"]);
+const WIKI_METADATA_PATH = join(WIKI_SRC, ".last-update.json");
 
 function warn(message) {
   console.warn(`[sync-openwiki] WARN: ${message}`);
@@ -296,15 +297,38 @@ function humanizeDirName(dir) {
 }
 
 /**
+ * Sidebar group labels declared by the wiki generator in
+ * openwiki/.last-update.json (`section_labels`, written in the wiki's
+ * doc_language). Optional: a missing, unreadable, or malformed file yields an
+ * empty map and every group keeps its humanized directory name.
+ */
+function loadSectionLabels() {
+  if (!existsSync(WIKI_METADATA_PATH)) return {};
+  try {
+    const metadata = JSON.parse(readFileSync(WIKI_METADATA_PATH, "utf8"));
+    const labels = metadata && metadata.section_labels;
+    if (!labels || typeof labels !== "object" || Array.isArray(labels)) return {};
+    return Object.fromEntries(
+      Object.entries(labels).filter(([, label]) => typeof label === "string" && label.trim() !== "")
+    );
+  } catch (err) {
+    warn(`ignoring unreadable ${WIKI_METADATA_PATH} (${err.message}); using directory names as group labels.`);
+    return {};
+  }
+}
+
+/**
  * Builds the sidebar manifest consumed by astro.config.mjs:
  *   - topLinks: root-level wiki pages, quickstart always first, labelled with
  *     each page's resolved title.
- *   - groups: one per wiki subdirectory, ordered by the directory's first
+ *   - groups: one per wiki subdirectory, labelled from sectionLabels (the
+ *     generator's localized names) or the humanized directory name, ordered
+ *     by the directory's first
  *     mention among the quickstart page's own links (the quickstart is the
  *     generator-maintained narrative index), alphabetical for directories
  *     the quickstart never mentions.
  */
-function buildSidebarManifest(sourcePages, titlesByPage, quickstartRaw) {
+function buildSidebarManifest(sourcePages, titlesByPage, quickstartRaw, sectionLabels = {}) {
   const rootPages = sourcePages.filter((p) => !p.includes(sep));
   const dirs = [...new Set(sourcePages.filter((p) => p.includes(sep)).map((p) => p.split(sep)[0]))];
 
@@ -338,7 +362,7 @@ function buildSidebarManifest(sourcePages, titlesByPage, quickstartRaw) {
 
   return {
     topLinks,
-    groups: dirs.map((dir) => ({ label: humanizeDirName(dir), directory: dir })),
+    groups: dirs.map((dir) => ({ label: sectionLabels[dir] || humanizeDirName(dir), directory: dir })),
   };
 }
 
@@ -487,7 +511,7 @@ function main() {
     }
   }
 
-  saveSidebarManifest(buildSidebarManifest(sourcePages, titlesByPage, quickstartRaw));
+  saveSidebarManifest(buildSidebarManifest(sourcePages, titlesByPage, quickstartRaw, loadSectionLabels()));
   saveCache(nextCache);
 
   if (failures.length > 0) {

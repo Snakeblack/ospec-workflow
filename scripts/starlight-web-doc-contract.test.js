@@ -296,3 +296,11 @@ test("skills/sdd-document/references/option-d-starlight.md documents partial-sca
     "the recovery policy must state that a file's mere presence is never proof it is complete or valid"
   );
 });
+
+test("skills/sdd-document/assets/web-doc-template/astro.config.mjs localizes the Starlight UI from the wiki doc_language", () => {
+  const content = fs.readFileSync(path.join(WEB_DOC_TEMPLATE_DIR, "astro.config.mjs"), "utf8");
+  assert.match(content, /\.last-update\.json/, "the UI language must come from openwiki/.last-update.json");
+  assert.match(content, /doc_language/, "it must read the persisted doc_language");
+  assert.match(content, /locales\s*:\s*\{\s*root\s*:/, "a monolingual site sets the language as the root locale");
+  assert.match(content, /return "en"/, "a missing or unreadable doc_language must fall back to English");
+});
