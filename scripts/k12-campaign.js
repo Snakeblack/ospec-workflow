@@ -8,6 +8,7 @@ const { join, resolve } = require("node:path");
 
 const { loadCohort, validateCohortShape, validatePilotCohortShape } = require("./lib/k12/cohort.js");
 const { createHarnessCampaignExecutor } = require("./lib/k12/campaign-executor.js");
+const { evaluatePilotCheckpoint, loadPilotMargins } = require("./lib/k12/pilot-checkpoint.js");
 const { createDeterministicPilotExecutor } = require("./lib/k12/pilot-executor.js");
 const {
   executePlan,
@@ -27,6 +28,7 @@ function parseArgs(argv) {
     seed: null,
     cohortPath: join(fixtureRoot, "oracle-catalog.json"),
     tasksDir: join(fixtureRoot, "tasks"),
+    marginsPath: join(fixtureRoot, "pilot-margins.json"),
     out: null,
     faults: true,
     paired: false,
@@ -42,7 +44,7 @@ function parseArgs(argv) {
       options.paired = true;
       continue;
     }
-    if (!["--repetitions", "--seed", "--cohort-path", "--tasks-dir", "--out"].includes(arg)) {
+    if (!["--repetitions", "--seed", "--cohort-path", "--tasks-dir", "--margins", "--out"].includes(arg)) {
       throw new Error(`unknown argument: ${arg}`);
     }
     const value = argv[index + 1];
@@ -56,6 +58,8 @@ function parseArgs(argv) {
       options.cohortPath = value;
     } else if (arg === "--tasks-dir") {
       options.tasksDir = value;
+    } else if (arg === "--margins") {
+      options.marginsPath = value;
     } else {
       options.out = value;
     }
@@ -77,6 +81,8 @@ async function main() {
     process.exitCode = 1;
     return;
   }
+  // Margins are loaded before any run: they must be declared, not fitted to the results.
+  const declared = options.paired ? loadPilotMargins(resolve(options.marginsPath), cohort) : null;
 
   const campaignRoot = await mkdtemp(join(tmpdir(), "k12-campaign-"));
   console.log(`campaign_root=${campaignRoot}`);
@@ -92,18 +98,24 @@ async function main() {
   };
   let summary;
   if (options.paired) {
-    // Deterministic Adaptive Repair pilot (P2a–P3): both arms per fixture repetition, with seeded defects and injected faults.
+    // Deterministic Adaptive Repair pilot (P2a–P4): both arms per fixture repetition, with seeded
+    // defects and injected faults, judged against the predeclared margins.
     const routes = parseRoutingTable(readFileSync(configPath, "utf8"));
     const completed = await executePlan(
       planPairedRuns(cohort, planOptions),
       createDeterministicPilotExecutor({ catalog: cohort.catalog, routes }),
     );
-    summary = summarizePairedCohort(completed);
+    const report = summarizePairedCohort(completed);
+    const checkpoint = evaluatePilotCheckpoint({ runs: completed.runs, report, cohort, ...declared });
+    summary = { ...report, checkpoint };
     const { totals } = summary;
     const defects = (arm) => `${totals.defects[arm].detected}/${totals.defects[arm].seeded}`;
     console.log(
       `tasks=${totals.tasks_total} comparable=${totals.tasks_comparable} pairs=${totals.pairs_total} excluded=${totals.pairs_excluded} regressions=${summary.regressions.length}`
       + ` defects_detected fixed=${defects("fixed")} adaptive=${defects("adaptive-repair-v1")} defect_regressions=${summary.defect_regressions.length}`,
+    );
+    console.log(
+      `checkpoint=${checkpoint.checkpoint} margins=${checkpoint.margins_version} vetoes=${checkpoint.vetoes.length} revisions=${checkpoint.revisions.length}`,
     );
   } else {
     const completed = await executePlan(
@@ -124,7 +136,7 @@ async function main() {
     await writeFile(outputPath, `${JSON.stringify(summary, null, 2)}\n`, "utf8");
   }
   const expected = options.paired ? "usable-comparison" : "usable-baseline";
-  if (summary.verdict !== expected) process.exitCode = 1;
+  if (summary.verdict !== expected || (summary.checkpoint && summary.checkpoint.checkpoint === "reject")) process.exitCode = 1;
 }
 
 main().catch((error) => {

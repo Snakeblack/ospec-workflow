@@ -65,7 +65,7 @@ Primero la **equivalencia de mecanismo** de K9; la calibración de profile con m
 | **P2b — Defectos sembrados** (entregado) | Checks reales por rol observados sobre los archivos del candidate y variantes de defecto sembrado (parche incorrecto, test complaciente, scope drift, receipt obsoleto) con etapa de detección declarada; `outcome.defects` en `RunManifest` | Defectos detectados/escapados por brazo; las variantes rechazadas en otra etapa marcan el fixture como mal atribuido |
 | **P2c — Recovery en adversarial** (entregado) | Scripts piloto para los fixtures adversariales y composición con el harness K2: el pipeline limpio es el efecto de `complete` y se inyectan `interrupt-pre-effect`, `interrupt-mid-executor` y `bypass-without-permit` | Recovery correcta tras interrupciones inyectadas, fail-closed ante efecto ambiguo y sin bypass; un fallo no contenido falla la corrida |
 | **P3 — Cohorte del piloto** (entregado) | De 11 a 20–24 tareas, con peso en behavior-repair y local-reversible, adversarial para autoridad y recovery, sin migraciones ni efectos externos; variantes de defecto sembrado; holdout por familia | `validateCohortShape` verde; el catálogo del oracle está versionado |
-| **P4 — Márgenes, ejecución e informe** | Márgenes de no inferioridad, mejora práctica y vetos **predeclarados** (decisión de producto); campaña emparejada de 3 repeticiones; informe y checkpoint `continue / revise / reject` | Informe con intervalos y cohortes excluidas; veto ante cualquier `must` omitida o efecto fuera de permiso |
+| **P4 — Márgenes, ejecución e informe** (entregado: [informe](2026-10-03-adaptive-pilot-report.md), checkpoint `continue`) | Márgenes de no inferioridad, mejora práctica y vetos **predeclarados** (decisión de producto); campaña emparejada de 3 repeticiones; informe y checkpoint `continue / revise / reject` | Informe con intervalos y cohortes excluidas; veto ante cualquier `must` omitida o efecto fuera de permiso |
 | Después | Calibración con agentes reales (modelo/effort versionados), luego K9 | Fuera de este alcance |
 
 **Rollback:** todo es tooling de medición library-only, sin autoridad operativa; si se retira, `fixed` y el routing actual no cambian.
@@ -100,11 +100,11 @@ Primero la **equivalencia de mecanismo** de K9; la calibración de profile con m
 - **Forma del piloto:** `validatePilotCohortShape` (sobre `validateCohortShape`) exige 20–24 tareas, que local-reversible y behavior-repair no tengan menos tareas que los otros estratos y al menos dos familias de holdout por estrato para poder reservar una. `k12-campaign.js --paired` la aplica. La familia reservada se declara en P4, con los márgenes.
 - **Resultado:** 22 tareas comparables y 0 excluidas; defectos 72/72 por repetición en ambos brazos, fallos contenidos 2/2 en cada adversarial y 0 regresiones. Delta de fases −2 por tarea (hipótesis declarada: `lite` y `bugfix` tienen 5 fases y la receta 3).
 
-## 5. Decisiones abiertas para el usuario
+## 5. Decisiones del usuario (resueltas)
 
-1. **Receta:** Repair (recomendado).
-2. **Primer ejecutor:** determinista (recomendado; barato, reproducible y aísla el mecanismo) o directamente agentes reales (mide calidad de modelo, pero cuesta tokens y añade varianza y dependencia del host).
-3. **Márgenes y vetos:** no se fijan ahora. Se proponen antes de P4, con el baseline de P2/P3 delante. Vetos candidatos no numéricos: cualquier obligación `must` omitida, cualquier efecto fuera de permiso y cualquier recovery inválida.
+1. **Receta:** Repair.
+2. **Primer ejecutor:** determinista.
+3. **Márgenes y vetos** (2026-10-03, delegados con el criterio de reducir burocracia): los vetos quedan fijos en código (`pilot-checkpoint.js`) y solo lo elegible va en `pilot-margins.json`: no inferioridad (límite inferior del IC95 ≥ 0), mejora práctica (Δ fases ≤ −1) y una familia holdout por estrato. Resultado en el [informe](2026-10-03-adaptive-pilot-report.md).
 
 ## Riesgos
 
