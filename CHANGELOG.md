@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.81.3] - 2026-10-03
+
+### Changed
+- **Roadmap reorientado a IDD (desarrollo guiado por impacto)**: SDD deja de ser el flujo por defecto y queda como modo opcional para quien lo pida. El nuevo flujo por defecto deriva obligaciones de señales de impacto (contrato público, datos persistentes, frontera de seguridad, componente con ADR o atributo de calidad, bug o Strict TDD), las comprueba con el CLI `ospec` (`next`, `check` y `close`) y solo pregunta ante una intención ambigua, un ADR enmendado o contradicho, o una operación irreversible. Un cambio trivial no crea documentos, y uno de contrato público abre un documento vivo con su contrato y su test.
+  - Las recetas Direct, Repair y Critical y la clasificación por impacto pasan a ser señales y obligaciones de la Etapa 1.
+  - El cambio de default (E1.6) depende de un bench contra el modo SDD (E4.1).
+  - Quedan aparcados la migración del orquestador SDD al CLI y el troceado de su protocolo.
+  - Change Program pasa a la plataforma por demanda.
+- **Nuevo hallazgo en E0.2**: Cursor instala el `AGENTS.md` de este repositorio, con su flujo de release, como regla `alwaysApply` en los proyectos consumidores.
+- **Ejecución del roadmap**: hasta E1.6, los ítems se entregan como cambios directos con test primero y spec actualizada en el mismo PR, sin `/sdd-new`. `AGENTS.md` dispara el flujo de release también al cerrar un cambio directo.
+
+**Verificación directa**: `node scripts/check.js` (3634 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.81.2] - 2026-10-03
 
 ### Changed
