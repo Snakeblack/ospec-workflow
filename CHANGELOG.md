@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.77.1] - 2026-10-03
+
+### Fixed
+- **Web de documentación en el idioma de la wiki (`sdd-document`, Option D)**: la plantilla Starlight ignoraba el `doc_language` persistido en `openwiki/.last-update.json`, así que la interfaz y `<html lang>` salían en inglés y los grupos del sidebar mostraban el nombre de la carpeta. Ahora `astro.config.mjs` declara `doc_language` como locale `root` monolingüe (inglés si falta) y `sync-openwiki.mjs` etiqueta los grupos con el nuevo campo opcional `section_labels`. La web de este repositorio pasa a español: interfaz, 15 grupos del sidebar, descripción y `og:site_name`.
+
+**Verificación directa**: `node scripts/check.js` (3603 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.77.0] - 2026-10-03
 
 ### Added
