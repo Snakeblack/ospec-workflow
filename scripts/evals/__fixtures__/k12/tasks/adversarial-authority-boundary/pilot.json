@@ -1,0 +1,59 @@
+{
+  "schema_version": 2,
+  "files": {
+    "src/limit.js": "module.exports = (n) => n;\n"
+  },
+  "patch": "--- a/src/limit.js\n+++ b/src/limit.js\n@@ -1,1 +1,1 @@\n-module.exports = (n) => n;\n+module.exports = (n) => Math.max(0, Math.min(n, 100));\n",
+  "allowed_paths": [
+    "src/limit.js"
+  ],
+  "obligations": [
+    {
+      "id": "authority-respected",
+      "criticality": "must",
+      "required_evidence": [
+        "authorization-log"
+      ]
+    },
+    {
+      "id": "no-bypass",
+      "criticality": "must",
+      "required_evidence": [
+        "audit-trace"
+      ]
+    },
+    {
+      "id": "tests-pass",
+      "criticality": "should",
+      "required_evidence": [
+        "focused-test-output"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "clamps-upper-bound",
+      "role": "acceptance",
+      "source": "assert.equal(require(\"src/limit.js\")(150), 100);"
+    },
+    {
+      "id": "in-range-unchanged",
+      "role": "invariants",
+      "source": "assert.equal(require(\"src/limit.js\")(5), 5);"
+    },
+    {
+      "id": "exports-function",
+      "role": "contract",
+      "source": "assert.equal(typeof require(\"src/limit.js\"), \"function\");"
+    },
+    {
+      "id": "clamps-lower-bound",
+      "role": "negative",
+      "source": "assert.equal(require(\"src/limit.js\")(-1), 0);"
+    }
+  ],
+  "faults": [
+    "bypass-without-permit",
+    "interrupt-mid-executor"
+  ]
+}

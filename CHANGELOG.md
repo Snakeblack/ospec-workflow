@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.77.0] - 2026-10-03
+
+### Added
+- **Piloto Adaptive Repair — P2c, fallos inyectados en adversarial (K12)**: los fixtures `adversarial-interrupted-recovery` y `adversarial-authority-boundary` reciben `pilot.json` v2 con `faults`. El pipeline limpio se ejecuta como efecto de `complete` en un lifecycle de un nodo a través del harness K2 público, y cada fallo exige su único comportamiento correcto: `interrupt-pre-effect` se reanuda y ejecuta el efecto exactamente una vez; `interrupt-mid-executor` falla cerrado con `reconciliation-required` sin reejecutar; `bypass-without-permit` queda bloqueado como `unauthorized` y el reintento autorizado completa. Un fallo no contenido falla la corrida. Control negativo: un host que pierde el journal al reanudar reejecuta el efecto ambiguo y se detecta.
+- **Cohorte semilla del piloto**: 8 tareas comparables (multi-module sigue excluido), fallos contenidos 2/2 por tarea adversarial en ambos brazos y 0 regresiones. Los recuentos van en `measurements.interruptions` y `measurements.recoveries`, sin cambios de contrato.
+
+**Verificación directa**: `node scripts/check.js` (3600 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.76.0] - 2026-10-03
 
 ### Added

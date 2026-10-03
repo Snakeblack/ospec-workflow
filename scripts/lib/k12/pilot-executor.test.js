@@ -12,6 +12,7 @@ const { loadCohort } = require("./cohort.js");
 const { executePlan, planPairedRuns, summarizePairedCohort } = require("./runner.js");
 const {
   DEFECT_STAGE_BY_KIND,
+  FAULT_KINDS,
   FIXED_ROUTE_BY_STRATUM,
   PILOT_SCRIPT_FILE,
   PilotExecutorError,
@@ -162,15 +163,30 @@ test("the seed cohort yields a usable paired comparison with the oracle applied 
   const cohort = loadCohort(seedCatalogPath, seedTasksDir);
   const { runs } = await runPaired(cohort, 2);
 
-  const p2aRuns = runs.filter((run) => P2A_STRATA.includes(run.stratum));
-  assert.equal(p2aRuns.length, 6 * 2 * 2);
-  for (const run of p2aRuns) {
+  const pilotRuns = runs.filter((run) => P2A_STRATA.includes(run.stratum));
+  assert.equal(pilotRuns.length, 8 * 2 * 2);
+  for (const run of pilotRuns) {
     assert.equal(run.outcome.status, "pass", `${run.fixture_id} ${run.policy}: ${run.outcome.note}`);
     assert.equal(run.outcome.oracle.applied, true);
     assert.match(run.outcome.oracle.reason, /no must obligation missing/);
     assert.equal(run.outcome.measurements.effects_executed, 1);
-    // Every seed fixture seeds the four defect kinds; both arms must reject all of them.
+  }
+  for (const run of pilotRuns.filter((entry) => entry.stratum !== "adversarial")) {
+    // Every repair fixture seeds the four defect kinds; both arms must reject all of them.
     assert.deepEqual(run.outcome.defects, { seeded: 4, detected: 4, escaped: [] }, run.outcome.note);
+  }
+  // Adversarial fixtures inject kernel faults: every fault is contained and only the
+  // pre-effect interruption is recoverable (the mid-executor one must fail closed).
+  const faultsOf = (fixtureId) => pilotRuns.filter((run) => run.fixture_id === fixtureId);
+  for (const run of faultsOf("adversarial-interrupted-recovery")) {
+    assert.match(run.outcome.note, /faults contained 2\/2/);
+    assert.equal(run.outcome.measurements.interruptions, 2);
+    assert.equal(run.outcome.measurements.recoveries, 1);
+  }
+  for (const run of faultsOf("adversarial-authority-boundary")) {
+    assert.match(run.outcome.note, /faults contained 2\/2/);
+    assert.equal(run.outcome.measurements.interruptions, 1);
+    assert.equal(run.outcome.measurements.recoveries, 0);
   }
   for (const run of runs.filter((entry) => !P2A_STRATA.includes(entry.stratum))) {
     assert.equal(run.outcome.status, "excluded");
@@ -179,18 +195,18 @@ test("the seed cohort yields a usable paired comparison with the oracle applied 
 
   const report = summarizePairedCohort(runs);
   assert.equal(report.verdict, "usable-comparison");
-  assert.equal(report.totals.tasks_comparable, 6);
-  assert.equal(report.totals.pairs_excluded, 5 * 2);
+  assert.equal(report.totals.tasks_comparable, 8);
+  assert.equal(report.totals.pairs_excluded, 3 * 2);
   assert.deepEqual(report.regressions, []);
   assert.deepEqual(report.defect_regressions, []);
   assert.deepEqual(report.totals.defects, {
     fixed: { seeded: 48, detected: 48, escaped: 0 },
     "adaptive-repair-v1": { seeded: 48, detected: 48, escaped: 0 },
   });
-  assert.deepEqual(report.cohort.pass_rate_delta, { tasks: 6, mean: 0, sd: 0, ci95: [0, 0] });
+  assert.deepEqual(report.cohort.pass_rate_delta, { tasks: 8, mean: 0, sd: 0, ci95: [0, 0] });
   // Ceremony is a declared plan, so the -2 phase delta is the hypothesis under test, not an observation.
-  assert.deepEqual(report.cohort.measurement_delta.phases_executed, { tasks: 6, mean: -2, sd: 0, ci95: [-2, -2] });
-  assert.deepEqual(report.cohort.measurement_delta.effects_executed, { tasks: 6, mean: 0, sd: 0, ci95: [0, 0] });
+  assert.deepEqual(report.cohort.measurement_delta.phases_executed, { tasks: 8, mean: -2, sd: 0, ci95: [-2, -2] });
+  assert.deepEqual(report.cohort.measurement_delta.effects_executed, { tasks: 8, mean: 0, sd: 0, ci95: [0, 0] });
 });
 
 test("paired outcomes are deterministic across executions apart from wall time", async () => {
@@ -289,6 +305,8 @@ test("loadPilotScript validates every field and reports absence separately from 
       [JSON.stringify(syntheticScript({ defects: [{ id: "x", kind: "complacent-test", patch: WRONG_PATCH }] })), /defect 0 .*complacent-test requires checks/],
       [JSON.stringify(syntheticScript({ defects: [{ id: "x", kind: "complacent-test", patch: WRONG_PATCH, checks: [{ id: "unknown", role: "acceptance", source: "1" }] }] })), /defect 0 .*override existing check ids/],
       [JSON.stringify(syntheticScript({ defects: [SYNTHETIC_DEFECTS[0], SYNTHETIC_DEFECTS[0]] })), /defect ids must be unique/],
+      [JSON.stringify(syntheticScript({ faults: ["kill-host"] })), /faults must be unique entries of/],
+      [JSON.stringify(syntheticScript({ faults: ["interrupt-pre-effect", "interrupt-pre-effect"] })), /faults must be unique entries of/],
       [JSON.stringify(syntheticScript({ files: {} })), /files must map paths/],
       [JSON.stringify(syntheticScript({ patch: "" })), /patch must be a non-empty/],
       [JSON.stringify(syntheticScript({ allowed_paths: [] })), /allowed_paths must be a non-empty/],
@@ -313,7 +331,7 @@ test("the campaign CLI runs the paired pilot and exits 0 on a usable comparison"
     encoding: "utf8",
   });
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /tasks=11 comparable=6 pairs=11 excluded=5 regressions=0 defects_detected fixed=24\/24 adaptive=24\/24 defect_regressions=0/);
+  assert.match(result.stdout, /tasks=11 comparable=8 pairs=11 excluded=3 regressions=0 defects_detected fixed=24\/24 adaptive=24\/24 defect_regressions=0/);
   assert.match(result.stdout, /"verdict": "usable-comparison"/);
 });
 
@@ -422,6 +440,47 @@ test("a replayed receipt is rejected only because the candidate changed", async 
     for (const run of runs) {
       assert.equal(run.outcome.status, "pass", run.outcome.note);
       assert.deepEqual(run.outcome.defects, { seeded: 2, detected: 1, escaped: ["stale-receipt-same-candidate"] });
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("injected kernel faults are contained in both arms: safe recovery, fail-closed ambiguity, no bypass", async () => {
+  assert.deepEqual(FAULT_KINDS, ["interrupt-pre-effect", "interrupt-mid-executor", "bypass-without-permit"]);
+  const { root, cohort } = await syntheticCohort({ faulted: syntheticScript({ faults: FAULT_KINDS }) });
+  try {
+    const { runs } = await runPaired(cohort);
+    assert.equal(runs.length, 2);
+    for (const run of runs) {
+      assert.equal(run.outcome.status, "pass", run.outcome.note);
+      assert.match(run.outcome.note, /faults contained 3\/3/);
+      // Two interruptions injected; only the pre-effect one may resume, the ambiguous one must not.
+      assert.equal(run.outcome.measurements.interruptions, 2);
+      assert.equal(run.outcome.measurements.recoveries, 1);
+      assert.equal(run.outcome.measurements.effects_executed, 1);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("a host that loses the journal on resume re-executes the ambiguous effect and the fault escapes", async () => {
+  const { root, cohort } = await syntheticCohort({ faulted: syntheticScript({ faults: ["interrupt-mid-executor"] }) });
+  try {
+    const { runHarnessScenario } = require("../minimal-kernel-harness.js");
+    const forgetfulHost = (scenario) => runHarnessScenario({ ...scenario, initialJournal: [] });
+    const plan = planPairedRuns(cohort, planOptions(tmpdir()));
+    const executor = createDeterministicPilotExecutor({
+      catalog: cohort.catalog,
+      routes: liveRoutes(),
+      now: TICKING_CLOCK(),
+      runScenario: forgetfulHost,
+    });
+    const { runs } = await executePlan(plan, executor, FIXED_CLOCK);
+    for (const run of runs) {
+      assert.equal(run.outcome.status, "fail");
+      assert.match(run.outcome.note, /^fault-escaped: interrupt-mid-executor/);
     }
   } finally {
     await rm(root, { recursive: true, force: true });

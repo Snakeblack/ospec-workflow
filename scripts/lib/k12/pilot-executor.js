@@ -27,6 +27,15 @@
 // Only passing checks yield runtime evidence through the K6b test runner
 // authority (collector `node-test`).
 //
+// Injected kernel faults (P2c) wrap the clean pipeline as the effect of the
+// lifecycle `complete` operation, run through the public K2 harness. Each fault
+// has one correct kernel behavior: an interruption at the pre-effect barrier
+// resumes and runs the effect exactly once; an interruption mid-executor leaves
+// an unknown outcome that must fail closed (`reconciliation-required`) without
+// re-running the effect; a `complete` without an operation permit is blocked
+// (`unauthorized`) and the authorized retry completes. A fault whose behavior
+// differs escapes and fails the run.
+//
 // This is measurement tooling: it grants no authority, writes no store, and
 // changes no route or default.
 
@@ -42,23 +51,30 @@ const { compileExecutionGraph, createPolicySnapshot } = require("../execution-gr
 const { integrateWorkResultPatches } = require("../repair-shadow/index.js");
 const { verifyCandidate } = require("../independent-verifier/index.js");
 const { createTestRunnerReceiptChannel } = require("../test-support/k6b-runner-receipt.js");
+const { interruptError } = require("../lifecycle-kernel/index.js");
+const { runHarnessScenario } = require("../minimal-kernel-harness.js");
 const { compareObligations } = require("./obligation-oracle.js");
 const { PAIRED_ARMS } = require("./runner.js");
 
 const PILOT_SCRIPT_FILE = "pilot.json";
 const PILOT_SCRIPT_SCHEMA_VERSION = 2;
 const PILOT_SCRIPT_KEYS = Object.freeze([
-  "schema_version", "files", "patch", "allowed_paths", "obligations", "checks", "defects",
+  "schema_version", "files", "patch", "allowed_paths", "obligations", "checks", "defects", "faults",
 ]);
+const FAULT_KINDS = Object.freeze(["interrupt-pre-effect", "interrupt-mid-executor", "bypass-without-permit"]);
+const LIFECYCLE_BUDGETS = Object.freeze({ attempts: 2, corrections: 1 });
 const NODE_ID = "repair";
 const EVIDENCE_ROLES = Object.freeze(["acceptance", "invariants", "contract", "negative"]);
 const COLLECTOR = Object.freeze({ id: "node-test", transport: "tool-execution-transport" });
 const CHECK_TIMEOUT_MS = 1000;
 // The live route each pilot stratum takes under the fixed control policy. Other
 // strata are outside the pilot and are recorded as excluded, never silently passed.
+// Adversarial fixtures script a small repair under injected faults, so their
+// control is the bugfix route too.
 const FIXED_ROUTE_BY_STRATUM = Object.freeze({
   "local-reversible": "lite",
   "behavior-repair": "bugfix",
+  adversarial: "bugfix",
 });
 // Repair recipe under test (roadmap K10: "Repair conserva reproducción y
 // Candidate-bound verify"). It compresses phases only: it inherits every gate
@@ -223,6 +239,11 @@ function loadPilotScript(taskPath) {
     });
   }
   errors.push(...validateChecks(script.checks), ...validateDefects(script.defects, script.checks));
+  if (script.faults !== undefined && (!Array.isArray(script.faults) || script.faults.length === 0
+    || !script.faults.every((fault) => FAULT_KINDS.includes(fault))
+    || new Set(script.faults).size !== script.faults.length)) {
+    errors.push(`pilot script faults must be unique entries of ${FAULT_KINDS.join("|")}`);
+  }
   return errors.length > 0 ? { script: null, error: errors.join("; ") } : { script, error: null };
 }
 
@@ -257,14 +278,14 @@ function checkPasses(files, check) {
   }
 }
 
-function measurements(plan, effectsExecuted, wallMs) {
+function measurements(plan, effectsExecuted, wallMs, faults = { interruptions: 0, recoveries: 0 }) {
   return {
     phases_executed: plan ? plan.phases.length : 0,
     effects_executed: effectsExecuted,
     events_recorded: plan ? plan.phases.length + plan.gates.length : 0,
     wall_ms: wallMs,
-    interruptions: 0,
-    recoveries: 0,
+    interruptions: faults.interruptions,
+    recoveries: faults.recoveries,
   };
 }
 
@@ -446,9 +467,111 @@ async function runSeededDefects(arm, script, clean) {
   return { defects: tally, misattributed };
 }
 
+function lifecycleOperation(operation, extra = {}) {
+  return { operation, arguments: { node_id: NODE_ID }, ...extra };
+}
+
+function completeOperation(scenario) {
+  return scenario.operations.find((entry) => entry.operation === "complete") || null;
+}
+
+function nodeCompleted(scenario) {
+  const node = scenario.snapshot.state.nodes[NODE_ID];
+  return Boolean(node) && node.phase === "completed";
+}
+
+/**
+ * Runs the clean pipeline as the `complete` effect of a one-node lifecycle with
+ * one injected fault, and checks the kernel's response against the only correct
+ * one for that fault. `runScenario` is the K2 harness (injectable for tests).
+ * @returns {Promise<{ contained: boolean, interruptions: number, recoveries: number, detail: string }>}
+ */
+async function runInjectedFault(arm, output, fault, runScenario) {
+  let executions = 0;
+  let lastPipeline = null;
+  const effectExecutor = async (effect) => {
+    if (!effect.payload || effect.payload.phase !== "completed") return { ok: true, usage: {} };
+    executions += 1;
+    lastPipeline = await runPipeline(arm, output);
+    if (fault === "interrupt-mid-executor" && executions === 1) throw interruptError("mid-executor");
+    return { ok: lastPipeline.stage === null, usage: {} };
+  };
+  const subjectId = `k12-pilot:${arm.sourceSnapshot.source_snapshot_id}:${fault}`;
+  const continueFrom = (previous, operations, extra = {}) => runScenario({
+    id: `${fault}:${previous.scenario_id}+`,
+    subjectId,
+    initialState: previous.snapshot.state,
+    initialJournal: previous.snapshot.journal,
+    initialAuthority: previous.snapshot.authority,
+    budgets: previous.budgets,
+    operations,
+    effectExecutor,
+    ...extra,
+  });
+  const started = await runScenario({
+    id: fault,
+    subjectId,
+    initialState: { schema_version: 1, status: "ready", nodes: { [NODE_ID]: { id: NODE_ID, phase: "pending", attempt: 0 } } },
+    operations: [lifecycleOperation("start")],
+    effectExecutor,
+    budgets: { ...LIFECYCLE_BUDGETS },
+  });
+  const pipelinePassed = () => Boolean(lastPipeline) && lastPipeline.stage === null;
+  const verdict = (contained, interruptions, recoveries, observed) => ({
+    contained,
+    interruptions,
+    recoveries: contained ? recoveries : 0,
+    detail: `${fault}: ${observed}, effect executions ${executions}`,
+  });
+
+  if (fault === "interrupt-pre-effect") {
+    const interrupted = await continueFrom(started, [lifecycleOperation("complete")], { checkpointInterrupt: "after-journal" });
+    const executionsBeforeResume = executions;
+    const resumed = await continueFrom(interrupted, [lifecycleOperation("complete")]);
+    const contained = interrupted.outcome === "interrupt" && executionsBeforeResume === 0
+      && executions === 1 && nodeCompleted(resumed) && pipelinePassed();
+    return verdict(contained, 1, 1, nodeCompleted(resumed) ? "resumed to completed" : `resume ${resumed.outcome}`);
+  }
+  if (fault === "interrupt-mid-executor") {
+    const interrupted = await continueFrom(started, [lifecycleOperation("complete")]);
+    const resumed = await continueFrom(interrupted, [lifecycleOperation("complete")]);
+    const resumeCode = completeOperation(resumed) && completeOperation(resumed).code;
+    const contained = interrupted.outcome === "interrupt" && resumeCode === "reconciliation-required" && executions === 1;
+    return verdict(contained, 1, 0, `resume ${resumeCode || resumed.outcome}`);
+  }
+  // bypass-without-permit: the unpermitted complete must be blocked before any
+  // effect runs; the authorized complete then finishes the task.
+  const bypass = await continueFrom(started, [lifecycleOperation("complete", { omitPermit: true })]);
+  const bypassCode = completeOperation(bypass) && completeOperation(bypass).code;
+  const executionsAfterBypass = executions;
+  const authorized = await continueFrom(bypass, [lifecycleOperation("complete")]);
+  const contained = bypassCode === "unauthorized" && executionsAfterBypass === 0
+    && executions === 1 && nodeCompleted(authorized) && pipelinePassed();
+  return verdict(contained, 0, 0, `bypass ${bypassCode || bypass.outcome}`);
+}
+
+/**
+ * Runs every injected fault declared by the script.
+ * @returns {Promise<{ total: number, contained: number, interruptions: number, recoveries: number, escaped: string[] }>}
+ */
+async function runInjectedFaults(arm, script, runScenario) {
+  const summary = { total: 0, contained: 0, interruptions: 0, recoveries: 0, escaped: [] };
+  const output = { patch: script.patch, checks: script.checks, staleFrom: null };
+  for (const fault of script.faults || []) {
+    const result = await runInjectedFault(arm, output, fault, runScenario);
+    summary.total += 1;
+    summary.interruptions += result.interruptions;
+    summary.recoveries += result.recoveries;
+    if (result.contained) summary.contained += 1;
+    else summary.escaped.push(result.detail);
+  }
+  return summary;
+}
+
 /**
  * Creates the deterministic paired-pilot executor for runner.executePlan.
- * @param {{ catalog: object, routes: object[], now?: () => number }} options
+ * @param {{ catalog: object, routes: object[], now?: () => number, runScenario?: Function }} options
+ *   `runScenario` defaults to the K2 harness `runHarnessScenario`.
  * @returns {(manifest: object, task: object) => Promise<object>}
  * @throws {PilotExecutorError} When the catalog or routing table is unusable.
  */
@@ -458,6 +581,7 @@ function createDeterministicPilotExecutor(options = {}) {
   }
   const plans = resolveArmPlans(options.routes);
   const now = options.now || (() => Date.now());
+  const runScenario = options.runScenario || runHarnessScenario;
   const catalogById = new Map(options.catalog.fixtures.map((fixture) => [fixture.fixture_id, fixture]));
 
   return async function executePilotRun(manifest, task) {
@@ -465,11 +589,11 @@ function createDeterministicPilotExecutor(options = {}) {
     const elapsed = () => Math.max(0, now() - startedAt);
     const fixtureId = manifest && manifest.fixture_id ? manifest.fixture_id : "unknown";
     const plan = plans[manifest && manifest.stratum] ? plans[manifest.stratum][manifest.policy] : null;
-    const result = (status, note, comparison, effects = 0, unappliedReason = note) => ({
+    const result = (status, note, comparison, effects = 0, extra = {}) => ({
       status,
       note,
-      measurements: measurements(status === "excluded" ? null : plan, effects, elapsed()),
-      oracle: oracleRecord(comparison, unappliedReason),
+      measurements: measurements(status === "excluded" ? null : plan, effects, elapsed(), extra.faults),
+      oracle: oracleRecord(comparison, extra.unappliedReason || note),
     });
 
     if (!manifest || !task || !PAIRED_ARMS.includes(manifest.policy) || !isNonEmptyString(task.task_path)) {
@@ -493,23 +617,31 @@ function createDeterministicPilotExecutor(options = {}) {
         return result("fail", `${clean.stage}:${clean.reason} (${planNote})`, comparison, clean.effects);
       }
       if (comparison.verdict !== "pass") return result("fail", `oracle:missing-must (${planNote})`, comparison, clean.effects);
-      if (!loaded.script.defects) return result("pass", `verify PASS (${planNote})`, comparison, clean.effects);
 
-      const seeded = await runSeededDefects(arm, loaded.script, clean);
-      const defectNote = `defects detected ${seeded.defects.detected}/${seeded.defects.seeded}`;
-      const outcome = seeded.misattributed.length > 0
-        ? result("fail", `defect-misattributed: ${seeded.misattributed.join("; ")} (${planNote})`, comparison, clean.effects)
-        : result("pass", `verify PASS; ${defectNote} (${planNote})`, comparison, clean.effects);
-      return { ...outcome, defects: seeded.defects };
+      const seeded = loaded.script.defects ? await runSeededDefects(arm, loaded.script, clean) : null;
+      const faults = await runInjectedFaults(arm, loaded.script, runScenario);
+      const failures = [];
+      if (seeded && seeded.misattributed.length > 0) failures.push(`defect-misattributed: ${seeded.misattributed.join("; ")}`);
+      if (faults.escaped.length > 0) failures.push(`fault-escaped: ${faults.escaped.join("; ")}`);
+      const findings = ["verify PASS"];
+      if (seeded) findings.push(`defects detected ${seeded.defects.detected}/${seeded.defects.seeded}`);
+      if (faults.total > 0) findings.push(`faults contained ${faults.contained}/${faults.total}, recoveries ${faults.recoveries}`);
+      const outcome = failures.length > 0
+        ? result("fail", `${failures.join("; ")} (${planNote})`, comparison, clean.effects, { faults })
+        : result("pass", `${findings.join("; ")} (${planNote})`, comparison, clean.effects, { faults });
+      return seeded ? { ...outcome, defects: seeded.defects } : outcome;
     } catch (error) {
       const code = error && error.code ? error.code : "executor-error";
-      return result("fail", `${code}: ${error && error.message}`, null, 0, `pipeline aborted before the oracle (${code})`);
+      return result("fail", `${code}: ${error && error.message}`, null, 0, {
+        unappliedReason: `pipeline aborted before the oracle (${code})`,
+      });
     }
   };
 }
 
 module.exports = {
   DEFECT_STAGE_BY_KIND,
+  FAULT_KINDS,
   FIXED_ROUTE_BY_STRATUM,
   PILOT_SCRIPT_FILE,
   PilotExecutorError,
