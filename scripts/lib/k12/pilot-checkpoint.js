@@ -15,12 +15,16 @@
 // - pass-regression: a task the control arm passes and the adaptive arm does not.
 // Anything that keeps the comparison from being judged (an incomplete cohort, an
 // unapplied oracle, a control-arm failure) or a missed margin asks to revise.
+// With a recorded real worker (`recordedWorker`), a control-arm failure is a
+// legitimate worker outcome, not a harness defect, so it is reported but does
+// not ask to revise; the pass-regression veto still guards the adaptive arm.
 //
 // Measurement tooling only: it grants no authority and promotes nothing.
 
 const { readFileSync } = require("node:fs");
 
 const { sha256Fingerprint } = require("../canonical-json.js");
+const { STRATA } = require("./cohort.js");
 const { PAIRED_ARMS } = require("./runner.js");
 
 const MARGINS_SCHEMA_VERSION = 1;
@@ -79,9 +83,11 @@ function validatePilotMargins(margins, cohort) {
     fail("practical_improvement.phases_executed_delta_mean_max must be a negative number (fewer phases)");
   }
   if (!isPlainObject(margins.holdout)) fail("holdout must map each stratum to one family");
+  // Every stratum in the cohort needs its holdout; a narrowed cohort (a calibration
+  // over one stratum) keeps the other declared entries without judging them.
   const strata = [...new Set(cohort.tasks.map((task) => task.stratum))];
-  const unknown = Object.keys(margins.holdout).filter((stratum) => !strata.includes(stratum));
-  if (unknown.length > 0) fail(`holdout names strata outside the cohort: ${unknown.join(", ")}`);
+  const unknown = Object.keys(margins.holdout).filter((stratum) => !STRATA.includes(stratum));
+  if (unknown.length > 0) fail(`holdout names unknown strata: ${unknown.join(", ")}`);
   for (const stratum of strata) {
     const family = margins.holdout[stratum];
     const tasks = cohort.tasks.filter((task) => task.stratum === stratum);
@@ -123,11 +129,12 @@ function runVetoes(runs) {
 
 /**
  * Judges a paired campaign against predeclared margins.
- * @param {{ runs: object[], report: object, margins: object, cohort: object, margins_digest?: string }} input
- *   `runs` are the completed paired runs and `report` their summarizePairedCohort result.
+ * @param {{ runs: object[], report: object, margins: object, cohort: object, margins_digest?: string, recordedWorker?: boolean }} input
+ *   `runs` are the completed paired runs and `report` their summarizePairedCohort result;
+ *   `recordedWorker` marks a calibration that replays real agent outputs.
  * @returns {object} Frozen checkpoint with the decision, its reasons, and each margin's reading.
  */
-function evaluatePilotCheckpoint({ runs, report, margins, cohort, margins_digest: marginsDigest }) {
+function evaluatePilotCheckpoint({ runs, report, margins, cohort, margins_digest: marginsDigest, recordedWorker = false }) {
   if (!Array.isArray(runs) || !isPlainObject(report) || !isPlainObject(cohort)) {
     throw new PilotCheckpointError("runs, report, and cohort are required", "INVALID_CHECKPOINT_INPUT");
   }
@@ -146,7 +153,9 @@ function evaluatePilotCheckpoint({ runs, report, margins, cohort, margins_digest
   const controlFailures = [...new Set(runs
     .filter((run) => run.policy === CONTROL_ARM && run.outcome.status === "fail")
     .map((run) => run.fixture_id))];
-  if (controlFailures.length > 0) revisions.push(`control arm fails on ${controlFailures.join(", ")}: fix the harness before judging`);
+  if (controlFailures.length > 0 && !recordedWorker) {
+    revisions.push(`control arm fails on ${controlFailures.join(", ")}: fix the harness before judging`);
+  }
 
   const passDelta = report.cohort.pass_rate_delta;
   const lowerMin = margins.non_inferiority.pass_rate_delta_ci95_lower_min;
@@ -164,8 +173,9 @@ function evaluatePilotCheckpoint({ runs, report, margins, cohort, margins_digest
     .filter((task) => margins.holdout[task.stratum] === task.holdout_family)
     .map((task) => task.fixture_id));
   const holdoutReports = report.fixtures.filter((task) => holdoutIds.has(task.fixture_id));
+  const judgedStrata = new Set(cohort.tasks.map((task) => task.stratum));
   const holdout = {
-    families: { ...margins.holdout },
+    families: Object.fromEntries(Object.entries(margins.holdout).filter(([stratum]) => judgedStrata.has(stratum))),
     tasks: holdoutReports.length,
     tasks_comparable: holdoutReports.filter((task) => task.paired_repetitions > 0).length,
     below_margin: holdoutReports
@@ -182,6 +192,7 @@ function evaluatePilotCheckpoint({ runs, report, margins, cohort, margins_digest
     ...(marginsDigest ? { margins_digest: marginsDigest } : {}),
     vetoes,
     revisions,
+    control_failures: controlFailures,
     non_inferiority: nonInferiority,
     practical_improvement: practical,
     holdout,

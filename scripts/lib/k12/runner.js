@@ -694,4 +694,5 @@ module.exports = {
   planRuns,
   summarizeCohort,
   summarizePairedCohort,
+  taskInterval,
 };

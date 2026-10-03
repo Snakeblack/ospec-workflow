@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "margins_version": "k12-calibration-margins-1",
+  "declared_at": "2026-10-03",
+  "non_inferiority": { "pass_rate_delta_ci95_lower_min": -1 },
+  "practical_improvement": { "phases_executed_delta_mean_max": -1 },
+  "holdout": {
+    "local-reversible": "compatibility",
+    "behavior-repair": "recovery",
+    "multi-module": "local-contract",
+    "adversarial": "authority"
+  }
+}

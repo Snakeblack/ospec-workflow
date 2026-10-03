@@ -36,6 +36,12 @@
 // (`unauthorized`) and the authorized retry completes. A fault whose behavior
 // differs escapes and fails the run.
 //
+// Calibration with real agents replays a recorded worker output (worker-record.js)
+// instead of the scripted patch: each arm's agent patch runs through the same
+// pipeline and hidden checks, the agent's recorded duration is the run's wall
+// time, and seeded defects and faults are skipped (they test the harness, which
+// the scripted pilot already covers, not the worker).
+//
 // This is measurement tooling: it grants no authority, writes no store, and
 // changes no route or default.
 
@@ -574,8 +580,9 @@ async function runInjectedFaults(arm, script, runScenario) {
 
 /**
  * Creates the deterministic paired-pilot executor for runner.executePlan.
- * @param {{ catalog: object, routes: object[], now?: () => number, runScenario?: Function }} options
- *   `runScenario` defaults to the K2 harness `runHarnessScenario`.
+ * @param {{ catalog: object, routes: object[], now?: () => number, runScenario?: Function, workerRecord?: object }} options
+ *   `runScenario` defaults to the K2 harness `runHarnessScenario`. `workerRecord` (validated by
+ *   worker-record.js) replays each arm's recorded agent patch instead of the scripted one.
  * @returns {(manifest: object, task: object) => Promise<object>}
  * @throws {PilotExecutorError} When the catalog or routing table is unusable.
  */
@@ -586,6 +593,7 @@ function createDeterministicPilotExecutor(options = {}) {
   const plans = resolveArmPlans(options.routes);
   const now = options.now || (() => Date.now());
   const runScenario = options.runScenario || runHarnessScenario;
+  const workerRecord = options.workerRecord || null;
   const catalogById = new Map(options.catalog.fixtures.map((fixture) => [fixture.fixture_id, fixture]));
 
   return async function executePilotRun(manifest, task) {
@@ -596,7 +604,7 @@ function createDeterministicPilotExecutor(options = {}) {
     const result = (status, note, comparison, effects = 0, extra = {}) => ({
       status,
       note,
-      measurements: measurements(status === "excluded" ? null : plan, effects, elapsed(), extra.faults),
+      measurements: measurements(status === "excluded" ? null : plan, effects, extra.wallMs ?? elapsed(), extra.faults),
       oracle: oracleRecord(comparison, extra.unappliedReason || note),
     });
 
@@ -611,16 +619,28 @@ function createDeterministicPilotExecutor(options = {}) {
     const loaded = loadPilotScript(task.task_path);
     if (loaded.error) return result("fail", `invalid-pilot-script: ${loaded.error}`, null);
     if (!loaded.script) return result("excluded", "no pilot script for fixture", null);
+    const recordedEntry = workerRecord && workerRecord.outputs[fixtureId];
+    if (workerRecord && !recordedEntry) return result("excluded", "no recorded worker output for fixture", null);
+    const recorded = recordedEntry ? recordedEntry.arms[manifest.policy] : null;
+    if (recorded && workerRecord.protocols[manifest.policy].length !== plan.phases.length) {
+      return result("fail", `protocol-mismatch: recorded ${workerRecord.protocols[manifest.policy].length} phases, plan has ${plan.phases.length}`, null);
+    }
 
     try {
       const arm = buildArm(fixtureId, manifest.policy, loaded.script);
       const comparison = compareObligations(catalogFixture, arm.executionGraph.obligations);
       const planNote = `${plan.route}: ${plan.phases.length} phases, ${plan.gates.length} gates`;
-      const clean = await runPipeline(arm, { patch: loaded.script.patch, checks: loaded.script.checks, staleFrom: null });
+      const patch = recorded ? recorded.patch : loaded.script.patch;
+      const clean = await runPipeline(arm, { patch, checks: loaded.script.checks, staleFrom: null });
+      const recordedExtra = recorded ? { wallMs: recorded.usage.duration_ms } : {};
+      const workerNote = recorded ? `; worker ${workerRecord.worker.model}: ${recorded.usage.tokens} tokens, ${recorded.usage.tool_uses} tool uses` : "";
       if (clean.stage) {
-        return result("fail", `${clean.stage}:${clean.reason} (${planNote})`, comparison, clean.effects);
+        return result("fail", `${clean.stage}:${clean.reason} (${planNote})${workerNote}`, comparison, clean.effects, recordedExtra);
       }
-      if (comparison.verdict !== "pass") return result("fail", `oracle:missing-must (${planNote})`, comparison, clean.effects);
+      if (comparison.verdict !== "pass") {
+        return result("fail", `oracle:missing-must (${planNote})${workerNote}`, comparison, clean.effects, recordedExtra);
+      }
+      if (recorded) return result("pass", `verify PASS (${planNote})${workerNote}`, comparison, clean.effects, recordedExtra);
 
       const seeded = loaded.script.defects ? await runSeededDefects(arm, loaded.script, clean) : null;
       const faults = await runInjectedFaults(arm, loaded.script, runScenario);

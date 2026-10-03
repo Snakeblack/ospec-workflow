@@ -1,6 +1,6 @@
 # Piloto Adaptive Repair — informe y checkpoint (P4)
 
-> **Fecha:** 2026-10-03 · **Versión:** v2.79.0 · **Naturaleza:** informe de medición; no cambia estados de OpenSpec, el routing ni el default `fixed`.
+> **Fecha:** 2026-10-03 · **Versión:** v2.79.0 (piloto determinista) y v2.80.0 (calibración con agentes) · **Naturaleza:** informe de medición; no cambia estados de OpenSpec, el routing ni el default `fixed`.
 > **Alcance:** [`2026-10-02-adaptive-pilot-scoping.md`](2026-10-02-adaptive-pilot-scoping.md) · **Reproducir:** `node scripts/k12-campaign.js --paired --seed pilot-p4-2026-10-03`
 
 ## Veredicto
@@ -47,10 +47,56 @@ Están en `scripts/evals/__fixtures__/k12/pilot-margins.json` (`k12-pilot-margin
 - **Un holdout limpio.** Las tareas del holdout se escribieron y ejecutaron en P3, antes de declarar los márgenes. No hubo ajuste de política (es fija), pero el holdout solo cuenta de verdad en la calibración con agentes.
 - **El destino de la traza.** La receta no tiene fase `archive`. Antes de promoverla hay que decidir qué rastro persiste (Candidate, receipts, attestation K8) sin reintroducir la ceremonia que elimina.
 
+## Calibración con agentes reales (v2.80.0)
+
+**Checkpoint confirmatorio: `continue`.** Con agentes reales, la receta Repair repara igual que la ruta `bugfix` y cuesta menos.
+
+### Diseño
+
+- **Worker:** `claude-haiku-4-5-20251001` como subagente de Claude Code, un agente por brazo y tarea, en un workspace aislado. El protocolo exacto de los prompts está en `scripts/evals/__fixtures__/k12/calibration/PROTOCOL.md`.
+- **Tareas:** las 7 de behavior-repair. Cada agente recibe un brief tipo bug report (síntoma, reproducción e intención). Los checks de invariantes, contrato y casos negativos quedan ocultos y son los que juzgan.
+- **Grabar y reproducir:** el parche de cada agente, sus artefactos por fase y su consumo (tokens, herramientas y duración) se graban en un registro versionado (`worker-record.js`). El registro pasa por el mismo pipeline determinista (reproducción, integración K4b, checks ocultos, verify K6b y oracle), así que el juicio se puede reproducir byte a byte sin volver a llamar al modelo.
+
+### Primera corrida (`behavior-repair-haiku-1`): `revise` bajo los márgenes del piloto
+
+| | `fixed` | `adaptive-repair-v1` |
+| --- | --- | --- |
+| Tareas aprobadas | 6/7 | 7/7 |
+| Tokens (total) | 272 477 | 255 298 |
+| Duración (total) | 349 s | 231 s |
+
+El Repair fue **mejor**: en `legacy-adapter`, el agente de `bugfix` escribió `input.id || input.legacyId`, que rompe el caso oculto `id: 0`. Aun así, el checkpoint dio `revise` por dos reglas pensadas para el ejecutor determinista:
+
+1. **«Si el control falla, el harness está roto».** Con agentes reales, que falle el control es un resultado legítimo del worker. Ahora se reporta en `control_failures` y no pide revisión cuando el worker está grabado (`recordedWorker`).
+2. **«Límite inferior del IC95 ≥ 0».** Con 7 deltas binarios, una sola mejora ensancha el intervalo hasta −0,21, así que el margen castiga al brazo Adaptive por ser mejor.
+
+Re-juzgar los mismos datos con otros márgenes sería ajustar a posteriori. Por eso se declararon márgenes nuevos **antes** de una corrida nueva.
+
+### Márgenes de calibración (`k12-calibration-margins-1`)
+
+Los vetos no cambian; en particular, cualquier tarea que pase en `fixed` y falle en Adaptive rechaza. Esa es la no inferioridad que tiene sentido con una muestra por tarea, y por eso el margen del IC95 queda inactivo (−1). Se mantienen la mejora práctica (Δ fases ≤ −1) y el holdout `recovery` del estrato.
+
+### Corrida confirmatoria (`behavior-repair-haiku-2`)
+
+| Dimensión | `fixed` | `adaptive-repair-v1` | Δ medio por tarea (IC95) |
+| --- | --- | --- | --- |
+| Tareas aprobadas | 7/7 | 7/7 | 0 |
+| Tokens | 271 604 | 261 028 | −1511 (−2484, −538) · −3,9 % |
+| Llamadas a herramientas | 80 | 68 | −1,7 (−3,0, −0,4) |
+| Duración | 341 s | 269 s | −10,3 s (−15,8, −4,9) · −21 % |
+| Fases | 5 | 3 | −2 |
+
+Sin vetos ni revisiones; el holdout (3 tareas `recovery`) pasa entero.
+
+### Límites de la calibración
+
+- **El ahorro real es mayor que el medido.** Un solo agente ejecuta todas las fases de su brazo. La ruta `bugfix` real reparte el trabajo entre agentes de fase, y cada uno paga su contexto base (~36k tokens con este worker).
+- **Muestra pequeña:** 7 tareas sencillas, una muestra por brazo y corrida, y un solo modelo. Sirve para ver si la compresión degrada la reparación; no generaliza a cambios grandes.
+- **El aislamiento es por instrucción.** Los checks ocultos viven en el repositorio, no en el workspace.
+
 ## Recomendación
 
-El objetivo es menos burocracia sin perder garantías. El camino más corto a ese objetivo que sigue siendo seguro:
+El objetivo es menos burocracia sin perder garantías. Con el piloto y la calibración en `continue`:
 
-1. **Calibración mínima con agentes reales**: el estrato behavior-repair (7 tareas) × 1 repetición por brazo, con modelo y effort versionados, y los mismos márgenes y vetos. Basta para ver si la compresión de contexto degrada la reparación. No hace falta una campaña completa.
-2. **K9 con alcance de un profile**: si la calibración da `continue`, la receta Repair pasa a ser la forma de la ruta `bugfix` como opt-in, con `fixed` como fallback y el mismo checkpoint como guardia de regresión.
-3. **Resolver la traza en K10-delivery**: el Candidate, el receipt K6b y la attestation K8 sustituyen al archivo ceremonial como evidencia persistida.
+1. **K9 con alcance de un profile**: la receta Repair pasa a ser la forma de la ruta `bugfix` como opt-in, con `fixed` como fallback y el mismo checkpoint como guardia de regresión.
+2. **Resolver la traza en K10-delivery**: el Candidate, el receipt K6b y la attestation K8 sustituyen al archivo ceremonial como evidencia persistida.
