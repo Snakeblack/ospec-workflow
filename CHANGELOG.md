@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.82.0] - 2026-10-03
+
+### Added
+- **Línea base de contexto por target (E0.0)**: `node scripts/measure-context-baseline.js` genera los 7 targets en memoria y mide qué carga cada host antes de trabajar: instrucciones *always-on*, orquestador, skills instaladas y listadas, y lo que lee cada agente (el agente y las skills y ficheros `_shared` que nombra). Reproduce las cifras de la auditoría del 2026-10-03:
+  - Codex carga 62,6 KB en cada sesión.
+  - Cursor carga 25,7 KB en cada petición; Copilot y Antigravity, 22,7 KB; OpenCode, 22,0 KB, y VS Code, 2,4 KB.
+  - Las fases SDD leen entre 33 y 73 KB, y los revisores, unos 37 KB.
+- **Techos de contexto en CI**: `scripts/fixtures/context-baseline.json` guarda cada valor como techo, y `scripts/lib/context-baseline.test.js` falla si alguno sube o si aparece un target o un agente sin techo. `--update` los regenera cuando un cambio reduce contexto, o cuando lo aumenta con una justificación en el PR. Los bytes se normalizan a LF para que Windows y CI midan lo mismo.
+
+### Changed
+- **Roadmap**: E0.0 queda cerrado y el siguiente ítem es E0.1 (`fix-phase-agent-skill-loading`). El método y la línea base están en `docs/target-capabilities.md` §7.
+
+**Verificación directa**: `node scripts/check.js` (3642 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.81.3] - 2026-10-03
 
 ### Changed

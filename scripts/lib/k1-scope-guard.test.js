@@ -160,6 +160,9 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/context-measurement.test.js",
   "scripts/lib/context-measurement-hypotheses.test.js",
   "scripts/lib/context-measurement-schema.test.js",
+  // E0.0 static context baseline per target (roadmap harness-evolution).
+  "scripts/lib/context-baseline.js",
+  "scripts/lib/context-baseline.test.js",
   // Quality Review Gate successor (live v2 post-verify).
   "scripts/lib/quality-review-kpis.js",
   "scripts/lib/quality-review-kpis.test.js",

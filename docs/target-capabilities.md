@@ -98,3 +98,28 @@ Seven generated profiles exist: `claude`, `vscode`, `github-copilot`, `opencode`
 PP2: `scripts/validate-phase.js` is delivered with generated runtimes and can validate a phase when explicitly executed. The orchestrator command uses the plugin install root plus `--workspace`. A global install resolves the plugin/runtime root separately from the project workspace (`--workspace`, `OSPEC_PROJECT_ROOT`, or the working directory). The dispatcher and `validate-phase` share one parser: only a direct child of a column-0 `route:` counts, a nested `actual_route` does not override it, and a caller-supplied route does not fill a missing direct child. Delivered Node scripts are **not host-enforced** proof of automatic invocation. CX1: the Node and Go `SubagentStop` reducers validate envelopes and perform locked CAS/replay-safe projection when invoked. A v2.67.0–v2.67.3 noop accepts only the frozen key order, including nested `question_gate`; a status-first envelope is not a promised noop, and original JSON bytes are not preserved. Generation and mapping alone do not prove that a given host calls it. `partial` does not mean end-to-end host enforcement. No profile is claimed to mediate all shell commands, network operations, or connectors. Git hooks, where installed, are separate from host lifecycle hooks and cannot substitute for SubagentStop.
 
 Only the Claude Code real HostAdapter has K2a proof binding (`adapter_version`, `host_version`, fixture, `evidence_digest`); other adapters remain inactive stubs. This proof is scoped to its verified capabilities, not blanket PP2/CX1 enforcement. These classifications describe observed repository wiring, not independently verified behavior in every host version.
+
+## 7. Coste de contexto por target (E0.0)
+
+`node scripts/measure-context-baseline.js` genera los 7 targets en memoria con el mismo transform que `configure` y mide qué carga cada host antes de trabajar. Mide sobre la salida generada, no sobre la configuración del perfil, para que cualquier cambio del transform se vea tal cual. Los bytes se normalizan a LF, así que una copia de trabajo con CRLF mide lo mismo que CI.
+
+- **Always-on:** instrucciones que el host inyecta en cada petición: el `AGENTS.md` raíz, las reglas `.mdc` con `alwaysApply: true`, las `.instructions.md` con `applyTo: "**"` y los globs `instructions` de `opencode.json`. El listado de skills va aparte.
+- **Orquestador:** `sdd-orchestrator` como skill o agente, el agente primario de OpenCode o, en Codex, el `AGENTS.md`.
+- **Lecturas por agente:** el agente, las `SKILL.md` que nombra y los ficheros `_shared` que nombran él o esas skills. Es una aproximación determinista: cuenta todo lo nombrado aunque se lea bajo condición, y no sigue las referencias entre ficheros `_shared`.
+- **Skills:** instaladas (sin `_shared` ni las skills de comando de Codex) y listadas al modelo (sin `disable-model-invocation: true`), con los bytes de `name` y `description` del listado.
+
+Línea base en v2.81.3 (KB decimales):
+
+| Target | Always-on | Orquestador | Skills instaladas / listadas | Listado | Fases SDD | Revisores |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| claude | 0 | 62,4 | 83 / 57 | 9,8 | 32,8–73,0 | 36,8–37,1 |
+| vscode | 2,4 | 43,8 | 82 / 56 | 9,5 | 33,0–73,2 | 36,8–37,2 |
+| github-copilot | 22,7 | 43,6 | 82 / 56 | 9,5 | 32,8–73,0 | 36,8–37,1 |
+| opencode | 22,0 | 43,1 | 82 / 56 | 9,5 | 32,9–73,1 | 36,8–37,2 |
+| codex | 62,6 | 62,6 | 82 / 75 | 11,5 | 32,9–73,2 | 36,9–37,2 |
+| cursor | 25,7 | 47,9 | 82 / 56 | 9,5 | 32,7–73,0 | 36,8–37,1 |
+| antigravity | 22,7 | 43,7 | 82 / 56 | 9,5 | 32,9–73,1 | 36,8–37,1 |
+
+`review-change` y `review-correction` leen unos 5 KB porque no nombran ningún fichero `_shared`. El router de E0.4 no aparece todavía porque ningún instalador lo instala.
+
+**Techos.** `scripts/fixtures/context-baseline.json` guarda cada valor como techo, y `scripts/lib/context-baseline.test.js` falla si alguno sube o si aparece un target o un agente sin techo. Cuando un cambio reduce contexto, o lo aumenta con una justificación escrita en el PR, se regenera con `--update`. `--json` saca el informe completo, con el detalle por fichero.
