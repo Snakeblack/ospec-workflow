@@ -1,5 +1,7 @@
 # Análisis Comparativo: `ospec-workflow` vs. Otros Arneses de Agentes de IA
 
+> **Histórico (v2.14.2).** Las puntuaciones de este documento están desactualizadas. La comparación vigente con gentle-ai está en la [auditoría del 2026-10-03](analysis/2026-10-03-auditoria-harness-y-gentle-ai.md#7-comparación-con-gentle-ai-punto-5).
+
 Este documento presenta un análisis comparativo del arnés actual (**ospec-workflow v2.14.2**) frente a tres arneses de desarrollo asistido por IA de referencia en el ecosistema de código abierto:
 1. **[Gentle AI](https://github.com/Gentleman-Programming/gentle-ai)** de Gentleman Programming (código base de origen).
 2. **[ECC (Everything Claude Code)](https://github.com/affaan-m/ECC)** de affaan-m (optimizador de rendimiento, memoria y tokens).
