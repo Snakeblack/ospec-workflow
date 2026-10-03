@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.78.0] - 2026-10-03
+
+### Added
+- **Piloto Adaptive Repair — P3, cohorte del piloto (K12)**: la cohorte pasa de 11 a 22 tareas (catálogo `k12-pilot-1`: 6 local-reversible, 7 behavior-repair, 5 multi-module y 4 adversarial), todas con `pilot.json` v2. Las 18 tareas de reparación siembran los cuatro defectos y las 4 adversariales combinan dos fallos inyectados. Sin migraciones ni efectos externos.
+- **Multi-module en el piloto**: su ruta de control es `bugfix` y la receta Repair lo trata como un solo nodo cuyas rutas permitidas cubren todos los módulos tocados. El `wrong-patch` es una propagación parcial o un contrato entre módulos desalineado.
+- **`validatePilotCohortShape`** (`scripts/lib/k12/cohort.js`): exige 20–24 tareas, peso en local-reversible y behavior-repair y dos familias de holdout por estrato; `k12-campaign.js --paired` la aplica. Resultado: 22 tareas comparables, 0 excluidas, defectos 72/72 por repetición en ambos brazos, fallos contenidos 2/2 en cada adversarial y 0 regresiones.
+
+**Verificación directa**: `node scripts/check.js` (3607 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.77.1] - 2026-10-03
 
 ### Fixed
