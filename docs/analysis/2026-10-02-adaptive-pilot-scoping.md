@@ -63,7 +63,7 @@ Primero la **equivalencia de mecanismo** de K9; la calibración de profile con m
 | **P1 — Brazo y plan emparejado** | `RunManifest` admite `adaptive-repair-v1` (versión o extensión del enum, con fixtures y spec en `kernel-contract-schemas`); `planPairedRuns` y `summarizePairedCohort` (diferencias pareadas por tarea, intervalos agrupados, exclusiones) | Determinismo byte a byte; `fixed` sigue siendo el default; la cohorte incompleta no da veredicto |
 | **P2a — Ejecutor determinista con oracle aplicado** (entregado v2.75.0) | Por fixture: parche guionizado → etapas puras de K4b (`integrateWorkResultPatches` + Candidate K3) → verify K6b → `compareObligations` aplicado (`oracle.applied: true`), en los estratos local-reversible y behavior-repair | Ambos brazos producen `RunManifest` completos sobre la misma cohorte; las omisiones del manifest autodeclarado se detectan |
 | **P2b — Defectos sembrados** (entregado) | Checks reales por rol observados sobre los archivos del candidate y variantes de defecto sembrado (parche incorrecto, test complaciente, scope drift, receipt obsoleto) con etapa de detección declarada; `outcome.defects` en `RunManifest` | Defectos detectados/escapados por brazo; las variantes rechazadas en otra etapa marcan el fixture como mal atribuido |
-| **P2c — Recovery en adversarial** | Scripts piloto para los fixtures adversariales y composición con el harness K2 (interrupción inyectada y `recover`) | Recovery correcta tras interrupciones inyectadas; reintentos dentro del límite |
+| **P2c — Recovery en adversarial** (entregado) | Scripts piloto para los fixtures adversariales y composición con el harness K2: el pipeline limpio es el efecto de `complete` y se inyectan `interrupt-pre-effect`, `interrupt-mid-executor` y `bypass-without-permit` | Recovery correcta tras interrupciones inyectadas, fail-closed ante efecto ambiguo y sin bypass; un fallo no contenido falla la corrida |
 | **P3 — Cohorte del piloto** | De 11 a 20–24 tareas, con peso en behavior-repair y local-reversible, adversarial para autoridad y recovery, sin migraciones ni efectos externos; variantes de defecto sembrado; holdout por familia | `validateCohortShape` verde; el catálogo del oracle está versionado |
 | **P4 — Márgenes, ejecución e informe** | Márgenes de no inferioridad, mejora práctica y vetos **predeclarados** (decisión de producto); campaña emparejada de 3 repeticiones; informe y checkpoint `continue / revise / reject` | Informe con intervalos y cohortes excluidas; veto ante cualquier `must` omitida o efecto fuera de permiso |
 | Después | Calibración con agentes reales (modelo/effort versionados), luego K9 | Fuera de este alcance |
@@ -83,6 +83,15 @@ Primero la **equivalencia de mecanismo** de K9; la calibración de profile con m
 - **Resultado con la cohorte semilla:** 6 tareas × 4 defectos por brazo y repetición; ambos brazos detectan 24/24 por repetición, sin regresiones de defectos.
 - **Recovery** pasa a P2c: necesita scripts para los fixtures adversariales y componer con el harness K2.
 - **Límite conocido:** K6b juzga por la presencia de evidencia que pasa por rol. Con dos checks del mismo rol, uno que falla no bloquea si el otro pasa. Los fixtures usan un check por rol, y se registra para la calibración.
+
+### Ajuste de P2c (2026-10-03)
+
+- **Semántica real del kernel, comprobada empíricamente.** La interrupción `before-effect` del harness salta después de la marca `executing`, así que el kernel la registra como `unknown` y bloquea el resume con `reconciliation-required`. La recuperación segura exige interrumpir en la barrera pre-efecto (`checkpointInterrupt: "after-journal"`): el resume reintenta el mismo efecto y lo ejecuta exactamente una vez.
+- **Comportamiento correcto por fallo.** `interrupt-pre-effect`: se reanuda hasta `completed` con una sola ejecución. `interrupt-mid-executor`: fail-closed (`reconciliation-required`) sin reejecutar, porque el resultado es ambiguo. `bypass-without-permit`: `unauthorized` sin ejecutar nada, y el reintento autorizado completa la tarea.
+- **Control negativo:** un host que pierde el journal al reanudar reejecuta el efecto ambiguo (2 ejecuciones) y la corrida falla como `fault-escaped`, así que el chequeo no es vacuo.
+- **Ruta de control de adversarial:** `bugfix`, porque los fixtures guionizan una reparación pequeña.
+- **Resultado con la cohorte semilla:** 8 tareas comparables (multi-module sigue excluido), fallos contenidos 2/2 en cada tarea adversarial y en ambos brazos, 0 regresiones. La paridad vuelve a ser lo esperado: los dos brazos comparten el kernel.
+- **Sin cambios de contrato:** los recuentos van en `measurements.interruptions` y `measurements.recoveries`, que ya existían.
 
 ## 5. Decisiones abiertas para el usuario
 
