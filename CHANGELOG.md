@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.81.2] - 2026-10-03
+
+### Changed
+- **`docs/architecture/` queda solo para la arquitectura vigente**: la arquitectura objetivo del kernel, la revisión crítica de Adaptive, la proporcionalidad, la foundation holística y la investigación (P0–P27, *proof-carrying* y Change Program) pasan a `docs/roadmaps/archive/2026-10-03-arquitectura/`, con un aviso de archivo y un índice que indica qué ítem del roadmap usa cada documento como insumo (E1.5, E2.3, E4.x y E6.2). Las fases SDD leen `docs/architecture/` como la arquitectura del proyecto, y estos documentos describían una arquitectura objetivo en buena parte sin implementar o aparcada. La carpeta conserva un README que remite a la referencia técnica actual hasta que E2.6 genere el baseline y los ADR de ospec.
+- **`docs/README.md` vuelve a ser el índice de la documentación**: desde el 2026-07-18 contenía por error una copia de la arquitectura en el corte v2.29.1, y los README de la raíz lo enlazan como índice.
+- **El release ya no exige un corte documental en la arquitectura**: `manifest-sync` solo cruza la versión con el roadmap. El checker `k1-maturity` y los tests de documentación de K2.1, K2a y K3 leen ahora el documento archivado; E1.5 decide si se retiran.
+
+### Removed
+- `docs/codex.md`: copia del roadmap en el corte v2.29.1, sustituida desde entonces por el roadmap único.
+
+**Verificación directa**: `node scripts/check.js` (3634 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.81.1] - 2026-10-03
 
 ### Added
