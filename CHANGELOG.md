@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.81.1] - 2026-10-03
+
+### Added
+- **Auditoría del harness y comparación con gentle-ai** (`docs/analysis/2026-10-03-auditoria-harness-y-gentle-ai.md`): en proyectos consumidores, los agentes de fase no cargan su skill porque la leen con ruta relativa (en una sesión real, `sdd-apply` y `sdd-clarify` trabajaron sin ella). Mide el coste fijo de instrucciones por target (Codex carga 63 KB en cada sesión; Cursor, Copilot, OpenCode y Antigravity, 23–26 KB en cada petición) y detecta que el extractor de *compact rules* inyecta antipatrones como reglas. Incluye el veredicto sobre las 82 skills (46 por defecto, 6 opcionales y 30 fuera o fusionadas) y la comparación con gentle-ai v4.
+
+### Changed
+- **Roadmap único**: `docs/roadmaps/harness-evolution.md` pasa a tener seis etapas con objetivos medibles y una tabla de estado que se ejecuta change a change con el propio ospec-workflow: base sana, CLI `ospec` (status, next, record y doctor), foundation de verdad (mapa de conocimiento, motor de huecos de decisión y ADRs de arquitectura agnósticos), conocimiento vivo en cada change, ejecución proporcional y demostración frente a gentle-ai. El roadmap K1–K12 se archiva en `docs/roadmaps/archive/2026-10-03-harness-evolution-kernel.md`. K9 general, K10-delivery, K11, K12 longitudinal, CX2–CX6 y Dream-RSI quedan aparcados con criterio de reapertura, y la receta Repair sigue como E4.2.
+- **Instrucciones recomendadas**: `global-instructions/CLAUDE.md` y `AGENTS.md` pasan a ser un router fino que explica cuándo usar ospec, cómo entrar en cada host y qué reglas valen siempre. Todavía no se instalan; los cablea E0.4.
+- **Gobernanza documental**: el README de roadmaps, `docs/CLAUDE.md` y las cabeceras de la arquitectura señalan el roadmap único como fuente de dirección y prioridad.
+
+**Verificación directa**: `node scripts/check.js` (3634 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.81.0] - 2026-10-03
 
 ### Added

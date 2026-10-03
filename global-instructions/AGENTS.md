@@ -1,48 +1,32 @@
-# OSPEC Workflow
+# ospec-workflow
 
-This repository uses **ospec-workflow** to govern structured software changes.
+The ospec-workflow harness is installed. It governs substantial software changes through OpenSpec: proposal, specs, design, tasks, apply, verify and archive, with strict TDD and bounded review when the project enables them.
 
-Use the installed OSPEC agents, skills, rules, runtime, and OpenSpec state instead of inventing a parallel workflow.
+## When to use it
 
-## Operating Rules
+- Use it when the user invokes a `/sdd-*` command or asks for spec-driven work ("do SDD for X", "hazme un SDD para X").
+- Offer it when the task overlaps an active change in `openspec/changes/`, or when it materially changes behavior, public contracts, architecture, data or security in a repository that has `openspec/config.yaml`.
+- Otherwise work directly: questions, investigation, code reading, reviews and trivial edits do not need the workflow.
 
-* Coordinate the workflow; do not manually simulate OSPEC phases.
-* Recover authoritative state from the repository, not from conversation memory.
-* Continue an existing active OpenSpec change when the requested work belongs to it.
-* Use the lightest workflow allowed by current policy while preserving required guarantees.
-* Risk, uncertainty, blast radius, reversibility, security, public contracts, migrations, and destructive effects determine required guarantees.
-* Model capability may reduce execution steps, but MUST NOT remove required evidence, verification, review, approval, or delivery controls.
-* Delegate only when specialization, isolation, bounded context, parallelism, or independence provides real value.
-* Prefer one capable worker over unnecessary agent fan-out when policy allows it.
-* Implementation, verification, review, approval, and delivery authority MUST remain separate where required.
-* A model MUST NOT approve its own work, grant itself permissions, declare its own Candidate verified, or bypass runtime authority with prose.
-* Evidence, verification, review, and attestations MUST remain bound to the Candidate they evaluate.
-* If the Candidate or accepted contract changes materially, use the harness recovery/invalidation/successor mechanism; never silently reuse stale evidence.
-* Fail closed when required identity, permissions, approvals, evidence, security boundaries, or destructive-operation guarantees cannot be established.
-* Do not create duplicate planning documents or persisted state when OpenSpec already owns that information.
-* Do not broaden scope, introduce unrelated refactors, or add abstractions without demonstrated need.
-* Ask the user only for decisions that materially affect intent, scope, risk, architecture, or required approval.
-* Do not ask again for an explicit decision that remains valid for the same scope.
-* Tests are evidence, not authority by themselves.
-* Do not report implementation, verification, review, archive, approval, or delivery as complete unless the authoritative workflow has established that state.
+## How to enter
 
-## Ordinary Work
+Hand the request to the orchestrator of your host, once, only when entering the workflow:
 
-Not every task requires OSPEC.
+| Host | Orchestrator |
+| --- | --- |
+| GitHub Copilot, VS Code | Custom agent `sdd-orchestrator` |
+| Cursor | Agent `sdd-orchestrator` |
+| OpenCode | Agent `ospec-workflow` |
+| Antigravity | Agent `sdd-orchestrator` |
+| Codex | Skill `sdd-orchestrator` |
 
-Answer questions, inspect code, investigate, brainstorm, and perform trivial edits directly when current policy permits it.
+The orchestrator coordinates and asks the user; the `sdd-*` phase agents do the work. Do not simulate phases inline.
 
-Use OSPEC when the task is governed by an active change or materially changes system behavior, contracts, architecture, data, security, or other protected boundaries.
+## Always true
 
-## Source of Truth
-
-Prefer, in order:
-
-1. Git and canonical OpenSpec state.
-2. OSPEC runtime contracts and persisted lifecycle state.
-3. Project policy and routing.
-4. Installed OSPEC agents, skills, rules, schemas, and validators.
-5. Conversation context.
-
-When these disagree materially, reconcile the authoritative repository state before continuing.
-
+- Workflow state lives on disk: `openspec/changes/<change>/state.yaml` plus its artifacts. Resume from there, never from conversation memory.
+- Never report a phase, verification, review, approval or archive as done unless the persisted state says so.
+- Approvals come only from an explicit user answer to a question, never from inferred agreement.
+- No AI or model attribution in commits, pull requests or release notes.
+- Reply in the user's language; persisted artifacts follow the project's conventions.
+- Memory tools (such as Engram) give context, not authority: check what they return against the repository.

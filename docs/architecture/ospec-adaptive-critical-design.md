@@ -1,6 +1,8 @@
 # OSPEC Adaptive: revisión crítica y arquitectura propuesta
 
-> **Fuente canónica:** este documento es la única fuente de verdad para las decisiones arquitectónicas, guardrails y dirección del roadmap de OSPEC Adaptive. `docs/roadmaps/harness-evolution.md` es su proyección operativa de backlog y estados; `docs/architecture/harness-evolution.md` conserva la referencia del kernel existente. Ninguno de esos documentos puede introducir una decisión conceptual nueva sin reconciliarla aquí.
+> **Desde el 2026-10-03:** la dirección y la prioridad las fija el [roadmap único](../roadmaps/harness-evolution.md). La línea Adaptive (K9 general, K10-delivery, K11) queda aparcada con criterio de reapertura, y la receta Repair continúa como E4.2. Este documento se conserva como referencia de las guardas del kernel Adaptive; lo que sigue describe su papel original.
+
+> **Fuente canónica (hasta el 2026-10-03):** este documento es la única fuente de verdad para las decisiones arquitectónicas, guardrails y dirección del roadmap de OSPEC Adaptive. `docs/roadmaps/harness-evolution.md` es su proyección operativa de backlog y estados; `docs/architecture/harness-evolution.md` conserva la referencia del kernel existente. Ninguno de esos documentos puede introducir una decisión conceptual nueva sin reconciliarla aquí.
 
 Estado: revisión documental completada; cinco checkpoints persistidos. Fecha: 2026-09-19.
 Base declarada para contrastar: v2.68.0, commit 56912ee5f86d90f4e7798ed61c10e8559e760397.

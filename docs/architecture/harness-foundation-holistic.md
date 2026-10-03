@@ -1,6 +1,6 @@
 # Foundation holística y proporcional
 
-**Estado: diseño objetivo para futuros changes; no implementado por este documento.**
+**Estado: diseño objetivo para futuros changes; no implementado por este documento.** Desde el 2026-10-03 se implementa en la Etapa 2 del [roadmap único](../roadmaps/harness-evolution.md#etapa-2--foundation-de-verdad-descubrimiento-de-arquitectura) (E2.1–E2.5). Las referencias a R2 de este documento corresponden al roadmap archivado.
 La propuesta amplía el descubrimiento dentro de `sdd-foundation` para conectar necesidad de negocio, diseño del software y viabilidad de su construcción y uso.
 Mantiene los artefactos existentes y ajusta la profundidad al riesgo y a la incertidumbre.
 
