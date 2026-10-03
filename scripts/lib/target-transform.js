@@ -8,6 +8,7 @@
 
 const { parse, serialize, getField, stripKeys, setScalar, setArray, setBlockMap } = require("./frontmatter.js");
 const { resolveModel, OMIT } = require("./model-resolver.js");
+const { embedAgentReferences } = require("./agent-embed.js");
 
 // A file collection is an array of { path, content:string }.
 
@@ -19,10 +20,13 @@ function transform({ files, profile, models } = {}) {
     throw new TypeError("profile must be a non-null object");
   }
   const rulesContent = collectRules(files, profile);
+  // Worker agents embed the skill files they read (E0.1), resolved against
+  // the canonical source tree; LF-normalized so CRLF checkouts emit the same.
+  const sources = new Map(files.map((file) => [file.path, String(file.content).replace(/\r\n/g, "\n")]));
   const out = [];
 
   for (const file of files) {
-    const handled = handleFile(file, profile, models, rulesContent);
+    const handled = handleFile(file, profile, models, rulesContent, sources);
     if (handled === null) {
       continue; // dropped (e.g. rules inlined elsewhere, or folded into AGENTS.md)
     }
@@ -43,7 +47,7 @@ function transform({ files, profile, models } = {}) {
   return { files: out };
 }
 
-function handleFile(file, profile, models, rulesContent) {
+function handleFile(file, profile, models, rulesContent, sources) {
   const { path } = file;
 
   if (isDropped(path, profile)) {
@@ -109,10 +113,11 @@ function handleFile(file, profile, models, rulesContent) {
     if (profile.orchestrator && profile.orchestrator.emitAs === "root-agent-md" && agentBaseName(path, profile) === profile.orchestrator.agent) {
       return emitOrchestratorRootAgentMd(file, profile, rulesContent);
     }
+    const selfContained = { path, content: embedAgentReferences({ agentPath: path, content: sources.get(path), sources }) };
     if (profile.agentFile.format === "toml") {
-      return handleAgentToml(file, profile, models);
+      return handleAgentToml(selfContained, profile, models);
     }
-    return handleAgent(file, profile, models);
+    return handleAgent(selfContained, profile, models);
   }
 
   if (isCommand(path, profile)) {

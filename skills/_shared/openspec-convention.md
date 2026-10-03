@@ -176,8 +176,8 @@ Skill entries cached in `.ospec/cache/skill-registry.cache.json` include their a
 
 ```json
 {
-  "id": "stack-angular",
-  "path": "skills/stack-angular/SKILL.md",
+  "id": "angular",
+  "path": "skills/angular/SKILL.md",
   "triggers": ["angular"],
   "compact_rules": [
     "Always prefer standalone components over NgModule-based declarations."

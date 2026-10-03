@@ -16,10 +16,10 @@ See [sdd-phase-common.md](skills/_shared/sdd-phase-common.md) for executor bound
 
 ## Required skill
 
-Read the matching in-repository skill file and follow it exactly:
+Read the matching skill file and follow it exactly:
 - `skills/sdd-explore/SKILL.md`
 
-Also read shared conventions from the repository skills root:
+Also read the shared conventions:
 - `skills/_shared/sdd-phase-common.md`
 
 ## Required artifacts

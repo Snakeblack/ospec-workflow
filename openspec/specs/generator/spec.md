@@ -842,3 +842,26 @@ The generator MUST include the host-neutral Engram session-memory addendum rule 
 
 - GIVEN builds for each target
 - WHEN each MCP config and hooks file is searched for `engram`
+
+### Requirement: Worker Agents Embed Their Skill References {#REQ-generator-019}
+
+Every generated worker agent (SDD phase and review agents; any agent with a matching `skills/<agent>/SKILL.md` in the source) MUST be self-contained, because a consumer project has no `skills/` tree. The generator MUST embed, under a final `## Embedded references` section, the agent's own skill body (without frontmatter or orchestrator gate), every file in that skill's directory that the skill names (followed transitively within the directory), and every `skills/_shared/` file named by the agent, its skill, or those modules. References between embedded `_shared` files MUST NOT be followed. Each reference to an embedded file MUST be rewritten to the marker `«id»` of its section; a reference to another ospec skill file that is not embedded MUST be relabelled as living in the installed ospec skills, never left as a relative `skills/` path. Coordinators without a matching skill MUST be emitted unchanged. The rule applies identically to every target, including TOML agents.
+
+#### Scenario: No generated worker agent depends on a relative skills path
+
+- GIVEN a build is generated in memory for each of the 7 targets
+- WHEN every worker agent is searched for a path into a skill ospec ships (`skills/<ospec-skill>/`, `../_shared/`, `./references/`)
+- THEN no match is found
+- AND every `«id»` marker has a matching `### «id»` section in the same agent
+
+#### Scenario: Each worker agent carries its hard rules
+
+- GIVEN a build for a target
+- WHEN a worker agent is compared with its generated skill
+- THEN the agent embeds its own skill section and every line of the skill's `Rules` or `Hard Rules` section that contains no path reference
+
+#### Scenario: Context measurement does not double count embedded files
+
+- GIVEN a worker agent with an `## Embedded references` section
+- WHEN the context baseline measures it
+- THEN the embedded bytes count as agent bytes and references named inside embedded sections are not followed

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.83.0] - 2026-10-03
+
+### Fixed
+- **Los agentes de trabajo funcionan en proyectos consumidores (E0.1)**: los agentes de fase SDD y los revisores leían `skills/<skill>/SKILL.md` y `skills/_shared/*.md` con rutas relativas que solo existen en este repositorio. En un proyecto consumidor trabajaban sin su skill y sin los módulos condicionales; por ejemplo, el de Strict TDD nunca llegaba a cargarse. Ahora el generador incrusta en cada agente, en los 7 targets, una sección `## Embedded references` con:
+  - su skill, sin frontmatter ni el aviso dirigido al orquestador;
+  - los módulos de su propio directorio que la skill nombra (`strict-tdd`, `focused-tdd`, `strict-tdd-verify`, `references/*`);
+  - los ficheros `_shared` que nombran el agente, su skill o esos módulos.
+
+  Cada referencia pasa a ser un marcador `«id»` de su sección. Las referencias entre ficheros `_shared` no se siguen, y lo que no se incrusta se señala como parte de las skills instaladas de ospec, nunca como una ruta del proyecto. El orquestador no cambia.
+
+### Changed
+- **Coste de contexto**: los revisores no cambian y la mayoría de las fases bajan unos 0,4 KB. Suben los agentes cuyos módulos condicionales antes se perdían: `sdd-apply` (73,0 → 93,3 KB), `sdd-verify` (48,0 → 68,1 KB), `sdd-init` (+5,3 KB), `sdd-document` (+4,5 KB) y `sdd-foundation` (+2,5 KB). La medición de E0.0 cuenta lo incrustado como bytes del agente y no sigue lo que nombra. Los techos se regeneran con esa justificación.
+- **Spec**: nuevo REQ-generator-019 en `openspec/specs/generator/spec.md`. Los agentes fuente dejan de hablar de «in-repository skill file», y dos ejemplos de documentación ya no usan rutas de skills reales de ospec.
+- **Roadmap**: E0.1 queda cerrado; el siguiente ítem es E0.2 (`scope-always-on-instructions`).
+
+**Verificación directa**: `node scripts/check.js` (3652 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.82.0] - 2026-10-03
 
 ### Added

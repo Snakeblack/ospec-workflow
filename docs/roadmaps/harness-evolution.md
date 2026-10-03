@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.82.0, 2026-10-03.
+> **Versión de referencia:** v2.83.0, 2026-10-03.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -86,7 +86,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | --- | --- | --- | --- | --- |
 | Instrucciones cargadas siempre (peor target) | 63 KB (Codex); 23–26 KB en Cursor, Copilot, OpenCode y Antigravity | Orquestador de 17–24 KB | Router de ≤ 4 KB | E0.2–E0.4 |
 | Contexto del flujo por defecto | Orquestador SDD de 44–63 KB más 60–75 KB por fase | 17–24 KB | Router más protocolo IDD ≤ 16 KB | E1.6 |
-| Agentes que cargan su skill en un proyecto consumidor | Parcial (`sdd-apply` y `sdd-clarify` sin skill) | — | 100 % | E0.1 |
+| Agentes que cargan su skill en un proyecto consumidor | 100 % desde v2.83.0 (antes, parcial: `sdd-apply` y `sdd-clarify` sin skill) | — | 100 % | E0.1 ✅ |
 | Obligaciones comprobadas por código | `validate-phase` en ~10 % de los despachos observados | Binario | 100 %, vía `ospec check` | E1.4 |
 | Documentos creados en un cambio trivial | Los de la ruta lite | 1 | 0 | E1.6 |
 | Preguntas antes de empezar un cambio | Hasta 4 por sesión | 0–1 | 0, salvo los tres casos de gate | E1 |
@@ -112,9 +112,9 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | Estado | ID | Change | Tipo |
 | --- | --- | --- | --- |
 | `done` | **E0.0** | `measure-context-baseline` | medición |
-| `next-eligible` | **E0.1** | `fix-phase-agent-skill-loading` | bugfix |
-| `pending` | **E0.2** | `scope-always-on-instructions` | refactor |
-| `pending` | **E0.3** | `curate-skill-catalog` | refactor |
+| `done` | **E0.1** | `fix-phase-agent-skill-loading` | bugfix |
+| `next-eligible` | **E0.2** | `scope-always-on-instructions` | refactor |
+| `next-eligible` | **E0.3** | `curate-skill-catalog` | refactor |
 | `pending` | **E0.4** | `router-and-sdd-on-demand` | feature |
 | `next-eligible` | **E1.1** | `idd-contract` | contrato |
 | `pending` | **E1.2** | `ospec-cli-core` | feature |
@@ -139,7 +139,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E0.1. Sigue siendo urgente aunque SDD pase a opcional: falla hoy a los usuarios del modo SDD y a los revisores que IDD reutiliza, y afecta a cualquier medición con agentes reales. E1.1 puede empezar ya, porque solo fija el contrato.
+**▶ SIGUIENTE:** E0.2: es la mayor reducción del coste fijo (23–63 KB por petición) y quita la fuga del flujo de release de este repositorio a Cursor. E0.3 y E1.1 también pueden empezar ya.
 
 **Dependencias:**
 
@@ -174,6 +174,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Problema:** los agentes leen `skills/<skill>/SKILL.md` con ruta relativa, que no existe en un proyecto consumidor. En una sesión real, `sdd-apply` y `sdd-clarify` trabajaron sin su skill. En este repositorio no se ve porque `skills/` está en la raíz.
 - **Alcance:** el generador incrusta en cada agente generado (fases SDD y revisores) el cuerpo de su skill y las referencias de `_shared` que necesita, en los 7 targets. Las referencias que un agente lee solo bajo condición se resuelven desde su propio directorio o se incrustan.
 - **Hecho cuando:** (1) un test de build comprueba que ningún agente generado contiene rutas `skills/` relativas; (2) un test por target comprueba que cada agente incluye sus reglas duras; (3) una ejecución real en un repositorio temporal sin `skills/` en la raíz completa una exploración y un review sin lecturas fallidas.
+- **Entregado en v2.83.0:** `scripts/lib/agent-embed.js` incrusta en cada agente de trabajo una sección `## Embedded references` con su skill, los módulos de su directorio y los `_shared` que nombra, y reescribe las referencias como marcadores `«id»` (REQ-generator-019). `scripts/lib/agent-embed.test.js` cubre (1) y (2) en los 7 targets. Para (3), `sdd-explore` y `review-trust` de un build de Claude cargado con `--plugin-dir` completaron su trabajo en un repositorio temporal sin `skills/`, sin ninguna llamada fallida. Coste: `sdd-apply` y `sdd-verify` suben unos 20 KB porque ahora cargan los módulos de Strict TDD que antes se perdían ([target-capabilities §7](../target-capabilities.md#7-coste-de-contexto-por-target-e00)). El orquestador sigue leyendo `skills/_shared/` con rutas relativas; eso pertenece a E0.4.
 
 ### E0.2 — `scope-always-on-instructions`
 

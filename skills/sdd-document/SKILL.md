@@ -168,7 +168,7 @@ The plan MUST include a table with these columns: `page`, `category`, `evidence`
 ```markdown
 | page | category | evidence | substance | canonical for |
 |---|---|---|---|---|
-| workflows/route-handlers.md | flow | skills/_shared/*.md | high | route handlers |
+| workflows/route-handlers.md | flow | src/routes/*.ts | high | route handlers |
 ```
 
 - `category`: domain class from Step 6.1. Use `flow` for flow/architecture-oriented pages — that value is the deterministic oracle for the Step 6.4 Mermaid check and is independent of `doc_language`.
