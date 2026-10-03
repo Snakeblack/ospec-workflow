@@ -453,6 +453,12 @@ This idempotent installer:
 5. Copies the `ospec-hooks` binary to `~/.cursor/scripts/hooks/` when it exists in `release/dist/`.
 6. `--dry-run` validates and writes nothing under `~/.cursor`.
 
+## Engram session memory (every target)
+Every `npm run setup:<target>` (Claude, Codex, Antigravity, opencode, Cursor, VS Code, Copilot CLI) configures [Engram](https://github.com/Gentleman-Programming/engram) automatically when the `engram` binary is on PATH. It runs the upstream `engram setup <agent>` (`claude-code`, `codex`, `antigravity-cli`, `opencode`, `cursor`, `vscode-copilot`). Copilot CLI has no upstream setup, so the installer adds an `engram mcp` entry to `~/.copilot/mcp-config.json` instead. The step is idempotent and fail-open, and it never changes the install exit code. Pass `--no-engram` to skip it (`npm run setup:codex -- --no-engram`). Without the binary, the installer only prints install guidance.
+- **Claude Code on Windows**: a short Git Bash fork probe decides whether the upstream hook's safe mode can be turned off (`ENGRAM_CLAUDE_WINDOWS_BASH_SAFE_MODE=0` in `~/.claude/settings.json`). The safe mode disables prompt capture and save reminders. A value you already set is never overwritten. The upstream hooks need bash, jq and curl.
+- **Cursor**: Cursor does not read global rule files, so paste `~/.cursor/engram-memory-protocol.md` into Settings → Rules → User Rules once.
+- Every target ships the same host-neutral SDD memory addendum. Engram is non-authoritative: OpenSpec and `state.yaml` remain the source of truth.
+
 ## How to verify agents and skills loaded
 
 Start with the visible entry points and inspect further detail only if something is missing.

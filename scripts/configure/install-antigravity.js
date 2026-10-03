@@ -5,6 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 
 const { runConfigure } = require("./cli.js");
+const { runEngramStep, withEngramStep } = require("./engram-setup.js");
 const { copyBinaryToTree } = require("./install-target.js");
 const { validateInstalled: validateInstalledAntigravity } = require("./validate-antigravity.js");
 const {
@@ -280,7 +281,7 @@ function installAntigravityRoot(antigravityRoot, outDir, sourceDir, args, deps) 
   }
 }
 
-function main(argv = process.argv.slice(2), deps = {}) {
+function install(argv = process.argv.slice(2), deps = {}) {
   const args = parseArgs(argv);
   const cwd = deps.cwd || process.cwd();
   const stdout = deps.stdout || process.stdout;
@@ -319,9 +320,18 @@ function main(argv = process.argv.slice(2), deps = {}) {
   return exitCode;
 }
 
+// Optional Engram session memory runs after a successful global install
+// (engram-per-target, adr-20261003-001); `--no-engram` turns it off.
+const main = withEngramStep("antigravity", install, {
+  eligible(argv) {
+    const args = parseArgs(argv);
+    return !args.error && !args.dryRun && !args.dest;
+  },
+});
+
 if (require.main === module) {
   try {
-    process.exitCode = main(process.argv.slice(2));
+    process.exitCode = main(process.argv.slice(2), { engramStep: runEngramStep });
   } catch (error) {
     process.stderr.write(`fatal: ${error.stack || error.message || error}\n`);
     process.exitCode = 1;

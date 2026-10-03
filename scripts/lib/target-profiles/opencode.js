@@ -90,7 +90,7 @@ module.exports = {
 
   // Drop the Claude plugin manifest, the Claude/Copilot hooks.json (replaced by the
   // plugin), and the standalone .mcp.json (consumed into opencode.json).
-  drop: [".claude-plugin/", "hooks/hooks.json", ".mcp.json", "rules/engram-session-memory.instructions.md"],
+  drop: [".claude-plugin/", "hooks/hooks.json", ".mcp.json"],
 
   // argv form, spawned with shell:false (see github-copilot profile).
   validate: ["node", "scripts/configure/validate-opencode.js", "{out}"],

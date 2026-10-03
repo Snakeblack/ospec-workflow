@@ -12,6 +12,7 @@ const path = require("node:path");
 const os = require("node:os");
 
 const { runConfigure } = require("./cli.js");
+const { runEngramStep, withEngramStep } = require("./engram-setup.js");
 const { copyBinaryToTree } = require("./install-target.js");
 const { safeParseJsonc, mutateFs } = require("./install-engine.js");
 
@@ -137,7 +138,7 @@ function updateSettingsJsoncPreservingComments(rawContent, pluginPath) {
   return { content: finalContent, updated: true };
 }
 
-function main(argv = process.argv.slice(2), deps = {}) {
+function install(argv = process.argv.slice(2), deps = {}) {
   const args = parseArgs(argv);
   const cwd = deps.cwd || process.cwd();
   const fsImpl = deps.fs || fs;
@@ -232,9 +233,18 @@ function main(argv = process.argv.slice(2), deps = {}) {
   return 0;
 }
 
+// Optional Engram session memory runs after a successful global install
+// (engram-per-target, adr-20261003-001); `--no-engram` turns it off.
+const main = withEngramStep("vscode", install, {
+  eligible(argv) {
+    const args = parseArgs(argv);
+    return !args.error && !args.dryRun;
+  },
+});
+
 if (require.main === module) {
   try {
-    process.exitCode = main();
+    process.exitCode = main(process.argv.slice(2), { engramStep: runEngramStep });
   } catch (error) {
     process.stderr.write(`fatal: ${error.stack || error.message || error}\n`);
     process.exitCode = 1;

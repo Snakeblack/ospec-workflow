@@ -9,7 +9,7 @@
 // Usage:
 //   node scripts/configure/install-claude.js            # build + add/update + install/update
 //   node scripts/configure/install-claude.js --build-only  # build only (use /reload-plugins in-session)
-//   node scripts/configure/install-claude.js --with-engram # also register the optional Engram plugin (opt-in)
+//   node scripts/configure/install-claude.js --no-engram   # skip the automatic Engram session-memory step
 //
 // Why a wrapper: the README dance was five manual commands (build, two validate
 // calls, Resolve-Path + marketplace add, install). The build already runs the
@@ -88,7 +88,9 @@ function main(argv = process.argv.slice(2), deps = {}) {
   const copyBinaryToTreeImpl = deps.copyBinaryToTree || copyBinaryToTree;
   const runImpl = deps.run || run;
   const listOutputImpl = deps.listOutput || listOutput;
-  const engramStepImpl = deps.engramStep || runEngramStep;
+  // The real Engram step comes only from the CLI entry or the TUI adapter, so an
+  // embedded call never reaches the user home through upstream `engram setup`.
+  const engramStepImpl = deps.engramStep || null;
   const bin = resolveClaudeBinImpl();
 
   const build = buildClaudeMarketplaceImpl({
@@ -117,11 +119,12 @@ function main(argv = process.argv.slice(2), deps = {}) {
     return 0;
   }
 
-  // Engram integration is optional, non-authoritative, and fail-open per REQ-install-028:
+  // Engram integration is automatic, non-authoritative, and fail-open per REQ-install-028:
   // it never alters the exit code, and is skipped on build/ospec-install failure and --build-only.
   const engram = () => {
+    if (!engramStepImpl) return;
     try {
-      engramStepImpl({ argv, claudeBin: bin, stdout, stderr });
+      engramStepImpl({ target: "claude", argv, hostBin: bin, stdout, stderr });
     } catch (error) {
       stderr.write(`warning: Engram step skipped (${error.message}); continuing.\n`);
     }
@@ -165,7 +168,7 @@ function main(argv = process.argv.slice(2), deps = {}) {
 }
 
 if (require.main === module) {
-  process.exitCode = main(process.argv.slice(2));
+  process.exitCode = main(process.argv.slice(2), { engramStep: runEngramStep });
 }
 
 module.exports = { main, resolveClaudeBin };

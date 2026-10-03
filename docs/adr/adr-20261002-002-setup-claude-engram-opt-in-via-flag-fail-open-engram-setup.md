@@ -1,6 +1,6 @@
 # ADR-002: setup:claude Engram opt-in via --with-engram and a fail-open engram-setup module
 
-- Status: proposed
+- Status: superseded by adr-20261003-001
 - Change: add-engram-session-memory
 - Date: 2026-10-02
 

@@ -6,6 +6,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const { runConfigure } = require("./cli.js");
+const { runEngramStep, withEngramStep } = require("./engram-setup.js");
 const { assertSafeDest } = require("./install-target.js");
 const {
   readOwnershipManifest,
@@ -1081,7 +1082,7 @@ function reportConfigRepair(repair, stdout) {
   }
 }
 
-function main(argv, deps = {}) {
+function install(argv, deps = {}) {
   const args = parseArgs(argv);
   const cwd = deps.cwd || process.cwd();
   const fsImpl = deps.fs || fs;
@@ -1279,9 +1280,22 @@ function main(argv, deps = {}) {
   }
 }
 
+// Optional Engram session memory runs after a successful global install
+// (engram-per-target, adr-20261003-001); `--no-engram` turns it off.
+const main = withEngramStep("codex", install, {
+  eligible(argv) {
+    const args = parseArgs(argv);
+    return !args.error && !args.dryRun && !args.destRepo;
+  },
+  hostBin(deps) {
+    const bin = (deps.findCodexBin || findCodexBin)();
+    return bin ? resolveCodexInvocation(bin, [], deps) : null;
+  },
+});
+
 if (require.main === module) {
   try {
-    process.exitCode = main(process.argv.slice(2));
+    process.exitCode = main(process.argv.slice(2), { engramStep: runEngramStep });
   } catch (error) {
     process.stderr.write(`${error.message}\n`);
     process.exitCode = 1;

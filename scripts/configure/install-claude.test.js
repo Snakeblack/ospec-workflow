@@ -57,19 +57,27 @@ function baseDeps(overrides = {}) {
   };
 }
 
-test("Engram step receives argv with --with-engram and the resolved claude bin on the success path", () => {
+test("Engram step receives the claude target, argv and the resolved claude bin on the success path", () => {
   let received;
-  const exitCode = main(["--with-engram"], baseDeps({ engramStep(options) { received = options; } }));
+  const exitCode = main(["--no-engram"], baseDeps({ engramStep(options) { received = options; } }));
   assert.equal(exitCode, 0);
-  assert.deepEqual(received.argv, ["--with-engram"]);
-  assert.equal(received.claudeBin, "claude");
+  assert.equal(received.target, "claude");
+  assert.deepEqual(received.argv, ["--no-engram"]);
+  assert.equal(received.hostBin, "claude");
+});
+
+test("without an injected Engram step (embedded call) nothing Engram-related runs", () => {
+  const stdout = writer();
+  const exitCode = main([], baseDeps({ stdout }));
+  assert.equal(exitCode, 0);
+  assert.doesNotMatch(stdout.value, /Engram/);
 });
 
 test("Engram step also runs (guidance only) when the claude CLI is absent", () => {
   let received;
   const exitCode = main([], baseDeps({ resolveClaudeBin: () => null, engramStep(options) { received = options; } }));
   assert.equal(exitCode, 0);
-  assert.equal(received.claudeBin, null);
+  assert.equal(received.hostBin, null);
   assert.deepEqual(received.argv, []);
 });
 
