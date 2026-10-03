@@ -357,6 +357,7 @@ test("the campaign CLI runs the paired pilot and exits 0 on a usable comparison"
   });
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /tasks=22 comparable=22 pairs=22 excluded=0 regressions=0 defects_detected fixed=72\/72 adaptive=72\/72 defect_regressions=0/);
+  assert.match(result.stdout, /checkpoint=continue margins=k12-pilot-margins-1 vetoes=0 revisions=0/);
   assert.match(result.stdout, /"verdict": "usable-comparison"/);
 });
 
