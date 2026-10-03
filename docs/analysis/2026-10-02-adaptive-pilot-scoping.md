@@ -66,7 +66,7 @@ Primero la **equivalencia de mecanismo** de K9; la calibración de profile con m
 | **P2c — Recovery en adversarial** (entregado) | Scripts piloto para los fixtures adversariales y composición con el harness K2: el pipeline limpio es el efecto de `complete` y se inyectan `interrupt-pre-effect`, `interrupt-mid-executor` y `bypass-without-permit` | Recovery correcta tras interrupciones inyectadas, fail-closed ante efecto ambiguo y sin bypass; un fallo no contenido falla la corrida |
 | **P3 — Cohorte del piloto** (entregado) | De 11 a 20–24 tareas, con peso en behavior-repair y local-reversible, adversarial para autoridad y recovery, sin migraciones ni efectos externos; variantes de defecto sembrado; holdout por familia | `validateCohortShape` verde; el catálogo del oracle está versionado |
 | **P4 — Márgenes, ejecución e informe** (entregado: [informe](2026-10-03-adaptive-pilot-report.md), checkpoint `continue`) | Márgenes de no inferioridad, mejora práctica y vetos **predeclarados** (decisión de producto); campaña emparejada de 3 repeticiones; informe y checkpoint `continue / revise / reject` | Informe con intervalos y cohortes excluidas; veto ante cualquier `must` omitida o efecto fuera de permiso |
-| Después | Calibración con agentes reales (modelo/effort versionados), luego K9 | Fuera de este alcance |
+| Después | Calibración con agentes reales (modelo/effort versionados), luego K9 | Calibración behavior-repair entregada en v2.80.0 con checkpoint `continue` (ver el [informe](2026-10-03-adaptive-pilot-report.md)); K9 sigue fuera de este alcance |
 
 **Rollback:** todo es tooling de medición library-only, sin autoridad operativa; si se retira, `fixed` y el routing actual no cambian.
 

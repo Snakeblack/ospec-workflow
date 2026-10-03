@@ -206,6 +206,7 @@ function validatePilotCohortShape(cohort) {
 }
 
 module.exports = {
+  STRATA,
   CohortError,
   loadCohort,
   validateCohortShape,

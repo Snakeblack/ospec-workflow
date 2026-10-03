@@ -10,6 +10,7 @@ const { loadCohort, validateCohortShape, validatePilotCohortShape } = require(".
 const { createHarnessCampaignExecutor } = require("./lib/k12/campaign-executor.js");
 const { evaluatePilotCheckpoint, loadPilotMargins } = require("./lib/k12/pilot-checkpoint.js");
 const { createDeterministicPilotExecutor } = require("./lib/k12/pilot-executor.js");
+const { loadWorkerRecord, recordCohort, summarizeWorkerUsage } = require("./lib/k12/worker-record.js");
 const {
   executePlan,
   planPairedRuns,
@@ -28,10 +29,12 @@ function parseArgs(argv) {
     seed: null,
     cohortPath: join(fixtureRoot, "oracle-catalog.json"),
     tasksDir: join(fixtureRoot, "tasks"),
-    marginsPath: join(fixtureRoot, "pilot-margins.json"),
+    marginsPath: null,
+    workerRecordPath: null,
     out: null,
     faults: true,
     paired: false,
+    repetitionsGiven: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -44,7 +47,7 @@ function parseArgs(argv) {
       options.paired = true;
       continue;
     }
-    if (!["--repetitions", "--seed", "--cohort-path", "--tasks-dir", "--margins", "--out"].includes(arg)) {
+    if (!["--repetitions", "--seed", "--cohort-path", "--tasks-dir", "--margins", "--worker-record", "--out"].includes(arg)) {
       throw new Error(`unknown argument: ${arg}`);
     }
     const value = argv[index + 1];
@@ -52,6 +55,9 @@ function parseArgs(argv) {
     index += 1;
     if (arg === "--repetitions") {
       options.repetitions = Number(value);
+      options.repetitionsGiven = true;
+    } else if (arg === "--worker-record") {
+      options.workerRecordPath = value;
     } else if (arg === "--seed") {
       options.seed = value;
     } else if (arg === "--cohort-path") {
@@ -66,6 +72,16 @@ function parseArgs(argv) {
   }
 
   if (!options.seed) throw new Error("--seed is required");
+  if (options.workerRecordPath) {
+    // A recorded agent output is one sample per arm: replaying it again would add
+    // correlated copies, not repetitions.
+    if (!options.paired) throw new Error("--worker-record requires --paired");
+    if (options.repetitionsGiven && options.repetitions !== 1) throw new Error("--worker-record replays one recorded output per arm: use --repetitions 1");
+    options.repetitions = 1;
+  }
+  // Each mode judges against its own predeclared margins unless one is named.
+  options.marginsPath = options.marginsPath
+    || join(fixtureRoot, options.workerRecordPath ? "calibration-margins.json" : "pilot-margins.json");
   if (!Number.isInteger(options.repetitions) || options.repetitions < 1) {
     throw new Error("--repetitions must be an integer greater than or equal to 1");
   }
@@ -74,8 +90,11 @@ function parseArgs(argv) {
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
-  const cohort = loadCohort(resolve(options.cohortPath), resolve(options.tasksDir));
-  const validation = options.paired ? validatePilotCohortShape(cohort) : validateCohortShape(cohort);
+  const fullCohort = loadCohort(resolve(options.cohortPath), resolve(options.tasksDir));
+  const workerRecord = options.workerRecordPath ? loadWorkerRecord(resolve(options.workerRecordPath), fullCohort) : null;
+  // A calibration replays only the fixtures its record covers; the pilot shape applies to the full cohort.
+  const cohort = workerRecord ? recordCohort(fullCohort, workerRecord) : fullCohort;
+  const validation = options.paired ? validatePilotCohortShape(fullCohort) : validateCohortShape(fullCohort);
   if (!validation.valid) {
     for (const error of validation.errors) console.error(error);
     process.exitCode = 1;
@@ -92,7 +111,7 @@ async function main() {
     cohort_id: `seed-${cohort.catalog.catalog_version}`,
     base_worktree_root: join(campaignRoot, "worktrees"),
     base_cache_root: join(campaignRoot, "cache"),
-    evaluator: options.paired ? "k12-pilot-deterministic" : "minimal-kernel-harness",
+    evaluator: workerRecord ? "k12-pilot-recorded-worker" : options.paired ? "k12-pilot-deterministic" : "minimal-kernel-harness",
     host: "node",
     runner_version: options.paired ? "k12-pilot/v1" : "k12-campaign/v1",
   };
@@ -103,13 +122,15 @@ async function main() {
     const routes = parseRoutingTable(readFileSync(configPath, "utf8"));
     const completed = await executePlan(
       planPairedRuns(cohort, planOptions),
-      createDeterministicPilotExecutor({ catalog: cohort.catalog, routes }),
+      createDeterministicPilotExecutor({ catalog: cohort.catalog, routes, workerRecord }),
     );
     const report = summarizePairedCohort(completed);
-    const checkpoint = evaluatePilotCheckpoint({ runs: completed.runs, report, cohort, ...declared });
-    summary = { ...report, checkpoint };
+    const checkpoint = evaluatePilotCheckpoint({ runs: completed.runs, report, cohort, ...declared, recordedWorker: Boolean(workerRecord) });
+    summary = workerRecord
+      ? { ...report, checkpoint, worker: { record_version: workerRecord.record_version, ...workerRecord.worker, usage: summarizeWorkerUsage(workerRecord) } }
+      : { ...report, checkpoint };
     const { totals } = summary;
-    const defects = (arm) => `${totals.defects[arm].detected}/${totals.defects[arm].seeded}`;
+    const defects = (arm) => (totals.defects ? `${totals.defects[arm].detected}/${totals.defects[arm].seeded}` : "n/a");
     console.log(
       `tasks=${totals.tasks_total} comparable=${totals.tasks_comparable} pairs=${totals.pairs_total} excluded=${totals.pairs_excluded} regressions=${summary.regressions.length}`
       + ` defects_detected fixed=${defects("fixed")} adaptive=${defects("adaptive-repair-v1")} defect_regressions=${summary.defect_regressions.length}`,

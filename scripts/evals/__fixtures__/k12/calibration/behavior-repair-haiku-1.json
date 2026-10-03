@@ -1,0 +1,252 @@
+{
+  "schema_version": 1,
+  "record_version": "k12-calibration-behavior-repair-haiku-1",
+  "recorded_at": "2026-10-03",
+  "worker": {
+    "model": "claude-haiku-4-5-20251001",
+    "effort": "default",
+    "host": "claude-code-subagent"
+  },
+  "protocols": {
+    "fixed": [
+      "explore",
+      "tasks",
+      "apply",
+      "verify",
+      "archive"
+    ],
+    "adaptive-repair-v1": [
+      "reproduce",
+      "repair",
+      "verify"
+    ]
+  },
+  "outputs": {
+    "behavior-null-guard": {
+      "brief": "Calling `length(null)` from `src/length.js` crashes with a TypeError instead of returning 0. Missing values should count as length 0. Valid strings and arrays must keep their current length.",
+      "arms": {
+        "fixed": {
+          "patch": "--- a/src/length.js\n+++ b/src/length.js\n@@ -1,1 +1,6 @@\n-module.exports = (value) => value.length;\n+module.exports = (value) => {\n+  if (value == null) {\n+    return 0;\n+  }\n+  return value.length;\n+};\n",
+          "artifacts": [
+            "work/archive.md",
+            "work/explore.md",
+            "work/tasks.md",
+            "work/test.js",
+            "work/verify.md"
+          ],
+          "usage": {
+            "tokens": 39171,
+            "tool_uses": 13,
+            "duration_ms": 50250
+          }
+        },
+        "adaptive-repair-v1": {
+          "patch": "--- a/src/length.js\n+++ b/src/length.js\n@@ -1,1 +1,4 @@\n-module.exports = (value) => value.length;\n+module.exports = (value) => {\n+  if (value == null) return 0;\n+  return value.length;\n+};\n",
+          "artifacts": [
+            "work/reproduce.js",
+            "work/verify.md"
+          ],
+          "usage": {
+            "tokens": 36004,
+            "tool_uses": 9,
+            "duration_ms": 32682
+          }
+        }
+      }
+    },
+    "behavior-legacy-adapter": {
+      "brief": "Payloads from the legacy API send `legacyId` instead of `id`. `adapt({ legacyId: 7 })` in `src/adapter.js` returns `{ id: undefined }` but should return `{ id: 7 }`. When a payload carries `id`, that value stays authoritative.",
+      "arms": {
+        "fixed": {
+          "patch": "--- a/src/adapter.js\n+++ b/src/adapter.js\n@@ -1,4 +1,4 @@\n-function adapt(input) {\n-  return { id: input.id };\n-}\n-module.exports = { adapt };\n+function adapt(input) {\n+  return { id: input.id || input.legacyId };\n+}\n+module.exports = { adapt };\n",
+          "artifacts": [
+            "work/archive.md",
+            "work/explore.md",
+            "work/tasks.md",
+            "work/test-adapter.js",
+            "work/verify.md"
+          ],
+          "usage": {
+            "tokens": 38840,
+            "tool_uses": 11,
+            "duration_ms": 47599
+          }
+        },
+        "adaptive-repair-v1": {
+          "patch": "--- a/src/adapter.js\n+++ b/src/adapter.js\n@@ -1,4 +1,4 @@\n-function adapt(input) {\n-  return { id: input.id };\n-}\n-module.exports = { adapt };\n+function adapt(input) {\n+  return { id: input.id !== undefined ? input.id : input.legacyId };\n+}\n+module.exports = { adapt };\n",
+          "artifacts": [
+            "work/reproduce.js",
+            "work/verify.md"
+          ],
+          "usage": {
+            "tokens": 36264,
+            "tool_uses": 8,
+            "duration_ms": 32333
+          }
+        }
+      }
+    },
+    "behavior-retry-backoff": {
+      "brief": "`delayFor(attempt)` in `src/retry.js` always returns 0, so clients retry in a tight loop (a retry storm). Expected policy: exponential backoff that starts at 1000 ms for attempt 0 and doubles per attempt, capped at 30000 ms. For example, `delayFor(1)` must be 2000.",
+      "arms": {
+        "fixed": {
+          "patch": "--- a/src/retry.js\n+++ b/src/retry.js\n@@ -1,4 +1,4 @@\n-function delayFor(attempt) {\n-  return 0;\n-}\n-module.exports = { delayFor };\n+function delayFor(attempt) {\n+  return Math.min(1000 * Math.pow(2, attempt), 30000);\n+}\n+module.exports = { delayFor };\n",
+          "artifacts": [
+            "work/archive.md",
+            "work/explore.md",
+            "work/tasks.md",
+            "work/test-retry-backoff.js",
+            "work/verify.md"
+          ],
+          "usage": {
+            "tokens": 38936,
+            "tool_uses": 12,
+            "duration_ms": 49408
+          }
+        },
+        "adaptive-repair-v1": {
+          "patch": "--- a/src/retry.js\n+++ b/src/retry.js\n@@ -1,4 +1,6 @@\n-function delayFor(attempt) {\n-  return 0;\n-}\n-module.exports = { delayFor };\n+function delayFor(attempt) {\n+  const baseDelay = 1000;\n+  const maxDelay = 30000;\n+  return Math.min(baseDelay * Math.pow(2, attempt), maxDelay);\n+}\n+module.exports = { delayFor };\n",
+          "artifacts": [
+            "work/reproduce.js",
+            "work/verify.md"
+          ],
+          "usage": {
+            "tokens": 36309,
+            "tool_uses": 7,
+            "duration_ms": 29828
+          }
+        }
+      }
+    },
+    "behavior-page-slice": {
+      "brief": "Each page drops its last item: `page([1, 2, 3, 4], 0, 2)` in `src/page.js` returns `[1]` instead of `[1, 2]`. Repair the slice bounds without changing empty or out-of-range pages.",
+      "arms": {
+        "fixed": {
+          "patch": "--- a/src/page.js\n+++ b/src/page.js\n@@ -1,1 +1,1 @@\n-module.exports = (items, page, size) => items.slice(page * size, page * size + size - 1);\n+module.exports = (items, page, size) => items.slice(page * size, page * size + size);\n",
+          "artifacts": [
+            "work/archive.md",
+            "work/explore.md",
+            "work/tasks.md",
+            "work/test-page.js",
+            "work/verify.md"
+          ],
+          "usage": {
+            "tokens": 39046,
+            "tool_uses": 12,
+            "duration_ms": 50722
+          }
+        },
+        "adaptive-repair-v1": {
+          "patch": "--- a/src/page.js\n+++ b/src/page.js\n@@ -1,1 +1,1 @@\n-module.exports = (items, page, size) => items.slice(page * size, page * size + size - 1);\n+module.exports = (items, page, size) => items.slice(page * size, page * size + size);\n",
+          "artifacts": [
+            "work/reproduce.js",
+            "work/verify.md"
+          ],
+          "usage": {
+            "tokens": 36315,
+            "tool_uses": 8,
+            "duration_ms": 31784
+          }
+        }
+      }
+    },
+    "behavior-cache-overwrite": {
+      "brief": "Setting an existing key keeps the stale value: after `cache.set(\"a\", 1); cache.set(\"a\", 2)`, `cache.get(\"a\")` in `src/cache.js` returns 1 instead of 2. Repair the overwrite without changing reads of missing keys.",
+      "arms": {
+        "fixed": {
+          "patch": "--- a/src/cache.js\n+++ b/src/cache.js\n@@ -1,7 +1,7 @@\n-module.exports = () => {\n-  const entries = new Map();\n-  return {\n-    get: (key) => entries.get(key),\n-    set: (key, value) => { if (!entries.has(key)) entries.set(key, value); },\n-  };\n-};\n+module.exports = () => {\n+  const entries = new Map();\n+  return {\n+    get: (key) => entries.get(key),\n+    set: (key, value) => { entries.set(key, value); },\n+  };\n+};\n",
+          "artifacts": [
+            "work/archive.md",
+            "work/explore.md",
+            "work/tasks.md",
+            "work/test-cache-overwrite.js",
+            "work/verify.md"
+          ],
+          "usage": {
+            "tokens": 38828,
+            "tool_uses": 14,
+            "duration_ms": 48789
+          }
+        },
+        "adaptive-repair-v1": {
+          "patch": "--- a/src/cache.js\n+++ b/src/cache.js\n@@ -1,7 +1,7 @@\n-module.exports = () => {\n-  const entries = new Map();\n-  return {\n-    get: (key) => entries.get(key),\n-    set: (key, value) => { if (!entries.has(key)) entries.set(key, value); },\n-  };\n-};\n+module.exports = () => {\n+  const entries = new Map();\n+  return {\n+    get: (key) => entries.get(key),\n+    set: (key, value) => { entries.set(key, value); },\n+  };\n+};\n",
+          "artifacts": [
+            "work/comprehensive.js",
+            "work/reproduce.js",
+            "work/verify.md"
+          ],
+          "usage": {
+            "tokens": 37006,
+            "tool_uses": 9,
+            "duration_ms": 37402
+          }
+        }
+      }
+    },
+    "behavior-retry-limit": {
+      "brief": "`retry(() => false, 3)` in `src/retry.js` makes 4 attempts instead of 3: the helper runs one attempt more than its limit. Retries must stop at the limit, and an early success must still stop immediately.",
+      "arms": {
+        "fixed": {
+          "patch": "--- a/src/retry.js\n+++ b/src/retry.js\n@@ -1,7 +1,7 @@\n-module.exports = (task, limit) => {\n-  let attempts = 0;\n-  for (;;) {\n-    attempts += 1;\n-    if (task(attempts) || attempts > limit) return attempts;\n-  }\n-};\n+module.exports = (task, limit) => {\n+  let attempts = 0;\n+  for (;;) {\n+    attempts += 1;\n+    if (task(attempts) || attempts >= limit) return attempts;\n+  }\n+};\n",
+          "artifacts": [
+            "work/archive.md",
+            "work/explore.md",
+            "work/tasks.md",
+            "work/test-retry.js",
+            "work/verify.md"
+          ],
+          "usage": {
+            "tokens": 38731,
+            "tool_uses": 11,
+            "duration_ms": 50608
+          }
+        },
+        "adaptive-repair-v1": {
+          "patch": "--- a/src/retry.js\n+++ b/src/retry.js\n@@ -1,7 +1,7 @@\n-module.exports = (task, limit) => {\n-  let attempts = 0;\n-  for (;;) {\n-    attempts += 1;\n-    if (task(attempts) || attempts > limit) return attempts;\n-  }\n-};\n+module.exports = (task, limit) => {\n+  let attempts = 0;\n+  for (;;) {\n+    attempts += 1;\n+    if (task(attempts) || attempts >= limit) return attempts;\n+  }\n+};\n",
+          "artifacts": [
+            "work/reproduce.js",
+            "work/verify.md"
+          ],
+          "usage": {
+            "tokens": 36936,
+            "tool_uses": 10,
+            "duration_ms": 36297
+          }
+        }
+      }
+    },
+    "behavior-unicode-count": {
+      "brief": "`count(\"a😀\")` in `src/count.js` returns 3 instead of 2: emoji count as two characters. Count code points instead, without changing ASCII or empty input.",
+      "arms": {
+        "fixed": {
+          "patch": "--- a/src/count.js\n+++ b/src/count.js\n@@ -1,1 +1,1 @@\n-module.exports = (text) => text.length;\n+module.exports = (text) => [...text].length;\n",
+          "artifacts": [
+            "work/archive.md",
+            "work/explore.md",
+            "work/tasks.md",
+            "work/test-count.js",
+            "work/verify.md"
+          ],
+          "usage": {
+            "tokens": 38925,
+            "tool_uses": 13,
+            "duration_ms": 52045
+          }
+        },
+        "adaptive-repair-v1": {
+          "patch": "--- a/src/count.js\n+++ b/src/count.js\n@@ -1,1 +1,1 @@\n-module.exports = (text) => text.length;\n+module.exports = (text) => Array.from(text).length;\n",
+          "artifacts": [
+            "work/reproduce.js",
+            "work/verify-comprehensive.js",
+            "work/verify.md"
+          ],
+          "usage": {
+            "tokens": 36464,
+            "tool_uses": 8,
+            "duration_ms": 30851
+          }
+        }
+      }
+    }
+  }
+}

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.80.0] - 2026-10-03
+
+### Added
+- **Calibración del piloto Adaptive Repair con agentes reales (K12)**: `scripts/lib/k12/worker-record.js` graba la salida de un agente por brazo y tarea (parche, artefactos por fase y consumo de tokens, herramientas y duración) y el ejecutor del piloto la reproduce (`workerRecord`) por el mismo pipeline determinista con checks ocultos. `k12-campaign.js --paired --worker-record <registro>` juzga una reproducción por brazo contra `calibration-margins.json`. El protocolo exacto de los prompts está versionado en `scripts/evals/__fixtures__/k12/calibration/PROTOCOL.md`.
+- **Dos registros con `claude-haiku-4-5-20251001` sobre las 7 tareas de behavior-repair**: el primero da `revise` bajo los márgenes del piloto aunque el Repair fue mejor (7/7 frente a 6/7); el confirmatorio, juzgado con `k12-calibration-margins-1` declarados antes de correrlo, da `continue`: 7/7 en ambos brazos, −3,9 % de tokens, −1,7 llamadas a herramientas y −21 % de duración por tarea, con intervalos por debajo de cero.
+
+### Changed
+- **Checkpoint del piloto**: con un worker grabado, un fallo del brazo de control es un resultado del worker y no un defecto del harness; se lista en `control_failures` sin pedir revisión. El holdout acepta cohortes acotadas a algunos estratos.
+
+**Verificación directa**: `node scripts/check.js` (3620 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.79.0] - 2026-10-03
 
 ### Added

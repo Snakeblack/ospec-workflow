@@ -116,6 +116,14 @@ test("a control-arm failure, an unapplied oracle, or an incomplete comparison as
   assert.match(checkpoint.revisions.join("; "), /comparison incomplete-comparison: pair-missing-arm/);
 });
 
+test("with a recorded real worker a control-arm failure is an outcome, not a harness defect", async () => {
+  const control = await realCampaign();
+  control.runs.find((run) => run.policy === "fixed" && run.fixture_id === "local-percent-format").outcome.status = "fail";
+  const checkpoint = judge(control, { recordedWorker: true });
+  assert.equal(checkpoint.checkpoint, "continue", checkpoint.revisions.join("; "));
+  assert.deepEqual(checkpoint.control_failures, ["local-percent-format"]);
+});
+
 test("missed margins ask to revise and name the reading", async () => {
   const inferior = await realCampaign();
   inferior.report.cohort.pass_rate_delta = { tasks: 22, mean: -0.05, sd: 0.1, ci95: [-0.1, 0] };
@@ -143,7 +151,7 @@ test("malformed margins and unreservable holdouts fail closed", async () => {
     [{ ...margins, non_inferiority: { pass_rate_delta_ci95_lower_min: 0.1 } }, /\[-1, 0\]/],
     [{ ...margins, practical_improvement: { phases_executed_delta_mean_max: 0 } }, /negative number/],
     [{ ...margins, holdout: { ...margins.holdout, adversarial: "compatibility" } }, /stratum "adversarial"/],
-    [{ ...margins, holdout: { ...margins.holdout, migration: "x" } }, /outside the cohort/],
+    [{ ...margins, holdout: { ...margins.holdout, migration: "x" } }, /unknown strata/],
   ];
   for (const [candidate, pattern] of cases) {
     assert.throws(() => validatePilotMargins(candidate, cohort), (error) => error instanceof PilotCheckpointError && pattern.test(error.message));
