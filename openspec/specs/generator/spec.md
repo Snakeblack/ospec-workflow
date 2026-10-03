@@ -105,11 +105,11 @@ Given a profile with a `rules.strategy` field,
 When a `rules/*.md` file is processed,
 Then:
 - If `strategy` is `"inline-into-orchestrator"`: the file MUST be dropped from output (content is folded into the orchestrator agent/skill by a separate collector).
-- If `strategy` is `"to-instructions"`: the file MUST be emitted under `profile.rules.dir/` with the target extension and an `applyTo` frontmatter key added.
-- If `strategy` is `"to-instructions-config"`: the file MUST be emitted under `profile.rules.dir/` and referenced from the synthesized config file (e.g. `opencode.json`); no `applyTo` key is added.
+- If `strategy` is `"to-instructions"`: the file MUST be emitted under `profile.rules.dir/` with the target extension and the host's scope field (`applyTo`, or `trigger` plus `globs`) per REQ-generator-020.
+- If `strategy` is `"to-instructions-config"`: a global rule MUST be emitted under `profile.rules.dir/` and referenced from the synthesized config file (e.g. `opencode.json`); no `applyTo` key is added. Scoped rules follow REQ-generator-020.
 - If `strategy` is `"to-mdc"`: the file MUST be emitted as `.mdc` per REQ-generator-006.
 
-(Previously: three strategies only; `to-mdc` added for Cursor.)
+(Previously: every `to-instructions` rule received `applyTo: "**"` and every `to-instructions-config` rule was always applied; since E0.2 the source scope is kept.)
 
 ### Scenario 4: Orchestrator skill emission (Claude target)
 
@@ -498,27 +498,35 @@ invalid policies, and verify generated model parity against that YAML mapping.
 ### Requirement: Rules May Emit Cursor MDC Files {#REQ-generator-006}
 
 A target profile MAY declare `rules.strategy: "to-mdc"`. When declared, each
-`rules/*.instructions.md` (or profile-equivalent rules source) MUST be emitted under
-`profile.rules.dir/` as a `.mdc` file with Cursor rule frontmatter containing
-`description`, `globs`, and `alwaysApply`. The transform MUST also synthesize
-`agents-protocol.mdc` from repository `AGENTS.md` when the profile declares a
-`rules.synthesize` entry for that source. Other strategies
-(`inline-into-orchestrator`, `to-instructions`, `to-instructions-config`) MUST remain
-unchanged.
+`rules/*.instructions.md` (or profile-equivalent rules source) that REQ-generator-020
+places in its own file MUST be emitted under `profile.rules.dir/` as a `.mdc` file
+with Cursor rule frontmatter containing `description` and `alwaysApply`, plus `globs`
+when the rule is path-scoped. The repository's own `AGENTS.md` (release flow of this
+repository) MUST NOT be distributed to Cursor or any other target. Other strategies
+(`inline-into-orchestrator`, `to-instructions`, `to-instructions-config`) keep their
+own emission rules.
 
-#### Scenario: Instruction rule emitted as mdc
+#### Scenario: Global rule emitted as an always-applied mdc
 
-- GIVEN a profile with `rules.strategy: "to-mdc"` and a source rules file
+- GIVEN a profile with `rules.strategy: "to-mdc"` and a source rule with `applyTo: '**'`
 - WHEN the transform processes that rules file
-- THEN the output MUST be a `.mdc` under `profile.rules.dir/` with `description`,
-  `globs`, and `alwaysApply` frontmatter keys
+- THEN the output MUST be a `.mdc` under `profile.rules.dir/` with `description` and
+  `alwaysApply: true`, and without `applyTo`
 
-#### Scenario: AGENTS.md synthesized as agents-protocol.mdc
+#### Scenario: Path rule emitted as an auto-attached mdc
 
-- GIVEN the profile declares `rules.synthesize` from `AGENTS.md` to base
-  `agents-protocol`
-- WHEN the transform completes
-- THEN `agents-protocol.mdc` MUST exist in the rules output directory
+- GIVEN a source rule with `applyTo: 'openspec/**'`
+- WHEN the transform processes that rules file
+- THEN the `.mdc` MUST carry `globs: ["openspec/**"]` and `alwaysApply: false`
+
+#### Scenario: Repository AGENTS.md is not distributed
+
+- GIVEN the source repository has an `AGENTS.md` with its release flow
+- WHEN any target is generated
+- THEN no generated file carries that release flow, and no `agents-protocol.mdc` exists
+
+(Previously: every `.mdc` was `alwaysApply: true` with `globs: ["*"]`, and Cursor
+synthesized `agents-protocol.mdc` from the repository `AGENTS.md`; removed in E0.2.)
 
 ### Requirement: Hooks May Emit Cursor CamelCase Event Map {#REQ-generator-007}
 
@@ -865,3 +873,31 @@ Every generated worker agent (SDD phase and review agents; any agent with a matc
 - GIVEN a worker agent with an `## Embedded references` section
 - WHEN the context baseline measures it
 - THEN the embedded bytes count as agent bytes and references named inside embedded sections are not followed
+
+### Requirement: Rules Keep Their Source Scope {#REQ-generator-020}
+
+Every target that emits rules one by one (`to-mdc`, `to-instructions`, `to-instructions-config`) MUST keep the scope the source rule declares in its `applyTo`, instead of turning it into an always-on instruction:
+
+- **Global** (`applyTo: '**'`, or no `applyTo`): emitted with the host's always-on mechanism (`alwaysApply: true` in Cursor, `applyTo: "**"` in Copilot, `trigger: always_on` in Antigravity, the `opencode.json` instructions in OpenCode).
+- **Orchestrator** (every pattern under `agents/`): the rule is ospec's protocol for its own agents. It MUST be embedded at the end of the generated `sdd-orchestrator` agent and MUST NOT be emitted as a standalone rule, matching Claude's `inline-into-orchestrator`.
+- **Path** (any other glob): emitted with the host's path mechanism (`globs` with `alwaysApply: false` in Cursor, `applyTo` in Copilot, `trigger: glob` with `globs` in Antigravity). Brace groups MUST be expanded, because Copilot and Antigravity split patterns on commas. OpenCode has no path scope: a path rule with `activation: conditional` MUST NOT be emitted (as on Claude, apply and verify carry those modules), and any other path rule MUST be embedded in the orchestrator.
+
+Claude, Codex and VS Code keep their strategies; Codex's always-on `AGENTS.md` is the orchestrator itself and belongs to E0.4.
+
+#### Scenario: No scoped rule becomes always-on
+
+- GIVEN a build is generated in memory for each of the 7 targets
+- WHEN every file the context baseline classifies as always-on, other than an orchestrator, is searched for the heading of a rule whose source scope is not global
+- THEN no match is found
+
+#### Scenario: Orchestrator-scoped rule lives only in the orchestrator
+
+- GIVEN a source rule with `applyTo: 'agents/**/*.agent.md'`
+- WHEN Cursor, Copilot, Antigravity or OpenCode is generated
+- THEN exactly one generated file carries its heading, and it is the orchestrator agent
+
+#### Scenario: Path rule keeps its globs natively
+
+- GIVEN a source rule with `applyTo: '**/*.{spec.ts,test.ts}'`
+- WHEN Copilot and Antigravity are generated
+- THEN Copilot's rule has `applyTo: "**/*.spec.ts,**/*.test.ts"` and Antigravity's has `trigger: glob` with `globs: "**/*.spec.ts, **/*.test.ts"` and no `applyTo`

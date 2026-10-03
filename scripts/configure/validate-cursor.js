@@ -57,10 +57,6 @@ const COMPAT_READONLY_REVIEW_AGENTS = new Set([
 
 const ABSTRACT_TOOL_RE = /`(read|edit|search|execute|agent)`/g;
 
-function exists(root, rel, fsImpl = fs) {
-  return fsImpl.existsSync(path.join(root, rel));
-}
-
 function pathType(root, rel, fsImpl = fs) {
   const abs = path.join(root, rel);
   if (!fsImpl.existsSync(abs)) {
@@ -169,14 +165,6 @@ function validateAgents(root, errors, fsImpl = fs) {
 }
 
 function validateRules(root, errors, fsImpl = fs) {
-  try {
-    if (!exists(root, "rules/agents-protocol.mdc", fsImpl)) {
-      addError(errors, "missing required path: rules/agents-protocol.mdc");
-    }
-  } catch (error) {
-    addError(errors, `rules/agents-protocol.mdc could not be inspected: ${error.message}`);
-  }
-
   let files;
   try {
     files = walkFiles(root, "rules", [], fsImpl);
@@ -196,11 +184,16 @@ function validateRules(root, errors, fsImpl = fs) {
       continue;
     }
     const fm = parse(text).frontmatter;
-    for (const key of ["description", "globs", "alwaysApply"]) {
+    for (const key of ["description", "alwaysApply"]) {
       const field = getField(fm, key);
       if (!field) {
         addError(errors, `${file} must include ${key}`);
       }
+    }
+    // A rule that is not always applied attaches through its globs (E0.2).
+    const alwaysApply = getField(fm, "alwaysApply");
+    if (alwaysApply && alwaysApply.value !== "true" && !getField(fm, "globs")) {
+      addError(errors, `${file} must include globs when alwaysApply is false`);
     }
   }
 }

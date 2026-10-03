@@ -1,6 +1,6 @@
 # ADR-002: AGENTS.md enters the tree via a profile-scoped source root
 
-- Status: accepted
+- Status: superseded by REQ-generator-020 (roadmap E0.2): the repository `AGENTS.md` carries this repository's release flow and is no longer distributed; the bounded review lifecycle lives in `rules/sdd-common.instructions.md`
 - Change: cursor-native-target
 - Date: 2026-07-25
 

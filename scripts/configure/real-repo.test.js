@@ -331,7 +331,7 @@ test("real repo: cursor output passes its own validator with no agent ask/abstra
     const model = getField(fm, "model");
     assert.ok(model && String(model.value).trim(), `${name} must have model:`);
   }
-  assert.ok(fs.existsSync(path.join(out, "rules", "agents-protocol.mdc")), "agents-protocol.mdc required");
+  assert.ok(!fs.existsSync(path.join(out, "rules", "agents-protocol.mdc")), "the repository's AGENTS.md is not distributed (E0.2)");
 });
 
 test("real repo: cursor commands may retain ${input:} without failing the validator", (t) => {

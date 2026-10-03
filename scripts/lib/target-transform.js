@@ -9,6 +9,7 @@
 const { parse, serialize, getField, stripKeys, setScalar, setArray, setBlockMap } = require("./frontmatter.js");
 const { resolveModel, OMIT } = require("./model-resolver.js");
 const { embedAgentReferences } = require("./agent-embed.js");
+const { ruleScope } = require("./rule-scope.js");
 
 // A file collection is an array of { path, content:string }.
 
@@ -19,7 +20,11 @@ function transform({ files, profile, models } = {}) {
   if (!profile || typeof profile !== "object") {
     throw new TypeError("profile must be a non-null object");
   }
-  const rulesContent = collectRules(files, profile);
+  // Accumulating strategies fold every rule into one body (Claude, Codex);
+  // scoped ones carry only the orchestrator-scoped rules, raw, into that agent.
+  const rulesContent = isScopedStrategy(profile.rules && profile.rules.strategy)
+    ? collectOrchestratorRules(files, profile)
+    : collectRules(files, profile);
   // Worker agents embed the skill files they read (E0.1), resolved against
   // the canonical source tree; LF-normalized so CRLF checkouts emit the same.
   const sources = new Map(files.map((file) => [file.path, String(file.content).replace(/\r\n/g, "\n")]));
@@ -78,18 +83,12 @@ function handleFile(file, profile, models, rulesContent, sources) {
     return antigravityHooks(file, profile);
   }
 
-  // Profile-scoped synthesize sources (e.g. AGENTS.md → agents-protocol.mdc)
-  // must run before the generic .md passthrough (ADR-002).
-  if (profile.rules && Array.isArray(profile.rules.synthesize)) {
-    const synth = profile.rules.synthesize.find((entry) => entry.source === path);
-    if (synth) {
-      return toMdcSynthesize(file, profile, synth);
-    }
-  }
-
   if (isRulesFile(path)) {
     if (profile.rules && isInlineStrategy(profile.rules.strategy)) {
       return null; // content folded into the orchestrator agent/skill
+    }
+    if (profile.rules && isScopedStrategy(profile.rules.strategy) && rulePlacement(file, profile) !== "file") {
+      return null; // embedded in the orchestrator agent, or not loaded at all (E0.2)
     }
     if (profile.rules && profile.rules.strategy === "to-instructions") {
       return toInstructionFile(file, profile);
@@ -113,7 +112,11 @@ function handleFile(file, profile, models, rulesContent, sources) {
     if (profile.orchestrator && profile.orchestrator.emitAs === "root-agent-md" && agentBaseName(path, profile) === profile.orchestrator.agent) {
       return emitOrchestratorRootAgentMd(file, profile, rulesContent);
     }
-    const selfContained = { path, content: embedAgentReferences({ agentPath: path, content: sources.get(path), sources }) };
+    let content = embedAgentReferences({ agentPath: path, content: sources.get(path), sources });
+    if (rulesContent && isScopedStrategy(profile.rules.strategy) && agentBaseName(path, profile) === orchestratorAgent(profile)) {
+      content = content.replace(/\s*$/, "") + "\n\n" + rulesContent + "\n";
+    }
+    const selfContained = { path, content };
     if (profile.agentFile.format === "toml") {
       return handleAgentToml(selfContained, profile, models);
     }
@@ -150,6 +153,29 @@ function handleFile(file, profile, models, rulesContent, sources) {
 
 function isInlineStrategy(strategy) {
   return strategy === "inline-into-orchestrator";
+}
+
+// Strategies that emit one native rule file per source rule, keeping the
+// scope the source declares (E0.2, rule-scope.js).
+function isScopedStrategy(strategy) {
+  return strategy === "to-mdc" || strategy === "to-instructions" || strategy === "to-instructions-config";
+}
+
+function orchestratorAgent(profile) {
+  return (profile.orchestrator && profile.orchestrator.agent) || "sdd-orchestrator";
+}
+
+// Where a scoped strategy puts a rule: its own native file, the orchestrator
+// agent, or nowhere. OpenCode has no path scope: an always-active path rule
+// joins the orchestrator and a conditional one is not loaded, as on Claude
+// (apply and verify embed the Strict TDD modules themselves).
+function rulePlacement(file, profile) {
+  const scope = ruleScope(parse(file.content).frontmatter);
+  if (scope.kind === "orchestrator") return "orchestrator";
+  if (scope.kind === "path" && profile.rules.strategy === "to-instructions-config") {
+    return scope.conditional ? "none" : "orchestrator";
+  }
+  return "file";
 }
 
 // Strategies whose rules content is accumulated across all rules/*.md files
@@ -530,6 +556,15 @@ function collectRules(files, profile) {
   }
 
   return parts.join("\n\n");
+}
+
+// Raw bodies: the orchestrator agent goes through tool and agent-name
+// substitution as a whole, so substituting here would apply it twice.
+function collectOrchestratorRules(files, profile) {
+  return files
+    .filter((file) => isRulesFile(file.path) && !isDropped(file.path, profile) && rulePlacement(file, profile) === "orchestrator")
+    .map((file) => parse(file.content).body.trim())
+    .join("\n\n");
 }
 
 // --- orchestrator-as-skill (claude) ----------------------------------------
@@ -1009,8 +1044,9 @@ function mapToolsFrontmatterAsMap(frontmatter, toolMap, dropTools) {
   return setBlockMap(frontmatter, "tools", entries);
 }
 
-// rules/<name>.instructions.md -> <profile.rules.dir>/<base>.mdc with Cursor
-// rule frontmatter (description/globs/alwaysApply). applyTo is dropped.
+// rules/<name>.instructions.md -> <profile.rules.dir>/<base>.mdc. A global
+// rule is alwaysApply; a path rule auto-attaches through its globs. applyTo
+// is dropped.
 function toMdcFile(file, profile) {
   const { frontmatter: srcFm, body: rawBody } = parse(file.content);
   let body = rawBody;
@@ -1025,8 +1061,8 @@ function toMdcFile(file, profile) {
     .replace(/\.md$/, "");
   const descField = getField(srcFm, "description");
   const description = (descField && descField.value) || base;
-  const globs = Array.isArray(profile.rules.globs) ? profile.rules.globs : ["*"];
-  const alwaysApply = profile.rules.alwaysApply !== false;
+  const { globs } = ruleScope(srcFm);
+  const alwaysApply = globs.length === 0;
 
   const frontmatter = [
     {
@@ -1034,71 +1070,41 @@ function toMdcFile(file, profile) {
       value: description,
       rawLines: [`description: ${JSON.stringify(description)}`],
     },
-    {
-      key: "globs",
-      value: globs.slice(),
-      rawLines: [`globs: ${JSON.stringify(globs)}`],
-    },
-    {
-      "key": "alwaysApply",
-      value: String(alwaysApply),
-      rawLines: [`alwaysApply: ${alwaysApply ? "true" : "false"}`],
-    },
   ];
+  if (!alwaysApply) {
+    frontmatter.push({ key: "globs", value: globs.slice(), rawLines: [`globs: ${JSON.stringify(globs)}`] });
+  }
+  frontmatter.push({
+    "key": "alwaysApply",
+    value: String(alwaysApply),
+    rawLines: [`alwaysApply: ${alwaysApply ? "true" : "false"}`],
+  });
 
   const dir = profile.rules.dir || "rules";
   return { path: `${dir}/${base}.mdc`, content: serialize({ frontmatter, body }) };
 }
 
-// Synthesize a .mdc rule from a non-rules source (e.g. AGENTS.md) using the
-// profile.rules.synthesize entry's base name and description.
-function toMdcSynthesize(file, profile, synth) {
-  let body = file.content;
-  // AGENTS.md has no frontmatter; treat the whole file as the body.
-  if (file.content.startsWith("---")) {
-    body = parse(file.content).body;
-  }
-  if (profile.toolMap) {
-    body = substituteProse(body, profile.toolMap);
-  }
-  body = substituteAgentNames(body, profile);
-
-  const description = synth.description || synth.base;
-  const globs = Array.isArray(profile.rules.globs) ? profile.rules.globs : ["*"];
-  const alwaysApply = profile.rules.alwaysApply !== false;
-  const frontmatter = [
-    {
-      "key": "description",
-      value: description,
-      rawLines: [`description: ${JSON.stringify(description)}`],
-    },
-    {
-      key: "globs",
-      value: globs.slice(),
-      rawLines: [`globs: ${JSON.stringify(globs)}`],
-    },
-    {
-      "key": "alwaysApply",
-      value: String(alwaysApply),
-      rawLines: [`alwaysApply: ${alwaysApply ? "true" : "false"}`],
-    },
-  ];
-
-  const dir = profile.rules.dir || "rules";
-  return { path: `${dir}/${synth.base}.mdc`, content: serialize({ frontmatter, body }) };
-}
-
-// rules/<name>.instructions.md -> <profile.rules.dir>/<name>.instructions.md, made
-// always-on with an applyTo glob (the .github/instructions/ format).
+// rules/<name>.instructions.md -> <profile.rules.dir>/<name>.instructions.md
+// with the host's scope field: `applyTo` (Copilot, comma-separated globs) or
+// `trigger` + `globs` (Antigravity).
 function toInstructionFile(file, profile) {
   let { frontmatter, body } = parse(file.content);
   if (profile.toolMap) {
     body = substituteProse(body, profile.toolMap);
   }
   body = substituteAgentNames(body, profile);
-  // setScalar quotes the glob itself ("**" starts with a YAML indicator);
-  // passing the raw value avoids double-quoting it.
-  frontmatter = setScalar(frontmatter, "applyTo", profile.rules.applyTo);
+  const { globs } = ruleScope(frontmatter);
+  if (profile.rules.scopeField === "trigger") {
+    frontmatter = stripKeys(frontmatter, ["applyTo", "activation"]);
+    frontmatter = setScalar(frontmatter, "trigger", globs.length === 0 ? "always_on" : "glob");
+    if (globs.length > 0) {
+      frontmatter = setScalar(frontmatter, "globs", globs.join(", "));
+    }
+  } else {
+    // setScalar quotes the glob itself ("**" starts with a YAML indicator);
+    // passing the raw value avoids double-quoting it.
+    frontmatter = setScalar(frontmatter, "applyTo", globs.length === 0 ? "**" : globs.join(","));
+  }
   const base = file.path.slice("rules/".length);
   return { path: `${profile.rules.dir}/${base}`, content: serialize({ frontmatter, body }) };
 }

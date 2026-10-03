@@ -33,10 +33,12 @@ module.exports = {
     agent: "invoke_subagent",
   },
 
+  // Antigravity rules scope with `trigger: always_on | glob` plus `globs`, not
+  // applyTo (antigravity.google/docs/rules, checked for E0.2).
   rules: {
     strategy: "to-instructions",
     dir: "rules",
-    applyTo: "**",
+    scopeField: "trigger",
   },
 
   drop: [".claude-plugin/", ".codex-plugin/", ".github/", ".opencode/"],

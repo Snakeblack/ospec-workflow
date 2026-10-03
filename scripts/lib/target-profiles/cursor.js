@@ -11,10 +11,6 @@ module.exports = {
   id: "cursor",
   layout: "dot-cursor",
 
-  // AGENTS.md is only needed by cursor (→ agents-protocol.mdc). Scoped here so
-  // other targets never see it (ADR-002).
-  sourceRoots: ["AGENTS.md"],
-
   agentFile: { from: ".agent.md", to: ".md" },
   commandFile: { from: ".prompt.md", to: ".md" },
 
@@ -39,19 +35,11 @@ module.exports = {
     stripKeys: ["target", "user-invocable", "disable-model-invocation", "tools"],
   },
 
-  rules: {
-    strategy: "to-mdc",
-    dir: "rules",
-    globs: ["*"],
-    alwaysApply: true,
-    synthesize: [
-      {
-        source: "AGENTS.md",
-        base: "agents-protocol",
-        description: "Post-archive release flow and bounded review lifecycle rules.",
-      },
-    ],
-  },
+  // Each rule keeps its source scope (E0.2): global -> alwaysApply, path ->
+  // globs with alwaysApply: false, agents/** -> embedded in the orchestrator.
+  // The repository's own AGENTS.md (release flow) is never distributed; the
+  // bounded review lifecycle it once carried lives in sdd-common.
+  rules: { strategy: "to-mdc", dir: "rules" },
 
   hooks: {
     format: "cursor",

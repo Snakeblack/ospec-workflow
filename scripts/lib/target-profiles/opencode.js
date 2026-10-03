@@ -9,8 +9,8 @@
 //   - commands-> .opencode/commands/<name>.md (keeps `agent:` routing; args use
 //     $ARGUMENTS / positional $1 $2, not named ${input:...})
 //   - rules   -> .opencode/instructions/<name>.md, referenced from opencode.json
-//     "instructions": ["..."] (always-applied, the opencode analogue of Copilot's
-//     applyTo:"**")
+//     "instructions": ["..."]. Those are always applied and opencode has no path
+//     scope, so only global rules go there; scoped ones join the orchestrator (E0.2)
 //   - skills  -> shipped at repo-relative skills/ (read by each phase agent as a
 //     file, exactly as for github-copilot; opencode's native skill discovery is
 //     not relied upon since agents reference skills/<phase>/SKILL.md by path)
@@ -36,9 +36,9 @@ module.exports = {
   commandFile: { from: ".prompt.md", to: ".md" },
   commandDir: ".opencode/commands",
 
-  // rules/*.instructions.md -> standalone files under .opencode/instructions/,
-  // wired in via opencode.json "instructions" glob (always applied). NOT inlined
-  // into an agent and NOT given a VS Code-style applyTo.
+  // Global rules/*.instructions.md -> standalone files under .opencode/instructions/,
+  // wired in via opencode.json "instructions" glob (always applied). Scoped rules
+  // are embedded in the orchestrator agent (see rulePlacement in target-transform).
   rules: { strategy: "to-instructions-config", dir: ".opencode/instructions" },
 
   // Synthesize the root opencode.json: $schema + mcp (transformed from .mcp.json)

@@ -42,11 +42,6 @@ function cleanTree(root) {
     "rules/sdd-common.mdc",
     '---\ndescription: "Shared protocol"\nglobs: ["*"]\nalwaysApply: true\n---\n\nbody\n',
   );
-  write(
-    root,
-    "rules/agents-protocol.mdc",
-    '---\ndescription: "Post-archive release flow and bounded review lifecycle rules."\nglobs: ["*"]\nalwaysApply: true\n---\n\nprotocol\n',
-  );
   write(root, "skills/sdd-apply/SKILL.md", "---\nname: sdd-apply\n---\n\nskill\n");
   write(root, "scripts/hooks/ospec-hooks-launch.js", "module.exports = {};\n");
   write(
@@ -121,14 +116,17 @@ test("validate-cursor requires agent frontmatter name/description/model and revi
   assert.ok(result.errors.some((e) => e.includes("agents/review-change.md") && e.includes("readonly")));
 });
 
-test("validate-cursor requires mdc frontmatter and agents-protocol.mdc", (t) => {
+test("validate-cursor requires mdc frontmatter and globs on rules that are not always applied", (t) => {
   const root = tmpRoot(t);
   cleanTree(root);
   write(root, "rules/sdd-common.mdc", "---\ndescription: only\n---\n\nbody\n");
-  fs.rmSync(path.join(root, "rules/agents-protocol.mdc"), { force: true });
+  write(root, "rules/scoped.mdc", "---\ndescription: scoped\nalwaysApply: false\n---\n\nbody\n");
+  write(root, "rules/path.mdc", '---\ndescription: path\nglobs: ["openspec/**"]\nalwaysApply: false\n---\n\nbody\n');
   const result = validate(root);
-  assert.ok(result.errors.some((e) => e.includes("rules/sdd-common.mdc") && (e.includes("globs") || e.includes("alwaysApply"))));
-  assert.ok(result.errors.some((e) => e.includes("agents-protocol.mdc")));
+  assert.ok(result.errors.some((e) => e.includes("rules/sdd-common.mdc") && e.includes("alwaysApply")));
+  assert.ok(result.errors.some((e) => e.includes("rules/scoped.mdc") && e.includes("globs")));
+  assert.ok(!result.errors.some((e) => e.includes("rules/path.mdc")));
+  assert.ok(!result.errors.some((e) => e.includes("agents-protocol.mdc")), "the repository's AGENTS.md is not required (E0.2)");
 });
 
 test("validate-cursor rejects bad hooks shape, SubagentStop, and missing placeholder", (t) => {

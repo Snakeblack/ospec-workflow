@@ -1,6 +1,6 @@
 # ADR-001: to-mdc derives rule metadata from source frontmatter
 
-- Status: accepted
+- Status: accepted; the fixed `globs`/`alwaysApply` and the `agents-protocol.mdc` remap are superseded by REQ-generator-020 (roadmap E0.2)
 - Change: cursor-native-target
 - Date: 2026-07-25
 

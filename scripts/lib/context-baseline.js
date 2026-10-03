@@ -45,7 +45,10 @@ function isAlwaysOn(filePath, content, opencodeGlobs) {
   if (filePath === "AGENTS.md") return true;
   if (opencodeGlobs.some((glob) => glob.test(filePath))) return true;
   if (filePath.endsWith(".mdc")) return field(content, "alwaysApply")?.value === "true";
-  if (filePath.endsWith(".instructions.md")) return GLOBAL_APPLY_TO.has(field(content, "applyTo")?.value);
+  // Copilot and VS Code scope with applyTo; Antigravity with trigger (E0.2).
+  if (filePath.endsWith(".instructions.md")) {
+    return GLOBAL_APPLY_TO.has(field(content, "applyTo")?.value) || field(content, "trigger")?.value === "always_on";
+  }
   return false;
 }
 

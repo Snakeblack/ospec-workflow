@@ -6,7 +6,7 @@
 //   - agents  -> .github/agents/<name>.agent.md  (frontmatter `target: github-copilot`)
 //     (microsoft/vscode .github/agents/demonstrate.md)
 //   - prompts -> .github/prompts/<name>.prompt.md (keeps ${input:...} + `agent:` routing)
-//   - rules   -> .github/instructions/<name>.instructions.md (with `applyTo: "**"`)
+//   - rules   -> .github/instructions/<name>.instructions.md (with the source `applyTo`)
 //   - skills  -> shipped at repo-relative skills/ (NOT auto-loaded by Copilot, but
 //     every phase agent's "Skills to load before work" section reads them as files,
 //     so the tree must be present or those references dangle).
@@ -23,9 +23,10 @@ module.exports = {
   commandFile: { from: ".prompt.md", to: ".prompt.md" },
   commandDir: ".github/prompts",
 
-  // rules/*.instructions.md become standalone instruction files under .github/instructions/,
-  // each made always-on with applyTo: "**". They are NOT inlined into an agent.
-  rules: { strategy: "to-instructions", dir: ".github/instructions", applyTo: "**" },
+  // rules/*.instructions.md become standalone instruction files under .github/instructions/
+  // keeping their source applyTo (braces expanded, E0.2); agents/**-scoped rules are
+  // embedded in the orchestrator agent instead.
+  rules: { strategy: "to-instructions", dir: ".github/instructions", scopeField: "applyTo" },
 
   // Project-level hooks: .github/hooks/hooks.json with Copilot's own schema
   // (version + camelCase events + bash/powershell + timeoutSec). Events without a
