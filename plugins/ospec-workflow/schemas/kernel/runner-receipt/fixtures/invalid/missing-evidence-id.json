@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "kind": "runner-receipt/v1",
+  "receipt_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "candidate_id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "node_id": "repair-core",
+  "role": "green",
+  "satisfied_tokens": [
+    "ev:test-pass"
+  ],
+  "outcome": "passed",
+  "issuer_id": "node-test",
+  "transport": "tool-execution-transport"
+}

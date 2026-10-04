@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "failure_id": "fail-invalid-003",
+  "category": "code_defect",
+  "code": "TEST_ASSERTION_FAILED",
+  "priority": 5,
+  "details": {}
+}

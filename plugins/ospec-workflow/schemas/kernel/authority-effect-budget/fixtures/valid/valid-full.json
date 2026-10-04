@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "effect_attempts": 5,
+  "authority_mutations": 3,
+  "evidence_runs": 10,
+  "review_sweeps": 2
+}

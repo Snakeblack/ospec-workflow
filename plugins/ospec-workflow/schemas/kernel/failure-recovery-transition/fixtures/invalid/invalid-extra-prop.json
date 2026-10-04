@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "transition_id": "recov-trans-inv-003",
+  "failure_code": "TEST_ASSERTION_FAILED",
+  "target_operation": "repair",
+  "scope": {
+    "node_ids": ["node-1"],
+    "allowed_paths": [],
+    "finding_ids": []
+  },
+  "expected_advancement": true,
+  "extra_unauthorized_property": "not_allowed"
+}

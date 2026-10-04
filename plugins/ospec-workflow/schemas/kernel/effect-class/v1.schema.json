@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/effect-class/v1",
+  "schema_version": 1,
+  "type": "object",
+  "properties": {
+    "schema_version": { "const": 1 },
+    "effect_class": {
+      "type": "string",
+      "enum": [
+        "pure",
+        "idempotent-keyed",
+        "probeable",
+        "compensatable",
+        "irreversible"
+      ]
+    }
+  },
+  "required": ["schema_version", "effect_class"],
+  "additionalProperties": false
+}

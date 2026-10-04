@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "kind": "transport-outcome/v1",
+  "ok": true,
+  "outcome": "ok",
+  "requestId": "req-1",
+  "value": {
+    "done": true
+  }
+}

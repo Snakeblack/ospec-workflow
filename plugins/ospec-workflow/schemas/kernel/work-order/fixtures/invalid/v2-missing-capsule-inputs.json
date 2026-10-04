@@ -1,0 +1,32 @@
+{
+  "schema_version": 2,
+  "kind": "work-order/v2",
+  "work_order_id": "sha256:0000000000000000000000000000000000000000000000000000000000000001",
+  "source_snapshot_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "node_id": "node-1",
+  "role": "worker",
+  "operation": "build",
+  "objective": "compile",
+  "dependencies": [
+    "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+  ],
+  "ownership": {
+    "owner": "worker-1",
+    "mode": "exclusive"
+  },
+  "allowed_paths": [
+    "src/"
+  ],
+  "invariants": [],
+  "required_evidence": [
+    "log.txt"
+  ],
+  "budget": {
+    "model_turns": 5,
+    "patches": 2,
+    "commands": 10,
+    "wall_time_minutes": 5,
+    "changed_lines": 50
+  },
+  "status": "pending"
+}

@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "kind": "operation-receipt/v1",
+  "receipt_id": "op-receipt:bad",
+  "subject_id": "lifecycle:default",
+  "operation": "start",
+  "revision": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "outcome": "advanced"
+}

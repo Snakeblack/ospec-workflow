@@ -1,0 +1,46 @@
+[
+  {
+    "schema_version": 1,
+    "kind": "assessment/v1",
+    "assessment_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "evidence_id": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "role": "acceptance",
+    "obligation_id": "req-repair-001",
+    "node_id": "repair-core",
+    "candidate_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "policy_snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  {
+    "schema_version": 1,
+    "kind": "assessment/v1",
+    "assessment_id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+    "evidence_id": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "role": "invariants",
+    "obligation_id": "req-repair-001",
+    "node_id": "repair-core",
+    "candidate_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "policy_snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  {
+    "schema_version": 1,
+    "kind": "assessment/v1",
+    "assessment_id": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    "evidence_id": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "role": "contract",
+    "obligation_id": "req-repair-001",
+    "node_id": "repair-core",
+    "candidate_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "policy_snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  {
+    "schema_version": 1,
+    "kind": "assessment/v1",
+    "assessment_id": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+    "evidence_id": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "role": "negative",
+    "obligation_id": "req-repair-001",
+    "node_id": "repair-core",
+    "candidate_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "policy_snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  }
+]
