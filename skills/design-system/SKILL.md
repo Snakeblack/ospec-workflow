@@ -1,6 +1,6 @@
 ---
 name: design-system
-description: Use this skill to generate or audit design systems, check visual consistency, and review PRs that touch styling.
+description: "Generate or audit design systems and visual consistency. Trigger: design system, design tokens, visual audit, styling PRs."
 metadata:
   origin: ECC
 ---

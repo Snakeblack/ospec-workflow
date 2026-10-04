@@ -1,6 +1,6 @@
 ---
 name: hexagonal-architecture
-description: Design, implement, and refactor Ports & Adapters systems with clear domain boundaries, dependency inversion, and testable use-case orchestration across TypeScript, Java, Kotlin, and Go services.
+description: "Ports & Adapters design and refactoring with clear domain boundaries and testable use cases. Trigger: hexagonal architecture, ports and adapters, clean architecture, domain boundaries."
 metadata:
   origin: ECC
 ---
@@ -226,6 +226,14 @@ Use the same boundary rules across ecosystems; only syntax and wiring style chan
   - Ports: small interfaces owned by the consuming application package.
   - Use cases: structs with interface fields plus explicit `New...` constructors.
   - Composition: wire in `cmd/<app>/main.go` (or dedicated wiring package), keep constructors explicit.
+
+## Rules
+
+- Domain and use-case layers import only internal types and ports, never ORM models, web framework types or SDK clients.
+- Use cases receive explicit input types, never `req`, `res` or queue metadata.
+- Use cases return domain or application types; adapters map persistence rows.
+- Adapters talk to each other only through use-case ports.
+- Wire dependencies in one explicit composition root, without hidden global singletons.
 
 ## Anti-Patterns to Avoid
 

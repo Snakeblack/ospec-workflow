@@ -115,23 +115,25 @@ Taken from the `name` frontmatter attribute. If `name` is absent, falls back to 
 
 `extractTriggers(description, fallback)` scans the frontmatter `description` value for the pattern `/\bTrigger:\s*(.+)$/i` (case-insensitive, matched against the description string). If found, the captured group is split on commas and semicolons and each item is trimmed. If not found, or if no non-empty items remain after splitting, the fallback value (`id`) is used as a single-element array.
 
+Every shipped knowledge skill (any skill except `review-*` and `stack-*`, which are resolved by gate name and detected capability) MUST declare `Trigger:` in its description, so it never falls back to its `id`. Skills already scheduled for removal or merge may be exempted temporarily by name in the lint test.
+
 ### 5.3 `compact_rules`
 
 `extractCompactRules(skillMarkdown)` extracts up to 15 rules from the SKILL.md body (frontmatter is stripped first):
 
-**Primary extraction (rules sections):**
+**Extraction (rules sections only):**
 
 1. Scan lines for headings (`##`, `###`, `####`).
-2. A heading activates a "rules section" when it matches (case-insensitive): `/\b(?:(?:hard|critical|core|decision)\s+)?(?:rules|patterns|constraints|gates)\b/i`.
+2. A heading activates a "rules section" only when it is an explicit rules heading (case-insensitive): up to three words followed by `Rules` (`Rules`, `Critical Rules`, `Naming Rules`) or `Reglas` followed by up to three words, matching `/^(?:[\w-]+\s+){0,3}rules$|^reglas(?:\s+\S+){0,3}$/i`, and the heading does NOT contain a word starting with `anti`. Anti-patterns, patterns, gates, constraints and activation lists ("When to …") MUST NOT feed compact rules: injected out of context, their items read as instructions.
 3. Within an active rules section, collect:
    - List items (lines matching `/^\s*(?:[-*+]|\d+\.)\s+/`) after stripping the list prefix.
    - Table data rows (lines matching `/^\|.+\|$/`) that are not separator rows. The first column (`columns[0]`) is checked; if it is literally `rule` or `gate` (case-sensitive lowercase after trim), the row is treated as a header and skipped. Otherwise the row is appended as `"columns[0]: columns[1] - columns[2] ..."`.
 4. Any heading resets the rules-section flag (non-rules headings exit the section).
 5. Duplicate rules are skipped inline (first occurrence wins).
 
-**Fallback extraction (no rules sections found):**
+**No fallback:** a skill without a rules section has `compact_rules: []`. The registry MUST NOT fall back to collecting list items from other sections.
 
-If the primary extraction yields zero rules, re-scan the entire body and collect up to 15 list items (any heading context), deduplicating as above.
+**Parity:** the Go implementation (`internal/skillreg`) MUST produce the same `compact_rules` as the JS implementation for every shipped skill.
 
 **Cap**: the final array MUST contain at most 15 entries.
 
