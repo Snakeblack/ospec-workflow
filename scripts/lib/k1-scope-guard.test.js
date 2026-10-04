@@ -166,6 +166,9 @@ const SUCCESSOR_K2_EXACT = new Set([
   // E0.1 worker agents embed their skill references (roadmap harness-evolution).
   "scripts/lib/agent-embed.js",
   "scripts/lib/agent-embed.test.js",
+  // E0.2 rules keep their source scope on every target (roadmap harness-evolution).
+  "scripts/lib/rule-scope.js",
+  "scripts/lib/rule-scope.test.js",
   // Quality Review Gate successor (live v2 post-verify).
   "scripts/lib/quality-review-kpis.js",
   "scripts/lib/quality-review-kpis.test.js",

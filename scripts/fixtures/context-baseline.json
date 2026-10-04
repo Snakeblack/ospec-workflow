@@ -72,8 +72,8 @@
       }
     },
     "github-copilot": {
-      "always_on_bytes": 22667,
-      "orchestrator_bytes": 43586,
+      "always_on_bytes": 2436,
+      "orchestrator_bytes": 54417,
       "skills_installed": 82,
       "skills_listed": 56,
       "skill_listing_bytes": 9535,
@@ -107,8 +107,8 @@
       }
     },
     "opencode": {
-      "always_on_bytes": 22034,
-      "orchestrator_bytes": 43055,
+      "always_on_bytes": 2284,
+      "orchestrator_bytes": 60092,
       "skills_installed": 82,
       "skills_listed": 56,
       "skill_listing_bytes": 9535,
@@ -177,8 +177,8 @@
       }
     },
     "cursor": {
-      "always_on_bytes": 25703,
-      "orchestrator_bytes": 47905,
+      "always_on_bytes": 2440,
+      "orchestrator_bytes": 58736,
       "skills_installed": 82,
       "skills_listed": 56,
       "skill_listing_bytes": 9535,
@@ -212,8 +212,8 @@
       }
     },
     "antigravity": {
-      "always_on_bytes": 22667,
-      "orchestrator_bytes": 43721,
+      "always_on_bytes": 2441,
+      "orchestrator_bytes": 54552,
       "skills_installed": 82,
       "skills_listed": 56,
       "skill_listing_bytes": 9535,

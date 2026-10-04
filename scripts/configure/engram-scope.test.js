@@ -18,15 +18,16 @@ const { runConfigure, PROFILES } = require("./cli.js");
 const ROOT = path.resolve(__dirname, "..", "..");
 const ADDENDUM_PATH = "rules/engram-session-memory.instructions.md";
 const HEADING = "# Engram Session Memory (optional)";
-// Where each target folds the addendum.
+// Where each target folds the addendum: the orchestrator, since its source
+// scope is agents/** (E0.2), or the identity rules/ tree on VS Code.
 const SURFACES = {
   claude: /^skills\/sdd-orchestrator\/SKILL\.md$/,
   codex: /^AGENTS\.md$/,
-  "github-copilot": /^\.github\/instructions\/engram-session-memory\.instructions\.md$/,
-  opencode: /^\.opencode\/instructions\/engram-session-memory\.instructions\.md$/,
-  cursor: /^rules\/engram-session-memory\.mdc$/,
+  "github-copilot": /^\.github\/agents\/sdd-orchestrator\.agent\.md$/,
+  opencode: /^\.opencode\/agents\/ospec-workflow\.md$/,
+  cursor: /^agents\/sdd-orchestrator\.md$/,
   vscode: /^rules\/engram-session-memory\.instructions\.md$/,
-  antigravity: /^rules\/engram-session-memory\.instructions\.md$/,
+  antigravity: /^agents\/sdd-orchestrator\.agent\.md$/,
 };
 const CONFIG_FILE = /(^|\/)(\.mcp\.json|mcp[-_]config\.json|opencode\.jsonc?|hooks\.json|config\.toml)$/;
 

@@ -103,7 +103,7 @@ Only the Claude Code real HostAdapter has K2a proof binding (`adapter_version`, 
 
 `node scripts/measure-context-baseline.js` genera los 7 targets en memoria con el mismo transform que `configure` y mide qué carga cada host antes de trabajar. Mide sobre la salida generada, no sobre la configuración del perfil, para que cualquier cambio del transform se vea tal cual. Los bytes se normalizan a LF, así que una copia de trabajo con CRLF mide lo mismo que CI.
 
-- **Always-on:** instrucciones que el host inyecta en cada petición: el `AGENTS.md` raíz, las reglas `.mdc` con `alwaysApply: true`, las `.instructions.md` con `applyTo: "**"` y los globs `instructions` de `opencode.json`. El listado de skills va aparte.
+- **Always-on:** instrucciones que el host inyecta en cada petición: el `AGENTS.md` raíz, las reglas `.mdc` con `alwaysApply: true`, las `.instructions.md` con `applyTo: "**"` o `trigger: always_on` (Antigravity) y los globs `instructions` de `opencode.json`. El listado de skills va aparte.
 - **Orquestador:** `sdd-orchestrator` como skill o agente, el agente primario de OpenCode o, en Codex, el `AGENTS.md`.
 - **Lecturas por agente:** el agente, las `SKILL.md` que nombra y los ficheros `_shared` que nombran él o esas skills. Es una aproximación determinista: cuenta todo lo nombrado aunque se lea bajo condición, y no sigue las referencias entre ficheros `_shared`. Desde E0.1 cada agente de trabajo lleva incrustado lo que lee (sección `## Embedded references`): esos bytes cuentan como bytes del agente y lo que nombran no se sigue.
 - **Skills:** instaladas (sin `_shared` ni las skills de comando de Codex) y listadas al modelo (sin `disable-model-invocation: true`), con los bytes de `name` y `description` del listado.
@@ -123,5 +123,16 @@ Línea base en v2.81.3 (KB decimales):
 `review-change` y `review-correction` leen unos 5 KB porque no nombran ningún fichero `_shared`. El router de E0.4 no aparece todavía porque ningún instalador lo instala.
 
 **Tras E0.1 (v2.83.0).** Los revisores no cambian y la mayoría de las fases bajan unos 0,4 KB, porque se quita el frontmatter y el aviso al orquestador de cada skill. Suben los agentes cuyos módulos condicionales antes no se encontraban en un proyecto consumidor: `sdd-apply` (73,0 → 93,3 KB, módulos de Strict y Focused TDD), `sdd-verify` (48,0 → 68,1 KB, `strict-tdd-verify` y el formato del informe), `sdd-init` (+5,3 KB), `sdd-document` (+4,5 KB) y `sdd-foundation` (+2,5 KB). Ese es el coste de que la garantía de Strict TDD funcione fuera de este repositorio. Rango de fases SDD: 32,7–93,4 KB en todos los targets.
+
+**Tras E0.2 (v2.84.0).** Cada regla conserva el ámbito de su fuente (REQ-generator-020): la regla global de atribución sigue siendo *always-on*; las reglas de `agents/**` (protocolo SDD común y Engram) viajan dentro del orquestador, como en Claude; y las de ruta (`openspec/**` y Strict TDD) se cargan con el mecanismo nativo de cada host. OpenCode no tiene ámbito por ruta, así que la de OpenSpec pasa al orquestador y la de Strict TDD no se carga, como en Claude. Cursor deja de recibir el `AGENTS.md` de este repositorio.
+
+| Target | Always-on | Orquestador |
+| --- | ---: | ---: |
+| github-copilot | 22,7 → 2,4 | 43,6 → 54,4 |
+| opencode | 22,0 → 2,3 | 43,1 → 60,1 |
+| cursor | 25,7 → 2,4 | 47,9 → 58,7 |
+| antigravity | 22,7 → 2,4 | 43,7 → 54,6 |
+
+Fuera de SDD, cada petición carga unos 20 KB menos. En una sesión SDD el total también baja (por ejemplo, en Copilot pasa de 66,3 a 56,8 KB), porque las reglas de ruta solo entran cuando se tocan esos ficheros. Codex no cambia: su `AGENTS.md` es el orquestador y le corresponde a E0.4.
 
 **Techos.** `scripts/fixtures/context-baseline.json` guarda cada valor como techo, y `scripts/lib/context-baseline.test.js` falla si alguno sube o si aparece un target o un agente sin techo. Cuando un cambio reduce contexto, o lo aumenta con una justificación escrita en el PR, se regenera con `--update`. `--json` saca el informe completo, con el detalle por fichero.

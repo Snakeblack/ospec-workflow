@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.83.0, 2026-10-03.
+> **Versión de referencia:** v2.84.0, 2026-10-04.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -84,7 +84,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 
 | Métrica | Hoy (v2.81.3) | gentle-ai | Objetivo | Etapa |
 | --- | --- | --- | --- | --- |
-| Instrucciones cargadas siempre (peor target) | 63 KB (Codex); 23–26 KB en Cursor, Copilot, OpenCode y Antigravity | Orquestador de 17–24 KB | Router de ≤ 4 KB | E0.2–E0.4 |
+| Instrucciones cargadas siempre (peor target) | 63 KB (Codex); 2,3–2,4 KB en el resto desde v2.84.0 (antes, 23–26 KB en Cursor, Copilot, OpenCode y Antigravity) | Orquestador de 17–24 KB | Router de ≤ 4 KB | E0.2 ✅, E0.4 |
 | Contexto del flujo por defecto | Orquestador SDD de 44–63 KB más 60–75 KB por fase | 17–24 KB | Router más protocolo IDD ≤ 16 KB | E1.6 |
 | Agentes que cargan su skill en un proyecto consumidor | 100 % desde v2.83.0 (antes, parcial: `sdd-apply` y `sdd-clarify` sin skill) | — | 100 % | E0.1 ✅ |
 | Obligaciones comprobadas por código | `validate-phase` en ~10 % de los despachos observados | Binario | 100 %, vía `ospec check` | E1.4 |
@@ -113,7 +113,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | --- | --- | --- | --- |
 | `done` | **E0.0** | `measure-context-baseline` | medición |
 | `done` | **E0.1** | `fix-phase-agent-skill-loading` | bugfix |
-| `next-eligible` | **E0.2** | `scope-always-on-instructions` | refactor |
+| `done` | **E0.2** | `scope-always-on-instructions` | refactor |
 | `next-eligible` | **E0.3** | `curate-skill-catalog` | refactor |
 | `pending` | **E0.4** | `router-and-sdd-on-demand` | feature |
 | `next-eligible` | **E1.1** | `idd-contract` | contrato |
@@ -139,7 +139,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E0.2: es la mayor reducción del coste fijo (23–63 KB por petición) y quita la fuga del flujo de release de este repositorio a Cursor. E0.3 y E1.1 también pueden empezar ya.
+**▶ SIGUIENTE:** E0.3: con E0.2 hecho, es lo único que falta para abrir E0.4, que baja el último coste fijo grande (los 63 KB de Codex) y lleva el *always-on* al router de ≤ 4 KB. E1.1 también puede empezar ya.
 
 **Dependencias:**
 
@@ -183,6 +183,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
   - El transform conserva el ámbito de la fuente con el mecanismo nativo de cada host: `paths` en Claude, `applyTo` en Copilot y VS Code, `globs` con `alwaysApply: false` en Cursor, y el equivalente en OpenCode y Antigravity, revalidado con la documentación oficial al abrir el change.
   - Lo que es de este repositorio (release, versión y changelog) se separa de lo que es del producto (ciclo de review acotado) y deja de distribuirse.
 - **Hecho cuando:** ninguna regla acotada en la fuente se instala como global en ningún target (test por target), ningún target distribuye el flujo de release de este repositorio y los techos de E0.0 bajan.
+- **Entregado en v2.84.0:** `scripts/lib/rule-scope.js` clasifica cada regla por su `applyTo` de origen (REQ-generator-020). Las globales siguen siendo *always-on*. Las de `agents/**` (protocolo SDD común y Engram) se incrustan en el orquestador, como ya hacía Claude. Las de ruta usan el mecanismo nativo, comprobado en la documentación oficial: `globs` con `alwaysApply: false` en Cursor, `applyTo` en Copilot, y `trigger: glob` con `globs` en Antigravity, que no lee `applyTo`. Las llaves se expanden porque Copilot y Antigravity separan patrones por comas. OpenCode no tiene ámbito por ruta: la regla de OpenSpec pasa al orquestador y la de Strict TDD no se carga, como en Claude. Cursor deja de sintetizar `agents-protocol.mdc`, porque el ciclo de review acotado ya está en `sdd-common`. `scripts/lib/rule-scope.test.js` cubre los tres criterios en los 7 targets. Resultado: *always-on* de 22–26 KB a 2,3–2,4 KB, y el orquestador sube unos 11 KB, solo en sesiones SDD ([target-capabilities §7](../target-capabilities.md#7-coste-de-contexto-por-target-e00)). Codex sigue cargando su `AGENTS.md`, que es el orquestador; eso pertenece a E0.4.
 
 ### E0.3 — `curate-skill-catalog`
 

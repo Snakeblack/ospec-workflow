@@ -243,9 +243,10 @@ function validateMarkdown(root, errors, fsImpl) {
 
   for (const file of listMarkdown(root, ".github/instructions", ".instructions.md", fsImpl)) {
     const fm = parse(readUtf8(root, file, fsImpl)).frontmatter;
+    // Rules keep their source scope (E0.2): "**" or a comma-separated glob list.
     const applyTo = getField(fm, "applyTo");
-    if (!applyTo || applyTo.value !== "**") {
-      addError(errors, `${file} must include applyTo: "**"`);
+    if (!applyTo || !String(applyTo.value).trim()) {
+      addError(errors, `${file} must include applyTo`);
     }
   }
 }

@@ -1,6 +1,5 @@
 ---
 description: "Orchestrator coordination rules."
-globs: ["*"]
 alwaysApply: true
 ---
 

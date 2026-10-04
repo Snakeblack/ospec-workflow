@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.84.0] - 2026-10-04
+
+### Changed
+- **Las reglas conservan su ámbito en todos los targets (E0.2)**: Cursor, Copilot, OpenCode y Antigravity convertían todas las reglas en instrucciones *always-on* y cargaban unos 23 KB en cada petición. Ahora cada regla conserva el ámbito que declara su `applyTo` de origen:
+  - **Global** (`**`): sigue siendo *always-on*. Solo la regla de atribución.
+  - **Orquestador** (`agents/**`): el protocolo SDD común y el anexo de Engram se incrustan en el agente `sdd-orchestrator`, como ya hacía Claude.
+  - **Por ruta**: `openspec/**` y Strict TDD se cargan con el mecanismo nativo de cada host: `globs` con `alwaysApply: false` en Cursor, `applyTo` en Copilot, y `trigger: glob` con `globs` en Antigravity, que no lee `applyTo`. Las llaves se expanden porque Copilot y Antigravity separan patrones por comas. OpenCode no tiene ámbito por ruta: la regla de OpenSpec pasa al orquestador y la de Strict TDD no se carga, como en Claude.
+- **Coste de contexto**: el *always-on* baja de 22,0–25,7 KB a 2,3–2,4 KB en los cuatro targets. El orquestador sube entre 10,8 y 17,0 KB, pero solo se carga en sesiones SDD, y en ellas el total también baja (en Copilot, de 66,3 a 56,8 KB). Techos regenerados.
+- **Validadores**: `validate-github-copilot` acepta cualquier `applyTo` no vacío, y `validate-cursor` exige `globs` solo en las reglas con `alwaysApply: false`.
+- **Spec**: nuevo REQ-generator-020; REQ-generator-006 y el escenario de despacho de reglas se reescriben. Los ADR del 2026-07-25 sobre `to-mdc` y `AGENTS.md` quedan superados.
+- **Roadmap**: E0.2 queda cerrado; el siguiente ítem es E0.3 (`curate-skill-catalog`).
+
+### Removed
+- **Fuga del flujo de release a Cursor**: Cursor instalaba el `AGENTS.md` de este repositorio como regla `agents-protocol.mdc` con `alwaysApply: true`. Así, todos los proyectos consumidores recibían en cada petición el flujo de versión, changelog y release de ospec. Ningún target distribuye ya ese fichero; el ciclo de review acotado que también llevaba ya estaba en `sdd-common`.
+
+**Verificación directa**: `node scripts/check.js` (3659 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.83.0] - 2026-10-03
 
 ### Fixed
