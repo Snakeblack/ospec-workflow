@@ -167,6 +167,9 @@ Choose a target, edit models when that target supports it, review the summary, t
 
 See the [installation guide](docs/plugin-installation.md) for more details on native global installation and the hooks runtime.
 
+### 🧩 Optional extras package (every target)
+`issue-creation`, `comment-writer`, `gh-release-notes`, `judgment-day`, `caveman-compress` and `stack-webmcp` are not installed by default. Add `--with-extras` to any installer to include them (`npm run setup:claude -- --with-extras`, `node scripts/configure/install-codex.js --with-extras`). Installs remove what the new build no longer has, so re-running an installer without the flag uninstalls them.
+
 ### 🧠 Engram session memory (every target)
 Every `npm run setup:<target>` (Claude, Codex, Antigravity, opencode, Cursor, VS Code, Copilot CLI) configures [Engram](https://github.com/Gentleman-Programming/engram) automatically when the `engram` binary is on PATH. It runs the upstream `engram setup <agent>` (`claude-code`, `codex`, `antigravity-cli`, `opencode`, `cursor`, `vscode-copilot`). Copilot CLI has no upstream setup, so the installer adds an `engram mcp` entry to `~/.copilot/mcp-config.json` instead. The step is idempotent and fail-open, and it never changes the install exit code. Pass `--no-engram` to skip it (`npm run setup:codex -- --no-engram`). Without the binary, the installer only prints install guidance.
 - **Claude Code on Windows**: a short Git Bash fork probe decides whether the upstream hook's safe mode can be turned off (`ENGRAM_CLAUDE_WINDOWS_BASH_SAFE_MODE=0` in `~/.claude/settings.json`). The safe mode disables prompt capture and save reminders. A value you already set is never overwritten. The upstream hooks need bash, jq and curl.

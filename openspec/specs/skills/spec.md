@@ -81,6 +81,12 @@ Identifying traits:
 
 ---
 
+### 1.5 Optional Extras Package
+
+`issue-creation`, `comment-writer`, `gh-release-notes`, `judgment-day`, `caveman-compress` and `stack-webmcp` stay in `skills/` and follow every rule of their tier, but no target installs them by default: they ship only with `--with-extras` (REQ-generator-021, REQ-install-032). The list lives in `scripts/lib/skill-extras.js`. Phase agents and the orchestrator MUST NOT depend on an extra skill.
+
+---
+
 ## 2. Frontmatter Contract
 
 Every `SKILL.md` MUST open with a YAML frontmatter block delimited by `---`.

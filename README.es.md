@@ -142,6 +142,9 @@ Una vez cargado el plugin en tu agente de chat:
 
 Consulta la [guía de instalación](docs/plugin-installation.md) para más detalles sobre la instalación nativa global y el runtime de hooks.
 
+### 🧩 Paquete opcional de extras (todos los targets)
+`issue-creation`, `comment-writer`, `gh-release-notes`, `judgment-day`, `caveman-compress` y `stack-webmcp` no se instalan por defecto. Añade `--with-extras` a cualquier instalador para incluirlas (`npm run setup:claude -- --with-extras`, `node scripts/configure/install-codex.js --with-extras`). Cada instalación elimina lo que la nueva build ya no trae, así que volver a ejecutar un instalador sin el flag las desinstala.
+
 ### 🧠 Memoria de sesión con Engram (todos los targets)
 Cada `npm run setup:<target>` (Claude, Codex, Antigravity, opencode, Cursor, VS Code, Copilot CLI) configura [Engram](https://github.com/Gentleman-Programming/engram) automáticamente si el binario `engram` está en el PATH. Para ello ejecuta el `engram setup <agente>` oficial (`claude-code`, `codex`, `antigravity-cli`, `opencode`, `cursor`, `vscode-copilot`). Copilot CLI no tiene setup oficial, así que en su caso el instalador añade una entrada `engram mcp` a `~/.copilot/mcp-config.json`. El paso es idempotente y fail-open, y nunca cambia el código de salida de la instalación. Para omitirlo, usa `--no-engram` (`npm run setup:codex -- --no-engram`). Sin el binario, el instalador solo muestra cómo instalarlo.
 - **Claude Code en Windows**: una sonda corta de fork en Git Bash decide si se puede desactivar el modo seguro del hook oficial (`ENGRAM_CLAUDE_WINDOWS_BASH_SAFE_MODE=0` en `~/.claude/settings.json`). Ese modo seguro desactiva la captura de prompts y los recordatorios de guardado. Si ya tienes un valor, nunca se sobrescribe. Los hooks oficiales necesitan bash, jq y curl.

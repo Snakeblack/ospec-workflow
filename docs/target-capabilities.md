@@ -135,4 +135,6 @@ Línea base en v2.81.3 (KB decimales):
 
 Fuera de SDD, cada petición carga unos 20 KB menos. En una sesión SDD el total también baja (por ejemplo, en Copilot pasa de 66,3 a 56,8 KB), porque las reglas de ruta solo entran cuando se tocan esos ficheros. Codex no cambia: su `AGENTS.md` es el orquestador y le corresponde a E0.4.
 
+**Tras E0.3 (v2.86.0 y v2.87.0).** El catálogo baja de 82 a 61 skills instaladas por target (de 83 a 62 en Claude) y el listado de skills de unos 9,5 KB a 4,9 KB (5,1 KB en Claude y 6,8 KB en Codex, que también lista sus skills de comando). En v2.86.0 se eliminan o fusionan skills; en v2.87.0 seis pasan al paquete opcional `--with-extras` (REQ-generator-021), que la medición no cuenta porque mide la build por defecto.
+
 **Techos.** `scripts/fixtures/context-baseline.json` guarda cada valor como techo, y `scripts/lib/context-baseline.test.js` falla si alguno sube o si aparece un target o un agente sin techo. Cuando un cambio reduce contexto, o lo aumenta con una justificación escrita en el PR, se regenera con `--update`. `--json` saca el informe completo, con el detalle por fichero.

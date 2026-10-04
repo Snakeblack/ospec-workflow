@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.86.0, 2026-10-04.
+> **Versión de referencia:** v2.87.0, 2026-10-04.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -92,7 +92,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | Preguntas antes de empezar un cambio | Hasta 4 por sesión | 0–1 | 0, salvo los tres casos de gate | E1 |
 | Conocimiento capturado en foundation | 9 preguntas lineales | Ninguno | Mapa de conocimiento por perfil, con huecos explícitos | E2 |
 | ADRs de arquitectura (agnósticos de tecnología) | 0: los ADRs actuales son decisiones de desarrollo | 0 | Desde foundation y desde los cambios que tocan arquitectura | E2–E3 |
-| Skills instaladas por defecto | 82; 67 desde v2.86.0 | ~15 | 46 (+6 opcionales); las de fase SDD, en el paquete opcional | E0.3, E1.6 |
+| Skills instaladas por defecto | 82; 61 (+6 opcionales) desde v2.87.0 | ~15 | 46 (+6 opcionales); las de fase SDD, en el paquete opcional | E0.3, E1.6 |
 | Escenarios comparados | 0 | — | 6, contra el modo SDD y contra gentle-ai, publicados por release | E4 |
 
 ## Cómo se ejecuta este roadmap
@@ -139,7 +139,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E0.3, PR (b2) del paquete opcional (el (a) salió en v2.85.0 y el (b) en v2.86.0): es lo único que falta para abrir E0.4, que baja el último coste fijo grande (los 63 KB de Codex) y lleva el *always-on* al router de ≤ 4 KB. E1.1 también puede empezar ya.
+**▶ SIGUIENTE:** E0.4, ya desbloqueado por el (b2) de E0.3 (v2.87.0): baja el último coste fijo grande (los 63 KB de Codex) y lleva el *always-on* al router de ≤ 4 KB. Los PRs (c) y (d) de E0.3 siguen pendientes y pueden ir en paralelo. E1.1 también puede empezar ya.
 
 **Dependencias:**
 
@@ -199,7 +199,8 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Avance:** lista de la auditoría confirmada el 2026-10-04, incluida la retirada de review v1.
   - **(a) entregado en v2.85.0:** el extractor (JS y Go, con test de paridad sobre las skills reales) solo lee encabezados de reglas explícitos (`… Rules`, `Reglas …`) y ya no recoge todas las viñetas cuando no los hay. El test recorre las skills publicadas y falla si una *compact rule* sale de un antipatrón o de una lista de activación. El lint exige `Trigger:` a toda skill de conocimiento, con exención temporal de las que (b) elimina o fusiona. `accessibility`, `api-design` y `hexagonal-architecture` ganan una sección `## Rules` breve, porque antes inyectaban sus antipatrones.
   - **(b) entregado en v2.86.0:** se eliminan `agent-harness-construction`, `ai-first-engineering`, `agent-self-evaluation`, `token-budget-advisor`, `tdd-workflow`, `context7-mcp`, `backend-patterns`, `frontend-patterns`, `architecture-decision-records` y `caveman-help`. `caveman-commit` y `caveman-review` pasan a ser modos de `caveman`; `agent-introspection`, a la regla de recuperación del orquestador; `ai-regression-testing`, a `sdd-verify/references/ai-blind-spots.md`; `harness-audit`, a skill local del repositorio (`.agents/skills/`). El dominio de spec `token-budget-advisor` se conserva: describe el hook de `PreToolUse`, no la skill. El lint de `Trigger:` ya no tiene exenciones y el tope de *compact rules* baja de 500 a 450 tokens.
-  - **Pendiente:** (b2) paquete opcional `--with-extras` (issue-creation, comment-writer, gh-release-notes, judgment-day, caveman-compress, stack-webmcp), que toca los instaladores de los 7 targets y va en su propio PR; (c) stacks 24 → 13; (d) retirada de review v1.
+  - **(b2) entregado en v2.87.0:** `scripts/lib/skill-extras.js` define el paquete opcional (`issue-creation`, `comment-writer`, `gh-release-notes`, `judgment-day`, `caveman-compress`, `stack-webmcp`). El generador lo deja fuera salvo con `withExtras` (REQ-generator-021), y los 7 instaladores y `install-target` aceptan `--with-extras` (REQ-install-032). Reinstalar sin el flag las desinstala, porque la poda por manifiesto quita lo que la build ya no trae. Por target quedan 61 skills instaladas (62 en Claude) y el listado baja unos 0,95 KB. El instalador TUI (Go) no expone todavía el paquete.
+  - **Pendiente:** (c) stacks 24 → 13; (d) retirada de review v1.
 
 ### E0.4 — `router-and-sdd-on-demand`
 

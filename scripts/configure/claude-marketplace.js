@@ -60,6 +60,7 @@ function parseArgs(argv) {
     else if (arg === "--marketplace-name") args.marketplaceName = argv[++i];
     else if (arg === "--plugin-name") args.pluginName = argv[++i];
     else if (arg === "--no-validate") args.validate = false;
+    else if (arg === "--with-extras") args.withExtras = true;
   }
 
   return args;
@@ -108,6 +109,7 @@ function buildClaudeMarketplace(options, deps = {}) {
     target: "claude",
     outDir: pluginDir,
     validate: options.validate,
+    withExtras: Boolean(options.withExtras),
   });
 
   const marketplace = {

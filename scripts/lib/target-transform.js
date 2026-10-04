@@ -10,16 +10,19 @@ const { parse, serialize, getField, stripKeys, setScalar, setArray, setBlockMap 
 const { resolveModel, OMIT } = require("./model-resolver.js");
 const { embedAgentReferences } = require("./agent-embed.js");
 const { ruleScope } = require("./rule-scope.js");
+const { isExtraSkillPath } = require("./skill-extras.js");
 
 // A file collection is an array of { path, content:string }.
 
-function transform({ files, profile, models } = {}) {
-  if (!Array.isArray(files)) {
+function transform({ files: sourceFiles, profile, models, withExtras = false } = {}) {
+  if (!Array.isArray(sourceFiles)) {
     throw new TypeError("files must be an array of { path, content }");
   }
   if (!profile || typeof profile !== "object") {
     throw new TypeError("profile must be a non-null object");
   }
+  // The optional extras package ships only on request (E0.3 b2).
+  const files = withExtras ? sourceFiles : sourceFiles.filter((file) => !isExtraSkillPath(file.path));
   // Accumulating strategies fold every rule into one body (Claude, Codex);
   // scoped ones carry only the orchestrator-scoped rules, raw, into that agent.
   const rulesContent = isScopedStrategy(profile.rules && profile.rules.strategy)

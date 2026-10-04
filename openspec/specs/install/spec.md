@@ -1195,3 +1195,13 @@ On Windows, after Engram is configured for Claude Code, `setup:claude` MUST deci
 - GIVEN the variable is already set by the user
 - WHEN `setup:claude` runs
 - THEN no probe runs and the value is left unchanged
+
+### Requirement: Installers Accept The Extras Package Flag {#REQ-install-032}
+
+Every target installer (`setup:claude`, `setup:vscode`, `setup:copilot`, `setup:opencode`, `setup:codex`, `setup:cursor`, `setup:antigravity`) and the repo-local `install-target` MUST accept `--with-extras` and forward it to the build (REQ-generator-021). Without the flag they MUST install the default package. Because installs prune files of the previous install that the new build no longer has, re-running an installer without the flag removes extras installed earlier.
+
+#### Scenario: Flag reaches the build
+
+- GIVEN any installer run with `--with-extras`
+- WHEN it builds its target
+- THEN the build receives `withExtras: true`, and `false` when the flag is absent
