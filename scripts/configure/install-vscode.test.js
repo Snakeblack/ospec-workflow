@@ -91,6 +91,7 @@ test("main creates settings.json when user settings directory exists", () => {
   const mockFs = {
     existsSync: (p) => p.includes("User") && !p.includes("settings.json"),
     readFileSync: () => "",
+    readdirSync: () => [],
     writeFileSync: (p, data) => { written[p] = data; },
   };
   const exitCode = main([], {

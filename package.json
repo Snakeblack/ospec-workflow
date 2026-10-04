@@ -1,6 +1,6 @@
 {
   "name": "ospec-workflow",
-  "version": "2.88.0",
+  "version": "2.89.0",
   "private": true,
   "description": "Spec-Driven Development workflow with OpenSpec, strict TDD, phase agents, skills, hooks, and verification contracts.",
   "license": "MIT",
@@ -31,7 +31,7 @@
     "install:codex": "node scripts/configure/install-codex.js",
     "build:vscode": "node scripts/configure/cli.js --target vscode --out dist/vscode",
     "setup:vscode": "node scripts/configure/install-vscode.js",
-    "reload:vscode": "npm run build:vscode",
+    "reload:vscode": "node scripts/configure/install-vscode.js",
     "build:cursor": "node scripts/configure/cli.js --target cursor --out dist/cursor",
     "setup:cursor": "node scripts/configure/install-cursor.js",
     "reload:cursor": "node scripts/configure/install-cursor.js",

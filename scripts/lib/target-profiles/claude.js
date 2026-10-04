@@ -50,6 +50,9 @@ module.exports = {
     emitAs: "skill",
     skillPath: "skills/sdd-orchestrator/SKILL.md",
     entry: "skill `ospec-workflow:sdd-orchestrator`",
+    // Claude Code substitutes ${CLAUDE_SKILL_DIR} in the skill body, and the
+    // plugin ships `_shared` beside the skill: no install-time marker (E0.4 b).
+    sharedDir: "${CLAUDE_SKILL_DIR}/../_shared",
     description:
       "SDD orchestrator — coordinate phases, delegate to the sdd-* phase agents, enforce review/TDD gates, and persist OpenSpec state. Load only for /sdd-* commands or an explicit spec-driven request.",
   },

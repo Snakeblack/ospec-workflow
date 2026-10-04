@@ -332,7 +332,7 @@ Note: `design-gap`/`spec-gap` are post-hoc origin tags from verify; `blocker_typ
 
 ### Sub-Agent Launch Pattern
 
-ALL sub-agent launch prompts that involve reading, writing, or reviewing code MUST include pre-resolved **compact rules** from the skill registry. Follow the **Skill Resolver Protocol** (see `_shared/skill-resolver.md` in the skills directory).
+ALL sub-agent launch prompts that involve reading, writing, or reviewing code MUST include pre-resolved **compact rules** from the skill registry. Follow the **Skill Resolver Protocol** (see `skills/_shared/skill-resolver.md`).
 
 The orchestrator resolves skills from `.ospec/cache/skill-registry.cache.json` ONCE (at session start or first delegation), caches the compact rules, and injects matching rules into each sub-agent's prompt.
 

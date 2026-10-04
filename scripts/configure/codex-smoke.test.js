@@ -109,9 +109,15 @@ test("codex smoke: global install contains every generated skill and preserves u
   const generatedSkillFiles = listFiles(path.join(buildOut, "skills"));
   assert.ok(generatedSkillFiles.includes(path.join("commands", "sdd-apply", "SKILL.md")));
   assert.ok(generatedSkillFiles.includes(path.join("accessibility", "SKILL.md")));
+  // E0.4 (b): the orchestrator skill is installed with its _shared directory rendered.
+  const sharedDir = path.resolve(installedSkills, "_shared").split(path.sep).join("/");
   for (const relative of generatedSkillFiles) {
+    const generatedBytes = fs.readFileSync(path.join(buildOut, "skills", relative));
+    const expected = relative === path.join("sdd-orchestrator", "SKILL.md")
+      ? Buffer.from(generatedBytes.toString("utf8").split("__OSPEC_SHARED_DIR__").join(sharedDir))
+      : generatedBytes;
     assert.ok(
-      fs.readFileSync(path.join(buildOut, "skills", relative)).equals(fs.readFileSync(path.join(installedSkills, relative))),
+      expected.equals(fs.readFileSync(path.join(installedSkills, relative))),
       `installed skill must match generated payload: ${relative}`,
     );
   }

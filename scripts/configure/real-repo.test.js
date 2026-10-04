@@ -398,12 +398,13 @@ test("real repo: every skill a phase agent says to load exists in github-copilot
   runConfigure({ sourceDir: ROOT, target: "github-copilot", outDir: out, validate: false });
 
   const agentDir = path.join(out, ".github", "agents");
-  const reference = /`(skills\/[^`]+\.md)`/g;
+  // The orchestrator names its _shared handlers through the install-time marker (E0.4 b).
+  const reference = /`((?:skills\/|__OSPEC_SHARED_DIR__\/)[^`]+\.md)`/g;
   let checked = 0;
   for (const file of walk(agentDir)) {
     const text = fs.readFileSync(path.join(agentDir, file), "utf8");
     for (const match of text.matchAll(reference)) {
-      const rel = match[1];
+      const rel = match[1].replace(/^__OSPEC_SHARED_DIR__\//, "skills/_shared/");
       assert.ok(fs.existsSync(path.join(out, rel)), `${file} loads ${rel}, but it is not shipped`);
       checked += 1;
     }

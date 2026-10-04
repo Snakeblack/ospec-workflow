@@ -1221,3 +1221,19 @@ Where the router lands in a file the user also owns (`~/.claude/CLAUDE.md` for `
 - GIVEN `~/.codex/AGENTS.md` is the orchestrator copy that the previous install listed in its manifest
 - WHEN `setup:codex` runs
 - THEN the file holds only the router block and is not deleted
+
+### Requirement: Installers Render The Shared Handler Directory {#REQ-install-034}
+
+Each installer that ships an orchestrator carrying `__OSPEC_SHARED_DIR__` (REQ-generator-023) MUST replace the marker with the directory where it installs `skills/_shared/` (`scripts/configure/shared-dir.js`): the absolute POSIX path for a global install (`setup:copilot`, `setup:opencode`, `setup:cursor`, `setup:codex` under `~/.agents/skills`, and `setup:antigravity` per destination root, a WSL root written as its Windows path), the absolute path of `dist/vscode` for `setup:vscode`, which VS Code loads in place, and a path relative to the repository root for a repository install (`skills/_shared` for `install-target`; `.agents/skills/_shared` for `install:codex -- <destRepo>`, which now also installs `_shared` beside the orchestrator skill). Except on VS Code, the marker MUST be rendered only for the sync and restored in the generated tree afterwards, also when the sync fails, so `dist/` stays deterministic and one build can serve several roots. An empty value or one that still holds the marker MUST fail the install. `setup:claude` renders nothing: Claude Code substitutes `${CLAUDE_SKILL_DIR}` itself.
+
+#### Scenario: A global install names its own shared directory
+
+- GIVEN `setup:copilot` runs with `--dest <root>`
+- WHEN the installed orchestrator is read
+- THEN it names `<root>/skills/_shared/gate-4r-review.md` as an absolute POSIX path, the file exists, and the generated orchestrator in `dist/` still holds the marker
+
+#### Scenario: A repository install stays portable
+
+- GIVEN `install:codex -- <destRepo>` runs
+- WHEN `<destRepo>/.agents/skills/sdd-orchestrator/SKILL.md` is read
+- THEN it names `.agents/skills/_shared/` relative to the repository, and `<destRepo>/.agents/skills/_shared/` holds the shared handlers

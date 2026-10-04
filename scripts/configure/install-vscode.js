@@ -14,6 +14,7 @@ const os = require("node:os");
 const { runConfigure } = require("./cli.js");
 const { runEngramStep, withEngramStep } = require("./engram-setup.js");
 const { copyBinaryToTree } = require("./install-target.js");
+const { renderSharedDir, sharedDirValue } = require("./shared-dir.js");
 const { safeParseJsonc, mutateFs } = require("./install-engine.js");
 
 function getSettingsPaths(deps = {}) {
@@ -179,6 +180,10 @@ function install(argv = process.argv.slice(2), deps = {}) {
     stdout.write("dry-run: no files modified\n");
     return 0;
   }
+
+  // E0.4 (b): VS Code loads the dist tree itself, so the orchestrator's
+  // _shared marker is rendered there and stays rendered.
+  renderSharedDir(outDir, sharedDirValue(path.join(absPluginPath, "skills")), fsImpl);
 
   const settingsFiles = getSettingsPaths(deps);
   const preparedWrites = [];

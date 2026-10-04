@@ -9,6 +9,7 @@ const { runConfigure } = require("./cli.js");
 const { runEngramStep, withEngramStep } = require("./engram-setup.js");
 const { assertSafeDest } = require("./install-target.js");
 const { removeRouterBlock, writeRouterBlock } = require("./instruction-block.js");
+const { SHARED_DIR_MARKER, renderSharedDir, sharedDirValue } = require("./shared-dir.js");
 const {
   readOwnershipManifest,
   writeOwnershipManifest,
@@ -1078,14 +1079,30 @@ function gatherCodexSkillsFiles(outDir, fsImpl = fs) {
 }
 
 // A repository install has no global skills: the orchestrator skill goes to
-// the repository's .agents/skills, where Codex looks for repo-scoped skills.
+// the repository's .agents/skills, where Codex looks for repo-scoped skills,
+// with the `_shared` handlers it reads on demand beside it (E0.4 b). The
+// skill names them relative to the repository, whose files are shared.
+const REPO_SKILLS_DIR = ".agents/skills";
+
 function installRepoOrchestratorSkill(outDir, repoRoot, writeFs, fsImpl = fs) {
   const source = path.join(outDir, "skills", "sdd-orchestrator", "SKILL.md");
   if (!fsImpl.existsSync(source)) return;
-  const destination = path.join(repoRoot, ".agents", "skills", "sdd-orchestrator", "SKILL.md");
+  const skillsRoot = path.join(repoRoot, ...REPO_SKILLS_DIR.split("/"));
+  const destination = path.join(skillsRoot, "sdd-orchestrator", "SKILL.md");
   assertManagedPathSafe(repoRoot, destination, "Codex orchestrator skill destination", fsImpl);
   writeFs.mkdirSync(path.dirname(destination), { recursive: true });
-  writeFs.copyFileSync(source, destination);
+  const sharedDir = sharedDirValue(REPO_SKILLS_DIR, { relative: true });
+  writeFs.writeFileSync(destination, fsImpl.readFileSync(source, "utf8").split(SHARED_DIR_MARKER).join(sharedDir));
+
+  const sharedSource = path.join(outDir, "skills", "_shared");
+  if (!fsImpl.existsSync(sharedSource)) return;
+  for (const entry of fsImpl.readdirSync(sharedSource, { withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    const sharedDestination = path.join(skillsRoot, "_shared", entry.name);
+    assertManagedPathSafe(repoRoot, sharedDestination, "Codex shared skill destination", fsImpl);
+    writeFs.mkdirSync(path.dirname(sharedDestination), { recursive: true });
+    writeFs.copyFileSync(path.join(sharedSource, entry.name), sharedDestination);
+  }
 }
 
 function reportConfigRepair(repair, stdout) {
@@ -1258,7 +1275,13 @@ function install(argv, deps = {}) {
         const currentSkillsFiles = gatherCodexSkillsFiles(outDir, fsImpl);
         pruneStaleFiles(globalSkillsRoot, previousSkillsManifest, currentSkillsFiles, writeFs);
 
-        syncCodexSkills(outDir, globalSkillsRoot, { fs: writeFs, approvedRoot: userHome });
+        // E0.4 (b): the orchestrator skill names the installed _shared directory.
+        const shared = renderSharedDir(outDir, sharedDirValue(globalSkillsRoot), fsImpl);
+        try {
+          syncCodexSkills(outDir, globalSkillsRoot, { fs: writeFs, approvedRoot: userHome });
+        } finally {
+          shared.restore();
+        }
         writeFs.rmSync(path.join(agentsDest, "sdd-orchestrator.toml"), { force: true });
         installCodexHooks(outDir, codexRoot, runtimeDir, { fs: writeFs });
 

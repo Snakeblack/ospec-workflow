@@ -2079,7 +2079,9 @@ pointer table MUST be included in the generated output tree for every supported 
 (claude, github-copilot, opencode, vscode, codex, cursor). On the claude target the orchestrator MUST
 be emitted as `skills/sdd-orchestrator/SKILL.md` per Section 8.3; the `_shared/`
 handler files MUST be co-located in the same generated tree so the generated skill
-can read them at runtime.
+can read them at runtime. The generated orchestrator names those files through the
+installed `_shared` directory, not relative to the project (REQ-generator-023,
+REQ-install-034).
 
 #### Scenario: Generated target resolves handler file at runtime
 

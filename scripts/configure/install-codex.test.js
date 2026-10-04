@@ -2092,6 +2092,44 @@ test("repo install writes the router block into the repository AGENTS.md and the
   assert.equal(fs.readFileSync(path.join(legacyRepo, "AGENTS.md"), "utf8"), ROUTER_BLOCK, "the pre-E0.4 copy is replaced");
 });
 
+// E0.4 (b): the orchestrator skill names the installed _shared directory.
+function installWithSharedMarker(t, argv, homeDir) {
+  const cwd = makeTempDir(t, "codex-shared-source-");
+  const exitCode = main(argv, {
+    cwd,
+    homedir: () => homeDir,
+    stdout: { write() {} },
+    stderr: { write() {} },
+    findCodexBin: () => null,
+    runConfigure({ outDir }) {
+      writeRouterCodexTree(outDir);
+      fs.writeFileSync(path.join(outDir, "skills", "sdd-orchestrator", "SKILL.md"), "read __OSPEC_SHARED_DIR__/shared.md\n");
+      return { exitCode: 0, validation: null };
+    },
+  });
+  return { exitCode, generated: path.join(cwd, "dist", "codex", "skills", "sdd-orchestrator", "SKILL.md") };
+}
+
+test("global install points the orchestrator skill at ~/.agents/skills/_shared and leaves dist untouched", (t) => {
+  const homeDir = makeTempDir(t, "codex-shared-home-");
+  const { exitCode, generated } = installWithSharedMarker(t, [], homeDir);
+  assert.equal(exitCode, 0);
+  const skillsRoot = path.join(homeDir, ".agents", "skills");
+  const expected = `${path.resolve(skillsRoot, "_shared").split(path.sep).join("/")}/shared.md`;
+  assert.equal(fs.readFileSync(path.join(skillsRoot, "sdd-orchestrator", "SKILL.md"), "utf8"), `read ${expected}\n`);
+  assert.equal(fs.readFileSync(generated, "utf8"), "read __OSPEC_SHARED_DIR__/shared.md\n");
+});
+
+test("repo install ships _shared beside the orchestrator skill and names it relative to the repository", (t) => {
+  const destRepo = makeTempDir(t, "codex-shared-repo-");
+  const { exitCode, generated } = installWithSharedMarker(t, [destRepo, "--no-validate"], makeTempDir(t, "codex-shared-home-"));
+  assert.equal(exitCode, 0);
+  const skills = path.join(destRepo, ".agents", "skills");
+  assert.equal(fs.readFileSync(path.join(skills, "sdd-orchestrator", "SKILL.md"), "utf8"), "read .agents/skills/_shared/shared.md\n");
+  assert.equal(fs.readFileSync(path.join(skills, "_shared", "shared.md"), "utf8"), "shared\n");
+  assert.equal(fs.readFileSync(generated, "utf8"), "read __OSPEC_SHARED_DIR__/shared.md\n");
+});
+
 test("--no-router installs without the router and removes an earlier block", (t) => {
   assert.equal(parseArgs(["--no-router"]).noRouter, true);
   const destRepo = makeTempDir(t, "codex-router-off-");
