@@ -1,12 +1,3 @@
----
-name: stack-kotlin-coroutines-flows
-description: "Kotlin coroutines and flow guidelines — scopes, dispatchers, channel concurrency"
-license: Apache-2.0
-metadata:
-  author: manuel-retamozo-garcia
-  version: "1.0"
-capabilities: [kotlin]
----
 
 # Kotlin Coroutines & Flows
 

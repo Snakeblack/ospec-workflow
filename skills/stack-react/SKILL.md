@@ -1,6 +1,6 @@
 ---
 name: stack-react
-description: "React UI library — components, hooks, state management, patterns"
+description: "React UI library — components, hooks, state management, patterns, performance, and component testing with React Testing Library"
 license: Apache-2.0
 metadata:
   author: manuel-retamozo-garcia
@@ -22,6 +22,16 @@ Idiomatic React 18/19 patterns for building robust, accessible, performant compo
 - Working with Server Components / Client Components (Next.js App Router, RSC)
 - Implementing forms with React 19 actions or controlled inputs
 - Wiring data fetching with TanStack Query / SWR / RSC
+- Optimizing renders, bundles, or data waterfalls
+- Writing or reviewing component and hook tests
+
+## Core Rules
+
+1. **Pure Render**: Derive values during render; never mirror props or derived data into state through `useEffect`.
+2. **Hooks Discipline**: Hooks at top level only; clean up every subscription, interval, and listener; memoize only when a profiler or a dependency chain proves it matters.
+3. **State Location**: Keep state in the lowest component that needs it; Context for low-frequency global values, an external store for high-frequency shared updates, a server-state library for server data.
+4. **Performance** (`references/performance.md`): Fix by priority — waterfalls first (`Promise.all` for independent awaits), then bundle size (direct imports, dynamic imports for heavy components), then re-renders.
+5. **Testing** (`references/testing.md`): Test what the user sees and does; query by role or label before test IDs, interact with `userEvent`, mock the network with MSW, never mock React itself.
 
 ## Core Principles
 
@@ -56,7 +66,7 @@ React has no inheritance model for components. Compose with `children`, render p
 
 ## Hooks Discipline
 
-See [rules/react/hooks.md](../../rules/react/hooks.md) for the full ruleset. Highlights:
+Highlights:
 
 - Top-level only, never conditional
 - Cleanup every subscription, interval, listener
@@ -253,7 +263,7 @@ Wrap a component in `React.memo` only when:
 - Every interactive element must be reachable by keyboard
 - Form inputs need labels — `<label htmlFor>` or `aria-label` if visually labeled by an icon
 - Manage focus on route changes and modal open/close
-- Run `axe` in component tests (see [skills/stack-react-testing](../stack-react-testing/SKILL.md))
+- Run `axe` in component tests (see [testing](references/testing.md))
 - Cross-link: [skills/accessibility/SKILL.md](../accessibility/SKILL.md) covers WCAG criteria and pattern libraries
 
 ## Routing
@@ -266,11 +276,13 @@ This skill is router-agnostic. The patterns above work with React Router, TanSta
 - **React Native**: Platform-specific patterns differ enough to warrant a separate `react-native-patterns` skill (not present yet)
 - **Remix**: Loader/action conventions overlap with RSC but follow Remix docs
 
-## Related
+## References
 
-- Skills: [stack-react-performance](../stack-react-performance/SKILL.md) for the Vercel-derived performance ruleset, [accessibility](../accessibility/SKILL.md)
-- Agents: `react-reviewer` for code review, `react-build-resolver` for build/bundler errors
-- Commands: `/react-review`, `/react-build`, `/react-test`
+Load on demand, only the file the task needs:
+* [Performance](references/performance.md) — Vercel-derived ruleset by priority: waterfalls, bundle size, server, client fetching, re-renders
+* [Testing](references/testing.md) — React Testing Library, query priority, `userEvent`, MSW, hook tests, accessibility assertions
+
+Related skill: [accessibility](../accessibility/SKILL.md).
 
 ## Examples
 

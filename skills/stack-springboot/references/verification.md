@@ -1,12 +1,3 @@
----
-name: stack-springboot-verification
-description: "Spring Boot verification and testing quality gates"
-license: Apache-2.0
-metadata:
-  author: manuel-retamozo-garcia
-  version: "1.0"
-capabilities: [springboot]
----
 
 # Spring Boot Verification Loop
 

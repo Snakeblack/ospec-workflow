@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.90.0] - 2026-10-04
+
+### Changed
+- **Una skill de stack por tecnología (E0.3, PR c)**: las skills de stack pasan de 24 a 13 (REQ-skills-021). Las 11 sub-skills de Go, Kotlin, Python, React y Spring Boot (`stack-go-testing`, `stack-kotlin-coroutines-flows`, `stack-kotlin-exposed-patterns`, `stack-kotlin-ktor-patterns`, `stack-kotlin-testing`, `stack-python-testing`, `stack-react-performance`, `stack-react-testing`, `stack-springboot-security`, `stack-springboot-tdd` y `stack-springboot-verification`) pasan a `references/` de su skill y se leen bajo demanda. Cada skill fusionada gana una regla condensada por sub-área que nombra el fichero de referencia. Antes, un proyecto Kotlin inyectaba cinco bloques de reglas de stack y agotaba el tope de cinco; ahora inyecta uno.
+- **React y Spring Boot inyectan reglas**: no tenían sección de reglas, así que no aportaban *compact rules*. Ahora tienen `## Core Rules` sacadas de su propio contenido.
+- **Coste de contexto**: 50 skills instaladas por target (51 en Claude) y el listado de skills baja unos 0,93 KB. Techos regenerados.
+- **Docs**: specs de skills y agents, coste por target en `target-capabilities` y avance de E0.3 en el roadmap.
+
+### Fixed
+- **Enlaces rotos en React**: cuatro enlaces a reglas, skills y comandos que no existen (`rules/react/*.md`, `react-patterns`, `e2e-testing`, `/react-*`) se quitan. Un test nuevo exige que `SKILL.md` enlace cada referencia y que todo enlace relativo de una skill de stack resuelva.
+
+**Verificación directa**: `node scripts/check.js` (3717 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.89.0] - 2026-10-04
 
 ### Added

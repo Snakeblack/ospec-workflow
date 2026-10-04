@@ -72,6 +72,8 @@ Stack skills carry operative, per-technology knowledge — authoring conventions
 
 Each stack skill MUST live at `skills/stack-{name}/SKILL.md` where `{name}` is a lowercase slug matching the technology it covers (e.g., `stack-angular`, `stack-dotnet`, `stack-postgres`).
 
+A technology has exactly one stack skill; its sub-areas live in that skill's `references/` (REQ-skills-021).
+
 Identifying traits:
 - No `disable-model-invocation` or `user-invocable` override in frontmatter.
 - License is `Apache-2.0` (matching the utility tier).
@@ -1682,3 +1684,19 @@ The "Session memory" row of the Operative Memory Ownership Boundary table in `sk
 - GIVEN the Phase-Read Table
 - WHEN compared before and after this change
 - THEN it is identical and lists only `openspec/memory/` files
+
+### Requirement: One Stack Skill per Capability {#REQ-skills-021}
+
+Each capability name MUST be declared by at most one default-installed stack skill. A technology's sub-areas (testing, performance, security, frameworks of the same language) MUST live as `references/<topic>.md` inside that stack skill, never as sibling stack skills that share the capability and compete for the five-block injection cap. The stack skill's rules section MUST carry one condensed rule per sub-area that names its reference file, so the injected compact rules tell the sub-agent which file to load on demand. `SKILL.md` MUST link every file in its `references/` directory, and every relative Markdown link inside a stack skill MUST resolve. The default catalog has 13 stack skills.
+
+#### Scenario: Capabilities are unique across stack skills
+
+- GIVEN the skills discovered in `skills/` without the optional extras package
+- WHEN stack skills are grouped by capability
+- THEN no capability has more than one stack skill and there are 13 stack skills
+
+#### Scenario: References are reachable
+
+- GIVEN any `skills/stack-*/` directory
+- WHEN its `references/` files and relative links are checked
+- THEN `SKILL.md` links every reference file and no relative link is broken

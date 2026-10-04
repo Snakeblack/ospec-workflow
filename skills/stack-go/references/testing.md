@@ -1,12 +1,5 @@
----
-name: stack-go-testing
-description: "Go testing standards — unit tests, mocks, integration tests"
-license: Apache-2.0
-metadata:
-  author: manuel-retamozo-garcia
-  version: "1.0"
-capabilities: [go]
----
+# Go Testing
+
 
 ## Activation Contract
 
@@ -49,4 +42,4 @@ Report test files changed, scenarios covered, commands executed, golden files up
 
 ## References
 
-- [references/examples.md](references/examples.md) — compact table-driven, Bubbletea, teatest, golden, and command examples.
+- [testing-examples.md](testing-examples.md) — compact table-driven, Bubbletea, teatest, golden, and command examples.

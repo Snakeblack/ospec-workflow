@@ -1,13 +1,3 @@
----
-name: stack-kotlin-exposed-patterns
-description: "Kotlin JetBrains Exposed ORM framework — DAO, DSL, transactions"
-license: Apache-2.0
-metadata:
-  author: manuel-retamozo-garcia
-  version: "1.0"
-capabilities: [kotlin]
----
-
 # Kotlin Exposed Patterns
 
 Comprehensive patterns for database access with JetBrains Exposed ORM, including DSL queries, DAO, transactions, and production-ready configuration.
@@ -32,4 +22,4 @@ Comprehensive patterns for database access with JetBrains Exposed ORM, including
 ## References
 
 For full code examples, table definitions, join queries, batch operations, JSONB serialization mapping, and testing repositories, refer to:
-* [JetBrains Exposed ORM Patterns & Examples](references/patterns.md)
+* [JetBrains Exposed ORM Patterns & Examples](exposed-patterns.md)

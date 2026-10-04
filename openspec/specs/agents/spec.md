@@ -1775,10 +1775,9 @@ mechanical or meta operations where technology-specific knowledge is irrelevant
 
 > **Resolution (AMBIGUITY-A3 — multi-skill precedence)**: When a single capability
 > name resolves to more than one stack-skill entry, the default tie-breaking order
-> is deterministic registry order (alphabetical by skill `id`). With the 2–3 seed
-> stack skills shipped in v1 (one per technology), this case never occurs in
-> practice. A future change that adds multiple skills per capability MUST specify
-> an explicit precedence rule at that time.
+> is deterministic registry order (alphabetical by skill `id`). Since REQ-skills-021
+> each capability has exactly one stack skill (sub-areas live in its `references/`),
+> so this case does not occur in the default catalog.
 
 ### Scenario: Capability-matched skills injected for frontend apply task
 
