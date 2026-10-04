@@ -1,6 +1,6 @@
 ---
 name: stack-springboot
-description: "Spring Boot architecture patterns — REST API design, layered services, JPA, caching"
+description: "Spring Boot architecture patterns — REST API design, layered services, JPA, caching, Spring Security, TDD with MockMvc and Testcontainers, and pre-release verification"
 license: Apache-2.0
 metadata:
   author: manuel-retamozo-garcia
@@ -20,6 +20,17 @@ Spring Boot architecture and API patterns for scalable, production-grade service
 - Adding validation, exception handling, or pagination
 - Setting up profiles for dev/staging/production environments
 - Implementing event-driven patterns with Spring Events or Kafka
+- Adding authentication, authorization, CORS, CSRF, or secrets handling
+- Writing tests or running the verification loop before a PR or release
+
+## Core Rules
+
+1. **Thin Layers**: Controllers map HTTP only, services own transactions and business rules, repositories stay simple; constructor injection, never field injection.
+2. **Central Errors**: Handle exceptions centrally in one `@ControllerAdvice` (RFC 7807 problem details on Boot 3+); validate request DTOs with `@Valid`.
+3. **Queries**: `@Transactional(readOnly = true)` for reads; paginate list endpoints; size HikariCP pools and timeouts for the workload.
+4. **Security** (`references/security.md`): Deny by default and least privilege; guard every sensitive path, never concatenate SQL, keep secrets out of the repo and sensitive data out of logs.
+5. **TDD** (`references/tdd.md`): Failing test first; slice tests (`@WebMvcTest`, `@DataJpaTest`) before `@SpringBootTest`; Testcontainers for real databases; enforce coverage with JaCoCo.
+6. **Verification** (`references/verification.md`): Before a PR, run build, static analysis, tests with coverage, security scan, and a diff review; fix each failing phase before moving on.
 
 ## REST API Structure
 
@@ -316,3 +327,10 @@ Use Spring’s `@Scheduled` or integrate with queues (e.g., Kafka, SQS, RabbitMQ
 - Enforce null-safety via `@NonNull` and `Optional` where appropriate
 
 **Remember**: Keep controllers thin, services focused, repositories simple, and errors handled centrally. Optimize for maintainability and testability.
+
+## References
+
+Load on demand, only the file the task needs:
+* [Security](references/security.md) — authentication, authorization, validation, CSRF, CORS, secrets, headers, release checklist
+* [TDD](references/tdd.md) — JUnit 5 and Mockito, MockMvc, `@DataJpaTest`, Testcontainers, JaCoCo
+* [Verification](references/verification.md) — build, static analysis, tests, security scan, and diff review phases

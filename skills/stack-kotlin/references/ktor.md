@@ -1,13 +1,3 @@
----
-name: stack-kotlin-ktor-patterns
-description: "Kotlin Ktor web framework — routing, content negotiation, serialization, plugins"
-license: Apache-2.0
-metadata:
-  author: manuel-retamozo-garcia
-  version: "1.0"
-capabilities: [kotlin]
----
-
 # Ktor Server Patterns
 
 Comprehensive Ktor patterns for building robust, maintainable HTTP servers with Kotlin coroutines.
@@ -32,4 +22,4 @@ Comprehensive Ktor patterns for building robust, maintainable HTTP servers with 
 ## References
 
 For full code examples, project layout structures, Custom Serializers, WebSockets connections, and BearerAuth integration tests, refer to:
-* [Kotlin Ktor Web Framework Patterns & Examples](references/patterns.md)
+* [Kotlin Ktor Web Framework Patterns & Examples](ktor-patterns.md)

@@ -1,13 +1,3 @@
----
-name: stack-kotlin-testing
-description: "Kotlin testing standards — Kotest, Mockk, JUnit 5"
-license: Apache-2.0
-metadata:
-  author: manuel-retamozo-garcia
-  version: "1.0"
-capabilities: [kotlin]
----
-
 # Kotlin Testing Patterns
 
 Comprehensive Kotlin testing patterns for writing reliable, maintainable tests following TDD methodology with Kotest and MockK.
@@ -32,4 +22,4 @@ Comprehensive Kotlin testing patterns for writing reliable, maintainable tests f
 ## References
 
 For full code examples, step-by-step TDD walkthroughs, custom matchers, arg captors, flow testing, property-based setups, and Ktor route testing, refer to:
-* [Kotlin Testing Patterns & Examples](references/patterns.md)
+* [Kotlin Testing Patterns & Examples](testing-patterns.md)

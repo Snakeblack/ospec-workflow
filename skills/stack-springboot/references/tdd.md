@@ -1,12 +1,3 @@
----
-name: stack-springboot-tdd
-description: "Spring Boot Test-Driven Development — MockMvc, DataJpaTest, Mockito"
-license: Apache-2.0
-metadata:
-  author: manuel-retamozo-garcia
-  version: "1.0"
-capabilities: [springboot]
----
 
 # Spring Boot TDD Workflow
 

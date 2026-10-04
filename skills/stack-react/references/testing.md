@@ -1,12 +1,3 @@
----
-name: stack-react-testing
-description: "React component testing — React Testing Library, Vitest, Jest"
-license: Apache-2.0
-metadata:
-  author: manuel-retamozo-garcia
-  version: "1.0"
-capabilities: [react]
----
 
 # React Testing
 
@@ -247,7 +238,7 @@ Run axe in component tests for every interactive component. Catches:
 - Missing alt text on images
 - Heading order violations
 
-Cross-link: [skills/accessibility/SKILL.md](../accessibility/SKILL.md) for the broader a11y testing playbook.
+Cross-link: [skills/accessibility/SKILL.md](../../accessibility/SKILL.md) for the broader a11y testing playbook.
 
 ## When NOT to Use Snapshot Tests
 
@@ -358,10 +349,7 @@ CI=true vitest run --coverage
 
 ## Related
 
-- Rules: [rules/react/testing.md](../../rules/react/testing.md)
-- Skills: [react-patterns](../react-patterns/SKILL.md), [accessibility](../accessibility/SKILL.md), [e2e-testing](../e2e-testing/SKILL.md)
-- Agents: `react-reviewer` (reviews test quality during code review), `tdd-guide` (enforces TDD process)
-- Commands: `/react-test`, `/react-review`
+- [Performance](performance.md), [accessibility](../../accessibility/SKILL.md)
 
 ## Examples
 

@@ -196,6 +196,57 @@ test("every knowledge skill declares a Trigger: in its description", async () =>
   assert.deepEqual(missing, []);
 });
 
+// One stack skill per capability (REQ-skills-021): sub-areas such as testing or
+// security are references/ the skill loads on demand, never sibling skills that
+// compete for the five-block injection cap.
+
+test("each capability resolves to exactly one default stack skill", async () => {
+  const { isExtraSkillPath } = require("./skill-extras.js");
+  const { skills } = await discoverSkills(REPO_ROOT);
+  const stacks = skills.filter(({ id, path: skillPath }) => id.startsWith("stack-") && !isExtraSkillPath(skillPath));
+  const owners = new Map();
+
+  for (const { id, capabilities } of stacks) {
+    for (const capability of capabilities) {
+      owners.set(capability, [...(owners.get(capability) || []), id]);
+    }
+  }
+
+  const shared = [...owners].filter(([, ids]) => ids.length > 1);
+  assert.deepEqual(shared, []);
+  assert.equal(stacks.length, 13);
+});
+
+test("stack skill references are linked from SKILL.md and every relative link resolves", async () => {
+  const skillsRoot = path.join(REPO_ROOT, "skills");
+  const dirs = (await fs.readdir(skillsRoot)).filter((name) => name.startsWith("stack-"));
+  const problems = [];
+
+  for (const dir of dirs) {
+    const skillDir = path.join(skillsRoot, dir);
+    const skillMarkdown = await fs.readFile(path.join(skillDir, "SKILL.md"), "utf8");
+    const references = await fs.readdir(path.join(skillDir, "references")).catch(() => []);
+
+    for (const file of references) {
+      if (!skillMarkdown.includes(`references/${file}`)) {
+        problems.push(`${dir}: references/${file} is not linked from SKILL.md`);
+      }
+    }
+
+    for (const file of ["SKILL.md", ...references.map((name) => `references/${name}`)]) {
+      const markdown = file === "SKILL.md" ? skillMarkdown : await fs.readFile(path.join(skillDir, file), "utf8");
+
+      for (const [, target] of markdown.matchAll(/\]\(([^)#\s]+\.md)(?:#[^)]*)?\)/g)) {
+        if (/^[a-z]+:/i.test(target)) continue;
+        const resolved = path.resolve(path.dirname(path.join(skillDir, file)), target);
+        await fs.access(resolved).catch(() => problems.push(`${dir}/${file}: broken link ${target}`));
+      }
+    }
+  }
+
+  assert.deepEqual(problems, []);
+});
+
 test("discovers an external skills root with usable paths and stable fingerprint inputs", async (t) => {
   const root = await createRoot(t);
   const skillsRoot = path.join(root, "installed", "skills");

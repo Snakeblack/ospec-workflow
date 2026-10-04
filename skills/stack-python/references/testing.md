@@ -1,12 +1,3 @@
----
-name: stack-python-testing
-description: "Python testing standards — pytest, unittest, mocking"
-license: Apache-2.0
-metadata:
-  author: manuel-retamozo-garcia
-  version: "1.0"
-capabilities: [python]
----
 
 # Python Testing Patterns
 

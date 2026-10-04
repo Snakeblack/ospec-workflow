@@ -1,12 +1,3 @@
----
-name: stack-springboot-security
-description: "Spring Security framework — authentication, authorization, JWT, CORS, CSRF"
-license: Apache-2.0
-metadata:
-  author: manuel-retamozo-garcia
-  version: "1.0"
-capabilities: [springboot]
----
 
 # Spring Boot Security Review
 
