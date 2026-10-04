@@ -169,6 +169,9 @@ const SUCCESSOR_K2_EXACT = new Set([
   // E0.2 rules keep their source scope on every target (roadmap harness-evolution).
   "scripts/lib/rule-scope.js",
   "scripts/lib/rule-scope.test.js",
+  // E0.3 (b2) optional extras package (roadmap harness-evolution).
+  "scripts/lib/skill-extras.js",
+  "scripts/lib/skill-extras.test.js",
   // Quality Review Gate successor (live v2 post-verify).
   "scripts/lib/quality-review-kpis.js",
   "scripts/lib/quality-review-kpis.test.js",

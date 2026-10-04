@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.87.0] - 2026-10-04
+
+### Added
+- **Paquete opcional de extras (E0.3, PR b2)**: `issue-creation`, `comment-writer`, `gh-release-notes`, `judgment-day`, `caveman-compress` y `stack-webmcp` siguen en `skills/`, pero ningún target las instala por defecto. La lista vive en `scripts/lib/skill-extras.js`, y el generador las deja fuera salvo con `withExtras` (REQ-generator-021).
+- **Flag `--with-extras`** en los 7 instaladores (`setup:<target>`), en `install-target` y en el CLI del generador (REQ-install-032). Reinstalar sin el flag desinstala las extras, porque la poda por manifiesto quita lo que la nueva build ya no trae. El instalador TUI todavía no expone el paquete.
+
+### Changed
+- **Coste de contexto**: las skills instaladas bajan de 67 a 61 por target (de 68 a 62 en Claude) y el listado de skills, de 5,8 a 4,9 KB (de 7,8 a 6,8 KB en Codex). Techos regenerados.
+- **Tests de `real-repo`**: la comprobación de que se distribuyen todas las skills del source excluye ahora las del paquete opcional.
+- **Docs**: README, guía de instalación, spec de skills (§1.5) y coste por target en `target-capabilities`. El roadmap marca el (b2) como entregado; E0.4 queda desbloqueado y (c) y (d) siguen pendientes.
+
+**Verificación directa**: `node scripts/check.js` (3682 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.86.0] - 2026-10-04
 
 ### Removed

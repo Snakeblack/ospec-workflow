@@ -5,7 +5,7 @@
 // cleanly using fail-closed JSONC merger.
 //
 // Usage:
-//   node scripts/configure/install-vscode.js [--dry-run] [--no-validate] [--source <sourceRepo>]
+//   node scripts/configure/install-vscode.js [--dry-run] [--no-validate] [--with-extras] [--source <sourceRepo>]
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -63,6 +63,7 @@ function parseArgs(argv) {
     const arg = argv[i];
     if (arg === "--dry-run") args.dryRun = true;
     else if (arg === "--no-validate") args.validate = false;
+    else if (arg === "--with-extras") args.withExtras = true;
     else if (arg === "--source") {
       const next = argv[i + 1];
       if (!next || next.startsWith("--")) {
@@ -148,7 +149,7 @@ function install(argv = process.argv.slice(2), deps = {}) {
   const copyBinary = deps.copyBinaryToTree || copyBinaryToTree;
 
   if (args.error) {
-    stderr.write(`usage: install-vscode [--dry-run] [--no-validate] [--source <sourceRepo>]\n${args.error}\n`);
+    stderr.write(`usage: install-vscode [--dry-run] [--no-validate] [--with-extras] [--source <sourceRepo>]\n${args.error}\n`);
     return 2;
   }
 
@@ -156,7 +157,7 @@ function install(argv = process.argv.slice(2), deps = {}) {
   const outDir = path.join(sourceDir, "dist", "vscode");
 
   // 1. Build the target vscode to dist/vscode
-  const result = runConfigureImpl({ sourceDir, target: "vscode", outDir, validate: args.validate });
+  const result = runConfigureImpl({ sourceDir, target: "vscode", outDir, validate: args.validate, withExtras: Boolean(args.withExtras) });
   if (result.validation?.stdout) stdout.write(result.validation.stdout);
   if (result.exitCode !== 0) {
     stderr.write(`\nVS Code configuration build failed with exit code ${result.exitCode}\n`);

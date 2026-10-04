@@ -901,3 +901,19 @@ Claude, Codex and VS Code keep their strategies; Codex's always-on `AGENTS.md` i
 - GIVEN a source rule with `applyTo: '**/*.{spec.ts,test.ts}'`
 - WHEN Copilot and Antigravity are generated
 - THEN Copilot's rule has `applyTo: "**/*.spec.ts,**/*.test.ts"` and Antigravity's has `trigger: glob` with `globs: "**/*.spec.ts, **/*.test.ts"` and no `applyTo`
+
+### Requirement: Optional Extras Package Ships Only On Request {#REQ-generator-021}
+
+The generator MUST keep the skills of the optional extras package (`EXTRA_SKILLS` in `scripts/lib/skill-extras.js`: `issue-creation`, `comment-writer`, `gh-release-notes`, `judgment-day`, `caveman-compress`, `stack-webmcp`) out of every target's output unless the build is asked for them (`withExtras` in `runConfigure`, `--with-extras` on the CLI). A whole skill directory is in or out; no file of an extra skill MAY ship in a default build. The context baseline (E0.0) measures the default build.
+
+#### Scenario: Default build leaves the extras out
+
+- GIVEN a build generated in memory for each of the 7 targets without `withExtras`
+- WHEN its paths are listed
+- THEN no path starts with `skills/<extra>/` for any skill of the package
+
+#### Scenario: Extras on request
+
+- GIVEN the same build with `withExtras: true`
+- WHEN its paths are listed
+- THEN every skill of the package is present

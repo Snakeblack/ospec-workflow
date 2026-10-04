@@ -140,6 +140,7 @@ function parseArgs(argv) {
     const arg = argv[i];
     if (arg === "--dry-run") args.dryRun = true;
     else if (arg === "--no-validate") args.validate = false;
+    else if (arg === "--with-extras") args.withExtras = true;
     else if (arg === "--source") {
       const value = argv[i + 1];
       if (!value || value.startsWith("--")) {
@@ -294,7 +295,7 @@ function main(argv, deps = {}) {
 
   if (!TARGETS.has(args.target) || !args.dest) {
     stderr.write(
-      "usage: install-target <opencode|github-copilot> <destRepo> [--dry-run] [--no-validate]\n" +
+      "usage: install-target <opencode|github-copilot> <destRepo> [--dry-run] [--no-validate] [--with-extras]\n" +
         "  e.g. npm run install:opencode -- ../my-project\n",
     );
     exitCodeTarget.exitCode = 2;
@@ -312,7 +313,7 @@ function main(argv, deps = {}) {
   // Build into dist/<target>. The opencode/copilot validators are pure Node, so
   // validation is safe to run here (no external CLI needed, unlike claude).
   const outDir = path.join(sourceDir, "dist", args.target);
-  const result = runConfigureImpl({ sourceDir, target: args.target, outDir, validate: args.validate });
+  const result = runConfigureImpl({ sourceDir, target: args.target, outDir, validate: args.validate, withExtras: Boolean(args.withExtras) });
 
   if (result.validation?.stdout) stdout.write(result.validation.stdout);
   if (result.validation?.stderr) stderr.write(result.validation.stderr);

@@ -25,6 +25,8 @@ const {
   selectRoute,
 } = require("../lib/route-dispatcher.js");
 const { parse, getField } = require("../lib/frontmatter.js");
+// The optional extras package ships only with --with-extras (E0.3 b2; skill-extras.test.js).
+const { isExtraSkillPath } = require("../lib/skill-extras.js");
 const ROOT = path.resolve(__dirname, "..", "..");
 
 function tmpOut(t) {
@@ -216,7 +218,7 @@ test("real repo: codex ships every source context-doc skill file unchanged, rega
   const out = tmpOut(t);
   runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
 
-  const sourceSkills = walk(ROOT, "skills").filter((rel) => rel.endsWith(".md"));
+  const sourceSkills = walk(ROOT, "skills").filter((rel) => rel.endsWith(".md") && !isExtraSkillPath(rel));
   assert.ok(sourceSkills.length > 0, "source must contain skills to test");
   for (const rel of sourceSkills) {
     // skills/commands/ is the reserved namespace for command-derived skills
@@ -356,7 +358,7 @@ test("real repo: opencode ships every source skill file the agents read by path"
   const out = tmpOut(t);
   runConfigure({ sourceDir: ROOT, target: "opencode", outDir: out, validate: false });
 
-  const sourceSkills = walk(ROOT, "skills").filter((rel) => rel.endsWith(".md"));
+  const sourceSkills = walk(ROOT, "skills").filter((rel) => rel.endsWith(".md") && !isExtraSkillPath(rel));
   assert.ok(sourceSkills.length > 0, "source must contain skills to test");
   for (const rel of sourceSkills) {
     assert.ok(fs.existsSync(path.join(out, rel)), `skill dropped from opencode output: ${rel}`);
@@ -383,7 +385,7 @@ test("real repo: github-copilot ships every source skill file", (t) => {
   const out = tmpOut(t);
   runConfigure({ sourceDir: ROOT, target: "github-copilot", outDir: out, validate: false });
 
-  const sourceSkills = walk(ROOT, "skills").filter((rel) => rel.endsWith(".md"));
+  const sourceSkills = walk(ROOT, "skills").filter((rel) => rel.endsWith(".md") && !isExtraSkillPath(rel));
   assert.ok(sourceSkills.length > 0, "source must contain skills to test");
   for (const rel of sourceSkills) {
     assert.ok(fs.existsSync(path.join(out, rel)), `skill dropped from github-copilot output: ${rel}`);

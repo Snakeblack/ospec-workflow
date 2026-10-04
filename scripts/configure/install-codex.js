@@ -20,7 +20,7 @@ const {
 
 function usage() {
   return (
-    "usage: install-codex [<destRepo>] [--dry-run] [--repair-config] [--no-validate] [--source <sourceRepo>]\n" +
+    "usage: install-codex [<destRepo>] [--dry-run] [--repair-config] [--no-validate] [--with-extras] [--source <sourceRepo>]\n" +
     "  --repair-config  global setup only: remove the exact legacy top-level service_tier = \"default\" assignment, with backup and rollback\n" +
     "  e.g. npm run install:codex -- ../my-project\n"
   );
@@ -34,6 +34,7 @@ function parseArgs(argv) {
     if (arg === "--dry-run") args.dryRun = true;
     else if (arg === "--repair-config") args.repairConfig = true;
     else if (arg === "--no-validate") args.validate = false;
+    else if (arg === "--with-extras") args.withExtras = true;
     else if (arg === "--source") {
       const next = argv[i + 1];
       if (!next || next.startsWith("--")) {
@@ -1133,7 +1134,7 @@ function install(argv, deps = {}) {
     // Callers embedding the installer (notably concurrent integration tests)
     // may supply an owned build destination. CLI installs retain dist/codex.
     const outDir = deps.outDir || path.join(sourceDir, "dist", "codex");
-    const result = runConfigureImpl({ sourceDir, target: "codex", outDir, validate: args.validate });
+    const result = runConfigureImpl({ sourceDir, target: "codex", outDir, validate: args.validate, withExtras: Boolean(args.withExtras) });
     if (result.validation?.stdout) stdout.write(result.validation.stdout);
     if (result.validation?.stderr) stderr.write(result.validation.stderr);
     if (result.exitCode !== 0) {

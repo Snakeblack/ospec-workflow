@@ -10,6 +10,7 @@
 //   node scripts/configure/install-claude.js            # build + add/update + install/update
 //   node scripts/configure/install-claude.js --build-only  # build only (use /reload-plugins in-session)
 //   node scripts/configure/install-claude.js --no-engram   # skip the automatic Engram session-memory step
+//   node scripts/configure/install-claude.js --with-extras # also install the optional extras package
 //
 // Why a wrapper: the README dance was five manual commands (build, two validate
 // calls, Resolve-Path + marketplace add, install). The build already runs the
@@ -99,6 +100,7 @@ function main(argv = process.argv.slice(2), deps = {}) {
     validate: bin !== null,
     marketplaceName: MARKETPLACE,
     pluginName: PLUGIN,
+    withExtras: argv.includes("--with-extras"),
   }, { runConfigure: deps.runConfigure });
 
   stdout.write(`claude marketplace -> ${build.outDir}\n`);
