@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.84.0, 2026-10-04.
+> **Versión de referencia:** v2.85.0, 2026-10-04.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -139,7 +139,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E0.3: con E0.2 hecho, es lo único que falta para abrir E0.4, que baja el último coste fijo grande (los 63 KB de Codex) y lleva el *always-on* al router de ≤ 4 KB. E1.1 también puede empezar ya.
+**▶ SIGUIENTE:** E0.3, PR (b) (el (a) salió en v2.85.0): es lo único que falta para abrir E0.4, que baja el último coste fijo grande (los 63 KB de Codex) y lleva el *always-on* al router de ≤ 4 KB. E1.1 también puede empezar ya.
 
 **Dependencias:**
 
@@ -196,6 +196,9 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
   - Lint de `Trigger:` obligatorio en las skills de conocimiento.
 - **Entrega sugerida:** PRs encadenados: (a) extractor y lint, (b) eliminaciones y fusiones, (c) consolidación de stacks, (d) retirada de review v1.
 - **Hecho cuando:** 46 skills por defecto; ninguna *compact rule* procede de un antipatrón (test); los consumidores con linaje v1 siguen funcionando durante la ventana de compatibilidad.
+- **Avance:** lista de la auditoría confirmada el 2026-10-04, incluida la retirada de review v1.
+  - **(a) entregado en v2.85.0:** el extractor (JS y Go, con test de paridad sobre las skills reales) solo lee encabezados de reglas explícitos (`… Rules`, `Reglas …`) y ya no recoge todas las viñetas cuando no los hay. El test recorre las skills publicadas y falla si una *compact rule* sale de un antipatrón o de una lista de activación. El lint exige `Trigger:` a toda skill de conocimiento, con exención temporal de las que (b) elimina o fusiona. `accessibility`, `api-design` y `hexagonal-architecture` ganan una sección `## Rules` breve, porque antes inyectaban sus antipatrones.
+  - **Pendiente:** (b) eliminaciones y fusiones, (c) stacks 24 → 13, (d) retirada de review v1.
 
 ### E0.4 — `router-and-sdd-on-demand`
 

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.85.0] - 2026-10-04
+
+### Fixed
+- **Las *compact rules* ya no inyectan antipatrones (E0.3, PR a)**: el registro de skills trataba como reglas cualquier sección cuyo título contuviera `patterns`, `gates` o `constraints`, incluidas `## Anti-Patterns to Avoid`. Si una skill no tenía ninguna, recogía todas sus viñetas, también las de «When to Activate». Así, la sesión recibía como instrucciones frases como «Domain entities importing ORM models». Ahora el extractor:
+  - solo lee encabezados de reglas explícitos: hasta tres palabras seguidas de `Rules` (`Rules`, `Critical Rules`, `Naming Rules`) o `Reglas` seguido de hasta tres palabras, y nunca uno que contenga `anti`;
+  - deja `compact_rules: []` cuando no hay sección de reglas, sin recurrir a todas las viñetas.
+
+  El cambio se aplica a la vez en JS (`scripts/lib/skill-registry.js`) y en Go (`internal/skillreg`), con un test de paridad sobre las skills publicadas.
+
+### Changed
+- **Skills**: `accessibility`, `api-design` y `hexagonal-architecture` ganan una sección `## Rules` breve, porque antes solo aportaban antipatrones. `cognitive-doc-design` renombra `Critical Patterns` a `Critical Rules`. `accessibility`, `api-design`, `design-system` y `hexagonal-architecture` declaran `Trigger:` en su descripción.
+- **Lint de `Trigger:`**: un test exige `Trigger:` en la descripción de toda skill de conocimiento; las `review-*` y `stack-*` se resuelven por gate y por capacidad. Quedan exentas, de forma temporal, las diez skills que el PR (b) de E0.3 elimina o fusiona. Otro test recorre las skills publicadas y falla si alguna *compact rule* procede de un antipatrón o de una lista «When to…».
+- **Spec**: `openspec/specs/skill-registry/spec.md` §5.2 y §5.3 se reescriben (encabezados de reglas, sin fallback, paridad JS/Go y `Trigger:` obligatorio).
+- **Coste de contexto**: el listado de skills baja 36 bytes por target. Techos regenerados.
+- **Roadmap**: E0.3 avanza con el PR (a); siguen (b) eliminaciones y fusiones, (c) stacks y (d) retirada de review v1.
+
+**Verificación directa**: `node scripts/check.js` (3663 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.84.0] - 2026-10-04
 
 ### Changed
