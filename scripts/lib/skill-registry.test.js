@@ -185,24 +185,11 @@ test("no compact rule of a shipped skill comes from an anti-pattern or activatio
 
 // Knowledge skills are matched to a task by their Trigger: alone; review and
 // stack skills are resolved by gate name and detected capability instead.
-// The exemptions are skills that E0.3 (b) removes or merges.
-const TRIGGER_EXEMPT = new Set([
-  "agent-harness-construction",
-  "agent-self-evaluation",
-  "ai-first-engineering",
-  "ai-regression-testing",
-  "architecture-decision-records",
-  "backend-patterns",
-  "context7-mcp",
-  "frontend-patterns",
-  "tdd-workflow",
-  "token-budget-advisor",
-]);
 
 test("every knowledge skill declares a Trigger: in its description", async () => {
   const { skills } = await discoverSkills(REPO_ROOT);
   const missing = skills
-    .filter(({ id }) => !/^(?:review|stack)-/.test(id) && !TRIGGER_EXEMPT.has(id))
+    .filter(({ id }) => !/^(?:review|stack)-/.test(id))
     .filter(({ id, triggers }) => triggers.length === 1 && triggers[0] === id)
     .map(({ id }) => id);
 

@@ -3,10 +3,10 @@
   "targets": {
     "claude": {
       "always_on_bytes": 0,
-      "orchestrator_bytes": 62441,
-      "skills_installed": 83,
-      "skills_listed": 57,
-      "skill_listing_bytes": 9719,
+      "orchestrator_bytes": 62896,
+      "skills_installed": 68,
+      "skills_listed": 42,
+      "skill_listing_bytes": 6063,
       "agent_read_bytes": {
         "review-change": 4757,
         "review-correction": 5197,
@@ -32,16 +32,16 @@
         "sdd-reconcile": 35629,
         "sdd-spec": 64081,
         "sdd-tasks": 63090,
-        "sdd-verify": 68099,
+        "sdd-verify": 69335,
         "sdd-workspace": 45396
       }
     },
     "vscode": {
       "always_on_bytes": 2436,
-      "orchestrator_bytes": 43797,
-      "skills_installed": 82,
-      "skills_listed": 56,
-      "skill_listing_bytes": 9499,
+      "orchestrator_bytes": 44252,
+      "skills_installed": 67,
+      "skills_listed": 41,
+      "skill_listing_bytes": 5843,
       "agent_read_bytes": {
         "review-change": 4785,
         "review-correction": 5225,
@@ -67,16 +67,16 @@
         "sdd-reconcile": 35789,
         "sdd-spec": 64233,
         "sdd-tasks": 63242,
-        "sdd-verify": 68243,
+        "sdd-verify": 69479,
         "sdd-workspace": 45537
       }
     },
     "github-copilot": {
       "always_on_bytes": 2436,
-      "orchestrator_bytes": 54417,
-      "skills_installed": 82,
-      "skills_listed": 56,
-      "skill_listing_bytes": 9499,
+      "orchestrator_bytes": 54872,
+      "skills_installed": 67,
+      "skills_listed": 41,
+      "skill_listing_bytes": 5843,
       "agent_read_bytes": {
         "review-change": 4771,
         "review-correction": 5211,
@@ -102,16 +102,16 @@
         "sdd-reconcile": 35631,
         "sdd-spec": 64086,
         "sdd-tasks": 63095,
-        "sdd-verify": 68096,
+        "sdd-verify": 69332,
         "sdd-workspace": 45390
       }
     },
     "opencode": {
       "always_on_bytes": 2284,
-      "orchestrator_bytes": 60092,
-      "skills_installed": 82,
-      "skills_listed": 56,
-      "skill_listing_bytes": 9499,
+      "orchestrator_bytes": 60547,
+      "skills_installed": 67,
+      "skills_listed": 41,
+      "skill_listing_bytes": 5843,
       "agent_read_bytes": {
         "review-change": 4783,
         "review-correction": 5227,
@@ -137,16 +137,16 @@
         "sdd-reconcile": 35651,
         "sdd-spec": 64115,
         "sdd-tasks": 63125,
-        "sdd-verify": 68124,
+        "sdd-verify": 69360,
         "sdd-workspace": 45421
       }
     },
     "codex": {
-      "always_on_bytes": 62554,
-      "orchestrator_bytes": 62554,
-      "skills_installed": 82,
-      "skills_listed": 75,
-      "skill_listing_bytes": 11433,
+      "always_on_bytes": 63009,
+      "orchestrator_bytes": 63009,
+      "skills_installed": 67,
+      "skills_listed": 60,
+      "skill_listing_bytes": 7777,
       "agent_read_bytes": {
         "review-change": 4878,
         "review-correction": 5316,
@@ -172,16 +172,16 @@
         "sdd-reconcile": 35713,
         "sdd-spec": 64195,
         "sdd-tasks": 63182,
-        "sdd-verify": 68214,
+        "sdd-verify": 69450,
         "sdd-workspace": 45472
       }
     },
     "cursor": {
       "always_on_bytes": 2440,
-      "orchestrator_bytes": 58736,
-      "skills_installed": 82,
-      "skills_listed": 56,
-      "skill_listing_bytes": 9499,
+      "orchestrator_bytes": 59191,
+      "skills_installed": 67,
+      "skills_listed": 41,
+      "skill_listing_bytes": 5843,
       "agent_read_bytes": {
         "review-change": 4725,
         "review-correction": 5172,
@@ -207,16 +207,16 @@
         "sdd-reconcile": 35781,
         "sdd-spec": 64250,
         "sdd-tasks": 63038,
-        "sdd-verify": 68014,
+        "sdd-verify": 69250,
         "sdd-workspace": 45310
       }
     },
     "antigravity": {
       "always_on_bytes": 2441,
-      "orchestrator_bytes": 54552,
-      "skills_installed": 82,
-      "skills_listed": 56,
-      "skill_listing_bytes": 9499,
+      "orchestrator_bytes": 55007,
+      "skills_installed": 67,
+      "skills_listed": 41,
+      "skill_listing_bytes": 5843,
       "agent_read_bytes": {
         "review-change": 4761,
         "review-correction": 5199,
@@ -242,7 +242,7 @@
         "sdd-reconcile": 35710,
         "sdd-spec": 64134,
         "sdd-tasks": 63147,
-        "sdd-verify": 68157,
+        "sdd-verify": 69393,
         "sdd-workspace": 45447
       }
     }

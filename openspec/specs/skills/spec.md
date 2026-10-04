@@ -39,7 +39,7 @@ Identifying traits:
 
 Skills that encode task patterns or communication modes usable by any agent or
 directly by the user. Examples: `caveman`, `branch-pr`, `chained-pr`, `skill-creator`,
-`judgment-day`, `review-readability`, `go-testing`, `agent-introspection`.
+`judgment-day`, `review-trust`, `stack-go`, `work-unit-commits`.
 
 Identifying traits:
 - No `disable-model-invocation` or `user-invocable` override in frontmatter.
@@ -986,7 +986,7 @@ blocks always take precedence over the preset. On re-init with an existing
 
 Per `skills/_shared/token-budget.md`, a compact skill block injected into a
 sub-agent's `## Project Standards` block MUST target 50-150 estimated tokens
-and MUST NOT exceed a **hard cap of 500 estimated tokens**. The cap applies to
+and MUST NOT exceed a **hard cap of 450 estimated tokens**. The cap applies to
 every compact-rule block regardless of source (registry cache extraction,
 `skill-registry.js`, or manual `SKILL: Load` fallback). The cap ratchets down
 as current offenders shrink — it MUST NOT be raised to accommodate a new block
