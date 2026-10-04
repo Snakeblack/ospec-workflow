@@ -84,8 +84,33 @@ function lensKeysForSchema(schemaVersion) {
   return schemaVersion >= 2 ? QUALITY : DIMENSIONS;
 }
 
-function migrateLineageTaxonomyV2(state) {
-  assertLineage(state);
+const V1_TO_V2_DOMAIN = Object.freeze({ risk: "trust", reliability: "runtime", resilience: "runtime", readability: "evolution" });
+
+function mapV1Dimensions(selectedDimensions, classification) {
+  const mapped = [...new Set(selectedDimensions.map((id) => V1_TO_V2_DOMAIN[id]).filter(Boolean))].sort((a, b) => QUALITY.indexOf(a) - QUALITY.indexOf(b));
+  if (classification === "high-risk" && !mapped.includes("efficiency")) mapped.push("efficiency");
+  return mapped;
+}
+
+// Binds a v2 lineage to the v1 predecessor it replaces; it participates in the
+// review-lineage-v2 digest through `migration`.
+function taxonomyMigrationReceipt(state) {
+  return {
+    kind: "taxonomy-v1-to-v2",
+    predecessor_lineage_id: state.lineage_id,
+    predecessor_revision: state.revision,
+    predecessor_digest: digest("review-lineage-v1", {
+      candidate_id: state.genesis.candidate_id,
+      classification: state.genesis.classification,
+      selected_dimensions: state.genesis.selected_dimensions,
+      evidence_fingerprint: state.genesis.evidence_fingerprint,
+      generation: state.generation,
+      predecessor_lineage_id: state.predecessor_lineage_id,
+    }),
+  };
+}
+
+function assertPristineV1(state) {
   if (state.schema_version !== 1) throw new Error("migrateLineageTaxonomyV2 requires schema_version 1");
   const selected = selectedLensIds(state);
   for (const dimension of selected) {
@@ -99,23 +124,23 @@ function migrateLineageTaxonomyV2(state) {
   if (state.findings.length || state.findings_digest !== null) throw new Error("findings must be empty before migrate");
   if (state.pending_operation || state.pending_correction) throw new Error("no pending operation or correction");
   if (state.correction_history.length) throw new Error("no correction history before migrate");
-  const domainMap = { risk: "trust", reliability: "runtime", resilience: "runtime", readability: "evolution" };
-  const mapped = [...new Set(selected.map((id) => domainMap[id]).filter(Boolean))].sort((a, b) => QUALITY.indexOf(a) - QUALITY.indexOf(b));
-  if (state.genesis.classification === "high-risk" && !mapped.includes("efficiency")) mapped.push("efficiency");
-  const predecessorDigest = digest("review-lineage-v1", {
-    candidate_id: state.genesis.candidate_id,
-    classification: state.genesis.classification,
-    selected_dimensions: state.genesis.selected_dimensions,
-    evidence_fingerprint: state.genesis.evidence_fingerprint,
-    generation: state.generation,
-    predecessor_lineage_id: state.predecessor_lineage_id,
-  });
-  const migration = {
-    kind: "taxonomy-v1-to-v2",
-    predecessor_lineage_id: state.lineage_id,
-    predecessor_revision: state.revision,
-    predecessor_digest: predecessorDigest,
-  };
+}
+
+function isPristineV1Lineage(state) {
+  assertLineage(state);
+  try {
+    assertPristineV1(state);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function migrateLineageTaxonomyV2(state) {
+  assertLineage(state);
+  assertPristineV1(state);
+  const mapped = mapV1Dimensions(selectedLensIds(state), state.genesis.classification);
+  const migration = taxonomyMigrationReceipt(state);
   const genesis = {
     ...clone(state.genesis),
     selected_domains: mapped,
@@ -827,12 +852,11 @@ function createSuccessor(predecessor, input) {
     return { ...successor, predecessor_state: recordK7SuccessorAuthorization(predecessor, successor) };
   }
 
-  // ROUTING-012 / QRAR-004: successor taxonomy MUST equal the predecessor's.
-  // A v2 (quality-domain) predecessor yields a v2 successor natively via
-  // startQualityReviewLineage; mixed taxonomies (4R owners against a v2
-  // predecessor, or a v1 successor forced from a v2 predecessor) fail closed
-  // with a structured TypeError before any successor state or budget is
-  // created. A v1 predecessor keeps producing v1 successors — no silent flip.
+  // ROUTING-012 / QRAR-004: a v2 (quality-domain) predecessor yields a v2
+  // successor natively via startQualityReviewLineage; mixed taxonomies (4R
+  // owners against a v2 predecessor, or a v1 successor forced from a v2
+  // predecessor) fail closed with a structured TypeError before any successor
+  // state or budget is created.
   if (predecessor.schema_version === 2) {
     if (input.selected_dimensions !== undefined || input.schema_version === 1) {
       throw new TypeError("taxonomy mismatch: a schema v2 predecessor requires a v2 successor with quality-domain owners (selected_domains), not 4R selected_dimensions");
@@ -848,13 +872,22 @@ function createSuccessor(predecessor, input) {
       recovery: { reason: input.reason.trim(), approval_reference: ref },
     });
   }
-  if (input.selected_domains !== undefined || input.schema_version === 2) {
-    throw new TypeError("taxonomy mismatch: a schema v1 predecessor requires a v1 successor with 4R selected_dimensions, not quality-domain selected_domains");
+  // E0.3 (d): the v1 lenses are retired, so a v1 predecessor yields a v2
+  // successor bound to it by a taxonomy migration receipt. Without explicit
+  // selected_domains it inherits the predecessor's dimensions, mapped to domains.
+  if (input.selected_dimensions !== undefined || input.schema_version === 1) {
+    throw new TypeError("v1 review lenses are retired: a schema v1 predecessor requires a v2 successor with quality-domain selected_domains");
   }
-
-  return startReviewLineage(input, undefined, {
+  const classification = input.classification !== undefined ? input.classification : predecessor.genesis.classification;
+  return startQualityReviewLineage({
+    classification,
+    evidence_fingerprint: typeof input.evidence_fingerprint === "string" && input.evidence_fingerprint ? input.evidence_fingerprint : predecessor.genesis.evidence_fingerprint,
+    candidate: input.candidate,
+    selected_domains: input.selected_domains !== undefined ? input.selected_domains : mapV1Dimensions(predecessor.genesis.selected_dimensions, classification),
+  }, undefined, {
     generation: predecessor.generation + 1,
     predecessor_lineage_id: predecessor.lineage_id,
+    migration: taxonomyMigrationReceipt(predecessor),
     recovery: { reason: input.reason.trim(), approval_reference: ref },
   });
 }
@@ -1635,6 +1668,7 @@ module.exports = {
   stableSerialize,
   migrateReviewLineage,
   migrateLineageTaxonomyV2,
+  isPristineV1Lineage,
   startReviewLineage,
   startQualityReviewLineage,
   startK7ReviewLineage,

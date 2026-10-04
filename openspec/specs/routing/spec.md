@@ -1154,7 +1154,7 @@ When change classification is `high-risk`, the gate MUST select all four quality
 
 ### Requirement: Atomic Released Contract Coherence {#REQ-routing-011}
 
-The released gate MUST NOT operate with mixed taxonomy between classifier outputs and lineage or correction identifiers. `quality-review-gate` is the sole canonical gate identity for schema v2 and all new config, state, and writes. `4r-review-gate` is valid only inside explicitly legacy schema v1 state with old 4R dimension semantics; it MUST NOT be treated as an unqualified semantic alias. Gate identity is bound to taxonomy (4R dimensions vs quality domains) and classifier semantics — the discriminator is schema/version of lineage/state, not spelling aliasing. New writes MUST use only `quality-review-gate`. Legacy mutable v1 state MUST either remain v1 through terminal state or undergo an explicit atomic migration to v2 with `quality-review-gate` and `trust`/`runtime`/`evolution`/`efficiency` identifiers. Both gate keys present in the same mutable state MUST fail closed. Unqualified read-old/write-new aliasing is forbidden. Historical archived `4r-review-gate` and `.4r` records MUST remain immutable.
+The released gate MUST NOT operate with mixed taxonomy between classifier outputs and lineage or correction identifiers. `quality-review-gate` is the sole canonical gate identity for schema v2 and all new config, state, and writes. `4r-review-gate` is valid only inside explicitly legacy schema v1 state with old 4R dimension semantics; it MUST NOT be treated as an unqualified semantic alias. Gate identity is bound to taxonomy (4R dimensions vs quality domains) and classifier semantics — the discriminator is schema/version of lineage/state, not spelling aliasing. New writes MUST use only `quality-review-gate`. Legacy mutable v1 state MUST NOT dispatch the retired v1 lenses (E0.3 d): it MUST either stay read-only through terminal state (correction, verify, delivery, archive) or undergo an explicit atomic migration to v2 with `quality-review-gate` and `trust`/`runtime`/`evolution`/`efficiency` identifiers. Both gate keys present in the same mutable state MUST fail closed. Unqualified read-old/write-new aliasing is forbidden. Historical archived `4r-review-gate` and `.4r` records MUST remain immutable.
 
 #### Scenario: Mixed classifier and lineage fails closed
 
@@ -1174,19 +1174,40 @@ The released gate MUST NOT operate with mixed taxonomy between classifier output
 
 - GIVEN in-flight mutable lineage is schema v1 under `gates.4r-review-gate` with 4R dimension IDs
 - WHEN the gate resumes without an explicit v1→v2 migration
-- THEN it MUST continue under v1 semantics to terminal state
+- THEN frozen findings, correction, and downstream identity checks MUST continue under v1 semantics
 - AND MUST NOT silently reinterpret 4R owners as quality domains
+
+#### Scenario: Retired v1 lenses are never dispatched
+
+- GIVEN a schema v1 lineage whose next action is `run-lenses`
+- WHEN `planLineageGate` adapts it
+- THEN an unstarted lineage MUST return `migration-required` with `migrate-taxonomy-v2`
+- AND a half-reviewed lineage MUST return `blocked` with `retire-v1-lineage` and reason `v1-lens-retired`
+- AND neither MUST dispatch a `review-risk|reliability|resilience|readability` reviewer
+
+#### Scenario: Legacy 4r-review-gate route is blocked
+
+- GIVEN an active route that lists `4r-review-gate`
+- WHEN `planReviewGate` runs after successful verify
+- THEN it MUST block with validation code `legacy-review-retired`
+- AND MUST NOT dispatch any reviewer or allow archive
 
 
 ### Requirement: Successor Lineage Taxonomy Inheritance {#REQ-routing-012}
 
-`createSuccessor` MUST produce a successor whose schema/taxonomy equals the
-terminal predecessor's: a v2 (quality-domain) predecessor MUST yield a v2
+`createSuccessor` MUST produce a quality-domain successor: a v2
+(quality-domain) predecessor MUST yield a v2
 successor with `trust`/`runtime`/`evolution`/`efficiency` owners, natively,
 without manual lineage construction. A successor request that mixes taxonomies
 (v2 predecessor with 4R dimension owners, or a v1 successor from a v2
 predecessor) MUST fail closed with a structured taxonomy reason and MUST NOT
-create any successor. Successor creation authority and additive predecessor
+create any successor. Because the v1 lenses are retired (E0.3 d), a terminal v1
+predecessor MUST yield a v2 successor bound to it by a `migration` receipt
+(`kind: taxonomy-v1-to-v2`, `predecessor_lineage_id`, `predecessor_revision`,
+`predecessor_digest`) that participates in the `review-lineage-v2` digest;
+without explicit `selected_domains` it inherits the predecessor's dimensions
+mapped `risk→trust`, `reliability∪resilience→runtime`, `readability→evolution`.
+A v1 successor request MUST fail closed. Successor creation authority and additive predecessor
 preservation remain governed by REQ-routing-007 and REQ-routing-004.
 
 #### Scenario: v2 predecessor yields v2 successor natively
@@ -1195,6 +1216,14 @@ preservation remain governed by REQ-routing-007 and REQ-routing-004.
 - WHEN an approved `createSuccessor` runs
 - THEN the successor MUST declare schema v2 with quality-domain vocabulary
 - AND the predecessor record MUST remain complete and immutable
+
+#### Scenario: v1 predecessor yields a receipt-bound v2 successor
+
+- GIVEN a terminal schema v1 lineage, including one escalated with lenses still pending
+- WHEN an approved `createSuccessor` runs
+- THEN the successor MUST declare schema v2 with mapped or explicit quality domains
+- AND it MUST carry a `taxonomy-v1-to-v2` migration receipt naming the predecessor
+- AND a request with 4R `selected_dimensions` MUST fail closed as retired
 
 #### Scenario: Taxonomy-mixed successor request fails closed
 

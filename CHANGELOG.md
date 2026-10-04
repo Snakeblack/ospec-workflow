@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.91.0] - 2026-10-04
+
+### Removed
+- **Lentes de review v1 (E0.3, PR d)**: se retiran los agentes y las skills `review-risk`, `review-reliability`, `review-resilience` y `review-readability`, con su mapeo de modelo en `models.yaml` y la lista de solo lectura de Cursor. Quedan 46 skills instaladas por target (47 en Claude y Codex) y cuatro agentes menos. Con esto se cierra la etapa 0 del roadmap.
+
+### Changed
+- **Ningún plan despacha una lente v1**: una ruta que aún nombra `4r-review-gate` se bloquea con `legacy-review-retired`. Si un linaje `schema_version: 1` aún tiene lentes pendientes, `planLineageGate` devuelve `migrate-taxonomy-v2` cuando el linaje no ha empezado, o `retire-v1-lineage` (`v1-lens-retired`) cuando está a medias.
+- **Sucesor v2 de un linaje v1**: `createSuccessor` crea un sucesor v2 a partir de un predecesor v1 terminal. El sucesor lleva un recibo `taxonomy-v1-to-v2` que forma parte de su digest. Si no recibe `selected_domains`, hereda las dimensiones del predecesor traducidas a dominios de calidad. Así se recupera un linaje a medias sin perder el vínculo con su predecesor (REQ-routing-011 y REQ-routing-012).
+- **Lectura compatible durante una versión menor**: los hallazgos congelados y los estados terminales v1 siguen funcionando (`review-correction`, verify, delivery y archive). Su retirada queda como E5.7 en el roadmap, a partir de v2.92.0.
+- **ADR**: enmiendas al ADR-003 (linaje de doble esquema) y al ADR-004 (`createSuccessor`).
+- **Docs**: specs de agents y routing, coste por target en `target-capabilities`, catálogo de agentes en `openwiki/` (fuente de la web), y cierre de E0.3 en el roadmap.
+
+**Verificación directa**: `node scripts/check.js` (3710 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.90.0] - 2026-10-04
 
 ### Changed

@@ -6,7 +6,6 @@ const {
   LEGACY_GATES,
   admitRouteGates,
   ACTIVE_V2_REVIEWERS,
-  LEGACY_V1_REVIEWERS,
 } = require("./review-taxonomy.js");
 const {
   HARD_FLOORS,
@@ -34,7 +33,6 @@ const KNOWN_REVIEWERS = [
   ...Object.values(ACTIVE_V2_REVIEWERS),
   "review-change",
   "review-correction",
-  ...Object.values(LEGACY_V1_REVIEWERS),
 ];
 
 const KNOWN_CLASSES = ["trivial", "small", "normal", "high-risk"];

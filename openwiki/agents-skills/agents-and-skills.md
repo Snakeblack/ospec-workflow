@@ -25,7 +25,7 @@ flowchart TD
     V --> R4["review-efficiency (Efficiency)"]
 ```
 
-Live routes use the quality v2 roster above. Legacy **`review-risk` / `review-readability` / `review-reliability` / `review-resilience`** remain for archived or in-flight `schema_version: 1` lineages only.
+Live routes use the quality v2 roster above. The 4R lenses (`review-risk`, `review-readability`, `review-reliability`, `review-resilience`) were retired in v2.91.0: `schema_version: 1` lineages stay readable for one minor version and migrate to v2 when they still need lenses.
 
 ---
 

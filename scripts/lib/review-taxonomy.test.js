@@ -6,7 +6,7 @@ const {
   QUALITY_DOMAINS,
   LEGACY_DIMENSIONS,
   ACTIVE_V2_REVIEWERS,
-  LEGACY_V1_REVIEWERS,
+  RETIRED_V1_REVIEWERS,
   ACTIVE_GATES,
   LEGACY_GATES,
   LEXICAL_GATES,
@@ -15,13 +15,14 @@ const {
   admitGate,
   admitRouteGates,
   reviewerForDomain,
+  reviewersForSchema,
 } = require("./review-taxonomy.js");
 
 test("frozen constants expose quality and legacy rosters", () => {
   assert.deepEqual(QUALITY_DOMAINS, ["trust", "runtime", "evolution", "efficiency"]);
   assert.deepEqual(LEGACY_DIMENSIONS, ["risk", "reliability", "resilience", "readability"]);
   assert.equal(ACTIVE_V2_REVIEWERS.trust, "review-trust");
-  assert.equal(LEGACY_V1_REVIEWERS.risk, "review-risk");
+  assert.deepEqual(RETIRED_V1_REVIEWERS, ["review-risk", "review-reliability", "review-resilience", "review-readability"]);
 });
 
 test("gate sets split lexical recognition from semantic admission", () => {
@@ -60,7 +61,9 @@ test("schema-v1 admission rejects quality gate on persisted state", () => {
   assert.deepEqual(admitGate("quality-review-gate", "schema-v1"), { admitted: false, reason: "v2-gate-rejected-on-schema-v1" });
 });
 
-test("reviewerForDomain maps by schema version", () => {
+test("E0.3 (d): v1 reviewers are retired and never resolve to a dispatch target", () => {
   assert.equal(reviewerForDomain("trust", 2), "review-trust");
-  assert.equal(reviewerForDomain("risk", 1), "review-risk");
+  assert.throws(() => reviewerForDomain("risk", 1), /retired/);
+  assert.deepEqual(reviewersForSchema(1), []);
+  assert.deepEqual(reviewersForSchema(2), ["review-trust", "review-runtime", "review-evolution", "review-efficiency"]);
 });

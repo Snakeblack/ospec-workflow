@@ -52,12 +52,12 @@ All review agents have `user-invocable: false` and `tools: ['read', 'search']` (
 |------|----------------|
 | `agents/review-change.agent.md` | Read-only generalist: screens verified changes and returns a structured specialist-request decision only |
 | `agents/review-correction.agent.md` | Read-only targeted validator for one bounded review lineage's active remediation slice |
-| `agents/review-risk.agent.md` | Security and risk: privilege scope, PII exposure, injection, auth bypass |
-| `agents/review-readability.agent.md` | Readability: ambiguous names, deep nesting, unexplained decisions |
-| `agents/review-reliability.agent.md` | Reliability: missing error-path tests, non-determinism, absent validation |
-| `agents/review-resilience.agent.md` | Resilience: missing I/O error handling, incomplete recovery, swallowed exceptions |
+| `agents/review-trust.agent.md` | Trust boundaries: security, privacy, auditability, data integrity |
+| `agents/review-runtime.agent.md` | Runtime correctness under failure, concurrency, and degradation |
+| `agents/review-evolution.agent.md` | Maintainability, modularity, deployability, evolvability |
+| `agents/review-efficiency.agent.md` | Performance, scalability, and proportional resource use |
 
-(Previously: catalog listed only the four specialists; `review-change` and `review-correction` are now first-class agent files.)
+(Previously: the catalog also listed the 4R specialists `review-risk`, `review-readability`, `review-reliability`, and `review-resilience`, retired in E0.3 (d) together with their skills.)
 
 #### Scenario: Orchestrator may delegate to generalist and correction validator
 
@@ -1342,7 +1342,7 @@ The orchestrator MUST dispatch only quality domains in the final selected set: z
 
 ### Requirement: Bounded Review Lineage with Independent Correction Slices {#REQ-agents-015}
 
-Before the first specialist dispatch, the orchestrator MUST freeze one auditable lineage with deterministic candidate identity, genesis paths, classification, selected quality domains, initial evidence, and immutable finding IDs using canonical domain identifiers. Historical archived 4R records (`risk`, `reliability`, `resilience`, `readability`) MUST remain immutable. Mutable old-schema state MUST finish under its original schema or undergo an explicit versioned migration; silent reinterpretation is forbidden. Mixed live taxonomy MUST fail closed until reconciled.
+Before the first specialist dispatch, the orchestrator MUST freeze one auditable lineage with deterministic candidate identity, genesis paths, classification, selected quality domains, initial evidence, and immutable finding IDs using canonical domain identifiers. Historical archived 4R records (`risk`, `reliability`, `resilience`, `readability`) MUST remain immutable. Mutable old-schema state MUST stay read-only under its original schema (frozen findings, correction, downstream identity checks) or undergo an explicit versioned migration; silent reinterpretation is forbidden. The 4R lenses are retired, so v1 state that still needs lenses MUST migrate (unstarted) or be terminated and replaced by an approved v2 successor (half-reviewed). This read compatibility lasts one minor version. Mixed live taxonomy MUST fail closed until reconciled.
 
 (Previously: lineage froze four 4R dimensions without mixed-taxonomy guard.)
 
@@ -1357,8 +1357,9 @@ Before the first specialist dispatch, the orchestrator MUST freeze one auditable
 
 - GIVEN in-flight lineage still stores 4R dimension IDs
 - WHEN the gate resumes under the new taxonomy
-- THEN it MUST either continue under the original schema to terminal state
+- THEN it MUST either continue read-only under the original schema to terminal state
 - OR apply an explicit versioned migration before the next mutable action
+- AND it MUST NOT dispatch a retired 4R lens
 
 ### Requirement: Review Agent Target Parity {#REQ-agents-014}
 
@@ -1544,15 +1545,15 @@ Then it MUST return `status: blocked` with a `question_gate` object containing a
 
 ### Scenario 9.3 — Reviewer finds no issues
 
-Given `review-resilience` scans the applied change,
+Given `review-runtime` scans the applied change,
 When it detects no missing error handling, recovery paths, or swallowed exceptions,
 Then its output body MUST be exactly `No findings.` and `findings` MUST be an empty list.
 
 ### Scenario 9.4 — Reviewer finds a BLOCKER
 
-Given `review-risk` detects an auth bypass with a specific file and line reference,
+Given `review-trust` detects an auth bypass with a specific file and line reference,
 When it returns its envelope with severity `BLOCKER`,
-Then the orchestrator MUST call `vscode/askQuestions` to surface the finding before the route closes and MUST record the outcome in `state.yaml` under `gates['4r-review-gate']`.
+Then the orchestrator MUST call `vscode/askQuestions` to surface the finding before the route closes and MUST record the outcome in `state.yaml` under `gates['quality-review-gate']`.
 
 ### Scenario 9.5 — SubagentStop detects degraded skill resolution
 
@@ -1944,7 +1945,7 @@ inlined in the always-loaded body and MUST each reside in a dedicated
 |---|---|
 | Brownfield route handler | route == brownfield |
 | Workspace federation handler + baseline loop | backend == workspace-federated |
-| 4R review gate dispatch | 4r-review-gate in active gates |
+| Quality review gate dispatch | quality-review-gate in active gates (4r-review-gate is retired and blocked) |
 | Lifecycle hook dispatch | `hooks:` declared in `config.yaml` |
 | Archive / quality-gate guard | before archive phase |
 | Repeated `askQuestions` payload shapes | referenced when constructing gate payloads — backed by `skills/_shared/question-shapes.md` (delivery-strategy, review-workload, and blocked-envelope payload shapes) |
@@ -2429,8 +2430,8 @@ domain spec, not here.
 
 ### Requirement: Review Agents Delegate to Shared References {#REQ-agents-025}
 
-Every review agent file (`agents/review-*.agent.md`, both the live quality
-roster and the legacy 4R files) MUST delegate its evidence protocol, finding
+Every review agent file (`agents/review-*.agent.md`, the live quality
+roster) MUST delegate its evidence protocol, finding
 output schema, severity enum, frozen-lineage boundaries, and the
 `No findings.` clean-report literal to `skills/_shared/review-judgment.md`,
 and architectural proportionality to

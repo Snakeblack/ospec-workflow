@@ -26,19 +26,6 @@ const ALLOWED_HOOK_EVENTS = new Set([
   "stop",
 ]);
 
-const REVIEW_AGENTS = new Set([
-  "review-change",
-  "review-correction",
-  "review-trust",
-  "review-runtime",
-  "review-evolution",
-  "review-efficiency",
-  "review-risk",
-  "review-readability",
-  "review-reliability",
-  "review-resilience",
-]);
-
 const REQUIRED_READONLY_REVIEW_AGENTS = new Set([
   "review-change",
   "review-correction",
@@ -46,13 +33,6 @@ const REQUIRED_READONLY_REVIEW_AGENTS = new Set([
   "review-runtime",
   "review-evolution",
   "review-efficiency",
-]);
-
-const COMPAT_READONLY_REVIEW_AGENTS = new Set([
-  "review-risk",
-  "review-readability",
-  "review-reliability",
-  "review-resilience",
 ]);
 
 const ABSTRACT_TOOL_RE = /`(read|edit|search|execute|agent)`/g;
@@ -141,7 +121,7 @@ function validateAgents(root, errors, fsImpl = fs) {
     }
     const nameField = getField(fm, "name");
     const name = nameField ? nameField.value : path.basename(file, ".md");
-    if (REQUIRED_READONLY_REVIEW_AGENTS.has(name) || COMPAT_READONLY_REVIEW_AGENTS.has(name)) {
+    if (REQUIRED_READONLY_REVIEW_AGENTS.has(name)) {
       const readonly = getField(fm, "readonly");
       if (!readonly || readonly.value !== "true") {
         addError(errors, `${file} must include readonly: true`);

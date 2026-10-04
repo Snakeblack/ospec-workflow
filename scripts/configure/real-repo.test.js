@@ -589,94 +589,15 @@ test("real repo: orchestrator brownfield route replaces standalone Baseline Advi
   );
 });
 
-test("real repo: review-risk agent propagates to all four targets", (t) => {
-  const targetPaths = {
-    claude: "agents/review-risk.md",
-    vscode: "agents/review-risk.agent.md",
-    "github-copilot": ".github/agents/review-risk.agent.md",
-    opencode: ".opencode/agents/review-risk.md",
-  };
-
-  for (const [target, expectedPath] of Object.entries(targetPaths)) {
+test("real repo: E0.3 (d) retired v1 review lenses are not distributed to any target", (t) => {
+  const retired = ["review-risk", "review-readability", "review-reliability", "review-resilience"];
+  for (const target of ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor", "antigravity"]) {
     const out = tmpOut(t);
     runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
-    assert.ok(
-      fs.existsSync(path.join(out, expectedPath)),
-      `review-risk agent missing from ${target} output at ${expectedPath}`
-    );
-  }
-});
-
-test("real repo: review-readability agent propagates to all four targets", (t) => {
-  const targetPaths = {
-    claude: "agents/review-readability.md",
-    vscode: "agents/review-readability.agent.md",
-    "github-copilot": ".github/agents/review-readability.agent.md",
-    opencode: ".opencode/agents/review-readability.md",
-  };
-
-  for (const [target, expectedPath] of Object.entries(targetPaths)) {
-    const out = tmpOut(t);
-    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
-    assert.ok(
-      fs.existsSync(path.join(out, expectedPath)),
-      `review-readability agent missing from ${target} output at ${expectedPath}`
-    );
-  }
-});
-
-test("real repo: review-reliability agent propagates to all four targets", (t) => {
-  const targetPaths = {
-    claude: "agents/review-reliability.md",
-    vscode: "agents/review-reliability.agent.md",
-    "github-copilot": ".github/agents/review-reliability.agent.md",
-    opencode: ".opencode/agents/review-reliability.md",
-  };
-
-  for (const [target, expectedPath] of Object.entries(targetPaths)) {
-    const out = tmpOut(t);
-    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
-    assert.ok(
-      fs.existsSync(path.join(out, expectedPath)),
-      `review-reliability agent missing from ${target} output at ${expectedPath}`
-    );
-  }
-});
-
-test("real repo: review-resilience agent propagates to all four targets", (t) => {
-  const targetPaths = {
-    claude: "agents/review-resilience.md",
-    vscode: "agents/review-resilience.agent.md",
-    "github-copilot": ".github/agents/review-resilience.agent.md",
-    opencode: ".opencode/agents/review-resilience.md",
-  };
-
-  for (const [target, expectedPath] of Object.entries(targetPaths)) {
-    const out = tmpOut(t);
-    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
-    assert.ok(
-      fs.existsSync(path.join(out, expectedPath)),
-      `review-resilience agent missing from ${target} output at ${expectedPath}`
-    );
-  }
-});
-
-test("real repo: all four review-* skills propagate to opencode and github-copilot", (t) => {
-  const skillRels = [
-    "skills/review-risk/SKILL.md",
-    "skills/review-readability/SKILL.md",
-    "skills/review-reliability/SKILL.md",
-    "skills/review-resilience/SKILL.md",
-  ];
-
-  for (const target of ["opencode", "github-copilot"]) {
-    const out = tmpOut(t);
-    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
-    for (const skillRel of skillRels) {
-      assert.ok(
-        fs.existsSync(path.join(out, skillRel)),
-        `${skillRel} missing from ${target} output`
-      );
+    const files = fs.readdirSync(out, { recursive: true }).map((rel) => String(rel).replace(/\\/g, "/"));
+    for (const name of retired) {
+      const leaked = files.filter((rel) => rel.split("/").some((part) => part === name || part.startsWith(`${name}.`)));
+      assert.deepEqual(leaked, [], `${name} leaked into ${target} output`);
     }
   }
 });

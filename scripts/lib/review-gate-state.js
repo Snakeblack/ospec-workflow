@@ -1,17 +1,13 @@
 "use strict";
 
-const { validateReviewDecision, classifyQualityReview, validateRouterDecision, mergeRouterDecision, validateAttributionOverride, pathMatchesScopePattern } = require("./review-dimensions.js");
-const { nextLineageAction, validateLineageForGate } = require("./review-lineage.js");
+const { classifyQualityReview, validateRouterDecision, mergeRouterDecision, validateAttributionOverride, pathMatchesScopePattern } = require("./review-dimensions.js");
+const { nextLineageAction, validateLineageForGate, isPristineV1Lineage } = require("./review-lineage.js");
 const {
   detectMixedGateKeys,
   detectMixedTaxonomy,
   ACTIVE_V2_REVIEWERS,
-  LEGACY_V1_REVIEWERS,
   reviewerForDomain,
 } = require("./review-taxonomy.js");
-
-const LEGACY_DIMENSIONS = Object.freeze(["risk", "reliability", "resilience", "readability"]);
-const LEGACY_REVIEWERS = Object.freeze({ ...LEGACY_V1_REVIEWERS });
 
 function readReviewGate(state) {
   const mixed = detectMixedGateKeys(state && state.gates);
@@ -38,7 +34,6 @@ function mergeReviewGateAudit(existingGate, audit) {
 function planReviewGate({
   routeGates = [],
   existingGate = {},
-  decision,
   classifierDecision,
   routerDecision = null,
   validationErrors = [],
@@ -49,9 +44,9 @@ function planReviewGate({
     return { status: "skipped", run_generalist: false, dispatch: [], archive_allowed: true, gate: clone(existingGate) };
   }
 
-  if (reviewGate === "4r-review-gate") {
-    return planLegacyReviewGate({ routeGates, existingGate, decision, validationErrors });
-  }
+  // E0.3 (d): the v1 4R lenses are retired; a route that still names the
+  // legacy gate must be re-routed to quality-review-gate.
+  if (reviewGate === "4r-review-gate") return blockedGate(existingGate, ["legacy-review-retired"]);
   if (reviewGate === "quality-review-gate") {
     return planQualityReviewGate({ routeGates, existingGate, classifierDecision, routerDecision, validationErrors, attributionOverride });
   }
@@ -254,43 +249,6 @@ function withResolutionAudit(audit, resolution) {
   return { ...audit, resolution };
 }
 
-function planLegacyReviewGate({ routeGates = [], existingGate = {}, decision, validationErrors = [] } = {}) {
-  if (!routeGates.includes("4r-review-gate")) {
-    return { status: "skipped", run_router: false, run_generalist: false, dispatch: [], archive_allowed: true, gate: clone(existingGate) };
-  }
-  const adapterInvalid = !Array.isArray(validationErrors) || validationErrors.length > 0;
-  const decisionValidation = validateReviewDecision(decision);
-  const validationErrorCodes = [
-    ...(adapterInvalid ? ["adapter-contract-invalid"] : []),
-    ...(!decisionValidation.valid ? ["decision-contract-invalid"] : []),
-  ];
-  if (validationErrorCodes.length) return blockedGate(existingGate, validationErrorCodes);
-
-  const selected = [...decision.selected_specialists];
-  const status = selected.length ? "ready" : "done";
-  const gate = mergeReviewGateAudit(existingGate, {
-    status,
-    schema_version: decision.schema_version,
-    classification: decision.classification,
-    evidence: decision.evidence,
-    generalist: decision.generalist,
-    depth: decision.depth,
-    escalation_reason: decision.escalation_reason,
-    dimensions: decision.dimensions,
-  });
-  delete gate.blocker_reason;
-  delete gate.validation_errors;
-  delete gate.validation_error_codes;
-  return {
-    status,
-    run_router: false,
-    run_generalist: true,
-    dispatch: selected.map((id) => LEGACY_REVIEWERS[id]),
-    archive_allowed: selected.length === 0,
-    gate,
-  };
-}
-
 function buildV2GateAudit(classifierDecision, status, routerDecision, selectedOverride) {
   const audit = {
     status,
@@ -324,10 +282,17 @@ function blockedGate(existingGate, validationErrorCodes) {
 }
 
 function planLineageGate({ lineage, observed_candidate_id, observed_binding_id, observed_policy_snapshot_id, issuance, downstream_gate = "status" } = {}) {
-  const schemaVersion = lineage && lineage.schema_version >= 2 ? 2 : 1;
   const nextAction = nextLineageAction(lineage);
+  // E0.3 (d): a v1 lineage still needing lenses cannot run them any more. An
+  // unstarted one migrates to v2; a half-reviewed one is terminated and
+  // replaced by an approved v2 successor. Later v1 states stay readable.
+  if (nextAction.type === "run-lenses" && lineage.schema_version === 1) {
+    return isPristineV1Lineage(lineage)
+      ? { status: "migration-required", next_action: { type: "migrate-taxonomy-v2" }, dispatch: [], archive_allowed: false }
+      : { status: "blocked", next_action: { type: "retire-v1-lineage", reason: "v1-lens-retired", dimensions: nextAction.dimensions }, dispatch: [], archive_allowed: false };
+  }
   const dispatch = nextAction.type === "run-lenses"
-    ? nextAction.dimensions.map((dimension) => reviewerForDomain(dimension, schemaVersion))
+    ? nextAction.dimensions.map((dimension) => reviewerForDomain(dimension, 2))
     : nextAction.type === "targeted-validation"
       ? ["review-correction"]
       : [];
