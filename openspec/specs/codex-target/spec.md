@@ -139,6 +139,8 @@ strategy the ADR selects using the generator's existing `rules.strategy` dispatc
 (`inline-into-orchestrator`, `to-instructions`, `to-instructions-config`, or a
 documented new value), without a codex-specific rules code path outside that dispatch.
 
+Since E0.4 the profile uses `inline-into-orchestrator` with `globalFile: AGENTS.md`: global rules go to `AGENTS.md` and the rest into the `sdd-orchestrator` skill (REQ-generator-022).
+
 #### Scenario: Profile routes through existing rules dispatch
 
 - GIVEN the design ADR selects a `rules.strategy` value for the `codex` profile

@@ -55,7 +55,7 @@ Copilot (`~/.copilot/` or `.github/`) and OpenCode (`~/.config/opencode/` or `.o
 
 ### 1.3 Codex — Native Global Installation & Ownership
 
-`npm run setup:codex` MUST install the generated `AGENTS.md`, `.codex/agents/*.toml`, skills, runtime scripts and native `hooks.json` under the user's `~/.codex/` without a plugin or marketplace. It MUST register only missing global MCP definitions through `codex mcp add`, deduplicating by command plus ordered arguments and preserving name collisions. It MUST merge its own hook groups while preserving user-owned groups. `npm run install:codex -- <destRepo>` targets `<destRepo>/.codex/agents/` and MUST NOT modify the destination project's `.codex/config.toml`.
+`npm run setup:codex` MUST install the generated router into `~/.codex/AGENTS.md` as a marked block (REQ-install-033), and `.codex/agents/*.toml`, skills (including the `sdd-orchestrator` skill), runtime scripts and native `hooks.json` under the user's `~/.codex/` and `~/.agents/skills/`, without a plugin or marketplace. It MUST register only missing global MCP definitions through `codex mcp add`, deduplicating by command plus ordered arguments and preserving name collisions. It MUST merge its own hook groups while preserving user-owned groups. `npm run install:codex -- <destRepo>` targets `<destRepo>/.codex/agents/`, writes the router block into `<destRepo>/AGENTS.md` and the orchestrator skill into `<destRepo>/.agents/skills/sdd-orchestrator/`, and MUST NOT modify the destination project's `.codex/config.toml`.
 
 The generated Codex tree MUST contain `agent.md`, `.codex/agents/*.toml`, `skills/`, runtime `scripts/` and `hooks.json`, and MUST NOT contain `.codex-plugin/`, `.codex/config.toml` or `.mcp.json`. The Codex validator MUST reject generated config and plugin artifacts, and require a valid native hooks payload with the runtime placeholder. It maintains `.ospec-workflow-install.json`, and prunes stale agents/scripts upon upgrade.
 
@@ -432,7 +432,7 @@ destination `.codex/config.toml` byte-for-byte unchanged.
 
 - GIVEN no prior Codex install exists at the destination
 - WHEN `npm run setup:codex` (or `install:codex -- <destRepo>`) runs
-- THEN `AGENTS.md`, `.codex/agents/*.toml`, skills, runtime scripts and `hooks.json`
+- THEN the router block in `AGENTS.md`, `.codex/agents/*.toml`, skills, runtime scripts and `hooks.json`
   are installed under the global Codex home
 - AND the hook configuration contains no unresolved runtime placeholder
 
@@ -1205,3 +1205,19 @@ Every target installer (`setup:claude`, `setup:vscode`, `setup:copilot`, `setup:
 - GIVEN any installer run with `--with-extras`
 - WHEN it builds its target
 - THEN the build receives `withExtras: true`, and `false` when the flag is absent
+
+### Requirement: Router Installs As A Marked Block {#REQ-install-033}
+
+Where the router lands in a file the user also owns (`~/.claude/CLAUDE.md` for `setup:claude`; `~/.codex/AGENTS.md` for `setup:codex`; `<destRepo>/AGENTS.md` for `install:codex -- <destRepo>`), the installer MUST write it between the `<!-- ospec-workflow:router:begin -->` and `<!-- ospec-workflow:router:end -->` markers (`scripts/configure/instruction-block.js`): a reinstall replaces only that block, the text around it is preserved, and a begin marker without its end marker fails the install instead of being guessed. An `AGENTS.md` that a pre-E0.4 install owned whole (listed in the ownership manifest, or carrying the `# SDD Orchestrator` heading without markers) MUST be replaced by the block, never pruned. `--no-router` MUST skip the router and remove a block an earlier install wrote, deleting the file only when nothing else is left. `setup:claude` writes the block only after the plugin is installed or updated, never with `--build-only` or without the `claude` CLI. The other targets install the router as one more global rule file, which their ownership manifests already prune.
+
+#### Scenario: User text survives install and removal
+
+- GIVEN `~/.codex/AGENTS.md` holds the user's own instructions
+- WHEN `setup:codex` runs twice and then once with `--no-router`
+- THEN after each install the file holds the user's text followed by one router block, and after the last run it holds only the user's text
+
+#### Scenario: Pre-E0.4 orchestrator copy is migrated
+
+- GIVEN `~/.codex/AGENTS.md` is the orchestrator copy that the previous install listed in its manifest
+- WHEN `setup:codex` runs
+- THEN the file holds only the router block and is not deleted

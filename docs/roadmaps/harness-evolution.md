@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.87.0, 2026-10-04.
+> **Versión de referencia:** v2.88.0, 2026-10-04.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -84,7 +84,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 
 | Métrica | Hoy (v2.81.3) | gentle-ai | Objetivo | Etapa |
 | --- | --- | --- | --- | --- |
-| Instrucciones cargadas siempre (peor target) | 63 KB (Codex); 2,3–2,4 KB en el resto desde v2.84.0 (antes, 23–26 KB en Cursor, Copilot, OpenCode y Antigravity) | Orquestador de 17–24 KB | Router de ≤ 4 KB | E0.2 ✅, E0.4 |
+| Instrucciones cargadas siempre (peor target) | 2,7–3,0 KB en los 7 targets desde v2.88.0, router incluido (antes, 63 KB en Codex y 23–26 KB en Cursor, Copilot, OpenCode y Antigravity) | Orquestador de 17–24 KB | Router de ≤ 4 KB | E0.2 ✅, E0.4 ✅ (a) |
 | Contexto del flujo por defecto | Orquestador SDD de 44–63 KB más 60–75 KB por fase | 17–24 KB | Router más protocolo IDD ≤ 16 KB | E1.6 |
 | Agentes que cargan su skill en un proyecto consumidor | 100 % desde v2.83.0 (antes, parcial: `sdd-apply` y `sdd-clarify` sin skill) | — | 100 % | E0.1 ✅ |
 | Obligaciones comprobadas por código | `validate-phase` en ~10 % de los despachos observados | Binario | 100 %, vía `ospec check` | E1.4 |
@@ -115,7 +115,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E0.1** | `fix-phase-agent-skill-loading` | bugfix |
 | `done` | **E0.2** | `scope-always-on-instructions` | refactor |
 | `next-eligible` | **E0.3** | `curate-skill-catalog` | refactor |
-| `pending` | **E0.4** | `router-and-sdd-on-demand` | feature |
+| `next-eligible` | **E0.4** | `router-and-sdd-on-demand` | feature |
 | `next-eligible` | **E1.1** | `idd-contract` | contrato |
 | `pending` | **E1.2** | `ospec-cli-core` | feature |
 | `pending` | **E1.3** | `impact-signals` | feature |
@@ -139,7 +139,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E0.4, ya desbloqueado por el (b2) de E0.3 (v2.87.0): baja el último coste fijo grande (los 63 KB de Codex) y lleva el *always-on* al router de ≤ 4 KB. Los PRs (c) y (d) de E0.3 siguen pendientes y pueden ir en paralelo. E1.1 también puede empezar ya.
+**▶ SIGUIENTE:** el PR (b) de E0.4: que el orquestador encuentre sus ficheros `skills/_shared/` desde la instalación en un proyecto consumidor. El (a) ya dejó el *always-on* en 2,7–3,0 KB en los 7 targets (v2.88.0). Los PRs (c) y (d) de E0.3 siguen pendientes y pueden ir en paralelo. E1.1 también puede empezar ya.
 
 **Dependencias:**
 
@@ -209,6 +209,10 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
   - El router se reescribe: SDD solo cuando el usuario lo pide de forma explícita (`/sdd-*` o "hazme un SDD"). Hasta E1.6, el resto del trabajo se hace de forma directa.
   - El orquestador SDD y sus agentes de fase se cargan solo bajo demanda en los 7 targets.
 - **Hecho cuando:** el informe de E0.0 da ≤ 4 KB *always-on* por target, y una sesión sin `/sdd-*` no carga nada del protocolo SDD.
+- **Entrega:** PRs encadenados: (a) router e instalación, (b) rutas `_shared` del orquestador resolubles desde la instalación.
+- **Avance:**
+  - **(a) entregado en v2.88.0:** el router pasa a ser la regla global `rules/ospec-router.instructions.md` (REQ-generator-022): SDD solo con `/sdd-*` o una petición explícita, y el orquestador del host nombrado con un marcador que el generador resuelve. `global-instructions/` se retira. Claude y Codex sacan sus reglas globales a un fichero propio (`global-instructions/CLAUDE.md` y `AGENTS.md`); en Codex el orquestador pasa a la skill `sdd-orchestrator`, y sus comandos `$sdd-*` la cargan. `setup:claude` y `setup:codex` (global y por repositorio) escriben el router como bloque con marcadores sin tocar el texto del usuario; el `AGENTS.md` de 63 KB que la instalación anterior poseía entero se sustituye, y `--no-router` quita el bloque (REQ-install-033). La regla de atribución se compacta para que router y regla quepan en 4 KB. Resultado: *always-on* de 2,7–3,0 KB en los 7 targets ([target-capabilities §7](../target-capabilities.md#7-coste-de-contexto-por-target-e00)).
+  - **Pendiente:** (b) el orquestador lee 18 rutas `skills/_shared/` relativas que no existen en un proyecto consumidor.
 
 ## Etapa 1 — IDD como flujo por defecto
 

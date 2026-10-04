@@ -149,7 +149,7 @@ In Claude Code there are two different outputs:
 - **Claude Code persistent**: generate `dist/claude-marketplace/`, register that local marketplace and then install `ospec-workflow@ospec-tools`.
 - **GitHub Copilot CLI (Local/Project)**: generate `dist/github-copilot/` and copy its contents (`.github/`, `.mcp.json`, and `scripts/`) into the destination repo root.
 - **GitHub Copilot CLI (Global)**: builds, copies, and registers all agents, prompts, instructions, hooks, and skills in the user's global directory (`~/.copilot/`), merging the MCP configuration into `mcp-config.json` automatically and permanently for any project.
-- **Codex CLI (Global)**: builds `dist/codex/`, installs `AGENTS.md`, agents, skills, and runtime into `~/.codex/`, merges its native hooks into `~/.codex/hooks.json` and reuses equivalent MCPs or adds only the missing ones via `codex mcp`.
+- **Codex CLI (Global)**: builds `dist/codex/`, writes the router as a marked block in `~/.codex/AGENTS.md`, installs agents, skills (the orchestrator is the `sdd-orchestrator` skill) and runtime into `~/.codex/` and `~/.agents/skills/`, merges its native hooks into `~/.codex/hooks.json` and reuses equivalent MCPs or adds only the missing ones via `codex mcp`.
 - **Codex CLI (Local/Project)**: `npm run install:codex -- ../my-project` copies only `.codex/agents/*.toml` to `<repo>/.codex/agents/`; it preserves any existing `config.toml` and does not copy `.codex-plugin/plugin.json` into the destination repo.
 - **opencode (Local/Project)**: generate `dist/opencode/` and copy its contents (`.opencode/`, `opencode.json`, `skills/`, and `scripts/`) into the destination repo root. opencode discovers agents/commands/instructions under `.opencode/` and reads `opencode.json` (MCP + instructions); the `.opencode/plugins/ospec.js` plugin bridges the hooks runtime.
 - **opencode (Global)**: builds, copies, and registers all agents, commands, instructions, and plugins in the user's global directory (`~/.config/opencode/`), merging the MCP configuration into `opencode.json` automatically and permanently for any project. In both opencode cases, the main agent is renamed to `ospec-workflow`.
@@ -391,7 +391,7 @@ npm run setup:codex
 
 This idempotent installer performs the following steps:
 1. Builds the `codex` target into `dist/codex/`.
-2. Copies `AGENTS.md`, all TOML agents, the skills, and the hooks runtime to the global Codex directory:
+2. Writes the router into `~/.codex/AGENTS.md` between `ospec-workflow:router` markers, keeping your own text (a pre-E0.4 orchestrator copy is replaced), and copies all TOML agents, the skills, and the hooks runtime to the global Codex directory:
    - **Windows**: `C:\Users\<User>\.codex\agents\`
    - **Linux/macOS**: `~/.codex/agents/`
 3. Merges the OSpec native hooks into `~/.codex/hooks.json` without overwriting unrelated hooks.

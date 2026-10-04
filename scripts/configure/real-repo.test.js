@@ -169,16 +169,17 @@ test("real repo: every generated .codex/agents/*.toml file is syntactically vali
   }
 });
 
-test("real repo: the orchestrator agent dispatches through the root AGENTS.md with no manifest or hooks warnings", (t) => {
+test("real repo: the codex orchestrator skill dispatches phase sub-agents with no manifest or hooks warnings", (t) => {
   const out = tmpOut(t);
   runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
 
-  const agentMdPath = path.join(out, "AGENTS.md");
-  assert.ok(fs.existsSync(agentMdPath), "orchestrator AGENTS.md must be generated");
+  assert.ok(fs.existsSync(path.join(out, "AGENTS.md")), "the router AGENTS.md must be generated");
+  const skillPath = path.join(out, "skills", "sdd-orchestrator", "SKILL.md");
+  assert.ok(fs.existsSync(skillPath), "the orchestrator skill must be generated");
   const orchestratorPath = path.join(out, ".codex", "agents", "sdd-orchestrator.toml");
   assert.ok(!fs.existsSync(orchestratorPath), "orchestrator TOML agent must not be generated");
 
-  const content = fs.readFileSync(agentMdPath, "utf8");
+  const content = fs.readFileSync(skillPath, "utf8");
   assert.doesNotMatch(
     content,
     /do not ask blocking workflow questions as plain chat text/i,
@@ -186,7 +187,7 @@ test("real repo: the orchestrator agent dispatches through the root AGENTS.md wi
   );
   assert.ok(
     content.includes("sdd-propose") || content.includes("sdd-explore") || content.includes("Propose") || content.includes("Explore"),
-    "orchestrator AGENTS.md instructions must retain delegation to phase sub-agents",
+    "the orchestrator skill must retain delegation to phase sub-agents",
   );
 
   const result = validateCodex(out);
@@ -256,8 +257,8 @@ test("real repo: codex command-derived skill coexists with an existing context-d
     const commandSkill = fs.readFileSync(commandSkillPath, "utf8");
     assert.match(
       commandSkill,
-      /Spawn the `[^`]+` agent/,
-      `skills/commands/${base}/SKILL.md must carry the command-derived spawn instruction`
+      /Spawn the `[^`]+` agent|Load the `sdd-orchestrator` skill once/,
+      `skills/commands/${base}/SKILL.md must carry the command-derived routing instruction`
     );
   }
 });
@@ -272,8 +273,8 @@ test("real repo: codex emits every source agent as TOML outside the plugin bundl
     const base = rel.slice("agents/".length, rel.length - ".agent.md".length);
     if (base === "sdd-orchestrator") {
       assert.ok(
-        fs.existsSync(path.join(out, "AGENTS.md")),
-        `orchestrator agent must be emitted as AGENTS.md`
+        fs.existsSync(path.join(out, "skills", "sdd-orchestrator", "SKILL.md")),
+        `orchestrator agent must be emitted as the sdd-orchestrator skill`
       );
       continue;
     }
@@ -284,11 +285,11 @@ test("real repo: codex emits every source agent as TOML outside the plugin bundl
   }
 });
 
-test("real repo: codex synthesizes a single AGENTS.md from the rules tree and orchestrator", (t) => {
+test("real repo: codex synthesizes AGENTS.md from the global rules only", (t) => {
   const out = tmpOut(t);
   runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
 
-  assert.ok(fs.existsSync(path.join(out, "AGENTS.md")), "AGENTS.md must be synthesized in codex output (ADR-001)");
+  assert.ok(fs.existsSync(path.join(out, "AGENTS.md")), "AGENTS.md must be synthesized in codex output (E0.4)");
   assert.ok(!fs.existsSync(path.join(out, "rules")), "rules/ must not survive in codex output");
 });
 
@@ -460,7 +461,7 @@ test("real repo: all six targets preserve the signal-driven clarify gate", (t) =
     vscode: "agents/sdd-orchestrator.agent.md",
     "github-copilot": ".github/agents/sdd-orchestrator.agent.md",
     opencode: ".opencode/agents/ospec-workflow.md",
-    codex: "AGENTS.md",
+    codex: "skills/sdd-orchestrator/SKILL.md",
     cursor: "agents/sdd-orchestrator.md",
   };
 
@@ -509,7 +510,7 @@ test("real repo: all six targets preserve D2 intent-briefing landmarks", (t) => 
     vscode: "agents/sdd-orchestrator.agent.md",
     "github-copilot": ".github/agents/sdd-orchestrator.agent.md",
     opencode: ".opencode/agents/ospec-workflow.md",
-    codex: "AGENTS.md",
+    codex: "skills/sdd-orchestrator/SKILL.md",
     cursor: "agents/sdd-orchestrator.md",
   };
 

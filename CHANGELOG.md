@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.88.0] - 2026-10-04
+
+### Added
+- **Router *always-on* en los 7 targets (E0.4, PR a)**: `rules/ospec-router.instructions.md` sustituye a `global-instructions/`, que ningún instalador usaba. Dice que SDD solo se usa con `/sdd-*` o con una petición explícita, y nombra el orquestador de cada host con un marcador que resuelve el generador (REQ-generator-022).
+- **Bloque con marcadores** (`scripts/configure/instruction-block.js`, REQ-install-033): `setup:claude` escribe el router en `~/.claude/CLAUDE.md` y `setup:codex` en `~/.codex/AGENTS.md` o en el `AGENTS.md` del repositorio, sin tocar el texto del usuario. Reinstalar solo reemplaza el bloque, y `--no-router` lo quita.
+
+### Changed
+- **Codex carga el orquestador bajo demanda**: su `AGENTS.md` lleva solo el router y la regla de atribución, y el orquestador pasa a la skill `sdd-orchestrator`, que cargan los comandos `$sdd-*`. La instalación por repositorio deja la skill en `.agents/skills/`. El `AGENTS.md` de 63 KB que poseía la instalación anterior se sustituye por el bloque, sin borrarse.
+- **Claude** saca sus reglas globales del orquestador a `global-instructions/CLAUDE.md`, que el instalador copia al bloque de `~/.claude/CLAUDE.md`. El validador estricto rechaza un `CLAUDE.md` en la raíz del plugin.
+- **Regla de atribución compactada** (2,4 → 1,5 KB), con las mismas prohibiciones y el mismo patrón de comprobación.
+- **Coste de contexto**: *always-on* de 2,7–3,0 KB en los 7 targets, router incluido; Codex baja de 63,0 a 2,7 KB. Techos regenerados.
+- **Docs**: README (ya no pide copiar plantillas), guía de instalación, specs de generator, install y codex-target, y coste por target en `target-capabilities`. El roadmap marca el (a) de E0.4 como entregado; el (b) sigue pendiente.
+
+**Verificación directa**: `node scripts/check.js` (3701 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.87.0] - 2026-10-04
 
 ### Added

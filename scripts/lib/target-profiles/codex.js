@@ -10,9 +10,10 @@
 //     referenced from the plugin manifest.
 //   - commands -> skills/commands/<name>/SKILL.md (commandFile.format:"skill"),
 //     invocable as $sdd-*; no `prompts/` path is ever emitted (deprecated).
-//   - rules    -> concatenated into a single synthesized AGENTS.md at the
-//     output root (ADR-001: to-agents-md), Codex's native layered-instructions
-//     file, read automatically for the main thread and every spawned subagent.
+//   - rules    -> global ones into a synthesized AGENTS.md at the output root,
+//     Codex's native layered-instructions file, read for the main thread and
+//     every spawned subagent; the rest into the orchestrator skill (E0.4).
+//   - orchestrator -> skills/sdd-orchestrator/SKILL.md, loaded on demand.
 //   - manifest -> .codex-plugin/plugin.json, reshaped via an allowlist
 //     (keepFields) + interface injection + rename (NOT the omit/drop deny-list
 //     used by claude): future-proof against new canonical manifest keys, and
@@ -38,13 +39,18 @@ module.exports = {
 
   commandFile: { from: ".prompt.md", format: "skill" },
 
-  // All rules/*.instructions.md are folded into the root synthesized AGENTS.md (ADR-001)
-  rules: { strategy: "to-agents-md" },
+  // E0.4: AGENTS.md carries only the global rules (router, attribution); the
+  // installer writes it as a marked block. Every other always-active rule joins
+  // the orchestrator, which is a skill loaded only on entering SDD.
+  rules: { strategy: "inline-into-orchestrator", globalFile: "AGENTS.md" },
 
   orchestrator: {
     agent: "sdd-orchestrator",
-    emitAs: "root-agent-md",
-    agentPath: "AGENTS.md"
+    emitAs: "skill",
+    skillPath: "skills/sdd-orchestrator/SKILL.md",
+    entry: "skill `sdd-orchestrator`",
+    description:
+      "SDD orchestrator — coordinate phases, delegate to the sdd-* phase agents, enforce review/TDD gates, and persist OpenSpec state. Load only for /sdd-* commands or an explicit spec-driven request.",
   },
 
   // sandbox_mode derives from the tools[] capability declaration (edit ->

@@ -41,13 +41,17 @@ module.exports = {
   nativeModelFields: ["effort"],
   // Claude plugins do not load CLAUDE.md and sub-agents are one-shot workers, so the
   // orchestrator persona ships as a SKILL (the documented context-loading vehicle).
-  rules: { strategy: "inline-into-orchestrator" },
+  // Global rules (router, attribution) go to global-instructions/CLAUDE.md (the
+  // validator rejects a root CLAUDE.md, which a plugin never loads); setup:claude
+  // installs it as a marked block in ~/.claude/CLAUDE.md (E0.4).
+  rules: { strategy: "inline-into-orchestrator", globalFile: "global-instructions/CLAUDE.md" },
   orchestrator: {
     agent: "sdd-orchestrator",
     emitAs: "skill",
     skillPath: "skills/sdd-orchestrator/SKILL.md",
+    entry: "skill `ospec-workflow:sdd-orchestrator`",
     description:
-      "SDD orchestrator — coordinate phases, delegate to the sdd-* phase agents, enforce review/TDD gates, and persist OpenSpec state. Load for any /sdd-* or spec-driven workflow request.",
+      "SDD orchestrator — coordinate phases, delegate to the sdd-* phase agents, enforce review/TDD gates, and persist OpenSpec state. Load only for /sdd-* commands or an explicit spec-driven request.",
   },
   // Rewrite ${input:NAME} → ${NAME:-} in .mcp.json env/args/url/headers.
   // Claude Code expands ${VAR:-default}; the empty default keeps config

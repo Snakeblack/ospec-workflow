@@ -38,10 +38,18 @@ test("counts global rules as always-on and leaves scoped rules out", () => {
   assert.equal(report.always_on_bytes, Object.values(report.always_on_files).reduce((a, b) => a + b, 0));
 });
 
-test("counts the root AGENTS.md and the opencode.json instruction globs as always-on", () => {
-  const codex = measureTarget([file("AGENTS.md", kb(300)), file("docs/AGENTS.md", kb(10))]);
+test("counts the root AGENTS.md, the Claude router and the opencode.json instruction globs as always-on", () => {
+  const codex = measureTarget([
+    file("AGENTS.md", kb(300)),
+    file("docs/AGENTS.md", kb(10)),
+    file("skills/sdd-orchestrator/SKILL.md", kb(60)),
+  ]);
   assert.deepEqual(codex.always_on_files, { "AGENTS.md": 300 });
-  assert.equal(codex.orchestrator.path, "AGENTS.md");
+  assert.equal(codex.orchestrator.path, "skills/sdd-orchestrator/SKILL.md");
+
+  // A Claude plugin never loads CLAUDE.md: setup:claude installs the built router (E0.4).
+  const claude = measureTarget([file("global-instructions/CLAUDE.md", kb(30)), file("CLAUDE.md", kb(10))]);
+  assert.deepEqual(claude.always_on_files, { "global-instructions/CLAUDE.md": 30 });
 
   const opencode = measureTarget([
     file("opencode.json", JSON.stringify({ instructions: [".opencode/instructions/*.md"] })),

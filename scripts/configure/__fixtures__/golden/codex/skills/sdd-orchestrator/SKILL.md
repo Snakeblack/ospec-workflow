@@ -13,7 +13,7 @@ Eligibility (specificity is not a skip predicate): MUST fire for `/sdd-new`, `/s
 
 If context is missing, read inline or delegate a read-only explore; YOU (main thread) then synthesize and ask. Explore MUST NOT ask or approve. Synthesize a 2–4 line functional briefing of what was understood and what will be done. MUST NOT present `sdd-propose`, `sdd-spec`, `sdd-design`, `sdd-tasks`, `sdd-apply`, `sdd-verify`, or `sdd-archive` as the user-facing plan.
 
-While waiting, do NOT create `openspec/changes/{name}/`. Ask via `AskUserQuestion` from the orchestrator main thread. Do NOT delegate the briefing question or acceptance.
+While waiting, do NOT create `openspec/changes/{name}/`. Ask via `the active host question protocol` from the orchestrator main thread. Do NOT delegate the briefing question or acceptance.
 
 Rounds 0–1 (cap 2 corrections): options `Confirmar esta síntesis`, `Corregirla`, `Abortar`; `allowFreeformInput: true`. Each correction requires a fresh synthesis. After 2 corrections: exactly `Confirmar la última síntesis` and `Abortar`; `allowFreeformInput: false`; do NOT offer another correction; do NOT call `classifyChange` until the user confirms or aborts.
 

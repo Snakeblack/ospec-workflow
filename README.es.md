@@ -23,10 +23,8 @@ En el desarrollo asistido por IA, programar antes de comprender el problema gene
 
 ## Inicio Rápido en 3 Pasos
 
-### 1. Preparar las Instrucciones de tu Proyecto
-Copia la plantilla de instrucciones adecuada en la raíz de tu repositorio de destino para fijar el contrato de que el agente debe **coordinar en vez de implementar a mano**:
-- [`CLAUDE.md`](CLAUDE.md) $\rightarrow$ Para **Claude Code** (copia a tu repo).
-- [`AGENTS.md`](AGENTS.md) $\rightarrow$ Variante **agnóstica** para VS Code, Copilot u otros editores.
+### 1. Nada que copiar: el instalador añade un router pequeño
+Cada instalador añade un router de menos de 2 KB a las instrucciones que tu host carga en cada petición ([`rules/ospec-router.instructions.md`](rules/ospec-router.instructions.md)). Le indica al agente que entre en SDD **solo** cuando ejecutas un comando `/sdd-*` o pides trabajo guiado por especificación, y que cargue el orquestador solo entonces. Claude Code y Codex lo reciben como un bloque con marcadores en `~/.claude/CLAUDE.md` y `AGENTS.md`, junto a tu propio texto; usa `--no-router` para no instalarlo o quitarlo.
 
 ### 2. Instalar el Plugin en tu Herramienta
 Elige tu target y ejecuta su configurador automático:
@@ -107,7 +105,7 @@ Una vez cargado el plugin en tu agente de chat:
   ```powershell
   npm run setup:codex
   ```
-  *(Compila `dist/codex`, sincroniza `AGENTS.md`, agentes, skills y runtime en `~/.codex/`, fusiona hooks nativos en `~/.codex/hooks.json` y registra los MCP globales que falten.)*
+  *(Compila `dist/codex`, escribe el router como bloque en `~/.codex/AGENTS.md`, sincroniza agentes, skills y runtime en `~/.codex/`, fusiona hooks nativos en `~/.codex/hooks.json` y registra los MCP globales que falten.)*
 - **Instalación Local por repositorio**:
   ```powershell
   npm run install:codex -- ../mi-proyecto
@@ -155,7 +153,7 @@ Cada `npm run setup:<target>` (Claude, Codex, Antigravity, opencode, Cursor, VS 
 
 | Ruta | Propósito |
 | --- | --- |
-| `CLAUDE.md` / `AGENTS.md` | Plantillas de instrucciones de proyecto (Claude Code y agnóstica) que fijan el contrato coordinador-no-ejecutor. Copialas a tu repo. |
+| `rules/ospec-router.instructions.md` | El router *always-on*: SDD solo bajo petición, a través del orquestador del host. Los instaladores lo añaden en todos los targets. |
 | `.plugin.json` | Manifiesto **canónico** (VS Code/direct-load). Editá este primero. |
 | `.claude-plugin/plugin.json` | Copia de compatibilidad para la distribución Claude; también es la fuente que lee el generador (`scripts/configure/cli.js`). Debe reflejar el canónico — `scripts/manifest-sync.test.js` lo verifica en CI. |
 | `agents/` | Orquestador y agentes especializados por fase. |

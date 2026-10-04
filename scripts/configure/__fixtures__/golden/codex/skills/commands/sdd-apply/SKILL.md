@@ -3,7 +3,7 @@ name: sdd-apply
 description: Run or continue apply for an OpenSpec change.
 ---
 
-Spawn the `sdd-orchestrator` agent to carry out this skill.
+Load the `sdd-orchestrator` skill once and carry out this command through it.
 
 Route this command to the orchestrator.
 

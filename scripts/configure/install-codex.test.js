@@ -2024,3 +2024,83 @@ for (const code of ["EPERM", "EACCES", "EBUSY"]) {
 
 
 
+
+// --- E0.4: AGENTS.md receives only the router, as a marked block ----------
+
+const { BEGIN: ROUTER_BEGIN, END: ROUTER_END } = require("./instruction-block.js");
+
+function writeRouterCodexTree(root) {
+  writeGeneratedCodexTree(root);
+  fs.writeFileSync(path.join(root, "AGENTS.md"), "# ospec-workflow\n\nrouter\n");
+  fs.mkdirSync(path.join(root, "skills", "sdd-orchestrator"), { recursive: true });
+  fs.writeFileSync(path.join(root, "skills", "sdd-orchestrator", "SKILL.md"), "# SDD Orchestrator\n");
+}
+
+const ROUTER_BLOCK = `${ROUTER_BEGIN}\n# ospec-workflow\n\nrouter\n${ROUTER_END}\n`;
+
+function installRouter(t, argv, { homeDir, cwd } = {}) {
+  return main(argv, {
+    cwd: cwd || makeTempDir(t, "codex-router-source-"),
+    homedir: () => homeDir || makeTempDir(t, "codex-router-home-"),
+    stdout: { write() {} },
+    stderr: { write() {} },
+    findCodexBin: () => null,
+    runConfigure({ outDir }) {
+      writeRouterCodexTree(outDir);
+      return { exitCode: 0, validation: null };
+    },
+  });
+}
+
+test("global install writes the router as a block and keeps the user's AGENTS.md", (t) => {
+  const homeDir = makeTempDir(t, "codex-router-home-");
+  const agentsMd = path.join(homeDir, ".codex", "AGENTS.md");
+  fs.mkdirSync(path.dirname(agentsMd), { recursive: true });
+  fs.writeFileSync(agentsMd, "# Mine\n");
+
+  assert.equal(installRouter(t, [], { homeDir }), 0);
+  assert.equal(fs.readFileSync(agentsMd, "utf8"), `# Mine\n\n${ROUTER_BLOCK}`);
+  assert.equal(installRouter(t, [], { homeDir }), 0);
+  assert.equal(fs.readFileSync(agentsMd, "utf8"), `# Mine\n\n${ROUTER_BLOCK}`, "a reinstall replaces only the block");
+  const manifest = JSON.parse(fs.readFileSync(path.join(homeDir, ".codex", ".ospec-workflow-install.json"), "utf8"));
+  assert.ok(!manifest.files.includes("AGENTS.md"), "AGENTS.md is shared with the user, never owned");
+  assert.ok(fs.existsSync(path.join(homeDir, ".agents", "skills", "sdd-orchestrator", "SKILL.md")));
+});
+
+test("global install replaces the AGENTS.md a previous install owned, instead of pruning it", (t) => {
+  const homeDir = makeTempDir(t, "codex-router-home-");
+  const codexRoot = path.join(homeDir, ".codex");
+  fs.mkdirSync(codexRoot, { recursive: true });
+  fs.writeFileSync(path.join(codexRoot, "AGENTS.md"), "63 KB of orchestrator\n");
+  fs.writeFileSync(path.join(codexRoot, ".ospec-workflow-install.json"), JSON.stringify({ target: "codex", files: ["AGENTS.md", "hooks.json"] }));
+
+  assert.equal(installRouter(t, [], { homeDir }), 0);
+  assert.equal(fs.readFileSync(path.join(codexRoot, "AGENTS.md"), "utf8"), ROUTER_BLOCK);
+});
+
+test("repo install writes the router block into the repository AGENTS.md and the orchestrator skill into .agents/skills", (t) => {
+  const destRepo = makeTempDir(t, "codex-router-repo-");
+  fs.writeFileSync(path.join(destRepo, "AGENTS.md"), "# Project rules\n");
+
+  assert.equal(installRouter(t, [destRepo, "--no-validate"]), 0);
+  assert.equal(fs.readFileSync(path.join(destRepo, "AGENTS.md"), "utf8"), `# Project rules\n\n${ROUTER_BLOCK}`);
+  assert.equal(fs.readFileSync(path.join(destRepo, ".agents", "skills", "sdd-orchestrator", "SKILL.md"), "utf8"), "# SDD Orchestrator\n");
+
+  const legacyRepo = makeTempDir(t, "codex-router-legacy-");
+  fs.writeFileSync(path.join(legacyRepo, "AGENTS.md"), "\n# SDD Orchestrator\n\nold copy\n");
+  assert.equal(installRouter(t, [legacyRepo, "--no-validate"]), 0);
+  assert.equal(fs.readFileSync(path.join(legacyRepo, "AGENTS.md"), "utf8"), ROUTER_BLOCK, "the pre-E0.4 copy is replaced");
+});
+
+test("--no-router installs without the router and removes an earlier block", (t) => {
+  assert.equal(parseArgs(["--no-router"]).noRouter, true);
+  const destRepo = makeTempDir(t, "codex-router-off-");
+  fs.writeFileSync(path.join(destRepo, "AGENTS.md"), "# Project rules\n");
+  assert.equal(installRouter(t, [destRepo, "--no-validate"]), 0);
+  assert.equal(installRouter(t, [destRepo, "--no-validate", "--no-router"]), 0);
+  assert.equal(fs.readFileSync(path.join(destRepo, "AGENTS.md"), "utf8"), "# Project rules\n");
+
+  const homeDir = makeTempDir(t, "codex-router-home-");
+  assert.equal(installRouter(t, ["--no-router"], { homeDir }), 0);
+  assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "AGENTS.md")));
+});

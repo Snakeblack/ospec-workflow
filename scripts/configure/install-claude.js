@@ -11,6 +11,7 @@
 //   node scripts/configure/install-claude.js --build-only  # build only (use /reload-plugins in-session)
 //   node scripts/configure/install-claude.js --no-engram   # skip the automatic Engram session-memory step
 //   node scripts/configure/install-claude.js --with-extras # also install the optional extras package
+//   node scripts/configure/install-claude.js --no-router   # leave ~/.claude/CLAUDE.md without the ospec router
 //
 // Why a wrapper: the README dance was five manual commands (build, two validate
 // calls, Resolve-Path + marketplace add, install). The build already runs the
@@ -18,11 +19,13 @@
 // whole thing to a single re-runnable command. See README "Claude Code".
 
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { buildClaudeMarketplace } = require("./claude-marketplace.js");
 const { copyBinaryToTree } = require("./install-target.js");
 const { runEngramStep } = require("./engram-setup.js");
+const { removeRouterBlock, writeRouterBlock } = require("./instruction-block.js");
 
 const MARKETPLACE = "ospec-tools";
 const PLUGIN = "ospec-workflow";
@@ -77,6 +80,20 @@ function listOutput(bin, args) {
     throw new Error(`Failed to execute ${bin} ${args.join(" ")}: ${result.error.message}`);
   }
   return `${result.stdout || ""}${result.stderr || ""}`;
+}
+
+// E0.4: a plugin cannot carry always-on text, so the router built into the
+// plugin tree goes to ~/.claude/CLAUDE.md as a marked block. `--no-router`
+// takes out a block an earlier install wrote.
+function syncRouter(pluginDir, argv, homedir) {
+  const claudeMd = path.join(homedir(), ".claude", "CLAUDE.md");
+  if (argv.includes("--no-router")) {
+    return removeRouterBlock(claudeMd) ? `Removed the ospec router from ${claudeMd}.\n` : "";
+  }
+  const source = path.join(pluginDir, "global-instructions", "CLAUDE.md");
+  if (!fs.existsSync(source)) return "";
+  writeRouterBlock(claudeMd, fs.readFileSync(source, "utf8"));
+  return `ospec router written to ${claudeMd} (between ospec-workflow:router markers).\n`;
 }
 
 function main(argv = process.argv.slice(2), deps = {}) {
@@ -159,6 +176,7 @@ function main(argv = process.argv.slice(2), deps = {}) {
       runImpl(bin, ["plugin", "install", pluginId]);
     }
 
+    stdout.write(syncRouter(build.pluginDir, argv, deps.homedir || os.homedir));
     engram();
 
     stdout.write("\nDone. Restart Claude Code or run /reload-plugins to apply.\n");

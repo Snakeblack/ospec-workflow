@@ -22,7 +22,7 @@ const HEADING = "# Engram Session Memory (optional)";
 // scope is agents/** (E0.2), or the identity rules/ tree on VS Code.
 const SURFACES = {
   claude: /^skills\/sdd-orchestrator\/SKILL\.md$/,
-  codex: /^AGENTS\.md$/,
+  codex: /^skills\/sdd-orchestrator\/SKILL\.md$/,
   "github-copilot": /^\.github\/agents\/sdd-orchestrator\.agent\.md$/,
   opencode: /^\.opencode\/agents\/ospec-workflow\.md$/,
   cursor: /^agents\/sdd-orchestrator\.md$/,
