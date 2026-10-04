@@ -215,7 +215,7 @@ test("downstream gate validation is read-only and explicit successor never reset
   const successor = createSuccessor(approved, {
     candidate: candidate(11),
     classification: "normal",
-    selected_dimensions: ["risk"],
+    selected_domains: ["trust"],
     evidence_fingerprint: `sha256:${"d".repeat(64)}`,
     reason: "approved late follow-up",
     authority_kind: "new-discovery-authority",
@@ -302,7 +302,7 @@ test("createSuccessor requires structured format, resolution, scope, and reuse c
   const successor = createSuccessor(approved, {
     candidate: candidate(11),
     classification: "normal",
-    selected_dimensions: ["risk"],
+    selected_domains: ["trust"],
     evidence_fingerprint: `sha256:${"d".repeat(64)}`,
     reason: "approved late follow-up",
     authority_kind: "new-candidate",
@@ -674,30 +674,60 @@ test("QRAR-004/ROUTING-012: taxonomy-mixed successor request fails closed before
   assert.deepEqual(approved, before);
 });
 
-test("ROUTING-012: v1 predecessor keeps producing v1 successors without taxonomy flip", () => {
+test("E0.3 (d): a v1 predecessor yields a v2 successor bound by a taxonomy migration receipt", () => {
   let approvedV1 = startReviewLineage({ ...genesis(), selected_dimensions: [] });
   approvedV1 = freezeFindings(approvedV1, { expected_revision: approvedV1.revision, request_id: "freeze-v1-successor" });
+  const before = structuredClone(approvedV1);
   const approvals = [{ id: "architecture-bounded-review-003", applies_to: ["sdd-verify"] }];
-  assert.throws(() => createSuccessor(approvedV1, {
+  const base = {
     candidate: candidate(11),
     classification: "normal",
-    selected_domains: ["trust"],
-    evidence_fingerprint: `sha256:${"d".repeat(64)}`,
-    reason: "v2 flip attempt",
-    authority_kind: "new-candidate",
-    approval_reference: "architecture-bounded-review-003",
-    approvals,
-  }), /taxonomy/i);
-  const successor = createSuccessor(approvedV1, {
-    candidate: candidate(11),
-    classification: "normal",
-    selected_dimensions: ["risk"],
     evidence_fingerprint: `sha256:${"d".repeat(64)}`,
     reason: "approved late follow-up",
     authority_kind: "new-candidate",
     approval_reference: "architecture-bounded-review-003",
     approvals,
+  };
+  assert.throws(() => createSuccessor(approvedV1, { ...base, selected_dimensions: ["risk"] }), /retired/i);
+  assert.throws(() => createSuccessor(approvedV1, { ...base, schema_version: 1 }), /retired/i);
+  const successor = createSuccessor(approvedV1, { ...base, selected_domains: ["trust"] });
+  assert.equal(successor.schema_version, 2);
+  assert.deepEqual(successor.genesis.selected_domains, ["trust"]);
+  assert.equal(successor.predecessor_lineage_id, approvedV1.lineage_id);
+  assert.equal(successor.generation, approvedV1.generation + 1);
+  assert.deepEqual(successor.migration, {
+    kind: "taxonomy-v1-to-v2",
+    predecessor_lineage_id: approvedV1.lineage_id,
+    predecessor_revision: approvedV1.revision,
+    predecessor_digest: testDigest("review-lineage-v1", {
+      candidate_id: approvedV1.genesis.candidate_id,
+      classification: approvedV1.genesis.classification,
+      selected_dimensions: approvedV1.genesis.selected_dimensions,
+      evidence_fingerprint: approvedV1.genesis.evidence_fingerprint,
+      generation: approvedV1.generation,
+      predecessor_lineage_id: approvedV1.predecessor_lineage_id,
+    }),
   });
-  assert.equal(successor.schema_version, 1);
-  assert.deepEqual(successor.genesis.selected_dimensions, ["risk"]);
+  assert.equal(nextLineageAction(successor).type, "run-lenses");
+  assert.deepEqual(approvedV1, before, "predecessor record remains complete and unmodified");
+});
+
+test("E0.3 (d): a half-reviewed v1 lineage recovers through terminate plus a v2 successor", () => {
+  let state = startReviewLineage(genesis());
+  state = beginLens(state, { dimension: "risk", expected_revision: state.revision, request_id: "risk-start" });
+  state = recordLensResult(state, { dimension: "risk", expected_revision: state.revision, request_id: "risk-result", result: { findings: [] } });
+  assert.throws(() => migrateLineageTaxonomyV2(state), /pending/);
+  const terminated = terminateLineage(state, { expected_revision: state.revision, request_id: "retire-v1", status: "escalated", reason: "v1-lens-retired" });
+  const approvals = [{ id: "architecture-bounded-review-004", applies_to: ["sdd-verify"] }];
+  const successor = createSuccessor(terminated, {
+    candidate: candidate(9),
+    reason: "v1 lenses retired",
+    authority_kind: "new-discovery-authority",
+    approval_reference: "architecture-bounded-review-004",
+    approvals,
+  });
+  assert.equal(successor.schema_version, 2);
+  assert.deepEqual(successor.genesis.selected_domains, ["trust", "runtime"], "inherited v1 dimensions map to quality domains");
+  assert.equal(successor.migration.predecessor_revision, terminated.revision);
+  assert.equal(successor.predecessor_lineage_id, terminated.lineage_id);
 });

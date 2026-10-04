@@ -92,7 +92,7 @@ for (const [target, profile] of Object.entries(PROFILES)) {
     const byPath = new Map(files.map((file) => [file.path, file.content.replace(/\r\n/g, "\n")]));
     const orchestrators = new Set(["sdd-orchestrator", profile.orchestrator?.renameTo].filter(Boolean));
     const agents = files.filter((file) => AGENT_FILE.test(file.path) && !orchestrators.has(file.path.match(AGENT_FILE)[2]));
-    assert.ok(agents.length >= 25, `${target}: expected the phase and review agents, got ${agents.length}`);
+    assert.ok(agents.length >= 22, `${target}: expected the phase and review agents, got ${agents.length}`);
 
     for (const file of agents) {
       const name = file.path.match(AGENT_FILE)[2];

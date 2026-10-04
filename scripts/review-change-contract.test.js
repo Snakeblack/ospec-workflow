@@ -78,6 +78,7 @@ test("registration and specialist sources remain distinct", () => {
     assert.ok(fs.existsSync(path.join(ROOT, `skills/review-${id}/SKILL.md`)));
   }
   for (const id of ["risk", "reliability", "resilience", "readability"]) {
-    assert.ok(fs.existsSync(path.join(ROOT, `skills/review-${id}/SKILL.md`)), `legacy ${id} retained`);
+    assert.equal(fs.existsSync(path.join(ROOT, `skills/review-${id}/SKILL.md`)), false, `retired ${id} skill removed`);
+    assert.equal(fs.existsSync(path.join(ROOT, `agents/review-${id}.agent.md`)), false, `retired ${id} agent removed`);
   }
 });

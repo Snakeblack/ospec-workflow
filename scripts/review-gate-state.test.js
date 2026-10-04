@@ -54,49 +54,16 @@ test("route without the gate is a strict no-op", () => {
   });
 });
 
-test("valid decisions plan exact 0, 2, and 4 specialist dispatch", () => {
-  const zero = planReviewGate({ routeGates: ["4r-review-gate"], decision: decision("normal", []) });
-  assert.equal(zero.status, "done");
-  assert.deepEqual(zero.dispatch, []);
-  assert.equal(zero.archive_allowed, true);
-
-  const two = planReviewGate({ routeGates: ["4r-review-gate"], decision: decision("normal", ["risk", "reliability"]) });
-  assert.equal(two.status, "ready");
-  assert.deepEqual(two.dispatch, ["review-risk", "review-reliability"]);
-  assert.equal(two.archive_allowed, false);
-
-  const four = planReviewGate({ routeGates: ["4r-review-gate"], decision: decision("high-risk", ["risk", "reliability", "resilience", "readability"]) });
-  assert.deepEqual(four.dispatch, ["review-risk", "review-reliability", "review-resilience", "review-readability"]);
-  assert.deepEqual(four.gate.depth, { review: "strict" });
-  assert.equal(four.gate.escalation_reason, null);
-});
-
-test("normal overflow audit persists strict depth and structured reason additively", () => {
-  const overflowDecision = deriveReviewDimensions(normalizeReviewEvidence({
-    classification: "normal", verify: { status: "success", findings: [] },
-    diff: "diff --git a/scripts/run.js b/scripts/run.js\n--- a/scripts/run.js\n+++ b/scripts/run.js\n@@ -0,0 +1,3 @@\n+spawnSync(command)\n+fetch(url)\n+switch(mode)",
-    paths: ["scripts/run.js"], capabilities: ["runtime"], dependencies: [], operationTypes: ["modify"], designRisks: [],
-  }), { status: "clear", specialists: [], reason: "signals=none;dimensions=none" });
-  const plan = planReviewGate({ routeGates: ["4r-review-gate"], existingGate: { status: "old", findings_summary: "keep", escalation_reason: { code: "stale" } }, decision: overflowDecision });
-  assert.equal(plan.status, "ready");
-  assert.deepEqual(plan.dispatch, ["review-risk", "review-reliability", "review-resilience", "review-readability"]);
-  assert.deepEqual(plan.gate.depth, { review: "strict" });
-  assert.deepEqual(plan.gate.escalation_reason, { code: "normal-signal-overflow", positive_dimensions: 4, detail: "Normal review has 4 positive dimensions; strict full 4R required" });
-  assert.equal(plan.gate.findings_summary, "keep");
-});
-
-test("targeted recovery clears stale overflow audit fields", () => {
-  const targeted = planReviewGate({
-    routeGates: ["4r-review-gate"],
-    existingGate: {
-      status: "ready",
-      depth: { review: "strict" },
-      escalation_reason: { code: "normal-signal-overflow", positive_dimensions: 3, detail: "stale" },
-    },
-    decision: decision("normal", ["risk", "reliability"]),
-  });
-  assert.deepEqual(targeted.gate.depth, { review: "targeted" });
-  assert.equal(targeted.gate.escalation_reason, null);
+test("E0.3 (d): a retired 4r-review-gate route fails closed without dispatching v1 lenses", () => {
+  for (const selected of [[], ["risk", "reliability"], ["risk", "reliability", "resilience", "readability"]]) {
+    const plan = planReviewGate({ routeGates: ["4r-review-gate"], existingGate: { status: "old", findings_summary: "keep" }, decision: decision("normal", selected) });
+    assert.equal(plan.status, "blocked");
+    assert.deepEqual(plan.dispatch, []);
+    assert.equal(plan.run_generalist, false);
+    assert.equal(plan.archive_allowed, false);
+    assert.deepEqual(plan.gate.validation_error_codes, ["legacy-review-retired"]);
+    assert.equal(plan.gate.findings_summary, "keep");
+  }
 });
 
 test("invalid contracts fail closed before specialist or archive dispatch", () => {
@@ -119,42 +86,14 @@ test("blocked audit persists only deterministic validation codes", () => {
     "arbitrary payload with user-controlled text",
   ];
   const adapterInvalid = planReviewGate({
-    routeGates: ["4r-review-gate"],
+    routeGates: ["quality-review-gate"],
     validationErrors: secrets,
   });
+  assert.equal(adapterInvalid.status, "blocked");
   assert.deepEqual(adapterInvalid.gate.validation_error_codes, ["adapter-contract-invalid", "decision-contract-invalid"]);
   const persisted = JSON.stringify(adapterInvalid.gate);
   for (const secret of secrets) assert.equal(persisted.includes(secret), false, secret);
-
-  const invalidDecision = decision("normal", []);
-  delete invalidDecision.evidence.sources.dependencies;
-  const decisionInvalid = planReviewGate({ routeGates: ["4r-review-gate"], decision: invalidDecision });
-  assert.deepEqual(decisionInvalid.gate.validation_error_codes, ["decision-contract-invalid"]);
-  assert.equal(Object.hasOwn(decisionInvalid.gate, "validation_errors"), false);
-});
-
-test("reducer fully validates decisions even when adapter reports no errors", () => {
-  const fabricated = decision("normal", []);
-  delete fabricated.evidence.sources.dependencies;
-  const plan = planReviewGate({ routeGates: ["4r-review-gate"], decision: fabricated, validationErrors: [] });
-  assert.equal(plan.status, "blocked");
-  assert.deepEqual(plan.dispatch, []);
-  assert.equal(plan.archive_allowed, false);
-  assert.deepEqual(plan.gate.validation_error_codes, ["decision-contract-invalid"]);
-});
-
-test("successful blocked recovery clears stale blocker state for ready and done", () => {
-  for (const selected of [[], ["risk", "reliability"]]) {
-    const plan = planReviewGate({
-      routeGates: ["4r-review-gate"],
-      existingGate: { status: "blocked", blocker_reason: "contract-remediation", validation_errors: ["old failure"], validation_error_codes: ["decision-contract-invalid"], historical_extension: true },
-      decision: decision("normal", selected),
-    });
-    assert.equal(Object.hasOwn(plan.gate, "blocker_reason"), false);
-    assert.equal(Object.hasOwn(plan.gate, "validation_errors"), false);
-    assert.equal(Object.hasOwn(plan.gate, "validation_error_codes"), false);
-    assert.equal(plan.gate.historical_extension, true);
-  }
+  assert.equal(Object.hasOwn(adapterInvalid.gate, "validation_errors"), false);
 });
 
 test("audit merge preserves owned and unknown historical state", () => {
@@ -190,9 +129,14 @@ test("lineage adapter dispatches only the reducer-authorized next action", () =>
     diff_hash: `sha256:${"a".repeat(64)}`, paths_digest: `sha256:${"b".repeat(64)}`,
     authored_lines: 4, original_changed_lines: 4,
   };
-  let lineage = startReviewLineage({ candidate, classification: "normal", selected_dimensions: ["risk"], evidence_fingerprint: `sha256:${"c".repeat(64)}` });
+  let lineage = startReviewLineage({ candidate, classification: "normal", selected_dimensions: ["risk", "reliability"], evidence_fingerprint: `sha256:${"c".repeat(64)}` });
   assert.deepEqual(planLineageGate({ lineage, observed_candidate_id: lineage.current_candidate_id }), {
-    status: "reviewing", next_action: { type: "run-lenses", dimensions: ["risk"] }, dispatch: ["review-risk"], archive_allowed: false,
+    status: "migration-required", next_action: { type: "migrate-taxonomy-v2" }, dispatch: [], archive_allowed: false,
+  });
+  lineage = beginLens(lineage, { dimension: "risk", expected_revision: lineage.revision, request_id: "risk-start" });
+  lineage = recordLensResult(lineage, { dimension: "risk", expected_revision: lineage.revision, request_id: "risk-result", result: { findings: [] } });
+  assert.deepEqual(planLineageGate({ lineage, observed_candidate_id: lineage.current_candidate_id }), {
+    status: "blocked", next_action: { type: "retire-v1-lineage", reason: "v1-lens-retired", dimensions: ["reliability"] }, dispatch: [], archive_allowed: false,
   });
   lineage = startReviewLineage({ candidate, classification: "normal", selected_dimensions: [], evidence_fingerprint: `sha256:${"c".repeat(64)}` });
   lineage = freezeFindings(lineage, { expected_revision: lineage.revision, request_id: "freeze" });
@@ -342,9 +286,11 @@ test("v2 malformed router blocks with contract-remediation", () => {
   assert.equal(plan.gate.blocker_reason, "contract-remediation");
 });
 
-test("v1 legacy dispatch uses LEGACY_V1_REVIEWERS", () => {
+test("E0.3 (d): no review plan dispatches a retired v1 reviewer", () => {
   const plan = planReviewGate({ routeGates: ["4r-review-gate"], decision: decision("normal", ["risk"]) });
-  assert.deepEqual(plan.dispatch, ["review-risk"]);
+  assert.deepEqual(plan.dispatch, []);
+  const source = require("node:fs").readFileSync(require("node:path").join(__dirname, "lib/review-gate-state.js"), "utf8");
+  assert.doesNotMatch(source, /LEGACY_V1_REVIEWERS|review-(risk|reliability|resilience|readability)/);
 });
 
 // ---------------------------------------------------------------------------

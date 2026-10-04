@@ -44,10 +44,6 @@ agents:
   review-runtime: default
   review-evolution: default
   review-efficiency: default
-  review-risk: default
-  review-readability: default
-  review-reliability: default
-  review-resilience: default
 
   _default: premium
 
@@ -57,7 +53,7 @@ installer:
   phase_groups:
     phases:
       label: Fases
-      agents: [sdd-propose, sdd-design, sdd-verify, sdd-foundation, sdd-workspace, sdd-orchestrator, sdd-spec, sdd-clarify, sdd-apply, sdd-reconcile, sdd-baseline, sdd-init, sdd-explore, sdd-tasks, sdd-archive, sdd-onboard, sdd-document, review-change, review-correction, review-trust, review-runtime, review-evolution, review-efficiency, review-risk, review-readability, review-reliability, review-resilience]
+      agents: [sdd-propose, sdd-design, sdd-verify, sdd-foundation, sdd-workspace, sdd-orchestrator, sdd-spec, sdd-clarify, sdd-apply, sdd-reconcile, sdd-baseline, sdd-init, sdd-explore, sdd-tasks, sdd-archive, sdd-onboard, sdd-document, review-change, review-correction, review-trust, review-runtime, review-evolution, review-efficiency]
   presets:
     recommended:
       label: Recomendado

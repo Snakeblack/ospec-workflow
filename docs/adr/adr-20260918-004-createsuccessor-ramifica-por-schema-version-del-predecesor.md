@@ -16,3 +16,6 @@ Branch on `predecessor.schema_version === 2` → call `startQualityReviewLineage
 
 ## Consequences
 Succession is taxonomy-preserving and native; predecessor records stay immutable. Budget/approval semantics unchanged. Reversible by reverting the branch.
+
+## Amendment (v2.91.0, 2026-10-04)
+With the v1 lenses retired (E0.3 d, see ADR-003's amendment), a v1 predecessor no longer yields a v1 successor. It yields a v2 successor through `startQualityReviewLineage`, bound to it by a `taxonomy-v1-to-v2` migration receipt in the lineage digest. Without explicit `selected_domains`, it inherits the predecessor's dimensions mapped to quality domains. A v1 successor request (`selected_dimensions` or `schema_version: 1`) fails closed as retired. The v2 branch is unchanged.

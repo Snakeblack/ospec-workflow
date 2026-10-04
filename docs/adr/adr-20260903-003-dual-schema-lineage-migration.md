@@ -23,3 +23,11 @@ Keep v1 lineages executable through terminal under 4R IDs, `gates.4r-review-gate
 ## Consequences
 
 Tests must cover v1 continue, each failed migrate precondition, and receipt-in-digest. Downstream verify/delivery/archive stay read-only identity checks. Completed 4R archives remain immutable. Legacy reviewers may be removed only in a future breaking change when v1 is no longer executable.
+
+## Amendment (v2.91.0, 2026-10-04)
+E0.3 (d) retires the v1 executors before v1 stops being executable, which reverses "Keep those agent and skill files". `review-risk|reliability|resilience|readability` (agents, skills, model mappings, Cursor read-only lists) are removed, and `LEGACY_V1_REVIEWERS` becomes the non-dispatchable name list `RETIRED_V1_REVIEWERS`. A started v1 lineage is no longer stranded:
+- Unstarted: `planLineageGate` returns `migrate-taxonomy-v2`, which uses `migrateLineageTaxonomyV2` unchanged.
+- Half-reviewed: it returns `retire-v1-lineage` (`v1-lens-retired`). The lineage is terminated, and an approved `createSuccessor` yields a v2 successor that carries the same `taxonomy-v1-to-v2` receipt, so the predecessor binding is kept and completed lens results are neither merged nor dropped.
+- Frozen findings and terminal states stay readable for one minor version: `review-correction` stays dual-schema, and verify, delivery and archive keep their read-only identity checks.
+
+A route that names `4r-review-gate` is blocked with `legacy-review-retired`. The next minor release removes v1 read support and the v1 classifier (`deriveReviewDimensions`).

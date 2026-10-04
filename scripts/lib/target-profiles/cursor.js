@@ -24,10 +24,6 @@ module.exports = {
       "review-runtime",
       "review-evolution",
       "review-efficiency",
-      "review-risk",
-      "review-readability",
-      "review-reliability",
-      "review-resilience",
     ],
   },
 

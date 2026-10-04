@@ -24,12 +24,6 @@ const REQUIRED_QUALITY_REVIEW_AGENTS = [
   "review-evolution",
   "review-efficiency",
 ];
-const LEGACY_QUALITY_REVIEW_AGENTS = [
-  "review-risk",
-  "review-reliability",
-  "review-resilience",
-  "review-readability",
-];
 const REQUIRED_SDD_AGENTS = [
   "sdd-apply",
   "sdd-archive",
@@ -212,7 +206,6 @@ module.exports = {
   sddAgentsByTier,
   REQUIRED_SDD_AGENTS,
   REQUIRED_QUALITY_REVIEW_AGENTS,
-  LEGACY_QUALITY_REVIEW_AGENTS,
   KNOWN_TIERS,
   OMIT,
 };

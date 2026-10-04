@@ -10,12 +10,11 @@ const ACTIVE_V2_REVIEWERS = Object.freeze({
   efficiency: "review-efficiency",
 });
 
-const LEGACY_V1_REVIEWERS = Object.freeze({
-  risk: "review-risk",
-  reliability: "review-reliability",
-  resilience: "review-resilience",
-  readability: "review-readability",
-});
+// E0.3 (d): the v1 4R lenses are retired. Their names stay recognizable so
+// mixed sets still fail closed, but no schema resolves to them for dispatch.
+// Persisted v1 lineages remain readable (correction, verify, delivery, archive)
+// for one minor version; unstarted ones migrate to v2.
+const RETIRED_V1_REVIEWERS = Object.freeze(["review-risk", "review-reliability", "review-resilience", "review-readability"]);
 
 const SHARED_GATES = Object.freeze(["clarify", "review-workload", "impact", "brownfield-advisory"]);
 const ACTIVE_GATES = Object.freeze([...SHARED_GATES, "quality-review-gate"]);
@@ -28,7 +27,7 @@ function detectMixedTaxonomy({ domains = [], reviewers = [], lineageSchemaVersio
   const quality = domains.filter((id) => QUALITY_DOMAINS.includes(id));
   const legacy = domains.filter((id) => LEGACY_DIMENSIONS.includes(id));
   const qualityReviewers = reviewers.filter((name) => Object.values(ACTIVE_V2_REVIEWERS).includes(name));
-  const legacyReviewers = reviewers.filter((name) => Object.values(LEGACY_V1_REVIEWERS).includes(name));
+  const legacyReviewers = reviewers.filter((name) => RETIRED_V1_REVIEWERS.includes(name));
   if (quality.length && legacy.length) return { mixed: true, reason: "mixed-domain-ids" };
   if (qualityReviewers.length && legacyReviewers.length) return { mixed: true, reason: "mixed-reviewer-ids" };
   if (lineageSchemaVersion === 1 && quality.length) return { mixed: true, reason: "v1-lineage-with-quality-ids" };
@@ -79,10 +78,7 @@ function reviewerForDomain(domain, schemaVersion) {
     if (!QUALITY_DOMAINS.includes(domain)) throw new TypeError(`unknown quality domain: ${domain}`);
     return ACTIVE_V2_REVIEWERS[domain];
   }
-  if (schemaVersion === 1) {
-    if (!LEGACY_DIMENSIONS.includes(domain)) throw new TypeError(`unknown legacy dimension: ${domain}`);
-    return LEGACY_V1_REVIEWERS[domain];
-  }
+  if (schemaVersion === 1) throw new TypeError(`v1 reviewer for ${domain} is retired; migrate the lineage to schema v2`);
   throw new TypeError(`unsupported schema_version: ${schemaVersion}`);
 }
 
@@ -91,14 +87,14 @@ function ownersForSchema(schemaVersion) {
 }
 
 function reviewersForSchema(schemaVersion) {
-  return schemaVersion === 2 ? Object.values(ACTIVE_V2_REVIEWERS) : Object.values(LEGACY_V1_REVIEWERS);
+  return schemaVersion === 2 ? Object.values(ACTIVE_V2_REVIEWERS) : [];
 }
 
 module.exports = {
   QUALITY_DOMAINS,
   LEGACY_DIMENSIONS,
   ACTIVE_V2_REVIEWERS,
-  LEGACY_V1_REVIEWERS,
+  RETIRED_V1_REVIEWERS,
   ACTIVE_GATES,
   LEGACY_GATES,
   LEXICAL_GATES,

@@ -4,7 +4,7 @@ The post-verify gate runs only when the active `bugfix`, `refactor`, or `standar
 
 `scripts/lib/review-lineage.js` is the executable authority for review identity, budgets, attempts, and legal transitions. `scripts/lib/review-gate-state.js` adapts only its authorized `next_action`. The orchestrator MUST persist the returned state and MUST NOT reinterpret dispatch or archive decisions. Both reducers are pure; the orchestrator remains the only I/O and agent-dispatch adapter.
 
-Legacy in-flight lineages under `schema_version: 1` and `gates.4r-review-gate` continue via `LEGACY_V1_REVIEWERS` until terminal state or explicit pristine `migrateLineageTaxonomyV2`. Non-K7 writes use `gates.quality-review-gate` with `schema_version: 2`; K7 uses its separate `schema_version: 3` lineage.
+The v1 lenses are retired. A `schema_version: 1` lineage (`gates.4r-review-gate`) stays readable for one minor version (correction, verify, delivery, archive). If lenses are still due, `planLineageGate` returns `migrate-taxonomy-v2` (unstarted) or `retire-v1-lineage` (terminate, then an approved v2 successor with a `taxonomy-v1-to-v2` receipt). A `4r-review-gate` route is blocked (`legacy-review-retired`). Non-K7 writes use `gates.quality-review-gate` with `schema_version: 2`; K7 uses its separate `schema_version: 3` lineage.
 
 #### K7 v3 review authority
 

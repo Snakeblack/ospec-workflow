@@ -55,7 +55,9 @@ test("REQ-generator-011 live quality roster mappings are required", () => {
   for (const agent of ["review-change", "review-correction", "review-trust", "review-runtime", "review-evolution", "review-efficiency"]) {
     assert.ok(models.agents[agent], `${agent} must be mapped in models.yaml`);
   }
-  assert.ok(models.agents["review-risk"], "legacy review-risk remains allowed");
+  for (const agent of ["review-risk", "review-reliability", "review-resilience", "review-readability"]) {
+    assert.equal(models.agents[agent], undefined, `retired ${agent} must not be mapped`);
+  }
 });
 
 test("REQ-generator-005 models.yaml is the agent-tier source of truth with structural guards", () => {
@@ -75,7 +77,7 @@ test("REQ-generator-005 missing, unknown, and unexpected structural mutations fa
     ["missing agent", models => { delete models.agents["sdd-tasks"]; }, "missing-agent", "sdd-tasks"],
     ["unknown tier", models => { models.agents["sdd-apply"] = "mystery"; }, "unknown-tier", "sdd-apply"],
     ["unexpected agent", models => { models.agents["sdd-extra"] = "default"; }, "unexpected-agent", "sdd-extra"],
-    ["unknown reviewer tier", models => { models.agents["review-risk"] = "mystery"; }, "unknown-tier", "review-risk"],
+    ["unknown reviewer tier", models => { models.agents["review-trust"] = "mystery"; }, "unknown-tier", "review-trust"],
     ["unknown default tier", models => { models.agents._default = "mystery"; }, "unknown-tier", "_default"],
   ];
   for (const [label, mutate, code, identity] of cases) {
@@ -91,7 +93,7 @@ test("REQ-generator-005 all model routing choices in models.yaml are accepted", 
   const models = clone(parseModels(MODELS_TEXT));
   models.agents["sdd-propose"] = "premium";
   models.agents["sdd-document"] = "default";
-  models.agents["review-risk"] = "premium";
+  models.agents["review-trust"] = "premium";
   models.agents._default = "premium";
   models.tiers.premium.codex.model = "future-premium-model";
   models.tiers.premium.codex.model_reasoning_effort = "high";
