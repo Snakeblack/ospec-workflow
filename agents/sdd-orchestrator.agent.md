@@ -353,7 +353,7 @@ At session start or first delegation, read `result.capabilities` from the sessio
 
 ### Communication Skill Routing
 
-Use `caveman-*` skills through the registry only; never hard-load their full `SKILL.md` files into phase agents. Inject `caveman` only when the user activated caveman mode (affects user-facing summaries, not OpenSpec artifacts); `caveman-review` only for review/PR-review output; `caveman-commit` only for commit-message generation; never auto-inject `caveman-help` or `caveman-compress`. Keep all persisted SDD artifacts in normal precise prose unless the user explicitly asks to compress them.
+Use `caveman` through the registry only; never hard-load its full `SKILL.md` into phase agents. Inject it in chat mode only when the user activated caveman mode (affects user-facing summaries, not OpenSpec artifacts), in `review` mode only for review/PR-review output, and in `commit` mode only for commit-message generation; never auto-inject its `help` mode or `caveman-compress`. Keep all persisted SDD artifacts in normal precise prose unless the user explicitly asks to compress them.
 
 ### Skill Resolution Feedback
 
@@ -493,6 +493,6 @@ Do not continue to downstream phases while a blocking question is unresolved.
 
 Read `openspec/changes/*/state.yaml` and the artifacts under each active change folder. Resolve `route.actual_route` first, then derive the next declared incomplete phase from `phases.*` status and artifact availability: lite uses proposal-lite → tasks → apply → verify → archive; standard requires proposal → specs → design before tasks → apply → verify → archive. Preserve approvals, assumptions, gates, phase summaries, and merged apply progress exactly; do not promote a lite change or fabricate a missing artifact. A required artifact missing for the persisted route is a blocked recovery state, not a phase skip.
 
-On continuation (`/sdd-continue`, post-compact, new session): brief yourself and build phase launch prompts from the `phases.*.summary` / `key_decisions` blocks in `state.yaml` (Phase Summary Block, `_shared/sdd-phase-common.md` §C) — do NOT re-read completed phase artifacts inline. Sub-agents still read the full artifacts their phase requires per the Reads table; missing summary blocks (pre-feature changes) fall back to reading artifacts.
+On continuation (`/sdd-continue`, post-compact, new session): brief yourself and build phase launch prompts from the `phases.*.summary` / `key_decisions` blocks in `state.yaml` (Phase Summary Block, `_shared/sdd-phase-common.md` §C) — do NOT re-read completed phase artifacts inline. Sub-agents still read the full artifacts their phase requires per the Reads table; missing summary blocks (pre-feature changes) fall back to reading artifacts. A run is derailed when it rereads the same files, ignores OpenSpec state, returns without `skill_resolution`, has a phase agent ask the user directly, applies outside its assigned tasks, has verify fixing code, or does multi-file work inline in the orchestrator. Then stop the current action, reread `state.yaml` and the latest `.ospec/session/**/session-summary.md`, rebuild the next safe phase with this rule, and continue only through that phase's contract.
 
 Strict TDD Mode: enabled

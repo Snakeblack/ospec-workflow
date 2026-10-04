@@ -75,11 +75,11 @@ test("no ```yaml fenced example uses tabs for indentation", () => {
 // C4 — Compact rules budget enforcement (skills/_shared/token-budget.md).
 // Target per skill is 50-150 estimated tokens; this lint enforces the hard cap
 // so a new skill with fat compact_rules cannot silently degrade every dispatch.
-// Current worst offender is ~471 (tdd-workflow) — the cap ratchets DOWN as
+// Current worst offender is ~418 (stack-starlight) — the cap ratchets DOWN as
 // offenders shrink; never raise it to admit a new fat skill.
 // ---------------------------------------------------------------------------
 
-const COMPACT_RULES_HARD_CAP_TOKENS = 500;
+const COMPACT_RULES_HARD_CAP_TOKENS = 450;
 
 test("compact rules budget: no skill's compact_rules exceeds the hard cap", async () => {
   const { discoverSkills } = require("./lib/skill-registry.js");

@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.86.0] - 2026-10-04
+
+### Removed
+- **Diez skills que no aportaban al usuario del harness (E0.3, PR b)**, según el veredicto de la auditoría §5.1:
+  - `agent-harness-construction` y `ai-first-engineering`: la segunda es un ensayo sin reglas accionables.
+  - `agent-self-evaluation`: la autoevaluación 1–5 contradice la regla de que un modelo no aprueba su propio trabajo.
+  - `tdd-workflow`: duplicaba y contradecía el Strict TDD del harness.
+  - `token-budget-advisor`: su descripción de 816 caracteres se cargaba siempre. El hook de `PreToolUse` del mismo nombre y su dominio de spec se conservan.
+  - `context7-mcp`, `backend-patterns`, `frontend-patterns`, `architecture-decision-records` (la sustituye el modelo de decisiones de la Etapa 2) y `caveman-help`.
+
+### Changed
+- **Fusiones**:
+  - `caveman-commit` y `caveman-review` pasan a ser los modos `commit` y `review` de `caveman`, con un modo `help`. Sus reglas se condensan para que el bloque inyectado baje a unos 240 tokens.
+  - `agent-introspection` pasa a la regla de recuperación del orquestador, que ahora describe cuándo una ejecución está descarrilada.
+  - El checklist de `ai-regression-testing` pasa a `sdd-verify/references/ai-blind-spots.md`, incrustado en el agente de verify.
+  - `harness-audit` pasa a ser una skill local del repositorio (`.agents/skills/`), actualizada a los 7 targets, la medición de contexto y el ámbito de reglas.
+- **Lint de `Trigger:`**: ya no tiene exenciones.
+- **Tope de *compact rules***: baja de 500 a 450 tokens estimados en el lint, en `token-budget.md` y en la spec de skills; el peor caso es ahora `stack-starlight`, con unos 418.
+- **Coste de contexto**: el listado de skills baja de 9,5 a 5,8 KB por target (de 11,4 a 7,8 KB en Codex), y las skills instaladas pasan de 82 a 67. Techos regenerados.
+- **Roadmap**: E0.3 avanza con el PR (b). El paquete opcional `--with-extras` toca los instaladores de los 7 targets y pasa a un PR propio (b2), antes de (c) stacks y (d) review v1.
+
+**Verificación directa**: `node scripts/check.js` (3663 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.85.0] - 2026-10-04
 
 ### Fixed

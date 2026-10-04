@@ -43,13 +43,13 @@ test("C1.2 · orchestrator builds continuation prompts from state summaries inst
 
 test("C4.1 · token-budget.md documents the enforced hard cap with ratchet-down rule", async () => {
   const content = await readFile(TOKEN_BUDGET_PATH);
-  assert.match(content, /Hard cap 500 estimated tokens/, "must document the 500-token hard cap");
+  assert.match(content, /Hard cap 450 estimated tokens/, "must document the 450-token hard cap");
   assert.match(content, /ratchets down/i, "must document the ratchet rule");
 });
 
 test("C4.2 · docs-lint enforces the compact rules budget against discoverSkills output", async () => {
   const content = await readFile(DOCS_LINT_PATH);
-  assert.match(content, /COMPACT_RULES_HARD_CAP_TOKENS = 500/, "lint must pin the cap at 500");
+  assert.match(content, /COMPACT_RULES_HARD_CAP_TOKENS = 450/, "lint must pin the cap at 450");
   assert.match(content, /discoverSkills/, "lint must measure real discovered skills");
 });
 

@@ -225,6 +225,7 @@ Return `## Verification Report` with change, mode, completeness table, build/tes
 ## References
 
 - [references/report-format.md](references/report-format.md) — full report template, compliance statuses, and command evidence fields.
+- [references/ai-blind-spots.md](references/ai-blind-spots.md) — defect categories that self-review misses and the evidence each one requires.
 - [strict-tdd-verify.md](strict-tdd-verify.md) — load only when Strict TDD is active.
 
 ### Focal evidence recheck
