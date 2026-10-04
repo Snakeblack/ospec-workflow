@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.89.0] - 2026-10-04
+
+### Added
+- **Rutas `_shared` del orquestador resolubles desde la instalación (E0.4, PR b)**: el generador apunta las referencias `_shared` del orquestador a la copia instalada (REQ-generator-023). En Claude usa `${CLAUDE_SKILL_DIR}/../_shared`, que Claude Code sustituye en el cuerpo de la skill. En los demás targets deja el marcador `__OSPEC_SHARED_DIR__`. Antes, esas rutas eran relativas al proyecto del usuario, donde no existen.
+- **Sustitución en los instaladores** (`scripts/configure/shared-dir.js`, REQ-install-034): cada instalador cambia el marcador por el directorio donde deja `skills/_shared/`. Es una ruta absoluta en `setup:copilot`, `setup:opencode`, `setup:cursor`, `setup:codex` y `setup:antigravity` (una por raíz, y una raíz WSL con su ruta de Windows), la de `dist/vscode` en `setup:vscode`, y una ruta relativa al repositorio en `install-target` e `install:codex -- <repo>`. Después de sincronizar, `dist/` recupera el marcador, salvo en VS Code, que carga ese árbol directamente.
+
+### Changed
+- **`install:codex -- <repo>`** instala ahora también `.agents/skills/_shared` junto a la skill del orquestador.
+- **`reload:vscode`** ejecuta el instalador en vez de solo `build:vscode`, que dejaría el marcador sin sustituir.
+- **Coste de contexto**: el orquestador sube 175–490 B por las rutas más largas. Techos regenerados.
+- **Docs**: specs de generator, install y agents (paridad entre targets); guía de instalación y README de Codex (la instalación por repositorio estaba desfasada desde v2.88.0); coste por target en `target-capabilities`. El roadmap da E0.4 por terminado.
+
+**Verificación directa**: `node scripts/check.js` (3715 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.88.0] - 2026-10-04
 
 ### Added

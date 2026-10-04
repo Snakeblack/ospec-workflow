@@ -159,7 +159,7 @@ En Windows PowerShell, usa el script dedicado para evitar que npm interprete el 
 npm run install:codex -- ../mi-proyecto
 ```
 
-Copia únicamente `.codex/agents/*.toml` y `agent.md` a `<repo-destino>/.codex/agents/` y al root del repo; preserva cualquier `.codex/config.toml` existente sin modificarlo. Re-ejecutar el mismo comando es idempotente.
+Copia `.codex/agents/*.toml` a `<repo-destino>/.codex/agents/`, escribe el router como bloque con marcadores en `<repo-destino>/AGENTS.md` e instala la skill `sdd-orchestrator` junto a sus ficheros `_shared` en `<repo-destino>/.agents/skills/`. La skill nombra esos ficheros con rutas relativas al repositorio, así que se pueden versionar. Preserva cualquier `.codex/config.toml` existente sin modificarlo. Re-ejecutar el mismo comando es idempotente.
 
 ## Revisar y confiar en los hooks desde `/hooks`
 

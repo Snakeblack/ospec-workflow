@@ -937,3 +937,19 @@ No file the context baseline classifies as always-on MAY carry the orchestrator,
 - GIVEN the Codex build
 - WHEN `AGENTS.md` and `skills/sdd-orchestrator/SKILL.md` are read
 - THEN `AGENTS.md` carries the router and the attribution rule, and the skill carries the orchestrator with the orchestrator-scoped and always-active path rules
+
+### Requirement: Orchestrator Names The Installed Shared Handlers {#REQ-generator-023}
+
+The orchestrator reads its `_shared` handlers on demand, and a consumer project has no `skills/_shared/`. In every target's orchestrator (agent or skill, including the rules folded into it), each `skills/_shared/<name>.md` or bare `_shared/<name>.md` reference and each `skills/_shared/` directory reference MUST be rewritten to `<sharedDir>/`, where `<sharedDir>` is `profile.orchestrator.sharedDir` when the host substitutes a path itself (`${CLAUDE_SKILL_DIR}/../_shared` on Claude, whose plugin ships `_shared` beside the skill) and otherwise the `__OSPEC_SHARED_DIR__` marker, which the installer renders (REQ-install-034). No other generated file MAY carry the marker, and every `_shared` file the orchestrator names MUST ship in the target's `skills/_shared/`.
+
+#### Scenario: No orchestrator reference stays relative to the project
+
+- GIVEN a build generated for each of the 7 targets
+- WHEN its orchestrator is read
+- THEN it holds no `skills/_shared/` or bare `_shared/<name>.md` reference, names its handlers through `${CLAUDE_SKILL_DIR}/../_shared/` on Claude and `__OSPEC_SHARED_DIR__/` elsewhere, and each named file exists under the build's `skills/_shared/`
+
+#### Scenario: Only the orchestrator carries the marker
+
+- GIVEN the same builds
+- WHEN every generated file is searched for `__OSPEC_SHARED_DIR__`
+- THEN only the orchestrator matches, and nothing matches on Claude

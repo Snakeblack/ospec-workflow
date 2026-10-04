@@ -7,6 +7,7 @@ const path = require("node:path");
 const { runConfigure } = require("./cli.js");
 const { runEngramStep, withEngramStep } = require("./engram-setup.js");
 const { copyBinaryToTree } = require("./install-target.js");
+const { renderSharedDir } = require("./shared-dir.js");
 const { validateInstalled: validateInstalledAntigravity } = require("./validate-antigravity.js");
 const {
   MANIFEST_FILENAME,
@@ -218,19 +219,27 @@ function installAntigravityRoot(antigravityRoot, outDir, sourceDir, args, deps) 
       required: false,
     });
 
-    const syncResult = syncTargetTree(
-      outDir,
-      antigravityRoot,
-      fsImpl,
-      { updated: [], unchanged: [], ownedFiles: [] },
-      new Set(["hooks.json"]),
-      antigravityRoot,
-      journal,
-      "",
-      retryOptions,
-    );
-
+    // E0.4 (b): the orchestrator names this root's _shared directory, as the
+    // Antigravity host sees it (a WSL root is read from Windows).
     const antigravityRootPosix = getHooksRootPosix(antigravityRoot);
+    const shared = renderSharedDir(outDir, `${antigravityRootPosix}/skills/_shared`, fsImpl);
+    let syncResult;
+    try {
+      syncResult = syncTargetTree(
+        outDir,
+        antigravityRoot,
+        fsImpl,
+        { updated: [], unchanged: [], ownedFiles: [] },
+        new Set(["hooks.json"]),
+        antigravityRoot,
+        journal,
+        "",
+        retryOptions,
+      );
+    } finally {
+      shared.restore();
+    }
+
     installHooks(outDir, antigravityRoot, {
       fs: fsImpl,
       dryRun: false,

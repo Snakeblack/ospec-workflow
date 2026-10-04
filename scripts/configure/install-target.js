@@ -21,6 +21,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { runConfigure } = require("./cli.js");
 const { mutateFs } = require("./install-engine.js");
+const { renderSharedDir, sharedDirValue } = require("./shared-dir.js");
 
 const TARGETS = new Set(["opencode", "github-copilot"]);
 
@@ -339,6 +340,9 @@ function main(argv, deps = {}) {
   if (args.dryRun) {
     stdout.write("\n[dry-run] no files written.\n");
   } else {
+    // E0.4 (b): the tree lands at the repository root, so the orchestrator
+    // names `skills/_shared` relative to it (the files are committed and shared).
+    const shared = renderSharedDir(outDir, sharedDirValue("skills", { relative: true }), fsImpl);
     try {
       syncEntriesTransactional(outDir, destDir, entries, fsImpl, {
         target: args.target,
@@ -348,6 +352,8 @@ function main(argv, deps = {}) {
       stderr.write(`\nsync failed: ${error.message}\n`);
       exitCodeTarget.exitCode = 2;
       return;
+    } finally {
+      shared.restore();
     }
     stdout.write(`\nDone. ${args.target} workflow synced into ${destDir}.\n`);
   }

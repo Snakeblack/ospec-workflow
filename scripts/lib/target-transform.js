@@ -111,8 +111,11 @@ function handleFile(file, profile, models, rulesContent, sources) {
       return emitOrchestratorSkill(file, profile, rulesContent);
     }
     let content = embedAgentReferences({ agentPath: path, content: sources.get(path), sources });
-    if (rulesContent && isScopedStrategy(profile.rules.strategy) && agentBaseName(path, profile) === orchestratorAgent(profile)) {
-      content = content.replace(/\s*$/, "") + "\n\n" + rulesContent + "\n";
+    if (agentBaseName(path, profile) === orchestratorAgent(profile)) {
+      if (rulesContent && isScopedStrategy(profile.rules.strategy)) {
+        content = content.replace(/\s*$/, "") + "\n\n" + rulesContent + "\n";
+      }
+      content = pointSharedRefsAtInstall(content, profile);
     }
     const selfContained = { path, content };
     if (profile.agentFile.format === "toml") {
@@ -187,6 +190,19 @@ function resolveOrchestratorEntry(files, profile) {
       ? { ...file, content: String(file.content).split(ORCHESTRATOR_ENTRY).join(entry) }
       : file,
   );
+}
+
+// The orchestrator reads its `_shared` handlers on demand (E0.4 b), and a
+// consumer project has no `skills/_shared/`. Each reference is pointed at the
+// installed copy: through a host substitution where the profile names one
+// (Claude's ${CLAUDE_SKILL_DIR}), otherwise through a marker that the
+// installer renders to the real directory (scripts/configure/shared-dir.js).
+const SHARED_DIR_MARKER = "__OSPEC_SHARED_DIR__";
+const SHARED_REF = /(?<![A-Za-z0-9_./-])(?:skills\/_shared\/|_shared\/(?=[A-Za-z0-9][A-Za-z0-9._-]*\.md))/g;
+
+function pointSharedRefsAtInstall(content, profile) {
+  const sharedDir = (profile.orchestrator && profile.orchestrator.sharedDir) || SHARED_DIR_MARKER;
+  return String(content).replace(SHARED_REF, `${sharedDir}/`);
 }
 
 // A toolMap entry MAY be a degradation marker instead of a literal tool
@@ -594,7 +610,7 @@ function emitOrchestratorSkill(file, profile, rulesContent) {
   if (rulesContent && profile.rules && isInlineStrategy(profile.rules.strategy)) {
     body = body.replace(/\s*$/, "") + "\n\n" + rulesContent + "\n";
   }
-  body = substituteAgentNames(body, profile);
+  body = pointSharedRefsAtInstall(substituteAgentNames(body, profile), profile);
 
   const nameField = getField(parsed.frontmatter, "name");
   const name = (nameField && nameField.value) || profile.orchestrator.agent;
@@ -1307,4 +1323,4 @@ function substituteAgentNames(body, profile) {
   return body;
 }
 
-module.exports = { transform, serializeAgentToml };
+module.exports = { transform, serializeAgentToml, SHARED_DIR_MARKER };

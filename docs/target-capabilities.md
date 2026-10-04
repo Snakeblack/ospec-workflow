@@ -146,4 +146,6 @@ Fuera de SDD, cada petición carga unos 20 KB menos. En una sesión SDD el total
 | vscode, github-copilot, cursor, antigravity | 2,4 → 3,0 | sin cambios |
 | opencode | 2,3 → 2,7 | sin cambios |
 
+**Tras E0.4 (b), v2.89.0.** El orquestador nombra sus ficheros `_shared` con la ruta de la copia instalada (REQ-generator-023 y REQ-install-034). En Claude es `${CLAUDE_SKILL_DIR}/../_shared`; en los demás targets, un marcador que el instalador sustituye. Las rutas más largas suben el orquestador entre 0,2 KB (los targets con marcador) y 0,5 KB (Claude). La medición cuenta el marcador sin sustituir, así que en una instalación global real se añaden unos cientos de bytes más, según la longitud de la ruta.
+
 **Techos.** `scripts/fixtures/context-baseline.json` guarda cada valor como techo, y `scripts/lib/context-baseline.test.js` falla si alguno sube o si aparece un target o un agente sin techo. Cuando un cambio reduce contexto, o lo aumenta con una justificación escrita en el PR, se regenera con `--update`. `--json` saca el informe completo, con el detalle por fichero.
