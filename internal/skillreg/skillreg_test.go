@@ -468,4 +468,92 @@ func TestCrossRuntime_UnreadableFileParity(t *testing.T) {
 	}
 }
 
+// ── Compact rules come only from rules sections (E0.3) ───────────────────────
 
+func TestDiscoverSkills_CompactRulesOnlyFromRulesSections(t *testing.T) {
+	root := t.TempDir()
+	skill := filepath.Join(root, "skills", "example", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(skill), 0755); err != nil {
+		t.Fatal(err)
+	}
+	body := strings.Join([]string{
+		"---", "name: example", "---",
+		"## When to Activate", "- Designing REST endpoints.",
+		"## Anti-Patterns to Avoid", "- Domain entities importing ORM models.",
+		"## Component Patterns", "- Prefer composition.",
+		"## Decision Gates", "| Situation | Action |", "| --- | --- |", "| Ambiguous | Ask |",
+		"### Naming Rules", "- Use plural nouns.",
+		"## Reglas", "- Responde en el idioma del usuario.",
+	}, "\n")
+	if err := os.WriteFile(skill, []byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+	empty := filepath.Join(root, "skills", "empty", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(empty), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(empty, []byte("---\nname: empty\n---\n## When to Use\n- Building a design system.\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := skillreg.DiscoverSkills(root, skillreg.DiscoverOptions{})
+	if err != nil {
+		t.Fatalf("DiscoverSkills: %v", err)
+	}
+	got := map[string][]string{}
+	for _, s := range result.Skills {
+		got[s.ID] = s.CompactRules
+	}
+	want := []string{"Use plural nouns.", "Responde en el idioma del usuario."}
+	if strings.Join(got["example"], "\n") != strings.Join(want, "\n") {
+		t.Errorf("example compact rules: got %q, want %q", got["example"], want)
+	}
+	if got["empty"] == nil || len(got["empty"]) != 0 {
+		t.Errorf("empty compact rules: got %#v, want []", got["empty"])
+	}
+}
+
+func TestCrossRuntime_CompactRulesParityOnShippedSkills(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skipf("Node binary not found: %v", err)
+	}
+	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	goResult, err := skillreg.DiscoverSkills(repoRoot, skillreg.DiscoverOptions{})
+	if err != nil {
+		t.Fatalf("Go DiscoverSkills failed: %v", err)
+	}
+	goRules := map[string][]string{}
+	for _, s := range goResult.Skills {
+		goRules[s.ID] = s.CompactRules
+	}
+
+	js := `
+		const reg = require(process.argv[1]);
+		reg.discoverSkills(process.argv[2])
+			.then(r => console.log(JSON.stringify(Object.fromEntries(r.skills.map(s => [s.id, s.compact_rules])))))
+			.catch(e => { console.error(e); process.exit(1); });
+	`
+	script := filepath.Join(repoRoot, "scripts", "lib", "skill-registry.js")
+	out, err := exec.Command(node, "-e", js, script, repoRoot).Output()
+	if err != nil {
+		t.Fatalf("Node discovery failed: %v", err)
+	}
+	var nodeRules map[string][]string
+	if err := json.Unmarshal(out, &nodeRules); err != nil {
+		t.Fatalf("decode node output: %v", err)
+	}
+
+	if len(goRules) != len(nodeRules) {
+		t.Fatalf("skill count differs: Go %d, Node %d", len(goRules), len(nodeRules))
+	}
+	for id, rules := range nodeRules {
+		if strings.Join(goRules[id], "\n") != strings.Join(rules, "\n") {
+			t.Errorf("%s compact rules differ:\nGo:   %q\nNode: %q", id, goRules[id], rules)
+		}
+	}
+}

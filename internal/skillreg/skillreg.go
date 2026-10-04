@@ -51,13 +51,14 @@ type DiscoveryResult struct {
 // ── regex ─────────────────────────────────────────────────────────────────────
 
 var (
-	frontmatterRe   = regexp.MustCompile(`(?s)^---\r?\n(.*?)\r?\n---\r?\n?`)
-	triggerRe       = regexp.MustCompile(`(?i)\bTrigger:\s*(.+)$`)
-	rulesSectionRe  = regexp.MustCompile(`(?i)\b(?:(?:hard|critical|core|decision)\s+)?(?:rules|patterns|constraints|gates)\b`)
-	headingRe       = regexp.MustCompile(`^#{2,4}\s+(.+?)\s*$`)
-	bulletRe        = regexp.MustCompile(`^\s*(?:[-*+]|\d+\.)\s+`)
-	tableSepRe      = regexp.MustCompile(`^\|[\s:|-]+\|$`)
-	tableRowRe      = regexp.MustCompile(`^\|.+\|$`)
+	frontmatterRe  = regexp.MustCompile(`(?s)^---\r?\n(.*?)\r?\n---\r?\n?`)
+	triggerRe      = regexp.MustCompile(`(?i)\bTrigger:\s*(.+)$`)
+	rulesSectionRe = regexp.MustCompile(`(?i)^(?:[\w-]+\s+){0,3}rules$|^reglas(?:\s+\S+){0,3}$`)
+	antiRe         = regexp.MustCompile(`(?i)\banti`)
+	headingRe      = regexp.MustCompile(`^#{2,4}\s+(.+?)\s*$`)
+	bulletRe       = regexp.MustCompile(`^\s*(?:[-*+]|\d+\.)\s+`)
+	tableSepRe     = regexp.MustCompile(`^\|[\s:|-]+\|$`)
+	tableRowRe     = regexp.MustCompile(`^\|.+\|$`)
 )
 
 // ── DiscoverSkills ────────────────────────────────────────────────────────────
@@ -404,7 +405,9 @@ func extractCapabilities(raw string) []string {
 	return caps
 }
 
-// extractCompactRules extracts up to 15 rules from a rules/constraints section.
+// extractCompactRules extracts up to 15 rules from explicit rules sections.
+// Anti-patterns, patterns, gates and activation lists are never rules: once
+// injected out of context they read as instructions.
 func extractCompactRules(body string) []string {
 	lines := strings.Split(body, "\n")
 	var rules []string
@@ -422,7 +425,7 @@ func extractCompactRules(body string) []string {
 	for _, line := range lines {
 		line = strings.TrimRight(line, "\r")
 		if hm := headingRe.FindStringSubmatch(line); hm != nil {
-			inRulesSection = rulesSectionRe.MatchString(hm[1])
+			inRulesSection = rulesSectionRe.MatchString(hm[1]) && !antiRe.MatchString(hm[1])
 			continue
 		}
 		if !inRulesSection {
@@ -443,18 +446,6 @@ func extractCompactRules(body string) []string {
 			label := strings.ToLower(cols[0])
 			if len(cols) >= 2 && label != "rule" && label != "gate" {
 				addRule(cols[0] + ": " + strings.Join(cols[1:], " - "))
-			}
-		}
-	}
-
-	// Fallback: all bullets if no rules section matched.
-	if len(rules) == 0 {
-		for _, line := range lines {
-			if bulletRe.MatchString(line) {
-				addRule(line)
-			}
-			if len(rules) >= 15 {
-				break
 			}
 		}
 	}

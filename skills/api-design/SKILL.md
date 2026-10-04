@@ -1,6 +1,6 @@
 ---
 name: api-design
-description: REST API design patterns including resource naming, status codes, pagination, filtering, error responses, versioning, and rate limiting for production APIs.
+description: "REST API design: resource naming, status codes, pagination, filtering, errors, versioning and rate limiting. Trigger: designing or reviewing HTTP APIs, endpoints, API contracts."
 metadata:
   origin: ECC
 ---
@@ -17,6 +17,14 @@ Conventions and best practices for designing consistent, developer-friendly REST
 - Implementing error handling for APIs
 - Planning API versioning strategy
 - Building public or partner-facing APIs
+
+## Rules
+
+- Resources are plural, kebab-case nouns; no verbs in URLs; nest only to express ownership.
+- Use status codes semantically: 201 with `Location` on create, 400 or 422 with field details on validation errors, never 200 with an error body.
+- Return one error shape everywhere, with a machine-readable `code` and a human `message`.
+- Paginate every collection; prefer cursors for large, changing or public datasets.
+- Version in the path from the first release; adding fields or optional parameters is not a breaking change.
 
 ## Resource Design
 

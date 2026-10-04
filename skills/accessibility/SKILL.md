@@ -1,7 +1,6 @@
 ---
 name: accessibility
-description: Design, implement, and audit inclusive digital products using WCAG 2.2 Level AA
-  standards. Use this skill to generate semantic ARIA for Web and accessibility traits for Web and Native platforms (iOS/Android).
+description: "WCAG 2.2 AA design, implementation and audit for Web and Native UI. Trigger: accessibility, a11y, ARIA, screen reader, keyboard navigation, WCAG."
 metadata:
   origin: ECC
 ---
@@ -113,6 +112,14 @@ Switch(
     }
 )
 ```
+
+## Rules
+
+- Give every interactive element a role, an accessible name and keyboard support; prefer native elements over a `<div>` or `<span>` with a click handler.
+- Never convey meaning with color alone; pair it with text or an icon.
+- Modals trap focus while open, close with `Escape` or an explicit button, and return focus to their trigger (WCAG SC 2.1.2).
+- Alt text describes content or purpose, never "Image of…"; decorative images get an empty alt.
+- Targets are at least 24x24 px on Web and 44x44 pt on Native, with visible high-contrast focus indicators.
 
 ## Anti-Patterns to Avoid
 

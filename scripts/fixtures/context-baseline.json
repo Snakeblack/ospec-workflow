@@ -6,7 +6,7 @@
       "orchestrator_bytes": 62441,
       "skills_installed": 83,
       "skills_listed": 57,
-      "skill_listing_bytes": 9755,
+      "skill_listing_bytes": 9719,
       "agent_read_bytes": {
         "review-change": 4757,
         "review-correction": 5197,
@@ -41,7 +41,7 @@
       "orchestrator_bytes": 43797,
       "skills_installed": 82,
       "skills_listed": 56,
-      "skill_listing_bytes": 9535,
+      "skill_listing_bytes": 9499,
       "agent_read_bytes": {
         "review-change": 4785,
         "review-correction": 5225,
@@ -76,7 +76,7 @@
       "orchestrator_bytes": 54417,
       "skills_installed": 82,
       "skills_listed": 56,
-      "skill_listing_bytes": 9535,
+      "skill_listing_bytes": 9499,
       "agent_read_bytes": {
         "review-change": 4771,
         "review-correction": 5211,
@@ -111,7 +111,7 @@
       "orchestrator_bytes": 60092,
       "skills_installed": 82,
       "skills_listed": 56,
-      "skill_listing_bytes": 9535,
+      "skill_listing_bytes": 9499,
       "agent_read_bytes": {
         "review-change": 4783,
         "review-correction": 5227,
@@ -146,7 +146,7 @@
       "orchestrator_bytes": 62554,
       "skills_installed": 82,
       "skills_listed": 75,
-      "skill_listing_bytes": 11469,
+      "skill_listing_bytes": 11433,
       "agent_read_bytes": {
         "review-change": 4878,
         "review-correction": 5316,
@@ -181,7 +181,7 @@
       "orchestrator_bytes": 58736,
       "skills_installed": 82,
       "skills_listed": 56,
-      "skill_listing_bytes": 9535,
+      "skill_listing_bytes": 9499,
       "agent_read_bytes": {
         "review-change": 4725,
         "review-correction": 5172,
@@ -216,7 +216,7 @@
       "orchestrator_bytes": 54552,
       "skills_installed": 82,
       "skills_listed": 56,
-      "skill_listing_bytes": 9535,
+      "skill_listing_bytes": 9499,
       "agent_read_bytes": {
         "review-change": 4761,
         "review-correction": 5199,

@@ -112,31 +112,33 @@ function extractCapabilities(raw) {
     .filter(Boolean);
 }
 
+// Only explicit rules sections feed compact rules: anti-patterns, patterns,
+// gates and activation lists read as instructions once injected out of context.
+const RULES_HEADING = /^(?:[\w-]+\s+){0,3}rules$|^reglas(?:\s+\S+){0,3}$/i;
+const LIST_ITEM = /^\s*(?:[-*+]|\d+\.)\s+/;
+
+function isRulesHeading(text) {
+  return RULES_HEADING.test(text) && !/\banti/i.test(text);
+}
+
 function extractCompactRules(skillMarkdown) {
   const { body } = parseFrontmatter(skillMarkdown);
-  const lines = body.split(/\r?\n/);
   const rules = [];
   let inRulesSection = false;
 
   function addRule(value) {
-    const rule = value
-      .replace(/^[-*+]\s+/, "")
-      .replace(/^\d+\.\s+/, "")
-      .trim();
+    const rule = value.replace(LIST_ITEM, "").trim();
 
     if (rule && !rules.includes(rule)) {
       rules.push(rule);
     }
   }
 
-  for (const line of lines) {
+  for (const line of body.split(/\r?\n/)) {
     const heading = line.match(/^#{2,4}\s+(.+?)\s*$/);
 
     if (heading) {
-      inRulesSection =
-        /\b(?:(?:hard|critical|core|decision)\s+)?(?:rules|patterns|constraints|gates)\b/i.test(
-          heading[1],
-        );
+      inRulesSection = isRulesHeading(heading[1]);
       continue;
     }
 
@@ -144,7 +146,7 @@ function extractCompactRules(skillMarkdown) {
       continue;
     }
 
-    if (/^\s*(?:[-*+]|\d+\.)\s+/.test(line)) {
+    if (LIST_ITEM.test(line)) {
       addRule(line);
       continue;
     }
@@ -158,18 +160,6 @@ function extractCompactRules(skillMarkdown) {
 
       if (columns.length >= 2 && label !== "rule" && label !== "gate") {
         addRule(`${columns[0]}: ${columns.slice(1).join(" - ")}`);
-      }
-    }
-  }
-
-  if (rules.length === 0) {
-    for (const line of lines) {
-      if (/^\s*(?:[-*+]|\d+\.)\s+/.test(line)) {
-        addRule(line);
-      }
-
-      if (rules.length >= 15) {
-        break;
       }
     }
   }

@@ -124,6 +124,91 @@ test("extracts compact rules from complete skill markdown", () => {
   ]);
 });
 
+test("compact rules come only from rules sections, never from anti-patterns or activation lists", () => {
+  const rules = extractCompactRules(
+    [
+      "## When to Activate",
+      "- Designing REST endpoints.",
+      "## Anti-Patterns to Avoid",
+      "- Domain entities importing ORM models.",
+      "## Component Patterns",
+      "- Prefer composition.",
+      "## Decision Gates",
+      "| Situation | Action |",
+      "| --- | --- |",
+      "| Ambiguous | Ask |",
+      "### Naming Rules",
+      "- Use plural nouns.",
+      "## Reglas",
+      "- Responde en el idioma del usuario.",
+    ].join("\n"),
+  );
+
+  assert.deepEqual(rules, [
+    "Use plural nouns.",
+    "Responde en el idioma del usuario.",
+  ]);
+});
+
+test("a skill without a rules section has no compact rules", () => {
+  assert.deepEqual(
+    extractCompactRules("## When to Use\n- Building a design system.\n## Examples\n- Example.\n"),
+    [],
+  );
+});
+
+const REPO_ROOT = path.resolve(__dirname, "..", "..");
+const NOT_RULES_HEADING = /\banti[- ]?patterns?\b|\bwhen to\b|\bcu[aá]ndo\b/i;
+
+test("no compact rule of a shipped skill comes from an anti-pattern or activation list", async () => {
+  const { skills } = await discoverSkills(REPO_ROOT);
+
+  for (const skill of skills) {
+    const markdown = await fs.readFile(path.join(REPO_ROOT, skill.path), "utf8");
+    const excluded = new Set();
+    let inExcluded = false;
+
+    for (const line of markdown.split(/\r?\n/)) {
+      const heading = line.match(/^#{2,4}\s+(.+?)\s*$/);
+      if (heading) {
+        inExcluded = NOT_RULES_HEADING.test(heading[1]);
+      } else if (inExcluded && /^\s*(?:[-*+]|\d+\.)\s+/.test(line)) {
+        excluded.add(line.replace(/^\s*(?:[-*+]|\d+\.)\s+/, "").trim());
+      }
+    }
+
+    for (const rule of skill.compact_rules) {
+      assert.ok(!excluded.has(rule), `${skill.id}: "${rule}" is not a rule`);
+    }
+  }
+});
+
+// Knowledge skills are matched to a task by their Trigger: alone; review and
+// stack skills are resolved by gate name and detected capability instead.
+// The exemptions are skills that E0.3 (b) removes or merges.
+const TRIGGER_EXEMPT = new Set([
+  "agent-harness-construction",
+  "agent-self-evaluation",
+  "ai-first-engineering",
+  "ai-regression-testing",
+  "architecture-decision-records",
+  "backend-patterns",
+  "context7-mcp",
+  "frontend-patterns",
+  "tdd-workflow",
+  "token-budget-advisor",
+]);
+
+test("every knowledge skill declares a Trigger: in its description", async () => {
+  const { skills } = await discoverSkills(REPO_ROOT);
+  const missing = skills
+    .filter(({ id }) => !/^(?:review|stack)-/.test(id) && !TRIGGER_EXEMPT.has(id))
+    .filter(({ id, triggers }) => triggers.length === 1 && triggers[0] === id)
+    .map(({ id }) => id);
+
+  assert.deepEqual(missing, []);
+});
+
 test("discovers an external skills root with usable paths and stable fingerprint inputs", async (t) => {
   const root = await createRoot(t);
   const skillsRoot = path.join(root, "installed", "skills");

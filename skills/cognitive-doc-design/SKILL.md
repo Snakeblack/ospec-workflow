@@ -18,7 +18,7 @@ Use it especially for:
 - Architecture, workflow, or onboarding docs.
 - Any doc that currently feels long, dense, or hard to scan.
 
-## Critical Patterns
+## Critical Rules
 
 | Pattern | Rule |
 |---------|------|
