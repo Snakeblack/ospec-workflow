@@ -308,7 +308,7 @@ test("claude emits the orchestrator as a skill, not a sub-agent", () => {
   assert.ok(!find(out, "agents/sdd-orchestrator.md"), "orchestrator must NOT be a sub-agent");
 });
 
-test("the orchestrator skill carries name + description and the inlined rules, with no model/tools/target", () => {
+test("the orchestrator skill carries name + description, with no model/tools/target, and global rules go to the router file", () => {
   const out = transform({ files: makeSource(), profile: claude, models: MODELS });
   const skill = find(out, "skills/sdd-orchestrator/SKILL.md").content;
   const fm = parse(skill).frontmatter;
@@ -317,8 +317,20 @@ test("the orchestrator skill carries name + description and the inlined rules, w
   assert.equal(getField(fm, "model"), null);
   assert.equal(getField(fm, "tools"), null);
   assert.equal(getField(fm, "target"), null);
-  assert.match(skill, /ALWAYS use OpenSpec/); // inlined rule
-  assert.doesNotMatch(skill, /vscode\//); // inlined rule was tool-substituted
+  // The synthetic rule declares no applyTo, so it is global (E0.4).
+  assert.doesNotMatch(skill, /ALWAYS use OpenSpec/);
+  const router = find(out, "global-instructions/CLAUDE.md").content;
+  assert.match(router, /ALWAYS use OpenSpec/);
+  assert.doesNotMatch(router, /vscode\//); // the global rule was tool-substituted
+});
+
+test("claude inlines a non-global rule into the orchestrator skill", () => {
+  const files = makeSource().map((file) =>
+    file.path === "rules/sdd-openspec.instructions.md" ? { ...file, content: file.content.replace("name: rules\n", "name: rules\napplyTo: 'openspec/**'\n") } : file,
+  );
+  const out = transform({ files, profile: claude, models: MODELS });
+  assert.match(find(out, "skills/sdd-orchestrator/SKILL.md").content, /ALWAYS use OpenSpec/);
+  assert.equal(find(out, "global-instructions/CLAUDE.md"), undefined, "no global rule, no router file");
 });
 
 // ---------------------------------------------------------------------------
@@ -827,7 +839,7 @@ test("toEnvExpansion rewrites two placeholders in a single string value — both
 // Requirement: codex target (Bloque 5.1)
 // ---------------------------------------------------------------------------
 
-test("codex emits agents as TOML outside the plugin bundle, and orchestrator as AGENTS.md", () => {
+test("codex emits agents as TOML outside the plugin bundle, and the orchestrator as a skill", () => {
   const out = transform({ files: makeSource(), profile: codex, models: MODELS });
   const toml = find(out, ".codex/agents/sdd-apply.toml");
   assert.ok(toml, "agent must be emitted as .codex/agents/sdd-apply.toml");
@@ -835,10 +847,9 @@ test("codex emits agents as TOML outside the plugin bundle, and orchestrator as 
   assert.match(toml.content, /developer_instructions = """/);
   assert.ok(!find(out, "agents/sdd-apply.agent.md"), "source-path residue must not survive");
 
-  // Orchestrator should not be emitted as TOML agent but as AGENTS.md
+  // The orchestrator is neither a TOML agent nor always-on: it is a skill (E0.4).
   assert.equal(find(out, ".codex/agents/sdd-orchestrator.toml"), undefined);
-  const agentsMd = find(out, "AGENTS.md");
-  assert.ok(agentsMd, "orchestrator must be emitted as AGENTS.md");
+  assert.ok(find(out, "skills/sdd-orchestrator/SKILL.md"), "orchestrator must be emitted as a skill");
 });
 
 test("codex TOML agent output path is ./-relative-safe (no leading slash, no .. segment)", () => {
@@ -945,14 +956,14 @@ test("codex commands become invocable skills under skills/commands/, never a pro
   assert.ok(!out.files.some((f) => f.path.startsWith("prompts/")), "no prompts/ path must exist");
 });
 
-test("codex rewrites named ${input:x} to positional $1 and drops the agent: routing key with a spawn instruction", () => {
+test("codex rewrites named ${input:x} to positional $1 and drops the agent: routing key for the orchestrator skill", () => {
   const out = transform({ files: makeSource(), profile: codex, models: MODELS });
   const skill = find(out, "skills/commands/sdd-apply/SKILL.md").content;
   assert.match(skill, /\$1/);
   assert.doesNotMatch(skill, /\$\{input:/);
   const fm = parse(skill).frontmatter;
   assert.equal(getField(fm, "agent"), null, "agent: routing key must not appear in emitted frontmatter");
-  assert.match(skill, /Spawn the `sdd-orchestrator` agent/);
+  assert.match(skill, /Load the `sdd-orchestrator` skill once/);
 });
 
 test("codex does not collide the command-derived skill with a pre-existing context-doc skill of the same base name", () => {
@@ -961,7 +972,7 @@ test("codex does not collide the command-derived skill with a pre-existing conte
   const contextDoc = find(out, "skills/sdd-apply/SKILL.md");
   assert.ok(commandSkill, "command-derived skill must exist at skills/commands/sdd-apply/SKILL.md");
   assert.ok(contextDoc, "pre-existing context-doc skill must survive at skills/sdd-apply/SKILL.md");
-  assert.match(commandSkill.content, /Spawn the `sdd-orchestrator` agent/, "command-derived skill must carry the spawn instruction");
+  assert.match(commandSkill.content, /Load the `sdd-orchestrator` skill once/, "command-derived skill must route to the orchestrator skill");
   assert.match(contextDoc.content, /phase-agent context document/, "context doc must be passed through unchanged");
   const commandFm = parse(commandSkill.content).frontmatter;
   assert.equal(getField(commandFm, "name").value, "sdd-apply", "invocation name must be the bare base name, unaffected by the commands/ prefix");
@@ -981,7 +992,7 @@ test("real Codex rules and fallback approval contracts use native questions with
   const paths = ["agents/sdd-orchestrator.agent.md", "rules/sdd-common.instructions.md", "rules/sdd-openspec.instructions.md", "skills/_shared/approval-ledger.md", "skills/_shared/question-shapes.md"];
   const files = paths.map((file) => ({ path: file, content: fs.readFileSync(path.join(__dirname, "../..", file), "utf8") }));
   const out = transform({ files, profile: codex, models: MODELS });
-  const rules = find(out, "AGENTS.md").content;
+  const rules = find(out, "skills/sdd-orchestrator/SKILL.md").content;
   assert.match(rules, /request_user_input/);
   assert.match(rules, /request_user_input_async/);
   assert.match(rules, /current mode/);
@@ -1031,12 +1042,13 @@ test("codex leaves an already front-loaded description unchanged", () => {
   assert.equal(getField(fm, "description").value, "desc");
 });
 
-test("codex rules fold into a single synthesized AGENTS.md (ADR-001)", () => {
+test("codex folds only global rules into the synthesized AGENTS.md, never the orchestrator (E0.4)", () => {
   const out = transform({ files: makeSource(), profile: codex, models: MODELS });
   const agentsMd = find(out, "AGENTS.md");
-  assert.ok(agentsMd, "AGENTS.md must be synthesized (ADR-001)");
+  assert.ok(agentsMd, "AGENTS.md must be synthesized");
   assert.match(agentsMd.content, /ALWAYS use OpenSpec/);
-  assert.match(agentsMd.content, /Orchestrator body/);
+  assert.doesNotMatch(agentsMd.content, /Orchestrator body/);
+  assert.match(find(out, "skills/sdd-orchestrator/SKILL.md").content, /Orchestrator body/);
   assert.ok(!out.files.some((f) => f.path.startsWith("rules/")), "rules/ source files must not survive");
 });
 

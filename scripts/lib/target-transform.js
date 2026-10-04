@@ -22,9 +22,10 @@ function transform({ files: sourceFiles, profile, models, withExtras = false } =
     throw new TypeError("profile must be a non-null object");
   }
   // The optional extras package ships only on request (E0.3 b2).
-  const files = withExtras ? sourceFiles : sourceFiles.filter((file) => !isExtraSkillPath(file.path));
-  // Accumulating strategies fold every rule into one body (Claude, Codex);
-  // scoped ones carry only the orchestrator-scoped rules, raw, into that agent.
+  const shipped = withExtras ? sourceFiles : sourceFiles.filter((file) => !isExtraSkillPath(file.path));
+  const files = resolveOrchestratorEntry(shipped, profile);
+  // The inline strategy folds every non-global rule into the orchestrator
+  // (Claude, Codex); scoped ones carry only the orchestrator-scoped rules, raw.
   const rulesContent = isScopedStrategy(profile.rules && profile.rules.strategy)
     ? collectOrchestratorRules(files, profile)
     : collectRules(files, profile);
@@ -36,15 +37,15 @@ function transform({ files: sourceFiles, profile, models, withExtras = false } =
   for (const file of files) {
     const handled = handleFile(file, profile, models, rulesContent, sources);
     if (handled === null) {
-      continue; // dropped (e.g. rules inlined elsewhere, or folded into AGENTS.md)
+      continue; // dropped (e.g. rules inlined elsewhere, or folded into the global rules file)
     }
     out.push(handled);
   }
 
   // Files synthesized from collected source data (not 1:1 with any input): the
-  // opencode.json config (schema + mcp + instructions), the plugin shim, and a
-  // synthesized AGENTS.md for the codex-style "to-agents-md" rules strategy.
-  for (const synthesized of synthesizeFiles(files, profile, rulesContent)) {
+  // opencode.json config (schema + mcp + instructions), the plugin shim, and
+  // the global rules file (Claude's CLAUDE.md, Codex's AGENTS.md; E0.4).
+  for (const synthesized of synthesizeFiles(files, profile)) {
     out.push(synthesized);
   }
 
@@ -99,9 +100,6 @@ function handleFile(file, profile, models, rulesContent, sources) {
     if (profile.rules && profile.rules.strategy === "to-instructions-config") {
       return toInstructionConfigFile(file, profile);
     }
-    if (profile.rules && profile.rules.strategy === "to-agents-md") {
-      return null; // folded into the synthesized AGENTS.md (ADR-001)
-    }
     if (profile.rules && profile.rules.strategy === "to-mdc") {
       return toMdcFile(file, profile);
     }
@@ -111,9 +109,6 @@ function handleFile(file, profile, models, rulesContent, sources) {
   if (isAgent(path, profile)) {
     if (profile.orchestrator && profile.orchestrator.emitAs === "skill" && agentBaseName(path, profile) === profile.orchestrator.agent) {
       return emitOrchestratorSkill(file, profile, rulesContent);
-    }
-    if (profile.orchestrator && profile.orchestrator.emitAs === "root-agent-md" && agentBaseName(path, profile) === profile.orchestrator.agent) {
-      return emitOrchestratorRootAgentMd(file, profile, rulesContent);
     }
     let content = embedAgentReferences({ agentPath: path, content: sources.get(path), sources });
     if (rulesContent && isScopedStrategy(profile.rules.strategy) && agentBaseName(path, profile) === orchestratorAgent(profile)) {
@@ -181,11 +176,17 @@ function rulePlacement(file, profile) {
   return "file";
 }
 
-// Strategies whose rules content is accumulated across all rules/*.md files
-// rather than emitted 1:1 per file: inlined into the orchestrator (claude) or
-// folded into a single synthesized AGENTS.md (codex, ADR-001).
-function isAccumulateStrategy(strategy) {
-  return isInlineStrategy(strategy) || strategy === "to-agents-md";
+// The router (E0.4) names the host's own way into SDD: a skill where the
+// orchestrator is one, otherwise its agent (renamed where the host renames it).
+const ORCHESTRATOR_ENTRY = "{{orchestrator-entry}}";
+
+function resolveOrchestratorEntry(files, profile) {
+  const entry = (profile.orchestrator && profile.orchestrator.entry) || `agent \`${orchestratorAgent(profile)}\``;
+  return files.map((file) =>
+    isRulesFile(file.path) && String(file.content).includes(ORCHESTRATOR_ENTRY)
+      ? { ...file, content: String(file.content).split(ORCHESTRATOR_ENTRY).join(entry) }
+      : file,
+  );
 }
 
 // A toolMap entry MAY be a degradation marker instead of a literal tool
@@ -532,11 +533,22 @@ function antigravityHooks(file, profile) {
 
 // --- rules inlining --------------------------------------------------------
 
+// Inline strategy (Claude, Codex): every always-active rule joins the
+// orchestrator, except global ones when the profile gives them their own
+// always-on file (`rules.globalFile`, E0.4).
 function collectRules(files, profile) {
-  if (!profile.rules || !isAccumulateStrategy(profile.rules.strategy)) {
+  if (!profile.rules || !isInlineStrategy(profile.rules.strategy)) {
     return "";
   }
+  const separate = Boolean(profile.rules.globalFile);
+  return activeRuleBodies(files, profile, (scope) => !separate || scope.kind !== "global");
+}
 
+function collectGlobalRules(files, profile) {
+  return activeRuleBodies(files, profile, (scope) => scope.kind === "global");
+}
+
+function activeRuleBodies(files, profile, wanted) {
   const parts = [];
   for (const file of files) {
     if (isRulesFile(file.path)) {
@@ -546,7 +558,7 @@ function collectRules(files, profile) {
       const parsed = parse(file.content);
       const activationField = getField(parsed.frontmatter, "activation");
       const activation = activationField ? activationField.value : "always";
-      if (activation !== "always") {
+      if (activation !== "always" || !wanted(ruleScope(parsed.frontmatter))) {
         continue;
       }
       let body = parsed.body.trim();
@@ -596,22 +608,6 @@ function emitOrchestratorSkill(file, profile, rulesContent) {
   ];
 
   return { path: profile.orchestrator.skillPath, content: serialize({ frontmatter, body }) };
-}
-
-function emitOrchestratorRootAgentMd(file, profile, rulesContent) {
-  const parsed = parse(file.content);
-  let body = parsed.body;
-
-  if (profile.toolMap) {
-    body = substituteProse(body, profile.toolMap);
-  }
-  if (rulesContent && profile.rules && (isInlineStrategy(profile.rules.strategy) || profile.rules.strategy === "to-agents-md")) {
-    body = body.replace(/\s*$/, "") + "\n\n" + rulesContent + "\n";
-  }
-  body = substituteAgentNames(body, profile);
-
-  const outPath = profile.orchestrator.agentPath || "agent.md";
-  return { path: outPath, content: body };
 }
 
 // --- agents ----------------------------------------------------------------
@@ -955,7 +951,13 @@ function handleCommandSkill(file, profile) {
   const agentField = getField(frontmatter, "agent");
   frontmatter = stripKeys(frontmatter, ["agent", "target", "tools", "argument-hint"]);
 
-  if (agentField && agentField.value) {
+  // Where the orchestrator is a skill (Codex, E0.4) there is no agent to spawn.
+  const viaOrchestratorSkill = Boolean(agentField) && agentField.value === orchestratorAgent(profile) &&
+    Boolean(profile.orchestrator) && profile.orchestrator.emitAs === "skill";
+  if (viaOrchestratorSkill) {
+    const skill = `\`${agentField.value}\` skill`;
+    body = `\nLoad the ${skill} once and carry out this command through it.\n` + body.split(`\`${agentField.value}\` custom agent`).join(skill);
+  } else if (agentField && agentField.value) {
     body = `\nSpawn the \`${agentField.value}\` agent to carry out this skill.\n` + body;
   }
 
@@ -1130,7 +1132,7 @@ function toInstructionConfigFile(file, profile) {
 // --- synthesized files (opencode.json + plugin) ----------------------------
 
 // Files built from collected source data rather than mapped 1:1 from an input.
-function synthesizeFiles(files, profile, rulesContent) {
+function synthesizeFiles(files, profile) {
   const out = [];
 
   if (profile.config) {
@@ -1139,10 +1141,10 @@ function synthesizeFiles(files, profile, rulesContent) {
   if (profile.plugin) {
     out.push({ path: profile.plugin.location, content: profile.plugin.source });
   }
-  if (profile.rules && profile.rules.strategy === "to-agents-md" && rulesContent) {
-    const location = profile.rules.outLocation || "AGENTS.md";
-    if (!profile.orchestrator || profile.orchestrator.agentPath !== location) {
-      out.push({ path: location, content: rulesContent.replace(/\s+$/, "") + "\n" });
+  if (profile.rules && profile.rules.globalFile) {
+    const globalRules = collectGlobalRules(files, profile);
+    if (globalRules) {
+      out.push({ path: profile.rules.globalFile, content: globalRules + "\n" });
     }
   }
 

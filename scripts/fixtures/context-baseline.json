@@ -2,11 +2,11 @@
   "schema": "ospec-context-baseline/v1",
   "targets": {
     "claude": {
-      "always_on_bytes": 0,
-      "orchestrator_bytes": 62896,
+      "always_on_bytes": 2698,
+      "orchestrator_bytes": 60624,
       "skills_installed": 62,
       "skills_listed": 36,
-      "skill_listing_bytes": 5114,
+      "skill_listing_bytes": 5127,
       "agent_read_bytes": {
         "review-change": 4757,
         "review-correction": 5197,
@@ -37,7 +37,7 @@
       }
     },
     "vscode": {
-      "always_on_bytes": 2436,
+      "always_on_bytes": 2967,
       "orchestrator_bytes": 44252,
       "skills_installed": 61,
       "skills_listed": 35,
@@ -72,7 +72,7 @@
       }
     },
     "github-copilot": {
-      "always_on_bytes": 2436,
+      "always_on_bytes": 2967,
       "orchestrator_bytes": 54872,
       "skills_installed": 61,
       "skills_listed": 35,
@@ -107,7 +107,7 @@
       }
     },
     "opencode": {
-      "always_on_bytes": 2284,
+      "always_on_bytes": 2680,
       "orchestrator_bytes": 60547,
       "skills_installed": 61,
       "skills_listed": 35,
@@ -142,11 +142,11 @@
       }
     },
     "codex": {
-      "always_on_bytes": 63009,
-      "orchestrator_bytes": 63009,
-      "skills_installed": 61,
-      "skills_listed": 54,
-      "skill_listing_bytes": 6828,
+      "always_on_bytes": 2683,
+      "orchestrator_bytes": 60966,
+      "skills_installed": 62,
+      "skills_listed": 55,
+      "skill_listing_bytes": 7061,
       "agent_read_bytes": {
         "review-change": 4878,
         "review-correction": 5316,
@@ -177,7 +177,7 @@
       }
     },
     "cursor": {
-      "always_on_bytes": 2440,
+      "always_on_bytes": 2975,
       "orchestrator_bytes": 59191,
       "skills_installed": 61,
       "skills_listed": 35,
@@ -212,7 +212,7 @@
       }
     },
     "antigravity": {
-      "always_on_bytes": 2441,
+      "always_on_bytes": 2977,
       "orchestrator_bytes": 55007,
       "skills_installed": 61,
       "skills_listed": 35,

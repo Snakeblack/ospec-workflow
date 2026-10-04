@@ -104,3 +104,46 @@ test("an ospec install failure still exits 1 and skips the Engram step", () => {
   assert.equal(exitCode, 1);
   assert.equal(called, false);
 });
+
+// --- E0.4: the router goes to ~/.claude/CLAUDE.md as a marked block ---------
+
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const { BEGIN, END } = require("./instruction-block.js");
+
+function routerFixture(t) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-claude-router-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const pluginDir = path.join(root, "plugin");
+  const home = path.join(root, "home");
+  fs.mkdirSync(path.join(pluginDir, "global-instructions"), { recursive: true });
+  fs.writeFileSync(path.join(pluginDir, "global-instructions", "CLAUDE.md"), "# ospec-workflow\n\nrouter\n");
+  fs.mkdirSync(path.join(home, ".claude"), { recursive: true });
+  const claudeMd = path.join(home, ".claude", "CLAUDE.md");
+  fs.writeFileSync(claudeMd, "# Mine\n");
+  const deps = (overrides = {}) => baseDeps({
+    homedir: () => home,
+    buildClaudeMarketplace: () => ({ outDir: "/out", pluginDir, exitCode: 0, validation: null }),
+    ...overrides,
+  });
+  return { claudeMd, deps };
+}
+
+test("setup:claude writes the built router as a block in ~/.claude/CLAUDE.md and keeps the user's text", (t) => {
+  const { claudeMd, deps } = routerFixture(t);
+  const block = `${BEGIN}\n# ospec-workflow\n\nrouter\n${END}\n`;
+  assert.equal(main([], deps()), 0);
+  assert.equal(fs.readFileSync(claudeMd, "utf8"), `# Mine\n\n${block}`);
+  assert.equal(main([], deps()), 0);
+  assert.equal(fs.readFileSync(claudeMd, "utf8"), `# Mine\n\n${block}`, "a reinstall replaces only the block");
+  assert.equal(main(["--no-router"], deps()), 0);
+  assert.equal(fs.readFileSync(claudeMd, "utf8"), "# Mine\n", "--no-router takes the block out");
+});
+
+test("--build-only and a missing claude CLI leave ~/.claude/CLAUDE.md alone", (t) => {
+  const { claudeMd, deps } = routerFixture(t);
+  assert.equal(main(["--build-only"], deps()), 0);
+  assert.equal(main([], deps({ resolveClaudeBin: () => null })), 0);
+  assert.equal(fs.readFileSync(claudeMd, "utf8"), "# Mine\n");
+});

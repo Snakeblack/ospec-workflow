@@ -8,6 +8,7 @@ const { spawnSync } = require("node:child_process");
 const { runConfigure } = require("./cli.js");
 const { runEngramStep, withEngramStep } = require("./engram-setup.js");
 const { assertSafeDest } = require("./install-target.js");
+const { removeRouterBlock, writeRouterBlock } = require("./instruction-block.js");
 const {
   readOwnershipManifest,
   writeOwnershipManifest,
@@ -20,7 +21,8 @@ const {
 
 function usage() {
   return (
-    "usage: install-codex [<destRepo>] [--dry-run] [--repair-config] [--no-validate] [--with-extras] [--source <sourceRepo>]\n" +
+    "usage: install-codex [<destRepo>] [--dry-run] [--repair-config] [--no-validate] [--with-extras] [--no-router] [--source <sourceRepo>]\n" +
+    "  --no-router      do not write the router into AGENTS.md, and remove the one an earlier install wrote\n" +
     "  --repair-config  global setup only: remove the exact legacy top-level service_tier = \"default\" assignment, with backup and rollback\n" +
     "  e.g. npm run install:codex -- ../my-project\n"
   );
@@ -35,6 +37,7 @@ function parseArgs(argv) {
     else if (arg === "--repair-config") args.repairConfig = true;
     else if (arg === "--no-validate") args.validate = false;
     else if (arg === "--with-extras") args.withExtras = true;
+    else if (arg === "--no-router") args.noRouter = true;
     else if (arg === "--source") {
       const next = argv[i + 1];
       if (!next || next.startsWith("--")) {
@@ -1020,7 +1023,8 @@ function preflightCodexAgents(outDir, destDir, approvedRoot, fsImpl = fs) {
 }
 
 function gatherCodexOwnedFiles(outDir, fsImpl = fs) {
-  const owned = ["AGENTS.md", "hooks.json"];
+  // AGENTS.md is shared with the user: ospec owns only its router block (E0.4).
+  const owned = ["hooks.json"];
 
   // Agents
   const agentsDir = path.join(outDir, ".codex", "agents");
@@ -1071,6 +1075,17 @@ function gatherCodexSkillsFiles(outDir, fsImpl = fs) {
 
   walk(skillsDir, "");
   return owned;
+}
+
+// A repository install has no global skills: the orchestrator skill goes to
+// the repository's .agents/skills, where Codex looks for repo-scoped skills.
+function installRepoOrchestratorSkill(outDir, repoRoot, writeFs, fsImpl = fs) {
+  const source = path.join(outDir, "skills", "sdd-orchestrator", "SKILL.md");
+  if (!fsImpl.existsSync(source)) return;
+  const destination = path.join(repoRoot, ".agents", "skills", "sdd-orchestrator", "SKILL.md");
+  assertManagedPathSafe(repoRoot, destination, "Codex orchestrator skill destination", fsImpl);
+  writeFs.mkdirSync(path.dirname(destination), { recursive: true });
+  writeFs.copyFileSync(source, destination);
 }
 
 function reportConfigRepair(repair, stdout) {
@@ -1209,14 +1224,29 @@ function install(argv, deps = {}) {
     copyCodexAgents(outDir, agentsDest, { fs: writeFs, dryRun: args.dryRun, skillsRoot: globalSkillsRoot });
 
     if (!args.dryRun) {
-      writeFs.copyFileSync(path.join(outDir, "AGENTS.md"), agentDestFile);
+      // E0.4: AGENTS.md gets only the router, as a marked block. The file a
+      // pre-E0.4 install owned whole (the orchestrator copy) is replaced, never pruned.
+      const previousManifest = isRepoInstall ? null : readOwnershipManifest(codexRoot, fsImpl);
+      const ownedAgentsMd = (previousManifest?.files || []).map(toPosix).includes("AGENTS.md");
+      if (args.noRouter) {
+        removeRouterBlock(agentDestFile, { fs: writeFs });
+      } else {
+        const router = fsImpl.readFileSync(path.join(outDir, "AGENTS.md"), "utf8");
+        writeRouterBlock(agentDestFile, router, { fs: writeFs, replaceWhole: ownedAgentsMd });
+      }
+      if (isRepoInstall) {
+        installRepoOrchestratorSkill(outDir, path.dirname(codexRoot), writeFs, fsImpl);
+      }
       if (!isRepoInstall) {
         const runtimeDir = path.join(codexRoot, "ospec-workflow");
         const hooksDest = path.join(codexRoot, "hooks.json");
-        const previousManifest = readOwnershipManifest(codexRoot, fsImpl);
         const currentOwnedFiles = gatherCodexOwnedFiles(outDir, fsImpl);
+        const prunable = previousManifest && {
+          ...previousManifest,
+          files: (previousManifest.files || []).filter((file) => toPosix(file) !== "AGENTS.md"),
+        };
 
-        pruneStaleFiles(codexRoot, previousManifest, currentOwnedFiles, writeFs);
+        pruneStaleFiles(codexRoot, prunable, currentOwnedFiles, writeFs);
 
         copyCodexRuntime(outDir, runtimeDir, { fs: writeFs });
         const legacyRuntimeSkills = path.join(runtimeDir, "skills");

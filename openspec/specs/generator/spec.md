@@ -882,7 +882,7 @@ Every target that emits rules one by one (`to-mdc`, `to-instructions`, `to-instr
 - **Orchestrator** (every pattern under `agents/`): the rule is ospec's protocol for its own agents. It MUST be embedded at the end of the generated `sdd-orchestrator` agent and MUST NOT be emitted as a standalone rule, matching Claude's `inline-into-orchestrator`.
 - **Path** (any other glob): emitted with the host's path mechanism (`globs` with `alwaysApply: false` in Cursor, `applyTo` in Copilot, `trigger: glob` with `globs` in Antigravity). Brace groups MUST be expanded, because Copilot and Antigravity split patterns on commas. OpenCode has no path scope: a path rule with `activation: conditional` MUST NOT be emitted (as on Claude, apply and verify carry those modules), and any other path rule MUST be embedded in the orchestrator.
 
-Claude, Codex and VS Code keep their strategies; Codex's always-on `AGENTS.md` is the orchestrator itself and belongs to E0.4.
+VS Code keeps its identity strategy. Claude and Codex fold every non-global rule into the orchestrator skill and emit their global rules apart (REQ-generator-022).
 
 #### Scenario: No scoped rule becomes always-on
 
@@ -917,3 +917,23 @@ The generator MUST keep the skills of the optional extras package (`EXTRA_SKILLS
 - GIVEN the same build with `withExtras: true`
 - WHEN its paths are listed
 - THEN every skill of the package is present
+
+### Requirement: Router Is The Only Always-On Entry To SDD {#REQ-generator-022}
+
+Every target MUST emit `rules/ospec-router.instructions.md` as a global rule: the router says that SDD runs only when the user invokes a `/sdd-*` command or asks for spec-driven work explicitly, and names the host's own orchestrator through the `{{orchestrator-entry}}` placeholder, which the generator replaces with `profile.orchestrator.entry` (a skill on Claude and Codex) or, by default, the orchestrator agent under the name the host gives it. No placeholder MAY survive in the output.
+
+Claude and Codex give their global rules a file of their own (`rules.globalFile`): `global-instructions/CLAUDE.md` on Claude, because a plugin never loads a root `CLAUDE.md` and its validator rejects one, and `AGENTS.md` on Codex. Every other always-active rule joins the orchestrator, and Codex emits the orchestrator as the `skills/sdd-orchestrator/SKILL.md` skill, never as `AGENTS.md`. A Codex command routed to the orchestrator MUST tell the model to load that skill, since there is no orchestrator agent to spawn.
+
+No file the context baseline classifies as always-on MAY carry the orchestrator, and each target's always-on total MUST stay within 4 KB.
+
+#### Scenario: Always-on stays within 4 KB with the router
+
+- GIVEN a build generated in memory for each of the 7 targets
+- WHEN the context baseline measures it
+- THEN its always-on bytes are at most 4096, the router and the attribution rule are always-on exactly once, and no always-on file carries the `# SDD Orchestrator` heading
+
+#### Scenario: Codex loads the orchestrator on demand
+
+- GIVEN the Codex build
+- WHEN `AGENTS.md` and `skills/sdd-orchestrator/SKILL.md` are read
+- THEN `AGENTS.md` carries the router and the attribution rule, and the skill carries the orchestrator with the orchestrator-scoped and always-active path rules

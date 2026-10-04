@@ -37,10 +37,8 @@ In AI-assisted development, coding before understanding the problem generates te
 
 ## Quick Start in 3 Steps
 
-### 1. Prepare Your Project Instructions
-Copy the appropriate instructions template to the root of your target repository to establish the contract that the agent must **coordinate instead of implementing manually**:
-- [`CLAUDE.md`](CLAUDE.md) → For **Claude Code** (copy it to your repo).
-- [`AGENTS.md`](AGENTS.md) → **Agnostic** variant for VS Code, Copilot, or other editors.
+### 1. Nothing to copy: the installer adds a small router
+Every installer adds a router of under 2 KB to the instructions your host loads on every request ([`rules/ospec-router.instructions.md`](rules/ospec-router.instructions.md)). It tells the agent to enter SDD **only** when you run a `/sdd-*` command or ask for spec-driven work, and to load the orchestrator just then. Claude Code and Codex get it as a marked block in `~/.claude/CLAUDE.md` and `AGENTS.md`, next to your own text; pass `--no-router` to leave it out or remove it.
 
 ### 2. Install the Plugin in Your Tool
 Choose your target and run its automatic configurator:
@@ -132,12 +130,12 @@ Choose a target, edit models when that target supports it, review the summary, t
   ```powershell
   npm run setup:codex
   ```
-  *(Builds `dist/codex`, syncs `AGENTS.md`, agents, skills and runtime into `~/.codex/`, merges native hooks into `~/.codex/hooks.json` and registers missing global MCPs.)*
+  *(Builds `dist/codex`, writes the router as a block in `~/.codex/AGENTS.md`, syncs agents, skills and runtime into `~/.codex/`, merges native hooks into `~/.codex/hooks.json` and registers missing global MCPs.)*
 - **Per-repository Local Install**:
   ```powershell
   npm run install:codex -- ../my-project
   ```
-  *(Copies only `.codex/agents/*.toml` to the target repo and does not modify `.codex/config.toml`.)*
+  *(Copies `.codex/agents/*.toml`, writes the router block into the repo's `AGENTS.md` and the orchestrator skill into `.agents/skills/`, and does not modify `.codex/config.toml`.)*
 
   By default the installer does not alter `.codex/config.toml`. If Codex rejects the exact legacy key `service_tier = "default"`, the repair is an explicit opt-in:
   ```powershell
@@ -180,7 +178,7 @@ Every `npm run setup:<target>` (Claude, Codex, Antigravity, opencode, Cursor, VS
 
 | Path | Purpose |
 | --- | --- |
-| `CLAUDE.md` / `AGENTS.md` | Project instruction templates (Claude Code and agnostic) that set the coordinator-not-executor contract. Copy them to your repo. |
+| `rules/ospec-router.instructions.md` | The always-on router: SDD only on request, through the host's orchestrator. Installers add it to every target. |
 | `.plugin.json` | **Canonical** manifest (VS Code/direct-load). Edit this one first. |
 | `.claude-plugin/plugin.json` | Compatibility copy for Claude distribution; also the source read by the generator (`scripts/configure/cli.js`). It must mirror the canonical one — `scripts/manifest-sync.test.js` verifies this in CI. |
 | `agents/` | Orchestrator and specialized agents per phase. |

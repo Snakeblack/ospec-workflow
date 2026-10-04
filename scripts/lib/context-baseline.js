@@ -42,7 +42,8 @@ function opencodeInstructionGlobs(byPath) {
 }
 
 function isAlwaysOn(filePath, content, opencodeGlobs) {
-  if (filePath === "AGENTS.md") return true;
+  // Codex's AGENTS.md; Claude's router, which setup:claude installs in ~/.claude/CLAUDE.md (E0.4).
+  if (filePath === "AGENTS.md" || filePath === "global-instructions/CLAUDE.md") return true;
   if (opencodeGlobs.some((glob) => glob.test(filePath))) return true;
   if (filePath.endsWith(".mdc")) return field(content, "alwaysApply")?.value === "true";
   // Copilot and VS Code scope with applyTo; Antigravity with trigger (E0.2).
@@ -84,10 +85,10 @@ function measureTarget(files) {
   // LF-normalized so a CRLF checkout (core.autocrlf) measures the same as CI.
   const byPath = new Map(files.map((entry) => [entry.path, String(entry.content ?? "").replace(/\r\n/g, "\n")]));
   const opencodeGlobs = opencodeInstructionGlobs(byPath);
-  // OpenCode renames the orchestrator to its primary agent; Codex folds it into AGENTS.md.
+  // OpenCode renames the orchestrator to its primary agent.
   const orchestratorPath = [...byPath.keys()].find((filePath) => ORCHESTRATOR.test(filePath))
     || [...byPath.keys()].find((filePath) => AGENT_FILE.test(filePath) && field(byPath.get(filePath), "mode")?.value === "primary")
-    || (byPath.has("AGENTS.md") ? "AGENTS.md" : null);
+    || null;
 
   const alwaysOnFiles = {};
   const agents = {};

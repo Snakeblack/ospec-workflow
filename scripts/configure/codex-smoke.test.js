@@ -31,7 +31,7 @@ function listFiles(root, relDir = "", files = []) {
   return files.sort();
 }
 
-test("codex smoke: output is generated and installed as a root AGENTS.md and custom TOML agents", async (t) => {
+test("codex smoke: output is generated and installed as a router AGENTS.md, an orchestrator skill and custom TOML agents", async (t) => {
   const sourceDir = ROOT;
   const buildOut = tmpDir(t, "ospec-codex-smoke-build-");
   const destRepo = tmpDir(t, "ospec-codex-smoke-dest-");
@@ -57,13 +57,17 @@ test("codex smoke: output is generated and installed as a root AGENTS.md and cus
   assert.equal(installExit, 0);
   assert.ok(!fs.existsSync(path.join(destRepo, ".codex", "config.toml")));
 
-  // 3. Root AGENTS.md should exist and contain the orchestrator instructions
+  // 3. Root AGENTS.md carries only the router block; the orchestrator is a repo skill (E0.4)
   const agentMdPath = path.join(destRepo, "AGENTS.md");
   assert.ok(fs.existsSync(agentMdPath), "AGENTS.md must be installed at the root");
   const agentMdContent = fs.readFileSync(agentMdPath, "utf8");
+  assert.match(agentMdContent, /<!-- ospec-workflow:router:begin -->/);
+  assert.match(agentMdContent, /Load the skill `sdd-orchestrator`/);
+  assert.doesNotMatch(agentMdContent, /^# SDD Orchestrator$/m, "the orchestrator must not be always-on");
+  const skillContent = fs.readFileSync(path.join(destRepo, ".agents", "skills", "sdd-orchestrator", "SKILL.md"), "utf8");
   assert.ok(
-    agentMdContent.includes("sdd-propose") || agentMdContent.includes("Propose"),
-    "AGENTS.md must contain reference to orchestrator delegation workflows",
+    skillContent.includes("sdd-propose") || skillContent.includes("Propose"),
+    "the orchestrator skill must contain reference to orchestrator delegation workflows",
   );
 
   // 4. Custom agents (excluding orchestrator) should be generated as TOML agents
