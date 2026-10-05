@@ -13,6 +13,7 @@
 const { GATES, OBLIGATIONS, RUN_EVIDENCE, isIntentAmbiguous } = require("./idd-contract.js");
 const { GATE_QUESTIONS, WORK_ORDER } = require("./idd-next.js");
 const { IddRecordError } = require("./idd-record.js");
+const { trustReason } = require("./idd-review.js");
 
 const EVIDENCE_BY_OBLIGATION = new Map(OBLIGATIONS.map((obligation) => [obligation.id, obligation.evidence]));
 const PAIR_OBLIGATIONS = Object.freeze(["repro-test", "tdd-red-green"]);
@@ -223,6 +224,7 @@ function checkVerdict(state, { checks = [], results = [], treeChanged = false, r
       let reason = reasons[entry.id] || DEFAULT_REASONS[entry.id] || `needs ${evidence} evidence`;
       if (entry.id === "checks-pass") reason = checksReason({ checks, results, treeChanged });
       else if (PAIR_OBLIGATIONS.includes(entry.id)) reason = pairReason(state, entry.id);
+      else if (entry.id === "trust-review") reason = trustReason(state);
       return { obligation: entry.id, evidence, reason };
     });
   const decision = openGates.length > 0 ? decisionFor(openGates[0]) : null;

@@ -81,9 +81,10 @@ withdrawn, `withdrawn_reason`), `gates` (each with `id`, `status` `open` or
 `resolved`, an optional `reason` and, when resolved, `answer` and `source`) and
 `evidence` (each with `id`, `kind`, `obligation` and `recorded_at`, plus the
 `detail` that names the runs behind run evidence), and optionally `base` (the
-commit the change started from, or null outside git) and `runs` (each
-CLI-observed execution of REQ-idd-014). A state without `base` or `runs`
-MUST stay valid, as the states written before they existed. While the
+commit the change started from, or null outside git), `runs` (each
+CLI-observed execution of REQ-idd-014) and `reviews` (the trust review
+lineages of REQ-idd-016, oldest first). A state without `base`, `runs` or
+`reviews` MUST stay valid, as the states written before they existed. While the
 `ambiguous-intent` gate is open, `intent.kind`, `intent.summary` and
 `intent.acceptance` MUST be null, `intent.request` MUST hold the original
 request, and `signals` and `obligations` MUST be empty. `state.yaml` MUST be
@@ -159,7 +160,7 @@ until E3.1 delivers ADR impact declarations.
 - `migration-test`: the declared compatibility or rollback plan plus a passing
   migration test run on the current tree (REQ-idd-015).
 - `frozen-review`: an independent trust review with frozen findings and at most
-  one bounded correction.
+  one bounded correction, approved for the current candidate (REQ-idd-016).
 - `adr-impact-declaration`: `none`, `conforms`, `amends` or `contradicts` per
   touched ADR or quality attribute.
 
@@ -514,3 +515,56 @@ current tree MUST return the obligation to `pending`.
 - WHEN the migration file changes and `ospec check` runs
 - THEN the obligation MUST return to `pending` until the migration test passes
   again on the new tree
+
+### Requirement: Bounded Trust Review {#REQ-idd-016}
+
+`trust-review` MUST be satisfied only through the bounded review lineage
+(schema v2) with exactly the `trust` lens: the selective gate gives a change
+one lens per obligation that asks for a review, and none when no obligation
+does. `ospec review start` MUST freeze the candidate (the paths the diff
+changes against the change's base, a digest of their content on both sides and
+the changed line counts, from a snapshot of the working tree that excludes
+`idd/`) and return the request for the independent `review-trust` reviewer;
+while a review is in progress it MUST return that review instead.
+`ospec review record` MUST record the reviewer's findings once and freeze them. With
+no `BLOCKER` or `CRITICAL` finding the review is approved and `frozen-review`
+evidence MUST be recorded, naming the lineage, the candidate, its tree and the
+findings digest. Otherwise one bounded correction is allowed:
+`ospec review correct` MUST record the changes since the reviewed candidate, refused outside
+the frozen paths or over the line budget, and return the frozen IDs for the
+read-only `review-correction` validator, and `ospec review validate` MUST apply
+its verdict to exactly those IDs. A passing validation approves the review; a
+failing one MUST end the lineage, because IDD allows one correction per review.
+Results are passed as JSON with `--result`.
+
+Approved evidence proves only its candidate: on every `ospec check`, if the
+reviewed paths, or any security-boundary path the diff now touches, differ
+from the reviewed candidate, `trust-review` MUST return to `pending`. A
+successor review MUST need no approval (REQ-idd-008) but MUST be refused while
+the reviewed paths are unchanged since the last review, and a change MUST run
+at most 3 reviews; after that `trust-review` stays `pending` with a reason
+saying so, and the person decides how to go on. All lineages stay in
+`reviews`, each successor naming its predecessor.
+
+#### Scenario: Approved review goes stale with the reviewed code
+
+- GIVEN an approved trust review of `src/auth/tokens.js`
+- WHEN only `notes.md` changes and `ospec check` runs
+- THEN `trust-review` MUST stay `satisfied`
+- AND when `src/auth/tokens.js` changes, the next check MUST return it to
+  `pending` and `ospec review start` MUST open review 2
+
+#### Scenario: One bounded correction
+
+- GIVEN a trust review whose frozen findings hold one `BLOCKER`
+- WHEN the code is corrected inside the frozen paths and `ospec review correct`
+  runs
+- THEN it MUST return that finding's ID for `review-correction`
+- AND a validation that resolves it MUST approve the review, while one that
+  does not MUST end the lineage
+
+#### Scenario: Documentation-only change closes without review
+
+- GIVEN a `docs` change that only touches `docs/security/token-rotation.md`
+- WHEN `ospec check` runs with the checks passing
+- THEN the answer MUST be `ready` with no `trust-review` obligation

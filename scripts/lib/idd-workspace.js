@@ -7,6 +7,7 @@
 
 const crypto = require("node:crypto");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 
@@ -46,11 +47,12 @@ function readProjectContext(root) {
   };
 }
 
-function git(root, args) {
+function git(root, args, { env } = {}) {
   return execFileSync("git", ["-C", root, "-c", "core.quotePath=false", ...args], {
     encoding: "utf8",
     maxBuffer: GIT_MAX_BUFFER,
     stdio: ["ignore", "pipe", "pipe"],
+    env: env ? { ...process.env, ...env } : process.env,
   });
 }
 
@@ -176,10 +178,69 @@ function readTreeFingerprint(root) {
   return `sha256:${hash.digest("hex")}`;
 }
 
+/**
+ * The working tree as a git tree object (REQ-idd-016): tracked and untracked
+ * files, never ignored ones nor idd/. A throwaway index keeps the real index
+ * untouched; the tree lands in the object store, so a later diff can compare
+ * the reviewed candidate with the current tree.
+ */
+function snapshotTree(root) {
+  requireWorkTree(root);
+  const head = tryHead(root);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-index-"));
+  const env = { GIT_INDEX_FILE: path.join(dir, "index") };
+  try {
+    git(root, head ? ["read-tree", head] : ["read-tree", "--empty"], { env });
+    git(root, ["add", "-A", "--", ".", `:(exclude)${CHANGE_ROOT}`], { env });
+    return git(root, ["write-tree"], { env }).trim();
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** The tree of a commit, or the empty tree for a change opened without one. */
+function commitTree(root, commit) {
+  if (!commit) return EMPTY_TREE;
+  try {
+    return git(root, ["rev-parse", "--verify", "--quiet", `${commit}^{tree}`]).trim();
+  } catch {
+    throw new IddWorkspaceError("unknown-base", `unknown diff base: ${commit}`);
+  }
+}
+
+/** Path → blob id of every file in a tree. */
+function treeBlobs(root, tree) {
+  const blobs = new Map();
+  for (const entry of nulList(git(root, ["ls-tree", "-r", "-z", tree]))) {
+    const match = /^\d+ \w+ ([0-9a-f]+)\t(.*)$/s.exec(entry);
+    if (match) blobs.set(normalizePath(match[2]), match[1]);
+  }
+  return blobs;
+}
+
+/** Changed paths between two trees with their added and deleted line counts. */
+function treeNumstat(root, from, to) {
+  const fields = nulList(git(root, ["diff-tree", "-r", "--no-renames", "--numstat", "-z", from, to]));
+  const changes = [];
+  for (const field of fields) {
+    const match = /^(\d+|-)\t(\d+|-)\t(.*)$/s.exec(field);
+    if (!match) continue;
+    const file = normalizePath(match[3]);
+    if (isIddState(file)) continue;
+    changes.push({ path: file, added: match[1] === "-" ? 0 : Number(match[1]), deleted: match[2] === "-" ? 0 : Number(match[2]) });
+  }
+  return changes.sort((left, right) => (left.path < right.path ? -1 : 1));
+}
+
 module.exports = {
+  EMPTY_TREE,
   IddWorkspaceError,
+  commitTree,
   readGitDiff,
   readHead,
   readProjectContext,
   readTreeFingerprint,
+  snapshotTree,
+  treeBlobs,
+  treeNumstat,
 };

@@ -33,6 +33,7 @@ const STATE_FIELDS = Object.freeze([
   "evidence",
   "base",
   "runs",
+  "reviews",
 ]);
 const CHANGE_STATUSES = Object.freeze(["open", "closed"]);
 const INTENT_KINDS = Object.freeze(["bug", "feature", "refactor", "docs"]);
@@ -126,6 +127,7 @@ function validateState(state) {
     if (!Array.isArray(state[key])) fail(`${key} must be a list`);
   }
   if ("runs" in state && !Array.isArray(state.runs)) fail("runs must be a list");
+  if ("reviews" in state && !Array.isArray(state.reviews)) fail("reviews must be a list");
   if (state.base != null && typeof state.base !== "string") fail("base must be a commit id");
   if (errors.length > 0) return { ok: false, errors };
 
@@ -169,8 +171,15 @@ function validateState(state) {
     if (entry.kind in RUN_EVIDENCE) validateRunEvidence(entry, runs, runIndex, fail);
     evidenceById.set(entry.id, entry);
   }
+  const reviews = state.reviews || [];
+  for (const review of reviews) {
+    if (review == null || review.schema_version !== 2 || typeof review.lineage_id !== "string" || typeof review.status !== "string") {
+      fail("a review must be a schema v2 review lineage with its id and status");
+    }
+  }
   for (const entry of state.evidence) {
     if (entry.kind === "contract-spec-and-test") validateContractEvidence(entry, evidenceById, fail);
+    if (entry.kind === "frozen-review") validateReviewEvidence(entry, reviews, fail);
   }
 
   for (const obligation of state.obligations) {
@@ -276,6 +285,19 @@ function validateContractEvidence(entry, evidenceById, fail) {
   if (!check || check.kind !== "check-run" || check.detail?.tree !== detail.tree || !listed("documents") || !listed("tests")) {
     fail(`evidence ${entry.id} needs a contract document, a test and a passing check on its tree`);
   }
+}
+
+// frozen-review must name an approved review of the candidate it names, with
+// the findings it froze (REQ-idd-016).
+function validateReviewEvidence(entry, reviews, fail) {
+  const detail = entry.detail || {};
+  const review = reviews.find((lineage) => lineage?.lineage_id === detail.lineage_id);
+  const approved =
+    review &&
+    review.status === "approved" &&
+    review.current_candidate_id === detail.candidate_id &&
+    review.findings_digest === detail.findings_digest;
+  if (!approved) fail(`evidence ${entry.id} needs an approved trust review of its candidate`);
 }
 
 function isIntentAmbiguous(state) {
