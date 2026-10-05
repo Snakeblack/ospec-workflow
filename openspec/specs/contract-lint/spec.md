@@ -285,28 +285,6 @@ also be reported as offenders.
 
 ---
 
-### Requirement: Maturity Label Checker {#REQ-contract-lint-011}
-
-The registry MUST include a checker that validates harness-evolution (or
-equivalent) maturity labeling: each claimed capability in the scoped maturity
-register MUST carry exactly one of `implemented`, `target`, or
-`experimental`, and MUST NOT present `target`/`experimental` items as
-`implemented`.
-
-#### Scenario: Missing maturity tag is an offender
-
-- GIVEN a scoped maturity register entry with no maturity tag
-- WHEN this checker runs
-- THEN it MUST report an offender for that entry
-
-#### Scenario: Well-tagged register passes
-
-- GIVEN every scoped maturity entry carries exactly one valid tag
-- WHEN this checker runs
-- THEN it MUST return an empty offender list for maturity labeling
-
----
-
 ### Requirement: Microscopic Graph Node Rejection Checker {#REQ-contract-lint-012}
 
 The unified contract-lint registry MUST include a checker that inspects Execution Graph definitions and fails if any node specifies a microscopic worker operation (such as `read`, `edit`, `test`, `file_edit`, `bash_run`, `grep`, or single tool invocations). The checker MUST report an offender naming the graph file, the offending `node_id`, and the invalid microscopic operation. Execution Graph nodes MUST represent coarse semantic units declaring objective, ownership, invariants, dependencies, and required evidence.

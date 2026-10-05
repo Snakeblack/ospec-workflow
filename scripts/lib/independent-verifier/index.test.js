@@ -1403,8 +1403,8 @@ test("REQ-independent-verification-006 [Adversarial]: bug GREEN must chain to PA
 });
 
 test("REQ-independent-verification-010: Successful challenge results satisfy complementary verification", () => {
-  const { createChallengePlan } = require("../adversarial-challenges/planner.js");
-  const { emitChallengeResult } = require("../adversarial-challenges/runner.js");
+  const { createChallengePlan } = require("../test-support/k6c-challenge-fixtures.js");
+  const { emitChallengeResult } = require("../test-support/k6c-challenge-fixtures.js");
   const harness = buildHarness();
 
   const challengePlan = createChallengePlan({
@@ -1439,8 +1439,8 @@ test("REQ-independent-verification-010: Successful challenge results satisfy com
 });
 
 test("REQ-independent-verification-010: Failed challenge result fails closed with CHALLENGE_VERIFICATION_FAILED", () => {
-  const { createChallengePlan } = require("../adversarial-challenges/planner.js");
-  const { emitChallengeResult } = require("../adversarial-challenges/runner.js");
+  const { createChallengePlan } = require("../test-support/k6c-challenge-fixtures.js");
+  const { emitChallengeResult } = require("../test-support/k6c-challenge-fixtures.js");
   const harness = buildHarness();
 
   const challengePlan = createChallengePlan({
@@ -1477,7 +1477,7 @@ test("REQ-independent-verification-010: Failed challenge result fails closed wit
 });
 
 test("REQ-independent-verification-010: Budget exhaustion during challenges fails closed with CHALLENGE_BUDGET_EXHAUSTED", () => {
-  const { createChallengePlan } = require("../adversarial-challenges/planner.js");
+  const { createChallengePlan } = require("../test-support/k6c-challenge-fixtures.js");
   const harness = buildHarness();
 
   const challengePlan = createChallengePlan({
@@ -1501,8 +1501,8 @@ test("REQ-independent-verification-010: Budget exhaustion during challenges fail
 });
 
 test("REQ-independent-verification-010: Challenge results alone cannot grant PASS without strategy minimums", () => {
-  const { createChallengePlan } = require("../adversarial-challenges/planner.js");
-  const { emitChallengeResult } = require("../adversarial-challenges/runner.js");
+  const { createChallengePlan } = require("../test-support/k6c-challenge-fixtures.js");
+  const { emitChallengeResult } = require("../test-support/k6c-challenge-fixtures.js");
   const harness = buildHarness();
 
   const challengePlan = createChallengePlan({
@@ -1550,8 +1550,8 @@ test("REQ-independent-verification-010: Challenge results alone cannot grant PAS
 });
 
 test("REQ-independent-verification-010: verifyCandidateWithChallenges accepts exact set and suppresses K6d otherwise", () => {
-  const { createChallengePlan } = require("../adversarial-challenges/planner.js");
-  const { emitChallengeResult } = require("../adversarial-challenges/runner.js");
+  const { createChallengePlan } = require("../test-support/k6c-challenge-fixtures.js");
+  const { emitChallengeResult } = require("../test-support/k6c-challenge-fixtures.js");
   const harness = buildHarness();
 
   function boundPlan() {
@@ -1646,8 +1646,8 @@ test("REQ-independent-verification-010: verifyCandidateWithChallenges accepts ex
 });
 
 test("REQ-independent-verification-010: selected strategy mismatch fails even when the plan is internally canonical", () => {
-  const { createChallengePlan } = require("../adversarial-challenges/planner.js");
-  const { emitChallengeResult } = require("../adversarial-challenges/runner.js");
+  const { createChallengePlan } = require("../test-support/k6c-challenge-fixtures.js");
+  const { emitChallengeResult } = require("../test-support/k6c-challenge-fixtures.js");
   const harness = buildHarness();
 
   function boundResults(plan) {

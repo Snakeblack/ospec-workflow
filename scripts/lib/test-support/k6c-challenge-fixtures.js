@@ -1,7 +1,12 @@
 "use strict";
 
-const { CHALLENGE_TYPES } = require("./catalog.js");
-const { computeChallengePlanId } = require("./integrity.js");
+// Test fixtures for K6c challenge plans and results. The live verifier and
+// Assurance Graph still read challenge evidence (integrity.js), but no runtime
+// produces it since E1.5 retired the planner and runner; these builders keep
+// the plan selection table and the result shape for their tests.
+
+const { CHALLENGE_TYPES } = require("../adversarial-challenges/catalog.js");
+const { computeChallengePlanId, computeChallengeResultId } = require("../adversarial-challenges/integrity.js");
 
 const STRATEGY_CHALLENGE_SELECTION = Object.freeze({
   "bug": {
@@ -162,8 +167,14 @@ function createChallengePlan({
   };
 }
 
+function emitChallengeResult({ planId, candidateId, nodeId, policySnapshotId, evidenceStrategy, challengeType, outcome, evidenceIds = [], details = {} }) {
+  const body = { schema_version: 1, kind: "challenge-result/v1", plan_id: planId, candidate_id: candidateId, node_id: nodeId, policy_snapshot_id: policySnapshotId, evidence_strategy: evidenceStrategy, challenge_type: challengeType, outcome, evidence_ids: [...new Set(evidenceIds)].sort(), details: details && typeof details === "object" && !Array.isArray(details) ? details : {} };
+  return { ...body, result_id: computeChallengeResultId(body) };
+}
+
 module.exports = {
   createChallengePlan,
+  emitChallengeResult,
   STRATEGY_CHALLENGE_SELECTION,
   DEFAULT_CHALLENGE_BUDGET,
 };

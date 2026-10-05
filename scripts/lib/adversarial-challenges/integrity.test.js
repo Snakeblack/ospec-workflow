@@ -2,8 +2,7 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { createChallengePlan } = require("./planner.js");
-const { emitChallengeResult } = require("./runner.js");
+const { createChallengePlan, emitChallengeResult } = require("../test-support/k6c-challenge-fixtures.js");
 const { validateChallengePlan, validateChallengeResultSet } = require("./integrity.js");
 
 const candidateId = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -12,7 +11,7 @@ const policySnapshotId = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 function plan() { return createChallengePlan({ candidateId, nodeId: "repair-core", policySnapshotId, evidenceStrategy: "feature" }); }
 function results(value = plan()) { return value.selected.map((challengeType) => emitChallengeResult({ planId: value.plan_id, candidateId, nodeId: value.node_id, policySnapshotId, evidenceStrategy: value.evidence_strategy, challengeType, outcome: "passed" })); }
 
-test("REQ-adversarial-challenges-002: canonical plan rejects forged binding identity and incomplete partition", () => {
+test("challenge integrity: canonical plan rejects forged binding identity and incomplete partition", () => {
   const original = plan();
   assert.equal(validateChallengePlan(original).ok, true);
   assert.equal(validateChallengePlan({ ...original, node_id: "other" }).ok, false);
