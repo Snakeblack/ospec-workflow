@@ -7,10 +7,7 @@ const { tmpdir } = require("node:os");
 const { join } = require("node:path");
 const test = require("node:test");
 
-const { parseRoutingTable } = require("../route-dispatcher.js");
 const { loadCohort } = require("./cohort.js");
-const { createDeterministicPilotExecutor } = require("./pilot-executor.js");
-const { executePlan, planPairedRuns, summarizePairedCohort } = require("./runner.js");
 const {
   PilotCheckpointError,
   VETO_KINDS,
@@ -19,32 +16,16 @@ const {
   validatePilotMargins,
 } = require("./pilot-checkpoint.js");
 
-const repoRoot = join(__dirname, "../../..");
 const seedRoot = join(__dirname, "../../evals/__fixtures__/k12");
 const marginsPath = join(seedRoot, "pilot-margins.json");
 const cohort = loadCohort(join(seedRoot, "oracle-catalog.json"), join(seedRoot, "tasks"));
 const margins = JSON.parse(readFileSync(marginsPath, "utf8"));
 
-let campaign;
-/** One paired repetition of the real pilot cohort, computed once and cloned per test. */
+// One paired repetition of the real pilot cohort, as the deterministic pilot
+// executor produced it in v2.94.0 (the executor was retired in E1.5); cloned
+// per test.
+const campaign = JSON.parse(readFileSync(join(seedRoot, "snapshots", "pilot-campaign.json"), "utf8"));
 async function realCampaign() {
-  if (!campaign) {
-    const routes = parseRoutingTable(readFileSync(join(repoRoot, "openspec/config.yaml"), "utf8"));
-    const plan = planPairedRuns(cohort, {
-      repetitions: 1,
-      order_seed: "pilot-checkpoint-test",
-      cohort_id: "k12-pilot-checkpoint-test",
-      base_worktree_root: join(tmpdir(), "worktrees"),
-      base_cache_root: join(tmpdir(), "cache"),
-      evaluator: "k12-pilot-deterministic",
-      host: "node",
-      runner_version: "k12-pilot/v1-test",
-    });
-    const completed = await executePlan(plan, createDeterministicPilotExecutor({ catalog: cohort.catalog, routes }), {
-      now: () => "2026-10-03T00:00:00.000Z",
-    });
-    campaign = { runs: completed.runs, report: summarizePairedCohort(completed) };
-  }
   return structuredClone(campaign);
 }
 
