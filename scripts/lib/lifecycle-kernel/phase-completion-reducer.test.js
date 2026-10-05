@@ -7,7 +7,6 @@ const {
   computePayloadHash,
   legacyV267PayloadHash,
 } = require("./phase-completion-reducer.js");
-const { reducePhaseCompletion: exportedReducer } = require("./reducer.js");
 
 const NOW = "2026-09-12T00:00:00.000Z";
 
@@ -374,11 +373,6 @@ test("reducePhaseCompletion: canonicalizes semantically identical envelopes desp
   const two = reducePhaseCompletion(sampleState(), { phase: "design", envelope: second }, { now: NOW });
 
   assert.equal(one.state.phases.design.last_payload_hash, two.state.phases.design.last_payload_hash);
-});
-
-test("reducePhaseCompletion: re-exported from lifecycle-kernel/reducer.js [REQ-lifecycle-kernel-028]", () => {
-  assert.equal(typeof exportedReducer, "function");
-  assert.equal(exportedReducer, reducePhaseCompletion);
 });
 
 test("reducePhaseCompletion: throws typed error when options.now is absent [REQ-lifecycle-kernel-028]", () => {

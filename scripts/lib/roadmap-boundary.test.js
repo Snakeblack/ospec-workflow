@@ -35,13 +35,9 @@ test("Phase 9: verify-lineage.js contains zero forbidden K4a/K4b primitives", ()
   assert.equal(source.includes("resolveCanonicalCandidateId"), true, "Must reuse Candidate/v2 identity helper");
 });
 
-test("REQ-repair-shadow-007: K6a worker primitives contain zero references to K4b or Repair domain", () => {
+test("worker-workspace carries no Repair-domain identifiers (frozen after E1.5)", () => {
   const k6aFiles = [
-    path.resolve(__dirname, "worker-executor.js"),
     path.resolve(__dirname, "worker-workspace.js"),
-    path.resolve(__dirname, "worker-sandbox.js"),
-    path.resolve(__dirname, "worker-sandbox-confine.js"),
-    path.resolve(__dirname, "worker-sandbox-preload.js"),
   ];
 
   for (const file of k6aFiles) {
@@ -93,14 +89,9 @@ test("REQ-harness-authority-canon-010: K3/K4a/K4b/K6a do not import K6b modules"
   const roots = [
     path.resolve(__dirname, "execution-identities"),
     path.resolve(__dirname, "execution-graph"),
-    path.resolve(__dirname, "repair-shadow"),
   ];
   const k6aFiles = [
-    path.resolve(__dirname, "worker-executor.js"),
     path.resolve(__dirname, "worker-workspace.js"),
-    path.resolve(__dirname, "worker-sandbox.js"),
-    path.resolve(__dirname, "worker-sandbox-confine.js"),
-    path.resolve(__dirname, "worker-sandbox-preload.js"),
   ];
 
   function collectJs(dir) {
@@ -143,14 +134,9 @@ test("REQ-harness-authority-canon-011: K3/K4a/K4b/K6a do not import K6c adversar
   const roots = [
     path.resolve(__dirname, "execution-identities"),
     path.resolve(__dirname, "execution-graph"),
-    path.resolve(__dirname, "repair-shadow"),
   ];
   const k6aFiles = [
-    path.resolve(__dirname, "worker-executor.js"),
     path.resolve(__dirname, "worker-workspace.js"),
-    path.resolve(__dirname, "worker-sandbox.js"),
-    path.resolve(__dirname, "worker-sandbox-confine.js"),
-    path.resolve(__dirname, "worker-sandbox-preload.js"),
   ];
 
   function collectJs(dir) {
@@ -208,7 +194,7 @@ test("REQ-harness-authority-canon-013: K6d is implemented advisory evidence whil
   assert.equal(MATURITY_TAGS["k8-evaluation-attestation"], "target");
   assert.equal(MATURITY_TAGS["k9-profile-promotion"], "target");
 
-  const upstreamRoots = ["execution-identities", "execution-graph", "repair-shadow"];
+  const upstreamRoots = ["execution-identities", "execution-graph"];
   for (const root of upstreamRoots) {
     const dir = path.resolve(__dirname, root);
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {

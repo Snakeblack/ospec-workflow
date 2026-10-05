@@ -8,10 +8,6 @@ const {
   createRunnerReceiptAuthority,
   issueRunnerReceiptChannel,
 } = require("../independent-verifier/internal/runner-receipt-channel.js");
-const {
-  persistRunnerReceipts,
-  rehydrateAndIssueRunnerReceiptChannel,
-} = require("../independent-verifier/runner-receipt-store.js");
 
 const MISSING_EVIDENCE_ID = "sha256:0000000000000000000000000000000000000000000000000000000000000000";
 const TEST_RUNNER_AUTHORITY = createRunnerReceiptAuthority({
@@ -84,6 +80,4 @@ function createTestRunnerReceiptChannel(input) {
 module.exports = {
   createTestRunnerReceiptChannel,
   createTestRunnerReceiptChannelFromReceipts,
-  persistTestRunnerReceipts: persistRunnerReceipts,
-  rehydrateTestRunnerReceiptChannel: rehydrateAndIssueRunnerReceiptChannel,
 };
