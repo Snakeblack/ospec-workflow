@@ -299,24 +299,6 @@ Normative harness-evolution documentation MUST label independent verifier, evide
 - THEN those capabilities MUST NOT be tagged `implemented` solely by K6c
 - AND MUST remain `target` or `experimental` until their owning slice
 
-### Requirement: Challenge Plans And Results Are Non-Authoritative Complementary Evidence {#REQ-harness-authority-canon-012}
-
-ChallengePlan and ChallengeResult contracts and execution outputs MUST serve exclusively as complementary verification evidence. They MUST NOT constitute a second semantic authority, delivery authority, or lifecycle decision engine. A successful challenge run MUST NOT grant delivery authorization, approve candidate promotion, or bypass OpenSpec/Git/Candidate authority. Any operation that attempts to derive delivery authorization or lifecycle promotion from challenge results alone MUST fail closed with a structured reason code.
-
-#### Scenario: Challenge outputs consumed as complementary evidence only
-
-- GIVEN a complete ChallengePlan and successful ChallengeResult records for a frozen Candidate
-- WHEN candidate verification and lifecycle status are evaluated
-- THEN the challenge outputs MUST be treated as complementary verification evidence
-- AND MUST NOT be treated as an autonomous lifecycle or delivery authorization
-
-#### Scenario: Attempt to grant delivery authority from challenge results fails closed
-
-- GIVEN an operation that attempts to authorize delivery or candidate promotion based solely on passing challenge results
-- WHEN authority is evaluated
-- THEN the operation MUST fail closed
-- AND OpenSpec, Git, and frozen Candidate verification MUST remain the sole authority
-
 ### Requirement: K6d Reports Are Advisory Candidate-Bound Evidence {#REQ-harness-authority-canon-013}
 
 Normative harness documentation MUST label K6d complexity-architecture-delta

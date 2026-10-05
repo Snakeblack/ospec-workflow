@@ -16,4 +16,4 @@ Son historia. Algunos se citan como **insumo** de un ítem del roadmap: ese íte
 
 El roadmap K1–K12 correspondiente está en [`../2026-10-03-harness-evolution-kernel.md`](../2026-10-03-harness-evolution-kernel.md).
 
-**Tests que aún leen este archivo:** el checker `k1-maturity` (REQ-contract-lint-011) valida el registro de madurez de `harness-evolution.md`, y `k21-maturity-docs`, `k2a-maturity-docs`, `k3-readiness-reconciliation` y `roadmap-reconciliation` comprueban su contenido. Como el documento ya no cambia, E1.5 decide si se retiran.
+**Tests:** ningún test ni checker lee ya este archivo. E1.5 retiró en v2.95.0 el checker `k1-maturity` (REQ-contract-lint-011) y los tests `k21-maturity-docs`, `k2a-maturity-docs`, `k3-readiness-reconciliation` y `roadmap-reconciliation`, porque el documento ya no cambia.

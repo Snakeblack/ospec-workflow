@@ -13,7 +13,6 @@
 - assurance-graph: Content-addressed Assurance Graph projection, cryptographic replay, and stored-payload reconcile | sources: scripts/lib/assurance-graph/*.js
 - kernel-contract-schemas: Versioned kernel JSON Schema families, manifest, contract-claims, and K1 compatibility pins | sources: schemas/kernel/**/*.schema.json, schemas/kernel/manifest.json, schemas/kernel/contract-claims.json, scripts/lib/lifecycle-kernel/k1-compat.js
 - git-precommit-hook: Git pre-commit local validation — staged-blob syntax checking (.js/.mjs/.cjs/.json read from the Git index, fail-closed), Strict TDD parity, bypass, conservative affected-target detection with ALL_TARGETS fallback, and differential test selection | sources: scripts/hooks/pre-commit-hook.js, scripts/hooks/lib/staged-validator.js, scripts/hooks/lib/git-state.js, scripts/setup-git-hooks.js | since: v2.60.2 (ad96605) — drift window v2.60.2..main (1a2d084: runtime-lib ALL_TARGETS invalidation + real .mjs validation) pending reconcile
-- evaluation-attestation: K8 Candidate Evaluation Attestation: pure constructor/validator replaying the K7 binding and approved lineage, and CAS + single-use OperationPermit issuer bound to the operation identity binding | sources: scripts/lib/evaluation-attestation/index.js, scripts/lib/evaluation-attestation/issuer.js
 
 ## Entries (append-only log; latest row per domain wins)
 | domain | status | batch | commit | timestamp (UTC) |
@@ -60,5 +59,4 @@
 | agents | reconciled | - | 4f96084 | 2026-09-05T14:34:57Z |
 | kernel-contract-schemas | reconciled | - | 12062547 | 2026-10-02T20:32:59Z |
 | kernel-contract-schemas | reconciled | - | 12062547 | 2026-10-02T20:36:32Z |
-| evaluation-attestation | done | 10 | f37ec314 | 2026-10-02T20:41:00Z |
 | kernel-contract-schemas | reconciled | - | f3d27273 | 2026-10-02T21:28:17Z |

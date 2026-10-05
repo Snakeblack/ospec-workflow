@@ -196,17 +196,6 @@ test("REQ-harness-authority-canon-011: K6c challenge and projection surfaces tag
   assert.equal(MATURITY_TAGS["k8-evaluation-attestation"], "target");
 });
 
-test("REQ-harness-authority-canon-012: Challenge results cannot grant delivery authority and fail closed", () => {
-  const { rejectDeliveryAuthorityMisuse } = require("./adversarial-challenges/index.js");
-  const misuse = rejectDeliveryAuthorityMisuse({
-    operation: "deliver",
-    from_challenge_results_alone: true,
-  });
-
-  assert.equal(misuse.ok, false);
-  assert.equal(misuse.reason_code, "CHALLENGE_AUTHORITY_MISUSE");
-});
-
 test("REQ-harness-authority-canon-013: K6d is implemented advisory evidence while K7-K9 remain targets", () => {
   const MATURITY_TAGS = {
     "k6d-complexity-architecture-delta": "implemented-advisory",

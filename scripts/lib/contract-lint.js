@@ -15,7 +15,6 @@ const { check: checkBudgetConstant } = require("./contract-checkers/i3-budget-co
 const { check: checkK1SchemaCompat } = require("./contract-checkers/k1-schema-compat.js");
 const { check: checkK1Emission } = require("./contract-checkers/k1-emission.js");
 const { check: checkK1ProseAuthority } = require("./contract-checkers/k1-prose-authority.js");
-const { check: checkK1Maturity } = require("./contract-checkers/k1-maturity.js");
 const { check: checkK4aMicroscopicNodes } = require("./contract-checkers/k4a-microscopic-nodes.js");
 const { check: checkK4aObligationCompleteness } = require("./contract-checkers/k4a-obligation-completeness.js");
 const { check: checkK5FailureTransitionMatrix } = require("./contract-checkers/k5-failure-transition-matrix.js");
@@ -58,7 +57,6 @@ const DEFAULT_REGISTRY = [
   checkK1SchemaCompat,
   checkK1Emission,
   checkK1ProseAuthority,
-  checkK1Maturity,
   checkK4aMicroscopicNodes,
   checkK4aObligationCompleteness,
   checkK5FailureTransitionMatrix,

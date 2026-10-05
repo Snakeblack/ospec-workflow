@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.94.0, 2026-10-05.
+> **Versión de referencia:** v2.95.0, 2026-10-05.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -139,7 +139,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E1.5 `kernel-wiring-inventory` y, después, E1.4 `ospec-check-and-close`, que es el primer consumidor de lo que E1.5 decida cablear. E1.3 quedó entregado en v2.94.0: `ospec signals` deriva las señales de impacto de la declaración y del diff, cada una con su razón, y abre el gate de operación irreversible. E2.1 `knowledge-map-contract` espera a E1.4. La etapa 0 quedó cerrada en v2.91.0.
+**▶ SIGUIENTE:** E1.5 (b) y (c), que retiran K12 executor y el bloque acoplado del kernel, y después E1.4 `ospec-check-and-close`. E1.5 (a) quedó entregado en v2.95.0. E2.1 `knowledge-map-contract` espera a E1.4. La etapa 0 quedó cerrada en v2.91.0.
 
 **Dependencias:**
 
@@ -269,6 +269,9 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
   - Inventario de cada módulo no cableado (Execution Graph, Authority Store, Assurance Graph, verifier independiente, Repair shadow, K12, attestation, lifecycle-model, worker-*). Para cada uno se decide si se **cablea** (indicando qué ítem lo consume, empezando por E1.4), se **congela** (se mantiene sin inversión) o se **retira** (se borra junto con sus tests).
   - También entran los tests y checkers que leen la [arquitectura archivada](archive/2026-10-03-arquitectura/harness-evolution.md): `k1-maturity`, `k21-maturity-docs`, `k2a-maturity-docs`, `k3-readiness-reconciliation` y `roadmap-reconciliation`.
 - **Hecho cuando:** ningún módulo queda sin ítem dueño o sin decisión explícita.
+- **Inventario y decisión (2026-10-05):** [análisis de cableado](../analysis/2026-10-05-inventario-cableado-kernel.md). De las 51,6 k líneas de producción de `scripts/lib`, se distribuyen 19,1 k (no 9 k): Execution Graph, Assurance Graph y parte del verifier llegan al runtime por el binding K7 del review, que E1.4 reutiliza. Quedan 108 ficheros (28,6 k líneas) sin cablear. Decisión: se **retiran** 64 (19,7 k líneas: lifecycle K2, Authority Store y permits K2.1, conformance host K2a, budgets K5, repair shadow K4b, workers K6a salvo `worker-workspace`, challenges K6c sin cablear, attestation K8, pilot y campaign executor de K12, y el binding de identidad de operación); se **congelan** 19 con dueño (verifier K6b → E1.4, delta K6d → E3.1, `quality-review-kpis` → E4.1, `k1-compat`, `worker-workspace`, los satélites de `verify-lineage` y tres checkers K1); se **cablean** 6 de K12 en E4.1, y 19 son *tooling* de build. También se retiran los 5 tests y checkers que leían la arquitectura archivada. Hallazgo para E1.4: las skills citan 8 scripts que no se distribuyen (`archive-transaction-run.js`, `verify-lineage.js`, `apply-resume.js`, `quality-gates.js` y `lifecycle-hooks.js`, con sus dependencias), y `ospec close` necesitará `archive-transaction.js` en el runtime.
+- **Entrega:** PRs encadenados: (a) checkers de la arquitectura archivada, challenges K6c, attestation K8 y binding de identidad de operación; (b) K12; (c) el bloque acoplado K2, K2.1, K2a, K5, K4b y K6a, con sus specs, checkers y entradas de `k1-scope-guard`.
+- **(a) entregado en v2.95.0:** se retiran `k1-maturity` (y REQ-contract-lint-011), `k21-maturity-docs`, `k2a-maturity-docs`, `k3-readiness-reconciliation` y `roadmap-reconciliation`; planner, runner, mutator, budget, diff-scope e índice de K6c (REQ-adversarial-challenges-002 a 004 y REQ-harness-authority-canon-012); el código de K8 y su dominio de spec `evaluation-attestation`, y `operation-identity-binding`. El planner pasa a `test-support/k6c-challenge-fixtures.js`, porque el verifier y el Assurance Graph distribuidos siguen leyendo planes y resultados de challenge en sus tests.
 
 ### E1.6 — `idd-default-entry`
 
@@ -453,24 +456,24 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 | `done` | **O4+O5** | Review selectivo y linaje acotado | Review por obligación (E1.4) |
 | `done` | **O6A** | Archive híbrido transaccional | `ospec close` (E1.4); deuda en E5.6 |
 | `done` | **K1** | Contract suite, vocabulario y clasificación (v2.37.0) | Señales de impacto (E1.3) |
-| `done` | **K2** | Lifecycle, Minimal Kernel Harness e invariantes (v2.38.0) | E1.5 decide su cableado |
-| `done` | **K2.1** | Authority Store (CAS), OperationPermit y semántica de efectos (v2.39.0) | E1.5 |
-| `done` | **K2a** | Headless Conformance Host y adapter de referencia, implemented en v2.40.0 | E1.5 |
-| `done` | **K3** | Identidades de ejecución y Candidate (v2.42.x) | E1.5 |
+| `done` | **K2** | Lifecycle, Minimal Kernel Harness e invariantes (v2.38.0) | Se retira en E1.5 (c); `k1-compat` queda congelado |
+| `done` | **K2.1** | Authority Store (CAS), OperationPermit y semántica de efectos (v2.39.0) | Se retira en E1.5 (c) |
+| `done` | **K2a** | Headless Conformance Host y adapter de referencia, implemented en v2.40.0 | Se retira en E1.5 (c) |
+| `done` | **K3** | Identidades de ejecución y Candidate (v2.42.x) | Cableado: Candidate v2 del linaje de review (E1.4) |
 | `done` | **`k3-readiness-remediation`** | Relación, successor y empaquetado reconciliados; archivado | — |
-| `done` | **K4a** | Execution Graph compiler, Obligation Manifest y replay (verificado en v2.45.7) | E1.5 |
-| `done` | **K5** | Budgets, failures y recovery (v2.45.13) | E1.5 |
-| `done` | **K6a** | Aislamiento de workers y cápsula de work order (v2.46.0–v2.47.2) | E1.5 |
-| `done` | **K4b** | Repair shadow execution (v2.48.x) | Obligación de reproducción (E1.4) |
-| `done` | **K6b** | Verifier independiente, provenance y Assurance Graph (v2.55.0) | E1.4 y E1.5 |
-| `done` | **K6c** | Challenges adversariales por política (v2.56.x) | E1.5 |
+| `done` | **K4a** | Execution Graph compiler, Obligation Manifest y replay (verificado en v2.45.7) | Cableado vía el binding K7 del review (E1.4) |
+| `done` | **K5** | Budgets, failures y recovery (v2.45.13) | Se retira en E1.5 (c) |
+| `done` | **K6a** | Aislamiento de workers y cápsula de work order (v2.46.0–v2.47.2) | Se retira en E1.5 (c), salvo `worker-workspace` (congelado) |
+| `done` | **K4b** | Repair shadow execution (v2.48.x) | Se retira en E1.5 (c): la reproducción la prueban las dos ejecuciones de `ospec check` |
+| `done` | **K6b** | Verifier independiente, provenance y Assurance Graph (v2.55.0) | Lo distribuido sigue vía K7; el resto, congelado con dueño E1.4 |
+| `done` | **K6c** | Challenges adversariales por política (v2.56.x) | Catálogo e integridad siguen; planner, runner, mutator y budget retirados en v2.95.0 |
 | `done` | **K6d** | Delta de complejidad y arquitectura, advisory | E3.1 |
 | `done` | **PP1/PP2** | Elegibilidad de rutas con suelos de riesgo; contrato lite compacto | Señales de impacto (E1.3) |
 | `done` | **CX0/CX1** | Medición de contexto; envelope y reducer de estado | E0.0 y E1.2 |
-| `done` | **Binding de identidad de operación** | Gate de ambigüedad en SubagentStop (v2.69.0) | E1.2 |
+| `done` | **Binding de identidad de operación** | Gate de ambigüedad en SubagentStop (v2.69.0) | Retirado en v2.95.0: E1.2 se entregó sin él |
 | `done` | **K7 mínimo** | Binding de review con Candidate y Policy, lineage v3 (v2.70.0) | E1.4 |
-| `done` | **K8 mínimo** | `CandidateEvaluationAttestation` (v2.71.0–v2.73.1) | Aparcado con K10-delivery |
-| `done` | **K12 focal** | Oracle por fixture, campaña de maquinaria y cohorte de 22 tareas (v2.70.0–v2.78.0) | E4.1 |
+| `done` | **K8 mínimo** | `CandidateEvaluationAttestation` (v2.71.0–v2.73.1) | Código retirado en v2.95.0; el esquema sigue en `schemas/kernel` |
+| `done` | **K12 focal** | Oracle por fixture, campaña de maquinaria y cohorte de 22 tareas (v2.70.0–v2.78.0) | E4.1 cablea `worker-record`, `runner`, `run-manifest`, `cohort`, el oracle y el checkpoint; pilot y campaign executor se retiran en E1.5 (b) |
 | `done` | **Piloto Adaptive Repair** | Checkpoint determinista `continue` (v2.79.0) y calibración con agentes reales `continue` (v2.80.0) | Obligación de reproducción (E1.4) |
 | `done` | **Engram por target** | Configuración automática en los 7 targets (v2.81.0) | E3.5 |
 

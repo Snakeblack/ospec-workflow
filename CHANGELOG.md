@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.95.0] - 2026-10-05
+
+### Added
+- **Inventario de cableado del kernel (E1.5)**: `docs/analysis/2026-10-05-inventario-cableado-kernel.md` mide qué parte de `scripts/lib` llega a un proyecto consumidor: 19,1 k de 51,6 k líneas de producción, no las 9 k que estimaba el roadmap, porque Execution Graph, Assurance Graph y parte del verifier se distribuyen a través del binding K7 del review. Clasifica los 108 ficheros sin cablear (28,6 k líneas) y recoge la decisión: retirar 64, congelar 19 con dueño, cablear 6 de K12 en E4.1 y conservar 19 de *tooling*. También detecta que las skills citan 8 scripts que no se distribuyen.
+
+### Removed
+- **Checkers de la arquitectura archivada**: `k1-maturity` (con REQ-contract-lint-011), `k21-maturity-docs`, `k2a-maturity-docs`, `k3-readiness-reconciliation` y `roadmap-reconciliation`. Validaban un documento que ya no cambia y fijaban filas del roadmap vigente.
+- **Ejecución de challenges K6c**: planner, runner, mutator, budget, diff-scope e índice, con REQ-adversarial-challenges-002 a 004 y REQ-harness-authority-canon-012. Se conservan el catálogo y la integridad de planes y resultados, que el verifier y el Assurance Graph distribuidos siguen leyendo; el planner pasa a `test-support/k6c-challenge-fixtures.js` para sus tests.
+- **Attestation K8**: `evaluation-attestation/` y su dominio de spec. El esquema `candidate-evaluation-attestation/v1` sigue en `schemas/kernel`.
+- **`operation-identity-binding`**: E1.2 se entregó sin él y ningún hook lo usaba.
+
+### Changed
+- **Roadmap**: E1.5 registra el inventario, la decisión y la entrega en PRs encadenados; la tabla "Base entregada" indica qué se cablea, qué se congela y qué se retira de cada pieza del programa K.
+
+**Verificación directa**: `node scripts/check.js` (3710 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.94.0] - 2026-10-05
 
 ### Added

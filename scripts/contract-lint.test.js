@@ -29,12 +29,12 @@ test("unified contract lint: every registered checker reports zero offenders aga
   }
 });
 
-test("unified contract lint: DEFAULT_REGISTRY includes the four K1 checkers", () => {
+test("unified contract lint: DEFAULT_REGISTRY includes the three K1 checkers", () => {
   const lintSource = fs.readFileSync(path.join(__dirname, "lib", "contract-lint.js"), "utf8");
   assert.match(lintSource, /k1-schema-compat/);
   assert.match(lintSource, /k1-emission/);
   assert.match(lintSource, /k1-prose-authority/);
-  assert.match(lintSource, /k1-maturity/);
+  assert.doesNotMatch(lintSource, /k1-maturity/, "k1-maturity read the archived architecture and was retired in E1.5");
   assert.ok(DEFAULT_REGISTRY.length >= 7);
   for (const checker of DEFAULT_REGISTRY) {
     assert.ok(Array.isArray(checker({ root: ROOT })));

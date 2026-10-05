@@ -19,4 +19,3 @@ source: local
 - assurance-graph: Content-addressed Assurance Graph projection, replay, and reconcile → ../assurance-graph/spec.md
 - kernel-contract-schemas: Versioned kernel JSON Schema families, manifest, claims, and K1 pins → ../kernel-contract-schemas/spec.md
 - git-precommit-hook: Git pre-commit local validation — staged-blob syntax checking read from the Git index (fail-closed), Strict TDD parity, env-var bypass, conservative affected-target detection with ALL_TARGETS fallback, differential test selection, and temp-repo integration coverage → ../git-precommit-hook/spec.md
-- evaluation-attestation: K8 Candidate Evaluation Attestation — pure constructor/validator replaying the K7 binding and approved lineage, and CAS + single-use OperationPermit issuer bound to the operation identity binding → ../evaluation-attestation/spec.md
