@@ -159,6 +159,9 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/idd-signals.test.js",
   "scripts/lib/idd-workspace.js",
   "scripts/lib/idd-workspace.test.js",
+  // E1.4 (0) IDD configuration in idd/config.yaml, outside openspec/ (roadmap harness-evolution).
+  "scripts/lib/idd-config.js",
+  "scripts/lib/idd-config.test.js",
   // Quality Review Gate successor (live v2 post-verify).
   "scripts/lib/quality-review-kpis.js",
   "scripts/lib/quality-review-kpis.test.js",
@@ -481,10 +484,6 @@ test("K1 scope guard: fixed routing and phase validation remain byte-equivalent 
             /# -{20,}\n#\n# -{20,}\n# quality_review\.attribution_override:.*?- "public-kernel-contract-unattributed"\n/gs,
             ""
           )
-          // Sanctioned successor evolution (E1.3 impact-signals): the top-level
-          // `impact:` section feeds IDD signal derivation (REQ-idd-012), never
-          // SDD routing, so it is normalized away with its leading comment.
-          .replace(/(?:^#[^\n]*\n)*^impact:\n(?:[ \t]+[^\n]*\n)*/m, "")
           .replace(/\n{3,}/g, "\n\n");
       assert.equal(
         normalizeConfig(baseline.stdout),

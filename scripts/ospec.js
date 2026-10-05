@@ -11,6 +11,7 @@
 
 const { parseArgs } = require("node:util");
 
+const { IddConfigError } = require("./lib/idd-config.js");
 const { nextForChange, nextForProject, statusOf } = require("./lib/idd-next.js");
 const { IddRecordError, recordGate, recordIntent, recordSignal, recordWithdraw } = require("./lib/idd-record.js");
 const { IddImpactError } = require("./lib/idd-impact.js");
@@ -243,6 +244,7 @@ async function main(argv = process.argv.slice(2)) {
       usage ||
       error instanceof IddRecordError ||
       error instanceof IddStoreError ||
+      error instanceof IddConfigError ||
       error instanceof IddImpactError ||
       error instanceof IddWorkspaceError;
     if (!known) throw error;

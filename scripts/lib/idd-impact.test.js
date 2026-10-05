@@ -1,7 +1,7 @@
 "use strict";
 
 // E1.3 impact-signals: path patterns per impact signal, stack defaults and the
-// `impact:` section of openspec/config.yaml (openspec/specs/idd/spec.md,
+// `impact:` section of idd/config.yaml (openspec/specs/idd/spec.md,
 // REQ-idd-012).
 
 const test = require("node:test");
@@ -15,8 +15,8 @@ const {
   detectStacks,
   globToRegExp,
   matchImpact,
-  parseProjectConfig,
   resolvePatterns,
+  validateImpact,
 } = require("./idd-impact.js");
 
 test("impact signals are the three path-driven signals of the catalog", () => {
@@ -99,45 +99,16 @@ test("matchImpact names the first matching pattern per signal and honours exclus
   assert.deepStrictEqual(matchImpact("src\\auth\\login.js", patterns).map((m) => m.signal), ["security-boundary"]);
 });
 
-test("parseProjectConfig reads strict_tdd and the impact section", () => {
-  const config = parseProjectConfig(
-    [
-      "schema: spec-driven",
-      "strict_tdd: true",
-      "testing:",
-      "  runner: node",
-      "impact:",
-      "  stack: [node, go]",
-      "  defaults: true",
-      "  public_contract:",
-      '    - "scripts/ospec.js"',
-      "    - hooks/hooks.json   # hook contract",
-      "  persistent_data: ['scripts/lib/idd-store.js']",
-      "  exclude: []",
-      "routing:",
-      "  - name: lite",
-    ].join("\n"),
+test("validateImpact normalizes the parsed impact section", () => {
+  assert.deepStrictEqual(
+    validateImpact({ stack: "node", defaults: "false", public_contract: "api/**", exclude: "" }),
+    { stack: ["node"], defaults: false, public_contract: ["api/**"], exclude: [] },
   );
-  assert.deepStrictEqual(config, {
-    strictTdd: true,
-    impact: {
-      stack: ["node", "go"],
-      defaults: true,
-      public_contract: ["scripts/ospec.js", "hooks/hooks.json"],
-      persistent_data: ["scripts/lib/idd-store.js"],
-      exclude: [],
-    },
-  });
+  assert.deepStrictEqual(validateImpact({}), {});
 });
 
-test("parseProjectConfig tolerates a missing or empty impact section", () => {
-  assert.deepStrictEqual(parseProjectConfig(""), { strictTdd: false, impact: {} });
-  assert.deepStrictEqual(parseProjectConfig("impact:\nother: 1\n"), { strictTdd: false, impact: {} });
-  assert.deepStrictEqual(parseProjectConfig("strict_tdd: false\n"), { strictTdd: false, impact: {} });
-});
-
-test("parseProjectConfig rejects unknown impact keys and stacks", () => {
-  assert.throws(() => parseProjectConfig("impact:\n  public_api: [src/**]\n"), /unknown impact key: public_api/);
-  assert.throws(() => parseProjectConfig("impact:\n  stack: cobol\n"), /unknown stack: cobol/);
-  assert.throws(() => parseProjectConfig("impact:\n  defaults: maybe\n"), /impact.defaults must be true or false/);
+test("validateImpact rejects unknown impact keys and stacks", () => {
+  assert.throws(() => validateImpact({ public_api: ["src/**"] }), /unknown impact key: public_api/);
+  assert.throws(() => validateImpact({ stack: "cobol" }), /unknown stack: cobol/);
+  assert.throws(() => validateImpact({ defaults: "maybe" }), /impact.defaults must be true or false/);
 });
