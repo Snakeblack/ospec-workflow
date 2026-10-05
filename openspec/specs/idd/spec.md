@@ -154,10 +154,10 @@ until E3.1 delivers ADR impact declarations.
   after it, both runs recorded by the CLI.
 - `living-doc-current`: `change.md` holds the template sections and is current
   at close.
-- `contract-spec-and-test`: the contract document and its test, both touched
-  by the change, with the test passing.
-- `migration-test`: declared compatibility or rollback plus a passing migration
-  test.
+- `contract-spec-and-test`: a contract document and a test, both touched by
+  the change, with every check passing on the same tree (REQ-idd-015).
+- `migration-test`: the declared compatibility or rollback plan plus a passing
+  migration test run on the current tree (REQ-idd-015).
 - `frozen-review`: an independent trust review with frozen findings and at most
   one bounded correction.
 - `adr-impact-declaration`: `none`, `conforms`, `amends` or `contradicts` per
@@ -393,7 +393,8 @@ absent every key takes its default. Its top-level keys MUST be only `mode`
 (`idd` or `sdd`, the project mode of REQ-idd-001; absent means none),
 `strict_tdd` (`true` or `false`, default `false`), `checks` (the checks
 `ospec check` runs, as `name: command` in declared order, REQ-idd-014; absent
-means none) and `impact` (the impact section of REQ-idd-012). An unknown or repeated key, a value outside its
+means none), `impact` (the impact section of REQ-idd-012) and `contracts`
+(where contract documents and their tests live, REQ-idd-015). An unknown or repeated key, a value outside its
 domain or an unreadable line MUST be refused with the code `config-invalid`;
 invalid contents of `impact` keep the code `impact-config-invalid`.
 
@@ -419,10 +420,11 @@ outside git or before the first commit; the base never moves afterwards.
 base and record what that adds (REQ-idd-006), then run every check of
 `idd/config.yaml` in declared order through the shell in the project root, and
 record each execution as a run. `ospec run` MUST run one test command for
-`repro-test` or `tdd-red-green`, with an optional `--unit`, and record it as a
-run; it MUST refuse any other obligation, an obligation the change does not
-have and an ambiguous intent. A run MUST hold `id`, `purpose` (`checks`,
-`repro-test` or `tdd-red-green`), `command`, `exit_code`, `output_sha256`,
+`repro-test` or `tdd-red-green`, with an optional `--unit`, or for
+`migration-compat-and-test` (REQ-idd-015), and record it as a run; it MUST
+refuse any other obligation, an obligation the change does not have and an
+ambiguous intent. A run MUST hold `id`, `purpose` (`checks`, `repro-test`,
+`tdd-red-green` or `migration-test`), `command`, `exit_code`, `output_sha256`,
 `tree`, `recorded_at` and, for a check, its `name`. `tree` MUST digest the
 working tree the run executed on: `HEAD`, the binary diff of tracked files
 against it and the content of untracked files, never anything under `idd/`. A
@@ -473,3 +475,42 @@ answer; outside a git work tree it MUST be refused with `not-a-git-repo`.
 - THEN `repro-run-pair` evidence MUST name both runs and `repro-test` MUST be
   `satisfied`
 - AND a passing run on the same tree as the failing one MUST NOT record it
+
+### Requirement: Contract And Migration Evidence {#REQ-idd-015}
+
+Contract documents and their tests MUST be recognized by path patterns: base
+patterns for any project (OpenAPI, Swagger, AsyncAPI, protobuf, GraphQL, JSON
+Schema and `docs/api/**` for documents; `*.test.*`, `*.spec.*` and test
+directories for tests), defaults for each detected stack, and the
+`documents` and `tests` lists of the `contracts` section of `idd/config.yaml`,
+whose only other key is `defaults`;
+`contracts.defaults: false` MUST drop the base and stack patterns, and an
+unknown key MUST be refused with `config-invalid`. Matching MUST ignore case.
+On every `ospec check`, `contract-spec-and-test` MUST be satisfied exactly when
+the diff against the change's base touches at least one contract document and
+one test and that check recorded `check-run` evidence; the evidence MUST name
+the tree, that `check-run` evidence and the matching `documents` and `tests`.
+Otherwise it MUST return to `pending` with a reason naming what is missing.
+
+`ospec run --obligation migration-compat-and-test` MUST require `--plan`, the
+declared compatibility or rollback plan, and record a run with purpose
+`migration-test`. A passing run MUST record `migration-test` evidence naming the
+run, its tree and the plan; a failing run MUST return the obligation to
+`pending`. On every `ospec check`, migration evidence whose tree is not the
+current tree MUST return the obligation to `pending`.
+
+#### Scenario: Contract code without its document stays pending
+
+- GIVEN a change whose diff touches `src/api/orders.js` and every check passes
+- WHEN `ospec check` runs
+- THEN `contract-spec-and-test` MUST stay `pending` with a reason naming the
+  missing contract document
+- AND once the diff also touches `api/openapi.yaml` and
+  `src/api/orders.test.js`, the next check MUST satisfy it
+
+#### Scenario: Migration evidence follows the tree
+
+- GIVEN `migration-compat-and-test` satisfied by a passing migration test run
+- WHEN the migration file changes and `ospec check` runs
+- THEN the obligation MUST return to `pending` until the migration test passes
+  again on the new tree

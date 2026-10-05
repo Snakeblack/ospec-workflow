@@ -41,12 +41,13 @@ const OBLIGATION_STATUSES = Object.freeze(["pending", "satisfied", "withdrawn"])
 const GATE_STATUSES = Object.freeze(["open", "resolved"]);
 // What a CLI-observed run was for (REQ-idd-014): the declared checks, or the
 // test command of a red → green pair.
-const RUN_PURPOSES = Object.freeze(["checks", "repro-test", "tdd-red-green"]);
+const RUN_PURPOSES = Object.freeze(["checks", "repro-test", "tdd-red-green", "migration-test"]);
 // Evidence kinds proven by CLI-observed runs, and the run purpose behind each.
 const RUN_EVIDENCE = Object.freeze({
   "check-run": "checks",
   "repro-run-pair": "repro-test",
   "tdd-red-green": "tdd-red-green",
+  "migration-test": "migration-test",
 });
 const SHA256 = /^sha256:[0-9a-f]{64}$/;
 
@@ -168,6 +169,9 @@ function validateState(state) {
     if (entry.kind in RUN_EVIDENCE) validateRunEvidence(entry, runs, runIndex, fail);
     evidenceById.set(entry.id, entry);
   }
+  for (const entry of state.evidence) {
+    if (entry.kind === "contract-spec-and-test") validateContractEvidence(entry, evidenceById, fail);
+  }
 
   for (const obligation of state.obligations) {
     const catalog = OBLIGATION_BY_ID.get(obligation.id);
@@ -239,6 +243,14 @@ function validateRunEvidence(entry, runs, runIndex, fail) {
     }
     return undefined;
   }
+  if (entry.kind === "migration-test") {
+    const run = runOf(detail.run);
+    const plan = typeof detail.plan === "string" && detail.plan.trim() !== "";
+    if (!run || run.purpose !== purpose || run.exit_code !== 0 || run.tree !== detail.tree || !plan) {
+      fail(`evidence ${entry.id} needs a passing migration test run on its tree and the declared compatibility or rollback plan`);
+    }
+    return undefined;
+  }
   const red = runOf(detail.red);
   const green = runOf(detail.green);
   const paired =
@@ -253,6 +265,17 @@ function validateRunEvidence(entry, runs, runIndex, fail) {
     runIndex.get(red.id) < runIndex.get(green.id);
   if (!paired) fail(`evidence ${entry.id} needs a failing run followed by a passing run of the same command on another tree`);
   return undefined;
+}
+
+// contract-spec-and-test needs a contract document and a test in the diff,
+// with every check passing on the same tree (REQ-idd-015).
+function validateContractEvidence(entry, evidenceById, fail) {
+  const detail = entry.detail || {};
+  const check = evidenceById.get(detail.check);
+  const listed = (key) => Array.isArray(detail[key]) && detail[key].length > 0;
+  if (!check || check.kind !== "check-run" || check.detail?.tree !== detail.tree || !listed("documents") || !listed("tests")) {
+    fail(`evidence ${entry.id} needs a contract document, a test and a passing check on its tree`);
+  }
 }
 
 function isIntentAmbiguous(state) {

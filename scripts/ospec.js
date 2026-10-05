@@ -12,7 +12,17 @@
 
 const { parseArgs } = require("node:util");
 
-const { PAIR_OBLIGATIONS, checkVerdict, recordRuns, settleChecks, settlePair } = require("./lib/idd-check.js");
+const {
+  RUN_OBLIGATIONS,
+  checkVerdict,
+  recordRuns,
+  settleChecks,
+  settleContract,
+  settleMigration,
+  settlePair,
+  settleTreeBound,
+} = require("./lib/idd-check.js");
+const { classifyContractPaths } = require("./lib/idd-contracts.js");
 const { IddConfigError } = require("./lib/idd-config.js");
 const { isIntentAmbiguous } = require("./lib/idd-contract.js");
 const { runCommand } = require("./lib/idd-exec.js");
@@ -35,7 +45,8 @@ const USAGE = `Usage:
   ospec signals --change <id> [--path <file>]... [--work-units <n>] [--decision]
                 [--operation <op>]... [--diff] [--base <ref>]
   ospec check --change <id> [--base <ref>]
-  ospec run --change <id> --obligation <repro-test|tdd-red-green> --command <cmd> [--unit <name>]
+  ospec run --change <id> --obligation <repro-test|tdd-red-green|migration-compat-and-test> --command <cmd>
+            [--unit <name>] [--plan <compatibility or rollback plan>]
 
 Options:
   --root <dir>  project root (default: current directory)
@@ -67,6 +78,7 @@ const OPTIONS = {
   base: { type: "string" },
   command: { type: "string" },
   unit: { type: "string" },
+  plan: { type: "string" },
   root: { type: "string" },
   json: { type: "boolean" },
   help: { type: "boolean", short: "h" },
@@ -186,6 +198,8 @@ async function check(root, values) {
   const checks = context.checks.map(({ name, command }) => ({ name, command, ...runCommand(command, { cwd: root }) }));
   const tree = readTreeFingerprint(root);
   const recordedAt = new Date().toISOString();
+  const contractPaths = classifyContractPaths(diff.paths, context.contractPatterns);
+  const reasons = {};
 
   let added;
   const { state, changed } = await mutateChange(
@@ -203,21 +217,28 @@ async function check(root, values) {
       const runs = checks.map((result) => runRecord("checks", result.command, result, treeBefore, recordedAt, { name: result.name }));
       const recorded = recordRuns(derived.state, runs);
       const settled = settleChecks(recorded.state, { tree, runIds: recorded.ids, recordedAt });
-      return { state: settled.state, changed: changedFrom(stored, settled.state) };
+      const bound = settleTreeBound(settled.state, { tree });
+      const contract = settleContract(bound, { tree, checkEvidence: settled.evidence, ...contractPaths, recordedAt });
+      if (contract.reason) reasons["contract-spec-and-test"] = contract.reason;
+      return { state: contract.state, changed: changedFrom(stored, contract.state) };
     }),
   );
-  const verdict = checkVerdict(state, { checks: context.checks, results: checks, treeChanged: tree !== treeBefore });
+  const verdict = checkVerdict(state, { checks: context.checks, results: checks, treeChanged: tree !== treeBefore, reasons });
   return { change: state.change, changed, added, checks, tree, ...verdict, next: nextForChange(state) };
 }
 
-// Runs one test command for a red → green obligation and records the run; a
-// passing run after a failing one on another tree records the pair.
+// Runs one test command for an obligation `ospec run` proves and records the
+// run: a passing run after a failing one on another tree records a red → green
+// pair, and a passing migration test records its evidence with the plan.
 async function runObligation(root, values) {
-  if (!PAIR_OBLIGATIONS.includes(values.obligation)) {
-    throw new UsageError(`run proves ${PAIR_OBLIGATIONS.join(" or ")}; the declared checks run with ospec check`);
+  const purpose = RUN_OBLIGATIONS[values.obligation];
+  if (!purpose) {
+    throw new UsageError(`run proves ${Object.keys(RUN_OBLIGATIONS).join(", ")}; the declared checks run with ospec check`);
   }
+  const migration = values.obligation === "migration-compat-and-test";
   if (!values.change) throw new UsageError("run needs --change <id>");
   if (!values.command) throw new UsageError("run needs --command <cmd>");
+  if (migration && !values.plan?.trim()) throw new UsageError("a migration test run needs --plan <compatibility or rollback plan>");
   const current = await openChange(root, values.change);
   if (isIntentAmbiguous(current)) throw new IddRecordError("ambiguous-intent-open", "nothing runs while the intent is ambiguous");
   const target = current.obligations.find((entry) => entry.id === values.obligation);
@@ -236,9 +257,11 @@ async function runObligation(root, values) {
     root,
     values.change,
     existing((stored) => {
-      const recorded = recordRuns(stored, [runRecord(values.obligation, values.command, result, tree, recordedAt, extra)]);
+      const recorded = recordRuns(stored, [runRecord(purpose, values.command, result, tree, recordedAt, extra)]);
       [runId] = recorded.ids;
-      const settled = settlePair(recorded.state, { obligation: values.obligation, runId, recordedAt });
+      const settled = migration
+        ? settleMigration(recorded.state, { runId, plan: values.plan.trim(), recordedAt })
+        : settlePair(recorded.state, { obligation: values.obligation, runId, recordedAt });
       evidence = settled.evidence;
       return { state: settled.state, changed: true };
     }),
@@ -343,7 +366,7 @@ function describeCheck(result) {
 
 function describeRunResult(result) {
   const lines = describeRun(`${result.run.id}`, result.run);
-  lines.push(result.evidence ? `recorded ${result.evidence}: red → green pair` : "no red → green pair yet");
+  lines.push(result.evidence ? `recorded evidence ${result.evidence}` : "no evidence recorded by this run");
   lines.push(...describeVerdict(result), describeNext(result.next));
   return lines.join("\n");
 }

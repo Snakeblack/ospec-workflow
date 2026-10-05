@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.100.0] - 2026-10-05
+
+### Added
+- **Evidencia de contrato (E1.4, PR b1)** (REQ-idd-015): en cada `ospec check`, `contract-spec-and-test` se satisface si el diff toca un documento de contrato y un test y ese mismo `check` registró la evidencia `check-run`. La evidencia nombra el árbol, esa `check-run` y los documentos y tests tocados. Si falta algo, la obligación vuelve a pendiente con el motivo (sin documento, sin test o checks sin pasar).
+- **Documentos de contrato y tests** (`scripts/lib/idd-contracts.js`): una base para cualquier proyecto (OpenAPI, Swagger, AsyncAPI, protobuf, GraphQL, JSON Schema y `docs/api/**`; `*.test.*`, `*.spec.*` y directorios de test), valores por defecto por stack (`*.d.ts`, `*.pyi`, `*_test.go`, `src/test/**`, `*Tests.cs`…) y la sección `contracts:` de `idd/config.yaml` (`documents`, `tests` y `defaults`). Este repositorio declara `openspec/specs/**`.
+- **Evidencia de migración**: `ospec run --obligation migration-compat-and-test --command <test> --plan <compatibilidad o rollback>` registra una ejecución `migration-test`. Si pasa, la evidencia nombra la ejecución, el árbol y el plan; si falla, la obligación vuelve a pendiente. En cada `check`, la evidencia de un árbol anterior devuelve la obligación a pendiente.
+- **`ospec next`**: pistas `how` para el contrato y la migración.
+
+### Changed
+- **Spec `idd`**: REQ-idd-005 precisa las evidencias de contrato y de migración, REQ-idd-013 añade la clave `contracts` y REQ-idd-014 admite `migration-test` como propósito de ejecución. `validateState` comprueba la coherencia de ambas evidencias.
+- **Roadmap**: E1.4 (b) se parte en (b1), entregado, y (b2), el review de confianza, que es el siguiente.
+
+**Verificación directa**: `node scripts/check.js` (3152 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.99.0] - 2026-10-05
 
 ### Added

@@ -7,11 +7,12 @@
 // inline lists or block lists. Pure: idd-workspace.js reads the file.
 
 const { CHANGE_ROOT, MODES } = require("./idd-contract.js");
+const { validateContracts } = require("./idd-contracts.js");
 const { validateImpact } = require("./idd-impact.js");
 
 const CONFIG_FILE = `${CHANGE_ROOT}/config.yaml`;
-const CONFIG_KEYS = Object.freeze(["mode", "strict_tdd", "checks", "impact"]);
-const SECTION_KEYS = new Set(["checks", "impact"]);
+const CONFIG_KEYS = Object.freeze(["mode", "strict_tdd", "checks", "impact", "contracts"]);
+const SECTION_KEYS = new Set(["checks", "impact", "contracts"]);
 
 class IddConfigError extends Error {
   constructor(message) {
@@ -109,7 +110,16 @@ function parseIddConfig(text) {
   const strictTdd = "strict_tdd" in raw ? parseBoolean("strict_tdd", raw.strict_tdd) : false;
   const checks = raw.checks ? parseChecks(raw.checks.lines) : [];
   const impact = raw.impact ? validateImpact(parseSection("impact", raw.impact.lines)) : {};
-  return { mode, strictTdd, checks, impact };
+  let contracts = {};
+  if (raw.contracts) {
+    try {
+      contracts = validateContracts(parseSection("contracts", raw.contracts.lines));
+    } catch (error) {
+      if (error instanceof IddConfigError) throw error;
+      throw new IddConfigError(error.message);
+    }
+  }
+  return { mode, strictTdd, checks, impact, contracts };
 }
 
 module.exports = {

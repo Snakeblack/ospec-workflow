@@ -5,6 +5,11 @@
 checks:
   test: node scripts/check.js
 
+# Contract documents of this project: its behavioral specs (REQ-idd-015).
+contracts:
+  documents:
+    - openspec/specs/**
+
 # Impact patterns for IDD signals (REQ-idd-012). Each list adds to the base and
 # stack defaults; exclude removes paths.
 impact:

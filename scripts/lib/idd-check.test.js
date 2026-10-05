@@ -10,7 +10,15 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const { RUN_PURPOSES, validateState } = require("./idd-contract.js");
-const { checkVerdict, recordRuns, settleChecks, settlePair } = require("./idd-check.js");
+const {
+  checkVerdict,
+  recordRuns,
+  settleChecks,
+  settleContract,
+  settleMigration,
+  settlePair,
+  settleTreeBound,
+} = require("./idd-check.js");
 const { IddRecordError, recordIntent, recordSignal } = require("./idd-record.js");
 
 const TREE_A = `sha256:${"a".repeat(64)}`;
@@ -158,6 +166,68 @@ test("the verdict is missing while an obligation is pending, then needs-decision
 
   settledState.gates[0] = { id: "irreversible-operation", status: "resolved", answer: "yes", source: "user" };
   assert.strictEqual(checkVerdict(settledState, { checks: [] }).verdict, "ready");
+});
+
+function openMigration() {
+  let state = openBug();
+  ({ state } = recordSignal(state, { id: "persistent-data", reason: "touches db/migrations/004.sql", source: "diff" }));
+  ({ state } = recordSignal(state, { id: "public-contract", reason: "touches src/api/orders.js", source: "diff" }));
+  return state;
+}
+
+function migrationRun(overrides = {}) {
+  return { ...reproRun({ exit_code: 0 }), purpose: "migration-test", command: "npm run test:migrations", ...overrides };
+}
+
+test("a passing migration test with a plan satisfies the migration obligation on its tree only", () => {
+  const recorded = recordRuns(openMigration(), [migrationRun()]);
+  const plan = "additive column; old readers ignore it";
+  const passed = settleMigration(recorded.state, { runId: recorded.ids[0], plan, recordedAt: AT });
+  assert.strictEqual(passed.evidence, "ev-1");
+  assert.deepStrictEqual(passed.state.evidence[0].detail, { run: "run-1", tree: TREE_A, plan });
+  assert.strictEqual(obligation(passed.state, "migration-compat-and-test").status, "satisfied");
+  assert.ok(validateState(passed.state).ok, validateState(passed.state).errors.join("; "));
+
+  const same = settleTreeBound(passed.state, { tree: TREE_A });
+  assert.strictEqual(obligation(same, "migration-compat-and-test").status, "satisfied");
+  const moved = settleTreeBound(passed.state, { tree: TREE_B });
+  assert.deepStrictEqual(obligation(moved, "migration-compat-and-test").evidence, []);
+  assert.strictEqual(obligation(moved, "migration-compat-and-test").status, "pending");
+
+  const failing = recordRuns(passed.state, [migrationRun({ exit_code: 1 })]);
+  const reopened = settleMigration(failing.state, { runId: failing.ids[0], plan, recordedAt: AT });
+  assert.strictEqual(reopened.evidence, null);
+  assert.strictEqual(obligation(reopened.state, "migration-compat-and-test").status, "pending");
+});
+
+test("contract evidence needs a document, a test and this check's passing evidence", () => {
+  const checks = recordRuns(openMigration(), [checkRun()]);
+  const checked = settleChecks(checks.state, { tree: TREE_A, runIds: checks.ids, recordedAt: AT });
+  const input = { tree: TREE_A, checkEvidence: checked.evidence, documents: ["api/openapi.yaml"], tests: ["src/api/orders.test.js"], recordedAt: AT };
+
+  const settled = settleContract(checked.state, input);
+  assert.strictEqual(settled.reason, null);
+  assert.strictEqual(obligation(settled.state, "contract-spec-and-test").status, "satisfied");
+  assert.deepStrictEqual(settled.state.evidence.at(-1).detail, {
+    tree: TREE_A,
+    check: "ev-1",
+    documents: ["api/openapi.yaml"],
+    tests: ["src/api/orders.test.js"],
+  });
+  assert.ok(validateState(settled.state).ok, validateState(settled.state).errors.join("; "));
+
+  const noDocument = settleContract(settled.state, { ...input, documents: [] });
+  assert.match(noDocument.reason, /touches no contract document/);
+  assert.strictEqual(obligation(noDocument.state, "contract-spec-and-test").status, "pending");
+  assert.match(settleContract(checked.state, { ...input, tests: [] }).reason, /touches no test/);
+  assert.match(settleContract(checked.state, { ...input, checkEvidence: null }).reason, /every check must pass/);
+});
+
+test("the verdict names how to prove the migration and contract obligations", () => {
+  const verdict = checkVerdict(openMigration(), { checks: [], reasons: { "contract-spec-and-test": "the diff touches no test" } });
+  const reasons = Object.fromEntries(verdict.missing.map((entry) => [entry.obligation, entry.reason]));
+  assert.match(reasons["migration-compat-and-test"], /no passing migration test on the current tree/);
+  assert.strictEqual(reasons["contract-spec-and-test"], "the diff touches no test");
 });
 
 test("REQ-idd-014 names every run purpose, run field and answer", () => {

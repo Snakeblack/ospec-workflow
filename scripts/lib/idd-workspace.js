@@ -12,6 +12,7 @@ const { execFileSync } = require("node:child_process");
 
 const { CHANGE_ROOT } = require("./idd-contract.js");
 const { CONFIG_FILE, parseIddConfig } = require("./idd-config.js");
+const { resolveContractPatterns } = require("./idd-contracts.js");
 const { detectStacks, normalizePath, resolvePatterns } = require("./idd-impact.js");
 
 const MAX_UNTRACKED_BYTES = 1024 * 1024;
@@ -32,9 +33,17 @@ function readProjectContext(root) {
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
-  const { mode, strictTdd, checks, impact } = parseIddConfig(text);
+  const { mode, strictTdd, checks, impact, contracts } = parseIddConfig(text);
   const stacks = detectStacks(fs.readdirSync(root));
-  return { mode, strictTdd, checks, impact, stacks, patterns: resolvePatterns({ stacks, impact }) };
+  return {
+    mode,
+    strictTdd,
+    checks,
+    impact,
+    stacks,
+    patterns: resolvePatterns({ stacks, impact }),
+    contractPatterns: resolveContractPatterns({ stacks: impact.stack ?? stacks, contracts }),
+  };
 }
 
 function git(root, args) {

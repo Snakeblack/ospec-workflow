@@ -167,6 +167,9 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/idd-check.test.js",
   "scripts/lib/idd-exec.js",
   "scripts/lib/idd-exec.test.js",
+  // E1.4 (b1) contract documents and tests for contract evidence (roadmap harness-evolution).
+  "scripts/lib/idd-contracts.js",
+  "scripts/lib/idd-contracts.test.js",
   // Quality Review Gate successor (live v2 post-verify).
   "scripts/lib/quality-review-kpis.js",
   "scripts/lib/quality-review-kpis.test.js",

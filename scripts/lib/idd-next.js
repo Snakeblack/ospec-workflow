@@ -35,6 +35,9 @@ const HOW = Object.freeze({
     `ospec run --change ${change} --obligation repro-test --command "<test>": once failing before the fix, again passing after it`,
   "tdd-red-green": (change) =>
     `ospec run --change ${change} --obligation tdd-red-green --command "<test>" [--unit <name>]: failing before the code, passing after it`,
+  "contract-spec-and-test": (change) => `update the contract document and its test, then ospec check --change ${change}`,
+  "migration-compat-and-test": (change) =>
+    `ospec run --change ${change} --obligation migration-compat-and-test --command "<migration test>" --plan "<compatibility or rollback>"`,
 });
 
 function byWorkOrder(left, right) {
