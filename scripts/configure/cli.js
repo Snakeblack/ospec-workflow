@@ -83,6 +83,13 @@ const RUNTIME_ENTRY_SCRIPTS = [
   "scripts/lib/federation-baseline-orchestrator.js",
   "scripts/lib/strict-tdd-evidence-remediation.js",
   "scripts/lib/execution-identities/index.js",
+  // Runners the SDD skills cite by path (E1.4 d): archive, apply resume,
+  // lifecycle hooks, quality gates and the verify lineage.
+  "scripts/archive-transaction-run.js",
+  "scripts/lib/apply-resume.js",
+  "scripts/lib/lifecycle-hooks.js",
+  "scripts/lib/quality-gates.js",
+  "scripts/lib/verify-lineage.js",
 ];
 
 const SKILL_ENTRY_SCRIPTS = RUNTIME_ENTRY_SCRIPTS;

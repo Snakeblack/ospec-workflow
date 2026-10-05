@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.102.0, 2026-10-05.
+> **Versión de referencia:** v2.103.0, 2026-10-05.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -119,11 +119,11 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.1** | `idd-contract` | contrato |
 | `done` | **E1.2** | `ospec-cli-core` | feature |
 | `done` | **E1.3** | `impact-signals` | feature |
-| `next-eligible` | **E1.4** | `ospec-check-and-close` | feature |
+| `done` | **E1.4** | `ospec-check-and-close` | feature |
 | `done` | **E1.5** | `kernel-wiring-inventory` | refactor |
 | `pending` | **E1.6** | `idd-default-entry` | feature |
 | `pending` | **E1.7** | `ospec-doctor` | feature |
-| `pending` | **E2.1** | `knowledge-map-contract` | contrato |
+| `next-eligible` | **E2.1** | `knowledge-map-contract` | contrato |
 | `pending` | **E2.2** | `decision-gap-engine` | feature |
 | `pending` | **E2.3** | `foundation-discovery-rounds` | feature |
 | `pending` | **E2.4** | `decision-records-model` | feature |
@@ -134,12 +134,12 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E3.3** | `fitness-functions-in-check` | feature |
 | `pending` | **E3.4** | `team-context-defaults` | feature |
 | `pending` | **E3.5** | `knowledge-memory-loop` | feature |
-| `pending` | **E4.1** | `bench-scenarios` | medición |
+| `next-eligible` | **E4.1** | `bench-scenarios` | medición |
 | `pending` | **E4.2** | `head-to-head-gentle-ai` | medición |
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E1.4 `ospec-check-and-close`, PR (d): distribuir los scripts que citan las skills de SDD. Con v2.102.0 (`ospec close`, PR c), los cuatro criterios de «hecho cuando» de E1.4 se cumplen. En v2.101.0, `ospec review` lleva el review de confianza por el linaje acotado (PR b2); en v2.100.0, `check` y `run` registran la evidencia de contrato y de migración (PR b1); en v2.99.0, `ospec check` y `ospec run` registran lo que ejecutan (PR a); en v2.98.0, la configuración de IDD pasó a `idd/config.yaml` y `openspec/` quedó solo para el modo SDD (PR 0). E1.5 quedó cerrado en v2.97.0: cada módulo de `scripts/lib` tiene dueño o decisión, y el kernel que nadie usaba está retirado. E2.1 `knowledge-map-contract` espera a E1.4. La etapa 0 quedó cerrada en v2.91.0.
+**▶ SIGUIENTE:** E4.1 `bench-scenarios`, empezando por el brazo del modo SDD (la línea base que debe medirse antes de E1.6), y E2.1 `knowledge-map-contract`, que esperaba a E1.4 y fijará el estado de máquina fuera de `openspec/`. E1.4 quedó cerrado en v2.103.0: `ospec check`, `run`, `review` y `close` registran la evidencia de cada obligación, y las skills de SDD ya encuentran en el runtime los scripts que citan. E1.6 espera el checkpoint de E4.1. La etapa 0 quedó cerrada en v2.91.0.
 
 **Dependencias:**
 
@@ -268,6 +268,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **(b1) entregado en v2.100.0:** evidencia de contrato y de migración (REQ-idd-015). `scripts/lib/idd-contracts.js` reconoce los documentos de contrato y sus tests: una base para cualquier proyecto (OpenAPI, Swagger, AsyncAPI, protobuf, GraphQL, JSON Schema y `docs/api/**`; `*.test.*`, `*.spec.*` y directorios de test), los valores por defecto de cada stack y la sección `contracts:` de `idd/config.yaml` (`documents`, `tests`, `defaults`). En cada `check`, `contract-spec-and-test` se satisface si el diff toca un documento de contrato y un test y ese mismo `check` registró la evidencia `check-run`; si no, vuelve a pendiente con el motivo. `ospec run --obligation migration-compat-and-test --command <test> --plan <compatibilidad o rollback>` registra una ejecución `migration-test`: si pasa, la evidencia nombra la ejecución, el árbol y el plan, y en cada `check` vuelve a pendiente si el árbol cambió. Este repositorio declara `openspec/specs/**` como sus documentos de contrato.
 - **(b2) entregado en v2.101.0:** review de confianza con el linaje acotado (REQ-idd-016, `scripts/lib/idd-review.js` sobre `review-lineage.js`, esquema v2 y solo la lente `trust`). `ospec review start` congela el candidato a partir de una instantánea del árbol de trabajo (un objeto *tree* de git, escrito con un índice temporal y sin `idd/`): las rutas que cambia respecto a la base, la huella de su contenido y las líneas cambiadas. Devuelve la petición para el revisor independiente `review-trust`. `review record --result <json>` congela los hallazgos; sin `BLOCKER` ni `CRITICAL`, registra la evidencia `frozen-review`. Con un bloqueante se permite una sola corrección acotada: `review correct` la registra dentro de las rutas congeladas y del presupuesto de líneas, y `review validate` aplica el veredicto de `review-correction` a los IDs congelados. Si la validación falla, el linaje termina. En cada `check`, la evidencia vuelve a pendiente si cambian las rutas revisadas o aparece otra ruta de frontera de seguridad. **Decisión del usuario:** el review sucesor no pide aprobación, pero exige que el candidato haya cambiado, y un cambio admite como mucho 3 reviews. `createSuccessor` no se usa porque exige el ledger de aprobaciones de SDD.
 - **(c) entregado en v2.102.0:** `ospec close` (REQ-idd-017, `scripts/lib/idd-close.js`). Cierra solo si la evidencia de `checks-pass` es del árbol actual; si no, `evidence-stale`, porque el último `check` liquidó en ese árbol todo lo que depende de él. Bajo un lock que vive fuera del directorio del cambio, liquida `living-doc`: `change.md` debe conservar las cuatro secciones, con `Plan` y `Decisions` escritos, y entonces se registra `living-doc-current`. Mientras el documento está al día, `check` no lo cuenta como pendiente. Después rechaza con `close-refused` si queda algo pendiente o un gate abierto, y registra `status: closed` y `closed_at`, que sirven de marca de reanudación. Por último reescribe la sección de evidencia de `change.md` y mueve el cambio a `idd/archive/<fecha>-<id>/`, comparando la huella de inventario de O6A (`computeInventory`, `fingerprintInventory`) antes y después. Si el renombrado falla, copia a un directorio de staging y compara antes de sustituir. Repetir `close` termina un movimiento interrumpido, rechaza un destino distinto (`archive-conflict`) e informa `already_complete`. `archive-transaction.js` llega así al runtime, aunque su transacción sigue siendo del modo SDD. Se cumplen los cuatro criterios de «hecho cuando»: no se cierra sin evidencia, la afirmación del modelo no cierra nada, un cambio de documentación cierra sin review y un diff con migración añade su obligación.
+- **(d) entregado en v2.103.0:** `RUNTIME_ENTRY_SCRIPTS` incluye los cinco scripts que citan las skills y los agentes de SDD y no llegaban a un proyecto consumidor: `archive-transaction-run.js`, `apply-resume.js`, `lifecycle-hooks.js`, `quality-gates.js` y `verify-lineage.js`, con sus dependencias. El runtime pasa de 82 a 89 ficheros, sin dependencias colgando. Un test recorre skills, agentes, reglas, comandos y hooks, y exige que todo script citado que exista en el repositorio y no sea un test se distribuya. El inventario de E1.5 ya los había señalado; `archive-transaction.js` llegó con `ospec close`, y `scripts/lib/cache.js`, citado en un bloque de ejemplo, no existe y no cuenta. **E1.4 queda cerrado.**
 
 ### E1.5 — `kernel-wiring-inventory`
 

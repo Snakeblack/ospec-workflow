@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.103.0] - 2026-10-05
+
+### Fixed
+- **Scripts de SDD que no llegaban al runtime (E1.4, PR d)**: las skills y los agentes de SDD citan por ruta `scripts/archive-transaction-run.js`, `scripts/lib/apply-resume.js`, `scripts/lib/lifecycle-hooks.js`, `scripts/lib/quality-gates.js` y `scripts/lib/verify-lineage.js`, pero no se distribuían, así que en un proyecto consumidor esos pasos no podían ejecutarse. Pasan a `RUNTIME_ENTRY_SCRIPTS` con sus dependencias; el runtime pasa de 82 a 89 ficheros, sin dependencias colgando.
+- Los comentarios de `lifecycle-hooks.js` dejan de escribir una ruta de unidad de Windows literal, que el validador de GitHub Copilot rechaza en el dist; `k1-scope-guard` registra el fichero como evolución sucesora.
+
+### Added
+- **Test de cobertura del runtime** (`scripts/configure/cli.test.js`): todo script que citan skills, agentes, reglas, comandos o hooks, que exista en el repositorio y no sea un test, debe distribuirse.
+
+### Changed
+- **Roadmap**: E1.4 `ospec-check-and-close` queda cerrado; pasan a elegibles E4.1 `bench-scenarios` (empezando por el brazo del modo SDD, línea base antes de E1.6) y E2.1 `knowledge-map-contract`.
+
+**Verificación directa**: `node scripts/check.js` (3178 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.102.0] - 2026-10-05
 
 ### Added
