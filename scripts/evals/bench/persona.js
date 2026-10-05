@@ -45,10 +45,11 @@ function buildPersonaSystemPrompt(scenario, { goal }) {
     "2. Escribe answer en español, breve, como lo haría esa persona:",
     "   - question: si alguno de tus hechos contesta la pregunta, contesta con su contenido. Si ninguno la contesta, di que no tienes preferencia y que siga su recomendación.",
     "   - approval: aprueba y pide que siga, salvo que lo que propone contradiga alguno de tus hechos; entonces corrígelo con ese hecho.",
+    "   Cuando el agente te resume lo que entendió o te propone un plan, compáralo con cada uno de tus hechos antes de aprobar: si algo contradice un hecho, corrígelo en answer escribiendo su contenido.",
     "   - stopped o finished: pide que continúe hasta dejar el cambio terminado del todo.",
     "   - blocked: pide que intente resolverlo y continúe, sin darle soluciones técnicas.",
     "3. Nunca cuentes un hecho por el que no te han preguntado, salvo para corregir algo que lo contradice. No inventes requisitos ni des instrucciones técnicas.",
-    "4. facts_disclosed: los identificadores (F1, F2...) de los hechos que has usado en answer.",
+    "4. facts_disclosed: solo los hechos cuyo contenido has escrito en answer, por su identificador (F1, F2...). Un hecho que no aparece escrito en answer no se lista, aunque lo hayas tenido en cuenta.",
     "5. deviates_from_recommendation: true si el agente recomendaba una opción y tu respuesta elige otra o la corrige; false en cualquier otro caso.",
   ].join("\n");
 }

@@ -25,6 +25,12 @@ test("the system prompt carries the brief, every fact, and the arm's goal", () =
   assert.match(system, /implementado y archivado/);
 });
 
+test("the system prompt ties disclosed facts to the answer and asks to check summaries", () => {
+  const system = buildPersonaSystemPrompt(scenario, { goal: "g" });
+  assert.match(system, /solo los hechos cuyo contenido has escrito en answer/);
+  assert.match(system, /resume lo que entendió/);
+});
+
 test("the turn prompt keeps the head and tail of a long agent message", () => {
   const long = `INICIO ${"x".repeat(20000)} FINAL`;
   const prompt = buildPersonaPrompt(long);

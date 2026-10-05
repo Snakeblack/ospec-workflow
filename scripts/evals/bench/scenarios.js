@@ -128,6 +128,18 @@ function scenariosDigest(scenarios) {
   return sha256Fingerprint("ospec-bench-scenarios-v1", content).replace(/^sha256:/, "");
 }
 
+/**
+ * Digest of the bench code itself (driver, persona, host, record, checkpoint),
+ * so records produced by different harness versions are never compared.
+ * Scenarios, fixtures, records, and tests are excluded.
+ */
+function harnessDigest(dir = __dirname) {
+  const files = listFiles(dir).filter((file) => file.endsWith(".js") && !file.endsWith(".test.js")
+    && !/^(scenarios|__fixtures__|records)\//.test(file));
+  const content = files.map((file) => [file, fs.readFileSync(path.join(dir, file), "utf8").replace(/\r\n/g, "\n")]);
+  return sha256Fingerprint("ospec-bench-harness-v1", content).replace(/^sha256:/, "");
+}
+
 /** Copies the scenario's seed repository (and nothing else) into dest. */
 function materializeRepo(scenario, dest) {
   fs.mkdirSync(dest, { recursive: true });
@@ -143,6 +155,7 @@ module.exports = {
   CHECK_KINDS,
   PROFILES,
   SCENARIOS_DIR,
+  harnessDigest,
   listFiles,
   loadScenario,
   loadScenarios,

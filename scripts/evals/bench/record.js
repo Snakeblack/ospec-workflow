@@ -9,7 +9,7 @@
 const { PROFILES } = require("./scenarios.js");
 
 const RECORD_SCHEMA_VERSION = 1;
-const RECORD_KEYS = Object.freeze(["schema_version", "record_id", "arm", "recorded_at", "host", "persona", "scenarios_digest", "limits", "runs"]);
+const RECORD_KEYS = Object.freeze(["schema_version", "record_id", "arm", "recorded_at", "host", "persona", "scenarios_digest", "harness_digest", "limits", "runs"]);
 const RUN_KEYS = Object.freeze([
   "scenario_id", "profile", "status", "reason", "setup", "metrics", "persona", "checks",
   "escaped_defects", "facts_disclosed", "changed_files", "conversation", "transcripts",
@@ -19,7 +19,7 @@ const METRIC_KEYS = Object.freeze([
   "questions", "decision_changing_questions", "interventions", "host_errors",
 ]);
 const IDENTITY_FIELDS = Object.freeze([
-  ["arm"], ["scenarios_digest"], ["host", "name"], ["host", "cli_version"], ["host", "model"], ["host", "effort"],
+  ["arm"], ["scenarios_digest"], ["harness_digest"], ["host", "name"], ["host", "cli_version"], ["host", "model"], ["host", "effort"],
   ["host", "plugin_version"], ["host", "plugin_digest"], ["persona", "model"],
 ]);
 
@@ -40,8 +40,8 @@ function hasExactKeys(value, keys) {
   return actual.length === keys.length && [...keys].sort().every((key, index) => key === actual[index]);
 }
 
-function createRecord({ record_id: recordId, arm, recorded_at: recordedAt, host, persona, scenarios_digest: scenariosDigest, limits }) {
-  return { schema_version: RECORD_SCHEMA_VERSION, record_id: recordId, arm, recorded_at: recordedAt, host, persona, scenarios_digest: scenariosDigest, limits, runs: [] };
+function createRecord({ record_id: recordId, arm, recorded_at: recordedAt, host, persona, scenarios_digest: scenariosDigest, harness_digest: harness, limits }) {
+  return { schema_version: RECORD_SCHEMA_VERSION, record_id: recordId, arm, recorded_at: recordedAt, host, persona, scenarios_digest: scenariosDigest, harness_digest: harness, limits, runs: [] };
 }
 
 function profileRank(run) {
@@ -125,7 +125,7 @@ function renderReport(record) {
     `- Host: ${record.host.name} ${record.host.cli_version}, model \`${record.host.model}\`${record.host.effort ? `, effort ${record.host.effort}` : ""}`,
     `- Plugin: ospec-workflow ${record.host.plugin_version} (\`${record.host.plugin_digest.slice(0, 12)}\`)`,
     `- Persona: \`${record.persona.model}\``,
-    `- Scenarios digest: \`${record.scenarios_digest.slice(0, 12)}\``,
+    `- Scenarios digest: \`${record.scenarios_digest.slice(0, 12)}\` · harness: \`${record.harness_digest.slice(0, 12)}\``,
     `- Recorded at: ${record.recorded_at}`,
     "",
     "| Scenario | Status | Tokens | Cost | Duration | Turns | Questions (decisive) | Interventions | Checks | Escaped |",

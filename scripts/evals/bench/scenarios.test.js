@@ -9,6 +9,7 @@ const path = require("node:path");
 const {
   PROFILES,
   BenchScenarioError,
+  harnessDigest,
   loadScenario,
   loadScenarios,
   materializeRepo,
@@ -95,6 +96,21 @@ test("the digest is stable across line endings and changes with content", () => 
   fs.writeFileSync(path.join(dir, "repo", "src", "a.js"), "module.exports = 2;\n");
   assert.notEqual(scenariosDigest([loadScenario(dir)]), before);
   assert.match(before, /^[a-f0-9]{64}$/);
+});
+
+test("the harness digest covers the bench code but not scenarios, fixtures, records, or tests", () => {
+  const root = tempDir();
+  fs.mkdirSync(path.join(root, "scenarios", "x"), { recursive: true });
+  fs.mkdirSync(path.join(root, "hosts"), { recursive: true });
+  fs.writeFileSync(path.join(root, "driver.js"), "a\n");
+  fs.writeFileSync(path.join(root, "hosts", "claude.js"), "b\n");
+  const before = harnessDigest(root);
+  fs.writeFileSync(path.join(root, "scenarios", "x", "checks.js"), "c\n");
+  fs.writeFileSync(path.join(root, "driver.test.js"), "d\n");
+  assert.equal(harnessDigest(root), before);
+  fs.writeFileSync(path.join(root, "hosts", "claude.js"), "b2\n");
+  assert.notEqual(harnessDigest(root), before);
+  assert.match(harnessDigest(), /^[a-f0-9]{64}$/);
 });
 
 test("materializeRepo copies the seed repository only", () => {

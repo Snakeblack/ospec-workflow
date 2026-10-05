@@ -11,6 +11,7 @@ const identity = {
   host: { name: "claude-code", cli_version: "2.1.286", model: "claude-sonnet-5-5", effort: null, plugin_version: "2.103.0", plugin_digest: "a".repeat(64) },
   persona: { model: "claude-haiku-4-5-20251001" },
   scenarios_digest: "b".repeat(64),
+  harness_digest: "f".repeat(64),
   limits: { maxAgentTurns: 30, maxSetupTurns: 6, maxCostUsd: 25 },
 };
 
@@ -74,6 +75,7 @@ test("resuming a record requires the same host, plugin, persona, and scenarios",
   assert.doesNotThrow(() => assertSameIdentity(record, identity));
   assert.throws(() => assertSameIdentity(record, { ...identity, host: { ...identity.host, plugin_digest: "d".repeat(64) } }), /plugin_digest/);
   assert.throws(() => assertSameIdentity(record, { ...identity, scenarios_digest: "e".repeat(64) }), /scenarios_digest/);
+  assert.throws(() => assertSameIdentity(record, { ...identity, harness_digest: "e".repeat(64) }), /harness_digest/);
 });
 
 test("summarizeRecord totals with explicit denominators", () => {

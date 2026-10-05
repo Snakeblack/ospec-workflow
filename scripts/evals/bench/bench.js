@@ -17,12 +17,12 @@ const { evaluateCheckpoint, loadMargins, renderCheckpoint } = require("./checkpo
 const { DEFAULT_LIMITS, runScenario: defaultRunScenario } = require("./driver.js");
 const { buildPlugin: defaultBuildPlugin, createClaudeHost, resolveClaudeExecutable } = require("./hosts/claude.js");
 const { assertSameIdentity, createRecord, renderReport, upsertRun, validateRecord } = require("./record.js");
-const { loadScenarios, scenariosDigest } = require("./scenarios.js");
+const { harnessDigest, loadScenarios, scenariosDigest } = require("./scenarios.js");
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..", "..");
 const DEFAULTS = Object.freeze({
   model: "claude-sonnet-5-5",
-  personaModel: "claude-haiku-4-5-20251001",
+  personaModel: "claude-sonnet-5-5",
   recordsDir: path.join(__dirname, "records"),
   runsDir: path.join(REPO_ROOT, "scripts", "evals", ".runs", "bench"),
   workspacesDir: path.join(os.tmpdir(), "ospec-bench"),
@@ -129,6 +129,7 @@ async function runCommand(args, deps) {
     },
     persona: { model: opts.personaModel },
     scenarios_digest: scenariosDigest(corpus),
+    harness_digest: harnessDigest(),
     limits,
   };
 

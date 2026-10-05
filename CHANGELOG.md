@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.105.1] - 2026-10-06
+
+### Fixed
+- **Persona del banco (E4.1)**: en la primera corrida de la línea base, la persona con Haiku declaró haber revelado tres hechos ocultos tras contestar solo «Confirmado», y no corrigió un resumen del agente que contradecía uno de ellos. Eso inflaba las preguntas decisivas y podía atribuir a SDD un defecto causado por la persona. Ahora la persona usa Sonnet por defecto, solo declara los hechos cuyo contenido escribe en su respuesta y compara con sus hechos cada resumen o plan que aprueba (REQ-bench-003). La corrida `sdd-baseline-1` se descarta.
+- **Identidad del record**: el record y el checkpoint incluyen `harness_digest`, la huella del código del banco (driver, persona, host, record y checkpoint). Un record no se reanuda con otro harness, y dos records de harness distintos no se comparan (REQ-bench-004 y 005).
+
+**Verificación directa**: `node scripts/check.js` (3195 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.105.0] - 2026-10-05
 
 ### Removed

@@ -21,7 +21,7 @@ const { taskInterval } = require("./stats.js");
 
 const MARGINS_PATH = path.join(__dirname, "margins.json");
 const MARGINS_KEYS = Object.freeze(["schema_version", "margins_version", "declared_at", "baseline_arm", "candidate_arm", "escaped_defects", "tokens"]);
-const IDENTITY_FIELDS = Object.freeze([["scenarios_digest"], ["host", "name"], ["host", "model"], ["host", "effort"], ["persona", "model"]]);
+const IDENTITY_FIELDS = Object.freeze([["scenarios_digest"], ["harness_digest"], ["host", "name"], ["host", "model"], ["host", "effort"], ["persona", "model"]]);
 
 class BenchMarginsError extends Error {
   constructor(message) {
