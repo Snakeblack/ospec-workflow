@@ -31,12 +31,24 @@ const STATE_FIELDS = Object.freeze([
   "obligations",
   "gates",
   "evidence",
+  "base",
+  "runs",
 ]);
 const CHANGE_STATUSES = Object.freeze(["open", "closed"]);
 const INTENT_KINDS = Object.freeze(["bug", "feature", "refactor", "docs"]);
 const SIGNAL_SOURCES = Object.freeze(["declaration", "diff"]);
 const OBLIGATION_STATUSES = Object.freeze(["pending", "satisfied", "withdrawn"]);
 const GATE_STATUSES = Object.freeze(["open", "resolved"]);
+// What a CLI-observed run was for (REQ-idd-014): the declared checks, or the
+// test command of a red → green pair.
+const RUN_PURPOSES = Object.freeze(["checks", "repro-test", "tdd-red-green"]);
+// Evidence kinds proven by CLI-observed runs, and the run purpose behind each.
+const RUN_EVIDENCE = Object.freeze({
+  "check-run": "checks",
+  "repro-run-pair": "repro-test",
+  "tdd-red-green": "tdd-red-green",
+});
+const SHA256 = /^sha256:[0-9a-f]{64}$/;
 
 // Signal → obligation, in the spec's table order (REQ-idd-005).
 const SIGNALS = Object.freeze(
@@ -112,6 +124,8 @@ function validateState(state) {
   for (const key of ["signals", "obligations", "gates", "evidence"]) {
     if (!Array.isArray(state[key])) fail(`${key} must be a list`);
   }
+  if ("runs" in state && !Array.isArray(state.runs)) fail("runs must be a list");
+  if (state.base != null && typeof state.base !== "string") fail("base must be a commit id");
   if (errors.length > 0) return { ok: false, errors };
 
   // While ambiguous-intent is open the intent stays unresolved, keeps the
@@ -138,11 +152,20 @@ function validateState(state) {
     if (!SIGNAL_SOURCES.includes(signal.source)) fail(`signal ${signal.id} source must be declaration or diff`);
   }
 
+  const runs = state.runs || [];
+  const runIndex = new Map();
+  runs.forEach((run, index) => {
+    validateRun(run, fail);
+    if (runIndex.has(run.id)) fail(`run ${run.id} is recorded twice`);
+    runIndex.set(run.id, index);
+  });
+
   const evidenceById = new Map();
   for (const entry of state.evidence) {
     if (!EVIDENCE_KINDS.includes(entry.kind)) fail(`evidence ${entry.id} has unknown kind ${entry.kind}`);
     if (!OBLIGATION_BY_ID.has(entry.obligation)) fail(`evidence ${entry.id} names unknown obligation`);
     if (typeof entry.recorded_at !== "string") fail(`evidence ${entry.id} needs recorded_at`);
+    if (entry.kind in RUN_EVIDENCE) validateRunEvidence(entry, runs, runIndex, fail);
     evidenceById.set(entry.id, entry);
   }
 
@@ -183,6 +206,55 @@ function validateState(state) {
   return { ok: errors.length === 0, errors };
 }
 
+function validateRun(run, fail) {
+  const label = `run ${run?.id}`;
+  if (run == null || typeof run !== "object") return fail("a run must be an object");
+  if (typeof run.id !== "string" || run.id === "") fail("a run needs an id");
+  if (!RUN_PURPOSES.includes(run.purpose)) fail(`${label} has unknown purpose ${run.purpose}`);
+  if (typeof run.command !== "string" || run.command === "") fail(`${label} needs a command`);
+  if (!Number.isInteger(run.exit_code)) fail(`${label} needs an integer exit_code`);
+  if (!SHA256.test(run.output_sha256 || "")) fail(`${label} needs an output_sha256 digest`);
+  if (!SHA256.test(run.tree || "")) fail(`${label} needs a tree digest`);
+  if (typeof run.recorded_at !== "string") fail(`${label} needs recorded_at`);
+  return undefined;
+}
+
+// Run-backed evidence must name the runs that prove it (REQ-idd-014): every
+// declared check passing on one tree, or a failing run followed by a passing
+// run of the same command on a different tree.
+function validateRunEvidence(entry, runs, runIndex, fail) {
+  const purpose = RUN_EVIDENCE[entry.kind];
+  const detail = entry.detail || {};
+  const runOf = (id) => (runIndex.has(id) ? runs[runIndex.get(id)] : null);
+  if (entry.kind === "check-run") {
+    const ids = Array.isArray(detail.runs) ? detail.runs : [];
+    if (ids.length === 0 || !SHA256.test(detail.tree || "")) {
+      return fail(`evidence ${entry.id} must name its tree and the check runs on it`);
+    }
+    for (const id of ids) {
+      const run = runOf(id);
+      if (!run || run.purpose !== purpose || run.exit_code !== 0 || run.tree !== detail.tree) {
+        fail(`evidence ${entry.id} names ${id}, which is not a passing check run on its tree`);
+      }
+    }
+    return undefined;
+  }
+  const red = runOf(detail.red);
+  const green = runOf(detail.green);
+  const paired =
+    red &&
+    green &&
+    red.purpose === purpose &&
+    green.purpose === purpose &&
+    red.exit_code !== 0 &&
+    green.exit_code === 0 &&
+    red.command === green.command &&
+    red.tree !== green.tree &&
+    runIndex.get(red.id) < runIndex.get(green.id);
+  if (!paired) fail(`evidence ${entry.id} needs a failing run followed by a passing run of the same command on another tree`);
+  return undefined;
+}
+
 function isIntentAmbiguous(state) {
   return state.gates.some((gate) => gate.id === "ambiguous-intent" && gate.status === "open");
 }
@@ -220,6 +292,8 @@ module.exports = {
   MODES,
   OBLIGATIONS,
   OBLIGATION_STATUSES,
+  RUN_EVIDENCE,
+  RUN_PURPOSES,
   SIGNALS,
   SIGNAL_SOURCES,
   STATE_FIELDS,

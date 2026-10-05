@@ -232,10 +232,93 @@ test("a satisfied obligation needs recorded evidence of its catalog kind", () =>
   assert.strictEqual(contract.validateState(wrongKind).ok, false);
 
   const recorded = validState({
-    evidence: [{ id: "ev-1", kind: "repro-run-pair", obligation: "repro-test", recorded_at: "2026-10-05T08:00:00Z" }],
+    runs: [run("run-1", { exit_code: 1, tree: TREE_A }), run("run-2", { tree: TREE_B })],
+    evidence: [
+      {
+        id: "ev-1",
+        kind: "repro-run-pair",
+        obligation: "repro-test",
+        recorded_at: "2026-10-05T08:00:00Z",
+        detail: { red: "run-1", green: "run-2" },
+      },
+    ],
   });
   recorded.obligations[1] = { id: "repro-test", signal: "bug-fix", status: "satisfied", evidence: ["ev-1"] };
   assert.deepStrictEqual(contract.validateState(recorded), { ok: true, errors: [] });
+});
+
+// ---------------------------------------------------------------------------
+// CLI-observed runs behind run evidence (REQ-idd-014)
+// ---------------------------------------------------------------------------
+
+const TREE_A = `sha256:${"a".repeat(64)}`;
+const TREE_B = `sha256:${"b".repeat(64)}`;
+
+function run(id, overrides = {}) {
+  return {
+    id,
+    purpose: "repro-test",
+    command: "node --test test/paginate.test.js",
+    exit_code: 0,
+    output_sha256: `sha256:${"0".repeat(64)}`,
+    tree: TREE_A,
+    recorded_at: "2026-10-05T08:00:00Z",
+    ...overrides,
+  };
+}
+
+function pairState(runs, detail = { red: "run-1", green: "run-2" }) {
+  const state = validState({
+    runs,
+    evidence: [{ id: "ev-1", kind: "repro-run-pair", obligation: "repro-test", recorded_at: "2026-10-05T08:00:00Z", detail }],
+  });
+  state.obligations[1] = { id: "repro-test", signal: "bug-fix", status: "satisfied", evidence: ["ev-1"] };
+  return state;
+}
+
+test("states written before runs existed stay valid", () => {
+  assert.deepStrictEqual(contract.validateState(validState()), { ok: true, errors: [] });
+  assert.deepStrictEqual(contract.validateState(validState({ base: null, runs: [] })), { ok: true, errors: [] });
+  assert.strictEqual(contract.validateState(validState({ runs: {} })).ok, false);
+  assert.strictEqual(contract.validateState(validState({ base: 42 })).ok, false);
+});
+
+test("a run needs its purpose, command, exit code, digests and time", () => {
+  const broken = validState({ runs: [{ id: "run-1", purpose: "deploy", command: "", exit_code: "0" }] });
+  const { errors } = contract.validateState(broken);
+  for (const part of ["unknown purpose", "needs a command", "integer exit_code", "output_sha256", "tree digest", "recorded_at"]) {
+    assert.ok(errors.some((e) => e.includes(part)), `expected an error about ${part}`);
+  }
+  const twice = validState({ runs: [run("run-1"), run("run-1")] });
+  assert.ok(contract.validateState(twice).errors.some((e) => e.includes("recorded twice")));
+});
+
+test("a red → green pair needs a failing run before a passing run of the same command on another tree", () => {
+  const red = run("run-1", { exit_code: 1, tree: TREE_A });
+  const green = run("run-2", { tree: TREE_B });
+  assert.strictEqual(contract.validateState(pairState([red, green])).ok, true);
+  assert.strictEqual(contract.validateState(pairState([green, red])).ok, false, "green before red");
+  assert.strictEqual(contract.validateState(pairState([red, { ...green, tree: TREE_A }])).ok, false, "same tree");
+  assert.strictEqual(contract.validateState(pairState([red, { ...green, command: "node -e 0" }])).ok, false, "other command");
+  assert.strictEqual(contract.validateState(pairState([red, { ...green, exit_code: 1 }])).ok, false, "never passed");
+  assert.strictEqual(contract.validateState(pairState([red, { ...green, purpose: "tdd-red-green" }])).ok, false, "other purpose");
+  assert.strictEqual(contract.validateState(pairState([red, green], {})).ok, false, "no detail");
+});
+
+test("check-run evidence names passing check runs on its own tree", () => {
+  const checkRun = (overrides) => run("run-1", { purpose: "checks", name: "test", command: "npm test", ...overrides });
+  const settled = (runs, detail = { tree: TREE_A, runs: ["run-1"] }) => {
+    const state = validState({
+      runs,
+      evidence: [{ id: "ev-1", kind: "check-run", obligation: "checks-pass", recorded_at: "2026-10-05T08:00:00Z", detail }],
+    });
+    state.obligations[0] = { id: "checks-pass", signal: "always", status: "satisfied", evidence: ["ev-1"] };
+    return state;
+  };
+  assert.strictEqual(contract.validateState(settled([checkRun()])).ok, true);
+  assert.strictEqual(contract.validateState(settled([checkRun({ exit_code: 2 })])).ok, false, "failing check");
+  assert.strictEqual(contract.validateState(settled([checkRun({ tree: TREE_B })])).ok, false, "other tree");
+  assert.strictEqual(contract.validateState(settled([checkRun()], { tree: TREE_A, runs: [] })).ok, false, "no runs");
 });
 
 test("a withdrawn obligation needs a reason", () => {

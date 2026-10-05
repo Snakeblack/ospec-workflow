@@ -52,6 +52,7 @@ test("record intent opens the change, reports the next step and is idempotent", 
     action: "satisfy-obligation",
     obligation: "checks-pass",
     evidence: "check-run",
+    how: "ospec check --change fix-pagination",
   });
 
   const file = path.join(root, "idd", "fix-pagination", "state.yaml");
@@ -238,4 +239,154 @@ test("signals refuses an ambiguous intent, an unknown change and bad input", (t)
   const unknownKey = ospec(root, "signals", "--change", "fix-pagination", "--json");
   assert.strictEqual(unknownKey.code, 1);
   assert.strictEqual(unknownKey.json.error.code, "config-invalid");
+});
+
+// E1.4 (a) ospec check and ospec run: the CLI runs the declared checks and
+// the test commands itself and records what it observed (REQ-idd-014).
+
+const VERIFY = [
+  "const fs = require('fs');",
+  "const pages = Number(fs.readFileSync('src/pages.txt', 'utf8'));",
+  "if (pages !== 2) { console.error('expected 2 pages, got ' + pages); process.exit(1); }",
+  "console.log('ok');",
+].join("\n");
+
+function project(t, { checks = "checks:\n  test: node verify.js\n" } = {}) {
+  const root = tempRoot(t);
+  const git = gitInit(root);
+  writeFile(root, "verify.js", `${VERIFY}\n`);
+  writeFile(root, "src/pages.txt", "1");
+  if (checks !== null) writeFile(root, "idd/config.yaml", checks);
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "base");
+  return { root, git };
+}
+
+function stateOf(root, change) {
+  return JSON.parse(fs.readFileSync(path.join(root, "idd", change, "state.yaml"), "utf8"));
+}
+
+const OPEN_DOCS = ["record", "intent", "--change", "fix-readme", "--kind", "docs", "--summary", "Fix a typo.", "--acceptance", "No typo."];
+
+test("record intent stores the change base commit", (t) => {
+  const { root, git } = project(t);
+  ospec(root, ...OPEN_BUG);
+  assert.strictEqual(stateOf(root, "fix-pagination").base, git("rev-parse", "HEAD").trim());
+});
+
+test("check runs the declared checks and satisfies checks-pass only on the tree they passed on", (t) => {
+  const { root } = project(t);
+  ospec(root, ...OPEN_DOCS);
+
+  const failing = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.strictEqual(failing.code, 0, failing.stderr);
+  assert.strictEqual(failing.json.verdict, "missing");
+  assert.deepStrictEqual(failing.json.missing, [
+    { obligation: "checks-pass", evidence: "check-run", reason: "check test failed with exit code 1" },
+  ]);
+  assert.deepStrictEqual(failing.json.checks.map(({ name, exit_code }) => ({ name, exit_code })), [{ name: "test", exit_code: 1 }]);
+  assert.match(failing.json.checks[0].output_tail.join("\n"), /expected 2 pages, got 1/);
+  assert.strictEqual(stateOf(root, "fix-readme").obligations[0].status, "pending", "a failing run satisfies nothing");
+
+  writeFile(root, "src/pages.txt", "2");
+  const passing = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.strictEqual(passing.json.verdict, "ready");
+  assert.deepStrictEqual(passing.json.missing, []);
+  assert.strictEqual(passing.json.next.next_step.action, "close");
+  const state = stateOf(root, "fix-readme");
+  assert.deepStrictEqual(state.runs.map((run) => [run.id, run.purpose, run.name, run.exit_code]), [
+    ["run-1", "checks", "test", 1],
+    ["run-2", "checks", "test", 0],
+  ]);
+  assert.deepStrictEqual(state.obligations[0], { id: "checks-pass", signal: "always", status: "satisfied", evidence: ["ev-1"] });
+  assert.deepStrictEqual(state.evidence[0].detail, { tree: state.runs[1].tree, runs: ["run-2"] });
+
+  writeFile(root, "notes.txt", "later edit\n");
+  const stale = ospec(root, "next", "--change", "fix-readme", "--json");
+  assert.strictEqual(stale.json.next_step.action, "close", "next reads the stored state only");
+  const rechecked = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.strictEqual(rechecked.json.verdict, "ready", "a new tree needs a new passing run, which check records");
+  assert.deepStrictEqual(stateOf(root, "fix-readme").obligations[0].evidence, ["ev-2"]);
+
+  const text = ospec(root, "check", "--change", "fix-readme");
+  assert.strictEqual(text.code, 0);
+  assert.match(text.stdout, /^ready: fix-readme can close/m);
+});
+
+test("check without declared checks reports what is missing", (t) => {
+  const { root } = project(t, { checks: null });
+  ospec(root, ...OPEN_DOCS);
+  const result = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.strictEqual(result.json.verdict, "missing");
+  assert.match(result.json.missing[0].reason, /no checks declared in idd\/config.yaml/);
+  assert.deepStrictEqual(stateOf(root, "fix-readme").runs, []);
+});
+
+test("check recomputes the signals from the diff: touching a migration adds its obligation", (t) => {
+  const { root } = project(t);
+  ospec(root, "record", "intent", "--change", "add-index", "--kind", "feature", "--summary", "Faster search.", "--acceptance", "Search under 50 ms.");
+  writeFile(root, "src/pages.txt", "2");
+  writeFile(root, "db/migrations/004_add_index.sql", "CREATE INDEX customers_name ON customers (name);\n");
+
+  const result = ospec(root, "check", "--change", "add-index", "--json");
+  assert.strictEqual(result.code, 0, result.stderr);
+  assert.deepStrictEqual(result.json.added, { signals: ["persistent-data"], gates: [] });
+  assert.strictEqual(result.json.verdict, "missing");
+  assert.deepStrictEqual(result.json.missing.map((entry) => entry.obligation), ["migration-compat-and-test"]);
+  const signal = stateOf(root, "add-index").signals.find((entry) => entry.id === "persistent-data");
+  assert.strictEqual(signal.source, "diff");
+});
+
+test("run records a red then green pair of the same command as the reproduction evidence", (t) => {
+  const { root } = project(t);
+  ospec(root, ...OPEN_BUG);
+  ospec(root, "signals", "--change", "fix-pagination");
+  const run = () =>
+    ospec(root, "run", "--change", "fix-pagination", "--obligation", "repro-test", "--command", "node verify.js", "--json");
+
+  const red = run();
+  assert.strictEqual(red.code, 0, red.stderr);
+  assert.strictEqual(red.json.run.exit_code, 1);
+  assert.strictEqual(red.json.evidence, null);
+  assert.match(red.json.missing.find((entry) => entry.obligation === "repro-test").reason, /run the same command again after the fix/);
+
+  const stillRed = run();
+  assert.strictEqual(stillRed.json.evidence, null, "the same tree proves nothing");
+
+  writeFile(root, "src/pages.txt", "2");
+  const green = run();
+  assert.strictEqual(green.json.run.exit_code, 0);
+  assert.strictEqual(green.json.evidence, "ev-1");
+  const state = stateOf(root, "fix-pagination");
+  assert.strictEqual(state.obligations.find((entry) => entry.id === "repro-test").status, "satisfied");
+  assert.deepStrictEqual(state.evidence[0].detail, { red: "run-2", green: "run-3" });
+  assert.strictEqual(green.json.next.next_step.obligation, "checks-pass");
+});
+
+test("run is refused for an obligation it cannot prove and needs a command", (t) => {
+  const { root } = project(t);
+  ospec(root, ...OPEN_DOCS);
+  const notActive = ospec(root, "run", "--change", "fix-readme", "--obligation", "repro-test", "--command", "node verify.js", "--json");
+  assert.strictEqual(notActive.code, 1);
+  assert.strictEqual(notActive.json.error.code, "unknown-obligation");
+  const notRunnable = ospec(root, "run", "--change", "fix-readme", "--obligation", "checks-pass", "--command", "node verify.js", "--json");
+  assert.strictEqual(notRunnable.code, 2, "checks are run by ospec check");
+  assert.strictEqual(ospec(root, "run", "--change", "fix-readme", "--obligation", "repro-test", "--json").code, 2);
+});
+
+test("check stops at an ambiguous intent without running anything, and needs git", (t) => {
+  const { root } = project(t);
+  ospec(root, "record", "intent", "--change", "improve-login", "--ambiguous", "--request", "Improve the login.");
+  const ambiguous = ospec(root, "check", "--change", "improve-login", "--json");
+  assert.strictEqual(ambiguous.code, 0, ambiguous.stderr);
+  assert.strictEqual(ambiguous.json.verdict, "needs-decision");
+  assert.strictEqual(ambiguous.json.decision.gate, "ambiguous-intent");
+  assert.ok(!("runs" in stateOf(root, "improve-login")));
+
+  const plain = tempRoot(t);
+  ospec(plain, ...OPEN_DOCS);
+  const noGit = ospec(plain, "check", "--change", "fix-readme", "--json");
+  assert.strictEqual(noGit.code, 1);
+  assert.strictEqual(noGit.json.error.code, "not-a-git-repo");
+  assert.strictEqual(ospec(plain, "check", "--json").code, 2, "check needs --change");
 });

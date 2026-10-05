@@ -130,6 +130,13 @@ function recordIntent(state, input = {}) {
     gates: [],
     evidence: [],
   };
+  // The commit the change starts from, so later diffs cover its whole work.
+  if (input.base !== undefined) {
+    if (input.base !== null && (typeof input.base !== "string" || input.base === "")) {
+      refuse("invalid-base", "the change base must be a commit id or null");
+    }
+    next.base = input.base;
+  }
   if (input.ambiguous) {
     requireText(input.request, "intent-incomplete", "an ambiguous intent must keep the original request");
     next.intent = { request: input.request, kind: null, summary: null, acceptance: null };
