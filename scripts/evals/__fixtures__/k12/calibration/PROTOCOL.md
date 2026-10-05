@@ -1,8 +1,10 @@
 # Calibration protocol (real agents)
 
 Recorded worker outputs for the Adaptive Repair pilot calibration. Each record
-holds one agent run per arm and fixture; `node scripts/k12-campaign.js --paired
---worker-record <record>` replays them through the deterministic pipeline.
+holds one agent run per arm and fixture. Until v2.94.0, `node scripts/k12-campaign.js
+--paired --worker-record <record>` replayed them through the deterministic
+pipeline; E1.5 retired that executor, and the replayed runs are kept in
+`../snapshots/` for the checkpoint tests. E4.1 reuses the records format.
 
 ## How a record is produced
 

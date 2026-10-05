@@ -1,17 +1,12 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { spawnSync } = require("node:child_process");
 const { readFileSync } = require("node:fs");
-const { tmpdir } = require("node:os");
 const { join } = require("node:path");
 const test = require("node:test");
 
-const { parseRoutingTable } = require("../route-dispatcher.js");
 const { loadCohort } = require("./cohort.js");
 const { evaluatePilotCheckpoint, loadPilotMargins } = require("./pilot-checkpoint.js");
-const { createDeterministicPilotExecutor } = require("./pilot-executor.js");
-const { executePlan, planPairedRuns, summarizePairedCohort } = require("./runner.js");
 const {
   WorkerRecordError,
   loadWorkerRecord,
@@ -20,32 +15,20 @@ const {
   validateWorkerRecord,
 } = require("./worker-record.js");
 
-const repoRoot = join(__dirname, "../../..");
 const seedRoot = join(__dirname, "../../evals/__fixtures__/k12");
 const cohort = loadCohort(join(seedRoot, "oracle-catalog.json"), join(seedRoot, "tasks"));
 const recordPath = (name) => join(seedRoot, "calibration", `${name}.json`);
-const routes = parseRoutingTable(readFileSync(join(repoRoot, "openspec/config.yaml"), "utf8"));
 
+// Each calibration's paired runs as the deterministic pilot executor replayed
+// its recorded agent patches in v2.94.0 (the executor was retired in E1.5).
+// The checkpoint is still judged live from them.
 async function replay(recordName, marginsFile) {
   const record = loadWorkerRecord(recordPath(recordName), cohort);
   const narrowed = recordCohort(cohort, record);
-  const plan = planPairedRuns(narrowed, {
-    repetitions: 1,
-    order_seed: "worker-record-test",
-    cohort_id: "k12-calibration-test",
-    base_worktree_root: join(tmpdir(), "worktrees"),
-    base_cache_root: join(tmpdir(), "cache"),
-    evaluator: "k12-pilot-recorded-worker",
-    host: "node",
-    runner_version: "k12-pilot/v1-test",
-  });
-  const completed = await executePlan(plan, createDeterministicPilotExecutor({ catalog: narrowed.catalog, routes, workerRecord: record }), {
-    now: () => "2026-10-03T00:00:00.000Z",
-  });
-  const report = summarizePairedCohort(completed);
+  const { runs, report } = JSON.parse(readFileSync(join(seedRoot, "snapshots", `${recordName}.json`), "utf8"));
   const declared = loadPilotMargins(join(seedRoot, marginsFile), narrowed);
-  const checkpoint = evaluatePilotCheckpoint({ runs: completed.runs, report, cohort: narrowed, ...declared, recordedWorker: true });
-  return { record, narrowed, runs: completed.runs, report, checkpoint };
+  const checkpoint = evaluatePilotCheckpoint({ runs, report, cohort: narrowed, ...declared, recordedWorker: true });
+  return { record, narrowed, runs, report, checkpoint };
 }
 
 test("the first calibration replays its recorded agent patches and asks to revise under the pilot margins", async () => {
@@ -127,18 +110,4 @@ test("malformed worker records fail closed", () => {
     assert.throws(() => validateWorkerRecord(record, cohort), (error) => error instanceof WorkerRecordError && pattern.test(error.message));
   }
   assert.throws(() => loadWorkerRecord(join(seedRoot, "missing.json"), cohort), (error) => error.code === "WORKER_RECORD_READ_FAILED");
-});
-
-test("the campaign CLI replays one recorded output per arm and refuses repetitions", () => {
-  const cli = (...args) => spawnSync(process.execPath, [join(repoRoot, "scripts/k12-campaign.js"), "--paired", "--seed", "cli-calibration", ...args], {
-    encoding: "utf8",
-  });
-  const refused = cli("--worker-record", recordPath("behavior-repair-haiku-1"), "--repetitions", "3");
-  assert.notEqual(refused.status, 0);
-  assert.match(refused.stderr, /use --repetitions 1/);
-
-  const replayed = cli("--worker-record", recordPath("behavior-repair-haiku-1"), "--margins", join(seedRoot, "pilot-margins.json"));
-  assert.equal(replayed.status, 0, replayed.stderr);
-  assert.match(replayed.stdout, /tasks=7 comparable=7 pairs=7 excluded=0 regressions=0/);
-  assert.match(replayed.stdout, /checkpoint=revise margins=k12-pilot-margins-1 vetoes=0/);
 });

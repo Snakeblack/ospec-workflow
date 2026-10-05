@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.96.0] - 2026-10-05
+
+### Removed
+- **Executor del piloto y campaña K12 (E1.5 b)**: se retiran `k12/pilot-executor.js`, `k12/campaign-executor.js` y el CLI `scripts/k12-campaign.js`. Ejecutaban el piloto Adaptive Repair y la campaña de maquinaria sobre el kernel (Execution Graph, repair shadow, verifier y harness de K2), y eran lo único que mantenía vivo ese código desde K12.
+
+### Changed
+- **Fixtures del piloto**: las últimas ejecuciones del piloto determinista y de las dos calibraciones con agentes reales quedan en `scripts/evals/__fixtures__/k12/snapshots/`, con rutas fijas y sin datos de la máquina. Los tests de `pilot-checkpoint` y `worker-record` juzgan el checkpoint en vivo sobre ellas. `worker-record`, `runner`, `run-manifest`, `cohort`, el oracle y el checkpoint se conservan para el bench de E4.1.
+- **Docs**: el README de K12, el protocolo de calibración y el informe del piloto indican que la reproducción exacta requiere v2.94.0 o anterior. El roadmap marca E1.5 (b) como entregado.
+
+**Verificación directa**: `node scripts/check.js` (3685 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.95.0] - 2026-10-05
 
 ### Added

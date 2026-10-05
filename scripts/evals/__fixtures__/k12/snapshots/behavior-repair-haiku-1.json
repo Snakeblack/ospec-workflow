@@ -1,0 +1,782 @@
+{
+ "runs": [
+  {
+   "schema_version": 1,
+   "cohort_id": "k12-calibration-test",
+   "fixture_id": "behavior-retry-limit",
+   "stratum": "behavior-repair",
+   "policy": "adaptive-repair-v1",
+   "repetition_index": 0,
+   "repetitions_total": 1,
+   "order_seed": "worker-record-test",
+   "worktree_path": "/k12/worktrees/behavior-retry-limit/r0/adaptive-repair-v1",
+   "cache_namespace": "/k12/cache/behavior-retry-limit/r0/adaptive-repair-v1",
+   "evaluator": "k12-pilot-recorded-worker",
+   "host": "node",
+   "catalog_digest": "2e9442c4636385e3c301e6f048d0b864f9dd52b832fe03a3f7536513639f9c91",
+   "outcome": {
+    "status": "pass",
+    "note": "verify PASS (repair-recipe: 3 phases, 1 gates); worker claude-haiku-4-5-20251001: 36936 tokens, 10 tool uses",
+    "measurements": {
+     "phases_executed": 3,
+     "effects_executed": 1,
+     "events_recorded": 4,
+     "wall_ms": 36297,
+     "interruptions": 0,
+     "recoveries": 0
+    },
+    "oracle": {
+     "applied": true,
+     "reason": "catalog compared: matched 2/2; no must obligation missing"
+    }
+   },
+   "versions": {
+    "runner_version": "k12-pilot/v1-test"
+   },
+   "run_id": "a9252008613911d97eb79bed495533d9",
+   "started_at": "2026-10-03T00:00:00.000Z",
+   "completed_at": "2026-10-03T00:00:00.000Z"
+  },
+  {
+   "schema_version": 1,
+   "cohort_id": "k12-calibration-test",
+   "fixture_id": "behavior-retry-limit",
+   "stratum": "behavior-repair",
+   "policy": "fixed",
+   "repetition_index": 0,
+   "repetitions_total": 1,
+   "order_seed": "worker-record-test",
+   "worktree_path": "/k12/worktrees/behavior-retry-limit/r0/fixed",
+   "cache_namespace": "/k12/cache/behavior-retry-limit/r0/fixed",
+   "evaluator": "k12-pilot-recorded-worker",
+   "host": "node",
+   "catalog_digest": "2e9442c4636385e3c301e6f048d0b864f9dd52b832fe03a3f7536513639f9c91",
+   "outcome": {
+    "status": "pass",
+    "note": "verify PASS (bugfix: 5 phases, 1 gates); worker claude-haiku-4-5-20251001: 38731 tokens, 11 tool uses",
+    "measurements": {
+     "phases_executed": 5,
+     "effects_executed": 1,
+     "events_recorded": 6,
+     "wall_ms": 50608,
+     "interruptions": 0,
+     "recoveries": 0
+    },
+    "oracle": {
+     "applied": true,
+     "reason": "catalog compared: matched 2/2; no must obligation missing"
+    }
+   },
+   "versions": {
+    "runner_version": "k12-pilot/v1-test"
+   },
+   "run_id": "17788c225c164160977ca17399cb0548",
+   "started_at": "2026-10-03T00:00:00.000Z",
+   "completed_at": "2026-10-03T00:00:00.000Z"
+  },
+  {
+   "schema_version": 1,
+   "cohort_id": "k12-calibration-test",
+   "fixture_id": "behavior-unicode-count",
+   "stratum": "behavior-repair",
+   "policy": "adaptive-repair-v1",
+   "repetition_index": 0,
+   "repetitions_total": 1,
+   "order_seed": "worker-record-test",
+   "worktree_path": "/k12/worktrees/behavior-unicode-count/r0/adaptive-repair-v1",
+   "cache_namespace": "/k12/cache/behavior-unicode-count/r0/adaptive-repair-v1",
+   "evaluator": "k12-pilot-recorded-worker",
+   "host": "node",
+   "catalog_digest": "2e9442c4636385e3c301e6f048d0b864f9dd52b832fe03a3f7536513639f9c91",
+   "outcome": {
+    "status": "pass",
+    "note": "verify PASS (repair-recipe: 3 phases, 1 gates); worker claude-haiku-4-5-20251001: 36464 tokens, 8 tool uses",
+    "measurements": {
+     "phases_executed": 3,
+     "effects_executed": 1,
+     "events_recorded": 4,
+     "wall_ms": 30851,
+     "interruptions": 0,
+     "recoveries": 0
+    },
+    "oracle": {
+     "applied": true,
+     "reason": "catalog compared: matched 2/2; no must obligation missing"
+    }
+   },
+   "versions": {
+    "runner_version": "k12-pilot/v1-test"
+   },
+   "run_id": "b28e97edb34a1ce3e57a165f8ef40de8",
+   "started_at": "2026-10-03T00:00:00.000Z",
+   "completed_at": "2026-10-03T00:00:00.000Z"
+  },
+  {
+   "schema_version": 1,
+   "cohort_id": "k12-calibration-test",
+   "fixture_id": "behavior-unicode-count",
+   "stratum": "behavior-repair",
+   "policy": "fixed",
+   "repetition_index": 0,
+   "repetitions_total": 1,
+   "order_seed": "worker-record-test",
+   "worktree_path": "/k12/worktrees/behavior-unicode-count/r0/fixed",
+   "cache_namespace": "/k12/cache/behavior-unicode-count/r0/fixed",
+   "evaluator": "k12-pilot-recorded-worker",
+   "host": "node",
+   "catalog_digest": "2e9442c4636385e3c301e6f048d0b864f9dd52b832fe03a3f7536513639f9c91",
+   "outcome": {
+    "status": "pass",
+    "note": "verify PASS (bugfix: 5 phases, 1 gates); worker claude-haiku-4-5-20251001: 38925 tokens, 13 tool uses",
+    "measurements": {
+     "phases_executed": 5,
+     "effects_executed": 1,
+     "events_recorded": 6,
+     "wall_ms": 52045,
+     "interruptions": 0,
+     "recoveries": 0
+    },
+    "oracle": {
+     "applied": true,
+     "reason": "catalog compared: matched 2/2; no must obligation missing"
+    }
+   },
+   "versions": {
+    "runner_version": "k12-pilot/v1-test"
+   },
+   "run_id": "f93d0b4bbee44f40e1a485e3fe103745",
+   "started_at": "2026-10-03T00:00:00.000Z",
+   "completed_at": "2026-10-03T00:00:00.000Z"
+  },
+  {
+   "schema_version": 1,
+   "cohort_id": "k12-calibration-test",
+   "fixture_id": "behavior-retry-backoff",
+   "stratum": "behavior-repair",
+   "policy": "fixed",
+   "repetition_index": 0,
+   "repetitions_total": 1,
+   "order_seed": "worker-record-test",
+   "worktree_path": "/k12/worktrees/behavior-retry-backoff/r0/fixed",
+   "cache_namespace": "/k12/cache/behavior-retry-backoff/r0/fixed",
+   "evaluator": "k12-pilot-recorded-worker",
+   "host": "node",
+   "catalog_digest": "2e9442c4636385e3c301e6f048d0b864f9dd52b832fe03a3f7536513639f9c91",
+   "outcome": {
+    "status": "pass",
+    "note": "verify PASS (bugfix: 5 phases, 1 gates); worker claude-haiku-4-5-20251001: 38936 tokens, 12 tool uses",
+    "measurements": {
+     "phases_executed": 5,
+     "effects_executed": 1,
+     "events_recorded": 6,
+     "wall_ms": 49408,
+     "interruptions": 0,
+     "recoveries": 0
+    },
+    "oracle": {
+     "applied": true,
+     "reason": "catalog compared: matched 2/2; no must obligation missing"
+    }
+   },
+   "versions": {
+    "runner_version": "k12-pilot/v1-test"
+   },
+   "run_id": "8d81c83aa776df52a3de436b8d321920",
+   "started_at": "2026-10-03T00:00:00.000Z",
+   "completed_at": "2026-10-03T00:00:00.000Z"
+  },
+  {
+   "schema_version": 1,
+   "cohort_id": "k12-calibration-test",
+   "fixture_id": "behavior-retry-backoff",
+   "stratum": "behavior-repair",
+   "policy": "adaptive-repair-v1",
+   "repetition_index": 0,
+   "repetitions_total": 1,
+   "order_seed": "worker-record-test",
+   "worktree_path": "/k12/worktrees/behavior-retry-backoff/r0/adaptive-repair-v1",
+   "cache_namespace": "/k12/cache/behavior-retry-backoff/r0/adaptive-repair-v1",
+   "evaluator": "k12-pilot-recorded-worker",
+   "host": "node",
+   "catalog_digest": "2e9442c4636385e3c301e6f048d0b864f9dd52b832fe03a3f7536513639f9c91",
+   "outcome": {
+    "status": "pass",
+    "note": "verify PASS (repair-recipe: 3 phases, 1 gates); worker claude-haiku-4-5-20251001: 36309 tokens, 7 tool uses",
+    "measurements": {
+     "phases_executed": 3,
+     "effects_executed": 1,
+     "events_recorded": 4,
+     "wall_ms": 29828,
+     "interruptions": 0,
+     "recoveries": 0
+    },
+    "oracle": {
+     "applied": true,
+     "reason": "catalog compared: matched 2/2; no must obligation missing"
+    }
+   },
+   "versions": {
+    "runner_version": "k12-pilot/v1-test"
+   },
+   "run_id": "e29f136dae536adf4bc6cafb12371815",
+   "started_at": "2026-10-03T00:00:00.000Z",
+   "completed_at": "2026-10-03T00:00:00.000Z"
+  },
+  {
+   "schema_version": 1,
+   "cohort_id": "k12-calibration-test",
+   "fixture_id": "behavior-legacy-adapter",
+   "stratum": "behavior-repair",
+   "policy": "adaptive-repair-v1",
+   "repetition_index": 0,
+   "repetitions_total": 1,
+   "order_seed": "worker-record-test",
+   "worktree_path": "/k12/worktrees/behavior-legacy-adapter/r0/adaptive-repair-v1",
+   "cache_namespace": "/k12/cache/behavior-legacy-adapter/r0/adaptive-repair-v1",
+   "evaluator": "k12-pilot-recorded-worker",
+   "host": "node",
+   "catalog_digest": "2e9442c4636385e3c301e6f048d0b864f9dd52b832fe03a3f7536513639f9c91",
+   "outcome": {
+    "status": "pass",
+    "note": "verify PASS (repair-recipe: 3 phases, 1 gates); worker claude-haiku-4-5-20251001: 36264 tokens, 8 tool uses",
+    "measurements": {
+     "phases_executed": 3,
+     "effects_executed": 1,
+     "events_recorded": 4,
+     "wall_ms": 32333,
+     "interruptions": 0,
+     "recoveries": 0
+    },
+    "oracle": {
+     "applied": true,
+     "reason": "catalog compared: matched 2/2; no must obligation missing"
+    }
+   },
+   "versions": {
+    "runner_version": "k12-pilot/v1-test"
+   },
+   "run_id": "25bf5891b9d671c2b1a8f62ef9a6eaad",
+   "started_at": "2026-10-03T00:00:00.000Z",
+   "completed_at": "2026-10-03T00:00:00.000Z"
+  },
+  {
+   "schema_version": 1,
+   "cohort_id": "k12-calibration-test",
+   "fixture_id": "behavior-legacy-adapter",
+   "stratum": "behavior-repair",
+   "policy": "fixed",
+   "repetition_index": 0,
+   "repetitions_total": 1,
+   "order_seed": "worker-record-test",
+   "worktree_path": "/k12/worktrees/behavior-legacy-adapter/r0/fixed",
+   "cache_namespace": "/k12/cache/behavior-legacy-adapter/r0/fixed",
+   "evaluator": "k12-pilot-recorded-worker",
+   "host": "node",
+   "catalog_digest": "2e9442c4636385e3c301e6f048d0b864f9dd52b832fe03a3f7536513639f9c91",
+   "outcome": {
+    "status": "fail",
+    "note": "verify:MISSING_NEGATIVE (bugfix: 5 phases, 1 gates); worker claude-haiku-4-5-20251001: 38840 tokens, 11 tool uses",
+    "measurements": {
+     "phases_executed": 5,
+     "effects_executed": 1,
+     "events_recorded": 6,
+     "wall_ms": 47599,
+     "interruptions": 0,
+     "recoveries": 0
+    },
+    "oracle": {
+     "applied": true,
+     "reason": "catalog compared: matched 2/2; no must obligation missing"
+    }
+   },
+   "versions": {
+    "runner_version": "k12-pilot/v1-test"
+   },
+   "run_id": "679e10fb7940573edf39d25b6c92bfef",
+   "started_at": "2026-10-03T00:00:00.000Z",
+   "completed_at": "2026-10-03T00:00:00.000Z"
+  },
+  {
+   "schema_version": 1,
+   "cohort_id": "k12-calibration-test",
+   "fixture_id": "behavior-page-slice",
+   "stratum": "behavior-repair",
+   "policy": "fixed",
+   "repetition_index": 0,
+   "repetitions_total": 1,
+   "order_seed": "worker-record-test",
+   "worktree_path": "/k12/worktrees/behavior-page-slice/r0/fixed",
+   "cache_namespace": "/k12/cache/behavior-page-slice/r0/fixed",
+   "evaluator": "k12-pilot-recorded-worker",
+   "host": "node",
+   "catalog_digest": "2e9442c4636385e3c301e6f048d0b864f9dd52b832fe03a3f7536513639f9c91",
+   "outcome": {
+    "status": "pass",
+    "note": "verify PASS (bugfix: 5 phases, 1 gates); worker claude-haiku-4-5-20251001: 39046 tokens, 12 tool uses",
+    "measurements": {
+     "phases_executed": 5,
+     "effects_executed": 1,
+     "events_recorded": 6,
+     "wall_ms": 50722,
+     "interruptions": 0,
+     "recoveries": 0
+    },
+    "oracle": {
+     "applied": true,
+     "reason": "catalog compared: matched 2/2; no must obligation missing"
+    }
+   },
+   "versions": {
+    "runner_version": "k12-pilot/v1-test"
+   },
+   "run_id": "642f6c992d6cbde4ee7499b6a33ef3a2",
+   "started_at": "2026-10-03T00:00:00.000Z",
+   "completed_at": "2026-10-03T00:00:00.000Z"
+  },
+  {
+   "schema_version": 1,
+   "cohort_id": "k12-calibration-test",
+   "fixture_id": "behavior-page-slice",
+   "stratum": "behavior-repair",
+   "policy": "adaptive-repair-v1",
+   "repetition_index": 0,
+   "repetitions_total": 1,
+   "order_seed": "worker-record-test",
+   "worktree_path": "/k12/worktrees/behavior-page-slice/r0/adaptive-repair-v1",
+   "cache_namespace": "/k12/cache/behavior-page-slice/r0/adaptive-repair-v1",
+   "evaluator": "k12-pilot-recorded-worker",
+   "host": "node",
+   "catalog_digest": "2e9442c4636385e3c301e6f048d0b864f9dd52b832fe03a3f7536513639f9c91",
+   "outcome": {
+    "status": "pass",
+    "note": "verify PASS (repair-recipe: 3 phases, 1 gates); worker claude-haiku-4-5-20251001: 36315 tokens, 8 tool uses",
+    "measurements": {
+     "phases_executed": 3,
+     "effects_executed": 1,
+     "events_recorded": 4,
+     "wall_ms": 31784,
+     "interruptions": 0,
+     "recoveries": 0
+    },
+    "oracle": {
+     "applied": true,
+     "reason": "catalog compared: matched 2/2; no must obligation missing"
+    }
+   },
+   "versions": {
+    "runner_version": "k12-pilot/v1-test"
+   },
+   "run_id": "ef6cbf545b33b05a58a0de7e44991d7d",
+   "started_at": "2026-10-03T00:00:00.000Z",
+   "completed_at": "2026-10-03T00:00:00.000Z"
+  },
+  {
+   "schema_version": 1,
+   "cohort_id": "k12-calibration-test",
+   "fixture_id": "behavior-null-guard",
+   "stratum": "behavior-repair",
+   "policy": "adaptive-repair-v1",
+   "repetition_index": 0,
+   "repetitions_total": 1,
+   "order_seed": "worker-record-test",
+   "worktree_path": "/k12/worktrees/behavior-null-guard/r0/adaptive-repair-v1",
+   "cache_namespace": "/k12/cache/behavior-null-guard/r0/adaptive-repair-v1",
+   "evaluator": "k12-pilot-recorded-worker",
+   "host": "node",
+   "catalog_digest": "2e9442c4636385e3c301e6f048d0b864f9dd52b832fe03a3f7536513639f9c91",
+   "outcome": {
+    "status": "pass",
+    "note": "verify PASS (repair-recipe: 3 phases, 1 gates); worker claude-haiku-4-5-20251001: 36004 tokens, 9 tool uses",
+    "measurements": {
+     "phases_executed": 3,
+     "effects_executed": 1,
+     "events_recorded": 4,
+     "wall_ms": 32682,
+     "interruptions": 0,
+     "recoveries": 0
+    },
+    "oracle": {
+     "applied": true,
+     "reason": "catalog compared: matched 2/2; no must obligation missing"
+    }
+   },
+   "versions": {
+    "runner_version": "k12-pilot/v1-test"
+   },
+   "run_id": "1024d0a98bc755ff259481f6dedf96ea",
+   "started_at": "2026-10-03T00:00:00.000Z",
+   "completed_at": "2026-10-03T00:00:00.000Z"
+  },
+  {
+   "schema_version": 1,
+   "cohort_id": "k12-calibration-test",
+   "fixture_id": "behavior-null-guard",
+   "stratum": "behavior-repair",
+   "policy": "fixed",
+   "repetition_index": 0,
+   "repetitions_total": 1,
+   "order_seed": "worker-record-test",
+   "worktree_path": "/k12/worktrees/behavior-null-guard/r0/fixed",
+   "cache_namespace": "/k12/cache/behavior-null-guard/r0/fixed",
+   "evaluator": "k12-pilot-recorded-worker",
+   "host": "node",
+   "catalog_digest": "2e9442c4636385e3c301e6f048d0b864f9dd52b832fe03a3f7536513639f9c91",
+   "outcome": {
+    "status": "pass",
+    "note": "verify PASS (bugfix: 5 phases, 1 gates); worker claude-haiku-4-5-20251001: 39171 tokens, 13 tool uses",
+    "measurements": {
+     "phases_executed": 5,
+     "effects_executed": 1,
+     "events_recorded": 6,
+     "wall_ms": 50250,
+     "interruptions": 0,
+     "recoveries": 0
+    },
+    "oracle": {
+     "applied": true,
+     "reason": "catalog compared: matched 2/2; no must obligation missing"
+    }
+   },
+   "versions": {
+    "runner_version": "k12-pilot/v1-test"
+   },
+   "run_id": "f310d544dae9422b853663ca80be5e50",
+   "started_at": "2026-10-03T00:00:00.000Z",
+   "completed_at": "2026-10-03T00:00:00.000Z"
+  },
+  {
+   "schema_version": 1,
+   "cohort_id": "k12-calibration-test",
+   "fixture_id": "behavior-cache-overwrite",
+   "stratum": "behavior-repair",
+   "policy": "adaptive-repair-v1",
+   "repetition_index": 0,
+   "repetitions_total": 1,
+   "order_seed": "worker-record-test",
+   "worktree_path": "/k12/worktrees/behavior-cache-overwrite/r0/adaptive-repair-v1",
+   "cache_namespace": "/k12/cache/behavior-cache-overwrite/r0/adaptive-repair-v1",
+   "evaluator": "k12-pilot-recorded-worker",
+   "host": "node",
+   "catalog_digest": "2e9442c4636385e3c301e6f048d0b864f9dd52b832fe03a3f7536513639f9c91",
+   "outcome": {
+    "status": "pass",
+    "note": "verify PASS (repair-recipe: 3 phases, 1 gates); worker claude-haiku-4-5-20251001: 37006 tokens, 9 tool uses",
+    "measurements": {
+     "phases_executed": 3,
+     "effects_executed": 1,
+     "events_recorded": 4,
+     "wall_ms": 37402,
+     "interruptions": 0,
+     "recoveries": 0
+    },
+    "oracle": {
+     "applied": true,
+     "reason": "catalog compared: matched 2/2; no must obligation missing"
+    }
+   },
+   "versions": {
+    "runner_version": "k12-pilot/v1-test"
+   },
+   "run_id": "bda11c16e14a3712d4bea927783a08d1",
+   "started_at": "2026-10-03T00:00:00.000Z",
+   "completed_at": "2026-10-03T00:00:00.000Z"
+  },
+  {
+   "schema_version": 1,
+   "cohort_id": "k12-calibration-test",
+   "fixture_id": "behavior-cache-overwrite",
+   "stratum": "behavior-repair",
+   "policy": "fixed",
+   "repetition_index": 0,
+   "repetitions_total": 1,
+   "order_seed": "worker-record-test",
+   "worktree_path": "/k12/worktrees/behavior-cache-overwrite/r0/fixed",
+   "cache_namespace": "/k12/cache/behavior-cache-overwrite/r0/fixed",
+   "evaluator": "k12-pilot-recorded-worker",
+   "host": "node",
+   "catalog_digest": "2e9442c4636385e3c301e6f048d0b864f9dd52b832fe03a3f7536513639f9c91",
+   "outcome": {
+    "status": "pass",
+    "note": "verify PASS (bugfix: 5 phases, 1 gates); worker claude-haiku-4-5-20251001: 38828 tokens, 14 tool uses",
+    "measurements": {
+     "phases_executed": 5,
+     "effects_executed": 1,
+     "events_recorded": 6,
+     "wall_ms": 48789,
+     "interruptions": 0,
+     "recoveries": 0
+    },
+    "oracle": {
+     "applied": true,
+     "reason": "catalog compared: matched 2/2; no must obligation missing"
+    }
+   },
+   "versions": {
+    "runner_version": "k12-pilot/v1-test"
+   },
+   "run_id": "4bc494c02f2b0e3fde3115b614d30995",
+   "started_at": "2026-10-03T00:00:00.000Z",
+   "completed_at": "2026-10-03T00:00:00.000Z"
+  }
+ ],
+ "report": {
+  "arms": [
+   "fixed",
+   "adaptive-repair-v1"
+  ],
+  "fixtures": [
+   {
+    "fixture_id": "behavior-cache-overwrite",
+    "stratum": "behavior-repair",
+    "repetitions_total": 1,
+    "paired_repetitions": 1,
+    "pass_rate": {
+     "fixed": 1,
+     "adaptive-repair-v1": 1
+    },
+    "pass_rate_delta": 0,
+    "measurement_delta": {
+     "phases_executed": -2,
+     "effects_executed": 0,
+     "events_recorded": -2,
+     "wall_ms": -11387,
+     "interruptions": 0,
+     "recoveries": 0
+    },
+    "defects": null,
+    "regression": false,
+    "improvement": false
+   },
+   {
+    "fixture_id": "behavior-legacy-adapter",
+    "stratum": "behavior-repair",
+    "repetitions_total": 1,
+    "paired_repetitions": 1,
+    "pass_rate": {
+     "fixed": 0,
+     "adaptive-repair-v1": 1
+    },
+    "pass_rate_delta": 1,
+    "measurement_delta": {
+     "phases_executed": -2,
+     "effects_executed": 0,
+     "events_recorded": -2,
+     "wall_ms": -15266,
+     "interruptions": 0,
+     "recoveries": 0
+    },
+    "defects": null,
+    "regression": false,
+    "improvement": true
+   },
+   {
+    "fixture_id": "behavior-null-guard",
+    "stratum": "behavior-repair",
+    "repetitions_total": 1,
+    "paired_repetitions": 1,
+    "pass_rate": {
+     "fixed": 1,
+     "adaptive-repair-v1": 1
+    },
+    "pass_rate_delta": 0,
+    "measurement_delta": {
+     "phases_executed": -2,
+     "effects_executed": 0,
+     "events_recorded": -2,
+     "wall_ms": -17568,
+     "interruptions": 0,
+     "recoveries": 0
+    },
+    "defects": null,
+    "regression": false,
+    "improvement": false
+   },
+   {
+    "fixture_id": "behavior-page-slice",
+    "stratum": "behavior-repair",
+    "repetitions_total": 1,
+    "paired_repetitions": 1,
+    "pass_rate": {
+     "fixed": 1,
+     "adaptive-repair-v1": 1
+    },
+    "pass_rate_delta": 0,
+    "measurement_delta": {
+     "phases_executed": -2,
+     "effects_executed": 0,
+     "events_recorded": -2,
+     "wall_ms": -18938,
+     "interruptions": 0,
+     "recoveries": 0
+    },
+    "defects": null,
+    "regression": false,
+    "improvement": false
+   },
+   {
+    "fixture_id": "behavior-retry-backoff",
+    "stratum": "behavior-repair",
+    "repetitions_total": 1,
+    "paired_repetitions": 1,
+    "pass_rate": {
+     "fixed": 1,
+     "adaptive-repair-v1": 1
+    },
+    "pass_rate_delta": 0,
+    "measurement_delta": {
+     "phases_executed": -2,
+     "effects_executed": 0,
+     "events_recorded": -2,
+     "wall_ms": -19580,
+     "interruptions": 0,
+     "recoveries": 0
+    },
+    "defects": null,
+    "regression": false,
+    "improvement": false
+   },
+   {
+    "fixture_id": "behavior-retry-limit",
+    "stratum": "behavior-repair",
+    "repetitions_total": 1,
+    "paired_repetitions": 1,
+    "pass_rate": {
+     "fixed": 1,
+     "adaptive-repair-v1": 1
+    },
+    "pass_rate_delta": 0,
+    "measurement_delta": {
+     "phases_executed": -2,
+     "effects_executed": 0,
+     "events_recorded": -2,
+     "wall_ms": -14311,
+     "interruptions": 0,
+     "recoveries": 0
+    },
+    "defects": null,
+    "regression": false,
+    "improvement": false
+   },
+   {
+    "fixture_id": "behavior-unicode-count",
+    "stratum": "behavior-repair",
+    "repetitions_total": 1,
+    "paired_repetitions": 1,
+    "pass_rate": {
+     "fixed": 1,
+     "adaptive-repair-v1": 1
+    },
+    "pass_rate_delta": 0,
+    "measurement_delta": {
+     "phases_executed": -2,
+     "effects_executed": 0,
+     "events_recorded": -2,
+     "wall_ms": -21194,
+     "interruptions": 0,
+     "recoveries": 0
+    },
+    "defects": null,
+    "regression": false,
+    "improvement": false
+   }
+  ],
+  "cohort": {
+   "pass_rate_delta": {
+    "tasks": 7,
+    "mean": 0.142857,
+    "sd": 0.377964,
+    "ci95": [
+     -0.206714,
+     0.492429
+    ]
+   },
+   "measurement_delta": {
+    "phases_executed": {
+     "tasks": 7,
+     "mean": -2,
+     "sd": 0,
+     "ci95": [
+      -2,
+      -2
+     ]
+    },
+    "effects_executed": {
+     "tasks": 7,
+     "mean": 0,
+     "sd": 0,
+     "ci95": [
+      0,
+      0
+     ]
+    },
+    "events_recorded": {
+     "tasks": 7,
+     "mean": -2,
+     "sd": 0,
+     "ci95": [
+      -2,
+      -2
+     ]
+    },
+    "wall_ms": {
+     "tasks": 7,
+     "mean": -16892,
+     "sd": 3415.311162,
+     "ci95": [
+      -20050.749796,
+      -13733.250204
+     ]
+    },
+    "interruptions": {
+     "tasks": 7,
+     "mean": 0,
+     "sd": 0,
+     "ci95": [
+      0,
+      0
+     ]
+    },
+    "recoveries": {
+     "tasks": 7,
+     "mean": 0,
+     "sd": 0,
+     "ci95": [
+      0,
+      0
+     ]
+    }
+   }
+  },
+  "regressions": [],
+  "improvements": [
+   "behavior-legacy-adapter"
+  ],
+  "defect_regressions": [],
+  "exclusions": [],
+  "totals": {
+   "tasks_total": 7,
+   "tasks_comparable": 7,
+   "pairs_total": 7,
+   "pairs_missing_arm": 0,
+   "pairs_incomplete": 0,
+   "pairs_excluded": 0,
+   "runs_oracle_unapplied": {
+    "fixed": 0,
+    "adaptive-repair-v1": 0
+   },
+   "defects": {
+    "fixed": {
+     "seeded": 0,
+     "detected": 0,
+     "escaped": 0
+    },
+    "adaptive-repair-v1": {
+     "seeded": 0,
+     "detected": 0,
+     "escaped": 0
+    }
+   }
+  },
+  "verdict": "usable-comparison"
+ }
+}
