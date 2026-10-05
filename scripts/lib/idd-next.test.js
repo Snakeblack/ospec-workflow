@@ -69,6 +69,7 @@ test("next names the evidence kind of the obligation to satisfy", () => {
     action: "satisfy-obligation",
     obligation: "repro-test",
     evidence: "repro-run-pair",
+    how: `ospec run --change ${result.change} --obligation repro-test --command "<test>": once failing before the fix, again passing after it`,
   });
   assert.deepStrictEqual(result.pending_obligations, [
     { id: "repro-test", signal: "bug-fix", evidence: "repro-run-pair" },

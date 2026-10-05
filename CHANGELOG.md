@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.99.0] - 2026-10-05
+
+### Added
+- **`ospec check` (E1.4, PR a)** (REQ-idd-014):
+  - Recalcula las señales con el diff respecto a la base del cambio (REQ-idd-006).
+  - Ejecuta en orden los `checks:` de `idd/config.yaml` y registra cada ejecución en `runs`, con su código de salida, la huella de su salida y la del árbol de trabajo (`HEAD`, el diff binario y los ficheros sin seguimiento, nunca `idd/`).
+  - Responde `missing`, con el motivo de cada obligación pendiente, `needs-decision` o `ready`.
+  - `checks-pass` solo queda satisfecha si todos los checks pasaron en el árbol actual; si el árbol cambia, el siguiente `check` registra evidencia nueva o devuelve la obligación a pendiente. Un check que falla no satisface nada, diga lo que diga el modelo.
+- **`ospec run --obligation repro-test|tdd-red-green --command <test> [--unit <nombre>]`**: ejecuta el test y registra la ejecución. Si el mismo comando (y unidad) falló antes en otro árbol, registra la evidencia del par rojo → verde.
+- **Base del cambio**: `record intent` guarda el commit de partida en `base`, y `check` y `signals --diff` calculan el diff contra él (antes, contra `HEAD`).
+- **`checks:` en `idd/config.yaml`** (REQ-idd-013): checks con nombre (`nombre: comando`), en el orden en que se declaran. Este repositorio declara `test: node scripts/check.js`.
+- `scripts/lib/idd-check.js` (reductores puros y veredicto) y `scripts/lib/idd-exec.js` (ejecución por shell en la raíz del proyecto). Un comando que no arranca o que termina por una señal nunca cuenta como pasado.
+
+### Changed
+- **Estado `idd-state/v1`** (REQ-idd-003): campos opcionales `base` y `runs`. La evidencia de ejecución (`check-run`, `repro-run-pair`, `tdd-red-green`) debe nombrar las ejecuciones que la prueban, y `validateState` comprueba que sean coherentes. Los `state.yaml` anteriores siguen siendo válidos.
+- **`ospec next`**: el siguiente paso incluye en `how` el comando que registra la evidencia de `checks-pass`, `repro-test` y `tdd-red-green`.
+- **Spec `idd`**: REQ-idd-005 define `tdd-red-green` como las dos ejecuciones registradas por el CLI, y REQ-idd-012 toma por defecto la base del cambio.
+- **Roadmap**: E1.4 (a) entregado; el siguiente es el PR (b).
+
+**Verificación directa**: `node scripts/check.js` (3138 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.98.0] - 2026-10-05
 
 ### Changed

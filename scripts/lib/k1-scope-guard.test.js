@@ -162,6 +162,11 @@ const SUCCESSOR_K2_EXACT = new Set([
   // E1.4 (0) IDD configuration in idd/config.yaml, outside openspec/ (roadmap harness-evolution).
   "scripts/lib/idd-config.js",
   "scripts/lib/idd-config.test.js",
+  // E1.4 (a) ospec check and ospec run: observed runs and their evidence (roadmap harness-evolution).
+  "scripts/lib/idd-check.js",
+  "scripts/lib/idd-check.test.js",
+  "scripts/lib/idd-exec.js",
+  "scripts/lib/idd-exec.test.js",
   // Quality Review Gate successor (live v2 post-verify).
   "scripts/lib/quality-review-kpis.js",
   "scripts/lib/quality-review-kpis.test.js",

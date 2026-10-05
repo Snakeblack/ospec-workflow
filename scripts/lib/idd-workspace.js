@@ -5,6 +5,7 @@
 // at its root and the diff of the working tree against a base commit, untracked
 // files included. idd-signals.js turns them into signals.
 
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
@@ -31,9 +32,9 @@ function readProjectContext(root) {
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
-  const { mode, strictTdd, impact } = parseIddConfig(text);
+  const { mode, strictTdd, checks, impact } = parseIddConfig(text);
   const stacks = detectStacks(fs.readdirSync(root));
-  return { mode, strictTdd, impact, stacks, patterns: resolvePatterns({ stacks, impact }) };
+  return { mode, strictTdd, checks, impact, stacks, patterns: resolvePatterns({ stacks, impact }) };
 }
 
 function git(root, args) {
@@ -114,8 +115,62 @@ function readGitDiff(root, { base = "HEAD" } = {}) {
   return { paths, addedLines };
 }
 
+function requireWorkTree(root) {
+  try {
+    git(root, ["rev-parse", "--is-inside-work-tree"]);
+  } catch {
+    throw new IddWorkspaceError("not-a-git-repo", `${root} is not inside a git work tree`);
+  }
+}
+
+function tryHead(root) {
+  try {
+    return git(root, ["rev-parse", "--verify", "--quiet", "HEAD^{commit}"]).trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/** The commit a change starts from: HEAD, or null outside git or before the first commit. */
+function readHead(root) {
+  try {
+    requireWorkTree(root);
+  } catch {
+    return null;
+  }
+  return tryHead(root);
+}
+
+// The tree `git hash-object -t tree /dev/null` names: what a repository
+// without commits is compared against.
+const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+
+/**
+ * Digest of the working tree a run executed on (REQ-idd-014): HEAD, the binary
+ * diff of tracked files against it and the content of every untracked file.
+ * The change's own state under idd/ never counts.
+ */
+function readTreeFingerprint(root) {
+  requireWorkTree(root);
+  const head = tryHead(root);
+  const hash = crypto.createHash("sha256");
+  hash.update(`head\0${head ?? "none"}\0`);
+  const exclude = `:(exclude)${CHANGE_ROOT}`;
+  hash.update(git(root, ["diff", "--binary", "--no-color", "--no-ext-diff", "--no-renames", head ?? EMPTY_TREE, "--", ".", exclude]));
+  const untracked = nulList(git(root, ["ls-files", "--others", "--exclude-standard", "-z", "--", ".", exclude]))
+    .map(normalizePath)
+    .sort();
+  for (const file of untracked) {
+    const content = fs.readFileSync(path.join(root, file));
+    hash.update(`\0untracked\0${file}\0${crypto.createHash("sha256").update(content).digest("hex")}`);
+  }
+  return `sha256:${hash.digest("hex")}`;
+}
+
 module.exports = {
   IddWorkspaceError,
   readGitDiff,
+  readHead,
   readProjectContext,
+  readTreeFingerprint,
 };

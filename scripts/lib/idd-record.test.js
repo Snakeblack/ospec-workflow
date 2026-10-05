@@ -236,14 +236,28 @@ test("a withdrawal needs a reason, is recorded once and never undoes satisfied e
 // ---------------------------------------------------------------------------
 
 test("evidence of the catalog kind satisfies its obligation once", () => {
+  const tree = `sha256:${"a".repeat(64)}`;
   const entry = {
     id: "ev-1",
     kind: "check-run",
     obligation: "checks-pass",
     recordedAt: "2026-10-05T08:00:00Z",
-    detail: { command: "npm test", exit_code: 0 },
+    detail: { tree, runs: ["run-1"] },
   };
-  const { state, changed } = recordEvidence(opened(), entry);
+  const withRun = opened();
+  withRun.runs = [
+    {
+      id: "run-1",
+      purpose: "checks",
+      name: "test",
+      command: "npm test",
+      exit_code: 0,
+      output_sha256: `sha256:${"0".repeat(64)}`,
+      tree,
+      recorded_at: "2026-10-05T08:00:00Z",
+    },
+  ];
+  const { state, changed } = recordEvidence(withRun, entry);
   assert.strictEqual(changed, true);
   assertValid(state);
   assert.deepStrictEqual(state.evidence, [
@@ -252,7 +266,7 @@ test("evidence of the catalog kind satisfies its obligation once", () => {
       kind: "check-run",
       obligation: "checks-pass",
       recorded_at: "2026-10-05T08:00:00Z",
-      detail: { command: "npm test", exit_code: 0 },
+      detail: { tree, runs: ["run-1"] },
     },
   ]);
   assert.deepStrictEqual(state.obligations[0], { id: "checks-pass", signal: "always", status: "satisfied", evidence: ["ev-1"] });
@@ -287,4 +301,15 @@ test("every record is refused on a closed change", () => {
     () => recordEvidence(state, { id: "ev-1", kind: "check-run", obligation: "checks-pass", recordedAt: "t" }),
     "change-closed",
   );
+});
+
+test("opening a change records its base commit, which must be a commit id or null", () => {
+  const input = { change: "fix-pagination", kind: "bug", summary: "Fix the last page.", acceptance: "Two full pages." };
+  assert.strictEqual(recordIntent(null, { ...input, base: "3b0378e3" }).state.base, "3b0378e3");
+  assert.strictEqual(recordIntent(null, { ...input, base: null }).state.base, null);
+  assert.ok(!("base" in recordIntent(null, input).state));
+  assertCode(() => recordIntent(null, { ...input, base: "" }), "invalid-base");
+
+  const { state } = recordIntent(null, { ...input, base: "3b0378e3" });
+  assert.strictEqual(recordIntent(state, { ...input, base: "ffffffff" }).changed, false, "the base never moves");
 });

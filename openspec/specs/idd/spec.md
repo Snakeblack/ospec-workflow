@@ -79,7 +79,11 @@ artifacts there.
 `satisfied`, `withdrawn`, the `evidence` ids that satisfy it and, when
 withdrawn, `withdrawn_reason`), `gates` (each with `id`, `status` `open` or
 `resolved`, an optional `reason` and, when resolved, `answer` and `source`) and
-`evidence` (each with `id`, `kind`, `obligation` and `recorded_at`). While the
+`evidence` (each with `id`, `kind`, `obligation` and `recorded_at`, plus the
+`detail` that names the runs behind run evidence), and optionally `base` (the
+commit the change started from, or null outside git) and `runs` (each
+CLI-observed execution of REQ-idd-014). A state without `base` or `runs`
+MUST stay valid, as the states written before they existed. While the
 `ambiguous-intent` gate is open, `intent.kind`, `intent.summary` and
 `intent.acceptance` MUST be null, `intent.request` MUST hold the original
 request, and `signals` and `obligations` MUST be empty. `state.yaml` MUST be
@@ -144,8 +148,8 @@ until E3.1 delivers ADR impact declarations.
 
 - `check-run`: an execution of each check the project declares, run by the CLI,
   with exit code and output digest.
-- `tdd-red-green`: the existing structured Strict TDD RED → GREEN evidence, one
-  per unit of work.
+- `tdd-red-green`: a test failing before the code and passing after it, per
+  unit of work, both runs recorded by the CLI (REQ-idd-014).
 - `repro-run-pair`: the reproduction test failing before the fix and passing
   after it, both runs recorded by the CLI.
 - `living-doc-current`: `change.md` holds the template sections and is current
@@ -315,7 +319,8 @@ unless the intent kind is `docs`; `bug-fix` from the intent kind `bug`; and
 non-obvious decision. `public-contract`, `persistent-data` and
 `security-boundary` MUST derive from paths matching their impact patterns: the
 planned paths give `source: declaration` and, with `--diff`, the paths of the
-git diff against a base commit (default `HEAD`), staged, unstaged and untracked,
+git diff against a base commit (default: the change's recorded `base`, else
+`HEAD`), staged, unstaged and untracked,
 give `source: diff`. A signal both planned and in the diff MUST keep
 `source: declaration`. Paths under `idd/` MUST NOT count. Every signal MUST
 carry a reason naming why it fired, and a path-driven reason MUST name a
@@ -386,8 +391,9 @@ changes, and IDD MUST NOT read its configuration from `openspec/`, whose
 `config.yaml` configures only the SDD mode. The file is optional; when it is
 absent every key takes its default. Its top-level keys MUST be only `mode`
 (`idd` or `sdd`, the project mode of REQ-idd-001; absent means none),
-`strict_tdd` (`true` or `false`, default `false`) and `impact` (the impact
-section of REQ-idd-012). An unknown or repeated key, a value outside its
+`strict_tdd` (`true` or `false`, default `false`), `checks` (the checks
+`ospec check` runs, as `name: command` in declared order, REQ-idd-014; absent
+means none) and `impact` (the impact section of REQ-idd-012). An unknown or repeated key, a value outside its
 domain or an unreadable line MUST be refused with the code `config-invalid`;
 invalid contents of `impact` keep the code `impact-config-invalid`.
 
@@ -404,3 +410,66 @@ invalid contents of `impact` keep the code `impact-config-invalid`.
 - GIVEN an `idd/config.yaml` with the top-level key `workflow`
 - WHEN `ospec signals` reads the project context
 - THEN it MUST exit with 1 and the error code `config-invalid`
+
+### Requirement: Check And Run Record Observed Executions {#REQ-idd-014}
+
+Opening a change MUST record as `base` the commit `HEAD` names, or null
+outside git or before the first commit; the base never moves afterwards.
+`ospec check` MUST recompute the signals from the diff against the change's
+base and record what that adds (REQ-idd-006), then run every check of
+`idd/config.yaml` in declared order through the shell in the project root, and
+record each execution as a run. `ospec run` MUST run one test command for
+`repro-test` or `tdd-red-green`, with an optional `--unit`, and record it as a
+run; it MUST refuse any other obligation, an obligation the change does not
+have and an ambiguous intent. A run MUST hold `id`, `purpose` (`checks`,
+`repro-test` or `tdd-red-green`), `command`, `exit_code`, `output_sha256`,
+`tree`, `recorded_at` and, for a check, its `name`. `tree` MUST digest the
+working tree the run executed on: `HEAD`, the binary diff of tracked files
+against it and the content of untracked files, never anything under `idd/`. A
+command that cannot start or ends by a signal MUST NOT count as passing.
+
+`check-run` evidence MUST name its tree and the runs of one `check` in which
+every declared check passed on that tree, the tree current when the checks
+finished. After each `check`, `checks-pass` MUST be satisfied exactly when that
+check recorded such evidence; otherwise it MUST return to `pending`, because
+older evidence proved an older tree. `repro-run-pair` and `tdd-red-green`
+evidence MUST name a failing run and a later passing run of the same purpose,
+command and unit on a different tree, and `ospec run` MUST record it when such
+a passing run is recorded.
+
+`ospec check` MUST answer `missing` while an obligation is pending, naming
+each with the reason it is not met, else `needs-decision` while a gate is open,
+else `ready`. While the intent is ambiguous it MUST answer `needs-decision`
+without running anything. A completed check MUST exit with 0 whatever its
+answer; outside a git work tree it MUST be refused with `not-a-git-repo`.
+
+#### Scenario: A claimed passing run closes nothing
+
+- GIVEN an open change whose declared check fails
+- WHEN the model reports that the tests pass and `ospec check` runs
+- THEN the run MUST be recorded with its non-zero exit code
+- AND `checks-pass` MUST stay `pending` with the reason naming the failed check
+
+#### Scenario: A later edit needs a new passing check
+
+- GIVEN `checks-pass` satisfied by a check on one tree
+- WHEN a file changes and `ospec check` runs again with the checks passing
+- THEN the new evidence MUST name the new tree and `checks-pass` MUST list
+  only it
+
+#### Scenario: The diff starts touching a migration
+
+- GIVEN an open feature change without `persistent-data`
+- WHEN the working tree adds `db/migrations/004_add_index.sql` and
+  `ospec check` runs
+- THEN `persistent-data` MUST be recorded with `source: diff`
+- AND the answer MUST be `missing` naming `migration-compat-and-test`
+
+#### Scenario: Reproduction pair
+
+- GIVEN a bug change with `repro-test` pending
+- WHEN `ospec run --obligation repro-test --command "node verify.js"` fails,
+  the fix is applied and the same command passes
+- THEN `repro-run-pair` evidence MUST name both runs and `repro-test` MUST be
+  `satisfied`
+- AND a passing run on the same tree as the failing one MUST NOT record it

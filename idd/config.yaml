@@ -1,6 +1,10 @@
 # IDD configuration of this project (openspec/specs/idd/spec.md, REQ-idd-013).
 # openspec/ holds only SDD configuration and state; IDD reads this file.
 
+# The checks `ospec check` runs, in order (REQ-idd-014).
+checks:
+  test: node scripts/check.js
+
 # Impact patterns for IDD signals (REQ-idd-012). Each list adds to the base and
 # stack defaults; exclude removes paths.
 impact:

@@ -12,11 +12,25 @@ const { CONFIG_FILE, CONFIG_KEYS, IddConfigError, parseIddConfig } = require("./
 
 test("the configuration lives under idd/, outside openspec/", () => {
   assert.strictEqual(CONFIG_FILE, "idd/config.yaml");
-  assert.deepStrictEqual(CONFIG_KEYS, ["mode", "strict_tdd", "impact"]);
+  assert.deepStrictEqual(CONFIG_KEYS, ["mode", "strict_tdd", "checks", "impact"]);
+});
+
+test("checks are named commands kept in their declared order", () => {
+  const config = parseIddConfig(
+    ["checks:", "  test: npm test", "  type-check: npx tsc --noEmit   # types", '  lint: "eslint . # all"'].join("\n"),
+  );
+  assert.deepStrictEqual(config.checks, [
+    { name: "test", command: "npm test" },
+    { name: "type-check", command: "npx tsc --noEmit" },
+    { name: "lint", command: "eslint . # all" },
+  ]);
+  assert.throws(() => parseIddConfig("checks:\n  test:\n    - npm test\n"), /check test must be one command/);
+  assert.throws(() => parseIddConfig('checks:\n  test: ""\n'), /check test must be one command/);
+  assert.throws(() => parseIddConfig("checks: npm test\n"), /checks must be a section/);
 });
 
 test("an absent or empty configuration yields the defaults", () => {
-  const defaults = { mode: null, strictTdd: false, impact: {} };
+  const defaults = { mode: null, strictTdd: false, checks: [], impact: {} };
   assert.deepStrictEqual(parseIddConfig(""), defaults);
   assert.deepStrictEqual(parseIddConfig("# only a comment\n\n"), defaults);
 });
@@ -41,6 +55,7 @@ test("mode, strict_tdd and the impact section are read", () => {
   assert.deepStrictEqual(config, {
     mode: "idd",
     strictTdd: true,
+    checks: [],
     impact: {
       stack: ["node", "go"],
       defaults: true,

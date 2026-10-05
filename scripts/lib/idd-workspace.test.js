@@ -11,7 +11,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 
-const { IddWorkspaceError, readGitDiff, readProjectContext } = require("./idd-workspace.js");
+const { IddWorkspaceError, readGitDiff, readHead, readProjectContext, readTreeFingerprint } = require("./idd-workspace.js");
 
 function tempDir(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "idd-workspace-"));
@@ -121,4 +121,43 @@ test("the diff is refused outside a git repository or with an unknown base", (t)
   commitAll(root, "base");
   assert.throws(() => readGitDiff(root, { base: "no-such-ref" }), (error) => error.code === "unknown-base");
   assert.throws(() => readGitDiff(root, { base: "--output=x" }), (error) => error.code === "unknown-base");
+});
+
+test("the head commit is the change base, and null outside git or before the first commit", (t) => {
+  assert.strictEqual(readHead(tempDir(t)), null);
+  const root = gitRepo(t);
+  assert.strictEqual(readHead(root), null);
+  write(root, "a.txt", "a\n");
+  commitAll(root, "base");
+  assert.strictEqual(readHead(root), git(root, "rev-parse", "HEAD").trim());
+});
+
+test("the tree fingerprint follows the working tree and ignores idd/", (t) => {
+  const root = gitRepo(t);
+  write(root, "src/app.js", "module.exports = 1;\n");
+  commitAll(root, "base");
+
+  const clean = readTreeFingerprint(root);
+  assert.match(clean, /^sha256:[0-9a-f]{64}$/);
+  assert.strictEqual(readTreeFingerprint(root), clean, "stable for the same tree");
+
+  write(root, "idd/fix/state.yaml", "{}\n");
+  write(root, "idd/config.yaml", "strict_tdd: true\n");
+  assert.strictEqual(readTreeFingerprint(root), clean, "IDD state is not part of the tree");
+
+  write(root, "src/app.js", "module.exports = 2;\n");
+  const edited = readTreeFingerprint(root);
+  assert.notStrictEqual(edited, clean, "a tracked edit changes it");
+
+  write(root, "src/new.js", "1\n");
+  const untracked = readTreeFingerprint(root);
+  assert.notStrictEqual(untracked, edited, "an untracked file changes it");
+  write(root, "src/new.js", "2\n");
+  assert.notStrictEqual(readTreeFingerprint(root), untracked, "untracked content counts");
+
+  fs.rmSync(path.join(root, "src/new.js"));
+  write(root, "src/app.js", "module.exports = 1;\n");
+  assert.strictEqual(readTreeFingerprint(root), clean, "back to the committed tree");
+
+  assert.throws(() => readTreeFingerprint(tempDir(t)), (error) => error.code === "not-a-git-repo");
 });

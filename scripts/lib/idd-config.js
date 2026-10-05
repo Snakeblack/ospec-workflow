@@ -10,8 +10,8 @@ const { CHANGE_ROOT, MODES } = require("./idd-contract.js");
 const { validateImpact } = require("./idd-impact.js");
 
 const CONFIG_FILE = `${CHANGE_ROOT}/config.yaml`;
-const CONFIG_KEYS = Object.freeze(["mode", "strict_tdd", "impact"]);
-const SECTION_KEYS = new Set(["impact"]);
+const CONFIG_KEYS = Object.freeze(["mode", "strict_tdd", "checks", "impact"]);
+const SECTION_KEYS = new Set(["checks", "impact"]);
 
 class IddConfigError extends Error {
   constructor(message) {
@@ -51,7 +51,7 @@ function parseSection(name, lines) {
       section[listKey].push(parseScalar(item[1]));
       continue;
     }
-    const entry = /^\s+([A-Za-z_]+):\s*(.*)$/.exec(line);
+    const entry = /^\s+([A-Za-z0-9_-]+):\s*(.*)$/.exec(line);
     if (!entry) throw new IddConfigError(`unreadable ${name} line: ${line.trim()}`);
     const [, key, raw] = entry;
     if (stripComment(raw) === "") {
@@ -63,6 +63,15 @@ function parseSection(name, lines) {
     }
   }
   return section;
+}
+
+// The checks `ospec check` runs, as `name: command`, in declared order
+// (REQ-idd-014). A command holding ` #` must be quoted.
+function parseChecks(lines) {
+  return Object.entries(parseSection("checks", lines)).map(([name, command]) => {
+    if (typeof command !== "string" || command === "") throw new IddConfigError(`check ${name} must be one command`);
+    return { name, command };
+  });
 }
 
 function parseBoolean(key, value) {
@@ -98,8 +107,9 @@ function parseIddConfig(text) {
   const mode = raw.mode ?? null;
   if (mode !== null && !MODES.includes(mode)) throw new IddConfigError(`mode must be ${MODES.join(" or ")}, got ${mode}`);
   const strictTdd = "strict_tdd" in raw ? parseBoolean("strict_tdd", raw.strict_tdd) : false;
+  const checks = raw.checks ? parseChecks(raw.checks.lines) : [];
   const impact = raw.impact ? validateImpact(parseSection("impact", raw.impact.lines)) : {};
-  return { mode, strictTdd, impact };
+  return { mode, strictTdd, checks, impact };
 }
 
 module.exports = {

@@ -28,6 +28,15 @@ const GATE_QUESTIONS = Object.freeze({
 
 const EVIDENCE_BY_OBLIGATION = new Map(OBLIGATIONS.map((obligation) => [obligation.id, obligation.evidence]));
 
+// The ospec command that records each obligation's evidence (REQ-idd-014).
+const HOW = Object.freeze({
+  "checks-pass": (change) => `ospec check --change ${change}`,
+  "repro-test": (change) =>
+    `ospec run --change ${change} --obligation repro-test --command "<test>": once failing before the fix, again passing after it`,
+  "tdd-red-green": (change) =>
+    `ospec run --change ${change} --obligation tdd-red-green --command "<test>" [--unit <name>]: failing before the code, passing after it`,
+});
+
 function byWorkOrder(left, right) {
   return WORK_ORDER.indexOf(left.id) - WORK_ORDER.indexOf(right.id);
 }
@@ -58,6 +67,7 @@ function nextForChange(state) {
     nextStep = { action: "resolve-gate", gate: "ambiguous-intent" };
   } else if (pending.length > 0) {
     nextStep = { action: "satisfy-obligation", obligation: pending[0].id, evidence: pending[0].evidence };
+    if (HOW[pending[0].id]) nextStep.how = HOW[pending[0].id](state.change);
   } else if (openGates.length > 0) {
     nextStep = { action: "resolve-gate", gate: openGates[0].id };
   } else {

@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.98.0, 2026-10-05.
+> **Versión de referencia:** v2.99.0, 2026-10-05.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -64,8 +64,8 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | Señal | Obligación | Evidencia que la cierra |
 | --- | --- | --- |
 | Siempre | Los checks que declara el proyecto (tests, lint y build) pasan | Ejecución registrada por el CLI, nunca la afirmación del modelo |
-| El proyecto declara Strict TDD | Test en rojo antes del código en cada unidad de trabajo | Evidencia RED → GREEN estructurada (ya existe) |
-| Corrección de un bug | Test de reproducción que falla antes del arreglo y pasa después | Las dos ejecuciones (receta Repair, piloto de v2.79.0–v2.80.0) |
+| El proyecto declara Strict TDD | Test en rojo antes del código en cada unidad de trabajo | Las dos ejecuciones de cada unidad, registradas por `ospec run` |
+| Corrección de un bug | Test de reproducción que falla antes del arreglo y pasa después | Las dos ejecuciones, registradas por `ospec run` (receta Repair, piloto de v2.79.0–v2.80.0) |
 | Más de una unidad de trabajo o una decisión no obvia | Documento vivo con el plan y las decisiones del cambio | El documento, al día en el cierre |
 | Cambia un contrato público (API, CLI, esquema o formato de fichero) | Contrato de comportamiento actualizado y su test | El documento del contrato (patrones por stack y `contracts:` de `idd/config.yaml`) y el test |
 | Datos o estado persistente (migración o formato en disco) | Compatibilidad o reversión declarada y test de migración | El test |
@@ -139,7 +139,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E1.4 `ospec-check-and-close`, PR (a): `ospec check` y `ospec run`. El PR (0) de E1.4 llevó la configuración de IDD a `idd/config.yaml` en v2.98.0: `openspec/` queda solo para el modo SDD. E1.5 quedó cerrado en v2.97.0: cada módulo de `scripts/lib` tiene dueño o decisión, y el kernel que nadie usaba está retirado. E2.1 `knowledge-map-contract` espera a E1.4. La etapa 0 quedó cerrada en v2.91.0.
+**▶ SIGUIENTE:** E1.4 `ospec-check-and-close`, PR (b): review de confianza con el linaje acotado y evidencia de contrato y de migración. En v2.99.0, `ospec check` y `ospec run` registran lo que ejecutan (PR a); en v2.98.0, la configuración de IDD pasó a `idd/config.yaml` y `openspec/` quedó solo para el modo SDD (PR 0). E1.5 quedó cerrado en v2.97.0: cada módulo de `scripts/lib` tiene dueño o decisión, y el kernel que nadie usaba está retirado. E2.1 `knowledge-map-contract` espera a E1.4. La etapa 0 quedó cerrada en v2.91.0.
 
 **Dependencias:**
 
@@ -264,6 +264,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Directriz (2026-10-05):** el control y los artefactos de IDD no viven en `openspec/`, que queda solo para el modo SDD. Todo IDD está bajo `idd/`: `config.yaml`, `<id>/` y `archive/`.
 - **Entrega:** PRs encadenados: (0) configuración de IDD en `idd/config.yaml`; (a) `ospec check` y `ospec run`: checks declarados, recálculo de señales con el diff, evidencia `check-run` y pares rojo → verde para la reproducción y TDD; (b) review de confianza con el linaje acotado y evidencia de contrato y de migración; (c) `ospec close` con un archive transaccional propio de IDD (`idd-close.js`, que reutiliza de O6A el inventario con huellas y el renombrado con *fallback*; `archive-transaction.js` sigue siendo del modo SDD); (d) distribuir los scripts que citan las skills de SDD y no llegan al runtime, con un test que lo exija.
 - **(0) entregado en v2.98.0:** `scripts/lib/idd-config.js` lee `idd/config.yaml` (REQ-idd-013), con solo tres claves de primer nivel: `mode` (el modo del proyecto de REQ-idd-001), `strict_tdd` e `impact`. Una clave desconocida o repetida, o un valor fuera de su dominio, se rechazan con `config-invalid`. IDD ya no lee `openspec/config.yaml`: `strict_tdd: true` o una sección `impact:` ahí no configuran IDD. REQ-idd-002 prohíbe que IDD guarde configuración, estado o artefactos en `openspec/`. Este repositorio mueve su sección `impact:` a `idd/config.yaml`, y `k1-scope-guard` pierde la normalización que la toleraba en `openspec/config.yaml`.
+- **(a) entregado en v2.99.0:** `ospec check` y `ospec run` (REQ-idd-014). Al abrir un cambio, el CLI guarda como `base` el commit de partida, y los diffs de `check` y de `signals --diff` se calculan contra él. `check` recalcula las señales con el diff y ejecuta en orden los `checks:` de `idd/config.yaml` (`nombre: comando`). Registra cada ejecución en `runs` con su código de salida, la huella de su salida y la del árbol de trabajo (`HEAD`, el diff binario y los ficheros sin seguimiento, nunca `idd/`). Responde `missing` con el motivo de cada obligación pendiente, `needs-decision` o `ready`. `checks-pass` solo queda satisfecha si todos los checks pasaron en el árbol actual: si el árbol cambia, el siguiente `check` registra evidencia nueva o devuelve la obligación a pendiente. `ospec run --obligation repro-test|tdd-red-green --command <test> [--unit <n>]` ejecuta el test y registra la ejecución. La evidencia del par se registra cuando el mismo comando falla y después pasa en un árbol distinto. `validateState` exige que la evidencia de ejecución nombre las ejecuciones que la prueban. `next` indica el comando que registra cada una de esas evidencias. Los `state.yaml` anteriores, sin `base` ni `runs`, siguen siendo válidos. Este repositorio declara `checks: test: node scripts/check.js`.
 
 ### E1.5 — `kernel-wiring-inventory`
 
