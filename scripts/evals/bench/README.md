@@ -20,6 +20,7 @@ tooling only: it grants no authority and never runs a model in `npm test`.
 | `transcript.js` | Usage, cost, and session from a `stream-json` transcript (`modelUsage` includes subagents) |
 | `record.js` | The versioned record of one arm and its Markdown report |
 | `checkpoint.js`, `margins.json` | Predeclared margins and the continue/revise decision |
+| `stats.js` | Per-scenario 95% t interval (the task is the statistical unit) |
 | `bench.js` | CLI |
 
 ## Scenarios

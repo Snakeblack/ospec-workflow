@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.105.0] - 2026-10-05
+
+### Removed
+- **Lo que quedaba de K12 (E4.1, PR b)**: `worker-record`, `runner`, `run-manifest` y su esquema `schemas/kernel/run-manifest/` (REQ-kernel-contract-schemas-033), `cohort`, `obligation-oracle` y `pilot-checkpoint`, con sus tests, el corpus de 22 tareas, los márgenes, las calibraciones y las instantáneas del piloto Adaptive Repair. Su forma estaba atada al kernel retirado (políticas `fixed` y `adaptive-repair-v1`, medidas de fases, efectos y eventos) y el banco de E4.1 usa su propio record. `k1-compat` y `k1-scope-guard` dejan de registrar esas rutas. El piloto sigue documentado en `docs/analysis/2026-10-03-adaptive-pilot-report.md` y se reproduce con v2.104.0 o anterior.
+
+### Changed
+- El intervalo t del 95 % por tarea pasa del runner de K12 a `scripts/evals/bench/stats.js`, con tests propios; el checkpoint del banco lo usa desde ahí.
+- **Roadmap**: E4.1 (b) entregado; la fila de K12 en la base entregada queda como retirada.
+
+**Verificación directa**: `node scripts/check.js` (3193 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.104.0] - 2026-10-05
 
 ### Added

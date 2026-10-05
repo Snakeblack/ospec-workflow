@@ -185,8 +185,6 @@ function listK1SchemaFiles(rootDir) {
     // K6d additive advisory contracts
     "schemas/kernel/architecture-alternative/",
     "schemas/kernel/complexity-architecture-delta/",
-    // K12 additive focal-corpus run-manifest family
-    "schemas/kernel/run-manifest/",
     // K8 additive candidate-evaluation-attestation family
     "schemas/kernel/candidate-evaluation-attestation/",
     // CX1 additive result-envelope family and backward compatibility schemas

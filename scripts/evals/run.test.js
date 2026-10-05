@@ -44,8 +44,6 @@ test("suite discovery keeps exactly nine golden scenarios separate from nine ben
   assert.equal(listScenarioNames().length, 9);
   assert.equal(listBenchmarkNames().length, 9);
   assert.equal(listScenarioNames().includes("benchmark"), false);
-  // Non-scenario fixture trees (K12 corpus) are excluded by the scenario.json rule.
-  assert.equal(listScenarioNames().includes("k12"), false);
 });
 
 test("benchmark selection defaults all to the three-profile core and keeps nine optional as extended", () => {

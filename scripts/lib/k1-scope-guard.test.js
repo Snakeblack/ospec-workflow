@@ -223,9 +223,6 @@ const SUCCESSOR_K2_PREFIXES = [
   "scripts/lib/assurance-graph/",
   "scripts/lib/adversarial-challenges/",
   "scripts/lib/complexity-architecture-delta/",
-  // K12 focal corpus successor (fixed baseline, obligations oracle, run manifests).
-  "scripts/lib/k12/",
-  "schemas/kernel/run-manifest/",
   "schemas/kernel/operation-permit/",
   "schemas/kernel/operation-receipt/",
   "schemas/kernel/effect-class/",
@@ -427,11 +424,7 @@ test("K1 scope guard: K2 successor paths are excluded from K1 inventory governan
   assert.equal(isSuccessorK2Path("scripts/lib/verify-lineage-recheck.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/flow-validator.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/flow-validator.test.js"), true);
-  assert.equal(isSuccessorK2Path("scripts/lib/k12/obligation-oracle.js"), true);
-  assert.equal(isSuccessorK2Path("scripts/lib/k12/obligation-oracle.test.js"), true);
-  assert.equal(isSuccessorK2Path("schemas/kernel/run-manifest/v1.schema.json"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/idd-signals.js"), true);
-  assert.equal(isSuccessorK2Path("scripts/lib/k12/worker-record.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/verify-lineage-recheck.test.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/transition-parity.js"), false);
   assert.equal(isSuccessorK2Path("scripts/lib/canonical-json.js"), false);
@@ -443,7 +436,6 @@ test("K1 scope guard: K2 successor paths are excluded from K1 inventory governan
   assert.equal(isAllowedK1Path("scripts/lib/flow-validator.js"), false);
   assert.equal(isK1GovernedImplementationPath("scripts/lib/lifecycle-kernel/reducer.js"), false);
   assert.equal(isK1GovernedImplementationPath("scripts/lib/flow-validator.js"), false);
-  assert.equal(isK1GovernedImplementationPath("scripts/lib/k12/obligation-oracle.js"), false);
   assert.equal(isK1GovernedImplementationPath("scripts/lib/canonical-json.js"), true);
 });
 
