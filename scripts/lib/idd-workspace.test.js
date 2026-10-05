@@ -11,7 +11,18 @@ const os = require("node:os");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 
-const { IddWorkspaceError, readGitDiff, readHead, readProjectContext, readTreeFingerprint } = require("./idd-workspace.js");
+const {
+  EMPTY_TREE,
+  IddWorkspaceError,
+  commitTree,
+  readGitDiff,
+  readHead,
+  readProjectContext,
+  readTreeFingerprint,
+  snapshotTree,
+  treeBlobs,
+  treeNumstat,
+} = require("./idd-workspace.js");
 
 function tempDir(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "idd-workspace-"));
@@ -160,4 +171,31 @@ test("the tree fingerprint follows the working tree and ignores idd/", (t) => {
   assert.strictEqual(readTreeFingerprint(root), clean, "back to the committed tree");
 
   assert.throws(() => readTreeFingerprint(tempDir(t)), (error) => error.code === "not-a-git-repo");
+});
+
+test("a snapshot tree holds tracked and untracked files without touching the index or idd/", (t) => {
+  const root = gitRepo(t);
+  write(root, "src/app.js", "one\n");
+  write(root, ".gitignore", "*.log\n");
+  commitAll(root, "base");
+  const base = commitTree(root, readHead(root));
+  assert.strictEqual(commitTree(root, null), EMPTY_TREE);
+
+  write(root, "src/app.js", "one\ntwo\n");
+  write(root, "src/new.js", "fresh\n");
+  write(root, "debug.log", "ignored\n");
+  write(root, "idd/fix/state.yaml", "{}\n");
+  const before = git(root, "status", "--porcelain");
+  const tree = snapshotTree(root);
+  assert.strictEqual(git(root, "status", "--porcelain"), before, "the real index is untouched");
+
+  const blobs = treeBlobs(root, tree);
+  assert.ok(blobs.has("src/new.js"));
+  assert.ok(!blobs.has("debug.log"));
+  assert.ok(![...blobs.keys()].some((file) => file.startsWith("idd/")));
+  assert.deepStrictEqual(treeNumstat(root, base, tree), [
+    { path: "src/app.js", added: 1, deleted: 0 },
+    { path: "src/new.js", added: 1, deleted: 0 },
+  ]);
+  assert.strictEqual(snapshotTree(root), tree, "the same working tree gives the same tree");
 });

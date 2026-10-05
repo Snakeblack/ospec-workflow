@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.101.0] - 2026-10-05
+
+### Added
+- **`ospec review` (E1.4, PR b2)** (REQ-idd-016): review de confianza de un cambio IDD con el linaje acotado existente (`review-lineage.js`, esquema v2, solo la lente `trust`):
+  - `review start` congela el candidato: las rutas que el diff cambia respecto a la base, la huella de su contenido y las líneas cambiadas, tomadas de una instantánea del árbol de trabajo (objeto *tree* de git con un índice temporal, sin `idd/`). Devuelve la petición para el revisor independiente `review-trust`; si hay un review en curso, devuelve ese.
+  - `review record --result <json|@fichero>` congela los hallazgos. Sin `BLOCKER` ni `CRITICAL`, registra la evidencia `frozen-review` (linaje, candidato, árbol y huella de hallazgos).
+  - Con un bloqueante, una sola corrección acotada: `review correct` registra los cambios dentro de las rutas congeladas y del presupuesto de líneas, y `review validate` aplica el veredicto de `review-correction` a los IDs congelados. Si la validación falla, el linaje termina.
+  - El review sucesor no pide aprobación (REQ-idd-008), pero exige que las rutas revisadas hayan cambiado, y un cambio admite como mucho 3 reviews; al agotarlos, `trust-review` queda pendiente y decide la persona.
+- **Caducidad del review**: en cada `check`, `trust-review` vuelve a pendiente si cambian las rutas revisadas o el diff toca otra ruta de frontera de seguridad.
+- `idd-workspace.js`: `snapshotTree`, `commitTree`, `treeBlobs` y `treeNumstat`.
+
+### Changed
+- **Estado `idd-state/v1`** (REQ-idd-003): campo opcional `reviews` con los linajes, del más antiguo al más reciente. `validateState` exige que `frozen-review` nombre un review aprobado de su candidato.
+- **`ospec check` y `next`**: el motivo de `trust-review` dice qué paso del review falta, y `next` da el comando.
+- **Roadmap**: E1.4 (b2) entregado; el siguiente es el PR (c), `ospec close`.
+
+**Verificación directa**: `node scripts/check.js` (3166 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.100.0] - 2026-10-05
 
 ### Added

@@ -170,6 +170,9 @@ const SUCCESSOR_K2_EXACT = new Set([
   // E1.4 (b1) contract documents and tests for contract evidence (roadmap harness-evolution).
   "scripts/lib/idd-contracts.js",
   "scripts/lib/idd-contracts.test.js",
+  // E1.4 (b2) trust review on the bounded review lineage (roadmap harness-evolution).
+  "scripts/lib/idd-review.js",
+  "scripts/lib/idd-review.test.js",
   // Quality Review Gate successor (live v2 post-verify).
   "scripts/lib/quality-review-kpis.js",
   "scripts/lib/quality-review-kpis.test.js",

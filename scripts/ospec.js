@@ -10,6 +10,7 @@
 //
 // Exit codes: 0 ok, 1 refused by the IDD contract, 2 usage error.
 
+const fs = require("node:fs");
 const { parseArgs } = require("node:util");
 
 const {
@@ -28,10 +29,30 @@ const { isIntentAmbiguous } = require("./lib/idd-contract.js");
 const { runCommand } = require("./lib/idd-exec.js");
 const { nextForChange, nextForProject, statusOf } = require("./lib/idd-next.js");
 const { IddRecordError, recordGate, recordIntent, recordSignal, recordWithdraw } = require("./lib/idd-record.js");
-const { IddImpactError } = require("./lib/idd-impact.js");
+const {
+  buildCandidate,
+  candidateDiffHash,
+  correctTrustReview,
+  currentReview,
+  recordTrustFindings,
+  settleReviewFreshness,
+  startTrustReview,
+  validateTrustCorrection,
+} = require("./lib/idd-review.js");
+const { IddImpactError, matchImpact } = require("./lib/idd-impact.js");
 const { applyDerivation, deriveSignals } = require("./lib/idd-signals.js");
 const { IddStoreError, listChanges, mutateChange, readChange } = require("./lib/idd-store.js");
-const { IddWorkspaceError, readGitDiff, readHead, readProjectContext, readTreeFingerprint } = require("./lib/idd-workspace.js");
+const {
+  IddWorkspaceError,
+  commitTree,
+  readGitDiff,
+  readHead,
+  readProjectContext,
+  readTreeFingerprint,
+  snapshotTree,
+  treeBlobs,
+  treeNumstat,
+} = require("./lib/idd-workspace.js");
 
 const USAGE = `Usage:
   ospec status [--change <id>] [--json]
@@ -47,6 +68,8 @@ const USAGE = `Usage:
   ospec check --change <id> [--base <ref>]
   ospec run --change <id> --obligation <repro-test|tdd-red-green|migration-compat-and-test> --command <cmd>
             [--unit <name>] [--plan <compatibility or rollback plan>]
+  ospec review start|correct --change <id> [--base <ref>]
+  ospec review record|validate --change <id> --result <json>|@<file>
 
 Options:
   --root <dir>  project root (default: current directory)
@@ -79,6 +102,7 @@ const OPTIONS = {
   command: { type: "string" },
   unit: { type: "string" },
   plan: { type: "string" },
+  result: { type: "string" },
   root: { type: "string" },
   json: { type: "boolean" },
   help: { type: "boolean", short: "h" },
@@ -200,6 +224,12 @@ async function check(root, values) {
   const recordedAt = new Date().toISOString();
   const contractPaths = classifyContractPaths(diff.paths, context.contractPatterns);
   const reasons = {};
+  const reviewed = currentReview(current);
+  let reviewedChanged = false;
+  if (reviewed) {
+    const trees = reviewTrees(root, values, current);
+    reviewedChanged = reviewedPathsChanged(root, reviewed, trees.tree, trees.numstat, context.patterns);
+  }
 
   let added;
   const { state, changed } = await mutateChange(
@@ -220,7 +250,8 @@ async function check(root, values) {
       const bound = settleTreeBound(settled.state, { tree });
       const contract = settleContract(bound, { tree, checkEvidence: settled.evidence, ...contractPaths, recordedAt });
       if (contract.reason) reasons["contract-spec-and-test"] = contract.reason;
-      return { state: contract.state, changed: changedFrom(stored, contract.state) };
+      const fresh = settleReviewFreshness(contract.state, { reviewedChanged });
+      return { state: fresh, changed: changedFrom(stored, fresh) };
     }),
   );
   const verdict = checkVerdict(state, { checks: context.checks, results: checks, treeChanged: tree !== treeBefore, reasons });
@@ -270,6 +301,103 @@ async function runObligation(root, values) {
   return { change: state.change, run: { id: runId, ...extra, ...result }, evidence, ...verdict, next: nextForChange(state) };
 }
 
+// --- trust review on the bounded review lineage (REQ-idd-016) --------------
+
+function readResult(raw) {
+  if (!raw) throw new UsageError("review record and review validate need --result <json> or --result @<file>");
+  let text = raw;
+  if (raw.startsWith("@")) {
+    try {
+      text = fs.readFileSync(raw.slice(1), "utf8");
+    } catch (error) {
+      throw new UsageError(`cannot read ${raw.slice(1)}: ${error.message}`);
+    }
+  }
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new UsageError(`--result is not JSON: ${error.message}`);
+  }
+}
+
+// Whether the reviewed paths, or any security-boundary path the diff now
+// touches, differ from the last reviewed candidate.
+function reviewedPathsChanged(root, lineage, tree, numstat, patterns) {
+  if (!lineage) return true;
+  const paths = new Set(lineage.genesis.paths);
+  for (const { path: file } of numstat) {
+    if (matchImpact(file, patterns).some((hit) => hit.signal === "security-boundary")) paths.add(file);
+  }
+  const reviewed = treeBlobs(root, lineage.current_candidate.candidate_tree);
+  const current = treeBlobs(root, tree);
+  return [...paths].some((file) => reviewed.get(file) !== current.get(file));
+}
+
+function reviewTrees(root, values, state) {
+  const baseTree = commitTree(root, values.base || state.base || readHead(root));
+  const tree = snapshotTree(root);
+  return { baseTree, tree, numstat: treeNumstat(root, baseTree, tree) };
+}
+
+async function review(root, positionals, values) {
+  const [action] = positionals;
+  if (!["start", "record", "correct", "validate"].includes(action)) {
+    throw new UsageError(`unknown review action: ${action ?? "(none)"}; expected start, record, correct or validate`);
+  }
+  if (!values.change) throw new UsageError(`review ${action} needs --change <id>`);
+  const result = action === "record" || action === "validate" ? readResult(values.result) : null;
+  const current = await openChange(root, values.change);
+  if (isIntentAmbiguous(current)) throw new IddRecordError("ambiguous-intent-open", "no review runs while the intent is ambiguous");
+  const recordedAt = new Date().toISOString();
+  const context = action === "start" || action === "correct" ? readProjectContext(root) : null;
+  const trees = context ? reviewTrees(root, values, current) : null;
+
+  let outcome;
+  const { state } = await mutateChange(
+    root,
+    values.change,
+    existing((stored) => {
+      const lineage = currentReview(stored);
+      if (action === "start") {
+        const { baseTree, tree, numstat } = trees;
+        const candidate = buildCandidate({
+          baseTree,
+          candidateTree: tree,
+          numstat,
+          baseBlobs: treeBlobs(root, baseTree),
+          candidateBlobs: treeBlobs(root, tree),
+        });
+        const reviewedChanged = reviewedPathsChanged(root, lineage, tree, numstat, context.patterns);
+        outcome = startTrustReview(stored, { candidate, reviewedChanged });
+      } else if (action === "record") {
+        outcome = recordTrustFindings(stored, { result, recordedAt });
+      } else if (action === "correct") {
+        if (!lineage) throw new IddRecordError("review-refused", "no trust review to correct: run ospec review start");
+        const { tree } = trees;
+        const changes = treeNumstat(root, lineage.current_candidate.candidate_tree, tree);
+        const diffHash = candidateDiffHash(lineage.genesis.paths, treeBlobs(root, lineage.genesis.candidate.base_tree), treeBlobs(root, tree));
+        outcome = correctTrustReview(stored, { changes, candidateTree: tree, diffHash });
+      } else {
+        outcome = validateTrustCorrection(stored, { result, recordedAt });
+      }
+      return { state: outcome.state, changed: outcome.changed !== false };
+    }),
+  );
+  const lineage = currentReview(state);
+  const summary = { lineage_id: lineage.lineage_id, generation: lineage.generation, status: lineage.status };
+  if (outcome.request) summary.request = outcome.request;
+  if (outcome.finding_ids) summary.validate = { validator: outcome.validator, finding_ids: outcome.finding_ids };
+  if (lineage.findings.length) summary.findings = lineage.findings.map(({ id, severity, summary: text, blocking }) => ({ id, severity, summary: text, blocking }));
+  return {
+    change: state.change,
+    action,
+    review: summary,
+    evidence: outcome.evidence ?? null,
+    ...checkVerdict(state, { checks: (context || readProjectContext(root)).checks }),
+    next: nextForChange(state),
+  };
+}
+
 async function run(command, positionals, values) {
   const root = values.root || process.cwd();
   if (command === "status") {
@@ -287,6 +415,7 @@ async function run(command, positionals, values) {
   if (command === "signals") return signals(root, values);
   if (command === "check") return check(root, values);
   if (command === "run") return runObligation(root, values);
+  if (command === "review") return review(root, positionals, values);
   if (command === "record") {
     const [type] = positionals;
     const reducer = reducerFor(type, values, root);
@@ -371,8 +500,26 @@ function describeRunResult(result) {
   return lines.join("\n");
 }
 
+function describeReview(result) {
+  const { review } = result;
+  const lines = [`review ${review.generation} (${review.status}) of ${result.change}`];
+  if (review.request) {
+    lines.push(`dispatch ${review.request.reviewer} (lens ${review.request.lens}) on: ${review.request.paths.join(", ")}`);
+    lines.push(`then: ospec review record --change ${result.change} --result '{"findings":[...]}'`);
+  }
+  if (review.validate) {
+    lines.push(`dispatch ${review.validate.validator} for: ${review.validate.finding_ids.join(", ")}`);
+    lines.push(`then: ospec review validate --change ${result.change} --result '{"outcomes":[...],"regression":{...}}'`);
+  }
+  for (const finding of review.findings || []) lines.push(`${finding.id} ${finding.severity}: ${finding.summary}`);
+  if (result.evidence) lines.push(`recorded evidence ${result.evidence}`);
+  lines.push(...describeVerdict(result), describeNext(result.next));
+  return lines.join("\n");
+}
+
 function describe(command, result) {
   if (command === "next") return describeNext(result);
+  if (command === "review") return describeReview(result);
   if (command === "signals") return describeSignals(result);
   if (command === "check") return describeCheck(result);
   if (command === "run") return describeRunResult(result);
