@@ -89,7 +89,7 @@ function parseHooksBlock(rawHooks) {
  *
  * Rejects:
  *   - Absolute paths (leading `/` or `\`)
- *   - Windows drive-letter paths (e.g. `C:\…` or `C:/…`)
+ *   - Windows drive-letter paths (a letter and a colon, then a separator)
  *   - Paths that contain `..` segments (directory traversal)
  *   - Paths that do not start with `skills/`
  *
@@ -106,7 +106,7 @@ function _isConfinedSkillPath(skillPath) {
   if (skillPath.startsWith("/") || skillPath.startsWith("\\")) {
     return false;
   }
-  // Reject Windows drive-letter prefixes (e.g. C:\ or C:/)
+  // Reject Windows drive-letter prefixes (a letter followed by a colon)
   if (/^[a-zA-Z]:/.test(skillPath)) {
     return false;
   }

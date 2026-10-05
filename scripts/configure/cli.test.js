@@ -627,3 +627,28 @@ test("spawnCliSync runs a real Windows npm shim (.cmd) when present", { skip: pr
   assert.equal(probe.error, undefined);
   assert.equal(probe.status, 0);
 });
+
+// E1.4 (d): every script a shipped skill, agent, rule, command or hook cites
+// must reach a consumer's runtime; tests and illustrative paths that do not
+// exist in this repository are not runtime.
+test("every script cited by shipped content is distributed in the runtime", () => {
+  const repo = path.join(__dirname, "..", "..");
+  const runtime = new Set(gatherRuntimeScripts(repo).map((f) => f.path.split(path.sep).join("/")));
+  const missing = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const file = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(file);
+      else if (/\.(md|json|ya?ml|toml)$/.test(entry.name)) {
+        for (const [script] of fs.readFileSync(file, "utf8").matchAll(/scripts\/[A-Za-z0-9_/.-]+\.js/g)) {
+          if (script.endsWith(".test.js") || !fs.existsSync(path.join(repo, script))) continue;
+          if (!runtime.has(script)) missing.push(`${script} (cited by ${path.relative(repo, file).split(path.sep).join("/")})`);
+        }
+      }
+    }
+  };
+  for (const dir of ["skills", "agents", "rules", "commands", "hooks"]) {
+    if (fs.existsSync(path.join(repo, dir))) walk(path.join(repo, dir));
+  }
+  assert.deepEqual([...new Set(missing)].sort(), []);
+});
