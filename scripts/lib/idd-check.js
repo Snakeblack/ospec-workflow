@@ -208,7 +208,9 @@ const DEFAULT_REASONS = Object.freeze({
   [CONTRACT]: "needs a contract document and a test in the diff, with every check passing: run ospec check",
 });
 
-function checkVerdict(state, { checks = [], results = [], treeChanged = false, reasons = {} } = {}) {
+// living-doc is satisfied by ospec close itself (REQ-idd-004): a current
+// change.md does not hold the verdict back, a stale one says what it lacks.
+function checkVerdict(state, { checks = [], results = [], treeChanged = false, reasons = {}, livingDoc = null } = {}) {
   const openGates = state.gates
     .filter((gate) => gate.status === "open")
     .sort((left, right) => GATES.indexOf(left.id) - GATES.indexOf(right.id));
@@ -217,7 +219,7 @@ function checkVerdict(state, { checks = [], results = [], treeChanged = false, r
     return { verdict: "needs-decision", missing: [], decision: { ...decisionFor({ id: "ambiguous-intent" }), reason: state.intent.request } };
   }
   const missing = state.obligations
-    .filter((entry) => entry.status === "pending")
+    .filter((entry) => entry.status === "pending" && !(entry.id === "living-doc" && livingDoc?.ok))
     .sort((left, right) => WORK_ORDER.indexOf(left.id) - WORK_ORDER.indexOf(right.id))
     .map((entry) => {
       const evidence = EVIDENCE_BY_OBLIGATION.get(entry.id);
@@ -225,6 +227,7 @@ function checkVerdict(state, { checks = [], results = [], treeChanged = false, r
       if (entry.id === "checks-pass") reason = checksReason({ checks, results, treeChanged });
       else if (PAIR_OBLIGATIONS.includes(entry.id)) reason = pairReason(state, entry.id);
       else if (entry.id === "trust-review") reason = trustReason(state);
+      else if (entry.id === "living-doc") reason = `${livingDoc?.reason || "change.md was not read"}: ospec close records it once change.md is current`;
       return { obligation: entry.id, evidence, reason };
     });
   const decision = openGates.length > 0 ? decisionFor(openGates[0]) : null;

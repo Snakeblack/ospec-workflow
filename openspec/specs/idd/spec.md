@@ -83,8 +83,9 @@ withdrawn, `withdrawn_reason`), `gates` (each with `id`, `status` `open` or
 `detail` that names the runs behind run evidence), and optionally `base` (the
 commit the change started from, or null outside git), `runs` (each
 CLI-observed execution of REQ-idd-014) and `reviews` (the trust review
-lineages of REQ-idd-016, oldest first). A state without `base`, `runs` or
-`reviews` MUST stay valid, as the states written before they existed. While the
+lineages of REQ-idd-016, oldest first), plus `closed_at` once the change is
+closed (REQ-idd-017). A state without `base`, `runs` or `reviews` MUST stay
+valid, as the states written before they existed. While the
 `ambiguous-intent` gate is open, `intent.kind`, `intent.summary` and
 `intent.acceptance` MUST be null, `intent.request` MUST hold the original
 request, and `signals` and `obligations` MUST be empty. `state.yaml` MUST be
@@ -120,7 +121,10 @@ When the `living-doc` obligation is active, `change.md` MUST carry the sections
 model writes the first three. The `Evidence` section MUST be written only by the
 CLI, between `<!-- ospec:evidence:start -->` and `<!-- ospec:evidence:end -->`.
 The `living-doc` obligation MUST be satisfied only by a `living-doc-current`
-evidence entry recorded at close.
+evidence entry recorded at close, and only when `change.md` keeps the four
+sections in order, its `Plan` and `Decisions` are not empty and the evidence
+markers are in place. While it is current, `ospec check` MUST NOT report it
+as missing.
 
 #### Scenario: Evidence section is CLI-owned
 
@@ -236,7 +240,8 @@ resolved only by an explicit user answer, recorded with its source. While
 ### Requirement: Close Requires Settled Obligations {#REQ-idd-009}
 
 `ospec close` MUST succeed only when no obligation is `pending` and no gate is
-`open`. Closing MUST set `status: closed` and archive the change transactionally.
+`open`. Closing MUST set `status: closed` and archive the change transactionally
+(REQ-idd-017).
 Delivery (branch, PR and merge) MUST stay outside close and is the person's
 decision.
 
@@ -568,3 +573,38 @@ saying so, and the person decides how to go on. All lineages stay in
 - GIVEN a `docs` change that only touches `docs/security/token-rotation.md`
 - WHEN `ospec check` runs with the checks passing
 - THEN the answer MUST be `ready` with no `trust-review` obligation
+
+### Requirement: Transactional Close {#REQ-idd-017}
+
+`ospec close` MUST refuse with `evidence-stale` when the `check-run` evidence
+that satisfies `checks-pass` was not recorded on the current tree, because the
+last `ospec check` settled every tree-bound obligation on that tree. It MUST
+then, under a lock held outside the change directory, settle `living-doc`
+(REQ-idd-004), refuse with `close-refused` naming every pending obligation and
+open gate, and record `status: closed` with `closed_at` atomically; that state
+is the resume marker. It MUST then rewrite the evidence section of `change.md`,
+when it exists, and move `idd/<change-id>/` to
+`idd/archive/<YYYY-MM-DD>-<change-id>/`, dated by `closed_at`. The move MUST
+keep the inventory digest of the archive transaction (O6A) equal on both
+sides; when a rename fails it MUST copy to a staging directory, compare the
+inventories and only then replace the destination and remove the origin. Run
+again after an interruption, close MUST finish the move: a destination with the
+origin's inventory removes the origin, a destination with other content MUST
+be refused with `archive-conflict`, and an already archived change MUST report
+`already_complete`. A refused close MUST leave the change open where it was.
+The result MUST name the destination, its file count and its inventory digest.
+`openspec/` is never touched (REQ-idd-002).
+
+#### Scenario: Edit after the last check
+
+- GIVEN a change whose checks passed on one tree
+- WHEN a file changes and `ospec close` runs
+- THEN it MUST be refused with `evidence-stale` and the change MUST stay open
+  in `idd/<change-id>/`
+
+#### Scenario: Close finishes an interrupted move
+
+- GIVEN a closed change whose copy reached `idd/archive/` before its origin was
+  removed
+- WHEN `ospec close` runs again
+- THEN the origin MUST be removed and the result MUST name the archive

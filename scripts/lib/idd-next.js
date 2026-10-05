@@ -36,6 +36,7 @@ const HOW = Object.freeze({
   "tdd-red-green": (change) =>
     `ospec run --change ${change} --obligation tdd-red-green --command "<test>" [--unit <name>]: failing before the code, passing after it`,
   "contract-spec-and-test": (change) => `update the contract document and its test, then ospec check --change ${change}`,
+  "living-doc": (change) => `write the Plan and Decisions of idd/${change}/change.md, then ospec close --change ${change}`,
   "trust-review": (change) =>
     `ospec review start --change ${change}, dispatch review-trust on the returned paths, then ospec review record --change ${change} --result '<findings json>'`,
   "migration-compat-and-test": (change) =>

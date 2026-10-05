@@ -34,6 +34,7 @@ const STATE_FIELDS = Object.freeze([
   "base",
   "runs",
   "reviews",
+  "closed_at",
 ]);
 const CHANGE_STATUSES = Object.freeze(["open", "closed"]);
 const INTENT_KINDS = Object.freeze(["bug", "feature", "refactor", "docs"]);
@@ -128,6 +129,9 @@ function validateState(state) {
   }
   if ("runs" in state && !Array.isArray(state.runs)) fail("runs must be a list");
   if ("reviews" in state && !Array.isArray(state.reviews)) fail("reviews must be a list");
+  if (state.closed_at != null && (state.status !== "closed" || typeof state.closed_at !== "string")) {
+    fail("closed_at is the close time of a closed change");
+  }
   if (state.base != null && typeof state.base !== "string") fail("base must be a commit id");
   if (errors.length > 0) return { ok: false, errors };
 

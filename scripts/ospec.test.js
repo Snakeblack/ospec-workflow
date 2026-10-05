@@ -535,3 +535,69 @@ test("a documentation-only change closes its checks without any review", (t) => 
   assert.strictEqual(checked.json.verdict, "ready");
   assert.deepStrictEqual(stateOf(root, "fix-readme").obligations.map((entry) => entry.id), ["checks-pass"]);
 });
+
+// E1.4 (c) ospec close (REQ-idd-009, REQ-idd-017).
+
+test("a documentation change closes without review and is archived by date", (t) => {
+  const { root } = project(t);
+  ospec(root, ...OPEN_DOCS);
+  writeFile(root, "src/pages.txt", "2");
+  writeFile(root, "docs/security/token-rotation.md", "Rotate tokens hourly.\n");
+  assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.verdict, "ready");
+
+  const closed = ospec(root, "close", "--change", "fix-readme", "--json");
+  assert.strictEqual(closed.code, 0, closed.stderr);
+  const day = closed.json.closed_at.slice(0, 10);
+  assert.strictEqual(closed.json.archive.destination, `idd/archive/${day}-fix-readme`);
+  assert.strictEqual(closed.json.archive.already_complete, false);
+  assert.ok(!fs.existsSync(path.join(root, "idd", "fix-readme")));
+  const archived = JSON.parse(fs.readFileSync(path.join(root, "idd", "archive", `${day}-fix-readme`, "state.yaml"), "utf8"));
+  assert.strictEqual(archived.status, "closed");
+  assert.deepStrictEqual(ospec(root, "status", "--json").json.changes, []);
+
+  const again = ospec(root, "close", "--change", "fix-readme", "--json");
+  assert.strictEqual(again.code, 0, again.stderr);
+  assert.strictEqual(again.json.archive.already_complete, true);
+  assert.match(ospec(root, "close", "--change", "fix-readme").stdout, /already archived in idd\/archive\//);
+});
+
+test("close is refused with a pending obligation or a tree changed after the last check", (t) => {
+  const { root } = project(t);
+  ospec(root, ...OPEN_DOCS);
+  const pending = ospec(root, "close", "--change", "fix-readme", "--json");
+  assert.strictEqual(pending.code, 1);
+  assert.strictEqual(pending.json.error.code, "close-refused");
+  assert.match(pending.json.error.message, /checks-pass/);
+
+  writeFile(root, "src/pages.txt", "2");
+  ospec(root, "check", "--change", "fix-readme");
+  writeFile(root, "src/late.js", "late edit\n");
+  const stale = ospec(root, "close", "--change", "fix-readme", "--json");
+  assert.strictEqual(stale.json.error.code, "evidence-stale");
+  assert.ok(fs.existsSync(path.join(root, "idd", "fix-readme", "state.yaml")), "a refused close moves nothing");
+  assert.strictEqual(stateOf(root, "fix-readme").status, "open");
+});
+
+test("a change with a living document closes once its plan and decisions are written", (t) => {
+  const { root } = project(t);
+  ospec(root, "record", "intent", "--change", "add-paging", "--kind", "feature", "--summary", "Page the list.", "--acceptance", "Two pages.");
+  ospec(root, "signals", "--change", "add-paging", "--work-units", "2");
+  writeFile(root, "src/pages.txt", "2");
+  const doc = path.join(root, "idd", "add-paging", "change.md");
+
+  const blank = ospec(root, "check", "--change", "add-paging", "--json");
+  assert.strictEqual(blank.json.verdict, "missing");
+  assert.match(blank.json.missing[0].reason, /the section Plan is empty/);
+  assert.strictEqual(ospec(root, "close", "--change", "add-paging", "--json").json.error.code, "close-refused");
+
+  const text = fs.readFileSync(doc, "utf8").replace("## Plan\n", "## Plan\n\n1. Count pages.\n").replace("## Decisions\n", "## Decisions\n\n- Round up.\n");
+  fs.writeFileSync(doc, text);
+  assert.strictEqual(ospec(root, "check", "--change", "add-paging", "--json").json.verdict, "ready");
+
+  const closed = ospec(root, "close", "--change", "add-paging", "--json");
+  assert.strictEqual(closed.code, 0, closed.stderr);
+  const archived = fs.readFileSync(path.join(root, closed.json.archive.destination, "change.md"), "utf8");
+  assert.match(archived, /- ev-\d+: check-run for checks-pass/);
+  assert.match(archived, /- ev-\d+: living-doc-current for living-doc/);
+  assert.match(archived, /1\. Count pages\./, "the model-written sections are kept");
+});
