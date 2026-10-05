@@ -14,30 +14,31 @@ shares the repository with IDD. The machine-readable catalog lives in
 ### Requirement: Workflow Mode Resolution And Coexistence {#REQ-idd-001}
 
 Each change MUST run in exactly one mode, `idd` or `sdd`. The mode MUST resolve
-from the change's own `mode`, else from `workflow.mode` in
-`openspec/config.yaml`, else from the default, which is `sdd` until E1.6 makes
-IDD the default entry. A change MUST keep the mode it started with until it is
+from the change's own `mode`, else from `mode` in `idd/config.yaml`
+(REQ-idd-013), else from the default, which is `sdd` until E1.6 makes IDD the
+default entry. A change MUST keep the mode it started with until it is
 closed or archived. IDD tooling MUST NOT read or write `openspec/changes/`, and
 SDD tooling MUST NOT treat `idd/` as holding SDD changes. No SDD requirement
 changes because IDD exists.
 
 #### Scenario: Change mode wins over project mode
 
-- GIVEN `workflow.mode: sdd` in `openspec/config.yaml`
+- GIVEN `mode: sdd` in `idd/config.yaml`
 - AND a change whose state declares `mode: idd`
 - WHEN the mode of that change is resolved
 - THEN it MUST resolve to `idd`
 
 #### Scenario: Absent configuration keeps SDD before E1.6
 
-- GIVEN a project without `workflow.mode` and a new change without `mode`
+- GIVEN a project without `mode` in `idd/config.yaml` and a new change without
+  `mode`
 - WHEN its mode is resolved
 - THEN it MUST resolve to `sdd`
 
 #### Scenario: SDD changes in flight are untouched
 
 - GIVEN an active SDD change under `openspec/changes/`
-- WHEN the project switches `workflow.mode` to `idd`
+- WHEN the project sets `mode: idd` in `idd/config.yaml`
 - THEN that change MUST finish in SDD with its current state and artifacts
 
 ### Requirement: IDD Change Layout {#REQ-idd-002}
@@ -45,9 +46,16 @@ changes because IDD exists.
 An IDD change MUST live in `idd/<change-id>/` at the project root, where
 `<change-id>` is kebab-case. The directory MUST hold `state.yaml` and, only when
 the `living-doc` obligation is active, `change.md`. Closing a change MUST move it
-to `idd/archive/<YYYY-MM-DD>-<change-id>/`. Behavioral contracts a change updates
-MUST stay canonical in `openspec/specs/`; `idd/` holds change state, never
-canonical specs.
+to `idd/archive/<YYYY-MM-DD>-<change-id>/`. `idd/` holds the IDD configuration
+and change state, never canonical specs or project knowledge. `openspec/`
+belongs to the SDD mode: IDD MUST NOT keep its configuration, state or
+artifacts there.
+
+#### Scenario: IDD writes nothing under openspec
+
+- GIVEN a project with an `openspec/` directory
+- WHEN an IDD change is opened, recorded and closed
+- THEN every file IDD writes MUST be under `idd/`
 
 #### Scenario: Trivial change creates no document
 
@@ -142,8 +150,8 @@ until E3.1 delivers ADR impact declarations.
   after it, both runs recorded by the CLI.
 - `living-doc-current`: `change.md` holds the template sections and is current
   at close.
-- `contract-spec-and-test`: the contract spec in `openspec/specs/` and its test,
-  both touched by the change, with the test passing.
+- `contract-spec-and-test`: the contract document and its test, both touched
+  by the change, with the test passing.
 - `migration-test`: declared compatibility or rollback plus a passing migration
   test.
 - `frozen-review`: an independent trust review with frozen findings and at most
@@ -301,7 +309,7 @@ IDD contract refuses the request and 2 on a usage error.
 
 `ospec signals` MUST derive the signals of an open change with a resolved
 intent and record the ones not yet recorded. `always` MUST derive from the
-resolved intent; `strict-tdd` from `strict_tdd: true` in `openspec/config.yaml`
+resolved intent; `strict-tdd` from `strict_tdd: true` in `idd/config.yaml`
 unless the intent kind is `docs`; `bug-fix` from the intent kind `bug`; and
 `multi-unit-or-decision` from more than one declared work unit or a declared
 non-obvious decision. `public-contract`, `persistent-data` and
@@ -314,7 +322,7 @@ carry a reason naming why it fired, and a path-driven reason MUST name a
 matching path and the pattern it matched. The impact patterns MUST be base
 patterns for any project plus defaults for each stack detected from its
 manifest at the project root (`node`, `jvm`, `dotnet`, `python`, `go`), plus the
-lists of the `impact:` section of `openspec/config.yaml` (`public_contract`,
+lists of the `impact:` section of `idd/config.yaml` (`public_contract`,
 `persistent_data`, `security_boundary`); `impact.stack` MUST replace the
 detected stacks, `impact.defaults: false` MUST drop the base and stack patterns,
 and paths matching `impact.exclude` or the default exclusions
@@ -370,3 +378,29 @@ derivation misses, nor reopen a resolved gate (REQ-idd-006). While
 - WHEN its signals are derived from its intent, planned paths, work units,
   decision and operations
 - THEN they MUST equal its expected signals and gates
+
+### Requirement: IDD Project Configuration {#REQ-idd-013}
+
+The IDD configuration of a project MUST live in `idd/config.yaml`, next to its
+changes, and IDD MUST NOT read its configuration from `openspec/`, whose
+`config.yaml` configures only the SDD mode. The file is optional; when it is
+absent every key takes its default. Its top-level keys MUST be only `mode`
+(`idd` or `sdd`, the project mode of REQ-idd-001; absent means none),
+`strict_tdd` (`true` or `false`, default `false`) and `impact` (the impact
+section of REQ-idd-012). An unknown or repeated key, a value outside its
+domain or an unreadable line MUST be refused with the code `config-invalid`;
+invalid contents of `impact` keep the code `impact-config-invalid`.
+
+#### Scenario: SDD configuration does not configure IDD
+
+- GIVEN `strict_tdd: true` and an `impact:` section in `openspec/config.yaml`
+- AND no `idd/config.yaml`
+- WHEN the IDD project context is read
+- THEN `strict_tdd` MUST be `false` and only the default impact patterns MUST
+  apply
+
+#### Scenario: Unknown configuration key is refused
+
+- GIVEN an `idd/config.yaml` with the top-level key `workflow`
+- WHEN `ospec signals` reads the project context
+- THEN it MUST exit with 1 and the error code `config-invalid`

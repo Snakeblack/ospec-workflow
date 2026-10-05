@@ -2,12 +2,12 @@
 
 // Path patterns behind the path-driven IDD signals (openspec/specs/idd/spec.md,
 // REQ-idd-012): base patterns for any project, defaults per stack and the
-// project's own `impact:` section of openspec/config.yaml. Pure functions: the
-// caller reads the config text and the root listing.
+// project's own `impact:` section of idd/config.yaml. Pure functions: the
+// caller reads the config and the root listing.
 
 const IMPACT_SIGNALS = Object.freeze(["public-contract", "persistent-data", "security-boundary"]);
 
-// Config key in openspec/config.yaml → signal id.
+// Key of the impact: section → signal id.
 const CONFIG_KEYS = Object.freeze({
   public_contract: "public-contract",
   persistent_data: "persistent-data",
@@ -178,35 +178,7 @@ function matchImpact(file, patterns) {
   return found;
 }
 
-// --- openspec/config.yaml: top-level strict_tdd and the impact: section -----
-
-function stripComment(text) {
-  return text.replace(/\s+#.*$/, "").trim();
-}
-
-function parseScalar(raw) {
-  const text = raw.trim();
-  const quoted = /^(["'])(.*)\1/.exec(text);
-  return quoted ? quoted[2] : stripComment(text);
-}
-
-function parseInlineList(raw) {
-  const body = stripComment(raw).replace(/^\[/, "").replace(/\]$/, "").trim();
-  if (body === "") return [];
-  return body.split(",").map(parseScalar).filter((item) => item !== "");
-}
-
-function impactBlock(lines) {
-  const start = lines.findIndex((line) => /^impact:\s*(#.*)?$/.test(line));
-  if (start === -1) return [];
-  const block = [];
-  for (const line of lines.slice(start + 1)) {
-    if (line.trim() === "" || /^\s*#/.test(line)) continue;
-    if (!/^\s/.test(line)) break;
-    block.push(line);
-  }
-  return block;
-}
+// --- impact: section of idd/config.yaml, parsed by idd-config.js ----------
 
 function validateImpact(impact) {
   for (const key of Object.keys(impact)) {
@@ -232,32 +204,6 @@ function validateImpact(impact) {
   return impact;
 }
 
-function parseProjectConfig(text) {
-  const lines = String(text).split(/\r?\n/);
-  const strictTdd = lines.some((line) => /^strict_tdd:\s*true\s*(#.*)?$/.test(line));
-  const impact = {};
-  let listKey = null;
-  for (const line of impactBlock(lines)) {
-    const item = /^\s+-\s+(.*)$/.exec(line);
-    if (item && listKey) {
-      impact[listKey].push(parseScalar(item[1]));
-      continue;
-    }
-    const entry = /^\s+([A-Za-z_]+):\s*(.*)$/.exec(line);
-    if (!entry) throw new IddImpactError(`unreadable impact line: ${line.trim()}`);
-    const [, key, raw] = entry;
-    const value = stripComment(raw);
-    if (value === "") {
-      impact[key] = [];
-      listKey = key;
-    } else {
-      impact[key] = value.startsWith("[") ? parseInlineList(raw) : parseScalar(raw);
-      listKey = null;
-    }
-  }
-  return { strictTdd, impact: validateImpact(impact) };
-}
-
 module.exports = {
   BASE_PATTERNS,
   CONFIG_KEYS,
@@ -270,6 +216,6 @@ module.exports = {
   globToRegExp,
   matchImpact,
   normalizePath,
-  parseProjectConfig,
   resolvePatterns,
+  validateImpact,
 };

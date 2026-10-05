@@ -1,8 +1,8 @@
 "use strict";
 
 // E1.3 impact-signals: the filesystem and git side of signal derivation —
-// openspec/config.yaml, the stack markers at the root and the diff against a
-// base (openspec/specs/idd/spec.md, REQ-idd-012).
+// idd/config.yaml, the stack markers at the root and the diff against a base
+// (openspec/specs/idd/spec.md, REQ-idd-012, REQ-idd-013).
 
 const test = require("node:test");
 const assert = require("node:assert");
@@ -47,24 +47,36 @@ test("project context without a config uses the detected stacks and the defaults
   const root = tempDir(t);
   write(root, "package.json", "{}");
   const context = readProjectContext(root);
+  assert.strictEqual(context.mode, null);
   assert.strictEqual(context.strictTdd, false);
   assert.deepStrictEqual(context.stacks, ["node"]);
   assert.ok(context.patterns["public-contract"].includes("**/routes/**"));
 });
 
-test("project context reads strict_tdd and the impact section from openspec/config.yaml", (t) => {
+test("project context reads mode, strict_tdd and the impact section from idd/config.yaml", (t) => {
   const root = tempDir(t);
-  write(root, "openspec/config.yaml", "strict_tdd: true\nimpact:\n  public_contract:\n    - cli/**\n");
+  write(root, "idd/config.yaml", "mode: idd\nstrict_tdd: true\nimpact:\n  public_contract:\n    - cli/**\n");
   const context = readProjectContext(root);
+  assert.strictEqual(context.mode, "idd");
   assert.strictEqual(context.strictTdd, true);
   assert.deepStrictEqual(context.stacks, []);
   assert.ok(context.patterns["public-contract"].includes("cli/**"));
 });
 
-test("an invalid impact section is reported with its code", (t) => {
+test("openspec/config.yaml is SDD configuration and never configures IDD", (t) => {
   const root = tempDir(t);
-  write(root, "openspec/config.yaml", "impact:\n  stack: cobol\n");
+  write(root, "openspec/config.yaml", "strict_tdd: true\nimpact:\n  public_contract:\n    - cli/**\n");
+  const context = readProjectContext(root);
+  assert.strictEqual(context.strictTdd, false);
+  assert.ok(!context.patterns["public-contract"].includes("cli/**"));
+});
+
+test("an invalid configuration is reported with its code", (t) => {
+  const root = tempDir(t);
+  write(root, "idd/config.yaml", "impact:\n  stack: cobol\n");
   assert.throws(() => readProjectContext(root), (error) => error.code === "impact-config-invalid");
+  write(root, "idd/config.yaml", "workflow:\n  mode: idd\n");
+  assert.throws(() => readProjectContext(root), (error) => error.code === "config-invalid");
 });
 
 test("the diff holds modified, deleted and untracked paths with their added lines", (t) => {

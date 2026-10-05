@@ -1,0 +1,21 @@
+# IDD configuration of this project (openspec/specs/idd/spec.md, REQ-idd-013).
+# openspec/ holds only SDD configuration and state; IDD reads this file.
+
+# Impact patterns for IDD signals (REQ-idd-012). Each list adds to the base and
+# stack defaults; exclude removes paths.
+impact:
+  public_contract:
+    - scripts/ospec.js
+    - scripts/lib/idd-config.js
+    - scripts/configure/cli.js
+    - hooks/hooks.json
+    - .claude-plugin/**
+    - .plugin.json
+  persistent_data:
+    - scripts/lib/idd-store.js
+    - scripts/lib/ospec-state.js
+    - scripts/lib/archive-*.js
+  security_boundary:
+    - scripts/hooks/**
+  exclude:
+    - scripts/configure/__fixtures__/**

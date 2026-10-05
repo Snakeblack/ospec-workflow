@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.98.0] - 2026-10-05
+
+### Changed
+- **Configuración de IDD en `idd/config.yaml` (E1.4, PR 0)**: IDD deja de leer `openspec/config.yaml`, que queda solo para el modo SDD. `scripts/lib/idd-config.js` lee `idd/config.yaml` (REQ-idd-013), que es opcional y admite solo tres claves de primer nivel: `mode` (el modo del proyecto de REQ-idd-001), `strict_tdd` e `impact`. Una clave desconocida o repetida, un valor fuera de su dominio o una línea ilegible se rechazan con `config-invalid`; el contenido inválido de `impact` sigue dando `impact-config-invalid`. `ospec signals` sale con 1 en ambos casos.
+- **Spec `idd`**: REQ-idd-001 resuelve el modo del proyecto con `mode` de `idd/config.yaml`; REQ-idd-002 prohíbe que IDD guarde configuración, estado o artefactos en `openspec/`; REQ-idd-005 habla del documento del contrato, sin fijarlo en `openspec/specs/`; REQ-idd-012 lee `strict_tdd` e `impact` de `idd/config.yaml`.
+- **Este repositorio**: su sección `impact:` pasa de `openspec/config.yaml` a `idd/config.yaml` (con `scripts/lib/idd-config.js` como contrato público), y `k1-scope-guard` pierde la normalización que la toleraba en `openspec/config.yaml`.
+- **Roadmap**: directriz de E1.4 (IDD no vive en `openspec/`) y plan de entrega en cinco PRs; E2.1 y el paso 7 de la foundation dejan el estado de máquina fuera de `openspec/`, y E1.6 activa SDD con `mode: sdd` en `idd/config.yaml`.
+
+### Removed
+- `parseProjectConfig` de `scripts/lib/idd-impact.js`: el parseo del fichero pasa a `idd-config.js`, e `idd-impact.js` exporta `validateImpact`.
+
+**Verificación directa**: `node scripts/check.js` (3109 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.97.0] - 2026-10-05
 
 ### Removed

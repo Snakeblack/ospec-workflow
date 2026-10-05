@@ -166,7 +166,7 @@ function writeFile(root, rel, content) {
 
 test("signals derives declaration signals with their reasons and is idempotent", (t) => {
   const root = tempRoot(t);
-  writeFile(root, "openspec/config.yaml", "strict_tdd: true\n");
+  writeFile(root, "idd/config.yaml", "strict_tdd: true\n");
   ospec(root, ...OPEN_BUG);
   const args = ["signals", "--change", "fix-pagination", "--path", "src/api/pages.js", "--work-units", "2", "--json"];
   const first = ospec(root, ...args);
@@ -229,8 +229,13 @@ test("signals refuses an ambiguous intent, an unknown change and bad input", (t)
   assert.strictEqual(noGit.code, 1);
   assert.strictEqual(noGit.json.error.code, "not-a-git-repo");
 
-  writeFile(root, "openspec/config.yaml", "impact:\n  stack: cobol\n");
+  writeFile(root, "idd/config.yaml", "impact:\n  stack: cobol\n");
   const badConfig = ospec(root, "signals", "--change", "fix-pagination", "--json");
   assert.strictEqual(badConfig.code, 1);
   assert.strictEqual(badConfig.json.error.code, "impact-config-invalid");
+
+  writeFile(root, "idd/config.yaml", "schema: spec-driven\n");
+  const unknownKey = ospec(root, "signals", "--change", "fix-pagination", "--json");
+  assert.strictEqual(unknownKey.code, 1);
+  assert.strictEqual(unknownKey.json.error.code, "config-invalid");
 });

@@ -1,18 +1,18 @@
 "use strict";
 
 // Filesystem and git inputs of IDD signal derivation (openspec/specs/idd/spec.md,
-// REQ-idd-012): the project's openspec/config.yaml, the stack markers at its
-// root and the diff of the working tree against a base commit, untracked files
-// included. idd-signals.js turns them into signals.
+// REQ-idd-012, REQ-idd-013): the project's idd/config.yaml, the stack markers
+// at its root and the diff of the working tree against a base commit, untracked
+// files included. idd-signals.js turns them into signals.
 
 const fs = require("node:fs");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 
 const { CHANGE_ROOT } = require("./idd-contract.js");
-const { detectStacks, normalizePath, parseProjectConfig, resolvePatterns } = require("./idd-impact.js");
+const { CONFIG_FILE, parseIddConfig } = require("./idd-config.js");
+const { detectStacks, normalizePath, resolvePatterns } = require("./idd-impact.js");
 
-const CONFIG_FILE = path.join("openspec", "config.yaml");
 const MAX_UNTRACKED_BYTES = 1024 * 1024;
 const GIT_MAX_BUFFER = 64 * 1024 * 1024;
 
@@ -31,9 +31,9 @@ function readProjectContext(root) {
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
-  const { strictTdd, impact } = parseProjectConfig(text);
+  const { mode, strictTdd, impact } = parseIddConfig(text);
   const stacks = detectStacks(fs.readdirSync(root));
-  return { strictTdd, impact, stacks, patterns: resolvePatterns({ stacks, impact }) };
+  return { mode, strictTdd, impact, stacks, patterns: resolvePatterns({ stacks, impact }) };
 }
 
 function git(root, args) {

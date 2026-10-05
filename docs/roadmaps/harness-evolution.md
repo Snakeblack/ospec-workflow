@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.97.0, 2026-10-05.
+> **Versión de referencia:** v2.98.0, 2026-10-05.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -53,7 +53,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 ```
 
 1. **Intención.** El modelo resume en una o dos frases qué se pide (bug, feature, refactor o documentación) y cómo se sabrá que está hecho. Solo pregunta si la intención es materialmente ambigua.
-2. **Señales.** El CLI las calcula con esa declaración, las rutas que se van a tocar y, después, el diff real. Cada proyecto declara una vez en `openspec/config.yaml` qué rutas corresponden a cada señal, con valores por defecto según el stack. Desde E3.2 también salen del mapa componente → conocimiento.
+2. **Señales.** El CLI las calcula con esa declaración, las rutas que se van a tocar y, después, el diff real. Cada proyecto declara una vez en `idd/config.yaml` qué rutas corresponden a cada señal, con valores por defecto según el stack. Desde E3.2 también salen del mapa componente → conocimiento.
 3. **Obligaciones.** Cada señal añade obligaciones concretas, cada una con su evidencia (tabla siguiente). No hay rutas ni recetas: la profundidad es la suma de lo que el cambio debe demostrar.
 4. **Trabajo.** El modelo trabaja en el hilo principal con las referencias de conocimiento que le pasa `ospec next`. Usa subagentes solo para explorar código grande o cuando una obligación exige independencia, como un review.
 5. **Comprobación.** `ospec check` ejecuta los checks, lee la evidencia y recalcula las señales con el diff real. Una obligación nueva aparece en cuanto el diff la provoca; ninguna desaparece sin una decisión explícita.
@@ -67,7 +67,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | El proyecto declara Strict TDD | Test en rojo antes del código en cada unidad de trabajo | Evidencia RED → GREEN estructurada (ya existe) |
 | Corrección de un bug | Test de reproducción que falla antes del arreglo y pasa después | Las dos ejecuciones (receta Repair, piloto de v2.79.0–v2.80.0) |
 | Más de una unidad de trabajo o una decisión no obvia | Documento vivo con el plan y las decisiones del cambio | El documento, al día en el cierre |
-| Cambia un contrato público (API, CLI, esquema o formato de fichero) | Contrato de comportamiento actualizado y su test | Spec del contrato en `openspec/specs/` y el test |
+| Cambia un contrato público (API, CLI, esquema o formato de fichero) | Contrato de comportamiento actualizado y su test | El documento del contrato (patrones por stack y `contracts:` de `idd/config.yaml`) y el test |
 | Datos o estado persistente (migración o formato en disco) | Compatibilidad o reversión declarada y test de migración | El test |
 | Frontera de seguridad (autenticación, secretos, permisos o entrada externa) | Review independiente de confianza | Hallazgos congelados y, como mucho, una corrección acotada |
 | Toca un componente con ADR o atributo de calidad (desde E3) | Declaración de impacto: ninguno, conforma, enmienda o contradice | *Fitness functions* del ADR (E3.3). Enmendar o contradecir requiere tu decisión |
@@ -139,7 +139,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E1.4 `ospec-check-and-close`. E1.5 quedó cerrado en v2.97.0: cada módulo de `scripts/lib` tiene dueño o decisión, y el kernel que nadie usaba está retirado. E1.4 debe meter `archive-transaction.js` en el runtime para `ospec close`. E2.1 `knowledge-map-contract` espera a E1.4. La etapa 0 quedó cerrada en v2.91.0.
+**▶ SIGUIENTE:** E1.4 `ospec-check-and-close`, PR (a): `ospec check` y `ospec run`. El PR (0) de E1.4 llevó la configuración de IDD a `idd/config.yaml` en v2.98.0: `openspec/` queda solo para el modo SDD. E1.5 quedó cerrado en v2.97.0: cada módulo de `scripts/lib` tiene dueño o decisión, y el kernel que nadie usaba está retirado. E2.1 `knowledge-map-contract` espera a E1.4. La etapa 0 quedó cerrada en v2.91.0.
 
 **Dependencias:**
 
@@ -227,7 +227,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
   - El catálogo señal → obligación → evidencia y los tres gates.
   - La convivencia con el modo SDD en el mismo repositorio, con `mode` por proyecto y por change.
 - **Hecho cuando:** seis cambios tipo (typo, bug, feature interna, API pública, migración y autenticación) tienen fixtures con sus obligaciones y gates esperados, y ningún requisito de SDD cambia.
-- **Entregado en v2.92.0:** spec canónica [`idd`](../../openspec/specs/idd/spec.md) (REQ-idd-001 a REQ-idd-010). El modo se resuelve con el `mode` del change; si falta, con `workflow.mode` de `openspec/config.yaml`; y si tampoco está, es `sdd` hasta E1.6. Un cambio IDD vive en `idd/<id>/`, en la raíz del proyecto, aislado de `openspec/changes/`, y al cerrarse pasa a `idd/archive/<fecha>-<id>/`. Los contratos de comportamiento siguen en `openspec/specs/`. El `state.yaml` (`idd-state/v1`) solo lo escribe el CLI. El documento vivo `change.md` existe solo con la obligación `living-doc`, y su sección de evidencia es del CLI. El catálogo tiene 8 señales, cada una con una obligación y una evidencia; la de ADR queda inactiva hasta E3.1. Hay solo tres gates. Una obligación solo se retira con motivo y cuando ninguna señal activa la deriva. `scripts/lib/idd-contract.js` expone el catálogo, la resolución de modo, la derivación de obligaciones, la validación de estado y las reglas de retirada y cierre, con un test de paridad contra la spec. `scripts/fixtures/idd/` cubre typo, bug, feature interna con Strict TDD, API pública, migración aditiva y autenticación, más intención ambigua y migración destructiva. Ninguna spec de SDD cambia.
+- **Entregado en v2.92.0:** spec canónica [`idd`](../../openspec/specs/idd/spec.md) (REQ-idd-001 a REQ-idd-010). El modo se resuelve con el `mode` del change; si falta, con `workflow.mode` de `openspec/config.yaml`; y si tampoco está, es `sdd` hasta E1.6. Un cambio IDD vive en `idd/<id>/`, en la raíz del proyecto, aislado de `openspec/changes/`, y al cerrarse pasa a `idd/archive/<fecha>-<id>/`. Los contratos de comportamiento siguen en `openspec/specs/` (enmendado en v2.98.0: IDD no guarda nada en `openspec/`, y el modo del proyecto se lee de `mode` en `idd/config.yaml`). El `state.yaml` (`idd-state/v1`) solo lo escribe el CLI. El documento vivo `change.md` existe solo con la obligación `living-doc`, y su sección de evidencia es del CLI. El catálogo tiene 8 señales, cada una con una obligación y una evidencia; la de ADR queda inactiva hasta E3.1. Hay solo tres gates. Una obligación solo se retira con motivo y cuando ninguna señal activa la deriva. `scripts/lib/idd-contract.js` expone el catálogo, la resolución de modo, la derivación de obligaciones, la validación de estado y las reglas de retirada y cierre, con un test de paridad contra la spec. `scripts/fixtures/idd/` cubre typo, bug, feature interna con Strict TDD, API pública, migración aditiva y autenticación, más intención ambigua y migración destructiva. Ninguna spec de SDD cambia.
 
 ### E1.2 — `ospec-cli-core`
 
@@ -243,11 +243,11 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 
 - **Alcance:**
   - Calcula las señales con la declaración inicial y el diff.
-  - Añade una sección `impact:` a `openspec/config.yaml`, con valores por defecto según el stack.
+  - Añade una sección `impact:` a `openspec/config.yaml` (en `idd/config.yaml` desde v2.98.0), con valores por defecto según el stack.
   - Reutiliza los suelos de riesgo de PP1/PP2 y la clasificación de K1.
   - Cada señal muestra su razón (por ejemplo, "contrato público: toca `src/api/**`").
 - **Hecho cuando:** los fixtures cubren los suelos de riesgo actuales (autenticación, migración y API), un cambio de dos líneas en un contrato público recibe su obligación y un refactor mecánico grande no recibe ningún gate.
-- **Entregado en v2.94.0:** `ospec signals --change <id>` deriva y registra las señales (REQ-idd-012). `always`, `strict-tdd`, `bug-fix` y `multi-unit-or-decision` salen de la intención, de `strict_tdd` y de lo que se declara (`--work-units`, `--decision`). Contrato público, datos persistentes y frontera de seguridad salen de las rutas: las previstas (`--path`) dan `source: declaration` y, con `--diff [--base <ref>]`, las del diff de git (con los ficheros sin seguimiento) dan `source: diff`. Cada señal da su razón, por ejemplo «public contract: touches src/api/orders.js (matches \*\*/api/\*\*)». Los patrones son una base común, más los de cada stack detectado por su manifiesto (`node`, `jvm`, `dotnet`, `python`, `go`), más la nueva sección `impact:` de `openspec/config.yaml`, que añade listas, fija el stack, desactiva los valores por defecto o excluye rutas; la documentación nunca deriva señales. El gate `irreversible-operation` se abre por una operación declarada (`--operation drop-column`) o por una sentencia destructiva añadida a un fichero de datos persistentes (DROP, TRUNCATE o DELETE sin WHERE, en SQL y en los ORM habituales). Las señales de ruta y `bug-fix` se corresponden uno a uno con los suelos de K1 (`public_api`, `data_migration`, `auth_security`, `localized_reproducible_bug`), y el resultado informa del suelo que dan. Los 8 fixtures de E1.1 se reproducen desde su declaración, y `scripts/fixtures/idd/signals/` añade el contrato de dos líneas en el diff, la migración que solo aparece en el diff, la columna borrada en el diff y la documentación de seguridad; el refactor mecánico de 240 ficheros no abre ningún gate. Registrar es idempotente y nunca quita una señal ya registrada; el recálculo en cada check queda para E1.4. Este repositorio declara su propia sección `impact:`.
+- **Entregado en v2.94.0:** `ospec signals --change <id>` deriva y registra las señales (REQ-idd-012). `always`, `strict-tdd`, `bug-fix` y `multi-unit-or-decision` salen de la intención, de `strict_tdd` y de lo que se declara (`--work-units`, `--decision`). Contrato público, datos persistentes y frontera de seguridad salen de las rutas: las previstas (`--path`) dan `source: declaration` y, con `--diff [--base <ref>]`, las del diff de git (con los ficheros sin seguimiento) dan `source: diff`. Cada señal da su razón, por ejemplo «public contract: touches src/api/orders.js (matches \*\*/api/\*\*)». Los patrones son una base común, más los de cada stack detectado por su manifiesto (`node`, `jvm`, `dotnet`, `python`, `go`), más la nueva sección `impact:` de `openspec/config.yaml`, que añade listas, fija el stack, desactiva los valores por defecto o excluye rutas; la documentación nunca deriva señales. El gate `irreversible-operation` se abre por una operación declarada (`--operation drop-column`) o por una sentencia destructiva añadida a un fichero de datos persistentes (DROP, TRUNCATE o DELETE sin WHERE, en SQL y en los ORM habituales). Las señales de ruta y `bug-fix` se corresponden uno a uno con los suelos de K1 (`public_api`, `data_migration`, `auth_security`, `localized_reproducible_bug`), y el resultado informa del suelo que dan. Los 8 fixtures de E1.1 se reproducen desde su declaración, y `scripts/fixtures/idd/signals/` añade el contrato de dos líneas en el diff, la migración que solo aparece en el diff, la columna borrada en el diff y la documentación de seguridad; el refactor mecánico de 240 ficheros no abre ningún gate. Registrar es idempotente y nunca quita una señal ya registrada; el recálculo en cada check queda para E1.4. Este repositorio declara su propia sección `impact:`. En v2.98.0, `strict_tdd` e `impact:` pasan a `idd/config.yaml` (REQ-idd-013).
 
 ### E1.4 — `ospec-check-and-close`
 
@@ -261,6 +261,9 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
   - La afirmación del modelo "los tests pasan", sin ejecución registrada, no cierra nada.
   - Un cambio solo de documentación cierra sin review.
   - Un diff que empieza a tocar una migración añade su obligación.
+- **Directriz (2026-10-05):** el control y los artefactos de IDD no viven en `openspec/`, que queda solo para el modo SDD. Todo IDD está bajo `idd/`: `config.yaml`, `<id>/` y `archive/`.
+- **Entrega:** PRs encadenados: (0) configuración de IDD en `idd/config.yaml`; (a) `ospec check` y `ospec run`: checks declarados, recálculo de señales con el diff, evidencia `check-run` y pares rojo → verde para la reproducción y TDD; (b) review de confianza con el linaje acotado y evidencia de contrato y de migración; (c) `ospec close` con un archive transaccional propio de IDD (`idd-close.js`, que reutiliza de O6A el inventario con huellas y el renombrado con *fallback*; `archive-transaction.js` sigue siendo del modo SDD); (d) distribuir los scripts que citan las skills de SDD y no llegan al runtime, con un test que lo exija.
+- **(0) entregado en v2.98.0:** `scripts/lib/idd-config.js` lee `idd/config.yaml` (REQ-idd-013), con solo tres claves de primer nivel: `mode` (el modo del proyecto de REQ-idd-001), `strict_tdd` e `impact`. Una clave desconocida o repetida, o un valor fuera de su dominio, se rechazan con `config-invalid`. IDD ya no lee `openspec/config.yaml`: `strict_tdd: true` o una sección `impact:` ahí no configuran IDD. REQ-idd-002 prohíbe que IDD guarde configuración, estado o artefactos en `openspec/`. Este repositorio mueve su sección `impact:` a `idd/config.yaml`, y `k1-scope-guard` pierde la normalización que la toleraba en `openspec/config.yaml`.
 
 ### E1.5 — `kernel-wiring-inventory`
 
@@ -279,7 +282,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 
 - **Alcance:**
   - Protocolo IDD para los 7 targets: ≤ 12 KB, cargado bajo demanda donde el host lo permita. El router lo convierte en el flujo por defecto.
-  - SDD se activa con `/sdd-*` o con `mode: sdd` en `openspec/config.yaml`. Los changes SDD en curso terminan en SDD.
+  - SDD se activa con `/sdd-*` o con `mode: sdd` en `idd/config.yaml`. Los changes SDD en curso terminan en SDD.
   - Las skills y los agentes de fase SDD pasan al paquete opcional.
   - `branch-pr`, `chained-pr` y `work-unit-commits` se cablean por nombre en el protocolo IDD.
   - El README y la documentación de producto presentan IDD como flujo por defecto y SDD como modo.
@@ -325,14 +328,14 @@ fuentes ─► mapa de conocimiento ─► huecos que bloquean decisiones ─►
 4. **Drivers.** Escenarios de atributos de calidad en forma de árbol de utilidad (origen → estímulo → entorno → elemento → respuesta → medida), más restricciones.
 5. **ADR de arquitectura.** Cada decisión estructural (descomposición del sistema, estilo de integración, propiedad y consistencia de datos, topología de despliegue, límites de confianza, multi-tenancy, política de evolución de contratos) se registra **sin nombres de productos**: drivers, al menos dos opciones, decisión, consecuencias, *fitness function* y disparador de revisión.
 6. **Registro tecnológico.** La elección de stack, librerías y servicios **implementa** uno o más ADR y se justifica con el contexto del equipo, la madurez, la licencia, el coste y fuentes fechadas consultadas en vivo.
-7. **Herramientas de calidad.** Estrategia de test, CI, linters y observabilidad, cada una ligada al atributo de calidad o *fitness function* que protege. Se vuelca en `openspec/config.yaml`: comandos, TDD y rutas de las señales de impacto.
+7. **Herramientas de calidad.** Estrategia de test, CI, linters y observabilidad, cada una ligada al atributo de calidad o *fitness function* que protege. Se vuelca en `idd/config.yaml`: comandos, TDD y rutas de las señales de impacto (y en `openspec/config.yaml` solo si el proyecto usa el modo SDD).
 8. **Roadmap funcional.** Esqueleto andante como primer slice, y decisiones diferidas con su "último momento responsable".
 
 La foundation termina cuando todas las ranuras obligatorias que bloquean el primer slice están confirmadas o diferidas con dueño. No hace falta resolver el futuro entero.
 
 ### E2.1 — `knowledge-map-contract`
 
-- **Alcance:** esquema del mapa de conocimiento (ranuras, dimensiones, estados, perfiles y relaciones ranura → decisión), su ubicación (estado de máquina en `openspec/`, documentos humanos en `docs/`) y el catálogo inicial de ranuras por perfil.
+- **Alcance:** esquema del mapa de conocimiento (ranuras, dimensiones, estados, perfiles y relaciones ranura → decisión), su ubicación (estado de máquina fuera de `openspec/`, que es solo del modo SDD; documentos humanos en `docs/`) y el catálogo inicial de ranuras por perfil.
 - **Hecho cuando:** los seis perfiles tienen su conjunto de ranuras obligatorias con un ejemplo, y "desconocido" se distingue de "N/A" en el esquema.
 
 ### E2.2 — `decision-gap-engine`
