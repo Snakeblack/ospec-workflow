@@ -1,0 +1,24 @@
+{
+  "id": "ambiguous-intent",
+  "description": "A materially ambiguous request: the intent gate opens and no signal is derived until it is resolved.",
+  "input": {
+    "request": "Improve the login.",
+    "intent": {
+      "kind": null,
+      "summary": null,
+      "acceptance": null,
+      "ambiguous": true
+    },
+    "project": { "mode": "idd", "strict_tdd": false, "checks": ["npm test"] },
+    "paths": [],
+    "work_units": 0,
+    "non_obvious_decision": false,
+    "operations": []
+  },
+  "expected": {
+    "signals": [],
+    "obligations": [],
+    "gates": ["ambiguous-intent"],
+    "living_doc": false
+  }
+}

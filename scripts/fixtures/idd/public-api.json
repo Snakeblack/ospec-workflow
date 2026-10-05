@@ -1,0 +1,24 @@
+{
+  "id": "public-api",
+  "description": "A new field in a public HTTP response: contract spec and test, plus a living document.",
+  "input": {
+    "request": "Expose the order's estimated delivery date in GET /orders/{id}.",
+    "intent": {
+      "kind": "feature",
+      "summary": "Add estimatedDelivery to the public order response without breaking existing clients.",
+      "acceptance": "The response includes estimatedDelivery as an ISO date; existing fields are unchanged; the contract test passes.",
+      "ambiguous": false
+    },
+    "project": { "mode": "idd", "strict_tdd": false, "checks": ["npm test"] },
+    "paths": ["src/api/orders.js", "src/api/orders.contract.test.js", "src/domain/delivery-estimate.js", "openspec/specs/orders-api/spec.md"],
+    "work_units": 2,
+    "non_obvious_decision": true,
+    "operations": []
+  },
+  "expected": {
+    "signals": ["always", "multi-unit-or-decision", "public-contract"],
+    "obligations": ["checks-pass", "contract-spec-and-test", "living-doc"],
+    "gates": [],
+    "living_doc": true
+  }
+}

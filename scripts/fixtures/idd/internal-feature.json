@@ -1,0 +1,24 @@
+{
+  "id": "internal-feature",
+  "description": "An internal feature in a Strict TDD project spanning several units of work: TDD evidence and a living document.",
+  "input": {
+    "request": "Add a retry with exponential backoff to the internal job runner.",
+    "intent": {
+      "kind": "feature",
+      "summary": "Retry failed jobs up to three times with exponential backoff.",
+      "acceptance": "A job failing twice then succeeding completes; a job failing four times is marked failed after three retries.",
+      "ambiguous": false
+    },
+    "project": { "mode": "idd", "strict_tdd": true, "checks": ["npm test", "npm run lint"] },
+    "paths": ["src/jobs/runner.js", "src/jobs/backoff.js", "src/jobs/runner.test.js", "src/jobs/backoff.test.js"],
+    "work_units": 2,
+    "non_obvious_decision": true,
+    "operations": []
+  },
+  "expected": {
+    "signals": ["always", "multi-unit-or-decision", "strict-tdd"],
+    "obligations": ["checks-pass", "living-doc", "tdd-red-green"],
+    "gates": [],
+    "living_doc": true
+  }
+}

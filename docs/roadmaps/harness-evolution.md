@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.91.0, 2026-10-04.
+> **Versión de referencia:** v2.92.0, 2026-10-05.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -116,8 +116,8 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E0.2** | `scope-always-on-instructions` | refactor |
 | `done` | **E0.3** | `curate-skill-catalog` | refactor |
 | `done` | **E0.4** | `router-and-sdd-on-demand` | feature |
-| `next-eligible` | **E1.1** | `idd-contract` | contrato |
-| `pending` | **E1.2** | `ospec-cli-core` | feature |
+| `done` | **E1.1** | `idd-contract` | contrato |
+| `next-eligible` | **E1.2** | `ospec-cli-core` | feature |
 | `pending` | **E1.3** | `impact-signals` | feature |
 | `pending` | **E1.4** | `ospec-check-and-close` | feature |
 | `pending` | **E1.5** | `kernel-wiring-inventory` | refactor |
@@ -139,7 +139,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E1.1 `idd-contract`, que abre la etapa 1. La etapa 0 quedó cerrada en v2.91.0 con el PR (d) de E0.3: se retiran las lentes de review v1 y quedan 46 skills por defecto. E0.4 quedó terminado en v2.89.0: el *always-on* es de 2,7–3,0 KB en los 7 targets y el orquestador encuentra sus ficheros `_shared` desde la instalación.
+**▶ SIGUIENTE:** E1.2 `ospec-cli-core`. E1.1 quedó entregado en v2.92.0: la spec canónica `openspec/specs/idd/spec.md` fija el contrato de IDD, `scripts/lib/idd-contract.js` lo expone en código y los fixtures de `scripts/fixtures/idd/` dan las obligaciones y gates esperados de seis cambios tipo y dos casos de gate. La etapa 0 quedó cerrada en v2.91.0.
 
 **Dependencias:**
 
@@ -227,6 +227,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
   - El catálogo señal → obligación → evidencia y los tres gates.
   - La convivencia con el modo SDD en el mismo repositorio, con `mode` por proyecto y por change.
 - **Hecho cuando:** seis cambios tipo (typo, bug, feature interna, API pública, migración y autenticación) tienen fixtures con sus obligaciones y gates esperados, y ningún requisito de SDD cambia.
+- **Entregado en v2.92.0:** spec canónica [`idd`](../../openspec/specs/idd/spec.md) (REQ-idd-001 a REQ-idd-010). El modo se resuelve con el `mode` del change; si falta, con `workflow.mode` de `openspec/config.yaml`; y si tampoco está, es `sdd` hasta E1.6. Un cambio IDD vive en `idd/<id>/`, en la raíz del proyecto, aislado de `openspec/changes/`, y al cerrarse pasa a `idd/archive/<fecha>-<id>/`. Los contratos de comportamiento siguen en `openspec/specs/`. El `state.yaml` (`idd-state/v1`) solo lo escribe el CLI. El documento vivo `change.md` existe solo con la obligación `living-doc`, y su sección de evidencia es del CLI. El catálogo tiene 8 señales, cada una con una obligación y una evidencia; la de ADR queda inactiva hasta E3.1. Hay solo tres gates. Una obligación solo se retira con motivo y cuando ninguna señal activa la deriva. `scripts/lib/idd-contract.js` expone el catálogo, la resolución de modo, la derivación de obligaciones, la validación de estado y las reglas de retirada y cierre, con un test de paridad contra la spec. `scripts/fixtures/idd/` cubre typo, bug, feature interna con Strict TDD, API pública, migración aditiva y autenticación, más intención ambigua y migración destructiva. Ninguna spec de SDD cambia.
 
 ### E1.2 — `ospec-cli-core`
 

@@ -1,0 +1,24 @@
+{
+  "id": "bug",
+  "description": "A localized, reproducible bug: a reproduction test that fails before the fix and passes after.",
+  "input": {
+    "request": "Pagination skips the last item when the total is a multiple of the page size.",
+    "intent": {
+      "kind": "bug",
+      "summary": "Fix the off-by-one in the page count so the last page is returned.",
+      "acceptance": "A list of 20 items with page size 10 returns two full pages; the reproduction test passes.",
+      "ambiguous": false
+    },
+    "project": { "mode": "idd", "strict_tdd": false, "checks": ["npm test"] },
+    "paths": ["src/lib/paginate.js", "src/lib/paginate.test.js"],
+    "work_units": 1,
+    "non_obvious_decision": false,
+    "operations": []
+  },
+  "expected": {
+    "signals": ["always", "bug-fix"],
+    "obligations": ["checks-pass", "repro-test"],
+    "gates": [],
+    "living_doc": false
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "id": "typo",
+  "description": "A spelling fix in the README: checks only, no document, no question.",
+  "input": {
+    "request": "Fix the typo 'recieve' in the README installation section.",
+    "intent": {
+      "kind": "docs",
+      "summary": "Correct one misspelled word in README.md.",
+      "acceptance": "README.md reads 'receive'; checks pass.",
+      "ambiguous": false
+    },
+    "project": { "mode": "idd", "strict_tdd": false, "checks": ["npm test"] },
+    "paths": ["README.md"],
+    "work_units": 1,
+    "non_obvious_decision": false,
+    "operations": []
+  },
+  "expected": {
+    "signals": ["always"],
+    "obligations": ["checks-pass"],
+    "gates": [],
+    "living_doc": false
+  }
+}
