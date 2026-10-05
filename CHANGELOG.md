@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.92.0] - 2026-10-05
+
+### Added
+- **Contrato de IDD (E1.1)**: nueva spec canónica `openspec/specs/idd/spec.md` (REQ-idd-001 a REQ-idd-010), que abre la etapa 1 del roadmap. Define cómo se resuelve el modo de cada change (`mode` del change, luego `workflow.mode` de `openspec/config.yaml` y, si falta, `sdd` hasta E1.6), la ubicación de un cambio IDD en `idd/<id>/` en la raíz del proyecto (aislado de `openspec/changes/`, con archivo en `idd/archive/<fecha>-<id>/`), el `state.yaml` mínimo `idd-state/v1` que solo escribe el CLI y la plantilla del documento vivo `change.md`, que solo existe con la obligación `living-doc`. También fija el catálogo señal → obligación → evidencia (8 señales; la de ADR queda inactiva hasta E3.1), los tres únicos gates (`ambiguous-intent`, `adr-amend-or-contradict` e `irreversible-operation`) y las reglas de cierre: la afirmación del modelo no es evidencia, y una obligación solo se retira con motivo y cuando ninguna señal activa la deriva.
+- **Catálogo en código**: `scripts/lib/idd-contract.js` expone el catálogo, `resolveMode`, `deriveObligations`, `validateState`, `canWithdraw` y `canClose` para que los consuman E1.2–E1.4. Un test de paridad falla si el código y la spec divergen.
+- **Fixtures de referencia**: `scripts/fixtures/idd/` recoge las señales, obligaciones y gates esperados de seis cambios tipo (typo, bug, feature interna con Strict TDD, API pública, migración aditiva y autenticación) y de dos casos de gate (intención ambigua y migración destructiva). El typo cierra solo con los checks, sin documento ni preguntas.
+
+### Changed
+- **Docs**: E1.1 queda cerrado en el roadmap y E1.2 `ospec-cli-core` pasa a ser el siguiente. Ninguna spec de SDD cambia.
+
+**Verificación directa**: `node scripts/check.js` (3735 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.91.0] - 2026-10-04
 
 ### Removed

@@ -1,0 +1,24 @@
+{
+  "id": "migration",
+  "description": "An additive schema migration: compatibility and a migration test, no irreversible gate.",
+  "input": {
+    "request": "Store the customer's preferred language.",
+    "intent": {
+      "kind": "feature",
+      "summary": "Add a nullable preferred_language column to customers and read it in the profile service.",
+      "acceptance": "The migration applies and rolls back cleanly; existing rows keep a null language; the migration test passes.",
+      "ambiguous": false
+    },
+    "project": { "mode": "idd", "strict_tdd": false, "checks": ["npm test"] },
+    "paths": ["db/migrations/20261005_add_preferred_language.sql", "src/profile/service.js", "db/migrations/migrations.test.js"],
+    "work_units": 2,
+    "non_obvious_decision": false,
+    "operations": ["add-nullable-column"]
+  },
+  "expected": {
+    "signals": ["always", "multi-unit-or-decision", "persistent-data"],
+    "obligations": ["checks-pass", "living-doc", "migration-compat-and-test"],
+    "gates": [],
+    "living_doc": true
+  }
+}
