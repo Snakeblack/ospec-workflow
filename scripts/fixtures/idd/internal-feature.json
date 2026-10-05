@@ -19,6 +19,7 @@
     "signals": ["always", "multi-unit-or-decision", "strict-tdd"],
     "obligations": ["checks-pass", "living-doc", "tdd-red-green"],
     "gates": [],
-    "living_doc": true
+    "living_doc": true,
+    "next": { "action": "satisfy-obligation", "obligation": "tdd-red-green", "pending_decision": null }
   }
 }

@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.92.0, 2026-10-05.
+> **Versión de referencia:** v2.93.0, 2026-10-05.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -117,8 +117,8 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E0.3** | `curate-skill-catalog` | refactor |
 | `done` | **E0.4** | `router-and-sdd-on-demand` | feature |
 | `done` | **E1.1** | `idd-contract` | contrato |
-| `next-eligible` | **E1.2** | `ospec-cli-core` | feature |
-| `pending` | **E1.3** | `impact-signals` | feature |
+| `done` | **E1.2** | `ospec-cli-core` | feature |
+| `next-eligible` | **E1.3** | `impact-signals` | feature |
 | `pending` | **E1.4** | `ospec-check-and-close` | feature |
 | `pending` | **E1.5** | `kernel-wiring-inventory` | refactor |
 | `pending` | **E1.6** | `idd-default-entry` | feature |
@@ -139,7 +139,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E1.2 `ospec-cli-core`. E1.1 quedó entregado en v2.92.0: la spec canónica `openspec/specs/idd/spec.md` fija el contrato de IDD, `scripts/lib/idd-contract.js` lo expone en código y los fixtures de `scripts/fixtures/idd/` dan las obligaciones y gates esperados de seis cambios tipo y dos casos de gate. La etapa 0 quedó cerrada en v2.91.0.
+**▶ SIGUIENTE:** E1.3 `impact-signals`. E1.2 quedó entregado en v2.93.0: `node scripts/ospec.js status | next | record` gestiona los cambios de `idd/` con salida `--json`, escrituras bloqueadas, atómicas e idempotentes, y un `next` determinista para los fixtures de E1.1. E1.5 `kernel-wiring-inventory` y E2.1 `knowledge-map-contract` también pueden empezar ya. La etapa 0 quedó cerrada en v2.91.0.
 
 **Dependencias:**
 
@@ -237,6 +237,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
   - `record` hace escrituras atómicas e idempotentes.
   - Se construye sobre `ospec-state`, `result-envelope`, `validate-phase` y la detección de ambigüedad de clarify (O3), que ya existen.
 - **Hecho cuando:** repetir un `record` no duplica entradas, un `record` interrumpido no corrompe el estado y `next` es determinista para los fixtures de E1.1, incluidos los casos ambiguos.
+- **Entregado en v2.93.0:** `scripts/ospec.js` expone `status`, `next` y `record` con `--json` (REQ-idd-011) y se distribuye en el runtime de los 7 targets. `record` acepta `intent`, `signal`, `gate` y `withdraw`, pero no evidencia: la evidencia la registrará el CLI al observar la ejecución que la prueba (E1.4), así que el modelo no puede afirmarla. Los reductores puros de `scripts/lib/idd-record.js` hacen que repetir un `record` no cambie nada y rechazan reescribir un hecho con otro contenido. `scripts/lib/idd-store.js` escribe `state.yaml` como JSON (YAML 1.2 válido, sin parser propio), bajo el lock de `ospec-state` y con la escritura atómica de `atomic-write`. Un `record` interrumpido deja legible el último estado confirmado, y el id del change se valida antes de tocar disco. `scripts/lib/idd-next.js` calcula `next` y `status` como funciones puras del estado. Cada fixture de E1.1 declara ahora su siguiente paso esperado, y el test lo reproduce sea cual sea el orden en que se registraron las señales. La intención ambigua (la señal O3 de clarify) entra como `record intent --ambiguous --request`: abre el gate, guarda la petición original y bloquea las señales hasta que el usuario responde (enmienda de REQ-idd-003). `result-envelope` y `validate-phase` no hicieron falta, porque son del modo SDD.
 
 ### E1.3 — `impact-signals`
 

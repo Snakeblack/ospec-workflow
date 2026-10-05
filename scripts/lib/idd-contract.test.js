@@ -187,12 +187,23 @@ for (const { name, data } of loadFixtures()) {
       assert.strictEqual(expected.signals.includes("bug-fix"), input.intent.kind === "bug");
       assert.ok(!expected.gates.includes("ambiguous-intent"));
     }
+
+    assert.ok(["satisfy-obligation", "resolve-gate", "close"].includes(expected.next.action));
+    assert.ok(expected.next.pending_decision === null || expected.gates.includes(expected.next.pending_decision));
+    if (expected.next.obligation) assert.ok(expected.obligations.includes(expected.next.obligation));
+    if (expected.next.gate) assert.ok(expected.gates.includes(expected.next.gate));
   });
 }
 
 test("typo closes with checks only, no gate and no document", () => {
   const typo = loadFixtures().find(({ data }) => data.id === "typo").data.expected;
-  assert.deepStrictEqual(typo, { signals: ["always"], obligations: ["checks-pass"], gates: [], living_doc: false });
+  assert.deepStrictEqual(typo, {
+    signals: ["always"],
+    obligations: ["checks-pass"],
+    gates: [],
+    living_doc: false,
+    next: { action: "satisfy-obligation", obligation: "checks-pass", pending_decision: null },
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -238,6 +249,47 @@ test("a resolved gate needs the user's answer and its source", () => {
   assert.strictEqual(contract.validateState(state).ok, false);
   state.gates[0] = { id: "irreversible-operation", status: "resolved", answer: "approve", source: "AskUserQuestion" };
   assert.deepStrictEqual(contract.validateState(state), { ok: true, errors: [] });
+});
+
+function ambiguousState(overrides = {}) {
+  return validState({
+    intent: { request: "Improve the login.", kind: null, summary: null, acceptance: null },
+    signals: [],
+    obligations: [],
+    gates: [{ id: "ambiguous-intent", status: "open" }],
+    ...overrides,
+  });
+}
+
+test("an open ambiguous-intent gate allows an unresolved intent that keeps the request", () => {
+  assert.deepStrictEqual(contract.validateState(ambiguousState()), { ok: true, errors: [] });
+
+  const withoutRequest = ambiguousState({ intent: { kind: null, summary: null, acceptance: null } });
+  assert.ok(contract.validateState(withoutRequest).errors.some((e) => e.includes("intent.request")));
+});
+
+test("an unresolved intent is invalid once the ambiguous-intent gate is not open", () => {
+  const resolvedGate = ambiguousState({
+    gates: [{ id: "ambiguous-intent", status: "resolved", answer: "fix the timeout", source: "AskUserQuestion" }],
+  });
+  assert.ok(contract.validateState(resolvedGate).errors.some((e) => e.includes("intent.kind")));
+});
+
+test("no signal or obligation exists while the intent is ambiguous", () => {
+  const signalled = ambiguousState({
+    signals: [{ id: "always", reason: "every change", source: "declaration" }],
+    obligations: [{ id: "checks-pass", signal: "always", status: "pending", evidence: [] }],
+  });
+  const { errors } = contract.validateState(signalled);
+  assert.ok(errors.some((e) => e.includes("no signal")));
+  assert.ok(errors.some((e) => e.includes("no obligation")));
+});
+
+test("a gate may carry a reason, which must be text", () => {
+  const state = validState({ gates: [{ id: "irreversible-operation", status: "open", reason: "drops customers.fax_number" }] });
+  assert.deepStrictEqual(contract.validateState(state), { ok: true, errors: [] });
+  state.gates[0].reason = 42;
+  assert.strictEqual(contract.validateState(state).ok, false);
 });
 
 // ---------------------------------------------------------------------------

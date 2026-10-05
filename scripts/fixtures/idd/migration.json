@@ -19,6 +19,7 @@
     "signals": ["always", "multi-unit-or-decision", "persistent-data"],
     "obligations": ["checks-pass", "living-doc", "migration-compat-and-test"],
     "gates": [],
-    "living_doc": true
+    "living_doc": true,
+    "next": { "action": "satisfy-obligation", "obligation": "migration-compat-and-test", "pending_decision": null }
   }
 }

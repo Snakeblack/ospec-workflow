@@ -175,6 +175,15 @@ const SUCCESSOR_K2_EXACT = new Set([
   // E1.1 IDD contract catalog (roadmap harness-evolution).
   "scripts/lib/idd-contract.js",
   "scripts/lib/idd-contract.test.js",
+  // E1.2 ospec CLI core: status, next and record (roadmap harness-evolution).
+  "scripts/ospec.js",
+  "scripts/ospec.test.js",
+  "scripts/lib/idd-next.js",
+  "scripts/lib/idd-next.test.js",
+  "scripts/lib/idd-record.js",
+  "scripts/lib/idd-record.test.js",
+  "scripts/lib/idd-store.js",
+  "scripts/lib/idd-store.test.js",
   // Quality Review Gate successor (live v2 post-verify).
   "scripts/lib/quality-review-kpis.js",
   "scripts/lib/quality-review-kpis.test.js",

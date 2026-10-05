@@ -984,6 +984,23 @@ test("real repo: all seven targets include scripts/route-dispatch-run.js and its
   }
 });
 
+test("real repo: every target ships the ospec CLI and it runs from the generated output", (t) => {
+  const targets = ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor", "antigravity"];
+  for (const target of targets) {
+    const out = tmpOut(t);
+    const result = runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
+    for (const rel of ["scripts/ospec.js", "scripts/lib/idd-store.js", "scripts/lib/idd-contract.js"]) {
+      assert.ok(result.files.some((file) => file.path === rel), `${target} dropped ${rel}`);
+    }
+    if (target !== "claude") continue;
+    const project = tmpOut(t);
+    const output = execFileSync(process.execPath, [path.join(out, "scripts", "ospec.js"), "next", "--json", "--root", project], {
+      encoding: "utf8",
+    });
+    assert.deepStrictEqual(JSON.parse(output).next_step, { action: "open-change" });
+  }
+});
+
 test("real repo: route-dispatch-run executes directly from generated target output", (t) => {
   const out = tmpOut(t);
   runConfigure({ sourceDir: ROOT, target: "vscode", outDir: out, validate: false });
