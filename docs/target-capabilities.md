@@ -56,18 +56,13 @@ Un usuario de vscode/copilot NO debe asumir que el token advisor o AgentShield
 corren para él — tiene la versión instruccional (defensa pasiva) generada en las
 rules de su target.
 
-## 4. K2a capability states and proof-backed Claude activation
+## 4. Estados de capacidad K2a (retirados)
 
-Closed capability states: `enforced | partial | instructional | unavailable`.
-
-- **Claude Code (`claude`)** is the sole K2a activated real HostAdapter. Enforced
-  capabilities require a verifying `CapabilityProof` bound to
-  `adapter_version` + `host_version` + fixture + `evidence_digest`
-  (fixtures under `scripts/lib/host-adapters/claude/fixtures/`).
-- Other targets remain inactive stubs until K11a; Headless Conformance Host is a
-  fault fixture, not a second product adapter.
-- Adapters translate host surfaces into contract ports; they are **not** semantic
-  authority (OpenSpec/Git remain sole).
+E1.5 retiró en v2.97.0 el HostAdapter de Claude, el Headless Conformance Host y
+los `CapabilityProof` de K2a, que ningún target usaba en un proyecto
+consumidor. El vocabulario `enforced | partial | instructional | unavailable`
+sigue en los esquemas de `schemas/kernel`; si E5.1 (matriz de capacidades por
+target) lo necesita, parte de ahí.
 
 ## 5. Trabajo futuro declarado
 

@@ -68,24 +68,12 @@ const ALLOWED_PREFIXES = [
  * paths.
  */
 const SUCCESSOR_K2_EXACT = new Set([
-  "scripts/lib/lifecycle-model.js",
-  "scripts/lib/lifecycle-model.test.js",
-  "scripts/lib/minimal-kernel-harness.js",
-  "scripts/lib/minimal-kernel-harness.test.js",
-  "scripts/lib/transition-parity.k2.test.js",
-  "scripts/lib/k21-maturity-docs.test.js",
   "scripts/lib/k21-schema-fixtures.test.js",
-  "scripts/lib/k2a-maturity-docs.test.js",
   "scripts/lib/k2a-schema-fixtures.test.js",
-  "scripts/lib/headless-conformance-host.js",
-  "scripts/lib/headless-conformance-host.test.js",
   "scripts/lib/target-profiles/claude.js",
   "scripts/lib/target-profiles/codex.js",
   "scripts/lib/target-transform.test.js",
-  "scripts/lib/filesystem-store.js",
-  "scripts/lib/filesystem-store.test.js",
   "scripts/lib/k3-schema-fixtures.test.js",
-  "scripts/lib/k3-readiness-reconciliation.test.js",
   "scripts/lib/k3-publication-transaction.test.js",
   "scripts/lib/archive-plan.js",
   "scripts/lib/archive-plan.test.js",
@@ -110,24 +98,13 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/apply-resume.js",
   "scripts/lib/apply-resume.test.js",
   "scripts/lib/roadmap-boundary.test.js",
-  "scripts/lib/roadmap-reconciliation.test.js",
   "scripts/lib/verify-evidence-classification.js",
   "scripts/lib/verify-evidence-classification.test.js",
   "scripts/lib/k4a-schema-fixtures.test.js",
-  "scripts/lib/k4a-lifecycle-model.test.js",
   "scripts/lib/contract-checkers/k4a-checkers.test.js",
   "scripts/lib/k3-k4a-integration.test.js",
-  "scripts/lib/execution-budgets.js",
-  "scripts/lib/execution-budgets.test.js",
-  "scripts/lib/causal-failure.js",
-  "scripts/lib/causal-failure.test.js",
-  "scripts/lib/failure-recovery.js",
-  "scripts/lib/failure-recovery.test.js",
   "scripts/lib/k5-schema-fixtures.test.js",
   "scripts/lib/contract-checkers/k5-checkers.test.js",
-  "scripts/lib/k5-lifecycle-model.test.js",
-  "scripts/lib/k5-budgets-failures-recovery.test.js",
-  "scripts/k5-e2e-budgets-recovery.test.js",
   "skills/sdd-apply/focused-tdd.md",
   "schemas/kernel/candidate/fixtures/valid/k3-frozen.json",
   "schemas/kernel/candidate/fixtures/invalid/commit-projection.json",
@@ -137,19 +114,10 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/allowed-paths-validator.test.js",
   "scripts/lib/worker-workspace.js",
   "scripts/lib/worker-workspace.test.js",
-  "scripts/lib/worker-executor.js",
-  "scripts/lib/worker-executor.test.js",
-  "scripts/lib/worker-sandbox-confine.js",
-  "scripts/lib/worker-sandbox.js",
-  "scripts/lib/worker-sandbox.test.js",
-  "scripts/lib/worker-sandbox-preload.js",
   "scripts/lib/contract-checkers/k6a-candidate-prohibition.js",
   "scripts/lib/contract-checkers/k6a-capsule-path-containment.js",
   "scripts/lib/contract-checkers/k6a-checkers.test.js",
   "scripts/lib/k6a-schema-fixtures.test.js",
-  "scripts/lib/k6a-lifecycle-model.test.js",
-  "scripts/k6a-e2e-worker-isolation.test.js",
-  "scripts/k4b-repair-shadow-e2e.test.js",
   "scripts/lib/k6b-schema-fixtures.test.js",
   "scripts/k6b-verifier-assurance-graph-e2e.test.js",
   "scripts/lib/k6c-schema-fixtures.test.js",
@@ -215,11 +183,6 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/result-envelope.test.js",
   "scripts/lib/result-envelope-schema-fixtures.test.js",
   "scripts/lib/result-envelope-conformance.test.js",
-  // AIB isolated advisory successor; not part of the frozen K1 candidate.
-  "scripts/lib/operation-identity-binding.js",
-  // K12 campaign CLI successor; not part of the frozen K1 candidate.
-  "scripts/k12-campaign.js",
-  "scripts/lib/operation-identity-binding.test.js",
   // K7-1 binds policy-selected review without reopening the frozen K1 candidate.
   "scripts/lib/review-k7-binding.js",
   "scripts/lib/review-k7-binding.test.js",
@@ -228,13 +191,8 @@ const SUCCESSOR_K2_EXACT = new Set([
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [
-  "scripts/lib/repair-shadow/",
   "scripts/lib/target-profiles/",
   "scripts/lib/lifecycle-kernel/",
-  "scripts/lib/authority-store/",
-  "scripts/lib/host-contract/",
-  "scripts/lib/capability-proof/",
-  "scripts/lib/host-adapters/",
   "scripts/lib/test-support/",
   "scripts/lib/execution-identities/",
   "scripts/lib/execution-graph/",
@@ -299,8 +257,6 @@ const SUCCESSOR_K2_PREFIXES = [
   "schemas/kernel/result-envelope.schema.json",
   // K8 candidate evaluation attestation schema family.
   "schemas/kernel/candidate-evaluation-attestation/",
-  // K8 pure constructor/validator library (WU2).
-  "scripts/lib/evaluation-attestation/",
 ];
 
 const PROTECTED_BASELINE_PATHS = [
@@ -446,39 +402,28 @@ test("K1 scope guard classifies representative in-scope and out-of-scope paths",
 
 test("K1 scope guard: K2 successor paths are excluded from K1 inventory governance without becoming K1-allowed", () => {
   assert.equal(isSuccessorK2Path("scripts/lib/lifecycle-kernel/reducer.js"), true);
-  assert.equal(isSuccessorK2Path("scripts/lib/lifecycle-model.js"), true);
-  assert.equal(isSuccessorK2Path("scripts/lib/minimal-kernel-harness.js"), true);
-  assert.equal(isSuccessorK2Path("scripts/lib/transition-parity.k2.test.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/verify-lineage-recovery.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/verify-lineage-recovery.test.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/verify-lineage-recheck.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/flow-validator.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/flow-validator.test.js"), true);
-  assert.equal(isSuccessorK2Path("scripts/lib/operation-identity-binding.js"), true);
-  assert.equal(isSuccessorK2Path("scripts/lib/operation-identity-binding.test.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/k12/obligation-oracle.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/k12/obligation-oracle.test.js"), true);
-  assert.equal(isSuccessorK2Path("scripts/k12-campaign.js"), true);
-  assert.equal(isSuccessorK2Path("scripts/lib/evaluation-attestation/index.js"), true);
-  assert.equal(isSuccessorK2Path("scripts/lib/evaluation-attestation/index.test.js"), true);
   assert.equal(isSuccessorK2Path("schemas/kernel/run-manifest/v1.schema.json"), true);
+  assert.equal(isSuccessorK2Path("scripts/lib/idd-signals.js"), true);
+  assert.equal(isSuccessorK2Path("scripts/lib/k12/worker-record.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/verify-lineage-recheck.test.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/transition-parity.js"), false);
   assert.equal(isSuccessorK2Path("scripts/lib/canonical-json.js"), false);
 
   // Successor exclusion must not expand K1 allowlist confinement.
   assert.equal(isAllowedK1Path("scripts/lib/lifecycle-kernel/reducer.js"), false);
-  assert.equal(isAllowedK1Path("scripts/lib/lifecycle-model.js"), false);
-  assert.equal(isAllowedK1Path("scripts/lib/minimal-kernel-harness.js"), false);
   assert.equal(isAllowedK1Path("scripts/lib/verify-lineage-recovery.js"), false);
   assert.equal(isAllowedK1Path("scripts/lib/verify-lineage-recheck.js"), false);
   assert.equal(isAllowedK1Path("scripts/lib/flow-validator.js"), false);
   assert.equal(isK1GovernedImplementationPath("scripts/lib/lifecycle-kernel/reducer.js"), false);
   assert.equal(isK1GovernedImplementationPath("scripts/lib/flow-validator.js"), false);
-  assert.equal(isK1GovernedImplementationPath("scripts/lib/operation-identity-binding.js"), false);
   assert.equal(isK1GovernedImplementationPath("scripts/lib/k12/obligation-oracle.js"), false);
-  assert.equal(isK1GovernedImplementationPath("scripts/lib/evaluation-attestation/index.js"), false);
-  assert.equal(isK1GovernedImplementationPath("scripts/k12-campaign.js"), false);
   assert.equal(isK1GovernedImplementationPath("scripts/lib/canonical-json.js"), true);
 });
 

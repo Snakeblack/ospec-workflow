@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.97.0] - 2026-10-05
+
+### Removed
+- **Kernel no cableado (E1.5 c)**: 45 módulos de producción (15,5 k líneas) y 46 tests que ningún proyecto consumidor ejecutaba:
+  - Lifecycle K2: `lifecycle-model`, `lifecycle-kernel/*` salvo `k1-compat` y el reducer de fases, `minimal-kernel-harness`, `next-transition`, `transition-parity` y `kernel-aliases`.
+  - Authority Store y permits (K2.1).
+  - Conformance host, host adapters y capability proof (K2a).
+  - Budgets y recovery (K5).
+  - Repair shadow (K4b).
+  - Executor y sandbox de workers (K6a), y `runner-receipt-store`.
+- **13 dominios de spec** que solo describían ese código: `authority-store`, `operation-permits`, `effect-semantics`, `lifecycle-model-conformance`, `minimal-kernel-harness`, `transition-surface-parity`, `headless-conformance-host`, `reference-host-adapter`, `host-capabilities-contract`, `capability-proof`, `execution-budgets`, `failure-recovery` y `repair-shadow-orchestration`.
+
+### Changed
+- **Specs recortadas**:
+  - `lifecycle-kernel-runtime` conserva el reducer de fases que usa `ospec-state` (REQ-lifecycle-kernel-028 a 030).
+  - `harness-authority-canon` conserva los principios de autoridad y las superficies de evidencia que siguen distribuidas (REQ 001, 002, 010, 011 y 013).
+  - `worker-isolation` conserva `worker-workspace` y `allowed-paths-validator` (REQ 001, 002, 003, 007 y 009).
+- **Guardias**: `k1-scope-guard` pierde 41 entradas y 13 aserciones sobre rutas que ya no existen; `roadmap-boundary` deja de recorrer los módulos retirados.
+- **Checkers k4a, k5 y k6a**: se mantienen, a diferencia de lo que proponía el inventario, porque validan fixtures de `schemas/kernel`, que se sigue distribuyendo.
+- **Docs**: `target-capabilities.md` deja constancia de la retirada de K2a. E1.5 queda cerrado en el roadmap y E1.4 `ospec-check-and-close` pasa a ser el siguiente. `scripts/lib` baja de 51,6 k a 33,9 k líneas de producción.
+
+**Verificación directa**: `node scripts/check.js` (3102 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.96.0] - 2026-10-05
 
 ### Removed
