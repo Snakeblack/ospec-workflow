@@ -989,7 +989,14 @@ test("real repo: every target ships the ospec CLI and it runs from the generated
   for (const target of targets) {
     const out = tmpOut(t);
     const result = runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
-    for (const rel of ["scripts/ospec.js", "scripts/lib/idd-store.js", "scripts/lib/idd-contract.js"]) {
+    for (const rel of [
+      "scripts/ospec.js",
+      "scripts/lib/idd-store.js",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-signals.js",
+      "scripts/lib/idd-workspace.js",
+      "scripts/lib/change-classification.js",
+    ]) {
       assert.ok(result.files.some((file) => file.path === rel), `${target} dropped ${rel}`);
     }
     if (target !== "claude") continue;

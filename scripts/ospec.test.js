@@ -144,3 +144,93 @@ test("evidence cannot be recorded from the CLI and usage errors exit 2", (t) => 
   assert.strictEqual(help.status, 0);
   assert.match(help.stdout, /ospec next/);
 });
+
+// E1.3 impact-signals: `ospec signals` derives and records signals and gates
+// from the declaration and the diff (REQ-idd-012).
+
+const { execFileSync } = require("node:child_process");
+
+function gitInit(root) {
+  const git = (...args) => execFileSync("git", ["-C", root, ...args], { encoding: "utf8" });
+  git("init", "-q");
+  git("config", "user.email", "test@example.invalid");
+  git("config", "user.name", "test");
+  git("config", "commit.gpgsign", "false");
+  return git;
+}
+
+function writeFile(root, rel, content) {
+  fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+  fs.writeFileSync(path.join(root, rel), content);
+}
+
+test("signals derives declaration signals with their reasons and is idempotent", (t) => {
+  const root = tempRoot(t);
+  writeFile(root, "openspec/config.yaml", "strict_tdd: true\n");
+  ospec(root, ...OPEN_BUG);
+  const args = ["signals", "--change", "fix-pagination", "--path", "src/api/pages.js", "--work-units", "2", "--json"];
+  const first = ospec(root, ...args);
+  assert.strictEqual(first.code, 0, first.stderr);
+  assert.deepStrictEqual(first.json.added, {
+    signals: ["strict-tdd", "bug-fix", "multi-unit-or-decision", "public-contract"],
+    gates: [],
+  });
+  assert.strictEqual(
+    first.json.signals.find((s) => s.id === "public-contract").reason,
+    "public contract: touches src/api/pages.js (matches **/api/**)",
+  );
+  assert.strictEqual(first.json.floor, "planned");
+  assert.strictEqual(first.json.next.next_step.obligation, "repro-test");
+  assert.ok(fs.existsSync(path.join(root, "idd", "fix-pagination", "change.md")), "living-doc creates change.md");
+
+  const file = path.join(root, "idd", "fix-pagination", "state.yaml");
+  const before = fs.readFileSync(file, "utf8");
+  const again = ospec(root, ...args);
+  assert.strictEqual(again.code, 0);
+  assert.strictEqual(again.json.changed, false);
+  assert.strictEqual(fs.readFileSync(file, "utf8"), before);
+
+  const text = ospec(root, ...args.filter((arg) => arg !== "--json"));
+  assert.strictEqual(text.code, 0);
+  assert.match(text.stdout, /public-contract \(declaration\): public contract: touches src\/api\/pages\.js/);
+});
+
+test("signals --diff adds diff signals and opens the irreversible gate", (t) => {
+  const root = tempRoot(t);
+  const git = gitInit(root);
+  writeFile(root, "src/customers/profile.js", "module.exports = {};\n");
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "base");
+
+  ospec(root, "record", "intent", "--change", "drop-fax", "--kind", "refactor", "--summary", "Drop fax.", "--acceptance", "No fax reads.");
+  writeFile(root, "db/migrations/003_drop_fax.sql", "ALTER TABLE customers DROP COLUMN fax_number;\n");
+
+  const result = ospec(root, "signals", "--change", "drop-fax", "--diff", "--json");
+  assert.strictEqual(result.code, 0, result.stderr);
+  assert.deepStrictEqual(result.json.added, { signals: ["persistent-data"], gates: ["irreversible-operation"] });
+  assert.strictEqual(result.json.signals.find((s) => s.id === "persistent-data").source, "diff");
+  assert.strictEqual(result.json.next.pending_decision.gate, "irreversible-operation");
+  assert.match(result.json.next.pending_decision.reason, /DROP COLUMN in db\/migrations\/003_drop_fax\.sql/);
+});
+
+test("signals refuses an ambiguous intent, an unknown change and bad input", (t) => {
+  const root = tempRoot(t);
+  ospec(root, "record", "intent", "--change", "improve-login", "--ambiguous", "--request", "Improve the login.");
+  const ambiguous = ospec(root, "signals", "--change", "improve-login", "--path", "src/auth/a.js", "--json");
+  assert.strictEqual(ambiguous.code, 1);
+  assert.strictEqual(ambiguous.json.error.code, "ambiguous-intent-open");
+
+  assert.strictEqual(ospec(root, "signals", "--change", "nope", "--json").json.error.code, "unknown-change");
+  assert.strictEqual(ospec(root, "signals", "--json").code, 2);
+  ospec(root, ...OPEN_BUG);
+  assert.strictEqual(ospec(root, "signals", "--change", "fix-pagination", "--work-units", "two", "--json").code, 2);
+
+  const noGit = ospec(root, "signals", "--change", "fix-pagination", "--diff", "--json");
+  assert.strictEqual(noGit.code, 1);
+  assert.strictEqual(noGit.json.error.code, "not-a-git-repo");
+
+  writeFile(root, "openspec/config.yaml", "impact:\n  stack: cobol\n");
+  const badConfig = ospec(root, "signals", "--change", "fix-pagination", "--json");
+  assert.strictEqual(badConfig.code, 1);
+  assert.strictEqual(badConfig.json.error.code, "impact-config-invalid");
+});
