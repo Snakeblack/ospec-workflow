@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.104.0, 2026-10-05.
+> **Versión de referencia:** v2.105.0, 2026-10-05.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -422,6 +422,7 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
 - **Decisiones del usuario (2026-10-05):** E4.1 compara modos, así que basta un host: Claude Code en modo headless (`claude -p`), con el plugin construido desde el checkout y un `CLAUDE_CONFIG_DIR` propio del banco, para que ni el `CLAUDE.md` personal, ni los plugins instalados, ni los MCP, ni la memoria entren en la medición. Las preguntas las contesta una persona simulada que conoce hechos ocultos de cada escenario. La línea base usa Sonnet 5.5 con una repetición. Márgenes `bench-margins-1`: IDD no escapa más defectos en total y gasta como mucho el 90 % de los tokens. De K12 no se cablea nada: su forma está atada al kernel retirado (políticas `fixed` y `adaptive-repair-v1`, medidas de fases, efectos y eventos), así que se retira salvo el intervalo por tarea del runner.
 - **Entrega:** PRs encadenados: (a) harness, escenarios y márgenes; (b) retirada de lo que queda de K12; (c) corrida de la línea base SDD con su informe. El brazo IDD se ejecuta en E1.6, con su protocolo, antes de cambiar el default.
 - **(a) entregado en v2.104.0:** `scripts/evals/bench/` (REQ-bench-001 a 006, spec `bench`). Seis escenarios, uno por perfil, con repositorio semilla, petición, hechos ocultos y checks ocultos de aceptación, de hecho y de regresión. Una entrega de referencia por escenario prueba que los checks pasan con una solución correcta y que la semilla falla la aceptación. El driver materializa la semilla como repositorio git fuera del repositorio de ospec, ejecuta el setup del brazo fuera de la medición, conversa por turnos (`--resume`) hasta que el brazo da el cambio por terminado (en SDD, un change archivado) o hasta el tope de turnos o de coste, y juzga el workspace con los checks ocultos. El record versionado ata cada corrida a host, modelo, build del plugin, persona y corpus, y guarda el SHA-256 de cada transcript; el informe y el checkpoint se recalculan desde él sin llamar a un modelo. El brazo `idd` queda declarado y se niega a correr hasta E1.6.
+- **(b) entregado en v2.105.0:** se retira lo que quedaba de K12: `worker-record`, `runner`, `run-manifest` y su esquema (`schemas/kernel/run-manifest/`, REQ-kernel-contract-schemas-033), `cohort`, `obligation-oracle` y `pilot-checkpoint`, con sus tests, el corpus de 22 tareas, los márgenes, las calibraciones y las instantáneas del piloto. El intervalo t por tarea pasa a `scripts/evals/bench/stats.js`. La historia del piloto queda en su [informe](../analysis/2026-10-03-adaptive-pilot-report.md); para reproducirlo hay que usar v2.104.0 o anterior.
 
 ### E4.2 — `head-to-head-gentle-ai`
 
@@ -486,7 +487,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 | `done` | **Binding de identidad de operación** | Gate de ambigüedad en SubagentStop (v2.69.0) | Retirado en v2.95.0: E1.2 se entregó sin él |
 | `done` | **K7 mínimo** | Binding de review con Candidate y Policy, lineage v3 (v2.70.0) | E1.4 |
 | `done` | **K8 mínimo** | `CandidateEvaluationAttestation` (v2.71.0–v2.73.1) | Código retirado en v2.95.0; el esquema sigue en `schemas/kernel` |
-| `done` | **K12 focal** | Oracle por fixture, campaña de maquinaria y cohorte de 22 tareas (v2.70.0–v2.78.0) | E4.1 cablea `worker-record`, `runner`, `run-manifest`, `cohort`, el oracle y el checkpoint; pilot y campaign executor retirados en v2.96.0 |
+| `done` | **K12 focal** | Oracle por fixture, campaña de maquinaria y cohorte de 22 tareas (v2.70.0–v2.78.0) | Pilot y campaign executor retirados en v2.96.0; el resto, en v2.105.0 (E4.1 usa su propio record y conserva solo el intervalo por tarea) |
 | `done` | **Piloto Adaptive Repair** | Checkpoint determinista `continue` (v2.79.0) y calibración con agentes reales `continue` (v2.80.0) | Obligación de reproducción (E1.4) |
 | `done` | **Engram por target** | Configuración automática en los 7 targets (v2.81.0) | E3.5 |
 

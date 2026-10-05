@@ -1,7 +1,7 @@
 # Piloto Adaptive Repair — informe y checkpoint (P4)
 
 > **Fecha:** 2026-10-03 · **Versión:** v2.79.0 (piloto determinista) y v2.80.0 (calibración con agentes) · **Naturaleza:** informe de medición; no cambia estados de OpenSpec, el routing ni el default `fixed`.
-> **Alcance:** [`2026-10-02-adaptive-pilot-scoping.md`](2026-10-02-adaptive-pilot-scoping.md) · **Reproducir:** `node scripts/k12-campaign.js --paired --seed pilot-p4-2026-10-03` sobre v2.94.0 o anterior (E1.5 retiró el executor del piloto en v2.96.0; las ejecuciones quedan en `scripts/evals/__fixtures__/k12/snapshots/`)
+> **Alcance:** [`2026-10-02-adaptive-pilot-scoping.md`](2026-10-02-adaptive-pilot-scoping.md) · **Reproducir:** `node scripts/k12-campaign.js --paired --seed pilot-p4-2026-10-03` sobre v2.94.0 o anterior (E1.5 retiró el executor del piloto en v2.96.0, y E4.1 retiró el resto de K12, con las instantáneas de estas ejecuciones, en v2.105.0; están en `scripts/evals/__fixtures__/k12/snapshots/` hasta v2.104.0)
 
 ## Veredicto
 

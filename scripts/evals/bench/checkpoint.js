@@ -17,7 +17,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const { sha256Fingerprint } = require("../../lib/canonical-json.js");
-const { taskInterval } = require("../../lib/k12/runner.js");
+const { taskInterval } = require("./stats.js");
 
 const MARGINS_PATH = path.join(__dirname, "margins.json");
 const MARGINS_KEYS = Object.freeze(["schema_version", "margins_version", "declared_at", "baseline_arm", "candidate_arm", "escaped_defects", "tokens"]);
