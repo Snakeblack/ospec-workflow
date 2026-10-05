@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.93.0] - 2026-10-05
+
+### Added
+- **CLI `ospec` para cambios IDD (E1.2)**: `node scripts/ospec.js status | next | record`, con salida `--json` y códigos de salida 0 (correcto), 1 (el contrato IDD lo rechaza) y 2 (error de uso). Se distribuye en el runtime de los 7 targets (REQ-idd-011).
+- **`record` idempotente y atómico**: acepta `intent`, `signal`, `gate` y `withdraw`. Si se repite, `state.yaml` no cambia ni un byte, y si intenta reescribir un hecho ya registrado con otro contenido, se rechaza. Cada escritura se valida contra `idd-state/v1`, corre bajo el lock del fichero y lo sustituye de forma atómica, así que un `record` interrumpido deja legible el último estado confirmado. El id del change se valida antes de tocar disco. `record` no acepta evidencia: la registrará el CLI al observar la ejecución que la prueba (E1.4), así que el modelo no puede afirmarla.
+- **`next` y `status` deterministas**: `next` devuelve el cambio activo, las obligaciones pendientes en orden de trabajo, la decisión pendiente con su pregunta, el siguiente paso y las referencias de conocimiento. Es una función pura del estado guardado. Cada fixture de `scripts/fixtures/idd/` declara ahora su siguiente paso esperado, y el test lo reproduce sea cual sea el orden en que se registraron las señales.
+- **Documento vivo desde plantilla**: cuando se activa la obligación `living-doc`, el CLI crea `idd/<id>/change.md` con las secciones de la plantilla y los marcadores de evidencia, y no lo vuelve a sobrescribir.
+
+### Changed
+- **Contrato IDD (REQ-idd-003)**: mientras el gate `ambiguous-intent` está abierto, la intención guarda la petición original en `intent.request` con `kind`, `summary` y `acceptance` a null, y no puede haber señales ni obligaciones. Los gates admiten un `reason` opcional, y `state.yaml` se escribe como JSON, que es YAML 1.2 válido.
+- **Docs**: E1.2 queda cerrado en el roadmap y E1.3 `impact-signals` pasa a ser el siguiente.
+
+**Verificación directa**: `node scripts/check.js` (3789 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.92.0] - 2026-10-05
 
 ### Added

@@ -19,6 +19,7 @@
     "signals": [],
     "obligations": [],
     "gates": ["ambiguous-intent"],
-    "living_doc": false
+    "living_doc": false,
+    "next": { "action": "resolve-gate", "gate": "ambiguous-intent", "pending_decision": "ambiguous-intent" }
   }
 }

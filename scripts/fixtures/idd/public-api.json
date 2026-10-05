@@ -19,6 +19,7 @@
     "signals": ["always", "multi-unit-or-decision", "public-contract"],
     "obligations": ["checks-pass", "contract-spec-and-test", "living-doc"],
     "gates": [],
-    "living_doc": true
+    "living_doc": true,
+    "next": { "action": "satisfy-obligation", "obligation": "contract-spec-and-test", "pending_decision": null }
   }
 }

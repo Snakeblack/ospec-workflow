@@ -65,14 +65,18 @@ canonical specs.
 
 `state.yaml` MUST declare `schema` as `idd-state/v1` and hold only `change`, `mode`,
 `status` (`open` or `closed`), `intent` (`kind` in `bug`, `feature`,
-`refactor`, `docs`, plus `summary` and `acceptance`), `signals` (each with `id`,
-`reason` and `source`, `declaration` or `diff`), `obligations` (each with `id`,
-`signal`, `status` in `pending`, `satisfied`, `withdrawn`, the `evidence` ids
-that satisfy it and, when withdrawn, `withdrawn_reason`), `gates` (each with
-`id`, `status` `open` or `resolved` and, when resolved, `answer` and `source`)
-and `evidence` (each with `id`, `kind`, `obligation` and `recorded_at`). Only
-the `ospec` CLI MAY write `state.yaml`, and every write MUST be atomic. The model
-MUST NOT edit it.
+`refactor`, `docs`, plus `summary` and `acceptance`, and optionally the original
+`request`), `signals` (each with `id`, `reason` and `source`, `declaration` or
+`diff`), `obligations` (each with `id`, `signal`, `status` in `pending`,
+`satisfied`, `withdrawn`, the `evidence` ids that satisfy it and, when
+withdrawn, `withdrawn_reason`), `gates` (each with `id`, `status` `open` or
+`resolved`, an optional `reason` and, when resolved, `answer` and `source`) and
+`evidence` (each with `id`, `kind`, `obligation` and `recorded_at`). While the
+`ambiguous-intent` gate is open, `intent.kind`, `intent.summary` and
+`intent.acceptance` MUST be null, `intent.request` MUST hold the original
+request, and `signals` and `obligations` MUST be empty. `state.yaml` MUST be
+written as JSON, which is valid YAML 1.2. Only the `ospec` CLI MAY write
+`state.yaml`, and every write MUST be atomic. The model MUST NOT edit it.
 
 #### Scenario: Satisfied obligation names its evidence
 
@@ -87,6 +91,14 @@ MUST NOT edit it.
 - GIVEN a `state.yaml` with a top-level field outside the schema
 - WHEN the state is validated
 - THEN validation MUST fail naming that field
+
+#### Scenario: Ambiguous intent keeps only the request
+
+- GIVEN a change opened from the request "improve the login" with
+  `ambiguous-intent` open
+- WHEN the state is validated
+- THEN `intent.request` MUST hold that request and `intent.kind` MUST be null
+- AND once the gate is resolved, a null `intent.kind` MUST fail validation
 
 ### Requirement: Living Document Template {#REQ-idd-004}
 
@@ -226,9 +238,9 @@ decision.
 `scripts/fixtures/idd/` MUST hold one fixture per reference change type
 (`typo`, `bug`, `internal-feature`, `public-api`, `migration`, `auth`) plus the
 gate cases `ambiguous-intent` and `destructive-migration`. Each fixture MUST
-declare its inputs and its expected signals, obligations, gates and whether a
-living document exists, and its expected obligations MUST equal the catalog
-derivation of its expected signals. The CLI items that follow (E1.2–E1.4) MUST
+declare its inputs and its expected signals, obligations, gates, whether a
+living document exists and its expected `next` step, and its expected
+obligations MUST equal the catalog derivation of its expected signals. The CLI items that follow (E1.2–E1.4) MUST
 reproduce these expectations.
 
 #### Scenario: Typo closes with checks only
@@ -237,3 +249,50 @@ reproduce these expectations.
 - WHEN its expectations are read
 - THEN its only obligation MUST be `checks-pass`, with no gate and no living
   document
+
+### Requirement: CLI Core Status Next And Record {#REQ-idd-011}
+
+The `ospec` CLI MUST expose `status`, `next` and `record`, each with a `--json`
+output. `record` MUST accept the types `intent`, `signal`, `gate` and
+`withdraw`, and MUST NOT accept evidence: evidence is recorded only by the CLI
+commands that observe the execution it proves (REQ-idd-007). Every `record`
+MUST be idempotent: repeating it MUST leave `state.yaml` byte-identical, and
+rewriting a recorded fact with different content MUST be refused. Every write
+MUST run under the state file's lock and replace the file atomically, so an
+interrupted `record` leaves the last committed state readable. A change id
+MUST be kebab-case before it reaches the filesystem. `next` MUST be a pure
+function of the stored state and MUST return the change, its pending
+obligations in work order, the pending decision, the next step and the
+knowledge references. The next step MUST be `resolve-gate` while the intent is
+ambiguous, else the first pending obligation in the order `repro-test`,
+`tdd-red-green`, `contract-spec-and-test`, `migration-compat-and-test`,
+`adr-impact-declaration`, `trust-review`, `checks-pass`, `living-doc`, else the
+first open gate, else `close`. The CLI MUST exit with 0 on success, 1 when the
+IDD contract refuses the request and 2 on a usage error.
+
+#### Scenario: Repeated record is a no-op
+
+- GIVEN a change with the `bug-fix` signal recorded
+- WHEN the same `record signal` runs again
+- THEN it MUST report `changed: false`
+- AND `state.yaml` MUST be byte-identical and hold one `bug-fix` signal
+
+#### Scenario: Interrupted record keeps the committed state
+
+- GIVEN a committed `state.yaml`
+- WHEN a `record` fails after writing its temporary file and before replacing
+  the state
+- THEN reading the change MUST return the committed state
+- AND the next `record` MUST succeed
+
+#### Scenario: Next is deterministic for the reference fixtures
+
+- GIVEN the state each fixture of REQ-idd-010 reaches through `record`
+- WHEN `next` runs, whatever order its signals were recorded in
+- THEN it MUST return the fixture's expected next step and pending decision
+
+#### Scenario: Evidence cannot be recorded by hand
+
+- GIVEN an open change with `checks-pass` pending
+- WHEN `ospec record evidence` is requested
+- THEN the CLI MUST exit with 2 and `checks-pass` MUST stay `pending`

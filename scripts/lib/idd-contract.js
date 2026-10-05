@@ -12,6 +12,7 @@ const DEFAULT_MODE = "sdd";
 const CHANGE_ROOT = "idd";
 const ARCHIVE_ROOT = "idd/archive";
 const STATE_FILE = "state.yaml";
+const CHANGE_ID_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const LIVING_DOC_FILE = "change.md";
 const LIVING_DOC_SECTIONS = Object.freeze(["Intent and acceptance", "Plan", "Decisions", "Evidence"]);
 const EVIDENCE_MARKERS = Object.freeze({
@@ -102,22 +103,34 @@ function validateState(state) {
     if (!STATE_FIELDS.includes(key)) fail(`unknown field: ${key}`);
   }
   if (state.schema !== STATE_SCHEMA) fail(`schema must be ${STATE_SCHEMA}`);
-  if (typeof state.change !== "string" || !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(state.change)) {
+  if (typeof state.change !== "string" || !CHANGE_ID_PATTERN.test(state.change)) {
     fail("change must be a kebab-case id");
   }
   if (state.mode !== "idd") fail("mode must be idd");
   if (!CHANGE_STATUSES.includes(state.status)) fail(`status must be one of ${CHANGE_STATUSES.join(", ")}`);
 
-  const intent = state.intent || {};
-  if (!INTENT_KINDS.includes(intent.kind)) fail(`intent.kind must be one of ${INTENT_KINDS.join(", ")}`);
-  for (const key of ["summary", "acceptance"]) {
-    if (typeof intent[key] !== "string" || intent[key] === "") fail(`intent.${key} is required`);
-  }
-
   for (const key of ["signals", "obligations", "gates", "evidence"]) {
     if (!Array.isArray(state[key])) fail(`${key} must be a list`);
   }
   if (errors.length > 0) return { ok: false, errors };
+
+  // While ambiguous-intent is open the intent stays unresolved, keeps the
+  // original request and nothing is derived from it (REQ-idd-003, REQ-idd-008).
+  const intent = state.intent || {};
+  if (isIntentAmbiguous(state)) {
+    if (typeof intent.request !== "string" || intent.request === "") fail("intent.request is required while the intent is ambiguous");
+    for (const key of ["kind", "summary", "acceptance"]) {
+      if (intent[key] != null) fail(`intent.${key} must stay null while the intent is ambiguous`);
+    }
+    if (state.signals.length > 0) fail("no signal may be active while the intent is ambiguous");
+    if (state.obligations.length > 0) fail("no obligation may exist while the intent is ambiguous");
+  } else {
+    if (!INTENT_KINDS.includes(intent.kind)) fail(`intent.kind must be one of ${INTENT_KINDS.join(", ")}`);
+    for (const key of ["summary", "acceptance"]) {
+      if (typeof intent[key] !== "string" || intent[key] === "") fail(`intent.${key} is required`);
+    }
+  }
+  if (intent.request != null && typeof intent.request !== "string") fail("intent.request must be text");
 
   for (const signal of state.signals) {
     if (!SIGNAL_BY_ID.has(signal.id)) fail(`unknown signal: ${signal.id}`);
@@ -161,12 +174,17 @@ function validateState(state) {
   for (const gate of state.gates) {
     if (!GATES.includes(gate.id)) fail(`unknown gate: ${gate.id}`);
     if (!GATE_STATUSES.includes(gate.status)) fail(`gate ${gate.id} has unknown status`);
+    if (gate.reason != null && typeof gate.reason !== "string") fail(`gate ${gate.id} reason must be text`);
     if (gate.status === "resolved" && (!gate.answer || !gate.source)) {
       fail(`gate ${gate.id} is resolved without the user's answer and its source`);
     }
   }
 
   return { ok: errors.length === 0, errors };
+}
+
+function isIntentAmbiguous(state) {
+  return state.gates.some((gate) => gate.id === "ambiguous-intent" && gate.status === "open");
 }
 
 function canWithdraw(state, obligationId) {
@@ -188,6 +206,7 @@ function canClose(state) {
 
 module.exports = {
   ARCHIVE_ROOT,
+  CHANGE_ID_PATTERN,
   CHANGE_ROOT,
   CHANGE_STATUSES,
   DEFAULT_MODE,
@@ -209,6 +228,7 @@ module.exports = {
   canClose,
   canWithdraw,
   deriveObligations,
+  isIntentAmbiguous,
   resolveMode,
   validateState,
 };

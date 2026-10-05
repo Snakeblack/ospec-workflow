@@ -19,6 +19,7 @@
     "signals": ["always", "bug-fix"],
     "obligations": ["checks-pass", "repro-test"],
     "gates": [],
-    "living_doc": false
+    "living_doc": false,
+    "next": { "action": "satisfy-obligation", "obligation": "repro-test", "pending_decision": null }
   }
 }
