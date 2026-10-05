@@ -11,7 +11,7 @@ context: |
 
 project:
   name: ospec-workflow
-  version: 2.93.0
+  version: 2.94.0
   status: active
 
 artifact_store:
@@ -35,6 +35,24 @@ testing:
     linter: false
     type_checker: false
     formatter: false
+
+# Impact patterns for IDD signals (openspec/specs/idd/spec.md, REQ-idd-012).
+# Each list adds to the base and stack defaults; exclude removes paths.
+impact:
+  public_contract:
+    - scripts/ospec.js
+    - scripts/configure/cli.js
+    - hooks/hooks.json
+    - .claude-plugin/**
+    - .plugin.json
+  persistent_data:
+    - scripts/lib/idd-store.js
+    - scripts/lib/ospec-state.js
+    - scripts/lib/archive-*.js
+  security_boundary:
+    - scripts/hooks/**
+  exclude:
+    - scripts/configure/__fixtures__/**
 
 baseline:
   status: done

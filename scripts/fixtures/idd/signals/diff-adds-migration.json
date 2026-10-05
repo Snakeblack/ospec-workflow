@@ -1,0 +1,21 @@
+{
+  "id": "diff-adds-migration",
+  "description": "An additive migration that only appears in the diff adds persistent-data with source diff and no gate.",
+  "input": {
+    "intent": { "kind": "feature", "summary": "Speed up the order lookup by customer.", "acceptance": "The lookup uses an index; checks pass." },
+    "project": { "strict_tdd": false, "stacks": [] },
+    "declaration": { "paths": ["src/orders/repository.js"], "work_units": 1, "non_obvious_decision": false, "operations": [] },
+    "diff": {
+      "paths": ["src/orders/repository.js", "db/migrations/20261005_orders_customer_idx.sql"],
+      "added_lines": { "db/migrations/20261005_orders_customer_idx.sql": ["CREATE INDEX orders_customer_idx ON orders (customer_id);"] }
+    }
+  },
+  "expected": {
+    "signals": [
+      { "id": "always", "source": "declaration" },
+      { "id": "persistent-data", "source": "diff", "reason": "persistent data: touches db/migrations/20261005_orders_customer_idx.sql (matches **/migrations/**)" }
+    ],
+    "gates": [],
+    "floor": "critical"
+  }
+}

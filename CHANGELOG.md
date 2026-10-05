@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.94.0] - 2026-10-05
+
+### Added
+- **`ospec signals` (E1.3)**: deriva y registra las señales de impacto de un cambio IDD (REQ-idd-012). `always`, `strict-tdd`, `bug-fix` y `multi-unit-or-decision` salen de la intención, de `strict_tdd` en `openspec/config.yaml` y de lo declarado (`--work-units`, `--decision`). Contrato público, datos persistentes y frontera de seguridad salen de las rutas previstas (`--path`, `source: declaration`) y, con `--diff [--base <ref>]`, del diff de git, incluidos los ficheros sin seguimiento (`source: diff`). Cada señal muestra su razón, con la ruta y el patrón que la disparó.
+- **Patrones de impacto por stack**: base común más valores por defecto para `node`, `jvm`, `dotnet`, `python` y `go`, detectados por su manifiesto en la raíz. La nueva sección `impact:` de `openspec/config.yaml` añade patrones por señal, fija el stack, desactiva los valores por defecto (`defaults: false`) o excluye rutas; una clave o un stack desconocidos se rechazan. La documentación (`**/*.md`, `**/*.mdx`, `docs/**`) nunca deriva señales.
+- **Gate de operación irreversible automático**: se abre por una operación declarada (`--operation drop-column`, `drop-table`, `truncate-table`…) o por una sentencia destructiva que el diff añade a un fichero de datos persistentes (DROP de tabla, esquema, base de datos o columna, TRUNCATE o DELETE sin WHERE, en SQL y en los ORM habituales). Los comentarios no cuentan.
+- **Suelos de K1 reutilizados**: las señales de ruta y `bug-fix` se corresponden uno a uno con los suelos de riesgo de PP1/PP2 (`public_api`, `data_migration`, `auth_security`, `localized_reproducible_bug`), y `signals` informa del suelo resultante.
+- **Fixtures**: los 8 fixtures de E1.1 se reproducen desde su declaración, y `scripts/fixtures/idd/signals/` cubre un contrato público tocado en dos líneas solo en el diff, una migración que solo aparece en el diff, una columna borrada en el diff y documentación de seguridad. Un refactor mecánico de 240 ficheros no abre ningún gate.
+
+### Changed
+- **Registro de señales idempotente**: repetir `signals` no cambia `state.yaml`, nunca quita una señal ya registrada ni reabre un gate resuelto, y se rechaza mientras la intención es ambigua.
+- **Este repositorio** declara su sección `impact:` (CLI `ospec`, instalador, hooks y manifiestos como contrato público; estado y archive como datos persistentes; `scripts/hooks/` como frontera de seguridad). El guardia K1 de `openspec/config.yaml` la trata como contrato sucesor.
+- **Docs**: E1.3 queda cerrado en el roadmap; E1.5 `kernel-wiring-inventory` pasa a ser el siguiente, antes de E1.4.
+
+**Verificación directa**: `node scripts/check.js` (3834 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.93.0] - 2026-10-05
 
 ### Added

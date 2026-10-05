@@ -296,3 +296,77 @@ IDD contract refuses the request and 2 on a usage error.
 - GIVEN an open change with `checks-pass` pending
 - WHEN `ospec record evidence` is requested
 - THEN the CLI MUST exit with 2 and `checks-pass` MUST stay `pending`
+
+### Requirement: Impact Signal Derivation {#REQ-idd-012}
+
+`ospec signals` MUST derive the signals of an open change with a resolved
+intent and record the ones not yet recorded. `always` MUST derive from the
+resolved intent; `strict-tdd` from `strict_tdd: true` in `openspec/config.yaml`
+unless the intent kind is `docs`; `bug-fix` from the intent kind `bug`; and
+`multi-unit-or-decision` from more than one declared work unit or a declared
+non-obvious decision. `public-contract`, `persistent-data` and
+`security-boundary` MUST derive from paths matching their impact patterns: the
+planned paths give `source: declaration` and, with `--diff`, the paths of the
+git diff against a base commit (default `HEAD`), staged, unstaged and untracked,
+give `source: diff`. A signal both planned and in the diff MUST keep
+`source: declaration`. Paths under `idd/` MUST NOT count. Every signal MUST
+carry a reason naming why it fired, and a path-driven reason MUST name a
+matching path and the pattern it matched. The impact patterns MUST be base
+patterns for any project plus defaults for each stack detected from its
+manifest at the project root (`node`, `jvm`, `dotnet`, `python`, `go`), plus the
+lists of the `impact:` section of `openspec/config.yaml` (`public_contract`,
+`persistent_data`, `security_boundary`); `impact.stack` MUST replace the
+detected stacks, `impact.defaults: false` MUST drop the base and stack patterns,
+and paths matching `impact.exclude` or the default exclusions
+(documentation: `**/*.md`, `**/*.mdx`, `docs/**`) MUST NOT derive any signal.
+An unknown `impact:` key or stack MUST be refused. Matching MUST ignore case.
+The `irreversible-operation` gate MUST open for a declared irreversible
+operation (`drop-table`, `drop-column`, `drop-schema`, `drop-database`,
+`truncate-table`, `delete-data`, `rewrite-history`) or for a destructive
+statement (drop of a table, schema, database or column, truncate, or a complete
+`DELETE` without `WHERE`) in a line the diff adds to a `persistent-data` file;
+comment lines MUST NOT count. No other derivation MAY open a gate. The
+path-driven signals and `bug-fix` MUST map one to one onto the K1 hard floors
+(`public_api`, `data_migration`, `auth_security`,
+`localized_reproducible_bug`), and the result MUST report the K1 floor they
+yield. Recording MUST be idempotent and MUST NOT drop a recorded signal the new
+derivation misses, nor reopen a resolved gate (REQ-idd-006). While
+`ambiguous-intent` is open, `signals` MUST be refused.
+
+#### Scenario: Two changed lines in a public contract add its obligation
+
+- GIVEN an open change whose planned paths touch no impact pattern
+- WHEN the diff changes two lines of `src/api/orders.js` and `signals --diff`
+  runs
+- THEN `public-contract` MUST be recorded with `source: diff` and the reason
+  "public contract: touches src/api/orders.js (matches **/api/**)"
+- AND `contract-spec-and-test` MUST be `pending`
+
+#### Scenario: Large mechanical refactor opens no gate
+
+- GIVEN a refactor touching 240 files outside every impact pattern
+- WHEN its signals are derived from the declaration and the diff
+- THEN the only signal MUST be `always` and no gate MUST open
+
+#### Scenario: Destructive statement in the diff opens the gate
+
+- GIVEN a diff that adds `ALTER TABLE customers DROP COLUMN fax_number;` to a
+  file under `db/migrations/`
+- WHEN `signals --diff` runs
+- THEN `persistent-data` MUST be recorded with `source: diff`
+- AND `irreversible-operation` MUST be open with a reason naming `DROP COLUMN`
+  and the file
+
+#### Scenario: Documentation about a boundary derives nothing
+
+- GIVEN a `docs` change that only touches `docs/security/token-rotation.md` in a
+  project with `strict_tdd: true`
+- WHEN its signals are derived
+- THEN the only signal MUST be `always`
+
+#### Scenario: Reference fixtures derive from their declaration
+
+- GIVEN each fixture of REQ-idd-010
+- WHEN its signals are derived from its intent, planned paths, work units,
+  decision and operations
+- THEN they MUST equal its expected signals and gates

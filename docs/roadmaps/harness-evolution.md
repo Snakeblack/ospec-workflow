@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.93.0, 2026-10-05.
+> **Versión de referencia:** v2.94.0, 2026-10-05.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -118,9 +118,9 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E0.4** | `router-and-sdd-on-demand` | feature |
 | `done` | **E1.1** | `idd-contract` | contrato |
 | `done` | **E1.2** | `ospec-cli-core` | feature |
-| `next-eligible` | **E1.3** | `impact-signals` | feature |
+| `done` | **E1.3** | `impact-signals` | feature |
 | `pending` | **E1.4** | `ospec-check-and-close` | feature |
-| `pending` | **E1.5** | `kernel-wiring-inventory` | refactor |
+| `next-eligible` | **E1.5** | `kernel-wiring-inventory` | refactor |
 | `pending` | **E1.6** | `idd-default-entry` | feature |
 | `pending` | **E1.7** | `ospec-doctor` | feature |
 | `pending` | **E2.1** | `knowledge-map-contract` | contrato |
@@ -139,7 +139,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E1.3 `impact-signals`. E1.2 quedó entregado en v2.93.0: `node scripts/ospec.js status | next | record` gestiona los cambios de `idd/` con salida `--json`, escrituras bloqueadas, atómicas e idempotentes, y un `next` determinista para los fixtures de E1.1. E1.5 `kernel-wiring-inventory` y E2.1 `knowledge-map-contract` también pueden empezar ya. La etapa 0 quedó cerrada en v2.91.0.
+**▶ SIGUIENTE:** E1.5 `kernel-wiring-inventory` y, después, E1.4 `ospec-check-and-close`, que es el primer consumidor de lo que E1.5 decida cablear. E1.3 quedó entregado en v2.94.0: `ospec signals` deriva las señales de impacto de la declaración y del diff, cada una con su razón, y abre el gate de operación irreversible. E2.1 `knowledge-map-contract` espera a E1.4. La etapa 0 quedó cerrada en v2.91.0.
 
 **Dependencias:**
 
@@ -247,6 +247,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
   - Reutiliza los suelos de riesgo de PP1/PP2 y la clasificación de K1.
   - Cada señal muestra su razón (por ejemplo, "contrato público: toca `src/api/**`").
 - **Hecho cuando:** los fixtures cubren los suelos de riesgo actuales (autenticación, migración y API), un cambio de dos líneas en un contrato público recibe su obligación y un refactor mecánico grande no recibe ningún gate.
+- **Entregado en v2.94.0:** `ospec signals --change <id>` deriva y registra las señales (REQ-idd-012). `always`, `strict-tdd`, `bug-fix` y `multi-unit-or-decision` salen de la intención, de `strict_tdd` y de lo que se declara (`--work-units`, `--decision`). Contrato público, datos persistentes y frontera de seguridad salen de las rutas: las previstas (`--path`) dan `source: declaration` y, con `--diff [--base <ref>]`, las del diff de git (con los ficheros sin seguimiento) dan `source: diff`. Cada señal da su razón, por ejemplo «public contract: touches src/api/orders.js (matches \*\*/api/\*\*)». Los patrones son una base común, más los de cada stack detectado por su manifiesto (`node`, `jvm`, `dotnet`, `python`, `go`), más la nueva sección `impact:` de `openspec/config.yaml`, que añade listas, fija el stack, desactiva los valores por defecto o excluye rutas; la documentación nunca deriva señales. El gate `irreversible-operation` se abre por una operación declarada (`--operation drop-column`) o por una sentencia destructiva añadida a un fichero de datos persistentes (DROP, TRUNCATE o DELETE sin WHERE, en SQL y en los ORM habituales). Las señales de ruta y `bug-fix` se corresponden uno a uno con los suelos de K1 (`public_api`, `data_migration`, `auth_security`, `localized_reproducible_bug`), y el resultado informa del suelo que dan. Los 8 fixtures de E1.1 se reproducen desde su declaración, y `scripts/fixtures/idd/signals/` añade el contrato de dos líneas en el diff, la migración que solo aparece en el diff, la columna borrada en el diff y la documentación de seguridad; el refactor mecánico de 240 ficheros no abre ningún gate. Registrar es idempotente y nunca quita una señal ya registrada; el recálculo en cada check queda para E1.4. Este repositorio declara su propia sección `impact:`.
 
 ### E1.4 — `ospec-check-and-close`
 

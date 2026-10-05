@@ -1,0 +1,21 @@
+{
+  "id": "contract-two-line-diff",
+  "description": "The plan names only internal code, but the diff changes two lines of a public endpoint: the contract obligation comes from the diff.",
+  "input": {
+    "intent": { "kind": "feature", "summary": "Default the order list page size to 50.", "acceptance": "GET /orders without a size returns 50 items." },
+    "project": { "strict_tdd": false, "stacks": [] },
+    "declaration": { "paths": ["src/orders/service.js"], "work_units": 1, "non_obvious_decision": false, "operations": [] },
+    "diff": {
+      "paths": ["src/api/orders.js"],
+      "added_lines": { "src/api/orders.js": ["  const size = Number(req.query.size ?? 50);"] }
+    }
+  },
+  "expected": {
+    "signals": [
+      { "id": "always", "source": "declaration" },
+      { "id": "public-contract", "source": "diff", "reason": "public contract: touches src/api/orders.js (matches **/api/**)" }
+    ],
+    "gates": [],
+    "floor": "planned"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "id": "destructive-diff",
+  "description": "A migration in the diff drops a column: persistent-data plus the irreversible-operation gate, with the statement as its reason.",
+  "input": {
+    "intent": { "kind": "refactor", "summary": "Remove unused customer fields.", "acceptance": "No code reads the removed fields; checks pass." },
+    "project": { "strict_tdd": false, "stacks": [] },
+    "declaration": { "paths": ["src/customers/profile.js"], "work_units": 1, "non_obvious_decision": false, "operations": [] },
+    "diff": {
+      "paths": ["src/customers/profile.js", "db/migrations/20261005_drop_fax.sql"],
+      "added_lines": { "db/migrations/20261005_drop_fax.sql": ["-- fax is no longer collected", "ALTER TABLE customers DROP COLUMN fax_number;"] }
+    }
+  },
+  "expected": {
+    "signals": [
+      { "id": "always", "source": "declaration" },
+      { "id": "persistent-data", "source": "diff", "reason": "persistent data: touches db/migrations/20261005_drop_fax.sql (matches **/migrations/**)" }
+    ],
+    "gates": [{ "id": "irreversible-operation", "reason": "irreversible operation: DROP COLUMN in db/migrations/20261005_drop_fax.sql" }],
+    "floor": "critical"
+  }
+}

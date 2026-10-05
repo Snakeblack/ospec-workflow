@@ -1,0 +1,15 @@
+{
+  "id": "docs-under-security",
+  "description": "Documentation about security is not a security boundary, and Strict TDD does not apply to a docs change.",
+  "input": {
+    "intent": { "kind": "docs", "summary": "Document the token rotation runbook.", "acceptance": "The runbook lists every rotation step." },
+    "project": { "strict_tdd": true, "stacks": ["node"] },
+    "declaration": { "paths": ["docs/security/token-rotation.md"], "work_units": 1, "non_obvious_decision": false, "operations": [] },
+    "diff": { "paths": ["docs/security/token-rotation.md"], "added_lines": {} }
+  },
+  "expected": {
+    "signals": [{ "id": "always", "source": "declaration" }],
+    "gates": [],
+    "floor": "direct"
+  }
+}

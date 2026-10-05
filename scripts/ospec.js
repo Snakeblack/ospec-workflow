@@ -2,9 +2,10 @@
 "use strict";
 
 // `ospec` CLI core for IDD changes (openspec/specs/idd/spec.md, REQ-idd-011):
-// status, next and record over idd/<change-id>/state.yaml. Signals, gates and
-// withdrawals are recorded here; evidence is not, because the CLI records it
-// only from executions it observes (REQ-idd-007, wired in E1.4).
+// status, next and record over idd/<change-id>/state.yaml, plus signals, which
+// derives impact signals from the declaration and the diff (REQ-idd-012).
+// Signals, gates and withdrawals are recorded here; evidence is not, because the
+// CLI records it only from executions it observes (REQ-idd-007, wired in E1.4).
 //
 // Exit codes: 0 ok, 1 refused by the IDD contract, 2 usage error.
 
@@ -12,7 +13,10 @@ const { parseArgs } = require("node:util");
 
 const { nextForChange, nextForProject, statusOf } = require("./lib/idd-next.js");
 const { IddRecordError, recordGate, recordIntent, recordSignal, recordWithdraw } = require("./lib/idd-record.js");
+const { IddImpactError } = require("./lib/idd-impact.js");
+const { applyDerivation, deriveSignals } = require("./lib/idd-signals.js");
 const { IddStoreError, listChanges, mutateChange } = require("./lib/idd-store.js");
+const { IddWorkspaceError, readGitDiff, readProjectContext } = require("./lib/idd-workspace.js");
 
 const USAGE = `Usage:
   ospec status [--change <id>] [--json]
@@ -23,10 +27,13 @@ const USAGE = `Usage:
   ospec record signal --change <id> --signal <id> --reason <text> [--source declaration|diff]
   ospec record gate --change <id> --gate <id> (--open [--reason <text>] | --resolve --answer <text> --source <text>)
   ospec record withdraw --change <id> --obligation <id> --reason <text>
+  ospec signals --change <id> [--path <file>]... [--work-units <n>] [--decision]
+                [--operation <op>]... [--diff] [--base <ref>]
 
 Options:
   --root <dir>  project root (default: current directory)
   --json        machine-readable output
+  --diff        signals: also read the git diff against --base (default: HEAD)
 `;
 
 const OPTIONS = {
@@ -44,6 +51,12 @@ const OPTIONS = {
   open: { type: "boolean" },
   resolve: { type: "boolean" },
   obligation: { type: "string" },
+  path: { type: "string", multiple: true },
+  "work-units": { type: "string" },
+  decision: { type: "boolean" },
+  operation: { type: "string", multiple: true },
+  diff: { type: "boolean" },
+  base: { type: "string" },
   root: { type: "string" },
   json: { type: "boolean" },
   help: { type: "boolean", short: "h" },
@@ -95,6 +108,36 @@ function existing(reducer) {
   };
 }
 
+function parseWorkUnits(raw) {
+  if (raw === undefined) return 1;
+  if (!/^[1-9]\d*$/.test(raw)) throw new UsageError(`--work-units must be a positive integer, got ${JSON.stringify(raw)}`);
+  return Number(raw);
+}
+
+async function signals(root, values) {
+  if (!values.change) throw new UsageError("signals needs --change <id>");
+  const declaration = {
+    paths: values.path || [],
+    workUnits: parseWorkUnits(values["work-units"]),
+    nonObviousDecision: values.decision === true,
+    operations: values.operation || [],
+  };
+  const context = readProjectContext(root);
+  const diff = values.diff || values.base ? readGitDiff(root, { base: values.base }) : {};
+  let derivation;
+  const { state, changed, added } = await mutateChange(
+    root,
+    values.change,
+    existing((current) => {
+      const intent = current.intent && current.intent.kind ? current.intent : null;
+      derivation = deriveSignals({ intent, strictTdd: context.strictTdd, declaration, diff, patterns: context.patterns });
+      return applyDerivation(current, derivation);
+    }),
+  );
+  const { signals: derived, gates, floor } = derivation;
+  return { change: state.change, changed, added, signals: derived, gates, floor, next: nextForChange(state) };
+}
+
 async function run(command, positionals, values) {
   const root = values.root || process.cwd();
   if (command === "status") {
@@ -109,6 +152,7 @@ async function run(command, positionals, values) {
       throw error;
     }
   }
+  if (command === "signals") return signals(root, values);
   if (command === "record") {
     const [type] = positionals;
     const reducer = reducerFor(type, values);
@@ -150,8 +194,19 @@ function describeNext(result) {
   return lines.join("\n");
 }
 
+function describeSignals(result) {
+  const lines = result.signals.map((s) => `${s.id} (${s.source}): ${s.reason}`);
+  for (const gate of result.gates) lines.push(`gate ${gate.id}: ${gate.reason}`);
+  const added = [...result.added.signals, ...result.added.gates.map((g) => `gate:${g}`)];
+  lines.push(added.length ? `recorded: ${added.join(", ")}` : "no change: every derived signal was already recorded");
+  if (result.floor) lines.push(`floor: ${result.floor}`);
+  lines.push(describeNext(result.next));
+  return lines.join("\n");
+}
+
 function describe(command, result) {
   if (command === "next") return describeNext(result);
+  if (command === "signals") return describeSignals(result);
   if (command === "status") {
     if (result.changes.length === 0) return "No IDD changes.";
     return result.changes
@@ -184,7 +239,12 @@ async function main(argv = process.argv.slice(2)) {
     return 0;
   } catch (error) {
     const usage = error instanceof UsageError || error.code?.startsWith?.("ERR_PARSE_ARGS");
-    const known = usage || error instanceof IddRecordError || error instanceof IddStoreError;
+    const known =
+      usage ||
+      error instanceof IddRecordError ||
+      error instanceof IddStoreError ||
+      error instanceof IddImpactError ||
+      error instanceof IddWorkspaceError;
     if (!known) throw error;
     const code = usage ? "usage" : error.code;
     if (wantsJson) {
