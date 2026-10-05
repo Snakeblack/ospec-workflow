@@ -1,0 +1,10 @@
+{
+  "name": "notes-api",
+  "version": "0.8.0",
+  "private": true,
+  "description": "API de notas para equipos (SaaS multi-organización)",
+  "main": "src/app.js",
+  "scripts": {
+    "test": "node --test"
+  }
+}

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.104.0] - 2026-10-05
+
+### Added
+- **Banco de escenarios con agentes reales (E4.1, PR a)** (`scripts/evals/bench/`, spec `bench`, REQ-bench-001 a 006):
+  - Seis escenarios, uno por perfil (CLI local, SaaS pequeño, regulado, brownfield, librería pública y bugfix). Cada uno trae un repositorio semilla, una petición, los hechos que solo conoce el usuario y checks ocultos de aceptación, de hecho y de regresión. Una entrega de referencia por escenario prueba que los checks pasan con una solución correcta y que la semilla falla la aceptación.
+  - Driver por turnos sobre `claude -p` con el plugin construido desde el checkout y un `CLAUDE_CONFIG_DIR` propio del banco. El setup del proyecto queda fuera de la medición: la persona solo conoce su objetivo, y un setup que modifica la semilla anula la corrida (`setup-modified-seed`). Una prueba de humo con Haiku detectó que, sin esa separación, el agente arreglaba el bug durante el init. La corrida acaba cuando el brazo da el cambio por terminado o al llegar al tope de turnos o de coste.
+  - Persona simulada (modelo barato, sin herramientas, con salida estructurada): clasifica cada mensaje del agente, contesta con los hechos ocultos solo si se le pregunta y marca las preguntas que cambian una decisión.
+  - Métricas por corrida: tokens de todos los modelos (subagentes incluidos), coste, duración, turnos, preguntas, preguntas decisivas, intervenciones y defectos escapados. El record versionado ata cada corrida a host, modelo, build del plugin, persona y corpus, y no se reanuda con otra identidad.
+  - Checkpoint con márgenes predeclarados (`margins.json`, `bench-margins-1`): IDD no puede escapar más defectos en total y tiene que gastar como mucho el 90 % de los tokens del modo SDD. Fijos en código: records incomparables, corridas incompletas y cualquier check que SDD pasa e IDD falla obligan a revisar.
+  - CLI `node scripts/evals/bench/bench.js list|run|report|checkpoint`. `run` gasta tokens y nunca corre en `npm test`. El brazo `idd` queda declarado y se niega a correr hasta E1.6.
+
+### Changed
+- **Roadmap**: E4.1 registra las decisiones del usuario (un host, persona con hechos ocultos, Sonnet 5.5 con una repetición, márgenes y retirada de K12) y su entrega en tres PRs.
+
+**Verificación directa**: `node scripts/check.js` (3241 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.103.0] - 2026-10-05
 
 ### Fixed

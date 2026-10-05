@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "public-library",
+  "profile": "public-library",
+  "title": "Días en una librería pública de duraciones",
+  "brief": "Añade los días a tiny-duration: `parse('2d4h')` tiene que funcionar y `format` tiene que poder mostrar días (por ejemplo `1d 2h`).",
+  "facts": [
+    { "id": "F1", "text": "Es una librería pública con muchos usuarios y la próxima versión es menor (1.5.0): nada de lo que ya funciona puede cambiar de comportamiento." },
+    { "id": "F2", "text": "Hay usuarios que guardan la salida de `format` (por ejemplo `25h`) y la comparan. Los días en `format` se piden con una opción, `format(ms, { days: true })`; sin ella, la salida sigue igual." },
+    { "id": "F3", "text": "Los tipos (`index.d.ts`) y el CHANGELOG forman parte de cada entrega." }
+  ]
+}

@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.103.0, 2026-10-05.
+> **Versión de referencia:** v2.104.0, 2026-10-05.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -419,6 +419,9 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
   - Métricas: defectos escapados, tokens, duración, preguntas (cuántas y cuántas cambian una decisión) e intervenciones humanas. Desde E2 se añaden la cobertura del mapa y la calidad de los ADR, con rúbrica.
   - Los márgenes se declaran antes de ejecutar.
 - **Hecho cuando:** el informe es reproducible y su checkpoint habilita o frena E1.6.
+- **Decisiones del usuario (2026-10-05):** E4.1 compara modos, así que basta un host: Claude Code en modo headless (`claude -p`), con el plugin construido desde el checkout y un `CLAUDE_CONFIG_DIR` propio del banco, para que ni el `CLAUDE.md` personal, ni los plugins instalados, ni los MCP, ni la memoria entren en la medición. Las preguntas las contesta una persona simulada que conoce hechos ocultos de cada escenario. La línea base usa Sonnet 5.5 con una repetición. Márgenes `bench-margins-1`: IDD no escapa más defectos en total y gasta como mucho el 90 % de los tokens. De K12 no se cablea nada: su forma está atada al kernel retirado (políticas `fixed` y `adaptive-repair-v1`, medidas de fases, efectos y eventos), así que se retira salvo el intervalo por tarea del runner.
+- **Entrega:** PRs encadenados: (a) harness, escenarios y márgenes; (b) retirada de lo que queda de K12; (c) corrida de la línea base SDD con su informe. El brazo IDD se ejecuta en E1.6, con su protocolo, antes de cambiar el default.
+- **(a) entregado en v2.104.0:** `scripts/evals/bench/` (REQ-bench-001 a 006, spec `bench`). Seis escenarios, uno por perfil, con repositorio semilla, petición, hechos ocultos y checks ocultos de aceptación, de hecho y de regresión. Una entrega de referencia por escenario prueba que los checks pasan con una solución correcta y que la semilla falla la aceptación. El driver materializa la semilla como repositorio git fuera del repositorio de ospec, ejecuta el setup del brazo fuera de la medición, conversa por turnos (`--resume`) hasta que el brazo da el cambio por terminado (en SDD, un change archivado) o hasta el tope de turnos o de coste, y juzga el workspace con los checks ocultos. El record versionado ata cada corrida a host, modelo, build del plugin, persona y corpus, y guarda el SHA-256 de cada transcript; el informe y el checkpoint se recalculan desde él sin llamar a un modelo. El brazo `idd` queda declarado y se niega a correr hasta E1.6.
 
 ### E4.2 — `head-to-head-gentle-ai`
 

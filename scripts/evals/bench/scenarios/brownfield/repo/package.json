@@ -1,0 +1,10 @@
+{
+  "name": "legacy-invoicing",
+  "version": "1.9.3",
+  "private": true,
+  "description": "Cálculo de facturas de la tienda online",
+  "main": "src/invoice.js",
+  "scripts": {
+    "test": "node --test"
+  }
+}

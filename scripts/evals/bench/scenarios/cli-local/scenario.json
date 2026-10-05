@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "cli-local",
+  "profile": "cli-local",
+  "title": "Prioridad en un gestor de tareas de terminal",
+  "brief": "Quiero poder dar prioridad a las tareas. `tasks add` tiene que aceptar `--priority <alta|media|baja>` al final (por ejemplo `tasks add Comprar pan --priority alta`) y `tasks list` tiene que mostrar primero las tareas de prioridad más alta.",
+  "facts": [
+    { "id": "F1", "text": "Si no se indica prioridad, la tarea es de prioridad media." },
+    { "id": "F2", "text": "Una prioridad que no sea alta, media o baja es un error de uso: código de salida 2, mensaje en stderr y no se guarda nada." },
+    { "id": "F3", "text": "Hay usuarios con ficheros de tareas antiguos, sin prioridad. Esas tareas cuentan como media y `list` no puede fallar con ellos." },
+    { "id": "F4", "text": "A igual prioridad se mantiene el orden de creación." },
+    { "id": "F5", "text": "Hay scripts que leen la salida de `list`: el principio de cada línea (`[ ] 3 título`) no puede cambiar. Se puede añadir la prioridad detrás del título." }
+  ]
+}
