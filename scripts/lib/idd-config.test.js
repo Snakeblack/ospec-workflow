@@ -12,7 +12,7 @@ const { CONFIG_FILE, CONFIG_KEYS, IddConfigError, parseIddConfig } = require("./
 
 test("the configuration lives under idd/, outside openspec/", () => {
   assert.strictEqual(CONFIG_FILE, "idd/config.yaml");
-  assert.deepStrictEqual(CONFIG_KEYS, ["mode", "strict_tdd", "checks", "impact"]);
+  assert.deepStrictEqual(CONFIG_KEYS, ["mode", "strict_tdd", "checks", "impact", "contracts"]);
 });
 
 test("checks are named commands kept in their declared order", () => {
@@ -30,7 +30,7 @@ test("checks are named commands kept in their declared order", () => {
 });
 
 test("an absent or empty configuration yields the defaults", () => {
-  const defaults = { mode: null, strictTdd: false, checks: [], impact: {} };
+  const defaults = { mode: null, strictTdd: false, checks: [], impact: {}, contracts: {} };
   assert.deepStrictEqual(parseIddConfig(""), defaults);
   assert.deepStrictEqual(parseIddConfig("# only a comment\n\n"), defaults);
 });
@@ -63,6 +63,7 @@ test("mode, strict_tdd and the impact section are read", () => {
       persistent_data: ["scripts/lib/idd-store.js"],
       exclude: [],
     },
+    contracts: {},
   });
 });
 
@@ -83,6 +84,15 @@ test("unknown keys and invalid values are refused with config-invalid", () => {
   refused("strict_tdd: true\nstrict_tdd: false\n", /duplicate idd config key: strict_tdd/);
   refused("  stray: 1\n", /unreadable idd config line/);
   refused("impact:\n  - src/**\n", /unreadable impact line/);
+});
+
+test("the contracts section lists documents and tests", () => {
+  const config = parseIddConfig("contracts:\n  documents:\n    - openspec/specs/**\n  tests: [scripts/**]\n");
+  assert.deepStrictEqual(config.contracts, { documents: ["openspec/specs/**"], tests: ["scripts/**"] });
+  assert.throws(
+    () => parseIddConfig("contracts:\n  docs: [a]\n"),
+    (error) => error instanceof IddConfigError && /unknown contracts key: docs/.test(error.message),
+  );
 });
 
 test("impact contents keep their own validation code", () => {

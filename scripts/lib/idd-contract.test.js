@@ -305,6 +305,45 @@ test("a red → green pair needs a failing run before a passing run of the same 
   assert.strictEqual(contract.validateState(pairState([red, green], {})).ok, false, "no detail");
 });
 
+test("migration-test evidence names a passing migration run on its tree and the declared plan", () => {
+  const migrationRun = (overrides) => run("run-1", { purpose: "migration-test", command: "npm run test:migrations", ...overrides });
+  const settled = (runs, detail = { run: "run-1", tree: TREE_A, plan: "additive column, old readers ignore it" }) => {
+    const state = validState({
+      signals: [{ id: "persistent-data", reason: "touches db/migrations/004.sql", source: "diff" }],
+      obligations: [{ id: "migration-compat-and-test", signal: "persistent-data", status: "satisfied", evidence: ["ev-1"] }],
+      runs,
+      evidence: [{ id: "ev-1", kind: "migration-test", obligation: "migration-compat-and-test", recorded_at: "2026-10-05T08:00:00Z", detail }],
+    });
+    return state;
+  };
+  assert.deepStrictEqual(contract.validateState(settled([migrationRun()])), { ok: true, errors: [] });
+  assert.strictEqual(contract.validateState(settled([migrationRun({ exit_code: 1 })])).ok, false, "failing run");
+  assert.strictEqual(contract.validateState(settled([migrationRun({ tree: TREE_B })])).ok, false, "other tree");
+  assert.strictEqual(contract.validateState(settled([migrationRun()], { run: "run-1", tree: TREE_A, plan: " " })).ok, false, "no plan");
+});
+
+test("contract evidence names a document, a test and a passing check on its tree", () => {
+  const checkRun = run("run-1", { purpose: "checks", name: "test", command: "npm test" });
+  const settled = (detail) => {
+    const state = validState({
+      signals: [{ id: "public-contract", reason: "touches src/api/orders.js", source: "diff" }],
+      obligations: [{ id: "contract-spec-and-test", signal: "public-contract", status: "satisfied", evidence: ["ev-2"] }],
+      runs: [checkRun],
+      evidence: [
+        { id: "ev-1", kind: "check-run", obligation: "checks-pass", recorded_at: "2026-10-05T08:00:00Z", detail: { tree: TREE_A, runs: ["run-1"] } },
+        { id: "ev-2", kind: "contract-spec-and-test", obligation: "contract-spec-and-test", recorded_at: "2026-10-05T08:00:00Z", detail },
+      ],
+    });
+    return state;
+  };
+  const detail = { tree: TREE_A, check: "ev-1", documents: ["api/openapi.yaml"], tests: ["src/api/orders.test.js"] };
+  assert.deepStrictEqual(contract.validateState(settled(detail)), { ok: true, errors: [] });
+  assert.strictEqual(contract.validateState(settled({ ...detail, tree: TREE_B })).ok, false, "check on another tree");
+  assert.strictEqual(contract.validateState(settled({ ...detail, documents: [] })).ok, false, "no document");
+  assert.strictEqual(contract.validateState(settled({ ...detail, tests: [] })).ok, false, "no test");
+  assert.strictEqual(contract.validateState(settled({ ...detail, check: "ev-9" })).ok, false, "no check");
+});
+
 test("check-run evidence names passing check runs on its own tree", () => {
   const checkRun = (overrides) => run("run-1", { purpose: "checks", name: "test", command: "npm test", ...overrides });
   const settled = (runs, detail = { tree: TREE_A, runs: ["run-1"] }) => {

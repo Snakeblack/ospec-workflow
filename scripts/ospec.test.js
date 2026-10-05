@@ -390,3 +390,59 @@ test("check stops at an ambiguous intent without running anything, and needs git
   assert.strictEqual(noGit.json.error.code, "not-a-git-repo");
   assert.strictEqual(ospec(plain, "check", "--json").code, 2, "check needs --change");
 });
+
+// E1.4 (b1): contract and migration evidence (REQ-idd-015).
+
+test("check satisfies the contract obligation once the diff touches a contract document and a test", (t) => {
+  const { root } = project(t);
+  ospec(root, "record", "intent", "--change", "page-size", "--kind", "feature", "--summary", "Allow 50 per page.", "--acceptance", "size=50 works.");
+  writeFile(root, "src/pages.txt", "2");
+  writeFile(root, "src/api/orders.js", "module.exports = { maxSize: 50 };\n");
+
+  const codeOnly = ospec(root, "check", "--change", "page-size", "--json");
+  assert.deepStrictEqual(codeOnly.json.added.signals, ["public-contract"]);
+  const reason = (result) => result.json.missing.find((entry) => entry.obligation === "contract-spec-and-test")?.reason;
+  assert.match(reason(codeOnly), /touches no contract document/);
+
+  writeFile(root, "api/openapi.yaml", "openapi: 3.1.0\n");
+  assert.match(reason(ospec(root, "check", "--change", "page-size", "--json")), /touches no test of the contract/);
+
+  writeFile(root, "src/api/orders.test.js", "// size=50\n");
+  const settled = ospec(root, "check", "--change", "page-size", "--json");
+  assert.strictEqual(settled.json.verdict, "ready", JSON.stringify(settled.json.missing));
+  const evidence = stateOf(root, "page-size").evidence.find((entry) => entry.kind === "contract-spec-and-test");
+  assert.deepStrictEqual(evidence.detail.documents, ["api/openapi.yaml"]);
+  assert.deepStrictEqual(evidence.detail.tests, ["src/api/orders.test.js"]);
+});
+
+test("the project declares where its contract documents live", (t) => {
+  const { root } = project(t, { checks: "checks:\n  test: node verify.js\ncontracts:\n  documents:\n    - specs/**\n" });
+  ospec(root, "record", "intent", "--change", "page-size", "--kind", "feature", "--summary", "Allow 50 per page.", "--acceptance", "size=50 works.");
+  writeFile(root, "src/pages.txt", "2");
+  writeFile(root, "src/api/orders.js", "module.exports = { maxSize: 50 };\n");
+  writeFile(root, "specs/orders.md", "size up to 50\n");
+  writeFile(root, "test/orders.js", "// size=50\n");
+  assert.strictEqual(ospec(root, "check", "--change", "page-size", "--json").json.verdict, "ready");
+});
+
+test("a passing migration test with its plan satisfies the migration obligation until the tree changes", (t) => {
+  const { root } = project(t);
+  ospec(root, "record", "intent", "--change", "add-index", "--kind", "feature", "--summary", "Faster search.", "--acceptance", "Search under 50 ms.");
+  writeFile(root, "src/pages.txt", "2");
+  writeFile(root, "db/migrations/004_add_index.sql", "CREATE INDEX customers_name ON customers (name);\n");
+  ospec(root, "check", "--change", "add-index");
+
+  const args = ["run", "--change", "add-index", "--obligation", "migration-compat-and-test", "--command", "node verify.js"];
+  assert.strictEqual(ospec(root, ...args, "--json").code, 2, "a migration run needs its plan");
+  const plan = "additive index; rollback drops it";
+  const passed = ospec(root, ...args, "--plan", plan, "--json");
+  assert.strictEqual(passed.code, 0, passed.stderr);
+  assert.ok(passed.json.evidence);
+  assert.strictEqual(stateOf(root, "add-index").runs.at(-1).purpose, "migration-test");
+  assert.strictEqual(ospec(root, "check", "--change", "add-index", "--json").json.verdict, "ready");
+
+  writeFile(root, "db/migrations/004_add_index.sql", "CREATE INDEX customers_name ON customers (name, id);\n");
+  const moved = ospec(root, "check", "--change", "add-index", "--json");
+  assert.deepStrictEqual(moved.json.missing.map((entry) => entry.obligation), ["migration-compat-and-test"]);
+  assert.match(moved.json.missing[0].reason, /no passing migration test on the current tree/);
+});
