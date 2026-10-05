@@ -63,7 +63,7 @@ record to `records/<record>.json` after every scenario, and keeps transcripts
 under `scripts/evals/.runs/bench/` (gitignored). Rerunning the same record
 skips complete scenarios (`--force` reruns them) and refuses a different host,
 model, plugin build, persona, or corpus. Defaults: model `claude-sonnet-5-5`,
-persona `claude-haiku-4-5-20251001`, 30 agent turns and $25 per scenario
+persona `claude-sonnet-5-5`, 30 agent turns and $25 per scenario
 (`--model`, `--persona-model`, `--max-turns`, `--max-cost`).
 
 ## Metrics

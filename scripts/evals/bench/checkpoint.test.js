@@ -27,6 +27,7 @@ function record(arm, runs, overrides = {}) {
     host: { name: "claude-code", cli_version: "2.1.286", model: "claude-sonnet-5-5", effort: null, plugin_version: "2.103.0", plugin_digest: arm.repeat(64).slice(0, 64) },
     persona: { model: "claude-haiku-4-5-20251001" },
     scenarios_digest: "b".repeat(64),
+    harness_digest: "f".repeat(64),
     limits: {},
     runs,
     ...overrides,
@@ -96,6 +97,8 @@ test("incomplete runs and incomparable records revise", () => {
   assert.ok(evaluateCheckpoint({ baseline, candidate: otherModel, margins }).reasons.some((reason) => reason.code === "not-comparable"));
   const otherScenarios = record("idd", [run("bugfix", 500)]);
   assert.ok(evaluateCheckpoint({ baseline, candidate: otherScenarios, margins }).reasons.some((reason) => reason.code === "not-comparable"));
+  const otherHarness = record("idd", [run("cli-local", 500)], { harness_digest: "e".repeat(64) });
+  assert.ok(evaluateCheckpoint({ baseline, candidate: otherHarness, margins }).reasons.some((reason) => reason.code === "not-comparable"));
   const wrongArm = record("sdd", [run("cli-local", 500)]);
   assert.ok(evaluateCheckpoint({ baseline, candidate: wrongArm, margins }).reasons.some((reason) => reason.code === "not-comparable"));
 });

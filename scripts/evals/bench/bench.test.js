@@ -100,7 +100,8 @@ test("run writes the record after each scenario and resumes skipping complete ru
   assert.deepEqual(record.runs.map((run) => run.scenario_id), ["cli-local", "bugfix"]);
   assert.equal(record.host.model, "claude-sonnet-5-5");
   assert.equal(record.host.cli_version, "2.1.286");
-  assert.equal(record.persona.model, "claude-haiku-4-5-20251001");
+  assert.equal(record.persona.model, "claude-sonnet-5-5");
+  assert.match(record.harness_digest, /^[a-f0-9]{64}$/);
 
   const second = deps(dir);
   assert.equal(await main(common, second), 0);
@@ -125,6 +126,7 @@ test("report and checkpoint read records from disk", async () => {
     host: { name: "claude-code", cli_version: "2.1.286", model: "claude-sonnet-5-5", effort: null, plugin_version: "2.103.0", plugin_digest: "a".repeat(64) },
     persona: { model: "claude-haiku-4-5-20251001" },
     scenarios_digest: "b".repeat(64),
+    harness_digest: "f".repeat(64),
     limits: {},
     runs,
   }));

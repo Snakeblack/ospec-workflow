@@ -79,8 +79,10 @@ Each agent turn that ends without the change finished MUST be answered by a
 persona that knows the brief, the facts, and the arm's goal. The persona MUST
 classify the agent's message as `question`, `approval`, `stopped`, `finished`,
 or `blocked`, MUST disclose a fact only when asked about it or to correct a
-proposal that contradicts it, and MUST report the facts it disclosed and
-whether it departed from the agent's recommendation. A persona failure MUST NOT
+proposal that contradicts it, MUST compare every summary or plan it is asked to
+approve against its facts, and MUST report as disclosed only the facts whose
+content its answer states, and whether it departed from the agent's
+recommendation. A persona failure MUST NOT
 end the run: the agent is asked to continue and the failure is counted.
 
 #### Scenario: A question that changes a decision
@@ -97,7 +99,7 @@ model, subagents included), cost, wall-clock duration, agent turns, questions,
 decision-changing questions, interventions, host errors, the hidden check
 results, and the escaped defects (failed checks). A bench record MUST bind its
 runs to the arm, host and version, model, effort, plugin version and digest,
-persona model, and corpus digest, and MUST keep the SHA-256 of every
+persona model, corpus digest, and harness digest (the bench code itself), and MUST keep the SHA-256 of every
 transcript. Resuming a record with a different identity MUST be refused. The
 report MUST be recomputable from the record without calling a model.
 
@@ -113,7 +115,7 @@ The margins MUST be versioned in `scripts/evals/bench/margins.json` before any
 comparison and their digest MUST appear in the checkpoint. The checkpoint MUST
 compare a candidate record with a baseline record and decide `continue` or
 `revise`. It MUST revise when the records are not comparable (arms other than
-the margins name, or a different corpus, host, model, effort, persona, or
+the margins name, or a different corpus, harness, host, model, effort, persona, or
 scenario set), when any run is incomplete, when a hidden check the baseline
 passes fails in the candidate, when the candidate escapes more defects in total
 than `escaped_defects.max_total_delta` allows, or when the candidate's tokens
