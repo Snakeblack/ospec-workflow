@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "bugfix",
+  "profile": "bugfix",
+  "title": "Paginación con una página vacía de más",
+  "brief": "Bug: con 20 productos y páginas de 10, `paginate` dice que hay 3 páginas y la tercera sale vacía, así que la web muestra un enlace a una página en blanco. Además, `paginate(items, 0)` devuelve cosas raras. Arréglalo.",
+  "facts": [
+    { "id": "F1", "text": "Las páginas empiezan en 1. Una página menor que 1 se trata como la 1, y la respuesta dice `page: 1`." },
+    { "id": "F2", "text": "Pedir una página más allá de la última devuelve `items` vacío, con `totalPages` correcto; no se recoloca en la última página." },
+    { "id": "F3", "text": "Una lista vacía tiene 0 páginas." },
+    { "id": "F4", "text": "Un `pageSize` menor que 1 es un error de programación: se lanza `RangeError`." }
+  ]
+}

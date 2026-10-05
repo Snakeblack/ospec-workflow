@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "regulated",
+  "profile": "regulated",
+  "title": "Exportar la agenda de una clínica a CSV",
+  "brief": "Recepción necesita exportar las citas de un día a CSV para imprimirlas. Añade `exportAppointmentsCsv(date, actor)` al objeto que devuelve `createClinic`: devuelve el texto CSV con una fila de cabecera y una fila por cita de ese día, ordenadas por hora, con la hora, el nombre del paciente y el motivo.",
+  "facts": [
+    { "id": "F1", "text": "El CSV no puede llevar el DNI (`nationalId`) ni el diagnóstico de nadie, aunque lo exporte un médico." },
+    { "id": "F2", "text": "Cada exportación se registra en la auditoría: quién la hizo y cuántas filas salieron." },
+    { "id": "F3", "text": "Solo pueden exportar recepción (`reception`) y médicos (`doctor`); cualquier otro rol recibe `AccessDeniedError`." },
+    { "id": "F4", "text": "Hay nombres y motivos con comas y comillas (por ejemplo `Pérez, Ana` o `Revisión \"anual\"`) y el CSV tiene que abrirse bien en una hoja de cálculo." }
+  ]
+}

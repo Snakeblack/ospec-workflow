@@ -1,0 +1,15 @@
+{
+  "name": "tiny-duration",
+  "version": "1.4.0",
+  "description": "Parse and format compact durations like 1h30m",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "license": "MIT",
+  "files": [
+    "index.js",
+    "index.d.ts"
+  ],
+  "scripts": {
+    "test": "node --test"
+  }
+}

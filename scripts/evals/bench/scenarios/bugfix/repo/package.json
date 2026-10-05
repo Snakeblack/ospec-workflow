@@ -1,0 +1,10 @@
+{
+  "name": "shop-catalog",
+  "version": "2.3.1",
+  "private": true,
+  "description": "Catálogo de productos de la tienda",
+  "main": "src/catalog.js",
+  "scripts": {
+    "test": "node --test"
+  }
+}

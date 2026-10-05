@@ -1,0 +1,10 @@
+{
+  "name": "clinic-records",
+  "version": "3.1.0",
+  "private": true,
+  "description": "Historia clínica y agenda de una clínica",
+  "main": "src/clinic.js",
+  "scripts": {
+    "test": "node --test"
+  }
+}
