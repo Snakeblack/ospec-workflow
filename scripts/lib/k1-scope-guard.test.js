@@ -173,6 +173,9 @@ const SUCCESSOR_K2_EXACT = new Set([
   // E1.4 (b2) trust review on the bounded review lineage (roadmap harness-evolution).
   "scripts/lib/idd-review.js",
   "scripts/lib/idd-review.test.js",
+  // E1.4 (c) ospec close with its transactional archive (roadmap harness-evolution).
+  "scripts/lib/idd-close.js",
+  "scripts/lib/idd-close.test.js",
   // Quality Review Gate successor (live v2 post-verify).
   "scripts/lib/quality-review-kpis.js",
   "scripts/lib/quality-review-kpis.test.js",

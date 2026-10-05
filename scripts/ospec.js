@@ -11,6 +11,8 @@
 // Exit codes: 0 ok, 1 refused by the IDD contract, 2 usage error.
 
 const fs = require("node:fs");
+const fsp = require("node:fs/promises");
+const path = require("node:path");
 const { parseArgs } = require("node:util");
 
 const {
@@ -24,8 +26,9 @@ const {
   settleTreeBound,
 } = require("./lib/idd-check.js");
 const { classifyContractPaths } = require("./lib/idd-contracts.js");
+const { archiveChange, closeChange, livingDocStatus, renderEvidence } = require("./lib/idd-close.js");
 const { IddConfigError } = require("./lib/idd-config.js");
-const { isIntentAmbiguous } = require("./lib/idd-contract.js");
+const { ARCHIVE_ROOT, LIVING_DOC_FILE, STATE_FILE, isIntentAmbiguous } = require("./lib/idd-contract.js");
 const { runCommand } = require("./lib/idd-exec.js");
 const { nextForChange, nextForProject, statusOf } = require("./lib/idd-next.js");
 const { IddRecordError, recordGate, recordIntent, recordSignal, recordWithdraw } = require("./lib/idd-record.js");
@@ -41,7 +44,8 @@ const {
 } = require("./lib/idd-review.js");
 const { IddImpactError, matchImpact } = require("./lib/idd-impact.js");
 const { applyDerivation, deriveSignals } = require("./lib/idd-signals.js");
-const { IddStoreError, listChanges, mutateChange, readChange } = require("./lib/idd-store.js");
+const { IddStoreError, changeDir, listChanges, mutateChange, readChange } = require("./lib/idd-store.js");
+const { withFileLock } = require("./lib/ospec-state.js");
 const {
   IddWorkspaceError,
   commitTree,
@@ -70,6 +74,7 @@ const USAGE = `Usage:
             [--unit <name>] [--plan <compatibility or rollback plan>]
   ospec review start|correct --change <id> [--base <ref>]
   ospec review record|validate --change <id> --result <json>|@<file>
+  ospec close --change <id>
 
 Options:
   --root <dir>  project root (default: current directory)
@@ -254,7 +259,13 @@ async function check(root, values) {
       return { state: fresh, changed: changedFrom(stored, fresh) };
     }),
   );
-  const verdict = checkVerdict(state, { checks: context.checks, results: checks, treeChanged: tree !== treeBefore, reasons });
+  const verdict = checkVerdict(state, {
+    checks: context.checks,
+    results: checks,
+    treeChanged: tree !== treeBefore,
+    reasons,
+    livingDoc: readLivingDoc(root, state),
+  });
   return { change: state.change, changed, added, checks, tree, ...verdict, next: nextForChange(state) };
 }
 
@@ -297,8 +308,80 @@ async function runObligation(root, values) {
       return { state: settled.state, changed: true };
     }),
   );
-  const verdict = checkVerdict(state, { checks: context.checks });
+  const verdict = checkVerdict(state, { checks: context.checks, livingDoc: readLivingDoc(root, state) });
   return { change: state.change, run: { id: runId, ...extra, ...result }, evidence, ...verdict, next: nextForChange(state) };
+}
+
+// --- close (REQ-idd-009, REQ-idd-017) ---------------------------------------
+
+function livingDocFile(root, changeId) {
+  return path.join(changeDir(root, changeId), LIVING_DOC_FILE);
+}
+
+function readLivingDoc(root, state) {
+  if (!state.obligations.some((entry) => entry.id === "living-doc" && entry.status !== "withdrawn")) return null;
+  try {
+    return livingDocStatus(fs.readFileSync(livingDocFile(root, state.change), "utf8"));
+  } catch (error) {
+    if (error.code === "ENOENT") return livingDocStatus(null);
+    throw error;
+  }
+}
+
+function writeEvidenceSection(root, state) {
+  const file = livingDocFile(root, state.change);
+  if (!fs.existsSync(file)) return;
+  const text = fs.readFileSync(file, "utf8");
+  const rendered = renderEvidence(text, state);
+  if (rendered !== text) fs.writeFileSync(file, rendered);
+}
+
+// The evidence that checks-pass holds must come from the tree being closed:
+// the last check also settled every other tree-bound obligation on it.
+function requireFreshChecks(root, state) {
+  const checks = state.obligations.find((entry) => entry.id === "checks-pass");
+  if (checks?.status !== "satisfied") return;
+  const evidence = state.evidence.find((entry) => entry.id === checks.evidence.at(-1));
+  if (evidence?.detail?.tree !== readTreeFingerprint(root)) {
+    throw new IddRecordError("evidence-stale", "the tree changed after the last ospec check: run ospec check before closing");
+  }
+}
+
+async function findArchived(root, changeId) {
+  const archive = path.join(root, ...ARCHIVE_ROOT.split("/"));
+  let names = [];
+  try {
+    names = await fsp.readdir(archive);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  const name = names.filter((entry) => entry.endsWith(`-${changeId}`) && /^\d{4}-\d{2}-\d{2}-/.test(entry)).sort().at(-1);
+  if (!name) return null;
+  const state = JSON.parse(await fsp.readFile(path.join(archive, name, STATE_FILE), "utf8"));
+  return state.change === changeId && state.status === "closed" ? state : null;
+}
+
+async function close(root, values) {
+  if (!values.change) throw new UsageError("close needs --change <id>");
+  changeDir(root, values.change);
+  await fsp.mkdir(path.join(root, ...ARCHIVE_ROOT.split("/")), { recursive: true });
+  const lockTarget = path.join(root, ...ARCHIVE_ROOT.split("/"), `${values.change}.close`);
+  return withFileLock(lockTarget, async () => {
+    let state = await readChange(root, values.change);
+    if (!state) {
+      const archived = await findArchived(root, values.change);
+      if (!archived) throw new IddRecordError("unknown-change", "no such change; open it with record intent first");
+      state = archived;
+    } else if (state.status === "open") {
+      requireFreshChecks(root, state);
+      const livingDoc = readLivingDoc(root, state);
+      const closedAt = new Date().toISOString();
+      ({ state } = await mutateChange(root, values.change, existing((stored) => ({ ...closeChange(stored, { closedAt, livingDoc }), changed: true }))));
+    }
+    if (await fsp.stat(changeDir(root, state.change)).then(() => true, () => false)) writeEvidenceSection(root, state);
+    const archive = await archiveChange(root, state);
+    return { change: state.change, status: state.status, closed_at: state.closed_at, archive };
+  });
 }
 
 // --- trust review on the bounded review lineage (REQ-idd-016) --------------
@@ -393,7 +476,7 @@ async function review(root, positionals, values) {
     action,
     review: summary,
     evidence: outcome.evidence ?? null,
-    ...checkVerdict(state, { checks: (context || readProjectContext(root)).checks }),
+    ...checkVerdict(state, { checks: (context || readProjectContext(root)).checks, livingDoc: readLivingDoc(root, state) }),
     next: nextForChange(state),
   };
 }
@@ -416,6 +499,7 @@ async function run(command, positionals, values) {
   if (command === "check") return check(root, values);
   if (command === "run") return runObligation(root, values);
   if (command === "review") return review(root, positionals, values);
+  if (command === "close") return close(root, values);
   if (command === "record") {
     const [type] = positionals;
     const reducer = reducerFor(type, values, root);
@@ -517,8 +601,15 @@ function describeReview(result) {
   return lines.join("\n");
 }
 
+function describeClose(result) {
+  const { archive } = result;
+  const how = archive.already_complete ? "already archived in" : "closed and archived in";
+  return `${result.change} ${how} ${archive.destination} (${archive.files} files, ${archive.inventory_sha256})`;
+}
+
 function describe(command, result) {
   if (command === "next") return describeNext(result);
+  if (command === "close") return describeClose(result);
   if (command === "review") return describeReview(result);
   if (command === "signals") return describeSignals(result);
   if (command === "check") return describeCheck(result);

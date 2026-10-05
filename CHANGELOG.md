@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.102.0] - 2026-10-05
+
+### Added
+- **`ospec close --change <id>` (E1.4, PR c)** (REQ-idd-017, `scripts/lib/idd-close.js`):
+  - Rechaza con `evidence-stale` si la evidencia de `checks-pass` no es del árbol actual: el último `check` liquidó en ese árbol todo lo que depende de él.
+  - Bajo un lock fuera del directorio del cambio, liquida `living-doc`: `change.md` debe conservar las cuatro secciones, con `Plan` y `Decisions` escritos, y entonces se registra `living-doc-current`. Después rechaza con `close-refused` si queda una obligación pendiente o un gate abierto, y registra `status: closed` y `closed_at` (marca de reanudación).
+  - Reescribe solo la sección de evidencia de `change.md` y mueve el cambio a `idd/archive/<fecha>-<id>/`. Compara la huella de inventario de O6A antes y después; si el renombrado falla, copia a staging y compara antes de sustituir.
+  - Repetir `close` termina un movimiento interrumpido, rechaza un destino con otro contenido (`archive-conflict`) e informa `already_complete` si ya estaba archivado.
+
+### Changed
+- **`ospec check`**: un `change.md` al día no cuenta como pendiente (la evidencia la registra `close`); si no lo está, el motivo dice qué le falta. `next` da la pista `how` del documento vivo.
+- **Estado `idd-state/v1`** (REQ-idd-003): campo `closed_at` en los cambios cerrados.
+- **Spec `idd`**: REQ-idd-017 nuevo; REQ-idd-004 define cuándo el documento vivo está al día y REQ-idd-009 remite al cierre transaccional.
+- **Roadmap**: E1.4 (c) entregado, con los cuatro criterios de «hecho cuando» cumplidos; el siguiente es el PR (d).
+
+**Verificación directa**: `node scripts/check.js` (3177 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.101.0] - 2026-10-05
 
 ### Added
