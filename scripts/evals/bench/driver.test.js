@@ -154,14 +154,42 @@ test("host errors resume without the persona and two in a row stop the run", asy
   assert.equal(host.calls.persona.length, 0);
 });
 
-test("a setup that never produces its config makes the run incomplete before the change", async () => {
+test("a setup that never produces its config makes the run incomplete before the change, without judging it", async () => {
   const host = fakeHost({ texts: ["no pude", "sigo sin poder", "nada"] });
+  let judged = false;
   const run = await runScenario({
-    scenario: seedRepo(), arm: armFor("sdd"), host, ...dirs(), limits: { maxAgentTurns: 30, maxCostUsd: 100, maxSetupTurns: 2 }, checks: () => [],
+    scenario: seedRepo(), arm: armFor("sdd"), host, ...dirs(), limits: { maxAgentTurns: 30, maxCostUsd: 100, maxSetupTurns: 2 },
+    checks: () => { judged = true; return [{ id: "a", kind: "acceptance", fact: null, pass: false }]; },
   });
   assert.equal(run.status, "incomplete");
   assert.equal(run.reason, "setup-incomplete");
   assert.equal(host.calls.turns.length, 2);
+  assert.equal(judged, false, "the seed is not the arm's delivery");
+  assert.deepEqual(run.checks, []);
+  assert.equal(run.escaped_defects, 0);
+});
+
+test("an exhausted host quota stops the run at once, without retrying or judging", async () => {
+  const quota = (i) => (i === 1 ? "You've hit your session limit" : undefined);
+  const host = fakeHost({ texts: ["init", "You've hit your session limit"], effects: [initConfig], errors: [undefined, quota(1)] });
+  const original = host.turn;
+  host.turn = async (args) => {
+    const turn = await original(args);
+    return turn.is_error ? { ...turn, quota_exhausted: true } : turn;
+  };
+  let judged = false;
+  const run = await runScenario({ scenario: seedRepo(), arm: armFor("sdd"), host, ...dirs(), checks: () => { judged = true; return []; } });
+  assert.equal(run.status, "incomplete");
+  assert.equal(run.reason, "host-quota");
+  assert.equal(host.calls.turns.length, 2, "no resume after a quota error");
+  assert.equal(judged, false);
+
+  const setupHost = fakeHost({ texts: ["You've hit your session limit"], errors: ["quota"] });
+  const setupTurn = setupHost.turn;
+  setupHost.turn = async (args) => ({ ...(await setupTurn(args)), quota_exhausted: true });
+  const setupRun = await runScenario({ scenario: seedRepo(), arm: armFor("sdd"), host: setupHost, ...dirs(), checks: () => [] });
+  assert.equal(setupRun.reason, "host-quota");
+  assert.equal(setupHost.calls.turns.length, 1);
 });
 
 test("the setup persona never sees the change request, its facts, or its goal", async () => {
@@ -175,11 +203,12 @@ test("the setup persona never sees the change request, its facts, or its goal", 
 
 test("a setup that edits the seed is incomplete and the change is not requested", async () => {
   const host = fakeHost({ texts: ["Inicializado y de paso arreglado.", "no debería llegar"], effects: [(cwd) => { initConfig(cwd); writeCode(cwd); }] });
-  const run = await runScenario({ scenario: seedRepo(), arm: armFor("sdd"), host, ...dirs(), checks: () => [] });
+  const run = await runScenario({ scenario: seedRepo(), arm: armFor("sdd"), host, ...dirs(), checks: () => [{ id: "a", kind: "acceptance", fact: null, pass: true }] });
   assert.equal(run.status, "incomplete");
   assert.equal(run.reason, "setup-modified-seed");
   assert.deepEqual(run.setup.modified_seed, ["index.js"]);
   assert.equal(host.calls.turns.length, 1);
+  assert.deepEqual(run.checks, [], "a voided run is not judged");
 });
 
 test("the idd arm is declared but unavailable until E1.6", () => {

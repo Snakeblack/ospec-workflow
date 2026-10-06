@@ -49,7 +49,7 @@ function fakeRun(scenarioId, profile, { status = "complete", failing = [] } = {}
 }
 
 function deps(dir, overrides = {}) {
-  const calls = { runs: [] };
+  const calls = { runs: [], workspaces: [] };
   return {
     calls,
     stdout: output(),
@@ -58,8 +58,9 @@ function deps(dir, overrides = {}) {
     resolveExecutable: () => "claude.exe",
     buildPlugin: () => ({ pluginDir: path.join(dir, "plugin"), version: "2.103.0", digest: "a".repeat(64) }),
     createHost: () => ({ name: "claude-code", version: () => "2.1.286 (Claude Code)" }),
-    runScenario: async ({ scenario }) => {
+    runScenario: async ({ scenario, workspaceRoot }) => {
       calls.runs.push(scenario.id);
+      calls.workspaces.push(workspaceRoot);
       return fakeRun(scenario.id, scenario.profile);
     },
     ...overrides,
@@ -141,4 +142,44 @@ test("report and checkpoint read records from disk", async () => {
   assert.equal(await main(["checkpoint", "--baseline", "base", "--candidate", "cand", "--records-dir", dir], checkpoint), 1);
   assert.match(checkpoint.stdout.text, /revise/);
   assert.match(checkpoint.stdout.text, /check-regression/);
+});
+
+test("run --repetitions runs every scenario once per repetition, repetition by repetition", async () => {
+  const dir = tempDir();
+  const common = ["run", "--arm", "sdd", "--record", "r3", "--repetitions", "2", "--config-dir", dir, "--records-dir", dir, "--runs-dir", dir, "--workspaces-dir", dir, "--scenario", "bugfix", "--scenario", "cli-local"];
+  const first = deps(dir);
+  assert.equal(await main(common, first), 0);
+  assert.deepEqual(first.calls.runs, ["cli-local", "bugfix", "cli-local", "bugfix"]);
+  assert.equal(new Set(first.calls.workspaces).size, 4, "each repetition gets its own workspace");
+  const record = JSON.parse(fs.readFileSync(path.join(dir, "r3.json"), "utf8"));
+  assert.equal(record.schema_version, 2);
+  assert.equal(record.repetitions, 2);
+  assert.deepEqual(record.runs.map((run) => `${run.scenario_id}#${run.repetition}`), ["cli-local#1", "cli-local#2", "bugfix#1", "bugfix#2"]);
+  assert.match(first.stdout.text, /Mean per scenario/);
+
+  const resumed = deps(dir);
+  assert.equal(await main(common, resumed), 0);
+  assert.deepEqual(resumed.calls.runs, []);
+  const otherCount = deps(dir);
+  assert.equal(await main(common.map((arg) => (arg === "2" ? "3" : arg)), otherCount), 2);
+  assert.match(otherCount.stderr.text, /repetitions/);
+});
+
+test("an exhausted host quota stops the whole run without recording the interrupted scenario", async () => {
+  const dir = tempDir();
+  const common = ["run", "--arm", "sdd", "--record", "rq", "--config-dir", dir, "--records-dir", dir, "--runs-dir", dir, "--workspaces-dir", dir, "--scenario", "bugfix", "--scenario", "cli-local"];
+  const limited = deps(dir, {
+    runScenario: async ({ scenario }) => (scenario.id === "cli-local"
+      ? fakeRun(scenario.id, scenario.profile)
+      : { ...fakeRun(scenario.id, scenario.profile, { status: "incomplete" }), reason: "host-quota", checks: [], escaped_defects: 0, conversation: [{ role: "agent", text: "You've hit your session limit · resets 11:20am" }] }),
+  });
+  assert.equal(await main(common, limited), 3);
+  assert.match(limited.stderr.text, /quota/);
+  assert.match(limited.stderr.text, /resets 11:20am/);
+  const record = JSON.parse(fs.readFileSync(path.join(dir, "rq.json"), "utf8"));
+  assert.deepEqual(record.runs.map((run) => run.scenario_id), ["cli-local"]);
+
+  const resumed = deps(dir);
+  assert.equal(await main(common, resumed), 0);
+  assert.deepEqual(resumed.calls.runs, ["bugfix"]);
 });

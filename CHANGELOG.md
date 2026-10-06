@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.107.0] - 2026-10-06
+
+### Added
+- **Repeticiones en el banco (E4.1, PR d)**: `bench.js run --repetitions <n>` corre cada escenario n veces, repetición a repetición, cada una en su propio workspace. El record pasa a schema 2 (`repetitions` en la identidad y `repetition` en cada corrida) y el informe añade la media de cada escenario; los records de schema 1, como `sdd-baseline-2`, se siguen leyendo como una repetición (REQ-bench-004).
+- **Márgenes `bench-margins-2`** (decisión del usuario): 3 repeticiones por brazo; el checkpoint suma medias por escenario, IDD no puede escapar más defectos medios que SDD (`max_mean_delta: 0`) y gasta como mucho el 90 % de sus tokens medios. Un check que SDD pasa en todas sus repeticiones e IDD falla en alguna veta el cambio de default. Una repetición que falta o un número de repeticiones distinto al de los márgenes también obliga a revisar (REQ-bench-005).
+
+### Fixed
+- **Cuota agotada del host**: un turno que acaba en HTTP 429 (por ejemplo, el límite de sesión de una suscripción) detiene la corrida sin reintentar, y `bench.js run` termina toda la campaña con código 3 sin registrar la corrida cortada; el mismo comando la reanuda tras el reset. Antes se registraba como `host-error` y la campaña seguía quemando el siguiente escenario (REQ-bench-002).
+- **Corridas anuladas en el setup**: `setup-incomplete` y `setup-modified-seed` ya no se juzgan contra la semilla. El informe las muestra como «not judged» en vez de contarles como escapados los checks que la semilla falla.
+
+### Changed
+- **Roadmap**: E4.1 registra las decisiones del usuario tras la línea base y su entrega (d). La línea base se repite como `sdd-baseline-3`, con 3 repeticiones, antes de E1.6.
+
+**Verificación directa**: `node scripts/check.js` (3206 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.106.1] - 2026-10-06
 
 ### Fixed

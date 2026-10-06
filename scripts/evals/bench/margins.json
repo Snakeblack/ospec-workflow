@@ -1,11 +1,12 @@
 {
-  "schema_version": 1,
-  "margins_version": "bench-margins-1",
+  "schema_version": 2,
+  "margins_version": "bench-margins-2",
   "declared_at": "2026-10-06",
   "baseline_arm": "sdd",
   "candidate_arm": "idd",
+  "repetitions": 3,
   "escaped_defects": {
-    "max_total_delta": 0
+    "max_mean_delta": 0
   },
   "tokens": {
     "max_total_ratio": 0.9
