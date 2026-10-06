@@ -344,3 +344,42 @@ test("validate-phase: readPersistedRouteInfo ignores actual_route outside route 
 
   fs.rmSync(root, { recursive: true, force: true });
 });
+
+test("validate-phase: without a routing table, lite and standard use their default phases [REQ-routing-017]", () => {
+  const { spawnSync } = require("node:child_process");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "vp-no-routing-"));
+  const projectRoot = path.join(root, "consumer");
+  const pluginScript = path.join(ROOT, "scripts", "validate-phase.js");
+  const run = (phase, route, change) =>
+    spawnSync(process.execPath, [pluginScript, phase, route, change, "--workspace", projectRoot], {
+      cwd: projectRoot,
+      encoding: "utf8",
+    });
+  try {
+    const liteDir = path.join(projectRoot, "openspec", "changes", "lite-change");
+    const standardDir = path.join(projectRoot, "openspec", "changes", "standard-change");
+    fs.mkdirSync(liteDir, { recursive: true });
+    fs.mkdirSync(standardDir, { recursive: true });
+    // What sdd-init writes: project context, no routing: block.
+    fs.writeFileSync(path.join(projectRoot, "openspec", "config.yaml"), "schema: spec-driven\nproject:\n  name: consumer\n");
+    fs.writeFileSync(path.join(liteDir, "proposal-lite.md"), "# Lite proposal");
+
+    const lite = run("sdd-tasks", "lite", "lite-change");
+    assert.equal(lite.status, 0, `stderr=${lite.stderr}`);
+    assert.match(lite.stdout, /\[OK\]/);
+
+    // The default standard route still requires its artifacts in order.
+    const standardEarly = run("sdd-tasks", "standard", "standard-change");
+    assert.equal(standardEarly.status, 1);
+    assert.doesNotMatch(standardEarly.stderr, /no está declarada con fases/);
+    fs.writeFileSync(path.join(standardDir, "design.md"), "Design details");
+    assert.equal(run("sdd-tasks", "standard", "standard-change").status, 0);
+
+    // Only the two degradation routes have defaults.
+    const other = run("sdd-tasks", "bugfix", "lite-change");
+    assert.equal(other.status, 1);
+    assert.match(other.stderr, /no está declarada con fases/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
