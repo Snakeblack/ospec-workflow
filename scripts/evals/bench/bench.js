@@ -44,7 +44,9 @@ const OPTIONS = Object.freeze({
   "--workspaces-dir": ["workspacesDir", String],
   "--max-turns": ["maxAgentTurns", Number],
   "--max-cost": ["maxCostUsd", Number],
+  "--repetitions": ["repetitions", Number],
 });
+const EXIT_HOST_QUOTA = 3;
 
 function parseArgs(argv) {
   const [command, ...rest] = argv;
@@ -88,6 +90,8 @@ async function runCommand(args, deps) {
   const opts = { ...DEFAULTS, ...Object.fromEntries(Object.entries(args).filter(([, value]) => value !== undefined)) };
   if (!opts.arm || !opts.record) throw new Error("run needs --arm and --record");
   const arm = armFor(opts.arm);
+  const repetitions = opts.repetitions === undefined ? 1 : opts.repetitions;
+  if (!Number.isInteger(repetitions) || repetitions < 1) throw new Error("--repetitions must be a positive integer");
   if (!fs.existsSync(opts.configDir)) {
     stderr.write(`The bench configuration directory ${opts.configDir} does not exist. Log in once with CLAUDE_CONFIG_DIR set to it (for example \`$env:CLAUDE_CONFIG_DIR="${opts.configDir}"; claude\`), then run again.\n`);
     return 2;
@@ -131,6 +135,7 @@ async function runCommand(args, deps) {
     scenarios_digest: scenariosDigest(corpus),
     harness_digest: harnessDigest(),
     limits,
+    repetitions,
   };
 
   let record;
@@ -146,25 +151,38 @@ async function runCommand(args, deps) {
     record = createRecord({ ...identity, recorded_at: deps.now().toISOString() });
   }
 
-  for (const scenario of selected) {
-    const existing = record.runs.find((run) => run.scenario_id === scenario.id);
-    if (existing && existing.status === "complete" && !args.force) {
-      stdout.write(`${scenario.id}: already complete in ${opts.record}, skipped\n`);
-      continue;
+  // Repetition by repetition, so an interrupted run already covers every
+  // scenario once before it repeats any.
+  for (let repetition = 1; repetition <= repetitions; repetition += 1) {
+    for (const scenario of selected) {
+      const label = repetitions > 1 ? `${scenario.id} #${repetition}` : scenario.id;
+      const existing = record.runs.find((run) => run.scenario_id === scenario.id && run.repetition === repetition);
+      if (existing && existing.status === "complete" && !args.force) {
+        stdout.write(`${label}: already complete in ${opts.record}, skipped\n`);
+        continue;
+      }
+      const slot = repetitions > 1 ? path.join(scenario.id, `r${repetition}`) : scenario.id;
+      const workspaceRoot = path.join(recordWorkspaces, slot);
+      stdout.write(`${label}: running in ${workspaceRoot}\n`);
+      const run = await deps.runScenario({
+        scenario,
+        arm,
+        host,
+        workspaceRoot,
+        runDir: path.join(opts.runsDir, opts.record, slot),
+        limits,
+      });
+      if (run.reason === "host-quota") {
+        // Nothing usable: every later turn would fail the same way. Keep the
+        // record as it was so the same command resumes after the reset.
+        const last = [...run.conversation].reverse().find((entry) => entry.role === "agent");
+        stderr.write(`${label}: the host's usage quota is exhausted (${last ? last.text : "no message"}). Stopped without recording it; run the same command again after the reset.\n`);
+        return EXIT_HOST_QUOTA;
+      }
+      record = upsertRun(record, { scenario_id: run.scenario_id, repetition, ...run });
+      writeRecord(opts.recordsDir, record);
+      stdout.write(`${label}: ${run.status}${run.reason ? ` (${run.reason})` : ""}, ${run.metrics.tokens_total} tokens, ${run.escaped_defects} escaped\n`);
     }
-    const workspaceRoot = path.join(recordWorkspaces, scenario.id);
-    stdout.write(`${scenario.id}: running in ${workspaceRoot}\n`);
-    const run = await deps.runScenario({
-      scenario,
-      arm,
-      host,
-      workspaceRoot,
-      runDir: path.join(opts.runsDir, opts.record, scenario.id),
-      limits,
-    });
-    record = upsertRun(record, run);
-    writeRecord(opts.recordsDir, record);
-    stdout.write(`${scenario.id}: ${run.status}${run.reason ? ` (${run.reason})` : ""}, ${run.metrics.tokens_total} tokens, ${run.escaped_defects} escaped\n`);
   }
   stdout.write(renderReport(record));
   return 0;
@@ -208,7 +226,7 @@ async function main(argv, deps = {}) {
       io.stdout.write(renderCheckpoint(result));
       return result.decision === "continue" ? 0 : 1;
     }
-    io.stderr.write("usage: bench.js list | run --arm <arm> --record <id> | report --record <id> | checkpoint --baseline <id> --candidate <id>\n");
+    io.stderr.write("usage: bench.js list | run --arm <arm> --record <id> [--repetitions <n>] | report --record <id> | checkpoint --baseline <id> --candidate <id>\n");
     return 2;
   } catch (error) {
     io.stderr.write(`${error.message}\n`);

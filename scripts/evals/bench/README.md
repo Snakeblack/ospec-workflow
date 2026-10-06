@@ -52,17 +52,21 @@ Then:
 
 ```sh
 node scripts/evals/bench/bench.js list
-node scripts/evals/bench/bench.js run --arm sdd --record sdd-baseline-1
-node scripts/evals/bench/bench.js report --record sdd-baseline-1
-node scripts/evals/bench/bench.js checkpoint --baseline sdd-baseline-1 --candidate idd-1
+node scripts/evals/bench/bench.js run --arm sdd --record sdd-baseline-3 --repetitions 3
+node scripts/evals/bench/bench.js report --record sdd-baseline-3
+node scripts/evals/bench/bench.js checkpoint --baseline sdd-baseline-3 --candidate idd-1
 ```
 
 `run` builds the plugin from the checkout, materializes each scenario under
-the system temp directory (`ospec-bench/<record>/<scenario>`), writes the
-record to `records/<record>.json` after every scenario, and keeps transcripts
-under `scripts/evals/.runs/bench/` (gitignored). Rerunning the same record
-skips complete scenarios (`--force` reruns them) and refuses a different host,
-model, plugin build, persona, or corpus. Defaults: model `claude-sonnet-5-5`,
+the system temp directory (`ospec-bench/<record>/<scenario>[/r<n>]`), writes the
+record to `records/<record>.json` after every run, and keeps transcripts
+under `scripts/evals/.runs/bench/` (gitignored). `--repetitions <n>` runs every
+scenario n times, repetition by repetition (default 1). Rerunning the same
+record skips complete runs (`--force` reruns them) and refuses a different host,
+model, plugin build, persona, corpus, harness, or repetition count. When the
+host's usage quota runs out (HTTP 429, such as a subscription session limit),
+`run` stops at once with exit code 3 and does not record the interrupted run:
+the same command resumes after the reset. Defaults: model `claude-sonnet-5-5`,
 persona `claude-sonnet-5-5`, 30 agent turns and $25 per scenario
 (`--model`, `--persona-model`, `--max-turns`, `--max-cost`).
 
@@ -75,15 +79,22 @@ persona `claude-sonnet-5-5`, 30 agent turns and $25 per scenario
   `approval`; **decision-changing** when the answer discloses a fact or departs
   from the agent's recommendation.
 - **Interventions:** every persona reply.
-- **Escaped defects:** hidden checks the delivered workspace fails.
+- **Escaped defects:** hidden checks the delivered workspace fails. A run that
+  never reached the change (voided setup) is not judged and shows as such.
+- **Repetitions:** the report adds the mean of each scenario over its
+  repetitions; the total of those means compares with a one-repetition record.
+  Schema 1 records (one run per scenario, such as `sdd-baseline-2`) still read
+  as one repetition.
 
 ## Checkpoint
 
-`margins.json` (`bench-margins-1`) is declared before any comparison: the
-candidate may not escape more defects than the baseline in total
-(`max_total_delta: 0`) and must spend at most 90% of its tokens
-(`max_total_ratio: 0.9`). Fixed in code: incomparable records, incomplete
-runs, and any hidden check the baseline passes and the candidate fails force
+`margins.json` (`bench-margins-2`) is declared before any comparison: both
+arms run every scenario `repetitions: 3` times; summed over the per-scenario
+means, the candidate may not escape more defects than the baseline
+(`max_mean_delta: 0`) and must spend at most 90% of its tokens
+(`max_total_ratio: 0.9`). Fixed in code: incomparable records (including
+another repetition count), incomplete or missing runs, and any hidden check the
+baseline passes in every repetition and the candidate fails in any force
 `revise`. A new campaign that needs other margins declares a new version first.
 
 ## Limits

@@ -8,6 +8,10 @@
 //    says the change is done, or a turn or cost limit stops it;
 // 4. judge the delivered workspace with the scenario's hidden checks.
 // Host errors resume the session without the persona; two in a row stop it.
+// An exhausted usage quota stops at once (`host-quota`): the caller ends the
+// whole bench run there, because every later turn would fail the same way.
+// Only a change that was actually requested is judged; a voided setup leaves
+// the seed, which is not the arm's delivery.
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -99,6 +103,11 @@ async function converse({ host, persona, prompt, cwd, runDir, label, maxTurns, m
       state.status = "complete";
       return state;
     }
+    if (turn.quota_exhausted) {
+      state.host_errors += 1;
+      state.reason = "host-quota";
+      return state;
+    }
     if (state.agent_turns >= maxTurns) {
       state.reason = label === "setup" ? "setup-incomplete" : "max-agent-turns";
       return state;
@@ -183,7 +192,8 @@ async function runScenario({
   const modifiedSeed = fileList(setupChanged).filter((file) => seedFiles.has(file));
   if (setupSummary) setupSummary.modified_seed = modifiedSeed;
 
-  const skipReason = setup && setup.status !== "complete" ? "setup-incomplete" : modifiedSeed.length > 0 ? "setup-modified-seed" : null;
+  const setupReason = setup && setup.reason === "host-quota" ? "host-quota" : "setup-incomplete";
+  const skipReason = setup && setup.status !== "complete" ? setupReason : modifiedSeed.length > 0 ? "setup-modified-seed" : null;
   const change = skipReason
     ? { ...emptyConversation(), reason: skipReason }
     : await converse({
@@ -193,7 +203,8 @@ async function runScenario({
 
   git(workspaceRoot, ["add", "-A"]);
   const changedFiles = fileList(git(workspaceRoot, ["diff", "--cached", "--name-only", base]));
-  const results = checks(scenario, workspaceRoot);
+  const judged = !skipReason && change.reason !== "host-quota";
+  const results = judged ? checks(scenario, workspaceRoot) : [];
 
   return {
     scenario_id: scenario.id,

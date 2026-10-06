@@ -53,6 +53,15 @@ test("an error result keeps its usage and reports the error", () => {
   assert.equal(tokenTotal(turn.usage), 407);
 });
 
+test("a 429 result means the host's usage quota is exhausted", () => {
+  const limit = { ...result, is_error: true, subtype: "success", api_error_status: 429, result: "You've hit your session limit · resets 11:20am (Europe/Madrid)" };
+  const turn = summarizeTurn(jsonl(limit));
+  assert.equal(turn.is_error, true);
+  assert.equal(turn.quota_exhausted, true);
+  assert.match(turn.error, /session limit/);
+  assert.equal(summarizeTurn(jsonl({ ...result, is_error: true, subtype: "error_during_execution" })).quota_exhausted, false);
+});
+
 test("addUsage adds field by field", () => {
   assert.deepEqual(addUsage({ input: 1, output: 2, cache_read: 3, cache_creation: 4 }, { input: 1, output: 1, cache_read: 1, cache_creation: 1 }),
     { input: 2, output: 3, cache_read: 4, cache_creation: 5 });

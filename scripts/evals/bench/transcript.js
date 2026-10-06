@@ -71,9 +71,12 @@ function summarizeTurn(bytes) {
     agent_turns: Number(result.num_turns) || 0,
     subagents: Number(result.subagent_stats && result.subagent_stats.spawned) || 0,
     is_error: result.is_error === true,
+    // HTTP 429 at the end of a turn: the account's usage quota (for example
+    // a subscription session limit) is spent. Retrying only burns the next turn.
+    quota_exhausted: result.is_error === true && Number(result.api_error_status) === 429,
     sha256,
   };
-  if (turn.is_error) turn.error = result.subtype || "error";
+  if (turn.is_error) turn.error = turn.quota_exhausted ? turn.final_text || "usage quota exhausted" : result.subtype || "error";
   return turn;
 }
 
