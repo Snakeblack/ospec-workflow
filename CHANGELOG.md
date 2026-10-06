@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.106.1] - 2026-10-06
+
+### Fixed
+- **`validate-phase` en proyectos sin tabla de rutas** (REQ-routing-017): `sdd-init` no escribe `routing:` en `openspec/config.yaml`, y el orquestador prevé ese caso eligiendo `lite` o `standard` («Graceful Degradation»). Pero `validate-phase.js` rechazaba toda ruta salvo `freeform`, así que el agente tenía que pedir permiso para seguir sin validación de transiciones. Lo detectó la línea base del banco en `cli-local`. Ahora, sin tabla, `lite` y `standard` se validan contra sus fases por defecto; cualquier otra ruta sigue necesitando tabla, y una tabla declarada sigue siendo la única autoridad.
+
+### Changed
+- El informe de la línea base corrige la causa de una pregunta de `brownfield`: era la pregunta de modo de ejecución del protocolo, no una consecuencia del routing.
+
+**Verificación directa**: `node scripts/check.js` (3196 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.106.0] - 2026-10-06
 
 ### Added

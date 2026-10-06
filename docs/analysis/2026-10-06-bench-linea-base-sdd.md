@@ -39,7 +39,7 @@ Las 14 intervenciones se reparten así:
 | --- | --- | ---: |
 | Confirmar la síntesis de la intención (gate `intent-briefing`) | los 6, más una síntesis corregida en `brownfield` y `public-library` | 8 |
 | Ruta no declarada: `validate-phase` rechaza `lite`, pide `freeform` | cli-local | 1 |
-| Modo de ejecución (`interactive` + `ask-on-risk`) tras `no_matching_eligible_route` | brownfield | 1 |
+| Modo de ejecución (pregunta «Execution Mode» del protocolo, la primera vez en la sesión) | brownfield | 1 |
 | Verify bloqueado por supuestos sin confirmar | regulated, brownfield, bugfix | 3 |
 | Aceptar los avisos de verify antes de archivar | brownfield | 1 |
 
@@ -53,7 +53,7 @@ Solo 6 de las 14 preguntas cambiaron una decisión. Las 8 restantes piden permis
 
 ## 3. Hallazgos de producto (modo SDD)
 
-1. **`sdd-init` no escribe `routing:` y `validate-phase` no admite su ausencia.** Sin tabla de rutas en `openspec/config.yaml`, `scripts/validate-phase.js` rechaza toda ruta salvo `freeform` («la ruta 'lite' no está declarada con fases»), mientras el protocolo del orquestador dice que, sin `routing:`, se aplican las reglas por defecto. En `cli-local` el agente tuvo que pedir permiso al usuario para seguir en `freeform`, sin validación de transiciones. En `brownfield` el despachador devolvió `no_matching_eligible_route` y degradó a un flujo interactivo. Es una pregunta que provoca el producto, no el escenario.
+1. **`validate-phase` no admitía proyectos sin `routing:`.** `sdd-init` no escribe tabla de rutas, y el protocolo del orquestador prevé ese caso («Graceful Degradation»: `lite` o `standard` según la clasificación). Pero `scripts/validate-phase.js` rechazaba toda ruta salvo `freeform` («la ruta 'lite' no está declarada con fases»). En `cli-local` el agente tuvo que pedir permiso al usuario para seguir en `freeform`, sin validación de transiciones. Es una pregunta que provoca el producto, no el escenario. **Corregido en v2.106.1** (REQ-routing-017): sin tabla, `lite` y `standard` se validan contra sus fases por defecto. (La pregunta de modo de ejecución de `brownfield` no viene de aquí: es la pregunta «Execution Mode» del protocolo.)
 2. **Verify se bloquea esperando confirmar supuestos** en la mitad de los escenarios, incluso con todos los tests en verde y sin hallazgos críticos. Es la mayor fuente de preguntas no decisivas después de la síntesis.
 3. **El archivo funcionó en los seis escenarios** (`outcome: success`). En la corrida descartada había fallado dos veces en `cli-local`; con v2.105.1 no se reprodujo.
 

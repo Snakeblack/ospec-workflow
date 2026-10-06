@@ -1397,3 +1397,31 @@ The `lite` route MUST remain the ordered five-phase workflow `sdd-propose → sd
 - WHEN the canonical routes are enumerated
 - THEN no new route or merged phase is present
 - AND the lite phase order remains unchanged
+
+---
+
+## 21. Phase Validation Without a Routing Table
+
+### Requirement: Degraded Route Phases {#REQ-routing-017}
+
+When `openspec/config.yaml` declares no routing table (the `routing:` key is absent or resolves to `[]`), the orchestrator falls back to the legacy choice between `lite` (trivial or small) and `standard` (normal or high-risk), and `validate-phase` MUST validate those two route names against their default phases: `lite` as `sdd-propose → sdd-tasks → sdd-apply → sdd-verify → sdd-archive` (REQ-routing-015) and `standard` as `sdd-propose → sdd-spec → sdd-design → sdd-tasks → sdd-apply → sdd-verify → sdd-archive`. Any other route name without a declared table MUST still fail as undeclared, and a declared table MUST remain the only authority whenever it is present, including for `lite` and `standard`. `freeform` keeps bypassing phase validation.
+
+#### Scenario: Consumer project without a routing table runs lite
+
+- GIVEN a project whose `openspec/config.yaml` has no `routing:` key
+- AND a lite change with `proposal-lite.md`
+- WHEN `validate-phase` checks `sdd-tasks` for route `lite`
+- THEN it MUST pass without asking for `freeform`
+
+#### Scenario: Default standard route keeps its artifact order
+
+- GIVEN the same project and a standard change without `design.md`
+- WHEN `validate-phase` checks `sdd-tasks` for route `standard`
+- THEN it MUST fail for the missing artifact, not for an undeclared route
+- AND it MUST pass once `design.md` exists
+
+#### Scenario: Other routes still need a table
+
+- GIVEN the same project
+- WHEN `validate-phase` checks any route other than `lite`, `standard`, or `freeform`
+- THEN it MUST fail because the route is not declared with phases

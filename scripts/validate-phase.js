@@ -6,6 +6,22 @@ const path = require("node:path");
 const { parseRoutingTable, parsePersistedRouteSection } = require("./lib/route-dispatcher.js");
 const { validatePhaseTransition } = require("./lib/flow-validator.js");
 
+// Graceful degradation (REQ-routing-017): a project whose config.yaml declares
+// no routing table still runs lite or standard SDD, so those two routes keep
+// their phases. Any other route must be declared.
+const DEGRADED_ROUTE_PHASES = Object.freeze({
+  lite: Object.freeze(["sdd-propose", "sdd-tasks", "sdd-apply", "sdd-verify", "sdd-archive"]),
+  standard: Object.freeze([
+    "sdd-propose",
+    "sdd-spec",
+    "sdd-design",
+    "sdd-tasks",
+    "sdd-apply",
+    "sdd-verify",
+    "sdd-archive",
+  ]),
+});
+
 function readPersistedRouteInfo(changeDir) {
   const statePath = path.join(changeDir, "state.yaml");
   if (!fs.existsSync(statePath)) {
@@ -132,6 +148,9 @@ function main(argv = process.argv.slice(2), deps = {}) {
     const routingTable = parseRoutingTable(readFileSync(configPath, "utf8"));
     const matchedRoute = routingTable.find((r) => r.name === activeRoute);
     if (matchedRoute) routePhases = matchedRoute.phases || [];
+    else if (routingTable.length === 0 && Object.hasOwn(DEGRADED_ROUTE_PHASES, activeRoute)) {
+      routePhases = DEGRADED_ROUTE_PHASES[activeRoute];
+    }
   } catch (e) {
     error(`[ERROR DE TRANSICIÓN] No se pudo leer openspec/config.yaml: ${e.message}`);
     return exit(1);
