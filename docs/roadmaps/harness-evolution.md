@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.105.1, 2026-10-06.
+> **Versión de referencia:** v2.106.0, 2026-10-06.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -93,7 +93,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | Conocimiento capturado en foundation | 9 preguntas lineales | Ninguno | Mapa de conocimiento por perfil, con huecos explícitos | E2 |
 | ADRs de arquitectura (agnósticos de tecnología) | 0: los ADRs actuales son decisiones de desarrollo | 0 | Desde foundation y desde los cambios que tocan arquitectura | E2–E3 |
 | Skills instaladas por defecto | 82; 46 (+6 opcionales) desde v2.91.0 | ~15 | 46 (+6 opcionales); las de fase SDD, en el paquete opcional | E0.3, E1.6 |
-| Escenarios comparados | 0 | — | 6, contra el modo SDD y contra gentle-ai, publicados por release | E4 |
+| Escenarios comparados | 0; línea base del modo SDD medida en los 6 desde v2.106.0 (0 escapados, 63,1 M tokens) | — | 6, contra el modo SDD y contra gentle-ai, publicados por release | E4 |
 
 ## Cómo se ejecuta este roadmap
 
@@ -121,7 +121,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.3** | `impact-signals` | feature |
 | `done` | **E1.4** | `ospec-check-and-close` | feature |
 | `done` | **E1.5** | `kernel-wiring-inventory` | refactor |
-| `pending` | **E1.6** | `idd-default-entry` | feature |
+| `next-eligible` | **E1.6** | `idd-default-entry` | feature |
 | `pending` | **E1.7** | `ospec-doctor` | feature |
 | `next-eligible` | **E2.1** | `knowledge-map-contract` | contrato |
 | `pending` | **E2.2** | `decision-gap-engine` | feature |
@@ -134,12 +134,12 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E3.3** | `fitness-functions-in-check` | feature |
 | `pending` | **E3.4** | `team-context-defaults` | feature |
 | `pending` | **E3.5** | `knowledge-memory-loop` | feature |
-| `next-eligible` | **E4.1** | `bench-scenarios` | medición |
+| `pending` | **E4.1** | `bench-scenarios` (falta el brazo IDD, en E1.6) | medición |
 | `pending` | **E4.2** | `head-to-head-gentle-ai` | medición |
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E4.1 `bench-scenarios`, empezando por el brazo del modo SDD (la línea base que debe medirse antes de E1.6), y E2.1 `knowledge-map-contract`, que esperaba a E1.4 y fijará el estado de máquina fuera de `openspec/`. E1.4 quedó cerrado en v2.103.0: `ospec check`, `run`, `review` y `close` registran la evidencia de cada obligación, y las skills de SDD ya encuentran en el runtime los scripts que citan. E1.6 espera el checkpoint de E4.1. La etapa 0 quedó cerrada en v2.91.0.
+**▶ SIGUIENTE:** E1.6 `idd-default-entry` y E2.1 `knowledge-map-contract`, que fijará el estado de máquina fuera de `openspec/`. La línea base del modo SDD quedó medida en v2.106.0 ([informe](../analysis/2026-10-06-bench-linea-base-sdd.md)): 6/6 escenarios completos, 0 defectos escapados y 63,1 M tokens. E1.6 ejecuta el brazo IDD con el mismo banco, y su checkpoint decide si IDD pasa a ser el default. E1.4 quedó cerrado en v2.103.0 y la etapa 0, en v2.91.0.
 
 **Dependencias:**
 
@@ -424,6 +424,7 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
 - **(a) entregado en v2.104.0:** `scripts/evals/bench/` (REQ-bench-001 a 006, spec `bench`). Seis escenarios, uno por perfil, con repositorio semilla, petición, hechos ocultos y checks ocultos de aceptación, de hecho y de regresión. Una entrega de referencia por escenario prueba que los checks pasan con una solución correcta y que la semilla falla la aceptación. El driver materializa la semilla como repositorio git fuera del repositorio de ospec, ejecuta el setup del brazo fuera de la medición, conversa por turnos (`--resume`) hasta que el brazo da el cambio por terminado (en SDD, un change archivado) o hasta el tope de turnos o de coste, y juzga el workspace con los checks ocultos. El record versionado ata cada corrida a host, modelo, build del plugin, persona y corpus, y guarda el SHA-256 de cada transcript; el informe y el checkpoint se recalculan desde él sin llamar a un modelo. El brazo `idd` queda declarado y se niega a correr hasta E1.6.
 - **(b) entregado en v2.105.0:** se retira lo que quedaba de K12: `worker-record`, `runner`, `run-manifest` y su esquema (`schemas/kernel/run-manifest/`, REQ-kernel-contract-schemas-033), `cohort`, `obligation-oracle` y `pilot-checkpoint`, con sus tests, el corpus de 22 tareas, los márgenes, las calibraciones y las instantáneas del piloto. El intervalo t por tarea pasa a `scripts/evals/bench/stats.js`. La historia del piloto queda en su [informe](../analysis/2026-10-03-adaptive-pilot-report.md); para reproducirlo hay que usar v2.104.0 o anterior.
 - **Corrección en v2.105.1:** la primera corrida de la línea base (`sdd-baseline-1`) se descartó tras su primer escenario. La persona con Haiku declaró haber revelado tres hechos con un simple «Confirmado» y no corrigió un resumen que contradecía uno de ellos. La persona pasa a Sonnet, solo puede declarar los hechos cuyo contenido escribe en su respuesta y compara con sus hechos cada resumen o plan que aprueba. El record y el checkpoint incorporan además la huella del propio harness, para no comparar corridas de versiones distintas.
+- **(c) entregado en v2.106.0:** línea base del modo SDD en `scripts/evals/bench/records/sdd-baseline-2.json`, con su [informe](../analysis/2026-10-06-bench-linea-base-sdd.md). Los seis escenarios terminan completos, con los 43 checks ocultos en verde y 0 defectos escapados. Gastan 63,1 M tokens ($37,00, el 91 % en lecturas de caché), 93 minutos y 14 intervenciones, de las que 6 cambian una decisión. Para E1.6, IDD no puede escapar ningún defecto y debe quedarse en unos 56,8 M tokens. Hallazgos del modo SDD: `sdd-init` no escribe `routing:` y `validate-phase` rechaza entonces toda ruta salvo `freeform`, y verify se bloquea esperando confirmar supuestos en la mitad de los escenarios. Queda pendiente para E1.6 decidir si el checkpoint usa más de una repetición: el mismo escenario costó 2,7 veces más en la corrida descartada. Follow-ups del banco: abortar la corrida al agotarse la cuota de sesión del host y no contar como escapados los checks de una corrida con el setup incompleto.
 
 ### E4.2 — `head-to-head-gentle-ai`
 

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.106.0] - 2026-10-06
+
+### Added
+- **Línea base del modo SDD (E4.1, PR c)**: record `scripts/evals/bench/records/sdd-baseline-2.json` (Claude Code 2.1.289, Sonnet 5.5, persona Sonnet 5.5, plugin v2.105.1) e informe en `docs/analysis/2026-10-06-bench-linea-base-sdd.md`. Los seis escenarios terminan completos: 43/43 checks ocultos, 0 defectos escapados, 63,1 M tokens ($37,00, 91 % lecturas de caché), 93 minutos y 14 intervenciones, de las que 6 cambian una decisión. Con los márgenes `bench-margins-1`, el brazo IDD de E1.6 no puede escapar ningún defecto y debe gastar como mucho unos 56,8 M tokens.
+- Hallazgos del modo SDD registrados en el informe: `sdd-init` no escribe `routing:` y `validate-phase` rechaza entonces toda ruta salvo `freeform`; verify se bloquea esperando confirmar supuestos en la mitad de los escenarios. También los follow-ups del banco: abortar al agotarse la cuota de sesión del host y no contar como escapados los checks de una corrida con el setup incompleto.
+
+### Changed
+- **Roadmap**: E4.1 (c) entregado; E1.6 `idd-default-entry` pasa a elegible y E4.1 queda pendiente del brazo IDD, que se ejecuta en E1.6. La fila «Escenarios comparados» registra la línea base.
+
+**Verificación directa**: `node scripts/check.js` (3195 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.105.1] - 2026-10-06
 
 ### Fixed
