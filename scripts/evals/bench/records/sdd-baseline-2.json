@@ -1,0 +1,1129 @@
+{
+  "schema_version": 1,
+  "record_id": "sdd-baseline-2",
+  "arm": "sdd",
+  "recorded_at": "2026-10-05T22:23:04.195Z",
+  "host": {
+    "name": "claude-code",
+    "cli_version": "2.1.289",
+    "model": "claude-sonnet-5-5",
+    "effort": null,
+    "plugin_version": "2.105.1",
+    "plugin_digest": "fb9eb2c43d8ccb4e91a4a353934362a7764511cc1430b6369b967fabf32a017d"
+  },
+  "persona": {
+    "model": "claude-sonnet-5-5"
+  },
+  "scenarios_digest": "dde01d7028a991546793d0143c118fb48ebc788d5237663c190d48f834a9fdf7",
+  "harness_digest": "b96cf8ec829db3e3a6626b545e35b6df84bff5c52d1c32934a45a4b89e95a991",
+  "limits": {
+    "maxAgentTurns": 30,
+    "maxSetupTurns": 6,
+    "maxCostUsd": 25
+  },
+  "runs": [
+    {
+      "scenario_id": "cli-local",
+      "profile": "cli-local",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 112,
+          "output": 7148,
+          "cache_read": 488856,
+          "cache_creation": 64695
+        },
+        "cost_usd": 0.218219,
+        "duration_ms": 82034,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 280,
+          "output": 68012,
+          "cache_read": 5595959,
+          "cache_creation": 471282
+        },
+        "tokens_total": 6135533,
+        "cost_usd": 3.61613,
+        "duration_ms": 598606,
+        "agent_turns": 3,
+        "model_turns": 46,
+        "subagents": 7,
+        "questions": 2,
+        "decision_changing_questions": 0,
+        "interventions": 2,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 4,
+          "output": 732,
+          "cache_read": 1706,
+          "cache_creation": 8176
+        },
+        "cost_usd": 0.040373,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "priority-order",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "default-media",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "invalid-priority",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "legacy-file",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "stable-ties",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": true
+        },
+        {
+          "id": "line-prefix",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": true
+        },
+        {
+          "id": "done-still-works",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 0,
+      "facts_disclosed": [],
+      "changed_files": [
+        ".ospec/archive-tx/task-priority/journal.json",
+        ".ospec/archive-tx/task-priority/receipt.json",
+        ".ospec/cache/skill-registry.cache.json",
+        ".ospec/session/latest.md",
+        ".ospec/session/task-priority/context-measurements.jsonl",
+        ".ospec/session/task-priority/phase-costs.jsonl",
+        "README.md",
+        "openspec/changes/archive/2026-10-05-task-priority/apply-progress.md",
+        "openspec/changes/archive/2026-10-05-task-priority/archive-plan.json",
+        "openspec/changes/archive/2026-10-05-task-priority/archive-report.md",
+        "openspec/changes/archive/2026-10-05-task-priority/proposal-lite.md",
+        "openspec/changes/archive/2026-10-05-task-priority/state.yaml",
+        "openspec/changes/archive/2026-10-05-task-priority/tasks.md",
+        "openspec/changes/archive/2026-10-05-task-priority/verify-report.md",
+        "src/cli.js",
+        "test/cli.js"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Antes de crear el cambio, necesito que confirmes cómo entendí tu pedido. `AskUserQuestion` no está disponible en esta sesión, así que te pregunto por chat.\n\n**Síntesis**\n- `tasks add` va a aceptar `--priority <alta|media|baja>` al final del comando, por ejemplo `tasks add Comprar pan --priority alta`. Cada tarea guarda su prioridad.\n- `tasks list` va a mostrar primero las tareas de prioridad más alta (alta, luego media, luego baja).\n- Las tareas ya guardadas, o las que se agreguen sin `--priority`, siguen funcionando. Todavía no definí qué prioridad se les asigna, y eso se resuelve en el diseño.\n\n**Opciones**\n1. **Confirmar esta síntesis**\n2. **Corregirla** (decime qué ajustar)\n3. **Abortar**\n\nCuando respondas sigo con la clasificación y el flujo. No creé ningún archivo en `openspec/changes/`."
+        },
+        {
+          "role": "user",
+          "kind": "approval",
+          "text": "Confirmo la síntesis, opción 1. Sigue con el flujo y llévalo hasta el final: implementado, verificado y archivado.",
+          "facts_disclosed": [],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "Me detuve antes de lanzar `sdd-tasks` porque `validate-phase.js` devolvió un error de transición (exit 1). El protocolo me obliga a parar cuando eso pasa, y no quiero saltarlo sin tu OK.\n\n**Qué pasó**\n- `openspec/config.yaml` no tiene bloque `routing:`. Por eso la ruta `lite` (y también `standard`) figura como \"no declarada con fases\", aunque el cambio está clasificado como `small` y en modo lite.\n- Con `routing:` ausente, el protocolo dice que se usan las reglas de siempre: lite para cambios triviales o chicos, sin escribir `route:` en `state.yaml`. El validador de fases no tiene tabla contra la cual comprobar.\n- La única ruta que el validador acepta hoy es `freeform`. Esa ruta desactiva la validación estricta de fases, y el protocolo exige que la elijas vos.\n\n**Ya hecho**\n- `proposal-lite.md` escrito.\n- `state.yaml` con la síntesis aprobada, la clasificación `small`, el modo `auto` (lo tomé de tu \"llévalo hasta el final\") y las 3 suposiciones de la propuesta.\n\n**Opciones**\n1. **Seguir en `freeform`** (recomendada): mantengo el orden lite a mano (tasks → apply → verify → archive), registro `actual_route: freeform` en `state.yaml` y sigo hasta el final sin más pausas. El orden de fases no cambia, solo se pierde el chequeo automático de transiciones.\n2. **Declarar `routing:` en `config.yaml`** con una ruta `lite` (proposal-lite → tasks → apply → verify → archive) y seguir con validación estricta. Es una edición de configuración del proyecto, así que necesito tu permiso.\n3. **D…"
+        },
+        {
+          "role": "user",
+          "kind": "question",
+          "text": "No tengo preferencia entre las opciones; sigue tu recomendación (opción 1, freeform) y llévalo hasta el final.",
+          "facts_disclosed": [],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "El cambio `task-priority` quedó implementado, verificado y archivado, con 13/13 tests pasando.\n\n**Qué hace ahora**\n- `tasks add <título> --priority <alta|media|baja>` guarda la prioridad. Sin la opción usa `media`.\n- Sale con código 2 si el valor es inválido, falta, está repetido o `--priority` no es el penúltimo token.\n- `tasks list` muestra primero alta, luego media y luego baja, y desempata por id. El formato de cada línea no cambió.\n- Las tareas viejas sin campo `priority` cuentan como `media`, sin migrar datos.\n- El código está en `src/cli.js`, con 10 tests nuevos en `test/cli.js` y un ejemplo en `README.md`.\n\n**Qué se corrigió en el camino**\n- La verificación encontró un bug: un JSON editado a mano con prioridad `\"toString\"` rompía el orden de `list`. Lo corregí con `Object.hasOwn`, agregué un test de regresión y lo reverifiqué.\n- El runtime fue dejando `state.yaml` con fases mal etiquetadas y un estado `blocked` falso. Lo reparé a mano, y el archivado necesitó además un `verdict` y un hash recalculado.\n- El primer archivado falló porque el plan salió con el hash mal formado. Corregí el hash, borré el diario fallido (no había confirmado nada) y el segundo intento dio éxito.\n\n**Qué quedó**\n- El cambio está en `openspec/changes/archive/2026-10-05-task-priority/`.\n- Estoy en la rama `feat/task-priority`, sin commit. Los cambios de código siguen sin commitear, por si querés revisarlos antes.\n- La ruta fue `freeform`, que elegiste vos. Quedaron registradas en `state.yaml` la…"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "1e51e6d6d01aec7fcd0bccbc5b2ab7dabba2d09169c2002331089184334365b9"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "ce9b1814497cb7fcb2565edd278ed381f33f17e4abf5e3cf03a22731c0ba6419"
+        },
+        {
+          "label": "change",
+          "turn": 2,
+          "sha256": "398b9693dce110c7f24448ff41aae7b69aff060c3a3608266176d5b73c5b5b9c"
+        },
+        {
+          "label": "change",
+          "turn": 3,
+          "sha256": "a7c14935d61c2b75369a6392bcda608fa36c5e397be3bac4cb0be488c2d6dce1"
+        }
+      ]
+    },
+    {
+      "scenario_id": "saas-small",
+      "profile": "saas-small",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 2,
+        "usage": {
+          "input": 120,
+          "output": 9163,
+          "cache_read": 818233,
+          "cache_creation": 106806
+        },
+        "cost_usd": 0.5346,
+        "duration_ms": 86651,
+        "interventions": 1,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 554,
+          "output": 96513,
+          "cache_read": 7898883,
+          "cache_creation": 551266
+        },
+        "tokens_total": 8547216,
+        "cost_usd": 4.32416,
+        "duration_ms": 945797,
+        "agent_turns": 2,
+        "model_turns": 9,
+        "subagents": 9,
+        "questions": 1,
+        "decision_changing_questions": 0,
+        "interventions": 1,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 2,
+          "output": 391,
+          "cache_read": 578,
+          "cache_creation": 4411
+        },
+        "cost_usd": 0.021674,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "share-visible",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "owner-only-share",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "no-cross-tenant-share",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "read-only-share",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "idempotent-share",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": true
+        },
+        {
+          "id": "tenant-isolation",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 0,
+      "facts_disclosed": [],
+      "changed_files": [
+        ".ospec/archive-tx/share-note/journal.json",
+        ".ospec/archive-tx/share-note/receipt.json",
+        ".ospec/archive-tx/share-note/staging/adr/adr-20261006-001-store-note-recipients-in-repo-side-map.md",
+        ".ospec/archive-tx/share-note/staging/specs/note-sharing/spec.md",
+        ".ospec/cache/skill-registry.cache.json",
+        ".ospec/runtime/subagent-events.jsonl",
+        ".ospec/session/latest.md",
+        ".ospec/session/share-note/context-measurements.jsonl",
+        ".ospec/session/share-note/phase-costs.jsonl",
+        "README.md",
+        "docs/adr/adr-20261006-001-store-note-recipients-in-repo-side-map.md",
+        "openspec/changes/archive/2026-10-05-share-note/apply-progress.md",
+        "openspec/changes/archive/2026-10-05-share-note/archive-plan.json",
+        "openspec/changes/archive/2026-10-05-share-note/archive-report.md",
+        "openspec/changes/archive/2026-10-05-share-note/decisions/adr-001.md",
+        "openspec/changes/archive/2026-10-05-share-note/design.md",
+        "openspec/changes/archive/2026-10-05-share-note/proposal.md",
+        "openspec/changes/archive/2026-10-05-share-note/specs/note-sharing/spec.md",
+        "openspec/changes/archive/2026-10-05-share-note/state.yaml",
+        "openspec/changes/archive/2026-10-05-share-note/tasks.md",
+        "openspec/changes/archive/2026-10-05-share-note/verify-report.md",
+        "openspec/specs/note-sharing/spec.md",
+        "src/app.js",
+        "src/repo.js",
+        "test/app.js"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Todavía no creé ningún archivo del cambio. Antes necesito que confirmes cómo entendí el pedido.\n\n**Síntesis**\n- El dueño de una nota podrá compartirla con `POST /notes/:id/share` y el cuerpo `{ \"userId\": \"u2\" }`. Hoy `GET /notes` y `GET /notes/:id` solo funcionan para el dueño, y todo lo demás responde 403.\n- Tras compartir, el compañero verá esa nota en su `GET /notes` y podrá abrirla con `GET /notes/:id`.\n- Pienso mantener el aislamiento entre organizaciones. Solo se podría compartir con usuarios del mismo tenant, y `u9` (de `globex`) no podría recibir notas de `acme`. Si el usuario destino no existe o es de otro tenant, la respuesta sería la de \"no encontrado\". Solo el dueño podría compartir.\n- Con acceso compartido, el compañero solo podría leer la nota. No podría editarla, borrarla ni volver a compartirla.\n- Como toca permisos y aislamiento entre organizaciones, lo voy a clasificar como `high-risk` y seguirá el flujo estándar completo, no el lite.\n\n**Qué decidí por mi cuenta**\n- Que el acceso compartido sea solo lectura. Tu pedido no dice nada sobre edición.\n- Que compartir con alguien de otro tenant no esté permitido.\n\n¿Cómo seguimos?\n1. **Confirmar esta síntesis**\n2. **Corregirla**: decime qué cambiar, por ejemplo si el compañero también debería poder editar.\n3. **Abortar**\n\nNo tengo disponible la herramienta de preguntas con opciones en esta sesión, así que te lo planteo por chat. Respondé con el número o con tu corrección y sigo desde ahí."
+        },
+        {
+          "role": "user",
+          "kind": "approval",
+          "text": "Opción 1: confirmo la síntesis. Sigue adelante y llévalo hasta el final: implementado, verificado y archivado.",
+          "facts_disclosed": [],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "El cambio `share-note` está implementado, verificado y archivado. `npm test` pasa 10 de 10, con los 3 tests que ya existían y 7 nuevos.\n\n**Qué hace ahora la API**\n- **Compartir:** `POST /notes/:id/share` con `{ \"userId\": \"u2\" }` solo funciona para el dueño de la nota. Responde 200 con la nota.\n- **Lectura:** el compañero ve la nota en `GET /notes` y la abre con `GET /notes/:id`. Es solo lectura: `PUT`, `DELETE` y volver a compartir le dan 403.\n- **Otras organizaciones:** el usuario destino tiene que existir y ser de la misma organización. Si no, la respuesta es el mismo 404 que para una nota inexistente, así no se revela si el usuario existe.\n- **Orden de validación:** 404 por nota o tenant, 403 si no es el dueño, 400 `userId-required` si falta el usuario, y 404 si el destino no es válido.\n- **Casos borde:** compartir dos veces, o con uno mismo, devuelve 200 sin duplicar nada.\n- **Qué cambió:** los destinatarios se guardan en `src/repo.js` y las rutas están en `src/app.js`. También hay cambios en `test/app.js` y `README.md`.\n\n**Verificación**\nLa primera pasada dio PASS WITH WARNINGS por tres motivos:\n- Faltaba un test que probara que un share rechazado no guarda destinatario.\n- El `README.md` tenía un byte mal codificado en \"dueño\".\n- El `README.md` describía mal el orden de validación.\n\nLos corregí y la segunda verificación dio PASS.\n\n**Archivo**\n- **Reintentos del archivo:** el plan de archivo falló tres veces en el runtime. El agente lo había generado con un esquema inváli…"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "d978cc1c228e5a5b4c2305bbf41c1c6ef2a5ad849f037609d787ed224f7e76cb"
+        },
+        {
+          "label": "setup",
+          "turn": 2,
+          "sha256": "416a1c01ede28eea656bb11d10f329ae8222d77e6309ee426056e56201a97c8c"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "f564157830e3113fd4a03862f18d4c4ce12904f33002a039c5b9725d4f7583f8"
+        },
+        {
+          "label": "change",
+          "turn": 2,
+          "sha256": "1dd337798a9ac7a5dcb1cd1e4e57b0a68f62d78aac2ea3070f7f1ad420d13223"
+        }
+      ]
+    },
+    {
+      "scenario_id": "regulated",
+      "profile": "regulated",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 200,
+          "output": 10101,
+          "cache_read": 884965,
+          "cache_creation": 63044
+        },
+        "cost_usd": 0.272095,
+        "duration_ms": 120227,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 638,
+          "output": 149875,
+          "cache_read": 11310557,
+          "cache_creation": 912085
+        },
+        "tokens_total": 12373155,
+        "cost_usd": 7.312401,
+        "duration_ms": 990478,
+        "agent_turns": 3,
+        "model_turns": 25,
+        "subagents": 9,
+        "questions": 2,
+        "decision_changing_questions": 1,
+        "interventions": 2,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 4,
+          "output": 1267,
+          "cache_read": 1719,
+          "cache_creation": 8844
+        },
+        "cost_usd": 0.048398,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "export-day-sorted",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "no-national-id-or-diagnosis",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "export-audited",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "export-roles",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "csv-escaping",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": true
+        },
+        {
+          "id": "patient-reads-still-audited",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 0,
+      "facts_disclosed": [
+        "F4"
+      ],
+      "changed_files": [
+        ".ospec/archive-tx/export-appointments-csv/journal.json",
+        ".ospec/archive-tx/export-appointments-csv/receipt.json",
+        ".ospec/archive-tx/export-appointments-csv/staging/specs/appointments-export/spec.md",
+        ".ospec/cache/skill-registry.cache.json",
+        ".ospec/runtime/subagent-events.jsonl",
+        ".ospec/session/export-appointments-csv/context-measurements.jsonl",
+        ".ospec/session/export-appointments-csv/phase-costs.jsonl",
+        ".ospec/session/latest.md",
+        "openspec/changes/archive/2026-10-06-export-appointments-csv/apply-progress.md",
+        "openspec/changes/archive/2026-10-06-export-appointments-csv/archive-plan.json",
+        "openspec/changes/archive/2026-10-06-export-appointments-csv/archive-report.md",
+        "openspec/changes/archive/2026-10-06-export-appointments-csv/design.md",
+        "openspec/changes/archive/2026-10-06-export-appointments-csv/proposal.md",
+        "openspec/changes/archive/2026-10-06-export-appointments-csv/specs/appointments-export/spec.md",
+        "openspec/changes/archive/2026-10-06-export-appointments-csv/state.yaml",
+        "openspec/changes/archive/2026-10-06-export-appointments-csv/tasks.md",
+        "openspec/changes/archive/2026-10-06-export-appointments-csv/verify-report.md",
+        "openspec/specs/appointments-export/spec.md",
+        "src/clinic.js",
+        "test/clinic.js"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Voy a confirmar contigo lo que entendí antes de crear nada en `openspec/`. `AskUserQuestion` no está disponible en esta sesión, así que te lo pregunto por chat.\n\n**Síntesis**\n- Añadir `exportAppointmentsCsv(date, actor)` al objeto que devuelve `createClinic` en `src/clinic.js`.\n- Devuelve texto CSV con una fila de cabecera y una fila por cita de ese día, ordenadas por hora, con las columnas hora, nombre del paciente y motivo.\n- Pueden usarla `reception` y `doctor`, igual que `appointmentsOn`. Cualquier otro rol recibe `AccessDeniedError`.\n- La exportación queda registrada en la auditoría, porque expone nombres de pacientes (RGPD art. 9).\n- No se toca `getPatient`, que sigue siendo solo para `doctor`. Recepción obtiene el nombre únicamente a través de la exportación.\n\n**Puntos que asumo y que puedes corregir**\n1. Los campos con comas, comillas o saltos de línea se escapan según RFC 4180.\n2. Un día sin citas devuelve solo la cabecera.\n3. Una cita cuyo paciente no existe sale con el nombre vacío, sin lanzar error.\n\nOpciones:\n1. **Confirmar esta síntesis**\n2. **Corregirla** (dime qué cambiar)\n3. **Abortar**\n\nEspero tu respuesta antes de continuar. Aún no he creado ningún archivo ni clasificado el cambio."
+        },
+        {
+          "role": "user",
+          "kind": "approval",
+          "text": "Confirmada la síntesis y los tres puntos que asumes. Sigue adelante y llévalo hasta el final: implementado, verificado y archivado.",
+          "facts_disclosed": [],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "Verify quedó bloqueado y necesito tu respuesta antes de seguir. El veredicto provisional es **PASS WITH WARNINGS**: `npm test` da 18 de 18, los 14 escenarios de la spec tienen evidencia de ejecución y no hay hallazgos críticos.\n\n**1. La decisión que más pesa: `sdd-spec-003`.** El agente de specs añadió algo que tú no aprobaste, así que lo digo claro.\n- **Qué hace hoy:** si el nombre o el motivo empieza por `=`, `+`, `-`, `@`, tabulador o CR, la exportación le antepone un apóstrofo `'`. Así Excel o LibreOffice no lo ejecutan como fórmula.\n- **Qué cambia:** esos valores ya no salen idénticos al dato original. Es una desviación de RFC 4180 puro.\n- **Por qué importa aquí:** el CSV es para imprimir. Un motivo como `-seguimiento` saldría impreso como `'-seguimiento`.\n- **Qué protege:** la inyección de fórmulas solo es un riesgo si alguien abre el CSV en una hoja de cálculo. Si el archivo se imprime directamente, apenas aporta.\n- **Reversibilidad:** baja una vez que se archive y se distribuyan exportaciones.\n\nOpciones:\n- **a) Confirmar el apóstrofo.** Es lo más conservador con datos de salud (RGPD art. 9) y ya está implementado y probado.\n- **b) Quitarlo.** Es RFC 4180 puro, como pediste. Hay que cambiar spec, código y tests antes de archivar.\n- **c) Dejarlo sin resolver.** Se archiva con el aviso abierto.\n\nMi recomendación es **(b)** si solo vais a imprimir, y **(a)** si el CSV puede acabar abierto en una hoja de cálculo.\n\n**2. Suposiciones reversibles.** ¿Confirmas estas seis?\n- `…"
+        },
+        {
+          "role": "user",
+          "kind": "question",
+          "text": "Elijo la (a): mantened el apóstrofo. El CSV tiene que abrirse bien en una hoja de cálculo, y habrá nombres y motivos con comas y comillas, como `Pérez, Ana` o `Revisión \"anual\"`. Así que sí se va a abrir en una hoja de cálculo. Confirmo las seis suposiciones tal como las describes. Sí, añade los dos tests de W-1 y W-2, vuelve a verificar y archiva. Sigue hasta dejarlo todo terminado.",
+          "facts_disclosed": [
+            "F4"
+          ],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "`exportAppointmentsCsv(date, actor)` está implementado, verificado y archivado. La verificación final dio PASS y el runtime de archivo devolvió `outcome: success`.\n\nRecepción y médico pueden exportar las citas de un día; cualquier otro rol recibe `AccessDeniedError`. `npm test` pasa 20 de 20, comprobado por mí tras el archivo. Los tres tests que ya existían no cambiaron.\n\n**Qué se hizo**\n- **Código:** `src/clinic.js` tiene la función nueva y `test/clinic.js` sus tests. Los nombres de pacientes se leen sin pasar por `getPatient`, que sigue siendo solo para `doctor`.\n- **CSV:** cabecera `time,patient,reason` y una fila por cita, ordenadas por hora (a igual hora, en el orden original). Las líneas acaban en CRLF. Las comas y comillas se escapan según RFC 4180, así que `Pérez, Ana` y `Revisión \"anual\"` salen bien.\n- **Casos límite:** un día sin citas devuelve solo la cabecera. Un paciente inexistente sale con el nombre vacío.\n- **Auditoría:** cada exportación deja una entrada `export-appointments` con `actorId`, `date` y `count`. Si el registro de auditoría falla, no se devuelve el CSV. Los intentos denegados no se auditan, igual que en las operaciones existentes.\n- **Apóstrofo anti-fórmula:** como elegiste (a), los nombres y motivos que empiezan por `=`, `+`, `-`, `@`, tabulador o CR salen con un `'` delante.\n- **Tests añadidos tras la primera verificación:** uno para CR como inicio de fórmula (W-1) y otro para que no se devuelva el CSV si falla la auditoría (W-2). El verificador…"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "b5a69099b3345740fe24a67b4b543a8ea0f31581b2c9c0952e6c814cd3c5b88e"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "2b567db4f898fc00924526d478f811862be8075b39b379b635e9f8a35d5405c3"
+        },
+        {
+          "label": "change",
+          "turn": 2,
+          "sha256": "b5ad62a7e25ce1597f852acfdd6ae812cece6895e318c75f5aa7835b0315ef35"
+        },
+        {
+          "label": "change",
+          "turn": 3,
+          "sha256": "a323a695c4aeda0079e88ef1e1b9a0d6d084cd33deee10d2bf978226960d8d07"
+        }
+      ]
+    },
+    {
+      "scenario_id": "brownfield",
+      "profile": "brownfield",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 104,
+          "output": 7913,
+          "cache_read": 428401,
+          "cache_creation": 42018
+        },
+        "cost_usd": 0.186594,
+        "duration_ms": 93357,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 948,
+          "output": 319900,
+          "cache_read": 17255799,
+          "cache_creation": 1527169
+        },
+        "tokens_total": 19103816,
+        "cost_usd": 12.508079,
+        "duration_ms": 1373308,
+        "agent_turns": 6,
+        "model_turns": 18,
+        "subagents": 10,
+        "questions": 5,
+        "decision_changing_questions": 2,
+        "interventions": 5,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 12,
+          "output": 2895,
+          "cache_read": 9138,
+          "cache_creation": 22969
+        },
+        "cost_usd": 0.122677,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "discount-applied",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "discount-before-vat",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "shipping-after-discount",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "case-insensitive-code",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "unknown-code-throws",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": true
+        },
+        {
+          "id": "history-unchanged",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 0,
+      "facts_disclosed": [
+        "F1",
+        "F2",
+        "F3",
+        "F4"
+      ],
+      "changed_files": [
+        ".ospec/archive-tx/descuentos-factura/journal.json",
+        ".ospec/archive-tx/descuentos-factura/receipt.json",
+        ".ospec/archive-tx/descuentos-factura/staging/adr/adr-20261006-001-descuento-en-base-imponible-con-reparto.md",
+        ".ospec/archive-tx/descuentos-factura/staging/adr/adr-20261006-002-contrato-aditivo-de-factura-y-error-por-codigo.md",
+        ".ospec/archive-tx/descuentos-factura/staging/specs/invoice-discounts/spec.md",
+        ".ospec/cache/skill-registry.cache.json",
+        ".ospec/runtime/subagent-events.jsonl",
+        ".ospec/session/descuentos-factura/context-measurements.jsonl",
+        ".ospec/session/descuentos-factura/phase-costs.jsonl",
+        ".ospec/session/latest.md",
+        "docs/adr/adr-20261006-001-descuento-en-base-imponible-con-reparto.md",
+        "docs/adr/adr-20261006-002-contrato-aditivo-de-factura-y-error-por-codigo.md",
+        "openspec/changes/archive/2026-10-06-descuentos-factura/apply-progress.md",
+        "openspec/changes/archive/2026-10-06-descuentos-factura/archive-plan.json",
+        "openspec/changes/archive/2026-10-06-descuentos-factura/archive-report.md",
+        "openspec/changes/archive/2026-10-06-descuentos-factura/decisions/adr-001.md",
+        "openspec/changes/archive/2026-10-06-descuentos-factura/decisions/adr-002.md",
+        "openspec/changes/archive/2026-10-06-descuentos-factura/design.md",
+        "openspec/changes/archive/2026-10-06-descuentos-factura/proposal.md",
+        "openspec/changes/archive/2026-10-06-descuentos-factura/specs/invoice-discounts/spec.md",
+        "openspec/changes/archive/2026-10-06-descuentos-factura/state.yaml",
+        "openspec/changes/archive/2026-10-06-descuentos-factura/tasks.md",
+        "openspec/changes/archive/2026-10-06-descuentos-factura/verify-report.md",
+        "openspec/specs/invoice-discounts/spec.md",
+        "src/invoice.js",
+        "test/invoice.characterization.test.js",
+        "test/invoice.discounts.test.js"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Antes de crear nada en `openspec/changes/`, necesito que confirmes cómo entendí el pedido. `AskUserQuestion` no está disponible en esta sesión, así que te lo pregunto por chat.\n\n**Síntesis**\n- `calcInvoice(order)` aceptará un `order.discountCode` opcional, por ejemplo `VERANO10`. El porcentaje se toma de `CODIGOS` en `src/discounts.js` (hoy `VERANO10` = 10 y `BIENVENIDA5` = 5).\n- La factura devuelta tendrá un campo nuevo, `descuento`, con el importe descontado.\n- Una factura sin código, o con un código que no existe, debe quedar igual que hoy. `descuento` valdría 0 en esos casos.\n\n**Lo que no puedo deducir de pedido ni código**\n`src/invoice.js` dice \"No tocar sin hablar con contabilidad\", así que estos puntos los tiene que decidir contabilidad:\n1. ¿El descuento se aplica sobre el subtotal antes del IVA (y reduce la base imponible), o sobre el total?\n2. ¿El umbral de envío gratis (50) se evalúa con el subtotal antes o después del descuento?\n3. ¿Qué hacemos con un código inválido: lo ignoramos o lanzamos un error?\n\nNo son bloqueantes para arrancar. Los dejaría como preguntas abiertas para la fase de specs, salvo que ya tengas la respuesta.\n\n**Estado del repo**\n- `openspec/config.yaml` ya existe, con `tdd_mode: focused` y runner `node --test`.\n- No hay tests ni specs base (`baseline.status: pending`).\n\nResponde con una de estas opciones:\n1. **Confirmar esta síntesis**: sigo con la clasificación y la elección de ruta.\n2. **Corregirla**: dime qué cambiar. Tengo hasta 2 correccione…"
+        },
+        {
+          "role": "user",
+          "kind": "question",
+          "text": "Corrijo la síntesis y respondo a los puntos:\n1. El descuento se aplica a la base imponible, antes del IVA. El IVA se calcula sobre el importe ya descontado.\n2. El envío nunca se descuenta. El umbral de envío gratis (50) se mira con el importe ya descontado.\n3. Un código que no existe es un error: la factura no se calcula y se lanza una excepción. No se ignora, así que no vale lo que dices de que quede igual que hoy con `descuento` a 0.\nCon estas correcciones, sigue con la clasificación y la ruta, y llévalo hasta el final.",
+          "facts_disclosed": [
+            "F1",
+            "F2",
+            "F4"
+          ],
+          "deviates_from_recommendation": true
+        },
+        {
+          "role": "agent",
+          "text": "Recibido. Esta es la síntesis corregida (corrección 1 de 2). Como el protocolo exige que confirmes la nueva versión antes de clasificar, todavía no he creado nada.\n\n**Síntesis corregida**\n- `calcInvoice(order)` aceptará un `order.discountCode` opcional. El porcentaje sale de `CODIGOS` en `src/discounts.js` (`VERANO10` = 10 %, `BIENVENIDA5` = 5 %).\n- El descuento se aplica a la base imponible, antes del IVA. El IVA se calcula sobre el importe ya descontado.\n- El envío nunca se descuenta. El umbral de envío gratis (50) se evalúa con el subtotal ya descontado, y `pickup` sigue dando envío 0.\n- La factura incluirá un campo nuevo, `descuento`, con el importe descontado.\n- Un código que no existe lanza una excepción y no se calcula la factura. Sin `discountCode`, la factura queda igual que hoy, y `descuento` sería 0 (esto último es mi suposición, no lo has indicado).\n- Cambia una regla de facturación en producción, así que por el aviso de `invoice.js` (\"hablar con contabilidad\") y por `config.yaml` irá con plan de rollback y verificación contra los requisitos de contabilidad.\n\n**Dos detalles que dejo para la fase de specs**\n- Cuando hay líneas con IVA distinto (21 % y 10 %), \"IVA sobre lo descontado\" obliga a repartir el descuento entre las líneas. Propondría un reparto proporcional al importe de cada línea, con `r2()` como hoy.\n- Si el código se compara sin distinguir mayúsculas y minúsculas, y qué pasa con `discountCode` vacío o `null`.\n\nResponde con una de estas opciones:\n1. **C…"
+        },
+        {
+          "role": "user",
+          "kind": "question",
+          "text": "Opción 1: confirmo la síntesis. Sobre el código: no distingue mayúsculas y minúsculas, así que `verano10` vale lo mismo que `VERANO10`. Para lo demás que dejas a specs, sigue tu recomendación.",
+          "facts_disclosed": [
+            "F3"
+          ],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "La confirmación quedó registrada y la clasificación está hecha. No he lanzado ninguna fase todavía.\n\n**Resultado**\n- Está persistido `openspec/changes/descuentos-factura/state.yaml` con `intent-briefing` aceptado. Incluye la síntesis con tus tres decisiones y la regla de mayúsculas y minúsculas.\n- La clasificación es `normal`. Es un cambio de comportamiento en la facturación de producción, con una regla nueva de cálculo, la interacción entre descuento, IVA y umbral de envío, y una excepción nueva. No es `trivial` ni `small`, así que no va por lite.\n- `openspec/config.yaml` no declara `routing:`. El despachador devolvió `no_matching_eligible_route`, y aplico la degradación prevista: flujo estándar completo sin bloque `route:` en `state.yaml`. El flujo estándar es proposal → specs → clarify (si hace falta) → design → tasks → apply → verify → archive.\n- El baseline está en `pending` y `openspec/specs/` está vacío. Sin tabla de rutas no se dispara el aviso de brownfield. Las specs de este cambio describirán el comportamiento de facturación completo que toca, no solo el delta del descuento.\n\n**Dos decisiones antes de empezar**\nDijiste \"llévalo hasta el final\", pero estas respuestas tienen que venir de ti.\n\n1. **Modo de ejecución**\n   - `auto`: las fases corren seguidas y solo veo el resultado final. Los gates de carga de revisión y los bloqueos se paran igualmente.\n   - `interactive` (el que usaría por defecto): te pregunto tras cada fase. Dado que `invoice.js` es sensible para co…"
+        },
+        {
+          "role": "user",
+          "kind": "question",
+          "text": "No tengo preferencia en ninguna de las dos: sigue tu recomendación, interactive + ask-on-risk. Lanza proposal y avanza hasta dejar el cambio implementado, verificado y archivado.",
+          "facts_disclosed": [],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "`verify` se ha detenido antes de ejecutar nada y necesita decisiones tuyas. Tiene 8 supuestos sin resolver y no puede dar un veredicto sin saber cómo tratarlos. No ha escrito ni ejecutado nada.\n\nDos supuestos tienen reversibilidad baja y los pregunta por separado.\n\n**1. `sdd-spec-002`: el residuo del reparto va a la última línea con importe mayor que 0.**\n- `leave-unresolved` (recomendado): Contabilidad aún no ha dado su conformidad, así que confirmarlo sería afirmar algo que solo ellos pueden validar. El informe llevará un aviso (WARNING), y se confirma cuando llegue su respuesta.\n- `confirm`: lo das por bueno ya.\n- `correct`: lo corriges, con nota.\n- `promote-to-clarification`: lo marcas para una aclaración posterior.\n\n**2. `sdd-spec-003`: `subtotal` y `lineas[].importe` salen antes del descuento. `iva` y `total` ya lo reflejan. No hay campos nuevos en las líneas.**\n- `confirm` (recomendado): mantiene el contrato actual con quienes consumen la factura y encaja con la propuesta.\n- `correct`, `promote-to-clarification` o `leave-unresolved`.\n\n**3. Supuestos reversibles.** Dime cuáles confirmas. Los que no marques quedan sin resolver y no se escalan. Recomiendo confirmar los 6:\n- `sdd-spec-001`: un código desconocido lanza un `Error` con el mensaje «Codigo de descuento desconocido: <código>».\n- `sdd-spec-004`: `undefined`, `null` o `''` equivalen a sin código. No se recortan espacios, y los valores que no son texto o las claves del prototipo cuentan como desconocidos.\n- `sdd-sp…"
+        },
+        {
+          "role": "user",
+          "kind": "question",
+          "text": "1 leave-unresolved, 2 confirm, 3 confirmo los seis. Con eso relanza verify y sigue hasta dejar el cambio verificado y archivado.",
+          "facts_disclosed": [],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "`verify` terminó con **PASS WITH WARNINGS**: sin problemas críticos y con 6 avisos. Antes de archivar necesito que aceptes los avisos de forma explícita, porque el archivo exige que los riesgos se acepten o se conviertan en seguimiento.\n\n**Evidencia**\n- `node --test`: 25 de 25 pasan, y los 12 escenarios del spec tienen test real. Las cifras literales (62.37, 59.4, 54.45, 114.95 y el reparto 0.33/0.33/0.34) las recalculó por separado y coinciden.\n- Sin código de descuento, la factura es idéntica a la v1: 0 diferencias en 60.000 facturas aleatorias.\n- Con descuento, los repartos suman exactamente el descuento en 20.000 facturas. Los códigos inválidos lanzan el `Error` esperado y se validan antes de cualquier cálculo.\n- La gate de calidad no está declarada en `config.yaml` y el envelope de `verify` fue `success`, así que no se bloquea el archivado por ese lado.\n\n**Los 6 avisos**\n1. **Contabilidad no ha dado su conformidad.** Falta que valide el IVA por línea sobre la base descontada y el residuo en la última línea. `sdd-spec-002` sigue sin resolver.\n2. **Empates de medio céntimo.** `r2()` es el redondeo que ya usaba la v1 y redondea hacia abajo algunos empates: 71.50 × 0.21 = 15.015 sale 15.01. Afecta a unas 196 de cada 20.000 facturas con descuento. Cumple el spec, pero Contabilidad tiene que aceptarlo.\n3. **Residuo negativo.** Con líneas muy pequeñas, `[0.15, 0.15, 0.15, 0.01]` con descuento 0.05 se reparte como `[0.02, 0.02, 0.02, -0.01]`. Los totales cuadran, pero el spec no…"
+        },
+        {
+          "role": "user",
+          "kind": "question",
+          "text": "No tengo preferencia entre las opciones, así que sigue tu recomendación: la 1. Acepto los avisos, déjalos como seguimiento y archiva el cambio.",
+          "facts_disclosed": [],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "El cambio `descuentos-factura` está **archivado**. El runtime devolvió un recibo de éxito (`outcome: success`) tras comparar los 11 ficheros del inventario, y la carpeta original ya no existe.\n\n**Dónde queda**\n- **Archivo:** `openspec/changes/archive/2026-10-06-descuentos-factura/`.\n- **Spec promovida:** `openspec/specs/invoice-discounts/spec.md`, capacidad nueva.\n- **ADRs promovidos:** dos en `docs/adr/` (`adr-20261006-001-…` y `adr-20261006-002-…`).\n\n**Lo que implementa el cambio**\n`calcInvoice` acepta `order.discountCode`, sin distinguir mayúsculas. El descuento se aplica a la base antes del IVA, y el envío nunca se descuenta. El umbral de envío gratis se evalúa con el subtotal descontado. La factura incluye el campo `descuento`, y un código inexistente lanza un `Error`. Con 25 de 25 tests en verde, el resultado de `verify` fue PASS WITH WARNINGS.\n\n**Para no engañarte**\n- **No hay commit de git.** El código (`src/invoice.js`) y los tests (`test/`) están sin confirmar en la rama `feat/descuentos-factura`, como pediste. Hasta que haya un commit, `git revert` no sirve como plan de vuelta atrás. Dime si quieres que lo haga.\n- **Contabilidad no ha dado su conformidad.** Los seguimientos que quedan abiertos, y que tú aceptaste, son:\n  - El IVA por línea sobre la base descontada y el residuo del reparto en la última línea.\n  - Los empates de medio céntimo de `r2()`.\n  - El descuento negativo en líneas muy pequeñas.\n- **Hubo tropiezos en el archivado**, resueltos:\n  - El plan sali…"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "bf0f838d37ee8239667fad7117dba7f1cb05742ec60dd485c7603d9901aec952"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "749c1c3648a5079dfdb3b7c29eb6cc7394783e2a6edbe48147a338091e125d71"
+        },
+        {
+          "label": "change",
+          "turn": 2,
+          "sha256": "7ca3d7932c5d8f87ad75a525b5ba8298f6d4cdee4fd0ba17bff46e04ce724006"
+        },
+        {
+          "label": "change",
+          "turn": 3,
+          "sha256": "d718fbab05a2b93747ef016a019f4e798cc2270714386f3ea4ac8c53c25a2b87"
+        },
+        {
+          "label": "change",
+          "turn": 4,
+          "sha256": "fb10d2daa8dd4898e463e054ec7f5bc0f766ca01e42842f52a8e043c6337c771"
+        },
+        {
+          "label": "change",
+          "turn": 5,
+          "sha256": "4adb28dfbdd0ddef329d3bbff53623a7cac7f30db9c06423523c3f8853c3a46a"
+        },
+        {
+          "label": "change",
+          "turn": 6,
+          "sha256": "b8dd94a818405a014d669b688b2d9fd5681aeb4180c75963431f153acfe0d378"
+        }
+      ]
+    },
+    {
+      "scenario_id": "public-library",
+      "profile": "public-library",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 120,
+          "output": 6772,
+          "cache_read": 488326,
+          "cache_creation": 52110
+        },
+        "cost_usd": 0.200795,
+        "duration_ms": 80425,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 700,
+          "output": 122390,
+          "cache_read": 9632571,
+          "cache_creation": 656866
+        },
+        "tokens_total": 10412527,
+        "cost_usd": 5.187014,
+        "duration_ms": 1108930,
+        "agent_turns": 3,
+        "model_turns": 58,
+        "subagents": 10,
+        "questions": 2,
+        "decision_changing_questions": 1,
+        "interventions": 2,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 4,
+          "output": 625,
+          "cache_read": 1615,
+          "cache_creation": 8328
+        },
+        "cost_usd": 0.039893,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "parse-days",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "format-unchanged-by-default",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "format-days-option",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "types-updated",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "changelog-updated",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "existing-behavior",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 0,
+      "facts_disclosed": [
+        "F1",
+        "F2"
+      ],
+      "changed_files": [
+        ".ospec/archive-tx-failed-attempt-1/add-days-support/journal.json",
+        ".ospec/archive-tx-failed-attempt-1/add-days-support/receipt.json",
+        ".ospec/archive-tx-failed-attempt-2/add-days-support/journal.json",
+        ".ospec/archive-tx-failed-attempt-2/add-days-support/receipt.json",
+        ".ospec/archive-tx/add-days-support/journal.json",
+        ".ospec/archive-tx/add-days-support/receipt.json",
+        ".ospec/archive-tx/add-days-support/staging/adr/adr-20261006-001-opt-in-days-via-strict-guard.md",
+        ".ospec/archive-tx/add-days-support/staging/adr/adr-20261006-002-d-first-units-regex-alternation.md",
+        ".ospec/archive-tx/add-days-support/staging/specs/format/spec.md",
+        ".ospec/archive-tx/add-days-support/staging/specs/parse/spec.md",
+        ".ospec/cache/skill-registry.cache.json",
+        ".ospec/session/add-days-support/context-measurements.jsonl",
+        ".ospec/session/add-days-support/phase-costs.jsonl",
+        ".ospec/session/latest.md",
+        "CHANGELOG.md",
+        "README.md",
+        "docs/adr/adr-20261006-001-opt-in-days-via-strict-guard.md",
+        "docs/adr/adr-20261006-002-d-first-units-regex-alternation.md",
+        "index.d.ts",
+        "index.js",
+        "openspec/changes/archive/2026-10-06-add-days-support/apply-progress.md",
+        "openspec/changes/archive/2026-10-06-add-days-support/archive-plan.json",
+        "openspec/changes/archive/2026-10-06-add-days-support/archive-report.md",
+        "openspec/changes/archive/2026-10-06-add-days-support/decisions/adr-001.md",
+        "openspec/changes/archive/2026-10-06-add-days-support/decisions/adr-002.md",
+        "openspec/changes/archive/2026-10-06-add-days-support/design.md",
+        "openspec/changes/archive/2026-10-06-add-days-support/exploration.md",
+        "openspec/changes/archive/2026-10-06-add-days-support/proposal.md",
+        "openspec/changes/archive/2026-10-06-add-days-support/specs/format/spec.md",
+        "openspec/changes/archive/2026-10-06-add-days-support/specs/parse/spec.md",
+        "openspec/changes/archive/2026-10-06-add-days-support/state.yaml",
+        "openspec/changes/archive/2026-10-06-add-days-support/tasks.md",
+        "openspec/changes/archive/2026-10-06-add-days-support/verify-report.md",
+        "openspec/specs/format/spec.md",
+        "openspec/specs/parse/spec.md",
+        "test/duration.js"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Revisé el código y el `openspec/config.yaml`. El proyecto ya está inicializado, así que no hace falta `sdd-init`. Antes de crear el change necesito que confirmes la síntesis de lo que entendí.\n\n**Síntesis**\n- `parse` aceptará la unidad `d` (días = 86 400 000 ms), de modo que `parse('2d4h')` devuelva `187200000`. Se podrá combinar con las demás unidades y con espacios, como hoy.\n- `format` pasará a mostrar días como la unidad más grande. Por ejemplo, 93 600 000 ms dará `1d 2h`. Hoy esa cantidad saldría como `26h`.\n- Se actualizarán también los tipos (`index.d.ts`), la documentación (README/CHANGELOG) y los tests. No habrá dependencias nuevas ni cambios en las firmas.\n\n**Aviso de compatibilidad:** este cambio altera la salida de `format` para duraciones de 24 horas o más. Antes daba `25h` y ahora dará `1d 1h`. Los consumidores del paquete que dependan del formato anterior verán la diferencia. Es un tema para la propuesta y el plan de rollback.\n\nCuatro opciones:\n1. **Confirmar esta síntesis**\n2. **Corregirla**: dime qué cambiar, por ejemplo si `format` no debería cambiar con valores ≥ 24h.\n3. **Abortar**\n\nRespóndeme con una de ellas. Hasta entonces no creo `openspec/changes/` ni clasifico el cambio. Después de que confirmes te preguntaré el modo de ejecución (automático o interactivo) y la estrategia de entrega."
+        },
+        {
+          "role": "user",
+          "kind": "approval",
+          "text": "Corrijo la síntesis: es una librería pública y la próxima versión es la 1.5.0 (menor), así que nada de lo que ya funciona puede cambiar de comportamiento. Hay usuarios que guardan la salida de `format` (por ejemplo `25h`) y la comparan. Por eso `format` no debe mostrar días por defecto: los días se piden con una opción, `format(ms, { days: true })`. Sin esa opción la salida sigue igual (`25h`). Con la opción, 93 600 000 ms daría `1d 2h`. El resto de la síntesis (parse con `d`, tipos, CHANGELOG, tests) está bien. Con esa corrección, sigue.",
+          "facts_disclosed": [
+            "F1",
+            "F2"
+          ],
+          "deviates_from_recommendation": true
+        },
+        {
+          "role": "agent",
+          "text": "Gracias, con eso cambia el alcance. Según el protocolo, cada corrección necesita una síntesis nueva que confirmes antes de crear el change. Este es el resumen actualizado:\n\n**Síntesis (versión corregida)**\n- **`parse`**: aceptará la unidad `d` (1 día = 86 400 000 ms), así que `parse('2d4h')` devolverá `187200000`. Es una ampliación compatible: todo lo que se parseaba antes sigue dando el mismo resultado.\n- **`format`**: sin opciones, la salida no cambia (`format(90000000)` sigue dando `25h`). Con `format(ms, { days: true })` los días aparecen como la unidad mayor, y 93 600 000 ms da `1d 2h`. La opción es nueva y opcional, así que la firma sigue siendo compatible con la 1.4.0.\n- **Tipos, docs y tests**: `index.d.ts` incorporará el segundo parámetro opcional `{ days?: boolean }`. El CHANGELOG describirá la versión 1.5.0 (menor) y el README documentará la opción. Los tests cubrirán `parse` con `d` y `format` con y sin la opción, y comprobarán que la salida por defecto no cambia.\n- No habrá dependencias nuevas ni cambios de comportamiento en lo que ya funciona.\n\nOpciones:\n1. **Confirmar esta síntesis**\n2. **Corregirla**: te queda una corrección más; después solo podrás confirmar o abortar.\n3. **Abortar**\n\nUn detalle de diseño lo dejo para la fase de spec, salvo que me digas otra cosa ahora: `parse` seguirá aceptando `d` sin necesidad de ninguna opción. Es la lectura natural de tu corrección, que pide que `parse('2d4h')` funcione sin más.\n\nHasta que respondas no creo `openspec/cha…"
+        },
+        {
+          "role": "user",
+          "kind": "approval",
+          "text": "Confirmo la síntesis. Adelante: sigue hasta dejar el cambio implementado, verificado y archivado.",
+          "facts_disclosed": [],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "El cambio `add-days-support` quedó implementado, verificado y archivado en la rama `feat/add-days-support`, **sin commit**: está todo en el working tree. Con la CLI no hice ninguna publicación, así que no hay `npm publish` ni subida de versión en `package.json`.\n\nComprobado al final con `npm test` (11 de 11 en verde) y un script suelto:\n- `parse('2d4h')` devuelve `187200000`.\n- `format(90000000)` sigue dando `25h`.\n- `format(93600000, { days: true })` da `1d 2h`.\n\n**Qué cambió**\n- **Código:** `index.js` acepta `d` en `parse` y `format` solo muestra días con `options?.days === true`. `index.d.ts` declara `format(ms, options?: { days?: boolean })`.\n- **Tests y docs:** hay 8 tests nuevos en `test/duration.js`, y se actualizaron `README.md` y `CHANGELOG.md` (1.5.0). El CHANGELOG deja la fecha como `YYYY-MM-DD` para rellenarla al publicar.\n- **Compatibilidad con 1.4.0:** el verify comparó la salida por defecto de `format` contra el `index.js` de `HEAD` en unos 2,7 millones de casos, sin ninguna diferencia. En `parse` probó 120 025 entradas y ningún resultado cambió.\n- **Archivo:** el change está en `openspec/changes/archive/2026-10-06-add-days-support/`. Las specs de `parse` y `format` están en `openspec/specs/`, y dos ADR en `docs/adr/`.\n\n**Qué debes revisar**\n1. **Aviso W1 sin aceptar por ti.** `index.d.ts` solo se comprobó con un `tsc --strict` puntual hecho en el verify, y `npm test` no detecta cambios en los tipos. Lo registré como trabajo posterior en `follow_ups` de `state.…"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "5f24c1d875b0267db8a64c8bc82784e7aa0370767022531e2fd1a3e8fbb4caab"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "30257e13d682333e04199e1da06903d227508764b05bccfefc0fcda17cd96389"
+        },
+        {
+          "label": "change",
+          "turn": 2,
+          "sha256": "a28516121e700e544c9f5295a60186da66a1042a4c87d80e71efae890d9147ec"
+        },
+        {
+          "label": "change",
+          "turn": 3,
+          "sha256": "433427e885b74c11869eef9867ae4421e90a2a1720040d32fb958a88a909734b"
+        }
+      ]
+    },
+    {
+      "scenario_id": "bugfix",
+      "profile": "bugfix",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 116,
+          "output": 6716,
+          "cache_read": 490339,
+          "cache_creation": 42395
+        },
+        "cost_usd": 0.191494,
+        "duration_ms": 74948,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 400,
+          "output": 76575,
+          "cache_read": 5893433,
+          "cache_creation": 595425
+        },
+        "tokens_total": 6565833,
+        "cost_usd": 4.049343,
+        "duration_ms": 586228,
+        "agent_turns": 3,
+        "model_turns": 17,
+        "subagents": 7,
+        "questions": 2,
+        "decision_changing_questions": 2,
+        "interventions": 2,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 4,
+          "output": 1038,
+          "cache_read": 2202,
+          "cache_creation": 8025
+        },
+        "cost_usd": 0.042929,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "exact-multiple",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "page-below-one",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "beyond-last-page",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "empty-list",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "invalid-page-size",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": true
+        },
+        {
+          "id": "existing-pages",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 0,
+      "facts_disclosed": [
+        "F1",
+        "F2",
+        "F3",
+        "F4"
+      ],
+      "changed_files": [
+        ".ospec/archive-tx/fix-paginate-total-pages/journal.json",
+        ".ospec/archive-tx/fix-paginate-total-pages/receipt.json",
+        ".ospec/cache/skill-registry.cache.json",
+        ".ospec/runtime/subagent-events.jsonl",
+        ".ospec/session/fix-paginate-total-pages/context-measurements.jsonl",
+        ".ospec/session/fix-paginate-total-pages/phase-costs.jsonl",
+        ".ospec/session/latest.md",
+        "openspec/changes/archive/2026-10-06-fix-paginate-total-pages/apply-progress.md",
+        "openspec/changes/archive/2026-10-06-fix-paginate-total-pages/archive-plan.json",
+        "openspec/changes/archive/2026-10-06-fix-paginate-total-pages/archive-report.md",
+        "openspec/changes/archive/2026-10-06-fix-paginate-total-pages/proposal-lite.md",
+        "openspec/changes/archive/2026-10-06-fix-paginate-total-pages/state.yaml",
+        "openspec/changes/archive/2026-10-06-fix-paginate-total-pages/tasks.md",
+        "openspec/changes/archive/2026-10-06-fix-paginate-total-pages/verify-report.md",
+        "src/paginate.js",
+        "test/paginate.js"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Antes de crear nada en `openspec/changes/`, necesito que confirmes que entendí bien el cambio. No tengo disponible la herramienta `AskUserQuestion` en esta sesión, así que te lo pregunto por chat.\n\n**Síntesis de lo que entendí**\n- **Bug 1:** `paginate` calcula `totalPages` con `Math.floor(n / pageSize) + 1`. Con 20 productos y páginas de 10 da 3 en vez de 2, y la web enlaza a una página en blanco. Debe dar `ceil(n / pageSize)`.\n- **Bug 2:** `paginate(items, 0)` no tiene validación de `page` ni de `pageSize`. Con `page = 0`, `start` es `-10` y `slice` devuelve elementos del final del arreglo. Hay que definir un comportamiento claro para entradas inválidas.\n- **Alcance:** `src/paginate.js` y sus tests en `test/paginate.js`. `src/catalog.js` solo se revisa por si depende de `totalPages`. Lo clasifico como bug acotado (`small`), así que iría por la ruta lite.\n\n**Una decisión que necesito de ti:** ¿qué debe pasar con una entrada inválida (`page < 1`, `page` mayor que `totalPages`, `pageSize <= 0`)?\n1. **Lanzar `RangeError`** para `page` o `pageSize` inválidos. Es explícito, pero puede romper a quien hoy llama con 0. Es mi recomendación para `pageSize <= 0` y `page < 1`.\n2. **Ajustar (clamp)** `page` al rango `[1, totalPages]`. Nunca falla, pero puede ocultar errores del llamador.\n3. **Devolver una página vacía** con `totalPages` correcto. Es lo más conservador, pero sigue dando resultados poco claros.\n\n**Cómo respondes:** elige una de estas tres opciones.\n- **Confirmar esta síntes…"
+        },
+        {
+          "role": "user",
+          "kind": "question",
+          "text": "La síntesis está bien, pero corrijo lo de la entrada inválida, que no es una sola opción: \n- `pageSize` menor que 1: es un error de programación, lanza `RangeError`. \n- `page` menor que 1: no lanza error, se trata como la página 1 y la respuesta dice `page: 1`. \n- `page` más allá de la última: devuelve `items` vacío con `totalPages` correcto. No se recoloca en la última página, o sea, sin clamp. \nCon eso, confirmado; sigue hasta dejarlo implementado, verificado y archivado.",
+          "facts_disclosed": [
+            "F1",
+            "F2",
+            "F4"
+          ],
+          "deviates_from_recommendation": true
+        },
+        {
+          "role": "agent",
+          "text": "`sdd-verify` se bloqueó antes de emitir el veredicto. Su protocolo exige que alguien confirme los supuestos pendientes, y esa confirmación te toca a ti.\n\n**Evidencia preliminar (lectura, sin veredicto final)**\n- `node --test` dio 8 de 8 en verde.\n- Con 20 elementos, `paginate(…, 1, 10).totalPages` devuelve 2 (AC-1).\n- `paginate(…, 3, 10)` devuelve `items: []` con `totalPages: 2` (AC-5).\n- `paginate(…, 0)` devuelve la página 1 con los elementos 1 a 10 (AC-4).\n- `paginate(…, 1, 0)` lanza `RangeError` (AC-3).\n- `paginate([], 1, 10)` devuelve `totalPages: 0` e `items: []` (AC-6).\n- No aparecen hallazgos CRITICAL ni WARNING.\n\n**Qué necesito de ti.** Hay dos supuestos sin resolver en `state.yaml`, ambos de reversibilidad alta. ¿Cuáles confirmas? Los que no marques quedan sin resolver, sin escalar.\n1. **`sdd-propose-001`:** con `items` vacío, `totalPages` es 0 y la página 1 devuelve `[]`. Recomiendo confirmarlo: sale de la fórmula `ceil` y de la regla de página fuera de rango que ya aprobaste, y está probado en ejecución.\n2. **`sdd-propose-002`:** se siguió la ruta lite aunque `state.yaml` no tiene `route.actual_route`. Recomiendo confirmarlo: el cambio es `small`, tiene todos los artefactos lite y `config.yaml` no declara una tabla de rutas.\n\nPuedes responder \"confirmo ambos\", indicar solo uno, o rechazar alguno con tu motivo.\n\nMe detengo aquí. Sin tu respuesta no relanzo `sdd-verify`, y por tanto no puedo pasar a archivar. Tampoco he escrito `verify-report.md`, ni he hecho commit."
+        },
+        {
+          "role": "user",
+          "kind": "question",
+          "text": "Confirmo ambos. Sobre el primero: una lista vacía tiene 0 páginas, así que cuadra. El segundo no tengo preferencia, sigue tu recomendación. Relanza sdd-verify y continúa hasta archivar el cambio.",
+          "facts_disclosed": [
+            "F3"
+          ],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "El bug está arreglado, verificado y archivado en `openspec/changes/archive/2026-10-06-fix-paginate-total-pages/`. El runtime de archivo devolvió `outcome: success`. `node --test` da 8 de 8 en verde.\n\n**El arreglo (`src/paginate.js`)**\n- **Páginas:** `totalPages` ahora es `Math.ceil(n / pageSize)`. Con 20 productos y páginas de 10 da 2, y la tercera página en blanco desaparece.\n- **`pageSize` menor que 1:** lanza `RangeError`.\n- **`page` menor que 1:** se trata como la página 1 y la respuesta dice `page: 1`. Así `paginate(items, 0)` ya no devuelve elementos del final de la lista.\n- **`page` más allá de la última:** devuelve `items: []` con `totalPages` correcto, sin recolocar en la última página. Con una lista vacía, `totalPages` es 0, como confirmaste.\n- **Tests:** añadí 5 tests en `test/paginate.js`. Los tests actuales fallaron 5 sobre el código anterior y pasan con el arreglo.\n\n**Verificación:** `sdd-verify` dio PASS en los 7 criterios, sin hallazgos CRITICAL ni WARNING. `src/catalog.js` no necesitó cambios.\n\n**Incidencias del proceso**\n- El primer plan de archivo lo rechazó el runtime: el fingerprint estaba mal formado y las rutas del inventario llevaban prefijo.\n- Un hook había reescrito `state.yaml` con datos que no correspondían: dejó `status: archived` antes de tiempo y metió una fase `archive: done` falsa.\n- El gate de archivo lee `verdict:` en `phases.sdd-verify`, y ese campo no estaba.\n- Corregí todo eso, recalculé el fingerprint con las funciones del runtime y borr…"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "5483a3778ed3143bbdb9a33766eec900ef32f5231a54b6709bb6b14cad402971"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "e57b71e69ceebac22b801db84603af39f2a7bde2812e3d08ceb3b9ef841fb4af"
+        },
+        {
+          "label": "change",
+          "turn": 2,
+          "sha256": "772901524b5bb2759effc5b4e7f7650969a5bbc07038eb5042763f2dc2cf90e2"
+        },
+        {
+          "label": "change",
+          "turn": 3,
+          "sha256": "3e969faa8e6dc1e98f0ece482f0b4db0a9c768c90e2175d0689914cda207e7eb"
+        }
+      ]
+    }
+  ]
+}
