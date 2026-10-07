@@ -400,6 +400,12 @@ Este instalador idempotente realiza los siguientes pasos:
 4. Registra Context7 y MarkItDown una sola vez mediante el CLI nativo de Codex, sin sobrescribir entradas preexistentes.
 5. No instala ni registra plugins o marketplaces de Codex.
 
+Si el host define `CODEX_HOME`, `setup:codex` instala los agentes, el router y los hooks en ese directorio absoluto; las skills globales siguen en `~/.agents/skills/`. Esto permite usar homes gestionados, como los de Orca, sin modificar Orca. Ejecuta el setup con el mismo `CODEX_HOME` que usa la sesión.
+
+Un home gestionado puede enlazar `AGENTS.md` al archivo regular `~/.codex/AGENTS.md`. El setup conserva ese enlace y actualiza el router en el destino global validado. Los enlaces a otros destinos siguen rechazados.
+
+Los hooks invocan un lanzador Node que fija sus marcadores de Codex dentro del proceso, sin asignaciones específicas de `cmd.exe`, PowerShell o Bash. Reejecutar el setup migra los comandos anteriores, conserva los hooks de terceros y no duplica los de OSpec. Reinicia o reanuda Codex para cargar las nuevas definiciones. Consulta la [evidencia de compatibilidad de shells](testing/codex-hook-shell.tdd.md).
+
 ### opencode
 
 El target `opencode` permite dos modalidades de instalación: local (por proyecto) y global (para toda la máquina del usuario). En ambas modalidades, el agente principal `sdd-orchestrator` se renombra automáticamente a `ospec-workflow` para integrarse con la interfaz de OpenCode y permitir el autocompletado con la tecla Tab.

@@ -6,8 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "OSPEC_TARGET=codex OSPEC_CODEX_WRAPPER=1 \"__OSPEC_RUNTIME__/scripts/hooks/ospec-hooks\" session-start",
-            "commandWindows": "set OSPEC_TARGET=codex&& set OSPEC_CODEX_WRAPPER=1&& \"__OSPEC_RUNTIME__\\scripts\\hooks\\ospec-hooks\" session-start",
+            "command": "node \"__OSPEC_RUNTIME__/scripts/hooks/ospec-codex-hook.js\" session-start",
+            "commandWindows": "node \"__OSPEC_RUNTIME__\\scripts\\hooks\\ospec-codex-hook.js\" session-start",
             "timeout": 10
           }
         ]
@@ -19,8 +19,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "OSPEC_TARGET=codex OSPEC_CODEX_WRAPPER=1 \"__OSPEC_RUNTIME__/scripts/hooks/ospec-hooks\" pre-tool-use",
-            "commandWindows": "set OSPEC_TARGET=codex&& set OSPEC_CODEX_WRAPPER=1&& \"__OSPEC_RUNTIME__\\scripts\\hooks\\ospec-hooks\" pre-tool-use",
+            "command": "node \"__OSPEC_RUNTIME__/scripts/hooks/ospec-codex-hook.js\" pre-tool-use",
+            "commandWindows": "node \"__OSPEC_RUNTIME__\\scripts\\hooks\\ospec-codex-hook.js\" pre-tool-use",
             "timeout": 10
           }
         ]

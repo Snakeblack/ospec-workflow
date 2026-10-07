@@ -81,6 +81,7 @@ async function runSessionStart({
   pluginRoot = path.resolve(__dirname, "../.."),
   target = process.env.OSPEC_TARGET,
   homeDir = os.homedir(),
+  codexHome = process.env.CODEX_HOME,
   mode,
   now = () => new Date(),
   gitRunner = undefined,
@@ -116,8 +117,13 @@ async function runSessionStart({
 
   // Global Codex installs split scripts (~/.codex/ospec-workflow) from skills
   // (~/.agents/skills). Source and generated bundles retain root/skills.
-  const installedCodex = target === "codex" &&
-    path.relative(path.join(homeDir, ".codex", "ospec-workflow"), path.resolve(pluginRoot)) === "";
+  const installedRoots = [path.join(homeDir, ".codex", "ospec-workflow")];
+  if (typeof codexHome === "string" && path.isAbsolute(codexHome)) {
+    installedRoots.push(path.join(codexHome, "ospec-workflow"));
+  }
+  const installedCodex = target === "codex" && installedRoots.some(
+    root => path.relative(root, path.resolve(pluginRoot)) === "",
+  );
   const skillsRoot = installedCodex
     ? path.join(homeDir, ".agents", "skills")
     : path.join(pluginRoot, "skills");

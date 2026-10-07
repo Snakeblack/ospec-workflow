@@ -160,9 +160,15 @@ func runSessionStart(input sessionStartInput) ([]byte, int) {
 	skillsRoot := filepath.Join(pluginRoot, "skills")
 	if os.Getenv("OSPEC_TARGET") == "codex" {
 		if home, err := os.UserHomeDir(); err == nil {
-			installedRoot := filepath.Join(home, ".codex", "ospec-workflow")
-			if rel, err := filepath.Rel(installedRoot, pluginRoot); err == nil && rel == "." {
-				skillsRoot = filepath.Join(home, ".agents", "skills")
+			installedRoots := []string{filepath.Join(home, ".codex", "ospec-workflow")}
+			if codexHome := os.Getenv("CODEX_HOME"); filepath.IsAbs(codexHome) {
+				installedRoots = append(installedRoots, filepath.Join(codexHome, "ospec-workflow"))
+			}
+			for _, installedRoot := range installedRoots {
+				if rel, err := filepath.Rel(installedRoot, pluginRoot); err == nil && rel == "." {
+					skillsRoot = filepath.Join(home, ".agents", "skills")
+					break
+				}
 			}
 		}
 	}

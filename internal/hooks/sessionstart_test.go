@@ -143,6 +143,28 @@ func readSessionCache(t *testing.T, ws string) (string, map[string]any) {
 	return file, cache
 }
 
+func TestSessionStart_CustomCodexHome(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	codexHome := filepath.Join(t.TempDir(), "managed runtime home")
+	t.Setenv("CODEX_HOME", codexHome)
+	t.Setenv("OSPEC_TARGET", "codex")
+	t.Setenv("OSPEC_PLUGIN_ROOT", filepath.Join(codexHome, "ospec-workflow"))
+	skillPath := filepath.Join(home, ".agents", "skills", "example", "SKILL.md")
+	writeSessionFile(t, skillPath, "---\nname: example\n---\n## Rules\n- Installed rule.\n")
+	writeSessionFile(t, filepath.Join(home, ".agents", "skills", ".ospec-workflow-install.json"), "{}")
+	ws := createWorkspaceWithConfig(t, "strict_tdd: true\n")
+	got, code := runSessionStart(t, makeSessionInput(ws, "", ""))
+	if code != 0 || got.Registry.Status != "generated" {
+		t.Fatalf("custom home registry: code=%d result=%+v", code, got)
+	}
+	_, cache := readSessionCache(t, ws)
+	if cache["skills"].([]any)[0].(map[string]any)["path"] != filepath.ToSlash(skillPath) {
+		t.Fatalf("shared skill path: %v", cache["skills"])
+	}
+}
+
 func TestSessionStart_LauncherEnvironmentAndInstalledHome(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -845,4 +867,3 @@ func TestSessionStart_GitCollab_StatusProbeFails_DefaultBranch(t *testing.T) {
 		t.Errorf("DirtyTree must be nil (omitted) when status probe fails, got %v", *got.GitCollaboration.DirtyTree)
 	}
 }
-
