@@ -44,6 +44,8 @@ Tras la confirmación, `mem_save` guardó el diagnóstico con ese ID registrado 
 
 ## Límites pendientes
 
+El diagnóstico posterior reprodujo los avisos de OSpec al ejecutar comandos generados para cmd desde PowerShell. La corrección del lanzador, del home activo y la verificación de ambos homes se recogen en [Hooks Codex: shells y homes gestionados](codex-hook-shell.tdd.md), incluidos en la versión 2.108.1.
+
 Los tiempos anteriores pertenecen a la reproducción directa de los hooks con datos originales del host, no a un nuevo arranque automático de Orca. La reanudación probada conserva una sesión activa; no se terminó esa sesión para forzar una continuación de una sesión cerrada. Los procesos MCP ya abiertos conservan el binario antiguo hasta que su host los reinicie.
 
-No se recuperó una traza original del aviso recurrente `Hook failed`. Los hooks de Engram probados no lo reprodujeron. El fallo oculto de `codex-register` explica la identidad ausente, pero no demuestra qué componente generó aquel aviso visual. La issue debe seguir abierta hasta verificar el arranque/reanudación automáticos en Orca y capturar el hook concreto si reaparece el aviso. El diagnóstico global de sincronización de `engram doctor` es independiente de esta evidencia.
+Los hooks de Engram probados no reprodujeron el aviso recurrente. El fallo oculto de `codex-register` explica la identidad ausente; el informe posterior reproduce los fallos de los comandos OSpec instalados. La issue debe seguir abierta hasta verificar el arranque/reanudación automáticos en Orca y capturar el hook concreto si reaparece el aviso. El diagnóstico global de sincronización de `engram doctor` es independiente de esta evidencia.
