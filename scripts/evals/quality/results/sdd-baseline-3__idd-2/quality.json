@@ -1,0 +1,1175 @@
+{
+  "baseline": "sdd-baseline-3",
+  "candidate": "idd-2",
+  "scenarios": {
+    "cli-local": {
+      "baseline": {
+        "diff": "deliveries/sdd-baseline-3/cli-local.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 37,
+            "test": 75,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 4,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 14,
+          "test_to_source": 2.03,
+          "suite_passes": true,
+          "suite_tests": 14
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 18,
+          "total": 18,
+          "killed": 15,
+          "survived": [
+            {
+              "file": "src/cli.js",
+              "line": 32,
+              "operator": "relational",
+              "text": "if (at <= 0 || rest[at] !== \"--priority\" || !isValidPriority(rest[at + 1])"
+            },
+            {
+              "file": "src/cli.js",
+              "line": 32,
+              "operator": "logical",
+              "text": "if (at < 0 && rest[at] !== \"--priority\" || !isValidPriority(rest[at + 1])"
+            },
+            {
+              "file": "src/cli.js",
+              "line": 32,
+              "operator": "literal",
+              "text": "if (at < 1 || rest[at] !== \"--priority\" || !isValidPriority(rest[at + 1])"
+            }
+          ],
+          "score": 83.3
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-2/cli-local.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 26,
+            "test": 37,
+            "types": 0,
+            "docs": 4,
+            "other": 0
+          },
+          "removed": {
+            "source": 5,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 1.42,
+          "suite_passes": true,
+          "suite_tests": 6
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 15,
+          "total": 15,
+          "killed": 14,
+          "survived": [
+            {
+              "file": "src/cli.js",
+              "line": 24,
+              "operator": "literal",
+              "text": "if (flag + 3 < rest.length || !PRIORITIES.includes(priority)) {"
+            }
+          ],
+          "score": 93.3
+        }
+      },
+      "judge": {
+        "model": "claude-sonnet-5-5",
+        "cost_usd": 0.0975,
+        "scores": {
+          "baseline": {
+            "correctness": 4,
+            "readability": 2.5,
+            "design": 3,
+            "tests": 3.5,
+            "scope": 2
+          },
+          "candidate": {
+            "correctness": 4,
+            "readability": 4,
+            "design": 4,
+            "tests": 3.5,
+            "scope": 4.5
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 4,
+                  "B": 4
+                },
+                "readability": {
+                  "A": 2,
+                  "B": 4
+                },
+                "design": {
+                  "A": 3,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 4,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 2,
+                  "B": 4
+                }
+              },
+              "preferred": "B",
+              "rationale": "Both meet the requirements: default media, exit 2 on invalid input with nothing saved, legacy tasks treated as media, stable ordering, and an unchanged line prefix. B is more compact and readable, with a single `priorityOf` helper and an index-based stable sort. B also updates the README and shows the priority after the title, which the requirements allow. A has a convoluted flag-position check, a stray literal newline inside a template string, an unused `storeOf` helper, repeated test boilerplate, and no README update. A also has a mid-file `USAGE` import from cli.js that the diff doesn't show being exported. A's tests are more thorough, with a table of error cases and an explicit check that the store stays untouched. Still, I'd merge B for its cleaner code and docs."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 4,
+                  "B": 4
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 3
+                },
+                "design": {
+                  "A": 4,
+                  "B": 3
+                },
+                "tests": {
+                  "A": 4,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 5,
+                  "B": 2
+                }
+              },
+              "preferred": "A",
+              "rationale": "I would merge A. Both meet the functional requirements: default media, exit 2 on invalid input with nothing saved, legacy tasks treated as media, stable order, and the line prefix unchanged. A also updates the README, and its `priorityOf` helper falls back to media even for unknown stored values. Its tests cover ordering with a done task, the invalid and missing value cases, and a legacy file. B leaves the README untouched and has a stray literal newline inside a template string. B's new tests import `USAGE` from `src/cli.js`, and the diff doesn't show that export being added, so they may not run as written. B also repeats a convoluted `--priority` check and has more boilerplate in its tests. A's one debatable choice is that it lowercases the value, so `ALTA` is accepted."
+            }
+          }
+        ]
+      }
+    },
+    "saas-small": {
+      "baseline": {
+        "diff": "deliveries/sdd-baseline-3/saas-small.diff",
+        "metrics": {
+          "files": {
+            "source": 2,
+            "test": 1,
+            "types": 0,
+            "docs": 3,
+            "other": 0
+          },
+          "added": {
+            "source": 43,
+            "test": 96,
+            "types": 0,
+            "docs": 39,
+            "other": 0
+          },
+          "removed": {
+            "source": 8,
+            "test": 0,
+            "types": 0,
+            "docs": 2,
+            "other": 0
+          },
+          "workflow_files": 25,
+          "test_to_source": 2.23,
+          "suite_passes": true,
+          "suite_tests": 11
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 28,
+          "total": 28,
+          "killed": 27,
+          "survived": [
+            {
+              "file": "src/app.js",
+              "line": 38,
+              "operator": "logical",
+              "text": "if (shareMatch || method === \"POST\") {"
+            }
+          ],
+          "score": 96.4
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-2/saas-small.diff",
+        "metrics": {
+          "files": {
+            "source": 2,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 31,
+            "test": 29,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "removed": {
+            "source": 2,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 0.94,
+          "suite_passes": true,
+          "suite_tests": 5
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 22,
+          "total": 22,
+          "killed": 21,
+          "survived": [
+            {
+              "file": "src/app.js",
+              "line": 31,
+              "operator": "logical",
+              "text": "if (shareMatch || method === \"POST\") {"
+            }
+          ],
+          "score": 95.5
+        }
+      },
+      "judge": {
+        "model": "claude-sonnet-5-5",
+        "cost_usd": 0.115,
+        "scores": {
+          "baseline": {
+            "correctness": 5,
+            "readability": 4,
+            "design": 4,
+            "tests": 5,
+            "scope": 3
+          },
+          "candidate": {
+            "correctness": 3.5,
+            "readability": 3,
+            "design": 3.5,
+            "tests": 3,
+            "scope": 3.5
+          }
+        },
+        "preferred": "baseline",
+        "preferences": [
+          "baseline",
+          "baseline"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 5,
+                  "B": 3
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 3
+                },
+                "design": {
+                  "A": 4,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 5,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 3,
+                  "B": 4
+                }
+              },
+              "preferred": "A",
+              "rationale": "I would merge A. It meets every requirement: a tenant-scoped read predicate, owner-only writes and sharing, idempotent sharing, and an unambiguous 404 for other tenants. It also guards against a null or non-object body and copies `sharedWith` so callers can't alias stored state. Its tests cover each requirement and edge case, including read-only recipients, check order and aliasing. B has a real bug: `body.userId` throws on a null body. The B test has no direct assertion that the recipient can't edit via the shared path beyond status codes, and its README has encoding corruption (`organizaci�n`). A's extra ADR files are mild scope creep, but they don't outweigh B's weaker robustness and tests."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 4,
+                  "B": 5
+                },
+                "readability": {
+                  "A": 3,
+                  "B": 4
+                },
+                "design": {
+                  "A": 3,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 3,
+                  "B": 5
+                },
+                "scope": {
+                  "A": 3,
+                  "B": 3
+                }
+              },
+              "preferred": "B",
+              "rationale": "I would merge B. Its canRead/isOwner predicates keep the list and detail views consistent and make the read-only rule explicit. It also handles null or non-string bodies, and its tests cover idempotency, read-only behaviour, cross-tenant attempts and the order of the checks. Its README is correct, while A's new row is corrupted (\"organizaci�n\") and leaves the old \"propia\" rows stale. B's downsides are two unrequested ADR files and a new `sharedWith` field exposed on every note body, but these are smaller problems than A's thinner tests and README. A is smaller and meets the requirements, but a null body would make its share handler throw."
+            }
+          }
+        ]
+      }
+    },
+    "regulated": {
+      "baseline": {
+        "diff": "deliveries/sdd-baseline-3/regulated.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 23,
+            "test": 141,
+            "types": 0,
+            "docs": 15,
+            "other": 0
+          },
+          "removed": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 2,
+            "other": 0
+          },
+          "workflow_files": 17,
+          "test_to_source": 6.13,
+          "suite_passes": true,
+          "suite_tests": 12
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 7,
+          "total": 7,
+          "killed": 5,
+          "survived": [
+            {
+              "file": "src/clinic.js",
+              "line": 48,
+              "operator": "relational",
+              "text": ".sort((a, b) => (a.time < b.time ? -1 : a.time >= b.time ? 1 : 0));"
+            },
+            {
+              "file": "src/clinic.js",
+              "line": 48,
+              "operator": "literal",
+              "text": ".sort((a, b) => (a.time < b.time ? -2 : a.time > b.time ? 1 : 0));"
+            }
+          ],
+          "score": 71.4
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-2/regulated.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 21,
+            "test": 45,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 2.14,
+          "suite_passes": true,
+          "suite_tests": 7
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 10,
+          "total": 10,
+          "killed": 7,
+          "survived": [
+            {
+              "file": "src/clinic.js",
+              "line": 38,
+              "operator": "arithmetic",
+              "text": "if (/^[=+\\+@\\t\\r]/.test(text)) text = `'${text}`;"
+            },
+            {
+              "file": "src/clinic.js",
+              "line": 46,
+              "operator": "relational",
+              "text": ".sort((a, b) => (a.time < b.time ? -1 : a.time >= b.time ? 1 : 0))"
+            },
+            {
+              "file": "src/clinic.js",
+              "line": 46,
+              "operator": "literal",
+              "text": ".sort((a, b) => (a.time < b.time ? -2 : a.time > b.time ? 1 : 0))"
+            }
+          ],
+          "score": 70
+        }
+      },
+      "judge": {
+        "model": "claude-sonnet-5-5",
+        "cost_usd": 0.0876,
+        "scores": {
+          "baseline": {
+            "correctness": 3,
+            "readability": 4,
+            "design": 4,
+            "tests": 4,
+            "scope": 3.5
+          },
+          "candidate": {
+            "correctness": 5,
+            "readability": 4,
+            "design": 4,
+            "tests": 3.5,
+            "scope": 3.5
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 3,
+                  "B": 5
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 4,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 3,
+                  "B": 4
+                }
+              },
+              "preferred": "B",
+              "rationale": "B neutralizes spreadsheet formula injection (leading `=`, `+`, `-`, `@`) by prefixing an apostrophe. It also uses CRLF line endings, as RFC 4180 specifies, and its tests check the exact output for the user's examples (`Pérez, Ana`, `Revisión \"anual\"`). A escapes commas, quotes and newlines correctly, but it deliberately emits formulas such as `=SUM(A1)` verbatim, and its README only tells users to import the file as text. That leaves a known risk in a patient-data export that people open in spreadsheets. A's tests are more thorough (a deny-before-read proxy check, no-leak checks, no mutation, audit shape) and it documents the feature, but it also adds a large test block and a README section. B has no README update and thinner tests: it never asserts that DNI or diagnosis are absent, and it only checks the audit fields it needs. I would merge B, because the formula-injection protection matters more than A's extra tests and docs."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 5,
+                  "B": 3
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 4,
+                  "B": 4
+                },
+                "scope": {
+                  "A": 3,
+                  "B": 4
+                }
+              },
+              "preferred": "A",
+              "rationale": "Delivery A cumple el requisito de que el CSV se abra bien en una hoja de cálculo: cita correctamente comas, comillas y saltos de línea, usa CRLF y neutraliza fórmulas (=, +, -, @) con un apóstrofo. Sus tests cubren orden, escape, día vacío, rol denegado y auditoría. B escapa bien comas y comillas, pero emite verbatim los valores que empiezan por `=`, `+`, `-` o `@` (inyección de fórmulas en una hoja de cálculo), y lo fija con un test y lo documenta como limitación. B tiene más tests (no filtra DNI ni diagnóstico, no muta las entradas) y actualiza el README, pero eso no compensa el fallo de seguridad. A no actualiza el README, lo cual es una carencia menor. Fusionaría A."
+            }
+          }
+        ]
+      }
+    },
+    "brownfield": {
+      "baseline": {
+        "diff": "deliveries/sdd-baseline-3/brownfield.diff",
+        "metrics": {
+          "files": {
+            "source": 2,
+            "test": 2,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 38,
+            "test": 179,
+            "types": 0,
+            "docs": 19,
+            "other": 0
+          },
+          "removed": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 19,
+          "test_to_source": 4.71,
+          "suite_passes": true,
+          "suite_tests": 21
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 21,
+          "total": 21,
+          "killed": 18,
+          "survived": [
+            {
+              "file": "src/discounts.js",
+              "line": 11,
+              "operator": "throw",
+              "text": "if (typeof codigo !== 'string') void new Error('Codigo debe ser string');"
+            },
+            {
+              "file": "src/invoice.js",
+              "line": 36,
+              "operator": "literal",
+              "text": "var descR = r2(baseR * pct / 101);"
+            },
+            {
+              "file": "src/invoice.js",
+              "line": 43,
+              "operator": "relational",
+              "text": "var envioDesc = baseDesc > UMBRAL_ENVIO_GRATIS ? 0 : ENVIO;"
+            }
+          ],
+          "score": 85.7
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-2/brownfield.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 23,
+            "test": 39,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 1.7,
+          "suite_passes": true,
+          "suite_tests": 5
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 10,
+          "total": 10,
+          "killed": 9,
+          "survived": [
+            {
+              "file": "src/invoice.js",
+              "line": 18,
+              "operator": "arithmetic",
+              "text": "throw new Error('Codigo de descuento desconocido: ' - code);"
+            }
+          ],
+          "score": 90
+        }
+      },
+      "judge": {
+        "model": "claude-sonnet-5-5",
+        "cost_usd": 0.127,
+        "scores": {
+          "baseline": {
+            "correctness": 4,
+            "readability": 3,
+            "design": 2.5,
+            "tests": 5,
+            "scope": 2
+          },
+          "candidate": {
+            "correctness": 4,
+            "readability": 4.5,
+            "design": 4,
+            "tests": 3,
+            "scope": 4.5
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 4,
+                  "B": 4
+                },
+                "readability": {
+                  "A": 3,
+                  "B": 4
+                },
+                "design": {
+                  "A": 3,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 5,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 2,
+                  "B": 4
+                }
+              },
+              "preferred": "B",
+              "rationale": "I would merge B. It meets every requirement with a small change that reuses the existing per-line loop: the discount applies per line, VAT is computed on the discounted line, the free-shipping threshold uses the discounted subtotal, and the no-code path is untouched. The invoice stays internally consistent, because the lines sum to the subtotal and the line VAT values sum to `iva`. A is also correct, and its tests are far better. But it adds a second calculation path, a separate group-allocation scheme, a new export, an ADR file, and an `iva` that no longer equals the sum of the line VAT values. The ADR itself says accounting hasn't reviewed the allocation. B's tests are thin: they have no mixed-rate or pickup case, and the empty-string code is silently treated as no code. Those gaps are easier to fix than A's extra complexity."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 4,
+                  "B": 4
+                },
+                "readability": {
+                  "A": 5,
+                  "B": 3
+                },
+                "design": {
+                  "A": 4,
+                  "B": 2
+                },
+                "tests": {
+                  "A": 3,
+                  "B": 5
+                },
+                "scope": {
+                  "A": 5,
+                  "B": 2
+                }
+              },
+              "preferred": "A",
+              "rationale": "I'd merge A. Both meet the requirements: the discount comes before VAT, the free-shipping threshold uses the discounted amount, codes are case-insensitive, unknown codes throw, and the no-code path keeps its numbers. A does it with one small helper and a per-line discount, so `lineas`, `subtotal`, `iva` and `total` stay consistent and there is no duplicated shipping or total logic. B adds a second return path that repeats the shipping and total logic, leaves `Σ lineas[].iva != iva`, adds an ADR, and edits `discounts.js`, which goes beyond the request. B's tests are clearly stronger, with many no-code characterization cases, a mixed-VAT case, pickup and an invariant check. A's tests cover the essentials but only one no-code case, so I'd ask for a few more regression tests before merging."
+            }
+          }
+        ]
+      }
+    },
+    "public-library": {
+      "baseline": {
+        "diff": "deliveries/sdd-baseline-3/public-library.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 1,
+            "docs": 4,
+            "other": 0
+          },
+          "added": {
+            "source": 24,
+            "test": 81,
+            "types": 8,
+            "docs": 48,
+            "other": 0
+          },
+          "removed": {
+            "source": 6,
+            "test": 0,
+            "types": 3,
+            "docs": 4,
+            "other": 0
+          },
+          "workflow_files": 28,
+          "test_to_source": 3.38,
+          "suite_passes": true,
+          "suite_tests": 14
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 16,
+          "total": 16,
+          "killed": 15,
+          "survived": [
+            {
+              "file": "index.js",
+              "line": 10,
+              "operator": "logical",
+              "text": "if (typeof value !== \"object\" && value === null) return false;"
+            }
+          ],
+          "score": 93.8
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-2/public-library.diff",
+        "metrics": {
+          "files": {
+            "source": 2,
+            "test": 1,
+            "types": 1,
+            "docs": 2,
+            "other": 0
+          },
+          "added": {
+            "source": 12,
+            "test": 15,
+            "types": 8,
+            "docs": 14,
+            "other": 0
+          },
+          "removed": {
+            "source": 7,
+            "test": 0,
+            "types": 3,
+            "docs": 4,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 1.25,
+          "suite_passes": true,
+          "suite_tests": 5
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 6,
+          "total": 6,
+          "killed": 6,
+          "survived": [],
+          "score": 100
+        }
+      },
+      "judge": {
+        "model": "claude-sonnet-5-5",
+        "cost_usd": 0.1001,
+        "scores": {
+          "baseline": {
+            "correctness": 3,
+            "readability": 4,
+            "design": 3.5,
+            "tests": 4.5,
+            "scope": 2
+          },
+          "candidate": {
+            "correctness": 4.5,
+            "readability": 4.5,
+            "design": 4,
+            "tests": 3,
+            "scope": 3.5
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 4,
+                  "B": 4
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 5
+                },
+                "design": {
+                  "A": 4,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 5,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 2,
+                  "B": 3
+                }
+              },
+              "preferred": "B",
+              "rationale": "Both keep the default `format` output unchanged, add `d` to `parse`, and update the types, README and CHANGELOG. A's strict options validation is a new throwing behavior that nobody asked for. A also adds two ADR files, which are scope creep, and leaves the CHANGELOG under Unreleased without the version bump. A's tests are much more thorough. B is minimal and reads well, but its tests are thin: they don't cover parse errors or edge cases around `d`. B also bumps `package.json` and the CHANGELOG to 1.5.0, which matches the stated release. I would merge B, since it stays within scope and meets the requirements, and ask for a few more tests."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 5,
+                  "B": 2
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 3
+                },
+                "tests": {
+                  "A": 3,
+                  "B": 4
+                },
+                "scope": {
+                  "A": 4,
+                  "B": 2
+                }
+              },
+              "preferred": "A",
+              "rationale": "I would merge A. B's strict options validation breaks the \"nothing that works may change\" requirement. Calls that used to work now throw, such as `[3600000].map(format)`, which passes the index as `options`, or `format(ms, null)`. B also adds two ADR files and a lot of validation that nobody asked for, and its CHANGELOG entry sits under Unreleased with the version only mentioned in text. A is minimal and keeps the default output identical. It ignores unknown options and gives correct types, docs and a 1.5.0 changelog entry. A's tests are thinner, and its `PARSE_UNITS` name is slightly awkward when `format` also uses it, but neither is a defect."
+            }
+          }
+        ]
+      }
+    },
+    "bugfix": {
+      "baseline": {
+        "diff": "deliveries/sdd-baseline-3/bugfix.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 19,
+            "test": 69,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 5,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 14,
+          "test_to_source": 3.63,
+          "suite_passes": true,
+          "suite_tests": 13
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 10,
+          "total": 10,
+          "killed": 6,
+          "survived": [
+            {
+              "file": "src/paginate.js",
+              "line": 18,
+              "operator": "relational",
+              "text": "if (!Number.isInteger(pageSize) || pageSize <= 1) {"
+            },
+            {
+              "file": "src/paginate.js",
+              "line": 18,
+              "operator": "literal",
+              "text": "if (!Number.isInteger(pageSize) || pageSize < 2) {"
+            },
+            {
+              "file": "src/paginate.js",
+              "line": 24,
+              "operator": "relational",
+              "text": "const currentPage = Number.isInteger(convertedPage) && convertedPage > 1 ? convertedPage : 1;"
+            },
+            {
+              "file": "src/paginate.js",
+              "line": 24,
+              "operator": "literal",
+              "text": "const currentPage = Number.isInteger(convertedPage) && convertedPage >= 2 ? convertedPage : 1;"
+            }
+          ],
+          "score": 60
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-2/bugfix.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 12,
+            "test": 32,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 5,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 2.67,
+          "suite_passes": true,
+          "suite_tests": 8
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 8,
+          "total": 8,
+          "killed": 4,
+          "survived": [
+            {
+              "file": "src/paginate.js",
+              "line": 14,
+              "operator": "relational",
+              "text": "if (!(pageSize > 1)) {"
+            },
+            {
+              "file": "src/paginate.js",
+              "line": 14,
+              "operator": "literal",
+              "text": "if (!(pageSize >= 2)) {"
+            },
+            {
+              "file": "src/paginate.js",
+              "line": 17,
+              "operator": "relational",
+              "text": "const currentPage = page > 1 ? page : 1;"
+            },
+            {
+              "file": "src/paginate.js",
+              "line": 17,
+              "operator": "literal",
+              "text": "const currentPage = page >= 2 ? page : 1;"
+            }
+          ],
+          "score": 50
+        }
+      },
+      "judge": {
+        "model": "claude-sonnet-5-5",
+        "cost_usd": 0.0655,
+        "scores": {
+          "baseline": {
+            "correctness": 4,
+            "readability": 3,
+            "design": 3,
+            "tests": 3,
+            "scope": 2
+          },
+          "candidate": {
+            "correctness": 4,
+            "readability": 5,
+            "design": 4,
+            "tests": 4,
+            "scope": 5
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 4,
+                  "B": 4
+                },
+                "readability": {
+                  "A": 3,
+                  "B": 5
+                },
+                "design": {
+                  "A": 3,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 3,
+                  "B": 4
+                },
+                "scope": {
+                  "A": 2,
+                  "B": 5
+                }
+              },
+              "preferred": "B",
+              "rationale": "B fixes exactly what was asked: `ceil` for totalPages, `page >= 1 ? page : 1` (which also handles NaN/undefined), and RangeError for `pageSize < 1`. Its tests cover each agreed requirement and stay short. A adds unrequested behavior: string-to-number coercion of `page`, non-integer rejection, and a new `listProducts(\"2\")` contract. That is scope creep with a bigger doc surface, and its test file has duplicated AC-5 cases and AC labels that appear nowhere in the requirements. A's stricter integer check on `pageSize` is reasonable, but B's check is simpler and meets the requirements. B is also slightly weaker in that a fractional page like 2.5 passes through, but that was not requested. I would merge B."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 4,
+                  "B": 4
+                },
+                "readability": {
+                  "A": 5,
+                  "B": 3
+                },
+                "design": {
+                  "A": 4,
+                  "B": 3
+                },
+                "tests": {
+                  "A": 4,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 5,
+                  "B": 2
+                }
+              },
+              "preferred": "A",
+              "rationale": "Both fix the totalPages bug (ceil), throw RangeError for pageSize < 1, clamp page < 1 to 1, return empty items past the end, and give 0 pages for an empty list. A does exactly that, with a short JSDoc and focused tests for each agreed requirement. B adds unrequested behavior: string-to-number coercion, fractional and NaN page handling, a stricter integer-only pageSize, and tests for `listProducts(\"2\")`. That widens the public contract, and its tests are numbered \"AC-n\" for criteria that don't appear in the agreed requirements. A's minor gaps are that NaN pages pass through unchanged and the tests don't cover the default pageSize. I'd merge A for its tighter scope and simplicity."
+            }
+          }
+        ]
+      }
+    }
+  }
+}

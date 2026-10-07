@@ -1,0 +1,116 @@
+diff --git a/src/paginate.js b/src/paginate.js
+index ed94097..b298048 100644
+--- a/src/paginate.js
++++ b/src/paginate.js
+@@ -2,15 +2,29 @@
+ 
+ /**
+  * Returns one page of `items`.
++ *
++ * An empty list yields `totalPages: 0` and no items. A `page` beyond
++ * `totalPages` yields no items and the converted `page` number is echoed.
+  * @param {Array} items
+- * @param {number} page 1-based page number
+- * @param {number} [pageSize=10]
++ * @param {number|string} page 1-based page number. It is converted with
++ *   `Number()` before validation (e.g. `"2"` becomes `2`); values below 1 or
++ *   that are not finite integers after conversion are treated as 1. The
++ *   result's `page` is always a number.
++ * @param {number} [pageSize=10] positive integer
+  * @returns {{ page: number, pageSize: number, totalPages: number, items: Array }}
++ * @throws {RangeError} if `pageSize` is not a positive integer
+  */
+ function paginate(items, page, pageSize = 10) {
+-  const totalPages = Math.floor(items.length / pageSize) + 1;
+-  const start = (page - 1) * pageSize;
+-  return { page, pageSize, totalPages, items: items.slice(start, start + pageSize) };
++  if (!Number.isInteger(pageSize) || pageSize < 1) {
++    throw new RangeError("pageSize must be a positive integer");
++  }
++  // Convert first (query params arrive as strings), then validate:
++  // Number.isInteger rejects NaN, Infinity and fractions.
++  const convertedPage = Number(page);
++  const currentPage = Number.isInteger(convertedPage) && convertedPage >= 1 ? convertedPage : 1;
++  const totalPages = Math.ceil(items.length / pageSize);
++  const start = (currentPage - 1) * pageSize;
++  return { page: currentPage, pageSize, totalPages, items: items.slice(start, start + pageSize) };
+ }
+ 
+ module.exports = { paginate };
+diff --git a/test/paginate.js b/test/paginate.js
+index 6989bee..4497c36 100644
+--- a/test/paginate.js
++++ b/test/paginate.js
+@@ -21,3 +21,72 @@ test("partial last page", () => {
+ test("catalog lists ten products per page", () => {
+   assert.equal(listProducts(2).items[0].id, 11);
+ });
++
++test("AC-1: exact multiples do not add an empty page", () => {
++  assert.equal(paginate(items.slice(0, 20), 1, 10).totalPages, 2);
++  assert.equal(paginate(items, 1, 10).totalPages, 3);
++  assert.equal(paginate(items.slice(0, 10), 1, 10).totalPages, 1);
++});
++
++test("AC-2: invalid page is normalized to 1", () => {
++  for (const bad of [0, -3, NaN, 2.5, Infinity, undefined]) {
++    const result = paginate(items, bad, 10);
++    assert.equal(result.page, 1, `page ${bad}`);
++    assert.deepEqual(result.items, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], `page ${bad}`);
++  }
++});
++
++test("AC-3: invalid pageSize throws RangeError", () => {
++  for (const bad of [0, -1, NaN, 2.5]) {
++    assert.throws(() => paginate(items, 1, bad), RangeError, `pageSize ${bad}`);
++  }
++});
++
++test("AC-3: omitted pageSize defaults to 10", () => {
++  const result = paginate(items, 1);
++  assert.equal(result.pageSize, 10);
++  assert.equal(result.items.length, 10);
++});
++
++test("AC-4: empty list has zero pages", () => {
++  assert.deepEqual(paginate([], 1, 10), { page: 1, pageSize: 10, totalPages: 0, items: [] });
++  assert.equal(paginate([], 0, 10).page, 1);
++});
++
++test("AC-5: page beyond totalPages returns no items and echoes page", () => {
++  const result = paginate(items, 7, 10);
++  assert.deepEqual(result.items, []);
++  assert.equal(result.page, 7);
++  assert.equal(result.totalPages, 3);
++});
++
++test("AC-7: numeric string page is converted to a number", () => {
++  const result = paginate(items, "2", 10);
++  assert.equal(result.page, 2);
++  assert.deepEqual(result.items, [11, 12, 13, 14, 15, 16, 17, 18, 19, 20]);
++  for (const bad of ["abc", "", null, undefined, "2.5", "0"]) {
++    const r = paginate(items, bad, 10);
++    assert.equal(r.page, 1, `page ${JSON.stringify(bad)}`);
++    assert.deepEqual(r.items, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], `page ${JSON.stringify(bad)}`);
++  }
++});
++
++test("AC-8: listProducts accepts a numeric string page", () => {
++  const result = listProducts("2");
++  assert.equal(result.page, 2);
++  assert.equal(result.items[0].id, 11);
++  assert.equal(result.items.length, 10);
++});
++
++test("AC-5: page beyond totalPages echoes the converted number", () => {
++  const result = paginate(items, "7", 10);
++  assert.equal(result.page, 7);
++  assert.deepEqual(result.items, []);
++  assert.equal(result.totalPages, 3);
++});
++
++test("AC-6: catalog reports three pages for 25 products", () => {
++  assert.equal(listProducts(1).totalPages, 3);
++  assert.equal(listProducts(3).items.length, 5);
++  assert.deepEqual(listProducts(4).items, []);
++});

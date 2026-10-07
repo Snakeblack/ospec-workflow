@@ -1,0 +1,74 @@
+diff --git a/src/paginate.js b/src/paginate.js
+index ed94097..72fa859 100644
+--- a/src/paginate.js
++++ b/src/paginate.js
+@@ -3,14 +3,21 @@
+ /**
+  * Returns one page of `items`.
+  * @param {Array} items
+- * @param {number} page 1-based page number
+- * @param {number} [pageSize=10]
++ * @param {number} page 1-based page number; values below 1 are treated as 1.
++ *   A page past the last one yields empty `items` (it is not clamped).
++ * @param {number} [pageSize=10] must be at least 1
+  * @returns {{ page: number, pageSize: number, totalPages: number, items: Array }}
++ *   `totalPages` is 0 for an empty list.
++ * @throws {RangeError} if `pageSize` is less than 1 (or not a number)
+  */
+ function paginate(items, page, pageSize = 10) {
+-  const totalPages = Math.floor(items.length / pageSize) + 1;
+-  const start = (page - 1) * pageSize;
+-  return { page, pageSize, totalPages, items: items.slice(start, start + pageSize) };
++  if (!(pageSize >= 1)) {
++    throw new RangeError(`pageSize must be at least 1, got ${pageSize}`);
++  }
++  const currentPage = page >= 1 ? page : 1;
++  const totalPages = Math.ceil(items.length / pageSize);
++  const start = (currentPage - 1) * pageSize;
++  return { page: currentPage, pageSize, totalPages, items: items.slice(start, start + pageSize) };
+ }
+ 
+ module.exports = { paginate };
+diff --git a/test/paginate.js b/test/paginate.js
+index 6989bee..108278c 100644
+--- a/test/paginate.js
++++ b/test/paginate.js
+@@ -18,6 +18,38 @@ test("partial last page", () => {
+   assert.deepEqual(paginate(items, 3, 10).items, [21, 22, 23, 24, 25]);
+ });
+ 
++test("exact multiple has no trailing empty page", () => {
++  const twenty = items.slice(0, 20);
++  assert.equal(paginate(twenty, 1, 10).totalPages, 2);
++  assert.equal(paginate(twenty, 2, 10).items.length, 10);
++});
++
++test("empty list has zero pages", () => {
++  const result = paginate([], 1, 10);
++  assert.equal(result.totalPages, 0);
++  assert.deepEqual(result.items, []);
++});
++
++test("pageSize below 1 throws RangeError", () => {
++  assert.throws(() => paginate(items, 1, 0), RangeError);
++  assert.throws(() => paginate(items, 1, -5), RangeError);
++});
++
++test("page beyond the last returns empty items with correct totalPages", () => {
++  const result = paginate(items, 4, 10);
++  assert.deepEqual(result.items, []);
++  assert.equal(result.totalPages, 3);
++  assert.equal(result.page, 4);
++});
++
++test("page below 1 is treated as page 1", () => {
++  for (const page of [0, -3]) {
++    const result = paginate(items, page, 10);
++    assert.equal(result.page, 1);
++    assert.deepEqual(result.items, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
++  }
++});
++
+ test("catalog lists ten products per page", () => {
+   assert.equal(listProducts(2).items[0].id, 11);
+ });

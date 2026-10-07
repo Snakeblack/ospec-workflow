@@ -1,0 +1,257 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 2a82b5d..e93ba6d 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,11 @@
+ 
+ ## [Unreleased]
+ 
++### Added
++
++- `parse` accepts unit `d` (1d = 86400000ms), e.g. `parse("2d4h")`.
++- `format` gains an optional `days` option (`format(93600000, { days: true })` is `"1d 2h"`). Default output is unchanged for backward compatibility (1.5.0).
++
+ ## [1.4.0] - 2026-06-02
+ 
+ ### Added
+diff --git a/README.md b/README.md
+index 4d0054e..c1a8912 100644
+--- a/README.md
++++ b/README.md
+@@ -11,10 +11,13 @@ format(5400000); // "1h 30m"
+ 
+ ## API
+ 
+-- `parse(text)`: milliseconds from a duration made of `h`, `m`, `s` and `ms`
+-  parts. Throws `TypeError` on empty input and `SyntaxError` on anything else
+-  it cannot read.
+-- `format(ms)`: the largest units first, separated by spaces. `0` is `"0s"`.
++- `parse(text)`: milliseconds from a duration made of `d`, `h`, `m`, `s` and
++  `ms` parts, e.g. `parse("2d4h")` is `187200000`. Throws `TypeError` on empty
++  input and `SyntaxError` on anything else it cannot read.
++- `format(ms, options?)`: the largest units first, separated by spaces, hours
++  at most. `0` is `"0s"`. Pass `{ days: true }` to render days:
++  `format(93600000, { days: true })` is `"1d 2h"`. `options` must be an object
++  and `days` a boolean, otherwise `TypeError`.
+ 
+ ## Versioning
+ 
+diff --git a/docs/adr/adr-20261006-001-keep-units-unchanged-add-separate-day-units-table.md b/docs/adr/adr-20261006-001-keep-units-unchanged-add-separate-day-units-table.md
+new file mode 100644
+index 0000000..93916ae
+--- /dev/null
++++ b/docs/adr/adr-20261006-001-keep-units-unchanged-add-separate-day-units-table.md
+@@ -0,0 +1,18 @@
++# ADR-001: Keep `UNITS` unchanged; add separate `DAY_UNITS` table
++
++- Status: proposed
++- Change: add-days-unit
++- Date: 2026-10-06
++
++## Context
++`format` builds its output from the shared `UNITS` constant. Consumers persist and compare `format` strings, so the default output must stay byte-identical (REQ-duration-formatting-001). The config archive rule warns before modifying `UNITS`.
++
++## Decision
++Leave `UNITS` as is. Add `DAY_UNITS = Object.freeze({ d: 86400000, ...UNITS })`. `parse` looks units up in `DAY_UNITS`. `format` iterates `UNITS` by default and `DAY_UNITS` only when `options.days === true`. `PATTERN` becomes `/(\d+)(ms|d|h|m|s)/g`, with `ms` kept before `m`.
++
++## Alternatives
++- Add `d` to `UNITS` and filter it in default `format`: the default output would then depend on a filter, and the protected constant would be touched.
++- Second full literal table: duplicates the sub-day unit values.
++
++## Consequences
++Default output is identical by construction, because it runs the same code over the same object. One extra frozen constant. Fully reversible.
+diff --git a/docs/adr/adr-20261006-002-strict-format-options-contract.md b/docs/adr/adr-20261006-002-strict-format-options-contract.md
+new file mode 100644
+index 0000000..e5e1a8d
+--- /dev/null
++++ b/docs/adr/adr-20261006-002-strict-format-options-contract.md
+@@ -0,0 +1,18 @@
++# ADR-002: Strict `format` options contract
++
++- Status: proposed
++- Change: add-days-unit
++- Date: 2026-10-06
++
++## Context
++The proposal said falsy `days` keeps default output. The spec (REQ-duration-formatting-005) chose a stricter rule. This option is new public API, so it is the cheapest point to fix its validation.
++
++## Decision
++`ms` is validated first. `options` must be `undefined` or a plain object (prototype `Object.prototype` or `null`), otherwise `TypeError`. `options.days` is read once and must be `boolean` or `undefined`, otherwise `TypeError`; `undefined` means `false`. Unknown keys are ignored and `options` is never mutated. `FormatOptions { days?: boolean }` is exported in `index.d.ts`.
++
++## Alternatives
++- Truthy/falsy coercion: `{ days: 'false' }` would silently render days and corrupt persisted strings.
++- Loose `typeof === 'object'` check: contradicts "plain object" in the spec. Loosening later is non-breaking; tightening later would be breaking.
++
++## Consequences
++Misuse fails loudly. Cross-realm option objects (e.g. from `vm`) are rejected, which is a minor cost and can be relaxed in a later minor release.
+diff --git a/index.d.ts b/index.d.ts
+index 2542036..7d4b162 100644
+--- a/index.d.ts
++++ b/index.d.ts
+@@ -1,5 +1,10 @@
+-/** Parses a compact duration such as "1h30m" or "2m 5s" into milliseconds. */
++/** Parses a compact duration such as "2d4h", "1h30m" or "2m 5s" (units d, h, m, s, ms) into milliseconds. */
+ export function parse(text: string): number;
+ 
+-/** Formats milliseconds as "1h 30m". */
+-export function format(ms: number): string;
++export interface FormatOptions {
++  /** Render days ("d") as the largest unit. Default false: output stays hours-max. */
++  days?: boolean;
++}
++
++/** Formats milliseconds as "1h 30m" (or "1d 2h" with { days: true }). */
++export function format(ms: number, options?: FormatOptions): string;
+diff --git a/index.js b/index.js
+index 400bf47..9c1c9dc 100644
+--- a/index.js
++++ b/index.js
+@@ -1,10 +1,20 @@
+ "use strict";
+ 
+ const UNITS = Object.freeze({ h: 3600000, m: 60000, s: 1000, ms: 1 });
+-const PATTERN = /(\d+)(ms|h|m|s)/g;
++// Superset of UNITS used by parse and by format({ days: true }); UNITS stays untouched.
++const DAY_UNITS = Object.freeze({ d: 86400000, ...UNITS });
++// "ms" must precede "m": regex alternation picks the first alternative, not the longest.
++const PATTERN = /(\d+)(ms|d|h|m|s)/g;
++
++function isPlainObject(value) {
++  if (typeof value !== "object" || value === null) return false;
++  const proto = Object.getPrototypeOf(value);
++  return proto === Object.prototype || proto === null;
++}
+ 
+ /**
+- * Parses a compact duration such as "1h30m" or "2m 5s" into milliseconds.
++ * Parses a compact duration such as "2d4h", "1h30m" or "2m 5s" into milliseconds.
++ * Units: d, h, m, s, ms.
+  * @param {string} text
+  * @returns {number}
+  */
+@@ -16,7 +26,7 @@ function parse(text) {
+   let total = 0;
+   let consumed = "";
+   for (const match of compact.matchAll(PATTERN)) {
+-    total += Number(match[1]) * UNITS[match[2]];
++    total += Number(match[1]) * DAY_UNITS[match[2]];
+     consumed += match[0];
+   }
+   if (consumed !== compact) throw new SyntaxError(`invalid duration: ${text}`);
+@@ -24,16 +34,24 @@ function parse(text) {
+ }
+ 
+ /**
+- * Formats milliseconds as "1h 30m".
++ * Formats milliseconds as "1h 30m", or "1d 2h" with { days: true }.
+  * @param {number} ms
++ * @param {{ days?: boolean }} [options]
+  * @returns {string}
+  */
+-function format(ms) {
++function format(ms, options) {
+   if (!Number.isInteger(ms) || ms < 0) throw new TypeError("format expects a non-negative integer of milliseconds");
++  if (options !== undefined && !isPlainObject(options)) {
++    throw new TypeError("options must be undefined or a plain object");
++  }
++  const days = options === undefined ? undefined : options.days;
++  if (days !== undefined && typeof days !== "boolean") {
++    throw new TypeError("days must be boolean or undefined");
++  }
+   if (ms === 0) return "0s";
+   const parts = [];
+   let rest = ms;
+-  for (const [unit, size] of Object.entries(UNITS)) {
++  for (const [unit, size] of Object.entries(days ? DAY_UNITS : UNITS)) {
+     const amount = Math.floor(rest / size);
+     if (amount > 0) {
+       parts.push(`${amount}${unit}`);
+diff --git a/test/duration.js b/test/duration.js
+index 36609f0..f2ae675 100644
+--- a/test/duration.js
++++ b/test/duration.js
+@@ -21,3 +21,84 @@ test("format renders the largest units first", () => {
+   assert.equal(format(0), "0s");
+   assert.equal(format(3723004), "1h 2m 3s 4ms");
+ });
++
++test("parse days unit d", () => {
++  assert.equal(parse("2d4h"), 187200000);
++  assert.equal(parse("1d"), 86400000);
++  assert.equal(parse("1d 30m"), 88200000);
++  assert.equal(parse("1d1ms"), 86400001);
++});
++
++test("parse tolerates whitespace around d", () => {
++  assert.equal(parse(" 1d  2h "), 93600000);
++  assert.equal(parse("1d\t2h"), 93600000);
++});
++
++test("parse rejects invalid d syntax", () => {
++  for (const text of ["d", "2d4", "2d4x", "1D", "1day", "1.5d", "-1d", "1w"]) {
++    assert.throws(() => parse(text), { name: "SyntaxError", message: `invalid duration: ${text}` });
++  }
++});
++
++test("parse rejects non-string and blank input", () => {
++  for (const value of [undefined, null, 5, {}, "", "   "]) {
++    assert.throws(() => parse(value), TypeError);
++  }
++});
++
++test("format default output is unchanged (hours max)", () => {
++  for (const args of [[], [undefined], [{}], [{ days: false }], [{ days: undefined }]]) {
++    assert.equal(format(86400000, ...args), "24h");
++    assert.equal(format(90000000, ...args), "25h");
++    assert.equal(format(93600000, ...args), "26h");
++  }
++});
++
++test("format zero is 0s with or without days", () => {
++  assert.equal(format(0), "0s");
++  assert.equal(format(0, { days: true }), "0s");
++});
++
++test("format with days:true renders days", () => {
++  assert.equal(format(93600000, { days: true }), "1d 2h");
++  assert.equal(format(86400000, { days: true }), "1d");
++  assert.equal(format(90000000, { days: true }), "1d 1h");
++  assert.equal(format(3600000, { days: true }), "1h");
++  assert.equal(format(187261001, { days: true }), "2d 4h 1m 1s 1ms");
++  assert.equal(format(parse("2d4h"), { days: true }), "2d 4h");
++});
++
++test("format rejects invalid ms", () => {
++  for (const value of [-1, 1.5, NaN, Infinity, "5", undefined]) {
++    assert.throws(() => format(value), { name: "TypeError", message: /integer/ });
++    assert.throws(() => format(value, { days: true }), { name: "TypeError", message: /integer/ });
++  }
++  assert.throws(() => format(-1, "x"), { name: "TypeError", message: /integer/ });
++});
++
++test("format validates options", () => {
++  for (const options of [null, "days", true, 1, []]) {
++    assert.throws(() => format(1000, options), TypeError);
++  }
++  for (const days of [1, 0, "true", null, {}]) {
++    assert.throws(() => format(1000, { days }), TypeError);
++  }
++  assert.equal(format(93600000, { days: undefined }), "26h");
++  assert.equal(format(93600000, { days: true, other: 1 }), "1d 2h");
++  const frozen = Object.freeze({ days: true });
++  assert.equal(format(93600000, frozen), "1d 2h");
++  assert.deepEqual(frozen, { days: true });
++});
++
++test("backward compatibility parse", () => {
++  assert.equal(parse("1h30m"), 5400000);
++  assert.equal(parse("2m 5s"), 125000);
++  assert.equal(parse("250ms"), 250);
++});
++
++test("backward compatibility output of 1.4.0 is unchanged", () => {
++  assert.equal(format(5400000), "1h 30m");
++  assert.equal(format(1500), "1s 500ms");
++  assert.equal(format(3723004), "1h 2m 3s 4ms");
++  assert.equal(format(Number.MAX_SAFE_INTEGER), "2501999792h 59m 991ms");
++});

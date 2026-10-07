@@ -1,0 +1,293 @@
+diff --git a/README.md b/README.md
+index f0ada69..a4b8d16 100644
+--- a/README.md
++++ b/README.md
+@@ -8,10 +8,11 @@ El gateway autentica y pasa `user` (`{ id, tenantId }`).
+ 
+ | Ruta | Qué hace |
+ | --- | --- |
+-| `GET /notes` | Notas del usuario |
++| `GET /notes` | Notas del usuario, propias o compartidas |
+ | `POST /notes` | Crea una nota (`title`, `body`) |
+-| `GET /notes/:id` | Lee una nota propia |
++| `GET /notes/:id` | Lee una nota, propia o compartida |
+ | `PUT /notes/:id` | Edita una nota propia |
+ | `DELETE /notes/:id` | Borra una nota propia |
++| `POST /notes/:id/share` | Comparte una nota propia con un usuario del mismo tenant (`{ "userId": "..." }`). Idempotente; el destinatario solo puede leerla. Errores: `400 user-id-required`, `400 cannot-share-with-self`, `403 forbidden` (no es el dueño), `404 not-found` (nota inexistente u otro tenant), `404 user-not-found` (destinatario inexistente u otro tenant) |
+ 
+ Pruebas: `npm test`.
+diff --git a/docs/adr/adr-20261006-001-store-recipients-as-copied-sharedwith-array.md b/docs/adr/adr-20261006-001-store-recipients-as-copied-sharedwith-array.md
+new file mode 100644
+index 0000000..1504f59
+--- /dev/null
++++ b/docs/adr/adr-20261006-001-store-recipients-as-copied-sharedwith-array.md
+@@ -0,0 +1,18 @@
++# ADR-001: Store recipients as a copied `sharedWith` array on the note
++
++- Status: proposed
++- Change: share-note-with-colleague
++- Date: 2026-10-06
++
++## Context
++REQ-note-sharing-001 returns the note with its `sharedWith` list. `NotesRepo` returns shallow copies (`{ ...note }`), so a nested array would alias stored state and let any caller mutate recipients outside the authorization path.
++
++## Decision
++Each note gets `sharedWith: string[]` (initialized `[]` in `create`). `NotesRepo.share(id, userId)` adds the id only if absent and returns a copy. Every repo return clones `sharedWith` as well as the note.
++
++## Alternatives
++- Separate `Map<noteId, Set<userId>>` in the repo: needs a join on every read and on the response body; no benefit in memory.
++- `Set` on the note: not JSON-serializable as the response body.
++
++## Consequences
++All note bodies gain an additive `sharedWith` field. Idempotency is local to the repo. Easily reversible: no persistence or migration.
+diff --git a/docs/adr/adr-20261006-002-separate-read-predicate-from-owner-write-predicate.md b/docs/adr/adr-20261006-002-separate-read-predicate-from-owner-write-predicate.md
+new file mode 100644
+index 0000000..7eea696
+--- /dev/null
++++ b/docs/adr/adr-20261006-002-separate-read-predicate-from-owner-write-predicate.md
+@@ -0,0 +1,18 @@
++# ADR-002: Separate tenant-scoped read predicate from owner-only write predicate
++
++- Status: proposed
++- Change: share-note-with-colleague
++- Date: 2026-10-06
++
++## Context
++Sharing grants read access only (REQ-note-sharing-006/007). Reusing one access check for all methods would give recipients write access; the config requires tenant context in every authorization check.
++
++## Decision
++`src/app.js` uses `canRead(note, user)` = same tenant AND (owner OR in `sharedWith`) for `GET /notes` and `GET /notes/:id`, and `isOwner(note, user)` = same tenant AND owner for `PUT`, `DELETE`, and `POST /notes/:id/share`. The tenant clause is evaluated first in both, and the existing 404 for other-tenant notes runs before either.
++
++## Alternatives
++- Single "can access" predicate: leaks write access to recipients.
++- Inline checks per route: list and detail visibility could diverge.
++
++## Consequences
++List and detail visibility stay consistent; future read-only grants extend only `canRead`. Recipient writes are rejected with 403. Easily reversible.
+diff --git a/src/app.js b/src/app.js
+index d9bddc3..7248bae 100644
+--- a/src/app.js
++++ b/src/app.js
+@@ -1,6 +1,7 @@
+ "use strict";
+ 
+ const { NotesRepo } = require("./repo.js");
++const { findUser } = require("./users.js");
+ 
+ // HTTP-shaped handler. The gateway authenticates and passes `user`
+ // ({ id, tenantId }); a request without user is rejected.
+@@ -10,11 +11,20 @@ function createApp({ repo = new NotesRepo() } = {}) {
+     return note && note.tenantId === user.tenantId;
+   }
+ 
++  // Tenant is always checked first; sharing grants read access only.
++  function isOwner(note, user) {
++    return Boolean(sameTenant(note, user)) && note.ownerId === user.id;
++  }
++
++  function canRead(note, user) {
++    return Boolean(sameTenant(note, user)) && (note.ownerId === user.id || note.sharedWith.includes(user.id));
++  }
++
+   function handle({ method, path, user, body = {} }) {
+     if (!user) return { status: 401, body: { error: "unauthenticated" } };
+ 
+     if (path === "/notes" && method === "GET") {
+-      const notes = repo.list((note) => note.tenantId === user.tenantId && note.ownerId === user.id);
++      const notes = repo.list((note) => canRead(note, user));
+       return { status: 200, body: notes };
+     }
+ 
+@@ -24,12 +34,28 @@ function createApp({ repo = new NotesRepo() } = {}) {
+       return { status: 201, body: note };
+     }
+ 
++    const shareMatch = /^\/notes\/([^/]+)\/share$/.exec(path);
++    if (shareMatch && method === "POST") {
++      const note = repo.get(shareMatch[1]);
++      if (!sameTenant(note, user)) return { status: 404, body: { error: "not-found" } };
++      if (!isOwner(note, user)) return { status: 403, body: { error: "forbidden" } };
++      const userId = body !== null && typeof body === "object" ? body.userId : undefined;
++      if (typeof userId !== "string" || userId === "") return { status: 400, body: { error: "user-id-required" } };
++      if (userId === user.id) return { status: 400, body: { error: "cannot-share-with-self" } };
++      const recipient = findUser(userId);
++      if (!recipient || recipient.tenantId !== user.tenantId) return { status: 404, body: { error: "user-not-found" } };
++      return { status: 200, body: repo.share(note.id, recipient.id) };
++    }
++
+     const match = /^\/notes\/([^/]+)$/.exec(path);
+     if (match) {
+       const note = repo.get(match[1]);
+       if (!sameTenant(note, user)) return { status: 404, body: { error: "not-found" } };
+-      if (note.ownerId !== user.id) return { status: 403, body: { error: "forbidden" } };
+-      if (method === "GET") return { status: 200, body: note };
++      if (method === "GET") {
++        if (!canRead(note, user)) return { status: 403, body: { error: "forbidden" } };
++        return { status: 200, body: note };
++      }
++      if (!isOwner(note, user)) return { status: 403, body: { error: "forbidden" } };
+       if (method === "PUT") return { status: 200, body: repo.update(note.id, { title: body.title ?? note.title, body: body.body ?? note.body }) };
+       if (method === "DELETE") {
+         repo.remove(note.id);
+diff --git a/src/repo.js b/src/repo.js
+index 9736e34..8671f20 100644
+--- a/src/repo.js
++++ b/src/repo.js
+@@ -1,5 +1,7 @@
+ "use strict";
+ 
++const copy = (note) => ({ ...note, sharedWith: [...note.sharedWith] });
++
+ class NotesRepo {
+   constructor() {
+     this.notes = new Map();
+@@ -8,25 +10,32 @@ class NotesRepo {
+ 
+   create({ tenantId, ownerId, title, body }) {
+     this.sequence += 1;
+-    const note = { id: `n${this.sequence}`, tenantId, ownerId, title, body };
++    const note = { id: `n${this.sequence}`, tenantId, ownerId, title, body, sharedWith: [] };
+     this.notes.set(note.id, note);
+-    return { ...note };
++    return copy(note);
+   }
+ 
+   get(id) {
+     const note = this.notes.get(id);
+-    return note ? { ...note } : null;
++    return note ? copy(note) : null;
+   }
+ 
+   list(predicate) {
+-    return [...this.notes.values()].filter(predicate).map((note) => ({ ...note }));
++    return [...this.notes.values()].filter(predicate).map(copy);
+   }
+ 
+   update(id, patch) {
+     const note = this.notes.get(id);
+     if (!note) return null;
+     Object.assign(note, patch);
+-    return { ...note };
++    return copy(note);
++  }
++
++  share(id, userId) {
++    const note = this.notes.get(id);
++    if (!note) return null;
++    if (!note.sharedWith.includes(userId)) note.sharedWith.push(userId);
++    return copy(note);
+   }
+ 
+   remove(id) {
+diff --git a/test/app.js b/test/app.js
+index 9815af7..873f6b5 100644
+--- a/test/app.js
++++ b/test/app.js
+@@ -7,7 +7,9 @@ const { createApp } = require("../src/app.js");
+ 
+ const ana = { id: "u1", tenantId: "acme" };
+ const bruno = { id: "u2", tenantId: "acme" };
++const carla = { id: "u3", tenantId: "acme" };
+ const zoe = { id: "u9", tenantId: "globex" };
++const { NotesRepo } = require("../src/repo.js");
+ 
+ test("owners create, list, read, update, and delete their notes", () => {
+   const app = createApp();
+@@ -31,3 +33,97 @@ test("other users cannot read a note", () => {
+ test("requests without user are rejected", () => {
+   assert.equal(createApp().handle({ method: "GET", path: "/notes" }).status, 401);
+ });
++
++function setup() {
++  const app = createApp();
++  const { id } = app.handle({ method: "POST", path: "/notes", user: ana, body: { title: "Compartida" } }).body;
++  const share = (user, body) => app.handle({ method: "POST", path: `/notes/${id}/share`, user, body });
++  const read = (user) => app.handle({ method: "GET", path: `/notes/${id}`, user });
++  const list = (user) => app.handle({ method: "GET", path: "/notes", user }).body.map((n) => n.id);
++  return { app, id, share, read, list };
++}
++
++test("owner shares a note with a colleague", () => {
++  const { id, share } = setup();
++  const res = share(ana, { userId: "u2" });
++  assert.equal(res.status, 200);
++  assert.equal(res.body.id, id);
++  assert.deepEqual(res.body.sharedWith, ["u2"]);
++});
++
++test("sharing is idempotent", () => {
++  const { share } = setup();
++  const first = share(ana, { userId: "u2" });
++  const second = share(ana, { userId: "u2" });
++  assert.equal(first.status, 200);
++  assert.equal(second.status, 200);
++  assert.deepEqual(second.body.sharedWith, ["u2"]);
++});
++
++test("share checks run in the specified order", () => {
++  const { share } = setup();
++  assert.deepEqual(share(carla, { userId: "u2" }), { status: 403, body: { error: "forbidden" } });
++  assert.deepEqual(share(carla, {}), { status: 403, body: { error: "forbidden" } });
++  assert.deepEqual(share(zoe, { userId: "u2" }), { status: 404, body: { error: "not-found" } });
++  const other = share(ana, { userId: "u9" });
++  const missing = share(ana, { userId: "nobody" });
++  assert.equal(other.status, 404);
++  assert.deepEqual(other.body, { error: "user-not-found" });
++  assert.deepEqual(missing, other);
++  assert.equal(createApp().handle({ method: "POST", path: "/notes/n1/share", body: {} }).status, 401);
++});
++
++test("invalid share bodies are rejected without modifying the note", () => {
++  const { share, read } = setup();
++  for (const body of [{}, { userId: 5 }, { userId: "" }]) {
++    assert.deepEqual(share(ana, body), { status: 400, body: { error: "user-id-required" } });
++  }
++  assert.deepEqual(share(ana, { userId: "u1" }), { status: 400, body: { error: "cannot-share-with-self" } });
++  assert.deepEqual(read(ana).body.sharedWith, []);
++});
++
++test("null or non-object share body is treated as missing userId, after 404/403 checks", () => {
++  const { share, read } = setup();
++  for (const body of [null, "x", 5]) {
++    assert.deepEqual(share(ana, body), { status: 400, body: { error: "user-id-required" } });
++    assert.deepEqual(share(carla, body), { status: 403, body: { error: "forbidden" } });
++    assert.deepEqual(share(zoe, body), { status: 404, body: { error: "not-found" } });
++  }
++  assert.deepEqual(read(ana).body.sharedWith, []);
++});
++
++test("recipients list and read; other users and tenants do not", () => {
++  const { id, share, read, list } = setup();
++  share(ana, { userId: "u2" });
++  assert.deepEqual(list(bruno), [id]);
++  assert.equal(read(bruno).status, 200);
++  assert.deepEqual(list(carla), []);
++  assert.equal(read(carla).status, 403);
++  assert.deepEqual(list(zoe), []);
++  assert.equal(read(zoe).status, 404);
++});
++
++test("recipients are read-only", () => {
++  const { app, id, share, read, list } = setup();
++  share(ana, { userId: "u2" });
++  const forbidden = { status: 403, body: { error: "forbidden" } };
++  assert.deepEqual(app.handle({ method: "PUT", path: `/notes/${id}`, user: bruno, body: { title: "X" } }), forbidden);
++  assert.deepEqual(app.handle({ method: "DELETE", path: `/notes/${id}`, user: bruno }), forbidden);
++  assert.deepEqual(share(bruno, { userId: "u3" }), forbidden);
++  const note = read(ana).body;
++  assert.equal(note.title, "Compartida");
++  assert.deepEqual(note.sharedWith, ["u2"]);
++  assert.deepEqual(list(ana), [id]);
++});
++
++test("repo returns copies that do not alias sharedWith", () => {
++  const repo = new NotesRepo();
++  const created = repo.create({ tenantId: "acme", ownerId: "u1", title: "t", body: "" });
++  created.sharedWith.push("u9");
++  repo.share(created.id, "u2").sharedWith.push("u9");
++  repo.get(created.id).sharedWith.push("u9");
++  repo.list(() => true)[0].sharedWith.push("u9");
++  repo.update(created.id, { title: "t2" }).sharedWith.push("u9");
++  assert.deepEqual(repo.get(created.id).sharedWith, ["u2"]);
++  assert.equal(repo.share("missing", "u2"), null);
++});

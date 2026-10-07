@@ -1,0 +1,293 @@
+diff --git a/docs/adr/adr-20261006-001-discount-allocation-by-vat-rate-group.md b/docs/adr/adr-20261006-001-discount-allocation-by-vat-rate-group.md
+new file mode 100644
+index 0000000..bae0972
+--- /dev/null
++++ b/docs/adr/adr-20261006-001-discount-allocation-by-vat-rate-group.md
+@@ -0,0 +1,19 @@
++# ADR-001: Discount allocation by VAT-rate group with r2 per group
++
++- Status: accepted (decision del usuario; contabilidad no la ha revisado)
++- Change: discount-codes-invoice
++- Date: 2026-10-06
++
++## Context
++The spec requires VAT on the discounted base for orders mixing normal (21%) and reduced (10%) lines, leaves `lineas[]` pre-discount, and delegates allocation and rounding to design. The resulting global `iva` and `total` are public output and must be reproducible to the cent.
++
++## Decision
++Group taxable bases by rate (`baseN`, `baseR`, each `r2` of its line importes). `descuento = r2(subtotal * pct / 100)`; `descR = r2(baseR * pct / 100)`; `descN = r2(descuento - descR)` (normal group absorbs the rounding residual). `iva = r2(r2(r2(baseN - descN) * 0.21) + r2(r2(baseR - descR) * 0.10))`. The no-code path keeps today's per-line VAT sum untouched.
++
++## Alternatives
++- Per-line proportional allocation with largest-remainder cents: more code and per-line results that are never reported.
++- Single blended rate on the discounted subtotal: incorrect for mixed rates.
++- Reusing the code path with 0% for no-code orders: per-group VAT differs by cents from per-line VAT, breaking historical equality.
++
++## Consequences
++Easier: hand-verifiable formulas, allocation sums exactly to `descuento`, matches per-rate tax breakdown practice. Harder: with a code, `Σ lineas[].iva != iva`; two output paths must be kept in sync for shipping/total. Reversible (internal formula, no persisted data), but any change shifts `iva` cents on mixed orders, so accounting must confirm.
+diff --git a/src/discounts.js b/src/discounts.js
+index 6533171..70f37b1 100644
+--- a/src/discounts.js
++++ b/src/discounts.js
+@@ -4,4 +4,16 @@ var CODIGOS = {
+   BIENVENIDA5: 5
+ };
+ 
+-module.exports = { CODIGOS: CODIGOS };
++// Helper exportado para REQ-001 code resolution (REQ-invoice-discount-codes-001).
++// null/undefined => sin codigo (null); no string o codigo desconocido => Error.
++function porcentajeDescuento(codigo) {
++  if (codigo == null) return null;
++  if (typeof codigo !== 'string') throw new Error('Codigo debe ser string');
++  var key = codigo.toUpperCase();
++  if (!Object.prototype.hasOwnProperty.call(CODIGOS, key)) {
++    throw new Error('Codigo de descuento desconocido: ' + codigo);
++  }
++  return CODIGOS[key];
++}
++
++module.exports = { CODIGOS: CODIGOS, porcentajeDescuento: porcentajeDescuento };
+diff --git a/src/invoice.js b/src/invoice.js
+index 9b01eaa..d47d0c4 100644
+--- a/src/invoice.js
++++ b/src/invoice.js
+@@ -1,6 +1,8 @@
+ // Facturacion v1 (2014). No tocar sin hablar con contabilidad.
+ // TODO: tests
+ 
++var porcentajeDescuento = require('./discounts').porcentajeDescuento;
++
+ var IVA = 0.21;
+ var IVA_REDUCIDO = 0.10;
+ var ENVIO = 4.95;
+@@ -9,18 +11,41 @@ var UMBRAL_ENVIO_GRATIS = 50;
+ function r2(n) { return Math.round(n * 100) / 100; }
+ 
+ function calcInvoice(order) {
++  // REQ-invoice-discount-codes-001: resolver el codigo antes de cualquier calculo (puede lanzar Error: no hay factura)
++  var pct = porcentajeDescuento(order.discountCode);
+   var lineas = [];
+   var subtotal = 0;
+   var iva = 0;
++  var baseN = 0;
++  var baseR = 0;
+   for (var i = 0; i < order.items.length; i++) {
+     var it = order.items[i];
+     var importe = r2(it.price * it.qty);
+     var ivaLinea = r2(importe * (it.reducedVat ? IVA_REDUCIDO : IVA));
+     subtotal = subtotal + importe;
+     iva = iva + ivaLinea;
++    if (it.reducedVat) baseR = baseR + importe; else baseN = baseN + importe;
+     lineas.push({ sku: it.sku, importe: importe, iva: ivaLinea });
+   }
+   subtotal = r2(subtotal);
++  if (pct !== null) {
++    // REQ-invoice-discount-codes-002 discount pre-VAT; D1 allocation per VAT-rate group (residuo de redondeo al grupo normal)
++    baseN = r2(baseN);
++    baseR = r2(baseR);
++    var descuento = r2(subtotal * pct / 100);
++    var descR = r2(baseR * pct / 100);
++    var descN = r2(descuento - descR);
++    var netN = r2(baseN - descN);
++    var netR = r2(baseR - descR);
++    var ivaDesc = r2(r2(netN * IVA) + r2(netR * IVA_REDUCIDO));
++    // REQ-invoice-discount-codes-003 baseDesc = subtotal - descuento para umbral 50; envio nunca se descuenta ni lleva IVA
++    var baseDesc = r2(subtotal - descuento);
++    var envioDesc = baseDesc >= UMBRAL_ENVIO_GRATIS ? 0 : ENVIO;
++    if (order.pickup) envioDesc = 0;
++    var totalDesc = r2(subtotal - descuento + ivaDesc + envioDesc);
++    return { lineas: lineas, subtotal: subtotal, descuento: descuento, iva: ivaDesc, envio: envioDesc, total: totalDesc };
++  }
++  // REQ-invoice-discount-codes-004 camino sin codigo: sentencias historicas sin cambios
+   iva = r2(iva);
+   var envio = subtotal >= UMBRAL_ENVIO_GRATIS ? 0 : ENVIO;
+   if (order.pickup) envio = 0;
+diff --git a/test/discounts.test.js b/test/discounts.test.js
+new file mode 100644
+index 0000000..56a389d
+--- /dev/null
++++ b/test/discounts.test.js
+@@ -0,0 +1,31 @@
++var test = require('node:test');
++var assert = require('node:assert');
++var porcentajeDescuento = require('../src/discounts').porcentajeDescuento;
++
++test('null y undefined significan sin codigo', function () {
++  assert.strictEqual(porcentajeDescuento(null), null);
++  assert.strictEqual(porcentajeDescuento(undefined), null);
++});
++
++test('codigo conocido devuelve su porcentaje', function () {
++  assert.strictEqual(porcentajeDescuento('VERANO10'), 10);
++  assert.strictEqual(porcentajeDescuento('BIENVENIDA5'), 5);
++});
++
++test('codigo en minusculas se normaliza', function () {
++  assert.strictEqual(porcentajeDescuento('verano10'), 10);
++});
++
++test('codigos invalidos lanzan Error', function () {
++  var invalidos = ['', 'toString', '__proto__', 'constructor', 'hasOwnProperty', 'NOPE'];
++  invalidos.forEach(function (c) {
++    assert.throws(function () { porcentajeDescuento(c); }, Error, 'debia lanzar: ' + JSON.stringify(c));
++  });
++  assert.throws(function () { porcentajeDescuento('NOPE'); }, /Codigo de descuento desconocido: NOPE/);
++});
++
++test('valores no string lanzan Error sin coercion', function () {
++  [10, true, {}, []].forEach(function (c) {
++    assert.throws(function () { porcentajeDescuento(c); }, Error);
++  });
++});
+diff --git a/test/invoice.test.js b/test/invoice.test.js
+new file mode 100644
+index 0000000..2ebaa74
+--- /dev/null
++++ b/test/invoice.test.js
+@@ -0,0 +1,148 @@
++var test = require('node:test');
++var assert = require('node:assert');
++var calcInvoice = require('../src/invoice').calcInvoice;
++
++// Characterization (REQ-004): expected values captured from the pre-change implementation.
++test('sin codigo: IVA normal', function () {
++  assert.deepStrictEqual(calcInvoice({ items: [{ sku: 'A', price: 100, qty: 1 }] }), {
++    lineas: [{ sku: 'A', importe: 100, iva: 21 }], subtotal: 100, iva: 21, envio: 0, total: 121
++  });
++});
++
++test('sin codigo: IVA reducido', function () {
++  assert.deepStrictEqual(calcInvoice({ items: [{ sku: 'A', price: 100, qty: 1, reducedVat: true }] }), {
++    lineas: [{ sku: 'A', importe: 100, iva: 10 }], subtotal: 100, iva: 10, envio: 0, total: 110
++  });
++});
++
++test('sin codigo: umbral exacto (subtotal 50)', function () {
++  assert.deepStrictEqual(calcInvoice({ items: [{ sku: 'A', price: 50, qty: 1 }] }), {
++    lineas: [{ sku: 'A', importe: 50, iva: 10.5 }], subtotal: 50, iva: 10.5, envio: 0, total: 60.5
++  });
++});
++
++test('sin codigo: bajo umbral cobra envio', function () {
++  assert.deepStrictEqual(calcInvoice({ items: [{ sku: 'A', price: 20, qty: 1 }] }), {
++    lineas: [{ sku: 'A', importe: 20, iva: 4.2 }], subtotal: 20, iva: 4.2, envio: 4.95, total: 29.15
++  });
++});
++
++test('sin codigo: pickup', function () {
++  assert.deepStrictEqual(calcInvoice({ items: [{ sku: 'A', price: 20, qty: 1 }], pickup: true }), {
++    lineas: [{ sku: 'A', importe: 20, iva: 4.2 }], subtotal: 20, iva: 4.2, envio: 0, total: 24.2
++  });
++});
++
++test('sin codigo: multi-linea mixta con redondeo por linea', function () {
++  var r = calcInvoice({ items: [
++    { sku: 'A', price: 0.33, qty: 3 },
++    { sku: 'B', price: 1.15, qty: 1, reducedVat: true },
++    { sku: 'C', price: 2.49, qty: 1 },
++    { sku: 'D', price: 0.07, qty: 5, reducedVat: true }
++  ] });
++  assert.deepStrictEqual(r, {
++    lineas: [
++      { sku: 'A', importe: 0.99, iva: 0.21 },
++      { sku: 'B', importe: 1.15, iva: 0.12 },
++      { sku: 'C', importe: 2.49, iva: 0.52 },
++      { sku: 'D', importe: 0.35, iva: 0.03 }
++    ], subtotal: 4.98, iva: 0.88, envio: 4.95, total: 10.81
++  });
++});
++
++test('sin codigo: IVA por linea difiere del IVA sobre la suma (0.18 vs 0.19)', function () {
++  var r = calcInvoice({ items: [
++    { sku: 'A', price: 0.3, qty: 1 }, { sku: 'B', price: 0.3, qty: 1 }, { sku: 'C', price: 0.3, qty: 1 }
++  ] });
++  assert.deepStrictEqual(r, {
++    lineas: [
++      { sku: 'A', importe: 0.3, iva: 0.06 },
++      { sku: 'B', importe: 0.3, iva: 0.06 },
++      { sku: 'C', importe: 0.3, iva: 0.06 }
++    ], subtotal: 0.9, iva: 0.18, envio: 4.95, total: 6.03
++  });
++  assert.strictEqual(Object.prototype.hasOwnProperty.call(r, 'descuento'), false);
++});
++
++// Discount path (REQ-001/002/003). Expected values hand-computed from design formulas.
++function hasDescuento(r) { return Object.prototype.hasOwnProperty.call(r, 'descuento'); }
++
++test('codigo: IVA normal (100 VERANO10)', function () {
++  var r = calcInvoice({ items: [{ sku: 'A', price: 100, qty: 1 }], discountCode: 'VERANO10' });
++  assert.deepStrictEqual(r, {
++    lineas: [{ sku: 'A', importe: 100, iva: 21 }],
++    subtotal: 100, descuento: 10, iva: 18.9, envio: 0, total: 108.9
++  });
++});
++
++test('codigo: IVA reducido (100 BIENVENIDA5)', function () {
++  var r = calcInvoice({ items: [{ sku: 'A', price: 100, qty: 1, reducedVat: true }], discountCode: 'BIENVENIDA5' });
++  assert.deepStrictEqual(r, {
++    lineas: [{ sku: 'A', importe: 100, iva: 10 }],
++    subtotal: 100, descuento: 5, iva: 9.5, envio: 0, total: 104.5
++  });
++});
++
++test('codigo: IVA mixto (33.33 normal + 16.67 reducido, VERANO10)', function () {
++  var r = calcInvoice({ items: [
++    { sku: 'A', price: 33.33, qty: 1 },
++    { sku: 'B', price: 16.67, qty: 1, reducedVat: true }
++  ], discountCode: 'VERANO10' });
++  assert.strictEqual(r.subtotal, 50);
++  assert.strictEqual(r.descuento, 5);
++  assert.strictEqual(r.iva, 7.8);
++  assert.strictEqual(r.envio, 4.95);
++  assert.strictEqual(r.total, 57.75);
++  // lineas pre-descuento
++  assert.deepStrictEqual(r.lineas, [
++    { sku: 'A', importe: 33.33, iva: 7 },
++    { sku: 'B', importe: 16.67, iva: 1.67 }
++  ]);
++});
++
++test('codigo: descuento baja bajo el umbral y se cobra envio (52 VERANO10)', function () {
++  var r = calcInvoice({ items: [{ sku: 'A', price: 52, qty: 1 }], discountCode: 'VERANO10' });
++  assert.strictEqual(r.subtotal, 52);
++  assert.strictEqual(r.descuento, 5.2);
++  assert.strictEqual(r.iva, 9.83);
++  assert.strictEqual(r.envio, 4.95);
++  assert.strictEqual(r.total, 61.58);
++});
++
++test('codigo: pickup fuerza envio 0 (20 VERANO10)', function () {
++  var r = calcInvoice({ items: [{ sku: 'A', price: 20, qty: 1 }], pickup: true, discountCode: 'VERANO10' });
++  assert.strictEqual(r.descuento, 2);
++  assert.strictEqual(r.iva, 3.78);
++  assert.strictEqual(r.envio, 0);
++  assert.strictEqual(r.total, 21.78);
++});
++
++test('codigo en minusculas aplica el descuento', function () {
++  var r = calcInvoice({ items: [{ sku: 'A', price: 100, qty: 1 }], discountCode: 'verano10' });
++  assert.strictEqual(r.descuento, 10);
++  assert.strictEqual(r.total, 108.9);
++});
++
++test('codigo invalido lanza Error y no devuelve factura', function () {
++  ['NOPE', '', 'toString'].forEach(function (c) {
++    assert.throws(function () {
++      calcInvoice({ items: [{ sku: 'A', price: 100, qty: 1 }], discountCode: c });
++    }, /Codigo de descuento desconocido/);
++  });
++});
++
++test('discountCode null/undefined equivale a sin codigo (sin clave descuento)', function () {
++  var base = calcInvoice({ items: [{ sku: 'A', price: 100, qty: 1 }] });
++  var n = calcInvoice({ items: [{ sku: 'A', price: 100, qty: 1 }], discountCode: null });
++  var u = calcInvoice({ items: [{ sku: 'A', price: 100, qty: 1 }], discountCode: undefined });
++  assert.deepStrictEqual(n, base);
++  assert.deepStrictEqual(u, base);
++  assert.strictEqual(hasDescuento(n), false);
++});
++
++test('invariante: total = subtotal - descuento + iva + envio', function () {
++  var r = calcInvoice({ items: [
++    { sku: 'A', price: 33.33, qty: 1 }, { sku: 'B', price: 16.67, qty: 1, reducedVat: true }
++  ], discountCode: 'VERANO10' });
++  assert.strictEqual(Math.round((r.subtotal - r.descuento + r.iva + r.envio) * 100) / 100, r.total);
++});
