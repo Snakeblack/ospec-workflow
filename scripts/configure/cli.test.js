@@ -49,7 +49,7 @@ function withoutModelPolicy(tree) {
 
 test("runConfigure writes a claude tree to the out dir", (t) => {
   const out = tmpOut(t);
-  const result = runConfigure({ sourceDir: SOURCE, target: "claude", outDir: out, validate: false });
+  const result = runConfigure({ sourceDir: SOURCE, target: "claude", outDir: out, validate: false, withSdd: true });
 
   assert.equal(result.exitCode, 0);
   assert.ok(fs.existsSync(path.join(out, "agents/sdd-apply.md")));
@@ -64,7 +64,7 @@ test("runConfigure writes a claude tree to the out dir", (t) => {
 test("runConfigure omits the unsupported codex config artifact", (t) => {
   const out = tmpOut(t);
 
-  runConfigure({ sourceDir: SOURCE, target: "codex", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "codex", outDir: out, validate: false, withSdd: true });
 
   assert.ok(!fs.existsSync(path.join(out, ".codex", "config.toml")));
 });
@@ -75,8 +75,8 @@ test("runConfigure omits the unsupported codex config artifact", (t) => {
 
 test("the source fixture is left byte-for-byte unchanged", (t) => {
   const before = readTree(SOURCE);
-  runConfigure({ sourceDir: SOURCE, target: "claude", outDir: tmpOut(t), validate: false });
-  runConfigure({ sourceDir: SOURCE, target: "vscode", outDir: tmpOut(t), validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "claude", outDir: tmpOut(t), validate: false, withSdd: true });
+  runConfigure({ sourceDir: SOURCE, target: "vscode", outDir: tmpOut(t), validate: false, withSdd: true });
   const after = readTree(SOURCE);
 
   assert.deepEqual(after, before);
@@ -92,6 +92,7 @@ test("runConfigure applies a model override only to its generated tree", (t) => 
     target: "claude",
     outDir: out,
     validate: false,
+    withSdd: true,
     modelOverrides: { "sdd-apply": "temporary-model" },
   });
 
@@ -211,7 +212,7 @@ test("defaultRunValidator runs the validator without a shell, passing {out} as o
 for (const target of ["claude", "github-copilot", "opencode", "codex", "cursor"]) {
   test(`generated ${target} tree matches the committed golden`, (t) => {
     const out = tmpOut(t);
-    runConfigure({ sourceDir: SOURCE, target, outDir: out, validate: false });
+    runConfigure({ sourceDir: SOURCE, target, outDir: out, validate: false, withSdd: true });
 
     const generated = withoutModelPolicy(readTree(out));
     const golden = withoutModelPolicy(readTree(path.join(FIXTURES, "golden", target)));
@@ -229,7 +230,7 @@ for (const target of ["claude", "github-copilot", "opencode", "codex", "cursor"]
 
 test("regenerating prunes stale generated files but keeps unrelated entries", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "claude", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "claude", outDir: out, validate: false, withSdd: true });
 
   // A stale artifact under a managed root (a renamed/removed skill) and unrelated
   // user data outside any managed root.
@@ -239,7 +240,7 @@ test("regenerating prunes stale generated files but keeps unrelated entries", (t
   const keep = path.join(out, "NOTES.md");
   fs.writeFileSync(keep, "user notes\n");
 
-  runConfigure({ sourceDir: SOURCE, target: "claude", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "claude", outDir: out, validate: false, withSdd: true });
 
   assert.ok(!fs.existsSync(stale), "stale generated file must be pruned");
   assert.ok(!fs.existsSync(path.dirname(stale)), "emptied stale directory must be pruned");
@@ -251,7 +252,7 @@ test("regenerating codex removes the formerly managed bundled .mcp.json", (t) =>
   fs.mkdirSync(out, { recursive: true });
   fs.writeFileSync(path.join(out, ".mcp.json"), "{\"legacy\":true}\n");
 
-  runConfigure({ sourceDir: SOURCE, target: "codex", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "codex", outDir: out, validate: false, withSdd: true });
 
   assert.ok(!fs.existsSync(path.join(out, ".mcp.json")));
 });
@@ -323,7 +324,7 @@ test("runConfigure accepts configurable reviewer and Codex policy from models.ya
     .replace("model_reasoning_effort: low", "model_reasoning_effort: xhigh");
   fs.writeFileSync(path.join(source, "models.yaml"), models);
   const out = tmpOut(t);
-  const result = runConfigureStrict({ sourceDir: source, target: "claude", outDir: out, validate: false });
+  const result = runConfigureStrict({ sourceDir: source, target: "claude", outDir: out, validate: false, withSdd: true });
   assert.equal(result.exitCode, 0);
   assert.equal(fs.existsSync(path.join(out, "agents", "sdd-apply.md")), true);
 });
@@ -336,7 +337,7 @@ test("runConfigure aborts before writing on a structural model policy error", (t
     .replace(/^  sdd-propose: .*\r?\n/m, "");
   fs.writeFileSync(path.join(source, "models.yaml"), invalid);
   const out = tmpOut(t);
-  const result = runConfigureStrict({ sourceDir: source, target: "claude", outDir: out, validate: false });
+  const result = runConfigureStrict({ sourceDir: source, target: "claude", outDir: out, validate: false, withSdd: true });
   assert.notEqual(result.exitCode, 0);
   assert.equal(fs.existsSync(path.join(out, "agents", "sdd-apply.md")), false);
 });
@@ -540,7 +541,7 @@ test("RED: runConfigure aborts without output when a managed source read fails",
   fs.readFileSync = (file, ...args) => String(file).endsWith("plugin.json") ? (() => { throw new Error("EACCES"); })() : readFileSync(file, ...args);
   t.after(() => { fs.readFileSync = readFileSync; });
   const out = tmpOut(t);
-  assert.throws(() => runConfigure({ sourceDir: SOURCE, target: "claude", outDir: out, validate: false }), /EACCES/);
+  assert.throws(() => runConfigure({ sourceDir: SOURCE, target: "claude", outDir: out, validate: false, withSdd: true }), /EACCES/);
   assert.equal(fs.existsSync(path.join(out, "agents")), false);
 });
 

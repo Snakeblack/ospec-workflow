@@ -895,7 +895,9 @@ selection; a missing configuration column alone MUST NOT prove model support.
 
 The TUI MUST summarize the selected target, preset or custom mode, every agent's
 selected or inherited behavior, and each selected compatible reasoning control before
-installation. It MUST invoke no target installer or destination write before explicit
+installation. The summary MUST also list the optional packages of the plan (SDD mode
+and extras, REQ-install-036 and REQ-install-032), numbered, each toggled by its digit;
+none is selected at first, which keeps each installer's default. It MUST invoke no target installer or destination write before explicit
 Install. Cancel, exit, and Back from summary MUST preserve or discard the plan without
 installation.
 (Previously: the summary listed selected or inherited models but had no preset or reasoning-control state.)
@@ -922,7 +924,10 @@ It MAY merge bounded Codex/OpenCode discovery according to REQ-install-025. On I
 it MUST revalidate the target, preset, phase selections, opaque choice IDs, and
 target-compatible controls against a fresh plan, pass the resulting values as an
 in-memory override, and delegate only the selected target to its compatible existing
-`main(argv, deps)` installer seam. It MUST preserve installer outcomes and diagnostics
+`main(argv, deps)` installer seam. The plan MUST list the optional packages (`sdd`,
+`extras`) with a label and a description; a request MAY name them in `packages`, each
+at most once, and the adapter MUST pass them to the installer as `--with-sdd` and
+`--with-extras` and reject an unknown or repeated one before any installer runs. It MUST preserve installer outcomes and diagnostics
 and MUST NOT duplicate validation, transaction, rollback, manifest, or destination-write
 behavior.
 (Previously: the plan contained target/model choices only and did not define hierarchical or discovery state.)
@@ -1253,3 +1258,19 @@ Each installer that ships the IDD protocol carrying `__OSPEC_RUNTIME_DIR__` (REQ
 - GIVEN `install-target github-copilot <repo>` runs
 - WHEN `<repo>/skills/idd/SKILL.md` is read
 - THEN it runs `node "./scripts/ospec.js"`, and `<repo>/scripts/ospec.js` exists
+
+### Requirement: Installers Install SDD On Request And Keep It {#REQ-install-036}
+
+Every target installer (`setup:claude`, `setup:vscode`, `setup:copilot`, `setup:opencode`, `setup:codex` global and `install:codex -- <destRepo>`, `setup:cursor`, `setup:antigravity`) and the repo-local `install-target` MUST accept `--with-sdd` and `--no-sdd` (`scripts/configure/sdd-package.js`) and pass the result to the build as `withSdd` (REQ-generator-025). `--with-sdd` installs the SDD package and `--no-sdd` leaves it out. With neither flag, the installer MUST keep SDD when its previous install held it, read before the build: from the ownership manifest where the target keeps one (`setup:copilot`, `setup:opencode`, `setup:cursor`, `setup:antigravity` per destination root, and global `setup:codex`), and otherwise from the `sdd-*` entries of the agents directory that install wrote (`dist/vscode/agents` for `setup:vscode`, the marketplace build's plugin `agents/` for `setup:claude`, `<destRepo>/.codex/agents` for `install:codex -- <destRepo>`, and `.opencode/agents` or `.github/agents` for `install-target`). Runtime scripts and `skills/_shared/` never count as the package, and an unreadable manifest holds nothing. When it keeps SDD without the flag, the installer MUST say so and name `--no-sdd`. Both flags together MUST be a usage error before any build. A first install without the flag installs no SDD; a reinstall with `--no-sdd` prunes it through the ownership manifest as any other file the build no longer has.
+
+#### Scenario: A reinstall keeps SDD
+
+- GIVEN any installer whose previous install held the SDD package
+- WHEN it runs again without `--with-sdd` or `--no-sdd`
+- THEN its build receives `withSdd: true`, and `false` when `--no-sdd` is given
+
+#### Scenario: A first install is lean
+
+- GIVEN any installer with no previous install
+- WHEN it runs without flags
+- THEN its build receives `withSdd: false`, and `true` with `--with-sdd`

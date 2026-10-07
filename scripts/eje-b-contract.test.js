@@ -150,7 +150,7 @@ function tmpOut(t) {
 test("G.1 · generated claude target carries the collision gate handler and the traceability landmarks", (t) => {
   const { runConfigure } = require("./configure/cli.js");
   const out = tmpOut(t);
-  const result = runConfigure({ sourceDir: ROOT_DIR, target: "claude", outDir: out, validate: false });
+  const result = runConfigure({ sourceDir: ROOT_DIR, target: "claude", outDir: out, validate: false, withSdd: true });
 
   const gate = result.files.find((f) => f.path.endsWith("gate-change-collision.md"));
   assert.ok(gate, "claude target must ship gate-change-collision.md");

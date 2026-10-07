@@ -619,7 +619,7 @@ function publishTransaction({ outDir, output, profile, validate, runValidator, o
   }
 }
 
-function runConfigure({ sourceDir, target, outDir, validate = true, withExtras = false, runValidator = defaultRunValidator, operationObserver = () => {}, retryOptions = {}, modelOverrides }) {
+function runConfigure({ sourceDir, target, outDir, validate = true, withExtras = false, withSdd = false, runValidator = defaultRunValidator, operationObserver = () => {}, retryOptions = {}, modelOverrides }) {
   const profile = PROFILES[target];
   if (!profile) {
     throw new Error(`unknown target: ${target}`);
@@ -644,7 +644,7 @@ function runConfigure({ sourceDir, target, outDir, validate = true, withExtras =
       ),
     };
 
-  const output = transform({ files, profile, models: resolvedModels, withExtras });
+  const output = transform({ files, profile, models: resolvedModels, withExtras, withSdd });
   const summary = output.files.map((file) => file.path);
   const publication = publishTransaction({
     outDir,
@@ -675,6 +675,8 @@ function parseArgs(argv) {
       args.validate = false;
     } else if (arg === "--with-extras") {
       args.withExtras = true;
+    } else if (arg === "--with-sdd") {
+      args.withSdd = true;
     }
   }
   return args;
@@ -683,14 +685,14 @@ function parseArgs(argv) {
 function main(argv) {
   const args = parseArgs(argv);
   if (!args.target || !PROFILES[args.target]) {
-    process.stderr.write(`usage: configure --target <${Object.keys(PROFILES).join("|")}> [--out dir] [--source dir] [--no-validate] [--with-extras]\n`);
+    process.stderr.write(`usage: configure --target <${Object.keys(PROFILES).join("|")}> [--out dir] [--source dir] [--no-validate] [--with-extras] [--with-sdd]\n`);
     process.exitCode = 2;
     return;
   }
 
   const sourceDir = args.source || process.cwd();
   const outDir = args.out || path.join("dist", args.target);
-  const result = runConfigure({ sourceDir, target: args.target, outDir, validate: args.validate, withExtras: Boolean(args.withExtras) });
+  const result = runConfigure({ sourceDir, target: args.target, outDir, validate: args.validate, withExtras: Boolean(args.withExtras), withSdd: Boolean(args.withSdd) });
 
   process.stdout.write(`configure --target ${args.target} -> ${outDir}\n`);
   for (const filePath of result.summary) {
@@ -728,6 +730,7 @@ module.exports = {
   withTransientFsRetries,
   runConfigure,
   main,
+  parseArgs,
   PROFILES,
   SOURCE_ROOTS,
 };

@@ -8,7 +8,6 @@ const { MANIFEST_FILENAME } = require("./install-engine.js");
 
 const REQUIRED_PATHS = [
   { rel: "agents", type: "directory" },
-  { rel: "commands", type: "directory" },
   { rel: "rules", type: "directory" },
   { rel: "skills", type: "directory" },
   { rel: "scripts/hooks", type: "directory" },

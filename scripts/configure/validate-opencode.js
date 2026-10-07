@@ -7,7 +7,6 @@ const { parse, getField } = require("../lib/frontmatter.js");
 
 const REQUIRED_PATHS = [
   { rel: ".opencode/agents", type: "directory" },
-  { rel: ".opencode/commands", type: "directory" },
   { rel: ".opencode/instructions", type: "directory" },
   { rel: ".opencode/plugins/ospec.js", type: "file" },
   { rel: "opencode.json", type: "file" },

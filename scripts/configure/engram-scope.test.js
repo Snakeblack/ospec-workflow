@@ -34,7 +34,7 @@ const CONFIG_FILE = /(^|\/)(\.mcp\.json|mcp[-_]config\.json|opencode\.jsonc?|hoo
 function generate(t, target) {
   const out = fs.mkdtempSync(path.join(os.tmpdir(), `ospec-engram-${target}-`));
   t.after(() => fs.rmSync(out, { recursive: true, force: true }));
-  const result = runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
+  const result = runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false, withSdd: true });
   assert.equal(result.exitCode, 0, `${target} generation failed`);
   return { out, files: result.files };
 }

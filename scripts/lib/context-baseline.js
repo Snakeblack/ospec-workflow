@@ -120,14 +120,14 @@ function measureTarget(files) {
   };
 }
 
-function buildTargetFiles(sourceDir, profile) {
+function buildTargetFiles(sourceDir, profile, options = {}) {
   // Lazy: cli.js pulls in the installer engine, which pure callers never need.
   const { loadTree, parseModels, SOURCE_ROOTS } = require("../configure/cli.js");
   const { transform } = require("./target-transform.js");
   const modelsPath = path.join(sourceDir, "models.yaml");
   const models = fs.existsSync(modelsPath) ? parseModels(fs.readFileSync(modelsPath, "utf8")) : {};
   const files = loadTree(sourceDir, [...SOURCE_ROOTS, ...(profile.sourceRoots || [])]);
-  return transform({ files, profile, models }).files;
+  return transform({ files, profile, models, ...options }).files;
 }
 
 function measureSource(sourceDir) {

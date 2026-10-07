@@ -8,7 +8,6 @@ const { hostBinarySuffix } = require("./install-target.js");
 
 const REQUIRED_PATHS = [
   { rel: "agents", type: "directory" },
-  { rel: "commands", type: "directory" },
   { rel: "rules", type: "directory" },
   { rel: "skills", type: "directory" },
   { rel: "scripts/hooks", type: "directory" },

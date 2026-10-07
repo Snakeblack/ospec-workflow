@@ -7,3 +7,17 @@ function presetRequest(plan,id){const t=target(plan,id),p=t.presets[0];return {v
 test("v2 plan is static, scopes opaque IDs by target and preserves Antigravity inheritance",t=>{const root=fixture(t),before=fs.readFileSync(path.join(root,"models.yaml"),"utf8"),plan=buildPlan({sourceDir:root});assert.equal(plan.version,2);assert.deepEqual(target(plan,"vscode").agents[0].choices.map(x=>x.label),target(plan,"github-copilot").agents[0].choices.map(x=>x.label));assert.notDeepEqual(target(plan,"vscode").agents[0].choices.map(x=>x.id),target(plan,"github-copilot").agents[0].choices.map(x=>x.id));assert.equal(target(plan,"antigravity").inherited,true);assert.deepEqual(target(plan,"antigravity").presets,[]);assert.equal(fs.readFileSync(path.join(root,"models.yaml"),"utf8"),before)})
 test("fresh v2 validation rejects forged IDs and delegates exactly once",t=>{const root=fixture(t),plan=buildPlan({sourceDir:root}),request=presetRequest(plan,"claude");assert.throws(()=>validateRequest({...request,selections:{alpha:{choiceId:"forged"}}},plan),/fresh plan/);let calls=0;assert.equal(installPlan(request,{sourceDir:root,mains:{claude:(_argv,deps)=>{calls++;const options=deps.runConfigure({target:"claude"});assert.equal(options.modelOverrides.alpha,"sonnet");return 0}},runConfigure:x=>x}),0);assert.equal(calls,1)})
 test("controls are finite and unsupported metadata fails closed",t=>{const root=fixture(t),plan=buildPlan({sourceDir:root}),request=presetRequest(plan,"codex");request.mode="custom";delete request.presetId;request.selections.alpha.controls={model_reasoning_effort:"xhigh"};assert.doesNotThrow(()=>validateRequest(request,plan));request.selections.alpha.controls={variant:"fast"};assert.throws(()=>validateRequest(request,plan),/unsupported control/)})
+
+// Roadmap E1.6 (d2): the plan offers the optional packages, and a request's
+// packages reach the installer as its own flags.
+test("the plan offers the SDD and extras packages, and the request forwards them as installer flags",t=>{
+  const root=fixture(t),plan=buildPlan({sourceDir:root});
+  assert.deepEqual(plan.packages.map(x=>x.id),["sdd","extras"]);
+  for(const item of plan.packages){assert.ok(item.label&&item.description,item.id)}
+  const seen=[];
+  const run=(packages)=>installPlan({...presetRequest(plan,"vscode"),...(packages?{packages}:{})},{sourceDir:root,mains:{vscode:(argv)=>{seen.push(argv);return 0}},runConfigure:x=>x});
+  assert.equal(run(["sdd","extras"]),0);
+  assert.equal(run(undefined),0);
+  assert.deepEqual(seen,[["--with-sdd","--with-extras"],[]],"no package keeps the installer default, which keeps a previous SDD install");
+  for(const packages of [["forged"],["sdd","sdd"],"sdd"]){assert.throws(()=>validateRequest({...presetRequest(plan,"vscode"),packages},plan),/packages/)}
+});

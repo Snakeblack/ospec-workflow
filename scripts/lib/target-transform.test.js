@@ -3,7 +3,11 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { transform, serializeAgentToml } = require("./target-transform.js");
+const { transform: transformTarget, serializeAgentToml } = require("./target-transform.js");
+
+// These tests exercise how SDD agents and commands are reshaped, so they build
+// the SDD package, which ships only on request since E1.6 (d2).
+const transform = (options) => transformTarget({ withSdd: true, ...options });
 const claude = require("./target-profiles/claude.js");
 const vscode = require("./target-profiles/vscode.js");
 const githubCopilot = require("./target-profiles/github-copilot.js");

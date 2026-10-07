@@ -97,3 +97,17 @@ func TestNarrowModelsKeepSelectionDetailsAndHelpVisible(t *testing.T) {
 		t.Fatalf("view exceeds height:\n%s", view)
 	}
 }
+
+func TestReviewListsOptionalPackagesWithTheirKeys(t *testing.T) {
+	plan := Plan{Version: 2, Packages: []Package{{ID: "sdd", Label: "Modo SDD", Description: "Fases SDD"}}, Targets: []Target{{ID: "antigravity", Label: "Antigravity", Inherited: true, Agents: []Agent{{ID: "a", Inherited: true}}}}}
+	m := NewModel(plan)
+	m.handleKey("enter")
+	m.handleKey("enter")
+	if view := m.View(); !strings.Contains(view, "[ ] 1 Modo SDD") {
+		t.Fatalf("review=%s", view)
+	}
+	m.handleKey("1")
+	if view := m.View(); !strings.Contains(view, "[x] 1 Modo SDD") {
+		t.Fatalf("review=%s", view)
+	}
+}

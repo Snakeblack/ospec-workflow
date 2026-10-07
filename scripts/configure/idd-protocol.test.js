@@ -76,6 +76,7 @@ for (const target of Object.keys(ROUTERS)) {
     assert.match(router, /explicitly asks[^.]*without IDD/, `${target}: direct work only on an explicit request`);
     assert.ok(router.includes(`Load the ${IDD_ENTRY[target] || "skill `idd`"}`), `${target}: router must name the IDD entry`);
     assert.match(router, /\/sdd-\*/, `${target}: SDD stays reachable on request`);
+    assert.match(router, /not installed[^.]*`--with-sdd`/, `${target}: the router says how to install SDD when it is missing`);
   });
 
   test(`${target}: only the IDD protocol carries the runtime marker`, (t) => {

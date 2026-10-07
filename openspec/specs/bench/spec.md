@@ -42,7 +42,9 @@ A run MUST drive a real agent host headless in a workspace outside the
 repository, initialized as a git repository from the seed. The Claude Code host
 MUST use a dedicated configuration directory (`CLAUDE_CONFIG_DIR`) so the
 user's instructions, installed plugins, MCP servers, and memory do not reach
-the run, and MUST load the plugin built from the current checkout. Variables of
+the run, and MUST load the plugin built from the current checkout with the SDD
+package (`--with-sdd`, REQ-generator-025) for every arm, so both arms keep the
+plugin content of the runs measured before E1.6 (d2). Variables of
 the calling session that alter the host (nested-session markers, hook switches,
 an API key) MUST NOT be inherited. The arm's project setup MUST run before the
 measured change and MUST NOT count toward its metrics. During setup the
@@ -152,13 +154,15 @@ defects exceeds the baseline's by more than `escaped_defects.max_mean_delta`,
 or when the candidate's summed mean tokens exceed `tokens.max_total_ratio`
 times the baseline's. These vetoes MUST NOT be configurable.
 
-The margins MAY declare one `harness_exception`: a baseline digest, a candidate
-digest, the harness files allowed to differ, and a reason. The checkpoint MUST
-accept a different harness only for exactly that pair, in that direction, and
-MUST report the exception in its result. A test MUST verify the exception: the
-current harness digest MUST equal the candidate digest, restoring the declared
-files from committed copies of the baseline harness MUST rebuild the baseline
-digest, and the baseline arm MUST behave as it did.
+The margins MAY declare one `harness_exception`: a baseline digest, the
+candidate digests accepted against it (distinct, the current harness last), the
+harness files allowed to differ, and a reason. The checkpoint MUST accept a
+different harness only for a baseline with that digest and a candidate with one
+of those digests, in that direction, and MUST report the pair it applied in its
+result. A test MUST verify the exception: the current harness digest MUST equal
+the last candidate digest, restoring the declared files from committed copies
+MUST rebuild the baseline digest and every earlier candidate digest, and the
+baseline arm MUST behave as it did.
 
 #### Scenario: Improvement in totals does not hide a regression
 
@@ -177,10 +181,10 @@ digest, and the baseline arm MUST behave as it did.
 
 #### Scenario: A declared harness exception covers only its pair
 
-- GIVEN margins that declare a harness exception from digest A to digest B
-- WHEN the baseline has harness A and the candidate harness B
+- GIVEN margins that declare a harness exception from digest A to digests B and C
+- WHEN the baseline has harness A and the candidate harness B or C
 - THEN the checkpoint MUST NOT report `not-comparable` for the harness
-- AND its result MUST carry the exception
+- AND its result MUST carry the applied pair
 - WHEN the candidate has any other harness, or the pair is reversed
 - THEN it MUST report `not-comparable`
 

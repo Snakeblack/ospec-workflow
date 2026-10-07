@@ -14,11 +14,10 @@
 // reported with a 95% t interval.
 //
 // Records of different harnesses are not comparable, with one exception the
-// margins may declare: one baseline digest, the candidate digests accepted
-// against it (the current harness last), the harness files allowed to differ,
-// and why. harness-exception.test.js verifies it (each digest is rebuilt from
-// the current harness with those files restored), and the result reports the
-// pair it applied.
+// margins may declare: exactly one baseline/candidate digest pair, the harness
+// files allowed to differ between them, and why. harness-exception.test.js
+// verifies it (the baseline digest is rebuilt from the current harness with
+// those files restored), and the result reports it.
 //
 // Measurement tooling only: it grants no authority and promotes nothing.
 
@@ -29,9 +28,9 @@ const { sha256Fingerprint } = require("../../lib/canonical-json.js");
 const { taskInterval } = require("./stats.js");
 
 const MARGINS_PATH = path.join(__dirname, "margins.json");
-const MARGINS_SCHEMA_VERSION = 4;
+const MARGINS_SCHEMA_VERSION = 3;
 const MARGINS_KEYS = Object.freeze(["schema_version", "margins_version", "declared_at", "baseline_arm", "candidate_arm", "repetitions", "escaped_defects", "tokens", "harness_exception"]);
-const EXCEPTION_KEYS = Object.freeze(["baseline_digest", "candidate_digests", "changed_files", "reason"]);
+const EXCEPTION_KEYS = Object.freeze(["baseline_digest", "candidate_digest", "changed_files", "reason"]);
 const DIGEST_PATTERN = /^[a-f0-9]{64}$/;
 const IDENTITY_FIELDS = Object.freeze([["scenarios_digest"], ["harness_digest"], ["host", "name"], ["host", "model"], ["host", "effort"], ["persona", "model"]]);
 
@@ -73,12 +72,10 @@ function validateMargins(margins) {
 function validateHarnessException(exception, fail) {
   if (exception === null) return;
   if (!isPlainObject(exception) || !hasExactKeys(exception, EXCEPTION_KEYS)) fail(`harness_exception must be null or declare exactly ${EXCEPTION_KEYS.join(", ")}`);
-  if (!DIGEST_PATTERN.test(exception.baseline_digest || "")) fail("harness_exception.baseline_digest must be a sha256 hex digest");
-  const candidates = exception.candidate_digests;
-  if (!Array.isArray(candidates) || candidates.length === 0 || !candidates.every((digest) => DIGEST_PATTERN.test(digest || "")) || new Set(candidates).size !== candidates.length) {
-    fail("harness_exception.candidate_digests must list distinct sha256 hex digests");
+  for (const key of ["baseline_digest", "candidate_digest"]) {
+    if (!DIGEST_PATTERN.test(exception[key] || "")) fail(`harness_exception.${key} must be a sha256 hex digest`);
   }
-  if (candidates.includes(exception.baseline_digest)) fail("harness_exception digests must differ");
+  if (exception.baseline_digest === exception.candidate_digest) fail("harness_exception digests must differ");
   const files = exception.changed_files;
   if (!Array.isArray(files) || files.length === 0 || !files.every((file) => typeof file === "string" && file.endsWith(".js") && !file.endsWith(".test.js"))) {
     fail("harness_exception.changed_files must list the harness .js files that differ");
@@ -86,12 +83,12 @@ function validateHarnessException(exception, fail) {
   if (typeof exception.reason !== "string" || exception.reason.trim() === "") fail("harness_exception.reason must be a non-empty string");
 }
 
-/** The declared pair that covers exactly these two records' harnesses, if any. */
+/** The declared exception when it covers exactly these two records' harnesses. */
 function appliedHarnessException(baseline, candidate, margins) {
   const exception = margins.harness_exception;
-  if (!exception || baseline.harness_digest !== exception.baseline_digest || !exception.candidate_digests.includes(candidate.harness_digest)) return null;
-  const { candidate_digests: _declared, ...pair } = exception;
-  return { ...pair, candidate_digest: candidate.harness_digest };
+  return exception && baseline.harness_digest === exception.baseline_digest && candidate.harness_digest === exception.candidate_digest
+    ? exception
+    : null;
 }
 
 function loadMargins(marginsPath = MARGINS_PATH) {

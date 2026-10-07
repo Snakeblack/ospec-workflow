@@ -18,11 +18,12 @@ const {
   pruneStaleFiles,
   toPosix,
 } = require("./install-engine.js");
+const { parseSddFlag, previousInstallHasSdd, resolveWithSdd, sddKeptNote } = require("./sdd-package.js");
 
 
 function usage() {
   return (
-    "usage: install-codex [<destRepo>] [--dry-run] [--repair-config] [--no-validate] [--with-extras] [--no-router] [--source <sourceRepo>]\n" +
+    "usage: install-codex [<destRepo>] [--dry-run] [--repair-config] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--no-router] [--source <sourceRepo>]\n" +
     "  --no-router      do not write the router into AGENTS.md, and remove the one an earlier install wrote\n" +
     "  --repair-config  global setup only: remove the exact legacy top-level service_tier = \"default\" assignment, with backup and rollback\n" +
     "  e.g. npm run install:codex -- ../my-project\n"
@@ -39,6 +40,9 @@ function parseArgs(argv) {
     else if (arg === "--no-validate") args.validate = false;
     else if (arg === "--with-extras") args.withExtras = true;
     else if (arg === "--no-router") args.noRouter = true;
+    else if (parseSddFlag(arg, args)) {
+      if (args.error) return args;
+    }
     else if (arg === "--source") {
       const next = argv[i + 1];
       if (!next || next.startsWith("--")) {
@@ -1177,7 +1181,13 @@ function install(argv, deps = {}) {
     // Callers embedding the installer (notably concurrent integration tests)
     // may supply an owned build destination. CLI installs retain dist/codex.
     const outDir = deps.outDir || path.join(sourceDir, "dist", "codex");
-    const result = runConfigureImpl({ sourceDir, target: "codex", outDir, validate: args.validate, withExtras: Boolean(args.withExtras) });
+    // A global install owns its files through the manifest; a repo install has
+    // none, and its .codex/agents holds only what ospec put there.
+    const withSdd = resolveWithSdd(args, () => previousInstallHasSdd(isRepoInstall
+      ? { agentDirs: [path.join(codexRoot, "agents")], fs: fsImpl }
+      : { manifestRoots: [codexRoot], fs: fsImpl }));
+    stdout.write(sddKeptNote(args, withSdd));
+    const result = runConfigureImpl({ sourceDir, target: "codex", outDir, validate: args.validate, withExtras: Boolean(args.withExtras), withSdd });
     if (result.validation?.stdout) stdout.write(result.validation.stdout);
     if (result.validation?.stderr) stderr.write(result.validation.stderr);
     if (result.exitCode !== 0) {

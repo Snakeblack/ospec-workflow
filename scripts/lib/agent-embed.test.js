@@ -88,7 +88,7 @@ function rulesLines(skillText) {
 
 for (const [target, profile] of Object.entries(PROFILES)) {
   test(`${target}: every worker agent is self-contained`, () => {
-    const files = buildTargetFiles(ROOT, profile);
+    const files = buildTargetFiles(ROOT, profile, { withSdd: true });
     const byPath = new Map(files.map((file) => [file.path, file.content.replace(/\r\n/g, "\n")]));
     const orchestrators = new Set(["sdd-orchestrator", profile.orchestrator?.renameTo].filter(Boolean));
     const agents = files.filter((file) => AGENT_FILE.test(file.path) && !orchestrators.has(file.path.match(AGENT_FILE)[2]));

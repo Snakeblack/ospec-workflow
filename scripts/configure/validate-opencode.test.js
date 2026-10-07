@@ -19,7 +19,7 @@ function tmpOut(t) {
 
 test("validate accepts generated opencode output", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false, withSdd: true });
 
   const result = validate(out);
 
@@ -29,7 +29,7 @@ test("validate accepts generated opencode output", (t) => {
 
 test("validate rejects Claude/Copilot layout residue and the standalone .mcp.json", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false, withSdd: true });
   fs.mkdirSync(path.join(out, ".claude-plugin"));
   fs.mkdirSync(path.join(out, ".github"));
   fs.writeFileSync(path.join(out, ".mcp.json"), JSON.stringify({ mcpServers: {} }, null, 2));
@@ -43,7 +43,7 @@ test("validate rejects Claude/Copilot layout residue and the standalone .mcp.jso
 
 test("validate requires a mode on every agent and rejects VS Code-only keys", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false, withSdd: true });
   fs.writeFileSync(
     path.join(out, ".opencode/agents/ghost.md"),
     "---\nname: ghost\ntarget: vscode\nuser-invocable: false\n---\n\nbody\n",
@@ -58,7 +58,7 @@ test("validate requires a mode on every agent and rejects VS Code-only keys", (t
 
 test("validate rejects VS Code-only command frontmatter", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false, withSdd: true });
   fs.writeFileSync(
     path.join(out, ".opencode/commands/ghost.md"),
     "---\nname: ghost\ntools: ['read']\nargument-hint: \"<x>\"\n---\n\nbody\n",
@@ -73,7 +73,7 @@ test("validate rejects VS Code-only command frontmatter", (t) => {
 
 test("validate rejects a malformed opencode.json (bad mcp server, non-array instructions)", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false, withSdd: true });
 
   fs.writeFileSync(
     path.join(out, "opencode.json"),
@@ -92,7 +92,7 @@ test("validate rejects a malformed opencode.json (bad mcp server, non-array inst
 
 test("validate rejects opencode.json without a $schema", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false, withSdd: true });
   fs.writeFileSync(path.join(out, "opencode.json"), JSON.stringify({ mcp: {} }, null, 2));
 
   assert.ok(validate(out).errors.some((error) => error.includes("must include a $schema")));
@@ -100,7 +100,7 @@ test("validate rejects opencode.json without a $schema", (t) => {
 
 test("validate fails when the plugin is missing spawnSync invocation", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false, withSdd: true });
   assert.equal(validate(out).errors.length, 0);
 
   // Replace the plugin with a stub that lacks spawnSync — the new validator
@@ -115,7 +115,7 @@ test("validate fails when the plugin is missing spawnSync invocation", (t) => {
 
 test("validate requires the skills tree so agent skill references resolve", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false, withSdd: true });
   assert.equal(validate(out).errors.length, 0);
   fs.rmSync(path.join(out, "skills"), { recursive: true, force: true });
 
@@ -126,7 +126,7 @@ test("validate requires the skills tree so agent skill references resolve", (t) 
 
 test("validate rejects residual ${input: placeholder in opencode.json", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false, withSdd: true });
   // Poison the generated opencode.json with an unresolved input placeholder.
   const cfg = JSON.parse(fs.readFileSync(path.join(out, "opencode.json"), "utf8"));
   cfg.mcp = cfg.mcp || {};
@@ -144,7 +144,7 @@ test("validate rejects residual ${input: placeholder in opencode.json", (t) => {
 
 test("validate rejects an agent that references a skill the tree does not ship", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false, withSdd: true });
   fs.writeFileSync(
     path.join(out, ".opencode/agents/ghost.md"),
     "---\nname: ghost\nmode: subagent\n---\n\nRead `skills/ghost/SKILL.md` before work.\n",
@@ -157,7 +157,7 @@ test("validate rejects an agent that references a skill the tree does not ship",
 
 test("INSTALL-026: attribution sentinels fail closed on a stale build", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false, withSdd: true });
   const dimensions = path.join(out, "scripts/lib/review-dimensions.js");
   fs.writeFileSync(dimensions, fs.readFileSync(dimensions, "utf8").split("kernel-contract-change").join("STALE-SENTINEL"));
 
@@ -168,7 +168,7 @@ test("INSTALL-026: attribution sentinels fail closed on a stale build", (t) => {
 
 test("INSTALL-026: attribution sentinels fail closed on an unmapped kernel tool reference", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false, withSdd: true });
   fs.rmSync(path.join(out, "scripts/lib/review-gate-state.js"));
 
   const result = validate(out);

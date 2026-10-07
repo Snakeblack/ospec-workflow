@@ -150,7 +150,7 @@ function tmpOut(t) {
 test("4.1 · generated vscode target carries the Assumption Ledger Protocol and Step 2a text", (t) => {
   const { runConfigure } = require("./configure/cli.js");
   const out = tmpOut(t);
-  const result = runConfigure({ sourceDir: ROOT_DIR, target: "vscode", outDir: out, validate: false });
+  const result = runConfigure({ sourceDir: ROOT_DIR, target: "vscode", outDir: out, validate: false, withSdd: true });
 
   const orchestrator = result.files.find((f) => f.path === "agents/sdd-orchestrator.agent.md");
   assert.ok(orchestrator, "vscode target must emit agents/sdd-orchestrator.agent.md");
@@ -164,7 +164,7 @@ test("4.1 · generated vscode target carries the Assumption Ledger Protocol and 
 test("4.2 · generated claude orchestrator/verify wrapper carries the pointer to sdd-phase-common.md §D unchanged", (t) => {
   const { runConfigure } = require("./configure/cli.js");
   const out = tmpOut(t);
-  const result = runConfigure({ sourceDir: ROOT_DIR, target: "claude", outDir: out, validate: false });
+  const result = runConfigure({ sourceDir: ROOT_DIR, target: "claude", outDir: out, validate: false, withSdd: true });
 
   const orchestratorSkill = result.files.find((f) => f.path === "skills/sdd-orchestrator/SKILL.md");
   assert.ok(orchestratorSkill, "claude target must emit skills/sdd-orchestrator/SKILL.md");

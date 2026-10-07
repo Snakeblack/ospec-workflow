@@ -351,7 +351,7 @@ test("main performs a real isolated generate-validate-install round-trip and con
     stderr: { write(chunk) { stderrChunks.push(chunk); } },
   };
 
-  assert.equal(main(["--source", sourceDir], deps), 0, stderrChunks.join(""));
+  assert.equal(main(["--source", sourceDir, "--with-sdd"], deps), 0, stderrChunks.join(""));
   const outDir = path.join(sourceDir, "dist", "cursor");
   assert.deepEqual(validate(outDir).errors, []);
   assert.deepEqual(validateInstalled(cursorRoot).errors, []);

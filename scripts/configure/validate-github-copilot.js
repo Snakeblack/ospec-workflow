@@ -8,7 +8,6 @@ const { parse, getField } = require("../lib/frontmatter.js");
 
 const REQUIRED_PATHS = [
   { rel: ".github/agents", type: "directory" },
-  { rel: ".github/prompts", type: "directory" },
   { rel: ".github/instructions", type: "directory" },
   { rel: ".github/hooks/hooks.json", type: "file" },
   { rel: ".mcp.json", type: "file" },

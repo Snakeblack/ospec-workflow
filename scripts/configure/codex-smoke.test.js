@@ -37,7 +37,7 @@ test("codex smoke: output is generated and installed as a router AGENTS.md, an o
   const destRepo = tmpDir(t, "ospec-codex-smoke-dest-");
 
   // 1. Generate + validate the published payload
-  const generated = runConfigure({ sourceDir, target: "codex", outDir: buildOut, validate: false });
+  const generated = runConfigure({ sourceDir, target: "codex", outDir: buildOut, validate: false, withSdd: true });
   assert.ok(generated.files.length > 0, "codex payload must be non-empty");
   const validation = validateCodex(buildOut);
   assert.deepEqual(validation.errors, [], `published payload must validate cleanly:\n${validation.errors.join("\n")}`);
@@ -50,7 +50,7 @@ test("codex smoke: output is generated and installed as a router AGENTS.md, an o
     stderr: { write() {} },
     runConfigure({ outDir, validate }) {
       assert.equal(validate, false);
-      const result = runConfigure({ sourceDir, target: "codex", outDir, validate: false });
+      const result = runConfigure({ sourceDir, target: "codex", outDir, validate: false, withSdd: true });
       return { exitCode: 0, validation: null, files: result.files };
     },
   });
@@ -82,7 +82,7 @@ test("codex smoke: global install contains every generated skill and preserves u
   const buildOut = tmpDir(t, "ospec-codex-global-smoke-build-");
   const installSource = tmpDir(t, "ospec-codex-global-smoke-source-");
   const homeDir = tmpDir(t, "ospec-codex-global-smoke-home-");
-  const generated = runConfigure({ sourceDir, target: "codex", outDir: buildOut, validate: false });
+  const generated = runConfigure({ sourceDir, target: "codex", outDir: buildOut, validate: false, withSdd: true });
   assert.ok(generated.files.length > 0);
   assert.deepEqual(validateCodex(buildOut).errors, []);
 

@@ -144,3 +144,16 @@ test("a persona that keeps failing falls back to asking the agent to continue", 
   assert.equal(reply.kind, "stopped");
   assert.deepEqual(reply.facts_disclosed, []);
 });
+
+test("the bench builds the plugin with the SDD package, so both arms keep the plugin of sdd-baseline-3 and idd-2", () => {
+  const { buildPlugin } = require("./claude.js");
+  const outDir = tempDir();
+  const pluginDir = path.join(outDir, "plugins", "ospec-workflow");
+  fs.mkdirSync(path.join(pluginDir, ".claude-plugin"), { recursive: true });
+  fs.writeFileSync(path.join(pluginDir, ".claude-plugin", "plugin.json"), JSON.stringify({ version: "9.9.9" }));
+  const calls = [];
+  const built = buildPlugin({ repoRoot: "/repo", outDir, spawnSyncImpl: (executable, args) => { calls.push(args); return { status: 0 }; } });
+  assert.equal(calls.length, 1);
+  assert.ok(calls[0].includes("--with-sdd"), "the build must install SDD: the sdd arm needs it and idd-2 ran with it");
+  assert.equal(built.version, "9.9.9");
+});

@@ -11,6 +11,7 @@
 //   node scripts/configure/install-claude.js --build-only  # build only (use /reload-plugins in-session)
 //   node scripts/configure/install-claude.js --no-engram   # skip the automatic Engram session-memory step
 //   node scripts/configure/install-claude.js --with-extras # also install the optional extras package
+//   node scripts/configure/install-claude.js --with-sdd    # also install the SDD mode (kept on reinstall; --no-sdd removes it)
 //   node scripts/configure/install-claude.js --no-router   # leave ~/.claude/CLAUDE.md without the ospec router
 //
 // Why a wrapper: the README dance was five manual commands (build, two validate
@@ -26,6 +27,7 @@ const { buildClaudeMarketplace } = require("./claude-marketplace.js");
 const { copyBinaryToTree } = require("./install-target.js");
 const { runEngramStep } = require("./engram-setup.js");
 const { removeRouterBlock, writeRouterBlock } = require("./instruction-block.js");
+const { parseSddFlag, previousInstallHasSdd, resolveWithSdd, sddKeptNote } = require("./sdd-package.js");
 
 const MARKETPLACE = "ospec-tools";
 const PLUGIN = "ospec-workflow";
@@ -109,15 +111,30 @@ function main(argv = process.argv.slice(2), deps = {}) {
   // The real Engram step comes only from the CLI entry or the TUI adapter, so an
   // embedded call never reaches the user home through upstream `engram setup`.
   const engramStepImpl = deps.engramStep || null;
+  const sddArgs = {};
+  for (const arg of argv) parseSddFlag(arg, sddArgs);
+  if (sddArgs.error) {
+    stderr.write(`${sddArgs.error}
+`);
+    return 2;
+  }
+  // The marketplace build is what Claude Code installs from, so the previous
+  // build tells whether the SDD package was installed (E1.6 d2).
+  const marketplaceOut = path.join("dist", "claude-marketplace");
+  const withSdd = resolveWithSdd(sddArgs, () => previousInstallHasSdd({
+    agentDirs: [path.resolve(cwd, marketplaceOut, "plugins", PLUGIN, "agents")],
+  }));
+  stdout.write(sddKeptNote(sddArgs, withSdd));
   const bin = resolveClaudeBinImpl();
 
   const build = buildClaudeMarketplaceImpl({
     source: cwd,
-    out: path.join("dist", "claude-marketplace"),
+    out: marketplaceOut,
     validate: bin !== null,
     marketplaceName: MARKETPLACE,
     pluginName: PLUGIN,
     withExtras: argv.includes("--with-extras"),
+    withSdd,
   }, { runConfigure: deps.runConfigure });
 
   stdout.write(`claude marketplace -> ${build.outDir}\n`);

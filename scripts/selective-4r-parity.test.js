@@ -40,7 +40,7 @@ test("all six generated targets carry generalist, classifier, gate, audit, and c
   t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
   for (const target of TARGETS) {
     const out = path.join(temp, target);
-    assert.equal(runConfigure({ sourceDir: ROOT, target, outDir: out, validate: true, runValidator }).exitCode, 0, target);
+    assert.equal(runConfigure({ sourceDir: ROOT, target, outDir: out, validate: true, runValidator, withSdd: true }).exitCode, 0, target);
     const paths = targetPaths(target);
     const generalist = fs.readFileSync(path.join(out, paths.generalist), "utf8");
     const correction = fs.readFileSync(path.join(out, paths.correction), "utf8");
@@ -89,7 +89,7 @@ test("isolated mutations fail runtime and contract parity in every generated tar
 
   for (const target of TARGETS) {
     const out = path.join(temp, target);
-    assert.equal(runConfigure({ sourceDir: ROOT, target, outDir: out, validate: true, runValidator }).exitCode, 0, `${target} generation`);
+    assert.equal(runConfigure({ sourceDir: ROOT, target, outDir: out, validate: true, runValidator, withSdd: true }).exitCode, 0, `${target} generation`);
     const generalist = targetPaths(target).generalist;
     assertProbe(out, generalist, 0, `${target} baseline`);
 

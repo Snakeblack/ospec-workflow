@@ -21,4 +21,21 @@ function isExtraSkillPath(filePath) {
   return EXTRA_DIRS.some((dir) => normalized.startsWith(dir));
 }
 
-module.exports = { EXTRA_SKILLS, isExtraSkillPath };
+// Roadmap E1.6 (d2): the SDD package. IDD is the default flow, so the SDD
+// phases (the `sdd-*` skills, the `sdd-*` agents with the orchestrator, the
+// `/sdd-*` commands and the `sdd-*` rules) ship only with `--with-sdd`
+// (REQ-generator-025). The `review-*` agents and `skills/_shared/` stay: IDD's
+// trust review uses them.
+const SDD_PATTERNS = Object.freeze([
+  /^skills\/sdd-[a-z0-9-]+\//,
+  /^agents\/sdd-[a-z0-9-]+\.agent\.md$/,
+  /^commands\/sdd-[a-z0-9-]+\.prompt\.md$/,
+  /^rules\/sdd-[a-z0-9-]+\.instructions\.md$/,
+]);
+
+function isSddPackagePath(filePath) {
+  const normalized = String(filePath).replace(/\\/g, "/");
+  return SDD_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+module.exports = { EXTRA_SKILLS, isExtraSkillPath, isSddPackagePath };

@@ -31,7 +31,7 @@ const SCOPED = [HEADING.common, HEADING.engram, HEADING.openspec, HEADING.strict
 
 const built = new Map();
 function target(id) {
-  if (!built.has(id)) built.set(id, buildTargetFiles(ROOT, PROFILES[id]));
+  if (!built.has(id)) built.set(id, buildTargetFiles(ROOT, PROFILES[id], { withSdd: true }));
   return built.get(id);
 }
 

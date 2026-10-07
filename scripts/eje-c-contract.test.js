@@ -59,7 +59,7 @@ test("G.1 · generated claude target carries the Phase Summary Block and the con
   const { runConfigure } = require("./configure/cli.js");
   const dir = require("node:fs").mkdtempSync(path.join(os.tmpdir(), "ospec-eje-c-"));
   t.after(() => require("node:fs").rmSync(dir, { recursive: true, force: true }));
-  const result = runConfigure({ sourceDir: ROOT_DIR, target: "claude", outDir: dir, validate: false });
+  const result = runConfigure({ sourceDir: ROOT_DIR, target: "claude", outDir: dir, validate: false, withSdd: true });
 
   const common = result.files.find((f) => f.path.endsWith("sdd-phase-common.md"));
   assert.ok(common, "claude target must ship sdd-phase-common.md");

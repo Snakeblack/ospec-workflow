@@ -119,7 +119,7 @@ test("REQ-generator-005 all six temporary targets honor models.yaml tiers and fa
 
   for (const target of ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor"]) {
     const out = path.join(base, target);
-    assert.equal(runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false }).exitCode, 0);
+    assert.equal(runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false, withSdd: true }).exitCode, 0);
     for (const [tier, agents] of Object.entries(partition)) {
       for (const agent of agents) {
         const generated = outputPath(out, target, agent);

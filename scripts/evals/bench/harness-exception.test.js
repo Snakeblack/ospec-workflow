@@ -1,10 +1,10 @@
 "use strict";
 
 // The harness exception of margins.json lets the checkpoint compare records of
-// two harness digests. It is only worth something if it is verified: the
-// baseline digest must be rebuilt from today's harness with the declared files
-// restored to their baseline copies (so nothing else changed), the candidate
-// digest must be today's, and the baseline arm must behave as it did.
+// different harness digests. It is only worth something if it is verified:
+// every digest must be rebuilt from today's harness with the declared files
+// restored to their copies in __fixtures__ (so nothing else changed), the last
+// candidate digest must be today's, and the baseline arm must behave as it did.
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -18,27 +18,45 @@ const { harnessDigest, listFiles, loadScenarios } = require("./scenarios.js");
 
 const BENCH_DIR = __dirname;
 const BASELINE_DIR = path.join(BENCH_DIR, "__fixtures__", "harness-baseline");
+const IDD2_DIR = path.join(BENCH_DIR, "__fixtures__", "harness-idd-2");
 const { margins } = loadMargins();
 const exception = margins.harness_exception;
 
 const isHarnessFile = (file) => file.endsWith(".js") && !file.endsWith(".test.js") && !/^(scenarios|__fixtures__|records)\//.test(file);
 
-test("the declared candidate digest is the current harness", () => {
+// The digest of the current harness with each file of `copies` replaced by
+// its copy in the given directory.
+function rebuiltDigest(copies) {
+  const rebuilt = fs.mkdtempSync(path.join(os.tmpdir(), "bench-harness-"));
+  for (const file of listFiles(BENCH_DIR).filter(isHarnessFile)) {
+    const source = copies[file] ? path.join(copies[file], file) : path.join(BENCH_DIR, file);
+    fs.mkdirSync(path.dirname(path.join(rebuilt, file)), { recursive: true });
+    fs.copyFileSync(source, path.join(rebuilt, file));
+  }
+  return harnessDigest(rebuilt);
+}
+
+const recordDigest = (id) => JSON.parse(fs.readFileSync(path.join(BENCH_DIR, "records", `${id}.json`), "utf8")).harness_digest;
+
+test("the last declared candidate digest is the current harness", () => {
   assert.ok(exception, "margins.json declares a harness exception");
-  assert.equal(harnessDigest(), exception.candidate_digest, "a harness change after the exception needs a new declaration");
+  assert.equal(harnessDigest(), exception.candidate_digests.at(-1), "a harness change after the exception needs a new declaration");
 });
 
 test("restoring the declared files rebuilds the baseline digest, so nothing else changed", () => {
   assert.deepEqual(listFiles(BASELINE_DIR), [...exception.changed_files].sort(), "the fixture holds exactly the declared files");
-  const rebuilt = fs.mkdtempSync(path.join(os.tmpdir(), "bench-harness-"));
-  for (const file of listFiles(BENCH_DIR).filter(isHarnessFile)) {
-    const source = exception.changed_files.includes(file) ? path.join(BASELINE_DIR, file) : path.join(BENCH_DIR, file);
-    fs.mkdirSync(path.dirname(path.join(rebuilt, file)), { recursive: true });
-    fs.copyFileSync(source, path.join(rebuilt, file));
-  }
-  assert.equal(harnessDigest(rebuilt), exception.baseline_digest);
-  const record = JSON.parse(fs.readFileSync(path.join(BENCH_DIR, "records", "sdd-baseline-3.json"), "utf8"));
-  assert.equal(record.harness_digest, exception.baseline_digest, "the exception names the committed baseline");
+  const baselineCopies = Object.fromEntries(exception.changed_files.map((file) => [file, BASELINE_DIR]));
+  assert.equal(rebuiltDigest(baselineCopies), exception.baseline_digest);
+  assert.equal(recordDigest("sdd-baseline-3"), exception.baseline_digest, "the exception names the committed baseline");
+});
+
+test("the earlier candidate digest is the idd-1 and idd-2 harness, rebuilt from its own copies", () => {
+  // idd-1 and idd-2 ran with today's arms.js, the checkpoint.js of v2.109.0 and
+  // the baseline's hosts/claude.js, which built the plugin without flags.
+  const [earlier] = exception.candidate_digests;
+  assert.deepEqual(listFiles(IDD2_DIR), ["checkpoint.js"], "the idd-2 fixture holds only what changed after it");
+  assert.equal(rebuiltDigest({ "checkpoint.js": IDD2_DIR, "hosts/claude.js": BASELINE_DIR }), earlier);
+  for (const id of ["idd-1", "idd-2"]) assert.equal(recordDigest(id), earlier, `${id} ran with the earlier candidate harness`);
 });
 
 test("the baseline arm behaves as it did in the baseline harness", () => {

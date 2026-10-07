@@ -2,6 +2,7 @@ package installer
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -90,5 +91,40 @@ func TestCustomEditChangesOnlyTheFocusedPhase(t *testing.T) {
 	selections := m.Selections()
 	if selections["first"].ChoiceID != "two" || selections["second"].ChoiceID != "one" {
 		t.Fatalf("focused edit leaked across phases: %#v", selections)
+	}
+}
+
+func TestReviewTogglesOptionalPackagesIntoTheRequest(t *testing.T) {
+	plan := Plan{Version: 2, Packages: []Package{{ID: "sdd", Label: "Modo SDD"}, {ID: "extras", Label: "Extras"}}, Targets: []Target{{ID: "antigravity", Inherited: true, Agents: []Agent{{ID: "a", Inherited: true}}}}}
+	m := NewModel(plan)
+	m.handleKey("enter")
+	m.handleKey("enter")
+	if m.screen != reviewScreen {
+		t.Fatalf("screen=%v", m.screen)
+	}
+	m.handleKey("2")
+	m.handleKey("1")
+	m.handleKey("2")
+	m.handleKey("9")
+	m.handleKey("right")
+	if m.handleKey("enter") != installAction {
+		t.Fatal("install was not requested")
+	}
+	request, ok := m.InstallRequest()
+	if !ok || len(request.Packages) != 1 || request.Packages[0] != "sdd" {
+		t.Fatalf("packages=%v", request.Packages)
+	}
+}
+
+func TestRequestWithoutPackagesKeepsTheInstallerDefault(t *testing.T) {
+	plan := Plan{Version: 2, Packages: []Package{{ID: "sdd", Label: "Modo SDD"}}, Targets: []Target{{ID: "antigravity", Inherited: true, Agents: []Agent{{ID: "a", Inherited: true}}}}}
+	m := NewModel(plan)
+	for _, key := range []string{"enter", "enter", "right", "enter"} {
+		m.handleKey(key)
+	}
+	request, _ := m.InstallRequest()
+	payload, _ := json.Marshal(request)
+	if strings.Contains(string(payload), "packages") {
+		t.Fatalf("payload=%s", payload)
 	}
 }

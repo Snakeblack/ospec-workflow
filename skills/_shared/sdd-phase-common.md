@@ -298,7 +298,7 @@ When a phase executor encounters an ambiguity not already resolved by the spec o
 1. IF the decision affects observable behavior or a public contract (API shape, CLI flag, file format, envelope field) AND it is not addressed by the existing spec or design, THEN the executor MUST NOT assume; it MUST return `status: blocked` with a `question_gate` describing the decision, per the Blocking Question Envelope above.
 2. ELSE (the decision is internal-only — an implementation detail with no external observable effect, or is already covered by spec/design) the executor MUST proceed, recording one `assumptions` entry (per the Assumption Entry Schema above) with `reversibility` set honestly: `low` if reverting later would be costly, `high` if trivial to revert.
 
-This is the definitive policy: only observable-behavior or public-contract impact triggers `question_gate`. An internal decision NEVER blocks the executing phase, regardless of its `reversibility` value — `reversibility: low` solely determines whether the recorded entry escalates as a material WARNING candidate later, during the `sdd-verify` reconciliation pass (see `skills/sdd-verify/SKILL.md`), not whether the phase blocks today.
+This is the definitive policy: only observable-behavior or public-contract impact triggers `question_gate`. An internal decision NEVER blocks the executing phase, regardless of its `reversibility` value — `reversibility: low` solely determines whether the recorded entry escalates as a material WARNING candidate later, during the `sdd-verify` reconciliation pass, not whether the phase blocks today.
 
 Do NOT record an incomplete entry: if any Assumption Entry Schema field cannot be filled in honestly, either complete it before returning or omit the entry entirely.
 

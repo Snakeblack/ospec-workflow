@@ -37,10 +37,11 @@ type Model struct {
 	mode, presetID, activeControl        string
 	selections                           map[string]map[string]Selection
 	queries                              map[string]map[string]string
+	packages                             map[string]bool
 }
 
 func NewModel(plan Plan) Model {
-	m := Model{plan: plan, width: 80, height: 24, reviewBackFocused: true, selections: map[string]map[string]Selection{}, queries: map[string]map[string]string{}}
+	m := Model{plan: plan, width: 80, height: 24, reviewBackFocused: true, selections: map[string]map[string]Selection{}, queries: map[string]map[string]string{}, packages: map[string]bool{}}
 	for _, target := range plan.Targets {
 		m.selections[target.ID] = map[string]Selection{}
 		m.queries[target.ID] = map[string]string{}
@@ -153,6 +154,13 @@ func (m *Model) handleKey(key string) action {
 			m.screen = reviewScreen
 		}
 	case reviewScreen:
+		// Digits toggle the optional packages, numbered as the plan lists them.
+		if len(key) == 1 && key >= "1" && key <= "9" {
+			if index := int(key[0] - '1'); index < len(m.plan.Packages) {
+				id := m.plan.Packages[index].ID
+				m.packages[id] = !m.packages[id]
+			}
+		}
 		if key == "left" || key == "right" || key == "h" || key == "l" || key == "tab" {
 			m.reviewBackFocused = !m.reviewBackFocused
 		}
@@ -376,7 +384,19 @@ func (m Model) InstallRequest() (InstallRequest, bool) {
 	if !m.installing || m.TargetID() == "" {
 		return InstallRequest{}, false
 	}
-	return InstallRequest{Target: m.TargetID(), Mode: m.mode, PresetID: m.presetID, Selections: m.Selections()}, true
+	return InstallRequest{Target: m.TargetID(), Mode: m.mode, PresetID: m.presetID, Selections: m.Selections(), Packages: m.selectedPackages()}, true
+}
+
+// selectedPackages lists the chosen packages in plan order; none leaves the
+// installer default, which keeps a previous SDD install.
+func (m Model) selectedPackages() []string {
+	var out []string
+	for _, item := range m.plan.Packages {
+		if m.packages[item.ID] {
+			out = append(out, item.ID)
+		}
+	}
+	return out
 }
 func clamp(value, low, high int) int {
 	if high < low || value < low {

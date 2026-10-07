@@ -38,7 +38,7 @@ function generateTarget(target) {
   const outDir = fs.mkdtempSync(path.join(os.tmpdir(), `ospec-cfgtest-${target}-`));
   const result = spawnSync(
     process.execPath,
-    ["scripts/configure/cli.js", "--target", target, "--source", ROOT, "--out", outDir, "--no-validate"],
+    ["scripts/configure/cli.js", "--target", target, "--source", ROOT, "--out", outDir, "--no-validate", "--with-sdd"],
     { cwd: ROOT, encoding: "utf8" }
   );
   if (result.status !== 0) {

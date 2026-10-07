@@ -238,8 +238,23 @@ func (m Model) reviewView() string {
 			lines = append(lines, "  "+line)
 		}
 	}
+	hint := "←/→ elegir · Enter confirmar · Esc atrás · q salir"
+	if len(m.plan.Packages) > 0 {
+		lines = append(lines, "", mutedStyle.Render("Paquetes opcionales"))
+		for i, item := range m.plan.Packages {
+			mark := "[ ]"
+			if m.packages[item.ID] {
+				mark = "[x]"
+			}
+			lines = append(lines, fmt.Sprintf("  %s %d %s", mark, i+1, item.Label))
+			if item.Description != "" {
+				lines = append(lines, "      "+mutedStyle.Render(item.Description))
+			}
+		}
+		hint = fmt.Sprintf("1-%d paquetes · ", len(m.plan.Packages)) + hint
+	}
 	lines = append(lines, "", m.option("Volver", "", m.reviewBackFocused)+"    "+m.option("Instalar", "", !m.reviewBackFocused))
-	return m.frame("Revisar instalación", target.Label+" · "+m.mode, lines, "←/→ elegir · Enter confirmar · Esc atrás · q salir", 3)
+	return m.frame("Revisar instalación", target.Label+" · "+m.mode, lines, hint, 3)
 }
 func (m Model) agentLabel(target Target, agent Agent) string {
 	if agent.Inherited || !agent.Selectable {

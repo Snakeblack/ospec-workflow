@@ -119,14 +119,11 @@ function hashTree(dir) {
 }
 
 /** Builds the Claude plugin from `repoRoot` into `outDir` and identifies it. */
-// Both arms get the SDD package (E1.6 d2: it installs only on request), so the
-// plugin keeps the content sdd-baseline-3 and idd-2 ran with.
 function buildPlugin({ repoRoot, outDir, spawnSyncImpl = spawnSync }) {
   const result = spawnSyncImpl(process.execPath, [
     path.join(repoRoot, "scripts", "configure", "claude-marketplace.js"),
     "--source", repoRoot,
     "--out", outDir,
-    "--with-sdd",
   ], { cwd: repoRoot, encoding: "utf8" });
   if (result.status !== 0) throw new Error(`plugin build failed: ${result.stderr || result.stdout}`);
   const pluginDir = path.join(outDir, "plugins", "ospec-workflow");
