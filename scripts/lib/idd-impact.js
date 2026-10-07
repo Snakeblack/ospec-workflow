@@ -148,7 +148,24 @@ function detectStacks(rootEntries) {
   return [...stacks].sort();
 }
 
-function resolvePatterns({ stacks = [], impact = {} } = {}) {
+// The files a public npm package exposes to its users (REQ-idd-012): main,
+// types, typings, bin and every path in exports. A private package publishes
+// nothing.
+function publishedPaths(manifest) {
+  if (manifest == null || typeof manifest !== "object" || manifest.private === true) return [];
+  const found = new Set();
+  const collect = (value) => {
+    if (typeof value === "string") {
+      if (value.trim() !== "") found.add(normalizePath(value.trim()));
+    } else if (value != null && typeof value === "object") {
+      for (const entry of Object.values(value)) collect(entry);
+    }
+  };
+  for (const key of ["main", "types", "typings", "bin", "exports"]) collect(manifest[key]);
+  return [...found].sort();
+}
+
+function resolvePatterns({ stacks = [], impact = {}, published = [] } = {}) {
   const useDefaults = impact.defaults !== false;
   const effectiveStacks = impact.stack ?? stacks;
   const resolved = {};
@@ -160,8 +177,10 @@ function resolvePatterns({ stacks = [], impact = {} } = {}) {
     }
     const key = Object.keys(CONFIG_KEYS).find((name) => CONFIG_KEYS[name] === signal);
     patterns.push(...(impact[key] || []));
+    if (useDefaults && signal === "public-contract") patterns.push(...published);
     resolved[signal] = [...new Set(patterns)];
   }
+  resolved.published = useDefaults ? [...published] : [];
   resolved.exclude = [...new Set([...(useDefaults ? DEFAULT_EXCLUDE : []), ...(impact.exclude || [])])];
   return resolved;
 }
@@ -216,6 +235,7 @@ module.exports = {
   globToRegExp,
   matchImpact,
   normalizePath,
+  publishedPaths,
   resolvePatterns,
   validateImpact,
 };

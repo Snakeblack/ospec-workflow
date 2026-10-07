@@ -22,6 +22,7 @@ const WORK_ORDER = Object.freeze([
 
 const GATE_QUESTIONS = Object.freeze({
   "ambiguous-intent": "What must this change achieve? Confirm its kind, summary and acceptance.",
+  "open-facts": "Before the change is built, answer these behavior questions that neither the request nor the code settles.",
   "adr-amend-or-contradict": "This change amends or contradicts an ADR. Approve the amendment?",
   "irreversible-operation": "This operation is destructive or irreversible. Approve it?",
 });
@@ -55,6 +56,7 @@ function pendingDecision(state, gate) {
   const reason = gate.id === "ambiguous-intent" ? state.intent.request : gate.reason;
   const decision = { gate: gate.id, question: GATE_QUESTIONS[gate.id] };
   if (reason) decision.reason = reason;
+  if (gate.id === "open-facts") decision.questions = state.facts.open;
   return decision;
 }
 
@@ -71,6 +73,9 @@ function nextForChange(state) {
     nextStep = { action: "none" };
   } else if (isIntentAmbiguous(state)) {
     nextStep = { action: "resolve-gate", gate: "ambiguous-intent" };
+  } else if (openGates.some((gate) => gate.id === "open-facts")) {
+    // Open facts are asked before anything is built (REQ-idd-018).
+    nextStep = { action: "resolve-gate", gate: "open-facts" };
   } else if (pending.length > 0) {
     nextStep = { action: "satisfy-obligation", obligation: pending[0].id, evidence: pending[0].evidence };
     if (HOW[pending[0].id]) nextStep.how = HOW[pending[0].id](state.change);

@@ -32,6 +32,7 @@ function openBug() {
     kind: "bug",
     summary: "Fix the last page.",
     acceptance: "Two full pages.",
+    noOpenFacts: true, basis: "The request fixes every behavior.",
   });
   ({ state } = recordSignal(state, { id: "bug-fix", reason: "the intent is a bug fix", source: "declaration" }));
   return state;

@@ -13,6 +13,7 @@ const { nextForChange, nextForProject, statusOf } = require("./idd-next.js");
 const { recordEvidence, recordGate, recordIntent, recordSignal } = require("./idd-record.js");
 
 const FIXTURES_DIR = path.join(__dirname, "..", "fixtures", "idd");
+const NO_OPEN_FACTS = Object.freeze({ noOpenFacts: true, basis: "The request fixes every behavior." });
 
 function loadFixtures() {
   return fs
@@ -28,7 +29,13 @@ function stateFromFixture(fixture, signalOrder = (ids) => ids) {
   const { input, expected } = fixture;
   const intent = input.intent.ambiguous
     ? { change: fixture.id, ambiguous: true, request: input.request }
-    : { change: fixture.id, kind: input.intent.kind, summary: input.intent.summary, acceptance: input.intent.acceptance };
+    : {
+        change: fixture.id,
+        kind: input.intent.kind,
+        summary: input.intent.summary,
+        acceptance: input.intent.acceptance,
+        ...NO_OPEN_FACTS,
+      };
   let state = recordIntent(null, intent).state;
   for (const id of signalOrder(expected.signals.filter((s) => s !== "always"))) {
     state = recordSignal(state, { id, reason: `fixture ${fixture.id}`, source: "declaration" }).state;
@@ -87,8 +94,23 @@ test("an ambiguous intent blocks on its gate with the original request", () => {
   assert.deepStrictEqual(result.pending_obligations, []);
 });
 
+test("open facts are asked before any obligation, as one batch of questions", () => {
+  const questions = ["Is the threshold checked after the discount?", "Is an unknown code an error?"];
+  let state = recordIntent(null, { change: "discount-codes", kind: "feature", summary: "s", acceptance: "a", openFacts: questions }).state;
+  const result = nextForChange(state);
+  assert.deepStrictEqual(result.next_step, { action: "resolve-gate", gate: "open-facts" });
+  assert.strictEqual(result.pending_decision.gate, "open-facts");
+  assert.ok(result.pending_decision.question.length > 0);
+  assert.deepStrictEqual(result.pending_decision.questions, questions);
+  assert.deepStrictEqual(result.pending_obligations.map((o) => o.id), ["checks-pass"]);
+
+  state = recordGate(state, { id: "open-facts", action: "resolve", answer: "after; it throws", source: "user" }).state;
+  assert.deepStrictEqual(nextForChange(state).next_step.obligation, "checks-pass");
+  assert.strictEqual(nextForChange(state).pending_decision, null);
+});
+
 test("an open gate blocks close once obligations are settled, then close is next", () => {
-  let state = recordIntent(null, { change: "drop-fax", kind: "refactor", summary: "s", acceptance: "a" }).state;
+  let state = recordIntent(null, { change: "drop-fax", kind: "refactor", summary: "s", acceptance: "a", ...NO_OPEN_FACTS }).state;
   state = recordGate(state, { id: "irreversible-operation", action: "open", reason: "drops fax_number" }).state;
   state = recordEvidence(state, { id: "ev-1", kind: "check-run", obligation: "checks-pass", recordedAt: "t" }).state;
   assert.deepStrictEqual(nextForChange(state).next_step, { action: "resolve-gate", gate: "irreversible-operation" });
@@ -100,14 +122,14 @@ test("an open gate blocks close once obligations are settled, then close is next
 });
 
 test("a closed change has no next step", () => {
-  const state = { ...recordIntent(null, { change: "fix-it", kind: "bug", summary: "s", acceptance: "a" }).state, status: "closed" };
+  const state = { ...recordIntent(null, { change: "fix-it", kind: "bug", summary: "s", acceptance: "a", ...NO_OPEN_FACTS }).state, status: "closed" };
   assert.deepStrictEqual(nextForChange(state).next_step, { action: "none" });
 });
 
 test("project next picks the only open change, asks to choose among several, or to open one", () => {
-  const a = recordIntent(null, { change: "b-change", kind: "docs", summary: "s", acceptance: "a" }).state;
-  const b = recordIntent(null, { change: "a-change", kind: "docs", summary: "s", acceptance: "a" }).state;
-  const closed = { ...recordIntent(null, { change: "c-change", kind: "docs", summary: "s", acceptance: "a" }).state, status: "closed" };
+  const a = recordIntent(null, { change: "b-change", kind: "docs", summary: "s", acceptance: "a", ...NO_OPEN_FACTS }).state;
+  const b = recordIntent(null, { change: "a-change", kind: "docs", summary: "s", acceptance: "a", ...NO_OPEN_FACTS }).state;
+  const closed = { ...recordIntent(null, { change: "c-change", kind: "docs", summary: "s", acceptance: "a", ...NO_OPEN_FACTS }).state, status: "closed" };
 
   assert.deepStrictEqual(nextForProject([]).next_step, { action: "open-change" });
   assert.strictEqual(nextForProject([a, closed]).change, "b-change");
@@ -120,7 +142,7 @@ test("project next picks the only open change, asks to choose among several, or 
 });
 
 test("status summarizes each change in id order", () => {
-  let fix = recordIntent(null, { change: "fix-it", kind: "bug", summary: "Fix it.", acceptance: "a" }).state;
+  let fix = recordIntent(null, { change: "fix-it", kind: "bug", summary: "Fix it.", acceptance: "a", ...NO_OPEN_FACTS }).state;
   fix = recordSignal(fix, { id: "bug-fix", reason: "bug", source: "declaration" }).state;
   fix = recordEvidence(fix, { id: "ev-1", kind: "check-run", obligation: "checks-pass", recordedAt: "t" }).state;
   const vague = recordIntent(null, { change: "improve-login", ambiguous: true, request: "Improve the login." }).state;

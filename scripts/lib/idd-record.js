@@ -51,6 +51,13 @@ function sameJson(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+// A repeated intent without a facts declaration keeps the recorded one; one
+// with a declaration must match it.
+function sameFacts(state, input) {
+  if (input.openFacts == null && input.noOpenFacts == null) return true;
+  return sameJson(declaredFacts(input), state.facts);
+}
+
 function addSignal(state, { id, reason, source }) {
   if (state.signals.some((signal) => signal.id === id)) return false;
   const { obligation: obligationId } = SIGNAL_BY_ID.get(id);
@@ -84,13 +91,34 @@ function validateResolvedIntent(input) {
   requireText(input.acceptance, "intent-incomplete", "intent acceptance is required");
 }
 
+// Every resolved intent declares its open facts: the behavior questions that
+// neither the request nor the code settles, or the basis for declaring none
+// (REQ-idd-018). Open facts open the open-facts gate.
+function declaredFacts(input) {
+  const open = [...new Set((input.openFacts || []).map((question) => String(question).trim()))];
+  const none = input.noOpenFacts === true;
+  const undeclared = "declare the open facts with --open-fact, or --no-open-facts with --basis";
+  if (open.some((question) => question === "")) refuse("facts-undeclared", "an open fact must be a question");
+  if (none === open.length > 0) refuse("facts-undeclared", undeclared);
+  if (none) {
+    requireText(input.basis, "facts-undeclared", "--no-open-facts needs the --basis that settles every behavior");
+    return { basis: input.basis };
+  }
+  return { open };
+}
+
+function applyFacts(state, facts) {
+  state.facts = facts;
+  if (facts.open) state.gates.push({ id: "open-facts", status: "open" });
+}
+
 function recordIntent(state, input = {}) {
   if (state) {
     requireOpen(state);
     if (!isIntentAmbiguous(state)) {
       const { request = state.intent.request, ...rest } = input;
       const candidate = resolvedIntent({ ...rest, request });
-      if (input.ambiguous || !sameJson(candidate, state.intent)) {
+      if (input.ambiguous || !sameJson(candidate, state.intent) || !sameFacts(state, input)) {
         refuse("intent-conflict", `change ${state.change} already has a different resolved intent`);
       }
       return unchanged(state);
@@ -106,12 +134,14 @@ function recordIntent(state, input = {}) {
     if (!input.answer || !input.source) {
       refuse("gate-answer-required", "resolving ambiguous-intent needs the user's answer and its source");
     }
+    const facts = declaredFacts(input);
     const next = structuredClone(state);
     next.intent = resolvedIntent({ ...input, request: state.intent.request });
     const gate = next.gates.find((entry) => entry.id === "ambiguous-intent");
     gate.status = "resolved";
     gate.answer = input.answer;
     gate.source = input.source;
+    applyFacts(next, facts);
     addSignal(next, { id: "always", reason: ALWAYS_REASON, source: "declaration" });
     return { state: next, changed: true };
   }
@@ -143,7 +173,9 @@ function recordIntent(state, input = {}) {
     next.gates.push({ id: "ambiguous-intent", status: "open" });
   } else {
     validateResolvedIntent(input);
+    const facts = declaredFacts(input);
     next.intent = resolvedIntent(input);
+    applyFacts(next, facts);
     addSignal(next, { id: "always", reason: ALWAYS_REASON, source: "declaration" });
   }
   return { state: next, changed: true };
@@ -169,6 +201,9 @@ function recordGate(state, { id, action, reason, answer, source } = {}) {
   if (!GATES.includes(id)) refuse("unknown-gate", `unknown gate: ${id}`);
   if (id === "ambiguous-intent") {
     refuse("gate-managed-by-intent", "ambiguous-intent is opened and resolved through record intent");
+  }
+  if (id === "open-facts" && action === "open") {
+    refuse("gate-managed-by-intent", "open-facts is opened by the open facts of record intent");
   }
   const existing = state.gates.find((gate) => gate.id === id);
 

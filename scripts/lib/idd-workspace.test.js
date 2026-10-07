@@ -74,6 +74,16 @@ test("project context reads mode, strict_tdd and the impact section from idd/con
   assert.ok(context.patterns["public-contract"].includes("cli/**"));
 });
 
+test("project context adds the files a public package.json publishes", (t) => {
+  const root = tempDir(t);
+  write(root, "package.json", JSON.stringify({ name: "tiny", main: "index.js", types: "index.d.ts" }));
+  assert.deepStrictEqual(readProjectContext(root).patterns.published, ["index.d.ts", "index.js"]);
+  write(root, "package.json", JSON.stringify({ name: "app", private: true, main: "src/app.js" }));
+  assert.deepStrictEqual(readProjectContext(root).patterns.published, []);
+  write(root, "package.json", "{ not json");
+  assert.deepStrictEqual(readProjectContext(root).patterns.published, [], "a malformed manifest publishes nothing");
+});
+
 test("openspec/config.yaml is SDD configuration and never configures IDD", (t) => {
   const root = tempDir(t);
   write(root, "openspec/config.yaml", "strict_tdd: true\nimpact:\n  public_contract:\n    - cli/**\n");

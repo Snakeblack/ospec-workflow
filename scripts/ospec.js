@@ -62,6 +62,7 @@ const USAGE = `Usage:
   ospec status [--change <id>] [--json]
   ospec next [--change <id>] [--json]
   ospec record intent --change <id> --kind <bug|feature|refactor|docs> --summary <text> --acceptance <text>
+                      (--open-fact <question>... | --no-open-facts --basis <text>)
                       [--request <text>] [--answer <text> --source <text>]
   ospec record intent --change <id> --ambiguous --request <text>
   ospec record signal --change <id> --signal <id> --reason <text> [--source declaration|diff]
@@ -90,6 +91,9 @@ const OPTIONS = {
   acceptance: { type: "string" },
   request: { type: "string" },
   ambiguous: { type: "boolean" },
+  "open-fact": { type: "string", multiple: true },
+  "no-open-facts": { type: "boolean" },
+  basis: { type: "string" },
   answer: { type: "string" },
   source: { type: "string" },
   signal: { type: "string" },
@@ -132,6 +136,9 @@ function reducerFor(type, values, root) {
           acceptance: values.acceptance,
           request: values.request,
           ambiguous: values.ambiguous === true,
+          openFacts: values["open-fact"],
+          noOpenFacts: values["no-open-facts"],
+          basis: values.basis,
           answer: values.answer,
           source: values.source,
         });
@@ -534,8 +541,9 @@ function describeNext(result) {
     lines.push(`pending: ${result.pending_obligations.map((o) => o.id).join(", ")}`);
   }
   if (result.pending_decision) {
-    const { gate, question, reason } = result.pending_decision;
+    const { gate, question, reason, questions = [] } = result.pending_decision;
     lines.push(`decision: ${gate}: ${question}${reason ? ` (${reason})` : ""}`);
+    for (const entry of questions) lines.push(`  - ${entry}`);
   }
   if (result.knowledge_refs?.length) lines.push(`refs: ${result.knowledge_refs.join(", ")}`);
   return lines.join("\n");

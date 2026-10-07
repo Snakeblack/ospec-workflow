@@ -128,6 +128,20 @@ test("every derived signal carries a reason naming why it fired", () => {
   });
 });
 
+test("a file a public package publishes derives the public contract, naming the manifest", () => {
+  const derivation = deriveSignals({
+    intent: { kind: "feature", summary: "s", acceptance: "a" },
+    declaration: { paths: ["index.d.ts", "test/duration.js"] },
+    patterns: resolvePatterns({ stacks: ["node"], impact: {}, published: ["index.js", "index.d.ts"] }),
+  });
+  const contract = derivation.signals.find((s) => s.id === "public-contract");
+  assert.deepStrictEqual(contract, {
+    id: "public-contract",
+    reason: "public contract: touches index.d.ts (published by package.json)",
+    source: "declaration",
+  });
+});
+
 test("a non-obvious decision alone derives the living document", () => {
   const derivation = deriveSignals({
     intent: { kind: "feature", summary: "s", acceptance: "a" },
@@ -262,7 +276,7 @@ test("the K1 floor comes from the derived signals", () => {
 // ---------------------------------------------------------------------------
 
 function openChange(kind = "feature") {
-  return recordIntent(null, { change: "c", kind, summary: "s", acceptance: "a" }).state;
+  return recordIntent(null, { change: "c", kind, summary: "s", acceptance: "a", noOpenFacts: true, basis: "The request fixes every behavior." }).state;
 }
 
 test("applyDerivation records new signals and gates and is idempotent", () => {

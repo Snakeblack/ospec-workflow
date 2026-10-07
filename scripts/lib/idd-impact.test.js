@@ -15,6 +15,7 @@ const {
   detectStacks,
   globToRegExp,
   matchImpact,
+  publishedPaths,
   resolvePatterns,
   validateImpact,
 } = require("./idd-impact.js");
@@ -64,6 +65,33 @@ test("resolved patterns are the base plus the stack defaults plus the project's 
   }
   assert.ok(patterns["public-contract"].includes("contracts/**"));
   assert.deepStrictEqual(patterns.exclude, [...DEFAULT_EXCLUDE, "legacy/**"]);
+});
+
+test("a public package publishes its main, types, bin and exports", () => {
+  assert.deepStrictEqual(
+    publishedPaths({
+      main: "./index.js",
+      types: "index.d.ts",
+      typings: "index.d.ts",
+      bin: { tiny: "bin/tiny.js" },
+      exports: { ".": { import: "./esm/index.mjs", require: "./index.js" }, "./utils": "./lib/utils.js" },
+    }),
+    ["bin/tiny.js", "esm/index.mjs", "index.d.ts", "index.js", "lib/utils.js"],
+  );
+  assert.deepStrictEqual(publishedPaths({ bin: "cli.js", exports: "./main.js" }), ["cli.js", "main.js"]);
+  assert.deepStrictEqual(publishedPaths({ private: true, main: "src/app.js" }), [], "a private package publishes nothing");
+  assert.deepStrictEqual(publishedPaths(null), []);
+  assert.deepStrictEqual(publishedPaths({ main: 3, exports: { ".": null } }), []);
+});
+
+test("published paths join the public-contract defaults and match by their exact path", () => {
+  const patterns = resolvePatterns({ stacks: ["node"], impact: {}, published: ["index.js", "index.d.ts"] });
+  assert.deepStrictEqual(patterns.published, ["index.js", "index.d.ts"]);
+  assert.deepStrictEqual(matchImpact("index.d.ts", patterns), [{ signal: "public-contract", pattern: "index.d.ts" }]);
+  assert.deepStrictEqual(matchImpact("src/index.d.ts", patterns), []);
+  const bare = resolvePatterns({ stacks: ["node"], impact: { defaults: false }, published: ["index.js"] });
+  assert.deepStrictEqual(bare["public-contract"], []);
+  assert.deepStrictEqual(bare.published, []);
 });
 
 test("defaults: false keeps only the project's patterns", () => {

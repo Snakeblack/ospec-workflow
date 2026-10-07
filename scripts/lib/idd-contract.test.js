@@ -94,8 +94,8 @@ test("each signal derives one distinct obligation", () => {
   assert.deepStrictEqual(sorted(obligations), sorted(contract.OBLIGATIONS.map((o) => o.id)));
 });
 
-test("the spec names exactly the three gates", () => {
-  assert.deepStrictEqual(contract.GATES, ["ambiguous-intent", "adr-amend-or-contradict", "irreversible-operation"]);
+test("the spec names exactly the four gates", () => {
+  assert.deepStrictEqual(contract.GATES, ["ambiguous-intent", "open-facts", "adr-amend-or-contradict", "irreversible-operation"]);
   const section = requirementSection(readSpec(), "REQ-idd-008");
   for (const gate of contract.GATES) {
     assert.ok(section.includes(`\`${gate}\``), `REQ-idd-008 must name ${gate}`);

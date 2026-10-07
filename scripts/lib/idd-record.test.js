@@ -18,11 +18,15 @@ const {
   recordWithdraw,
 } = require("./idd-record.js");
 
+// The open-facts declaration every resolved intent needs (REQ-idd-018).
+const NO_OPEN_FACTS = Object.freeze({ noOpenFacts: true, basis: "The request fixes every behavior." });
+
 const BUG_INTENT = Object.freeze({
   change: "fix-pagination",
   kind: "bug",
   summary: "Fix the last page.",
   acceptance: "Two full pages.",
+  ...NO_OPEN_FACTS,
 });
 
 function opened(input = BUG_INTENT) {
@@ -72,7 +76,13 @@ test("repeating the same intent is a no-op and a different one is refused", () =
 
 test("resolving an ambiguous intent needs the user's answer and its source", () => {
   const ambiguous = recordIntent(null, { change: "improve-login", ambiguous: true, request: "Improve the login." }).state;
-  const resolution = { change: "improve-login", kind: "bug", summary: "Fix the timeout.", acceptance: "Login in < 2s." };
+  const resolution = {
+    change: "improve-login",
+    kind: "bug",
+    summary: "Fix the timeout.",
+    acceptance: "Login in < 2s.",
+    ...NO_OPEN_FACTS,
+  };
   assertCode(() => recordIntent(ambiguous, resolution), "gate-answer-required");
 
   const { state, changed } = recordIntent(ambiguous, { ...resolution, answer: "the timeout bug", source: "AskUserQuestion" });
@@ -88,6 +98,85 @@ test("resolving an ambiguous intent needs the user's answer and its source", () 
     { id: "ambiguous-intent", status: "resolved", answer: "the timeout bug", source: "AskUserQuestion" },
   ]);
   assert.deepStrictEqual(state.obligations.map((o) => o.id), ["checks-pass"]);
+});
+
+// ---------------------------------------------------------------------------
+// open facts (REQ-idd-018)
+// ---------------------------------------------------------------------------
+
+const FEATURE = Object.freeze({
+  change: "discount-codes",
+  kind: "feature",
+  summary: "Discount codes.",
+  acceptance: "VERANO10 takes 10%.",
+});
+
+test("a resolved intent must declare its open facts or why there are none", () => {
+  assertCode(() => recordIntent(null, FEATURE), "facts-undeclared");
+  assertCode(() => recordIntent(null, { ...FEATURE, noOpenFacts: true }), "facts-undeclared");
+  assertCode(() => recordIntent(null, { ...FEATURE, noOpenFacts: true, basis: "  " }), "facts-undeclared");
+  assertCode(() => recordIntent(null, { ...FEATURE, openFacts: [] }), "facts-undeclared");
+  assertCode(() => recordIntent(null, { ...FEATURE, openFacts: ["Case?"], ...NO_OPEN_FACTS }), "facts-undeclared");
+  assertCode(() => recordIntent(null, { ...FEATURE, openFacts: [" "] }), "facts-undeclared");
+});
+
+test("no open facts records the basis and opens no gate", () => {
+  const { state } = recordIntent(null, { ...FEATURE, ...NO_OPEN_FACTS });
+  assertValid(state);
+  assert.deepStrictEqual(state.facts, { basis: "The request fixes every behavior." });
+  assert.deepStrictEqual(state.gates, []);
+});
+
+test("open facts open the open-facts gate, which only the user's answer resolves", () => {
+  const questions = ["Is the threshold checked after the discount?", "Is an unknown code an error?"];
+  const { state } = recordIntent(null, { ...FEATURE, openFacts: [...questions, questions[0]] });
+  assertValid(state);
+  assert.deepStrictEqual(state.facts, { open: questions });
+  assert.deepStrictEqual(state.gates, [{ id: "open-facts", status: "open" }]);
+  assert.deepStrictEqual(state.obligations.map((o) => o.id), ["checks-pass"]);
+
+  assert.strictEqual(recordIntent(state, { ...FEATURE, openFacts: questions }).changed, false);
+  assertCode(() => recordIntent(state, { ...FEATURE, openFacts: ["Other?"] }), "intent-conflict");
+  assertCode(() => recordGate(state, { id: "open-facts", action: "open" }), "gate-managed-by-intent");
+  assertCode(() => recordGate(state, { id: "open-facts", action: "resolve" }), "gate-answer-required");
+
+  const answer = "After the discount; an unknown code throws.";
+  const resolved = recordGate(state, { id: "open-facts", action: "resolve", answer, source: "user" });
+  assertValid(resolved.state);
+  assert.deepStrictEqual(resolved.state.gates, [{ id: "open-facts", status: "resolved", answer, source: "user" }]);
+});
+
+test("resolving an ambiguous intent also declares its open facts", () => {
+  const ambiguous = recordIntent(null, { change: "improve-login", ambiguous: true, request: "Improve the login." }).state;
+  const resolution = {
+    change: "improve-login",
+    kind: "bug",
+    summary: "Fix the timeout.",
+    acceptance: "Login in < 2s.",
+    answer: "the timeout bug",
+    source: "user",
+  };
+  assertCode(() => recordIntent(ambiguous, resolution), "facts-undeclared");
+  const { state } = recordIntent(ambiguous, { ...resolution, openFacts: ["Which timeout?"] });
+  assertValid(state);
+  assert.deepStrictEqual(
+    state.gates.map((g) => [g.id, g.status]),
+    [
+      ["ambiguous-intent", "resolved"],
+      ["open-facts", "open"],
+    ],
+  );
+});
+
+test("the state validator checks the facts declaration", () => {
+  const { state } = recordIntent(null, { ...FEATURE, openFacts: ["Case?"] });
+  assert.strictEqual(validateState({ ...state, facts: { open: [] } }).ok, false);
+  assert.strictEqual(validateState({ ...state, facts: { open: ["Case?"], basis: "both" } }).ok, false);
+  assert.strictEqual(validateState({ ...state, facts: { basis: "" }, gates: [] }).ok, false);
+  assert.strictEqual(validateState({ ...state, facts: { basis: "fixed" } }).ok, false, "open-facts needs open facts");
+  const legacy = structuredClone(opened());
+  delete legacy.facts;
+  assertValid(legacy);
 });
 
 test("an incomplete or malformed intent is refused", () => {
@@ -304,7 +393,7 @@ test("every record is refused on a closed change", () => {
 });
 
 test("opening a change records its base commit, which must be a commit id or null", () => {
-  const input = { change: "fix-pagination", kind: "bug", summary: "Fix the last page.", acceptance: "Two full pages." };
+  const input = BUG_INTENT;
   assert.strictEqual(recordIntent(null, { ...input, base: "3b0378e3" }).state.base, "3b0378e3");
   assert.strictEqual(recordIntent(null, { ...input, base: null }).state.base, null);
   assert.ok(!("base" in recordIntent(null, input).state));
