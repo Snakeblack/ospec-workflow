@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.107.2, 2026-10-07.
+> **Versión de referencia:** v2.108.0, 2026-10-07.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -121,7 +121,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.3** | `impact-signals` | feature |
 | `done` | **E1.4** | `ospec-check-and-close` | feature |
 | `done` | **E1.5** | `kernel-wiring-inventory` | refactor |
-| `next-eligible` | **E1.6** | `idd-default-entry` | feature |
+| `in-progress` | **E1.6** | `idd-default-entry` ((a) entregado; siguiente, (b) brazo IDD) | feature |
 | `pending` | **E1.7** | `ospec-doctor` | feature |
 | `pending` | **E1.8** | `sdd-new-intent-argument` (después de E1.6) | bugfix |
 | `next-eligible` | **E2.1** | `knowledge-map-contract` | contrato |
@@ -140,7 +140,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E1.6 `idd-default-entry`, priorizado por el presupuesto de cuota del usuario. La línea base del modo SDD quedó completa en v2.107.1 (`sdd-baseline-3`, [informe](../analysis/2026-10-07-bench-linea-base-sdd-3.md)): 6/6 escenarios completos, 0 defectos escapados y 65,7 M tokens con una repetición por escenario (`bench-margins-3`). E1.6 habilita el brazo IDD, ejecuta sus seis corridas con el mismo banco y decide con el checkpoint si IDD pasa a ser el default; con una corrida por escenario, la comparación es exploratoria. La pasada anterior, `sdd-baseline-2` (v2.106.0, [informe](../analysis/2026-10-06-bench-linea-base-sdd.md)), queda como histórico y no se agrega a la actual. Después de E1.6 va E1.8 `sdd-new-intent-argument`, que corrige cómo recibe `/sdd-new` una petición sin nombre de cambio. E2.1 `knowledge-map-contract` sigue elegible en paralelo. E1.4 quedó cerrado en v2.103.0 y la etapa 0, en v2.91.0.
+**▶ SIGUIENTE:** E1.6 (b), el brazo `idd` del banco, con la excepción de huella verificada que decidió el usuario. (a) quedó entregado en v2.108.0: protocolo IDD en los 7 targets y entrada por el router con `mode: idd`. E1.6 `idd-default-entry` está priorizado por el presupuesto de cuota del usuario. La línea base del modo SDD quedó completa en v2.107.1 (`sdd-baseline-3`, [informe](../analysis/2026-10-07-bench-linea-base-sdd-3.md)): 6/6 escenarios completos, 0 defectos escapados y 65,7 M tokens con una repetición por escenario (`bench-margins-3`). E1.6 habilita el brazo IDD, ejecuta sus seis corridas con el mismo banco y decide con el checkpoint si IDD pasa a ser el default; con una corrida por escenario, la comparación es exploratoria. La pasada anterior, `sdd-baseline-2` (v2.106.0, [informe](../analysis/2026-10-06-bench-linea-base-sdd.md)), queda como histórico y no se agrega a la actual. Después de E1.6 va E1.8 `sdd-new-intent-argument`, que corrige cómo recibe `/sdd-new` una petición sin nombre de cambio. E2.1 `knowledge-map-contract` sigue elegible en paralelo. E1.4 quedó cerrado en v2.103.0 y la etapa 0, en v2.91.0.
 
 **Dependencias:**
 
@@ -294,6 +294,9 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
   - El README y la documentación de producto presentan IDD como flujo por defecto y SDD como modo.
 - **Gate:** el checkpoint de E4.1, que compara IDD con el modo SDD. IDD no puede dejar escapar más defectos y debe gastar menos tokens. Si no lo cumple, `revise` antes de cambiar el default.
 - **Hecho cuando:** una instalación limpia en cada target crea y cierra un cambio con documento vivo sin cargar nada de SDD, y un proyecto con `mode: sdd` funciona igual que hoy.
+- **Entrega:** PRs encadenados: (a) protocolo IDD y entrada por el router con `mode: idd`, sin cambiar el default; (b) brazo `idd` del banco; (c) las seis corridas IDD, el checkpoint contra `sdd-baseline-3` y el informe; (d) solo si el checkpoint da `continue`, IDD pasa a ser el default, las fases SDD van al paquete opcional y se actualizan el README y la documentación de producto.
+- **Comparabilidad (decisión del usuario, 2026-10-07):** activar el brazo `idd` cambia `arms.js`, que entra en `harness_digest`, y el checkpoint daría `not-comparable` frente a `sdd-baseline-3`. En vez de repetir la línea base (unos 66 M tokens), `margins.json` declarará el par de huellas y los ficheros que pueden cambiar (`arms.js` y `checkpoint.js`, que es código de juicio y no se ejecuta en las corridas). Un test reconstruirá la huella de la línea base con las copias de v2.107.0 guardadas en `__fixtures__` y comprobará que el brazo `sdd` se comporta igual. El checkpoint aceptará solo el par declarado, y el informe lo hará constar.
+- **(a) entregado en v2.108.0:** la skill `idd` (`skills/idd/SKILL.md`, 4,5 KB) es el protocolo en los 7 targets (REQ-generator-024). Sigue `ospec next` y su `next_step.how`, registra evidencia solo con `ospec run`, `check` y `review`, se detiene solo en los tres gates y nombra `work-unit-commits`, `branch-pr` y `chained-pr` para la entrega, que decide el usuario. Llama al CLI instalado: en Claude, con `${CLAUDE_SKILL_DIR}/../../scripts/ospec.js`; en el resto, con el marcador `__OSPEC_RUNTIME_DIR__`, que cada instalador sustituye por el directorio de su runtime (REQ-install-035). El router manda los cambios de código a IDD cuando `idd/config.yaml` dice `mode: idd`; sin ese modo, el comportamiento no cambia. *Always-on* sube unos 0,3 KB (2,9–3,3 KB) y el listado de skills, 0,2 KB. Dos pruebas reales con Claude Code (Sonnet 5.5, unos $0,13 cada una), una con `/ospec-workflow:idd` y otra con el router, arreglan un bug de juguete: test de reproducción en rojo y en verde, `ospec check` y `ospec close` con archivo. Hallazgos para (b): el banco ejecuta Claude con un `CLAUDE_CONFIG_DIR` aislado, así que el router no llega a las corridas y el brazo `idd` tendrá que entrar de forma explícita, como hace SDD con `/ospec-workflow:sdd-new`. `install:codex -- <repo>` no instala runtime ni protocolo. El hook de memoria de sesión no conoce los cambios IDD.
 
 ### E1.7 — `ospec-doctor`
 

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.108.0] - 2026-10-07
+
+### Added
+- **Protocolo IDD en los 7 targets (E1.6, PR a)**: nueva skill `idd` (`skills/idd/SKILL.md`, 4,5 KB, bajo demanda). Trabaja el cambio con el CLI `ospec`: sigue `ospec next` y su `next_step.how`, registra evidencia solo con `ospec run`, `check` y `review`, se detiene solo en los tres gates (intención ambigua, operación irreversible y ADR enmendado o contradicho) y nombra `work-unit-commits`, `branch-pr` y `chained-pr` para la entrega, que decide el usuario (REQ-generator-024).
+- **Ruta del CLI instalado**: en Claude, el protocolo usa `${CLAUDE_SKILL_DIR}/../../scripts/ospec.js`. En el resto de targets lleva el marcador `__OSPEC_RUNTIME_DIR__`, que cada instalador sustituye por el directorio de su runtime: la raíz de instalación en Copilot, OpenCode, Cursor y Antigravity, `~/.codex/ospec-workflow` en Codex, `dist/vscode` en VS Code y `.` en `install-target`. Como el marcador de `_shared`, se restaura en `dist/` tras sincronizar (REQ-install-035).
+
+### Changed
+- **Router**: con `mode: idd` en `idd/config.yaml`, los cambios de código que no son una petición SDD entran por la skill `idd`. Sin ese modo, el comportamiento es el de antes, y SDD sigue disponible con `/sdd-*`. *Always-on* sube unos 0,3 KB (2,9–3,3 KB, por debajo de 4 KB) y el listado de skills, 0,2 KB; techos regenerados en `scripts/fixtures/context-baseline.json`.
+- **Roadmap**: E1.6 pasa a `in-progress`, con sus cuatro PRs y la decisión de comparabilidad del usuario. Activar el brazo `idd` cambia `harness_digest`, así que `margins.json` declarará el par de huellas y un test verificará que solo cambian `arms.js` y `checkpoint.js` y que el brazo `sdd` se comporta igual, sin repetir `sdd-baseline-3`.
+
+Dos pruebas reales con Claude Code (Sonnet 5.5, unos $0,13 cada una), una con `/ospec-workflow:idd` y otra con el router, arreglan un bug de juguete en IDD: test de reproducción en rojo y en verde, `ospec check` y `ospec close` con archivo en `idd/archive/`.
+
+**Verificación directa**: `node scripts/check.js` (3229 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.107.2] - 2026-10-07
 
 ### Changed
