@@ -152,6 +152,14 @@ defects exceeds the baseline's by more than `escaped_defects.max_mean_delta`,
 or when the candidate's summed mean tokens exceed `tokens.max_total_ratio`
 times the baseline's. These vetoes MUST NOT be configurable.
 
+The margins MAY declare one `harness_exception`: a baseline digest, a candidate
+digest, the harness files allowed to differ, and a reason. The checkpoint MUST
+accept a different harness only for exactly that pair, in that direction, and
+MUST report the exception in its result. A test MUST verify the exception: the
+current harness digest MUST equal the candidate digest, restoring the declared
+files from committed copies of the baseline harness MUST rebuild the baseline
+digest, and the baseline arm MUST behave as it did.
+
 #### Scenario: Improvement in totals does not hide a regression
 
 - GIVEN a candidate with fewer escaped defects in total
@@ -167,15 +175,29 @@ times the baseline's. These vetoes MUST NOT be configurable.
 - THEN it MUST NOT report `check-regression` for that check
 - AND the escaped-defect means of both arms MUST still count it
 
+#### Scenario: A declared harness exception covers only its pair
+
+- GIVEN margins that declare a harness exception from digest A to digest B
+- WHEN the baseline has harness A and the candidate harness B
+- THEN the checkpoint MUST NOT report `not-comparable` for the harness
+- AND its result MUST carry the exception
+- WHEN the candidate has any other harness, or the pair is reversed
+- THEN it MUST report `not-comparable`
+
 ### Requirement: Arms {#REQ-bench-006}
 
 The `sdd` arm MUST initialize the project with `/ospec-workflow:sdd-init`,
 request the change with `/ospec-workflow:sdd-new`, and finish when a change is
-archived under `openspec/changes/archive/`. The `idd` arm MUST be declared and
-MUST refuse to run until E1.6 ships the IDD protocol.
+archived under `openspec/changes/archive/`. The `idd` arm MUST set the project
+up by asking the agent to write `idd/config.yaml` with `mode: idd` and the
+`npm test` check, and that setup MUST be done only when the file parses in IDD
+mode. It MUST request the change with `/ospec-workflow:idd`, because the router
+does not load in the bench's isolated configuration, and finish when
+`ospec close` has archived a change under `idd/archive/`.
 
-#### Scenario: IDD before E1.6
+#### Scenario: IDD arm finishes at the closed change
 
-- GIVEN the current release
-- WHEN `bench.js run --arm idd` is requested
-- THEN it MUST refuse and name E1.6
+- GIVEN the `idd` arm with its setup done
+- WHEN the change is requested
+- THEN the prompt MUST be `/ospec-workflow:idd <brief>`
+- AND the run MUST be complete only once `idd/archive/` holds a directory
