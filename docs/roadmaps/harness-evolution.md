@@ -140,7 +140,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E1.8 `sdd-new-intent-argument`: el comando `sdd-new` generado para Claude declara `arguments: changeName intent` y parte la petición. E1.6 está hecho desde v2.114.0: IDD es el flujo por defecto, SDD se instala con `--with-sdd` y el README y la documentación lo presentan así. Follow-ups: el marketplace de Claude publicado se construye sin `--with-sdd`, así que quien instala desde él no puede activar SDD; y el protocolo IDD debe editar ficheros de texto respetando su codificación. E2.1 `knowledge-map-contract` sigue elegible en paralelo.
+**▶ SIGUIENTE:** E1.8 `sdd-new-intent-argument`: el comando `sdd-new` generado para Claude declara `arguments: changeName intent` y parte la petición. E1.6 está hecho desde v2.114.0: IDD es el flujo por defecto, SDD se instala con `--with-sdd` y el README y la documentación lo presentan así. Follow-ups: el plugin SDD del marketplace queda como E5.8, por demanda; y el protocolo IDD debe editar ficheros de texto respetando su codificación. E2.1 `knowledge-map-contract` sigue elegible en paralelo.
 
 **Dependencias:**
 
@@ -471,6 +471,7 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
 - **E5.5 — `change-program`:** objetivos grandes gestionados como programa, con cambios hijos y un cursor que retoma el siguiente. Insumo: [proporcionalidad y Change Program](archive/2026-10-03-arquitectura/research/proportional-process-and-change-program.md).
 - **E5.6 — deuda diferida H1–H7:** remediación del backlog de archive y runtime al terminar el roadmap (decisión del usuario del 2026-10-02).
 - **E5.7 — fin de la lectura de linajes v1:** retirar la lectura compatible de `schema_version: 1` (`4r-review-gate`, `LEGACY_DIMENSIONS`, la rama v1 de `review-correction`) y el clasificador v1 (`deriveReviewDimensions`, `validateReviewDecision`). Se abre a partir de v2.92.0, cuando termina la ventana de una versión menor de E0.3 (d).
+- **E5.8 — `sdd-marketplace-plugin`:** publicar un segundo plugin, `ospec-workflow-sdd`, en el marketplace de Claude. Desde v2.113.0, `publish-marketplace.yml` construye la build por defecto, sin `--with-sdd`, así que quien instala desde el marketplace no puede activar SDD; hoy solo puede instalarlo desde un checkout con `npm run setup:claude -- --with-sdd`. Primero hay que decidir entre un plugin completo con SDD que sustituye al principal y un complemento que solo añade el paquete SDD; el complemento obliga a resolver cómo conviven dos plugins: nombres de skills y agentes, hooks y runtime duplicados, y la ruta al CLI. Idea aprobada por el usuario el 2026-10-08 y aplazada: no es prioritaria. Se abre cuando alguien necesite SDD instalando desde el marketplace o al terminar E1.
 
 ## Aparcado (con criterio de reapertura)
 
