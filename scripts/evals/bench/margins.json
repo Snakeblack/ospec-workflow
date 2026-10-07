@@ -1,7 +1,7 @@
 {
-  "schema_version": 2,
-  "margins_version": "bench-margins-3",
-  "declared_at": "2026-10-06",
+  "schema_version": 3,
+  "margins_version": "bench-margins-4",
+  "declared_at": "2026-10-07",
   "baseline_arm": "sdd",
   "candidate_arm": "idd",
   "repetitions": 1,
@@ -10,5 +10,11 @@
   },
   "tokens": {
     "max_total_ratio": 0.9
+  },
+  "harness_exception": {
+    "baseline_digest": "42261bd02ac62eac13e7ffb40e9c8c65547c50131cbf6ec2866e6ed19a63e264",
+    "candidate_digest": "79f3d6095b1ef9133cf501293b34574d0a86a53d464e0630158f6559b98ea728",
+    "changed_files": ["arms.js", "checkpoint.js"],
+    "reason": "E1.6 enables the idd arm (arms.js) and this exception (checkpoint.js) after sdd-baseline-3; the sdd arm and the code that drives and judges a run are unchanged"
   }
 }

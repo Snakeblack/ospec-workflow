@@ -211,8 +211,46 @@ test("a setup that edits the seed is incomplete and the change is not requested"
   assert.deepEqual(run.checks, [], "a voided run is not judged");
 });
 
-test("the idd arm is declared but unavailable until E1.6", () => {
-  assert.equal(ARMS.idd.available, false);
-  assert.throws(() => armFor("idd"), /E1\.6/);
+const writeIddConfig = (mode) => (cwd) => {
+  fs.mkdirSync(path.join(cwd, "idd"), { recursive: true });
+  fs.writeFileSync(path.join(cwd, "idd", "config.yaml"), `mode: ${mode}\nchecks:\n  test: npm test\n`);
+};
+const archiveIdd = (cwd) => fs.mkdirSync(path.join(cwd, "idd", "archive", "2026-10-07-prioridades"), { recursive: true });
+
+test("the idd arm writes idd/config.yaml, requests the change through the idd skill, and ends at idd/archive/", async () => {
+  const arm = armFor("idd");
+  assert.equal(arm.changePrompt(scenario), "/ospec-workflow:idd Quiero prioridades.");
+  assert.match(arm.setupPrompts[0], /idd\/config\.yaml/);
+  assert.match(arm.setupPrompts[0], /mode: idd/);
+  const host = fakeHost({
+    texts: ["Configuración creada.", "Cambio abierto.", "ospec close ha archivado el cambio."],
+    effects: [writeIddConfig("idd"), writeCode, archiveIdd],
+  });
+  const run = await runScenario({ scenario: seedRepo(), arm, host, ...dirs(), checks: () => [{ id: "a", kind: "acceptance", fact: null, pass: true }] });
+  assert.equal(run.status, "complete");
+  assert.equal(run.setup.status, "complete");
+  assert.deepEqual(run.setup.modified_seed, []);
+  assert.equal(host.calls.turns[0].prompt, arm.setupPrompts[0]);
+  assert.equal(host.calls.turns[1].prompt, "/ospec-workflow:idd Quiero prioridades.");
+  assert.equal(run.metrics.agent_turns, 2);
+  assert.deepEqual(run.changed_files, ["index.js"], "git does not track the empty archive directory");
+});
+
+test("the idd arm's setup is done only with a readable config in IDD mode", () => {
+  const arm = armFor("idd");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "bench-idd-"));
+  assert.equal(arm.isSetupDone(root), false);
+  writeIddConfig("sdd")(root);
+  assert.equal(arm.isSetupDone(root), false);
+  fs.writeFileSync(path.join(root, "idd", "config.yaml"), "mode idd\n");
+  assert.equal(arm.isSetupDone(root), false);
+  writeIddConfig("idd")(root);
+  assert.equal(arm.isSetupDone(root), true);
+  assert.equal(arm.isComplete(root), false);
+  fs.mkdirSync(path.join(root, "idd", "archive"), { recursive: true });
+  assert.equal(arm.isComplete(root), false, "an empty archive is not a closed change");
+  archiveIdd(root);
+  assert.equal(arm.isComplete(root), true);
+  assert.equal(ARMS.idd.available, true);
   assert.throws(() => armFor("odd"), /unknown arm/);
 });

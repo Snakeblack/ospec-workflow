@@ -9,7 +9,7 @@ const path = require("node:path");
 const { MARGINS_PATH, evaluateCheckpoint, loadMargins, renderCheckpoint, validateMargins } = require("./checkpoint.js");
 
 const margins = {
-  schema_version: 2,
+  schema_version: 3,
   margins_version: "test-margins",
   declared_at: "2026-10-06",
   baseline_arm: "sdd",
@@ -17,6 +17,13 @@ const margins = {
   repetitions: 1,
   escaped_defects: { max_mean_delta: 0 },
   tokens: { max_total_ratio: 0.9 },
+  harness_exception: null,
+};
+const exception = {
+  baseline_digest: "f".repeat(64),
+  candidate_digest: "e".repeat(64),
+  changed_files: ["arms.js", "checkpoint.js"],
+  reason: "the candidate arm arrives after the baseline",
 };
 const margins3 = { ...margins, repetitions: 3 };
 
@@ -57,8 +64,11 @@ test("the committed margins load and carry a digest", () => {
   const { margins: loaded, digest } = loadMargins(MARGINS_PATH);
   assert.equal(loaded.baseline_arm, "sdd");
   assert.equal(loaded.candidate_arm, "idd");
-  assert.equal(loaded.margins_version, "bench-margins-3");
+  assert.equal(loaded.margins_version, "bench-margins-4");
   assert.equal(loaded.repetitions, 1);
+  assert.equal(loaded.escaped_defects.max_mean_delta, 0, "same thresholds as bench-margins-3");
+  assert.equal(loaded.tokens.max_total_ratio, 0.9, "same thresholds as bench-margins-3");
+  assert.deepEqual(loaded.harness_exception.changed_files, ["arms.js", "checkpoint.js"]);
   assert.match(digest, /^[a-f0-9]{64}$/);
 });
 
@@ -68,6 +78,13 @@ test("validateMargins rejects unknown or missing margins", () => {
   assert.throws(() => validateMargins({ ...margins, repetitions: 0 }), /repetitions/);
   assert.throws(() => validateMargins({ ...margins, tokens: { max_total_ratio: 0 } }), /max_total_ratio/);
   assert.throws(() => validateMargins({ ...margins, escaped_defects: { max_mean_delta: -1 } }), /max_mean_delta/);
+  assert.equal(validateMargins({ ...margins, harness_exception: exception }).harness_exception, exception);
+  assert.throws(() => validateMargins({ ...margins, harness_exception: { ...exception, extra: 1 } }), /harness_exception/);
+  assert.throws(() => validateMargins({ ...margins, harness_exception: { ...exception, baseline_digest: "f" } }), /baseline_digest/);
+  assert.throws(() => validateMargins({ ...margins, harness_exception: { ...exception, candidate_digest: exception.baseline_digest } }), /differ/);
+  assert.throws(() => validateMargins({ ...margins, harness_exception: { ...exception, changed_files: [] } }), /changed_files/);
+  assert.throws(() => validateMargins({ ...margins, harness_exception: { ...exception, changed_files: ["arms.test.js"] } }), /changed_files/);
+  assert.throws(() => validateMargins({ ...margins, harness_exception: { ...exception, reason: " " } }), /reason/);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bench-margins-"));
   fs.writeFileSync(path.join(dir, "m.json"), "{");
   assert.throws(() => loadMargins(path.join(dir, "m.json")), /could not read/);
@@ -144,6 +161,30 @@ test("incomplete runs and incomparable records revise", () => {
   assert.ok(evaluateCheckpoint({ baseline, candidate: otherHarness, margins }).reasons.some((reason) => reason.code === "not-comparable"));
   const wrongArm = record("sdd", [run("cli-local", 500)]);
   assert.ok(evaluateCheckpoint({ baseline, candidate: wrongArm, margins }).reasons.some((reason) => reason.code === "not-comparable"));
+});
+
+test("a declared harness exception accepts exactly its digest pair and is reported", () => {
+  const withException = { ...margins, harness_exception: exception };
+  const baseline = record("sdd", [run("cli-local", 1000)]);
+  const candidate = record("idd", [run("cli-local", 500)], { harness_digest: "e".repeat(64) });
+  const accepted = evaluateCheckpoint({ baseline, candidate, margins: withException });
+  assert.equal(accepted.decision, "continue", JSON.stringify(accepted.reasons));
+  assert.deepEqual(accepted.harness_exception, exception);
+  assert.match(renderCheckpoint(accepted), /harness exception/i);
+
+  const notDeclared = evaluateCheckpoint({ baseline, candidate, margins });
+  assert.ok(notDeclared.reasons.some((reason) => reason.code === "not-comparable"));
+  assert.equal(notDeclared.harness_exception, null);
+  const otherCandidate = record("idd", [run("cli-local", 500)], { harness_digest: "d".repeat(64) });
+  assert.ok(evaluateCheckpoint({ baseline, candidate: otherCandidate, margins: withException }).reasons.some((reason) => reason.code === "not-comparable"));
+  const reversed = evaluateCheckpoint({
+    baseline: record("sdd", [run("cli-local", 1000)], { harness_digest: "e".repeat(64) }),
+    candidate: record("idd", [run("cli-local", 500)]),
+    margins: withException,
+  });
+  assert.ok(reversed.reasons.some((reason) => reason.code === "not-comparable"));
+  const same = evaluateCheckpoint({ baseline, candidate: record("idd", [run("cli-local", 500)]), margins: withException });
+  assert.equal(same.harness_exception, null, "identical harnesses need no exception");
 });
 
 test("renderCheckpoint states the decision and every reason", () => {

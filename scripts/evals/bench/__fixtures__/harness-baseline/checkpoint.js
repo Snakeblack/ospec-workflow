@@ -13,12 +13,6 @@
 // The task (scenario) is the statistical unit; per-scenario token ratios are
 // reported with a 95% t interval.
 //
-// Records of different harnesses are not comparable, with one exception the
-// margins may declare: exactly one baseline/candidate digest pair, the harness
-// files allowed to differ between them, and why. harness-exception.test.js
-// verifies it (the baseline digest is rebuilt from the current harness with
-// those files restored), and the result reports it.
-//
 // Measurement tooling only: it grants no authority and promotes nothing.
 
 const fs = require("node:fs");
@@ -28,10 +22,8 @@ const { sha256Fingerprint } = require("../../lib/canonical-json.js");
 const { taskInterval } = require("./stats.js");
 
 const MARGINS_PATH = path.join(__dirname, "margins.json");
-const MARGINS_SCHEMA_VERSION = 3;
-const MARGINS_KEYS = Object.freeze(["schema_version", "margins_version", "declared_at", "baseline_arm", "candidate_arm", "repetitions", "escaped_defects", "tokens", "harness_exception"]);
-const EXCEPTION_KEYS = Object.freeze(["baseline_digest", "candidate_digest", "changed_files", "reason"]);
-const DIGEST_PATTERN = /^[a-f0-9]{64}$/;
+const MARGINS_SCHEMA_VERSION = 2;
+const MARGINS_KEYS = Object.freeze(["schema_version", "margins_version", "declared_at", "baseline_arm", "candidate_arm", "repetitions", "escaped_defects", "tokens"]);
 const IDENTITY_FIELDS = Object.freeze([["scenarios_digest"], ["harness_digest"], ["host", "name"], ["host", "model"], ["host", "effort"], ["persona", "model"]]);
 
 class BenchMarginsError extends Error {
@@ -65,30 +57,7 @@ function validateMargins(margins) {
   if (!isPlainObject(margins.tokens) || !hasExactKeys(margins.tokens, ["max_total_ratio"]) || typeof ratio !== "number" || !(ratio > 0)) {
     fail("tokens.max_total_ratio must be a positive number");
   }
-  validateHarnessException(margins.harness_exception, fail);
   return margins;
-}
-
-function validateHarnessException(exception, fail) {
-  if (exception === null) return;
-  if (!isPlainObject(exception) || !hasExactKeys(exception, EXCEPTION_KEYS)) fail(`harness_exception must be null or declare exactly ${EXCEPTION_KEYS.join(", ")}`);
-  for (const key of ["baseline_digest", "candidate_digest"]) {
-    if (!DIGEST_PATTERN.test(exception[key] || "")) fail(`harness_exception.${key} must be a sha256 hex digest`);
-  }
-  if (exception.baseline_digest === exception.candidate_digest) fail("harness_exception digests must differ");
-  const files = exception.changed_files;
-  if (!Array.isArray(files) || files.length === 0 || !files.every((file) => typeof file === "string" && file.endsWith(".js") && !file.endsWith(".test.js"))) {
-    fail("harness_exception.changed_files must list the harness .js files that differ");
-  }
-  if (typeof exception.reason !== "string" || exception.reason.trim() === "") fail("harness_exception.reason must be a non-empty string");
-}
-
-/** The declared exception when it covers exactly these two records' harnesses. */
-function appliedHarnessException(baseline, candidate, margins) {
-  const exception = margins.harness_exception;
-  return exception && baseline.harness_digest === exception.baseline_digest && candidate.harness_digest === exception.candidate_digest
-    ? exception
-    : null;
 }
 
 function loadMargins(marginsPath = MARGINS_PATH) {
@@ -107,11 +76,9 @@ const round = (value) => Math.round(value * 1e6) / 1e6;
 
 function comparability(baseline, candidate, margins) {
   const problems = [];
-  const excepted = appliedHarnessException(baseline, candidate, margins);
   if (baseline.arm !== margins.baseline_arm) problems.push(`baseline arm is ${baseline.arm}, margins expect ${margins.baseline_arm}`);
   if (candidate.arm !== margins.candidate_arm) problems.push(`candidate arm is ${candidate.arm}, margins expect ${margins.candidate_arm}`);
   for (const fieldPath of IDENTITY_FIELDS) {
-    if (excepted && fieldPath[0] === "harness_digest") continue;
     const a = fieldValue(baseline, fieldPath);
     const b = fieldValue(candidate, fieldPath);
     if (a !== b) problems.push(`${fieldPath.join(".")} differs (${a} vs ${b})`);
@@ -225,7 +192,6 @@ function evaluateCheckpoint({ baseline, candidate, margins, margins_digest: marg
     margins_version: margins.margins_version,
     margins_digest: marginsDigest,
     repetitions: margins.repetitions,
-    harness_exception: appliedHarnessException(baseline, candidate, margins),
     baseline_record: baseline.record_id,
     candidate_record: candidate.record_id,
     per_scenario: perScenario,
@@ -239,18 +205,12 @@ function evaluateCheckpoint({ baseline, candidate, margins, margins_digest: marg
   };
 }
 
-function renderHarnessException(exception) {
-  const short = (digest) => `\`${digest.slice(0, 12)}\``;
-  return `- Harness exception: ${short(exception.baseline_digest)} → ${short(exception.candidate_digest)} (${exception.changed_files.join(", ")}): ${exception.reason}`;
-}
-
 function renderCheckpoint(result) {
   const lines = [
     `# Checkpoint E4.1: ${result.decision}`,
     "",
     `- Baseline: \`${result.baseline_record}\` · Candidate: \`${result.candidate_record}\``,
     `- Margins: \`${result.margins_version}\`${result.margins_digest ? ` (\`${result.margins_digest.slice(0, 12)}\`)` : ""} · ${result.repetitions} repetitions per scenario; figures are per-scenario means`,
-    ...(result.harness_exception ? [renderHarnessException(result.harness_exception)] : []),
     `- Tokens: ${result.totals.candidate_tokens} / ${result.totals.baseline_tokens} = ${result.totals.tokens_ratio}`,
     `- Escaped defects (sum of scenario means), candidate − baseline: ${result.totals.escaped_delta}`,
     "",

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.109.0] - 2026-10-07
+
+### Added
+- **Brazo `idd` del banco (E1.6, PR b)**: `scripts/evals/bench/arms.js` habilita `--arm idd`. En el setup no medido, el agente escribe `idd/config.yaml` con `mode: idd` y el check `npm test`, el mismo comando que `sdd-init` registró para el brazo `sdd`. El setup termina cuando ese fichero se lee en modo IDD. El cambio entra con `/ospec-workflow:idd <brief>`, porque el router no se carga en la configuración aislada del banco, y termina cuando `ospec close` deja un cambio en `idd/archive/` (REQ-bench-006). `driver.js` no cambia.
+- **Excepción de huella verificada**: los márgenes pasan a `bench-margins-4` (schema 3), con los mismos umbrales que `bench-margins-3` y un campo `harness_exception`. El checkpoint acepta un harness distinto solo para el par declarado, en esa dirección: `sdd-baseline-3` (`42261bd0…`) → huella actual, con `arms.js` y `checkpoint.js` como únicos ficheros cambiados. El resultado y el informe lo hacen constar (REQ-bench-005). `harness-exception.test.js` comprueba que la huella actual es la declarada, que restaurar esos dos ficheros desde `__fixtures__/harness-baseline/` reconstruye la de la línea base y que el brazo `sdd` se comporta igual. Así no hay que repetir la línea base, que costaría unos 66 M tokens.
+
+### Changed
+- **Roadmap**: E1.6 (b) entregado. Lo siguiente es (c): las seis corridas IDD, el checkpoint contra `sdd-baseline-3` y su informe.
+
+**Verificación directa**: `node scripts/check.js` (3253 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.108.1] - 2026-10-07
 
 ### Fixed

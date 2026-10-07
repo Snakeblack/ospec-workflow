@@ -13,13 +13,14 @@ tooling only: it grants no authority and never runs a model in `npm test`.
 | `__fixtures__/reference/<id>/` | A correct delivery per scenario; `checks.test.js` proves every check passes on it and acceptance fails on the seed |
 | `scenarios.js` | Loads and validates the corpus, digests it, materializes a seed |
 | `checks.js`, `check-runner.js`, `check-kit.js` | Run each hidden check in its own process against the delivered workspace |
-| `arms.js` | `sdd` (init, `sdd-new`, archived change) and `idd` (declared, unavailable until E1.6) |
+| `arms.js` | `sdd` (init, `sdd-new`, archived change) and `idd` (agent writes `idd/config.yaml` with `mode: idd` and `npm test`, `/ospec-workflow:idd`, change closed under `idd/archive/`) |
 | `persona.js` | The simulated user: brief, facts, and goal; classifies each agent message and answers |
 | `driver.js` | Seed → git → setup (unmeasured; the persona only knows the setup goal, and a setup that edits the seed voids the run) → change conversation → hidden checks |
 | `hosts/claude.js` | Headless `claude -p` turns and persona calls in a dedicated config directory, with the plugin built from the checkout |
 | `transcript.js` | Usage, cost, and session from a `stream-json` transcript (`modelUsage` includes subagents) |
 | `record.js` | The versioned record of one arm and its Markdown report |
-| `checkpoint.js`, `margins.json` | Predeclared margins and the continue/revise decision |
+| `checkpoint.js`, `margins.json` | Predeclared margins, the declared harness exception, and the continue/revise decision |
+| `harness-exception.test.js`, `__fixtures__/harness-baseline/` | Verifies the harness exception against copies of the baseline's harness files |
 | `stats.js` | Per-scenario 95% t interval (the task is the statistical unit) |
 | `bench.js` | CLI |
 
@@ -53,6 +54,7 @@ Then:
 ```sh
 node scripts/evals/bench/bench.js list
 node scripts/evals/bench/bench.js run --arm sdd --record sdd-baseline-3 --repetitions 1
+node scripts/evals/bench/bench.js run --arm idd --record idd-1 --repetitions 1
 node scripts/evals/bench/bench.js report --record sdd-baseline-3
 node scripts/evals/bench/bench.js checkpoint --baseline sdd-baseline-3 --candidate idd-1
 ```
@@ -88,7 +90,8 @@ persona `claude-sonnet-5-5`, 30 agent turns and $25 per scenario
 
 ## Checkpoint
 
-`margins.json` (`bench-margins-3`) is declared before any comparison: both
+`margins.json` (`bench-margins-4`, the thresholds of `bench-margins-3` plus the
+harness exception) is declared before any comparison: both
 arms run every scenario `repetitions: 1` time (the subscription quota does not
 allow more; with one run per scenario the comparison is exploratory); summed over the per-scenario
 means, the candidate may not escape more defects than the baseline
@@ -97,6 +100,16 @@ means, the candidate may not escape more defects than the baseline
 another repetition count), incomplete or missing runs, and any hidden check the
 baseline passes in every repetition and the candidate fails in any force
 `revise`. A new campaign that needs other margins declares a new version first.
+
+Records of different harnesses are not comparable. The one exception is the
+`harness_exception` of the margins: `sdd-baseline-3` ran before the `idd` arm
+existed, and enabling it changed `arms.js` and `checkpoint.js`. The checkpoint
+accepts exactly that baseline → candidate digest pair and prints it.
+`harness-exception.test.js` proves the declaration: today's harness has the
+candidate digest; restoring the two files from `__fixtures__/harness-baseline/`
+rebuilds the baseline digest, so nothing else changed; and the `sdd` arm behaves
+as it did. Any later change to the harness fails that test until the exception
+is declared again, or the baseline is rerun.
 
 ## Limits
 
