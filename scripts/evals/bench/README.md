@@ -52,7 +52,7 @@ Then:
 
 ```sh
 node scripts/evals/bench/bench.js list
-node scripts/evals/bench/bench.js run --arm sdd --record sdd-baseline-3 --repetitions 3
+node scripts/evals/bench/bench.js run --arm sdd --record sdd-baseline-3 --repetitions 1
 node scripts/evals/bench/bench.js report --record sdd-baseline-3
 node scripts/evals/bench/bench.js checkpoint --baseline sdd-baseline-3 --candidate idd-1
 ```
@@ -88,8 +88,9 @@ persona `claude-sonnet-5-5`, 30 agent turns and $25 per scenario
 
 ## Checkpoint
 
-`margins.json` (`bench-margins-2`) is declared before any comparison: both
-arms run every scenario `repetitions: 3` times; summed over the per-scenario
+`margins.json` (`bench-margins-3`) is declared before any comparison: both
+arms run every scenario `repetitions: 1` time (the subscription quota does not
+allow more; with one run per scenario the comparison is exploratory); summed over the per-scenario
 means, the candidate may not escape more defects than the baseline
 (`max_mean_delta: 0`) and must spend at most 90% of its tokens
 (`max_total_ratio: 0.9`). Fixed in code: incomparable records (including

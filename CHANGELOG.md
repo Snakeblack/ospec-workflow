@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.107.1] - 2026-10-07
+
+### Added
+- **Línea base del modo SDD `sdd-baseline-3` (E4.1, PR e)**: record `scripts/evals/bench/records/sdd-baseline-3.json` (Claude Code 2.1.289, Sonnet 5.5, persona Sonnet 5.5, plugin v2.107.0) e informe en `docs/analysis/2026-10-07-bench-linea-base-sdd-3.md`. Seis de seis escenarios completos, 43/43 checks ocultos, 0 defectos escapados, 65,7 M tokens ($38,64) y 13 intervenciones, de las que 5 cambian una decisión. Es la línea base contra la que E1.6 medirá IDD; `sdd-baseline-2` queda como histórico.
+- Hallazgo registrado en el informe: en Claude, `/sdd-new` declara dos argumentos posicionales y parte una petición escrita sin nombre de cambio. Queda pendiente de corregir.
+
+### Changed
+- **Márgenes `bench-margins-3`** (revisión del usuario por cuota): una repetición por escenario y brazo, con los mismos márgenes de `bench-margins-2` (0 escapados medios de diferencia, tokens ≤ 0,9 y veto de regresiones). `sdd-baseline-3` conserva sus tres primeras corridas, hechas con la campaña de tres repeticiones; en el record solo cambió `repetitions` de 3 a 1.
+- **Roadmap**: E4.1 (e) entregado y E1.6 `idd-default-entry` como siguiente; README del banco con los márgenes nuevos.
+
+**Verificación directa**: `node scripts/check.js` (3206 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.107.0] - 2026-10-06
 
 ### Added

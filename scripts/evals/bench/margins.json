@@ -1,10 +1,10 @@
 {
   "schema_version": 2,
-  "margins_version": "bench-margins-2",
+  "margins_version": "bench-margins-3",
   "declared_at": "2026-10-06",
   "baseline_arm": "sdd",
   "candidate_arm": "idd",
-  "repetitions": 3,
+  "repetitions": 1,
   "escaped_defects": {
     "max_mean_delta": 0
   },

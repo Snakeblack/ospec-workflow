@@ -57,8 +57,8 @@ test("the committed margins load and carry a digest", () => {
   const { margins: loaded, digest } = loadMargins(MARGINS_PATH);
   assert.equal(loaded.baseline_arm, "sdd");
   assert.equal(loaded.candidate_arm, "idd");
-  assert.equal(loaded.margins_version, "bench-margins-2");
-  assert.equal(loaded.repetitions, 3);
+  assert.equal(loaded.margins_version, "bench-margins-3");
+  assert.equal(loaded.repetitions, 1);
   assert.match(digest, /^[a-f0-9]{64}$/);
 });
 
