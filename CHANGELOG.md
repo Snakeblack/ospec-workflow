@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.110.0] - 2026-10-07
+
+### Added
+- **Gate `open-facts` (REQ-idd-018)**: `ospec record intent` exige declarar los hechos abiertos: las preguntas de comportamiento que ni la petición ni el código fijan, como valores por defecto, entradas inválidas, error o silencio, normalización y compatibilidad (`--open-fact`, repetible), o bien `--no-open-facts --basis`. Si falta la declaración, el intento se rechaza con `facts-undeclared`. Los hechos abiertos abren el gate `open-facts`: `next` lo pide antes de cualquier obligación y devuelve todas las preguntas juntas, y solo lo resuelve la respuesta del usuario. El `state.yaml` guarda la declaración en `facts`; los estados anteriores siguen siendo válidos.
+- **Contrato público desde `package.json` (REQ-idd-012)**: `public-contract` se deriva también de los ficheros que publica un `package.json` no privado en la raíz (`main`, `types`, `typings`, `bin` y las rutas de `exports`), con el motivo «published by package.json». Un manifiesto ausente o mal formado no publica nada.
+
+### Changed
+- **Protocolo `idd`**: antes de abrir el cambio, el agente lee el código, lista los hechos abiertos sin decidirlos y los pregunta todos juntos. Si el host no tiene herramienta de preguntas, termina el turno con ellas. REQ-idd-008 pasa a cuatro gates y REQ-generator-024 lo recoge.
+- **Roadmap**: revisión de IDD de E1.6 entregada. Lo siguiente es la corrida `idd-2` contra `sdd-baseline-3`. Un smoke real en `brownfield` pasa de 3 defectos escapados a 0, con una pregunta decisiva y 467 k tokens.
+
+**Verificación directa**: `node scripts/check.js` (3264 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.109.1] - 2026-10-07
 
 ### Added
