@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.112.0, 2026-10-08.
+> **Versión de referencia:** v2.113.0, 2026-10-08.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -121,7 +121,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.3** | `impact-signals` | feature |
 | `done` | **E1.4** | `ospec-check-and-close` | feature |
 | `done` | **E1.5** | `kernel-wiring-inventory` | refactor |
-| `in-progress` | **E1.6** | `idd-default-entry` ((a)–(c), revisión de IDD, `idd-2` y (d1) entregados: IDD es el default; siguiente: (d2) SDD en `--with-sdd`) | feature |
+| `in-progress` | **E1.6** | `idd-default-entry` ((a)–(c), revisión de IDD, `idd-2`, (d1) y (d2) entregados: IDD es el default y SDD se instala con `--with-sdd`; siguiente: (d3) README y documentación de producto) | feature |
 | `pending` | **E1.7** | `ospec-doctor` | feature |
 | `pending` | **E1.8** | `sdd-new-intent-argument` (después de E1.6) | bugfix |
 | `next-eligible` | **E2.1** | `knowledge-map-contract` | contrato |
@@ -140,7 +140,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E1.6 (d2): las skills, los agentes y los comandos de fase SDD salen de la instalación por defecto y se instalan con `--with-sdd` en los 7 targets; después, (d3) README y documentación de producto. IDD ya es el flujo por defecto desde v2.112.0 (d1), con el checkpoint `continue` de `idd-2` ([informe](../analysis/2026-10-07-bench-idd-2.md)). Follow-up del protocolo: editar ficheros de texto respetando su codificación (un README acabó en ISO-8859-1). Después de E1.6 va E1.8 `sdd-new-intent-argument`. E2.1 `knowledge-map-contract` sigue elegible en paralelo.
+**▶ SIGUIENTE:** E1.6 (d3): el README y la documentación de producto presentan IDD como flujo por defecto y SDD como modo opcional (`--with-sdd`), y una prueba real comprueba el «hecho cuando» de E1.6. IDD es el flujo por defecto desde v2.112.0 (d1), y el paquete SDD es opcional desde v2.113.0 (d2), con el checkpoint `continue` de `idd-2` ([informe](../analysis/2026-10-07-bench-idd-2.md)). Follow-up del protocolo: editar ficheros de texto respetando su codificación (un README acabó en ISO-8859-1). Después de E1.6 va E1.8 `sdd-new-intent-argument`. E2.1 `knowledge-map-contract` sigue elegible en paralelo.
 
 **Dependencias:**
 
@@ -303,6 +303,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **`idd-2` entregado en v2.111.0, checkpoint `continue`:** [informe](../analysis/2026-10-07-bench-idd-2.md). Seis de seis completas, 43/43 checks, 0 escapados y 3,06 M tokens ($2,07), el 4,7 % de `sdd-baseline-3`, con un mensaje de preguntas por escenario (entre 3 y 7 preguntas) y 24 de 25 hechos obtenidos del usuario (SDD obtuvo 11). Calidad, con `scripts/evals/quality/` fuera del harness: IDD entrega un 32 % menos de código y un 69 % menos de tests, con un mutation score medio equivalente (83,1 % frente al 81,8 %); la revisión a ciegas por pares, sin sesgo de posición, prefiere IDD en 5 de 6 escenarios (alcance 4,08 frente a 2,42, legibilidad y diseño) y SDD en tests (4,17 frente a 3,33) y en `saas-small`. Hallazgo: una entrega IDD dejó `README.md` en ISO-8859-1 al editarlo con Python sin `encoding`. Lo siguiente es (d).
 - **(d) en tres PRs (decisión del usuario, 2026-10-08):** (d1) IDD por defecto; (d2) las fases SDD (skills `sdd-*`, agentes `sdd-*` con el orquestador y comandos `/sdd-*`) pasan a un paquete propio, `--with-sdd`, separado de `--with-extras`; los agentes `review-*` se quedan, porque IDD los usa; (d3) README y documentación de producto. Desde (d1), cada ítem se hace con IDD sobre este repositorio.
 - **(d1) entregado en v2.112.0:** IDD es el modo por defecto. `resolveMode` da `idd` sin modo declarado, aunque el proyecto tenga `openspec/` (REQ-idd-001). El router manda a IDD los cambios de código que no son una petición de SDD; las preguntas y el trabajo de solo lectura siguen directos, y un cambio se hace directo solo si el usuario lo pide expresamente sin IDD. `mode: sdd` en `idd/config.yaml` apaga IDD y deja el comportamiento anterior: trabajo directo y SDD solo con `/sdd-*` o petición explícita (REQ-generator-022 y REQ-generator-024). *Always-on* sube 117–140 B (3,0–3,4 KB) y el listado, 13 B. Es el primer ítem hecho con IDD en este repositorio: cambio `idd-default-mode`, con tres hechos abiertos respondidos por el usuario, `ospec check` y archivo en `idd/archive/`.
+- **(d2) entregado en v2.113.0:** el paquete SDD (skills, agentes, comandos y reglas `sdd-*`, con el orquestador) sale de la build por defecto y se instala con `--with-sdd` (REQ-generator-025). Los 7 instaladores e `install-target` aceptan `--with-sdd` y `--no-sdd`, y sin flag conservan SDD si la instalación anterior lo traía, leído del manifiesto de propiedad o del directorio de agentes instalado (REQ-install-036, decisión del usuario). El TUI ofrece los paquetes SDD y extras en la revisión (REQ-install-021 y REQ-install-022). El banco construye siempre con `--with-sdd`, y `bench-margins-5` acepta frente a `sdd-baseline-3` la huella de `idd-1`/`idd-2` y la actual, con `hosts/claude.js` exceptuado; el checkpoint de `idd-2` sigue dando `continue` (REQ-bench-005). Por defecto, el orquestador pasa de 44–61 KB a 0, las skills instaladas de 47–48 a 31, los agentes de 22–23 a 6 y el listado de Codex de 6,4 a 4,2 KB; *always-on* sube 64 B. Hallazgos: los validadores de Cursor, Antigravity, Copilot y OpenCode exigían un directorio de comandos que una build sin SDD no tiene, y los revisores `review-*` citaban `skills/sdd-verify/SKILL.md` desde un módulo compartido. Hecho con IDD (cambio `sdd-optional-package`).
 
 ### E1.7 — `ospec-doctor`
 
