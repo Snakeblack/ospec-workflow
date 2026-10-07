@@ -72,7 +72,8 @@ test("F2 · the three role guides exist and answer their question", async () => 
 
 test("F1 · English entry README exists with install and guarantees", async () => {
   const content = await read("docs/en/README.md");
-  assert.match(content, /No gate self-approves/);
-  assert.match(content, /\/sdd-init/);
+  assert.match(content, /No self-approval/);
+  assert.match(content, /impact-driven development \(IDD\)/, "IDD is the default flow");
+  assert.match(content, /--with-sdd/, "SDD is the optional mode");
   assert.match(content, /docs\/target-capabilities\.md/, "must link the capability matrix");
 });

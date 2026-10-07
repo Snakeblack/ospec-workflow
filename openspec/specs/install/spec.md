@@ -1274,3 +1274,13 @@ Every target installer (`setup:claude`, `setup:vscode`, `setup:copilot`, `setup:
 - GIVEN any installer with no previous install
 - WHEN it runs without flags
 - THEN its build receives `withSdd: false`, and `true` with `--with-sdd`
+
+### Requirement: Published Descriptions Lead With IDD {#REQ-install-037}
+
+`package.json`, `.plugin.json` and `.claude-plugin/plugin.json` MUST publish one description that starts with `Impact-driven development (IDD)` and names Spec-Driven Development as the optional SDD mode. The Claude marketplace built by `scripts/configure/claude-marketplace.js` MUST copy that description from the source `.claude-plugin/plugin.json` into its plugin entry instead of keeping its own text.
+
+#### Scenario: One description everywhere
+
+- GIVEN the plugin manifests and `package.json`
+- WHEN a release publishes them or builds the Claude marketplace
+- THEN every description is the same IDD-first text, and the marketplace entry carries the source manifest's description

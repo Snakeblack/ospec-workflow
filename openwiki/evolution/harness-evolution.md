@@ -1,5 +1,7 @@
 # Evolución del Harness: Kernel, Grafos y Evidencia
 
+> **Histórico.** Esta página describe el programa K1–K12, ya archivado. La dirección vigente es el [roadmap único](https://github.com/snakeblack/ospec-workflow/blob/main/docs/roadmaps/harness-evolution.md), que desde la v2.112.0 hace de IDD el flujo por defecto y de SDD un modo opcional.
+
 > **En pocas palabras:** La IA es excelente generando ideas y código, pero comete errores y no debería validarse a sí misma. La evolución del harness transforma el sistema en un **kernel determinista** (un árbitro imparcial) que organiza el trabajo en un mapa de tareas (**Execution Graph**) y no autoriza ningún cambio hasta que existan pruebas y evidencias reales e infalsificables (**Assurance Graph**).
 
 ---

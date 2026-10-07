@@ -4,7 +4,11 @@
 
 ---
 
-## Estructura de Roles Especializados
+## IDD por defecto, SDD como paquete opcional
+
+En el flujo por defecto (IDD) no hay agentes de fase: la skill `idd` guía al asistente con el CLI `ospec`, y solo intervienen los revisores de solo lectura `review-*` cuando una obligación pide una revisión de confianza. El orquestador y los agentes `sdd-*` de esta página forman el paquete SDD, que se instala con `--with-sdd`.
+
+## Estructura de Roles Especializados (modo SDD)
 
 En lugar de tener una sola IA que intente hacerlo todo, el sistema divide el trabajo entre agentes con responsabilidades muy claras:
 

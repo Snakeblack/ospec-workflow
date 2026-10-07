@@ -1,8 +1,8 @@
 {
   "name": "ospec-workflow",
-  "version": "2.113.0",
+  "version": "2.114.0",
   "private": true,
-  "description": "Spec-Driven Development workflow with OpenSpec, strict TDD, phase agents, skills, hooks, and verification contracts.",
+  "description": "Impact-driven development (IDD) workflow: the ospec CLI derives each change's obligations from its impact and closes it on observed evidence, with strict TDD, bounded review, hooks, and an optional Spec-Driven Development (SDD) mode with OpenSpec.",
   "license": "MIT",
   "author": {
     "name": "Manuel Michael Retamozo García"

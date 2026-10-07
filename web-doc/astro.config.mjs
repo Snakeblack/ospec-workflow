@@ -97,7 +97,7 @@ export default defineConfig({
       title: resolveSiteTitle(),
       locales: { root: { label: localeLabel(DOC_LANGUAGE), lang: DOC_LANGUAGE } },
       description:
-        "Flujo de Spec-Driven Development (SDD) con OpenSpec, TDD estricto, hooks de ciclo de vida y generación de código multi-target.",
+        "Desarrollo guiado por impacto (IDD) para agentes de IA: el CLI ospec deriva las obligaciones de cada cambio y lo cierra con evidencia observada; SDD con OpenSpec como modo opcional.",
       favicon: "/favicon.png",
       logo: {
         src: "./src/assets/ospec-logo.png",
@@ -142,7 +142,7 @@ export default defineConfig({
           attrs: {
             name: "keywords",
             content:
-              "OpenSpec, SDD, Spec-Driven Development, AI Agents, TDD, Claude, Copilot, VS Code, Codex, Architecture",
+              "IDD, Impact-Driven Development, OpenSpec, SDD, Spec-Driven Development, AI Agents, TDD, Claude, Copilot, VS Code, Codex, Architecture",
           },
         },
         {

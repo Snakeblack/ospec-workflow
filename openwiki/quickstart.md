@@ -1,37 +1,42 @@
 # Guía Rápida: ospec-workflow
 
-> **En pocas palabras:** `ospec-workflow` es un sistema que ayuda a los desarrolladores y a los asistentes de Inteligencia Artificial a construir software de forma ordenada, segura y con pruebas reales. Transforma una simple idea en una especificación clara, diseña la solución, escribe el código mediante TDD estricto y verifica todo antes de hacer commit. Funciona de manera idéntica en 7 herramientas y editores distintos (como Claude Code, Cursor, Copilot o VS Code).
+> **En pocas palabras:** `ospec-workflow` ayuda a los asistentes de Inteligencia Artificial a cambiar código con pruebas reales en lugar de promesas. Por defecto usa **IDD** (desarrollo guiado por impacto): cada cambio debe lo que su impacto exige, y solo está hecho cuando el CLI `ospec` lo cierra con evidencia de ejecuciones reales. El desarrollo guiado por especificación (**SDD**) sigue disponible como modo opcional. Funciona igual en 7 herramientas (como Claude Code, Cursor, Copilot o VS Code).
 
 ---
 
 ## ¿Cómo funciona el flujo de trabajo?
 
-El desarrollo sigue un ciclo de fases coordinadas paso a paso:
+Pides el cambio con tus palabras y el router lo manda a IDD. No hay fases ni documentos que escribir antes:
 
 ```mermaid
 flowchart LR
-    A["1. Propuesta\n(Qué queremos hacer)"] --> B["2. Especificación\n(Reglas y casos de uso)"]
-    B --> C["3. Diseño\n(Decisiones técnicas)"]
-    C --> D["4. Tareas\n(Lista de pasos)"]
-    D --> E["5. Aplicación\n(Código con TDD)"]
-    E --> F["6. Verificación\n(Pruebas reales)"]
-    F --> G["7. Archivo\n(Registro histórico)"]
+    A["1. Intención\n(qué y cómo se acepta)"] --> B["2. Hechos abiertos\n(preguntas en un lote)"]
+    B --> C["3. Señales\n(qué toca el cambio)"]
+    C --> D["4. Obligaciones\n(ospec next)"]
+    D --> E["5. Evidencia\n(ospec run / check / review)"]
+    E --> F["6. Cierre\n(ospec close)"]
 ```
 
-1. **Propuesta (`propose`):** Define el objetivo, el alcance y los riesgos del cambio.
-2. **Especificación (`spec`):** Escribe los requerimientos en lenguaje claro y estructurado con OpenSpec.
-3. **Diseño (`design`):** Planifica la arquitectura técnica, los archivos afectados y la estrategia de pruebas.
-4. **Tareas (`tasks`):** Divide el trabajo en unidades pequeñas y manejables (máximo 400 líneas por revisión).
-5. **Aplicación (`apply`):** Los agentes escriben primero los tests (RED) y luego el código necesario (GREEN).
-6. **Verificación (`verify`):** Un agente independiente comprueba que todos los tests pasen en la consola real.
-7. **Archivo (`archive`):** Guarda un registro histórico inmutable del cambio para futuras auditorías.
+1. **Intención (`ospec record intent`):** el agente registra qué quieres y cómo se comprueba que está hecho.
+2. **Hechos abiertos:** enumera los comportamientos que ni la petición ni el código fijan y te los pregunta todos juntos antes de editar.
+3. **Señales (`ospec signals`):** declara los ficheros que va a tocar; el CLI deriva señales de impacto (contrato público, datos persistentes, frontera de seguridad, bug, Strict TDD).
+4. **Obligaciones (`ospec next`):** cada señal añade una obligación, como un test de reproducción para un bug o una revisión de confianza para un cambio de autenticación.
+5. **Evidencia:** solo cuenta lo que el CLI ve ejecutarse sobre el árbol actual. Decir «los tests pasan» no satisface nada.
+6. **Cierre (`ospec close`):** con todo satisfecho, archiva el cambio en `idd/archive/`. Ramas, commits y PRs siguen siendo decisión tuya.
+
+El agente solo se detiene en cuatro *gates*: intención ambigua, hechos abiertos, operación irreversible y ADR enmendado o contradicho. Solo una respuesta explícita tuya los resuelve.
+
+### Modo SDD opcional
+
+Si prefieres escribir y aprobar el contrato antes del código, instala el paquete SDD con `--with-sdd` y usa un comando `/sdd-*`. SDD recorre siete fases (propuesta, especificación, diseño, tareas, aplicación con TDD, verificación y archivo) con artefactos OpenSpec; ver [Orquestación de Fases y Rutas](/orchestration/routing/).
 
 ---
 
 ## ¿Qué ventajas ofrece a tu equipo?
 
 - **Cero alucinaciones sin pruebas:** La IA no puede dar un cambio por bueno si no aporta un recibo de consola real con las pruebas en verde.
-- **La memoria vive en archivos:** Todo el progreso y las decisiones se guardan en la carpeta `openspec/` de tu repositorio, no en el chat efímero. Si cierras la ventana, no pierdes nada.
+- **Ceremonia proporcional:** Un arreglo de una línea solo debe pasar los checks; una migración de esquema debe además su test de migración y su plan de vuelta atrás.
+- **La memoria vive en archivos:** Todo el progreso y las decisiones se guardan en `idd/` (o en `openspec/` en modo SDD) dentro de tu repositorio, no en el chat efímero. Si cierras la ventana, no pierdes nada.
 - **Un solo código para 7 plataformas:** Escribes tus agentes y reglas una sola vez y el generador los distribuye a Claude Code, VS Code, GitHub Copilot, OpenCode, Codex, Cursor y Antigravity.
 - **Seguridad y ahorro:** Filtra automáticamente credenciales secretas y controla el consumo de tokens para evitar gastos imprevistos.
 
@@ -45,8 +50,8 @@ Explora los temas organizados de menor a mayor profundidad técnica:
 - [Instalación por Asistente o IDE](installation/target-installation.md) — Cómo instalar y sincronizar el plugin en tu herramienta favorita.
 
 ### 2. Visión y Futuro
-- [Evolución del Harness](evolution/harness-evolution.md) — Por qué el sistema evoluciona hacia un kernel determinista con grafos de evidencia.
-- [Roadmap de Hitos K1 a K12](evolution/roadmap.md) — Las etapas de desarrollo, su estado actual y el plan futuro.
+- [Evolución del Harness](evolution/harness-evolution.md) — Histórico: el programa del kernel determinista con grafos de evidencia.
+- [Roadmap de Hitos K1 a K12](evolution/roadmap.md) — Histórico: las etapas K1–K12. La dirección vigente (IDD por defecto) está en el roadmap único del repositorio.
 
 ### 3. Arquitectura y Funcionamiento
 - [Visión General de Arquitectura](architecture/overview.md) — Cómo se distribuye un árbol fuente único a 7 plataformas sin duplicar trabajo.
@@ -76,8 +81,10 @@ Explora los temas organizados de menor a mayor profundidad técnica:
 
 | Archivo | ¿Para qué sirve? |
 | --- | --- |
-| `openspec/config.yaml` | Archivo de configuración central: define rutas, reglas y herramientas activas. |
-| `agents/` | Definición de los agentes especializados (orquestador, evaluadores, aplicadores). |
+| `idd/config.yaml` | Configuración IDD: checks del proyecto, Strict TDD, patrones de impacto y documentos de contrato (`mode: sdd` apaga IDD). |
+| `scripts/ospec.js` | El CLI `ospec`: `status`, `next`, `record`, `signals`, `check`, `run`, `review` y `close`. |
+| `openspec/config.yaml` | Configuración del modo SDD: rutas, reglas y herramientas activas. |
+| `agents/` | Revisores `review-*` que usa IDD y, con el paquete SDD, el orquestador y los agentes de fase. |
 | `skills/` | Guías de procedimientos paso a paso que ejecutan los agentes. |
 | `scripts/configure/cli.js` | Generador que compila el código fuente para los 7 asistentes de IA. |
 | `scripts/hooks/` e `internal/hooks/` | Hooks de ciclo de vida en JavaScript y Go para máxima velocidad. |

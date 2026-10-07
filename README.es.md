@@ -4,27 +4,39 @@
 
 > [🌐 English](./README.md) · **Español**
 
-> **La inmediatez sin contrato es velocidad falsa.** `ospec-workflow` es un arnés de desarrollo Spec-Driven Development (SDD) llave en mano. Utiliza **OpenSpec** como única fuente de verdad y proporciona un orquestador inteligente que coordina agentes de fase, garantizando Strict TDD, control de tamaño de revisiones y gates de seguridad activos en cada commit.
+> **Un cambio está hecho cuando la evidencia lo dice, no cuando lo dice el agente.** `ospec-workflow` es un arnés de desarrollo guiado por impacto (IDD, *impact-driven development*) para agentes de programación con IA. Cada cambio de código pasa por el CLI `ospec`: deriva las obligaciones del cambio a partir de lo que toca, registra evidencia solo de ejecuciones que observa y cierra el cambio cuando todas las obligaciones están satisfechas. El desarrollo guiado por especificación (SDD) con OpenSpec sigue disponible como modo opcional.
 
 Está basado en [Gentle-ai de Gentleman Programming](https://github.com/Gentleman-Programming/gentle-ai).
 
 ---
 
-## Filosofía SDD: Diseñar antes de Construir
+## IDD: obligaciones según el impacto, evidencia de ejecuciones reales
 
-En el desarrollo asistido por IA, programar antes de comprender el problema genera deuda técnica y código incoherente. `ospec-workflow` impone una barrera de disciplina:
+Un arreglo de una línea y una migración de esquema no necesitan la misma ceremonia. IDD no tiene fases ni documentos que escribir antes; el impacto del cambio decide qué debe:
 
-1. **El Contrato es lo Primero**: Definimos la intención (`proposal`), el comportamiento observable (`spec.md`) y la arquitectura (`design.md`) antes de tocar una sola línea de código.
-2. **Evidencia sobre Opinión**: La fase `/sdd-verify` requiere pruebas reales ejecutadas y niveles de evidencia verificables, nunca supuestos.
-3. **El Repositorio es la Memoria**: Todo el estado del cambio y los supuestos de diseño viven en archivos versionables (`openspec/`), no en el historial volátil del chat.
-4. **Protección del Revisor**: Limitamos los cambios a un presupuesto recomendado de **400 líneas**. Si el cambio es mayor, el orquestador propone estrategias de PRs encadenadas para evitar fatiga en la revisión.
+1. **El impacto decide el trabajo**: `ospec signals` lee los ficheros que toca el cambio (y después el diff real) y activa señales; cada señal añade una obligación.
+2. **Evidencia sobre opinión**: una obligación solo se satisface con evidencia que el CLI registra de una ejecución que observa (`ospec run`, `ospec check`, `ospec review`). Decir que los tests pasan no satisface nada.
+3. **Preguntar antes de decidir**: el agente solo se detiene en cuatro gates, y solo una respuesta explícita tuya resuelve uno.
+4. **El repositorio es la memoria**: cada cambio vive en `idd/<cambio>/state.yaml` (lo gestiona el CLI) y se archiva en `idd/archive/` cuando `ospec close` termina bien.
+
+| Señal | Se activa cuando | Obligación |
+| --- | --- | --- |
+| `always` | Todo cambio con intención resuelta | `checks-pass`: `ospec check` ejecuta los checks declarados en `idd/config.yaml` sobre el árbol actual |
+| `bug-fix` | La intención es un bug | `repro-test`: el test de reproducción falla primero y después pasa |
+| `strict-tdd` | `strict_tdd: true` en `idd/config.yaml` | `tdd-red-green`: un par rojo → verde por unidad |
+| `public-contract` | El cambio toca rutas de API, esquemas OpenAPI, proto o GraphQL, o lo que publica un `package.json` no privado | `contract-spec-and-test`: el documento de contrato y su test cambian en el diff |
+| `persistent-data` | El cambio toca migraciones, SQL o esquemas de ORM | `migration-compat-and-test`: un test de migración con plan de compatibilidad o de vuelta atrás |
+| `security-boundary` | El cambio toca autenticación, seguridad, permisos, secretos o credenciales | `trust-review`: una revisión de confianza acotada y de solo lectura |
+| `multi-unit-or-decision` | Varias unidades de trabajo o una decisión de diseño registrada | `living-doc`: `idd/<cambio>/change.md` mantiene al día el plan y las decisiones |
+
+Los patrones se adaptan al stack detectado (Node, JVM, .NET, Python, Go) y se amplían en `impact:` de `idd/config.yaml`. Los cuatro gates son `ambiguous-intent` (aún no se puede enunciar la aceptación), `open-facts` (comportamientos que ni la petición ni el código fijan, preguntados todos juntos antes de editar), `irreversible-operation` y `adr-amend-or-contradict`.
 
 ---
 
 ## Inicio Rápido en 3 Pasos
 
 ### 1. Nada que copiar: el instalador añade un router pequeño
-Cada instalador añade un router de menos de 2 KB a las instrucciones que tu host carga en cada petición ([`rules/ospec-router.instructions.md`](rules/ospec-router.instructions.md)). Le indica al agente que entre en SDD **solo** cuando ejecutas un comando `/sdd-*` o pides trabajo guiado por especificación, y que cargue el orquestador solo entonces. Claude Code y Codex lo reciben como un bloque con marcadores en `~/.claude/CLAUDE.md` y `AGENTS.md`, junto a tu propio texto; usa `--no-router` para no instalarlo o quitarlo.
+Cada instalador añade un router pequeño a las instrucciones que tu host carga en cada petición ([`rules/ospec-router.instructions.md`](rules/ospec-router.instructions.md)). Manda los cambios de código a IDD por defecto, deja directas las preguntas y el trabajo de solo lectura, y entra en SDD **solo** cuando ejecutas un comando `/sdd-*` o pides trabajo guiado por especificación. Claude Code y Codex lo reciben como un bloque con marcadores en `~/.claude/CLAUDE.md` y `AGENTS.md`, junto a tu propio texto; usa `--no-router` para no instalarlo o quitarlo.
 
 ### 2. Instalar el Plugin en tu Herramienta
 Elige tu target y ejecuta su configurador automático:
@@ -39,11 +51,17 @@ Elige tu target y ejecuta su configurador automático:
 | **Cursor** | `npm run setup:cursor` | Compila `dist/cursor`, sincroniza a `~/.cursor/`, configura MCPs y preserva hooks. |
 | **Antigravity** | `npm run setup:antigravity` | Compila `dist/antigravity` e instala en `~/.gemini/config/` con manifiesto transaccional. |
 
-### 3. Iniciar un Ciclo SDD
-Una vez cargado el plugin en tu agente de chat:
-1. **Inicializa el proyecto**: Escribe `/sdd-init`. Esto detectará automáticamente tu stack y test runner.
-2. **Comienza un cambio**: Escribe `/sdd-new <nombre-del-cambio>` (ej. `/sdd-new login-session-timeout`).
-3. **Completa el flujo**: Sigue la secuencia recomendada por el orquestador (`/sdd-continue` $\rightarrow$ `/sdd-apply` $\rightarrow$ `/sdd-verify` $\rightarrow$ `/sdd-archive`).
+### 3. Pide un cambio
+Una vez cargado el plugin en tu agente de chat, pide el cambio con tus palabras («haz que la sesión caduque tras 30 minutos de inactividad»). El router lo manda a IDD:
+1. **Declara tus checks una vez**: `ospec check` ejecuta los comandos de `checks:` en `idd/config.yaml`. Créalo una vez en la raíz del proyecto:
+   ```yaml
+   checks:
+     test: npm test
+   ```
+2. **Responde los hechos abiertos**: el agente registra la intención, enumera los comportamientos que la petición deja abiertos y los pregunta todos juntos antes de editar.
+3. **Deja que el CLI lo cierre**: el agente sigue `ospec next` hasta que `ospec close` termina bien y archiva el cambio en `idd/archive/`. Ramas, commits y PRs siguen siendo decisión tuya.
+
+En Claude Code también puedes entrar en IDD de forma explícita con `/ospec-workflow:idd <petición>`. Para apagar IDD en un proyecto, declara `mode: sdd` en `idd/config.yaml`: el agente trabaja entonces directo y entra en SDD solo si se lo pides. Los cambios SDD en curso terminan en SDD.
 
 ---
 
@@ -67,6 +85,7 @@ Una vez cargado el plugin en tu agente de chat:
   claude plugin marketplace add https://github.com/snakeblack/ospec-workflow.git#release
   claude plugin install ospec-workflow@ospec-tools
   ```
+  La build del marketplace es la de por defecto: IDD sin el paquete SDD. Para SDD, instala desde un checkout con `npm run setup:claude -- --with-sdd`.
 - **Para desarrollo del plugin** (instalación idempotente local):
   ```powershell
   npm run setup:claude
@@ -140,6 +159,9 @@ Una vez cargado el plugin en tu agente de chat:
 
 Consulta la [guía de instalación](docs/plugin-installation.md) para más detalles sobre la instalación nativa global y el runtime de hooks.
 
+### 🧭 Paquete opcional SDD (todos los targets)
+El modo SDD (las skills y agentes `sdd-*` con el orquestador, los comandos `/sdd-*` y las reglas `sdd-*`) no se instala por defecto. Añade `--with-sdd` a cualquier instalador para incluirlo (`npm run setup:claude -- --with-sdd`, `node scripts/configure/install-codex.js --with-sdd`); el instalador TUI lo ofrece como paquete «Modo SDD». Una reinstalación sin el flag conserva SDD si la instalación anterior lo traía y lo avisa; `--no-sdd` lo quita. Los agentes `review-*`, `skills/_shared/` y el runtime se quedan en toda instalación porque IDD los usa.
+
 ### 🧩 Paquete opcional de extras (todos los targets)
 `issue-creation`, `comment-writer`, `gh-release-notes`, `judgment-day`, `caveman-compress` y `stack-webmcp` no se instalan por defecto. Añade `--with-extras` a cualquier instalador para incluirlas (`npm run setup:claude -- --with-extras`, `node scripts/configure/install-codex.js --with-extras`). Cada instalación elimina lo que la nueva build ya no trae, así que volver a ejecutar un instalador sin el flag las desinstala.
 
@@ -147,13 +169,16 @@ Consulta la [guía de instalación](docs/plugin-installation.md) para más detal
 Cada `npm run setup:<target>` (Claude, Codex, Antigravity, opencode, Cursor, VS Code, Copilot CLI) configura [Engram](https://github.com/Gentleman-Programming/engram) automáticamente si el binario `engram` está en el PATH. Para ello ejecuta el `engram setup <agente>` oficial (`claude-code`, `codex`, `antigravity-cli`, `opencode`, `cursor`, `vscode-copilot`). Copilot CLI no tiene setup oficial, así que en su caso el instalador añade una entrada `engram mcp` a `~/.copilot/mcp-config.json`. El paso es idempotente y fail-open, y nunca cambia el código de salida de la instalación. Para omitirlo, usa `--no-engram` (`npm run setup:codex -- --no-engram`). Sin el binario, el instalador solo muestra cómo instalarlo.
 - **Claude Code en Windows**: una sonda corta de fork en Git Bash decide si se puede desactivar el modo seguro del hook oficial (`ENGRAM_CLAUDE_WINDOWS_BASH_SAFE_MODE=0` en `~/.claude/settings.json`). Ese modo seguro desactiva la captura de prompts y los recordatorios de guardado. Si ya tienes un valor, nunca se sobrescribe. Los hooks oficiales necesitan bash, jq y curl.
 - **Cursor**: Cursor no lee reglas globales desde disco, así que hay que pegar una vez `~/.cursor/engram-memory-protocol.md` en Settings → Rules → User Rules.
-- Todos los targets llevan el mismo addendum de memoria SDD, neutral respecto al host. Engram no es autoritativo: OpenSpec y `state.yaml` siguen siendo la fuente de verdad.
+- Todos los targets llevan el mismo addendum de memoria SDD, neutral respecto al host. Engram no es autoritativo: `idd/` y el estado de OpenSpec en disco siguen siendo la fuente de verdad.
 
 ## Qué incluye
 
 | Ruta | Propósito |
 | --- | --- |
-| `rules/ospec-router.instructions.md` | El router *always-on*: SDD solo bajo petición, a través del orquestador del host. Los instaladores lo añaden en todos los targets. |
+| `rules/ospec-router.instructions.md` | El router *always-on*: IDD por defecto para cambios de código y SDD solo bajo petición, a través del orquestador del host. Los instaladores lo añaden en todos los targets. |
+| `skills/idd/` | El protocolo IDD que carga el router para un cambio de código. |
+| `scripts/ospec.js` | El CLI `ospec` (`status`, `next`, `record`, `signals`, `check`, `run`, `review`, `close`), que viaja con el runtime. |
+| `idd/` | Configuración IDD (`config.yaml`), cambios en curso y `archive/`, en cada proyecto. |
 | `.plugin.json` | Manifiesto **canónico** (VS Code/direct-load). Editá este primero. |
 | `.claude-plugin/plugin.json` | Copia de compatibilidad para la distribución Claude; también es la fuente que lee el generador (`scripts/configure/cli.js`). Debe reflejar el canónico — `scripts/manifest-sync.test.js` lo verifica en CI. |
 | `agents/` | Orquestador y agentes especializados por fase. |
@@ -170,7 +195,11 @@ Cada `npm run setup:<target>` (Claude, Codex, Antigravity, opencode, Cursor, VS 
 | `.mcp.json` | Fuente MCP canónica. Codex no la empaqueta: `setup:codex` traduce sus entradas al CLI nativo y evita duplicados. |
 | `openspec/` | Fuente de verdad versionable de cada cambio SDD. |
 
-## Comandos SDD
+## Modo SDD opcional
+
+SDD lleva un cambio por fases planificadas (propuesta, specs, diseño, tareas, apply, verify, archive) con artefactos OpenSpec. Úsalo cuando quieras el contrato escrito y aprobado antes de cualquier código: instala el paquete con `--with-sdd` y ejecuta un comando `/sdd-*` o pide trabajo guiado por especificación («hazme un SDD para X»). El resto de esta sección describe ese modo.
+
+### Comandos SDD
 
 | Comando | Uso |
 | --- | --- |
@@ -193,7 +222,7 @@ Cada `npm run setup:<target>` (Claude, Codex, Antigravity, opencode, Cursor, VS 
 
 `sdd-foundation` crea la base documental cuando el proyecto está vacío. Los agentes de fase no deben invocarse como un equipo descoordinado: el orquestador conserva el orden y los contratos.
 
-## Flujos
+### Flujos SDD
 
 El ciclo completo estándar recorre todas las fases de planificación, implementación y cierre:
 
@@ -204,7 +233,7 @@ propose → spec → design → tasks → apply → verify → archive
 Pero no todo cambio necesita el ciclo entero. El orquestador evalúa la tabla de routing
 (`openspec/config.yaml`) de arriba a abajo y activa la **primera ruta que coincide**.
 
-### Rutas canónicas
+#### Rutas canónicas
 
 | Ruta | Clasificación | Cuándo | Fases |
 | --- | --- | --- | --- |
@@ -217,7 +246,7 @@ Pero no todo cambio necesita el ciclo entero. El orquestador evalúa la tabla de
 | **standard** | normal, high-risk | Proyecto activo (ruta por defecto) | propose → spec → design → tasks → apply → verify → archive |
 | **lite** | trivial, small | Cambio pequeño y de bajo riesgo | propose → tasks → apply → verify → archive |
 
-### Atajos de entrada
+#### Atajos de entrada
 
 | Comando | Qué hace |
 | --- | --- |
@@ -226,7 +255,7 @@ Pero no todo cambio necesita el ciclo entero. El orquestador evalúa la tabla de
 | `/sdd-lite` | Inicia la ruta lite directamente. |
 | `/sdd-continue` | Recupera estado desde `state.yaml` y reanuda la siguiente fase pendiente. |
 
-### Gates
+#### Gates
 
 Algunas rutas incluyen gates que bloquean el avance hasta que se resuelven:
 
@@ -235,13 +264,13 @@ Algunas rutas incluyen gates que bloquean el avance hasta que se resuelven:
 - **impact** — en rutas federadas, evalúa impacto cross-repo antes de implementar.
 - **brownfield-advisory** — informa sobre el estado de baseline antes de ejecutar.
 
-### Implementación por tandas
+#### Implementación por tandas
 
 `/sdd-apply` trabaja por tandas revisables (fusiona `apply-progress.md`). Cuando el cambio supera el
 presupuesto de ~400 líneas, el orquestador propone PRs encadenadas (`stacked-to-main` o
 `feature-branch-chain`) o exige una `size:exception` consciente.
 
-### Modos de ejecución
+#### Modos de ejecución
 
 | Modo | Comportamiento |
 | --- | --- |
@@ -270,7 +299,7 @@ Puedes omitir temporalmente las distintas comprobaciones de seguridad, presupues
 - `DISABLE_TOKEN_ADVISOR=true`: Desactiva la comprobación del tamaño de tokens estimados en lecturas de archivos de la sesión (Token Budget Advisor).
 - `DISABLE_OSPEC_PRECOMMIT=true`: Desactiva la ejecución local de la validación del espacio de trabajo y Strict TDD en el hook pre-commit de Git.
 
-Los hooks ejecutan código nativo (Node.js o ejecutables Go optimizados). `.ospec/cache` y `.ospec/session` son auxiliares; **OpenSpec sigue siendo la fuente de verdad**.
+Los hooks ejecutan código nativo (Node.js o ejecutables Go optimizados). `.ospec/cache` y `.ospec/session` son auxiliares; **`idd/` y el estado de OpenSpec en disco siguen siendo la fuente de verdad**.
 
 ## Routing de modelos
 
@@ -321,9 +350,10 @@ Los servidores adicionales deben activarse explícitamente. Consulta [mcp-policy
 
 ## Garantías del workflow
 
-- Strict TDD cuando el proyecto dispone de runner compatible.
-- Artefactos y progreso recuperables desde `openspec/changes/{change-name}/`.
-- Aprobaciones bloqueantes persistidas en `state.yaml`, nunca inferidas del historial del chat.
+- Un cambio solo está hecho cuando `ospec close` termina bien; las obligaciones solo se satisfacen con evidencia de ejecuciones que observa el CLI.
+- Strict TDD cuando el proyecto lo activa (`strict_tdd: true` en IDD, un runner compatible en SDD).
+- Estado del cambio recuperable desde disco: `idd/<cambio>/` en IDD, `openspec/changes/{change-name}/` en SDD.
+- Gates y aprobaciones persistidos en `state.yaml`, resueltos solo con una respuesta explícita, nunca inferidos del historial del chat.
 - Prompts dinámicos delimitados para separar intención, artefactos, estándares y contexto de aprobación.
 - Skills resueltas como reglas compactas para controlar el presupuesto de tokens.
 - Cambios organizados en unidades revisables, con guardas cuando la carga supera el presupuesto recomendado.
@@ -333,7 +363,8 @@ Los servidores adicionales deben activarse explícitamente. Consulta [mcp-policy
 | Documento | Contenido |
 | --- | --- |
 | [docs/README.md](docs/README.md) | Índice y recorrido recomendado. |
-| [docs/sdd-metodologia.md](docs/sdd-metodologia.md) | Principios y modelo mental. |
+| [openspec/specs/idd/spec.md](openspec/specs/idd/spec.md) | Contrato IDD: señales, obligaciones, gates y el CLI `ospec`. |
+| [docs/sdd-metodologia.md](docs/sdd-metodologia.md) | Modo SDD: principios y modelo mental. |
 | [docs/sdd-fases.md](docs/sdd-fases.md) | Contratos de cada fase. |
 | [docs/sdd-workflows.md](docs/sdd-workflows.md) | Líneas de trabajo: estándar, lite, fast-forward, foundation, baseline brownfield, continuación, workspace y onboarding. |
 | [docs/openspec.md](docs/openspec.md) | Persistencia, specs delta y archivado. |

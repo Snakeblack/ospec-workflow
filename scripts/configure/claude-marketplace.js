@@ -114,6 +114,9 @@ function buildClaudeMarketplace(options, deps = {}) {
     withSdd: Boolean(options.withSdd),
   });
 
+  const sourceManifest = JSON.parse(
+    fs.readFileSync(path.join(options.source, ".claude-plugin", "plugin.json"), "utf8"),
+  );
   const marketplace = {
     name: options.marketplaceName,
     description: "OSpec Workflow Claude Code local marketplace",
@@ -125,12 +128,12 @@ function buildClaudeMarketplace(options, deps = {}) {
       {
         name: options.pluginName,
         displayName: "OSpec Workflow",
-        description:
-          "Spec-Driven Development workflow with OpenSpec, strict TDD, phase agents, skills, hooks, and verification contracts.",
+        // REQ-install-037: one description, kept in the source manifest.
+        description: sourceManifest.description,
         source: `./plugins/${options.pluginName}`,
         repository: "https://github.com/snakeblack/ospec-workflow",
         license: "MIT",
-        keywords: ["sdd", "openspec", "tdd", "agents", "workflow"],
+        keywords: ["idd", "sdd", "openspec", "tdd", "agents", "workflow"],
         category: "development",
       },
     ],

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.114.0] - 2026-10-08
+
+### Changed
+- **README y documentación de producto con IDD por defecto (E1.6 d3)**: el README en inglés y en español, las guías de instalación, `docs/README.md`, `docs/en/README.md` y la web (`openwiki/` y `web-doc/astro.config.mjs`) presentan IDD como flujo por defecto, con sus señales, obligaciones, gates, `idd/config.yaml` y `mode: sdd`, y SDD como modo opcional con `--with-sdd`/`--no-sdd`. Las páginas K1–K12 de la web quedan marcadas como históricas, y `docs/en/README.md` deja de citar la revisión v1 retirada.
+- **Lema IDD en los manifiestos (REQ-install-037)**: `package.json`, `.plugin.json` y `.claude-plugin/plugin.json` publican la misma descripción, con IDD primero y SDD como modo opcional. El marketplace de Claude copia la descripción del manifiesto en vez de tener la suya y añade la palabra clave `idd`.
+- **Roadmap**: E1.6 `idd-default-entry` pasa a hecho. La prueba real del «hecho cuando», en Claude Code con la build por defecto (`claude -p --plugin-dir`, Sonnet, $0,30), carga 0 skills, agentes o comandos SDD y crea y cierra un cambio IDD con documento vivo. Lo siguiente es E1.8. Hecho con IDD (`idd/archive/2026-10-07-idd-default-docs/`).
+
+### Known issues
+- El marketplace publicado en la rama `release` se construye sin `--with-sdd`, así que quien instala desde él no puede activar SDD. Para usar SDD en Claude Code hay que instalar desde un checkout con `npm run setup:claude -- --with-sdd`. Queda como follow-up.
+
+**Verificación directa**: `node scripts/check.js` (3307 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.113.0] - 2026-10-08
 
 ### Added

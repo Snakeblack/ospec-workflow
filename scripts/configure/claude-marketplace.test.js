@@ -99,6 +99,10 @@ test("buildClaudeMarketplace forwards an injected generator seam", (t) => {
   );
 
   assert.equal(result.exitCode, 0);
+  // REQ-install-037: the marketplace entry publishes the source manifest's description.
+  const marketplace = JSON.parse(fs.readFileSync(path.join(out, ".claude-plugin", "marketplace.json"), "utf8"));
+  const manifest = JSON.parse(fs.readFileSync(path.join(SOURCE, ".claude-plugin", "plugin.json"), "utf8"));
+  assert.equal(marketplace.plugins[0].description, manifest.description);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].target, "claude");
   assert.equal(calls[0].outDir, result.pluginDir);
