@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.113.0, 2026-10-08.
+> **Versión de referencia:** v2.114.0, 2026-10-08.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -121,9 +121,9 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.3** | `impact-signals` | feature |
 | `done` | **E1.4** | `ospec-check-and-close` | feature |
 | `done` | **E1.5** | `kernel-wiring-inventory` | refactor |
-| `in-progress` | **E1.6** | `idd-default-entry` ((a)–(c), revisión de IDD, `idd-2`, (d1) y (d2) entregados: IDD es el default y SDD se instala con `--with-sdd`; siguiente: (d3) README y documentación de producto) | feature |
+| `done` | **E1.6** | `idd-default-entry` (IDD por defecto en v2.112.0, SDD con `--with-sdd` en v2.113.0, README y documentación en v2.114.0) | feature |
 | `pending` | **E1.7** | `ospec-doctor` | feature |
-| `pending` | **E1.8** | `sdd-new-intent-argument` (después de E1.6) | bugfix |
+| `next-eligible` | **E1.8** | `sdd-new-intent-argument` | bugfix |
 | `next-eligible` | **E2.1** | `knowledge-map-contract` | contrato |
 | `pending` | **E2.2** | `decision-gap-engine` | feature |
 | `pending` | **E2.3** | `foundation-discovery-rounds` | feature |
@@ -140,7 +140,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E1.6 (d3): el README y la documentación de producto presentan IDD como flujo por defecto y SDD como modo opcional (`--with-sdd`), y una prueba real comprueba el «hecho cuando» de E1.6. IDD es el flujo por defecto desde v2.112.0 (d1), y el paquete SDD es opcional desde v2.113.0 (d2), con el checkpoint `continue` de `idd-2` ([informe](../analysis/2026-10-07-bench-idd-2.md)). Follow-up del protocolo: editar ficheros de texto respetando su codificación (un README acabó en ISO-8859-1). Después de E1.6 va E1.8 `sdd-new-intent-argument`. E2.1 `knowledge-map-contract` sigue elegible en paralelo.
+**▶ SIGUIENTE:** E1.8 `sdd-new-intent-argument`: el comando `sdd-new` generado para Claude declara `arguments: changeName intent` y parte la petición. E1.6 está hecho desde v2.114.0: IDD es el flujo por defecto, SDD se instala con `--with-sdd` y el README y la documentación lo presentan así. Follow-ups: el marketplace de Claude publicado se construye sin `--with-sdd`, así que quien instala desde él no puede activar SDD; y el protocolo IDD debe editar ficheros de texto respetando su codificación. E2.1 `knowledge-map-contract` sigue elegible en paralelo.
 
 **Dependencias:**
 
@@ -304,6 +304,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **(d) en tres PRs (decisión del usuario, 2026-10-08):** (d1) IDD por defecto; (d2) las fases SDD (skills `sdd-*`, agentes `sdd-*` con el orquestador y comandos `/sdd-*`) pasan a un paquete propio, `--with-sdd`, separado de `--with-extras`; los agentes `review-*` se quedan, porque IDD los usa; (d3) README y documentación de producto. Desde (d1), cada ítem se hace con IDD sobre este repositorio.
 - **(d1) entregado en v2.112.0:** IDD es el modo por defecto. `resolveMode` da `idd` sin modo declarado, aunque el proyecto tenga `openspec/` (REQ-idd-001). El router manda a IDD los cambios de código que no son una petición de SDD; las preguntas y el trabajo de solo lectura siguen directos, y un cambio se hace directo solo si el usuario lo pide expresamente sin IDD. `mode: sdd` en `idd/config.yaml` apaga IDD y deja el comportamiento anterior: trabajo directo y SDD solo con `/sdd-*` o petición explícita (REQ-generator-022 y REQ-generator-024). *Always-on* sube 117–140 B (3,0–3,4 KB) y el listado, 13 B. Es el primer ítem hecho con IDD en este repositorio: cambio `idd-default-mode`, con tres hechos abiertos respondidos por el usuario, `ospec check` y archivo en `idd/archive/`.
 - **(d2) entregado en v2.113.0:** el paquete SDD (skills, agentes, comandos y reglas `sdd-*`, con el orquestador) sale de la build por defecto y se instala con `--with-sdd` (REQ-generator-025). Los 7 instaladores e `install-target` aceptan `--with-sdd` y `--no-sdd`, y sin flag conservan SDD si la instalación anterior lo traía, leído del manifiesto de propiedad o del directorio de agentes instalado (REQ-install-036, decisión del usuario). El TUI ofrece los paquetes SDD y extras en la revisión (REQ-install-021 y REQ-install-022). El banco construye siempre con `--with-sdd`, y `bench-margins-5` acepta frente a `sdd-baseline-3` la huella de `idd-1`/`idd-2` y la actual, con `hosts/claude.js` exceptuado; el checkpoint de `idd-2` sigue dando `continue` (REQ-bench-005). Por defecto, el orquestador pasa de 44–61 KB a 0, las skills instaladas de 47–48 a 31, los agentes de 22–23 a 6 y el listado de Codex de 6,4 a 4,2 KB; *always-on* sube 64 B. Hallazgos: los validadores de Cursor, Antigravity, Copilot y OpenCode exigían un directorio de comandos que una build sin SDD no tiene, y los revisores `review-*` citaban `skills/sdd-verify/SKILL.md` desde un módulo compartido. Hecho con IDD (cambio `sdd-optional-package`).
+- **(d3) entregado en v2.114.0, E1.6 hecho:** el README (inglés y español), las guías de instalación, `docs/README.md`, `docs/en/README.md` y la web (`openwiki/` y `web-doc/astro.config.mjs`) presentan IDD como flujo por defecto, con señales, obligaciones, gates, `idd/config.yaml` y `mode: sdd`, y SDD como modo opcional con `--with-sdd`/`--no-sdd`. Las páginas K1–K12 de la web quedan marcadas como históricas. El lema pasa a IDD en `package.json`, `.plugin.json` y `.claude-plugin/plugin.json`, y el marketplace de Claude copia la descripción del manifiesto en vez de tener la suya (REQ-install-037). «Hecho cuando», decisión del usuario: prueba real solo en Claude Code. Con la build por defecto (`claude-marketplace.js` sin `--with-sdd`, `claude -p --plugin-dir`, Sonnet 5.5, $0,30, 79 s), la sesión carga 0 skills, agentes o comandos SDD; `/ospec-workflow:idd` con dos unidades y una decisión de diseño activa `multi-unit-or-decision`, el agente mantiene `change.md`, `ospec check` y `ospec close` archivan el cambio. En los otros seis targets, los tests de build comprueban que la build por defecto no trae nada `sdd-*`. Que `mode: sdd` siga funcionando igual lo cubren los tests de (d1). Hallazgo: el marketplace publicado en `release` se construye sin `--with-sdd`, así que quien instala desde él no tiene forma de activar SDD; queda documentado y como follow-up. Hecho con IDD (cambio `idd-default-docs`).
 
 ### E1.7 — `ospec-doctor`
 
