@@ -398,6 +398,12 @@ This idempotent installer performs the following steps:
 4. Registers Context7 and MarkItDown only once via the native Codex CLI, without overwriting pre-existing entries.
 5. Does not install or register Codex plugins or marketplaces.
 
+When the host sets `CODEX_HOME`, `setup:codex` installs agents, the router, and hooks in that absolute directory; global skills remain in `~/.agents/skills/`. This supports managed homes such as Orca's without changes to Orca. Run setup with the same `CODEX_HOME` as the session.
+
+A managed home may link `AGENTS.md` to the regular `~/.codex/AGENTS.md` file. Setup preserves that link and updates the router at the validated global destination. Links to other destinations remain rejected.
+
+Hooks invoke a Node entry point that sets the Codex markers inside its process, without shell-specific assignments for cmd, PowerShell, or Bash. Running setup again migrates previous commands, preserves third-party hooks, and avoids duplicate OSpec hooks. Restart or resume Codex to load the new definitions. See the [shell compatibility evidence](testing/codex-hook-shell.tdd.md).
+
 ### opencode
 
 The `opencode` target allows two installation modes: local (per project) and global (for the user's whole machine). In both modes, the main agent `sdd-orchestrator` is automatically renamed to `ospec-workflow` to integrate with the OpenCode interface and allow Tab-key autocomplete.
@@ -459,8 +465,11 @@ This idempotent installer:
 ## Engram session memory (every target)
 Every `npm run setup:<target>` (Claude, Codex, Antigravity, opencode, Cursor, VS Code, Copilot CLI) configures [Engram](https://github.com/Gentleman-Programming/engram) automatically when the `engram` binary is on PATH. It runs the upstream `engram setup <agent>` (`claude-code`, `codex`, `antigravity-cli`, `opencode`, `cursor`, `vscode-copilot`). Copilot CLI has no upstream setup, so the installer adds an `engram mcp` entry to `~/.copilot/mcp-config.json` instead. The step is idempotent and fail-open, and it never changes the install exit code. Pass `--no-engram` to skip it (`npm run setup:codex -- --no-engram`). Without the binary, the installer only prints install guidance.
 - **Claude Code on Windows**: a short Git Bash fork probe decides whether the upstream hook's safe mode can be turned off (`ENGRAM_CLAUDE_WINDOWS_BASH_SAFE_MODE=0` in `~/.claude/settings.json`). The safe mode disables prompt capture and save reminders. A value you already set is never overwritten. The upstream hooks need bash, jq and curl.
+- **Codex**: the installer also probes `codex-register`, `codex-resolve` and `codex-session-end` with empty input and a three-second timeout per command. This checks binary compatibility without creating sessions. Plugin/MCP presence and supported commands do not confirm runtime session registration. If a command is unsupported or cannot be checked, setup is skipped and the diagnostic identifies the command and exit status or spawn error. Use a compatible upstream binary, run `engram setup codex` in the active `CODEX_HOME` (including a host-managed runtime home), then restart or resume Codex. Confirm that `SessionStart` provides a registered runtime identity before agent-attributed writes; never supply a replacement session ID. Engram 3.0.0 with plugin 0.1.5 failed this check on Windows; upgrading the binary and server to [3.2.1](https://github.com/Gentleman-Programming/engram/releases/tag/v3.2.1) restored hook confirmation in the tested installation. See [issue #264 evidence](testing/engram-codex-runtime.tdd.md) for the verification limits.
 - **Cursor**: Cursor does not read global rule files, so paste `~/.cursor/engram-memory-protocol.md` into Settings → Rules → User Rules once.
 - Every target ships the same host-neutral SDD memory addendum. Engram is non-authoritative: OpenSpec and `state.yaml` remain the source of truth.
+
+For a recurring `Hook failed`, capture the hook event, command, exit status and stderr from the host. A store-wide `engram doctor --json` warning does not identify which hook failed or prove that the current session is registered.
 
 ## How to verify agents and skills loaded
 

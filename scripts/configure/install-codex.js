@@ -215,9 +215,11 @@ function appendAgentSkillConfig(agentPath, skillPath, fsImpl = fs) {
   fsImpl.writeFileSync(agentPath, text.replace(/\n?\[\[skills\.config\]\][\s\S]*$/m, "").replace(/\s*$/, "\n") + config);
 }
 
-function isManagedHookGroup(group) {
-  return JSON.stringify(group).includes("OSPEC_TARGET=codex") &&
-    JSON.stringify(group).includes("ospec-workflow");
+function isManagedHook(hook) {
+  return [hook?.command, hook?.commandWindows].some(command =>
+    typeof command === "string" && command.includes("ospec-workflow") &&
+    (command.includes("OSPEC_TARGET=codex") || command.includes("ospec-codex-hook.js")),
+  );
 }
 
 function installCodexHooks(outDir, codexRoot, runtimeDir, deps = {}) {
@@ -261,7 +263,12 @@ function installCodexHooks(outDir, codexRoot, runtimeDir, deps = {}) {
   for (const [event, groups] of Object.entries(generated.hooks)) {
     const rendered = renderValue(groups);
     const preserved = Array.isArray(existing.hooks[event])
-      ? existing.hooks[event].filter((group) => !isManagedHookGroup(group))
+      ? existing.hooks[event].flatMap(group => {
+        if (!Array.isArray(group?.hooks)) return [group];
+        const hooks = group.hooks.filter(hook => !isManagedHook(hook));
+        if (hooks.length === group.hooks.length) return [group];
+        return hooks.length ? [{ ...group, hooks }] : [];
+      })
       : [];
     existing.hooks[event] = [...preserved, ...rendered];
   }
@@ -1150,7 +1157,11 @@ function install(argv, deps = {}) {
       }
       codexRoot = path.join(destRepo, ".codex");
     } else {
-      codexRoot = path.join(homedir(), ".codex");
+      const activeHome = (deps.env || process.env).CODEX_HOME;
+      if (activeHome && (typeof activeHome !== "string" || !path.isAbsolute(activeHome))) {
+        throw new Error("CODEX_HOME must be an absolute path");
+      }
+      codexRoot = activeHome ? path.resolve(activeHome) : path.join(homedir(), ".codex");
     }
 
     if (args.dryRun && args.repairConfig) {
@@ -1175,9 +1186,23 @@ function install(argv, deps = {}) {
     }
 
     const agentsDest = path.join(codexRoot, "agents");
-    const agentDestFile = isRepoInstall
+    let agentDestFile = isRepoInstall
       ? path.join(path.dirname(codexRoot), "AGENTS.md")
       : path.join(codexRoot, "AGENTS.md");
+    let agentApprovedRoot = isRepoInstall ? path.dirname(codexRoot) : codexRoot;
+    // Managed homes may share the user's regular global instructions file.
+    // Resolve only that exact destination; never write through an arbitrary link.
+    if (!isRepoInstall && lstatIfExists(agentDestFile, fsImpl)?.isSymbolicLink()) {
+      const sharedRoot = path.join(path.resolve(homedir()), ".codex");
+      const sharedAgents = path.join(sharedRoot, "AGENTS.md");
+      assertManagedPathSafe(sharedRoot, sharedAgents, "Codex shared agent file destination", fsImpl);
+      if (!lstatIfExists(sharedAgents, fsImpl)?.isFile() ||
+          path.relative(fsImpl.realpathSync(sharedAgents), fsImpl.realpathSync(agentDestFile)) !== "") {
+        throw new Error("Codex AGENTS.md link must target the regular global user file");
+      }
+      agentDestFile = fsImpl.realpathSync(sharedAgents);
+      agentApprovedRoot = fsImpl.realpathSync(sharedRoot);
+    }
 
     let codexBin;
     if (!isRepoInstall && args.repairConfig) {
@@ -1210,7 +1235,7 @@ function install(argv, deps = {}) {
 
     // Perform security checks immediately before writing to avoid TOCTOU window
     assertManagedPathSafe(codexRoot, agentsDest, "Codex agents destination", fsImpl);
-    assertManagedPathSafe(isRepoInstall ? path.dirname(codexRoot) : codexRoot, agentDestFile, "Codex agent file destination", fsImpl);
+    assertManagedPathSafe(agentApprovedRoot, agentDestFile, "Codex agent file destination", fsImpl);
 
     const userHome = isRepoInstall ? undefined : path.resolve(homedir());
     const globalSkillsRoot = isRepoInstall ? undefined : path.join(userHome, ".agents", "skills");
@@ -1244,7 +1269,8 @@ function install(argv, deps = {}) {
       // E0.4: AGENTS.md gets only the router, as a marked block. The file a
       // pre-E0.4 install owned whole (the orchestrator copy) is replaced, never pruned.
       const previousManifest = isRepoInstall ? null : readOwnershipManifest(codexRoot, fsImpl);
-      const ownedAgentsMd = (previousManifest?.files || []).map(toPosix).includes("AGENTS.md");
+      const ownedAgentsMd = agentApprovedRoot === codexRoot &&
+        (previousManifest?.files || []).map(toPosix).includes("AGENTS.md");
       if (args.noRouter) {
         removeRouterBlock(agentDestFile, { fs: writeFs });
       } else {

@@ -422,27 +422,22 @@ function rewriteCodexCommand(file, event, index, entry) {
 // the five listed MUST be added by this requirement."
 const CODEX_WRAPPER_EVENTS = ["SessionStart", "PreToolUse", "PreCompact", "SubagentStop", "Stop"];
 
-// Windows/cmd.exe-PowerShell adapter (REQ-hooks-004): swap the quoted POSIX
-// "$PLUGIN_ROOT/…" segment for a backslash-separated "%PLUGIN_ROOT%\…" form.
+// Windows adapter (REQ-hooks-004): keep the quoted runtime path and render
+// its separators; no shell-specific variable assignments belong here.
 // Runs on the already-quoted POSIX command so quoting is reused verbatim.
 function toCodexWindowsCommand(command) {
   return command.replace(/__OSPEC_RUNTIME__\/([^\s"]+)/g, (_match, rest) => `__OSPEC_RUNTIME__\\${rest.split("/").join("\\")}`);
 }
 
-// Per-invocation Codex marker (review remediation, ADR-003 addendum):
-// OSPEC_TARGET alone is a process-wide env var that can leak into an
-// unrelated session (leftover shell export, CI var, repo .env), silently
-// degrading every ASK-class hook decision there too. OSPEC_CODEX_WRAPPER=1
-// is inlined directly into the codex-generated command line itself, so it is
-// set fresh for that single hook invocation by the wrapper's own command
-// string rather than inherited ambient state; pre-tool-use.js/pretooluse.go
-// require BOTH before degrading ask -> allow.
+// The Node entry point owns BOTH per-invocation Codex markers (ADR-003).
+// Neither POSIX assignments nor cmd's `set ...&&` work in every host shell.
+// Accept the legacy binary source too: the shared launcher still selects
+// the native binary when installed, after applying the Codex host contract.
 function withCodexWrapperMarker(command) {
-  return `OSPEC_TARGET=codex OSPEC_CODEX_WRAPPER=1 ${command}`;
-}
-
-function withCodexWrapperMarkerWindows(command) {
-  return `set OSPEC_TARGET=codex&& set OSPEC_CODEX_WRAPPER=1&& ${command}`;
+  return command.replace(
+    /(?:node\s+)?"__OSPEC_RUNTIME__\/scripts\/hooks\/ospec-hooks(?:-launch\.js)?"/,
+    'node "__OSPEC_RUNTIME__/scripts/hooks/ospec-codex-hook.js"',
+  );
 }
 
 // Reshape the source hooks for Codex (REQ-hooks-004 / ADR-003): per-event
@@ -463,11 +458,11 @@ function codexHooks(file, profile) {
     }
     validateHookEntries(file, event, entries);
     const wrappedHooks = entries.map((entry, index) => {
-      const command = rewriteCodexCommand(file, event, index, entry);
+      const command = withCodexWrapperMarker(rewriteCodexCommand(file, event, index, entry));
       return {
         type: (entry && entry.type) || "command",
-        command: withCodexWrapperMarker(command),
-        commandWindows: withCodexWrapperMarkerWindows(toCodexWindowsCommand(command)),
+        command,
+        commandWindows: toCodexWindowsCommand(command),
         timeout: 10,
       };
     });

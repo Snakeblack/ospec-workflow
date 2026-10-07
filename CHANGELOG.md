@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.108.1] - 2026-10-07
+
+### Fixed
+- **Compatibilidad del ciclo de sesión de Engram**: `scripts/configure/engram-setup.js` comprueba `codex-register`, `codex-resolve` y `codex-session-end` con entrada vacía y timeout de tres segundos, sin crear sesiones. El setup identifica operaciones incompatibles o desconocidas y evita anunciar como operativo un registro que solo tiene plugin y MCP presentes. La confirmación de identidad sigue correspondiendo al hook del runtime.
+- **Lanzamiento de hooks nativos**: `scripts/hooks/ospec-codex-hook.js` fija los marcadores de Codex dentro del proceso Node y conserva la selección Go/Node y la adaptación de resultados del launcher compartido. `scripts/lib/target-transform.js` elimina las asignaciones específicas del shell que provocaban `Hook failed` en PowerShell; las llamadas seguras conservan la aprobación normal y las prohibidas siguen bloqueadas.
+- **Instalación en homes gestionados**: `scripts/configure/install-codex.js` respeta `CODEX_HOME` absoluto. Los productores SessionStart Node y Go reconocen el runtime activo y las skills compartidas; el instalador conserva los enlaces de `AGENTS.md` al archivo global regular validado. Las comparaciones usan rutas reales para admitir alias de directorios, como `/var` y `/private/var` en macOS. Esto cubre instalaciones directas y gestionadas por Orca sin modificar el host ni admitir destinos arbitrarios.
+- **Migración de hooks existentes**: la reinstalación sustituye solo handlers propios, conserva los de terceros incluso en grupos mixtos y no duplica hooks. Las guías de instalación en español e inglés y los informes de `docs/testing/` documentan la reparación y sus límites.
+
+**Verificación directa**: `node scripts/check.js` (3248 tests pasando, 0 fallos y 0 omitidos). Generación de los siete targets, `go test ./...`, 255 pruebas de la selección con cobertura de líneas del 91,93 % y 24 llamadas de hooks instalados entre cmd, Windows PowerShell 5.1, PowerShell 7 y Git Bash en los homes global y de Orca. El nuevo arranque automático del host queda pendiente de reinicio o reanudación.
+
 ## [2.108.0] - 2026-10-07
 
 ### Added

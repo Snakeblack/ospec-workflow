@@ -400,6 +400,12 @@ Este instalador idempotente realiza los siguientes pasos:
 4. Registra Context7 y MarkItDown una sola vez mediante el CLI nativo de Codex, sin sobrescribir entradas preexistentes.
 5. No instala ni registra plugins o marketplaces de Codex.
 
+Si el host define `CODEX_HOME`, `setup:codex` instala los agentes, el router y los hooks en ese directorio absoluto; las skills globales siguen en `~/.agents/skills/`. Esto permite usar homes gestionados, como los de Orca, sin modificar Orca. Ejecuta el setup con el mismo `CODEX_HOME` que usa la sesión.
+
+Un home gestionado puede enlazar `AGENTS.md` al archivo regular `~/.codex/AGENTS.md`. El setup conserva ese enlace y actualiza el router en el destino global validado. Los enlaces a otros destinos siguen rechazados.
+
+Los hooks invocan un lanzador Node que fija sus marcadores de Codex dentro del proceso, sin asignaciones específicas de `cmd.exe`, PowerShell o Bash. Reejecutar el setup migra los comandos anteriores, conserva los hooks de terceros y no duplica los de OSpec. Reinicia o reanuda Codex para cargar las nuevas definiciones. Consulta la [evidencia de compatibilidad de shells](testing/codex-hook-shell.tdd.md).
+
 ### opencode
 
 El target `opencode` permite dos modalidades de instalación: local (por proyecto) y global (para toda la máquina del usuario). En ambas modalidades, el agente principal `sdd-orchestrator` se renombra automáticamente a `ospec-workflow` para integrarse con la interfaz de OpenCode y permitir el autocompletado con la tecla Tab.
@@ -461,8 +467,11 @@ Este instalador idempotente:
 ## Memoria de sesión con Engram (todos los targets)
 Cada `npm run setup:<target>` (Claude, Codex, Antigravity, opencode, Cursor, VS Code, Copilot CLI) configura [Engram](https://github.com/Gentleman-Programming/engram) automáticamente si el binario `engram` está en el PATH. Para ello ejecuta el `engram setup <agente>` oficial (`claude-code`, `codex`, `antigravity-cli`, `opencode`, `cursor`, `vscode-copilot`). Copilot CLI no tiene setup oficial, así que en su caso el instalador añade una entrada `engram mcp` a `~/.copilot/mcp-config.json`. El paso es idempotente y fail-open, y nunca cambia el código de salida de la instalación. Para omitirlo, usa `--no-engram` (`npm run setup:codex -- --no-engram`). Sin el binario, el instalador solo muestra cómo instalarlo.
 - **Claude Code en Windows**: una sonda corta de fork en Git Bash decide si se puede desactivar el modo seguro del hook oficial (`ENGRAM_CLAUDE_WINDOWS_BASH_SAFE_MODE=0` en `~/.claude/settings.json`). Ese modo seguro desactiva la captura de prompts y los recordatorios de guardado. Si ya tienes un valor, nunca se sobrescribe. Los hooks oficiales necesitan bash, jq y curl.
+- **Codex**: el instalador comprueba además `codex-register`, `codex-resolve` y `codex-session-end` con entrada vacía y un timeout de tres segundos por comando. Comprueba compatibilidad del binario sin crear sesiones. La presencia de plugin/MCP y el soporte de esos comandos no confirman el registro de la sesión real. Si un comando no está soportado o no se puede comprobar, se omite el setup y el diagnóstico identifica el comando y su código de salida o error de ejecución. Usa un binario upstream compatible, ejecuta `engram setup codex` en el `CODEX_HOME` activo (incluido el runtime home gestionado por el host) y reinicia o reanuda Codex. Comprueba que `SessionStart` entrega una identidad registrada antes de guardar memoria atribuida al agente; nunca sustituyas el ID de sesión. Engram 3.0.0 con plugin 0.1.5 fallaba esta comprobación en Windows; actualizar el binario y el servidor a [3.2.1](https://github.com/Gentleman-Programming/engram/releases/tag/v3.2.1) restauró la confirmación del hook en la instalación probada. Los límites de verificación están en la [evidencia de la issue #264](testing/engram-codex-runtime.tdd.md).
 - **Cursor**: Cursor no lee reglas globales desde disco, así que hay que pegar una vez `~/.cursor/engram-memory-protocol.md` en Settings → Rules → User Rules.
 - Todos los targets llevan el mismo addendum de memoria SDD, neutral respecto al host. Engram no es autoritativo: OpenSpec y `state.yaml` siguen siendo la fuente de verdad.
+
+Si aparece `Hook failed` de forma recurrente, captura desde el host el evento, comando, código de salida y stderr del hook. Un aviso global de `engram doctor --json` no identifica el hook fallido ni confirma el registro de la sesión actual.
 
 ## Como verificar que cargaron los agentes y los skills
 
