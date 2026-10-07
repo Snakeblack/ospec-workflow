@@ -177,6 +177,86 @@ test("detect codex: a launcher invocation (Windows npm shim) prefixes the listin
   assert.ok(spawn.calls.includes("node codex.js plugin list"));
 });
 
+// #264: plugin/MCP presence cannot prove that the binary supports the plugin's
+// session lifecycle. Empty input probes capability without registering a host.
+test("detect codex: unsupported lifecycle is separate from installed plugin and MCP", () => {
+  const spawn = makeSpawn({ ...ENGRAM, "codex plugin list": ok("engram@engram\n"), "engram hook": fail(1, "usage: engram hook codex-pre-tool-use") });
+  const files = makeFs({ [home(".codex", "config.toml")]: "[mcp_servers.engram]\n" });
+  const d = detectEngram({ target: "codex", spawn, hostBin: "codex", fs: files, homedir, env: {} });
+  assert.deepEqual([d.protocol, d.mcp], ["registered", "registered"]);
+  assert.equal(d.lifecycle, "unsupported");
+});
+
+test("detect codex: probes every lifecycle operation with empty input and a bounded timeout", () => {
+  const calls = [];
+  const base = makeSpawn({ ...ENGRAM, "codex plugin list": ok("engram@engram\n"), "engram hook": ok() });
+  const spawn = (bin, args, options) => { calls.push({ args, options }); return base(bin, args); };
+  const d = detectEngram({ target: "codex", spawn, hostBin: "codex", fs: makeFs(), homedir });
+  assert.equal(d.lifecycle, "available");
+  const probes = calls.filter((call) => call.args[0] === "hook");
+  assert.deepEqual(probes.map((call) => call.args[1]), ["codex-register", "codex-resolve", "codex-session-end"]);
+  for (const { options } of probes) {
+    assert.equal(options.input, "{}");
+    assert.ok(options.timeout <= 3000);
+    assert.equal(options.shell, false);
+  }
+});
+
+test("detect codex: lifecycle errors and timeouts remain unknown, missing binary is skipped", () => {
+  for (const result of [errored("ETIMEDOUT"), errored("EACCES"), fail(2, "transport error")]) {
+    const spawn = makeSpawn({ ...ENGRAM, "engram hook": result });
+    assert.equal(detectEngram({ target: "codex", spawn, fs: makeFs(), homedir }).lifecycle, "unknown");
+  }
+  const spawn = makeSpawn(NO_ENGRAM);
+  assert.equal(detectEngram({ target: "codex", spawn, fs: makeFs(), homedir }).lifecycle, "skipped");
+  assert.equal(spawn.calls.some((call) => call.includes(" hook ")), false);
+});
+
+test("detect codex: accepting registration alone does not establish lifecycle compatibility", () => {
+  const spawn = makeSpawn({ ...ENGRAM, "engram hook codex-register": ok(), "engram hook codex-resolve": fail(1, "usage: engram hook") });
+  assert.equal(detectEngram({ target: "codex", spawn, fs: makeFs(), homedir }).lifecycle, "unsupported");
+});
+
+test("run codex: identifies the failed hook and exit status without exposing arbitrary stderr", () => {
+  const spawn = makeSpawn({ ...ENGRAM, "codex plugin list": ok("engram@engram\n"),
+    "engram hook codex-register": ok(), "engram hook codex-resolve": fail(2, "private transport details"), "engram hook codex-session-end": ok() });
+  const files = makeFs({ [home(".codex", "config.toml")]: "[mcp_servers.engram]\n" });
+  const { stdout } = run({ target: "codex", spawn, hostBin: "codex", fs: files });
+  assert.match(stdout, /engram hook codex-resolve: unknown \(exit 2\)/);
+  assert.doesNotMatch(stdout, /private transport details/);
+});
+
+test("detect codex: unexpected lifecycle output cannot confirm capability", () => {
+  const spawn = makeSpawn({ ...ENGRAM, "engram hook": ok('{"session_id":"unexpected"}') });
+  assert.equal(detectEngram({ target: "codex", spawn, fs: makeFs(), homedir }).lifecycle, "unknown");
+});
+
+test("run codex: incompatible or unknown lifecycle gives actionable guidance without setup or false success", () => {
+  for (const lifecycle of [fail(1, "usage: engram hook"), errored("ETIMEDOUT")]) {
+    for (const installed of [true, false]) {
+      const spawn = makeSpawn({ ...ENGRAM, "codex plugin list": ok(installed ? "engram@engram\n" : ""), "engram hook": lifecycle });
+      const files = makeFs(installed ? { [home(".codex", "config.toml")]: "[mcp_servers.engram]\n" } : {});
+      const { stdout } = run({ target: "codex", spawn, hostBin: "codex", fs: files });
+      assert.match(stdout, /codex-register.*codex-resolve.*codex-session-end/);
+      assert.match(stdout, /engram setup codex/);
+      assert.match(stdout, /CODEX_HOME/);
+      assert.doesNotMatch(stdout, /already configured|Engram configured for/);
+      assert.deepEqual(mutations(spawn.calls), []);
+    }
+  }
+});
+
+test("run codex: available lifecycle and installed pieces still require host startup/resume verification", () => {
+  const spawn = makeSpawn({ ...ENGRAM, "codex plugin list": ok("engram@engram\n"), "engram hook": ok() });
+  const files = makeFs({ [home(".codex", "config.toml")]: "[mcp_servers.engram]\n" });
+  const { stdout } = run({ target: "codex", spawn, hostBin: "codex", fs: files });
+  assert.match(stdout, /plugin and MCP.*present/);
+  assert.match(stdout, /session registration.*not verified/);
+  assert.match(stdout, /SessionStart.*resume/);
+  assert.doesNotMatch(stdout, /already configured/);
+  assert.deepEqual(mutations(spawn.calls), []);
+});
+
 test("detect antigravity: mcp_config.json server plus the marked GEMINI.md block", () => {
   const files = makeFs({
     [home(".gemini", "config", "mcp_config.json")]: JSON.stringify({ mcpServers: { engram: { command: "engram" } } }),

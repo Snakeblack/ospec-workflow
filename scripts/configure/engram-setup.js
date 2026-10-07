@@ -46,6 +46,8 @@ const BINARY_CANDIDATES = ["engram", "engram.exe"];
 // store; both take well over 10 s on a real machine.
 const DEFAULT_TIMEOUT_MS = 60000;
 const SETUP_TIMEOUT_MS = 120000;
+const LIFECYCLE_TIMEOUT_MS = 3000;
+const CODEX_LIFECYCLE = ["codex-register", "codex-resolve", "codex-session-end"];
 const SAFE_MODE_VAR = "ENGRAM_CLAUDE_WINDOWS_BASH_SAFE_MODE";
 // The upstream hook's full path forks dirname, date, jq and curl on every prompt.
 // Three rounds must finish well under the time a user would notice on submit.
@@ -82,9 +84,9 @@ function defaultSpawn(bin, args, options) {
   return spawnSync(bin, args, { encoding: "utf8", shell: false, ...options });
 }
 
-function safeSpawn(spawn, bin, args, timeoutMs) {
+function safeSpawn(spawn, bin, args, timeoutMs, options = {}) {
   try {
-    return spawn(bin, args, { encoding: "utf8", shell: false, timeout: timeoutMs }) || {};
+    return spawn(bin, args, { encoding: "utf8", shell: false, timeout: timeoutMs, ...options }) || {};
   } catch (error) {
     return { error };
   }
@@ -122,6 +124,28 @@ function probeDoctor(spawn, binary, timeoutMs) {
     // Unparseable output is not a failure: the exit status already said ok.
   }
   return "ok";
+}
+
+// #264: the Codex plugin can be newer than its binary. Upstream lifecycle hooks
+// reject an empty payload before HTTP calls, so this checks command support
+// without registering, resolving or ending any session. It does not establish
+// that SessionStart ran or that the live server can confirm a runtime identity.
+function probeCodexLifecycle(spawn, binary, timeoutMs) {
+  if (!binary.found) return { lifecycle: "skipped", lifecycleChecks: [] };
+  const checks = CODEX_LIFECYCLE.map((action) => {
+    const result = safeSpawn(spawn, binary.bin, ["hook", action], Math.min(timeoutMs, LIFECYCLE_TIMEOUT_MS), { input: "{}" });
+    if (result.error) {
+      const code = result.error.code;
+      return { action, state: "unknown", reason: typeof code === "string" && /^[A-Z0-9_]+$/.test(code) ? code : "spawn error" };
+    }
+    if (result.status !== 0 && /\busage:\s*engram hook\b/i.test(text(result))) return { action, state: "unsupported", reason: `exit ${result.status}` };
+    return result.status === 0 && text(result).trim() === ""
+      ? { action, state: "available" }
+      : { action, state: "unknown", reason: result.status === 0 ? "unexpected output" : `exit ${result.status}` };
+  });
+  const lifecycle = checks.some((check) => check.state === "unsupported") ? "unsupported"
+    : checks.every((check) => check.state === "available") ? "available" : "unknown";
+  return { lifecycle, lifecycleChecks: checks };
 }
 
 // registered | absent | unknown (CLI missing, errored, timed out or non-zero).
@@ -293,6 +317,7 @@ function detectEngram({
     target,
     binary,
     doctor: probeDoctor(spawn, binary, timeoutMs),
+    ...(target === "codex" ? probeCodexLifecycle(spawn, binary, timeoutMs) : {}),
     ...probeHost(target, { spawn, hostBin: hostBin || claudeBin, fs: fsImpl, homedir, env, platform, timeoutMs }),
   };
 }
@@ -310,6 +335,8 @@ function isUnknown(detection) {
 // (which includes a missing claude/codex CLI). One piece alone is NOT configured.
 function planEngramActions(detection, { enabled = true, homedir = os.homedir } = {}) {
   if (!enabled || !detection || !detection.binary || !detection.binary.found) return [];
+  // Re-running an incompatible binary's setup can fetch the same newer plugin.
+  if (detection.target === "codex" && detection.lifecycle && detection.lifecycle !== "available") return [];
   if (isConfigured(detection) || isUnknown(detection)) return [];
   const target = detection.target || "claude";
   const { agent } = targetSpec(target);
@@ -345,6 +372,21 @@ function guidance(spec, detection, enabled) {
       `    To enable it: install Engram (https://github.com/Gentleman-Programming/engram), then re-run \`npm run ${spec.script}\`.`,
     );
     if (spec.host === "claude") lines.push("    The upstream plugin hooks need bash, jq and curl (Git Bash on Windows).");
+  } else if (spec.agent === "codex" && detection.lifecycle !== "available") {
+    const detail = detection.lifecycle === "unsupported" ? "is incompatible with" : "could not verify";
+    lines.push(
+      `  - Engram ${detection.binary.version || "binary"} ${detail} the Codex lifecycle commands: ${CODEX_LIFECYCLE.join(", ")}.`,
+      ...(detection.lifecycleChecks || []).filter((check) => check.state !== "available")
+        .map((check) => `    engram hook ${check.action}: ${check.state} (${check.reason}).`),
+      "    Plugin/MCP presence does not confirm runtime session registration; setup alone cannot repair lifecycle incompatibility.",
+      "    Use a compatible Engram binary, then run `engram setup codex` in the host's active CODEX_HOME (including a managed runtime home).",
+      "    Restart or resume Codex and verify the SessionStart hook confirms its runtime identity before agent-attributed writes.",
+    );
+  } else if (isConfigured(detection) && spec.agent === "codex") {
+    lines.push(
+      "  - Engram plugin and MCP are present for Codex; session registration is not verified by this static check.",
+      "    Lifecycle commands are available. Verify SessionStart on startup/resume confirms a runtime identity before agent-attributed writes.",
+    );
   } else if (isConfigured(detection)) {
     lines.push(`  - Engram is already configured for ${spec.label}; nothing to do.`);
   } else if (isUnknown(detection)) {
@@ -355,6 +397,9 @@ function guidance(spec, detection, enabled) {
       `  - Engram is not configured for ${spec.label} (missing: ${missingPieces(spec, detection).join(", ")}); skipped by --no-engram.`,
       `    Run ${manualFix(spec)} or re-run \`npm run ${spec.script}\` without --no-engram.`,
     );
+  }
+  if (detection.binary.found && spec.agent === "codex") {
+    lines.push("    For `Hook failed`, capture the hook event, command, exit status and stderr; a store-wide doctor warning alone does not identify the failed hook.");
   }
   return `${lines.join("\n")}\n`;
 }
@@ -500,7 +545,9 @@ function runEngramStep({
       // Confirm every piece actually landed (mem_* tools + memory protocol).
       const after = probe();
       configured = isConfigured(after);
-      if (configured) {
+      if (configured && target === "codex") {
+        stdout.write(guidance(spec, after, enabled));
+      } else if (configured) {
         stdout.write(`  - Engram configured for ${spec.label}. Restart ${spec.label} to load the mem_* tools.\n`);
       } else {
         stderr.write(
