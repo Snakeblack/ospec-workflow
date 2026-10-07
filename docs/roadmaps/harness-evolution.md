@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.107.1, 2026-10-07.
+> **Versión de referencia:** v2.107.2, 2026-10-07.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -123,6 +123,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.5** | `kernel-wiring-inventory` | refactor |
 | `next-eligible` | **E1.6** | `idd-default-entry` | feature |
 | `pending` | **E1.7** | `ospec-doctor` | feature |
+| `pending` | **E1.8** | `sdd-new-intent-argument` (después de E1.6) | bugfix |
 | `next-eligible` | **E2.1** | `knowledge-map-contract` | contrato |
 | `pending` | **E2.2** | `decision-gap-engine` | feature |
 | `pending` | **E2.3** | `foundation-discovery-rounds` | feature |
@@ -139,7 +140,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E1.6 `idd-default-entry`, priorizado por el presupuesto de cuota del usuario. La línea base del modo SDD quedó completa en v2.107.1 (`sdd-baseline-3`, [informe](../analysis/2026-10-07-bench-linea-base-sdd-3.md)): 6/6 escenarios completos, 0 defectos escapados y 65,7 M tokens con una repetición por escenario (`bench-margins-3`). E1.6 habilita el brazo IDD, ejecuta sus seis corridas con el mismo banco y decide con el checkpoint si IDD pasa a ser el default; con una corrida por escenario, la comparación es exploratoria. La pasada anterior, `sdd-baseline-2` (v2.106.0, [informe](../analysis/2026-10-06-bench-linea-base-sdd.md)), queda como histórico y no se agrega a la actual. E2.1 `knowledge-map-contract` sigue elegible en paralelo. E1.4 quedó cerrado en v2.103.0 y la etapa 0, en v2.91.0.
+**▶ SIGUIENTE:** E1.6 `idd-default-entry`, priorizado por el presupuesto de cuota del usuario. La línea base del modo SDD quedó completa en v2.107.1 (`sdd-baseline-3`, [informe](../analysis/2026-10-07-bench-linea-base-sdd-3.md)): 6/6 escenarios completos, 0 defectos escapados y 65,7 M tokens con una repetición por escenario (`bench-margins-3`). E1.6 habilita el brazo IDD, ejecuta sus seis corridas con el mismo banco y decide con el checkpoint si IDD pasa a ser el default; con una corrida por escenario, la comparación es exploratoria. La pasada anterior, `sdd-baseline-2` (v2.106.0, [informe](../analysis/2026-10-06-bench-linea-base-sdd.md)), queda como histórico y no se agrega a la actual. Después de E1.6 va E1.8 `sdd-new-intent-argument`, que corrige cómo recibe `/sdd-new` una petición sin nombre de cambio. E2.1 `knowledge-map-contract` sigue elegible en paralelo. E1.4 quedó cerrado en v2.103.0 y la etapa 0, en v2.91.0.
 
 **Dependencias:**
 
@@ -298,6 +299,14 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 
 - **Alcance:** diagnóstico de solo lectura por target: raíz del plugin, hooks, router instalado, modo activo, Engram, desfase entre `dist/` e instalación y presupuestos de E0.0. Incluye recuperación guiada de un cambio interrumpido.
 - **Hecho cuando:** cada fallo conocido de instalación y de la auditoría aparece con causa y acción.
+
+### E1.8 — `sdd-new-intent-argument`
+
+- **Origen:** hallazgo de la línea base `sdd-baseline-3` ([informe](../analysis/2026-10-07-bench-linea-base-sdd-3.md#4-hallazgos)). En Claude, el comando `sdd-new` generado declara dos argumentos posicionales (`arguments: changeName intent`), así que `/ospec-workflow:sdd-new Quiero poder …` llega con `Quiero` como nombre del cambio y `poder` como intención. El agente lo detectó y recuperó la petición completa en `cli-local` y `public-library`, sin defectos escapados, pero un usuario que escriba la intención sin nombre choca con lo mismo.
+- **Garantía que protege:** que un proyecto con `mode: sdd` funcione igual que hoy (E1.6) sin depender de que el agente repare la entrada.
+- **Alcance:** `sdd-new` recibe la intención completa aunque no se dé un nombre de cambio, en los 7 targets, y el nombre se deriva de la intención cuando falta. Test de generación que cubre los dos casos (con y sin nombre).
+- **Cuándo:** después de E1.6, por decisión del usuario (2026-10-07). No cambia la comparabilidad del banco: el checkpoint no compara la build del plugin.
+- **Hecho cuando:** `/sdd-new <petición>` sin nombre llega entera al orquestador en todos los targets, y `/sdd-new <nombre> <petición>` sigue funcionando.
 
 ## Etapa 2 — Foundation de verdad: descubrimiento de arquitectura
 

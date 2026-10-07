@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.107.2] - 2026-10-07
+
+### Changed
+- **Roadmap**: nuevo ítem E1.8 `sdd-new-intent-argument` (bugfix), después de E1.6 por decisión del usuario. Corrige que el comando `sdd-new` generado declare dos argumentos posicionales y parta una petición escrita sin nombre de cambio (hallazgo de `sdd-baseline-3`).
+
+**Verificación directa**: `node scripts/check.js` (3206 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.107.1] - 2026-10-07
 
 ### Added
