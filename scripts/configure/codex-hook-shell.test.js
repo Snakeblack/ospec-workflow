@@ -130,6 +130,7 @@ test("global setup respects an isolated CODEX_HOME and leaves the default home h
   let errors = "";
   const exit = main(["--no-engram", "--no-validate"], {
     cwd: SOURCE, homedir: () => f.home, env: { ...f.env, CODEX_HOME: activeHome },
+    outDir: path.join(f.root, "setup output"),
     findCodexBin: () => null, stdout: { write() {} }, stderr: { write(value) { errors += value; } },
     runConfigure({ outDir }) { fs.cpSync(generated, outDir, { recursive: true }); return { exitCode: 0, files: [] }; },
   });
@@ -152,9 +153,13 @@ test("managed home preserves an AGENTS.md link to the regular global user file",
     t.skip("file symlink creation unavailable");
     return;
   }
+  const parentAlias = path.join(f.root, "parent alias");
+  fs.symlinkSync(f.root, parentAlias, "junction");
+  const homeAlias = path.join(parentAlias, path.basename(f.home));
   let errors = "";
   const deps = {
-    cwd: SOURCE, homedir: () => f.home, env: { ...f.env, CODEX_HOME: activeHome },
+    cwd: SOURCE, homedir: () => homeAlias, env: { ...f.env, CODEX_HOME: activeHome },
+    outDir: path.join(f.root, "setup output"),
     findCodexBin: () => null, stdout: { write() {} }, stderr: { write(value) { errors += value; } },
     runConfigure({ outDir }) { fs.cpSync(generated, outDir, { recursive: true }); return { exitCode: 0, files: [] }; },
   };

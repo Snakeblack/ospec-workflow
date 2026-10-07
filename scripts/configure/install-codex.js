@@ -1197,11 +1197,11 @@ function install(argv, deps = {}) {
       const sharedAgents = path.join(sharedRoot, "AGENTS.md");
       assertManagedPathSafe(sharedRoot, sharedAgents, "Codex shared agent file destination", fsImpl);
       if (!lstatIfExists(sharedAgents, fsImpl)?.isFile() ||
-          path.relative(sharedAgents, fsImpl.realpathSync(agentDestFile)) !== "") {
+          path.relative(fsImpl.realpathSync(sharedAgents), fsImpl.realpathSync(agentDestFile)) !== "") {
         throw new Error("Codex AGENTS.md link must target the regular global user file");
       }
-      agentDestFile = sharedAgents;
-      agentApprovedRoot = sharedRoot;
+      agentDestFile = fsImpl.realpathSync(sharedAgents);
+      agentApprovedRoot = fsImpl.realpathSync(sharedRoot);
     }
 
     let codexBin;

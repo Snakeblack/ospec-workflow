@@ -160,6 +160,10 @@ test("installed Codex runtime in a custom home discovers the shared user skills"
   assert.equal(result.registry.status, "generated");
   const cache = JSON.parse(await fs.readFile(path.join(workspace, CACHE_RELATIVE_PATH), "utf8"));
   assert.deepEqual(cache.skills.map(skill => skill.id), ["example"]);
+  const aliasedHome = path.join(root, "aliased runtime home");
+  await fs.symlink(codexHome, aliasedHome, "junction");
+  const aliased = await runSessionStart({ input: { cwd: workspace }, pluginRoot: installedRoot, target: "codex", homeDir, codexHome: aliasedHome });
+  assert.equal(aliased.registry.status, "reused");
 });
 
 test("installed Codex runtime discovers home skills and repairs the empty-input cache", async (t) => {

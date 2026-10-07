@@ -151,6 +151,9 @@ func TestSessionStart_CustomCodexHome(t *testing.T) {
 	t.Setenv("CODEX_HOME", codexHome)
 	t.Setenv("OSPEC_TARGET", "codex")
 	t.Setenv("OSPEC_PLUGIN_ROOT", filepath.Join(codexHome, "ospec-workflow"))
+	if err := os.MkdirAll(filepath.Join(codexHome, "ospec-workflow"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	skillPath := filepath.Join(home, ".agents", "skills", "example", "SKILL.md")
 	writeSessionFile(t, skillPath, "---\nname: example\n---\n## Rules\n- Installed rule.\n")
 	writeSessionFile(t, filepath.Join(home, ".agents", "skills", ".ospec-workflow-install.json"), "{}")
@@ -163,6 +166,17 @@ func TestSessionStart_CustomCodexHome(t *testing.T) {
 	if cache["skills"].([]any)[0].(map[string]any)["path"] != filepath.ToSlash(skillPath) {
 		t.Fatalf("shared skill path: %v", cache["skills"])
 	}
+	t.Run("canonical alias", func(t *testing.T) {
+		alias := filepath.Join(t.TempDir(), "aliased home")
+		if err := os.Symlink(codexHome, alias); err != nil {
+			t.Skipf("directory symlink unavailable: %v", err)
+		}
+		t.Setenv("CODEX_HOME", alias)
+		got, code := runSessionStart(t, makeSessionInput(ws, "", ""))
+		if code != 0 || got.Registry.Status != "reused" {
+			t.Fatalf("canonical home registry: code=%d result=%+v", code, got)
+		}
+	})
 }
 
 func TestSessionStart_LauncherEnvironmentAndInstalledHome(t *testing.T) {

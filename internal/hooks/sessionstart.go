@@ -103,6 +103,17 @@ func (h *sessionStartHandler) Run(stdin []byte) ([]byte, int) {
 	return runSessionStart(input)
 }
 
+func canonicalRuntimePath(directory string) string {
+	absolute, err := filepath.Abs(directory)
+	if err != nil {
+		return filepath.Clean(directory)
+	}
+	if canonical, err := filepath.EvalSymlinks(absolute); err == nil {
+		return canonical
+	}
+	return absolute
+}
+
 func runSessionStart(input sessionStartInput) ([]byte, int) {
 	// Resolve workspace.
 	workspace := strings.TrimSpace(input.Cwd)
@@ -164,8 +175,9 @@ func runSessionStart(input sessionStartInput) ([]byte, int) {
 			if codexHome := os.Getenv("CODEX_HOME"); filepath.IsAbs(codexHome) {
 				installedRoots = append(installedRoots, filepath.Join(codexHome, "ospec-workflow"))
 			}
+			canonicalPluginRoot := canonicalRuntimePath(pluginRoot)
 			for _, installedRoot := range installedRoots {
-				if rel, err := filepath.Rel(installedRoot, pluginRoot); err == nil && rel == "." {
+				if rel, err := filepath.Rel(canonicalRuntimePath(installedRoot), canonicalPluginRoot); err == nil && rel == "." {
 					skillsRoot = filepath.Join(home, ".agents", "skills")
 					break
 				}

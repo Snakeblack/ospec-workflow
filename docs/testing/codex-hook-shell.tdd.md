@@ -14,6 +14,8 @@ El setup global también ignoraba `CODEX_HOME`, y los productores SessionStart N
 
 El home real de Orca comparte `AGENTS.md` mediante un enlace al archivo global. Setup admite exclusivamente ese destino regular bajo `~/.codex`, conserva el enlace y escribe el bloque router en la ruta global validada. Un enlace a otro archivo o un destino global también enlazado sigue rechazado. No se necesita detectar el nombre del host ni relajar las guardas de rutas.
 
+Las comparaciones usan la identidad física de los directorios: macOS puede exponer un mismo runtime mediante `/var/...` y `/private/var/...`. Node y Go resuelven ambas rutas antes de reconocer la instalación; el destino global de instrucciones se compara y escribe por su ruta real, después de validar la raíz.
+
 ## Recorridos y pruebas
 
 | Garantía | Evidencia ejecutable |
@@ -35,12 +37,14 @@ El pre-commit rechazó el checkpoint RED porque ejecuta las pruebas staged y exi
 
 El setup en el home real de Orca reprodujo otro RED por su enlace `AGENTS.md`; la prueba `managed home preserves` falló con la misma protección de rutas. Tras el rechazo se reconciliaron los archivos: hooks y config seguían idénticos a sus backups y no se habían creado los directorios de agents o runtime. La corrección añade un destino explícito permitido para las instrucciones compartidas.
 
+La primera [CI de macOS de la PR #265](https://github.com/Snakeblack/ospec-workflow/actions/runs/37609858696/job/112754215760) reprodujo la diferencia entre rutas lexicales y físicas: fallaban el arranque instalado y el enlace válido de instrucciones. Se añadieron alias de directorios a las pruebas existentes; en Windows, las junctions reprodujeron dos RED Node y un RED Go por comparación lexical. La corrección resuelve ambos extremos a su ruta real y conserva las pruebas de rechazo de destinos ajenos. La publicación exige una nueva CI verde del commit corregido.
+
 ## GREEN y límites
 
 La validación final local completó:
 
 - `node scripts/check.js`: 3.248/3.248 pruebas y generación/validación de los siete targets, sin errores.
-- Selección con cobertura: 255/255 pruebas, sin skips, incluyendo cmd, Windows PowerShell 5.1, PowerShell 7 y Git Bash. Cobertura de líneas de installer, SessionStart y transformador: 91,90 % (ramas 86,10 %, funciones 94,15 %). V8 no incluye en ese porcentaje el wrapper ejecutado en procesos hijos; sus resultados se comprueban por ejecución real.
+- Selección con cobertura: 255/255 pruebas, sin skips, incluyendo cmd, Windows PowerShell 5.1, PowerShell 7 y Git Bash. Cobertura de líneas de installer, SessionStart y transformador: 91,93 % (ramas 86,12 %, funciones 94,17 %). V8 no incluye en ese porcentaje el wrapper ejecutado en procesos hijos; sus resultados se comprueban por ejecución real.
 - `go test ./internal/hooks -count=1`: suite completa del productor nativo aprobada.
 - `git diff --check`: aprobado.
 

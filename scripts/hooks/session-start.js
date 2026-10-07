@@ -75,6 +75,14 @@ function resolveWorkspace(input, fallbackCwd) {
   return resolveWorkspaceCwd(inputCwd, fallbackCwd);
 }
 
+function canonicalRuntimePath(directory) {
+  try {
+    return fs.realpathSync(directory);
+  } catch {
+    return path.resolve(directory);
+  }
+}
+
 async function runSessionStart({
   input = {},
   fallbackCwd = process.cwd(),
@@ -121,8 +129,9 @@ async function runSessionStart({
   if (typeof codexHome === "string" && path.isAbsolute(codexHome)) {
     installedRoots.push(path.join(codexHome, "ospec-workflow"));
   }
+  const canonicalPluginRoot = canonicalRuntimePath(pluginRoot);
   const installedCodex = target === "codex" && installedRoots.some(
-    root => path.relative(root, path.resolve(pluginRoot)) === "",
+    root => path.relative(canonicalRuntimePath(root), canonicalPluginRoot) === "",
   );
   const skillsRoot = installedCodex
     ? path.join(homeDir, ".agents", "skills")
