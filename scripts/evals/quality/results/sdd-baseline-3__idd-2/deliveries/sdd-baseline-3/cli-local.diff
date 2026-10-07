@@ -1,0 +1,154 @@
+diff --git a/src/cli.js b/src/cli.js
+index 3f5f441..3240b6a 100644
+--- a/src/cli.js
++++ b/src/cli.js
+@@ -2,7 +2,21 @@
+ 
+ const { storePath, load, save } = require("./store.js");
+ 
+-const USAGE = "uso: tasks add <título> | tasks list | tasks done <id>";
++const USAGE = "uso: tasks add <título> [--priority <alta|media|baja>] | tasks list | tasks done <id>";
++
++const PRIORITY_RANK = { alta: 0, media: 1, baja: 2 };
++const DEFAULT_PRIORITY = "media";
++
++// Case-sensitive: only the literal lowercase values are accepted.
++function isValidPriority(value) {
++  return Object.prototype.hasOwnProperty.call(PRIORITY_RANK, value);
++}
++
++// Sort key: higher priority first (alta < media < baja by rank), ties by id ascending.
++// Legacy tasks without a priority field are read as "media".
++function prioritySortKey(task) {
++  return [PRIORITY_RANK[task.priority || DEFAULT_PRIORITY], task.id];
++}
+ 
+ // Exit codes: 0 ok, 1 the task does not exist, 2 usage error.
+ function run(argv, { stdout = process.stdout, stderr = process.stderr, env = process.env } = {}) {
+@@ -10,13 +24,27 @@ function run(argv, { stdout = process.stdout, stderr = process.stderr, env = pro
+   const file = storePath(env);
+ 
+   if (command === "add") {
+-    const title = rest.join(" ").trim();
++    // --priority is only accepted as the final "--priority <value>" pair.
++    let args = rest;
++    let priority = DEFAULT_PRIORITY;
++    if (rest.includes("--priority")) {
++      const at = rest.length - 2;
++      if (at < 0 || rest[at] !== "--priority" || !isValidPriority(rest[at + 1])
++        || rest.indexOf("--priority") !== at) {
++        stderr.write(`${USAGE}
++`);
++        return 2;
++      }
++      priority = rest[at + 1];
++      args = rest.slice(0, at);
++    }
++    const title = args.join(" ").trim();
+     if (!title) {
+       stderr.write(`${USAGE}\n`);
+       return 2;
+     }
+     const data = load(file);
+-    const task = { id: data.nextId, title, done: false };
++    const task = { id: data.nextId, title, done: false, priority };
+     data.nextId += 1;
+     data.tasks.push(task);
+     save(file, data);
+@@ -26,7 +54,12 @@ function run(argv, { stdout = process.stdout, stderr = process.stderr, env = pro
+ 
+   if (command === "list") {
+     const data = load(file);
+-    for (const task of data.tasks) {
++    const sorted = [...data.tasks].sort((a, b) => {
++      const [pa, ia] = prioritySortKey(a);
++      const [pb, ib] = prioritySortKey(b);
++      return pa - pb || ia - ib;
++    });
++    for (const task of sorted) {
+       stdout.write(`${task.done ? "[x]" : "[ ]"} ${task.id} ${task.title}\n`);
+     }
+     return 0;
+diff --git a/test/cli.js b/test/cli.js
+index 0ddacaa..66e59ad 100644
+--- a/test/cli.js
++++ b/test/cli.js
+@@ -43,3 +43,78 @@ test("unknown task and usage errors", () => {
+   assert.equal(tasks("add").status, 2);
+   assert.equal(tasks("borrar").status, 2);
+ });
++
++const { USAGE } = require("../src/cli.js");
++
++function storeOf(tasks) {
++  return tasks("list").out;
++}
++
++test("add --priority orders list by priority then id", () => {
++  const tasks = session();
++  assert.equal(tasks("add", "A", "--priority", "baja").status, 0);
++  assert.equal(tasks("add", "B", "--priority", "alta").status, 0);
++  assert.equal(tasks("add", "C").status, 0);
++  assert.equal(tasks("list").out, "[ ] 2 B\n[ ] 3 C\n[ ] 1 A\n");
++});
++
++test("add with --priority alta succeeds and stores the priority", () => {
++  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "tasks-")), "tasks.json");
++  const res = run(["add", "X", "--priority", "alta"], {
++    env: { TASKS_FILE: file },
++    stdout: { write: () => {} },
++    stderr: { write: () => {} },
++  });
++  assert.equal(res, 0);
++  assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).tasks[0].priority, "alta");
++});
++
++test("add without flag defaults priority to media", () => {
++  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "tasks-")), "tasks.json");
++  const res = run(["add", "X"], {
++    env: { TASKS_FILE: file },
++    stdout: { write: () => {} },
++    stderr: { write: () => {} },
++  });
++  assert.equal(res, 0);
++  assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).tasks[0].priority, "media");
++});
++
++for (const [name, args] of [
++  ["missing value", ["add", "--priority"]],
++  ["missing value after title", ["add", "X", "--priority"]],
++  ["invalid value", ["add", "X", "--priority", "foobar"]],
++  ["case-sensitive value", ["add", "X", "--priority", "ALTA"]],
++  ["flag not final", ["add", "--priority", "alta", "X"]],
++  ["empty title", ["add", "--priority", "alta"]],
++]) {
++  test(`add usage error: ${name} -> exit 2, store untouched`, () => {
++    const tasks = session();
++    const res = tasks(...args);
++    assert.equal(res.status, 2);
++    assert.equal(res.err, `${USAGE}\n`);
++    assert.equal(res.out, "");
++    assert.equal(storeOf(tasks), "");
++  });
++}
++
++test("legacy tasks without priority list as media", () => {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tasks-"));
++  const file = path.join(dir, "tasks.json");
++  fs.writeFileSync(file, JSON.stringify({
++    nextId: 3,
++    tasks: [{ id: 1, title: "vieja", done: false }, { id: 2, title: "baja", done: false, priority: "baja" }],
++  }));
++  let out = "";
++  run(["add", "alta", "--priority", "alta"], { env: { TASKS_FILE: file }, stdout: { write: () => {} }, stderr: { write: () => {} } });
++  run(["list"], { env: { TASKS_FILE: file }, stdout: { write: (t) => { out += t; } }, stderr: { write: () => {} } });
++  assert.equal(out, "[ ] 3 alta\n[ ] 1 vieja\n[ ] 2 baja\n");
++});
++
++test("same priority ties are ordered by id ascending", () => {
++  const tasks = session();
++  tasks("add", "uno", "--priority", "alta");
++  tasks("add", "dos", "--priority", "alta");
++  tasks("add", "tres", "--priority", "alta");
++  assert.equal(tasks("list").out, "[ ] 1 uno\n[ ] 2 dos\n[ ] 3 tres\n");
++});

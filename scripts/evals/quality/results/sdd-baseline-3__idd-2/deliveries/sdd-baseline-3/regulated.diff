@@ -1,0 +1,218 @@
+diff --git a/README.md b/README.md
+index dbf6558..58e8f10 100644
+--- a/README.md
++++ b/README.md
+@@ -8,7 +8,20 @@ Cada acceso a datos de pacientes queda registrado en la auditoría
+ 
+ | Rol | Puede |
+ | --- | --- |
+-| `doctor` | Leer historias y la agenda |
+-| `reception` | Leer la agenda |
++| `doctor` | Leer historias, la agenda y exportarla a CSV |
++| `reception` | Leer la agenda y exportarla a CSV |
++
++## Exportación de la agenda a CSV
++
++`exportAppointmentsCsv(date, actor)`: roles `doctor` y `reception`. Devuelve
++un CSV con las columnas `time,patient name,reason` de las citas del día,
++ordenadas por hora. Cada exportación correcta registra la acción de auditoría
++`export-appointments-csv` (`actorId`, `date`, `count`).
++
++El CSV exportado contiene nombres de pacientes y motivos de cita. Al importarlo
++en una hoja de cálculo, valores como `=SUM(A1)` pueden evaluarse como fórmula
++(el export los emite tal cual); importa el fichero como texto. La conservación
++y eliminación de las copias exportadas es responsabilidad de la clínica según
++su política RGPD.
+ 
+ Pruebas: `npm test`.
+diff --git a/src/clinic.js b/src/clinic.js
+index e4eb220..f7e8727 100644
+--- a/src/clinic.js
++++ b/src/clinic.js
+@@ -9,6 +9,14 @@ class AccessDeniedError extends Error {
+   }
+ }
+ 
++const CSV_HEADER = "time,patient name,reason";
++
++// RFC 4180: quote fields with comma, quote, CR or LF; double inner quotes.
++function escapeCsvField(value) {
++  const text = value == null ? "" : String(value);
++  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
++}
++
+ // Patient: { id, nationalId, name, birthDate, diagnosis }
+ // Appointment: { id, patientId, date: "YYYY-MM-DD", time: "HH:MM", reason }
+ function createClinic({ patients = [], appointments = [], audit = createAuditLog() } = {}) {
+@@ -32,7 +40,21 @@ function createClinic({ patients = [], appointments = [], audit = createAuditLog
+     return result;
+   }
+ 
+-  return { getPatient, appointmentsOn, audit };
++  function exportAppointmentsCsv(date, actor) {
++    requireRole(actor, ["doctor", "reception"]);
++    // filter() yields a new array, so sorting never mutates the input; sort is stable.
++    const day = appointments
++      .filter((item) => item.date === date)
++      .sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
++    const rows = day.map((item) => {
++      const patient = patients.find((p) => p.id === item.patientId);
++      return [item.time, patient ? patient.name : "", item.reason].map(escapeCsvField).join(",");
++    });
++    audit.record({ action: "export-appointments-csv", actorId: actor.id, date, count: rows.length });
++    return [CSV_HEADER, ...rows].join("\n");
++  }
++
++  return { getPatient, appointmentsOn, exportAppointmentsCsv, audit };
+ }
+ 
+ module.exports = { createClinic, AccessDeniedError };
+diff --git a/test/clinic.js b/test/clinic.js
+index 6da846c..1bec484 100644
+--- a/test/clinic.js
++++ b/test/clinic.js
+@@ -31,3 +31,144 @@ test("appointments of a day are listed and audited", () => {
+   assert.deepEqual(clinic.appointmentsOn("2026-10-06", reception).map((item) => item.id), ["a1"]);
+   assert.equal(clinic.audit.entries()[0].count, 1);
+ });
++
++// --- exportAppointmentsCsv ---
++
++const HEADER = "time,patient name,reason";
++const nurse = { id: "n1", role: "nurse" };
++
++function csvFixture(extraAppointments = [], extraPatients = []) {
++  return {
++    patients: [
++      { id: "p1", nationalId: "X123", name: "Ana", birthDate: "1980-02-01", diagnosis: "flu" },
++      ...extraPatients,
++    ],
++    appointments: [
++      { id: "a1", patientId: "p1", date: "2026-03-01", time: "10:00", reason: "checkup" },
++      { id: "a2", patientId: "p1", date: "2026-03-01", time: "09:00", reason: "first" },
++      { id: "a3", patientId: "p1", date: "2026-03-02", time: "08:00", reason: "other day" },
++      ...extraAppointments,
++    ],
++  };
++}
++
++function countingProxy(target) {
++  const counter = { gets: 0 };
++  const proxy = new Proxy(target, {
++    get(obj, prop, receiver) {
++      counter.gets += 1;
++      return Reflect.get(obj, prop, receiver);
++    },
++  });
++  return { proxy, counter };
++}
++
++test("csv export denies nurse and missing actors before reading any data", () => {
++  const fixture = csvFixture();
++  const a = countingProxy(fixture.appointments);
++  const p = countingProxy(fixture.patients);
++  const clinic = createClinic({ patients: p.proxy, appointments: a.proxy });
++  for (const actor of [nurse, undefined, null]) {
++    assert.throws(
++      () => clinic.exportAppointmentsCsv("2026-03-01", actor),
++      (error) => {
++        assert.ok(error instanceof AccessDeniedError);
++        assert.ok(!error.message.includes("Ana"));
++        assert.ok(!error.message.includes("checkup"));
++        return true;
++      },
++    );
++  }
++  assert.equal(a.counter.gets, 0);
++  assert.equal(p.counter.gets, 0);
++  assert.equal(clinic.audit.entries().length, 0);
++});
++
++test("csv export is allowed for doctor and reception", () => {
++  const clinic = createClinic(csvFixture());
++  assert.equal(typeof clinic.exportAppointmentsCsv("2026-03-01", doctor), "string");
++  assert.equal(typeof clinic.exportAppointmentsCsv("2026-03-01", reception), "string");
++});
++
++test("csv rows are sorted by time, ties keep input order, other dates excluded", () => {
++  const fixture = csvFixture([
++    { id: "a4", patientId: "p1", date: "2026-03-01", time: "09:00", reason: "tie" },
++  ]);
++  const clinic = createClinic(fixture);
++  assert.equal(
++    clinic.exportAppointmentsCsv("2026-03-01", doctor),
++    [HEADER, "09:00,Ana,first", "09:00,Ana,tie", "10:00,Ana,checkup"].join("\n"),
++  );
++});
++
++test("csv of an empty day is the header only", () => {
++  const clinic = createClinic(csvFixture());
++  assert.equal(clinic.exportAppointmentsCsv("2026-04-01", reception), HEADER);
++});
++
++test("csv never leaks sensitive fields or ids, unknown patient gives empty name", () => {
++  const clinic = createClinic(
++    csvFixture([{ id: "a9", patientId: "ghost", date: "2026-03-01", time: "11:00", reason: "walk-in" }]),
++  );
++  const csv = clinic.exportAppointmentsCsv("2026-03-01", doctor);
++  for (const forbidden of ["X123", "flu", "1980-02-01", "nationalId", "diagnosis", "birthDate", "a1", "p1", "ghost"]) {
++    assert.ok(!csv.includes(forbidden), `csv must not contain ${forbidden}`);
++  }
++  assert.ok(csv.split("\n").includes("11:00,,walk-in"));
++});
++
++test("csv escapes commas, quotes and newlines; plain fields stay unquoted", () => {
++  const clinic = createClinic(
++    csvFixture(
++      [
++        { id: "b1", patientId: "p2", date: "2026-05-01", time: "09:00", reason: 'say "hi"' },
++        { id: "b2", patientId: "p1", date: "2026-05-01", time: "10:00", reason: "a\nb" },
++        { id: "b3", patientId: "p1", date: "2026-05-01", time: "11:00", reason: "checkup" },
++      ],
++      [{ id: "p2", nationalId: "Y1", name: "Ruiz, Ana", birthDate: "1990-01-01", diagnosis: "none" }],
++    ),
++  );
++  assert.equal(
++    clinic.exportAppointmentsCsv("2026-05-01", doctor),
++    [HEADER, '09:00,"Ruiz, Ana","say ""hi"""', '10:00,Ana,"a\nb"', "11:00,Ana,checkup"].join("\n"),
++  );
++});
++
++test("csv export writes exactly one audit entry without patient data", () => {
++  const clinic = createClinic(csvFixture());
++  clinic.exportAppointmentsCsv("2026-03-01", reception);
++  const entries = clinic.audit.entries();
++  assert.equal(entries.length, 1);
++  assert.deepEqual(Object.keys(entries[0]).sort(), ["action", "actorId", "at", "count", "date"]);
++  assert.equal(entries[0].action, "export-appointments-csv");
++  assert.equal(entries[0].actorId, "r1");
++  assert.equal(entries[0].date, "2026-03-01");
++  assert.equal(entries[0].count, 2);
++  assert.equal(typeof entries[0].at, "string");
++  assert.ok(!JSON.stringify(entries[0]).includes("Ana"));
++
++  clinic.exportAppointmentsCsv("2026-04-01", reception);
++  const last = clinic.audit.entries().at(-1);
++  assert.equal(last.count, 0);
++  assert.ok(clinic.audit.entries().every((entry) => entry.action === "export-appointments-csv"));
++});
++
++test("csv export does not mutate inputs and leaves existing operations unchanged", () => {
++  const fixture = csvFixture();
++  const before = structuredClone(fixture);
++  const clinic = createClinic(fixture);
++  clinic.exportAppointmentsCsv("2026-03-01", doctor);
++  assert.deepEqual(fixture, before);
++  assert.deepEqual(
++    clinic.appointmentsOn("2026-03-02", reception).map((item) => item.id),
++    ["a3"],
++  );
++  assert.equal(clinic.getPatient("p1", doctor).name, "Ana");
++});
++
++test("csv export emits formula-like values verbatim", () => {
++  const clinic = createClinic(
++    csvFixture([{ id: "f1", patientId: "p1", date: "2026-06-01", time: "09:00", reason: "=SUM(A1)" }]),
++  );
++  assert.equal(clinic.exportAppointmentsCsv("2026-06-01", doctor), `${HEADER}\n09:00,Ana,=SUM(A1)`);
++});

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.111.0] - 2026-10-07
+
+### Added
+- **Corrida `idd-2` y checkpoint `continue` (E1.6)**: record `scripts/evals/bench/records/idd-2.json` e [informe](docs/analysis/2026-10-07-bench-idd-2.md). Con el gate `open-facts` de v2.110.0, los seis escenarios terminan con 43/43 checks y 0 escapados. Gastan 3,06 M tokens ($2,07), el 4,7 % de `sdd-baseline-3`, con un mensaje de preguntas por escenario. El checkpoint con `bench-margins-4` da `continue`, sin vetos.
+- **Comparación de calidad de las entregas** (`scripts/evals/quality/`): `collect` guarda el diff de producto de cada escenario y brazo, sus métricas (líneas por categoría, proporción de test, documentación, suite) y el mutation score de los tests entregados, sin modelo. `judge` hace una revisión a ciegas por pares, anónima y en los dos órdenes, y puntúa corrección, legibilidad, diseño, tests y alcance. `report` genera las tablas. Es análisis fuera del harness del banco, así que no cambia `harness_digest`. Los resultados de `sdd-baseline-3` frente a `idd-2` quedan en `results/`: mutation score medio del 83,1 % frente al 81,8 %, y el juez prefiere IDD en 5 de 6 escenarios.
+
+### Changed
+- **Roadmap**: E4.1 `bench-scenarios` pasa a `done`. Lo siguiente es E1.6 (d), IDD como flujo por defecto. Follow-up del protocolo IDD: editar ficheros de texto respetando su codificación, porque una entrega dejó un README en ISO-8859-1.
+
+**Verificación directa**: `node scripts/check.js` (3273 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.110.0] - 2026-10-07
 
 ### Added

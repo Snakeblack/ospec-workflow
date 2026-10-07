@@ -1,0 +1,147 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 2a82b5d..04f3d6c 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,14 @@
+ 
+ ## [Unreleased]
+ 
++## [1.5.0] - 2026-10-07
++
++### Added
++
++- `parse` accepts days (`2d4h`), where a day is exactly 24 hours.
++- `format` takes an optional `{ days: true }` to show days (`1d 2h`). The default
++  output is unchanged.
++
+ ## [1.4.0] - 2026-06-02
+ 
+ ### Added
+diff --git a/README.md b/README.md
+index 4d0054e..8afe3b2 100644
+--- a/README.md
++++ b/README.md
+@@ -11,10 +11,12 @@ format(5400000); // "1h 30m"
+ 
+ ## API
+ 
+-- `parse(text)`: milliseconds from a duration made of `h`, `m`, `s` and `ms`
+-  parts. Throws `TypeError` on empty input and `SyntaxError` on anything else
+-  it cannot read.
+-- `format(ms)`: the largest units first, separated by spaces. `0` is `"0s"`.
++- `parse(text)`: milliseconds from a duration made of `d` (24 hours), `h`, `m`,
++  `s` and `ms` parts. Throws `TypeError` on empty input and `SyntaxError` on
++  anything else it cannot read.
++- `format(ms, options?)`: the largest units first, separated by spaces. `0` is
++  `"0s"`. Hours are the largest unit by default (`25h`); pass `{ days: true }`
++  to show whole days: `format(93600000, { days: true })` is `"1d 2h"`.
+ 
+ ## Versioning
+ 
+diff --git a/index.d.ts b/index.d.ts
+index 2542036..d1623bc 100644
+--- a/index.d.ts
++++ b/index.d.ts
+@@ -1,5 +1,10 @@
+-/** Parses a compact duration such as "1h30m" or "2m 5s" into milliseconds. */
++/** Parses a compact duration such as "1h30m", "2m 5s" or "2d4h" into milliseconds. */
+ export function parse(text: string): number;
+ 
+-/** Formats milliseconds as "1h 30m". */
+-export function format(ms: number): string;
++export interface FormatOptions {
++  /** Show whole days (24h) as "d", e.g. "1d 2h". Defaults to false. */
++  days?: boolean;
++}
++
++/** Formats milliseconds as "1h 30m". Pass `{ days: true }` for "1d 2h". */
++export function format(ms: number, options?: FormatOptions): string;
+diff --git a/index.js b/index.js
+index 400bf47..6336a18 100644
+--- a/index.js
++++ b/index.js
+@@ -1,10 +1,12 @@
+ "use strict";
+ 
+ const UNITS = Object.freeze({ h: 3600000, m: 60000, s: 1000, ms: 1 });
+-const PATTERN = /(\d+)(ms|h|m|s)/g;
++const DAY = 86400000;
++const PARSE_UNITS = Object.freeze({ d: DAY, ...UNITS });
++const PATTERN = /(\d+)(ms|d|h|m|s)/g;
+ 
+ /**
+- * Parses a compact duration such as "1h30m" or "2m 5s" into milliseconds.
++ * Parses a compact duration such as "1h30m", "2m 5s" or "2d4h" into milliseconds.
+  * @param {string} text
+  * @returns {number}
+  */
+@@ -16,7 +18,7 @@ function parse(text) {
+   let total = 0;
+   let consumed = "";
+   for (const match of compact.matchAll(PATTERN)) {
+-    total += Number(match[1]) * UNITS[match[2]];
++    total += Number(match[1]) * PARSE_UNITS[match[2]];
+     consumed += match[0];
+   }
+   if (consumed !== compact) throw new SyntaxError(`invalid duration: ${text}`);
+@@ -24,16 +26,19 @@ function parse(text) {
+ }
+ 
+ /**
+- * Formats milliseconds as "1h 30m".
++ * Formats milliseconds as "1h 30m". With `{ days: true }` whole days (24h) are
++ * shown as "d", e.g. "1d 2h".
+  * @param {number} ms
++ * @param {{ days?: boolean }} [options]
+  * @returns {string}
+  */
+-function format(ms) {
++function format(ms, options) {
+   if (!Number.isInteger(ms) || ms < 0) throw new TypeError("format expects a non-negative integer of milliseconds");
+   if (ms === 0) return "0s";
++  const units = options && options.days === true ? PARSE_UNITS : UNITS;
+   const parts = [];
+   let rest = ms;
+-  for (const [unit, size] of Object.entries(UNITS)) {
++  for (const [unit, size] of Object.entries(units)) {
+     const amount = Math.floor(rest / size);
+     if (amount > 0) {
+       parts.push(`${amount}${unit}`);
+diff --git a/package.json b/package.json
+index 109ae1d..cf0487e 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "tiny-duration",
+-  "version": "1.4.0",
++  "version": "1.5.0",
+   "description": "Parse and format compact durations like 1h30m",
+   "main": "index.js",
+   "types": "index.d.ts",
+diff --git a/test/duration.js b/test/duration.js
+index 36609f0..5593459 100644
+--- a/test/duration.js
++++ b/test/duration.js
+@@ -11,6 +11,21 @@ test("parse reads hours, minutes, seconds, and milliseconds", () => {
+   assert.equal(parse("250ms"), 250);
+ });
+ 
++test("parse reads days as 24 hours", () => {
++  assert.equal(parse("2d4h"), 187200000);
++  assert.equal(parse("1d"), 86400000);
++});
++
++test("format shows days only when asked", () => {
++  assert.equal(format(93600000, { days: true }), "1d 2h");
++  assert.equal(format(86400000, { days: true }), "1d");
++  assert.equal(format(5400000, { days: true }), "1h 30m");
++  assert.equal(format(0, { days: true }), "0s");
++  assert.equal(format(93600000), "26h");
++  assert.equal(format(93600000, {}), "26h");
++  assert.equal(format(93600000, { days: false }), "26h");
++});
++
+ test("parse rejects malformed input", () => {
+   assert.throws(() => parse(""), TypeError);
+   assert.throws(() => parse("10 minutes"), SyntaxError);
