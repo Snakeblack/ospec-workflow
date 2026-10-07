@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.109.1] - 2026-10-07
+
+### Added
+- **Primera corrida del brazo IDD (E1.6, PR c)**: record `scripts/evals/bench/records/idd-1.json` e [informe](docs/analysis/2026-10-07-bench-idd-1.md). Los seis escenarios se completan en 10 minutos con 1,74 M tokens ($1,08), el 2,6 % de `sdd-baseline-3`, y sin subagentes. Pasan 37 de 43 checks: escapan 6 defectos (3 en brownfield, 2 en public-library y 1 en bugfix), así que el checkpoint con `bench-margins-4` da `revise`, por escapados y por regresiones.
+
+### Changed
+- **Roadmap**: E1.6 (c) entregado; (d), el cambio de default, no se ejecuta. Causas: el agente IDD no hizo ninguna pregunta (SDD hizo 13, 5 decisivas) y decidió él mismo las reglas de negocio; y las señales de impacto, aunque se calcularon en los seis cambios, solo derivaron `always`, porque sus patrones buscan convenciones de directorio. Decisión del usuario: añadir un cuarto gate, «hechos abiertos», derivar señales sin configuración y, después, medir `idd-2` contra la misma línea base.
+
+**Verificación directa**: `node scripts/check.js` (3253 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.109.0] - 2026-10-07
 
 ### Added
