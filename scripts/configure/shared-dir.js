@@ -9,7 +9,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const { SHARED_DIR_MARKER } = require("../lib/target-transform.js");
+const { RUNTIME_DIR_MARKER, SHARED_DIR_MARKER } = require("../lib/target-transform.js");
 
 // The `_shared` directory under an installed skills directory. A repository
 // install keeps it relative to the repository root (the files are committed
@@ -20,14 +20,29 @@ function sharedDirValue(skillsDir, { relative = false } = {}) {
 }
 
 function renderSharedDir(rootDir, value, fsImpl = fs) {
-  if (typeof value !== "string" || value === "" || value.includes(SHARED_DIR_MARKER)) {
-    throw new Error(`invalid shared directory for ${SHARED_DIR_MARKER}: ${JSON.stringify(value)}`);
+  return renderMarker(rootDir, SHARED_DIR_MARKER, value, "shared directory", fsImpl);
+}
+
+// E1.6 (a): the IDD protocol runs the installed `ospec` CLI, so it names the
+// directory that holds the runtime `scripts/` (the install root, except for
+// Codex, which keeps it under ~/.codex/ospec-workflow).
+function runtimeDirValue(dir) {
+  return path.resolve(dir).split(path.sep).join("/");
+}
+
+function renderRuntimeDir(rootDir, value, fsImpl = fs) {
+  return renderMarker(rootDir, RUNTIME_DIR_MARKER, value, "runtime directory", fsImpl);
+}
+
+function renderMarker(rootDir, marker, value, label, fsImpl) {
+  if (typeof value !== "string" || value === "" || value.includes(marker)) {
+    throw new Error(`invalid ${label} for ${marker}: ${JSON.stringify(value)}`);
   }
   const originals = [];
-  for (const file of markerFiles(rootDir, fsImpl)) {
+  for (const file of markerFiles(rootDir, marker, fsImpl)) {
     const content = fsImpl.readFileSync(file, "utf8");
     originals.push({ file, content });
-    fsImpl.writeFileSync(file, content.split(SHARED_DIR_MARKER).join(value));
+    fsImpl.writeFileSync(file, content.split(marker).join(value));
   }
   return {
     files: originals.map(({ file }) => file),
@@ -39,13 +54,13 @@ function renderSharedDir(rootDir, value, fsImpl = fs) {
 
 // Text files only: the marker lives in Markdown and TOML agent files, never in
 // the hook binaries the tree also carries.
-function markerFiles(rootDir, fsImpl) {
+function markerFiles(rootDir, marker, fsImpl) {
   const found = [];
   const visit = (dir) => {
     for (const entry of fsImpl.readdirSync(dir, { withFileTypes: true })) {
       const absolute = path.join(dir, entry.name);
       if (entry.isDirectory()) visit(absolute);
-      else if (entry.isFile() && /\.(md|toml)$/.test(entry.name) && fsImpl.readFileSync(absolute, "utf8").includes(SHARED_DIR_MARKER)) {
+      else if (entry.isFile() && /\.(md|toml)$/.test(entry.name) && fsImpl.readFileSync(absolute, "utf8").includes(marker)) {
         found.push(absolute);
       }
     }
@@ -54,4 +69,4 @@ function markerFiles(rootDir, fsImpl) {
   return found.sort();
 }
 
-module.exports = { SHARED_DIR_MARKER, renderSharedDir, sharedDirValue };
+module.exports = { RUNTIME_DIR_MARKER, SHARED_DIR_MARKER, renderRuntimeDir, renderSharedDir, runtimeDirValue, sharedDirValue };

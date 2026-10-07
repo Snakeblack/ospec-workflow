@@ -40,6 +40,10 @@ function stageRealSource(t, sandbox, { withBinary = true } = {}) {
   for (const rel of ["agents", "commands", "rules", "skills", "hooks", "scripts/hooks", "scripts/lib"]) {
     fs.cpSync(path.join(ROOT, rel), path.join(sourceDir, rel), { recursive: true });
   }
+  // The runtime entry scripts (scripts/ospec.js and friends) the IDD protocol runs.
+  for (const name of fs.readdirSync(path.join(ROOT, "scripts"))) {
+    if (name.endsWith(".js") && !name.endsWith(".test.js")) fs.copyFileSync(path.join(ROOT, "scripts", name), path.join(sourceDir, "scripts", name));
+  }
   for (const rel of [".claude-plugin/plugin.json", ".mcp.json", "models.yaml", "AGENTS.md"]) {
     const source = path.join(ROOT, rel);
     if (fs.existsSync(source)) {
@@ -362,6 +366,11 @@ test("main performs a real isolated generate-validate-install round-trip and con
   assert.ok(installedOrchestrator.includes(`${cursorRootPosix}/skills/_shared/gate-4r-review.md`));
   assert.ok(fs.existsSync(path.join(cursorRoot, "skills", "_shared", "gate-4r-review.md")));
   assert.match(fs.readFileSync(path.join(outDir, "agents", "sdd-orchestrator.md"), "utf8"), /__OSPEC_SHARED_DIR__\/gate-4r-review\.md/);
+  // E1.6 (a): the IDD protocol names the installed ospec CLI.
+  const installedProtocol = fs.readFileSync(path.join(cursorRoot, "skills", "idd", "SKILL.md"), "utf8");
+  assert.ok(installedProtocol.includes(`node "${cursorRootPosix}/scripts/ospec.js"`));
+  assert.ok(fs.existsSync(path.join(cursorRoot, "scripts", "ospec.js")));
+  assert.match(fs.readFileSync(path.join(outDir, "skills", "idd", "SKILL.md"), "utf8"), /__OSPEC_RUNTIME_DIR__\/scripts\/ospec\.js/);
   const { ext } = hostBinarySuffix();
   assert.equal(
     fs.readFileSync(path.join(cursorRoot, "scripts", "hooks", `ospec-hooks${ext}`), "utf8"),

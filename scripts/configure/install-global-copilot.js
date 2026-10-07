@@ -15,7 +15,7 @@ const os = require("node:os");
 const { runConfigure } = require("./cli.js");
 const { runEngramStep, withEngramStep } = require("./engram-setup.js");
 const { copyBinaryToTree } = require("./install-target.js");
-const { renderSharedDir, sharedDirValue } = require("./shared-dir.js");
+const { renderRuntimeDir, renderSharedDir, runtimeDirValue, sharedDirValue } = require("./shared-dir.js");
 const {
   MANIFEST_FILENAME,
   toPosix,
@@ -141,6 +141,8 @@ function install(argv = process.argv.slice(2), deps = {}) {
 
     // E0.4 (b): the orchestrator names the installed _shared directory.
     const shared = renderSharedDir(outDir, sharedDirValue(path.join(globalDir, "skills")), fsImpl);
+    // E1.6 (a): the IDD protocol names the installed ospec CLI.
+    const runtime = renderRuntimeDir(outDir, runtimeDirValue(globalDir), fsImpl);
     try {
       for (const remap of remappings) {
         if (fsImpl.existsSync(remap.src)) {
@@ -149,6 +151,7 @@ function install(argv = process.argv.slice(2), deps = {}) {
       }
     } finally {
       shared.restore();
+      runtime.restore();
     }
 
     // Merge MCP configuration fail-closed

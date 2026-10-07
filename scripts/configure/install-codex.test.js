@@ -2120,6 +2120,29 @@ test("global install points the orchestrator skill at ~/.agents/skills/_shared a
   assert.equal(fs.readFileSync(generated, "utf8"), "read __OSPEC_SHARED_DIR__/shared.md\n");
 });
 
+// E1.6 (a): the IDD protocol names the ospec CLI under ~/.codex/ospec-workflow.
+test("global install points the IDD protocol at the Codex runtime and leaves dist untouched", (t) => {
+  const homeDir = makeTempDir(t, "codex-runtime-home-");
+  const cwd = makeTempDir(t, "codex-runtime-source-");
+  const exitCode = main([], {
+    cwd,
+    homedir: () => homeDir,
+    stdout: { write() {} },
+    stderr: { write() {} },
+    findCodexBin: () => null,
+    runConfigure({ outDir }) {
+      writeRouterCodexTree(outDir);
+      fs.mkdirSync(path.join(outDir, "skills", "idd"), { recursive: true });
+      fs.writeFileSync(path.join(outDir, "skills", "idd", "SKILL.md"), 'run node "__OSPEC_RUNTIME_DIR__/scripts/ospec.js"\n');
+      return { exitCode: 0, validation: null };
+    },
+  });
+  assert.equal(exitCode, 0);
+  const runtime = path.resolve(homeDir, ".codex", "ospec-workflow").split(path.sep).join("/");
+  assert.equal(fs.readFileSync(path.join(homeDir, ".agents", "skills", "idd", "SKILL.md"), "utf8"), `run node "${runtime}/scripts/ospec.js"\n`);
+  assert.equal(fs.readFileSync(path.join(cwd, "dist", "codex", "skills", "idd", "SKILL.md"), "utf8"), 'run node "__OSPEC_RUNTIME_DIR__/scripts/ospec.js"\n');
+});
+
 test("repo install ships _shared beside the orchestrator skill and names it relative to the repository", (t) => {
   const destRepo = makeTempDir(t, "codex-shared-repo-");
   const { exitCode, generated } = installWithSharedMarker(t, [destRepo, "--no-validate"], makeTempDir(t, "codex-shared-home-"));

@@ -7,7 +7,7 @@ const path = require("node:path");
 const { runConfigure } = require("./cli.js");
 const { runEngramStep, withEngramStep } = require("./engram-setup.js");
 const { copyBinaryToTree } = require("./install-target.js");
-const { renderSharedDir, sharedDirValue } = require("./shared-dir.js");
+const { renderRuntimeDir, renderSharedDir, runtimeDirValue, sharedDirValue } = require("./shared-dir.js");
 const { validateInstalled: validateInstalledCursor } = require("./validate-cursor.js");
 const {
   MANIFEST_FILENAME,
@@ -387,6 +387,8 @@ function install(argv, deps = {}) {
     });
     // E0.4 (b): the orchestrator names the installed _shared directory.
     const shared = renderSharedDir(outDir, sharedDirValue(path.join(cursorRoot, "skills")), fsImpl);
+    // E1.6 (a): the IDD protocol names the installed ospec CLI.
+    const runtime = renderRuntimeDir(outDir, runtimeDirValue(cursorRoot), fsImpl);
     let syncResult;
     try {
       syncResult = syncTree(
@@ -401,6 +403,7 @@ function install(argv, deps = {}) {
       );
     } finally {
       shared.restore();
+      runtime.restore();
     }
     installHooks(outDir, cursorRoot, { fs: fsImpl, dryRun: false, journal, retryOptions });
     installMcp(sourceDir, cursorRoot, { fs: fsImpl, dryRun: false, journal, retryOptions });
