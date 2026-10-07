@@ -23,7 +23,7 @@ function transform({ files: sourceFiles, profile, models, withExtras = false } =
   }
   // The optional extras package ships only on request (E0.3 b2).
   const shipped = withExtras ? sourceFiles : sourceFiles.filter((file) => !isExtraSkillPath(file.path));
-  const files = resolveOrchestratorEntry(shipped, profile);
+  const files = resolveIddProtocol(resolveOrchestratorEntry(shipped, profile), profile);
   // The inline strategy folds every non-global rule into the orchestrator
   // (Claude, Codex); scoped ones carry only the orchestrator-scoped rules, raw.
   const rulesContent = isScopedStrategy(profile.rules && profile.rules.strategy)
@@ -190,6 +190,27 @@ function resolveOrchestratorEntry(files, profile) {
       ? { ...file, content: String(file.content).split(ORCHESTRATOR_ENTRY).join(entry) }
       : file,
   );
+}
+
+// E1.6 (a): the router names the host's way into the IDD protocol, the `idd`
+// skill, and the protocol names the installed `ospec` CLI: through a host
+// substitution where the profile names one (Claude's ${CLAUDE_SKILL_DIR}),
+// otherwise through a marker each installer renders to the directory that
+// holds the runtime `scripts/` (scripts/configure/shared-dir.js).
+const IDD_ENTRY = "{{idd-entry}}";
+const OSPEC_CLI = "{{ospec-cli}}";
+const RUNTIME_DIR_MARKER = "__OSPEC_RUNTIME_DIR__";
+
+function resolveIddProtocol(files, profile) {
+  const idd = profile.idd || {};
+  const entry = idd.entry || "skill `idd`";
+  const cli = idd.ospecCli || `${RUNTIME_DIR_MARKER}/scripts/ospec.js`;
+  return files.map((file) => {
+    const content = String(file.content);
+    if (isRulesFile(file.path) && content.includes(IDD_ENTRY)) return { ...file, content: content.split(IDD_ENTRY).join(entry) };
+    if (file.path.startsWith("skills/") && content.includes(OSPEC_CLI)) return { ...file, content: content.split(OSPEC_CLI).join(cli) };
+    return file;
+  });
 }
 
 // The orchestrator reads its `_shared` handlers on demand (E0.4 b), and a
@@ -1323,4 +1344,4 @@ function substituteAgentNames(body, profile) {
   return body;
 }
 
-module.exports = { transform, serializeAgentToml, SHARED_DIR_MARKER };
+module.exports = { transform, serializeAgentToml, RUNTIME_DIR_MARKER, SHARED_DIR_MARKER };

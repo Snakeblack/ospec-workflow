@@ -110,11 +110,17 @@ test("codex smoke: global install contains every generated skill and preserves u
   assert.ok(generatedSkillFiles.includes(path.join("commands", "sdd-apply", "SKILL.md")));
   assert.ok(generatedSkillFiles.includes(path.join("accessibility", "SKILL.md")));
   // E0.4 (b): the orchestrator skill is installed with its _shared directory rendered.
+  // E1.6 (a): the IDD protocol names the Codex runtime directory.
   const sharedDir = path.resolve(installedSkills, "_shared").split(path.sep).join("/");
+  const runtimeDir = path.resolve(homeDir, ".codex", "ospec-workflow").split(path.sep).join("/");
+  const rendered = {
+    [path.join("sdd-orchestrator", "SKILL.md")]: ["__OSPEC_SHARED_DIR__", sharedDir],
+    [path.join("idd", "SKILL.md")]: ["__OSPEC_RUNTIME_DIR__", runtimeDir],
+  };
   for (const relative of generatedSkillFiles) {
     const generatedBytes = fs.readFileSync(path.join(buildOut, "skills", relative));
-    const expected = relative === path.join("sdd-orchestrator", "SKILL.md")
-      ? Buffer.from(generatedBytes.toString("utf8").split("__OSPEC_SHARED_DIR__").join(sharedDir))
+    const expected = rendered[relative]
+      ? Buffer.from(generatedBytes.toString("utf8").split(rendered[relative][0]).join(rendered[relative][1]))
       : generatedBytes;
     assert.ok(
       expected.equals(fs.readFileSync(path.join(installedSkills, relative))),

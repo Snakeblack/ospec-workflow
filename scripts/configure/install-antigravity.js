@@ -7,7 +7,7 @@ const path = require("node:path");
 const { runConfigure } = require("./cli.js");
 const { runEngramStep, withEngramStep } = require("./engram-setup.js");
 const { copyBinaryToTree } = require("./install-target.js");
-const { renderSharedDir } = require("./shared-dir.js");
+const { renderRuntimeDir, renderSharedDir } = require("./shared-dir.js");
 const { validateInstalled: validateInstalledAntigravity } = require("./validate-antigravity.js");
 const {
   MANIFEST_FILENAME,
@@ -223,6 +223,8 @@ function installAntigravityRoot(antigravityRoot, outDir, sourceDir, args, deps) 
     // Antigravity host sees it (a WSL root is read from Windows).
     const antigravityRootPosix = getHooksRootPosix(antigravityRoot);
     const shared = renderSharedDir(outDir, `${antigravityRootPosix}/skills/_shared`, fsImpl);
+    // E1.6 (a): the IDD protocol names the installed ospec CLI.
+    const runtime = renderRuntimeDir(outDir, antigravityRootPosix, fsImpl);
     let syncResult;
     try {
       syncResult = syncTargetTree(
@@ -238,6 +240,7 @@ function installAntigravityRoot(antigravityRoot, outDir, sourceDir, args, deps) 
       );
     } finally {
       shared.restore();
+      runtime.restore();
     }
 
     installHooks(outDir, antigravityRoot, {

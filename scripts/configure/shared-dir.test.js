@@ -12,7 +12,7 @@ const path = require("node:path");
 const test = require("node:test");
 
 const { runConfigure } = require("./cli.js");
-const { SHARED_DIR_MARKER, renderSharedDir, sharedDirValue } = require("./shared-dir.js");
+const { RUNTIME_DIR_MARKER, SHARED_DIR_MARKER, renderRuntimeDir, renderSharedDir, sharedDirValue } = require("./shared-dir.js");
 const { hostBinarySuffix } = require("./install-target.js");
 
 const ROOT = path.resolve(__dirname, "..", "..");
@@ -95,6 +95,20 @@ test("renderSharedDir rewrites the marker under a tree and restore() puts it bac
   assert.equal(fs.readFileSync(path.join(dir, "agents/orch.md"), "utf8"), `read ${SHARED_DIR_MARKER}/gate.md and ${SHARED_DIR_MARKER}/route.md\n`);
 });
 
+test("renderRuntimeDir rewrites the runtime marker and restore() puts it back", (t) => {
+  const dir = tmpDir(t);
+  write(dir, "skills/idd/SKILL.md", `run node "${RUNTIME_DIR_MARKER}/scripts/ospec.js"\n`);
+  write(dir, "agents/orch.md", `read ${SHARED_DIR_MARKER}/gate.md\n`);
+  const rendered = renderRuntimeDir(dir, "/home/me/.copilot");
+  assert.deepEqual(rendered.files.map((file) => path.relative(dir, file).split(path.sep).join("/")), ["skills/idd/SKILL.md"]);
+  assert.equal(fs.readFileSync(path.join(dir, "skills/idd/SKILL.md"), "utf8"), 'run node "/home/me/.copilot/scripts/ospec.js"\n');
+  assert.equal(fs.readFileSync(path.join(dir, "agents/orch.md"), "utf8"), `read ${SHARED_DIR_MARKER}/gate.md\n`);
+  rendered.restore();
+  assert.equal(fs.readFileSync(path.join(dir, "skills/idd/SKILL.md"), "utf8"), `run node "${RUNTIME_DIR_MARKER}/scripts/ospec.js"\n`);
+  assert.throws(() => renderRuntimeDir(dir, ""), /runtime directory/);
+  assert.throws(() => renderRuntimeDir(dir, `${RUNTIME_DIR_MARKER}/x`), /runtime directory/);
+});
+
 test("renderSharedDir refuses an empty value or one that still holds the marker", (t) => {
   const dir = tmpDir(t);
   write(dir, "a.md", `${SHARED_DIR_MARKER}/x.md\n`);
@@ -110,6 +124,9 @@ function stageRealSource(t) {
   for (const rel of ["agents", "commands", "rules", "skills", "hooks", "scripts/hooks", "scripts/lib"]) {
     fs.cpSync(path.join(ROOT, rel), path.join(sourceDir, rel), { recursive: true });
   }
+  for (const name of fs.readdirSync(path.join(ROOT, "scripts"))) {
+    if (name.endsWith(".js") && !name.endsWith(".test.js")) write(sourceDir, path.join("scripts", name), fs.readFileSync(path.join(ROOT, "scripts", name)));
+  }
   for (const rel of [".claude-plugin/plugin.json", ".mcp.json", "models.yaml", "AGENTS.md", "package.json"]) {
     if (fs.existsSync(path.join(ROOT, rel))) write(sourceDir, rel, fs.readFileSync(path.join(ROOT, rel)));
   }
@@ -120,6 +137,14 @@ function stageRealSource(t) {
 
 const quiet = () => ({ stdout: { write() {} }, stderr: { chunks: [], write(chunk) { this.chunks.push(chunk); } } });
 const posix = (value) => path.resolve(value).split(path.sep).join("/");
+
+// E1.6 (a): the IDD protocol names the installed ospec CLI, and that file exists.
+function assertRuntime(installedRoot, runtimeDir, cliFile) {
+  const protocol = fs.readFileSync(path.join(installedRoot, "skills", "idd", "SKILL.md"), "utf8");
+  assert.doesNotMatch(protocol, /__OSPEC_RUNTIME_DIR__/);
+  assert.ok(protocol.includes(`node "${runtimeDir}/scripts/ospec.js"`), `installed protocol must run ${runtimeDir}/scripts/ospec.js`);
+  assert.ok(fs.existsSync(cliFile), `${cliFile} must be installed`);
+}
 
 function assertRendered(installedOrchestrator, generatedOrchestrator, sharedDir) {
   const installed = fs.readFileSync(installedOrchestrator, "utf8");
@@ -140,6 +165,7 @@ for (const [label, modulePath, agentDir, orchestratorFile] of [
     assert.equal(main(["--source", sourceDir, "--dest", dest, "--no-validate"], io), 0, io.stderr.chunks.join(""));
     assert.ok(fs.existsSync(path.join(dest, "skills", "_shared", "gate-4r-review.md")));
     assertRendered(path.join(dest, "agents", orchestratorFile), path.join(sourceDir, "dist", label === "setup:copilot" ? "github-copilot" : "opencode", agentDir, orchestratorFile), `${posix(dest)}/skills/_shared`);
+    assertRuntime(dest, posix(dest), path.join(dest, "scripts", "ospec.js"));
   });
 }
 
@@ -154,6 +180,7 @@ test("setup:antigravity renders each root's own _shared directory", (t) => {
     path.join(sourceDir, "dist", "antigravity", "agents", "sdd-orchestrator.agent.md"),
     `${posix(dest)}/skills/_shared`,
   );
+  assertRuntime(dest, posix(dest), path.join(dest, "scripts", "ospec.js"));
 });
 
 test("setup:vscode renders the marker in the dist tree VS Code loads", (t) => {
@@ -168,6 +195,8 @@ test("setup:vscode renders the marker in the dist tree VS Code loads", (t) => {
   const orchestrator = fs.readFileSync(path.join(sourceDir, "dist", "vscode", "agents", "sdd-orchestrator.agent.md"), "utf8");
   assert.doesNotMatch(orchestrator, /__OSPEC_SHARED_DIR__/);
   assert.ok(orchestrator.includes(`${posix(path.join(sourceDir, "dist", "vscode"))}/skills/_shared/gate-4r-review.md`));
+  const pluginDir = path.join(sourceDir, "dist", "vscode");
+  assertRuntime(pluginDir, posix(pluginDir), path.join(pluginDir, "scripts", "ospec.js"));
 });
 
 for (const target of ["opencode", "github-copilot"]) {
@@ -182,6 +211,7 @@ for (const target of ["opencode", "github-copilot"]) {
     const orchestratorRel = target === "opencode" ? ".opencode/agents/ospec-workflow.md" : ".github/agents/sdd-orchestrator.agent.md";
     assertRendered(path.join(repo, orchestratorRel), path.join(sourceDir, "dist", target, orchestratorRel), "skills/_shared");
     assert.ok(fs.existsSync(path.join(repo, "skills", "_shared", "gate-4r-review.md")));
+    assertRuntime(repo, ".", path.join(repo, "scripts", "ospec.js"));
   });
 }
 

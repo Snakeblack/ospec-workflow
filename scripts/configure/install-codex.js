@@ -9,7 +9,7 @@ const { runConfigure } = require("./cli.js");
 const { runEngramStep, withEngramStep } = require("./engram-setup.js");
 const { assertSafeDest } = require("./install-target.js");
 const { removeRouterBlock, writeRouterBlock } = require("./instruction-block.js");
-const { SHARED_DIR_MARKER, renderSharedDir, sharedDirValue } = require("./shared-dir.js");
+const { SHARED_DIR_MARKER, renderRuntimeDir, renderSharedDir, runtimeDirValue, sharedDirValue } = require("./shared-dir.js");
 const {
   readOwnershipManifest,
   writeOwnershipManifest,
@@ -1277,10 +1277,13 @@ function install(argv, deps = {}) {
 
         // E0.4 (b): the orchestrator skill names the installed _shared directory.
         const shared = renderSharedDir(outDir, sharedDirValue(globalSkillsRoot), fsImpl);
+        // E1.6 (a): the IDD protocol names the installed ospec CLI.
+        const runtime = renderRuntimeDir(outDir, runtimeDirValue(runtimeDir), fsImpl);
         try {
           syncCodexSkills(outDir, globalSkillsRoot, { fs: writeFs, approvedRoot: userHome });
         } finally {
           shared.restore();
+          runtime.restore();
         }
         writeFs.rmSync(path.join(agentsDest, "sdd-orchestrator.toml"), { force: true });
         installCodexHooks(outDir, codexRoot, runtimeDir, { fs: writeFs });

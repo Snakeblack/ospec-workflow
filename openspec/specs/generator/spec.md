@@ -953,3 +953,21 @@ The orchestrator reads its `_shared` handlers on demand, and a consumer project 
 - GIVEN the same builds
 - WHEN every generated file is searched for `__OSPEC_SHARED_DIR__`
 - THEN only the orchestrator matches, and nothing matches on Claude
+
+### Requirement: IDD Protocol Ships As An On-Demand Skill {#REQ-generator-024}
+
+Every target MUST ship the IDD protocol as the `skills/idd/SKILL.md` skill, at most 12 KB, loaded on demand like any other skill. The protocol works the change through the `ospec` CLI (REQ-idd-011 to REQ-idd-017): it follows `ospec next`, records evidence only through `ospec run`, `ospec check` and `ospec review`, stops for the user only at the three gates of REQ-idd-008, and names `work-unit-commits`, `branch-pr` and `chained-pr` for delivery, which stays the user's decision. It names the CLI through the `{{ospec-cli}}` placeholder, which the generator replaces in `skills/**` with `profile.idd.ospecCli` when the host substitutes a path itself (`${CLAUDE_SKILL_DIR}/../../scripts/ospec.js` on Claude, whose plugin ships the runtime `scripts/` at its root) and otherwise with `__OSPEC_RUNTIME_DIR__/scripts/ospec.js`, which the installer renders (REQ-install-035). Every target MUST ship `scripts/ospec.js`, and no other generated file MAY carry `__OSPEC_RUNTIME_DIR__`.
+
+The router (REQ-generator-022) MUST also send code changes to the protocol when `idd/config.yaml` sets `mode: idd`, naming it through the `{{idd-entry}}` placeholder, which the generator replaces in `rules/**` with `profile.idd.entry` (the skill `ospec-workflow:idd` on Claude) or, by default, the skill `idd`. Without `mode: idd`, the router keeps the behavior of REQ-generator-022 until E1.6 changes the default, and SDD stays reachable through `/sdd-*` or an explicit request.
+
+#### Scenario: The protocol names the installed CLI
+
+- GIVEN a build generated for each of the 7 targets
+- WHEN `skills/idd/SKILL.md` is read
+- THEN it is at most 12 KB, holds no unresolved placeholder, runs `node "${CLAUDE_SKILL_DIR}/../../scripts/ospec.js"` on Claude and `node "__OSPEC_RUNTIME_DIR__/scripts/ospec.js"` elsewhere, and the build ships `scripts/ospec.js`
+
+#### Scenario: The router enters IDD only in IDD mode
+
+- GIVEN the same builds
+- WHEN the router is read
+- THEN it names `mode: idd` and the host's IDD entry, still names `/sdd-*` for SDD, and only `skills/idd/SKILL.md` carries `__OSPEC_RUNTIME_DIR__` (nothing on Claude)

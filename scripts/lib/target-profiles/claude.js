@@ -56,6 +56,12 @@ module.exports = {
     description:
       "SDD orchestrator — coordinate phases, delegate to the sdd-* phase agents, enforce review/TDD gates, and persist OpenSpec state. Load only for /sdd-* commands or an explicit spec-driven request.",
   },
+  // E1.6 (a): the IDD protocol skill sits two levels below the plugin root,
+  // which ships the runtime scripts/: no install-time marker.
+  idd: {
+    entry: "skill `ospec-workflow:idd`",
+    ospecCli: "${CLAUDE_SKILL_DIR}/../../scripts/ospec.js",
+  },
   // Rewrite ${input:NAME} → ${NAME:-} in .mcp.json env/args/url/headers.
   // Claude Code expands ${VAR:-default}; the empty default keeps config
   // parseable when the variable is unset.

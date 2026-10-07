@@ -21,7 +21,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { runConfigure } = require("./cli.js");
 const { mutateFs } = require("./install-engine.js");
-const { renderSharedDir, sharedDirValue } = require("./shared-dir.js");
+const { renderRuntimeDir, renderSharedDir, sharedDirValue } = require("./shared-dir.js");
 
 const TARGETS = new Set(["opencode", "github-copilot"]);
 
@@ -343,6 +343,8 @@ function main(argv, deps = {}) {
     // E0.4 (b): the tree lands at the repository root, so the orchestrator
     // names `skills/_shared` relative to it (the files are committed and shared).
     const shared = renderSharedDir(outDir, sharedDirValue("skills", { relative: true }), fsImpl);
+    // E1.6 (a): the IDD protocol names the installed ospec CLI.
+    const runtime = renderRuntimeDir(outDir, ".", fsImpl);
     try {
       syncEntriesTransactional(outDir, destDir, entries, fsImpl, {
         target: args.target,
@@ -354,6 +356,7 @@ function main(argv, deps = {}) {
       return;
     } finally {
       shared.restore();
+      runtime.restore();
     }
     stdout.write(`\nDone. ${args.target} workflow synced into ${destDir}.\n`);
   }

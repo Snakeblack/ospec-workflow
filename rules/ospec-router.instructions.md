@@ -1,5 +1,5 @@
 ---
-description: 'ospec-workflow router: SDD runs only when the user asks for it, through the host orchestrator.'
+description: 'ospec-workflow router: IDD in IDD mode; SDD only when the user asks for it, through the host orchestrator.'
 applyTo: '**'
 ---
 
@@ -10,9 +10,13 @@ ospec-workflow is installed. Its SDD mode (OpenSpec proposal, specs, design, tas
 ## When to enter
 
 - Enter only when the user invokes a `/sdd-*` command or asks for spec-driven work explicitly ("do SDD for X", "hazme un SDD para X").
-- Everything else is direct work, substantial changes included. Do not offer or start SDD on your own, not even when `openspec/changes/` holds an active change.
+- Everything else is direct work, substantial changes included, unless the project is in IDD mode. Do not offer or start SDD on your own, not even when `openspec/changes/` holds an active change.
 
-## How to enter
+## IDD mode
+
+With `mode: idd` in `idd/config.yaml`, code changes that are not SDD requests go through IDD. Load the {{idd-entry}} once and follow it. Questions and read-only work stay direct; SDD changes in flight finish in SDD.
+
+## How to enter SDD
 
 Load the {{orchestrator-entry}} once, only when entering; never for ordinary work, and never again for each phase. The orchestrator coordinates and asks the user; the `sdd-*` phase agents do the work. Do not simulate phases inline.
 
