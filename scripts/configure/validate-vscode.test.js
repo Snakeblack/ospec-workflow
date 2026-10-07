@@ -19,7 +19,7 @@ function tmpOut(t) {
 
 test("validate accepts generated vscode output", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "vscode", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "vscode", outDir: out, validate: false, withSdd: true });
 
   const result = validateVsCodeTarget(out);
 
@@ -29,7 +29,7 @@ test("validate accepts generated vscode output", (t) => {
 
 test("INSTALL-026: attribution sentinels fail closed on a stale build", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "vscode", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "vscode", outDir: out, validate: false, withSdd: true });
   const dimensions = path.join(out, "scripts/lib/review-dimensions.js");
   fs.writeFileSync(dimensions, fs.readFileSync(dimensions, "utf8").split("kernel-contract-change").join("STALE-SENTINEL"));
 
@@ -40,7 +40,7 @@ test("INSTALL-026: attribution sentinels fail closed on a stale build", (t) => {
 
 test("INSTALL-026: attribution sentinels fail closed on an unmapped kernel tool reference", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "vscode", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "vscode", outDir: out, validate: false, withSdd: true });
   fs.rmSync(path.join(out, "scripts/lib/review-gate-state.js"));
 
   const result = validateVsCodeTarget(out);

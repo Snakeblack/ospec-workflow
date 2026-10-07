@@ -61,6 +61,7 @@ function parseArgs(argv) {
     else if (arg === "--plugin-name") args.pluginName = argv[++i];
     else if (arg === "--no-validate") args.validate = false;
     else if (arg === "--with-extras") args.withExtras = true;
+    else if (arg === "--with-sdd") args.withSdd = true;
   }
 
   return args;
@@ -110,6 +111,7 @@ function buildClaudeMarketplace(options, deps = {}) {
     outDir: pluginDir,
     validate: options.validate,
     withExtras: Boolean(options.withExtras),
+    withSdd: Boolean(options.withSdd),
   });
 
   const marketplace = {
@@ -168,5 +170,6 @@ if (require.main === module) {
 module.exports = {
   assertSafeOutDir,
   buildClaudeMarketplace,
+  parseArgs,
   validateAttributionSentinels,
 };

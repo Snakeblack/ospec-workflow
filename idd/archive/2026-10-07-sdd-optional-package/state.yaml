@@ -1,0 +1,217 @@
+{
+  "schema": "idd-state/v1",
+  "change": "sdd-optional-package",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "feature",
+    "summary": "Las fases SDD (skills sdd-*, agentes sdd-* con el orquestador y comandos /sdd-*) salen de la instalación por defecto y se instalan con --with-sdd en los 7 targets; los review-* y _shared se quedan porque IDD los usa",
+    "acceptance": "Una build por defecto de cada target no trae ninguna skill, agente ni comando sdd-* ni el orquestador; con --with-sdd los trae todos; los 7 instaladores e install-target aceptan --with-sdd; el router dice cómo instalar SDD si falta; techos de contexto bajan; specs REQ-generator e install actualizadas"
+  },
+  "facts": {
+    "open": [
+      "El banco construye el plugin sin flags (hosts/claude.js) y el brazo sdd necesita SDD instalado; cambiar ese .js cambia harness_digest. ¿Cómo lo resolvemos?",
+      "¿El instalador TUI (Go + installer-adapter) expone --with-sdd en este PR o queda como follow-up junto a --with-extras?",
+      "Al reinstalar sin --with-sdd una instalación que ya tenía SDD, ¿se poda SDD (explícito, como --with-extras) o se conserva automáticamente si la instalación anterior lo traía?"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 4 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/configure/cli.js (matches scripts/configure/cli.js)",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "1) Banco: construir siempre con --with-sdd en los dos brazos; bench-margins-5 añade hosts/claude.js a la excepción y acepta las huellas de idd-2 y la actual. 2) TUI expone --with-sdd en d2 (protocolo del adaptador + opción en la UI Go; se puede incluir --with-extras). 3) Reinstalar conserva SDD si la instalación anterior traía el orquestador; --no-sdd lo quita.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-07T22:59:01.755Z",
+      "detail": {
+        "tree": "sha256:845b3d59770a1093adf39895cd316d1caa250543ac4ae21d0a0cd14e966eb03d",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-07T22:59:01.755Z",
+      "detail": {
+        "tree": "sha256:845b3d59770a1093adf39895cd316d1caa250543ac4ae21d0a0cd14e966eb03d",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/bench/spec.md",
+          "openspec/specs/generator/spec.md",
+          "openspec/specs/install/spec.md"
+        ],
+        "tests": [
+          "internal/installer/model_test.go",
+          "internal/installer/view_test.go",
+          "scripts/assumption-ledger-contract.test.js",
+          "scripts/compact-lite-contract.test.js",
+          "scripts/configure.test.js",
+          "scripts/configure/cli.test.js",
+          "scripts/configure/codex-smoke.test.js",
+          "scripts/configure/engram-scope.test.js",
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/configure/install-cursor.test.js",
+          "scripts/configure/installer-adapter.test.js",
+          "scripts/configure/real-repo.test.js",
+          "scripts/configure/shared-dir.test.js",
+          "scripts/configure/validate-github-copilot.test.js",
+          "scripts/configure/validate-opencode.test.js",
+          "scripts/configure/validate-vscode.test.js",
+          "scripts/configure/with-sdd.test.js",
+          "scripts/eje-b-contract.test.js",
+          "scripts/eje-c-contract.test.js",
+          "scripts/evals/bench/checkpoint.test.js",
+          "scripts/evals/bench/harness-exception.test.js",
+          "scripts/evals/bench/hosts/claude.test.js",
+          "scripts/lib/agent-embed.test.js",
+          "scripts/lib/rule-scope.test.js",
+          "scripts/lib/target-transform.test.js",
+          "scripts/mentor-adr-contract.test.js",
+          "scripts/model-tier-contract.test.js",
+          "scripts/sdd-document.test.js",
+          "scripts/selective-4r-parity.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-07T23:03:04.786Z",
+      "detail": {
+        "tree": "sha256:6fecb39d512b670d3de6fa30ec4354376b6928938739a79f719c6c289caf78d7",
+        "runs": [
+          "run-2"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-07T23:03:04.786Z",
+      "detail": {
+        "tree": "sha256:6fecb39d512b670d3de6fa30ec4354376b6928938739a79f719c6c289caf78d7",
+        "check": "ev-3",
+        "documents": [
+          "openspec/specs/bench/spec.md",
+          "openspec/specs/generator/spec.md",
+          "openspec/specs/install/spec.md"
+        ],
+        "tests": [
+          "internal/installer/model_test.go",
+          "internal/installer/view_test.go",
+          "scripts/assumption-ledger-contract.test.js",
+          "scripts/compact-lite-contract.test.js",
+          "scripts/configure.test.js",
+          "scripts/configure/cli.test.js",
+          "scripts/configure/codex-smoke.test.js",
+          "scripts/configure/engram-scope.test.js",
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/configure/install-cursor.test.js",
+          "scripts/configure/installer-adapter.test.js",
+          "scripts/configure/real-repo.test.js",
+          "scripts/configure/shared-dir.test.js",
+          "scripts/configure/validate-github-copilot.test.js",
+          "scripts/configure/validate-opencode.test.js",
+          "scripts/configure/validate-vscode.test.js",
+          "scripts/configure/with-sdd.test.js",
+          "scripts/eje-b-contract.test.js",
+          "scripts/eje-c-contract.test.js",
+          "scripts/evals/bench/checkpoint.test.js",
+          "scripts/evals/bench/harness-exception.test.js",
+          "scripts/evals/bench/hosts/claude.test.js",
+          "scripts/lib/agent-embed.test.js",
+          "scripts/lib/rule-scope.test.js",
+          "scripts/lib/target-transform.test.js",
+          "scripts/mentor-adr-contract.test.js",
+          "scripts/model-tier-contract.test.js",
+          "scripts/sdd-document.test.js",
+          "scripts/selective-4r-parity.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-07T23:03:08.837Z"
+    }
+  ],
+  "base": "e3832e549908a071ae6fa1adf8f23b9e4bedad64",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:61056eface707261df922326dfabfc0517fcf71d475116bbdf4597349661f01a",
+      "tree": "sha256:845b3d59770a1093adf39895cd316d1caa250543ac4ae21d0a0cd14e966eb03d",
+      "recorded_at": "2026-10-07T22:59:01.755Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:266c468fab81530f92053d30a4c7fa6f208faf7b0bf7edab368d3da9d8f165eb",
+      "tree": "sha256:6fecb39d512b670d3de6fa30ec4354376b6928938739a79f719c6c289caf78d7",
+      "recorded_at": "2026-10-07T23:03:04.786Z"
+    }
+  ],
+  "closed_at": "2026-10-07T23:03:08.837Z"
+}

@@ -19,7 +19,7 @@ function tmpOut(t) {
 
 test("validate accepts generated github-copilot output", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false, withSdd: true });
 
   const result = validate(out);
 
@@ -29,7 +29,7 @@ test("validate accepts generated github-copilot output", (t) => {
 
 test("validate rejects prompt target residue and forbidden paths", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false, withSdd: true });
   fs.mkdirSync(path.join(out, ".claude-plugin"));
   const promptPath = path.join(out, ".github/prompts/sdd-apply.prompt.md");
   const prompt = fs.readFileSync(promptPath, "utf8");
@@ -43,7 +43,7 @@ test("validate rejects prompt target residue and forbidden paths", (t) => {
 
 test("validate requires the skills tree so agent skill references resolve", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false, withSdd: true });
   // A clean generated tree ships skills/ — removing it must fail the gate.
   assert.equal(validate(out).errors.length, 0);
   fs.rmSync(path.join(out, "skills"), { recursive: true, force: true });
@@ -55,7 +55,7 @@ test("validate requires the skills tree so agent skill references resolve", (t) 
 
 test("validate rejects malformed Copilot hooks", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false, withSdd: true });
   fs.writeFileSync(
     path.join(out, ".github/hooks/hooks.json"),
     JSON.stringify({ version: 1, hooks: { sessionStart: [{ type: "command" }] } }, null, 2),
@@ -68,7 +68,7 @@ test("validate rejects malformed Copilot hooks", (t) => {
 
 test("validate reports required path type mismatches without throwing", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false, withSdd: true });
   fs.rmSync(path.join(out, ".github/agents"), { recursive: true, force: true });
   fs.writeFileSync(path.join(out, ".github/agents"), "not a directory\n");
   fs.rmSync(path.join(out, ".mcp.json"), { force: true });
@@ -82,7 +82,7 @@ test("validate reports required path type mismatches without throwing", (t) => {
 
 test("validate rejects an agent that references a skill the tree does not ship", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false, withSdd: true });
   fs.writeFileSync(
     path.join(out, ".github/agents/ghost.agent.md"),
     "---\nname: ghost\ntarget: github-copilot\n---\n\nRead `skills/ghost/SKILL.md` before work.\n",
@@ -95,7 +95,7 @@ test("validate rejects an agent that references a skill the tree does not ship",
 
 test("validate rejects a hook that invokes a missing script", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false, withSdd: true });
   fs.writeFileSync(
     path.join(out, ".github/hooks/hooks.json"),
     JSON.stringify(
@@ -112,7 +112,7 @@ test("validate rejects a hook that invokes a missing script", (t) => {
 
 test("validate rejects a malformed .mcp.json (missing servers and missing transport)", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false, withSdd: true });
 
   fs.writeFileSync(path.join(out, ".mcp.json"), JSON.stringify({}, null, 2));
   assert.ok(validate(out).errors.some((error) => error.includes("must have an mcpServers object")));
@@ -123,7 +123,7 @@ test("validate rejects a malformed .mcp.json (missing servers and missing transp
 
 test("validate rejects residual ${input: placeholder in .mcp.json", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false, withSdd: true });
   // Poison the generated .mcp.json with an unresolved input placeholder.
   fs.writeFileSync(
     path.join(out, ".mcp.json"),
@@ -145,7 +145,7 @@ test("validate rejects residual ${input: placeholder in .mcp.json", (t) => {
 
 test("validate rejects case-insensitive vscode residue and unexpected Copilot markdown suffixes", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false, withSdd: true });
   fs.mkdirSync(path.join(out, ".github/agents/VSCodeResidue"));
   fs.writeFileSync(path.join(out, ".github/prompts/unexpected.md"), "---\n---\n");
   fs.writeFileSync(path.join(out, ".github/instructions/unexpected.md"), "---\napplyTo: '**'\n---\n");
@@ -159,7 +159,7 @@ test("validate rejects case-insensitive vscode residue and unexpected Copilot ma
 
 test("validate ignores forbidden-looking strings in binary hook content", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false, withSdd: true });
   const residue = Buffer.from("C:\\Users\\alice\\src /Users/alice/src ${PLUGIN_ROOT} vscode/askQuestions");
   const binaries = [
     ["ospec-hooks.exe", Buffer.concat([Buffer.from([0x4d, 0x5a]), residue])],
@@ -180,7 +180,7 @@ test("validate ignores forbidden-looking strings in binary hook content", (t) =>
 
 test("validate still rejects forbidden text in an extensionless script", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false, withSdd: true });
   fs.writeFileSync(
     path.join(out, "scripts/hooks/leaky-runtime"),
     "C:\\Users\\alice\\src\n/Users/alice/src\n${PLUGIN_ROOT}\nvscode/askQuestions\n",
@@ -196,7 +196,7 @@ test("validate still rejects forbidden text in an extensionless script", (t) => 
 
 test("validate classifies textual exe content by content rather than extension", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false, withSdd: true });
   fs.writeFileSync(path.join(out, "scripts/hooks/not-really-binary.exe"), "${CLAUDE_PLUGIN_ROOT}\n");
 
   const result = validate(out);
@@ -206,7 +206,7 @@ test("validate classifies textual exe content by content rather than extension",
 
 test("validate fails closed when a file cannot be read for forbidden-text inspection", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false, withSdd: true });
   const unreadable = path.join(out, "scripts/hooks/session-start.js");
 
   const result = validate(out, {
@@ -281,7 +281,7 @@ test("validate converts filesystem stat, readdir, read, and race failures into e
   for (const fault of cases) {
     await t.test(fault.name, () => {
       const out = tmpOut(t);
-      runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false });
+      runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false, withSdd: true });
       const fsImpl = Object.create(fs);
       fault.mutate(fsImpl, out);
 
@@ -299,7 +299,7 @@ test("validate converts filesystem stat, readdir, read, and race failures into e
 
 test("validate continues independent checks after a filesystem failure", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false, withSdd: true });
   fs.writeFileSync(path.join(out, ".mcp.json"), "{}\n");
   const fsImpl = Object.create(fs);
   const original = fsImpl.readFileSync.bind(fsImpl);
@@ -317,7 +317,7 @@ test("validate continues independent checks after a filesystem failure", (t) => 
 
 test("INSTALL-026: attribution sentinels fail closed on a stale build", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false });
+  runConfigure({ sourceDir: SOURCE, target: "github-copilot", outDir: out, validate: false, withSdd: true });
   const dimensions = path.join(out, "scripts/lib/review-dimensions.js");
   fs.writeFileSync(dimensions, fs.readFileSync(dimensions, "utf8").split("validateAttributionOverride").join("STALE-SENTINEL"));
 

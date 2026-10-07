@@ -54,7 +54,7 @@ function walk(root, relDir = "", acc = []) {
 test("real repo: all seven targets ship the engineering and review references", (t) => {
   for (const target of ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor", "antigravity"]) {
     const out = tmpOut(t);
-    const result = runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
+    const result = runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false, withSdd: true });
     assert.ok(result.files.length > 0, `${target} produced no files`);
     for (const reference of ["engineering-judgment.md", "review-judgment.md"]) {
       assert.ok(
@@ -68,7 +68,7 @@ test("real repo: all seven targets ship the engineering and review references", 
 test("real repo: generated phase validator executes in every target", (t) => {
   for (const target of Object.keys(PROFILES)) {
     const out = tmpOut(t);
-    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
+    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false, withSdd: true });
     const validator = path.join(out, "scripts/validate-phase.js");
     assert.ok(fs.existsSync(validator), `${target} must ship validator`);
     assert.ok(!fs.existsSync(path.join(out, "scripts/configure/validate-phase.js")));
@@ -111,7 +111,7 @@ test("real repo: generated phase validator executes in every target", (t) => {
 
 test("real repo: codex output passes its own validator", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
+  runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false, withSdd: true });
 
   const result = validateCodex(out);
 
@@ -147,7 +147,7 @@ function parseAgentToml(content) {
 
 test("real repo: every generated .codex/agents/*.toml file is syntactically valid and carries required autodetection keys", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
+  runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false, withSdd: true });
 
   const agentsDir = path.join(out, ".codex", "agents");
   const tomlFiles = fs.readdirSync(agentsDir).filter((name) => name.endsWith(".toml"));
@@ -171,7 +171,7 @@ test("real repo: every generated .codex/agents/*.toml file is syntactically vali
 
 test("real repo: the codex orchestrator skill dispatches phase sub-agents with no manifest or hooks warnings", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
+  runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false, withSdd: true });
 
   assert.ok(fs.existsSync(path.join(out, "AGENTS.md")), "the router AGENTS.md must be generated");
   const skillPath = path.join(out, "skills", "sdd-orchestrator", "SKILL.md");
@@ -217,7 +217,7 @@ test("validate-codex rejects AskUserQuestion residue in an existing codex tree",
 
 test("real repo: codex ships every source context-doc skill file unchanged, regardless of command-name overlap", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
+  runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false, withSdd: true });
 
   const sourceSkills = walk(ROOT, "skills").filter((rel) => rel.endsWith(".md") && !isExtraSkillPath(rel));
   assert.ok(sourceSkills.length > 0, "source must contain skills to test");
@@ -239,7 +239,7 @@ test("real repo: codex ships every source context-doc skill file unchanged, rega
 // "Command-derived skill does not collide with existing context-doc skill".
 test("real repo: codex command-derived skill coexists with an existing context-doc skill of the same base name, without collision", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
+  runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false, withSdd: true });
 
   const sourceSkillNames = new Set(walk(ROOT, "skills").map((rel) => rel.split("/")[1]));
   const collidingCommands = walk(ROOT, "commands")
@@ -265,7 +265,7 @@ test("real repo: codex command-derived skill coexists with an existing context-d
 
 test("real repo: codex emits every source agent as TOML outside the plugin bundle", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
+  runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false, withSdd: true });
 
   const sourceAgents = walk(ROOT, "agents").filter((rel) => rel.endsWith(".agent.md"));
   assert.ok(sourceAgents.length > 0, "source must contain agents to test");
@@ -287,7 +287,7 @@ test("real repo: codex emits every source agent as TOML outside the plugin bundl
 
 test("real repo: codex synthesizes AGENTS.md from the global rules only", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
+  runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false, withSdd: true });
 
   assert.ok(fs.existsSync(path.join(out, "AGENTS.md")), "AGENTS.md must be synthesized in codex output (E0.4)");
   assert.ok(!fs.existsSync(path.join(out, "rules")), "rules/ must not survive in codex output");
@@ -295,7 +295,7 @@ test("real repo: codex synthesizes AGENTS.md from the global rules only", (t) =>
 
 test("real repo: no AskUserQuestion residue survives anywhere in the codex tree", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false });
+  runConfigure({ sourceDir: ROOT, target: "codex", outDir: out, validate: false, withSdd: true });
 
   for (const file of walk(out)) {
     if (!file.endsWith(".md") && !file.endsWith(".toml")) {
@@ -308,7 +308,7 @@ test("real repo: no AskUserQuestion residue survives anywhere in the codex tree"
 
 test("real repo: github-copilot output passes its own validator", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: ROOT, target: "github-copilot", outDir: out, validate: false });
+  runConfigure({ sourceDir: ROOT, target: "github-copilot", outDir: out, validate: false, withSdd: true });
 
   const result = validate(out);
 
@@ -317,7 +317,7 @@ test("real repo: github-copilot output passes its own validator", (t) => {
 
 test("real repo: cursor output passes its own validator with no agent ask/abstract residue", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: ROOT, target: "cursor", outDir: out, validate: false });
+  runConfigure({ sourceDir: ROOT, target: "cursor", outDir: out, validate: false, withSdd: true });
 
   const result = validateCursor(out);
   assert.deepEqual(result.errors, [], `validator errors:\n${result.errors.join("\n")}`);
@@ -339,7 +339,7 @@ test("real repo: cursor output passes its own validator with no agent ask/abstra
 
 test("real repo: cursor commands may retain ${input:} without failing the validator", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: ROOT, target: "cursor", outDir: out, validate: false });
+  runConfigure({ sourceDir: ROOT, target: "cursor", outDir: out, validate: false, withSdd: true });
   const commandsDir = path.join(out, "commands");
   const commandFiles = fs.readdirSync(commandsDir).filter((name) => name.endsWith(".md"));
   assert.ok(commandFiles.some((name) => /\$\{input:/.test(fs.readFileSync(path.join(commandsDir, name), "utf8"))), "fixture expects ${input:} in at least one command");
@@ -348,7 +348,7 @@ test("real repo: cursor commands may retain ${input:} without failing the valida
 
 test("real repo: opencode output passes its own validator", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: ROOT, target: "opencode", outDir: out, validate: false });
+  runConfigure({ sourceDir: ROOT, target: "opencode", outDir: out, validate: false, withSdd: true });
 
   const result = validateOpencode(out);
 
@@ -357,7 +357,7 @@ test("real repo: opencode output passes its own validator", (t) => {
 
 test("real repo: opencode ships every source skill file the agents read by path", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: ROOT, target: "opencode", outDir: out, validate: false });
+  runConfigure({ sourceDir: ROOT, target: "opencode", outDir: out, validate: false, withSdd: true });
 
   const sourceSkills = walk(ROOT, "skills").filter((rel) => rel.endsWith(".md") && !isExtraSkillPath(rel));
   assert.ok(sourceSkills.length > 0, "source must contain skills to test");
@@ -368,7 +368,7 @@ test("real repo: opencode ships every source skill file the agents read by path"
 
 test("real repo: opencode plugin bridges ospec-hooks binary with correct subcommands", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: ROOT, target: "opencode", outDir: out, validate: false });
+  runConfigure({ sourceDir: ROOT, target: "opencode", outDir: out, validate: false, withSdd: true });
 
   const plugin = fs.readFileSync(path.join(out, ".opencode", "plugins", "ospec.js"), "utf8");
   // The plugin now calls the Go binary via spawnSync — not require() of JS files.
@@ -384,7 +384,7 @@ test("real repo: opencode plugin bridges ospec-hooks binary with correct subcomm
 
 test("real repo: github-copilot ships every source skill file", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: ROOT, target: "github-copilot", outDir: out, validate: false });
+  runConfigure({ sourceDir: ROOT, target: "github-copilot", outDir: out, validate: false, withSdd: true });
 
   const sourceSkills = walk(ROOT, "skills").filter((rel) => rel.endsWith(".md") && !isExtraSkillPath(rel));
   assert.ok(sourceSkills.length > 0, "source must contain skills to test");
@@ -395,7 +395,7 @@ test("real repo: github-copilot ships every source skill file", (t) => {
 
 test("real repo: every skill a phase agent says to load exists in github-copilot output", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: ROOT, target: "github-copilot", outDir: out, validate: false });
+  runConfigure({ sourceDir: ROOT, target: "github-copilot", outDir: out, validate: false, withSdd: true });
 
   const agentDir = path.join(out, ".github", "agents");
   // The orchestrator names its _shared handlers through the install-time marker (E0.4 b).
@@ -414,7 +414,7 @@ test("real repo: every skill a phase agent says to load exists in github-copilot
 
 test("real repo: no foreign vscode/ namespace survives in the claude tree", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: ROOT, target: "claude", outDir: out, validate: false });
+  runConfigure({ sourceDir: ROOT, target: "claude", outDir: out, validate: false, withSdd: true });
 
   for (const file of walk(out)) {
     if (!file.endsWith(".md")) {
@@ -435,7 +435,7 @@ test("real repo: sdd-clarify agent propagates to all four targets", (t) => {
 
   for (const [target, expectedPath] of Object.entries(targetPaths)) {
     const out = tmpOut(t);
-    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
+    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false, withSdd: true });
     assert.ok(
       fs.existsSync(path.join(out, expectedPath)),
       `sdd-clarify agent missing from ${target} output at ${expectedPath}`
@@ -448,7 +448,7 @@ test("real repo: sdd-clarify skill propagates to opencode and github-copilot", (
 
   for (const target of ["opencode", "github-copilot"]) {
     const out = tmpOut(t);
-    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
+    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false, withSdd: true });
     assert.ok(
       fs.existsSync(path.join(out, skillRel)),
       `sdd-clarify SKILL.md missing from ${target} output`
@@ -468,7 +468,7 @@ test("real repo: all six targets preserve the signal-driven clarify gate", (t) =
 
   for (const [target, relativeOrchestratorPath] of Object.entries(orchestratorPaths)) {
     const out = tmpOut(t);
-    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
+    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false, withSdd: true });
 
     const orchestratorPath = path.join(out, relativeOrchestratorPath);
     assert.ok(fs.existsSync(orchestratorPath), `${target} orchestrator missing`);
@@ -517,7 +517,7 @@ test("real repo: all six targets preserve D2 intent-briefing landmarks", (t) => 
 
   for (const [target, relativeOrchestratorPath] of Object.entries(orchestratorPaths)) {
     const out = tmpOut(t);
-    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
+    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false, withSdd: true });
 
     const orchestratorPath = path.join(out, relativeOrchestratorPath);
     assert.ok(fs.existsSync(orchestratorPath), `${target} orchestrator missing`);
@@ -545,7 +545,7 @@ test("real repo: sdd-foundation agent mentions markitdown degradation", (t) => {
 
   for (const [target, expectedPath] of Object.entries(targetPaths)) {
     const out = tmpOut(t);
-    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
+    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false, withSdd: true });
 
     assert.ok(
       fs.existsSync(path.join(out, expectedPath)),
@@ -568,7 +568,7 @@ test("real repo: sdd-foundation agent mentions markitdown degradation", (t) => {
 
 test("real repo: orchestrator brownfield route replaces standalone Baseline Advisory", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: ROOT, target: "vscode", outDir: out, validate: false });
+  runConfigure({ sourceDir: ROOT, target: "vscode", outDir: out, validate: false, withSdd: true });
 
   const orchestratorPath = path.join(out, "agents", "sdd-orchestrator.agent.md");
   assert.ok(
@@ -593,7 +593,7 @@ test("real repo: E0.3 (d) retired v1 review lenses are not distributed to any ta
   const retired = ["review-risk", "review-readability", "review-reliability", "review-resilience"];
   for (const target of ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor", "antigravity"]) {
     const out = tmpOut(t);
-    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
+    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false, withSdd: true });
     const files = fs.readdirSync(out, { recursive: true }).map((rel) => String(rel).replace(/\\/g, "/"));
     for (const name of retired) {
       const leaked = files.filter((rel) => rel.split("/").some((part) => part === name || part.startsWith(`${name}.`)));
@@ -961,7 +961,7 @@ test("real repo: all seven targets include scripts/route-dispatch-run.js and its
   const targets = ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor", "antigravity"];
   for (const target of targets) {
     const out = tmpOut(t);
-    const result = runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
+    const result = runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false, withSdd: true });
     assert.ok(result.files.length > 0, `${target} produced no files`);
 
     const runnerRel = "scripts/route-dispatch-run.js";
@@ -988,7 +988,7 @@ test("real repo: every target ships the ospec CLI and it runs from the generated
   const targets = ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor", "antigravity"];
   for (const target of targets) {
     const out = tmpOut(t);
-    const result = runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
+    const result = runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false, withSdd: true });
     for (const rel of [
       "scripts/ospec.js",
       "scripts/lib/idd-store.js",
@@ -1010,7 +1010,7 @@ test("real repo: every target ships the ospec CLI and it runs from the generated
 
 test("real repo: route-dispatch-run executes directly from generated target output", (t) => {
   const out = tmpOut(t);
-  runConfigure({ sourceDir: ROOT, target: "vscode", outDir: out, validate: false });
+  runConfigure({ sourceDir: ROOT, target: "vscode", outDir: out, validate: false, withSdd: true });
 
   const runnerPath = path.join(out, "scripts", "route-dispatch-run.js");
   assert.ok(fs.existsSync(runnerPath), "generated vscode target must contain scripts/route-dispatch-run.js");
@@ -1037,7 +1037,7 @@ test("real repo: all seven profile outputs retain the compact lite artifact cont
 
   for (const target of Object.keys(PROFILES)) {
     const out = tmpOut(t);
-    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
+    runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false, withSdd: true });
     const text = walk(out).map((file) => fs.readFileSync(path.join(out, file), "utf8")).join("\n");
 
     assert.match(text, /state\.yaml\.route\.actual_route/, `${target} must retain persisted route authority`);

@@ -18,7 +18,7 @@ Code changes that are not SDD requests go through IDD (impact-driven development
 
 ## How to enter SDD
 
-Load the {{orchestrator-entry}} once, only when entering; never for ordinary work, and never again for each phase. The orchestrator coordinates and asks the user; the `sdd-*` phase agents do the work. Do not simulate phases inline.
+Load the {{orchestrator-entry}} once, only when entering; never for ordinary work, and never again for each phase. The orchestrator coordinates and asks the user; the `sdd-*` phase agents do the work. Do not simulate phases inline. If SDD is not installed, ask for a reinstall with `--with-sdd`.
 
 ## Always true
 

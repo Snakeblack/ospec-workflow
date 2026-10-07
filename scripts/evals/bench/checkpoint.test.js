@@ -9,7 +9,7 @@ const path = require("node:path");
 const { MARGINS_PATH, evaluateCheckpoint, loadMargins, renderCheckpoint, validateMargins } = require("./checkpoint.js");
 
 const margins = {
-  schema_version: 3,
+  schema_version: 4,
   margins_version: "test-margins",
   declared_at: "2026-10-06",
   baseline_arm: "sdd",
@@ -21,7 +21,7 @@ const margins = {
 };
 const exception = {
   baseline_digest: "f".repeat(64),
-  candidate_digest: "e".repeat(64),
+  candidate_digests: ["c".repeat(64), "e".repeat(64)],
   changed_files: ["arms.js", "checkpoint.js"],
   reason: "the candidate arm arrives after the baseline",
 };
@@ -64,11 +64,12 @@ test("the committed margins load and carry a digest", () => {
   const { margins: loaded, digest } = loadMargins(MARGINS_PATH);
   assert.equal(loaded.baseline_arm, "sdd");
   assert.equal(loaded.candidate_arm, "idd");
-  assert.equal(loaded.margins_version, "bench-margins-4");
+  assert.equal(loaded.margins_version, "bench-margins-5");
   assert.equal(loaded.repetitions, 1);
   assert.equal(loaded.escaped_defects.max_mean_delta, 0, "same thresholds as bench-margins-3");
   assert.equal(loaded.tokens.max_total_ratio, 0.9, "same thresholds as bench-margins-3");
-  assert.deepEqual(loaded.harness_exception.changed_files, ["arms.js", "checkpoint.js"]);
+  assert.deepEqual(loaded.harness_exception.changed_files, ["arms.js", "checkpoint.js", "hosts/claude.js"]);
+  assert.equal(loaded.harness_exception.candidate_digests.length, 2, "the idd-1/idd-2 harness and the current one");
   assert.match(digest, /^[a-f0-9]{64}$/);
 });
 
@@ -81,7 +82,10 @@ test("validateMargins rejects unknown or missing margins", () => {
   assert.equal(validateMargins({ ...margins, harness_exception: exception }).harness_exception, exception);
   assert.throws(() => validateMargins({ ...margins, harness_exception: { ...exception, extra: 1 } }), /harness_exception/);
   assert.throws(() => validateMargins({ ...margins, harness_exception: { ...exception, baseline_digest: "f" } }), /baseline_digest/);
-  assert.throws(() => validateMargins({ ...margins, harness_exception: { ...exception, candidate_digest: exception.baseline_digest } }), /differ/);
+  assert.throws(() => validateMargins({ ...margins, harness_exception: { ...exception, candidate_digests: [exception.baseline_digest] } }), /differ/);
+  assert.throws(() => validateMargins({ ...margins, harness_exception: { ...exception, candidate_digests: [] } }), /candidate_digests/);
+  assert.throws(() => validateMargins({ ...margins, harness_exception: { ...exception, candidate_digests: ["e".repeat(64), "e".repeat(64)] } }), /candidate_digests/);
+  assert.throws(() => validateMargins({ ...margins, harness_exception: { ...exception, candidate_digests: ["e"] } }), /candidate_digests/);
   assert.throws(() => validateMargins({ ...margins, harness_exception: { ...exception, changed_files: [] } }), /changed_files/);
   assert.throws(() => validateMargins({ ...margins, harness_exception: { ...exception, changed_files: ["arms.test.js"] } }), /changed_files/);
   assert.throws(() => validateMargins({ ...margins, harness_exception: { ...exception, reason: " " } }), /reason/);
@@ -163,14 +167,17 @@ test("incomplete runs and incomparable records revise", () => {
   assert.ok(evaluateCheckpoint({ baseline, candidate: wrongArm, margins }).reasons.some((reason) => reason.code === "not-comparable"));
 });
 
-test("a declared harness exception accepts exactly its digest pair and is reported", () => {
+test("a declared harness exception accepts exactly its digest pairs and reports the one applied", () => {
   const withException = { ...margins, harness_exception: exception };
   const baseline = record("sdd", [run("cli-local", 1000)]);
   const candidate = record("idd", [run("cli-local", 500)], { harness_digest: "e".repeat(64) });
   const accepted = evaluateCheckpoint({ baseline, candidate, margins: withException });
   assert.equal(accepted.decision, "continue", JSON.stringify(accepted.reasons));
-  assert.deepEqual(accepted.harness_exception, exception);
+  const { candidate_digests: _declared, ...pair } = exception;
+  assert.deepEqual(accepted.harness_exception, { ...pair, candidate_digest: "e".repeat(64) });
   assert.match(renderCheckpoint(accepted), /harness exception/i);
+  const earlier = evaluateCheckpoint({ baseline, candidate: record("idd", [run("cli-local", 500)], { harness_digest: "c".repeat(64) }), margins: withException });
+  assert.equal(earlier.harness_exception.candidate_digest, "c".repeat(64), "an earlier declared candidate stays comparable");
 
   const notDeclared = evaluateCheckpoint({ baseline, candidate, margins });
   assert.ok(notDeclared.reasons.some((reason) => reason.code === "not-comparable"));

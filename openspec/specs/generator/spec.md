@@ -920,7 +920,7 @@ The generator MUST keep the skills of the optional extras package (`EXTRA_SKILLS
 
 ### Requirement: Router Is The Only Always-On Entry To SDD {#REQ-generator-022}
 
-Every target MUST emit `rules/ospec-router.instructions.md` as a global rule: the router says that code changes go through IDD by default (REQ-generator-024) and that SDD runs only when the user invokes a `/sdd-*` command or asks for spec-driven work explicitly, and names the host's own orchestrator through the `{{orchestrator-entry}}` placeholder, which the generator replaces with `profile.orchestrator.entry` (a skill on Claude and Codex) or, by default, the orchestrator agent under the name the host gives it. No placeholder MAY survive in the output.
+Every target MUST emit `rules/ospec-router.instructions.md` as a global rule: the router says that code changes go through IDD by default (REQ-generator-024) and that SDD runs only when the user invokes a `/sdd-*` command or asks for spec-driven work explicitly, and, when SDD is not installed (REQ-generator-025), to ask for a reinstall with `--with-sdd`, and names the host's own orchestrator through the `{{orchestrator-entry}}` placeholder, which the generator replaces with `profile.orchestrator.entry` (a skill on Claude and Codex) or, by default, the orchestrator agent under the name the host gives it. No placeholder MAY survive in the output.
 
 Claude and Codex give their global rules a file of their own (`rules.globalFile`): `global-instructions/CLAUDE.md` on Claude, because a plugin never loads a root `CLAUDE.md` and its validator rejects one, and `AGENTS.md` on Codex. Every other always-active rule joins the orchestrator, and Codex emits the orchestrator as the `skills/sdd-orchestrator/SKILL.md` skill, never as `AGENTS.md`. A Codex command routed to the orchestrator MUST tell the model to load that skill, since there is no orchestrator agent to spawn.
 
@@ -971,3 +971,19 @@ The router (REQ-generator-022) MUST send code changes that are not SDD requests 
 - GIVEN the same builds
 - WHEN the router is read
 - THEN it sends code changes to the host's IDD entry by default without naming `mode: idd`, turns IDD off with `mode: sdd` in `idd/config.yaml`, allows direct work only when the user explicitly asks for a change without IDD, still names `/sdd-*` for SDD, and only `skills/idd/SKILL.md` carries `__OSPEC_RUNTIME_DIR__` (nothing on Claude)
+
+### Requirement: SDD Package Ships Only On Request {#REQ-generator-025}
+
+The generator MUST keep the SDD package out of every target's output unless the build is asked for it (`withSdd` in `runConfigure` and `transform`, `--with-sdd` on the CLI). The package is every source path that `isSddPackagePath` in `scripts/lib/skill-extras.js` matches: the `skills/sdd-*/` directories, the `agents/sdd-*.agent.md` agents (the orchestrator included, and with it the Codex `sdd-orchestrator` skill and the OpenCode `ospec-workflow` agent generated from it), the `commands/sdd-*.prompt.md` commands and the `rules/sdd-*.instructions.md` rules. The `review-*` agents and skills, `skills/_shared/` and the runtime `scripts/` MUST stay in the default build, because IDD's trust review uses them, and a default build MUST name no skill path it does not ship. Every target's validator MUST accept a default build, which has no commands or prompts directory. The context baseline (E0.0) measures the default build.
+
+#### Scenario: Default build leaves SDD out
+
+- GIVEN a build generated for each of the 7 targets without `withSdd`
+- WHEN its paths are listed
+- THEN no `sdd-*` skill, agent, command or rule and no orchestrator is present, `skills/idd/SKILL.md` and the `review-trust` reviewer are, and the target's validator reports no error
+
+#### Scenario: SDD on request
+
+- GIVEN the same build with `withSdd: true`
+- WHEN its paths are listed
+- THEN the phases, the commands and the orchestrator are present

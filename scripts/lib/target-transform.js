@@ -10,19 +10,19 @@ const { parse, serialize, getField, stripKeys, setScalar, setArray, setBlockMap 
 const { resolveModel, OMIT } = require("./model-resolver.js");
 const { embedAgentReferences } = require("./agent-embed.js");
 const { ruleScope } = require("./rule-scope.js");
-const { isExtraSkillPath } = require("./skill-extras.js");
+const { isExtraSkillPath, isSddPackagePath } = require("./skill-extras.js");
 
 // A file collection is an array of { path, content:string }.
 
-function transform({ files: sourceFiles, profile, models, withExtras = false } = {}) {
+function transform({ files: sourceFiles, profile, models, withExtras = false, withSdd = false } = {}) {
   if (!Array.isArray(sourceFiles)) {
     throw new TypeError("files must be an array of { path, content }");
   }
   if (!profile || typeof profile !== "object") {
     throw new TypeError("profile must be a non-null object");
   }
-  // The optional extras package ships only on request (E0.3 b2).
-  const shipped = withExtras ? sourceFiles : sourceFiles.filter((file) => !isExtraSkillPath(file.path));
+  // The optional extras (E0.3 b2) and SDD (E1.6 d2) packages ship only on request.
+  const shipped = sourceFiles.filter((file) => (withExtras || !isExtraSkillPath(file.path)) && (withSdd || !isSddPackagePath(file.path)));
   const files = resolveIddProtocol(resolveOrchestratorEntry(shipped, profile), profile);
   // The inline strategy folds every non-global rule into the orchestrator
   // (Claude, Codex); scoped ones carry only the orchestrator-scoped rules, raw.

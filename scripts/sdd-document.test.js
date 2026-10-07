@@ -222,7 +222,7 @@ test("skills/sdd-document/SKILL.md enforces dynamic write sandbox boundaries", a
 test("Target generation transforms sdd-document to vscode target", (t) => {
   const { runConfigure } = require("./configure/cli.js");
   const out = tmpOut(t);
-  const result = runConfigure({ sourceDir: ROOT_DIR, target: "vscode", outDir: out, validate: false });
+  const result = runConfigure({ sourceDir: ROOT_DIR, target: "vscode", outDir: out, validate: false, withSdd: true });
 
   assert.equal(result.exitCode, 0);
   assert.ok(fsSync.existsSync(path.join(out, "agents/sdd-document.agent.md")), "vscode output must contain sdd-document.agent.md");
@@ -232,7 +232,7 @@ test("Target generation transforms sdd-document to vscode target", (t) => {
 test("Target generation transforms sdd-document to claude target", (t) => {
   const { runConfigure } = require("./configure/cli.js");
   const out = tmpOut(t);
-  const result = runConfigure({ sourceDir: ROOT_DIR, target: "claude", outDir: out, validate: false });
+  const result = runConfigure({ sourceDir: ROOT_DIR, target: "claude", outDir: out, validate: false, withSdd: true });
 
   assert.equal(result.exitCode, 0);
   assert.ok(fsSync.existsSync(path.join(out, "agents/sdd-document.md")), "claude output must contain agents/sdd-document.md");
@@ -243,7 +243,7 @@ test("Target generation transforms sdd-document to claude target", (t) => {
 test("Target generation transforms sdd-document to github-copilot target", (t) => {
   const { runConfigure } = require("./configure/cli.js");
   const out = tmpOut(t);
-  const result = runConfigure({ sourceDir: ROOT_DIR, target: "github-copilot", outDir: out, validate: false });
+  const result = runConfigure({ sourceDir: ROOT_DIR, target: "github-copilot", outDir: out, validate: false, withSdd: true });
 
   assert.equal(result.exitCode, 0);
   assert.ok(fsSync.existsSync(path.join(out, ".github/agents/sdd-document.agent.md")), "copilot output must contain .github/agents/sdd-document.agent.md");
@@ -252,7 +252,7 @@ test("Target generation transforms sdd-document to github-copilot target", (t) =
 test("Target generation transforms sdd-document to opencode target", (t) => {
   const { runConfigure } = require("./configure/cli.js");
   const out = tmpOut(t);
-  const result = runConfigure({ sourceDir: ROOT_DIR, target: "opencode", outDir: out, validate: false });
+  const result = runConfigure({ sourceDir: ROOT_DIR, target: "opencode", outDir: out, validate: false, withSdd: true });
 
   assert.equal(result.exitCode, 0);
   assert.ok(fsSync.existsSync(path.join(out, ".opencode/agents/sdd-document.md")), "opencode output must contain .opencode/agents/sdd-document.md");
@@ -267,17 +267,17 @@ test("sdd-document generated outputs use cheap models or fail-soft omission", (t
   ];
   for (const [target, relative, expected] of cases) {
     const out = tmpOut(t);
-    runConfigure({ sourceDir: ROOT_DIR, target, outDir: out, validate: false });
+    runConfigure({ sourceDir: ROOT_DIR, target, outDir: out, validate: false, withSdd: true });
     const content = fsSync.readFileSync(path.join(out, relative), "utf8");
     assert.deepEqual(getField(parse(content).frontmatter, "model").value, expected, target);
   }
   const githubOut = tmpOut(t);
-  runConfigure({ sourceDir: ROOT_DIR, target: "github-copilot", outDir: githubOut, validate: false });
+  runConfigure({ sourceDir: ROOT_DIR, target: "github-copilot", outDir: githubOut, validate: false, withSdd: true });
   const github = fsSync.readFileSync(path.join(githubOut, ".github/agents/sdd-document.agent.md"), "utf8");
   assert.deepEqual(getField(parse(github).frontmatter, "model").value, ["gpt-6 Luna (copilot)"]);
 
   const codexOut = tmpOut(t);
-  runConfigure({ sourceDir: ROOT_DIR, target: "codex", outDir: codexOut, validate: false });
+  runConfigure({ sourceDir: ROOT_DIR, target: "codex", outDir: codexOut, validate: false, withSdd: true });
   const codex = fsSync.readFileSync(path.join(codexOut, ".codex/agents/sdd-document.toml"), "utf8");
   assert.match(codex, /^model = "gpt-6-luna"$/m);
   assert.match(codex, /^model_reasoning_effort = "low"$/m);
@@ -346,7 +346,7 @@ test("skills/_shared/route-document.md is present under all four dist targets", 
 
   for (const target of ["claude", "vscode", "github-copilot", "opencode"]) {
     const out = tmpOut(t);
-    runConfigure({ sourceDir: ROOT_DIR, target, outDir: out, validate: false });
+    runConfigure({ sourceDir: ROOT_DIR, target, outDir: out, validate: false, withSdd: true });
     assert.ok(
       fsSync.existsSync(path.join(out, relPath)),
       `${relPath} missing from ${target} output`
@@ -514,7 +514,7 @@ test("skills/sdd-document/assets/web-doc-template/scripts/sync-openwiki.mjs is p
 
   for (const target of ["claude", "vscode", "github-copilot", "opencode"]) {
     const out = tmpOut(t);
-    runConfigure({ sourceDir: ROOT_DIR, target, outDir: out, validate: false });
+    runConfigure({ sourceDir: ROOT_DIR, target, outDir: out, validate: false, withSdd: true });
     assert.ok(
       fsSync.existsSync(path.join(out, relPath)),
       `${relPath} missing from ${target} output`

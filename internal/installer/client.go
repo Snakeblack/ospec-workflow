@@ -31,8 +31,17 @@ func NewClient(repoDir string) *Client {
 }
 
 type Plan struct {
-	Version int      `json:"version"`
-	Targets []Target `json:"targets"`
+	Version  int       `json:"version"`
+	Packages []Package `json:"packages"`
+	Targets  []Target  `json:"targets"`
+}
+
+// Package is an optional install package (SDD mode, extras); the adapter maps
+// its ID to the installer flag.
+type Package struct {
+	ID          string `json:"id"`
+	Label       string `json:"label"`
+	Description string `json:"description"`
 }
 
 type Target struct {
@@ -85,6 +94,7 @@ type InstallRequest struct {
 	Mode       string               `json:"mode"`
 	PresetID   string               `json:"presetId,omitempty"`
 	Selections map[string]Selection `json:"selections"`
+	Packages   []string             `json:"packages,omitempty"`
 }
 
 // Plan requests a read-only adapter plan and validates its protocol version.

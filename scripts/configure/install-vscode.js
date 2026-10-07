@@ -5,7 +5,7 @@
 // cleanly using fail-closed JSONC merger.
 //
 // Usage:
-//   node scripts/configure/install-vscode.js [--dry-run] [--no-validate] [--with-extras] [--source <sourceRepo>]
+//   node scripts/configure/install-vscode.js [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>]
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -16,6 +16,7 @@ const { runEngramStep, withEngramStep } = require("./engram-setup.js");
 const { copyBinaryToTree } = require("./install-target.js");
 const { renderRuntimeDir, renderSharedDir, runtimeDirValue, sharedDirValue } = require("./shared-dir.js");
 const { safeParseJsonc, mutateFs } = require("./install-engine.js");
+const { parseSddFlag, previousInstallHasSdd, resolveWithSdd, sddKeptNote } = require("./sdd-package.js");
 
 function getSettingsPaths(deps = {}) {
   const home = deps.homedir ? deps.homedir() : os.homedir();
@@ -65,7 +66,9 @@ function parseArgs(argv) {
     if (arg === "--dry-run") args.dryRun = true;
     else if (arg === "--no-validate") args.validate = false;
     else if (arg === "--with-extras") args.withExtras = true;
-    else if (arg === "--source") {
+    else if (parseSddFlag(arg, args)) {
+      if (args.error) return args;
+    } else if (arg === "--source") {
       const next = argv[i + 1];
       if (!next || next.startsWith("--")) {
         args.error = "missing value for --source";
@@ -150,15 +153,18 @@ function install(argv = process.argv.slice(2), deps = {}) {
   const copyBinary = deps.copyBinaryToTree || copyBinaryToTree;
 
   if (args.error) {
-    stderr.write(`usage: install-vscode [--dry-run] [--no-validate] [--with-extras] [--source <sourceRepo>]\n${args.error}\n`);
+    stderr.write(`usage: install-vscode [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>]\n${args.error}\n`);
     return 2;
   }
 
   const sourceDir = path.resolve(args.source || cwd);
   const outDir = path.join(sourceDir, "dist", "vscode");
 
-  // 1. Build the target vscode to dist/vscode
-  const result = runConfigureImpl({ sourceDir, target: "vscode", outDir, validate: args.validate, withExtras: Boolean(args.withExtras) });
+  // 1. Build the target vscode to dist/vscode. VS Code loads that tree, so the
+  //    previous build tells whether the SDD package was installed (E1.6 d2).
+  const withSdd = resolveWithSdd(args, () => previousInstallHasSdd({ agentDirs: [path.join(outDir, "agents")], fs: fsImpl }));
+  stdout.write(sddKeptNote(args, withSdd));
+  const result = runConfigureImpl({ sourceDir, target: "vscode", outDir, validate: args.validate, withExtras: Boolean(args.withExtras), withSdd });
   if (result.validation?.stdout) stdout.write(result.validation.stdout);
   if (result.exitCode !== 0) {
     stderr.write(`\nVS Code configuration build failed with exit code ${result.exitCode}\n`);

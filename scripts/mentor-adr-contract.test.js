@@ -117,7 +117,7 @@ function tmpOut(t) {
 test("G.1 · generated claude target carries Mentorship Mode Forwarding and the ADR steps", (t) => {
   const { runConfigure } = require("./configure/cli.js");
   const out = tmpOut(t);
-  const result = runConfigure({ sourceDir: ROOT_DIR, target: "claude", outDir: out, validate: false });
+  const result = runConfigure({ sourceDir: ROOT_DIR, target: "claude", outDir: out, validate: false, withSdd: true });
 
   const orchestrator = result.files.find((f) => f.path === "skills/sdd-orchestrator/SKILL.md");
   assert.ok(orchestrator, "claude target must emit skills/sdd-orchestrator/SKILL.md");
@@ -135,7 +135,7 @@ test("G.1 · generated claude target carries Mentorship Mode Forwarding and the 
 test("G.2 · generated vscode target carries the mentorship semantics in sdd-phase-common", (t) => {
   const { runConfigure } = require("./configure/cli.js");
   const out = tmpOut(t);
-  const result = runConfigure({ sourceDir: ROOT_DIR, target: "vscode", outDir: out, validate: false });
+  const result = runConfigure({ sourceDir: ROOT_DIR, target: "vscode", outDir: out, validate: false, withSdd: true });
 
   const common = result.files.find((f) => f.path.endsWith("sdd-phase-common.md"));
   assert.ok(common, "vscode target must emit sdd-phase-common.md");

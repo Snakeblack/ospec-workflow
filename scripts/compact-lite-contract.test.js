@@ -112,7 +112,7 @@ test("compact lite generator parity holds across all seven profiles and rejects 
 
   for (const target of TARGETS) {
     const outDir = tmpOut(t);
-    const result = runConfigure({ sourceDir: ROOT, target, outDir, validate: false });
+    const result = runConfigure({ sourceDir: ROOT, target, outDir, validate: false, withSdd: true });
     assert.ok(result.files.length > 0, `${target} must generate files`);
     assertLiteConsumerContract(readTree(outDir), target);
   }

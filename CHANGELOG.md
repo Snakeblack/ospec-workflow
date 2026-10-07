@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.113.0] - 2026-10-08
+
+### Added
+- **Paquete SDD opcional (E1.6 d2, REQ-generator-025)**: las skills, los agentes (con el orquestador), los comandos `/sdd-*` y las reglas `sdd-*` solo se instalan con `--with-sdd`. Los agentes `review-*`, `skills/_shared/` y el runtime se quedan, porque IDD los usa. Por defecto, el orquestador pasa de 44–61 KB a 0, las skills instaladas de 47–48 a 31, los agentes de 22–23 a 6 y el listado de skills de Codex de 6,4 a 4,2 KB.
+- **`--with-sdd` y `--no-sdd` en los 7 instaladores e `install-target` (REQ-install-036)**: sin flag, una reinstalación conserva SDD si la instalación anterior lo traía (según su manifiesto de propiedad o su directorio de agentes) y lo avisa; `--no-sdd` lo quita. Quien instaló antes de esta versión conserva SDD al actualizar.
+- **Paquetes en el instalador TUI**: la pantalla de revisión ofrece «Modo SDD» y «Extras», que se activan con las teclas 1 y 2; el adaptador los pasa al instalador como `--with-sdd` y `--with-extras`.
+
+### Changed
+- **Router**: si se pide SDD y no está instalado, indica que hay que reinstalar con `--with-sdd`. *Always-on* sube 64 B (3,1–3,5 KB).
+- **Validadores**: Cursor, Antigravity, Copilot y OpenCode ya no exigen el directorio de comandos o prompts, que una instalación sin SDD no tiene.
+- **Banco**: construye el plugin siempre con `--with-sdd`, así que los dos brazos conservan el plugin con el que se midieron `sdd-baseline-3` e `idd-2`. `bench-margins-5` (esquema 4) cambia `candidate_digest` por `candidate_digests` y añade `hosts/claude.js` a la excepción de huella; el checkpoint de `idd-2` sigue dando `continue` (REQ-bench-005).
+- **Roadmap**: E1.6 (d2) entregado y hecho con IDD (`idd/archive/2026-10-07-sdd-optional-package/`). Lo siguiente es (d3): README y documentación de producto.
+
+### Fixed
+- Los revisores `review-*` citaban `skills/sdd-verify/SKILL.md` desde el módulo compartido que incrustan; la referencia se quita para que no apunte a un fichero ausente sin SDD.
+
+**Verificación directa**: `node scripts/check.js` (3306 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.112.0] - 2026-10-08
 
 ### Changed

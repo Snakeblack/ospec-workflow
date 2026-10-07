@@ -21,6 +21,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { runConfigure } = require("./cli.js");
 const { mutateFs } = require("./install-engine.js");
+const { parseSddFlag, previousInstallHasSdd, resolveWithSdd, sddKeptNote } = require("./sdd-package.js");
 const { renderRuntimeDir, renderSharedDir, sharedDirValue } = require("./shared-dir.js");
 
 const TARGETS = new Set(["opencode", "github-copilot"]);
@@ -142,7 +143,9 @@ function parseArgs(argv) {
     if (arg === "--dry-run") args.dryRun = true;
     else if (arg === "--no-validate") args.validate = false;
     else if (arg === "--with-extras") args.withExtras = true;
-    else if (arg === "--source") {
+    else if (parseSddFlag(arg, args)) {
+      if (args.error) throw new Error(args.error);
+    } else if (arg === "--source") {
       const value = argv[i + 1];
       if (!value || value.startsWith("--")) {
         throw new Error("--source requires a value");
@@ -296,7 +299,7 @@ function main(argv, deps = {}) {
 
   if (!TARGETS.has(args.target) || !args.dest) {
     stderr.write(
-      "usage: install-target <opencode|github-copilot> <destRepo> [--dry-run] [--no-validate] [--with-extras]\n" +
+      "usage: install-target <opencode|github-copilot> <destRepo> [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd]\n" +
         "  e.g. npm run install:opencode -- ../my-project\n",
     );
     exitCodeTarget.exitCode = 2;
@@ -314,7 +317,11 @@ function main(argv, deps = {}) {
   // Build into dist/<target>. The opencode/copilot validators are pure Node, so
   // validation is safe to run here (no external CLI needed, unlike claude).
   const outDir = path.join(sourceDir, "dist", args.target);
-  const result = runConfigureImpl({ sourceDir, target: args.target, outDir, validate: args.validate, withExtras: Boolean(args.withExtras) });
+  // A repo install has no manifest; its agents directory holds only what ospec put there.
+  const agentsDir = path.join(destDir, args.target === "opencode" ? ".opencode" : ".github", "agents");
+  const withSdd = resolveWithSdd(args, () => previousInstallHasSdd({ agentDirs: [agentsDir], fs: fsImpl }));
+  stdout.write(sddKeptNote(args, withSdd));
+  const result = runConfigureImpl({ sourceDir, target: args.target, outDir, validate: args.validate, withExtras: Boolean(args.withExtras), withSdd });
 
   if (result.validation?.stdout) stdout.write(result.validation.stdout);
   if (result.validation?.stderr) stderr.write(result.validation.stderr);

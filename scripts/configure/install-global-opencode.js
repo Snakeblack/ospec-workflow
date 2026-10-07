@@ -6,7 +6,7 @@
 // tracks ownership manifest, and prunes stale files.
 //
 // Usage:
-//   node scripts/configure/install-global-opencode.js [--dry-run] [--no-validate] [--with-extras] [--source <sourceRepo>] [--dest <targetDir>]
+//   node scripts/configure/install-global-opencode.js [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>] [--dest <targetDir>]
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -27,9 +27,10 @@ const {
   mergeJsonFile,
   syncTargetTree,
 } = require("./install-engine.js");
+const { parseSddFlag, previousInstallHasSdd, resolveWithSdd, sddKeptNote } = require("./sdd-package.js");
 
 function usage() {
-  return "usage: install-global-opencode [--dry-run] [--no-validate] [--with-extras] [--source <sourceRepo>] [--dest <targetDir>]\n";
+  return "usage: install-global-opencode [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>] [--dest <targetDir>]\n";
 }
 
 function parseArgs(argv) {
@@ -39,7 +40,9 @@ function parseArgs(argv) {
     if (arg === "--dry-run") args.dryRun = true;
     else if (arg === "--no-validate") args.validate = false;
     else if (arg === "--with-extras") args.withExtras = true;
-    else if (arg === "--source") {
+    else if (parseSddFlag(arg, args)) {
+      if (args.error) return args;
+    } else if (arg === "--source") {
       const next = argv[i + 1];
       if (!next || next.startsWith("--")) {
         args.error = "missing value for --source";
@@ -89,12 +92,15 @@ function install(argv = process.argv.slice(2), deps = {}) {
     return 1;
   }
 
+  const withSdd = resolveWithSdd(args, () => previousInstallHasSdd({ manifestRoots: [globalDir], fs: fsImpl }));
+  stdout.write(sddKeptNote(args, withSdd));
   const result = runConfigureImpl({
     sourceDir,
     target: "opencode",
     outDir,
     validate: args.validate,
     withExtras: Boolean(args.withExtras),
+    withSdd,
   });
   if (result.validation?.stdout) stdout.write(result.validation.stdout);
   if (result.validation?.stderr) stderr.write(result.validation.stderr);

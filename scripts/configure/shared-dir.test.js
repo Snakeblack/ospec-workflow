@@ -42,7 +42,7 @@ function write(root, rel, content) {
 test("every target's orchestrator names its _shared handlers through the installed location", (t) => {
   for (const [target, orchestratorPath] of Object.entries(ORCHESTRATOR_PATHS)) {
     const out = tmpDir(t);
-    const result = runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
+    const result = runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false, withSdd: true });
     const orchestrator = result.files.find((file) => file.path === orchestratorPath);
     assert.ok(orchestrator, `${target}: orchestrator missing at ${orchestratorPath}`);
     const text = String(orchestrator.content);
@@ -65,7 +65,7 @@ test("every target's orchestrator names its _shared handlers through the install
 test("only the orchestrator carries the install-time marker", (t) => {
   for (const [target, orchestratorPath] of Object.entries(ORCHESTRATOR_PATHS)) {
     const out = tmpDir(t);
-    const result = runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false });
+    const result = runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false, withSdd: true });
     const carriers = result.files.filter((file) => String(file.content).includes(SHARED_DIR_MARKER)).map((file) => file.path);
     assert.deepEqual(carriers, target === "claude" ? [] : [orchestratorPath], target);
   }
@@ -162,7 +162,7 @@ for (const [label, modulePath, agentDir, orchestratorFile] of [
     const dest = path.join(tmpDir(t, "ospec-shared-home-"), "root");
     const io = quiet();
     const { main } = require(modulePath);
-    assert.equal(main(["--source", sourceDir, "--dest", dest, "--no-validate"], io), 0, io.stderr.chunks.join(""));
+    assert.equal(main(["--source", sourceDir, "--dest", dest, "--no-validate", "--with-sdd"], io), 0, io.stderr.chunks.join(""));
     assert.ok(fs.existsSync(path.join(dest, "skills", "_shared", "gate-4r-review.md")));
     assertRendered(path.join(dest, "agents", orchestratorFile), path.join(sourceDir, "dist", label === "setup:copilot" ? "github-copilot" : "opencode", agentDir, orchestratorFile), `${posix(dest)}/skills/_shared`);
     assertRuntime(dest, posix(dest), path.join(dest, "scripts", "ospec.js"));
@@ -174,7 +174,7 @@ test("setup:antigravity renders each root's own _shared directory", (t) => {
   const dest = path.join(tmpDir(t, "ospec-shared-home-"), "config");
   const io = quiet();
   const { main } = require("./install-antigravity.js");
-  assert.equal(main(["--source", sourceDir, "--dest", dest, "--no-validate"], io), 0, io.stderr.chunks.join(""));
+  assert.equal(main(["--source", sourceDir, "--dest", dest, "--no-validate", "--with-sdd"], io), 0, io.stderr.chunks.join(""));
   assertRendered(
     path.join(dest, "agents", "sdd-orchestrator.agent.md"),
     path.join(sourceDir, "dist", "antigravity", "agents", "sdd-orchestrator.agent.md"),
@@ -190,7 +190,7 @@ test("setup:vscode renders the marker in the dist tree VS Code loads", (t) => {
   fs.mkdirSync(path.join(appData, "Code", "User"), { recursive: true });
   const io = quiet();
   const { main } = require("./install-vscode.js");
-  const code = main(["--source", sourceDir, "--no-validate"], { ...io, homedir: () => home, env: { APPDATA: appData }, platform: "win32" });
+  const code = main(["--source", sourceDir, "--no-validate", "--with-sdd"], { ...io, homedir: () => home, env: { APPDATA: appData }, platform: "win32" });
   assert.equal(code, 0, io.stderr.chunks.join(""));
   const orchestrator = fs.readFileSync(path.join(sourceDir, "dist", "vscode", "agents", "sdd-orchestrator.agent.md"), "utf8");
   assert.doesNotMatch(orchestrator, /__OSPEC_SHARED_DIR__/);
@@ -206,7 +206,7 @@ for (const target of ["opencode", "github-copilot"]) {
     const io = quiet();
     const exitCodeTarget = {};
     const { main } = require("./install-target.js");
-    main([target, repo, "--source", sourceDir, "--no-validate"], { ...io, exitCodeTarget });
+    main([target, repo, "--source", sourceDir, "--no-validate", "--with-sdd"], { ...io, exitCodeTarget });
     assert.equal(exitCodeTarget.exitCode, undefined, io.stderr.chunks.join(""));
     const orchestratorRel = target === "opencode" ? ".opencode/agents/ospec-workflow.md" : ".github/agents/sdd-orchestrator.agent.md";
     assertRendered(path.join(repo, orchestratorRel), path.join(sourceDir, "dist", target, orchestratorRel), "skills/_shared");
