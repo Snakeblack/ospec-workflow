@@ -1,6 +1,6 @@
 ---
 name: idd
-description: "Impact-driven development protocol: run a code change through the ospec CLI, which derives its obligations and decides when it is done. Trigger: a code change in a project in IDD mode."
+description: "Impact-driven development protocol: run a code change through the ospec CLI, which derives its obligations and decides when it is done. Trigger: a code change, unless SDD is requested or mode: sdd."
 license: Apache-2.0
 metadata:
   author: manuel-retamozo-garcia
@@ -9,8 +9,8 @@ metadata:
 
 ## When to Use
 
-Load this skill once, when the router sends a code change here (IDD mode). It
-is the whole protocol: there are no phases, no proposal and no specs to write
+Load this skill once, when the router sends a code change here (IDD is the
+default). It is the whole protocol: there are no phases, no proposal and no specs to write
 first. Questions, explanations and read-only work need no change and do not
 use it.
 

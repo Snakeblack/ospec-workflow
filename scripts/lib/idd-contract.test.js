@@ -129,12 +129,12 @@ test("state schema, layout and living-doc template named in the spec match the m
 // Mode resolution (REQ-idd-001)
 // ---------------------------------------------------------------------------
 
-test("mode resolves change > project > default sdd", () => {
-  assert.strictEqual(contract.DEFAULT_MODE, "sdd");
+test("mode resolves change > project > default idd", () => {
+  assert.strictEqual(contract.DEFAULT_MODE, "idd");
   assert.strictEqual(contract.resolveMode({ changeMode: "idd", projectMode: "sdd" }), "idd");
   assert.strictEqual(contract.resolveMode({ changeMode: "sdd", projectMode: "idd" }), "sdd");
   assert.strictEqual(contract.resolveMode({ projectMode: "idd" }), "idd");
-  assert.strictEqual(contract.resolveMode({}), "sdd");
+  assert.strictEqual(contract.resolveMode({}), "idd");
   assert.throws(() => contract.resolveMode({ changeMode: "lite" }), /unknown mode/);
 });
 

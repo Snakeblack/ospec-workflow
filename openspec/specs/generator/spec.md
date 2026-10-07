@@ -920,7 +920,7 @@ The generator MUST keep the skills of the optional extras package (`EXTRA_SKILLS
 
 ### Requirement: Router Is The Only Always-On Entry To SDD {#REQ-generator-022}
 
-Every target MUST emit `rules/ospec-router.instructions.md` as a global rule: the router says that SDD runs only when the user invokes a `/sdd-*` command or asks for spec-driven work explicitly, and names the host's own orchestrator through the `{{orchestrator-entry}}` placeholder, which the generator replaces with `profile.orchestrator.entry` (a skill on Claude and Codex) or, by default, the orchestrator agent under the name the host gives it. No placeholder MAY survive in the output.
+Every target MUST emit `rules/ospec-router.instructions.md` as a global rule: the router says that code changes go through IDD by default (REQ-generator-024) and that SDD runs only when the user invokes a `/sdd-*` command or asks for spec-driven work explicitly, and names the host's own orchestrator through the `{{orchestrator-entry}}` placeholder, which the generator replaces with `profile.orchestrator.entry` (a skill on Claude and Codex) or, by default, the orchestrator agent under the name the host gives it. No placeholder MAY survive in the output.
 
 Claude and Codex give their global rules a file of their own (`rules.globalFile`): `global-instructions/CLAUDE.md` on Claude, because a plugin never loads a root `CLAUDE.md` and its validator rejects one, and `AGENTS.md` on Codex. Every other always-active rule joins the orchestrator, and Codex emits the orchestrator as the `skills/sdd-orchestrator/SKILL.md` skill, never as `AGENTS.md`. A Codex command routed to the orchestrator MUST tell the model to load that skill, since there is no orchestrator agent to spawn.
 
@@ -958,7 +958,7 @@ The orchestrator reads its `_shared` handlers on demand, and a consumer project 
 
 Every target MUST ship the IDD protocol as the `skills/idd/SKILL.md` skill, at most 12 KB, loaded on demand like any other skill. The protocol works the change through the `ospec` CLI (REQ-idd-011 to REQ-idd-017): it follows `ospec next`, records evidence only through `ospec run`, `ospec check` and `ospec review`, stops for the user only at the four gates of REQ-idd-008, asks the open facts of REQ-idd-018 in one batch before building, and names `work-unit-commits`, `branch-pr` and `chained-pr` for delivery, which stays the user's decision. It names the CLI through the `{{ospec-cli}}` placeholder, which the generator replaces in `skills/**` with `profile.idd.ospecCli` when the host substitutes a path itself (`${CLAUDE_SKILL_DIR}/../../scripts/ospec.js` on Claude, whose plugin ships the runtime `scripts/` at its root) and otherwise with `__OSPEC_RUNTIME_DIR__/scripts/ospec.js`, which the installer renders (REQ-install-035). Every target MUST ship `scripts/ospec.js`, and no other generated file MAY carry `__OSPEC_RUNTIME_DIR__`.
 
-The router (REQ-generator-022) MUST also send code changes to the protocol when `idd/config.yaml` sets `mode: idd`, naming it through the `{{idd-entry}}` placeholder, which the generator replaces in `rules/**` with `profile.idd.entry` (the skill `ospec-workflow:idd` on Claude) or, by default, the skill `idd`. Without `mode: idd`, the router keeps the behavior of REQ-generator-022 until E1.6 changes the default, and SDD stays reachable through `/sdd-*` or an explicit request.
+The router (REQ-generator-022) MUST send code changes that are not SDD requests to the protocol by default, the IDD default of REQ-idd-001, naming it through the `{{idd-entry}}` placeholder, which the generator replaces in `rules/**` with `profile.idd.entry` (the skill `ospec-workflow:idd` on Claude) or, by default, the skill `idd`. Questions and read-only work stay direct, and a change is made directly only when the user explicitly asks for it without IDD; the router never offers that. With `mode: sdd` in `idd/config.yaml`, IDD is off: code changes are made directly and SDD runs only on request, as before E1.6. SDD stays reachable through `/sdd-*` or an explicit request, and SDD changes in flight finish in SDD.
 
 #### Scenario: The protocol names the installed CLI
 
@@ -966,8 +966,8 @@ The router (REQ-generator-022) MUST also send code changes to the protocol when 
 - WHEN `skills/idd/SKILL.md` is read
 - THEN it is at most 12 KB, holds no unresolved placeholder, runs `node "${CLAUDE_SKILL_DIR}/../../scripts/ospec.js"` on Claude and `node "__OSPEC_RUNTIME_DIR__/scripts/ospec.js"` elsewhere, and the build ships `scripts/ospec.js`
 
-#### Scenario: The router enters IDD only in IDD mode
+#### Scenario: The router enters IDD by default
 
 - GIVEN the same builds
 - WHEN the router is read
-- THEN it names `mode: idd` and the host's IDD entry, still names `/sdd-*` for SDD, and only `skills/idd/SKILL.md` carries `__OSPEC_RUNTIME_DIR__` (nothing on Claude)
+- THEN it sends code changes to the host's IDD entry by default without naming `mode: idd`, turns IDD off with `mode: sdd` in `idd/config.yaml`, allows direct work only when the user explicitly asks for a change without IDD, still names `/sdd-*` for SDD, and only `skills/idd/SKILL.md` carries `__OSPEC_RUNTIME_DIR__` (nothing on Claude)

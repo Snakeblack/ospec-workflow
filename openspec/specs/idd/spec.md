@@ -15,7 +15,7 @@ shares the repository with IDD. The machine-readable catalog lives in
 
 Each change MUST run in exactly one mode, `idd` or `sdd`. The mode MUST resolve
 from the change's own `mode`, else from `mode` in `idd/config.yaml`
-(REQ-idd-013), else from the default, which is `sdd` until E1.6 makes IDD the
+(REQ-idd-013), else from the default, which is `idd` since E1.6 made IDD the
 default entry. A change MUST keep the mode it started with until it is
 closed or archived. IDD tooling MUST NOT read or write `openspec/changes/`, and
 SDD tooling MUST NOT treat `idd/` as holding SDD changes. No SDD requirement
@@ -28,12 +28,12 @@ changes because IDD exists.
 - WHEN the mode of that change is resolved
 - THEN it MUST resolve to `idd`
 
-#### Scenario: Absent configuration keeps SDD before E1.6
+#### Scenario: Absent configuration resolves to IDD
 
 - GIVEN a project without `mode` in `idd/config.yaml` and a new change without
-  `mode`
+  `mode`, even when the project has an `openspec/` directory
 - WHEN its mode is resolved
-- THEN it MUST resolve to `sdd`
+- THEN it MUST resolve to `idd`
 
 #### Scenario: SDD changes in flight are untouched
 
