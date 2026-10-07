@@ -12,14 +12,17 @@ El repositorio mantiene dos manifiestos sincronizados: `.plugin.json` es el mani
 
 | Area | Fuente | Que proporciona |
 | --- | --- | --- |
-| Agentes | `agents/` | Orquestacion SDD y agentes de fase. |
-| Archivos prompt | `commands/*.prompt.md` | Archivos prompt visibles para el usuario, como `/sdd-new`, `/sdd-apply` y `/sdd-verify`. |
-| Skills | `skills/` | Reglas reutilizables para fases SDD, revisiones, commits, documentacion y flujos relacionados. |
+| Protocolo IDD | `skills/idd/` y `scripts/ospec.js` | El flujo por defecto: el router manda cada cambio de código a la skill `idd`, que lo lleva con el CLI `ospec` hasta que `ospec close` termina bien. |
+| Agentes | `agents/` | Los revisores de solo lectura `review-*` que comparten IDD y SDD; con el paquete SDD, el orquestador y los agentes de fase `sdd-*`. |
+| Archivos prompt | `commands/*.prompt.md` | Con el paquete SDD, los archivos prompt `/sdd-*`, como `/sdd-new`, `/sdd-apply` y `/sdd-verify`. |
+| Skills | `skills/` | Reglas reutilizables para IDD, revisiones, commits, documentacion y flujos relacionados; con el paquete SDD, las fases SDD. |
 | Instrucciones | `rules/` | Archivos de instrucciones incluidos en el plugin y generados por el flujo de creacion de plugins de VS Code. |
 | Servidores MCP | `.mcp.json` | Configuracion de los servidores MCP: Context7 (docs de librerias, usa `CONTEXT7_API_KEY`) y MarkItDown (conversion de documentos). |
 | Hooks | `hooks/hooks.json` y `scripts/hooks/` | Scripts locales de Node.js para persistencia de sesion, validacion de uso de herramientas y comprobaciones de artefactos OpenSpec. |
 
 El directorio `.github/instructions/` es solo un espejo del workspace para archivos de instruccion. Las reglas incluidas en el plugin viven en `rules/`.
+
+Las builds generadas y los instaladores dejan fuera el paquete SDD (skills, agentes, comandos y reglas `sdd-*`) salvo que pases `--with-sdd`; ver [Paquete opcional SDD](#paquete-opcional-sdd-todos-los-targets). Cargar este repositorio directamente en VS Code (Opción A) carga todo el source, SDD incluido.
 
 ## Como instalar desde el origen
 
@@ -215,15 +218,14 @@ Verificacion dentro de Claude Code:
 
 ```text
 /plugin
-/sdd-new
-/sdd-verify
+/ospec-workflow:idd <petición>
 ```
 
 Resultado esperado:
 
 - `ospec-workflow` aparece habilitado durante esa sesion.
-- Los comandos `/sdd-new`, `/sdd-lite`, `/sdd-continue`, `/sdd-apply`, `/sdd-verify` y `/sdd-archive` estan disponibles.
-- El orquestador aparece como skill namespaced del plugin.
+- La skill `idd` aparece como skill namespaced del plugin. `--plugin-dir` no instala el bloque del router, así que se entra en IDD con `/ospec-workflow:idd`.
+- Con `--with-sdd` en la build, los comandos `/sdd-new`, `/sdd-lite`, `/sdd-continue`, `/sdd-apply`, `/sdd-verify` y `/sdd-archive` estan disponibles y el orquestador aparece como skill namespaced.
 
 ### Claude Code: instalacion persistente con marketplace local
 
@@ -272,7 +274,7 @@ Resultado esperado:
 
 - El marketplace `ospec-tools` aparece registrado.
 - El plugin `ospec-workflow@ospec-tools` aparece instalado y habilitado.
-- Los comandos SDD y el skill del orquestador estan disponibles sin usar `--plugin-dir`.
+- La skill `idd` esta disponible sin usar `--plugin-dir`; con `node scripts/configure/claude-marketplace.js --with-sdd`, tambien los comandos SDD y el skill del orquestador.
 
 #### Nota para PowerShell
 
@@ -461,6 +463,11 @@ Este instalador idempotente:
 5. Copia el binario `ospec-hooks` a `~/.cursor/scripts/hooks/` cuando existe en `release/dist/`.
 6. `--dry-run` valida y no escribe nada bajo `~/.cursor`.
 
+## Paquete opcional SDD (todos los targets)
+El modo SDD (las skills y agentes `sdd-*` con el orquestador, los comandos `/sdd-*` y las reglas `sdd-*`) no se instala por defecto. Añade `--with-sdd` a cualquier instalador o build para incluirlo (`npm run setup:claude -- --with-sdd`, `node scripts/configure/install-codex.js --with-sdd`, `node scripts/configure/cli.js --target claude --with-sdd`); el instalador TUI lo ofrece como paquete «Modo SDD». Una reinstalación sin el flag conserva SDD si la instalación anterior lo traía (según su manifiesto de propiedad o su directorio de agentes) y lo avisa; `--no-sdd` lo quita, y los dos flags juntos son un error de uso. Los agentes `review-*`, `skills/_shared/` y el runtime se quedan en toda instalación porque IDD los usa. Si pides SDD sin el paquete, el router te pide reinstalar con `--with-sdd`.
+
+El marketplace de Claude publicado en la rama `release` es la build por defecto, sin SDD. Para usar SDD en Claude Code, instala desde un checkout con `npm run setup:claude -- --with-sdd`.
+
 ## Paquete opcional de extras (todos los targets)
 `issue-creation`, `comment-writer`, `gh-release-notes`, `judgment-day`, `caveman-compress` y `stack-webmcp` no se instalan por defecto. Añade `--with-extras` a cualquier instalador para incluirlas (`npm run setup:claude -- --with-extras`, `node scripts/configure/install-codex.js --with-extras`). Cada instalación elimina lo que la nueva build ya no trae, así que volver a ejecutar un instalador sin el flag las desinstala.
 
@@ -469,7 +476,7 @@ Cada `npm run setup:<target>` (Claude, Codex, Antigravity, opencode, Cursor, VS 
 - **Claude Code en Windows**: una sonda corta de fork en Git Bash decide si se puede desactivar el modo seguro del hook oficial (`ENGRAM_CLAUDE_WINDOWS_BASH_SAFE_MODE=0` en `~/.claude/settings.json`). Ese modo seguro desactiva la captura de prompts y los recordatorios de guardado. Si ya tienes un valor, nunca se sobrescribe. Los hooks oficiales necesitan bash, jq y curl.
 - **Codex**: el instalador comprueba además `codex-register`, `codex-resolve` y `codex-session-end` con entrada vacía y un timeout de tres segundos por comando. Comprueba compatibilidad del binario sin crear sesiones. La presencia de plugin/MCP y el soporte de esos comandos no confirman el registro de la sesión real. Si un comando no está soportado o no se puede comprobar, se omite el setup y el diagnóstico identifica el comando y su código de salida o error de ejecución. Usa un binario upstream compatible, ejecuta `engram setup codex` en el `CODEX_HOME` activo (incluido el runtime home gestionado por el host) y reinicia o reanuda Codex. Comprueba que `SessionStart` entrega una identidad registrada antes de guardar memoria atribuida al agente; nunca sustituyas el ID de sesión. Engram 3.0.0 con plugin 0.1.5 fallaba esta comprobación en Windows; actualizar el binario y el servidor a [3.2.1](https://github.com/Gentleman-Programming/engram/releases/tag/v3.2.1) restauró la confirmación del hook en la instalación probada. Los límites de verificación están en la [evidencia de la issue #264](testing/engram-codex-runtime.tdd.md).
 - **Cursor**: Cursor no lee reglas globales desde disco, así que hay que pegar una vez `~/.cursor/engram-memory-protocol.md` en Settings → Rules → User Rules.
-- Todos los targets llevan el mismo addendum de memoria SDD, neutral respecto al host. Engram no es autoritativo: OpenSpec y `state.yaml` siguen siendo la fuente de verdad.
+- Todos los targets llevan el mismo addendum de memoria SDD, neutral respecto al host. Engram no es autoritativo: `idd/` y el estado de OpenSpec en disco siguen siendo la fuente de verdad.
 
 Si aparece `Hook failed` de forma recurrente, captura desde el host el evento, comando, código de salida y stderr del hook. Un aviso global de `engram doctor --json` no identifica el hook fallido ni confirma el registro de la sesión actual.
 
@@ -520,8 +527,9 @@ compatible no bloquea la instalación.
 | Faltan la UI de Agent Plugins | La vista previa de Agent Plugins no esta disponible o la politica la deshabilita. | Confirma que tu version de VS Code soporta Agent Plugins y revisa la politica de tu organizacion. |
 | El plugin no aparece desde `chat.pluginLocations` | La ruta apunta a la carpeta equivocada o VS Code no se ha recargado. | Apunta a la raiz del repositorio que contiene `.plugin.json` y luego recarga VS Code. |
 | Faltan los archivos prompt | El plugin esta deshabilitado o no se cargaron los activos prompt. | Confirma que `.plugin.json` referencia `commands/` y que el plugin esta habilitado. |
-| Falta `sdd-orchestrator` | No se cargaron los activos de agentes. | Confirma que `.plugin.json` referencia `agents/` y que la vista de Agent Plugins no muestra errores. |
-| Los skills parecen no estar disponibles | No se cargaron los activos de skills o la peticion no activo un skill. | Confirma que `.plugin.json` referencia `skills/` y vuelve a probar con una peticion SDD. |
+| Falta `sdd-orchestrator` o `/sdd-*` | La instalación se construyó sin el paquete SDD, o no se cargaron los activos de agentes. | Reinstala con `--with-sdd`; si no, confirma que `.plugin.json` referencia `agents/` y que la vista de Agent Plugins no muestra errores. |
+| Los skills parecen no estar disponibles | No se cargaron los activos de skills o la peticion no activo un skill. | Confirma que `.plugin.json` referencia `skills/` y vuelve a probar con una peticion de cambio de código (IDD) o una peticion SDD. |
+| `ospec check` dice que no hay checks declarados | `idd/config.yaml` no tiene sección `checks:`. | Declara una vez los checks del proyecto, por ejemplo `checks:` con `test: npm test`. |
 | Falta el servidor MCP | MCP esta deshabilitado, bloqueado por la politica o no esta disponible en la version actual. | Revisa los ajustes de MCP/herramientas, la politica de la organizacion, Node.js/`npx` (Context7) y `uv`/`uvx` (MarkItDown). |
 | Context7 pide una clave | Hace falta `CONTEXT7_API_KEY`. | Proporcionala desde el prompt de VS Code cuando confies en la ejecucion del servidor. |
 | Falla la ejecucion del hook | Problema con Node.js, resolucion de rutas o politica de scripts. | Confirma que Node.js esta en `PATH`, revisa `hooks/hooks.json`, la resolucion de `${PLUGIN_ROOT}` y los scripts de `scripts/hooks/`. |

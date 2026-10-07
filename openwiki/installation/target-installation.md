@@ -30,6 +30,16 @@ npm run install:opencode -- /ruta/a/tu/proyecto
 
 ---
 
+Por defecto se instala IDD: el router, la skill `idd`, el CLI `ospec` con su runtime y los revisores `review-*`. Para incluir también el modo SDD, añade `--with-sdd` a cualquier instalador:
+
+```bash
+npm run setup:claude -- --with-sdd
+```
+
+Una reinstalación sin el flag conserva SDD si la instalación anterior lo traía y lo avisa; `--no-sdd` lo quita. El marketplace de Claude publicado en la rama `release` es la build por defecto, sin SDD. El instalador TUI (`npm run setup:tui`) ofrece SDD como paquete «Modo SDD».
+
+---
+
 ## Cómo Funciona la Instalación en Cada Plataforma
 
 ```mermaid

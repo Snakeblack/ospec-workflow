@@ -1,5 +1,7 @@
 # Roadmap del Harness: De la Base a la Madurez Total (K1 a K12)
 
+> **Histórico.** Esta página describe el programa K1–K12, ya archivado. La dirección vigente es el [roadmap único](https://github.com/snakeblack/ospec-workflow/blob/main/docs/roadmaps/harness-evolution.md), que desde la v2.112.0 hace de IDD el flujo por defecto y de SDD un modo opcional.
+
 > **En pocas palabras:** El desarrollo de `ospec-workflow` sigue una ruta por etapas estrictamente verificadas (denominadas **K1** a **K12**). Cada hito resuelve un problema real concreto, pasando de un sistema con reglas fijas hacia una plataforma autónoma con garantías matemáticas de seguridad y calidad.
 
 ---

@@ -77,6 +77,8 @@ test("claude: install-claude forwards --with-extras to the marketplace build", (
 test("claude: the marketplace builder forwards withExtras to runConfigure", () => {
   const { buildClaudeMarketplace } = require("./claude-marketplace.js");
   const box = sandbox();
+  fs.mkdirSync(path.join(box.source, ".claude-plugin"));
+  fs.writeFileSync(path.join(box.source, ".claude-plugin", "plugin.json"), JSON.stringify({ description: "d" }));
   const seen = [];
   const runConfigure = (options) => {
     seen.push(options.withExtras);

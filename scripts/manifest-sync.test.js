@@ -56,6 +56,17 @@ test("package.json version matches the plugin manifest version", () => {
   );
 });
 
+// REQ-install-037: IDD is the default workflow, so every published description
+// leads with it and names SDD as the optional mode.
+test("package.json and the plugin manifest publish one IDD-first description", () => {
+  const manifestDescription = readJson(CANONICAL).description;
+  const packageDescription = readJson(PACKAGE_JSON).description;
+
+  assert.equal(packageDescription, manifestDescription, "package.json description must match .plugin.json");
+  assert.match(manifestDescription, /^Impact-driven development \(IDD\)/, "the description must lead with IDD");
+  assert.match(manifestDescription, /optional Spec-Driven Development \(SDD\) mode/, "the description must name SDD as optional");
+});
+
 test("openspec/config.yaml version matches the plugin manifest version", () => {
   const manifestVersion = readJson(CANONICAL).version;
   const configText = fs.readFileSync(OPENSPEC_CONFIG, "utf8");

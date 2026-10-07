@@ -1,0 +1,104 @@
+{
+  "schema": "idd-state/v1",
+  "change": "idd-default-docs",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "El README y la documentación de producto presentan IDD como flujo por defecto y SDD como modo opcional instalado con --with-sdd (E1.6 d3), y una prueba real comprueba el hecho-cuando de E1.6",
+    "acceptance": "README en inglés y español, guía de instalación y docs/en/README describen IDD (ospec next/check/close, gates, idd/) como flujo por defecto, --with-sdd/--no-sdd y mode: sdd; una instalación por defecto crea y cierra un cambio IDD con documento vivo sin cargar SDD en una prueba real; E1.6 pasa a done"
+  },
+  "facts": {
+    "open": [
+      "Alcance: ¿README (en/es), guías de instalación (en/es), docs/en/README y el índice docs/README? ¿La web Starlight (web-doc) entra aquí o queda para E5.3?",
+      "Posicionamiento: ¿cambio el lema y las descripciones de package.json, .plugin.json y .claude-plugin de «Spec-Driven Development workflow» a uno centrado en IDD con SDD como modo?",
+      "Prueba real del hecho-cuando: ¿solo Claude Code headless con la build por defecto (Sonnet, unos 0,15 USD) o también otro target?"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches .claude-plugin/plugin.json and 1 more (matches .claude-plugin/**)",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "1) Todo, incluida la web Starlight (web-doc). 2) Sí, posicionamiento IDD primero en el lema y en las descripciones de package.json, .plugin.json y .claude-plugin. 3) Smoke real solo con Claude headless (build por defecto, Sonnet).",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-07T23:36:54.986Z",
+      "detail": {
+        "tree": "sha256:6fc1cc34b2d50740121a0b71bb3fd9342fb0fd13f6ff9cb5844b07ad4c12e933",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-07T23:36:54.986Z",
+      "detail": {
+        "tree": "sha256:6fc1cc34b2d50740121a0b71bb3fd9342fb0fd13f6ff9cb5844b07ad4c12e933",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/install/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/claude-marketplace.test.js",
+          "scripts/configure/with-extras.test.js",
+          "scripts/configure/with-sdd.test.js",
+          "scripts/eje-def-contract.test.js",
+          "scripts/manifest-sync.test.js"
+        ]
+      }
+    }
+  ],
+  "base": "6a76c67fb70575444e0275f9bb40e567a15cfa98",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e731d073b2d826bb71987337ced116e2cbffb46810b90fcdfccd1d2d7199eb95",
+      "tree": "sha256:6fc1cc34b2d50740121a0b71bb3fd9342fb0fd13f6ff9cb5844b07ad4c12e933",
+      "recorded_at": "2026-10-07T23:36:54.986Z"
+    }
+  ],
+  "closed_at": "2026-10-07T23:37:10.882Z"
+}

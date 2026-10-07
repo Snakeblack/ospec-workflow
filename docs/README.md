@@ -12,7 +12,19 @@ El [`README.md`](../README.md) de la raíz presenta el harness y el inicio rápi
 | [adr/](adr/) | Decisiones tomadas en changes archivados. E2.6 las reclasifica. |
 | [roadmaps/archive/](roadmaps/archive/) | Roadmap y arquitectura del programa K1–K12. Historia, nunca estado vigente. |
 
-## Metodología y ciclo SDD
+## IDD, el flujo por defecto
+
+IDD (desarrollo guiado por impacto) es el flujo por defecto desde E1.6: el router manda cada cambio de código a la skill `idd`, que lo lleva con el CLI `ospec` (`node scripts/ospec.js`) hasta que `ospec close` lo archiva en `idd/archive/`. Las señales de impacto del cambio deciden sus obligaciones, y solo la evidencia de ejecuciones que observa el CLI las satisface.
+
+| Documento | Para qué sirve |
+| --- | --- |
+| [README.es.md](../README.es.md#idd-obligaciones-según-el-impacto-evidencia-de-ejecuciones-reales) | Señales, obligaciones, gates e inicio rápido. |
+| [openspec/specs/idd/spec.md](../openspec/specs/idd/spec.md) | Contrato IDD: modos, señales, obligaciones, gates y el CLI `ospec`. |
+| [skills/idd/SKILL.md](../skills/idd/SKILL.md) | El protocolo que sigue el agente. |
+
+## Modo SDD opcional: metodología y ciclo
+
+SDD se instala con `--with-sdd` y entra solo con un comando `/sdd-*` o una petición explícita.
 
 | Documento | Para qué sirve |
 | --- | --- |

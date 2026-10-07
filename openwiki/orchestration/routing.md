@@ -1,6 +1,21 @@
 # Orquestación de Fases y Rutas SDD
 
-> **En pocas palabras:** No todos los cambios en un proyecto son iguales: arreglar una errata no requiere el mismo proceso que diseñar una arquitectura desde cero. El **orquestador** analiza lo que quieres hacer y elige automáticamente la ruta más rápida y segura para tu caso, asegurando que solo se ejecuten los pasos necesarios.
+> **En pocas palabras:** No todos los cambios en un proyecto son iguales: arreglar una errata no requiere el mismo proceso que diseñar una arquitectura desde cero. En el modo SDD, el **orquestador** analiza lo que quieres hacer y elige automáticamente la ruta más rápida y segura para tu caso, asegurando que solo se ejecuten los pasos necesarios.
+
+---
+
+## Antes del orquestador: el router
+
+Cada instalador añade un router pequeño a las instrucciones que el asistente carga siempre. Decide qué flujo sigue cada petición:
+
+| Petición | Flujo |
+|---|---|
+| Un cambio de código | **IDD**, el flujo por defecto: la skill `idd` lo lleva con el CLI `ospec` hasta `ospec close`. |
+| Una pregunta, una explicación o trabajo de solo lectura | Directo, sin cambio registrado. |
+| Un comando `/sdd-*` o «hazme un SDD para X» | **SDD**: el orquestador de esta página, si el paquete se instaló con `--with-sdd`. |
+| Un proyecto con `mode: sdd` en `idd/config.yaml` | IDD apagado: trabajo directo y SDD solo bajo petición. |
+
+Los cambios SDD en curso terminan en SDD. El resto de esta página describe el modo SDD.
 
 ---
 
@@ -49,7 +64,5 @@ El orquestador consulta la tabla de rutas de `openspec/config.yaml` y activa la 
 En puntos críticos de la ruta, el orquestador aplica compuertas de calidad automáticas:
 
 1. **Gate de Aclaración (`clarify`):** Si la especificación tiene contradicciones o ambigüedades graves, el sistema se detiene y realiza preguntas puntuales al usuario antes de permitir el diseño técnico.
-2. **Gate de Revisión 4R (`4r-review-gate`):** Tras verificar el código, un evaluador generalista examina el cambio y convoca a los especialistas necesarios:
-   - *Cambios normales:* Hasta **2 revisores** enfocados.
-   - *Cambios de alto riesgo (seguridad, pagos, auth):* Los **4 revisores especializados** (Riesgo, Legibilidad, Fiabilidad y Resiliencia).
+2. **Gate de revisión de calidad (`quality-review-gate`):** Tras verificar el código, una clasificación determinista elige qué dimensiones revisar (Confianza, Runtime, Evolución y Eficiencia), y cada revisor seleccionado actúa una sola vez dentro de un linaje de revisión acotado.
 3. **Límite de Carga de Revisión (`review-workload`):** Advierte si un cambio supera las **400 líneas modificadas**, recomendando dividirlo en entregas encadenadas para proteger la atención del revisor humano.

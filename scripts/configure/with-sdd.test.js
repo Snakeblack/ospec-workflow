@@ -145,6 +145,7 @@ test("claude: install-claude forwards --with-sdd, keeps a previous SDD build and
 test("claude: the marketplace builder forwards withSdd to runConfigure, and its CLI accepts --with-sdd", () => {
   const { buildClaudeMarketplace, parseArgs } = require("./claude-marketplace.js");
   const box = sandbox();
+  write(path.join(box.source, ".claude-plugin", "plugin.json"), JSON.stringify({ description: "d" }));
   const seen = [];
   const runConfigure = (options) => {
     seen.push(options.withSdd);
