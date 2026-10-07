@@ -37,6 +37,9 @@ const OPEN_BUG = [
   "Fix the last page.",
   "--acceptance",
   "Two full pages.",
+  "--no-open-facts",
+  "--basis",
+  "The request fixes every behavior.",
   "--json",
 ];
 
@@ -96,6 +99,27 @@ test("signals, gates and refused withdrawals flow through record", (t) => {
   );
   assert.strictEqual(resolved.code, 0, resolved.stderr);
   assert.strictEqual(resolved.json.next.pending_decision, null);
+});
+
+test("record intent needs the open-facts declaration, and open facts are asked first", (t) => {
+  const root = tempRoot(t);
+  const base = ["record", "intent", "--change", "discount-codes", "--kind", "feature", "--summary", "Discount codes.", "--acceptance", "VERANO10 takes 10%."];
+  const undeclared = ospec(root, ...base, "--json");
+  assert.strictEqual(undeclared.code, 1);
+  assert.strictEqual(undeclared.json.error.code, "facts-undeclared");
+
+  const opened = ospec(root, ...base, "--open-fact", "Is an unknown code an error?", "--open-fact", "Does case matter?", "--json");
+  assert.strictEqual(opened.code, 0, opened.stderr);
+  assert.deepStrictEqual(opened.json.next.next_step, { action: "resolve-gate", gate: "open-facts" });
+  assert.deepStrictEqual(opened.json.next.pending_decision.questions, ["Is an unknown code an error?", "Does case matter?"]);
+
+  const text = ospec(root, "next", "--change", "discount-codes");
+  assert.match(text.stdout, /Is an unknown code an error?/);
+  assert.match(text.stdout, /Does case matter?/);
+
+  const resolved = ospec(root, "record", "gate", "--change", "discount-codes", "--gate", "open-facts", "--resolve", "--answer", "It throws; case does not matter.", "--source", "user", "--json");
+  assert.strictEqual(resolved.code, 0, resolved.stderr);
+  assert.strictEqual(resolved.json.next.next_step.obligation, "checks-pass");
 });
 
 test("an ambiguous intent is recorded with its gate and next asks to resolve it", (t) => {
@@ -203,7 +227,7 @@ test("signals --diff adds diff signals and opens the irreversible gate", (t) => 
   git("add", "-A");
   git("commit", "-q", "--no-verify", "-m", "base");
 
-  ospec(root, "record", "intent", "--change", "drop-fax", "--kind", "refactor", "--summary", "Drop fax.", "--acceptance", "No fax reads.");
+  ospec(root, "record", "intent", "--change", "drop-fax", "--kind", "refactor", "--summary", "Drop fax.", "--acceptance", "No fax reads.", "--no-open-facts", "--basis", "The request fixes every behavior.");
   writeFile(root, "db/migrations/003_drop_fax.sql", "ALTER TABLE customers DROP COLUMN fax_number;\n");
 
   const result = ospec(root, "signals", "--change", "drop-fax", "--diff", "--json");
@@ -266,7 +290,7 @@ function stateOf(root, change) {
   return JSON.parse(fs.readFileSync(path.join(root, "idd", change, "state.yaml"), "utf8"));
 }
 
-const OPEN_DOCS = ["record", "intent", "--change", "fix-readme", "--kind", "docs", "--summary", "Fix a typo.", "--acceptance", "No typo."];
+const OPEN_DOCS = ["record", "intent", "--change", "fix-readme", "--kind", "docs", "--summary", "Fix a typo.", "--acceptance", "No typo.", "--no-open-facts", "--basis", "The request fixes every behavior."];
 
 test("record intent stores the change base commit", (t) => {
   const { root, git } = project(t);
@@ -324,7 +348,7 @@ test("check without declared checks reports what is missing", (t) => {
 
 test("check recomputes the signals from the diff: touching a migration adds its obligation", (t) => {
   const { root } = project(t);
-  ospec(root, "record", "intent", "--change", "add-index", "--kind", "feature", "--summary", "Faster search.", "--acceptance", "Search under 50 ms.");
+  ospec(root, "record", "intent", "--change", "add-index", "--kind", "feature", "--summary", "Faster search.", "--acceptance", "Search under 50 ms.", "--no-open-facts", "--basis", "The request fixes every behavior.");
   writeFile(root, "src/pages.txt", "2");
   writeFile(root, "db/migrations/004_add_index.sql", "CREATE INDEX customers_name ON customers (name);\n");
 
@@ -395,7 +419,7 @@ test("check stops at an ambiguous intent without running anything, and needs git
 
 test("check satisfies the contract obligation once the diff touches a contract document and a test", (t) => {
   const { root } = project(t);
-  ospec(root, "record", "intent", "--change", "page-size", "--kind", "feature", "--summary", "Allow 50 per page.", "--acceptance", "size=50 works.");
+  ospec(root, "record", "intent", "--change", "page-size", "--kind", "feature", "--summary", "Allow 50 per page.", "--acceptance", "size=50 works.", "--no-open-facts", "--basis", "The request fixes every behavior.");
   writeFile(root, "src/pages.txt", "2");
   writeFile(root, "src/api/orders.js", "module.exports = { maxSize: 50 };\n");
 
@@ -417,7 +441,7 @@ test("check satisfies the contract obligation once the diff touches a contract d
 
 test("the project declares where its contract documents live", (t) => {
   const { root } = project(t, { checks: "checks:\n  test: node verify.js\ncontracts:\n  documents:\n    - specs/**\n" });
-  ospec(root, "record", "intent", "--change", "page-size", "--kind", "feature", "--summary", "Allow 50 per page.", "--acceptance", "size=50 works.");
+  ospec(root, "record", "intent", "--change", "page-size", "--kind", "feature", "--summary", "Allow 50 per page.", "--acceptance", "size=50 works.", "--no-open-facts", "--basis", "The request fixes every behavior.");
   writeFile(root, "src/pages.txt", "2");
   writeFile(root, "src/api/orders.js", "module.exports = { maxSize: 50 };\n");
   writeFile(root, "specs/orders.md", "size up to 50\n");
@@ -427,7 +451,7 @@ test("the project declares where its contract documents live", (t) => {
 
 test("a passing migration test with its plan satisfies the migration obligation until the tree changes", (t) => {
   const { root } = project(t);
-  ospec(root, "record", "intent", "--change", "add-index", "--kind", "feature", "--summary", "Faster search.", "--acceptance", "Search under 50 ms.");
+  ospec(root, "record", "intent", "--change", "add-index", "--kind", "feature", "--summary", "Faster search.", "--acceptance", "Search under 50 ms.", "--no-open-facts", "--basis", "The request fixes every behavior.");
   writeFile(root, "src/pages.txt", "2");
   writeFile(root, "db/migrations/004_add_index.sql", "CREATE INDEX customers_name ON customers (name);\n");
   ospec(root, "check", "--change", "add-index");
@@ -451,7 +475,7 @@ test("a passing migration test with its plan satisfies the migration obligation 
 
 function openRotation(t) {
   const { root } = project(t);
-  ospec(root, "record", "intent", "--change", "rotate-tokens", "--kind", "feature", "--summary", "Rotate tokens.", "--acceptance", "Old tokens expire.");
+  ospec(root, "record", "intent", "--change", "rotate-tokens", "--kind", "feature", "--summary", "Rotate tokens.", "--acceptance", "Old tokens expire.", "--no-open-facts", "--basis", "The request fixes every behavior.");
   writeFile(root, "src/pages.txt", "2");
   writeFile(root, "src/auth/tokens.js", "module.exports = { ttl: 3600 };\n");
   const checked = ospec(root, "check", "--change", "rotate-tokens", "--json");
@@ -580,7 +604,7 @@ test("close is refused with a pending obligation or a tree changed after the las
 
 test("a change with a living document closes once its plan and decisions are written", (t) => {
   const { root } = project(t);
-  ospec(root, "record", "intent", "--change", "add-paging", "--kind", "feature", "--summary", "Page the list.", "--acceptance", "Two pages.");
+  ospec(root, "record", "intent", "--change", "add-paging", "--kind", "feature", "--summary", "Page the list.", "--acceptance", "Two pages.", "--no-open-facts", "--basis", "The request fixes every behavior.");
   ospec(root, "signals", "--change", "add-paging", "--work-units", "2");
   writeFile(root, "src/pages.txt", "2");
   const doc = path.join(root, "idd", "add-paging", "change.md");

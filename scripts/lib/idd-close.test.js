@@ -19,7 +19,7 @@ const TREE = `sha256:${"a".repeat(64)}`;
 const AT = "2026-10-05T08:00:00.000Z";
 
 function openTypo() {
-  return recordIntent(null, { change: "fix-typo", kind: "docs", summary: "Fix a typo.", acceptance: "No typo." }).state;
+  return recordIntent(null, { change: "fix-typo", kind: "docs", summary: "Fix a typo.", acceptance: "No typo.", noOpenFacts: true, basis: "The request fixes every behavior." }).state;
 }
 
 function satisfyChecks(state) {

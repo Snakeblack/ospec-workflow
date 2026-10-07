@@ -14,7 +14,7 @@ const { execFileSync } = require("node:child_process");
 const { CHANGE_ROOT } = require("./idd-contract.js");
 const { CONFIG_FILE, parseIddConfig } = require("./idd-config.js");
 const { resolveContractPatterns } = require("./idd-contracts.js");
-const { detectStacks, normalizePath, resolvePatterns } = require("./idd-impact.js");
+const { detectStacks, normalizePath, publishedPaths, resolvePatterns } = require("./idd-impact.js");
 
 const MAX_UNTRACKED_BYTES = 1024 * 1024;
 const GIT_MAX_BUFFER = 64 * 1024 * 1024;
@@ -27,6 +27,16 @@ class IddWorkspaceError extends Error {
   }
 }
 
+// package.json at the project root, or null when it is missing or malformed:
+// a broken manifest only means no published surface is known.
+function readManifest(root) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+  } catch {
+    return null;
+  }
+}
+
 function readProjectContext(root) {
   let text = "";
   try {
@@ -36,13 +46,14 @@ function readProjectContext(root) {
   }
   const { mode, strictTdd, checks, impact, contracts } = parseIddConfig(text);
   const stacks = detectStacks(fs.readdirSync(root));
+  const published = publishedPaths(readManifest(root));
   return {
     mode,
     strictTdd,
     checks,
     impact,
     stacks,
-    patterns: resolvePatterns({ stacks, impact }),
+    patterns: resolvePatterns({ stacks, impact, published }),
     contractPatterns: resolveContractPatterns({ stacks: impact.stack ?? stacks, contracts }),
   };
 }

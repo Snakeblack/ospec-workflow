@@ -16,7 +16,7 @@ const { EVIDENCE_MARKERS, LIVING_DOC_SECTIONS } = require("./idd-contract.js");
 const { recordIntent, recordSignal } = require("./idd-record.js");
 const { listChanges, mutateChange, readChange, serializeState, statePath } = require("./idd-store.js");
 
-const BUG = { change: "fix-pagination", kind: "bug", summary: "Fix the last page.", acceptance: "Two full pages." };
+const BUG = { change: "fix-pagination", kind: "bug", summary: "Fix the last page.", acceptance: "Two full pages.", noOpenFacts: true, basis: "The request fixes every behavior." };
 
 function tempRoot(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "idd-store-"));
@@ -42,6 +42,7 @@ test("the state lives in idd/<change-id>/state.yaml as canonical JSON", async (t
     "mode",
     "status",
     "intent",
+    "facts",
     "signals",
     "obligations",
     "gates",

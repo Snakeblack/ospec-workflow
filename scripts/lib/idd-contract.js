@@ -27,6 +27,7 @@ const STATE_FIELDS = Object.freeze([
   "mode",
   "status",
   "intent",
+  "facts",
   "signals",
   "obligations",
   "gates",
@@ -82,7 +83,7 @@ const OBLIGATIONS = Object.freeze(
 
 const EVIDENCE_KINDS = Object.freeze(OBLIGATIONS.map((obligation) => obligation.evidence));
 
-const GATES = Object.freeze(["ambiguous-intent", "adr-amend-or-contradict", "irreversible-operation"]);
+const GATES = Object.freeze(["ambiguous-intent", "open-facts", "adr-amend-or-contradict", "irreversible-operation"]);
 
 const SIGNAL_BY_ID = new Map(SIGNALS.map((signal) => [signal.id, signal]));
 const OBLIGATION_BY_ID = new Map(OBLIGATIONS.map((obligation) => [obligation.id, obligation]));
@@ -152,6 +153,7 @@ function validateState(state) {
     }
   }
   if (intent.request != null && typeof intent.request !== "string") fail("intent.request must be text");
+  validateFacts(state, fail);
 
   for (const signal of state.signals) {
     if (!SIGNAL_BY_ID.has(signal.id)) fail(`unknown signal: ${signal.id}`);
@@ -302,6 +304,33 @@ function validateReviewEvidence(entry, reviews, fail) {
     review.current_candidate_id === detail.candidate_id &&
     review.findings_digest === detail.findings_digest;
   if (!approved) fail(`evidence ${entry.id} needs an approved trust review of its candidate`);
+}
+
+// The open-facts declaration (REQ-idd-018): the behavior questions neither the
+// request nor the code settles, or the basis for declaring none. States
+// recorded before the declaration existed have no facts and stay valid.
+function validateFacts(state, fail) {
+  const facts = state.facts;
+  const gate = state.gates.find((entry) => entry.id === "open-facts");
+  if (facts == null) {
+    if (gate) fail("the open-facts gate needs the open facts it asks");
+    return;
+  }
+  const isText = (value) => typeof value === "string" && value.trim() !== "";
+  const keys = Object.keys(facts);
+  if (keys.length !== 1 || !["open", "basis"].includes(keys[0])) {
+    fail("facts must hold either the open questions or the basis for none");
+    return;
+  }
+  if (keys[0] === "open") {
+    if (!Array.isArray(facts.open) || facts.open.length === 0 || !facts.open.every(isText)) {
+      fail("facts.open must list at least one question");
+    }
+    if (!gate) fail("open facts need the open-facts gate");
+  } else {
+    if (!isText(facts.basis)) fail("facts.basis must say why no fact is open");
+    if (gate) fail("the open-facts gate needs open facts, not a basis");
+  }
 }
 
 function isIntentAmbiguous(state) {

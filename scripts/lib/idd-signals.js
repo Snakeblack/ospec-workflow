@@ -61,6 +61,7 @@ function sortedPaths(paths) {
 }
 
 // For each impact signal, the sorted paths that hit it and the first pattern.
+// A published path is reported as published, not as a pattern.
 function impactHits(paths, patterns) {
   const hits = new Map();
   for (const file of sortedPaths(paths)) {
@@ -72,9 +73,10 @@ function impactHits(paths, patterns) {
   return hits;
 }
 
-function impactReason(signal, { pattern, paths }) {
+function impactReason(signal, { pattern, paths }, patterns) {
   const more = paths.length > 1 ? ` and ${paths.length - 1} more` : "";
-  return `${IMPACT_LABELS[signal]}: touches ${paths[0]}${more} (matches ${pattern})`;
+  const why = (patterns.published || []).includes(pattern) ? "published by package.json" : `matches ${pattern}`;
+  return `${IMPACT_LABELS[signal]}: touches ${paths[0]}${more} (${why})`;
 }
 
 function destructiveStatement(diff, patterns) {
@@ -131,7 +133,7 @@ function deriveSignals({ intent, strictTdd = false, declaration = {}, diff = {},
   ]) {
     const hits = impactHits(paths, patterns);
     for (const signal of IMPACT_SIGNALS) {
-      if (hits.has(signal)) add(signal, impactReason(signal, hits.get(signal)), source);
+      if (hits.has(signal)) add(signal, impactReason(signal, hits.get(signal), patterns), source);
     }
   }
 

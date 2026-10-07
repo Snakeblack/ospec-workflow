@@ -31,17 +31,28 @@ delete anything under `idd/` by hand.
 
 ## Rules
 
-1. Open the change: pick a short kebab-case id from the request, then record
-   the intent with `ospec record intent --change <id> --kind <bug|feature|refactor|docs> --summary "<what>" --acceptance "<observable result>"`.
-2. If the request is materially ambiguous (no acceptance can be stated), record
+1. Read the code the request touches, then list its open facts: each behavior
+   that neither the request nor the code settles and that a careful engineer
+   would ask about. Look for defaults, invalid or edge input, error versus
+   silent handling, normalization (case, rounding, order), who may do it, and
+   whether existing behavior, output or a published API may change. Do not
+   decide them yourself.
+2. Open the change: pick a short kebab-case id from the request and record
+   the intent with `ospec record intent --change <id> --kind <bug|feature|refactor|docs> --summary "<what>" --acceptance "<observable result>"`
+   plus the open facts, one `--open-fact "<question>"` each, or
+   `--no-open-facts --basis "<what settles every behavior>"` when there are
+   none. Open facts open the `open-facts` gate: ask them all at once before
+   editing anything.
+3. If the request is materially ambiguous (no acceptance can be stated), record
    `ospec record intent --change <id> --ambiguous --request "<request>"`, ask
    the user the question `next` returns, and resolve it with the same command
-   plus `--kind --summary --acceptance --answer "<their words>" --source user`.
-3. Declare the plan before editing: `ospec signals --change <id> --path <file>...`
+   plus `--kind --summary --acceptance --answer "<their words>" --source user`
+   and the open-facts declaration of rule 2.
+4. Declare the plan before editing: `ospec signals --change <id> --path <file>...`
    with every file you expect to touch; add `--work-units <n>` when the work
    splits into several units, `--decision` when it records a design decision,
    and `--operation <op>` for a destructive or irreversible operation.
-4. Loop: `ospec next --change <id> --json`, do what `next_step` says, repeat.
+5. Loop: `ospec next --change <id> --json`, do what `next_step` says, repeat.
    Work the obligations in the order `next` gives them:
    - `repro-test`: write the reproduction test first and run it with
      `ospec run --obligation repro-test --command "<test>"` while it fails;
@@ -59,18 +70,21 @@ delete anything under `idd/` by hand.
    - `checks-pass`: `ospec check` runs every declared check on the current
      tree.
    - `living-doc`: keep the Plan and Decisions of `idd/<id>/change.md` current.
-5. `ospec check` recomputes the signals from the real diff. New obligations can
+6. `ospec check` recomputes the signals from the real diff. New obligations can
    appear: work them like the rest. One leaves `pending` only through evidence,
    or through `ospec record withdraw --reason` when no active signal derives it.
-6. When `next_step.action` is `close`, run `ospec close --change <id>`. A
+7. When `next_step.action` is `close`, run `ospec close --change <id>`. A
    refusal names what is still pending: settle it and close again.
 
 ## Gates
 
-Stop for the user only at the three gates, and ask with the host's question
-tool:
+Stop for the user only at the four gates. Ask with the host's question tool;
+when the host has none, end your turn with the questions and wait for the
+answer:
 
-- `ambiguous-intent`: rule 2.
+- `ambiguous-intent`: rule 3.
+- `open-facts`: rule 2. Ask every question of `pending_decision.questions` in
+  one message.
 - `irreversible-operation`: before a destructive or irreversible operation.
 - `adr-amend-or-contradict`: when the change amends or contradicts an ADR.
 

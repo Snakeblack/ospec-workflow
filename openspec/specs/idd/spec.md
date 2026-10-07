@@ -74,7 +74,8 @@ artifacts there.
 `state.yaml` MUST declare `schema` as `idd-state/v1` and hold only `change`, `mode`,
 `status` (`open` or `closed`), `intent` (`kind` in `bug`, `feature`,
 `refactor`, `docs`, plus `summary` and `acceptance`, and optionally the original
-`request`), `signals` (each with `id`, `reason` and `source`, `declaration` or
+`request`), `facts` (the open-facts declaration of REQ-idd-018: either `open`,
+the list of open questions, or `basis`, why none is open), `signals` (each with `id`, `reason` and `source`, `declaration` or
 `diff`), `obligations` (each with `id`, `signal`, `status` in `pending`,
 `satisfied`, `withdrawn`, the `evidence` ids that satisfy it and, when
 withdrawn, `withdrawn_reason`), `gates` (each with `id`, `status` `open` or
@@ -84,8 +85,8 @@ withdrawn, `withdrawn_reason`), `gates` (each with `id`, `status` `open` or
 commit the change started from, or null outside git), `runs` (each
 CLI-observed execution of REQ-idd-014) and `reviews` (the trust review
 lineages of REQ-idd-016, oldest first), plus `closed_at` once the change is
-closed (REQ-idd-017). A state without `base`, `runs` or `reviews` MUST stay
-valid, as the states written before they existed. While the
+closed (REQ-idd-017). A state without `base`, `runs`, `reviews` or `facts` MUST
+stay valid, as the states written before they existed. While the
 `ambiguous-intent` gate is open, `intent.kind`, `intent.summary` and
 `intent.acceptance` MUST be null, `intent.request` MUST hold the original
 request, and `signals` and `obligations` MUST be empty. `state.yaml` MUST be
@@ -214,10 +215,12 @@ pass", without a recorded execution MUST NOT satisfy any obligation.
 - WHEN the model reports that the tests pass
 - THEN `checks-pass` MUST stay `pending`
 
-### Requirement: Only Three Gates {#REQ-idd-008}
+### Requirement: Only Four Gates {#REQ-idd-008}
 
-IDD MUST stop for the user only at three gates: `ambiguous-intent` when the
-intent is materially ambiguous, `adr-amend-or-contradict` when the change amends
+IDD MUST stop for the user only at four gates: `ambiguous-intent` when the
+intent is materially ambiguous, `open-facts` when behavior questions that
+neither the request nor the code settles are open (REQ-idd-018),
+`adr-amend-or-contradict` when the change amends
 or contradicts an ADR, and `irreversible-operation` before a destructive or
 irreversible operation. No other question MAY block progress. A gate MUST be
 resolved only by an explicit user answer, recorded with its source. While
@@ -236,6 +239,13 @@ resolved only by an explicit user answer, recorded with its source. While
 - WHEN signals are derived
 - THEN `irreversible-operation` MUST be open alongside the
   `migration-compat-and-test` obligation
+
+#### Scenario: Open facts stop before anything is built
+
+- GIVEN a change opened with two open facts
+- WHEN `next` runs
+- THEN the next step MUST be `resolve-gate` for `open-facts`
+- AND the pending decision MUST list both questions
 
 ### Requirement: Close Requires Settled Obligations {#REQ-idd-009}
 
@@ -282,7 +292,8 @@ MUST be kebab-case before it reaches the filesystem. `next` MUST be a pure
 function of the stored state and MUST return the change, its pending
 obligations in work order, the pending decision, the next step and the
 knowledge references. The next step MUST be `resolve-gate` while the intent is
-ambiguous, else the first pending obligation in the order `repro-test`,
+ambiguous, else `resolve-gate` while `open-facts` is open, else the first
+pending obligation in the order `repro-test`,
 `tdd-red-green`, `contract-spec-and-test`, `migration-compat-and-test`,
 `adr-impact-declaration`, `trust-review`, `checks-pass`, `living-doc`, else the
 first open gate, else `close`. The CLI MUST exit with 0 on success, 1 when the
@@ -334,7 +345,12 @@ matching path and the pattern it matched. The impact patterns MUST be base
 patterns for any project plus defaults for each stack detected from its
 manifest at the project root (`node`, `jvm`, `dotnet`, `python`, `go`), plus the
 lists of the `impact:` section of `idd/config.yaml` (`public_contract`,
-`persistent_data`, `security_boundary`); `impact.stack` MUST replace the
+`persistent_data`, `security_boundary`). The `public-contract` defaults MUST
+also hold, by exact path, the files a `package.json` at the project root
+publishes unless it is `private` (`main`, `types`, `typings`, `bin` and every
+path of `exports`), and their reason MUST say "published by package.json"
+instead of a pattern; a missing or malformed manifest publishes nothing.
+`impact.stack` MUST replace the
 detected stacks, `impact.defaults: false` MUST drop the base and stack patterns,
 and paths matching `impact.exclude` or the default exclusions
 (documentation: `**/*.md`, `**/*.mdx`, `docs/**`) MUST NOT derive any signal.
@@ -382,6 +398,13 @@ derivation misses, nor reopen a resolved gate (REQ-idd-006). While
   project with `strict_tdd: true`
 - WHEN its signals are derived
 - THEN the only signal MUST be `always`
+
+#### Scenario: A published file is a public contract
+
+- GIVEN a public `package.json` with `"types": "index.d.ts"`
+- WHEN a change plans to touch `index.d.ts` and its signals are derived
+- THEN `public-contract` MUST be recorded with the reason
+  "public contract: touches index.d.ts (published by package.json)"
 
 #### Scenario: Reference fixtures derive from their declaration
 
@@ -608,3 +631,39 @@ The result MUST name the destination, its file count and its inventory digest.
   removed
 - WHEN `ospec close` runs again
 - THEN the origin MUST be removed and the result MUST name the archive
+
+### Requirement: Open Facts Declaration {#REQ-idd-018}
+
+Recording a resolved intent, including the resolution of `ambiguous-intent`,
+MUST declare its open facts: the behavior questions that neither the request
+nor the code settles, such as defaults, invalid or edge input, error versus
+silent handling, normalization and compatibility with existing behavior. The
+declaration MUST be either at least one question (`--open-fact`, repeatable)
+or `--no-open-facts` with the `--basis` that settles every behavior, never both
+and never neither; otherwise `record intent` MUST be refused with
+`facts-undeclared`. The declaration MUST be stored in `facts`, with repeated
+questions recorded once. Open facts MUST open the `open-facts` gate, which only
+`record intent` opens, and which MUST be resolved only by the user's answer
+with its source. While it is open, `next` MUST return the questions as one
+batch, so they are asked together before the change is built.
+
+#### Scenario: An intent without the declaration is refused
+
+- GIVEN a new change with kind, summary and acceptance
+- WHEN `record intent` runs without `--open-fact` or `--no-open-facts`
+- THEN it MUST be refused with `facts-undeclared` and no change MUST be opened
+
+#### Scenario: No open facts records its basis
+
+- GIVEN a typo fix whose request settles every behavior
+- WHEN it is recorded with `--no-open-facts --basis "only the spelling changes"`
+- THEN `facts.basis` MUST hold that basis and no gate MUST be open
+
+#### Scenario: Open facts are answered by the user
+
+- GIVEN a change opened with the open facts "Is an unknown code an error?" and
+  "Does case matter?"
+- WHEN the user answers both
+- THEN `record gate --gate open-facts --resolve --answer <their words> --source user`
+  MUST resolve the gate
+- AND an attempt to open `open-facts` through `record gate` MUST be refused

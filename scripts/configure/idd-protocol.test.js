@@ -54,7 +54,10 @@ for (const target of Object.keys(ROUTERS)) {
       assert.ok(protocol.includes(`\`${skill}\``), `${target}: protocol must name ${skill}`);
       assert.ok(byPath.has(`skills/${skill}/SKILL.md`), `${target}: ${skill} is not shipped`);
     }
-    for (const gate of ["ambiguous-intent", "irreversible-operation", "adr-amend-or-contradict"]) {
+    for (const flag of ["--open-fact", "--no-open-facts", "--basis"]) {
+      assert.ok(protocol.includes(flag), `${target}: protocol must declare open facts with ${flag}`);
+    }
+    for (const gate of ["ambiguous-intent", "open-facts", "irreversible-operation", "adr-amend-or-contradict"]) {
       assert.ok(protocol.includes(`\`${gate}\``), `${target}: protocol must name the ${gate} gate`);
     }
     for (const command of ["ospec next", "ospec record intent", "ospec signals", "ospec check", "ospec close"]) {
