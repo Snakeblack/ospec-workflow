@@ -1,9 +1,9 @@
 "use strict";
 
 // Roadmap E1.6 (a): the IDD protocol ships to the 7 targets as the `idd` skill,
-// loaded on demand, at most 12 KB, naming the installed `ospec` CLI; the router
-// sends code changes there when the project sets `mode: idd`, and SDD still
-// runs only on request.
+// loaded on demand, at most 12 KB, naming the installed `ospec` CLI. E1.6 (d):
+// the router sends code changes there by default; `mode: sdd` turns IDD off,
+// and SDD still runs only on request.
 
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -65,12 +65,15 @@ for (const target of Object.keys(ROUTERS)) {
     }
   });
 
-  test(`${target}: the router enters IDD with mode: idd and keeps SDD on request`, (t) => {
+  test(`${target}: the router enters IDD by default, off with mode: sdd, and keeps SDD on request`, (t) => {
     const { byPath } = generate(t, target);
     const router = byPath.get(ROUTERS[target]);
     assert.ok(router, `${target}: router missing at ${ROUTERS[target]}`);
     assert.doesNotMatch(router, /\{\{[a-z-]+\}\}/, `${target}: unresolved placeholder`);
-    assert.match(router, /mode: idd/, `${target}: router must name the IDD project mode`);
+    assert.match(router, /go through IDD \(impact-driven development\) by default/, `${target}: IDD must be the default for code changes`);
+    assert.doesNotMatch(router, /mode: idd/, `${target}: IDD must not depend on mode: idd`);
+    assert.match(router, /`mode: sdd` in `idd\/config\.yaml`/, `${target}: router must name the SDD project mode`);
+    assert.match(router, /explicitly asks[^.]*without IDD/, `${target}: direct work only on an explicit request`);
     assert.ok(router.includes(`Load the ${IDD_ENTRY[target] || "skill `idd`"}`), `${target}: router must name the IDD entry`);
     assert.match(router, /\/sdd-\*/, `${target}: SDD stays reachable on request`);
   });

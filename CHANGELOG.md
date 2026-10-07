@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.112.0] - 2026-10-08
+
+### Changed
+- **IDD es el flujo por defecto (E1.6 d1)**: el router manda a IDD (skill `idd`) los cambios de código que no son una petición de SDD, sin necesidad de `mode: idd`. Las preguntas y el trabajo de solo lectura siguen directos, y un cambio se hace directo solo si el usuario lo pide expresamente sin IDD. `resolveMode` da `idd` cuando ni el cambio ni `idd/config.yaml` declaran modo (REQ-idd-001, REQ-generator-022 y REQ-generator-024).
+- **Aviso para proyectos SDD**: un proyecto sin `mode` en `idd/config.yaml` pasa a IDD aunque tenga `openspec/`. Para conservar el comportamiento anterior (trabajo directo y SDD solo con `/sdd-*` o petición explícita), declarar `mode: sdd` en `idd/config.yaml`. Los cambios SDD en curso terminan en SDD.
+- **Contexto**: *always-on* sube 117–140 B por target (3,0–3,4 KB, bajo el límite de 4 KB) y el listado de skills, 13 B; techos de `scripts/fixtures/context-baseline.json` actualizados.
+- **Roadmap**: E1.6 (d) se entrega en tres PRs; (d1) hecho y primer ítem ejecutado con IDD en este repositorio (`idd/archive/2026-10-07-idd-default-mode/`). Lo siguiente es (d2), las fases SDD en el paquete `--with-sdd`.
+
+**Verificación directa**: `node scripts/check.js` (3273 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.111.0] - 2026-10-07
 
 ### Added

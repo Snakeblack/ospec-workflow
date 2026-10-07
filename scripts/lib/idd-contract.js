@@ -6,8 +6,8 @@
 // spec. Pure data and validators: no filesystem access.
 
 const MODES = Object.freeze(["idd", "sdd"]);
-// Until E1.6 makes IDD the default entry (REQ-idd-001).
-const DEFAULT_MODE = "sdd";
+// IDD is the default entry since E1.6 (REQ-idd-001).
+const DEFAULT_MODE = "idd";
 
 const CHANGE_ROOT = "idd";
 const ARCHIVE_ROOT = "idd/archive";

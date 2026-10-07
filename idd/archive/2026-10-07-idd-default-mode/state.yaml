@@ -1,0 +1,90 @@
+{
+  "schema": "idd-state/v1",
+  "change": "idd-default-mode",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "feature",
+    "summary": "IDD pasa a ser el modo por defecto: resolveMode devuelve idd sin modo declarado y el router manda los cambios de código a IDD salvo /sdd-*, petición explícita de SDD o mode: sdd",
+    "acceptance": "DEFAULT_MODE es idd con test de paridad; REQ-idd-001 y REQ-generator-024 dicen idd por defecto; el router generado en los 7 targets envía a IDD sin mode: idd y sigue nombrando /sdd-* y mode: sdd"
+  },
+  "facts": {
+    "open": [
+      "Con mode: sdd en idd/config.yaml, ¿los cambios de código no pedidos como SDD se hacen directos con SDD solo bajo /sdd-* (igual que hoy), o entran automáticamente al orquestador SDD?",
+      "Un proyecto que ya usa SDD (openspec/ con config o cambios) y no declara mode en idd/config.yaml, ¿pasa a IDD por defecto (debe declarar mode: sdd para seguir), o el router lo trata como sdd mientras no declare modo?",
+      "Si el usuario pide expresamente hacer un cambio sin IDD (directo), ¿el router lo respeta o IDD es obligatorio para todo cambio de código?"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "1) mode: sdd = directo, SDD solo bajo /sdd-* o petición explícita (igual que hoy). 2) Sin modo declarado es IDD aunque exista openspec/; quien quiera seguir debe declarar mode: sdd (aviso en CHANGELOG). 3) Sí: un 'sin IDD'/'hazlo directo' explícito del usuario hace ese cambio directo; el agente nunca lo propone.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-07T22:19:30.419Z",
+      "detail": {
+        "tree": "sha256:b2c56094a5c127dec9b900894f970734bebaf81d83de3169f6b30a1e7b28634f",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-07T22:19:40.932Z"
+    }
+  ],
+  "base": "83e1bb3cf04912ede986db294914d782b31a2da8",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1d797ef8ada5f92e3ab9da723cf764accbb34c0e586a30aad26d6a987b5264e5",
+      "tree": "sha256:b2c56094a5c127dec9b900894f970734bebaf81d83de3169f6b30a1e7b28634f",
+      "recorded_at": "2026-10-07T22:19:30.419Z"
+    }
+  ],
+  "closed_at": "2026-10-07T22:19:40.932Z"
+}
