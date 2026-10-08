@@ -337,8 +337,9 @@ command source file frequently shares its base name with one of those (e.g. both
 `commands/sdd-apply.prompt.md` and `skills/sdd-apply/SKILL.md` exist in the source tree);
 emitting the command-derived skill at the bare path would silently collide with, and
 overwrite or be overwritten by, the unrelated context doc, with no error signal. The
-transform MUST also rewrite named `${input:x}` variables to positional `$1`/`$ARGUMENTS`
-(same substitution style already used by the `opencode` profile), and MUST translate any
+transform MUST also rewrite `${input:x}` variables as the `opencode` profile does
+(REQ-generator-026: a single named input and bare `${input}` become `$ARGUMENTS`,
+several named inputs become positional `$1`/`$2`), and MUST translate any
 `agent:` frontmatter routing key into an explicit prose instruction directing the reader
 to spawn the named agent — the routing key itself MUST NOT appear in the emitted skill's
 frontmatter. The emitted `name:` frontmatter field (and therefore the `$sdd-*` invocation
@@ -352,7 +353,7 @@ directory prefix.
 - WHEN a profile with `commandFile.format: "skill"` processes it
 - THEN the output MUST be `skills/commands/sdd-spec/SKILL.md` with frontmatter
   `name: sdd-spec` (invocable as `$sdd-spec`), the body MUST contain an explicit
-  instruction to spawn the `sdd-spec` agent, and `${input:changeName}` MUST become `$1`
+  instruction to spawn the `sdd-spec` agent, and `${input:changeName}` MUST become `$ARGUMENTS`
 
 #### Scenario: Command-derived skill does not collide with an existing context-doc skill of the same base name
 
@@ -987,3 +988,21 @@ The generator MUST keep the SDD package out of every target's output unless the 
 - GIVEN the same build with `withSdd: true`
 - WHEN its paths are listed
 - THEN the phases, the commands and the orchestrator are present
+
+### Requirement: A Command's Only Input Receives The Whole Request {#REQ-generator-026}
+
+Hosts assign named and positional command arguments one word each, so a free-text request split across two inputs loses everything after its first words (E1.8). When a command body names a single `${input:x}`, the targets that substitute arguments (Claude, OpenCode and Codex) MUST replace it with the whole argument string, `$ARGUMENTS`; Claude MUST then omit the `arguments` frontmatter and keep `x` as `argument-hint`. Bare `${input}` is always `$ARGUMENTS`. Several named inputs keep their positions: `$x` with `arguments` in Claude, `$1`/`$2` by first appearance in OpenCode and Codex. The other targets keep `${input:x}`.
+
+`/sdd-new` and `/sdd-lite` MUST take one input, `${input:request}`, with the whole request, and MUST tell the orchestrator that the first word is the change name only when it is kebab-case with at least one hyphen (`add-login`); otherwise the whole request is the intent and the orchestrator derives a short kebab-case name from it.
+
+#### Scenario: A request without a name arrives whole
+
+- GIVEN a build generated with `withSdd: true` for each of the 7 targets
+- WHEN `sdd-new` and `sdd-lite` are read
+- THEN neither declares `arguments` nor takes a name and an intent separately, Claude, OpenCode and Codex pass `$ARGUMENTS` and the others `${input:request}`, and both say when the first word is the name and that a missing name is derived from the request
+
+#### Scenario: Several named inputs keep their positions
+
+- GIVEN a command whose body names `${input:left}` and `${input:right}`
+- WHEN it is generated for Claude, OpenCode and Codex
+- THEN Claude writes `$left`/`$right` with `arguments: left right`, and OpenCode and Codex write `$1`/`$2`

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.114.2] - 2026-10-08
+
+### Fixed
+- **`/sdd-new` y `/sdd-lite` reciben la petición completa (E1.8, REQ-generator-026)**: piden una sola entrada, `${input:request}`, en vez de un nombre y una intención por separado. En Claude, `/sdd-new Quiero poder …` ya no llega con `Quiero` como nombre y `poder` como intención. El primer token es el nombre del cambio solo si es kebab-case con guion (`add-login`); si no, el orquestador deriva el nombre de la petición.
+- **Comandos con una sola entrada**: el generador sustituye una única `${input:x}` por la cadena completa (`$ARGUMENTS`) en Claude, OpenCode y Codex, y Claude deja de declarar `arguments` para esos comandos. Afecta también a comandos como `sdd-apply`, que en OpenCode y Codex pasan de `$1` a `$ARGUMENTS`. Los comandos con varias entradas siguen posicionales.
+
+### Changed
+- **Roadmap**: E1.8 `sdd-new-intent-argument` pasa a hecho, con prueba real en Claude Code con y sin nombre de cambio. E1.7 `ospec-doctor` pasa a elegible. Hecho con IDD (`idd/archive/2026-10-08-sdd-new-intent-argument/`).
+
+**Verificación directa**: `node scripts/check.js` (3310 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.114.1] - 2026-10-08
 
 ### Changed

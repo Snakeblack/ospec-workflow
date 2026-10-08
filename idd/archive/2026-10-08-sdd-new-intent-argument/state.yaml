@@ -1,0 +1,135 @@
+{
+  "schema": "idd-state/v1",
+  "change": "sdd-new-intent-argument",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "continua (E1.8 sdd-new-intent-argument del roadmap)",
+    "kind": "bug",
+    "summary": "/sdd-new y /sdd-lite reciben la petición completa aunque no se dé nombre de cambio, en los 7 targets; el nombre se deriva de la intención cuando falta (E1.8)",
+    "acceptance": "En Claude, OpenCode y Codex la plantilla generada de sdd-new y sdd-lite usa la cadena completa de argumentos ($ARGUMENTS) y no dos argumentos posicionales; VS Code y Copilot piden un solo campo; la instrucción dice que un primer token kebab-case es el nombre y si no se deriva de la intención; test de generación cubre con y sin nombre; spec del generador actualizada"
+  },
+  "facts": {
+    "open": [
+      "Mecanismo: ¿regla general «un comando con una sola entrada recibe la cadena completa» (afecta también a sdd-apply/continue/archive/verify/document, que pasarían de $1/$changeName a $ARGUMENTS) o marca explícita solo en sdd-new y sdd-lite?",
+      "Detección del nombre: ¿el primer token es nombre solo si es kebab-case con guion (p. ej. add-login), y en cualquier otro caso toda la entrada es la intención?",
+      "Prueba real: ¿smoke con Claude headless (build --with-sdd, /ospec-workflow:sdd-new <petición sin nombre>, Sonnet, ~0,2 USD) o basta el test de generación?"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "1) Regla general: un comando con una sola entrada recibe la cadena completa ($ARGUMENTS); sdd-new y sdd-lite pasan a una entrada request y cambian también los comandos de solo changeName. 2) El primer token es nombre solo si es kebab-case con al menos un guion; si no, toda la entrada es la intención y se deriva el nombre. 3) Smoke real con Claude headless (build --with-sdd, Sonnet).",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-08T00:27:11.230Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-08T00:46:29.796Z",
+      "detail": {
+        "tree": "sha256:b5c7a951bb902c0cfe44a8c5162f61c3372e1ad063599c13ecfdc8e1fb15a4d3",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-08T05:37:38.786Z",
+      "detail": {
+        "tree": "sha256:f04fd73c95acc65fb2fd29519ea8ea09d4f83636184d575e0f0e19ac81df4a9d",
+        "runs": [
+          "run-4"
+        ]
+      }
+    }
+  ],
+  "base": "55b8464ef0d98294f61ad3464ab791f362f338fc",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/target-transform.test.js scripts/configure/real-repo.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:e17479e066306dd9b1134897002c3b73f64d06db6670b7c4b234746982a6d2d9",
+      "tree": "sha256:c8389983f9e3b7e248ded3d034b46fc9e35d6c4d88ee7b536448edd580c48a79",
+      "recorded_at": "2026-10-08T00:26:06.489Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/target-transform.test.js scripts/configure/real-repo.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f0b966522c26e47d6113ac6ff3abfa67e6cc89a87c6bd540aa153f4aea467ed4",
+      "tree": "sha256:b5c7a951bb902c0cfe44a8c5162f61c3372e1ad063599c13ecfdc8e1fb15a4d3",
+      "recorded_at": "2026-10-08T00:27:11.230Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:936ad7ab4c7fd62b763598ea79183377f5a66d8999cccd9598fd7a517b355b33",
+      "tree": "sha256:b5c7a951bb902c0cfe44a8c5162f61c3372e1ad063599c13ecfdc8e1fb15a4d3",
+      "recorded_at": "2026-10-08T00:46:29.796Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8c8b893f1e443680b94340ce916db79fe9a22b34b878bf78b4b06c268e42f44a",
+      "tree": "sha256:f04fd73c95acc65fb2fd29519ea8ea09d4f83636184d575e0f0e19ac81df4a9d",
+      "recorded_at": "2026-10-08T05:37:38.786Z"
+    }
+  ],
+  "closed_at": "2026-10-08T05:37:41.341Z"
+}

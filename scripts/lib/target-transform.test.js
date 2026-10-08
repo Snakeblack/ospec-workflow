@@ -272,16 +272,39 @@ test("claude rewrites ${input} to $ARGUMENTS", () => {
   assert.doesNotMatch(cmd, /\$\{input\}/);
 });
 
-test("claude rewrites ${input:name} to $name and declares it in the arguments frontmatter", () => {
+test("claude gives a command's only ${input:name} the whole argument string and keeps the name as the hint", () => {
   const out = transform({ files: makeSource(), profile: claude, models: MODELS });
   const cmd = find(out, "commands/sdd-apply.md").content;
-  assert.match(cmd, /\$changeName/);
-  assert.doesNotMatch(cmd, /\$\{input:changeName\}/);
+  assert.match(cmd, /apply for \$ARGUMENTS now/);
+  assert.doesNotMatch(cmd, /\$changeName|\$\{input:changeName\}/);
   const fm = parse(cmd).frontmatter;
-  // `arguments` is what actually enables `$name` substitution in Claude
-  assert.equal(getField(fm, "arguments").value, "changeName");
+  // No `arguments`: a named argument takes one position and drops the rest of the text.
+  assert.equal(getField(fm, "arguments"), null);
   // argument-hint is the autocomplete hint (plain name, not a YAML array)
   assert.equal(getField(fm, "argument-hint").value, "changeName");
+});
+
+const TWO_INPUT_COMMAND = {
+  path: "commands/sdd-pair.prompt.md",
+  content: "---\nname: sdd-pair\ndescription: Pair\nagent: sdd-orchestrator\n---\n\nPair ${input:left} with ${input:right}.\n",
+};
+
+test("claude declares several named inputs in the arguments frontmatter", () => {
+  const out = transform({ files: [...makeSource(), TWO_INPUT_COMMAND], profile: claude, models: MODELS });
+  const cmd = find(out, "commands/sdd-pair.md").content;
+  assert.match(cmd, /Pair \$left with \$right\./);
+  const fm = parse(cmd).frontmatter;
+  // `arguments` is what actually enables `$name` substitution in Claude
+  assert.equal(getField(fm, "arguments").value, "left right");
+  assert.equal(getField(fm, "argument-hint").value, "left right");
+});
+
+test("opencode and codex map several named inputs to positional $1/$2", () => {
+  const files = [...makeSource(), TWO_INPUT_COMMAND];
+  const opencodeCmd = find(transform({ files, profile: opencode, models: MODELS }), ".opencode/commands/sdd-pair.md").content;
+  assert.match(opencodeCmd, /Pair \$1 with \$2\./);
+  const codexSkill = find(transform({ files, profile: codex, models: MODELS }), "skills/commands/sdd-pair/SKILL.md").content;
+  assert.match(codexSkill, /Pair \$1 with \$2\./);
 });
 
 test("claude drops the inert agent:/context: command routing keys", () => {
@@ -528,8 +551,9 @@ test("opencode commands keep agent routing, drop name, and use positional/$ARGUM
   const cmd = find(out, ".opencode/commands/sdd-apply.md").content;
   assert.match(cmd, /\nagent: ospec-workflow\n/, "keep agent routing");
   assert.doesNotMatch(cmd, /\nname:/, "drop name (filename is the id)");
-  assert.match(cmd, /\$1/, "named ${input:changeName} -> $1");
-  assert.match(cmd, /\$ARGUMENTS/, "bare ${input} -> $ARGUMENTS");
+  assert.match(cmd, /apply for \$ARGUMENTS now/, "the only named input takes the whole argument string");
+  assert.doesNotMatch(cmd, /\$1/);
+  assert.match(cmd, /Also \$ARGUMENTS\./, "bare ${input} -> $ARGUMENTS");
   assert.doesNotMatch(cmd, /\$\{input/, "no VS Code input placeholders remain");
 });
 
@@ -960,10 +984,11 @@ test("codex commands become invocable skills under skills/commands/, never a pro
   assert.ok(!out.files.some((f) => f.path.startsWith("prompts/")), "no prompts/ path must exist");
 });
 
-test("codex rewrites named ${input:x} to positional $1 and drops the agent: routing key for the orchestrator skill", () => {
+test("codex gives the only named ${input:x} the whole argument string and drops the agent: routing key for the orchestrator skill", () => {
   const out = transform({ files: makeSource(), profile: codex, models: MODELS });
   const skill = find(out, "skills/commands/sdd-apply/SKILL.md").content;
-  assert.match(skill, /\$1/);
+  assert.match(skill, /apply for \$ARGUMENTS now/);
+  assert.doesNotMatch(skill, /\$1/);
   assert.doesNotMatch(skill, /\$\{input:/);
   const fm = parse(skill).frontmatter;
   assert.equal(getField(fm, "agent"), null, "agent: routing key must not appear in emitted frontmatter");
