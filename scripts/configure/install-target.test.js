@@ -493,3 +493,75 @@ test("ensureRuntimeBinary: returns null when Go is unavailable and binary missin
   assert.equal(resolved, null);
 });
 
+
+// E1.22: a binary in release/dist older than the Go sources is stale. With Go
+// available it is rebuilt; a fresh one is reused; without Go the stale one is
+// used with a warning.
+function staleBinaryFixture(t) {
+  const { hostBinarySuffix } = require("./install-target.js");
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-stale-bin-"));
+  t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }));
+  const binInfo = hostBinarySuffix();
+  const binPath = path.join(tempDir, "release", "dist", `ospec-hooks-${binInfo.os}-${binInfo.arch}${binInfo.ext}`);
+  fs.mkdirSync(path.dirname(binPath), { recursive: true });
+  fs.writeFileSync(binPath, "old binary");
+  const source = path.join(tempDir, "internal", "hooks", "pretooluse.go");
+  fs.mkdirSync(path.dirname(source), { recursive: true });
+  fs.writeFileSync(source, "package hooks\n");
+  fs.mkdirSync(path.join(tempDir, "cmd", "ospec-hooks"), { recursive: true });
+  return { tempDir, binPath, source };
+}
+
+function goSpawn(binPath, calls) {
+  return (cmd, args) => {
+    calls.push(`${cmd} ${args[0]}`);
+    if (cmd === "go" && args[0] === "version") return { status: 0 };
+    if (cmd === "go" && args[0] === "build") {
+      fs.writeFileSync(binPath, "new binary");
+      return { status: 0 };
+    }
+    return { status: 1 };
+  };
+}
+
+test("E1.22: ensureRuntimeBinary rebuilds a binary older than the Go sources", (t) => {
+  const { ensureRuntimeBinary } = require("./install-target.js");
+  const { tempDir, binPath } = staleBinaryFixture(t);
+  const old = new Date(Date.now() - 3600 * 1000);
+  fs.utimesSync(binPath, old, old);
+
+  const calls = [];
+  const resolved = ensureRuntimeBinary(tempDir, { spawnSync: goSpawn(binPath, calls), stdout: { write() {} } });
+  assert.equal(resolved, binPath);
+  assert.ok(calls.includes("go build"), "a stale binary must be rebuilt");
+  assert.equal(fs.readFileSync(binPath, "utf8"), "new binary");
+});
+
+test("E1.22: ensureRuntimeBinary reuses a binary newer than the Go sources", (t) => {
+  const { ensureRuntimeBinary } = require("./install-target.js");
+  const { tempDir, binPath, source } = staleBinaryFixture(t);
+  const old = new Date(Date.now() - 3600 * 1000);
+  fs.utimesSync(source, old, old);
+
+  const calls = [];
+  const resolved = ensureRuntimeBinary(tempDir, { spawnSync: goSpawn(binPath, calls), stdout: { write() {} } });
+  assert.equal(resolved, binPath);
+  assert.ok(!calls.includes("go build"), "a fresh binary must not be rebuilt");
+});
+
+test("E1.22: without Go a stale binary is used with a warning", (t) => {
+  const { ensureRuntimeBinary } = require("./install-target.js");
+  const { tempDir, binPath } = staleBinaryFixture(t);
+  const old = new Date(Date.now() - 3600 * 1000);
+  fs.utimesSync(binPath, old, old);
+
+  const warnings = [];
+  const resolved = ensureRuntimeBinary(tempDir, {
+    spawnSync: () => ({ status: 1 }),
+    stdout: { write() {} },
+    stderr: { write: (text) => warnings.push(text) },
+  });
+  assert.equal(resolved, binPath);
+  assert.equal(fs.readFileSync(binPath, "utf8"), "old binary");
+  assert.match(warnings.join(""), /desfasado/);
+});

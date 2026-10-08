@@ -1,0 +1,121 @@
+{
+  "schema": "idd-state/v1",
+  "change": "stale-hooks-binary",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "E1.22: ensureRuntimeBinary reutiliza release/dist/ospec-hooks-* aunque el código Go sea más nuevo, y los setup:* desde el checkout instalan un hook Go desfasado (junio)",
+    "acceptance": "Con Go disponible y un binario más antiguo que cmd/, internal/, go.mod o go.sum, el instalador recompila; binario al día no recompila; sin Go usa el existente y avisa de que puede estar desfasado; tests en rojo→verde; reinstalaciones locales llevan el binario nuevo"
+  },
+  "facts": {
+    "basis": "El usuario delega explícitamente ('hazlo... dejarlo todo funcionando correctamente'); los fallbacks siguen el patrón existente de install-target (avisar y continuar cuando el binario no está disponible; error solo si required)"
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1",
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-08T15:53:44.479Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-08T15:54:11.228Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-3"
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-08T15:56:44.341Z",
+      "detail": {
+        "tree": "sha256:9fc1205e23753d83956493c8b2f2781abeff46df5be177708d7df8f1ce1bfdae",
+        "runs": [
+          "run-4"
+        ]
+      }
+    }
+  ],
+  "base": "e52cc67813834c047724b0a2808f66837e755a5a",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=E1.22 scripts/configure/install-target.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:b61bca4080c1656e179d535b2fcaad5dcf7b2cf9a35c928e07bb6a129464d1b6",
+      "tree": "sha256:eab272ec5c433690fc1bd4be8ac7624c8e53cea5d488eb515f070a15338fc21d",
+      "recorded_at": "2026-10-08T15:53:18.937Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=E1.22 scripts/configure/install-target.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:261c871dc8d0a4ac200d56807d1435716e38d4f670f93916b4f467235fdbbedc",
+      "tree": "sha256:d3f445914cf3fa7780b7f34e89fa7a8983a3479c9bf8616f1a69672c5dfcca20",
+      "recorded_at": "2026-10-08T15:53:44.479Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=E1.22 scripts/configure/install-target.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:da2bf3b1bfcb03cb0e0752b90c16d0584b4e9c120dab44da58451c074c5f2ab2",
+      "tree": "sha256:bb2836f4437dbb4ea9fbd726d3fce58d10cadcba8672400b3b002df08cb6b799",
+      "recorded_at": "2026-10-08T15:54:11.228Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3457d04f48f17fc66af0b810cdfc51576fb89d692f6fa6de5211c51ca7fd976",
+      "tree": "sha256:9fc1205e23753d83956493c8b2f2781abeff46df5be177708d7df8f1ce1bfdae",
+      "recorded_at": "2026-10-08T15:56:44.341Z"
+    }
+  ],
+  "closed_at": "2026-10-08T15:56:47.976Z"
+}
