@@ -507,6 +507,15 @@ And check again:
 
 ## Troubleshooting
 
+Start with `ospec doctor` from the project root (`node <runtime>/scripts/ospec.js doctor`,
+or `node scripts/ospec.js doctor` in the ospec-workflow checkout). It writes nothing
+and reports each problem with its cause and the action that fixes it: an outdated or
+duplicated installation, missing hooks, a missing or outdated router block, `mode: sdd`
+without the SDD package, an interrupted IDD or SDD change and the command that resumes
+it, disabled hook guards, and Engram. It exits with 1 only when it finds an error;
+`--json` prints the result and `--target claude` checks only that host. Today it checks
+the Claude Code host; the other targets follow.
+
 ## Installer model selection
 
 The guided installer now starts with a target and a **Recommended** preset. Choose

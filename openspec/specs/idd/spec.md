@@ -667,3 +667,70 @@ batch, so they are asked together before the change is built.
 - THEN `record gate --gate open-facts --resolve --answer <their words> --source user`
   MUST resolve the gate
 - AND an attempt to open `open-facts` through `record gate` MUST be refused
+
+### Requirement: Read-Only Doctor {#REQ-idd-019}
+
+`ospec doctor` MUST diagnose the installed hosts and the project without
+writing anything: no file, no lock, no state recovery and no mutating host
+command. It MUST report every check it runs with a `status` of `ok`, `info`,
+`warn` or `error`, its `scope` (`runtime`, `checkout`, `project` or a host
+target) and, for `warn` and `error`, the `cause` and the `action` that fixes it.
+It MUST exit with 1 when any check is `error` and with 0 otherwise; warnings
+never change the exit code. `--json` MUST print the result. Without
+`--target`, a host with no installation detected MUST be skipped; with
+`--target <host>`, only that host is checked and a missing installation MUST be
+an `error`. Release E1.7 (a) checks the `claude` host; the other targets are
+reported as unsupported until E1.7 (b).
+
+The checks MUST cover at least:
+
+- `runtime`: where the running CLI lives and its version.
+- `checkout`, only when the project is the ospec-workflow source: `dist-drift`
+  when the built plugin's version differs from `package.json`, `install-drift`
+  when an installed host's version differs, and `git-hooks` when the
+  repository's commit hooks are not installed.
+- `project`: `idd-config` (`error` when `idd/config.yaml` is invalid), `mode`,
+  `sdd-package` (`error` when `mode: sdd` and an installed host lacks the SDD
+  package, `warn` when `openspec/changes/` holds a change it cannot continue),
+  `idd-change` for every change under `idd/` (`warn` with
+  `ospec close --change <id>` for a closed change still outside the archive,
+  `warn` with `ospec status` for an interrupted write that left only
+  `state.yaml.bak`, `error` for an unreadable state, `info` with
+  `ospec next --change <id>` for an open change), `sdd-change` for every change
+  in `openspec/changes/` (`info` with `/sdd-continue <name>`),
+  `strict-tdd-hook` (`warn` when `idd/config.yaml` sets `strict_tdd` and the
+  installed pre-commit hook reads Strict TDD only from `openspec/config.yaml`),
+  `session-dir` (`warn` when `.ospec/` exists and git does not ignore it) and
+  `hook-guards` (`warn` naming every `DISABLE_*` guard set to `true`).
+- `claude`: `plugin` (`error` when an installation's directory or manifest is
+  missing, `warn` when several installations exist), `hooks` (`error` when
+  `hooks/hooks.json` or its launcher is missing, `info` when no native binary
+  ships for the platform), `router` (`warn` when the block is missing from
+  `~/.claude/CLAUDE.md` or differs from the installed plugin's router),
+  `router-duplicate` (`warn` when text outside the block loads ospec skills),
+  `budget` (`warn` when the router block exceeds the 4 KB always-on budget of
+  E0.4) and `engram` (read-only Engram detection; `info` when the binary is
+  absent, because Engram is optional).
+
+#### Scenario: Doctor writes nothing
+
+- GIVEN a project with an interrupted `record` that left only `state.yaml.bak`
+- WHEN `ospec doctor` runs
+- THEN it MUST report `idd-change` as `warn` with `ospec status` as the action
+- AND the project tree MUST be byte-identical afterwards
+
+#### Scenario: An outdated installation is a warning
+
+- GIVEN the ospec-workflow checkout at one version and a Claude installation at
+  an older one
+- WHEN `ospec doctor` runs from the checkout
+- THEN `install-drift` MUST be `warn` with `npm run setup:claude` as the action
+- AND the exit code MUST be 0
+
+#### Scenario: SDD mode without the SDD package fails
+
+- GIVEN `mode: sdd` in `idd/config.yaml` and a Claude installation without the
+  SDD package
+- WHEN `ospec doctor` runs
+- THEN `sdd-package` MUST be `error` naming `--with-sdd`
+- AND the exit code MUST be 1

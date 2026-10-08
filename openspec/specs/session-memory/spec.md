@@ -25,7 +25,7 @@ All Engram behavior MUST be conditioned on the Engram MCP tools (`mem_*`) being 
 
 ### Requirement: Engram Is Never an Authority {#REQ-session-memory-002}
 
-No gate, approval, route decision, verdict, permission, policy or `state.yaml` read/write path MAY read Engram content or depend on Engram availability. OpenSpec artifacts, `state.yaml` and the Authority Store remain the sole sources of truth. The repository MUST contain an automated contract test enforcing this.
+No gate, approval, route decision, verdict, permission, policy or `state.yaml` read/write path MAY read Engram content or depend on Engram availability. OpenSpec artifacts, `state.yaml` and the Authority Store remain the sole sources of truth. The repository MUST contain an automated contract test enforcing this. The only exception is the read-only installation diagnosis of `ospec doctor` (REQ-idd-019) in `scripts/lib/engram-detect.js` and `scripts/lib/ospec-doctor.js`: it MAY detect whether Engram is installed, MUST NOT read stored observations or call `mem_*`, and MUST NOT report an Engram result as an `error`, so no gate, verdict or exit code depends on it.
 
 #### Scenario: Contract test over decision paths
 

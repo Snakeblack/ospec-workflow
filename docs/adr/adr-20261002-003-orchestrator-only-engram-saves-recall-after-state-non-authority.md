@@ -21,3 +21,6 @@ Phase agents have `tools: ['read','search','edit']` and skills declare `mcp: fal
 
 ## Consequences
 Non-authority holds by ordering plus the scan test. It is not mechanically enforced inside the model. Upstream sub-agent capture remains a documented residual risk. Reversible by deleting the addendum.
+
+## Amendment (v2.115.0, 2026-10-08)
+E1.7 `ospec doctor` (REQ-idd-019) reports whether Engram is installed for a host, and the doctor ships in the runtime. The read-only detection moves from `scripts/configure/engram-setup.js` to `scripts/lib/engram-detect.js`, which the installers keep using. The scan test allows exactly `scripts/lib/engram-detect.js` and `scripts/lib/ospec-doctor.js`. The exception is narrow: they detect presence (binary, plugin, MCP registration and `engram doctor`), never read stored observations, never call `mem_*`, and no Engram result is an `error`, so it changes no gate, verdict or exit code. Everything else in the decision stands.
