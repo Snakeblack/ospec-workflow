@@ -2,7 +2,7 @@
   "schema": "idd-state/v1",
   "change": "hook-boundary-reliability",
   "mode": "idd",
-  "status": "open",
+  "status": "closed",
   "intent": {
     "kind": "bug",
     "summary": "E1.17: clasificar lecturas shell sensibles con paridad JS/Go y acotar el launcher con errores compatibles por target",
@@ -39,8 +39,10 @@
     {
       "id": "checks-pass",
       "signal": "always",
-      "status": "pending",
-      "evidence": []
+      "status": "satisfied",
+      "evidence": [
+        "ev-10"
+      ]
     },
     {
       "id": "repro-test",
@@ -64,8 +66,10 @@
     {
       "id": "contract-spec-and-test",
       "signal": "public-contract",
-      "status": "pending",
-      "evidence": []
+      "status": "satisfied",
+      "evidence": [
+        "ev-11"
+      ]
     }
   ],
   "gates": [
@@ -194,6 +198,39 @@
         "candidate_tree": "92cfcc8de722e6de2026e087d520ae32764f1f0c",
         "findings_digest": "sha256:15813e4c9b797a54f1e0eabf62cd620cad11712b07f6acbef7d8272d0ffa3469"
       }
+    },
+    {
+      "id": "ev-10",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-08T19:54:52.897Z",
+      "detail": {
+        "tree": "sha256:34252aa9b104f1f45410674dbbcea71608b54412b25319b5b2af82e87318dd43",
+        "runs": [
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-11",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-08T19:54:52.897Z",
+      "detail": {
+        "tree": "sha256:34252aa9b104f1f45410674dbbcea71608b54412b25319b5b2af82e87318dd43",
+        "check": "ev-10",
+        "documents": [
+          "openspec/specs/hooks/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/parity-contract.test.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ]
+      }
     }
   ],
   "base": "6b54f4581d8a143bc53e162d90d16ef015322c3a",
@@ -290,6 +327,16 @@
       "output_sha256": "sha256:bfd6450af07fb738ea2a9074c1d4660c1f7bfeb416a25de7f52d3caed8e7c08c",
       "tree": "sha256:f78133ef5970a171e774333cc9a6f27b0cda7ba697bbf30ec27b043699088133",
       "recorded_at": "2026-10-08T19:46:01.528Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:46803b767f654bc4a4edeccb2825173d6b18d6c6307d7f71b6b4d8384b991b19",
+      "tree": "sha256:34252aa9b104f1f45410674dbbcea71608b54412b25319b5b2af82e87318dd43",
+      "recorded_at": "2026-10-08T19:54:52.897Z"
     }
   ],
   "reviews": [
@@ -527,5 +574,6 @@
       "pending_correction": null,
       "terminal_reason": "all-frozen-findings-resolved"
     }
-  ]
+  ],
+  "closed_at": "2026-10-08T19:55:17.525Z"
 }
