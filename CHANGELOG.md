@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.117.4] - 2026-10-08
+
+### Changed
+- **Prioridades OSP para la siguiente sesión**: el roadmap antepone E1.16 (OSP-017, permisos neutrales), E1.17 (OSP-001/002/003, secretos y launcher), E1.18 (OSP-018, frescura de evidencia y estado), E1.19 (OSP-019, contexto del revisor IDD) y E1.20 (OSP-020, documentación de instalación). E1.16 pasa a `next-eligible`; E2.1 queda pendiente para retomarse después. Cada ítem conserva su evidencia, alcance mínimo y criterios de cierre. Las correcciones siguen sin implementar. Hecho con IDD (`idd/archive/2026-10-08-prioridades-osp-siguiente-sesion/`).
+- **Evidencia para retomar el trabajo**: [análisis fechado](docs/analysis/2026-10-08-osp-permisos-y-evidencia.md) con reproducción real del permiso, probes del launcher y secretos, contraejemplo de configuración verificadora excluida de la huella y revisión IDD en un consumidor aislado. Distingue defectos confirmados, sobrecarga de contexto, bloqueo de formato no demostrado y verificaciones todavía pendientes; priorizar no aprueba una política nueva de bypass.
+
+**Verificación directa**: `node scripts/check.js` (3368 tests pasando, 0 fallos y 0 omitidos). Comprobación documental: `git diff --check`.
+
 ## [2.117.3] - 2026-10-08
 
 ### Changed
