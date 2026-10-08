@@ -868,6 +868,25 @@ function serializeAgentToml(fields) {
 
 // --- commands --------------------------------------------------------------
 
+const COMMAND_INPUT = /\$\{input:([A-Za-z0-9_-]+)\}/g;
+
+// Distinct named ${input:x} variables of a command body, by first appearance.
+function commandInputNames(body) {
+  return [...new Set(Array.from(body.matchAll(COMMAND_INPUT), (match) => match[1]))];
+}
+
+// A command with a single named input receives the whole argument string
+// ($ARGUMENTS): hosts give named and positional arguments one word each, so a
+// free-text request would lose everything after its first word (E1.8,
+// REQ-generator-026). Several named inputs keep their positions through
+// `placeholder(name, index)`. Bare ${input} is always $ARGUMENTS.
+function rewriteCommandInputs(body, placeholder) {
+  const names = commandInputNames(body);
+  return body
+    .replace(COMMAND_INPUT, (_match, name) => (names.length === 1 ? "$ARGUMENTS" : placeholder(name, names.indexOf(name))))
+    .replace(/\$\{input\}/g, "$ARGUMENTS");
+}
+
 function handleCommand(file, profile) {
   let newPath = renameExtension(file.path, profile.commandFile);
   if (profile.commandDir) {
@@ -891,32 +910,21 @@ function handleCommand(file, profile) {
   }
 
   if (profile.commandVars && profile.commandVars.style === "positional") {
-    // opencode has no named arguments: map each distinct ${input:name} to a
-    // positional $1/$2 (by first appearance) and bare ${input} to $ARGUMENTS.
-    const order = [];
-    body = body.replace(/\$\{input:([A-Za-z0-9_-]+)\}/g, (_match, name) => {
-      let index = order.indexOf(name);
-      if (index === -1) {
-        order.push(name);
-        index = order.length - 1;
-      }
-      return "$" + (index + 1);
-    });
-    body = body.replace(/\$\{input\}/g, "$ARGUMENTS");
+    // opencode has no named arguments: several ${input:name} become positional
+    // $1/$2 (by first appearance).
+    body = rewriteCommandInputs(body, (_name, index) => "$" + (index + 1));
   } else if (profile.commandVars) {
-    const named = [];
-    body = body.replace(/\$\{input:([A-Za-z0-9_-]+)\}/g, (_match, name) => {
-      named.push(name);
-      return "$" + name;
-    });
-    body = body.replace(/\$\{input\}/g, "$ARGUMENTS");
-    if (named.length > 0) {
+    const names = commandInputNames(body);
+    body = rewriteCommandInputs(body, (name) => "$" + name);
+    if (names.length > 1) {
       // `arguments` (space-separated names) is what actually enables `$name`
-      // substitution in Claude; `argument-hint` is only the autocomplete hint.
-      frontmatter = setScalar(frontmatter, "arguments", named.join(" "));
+      // substitution in Claude.
+      frontmatter = setScalar(frontmatter, "arguments", names.join(" "));
+    }
+    if (names.length > 0) {
       // Plain names (no [..] — that parses as a YAML array). argument-hint is only the
       // autocomplete hint; `arguments` is what enables substitution.
-      frontmatter = setScalar(frontmatter, "argument-hint", named.join(" "));
+      frontmatter = setScalar(frontmatter, "argument-hint", names.join(" "));
     }
   }
 
@@ -993,16 +1001,7 @@ function handleCommandSkill(file, profile) {
     body = `\nSpawn the \`${agentField.value}\` agent to carry out this skill.\n` + body;
   }
 
-  const order = [];
-  body = body.replace(/\$\{input:([A-Za-z0-9_-]+)\}/g, (_match, name) => {
-    let index = order.indexOf(name);
-    if (index === -1) {
-      order.push(name);
-      index = order.length - 1;
-    }
-    return "$" + (index + 1);
-  });
-  body = body.replace(/\$\{input\}/g, "$ARGUMENTS");
+  body = rewriteCommandInputs(body, (_name, index) => "$" + (index + 1));
 
   if (profile.toolMap) {
     body = substituteProse(body, profile.toolMap);

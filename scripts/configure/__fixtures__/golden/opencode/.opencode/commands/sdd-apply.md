@@ -5,4 +5,4 @@ agent: ospec-workflow
 
 Route this command to the orchestrator.
 
-Run or continue apply for $1 using existing tasks. Also handle $ARGUMENTS.
+Run or continue apply for $ARGUMENTS using existing tasks. Also handle $ARGUMENTS.

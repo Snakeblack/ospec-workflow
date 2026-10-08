@@ -69,10 +69,10 @@ Skills (appear in autocomplete):
 - `/sdd-document` → generate/update the repository technical wiki (delegates to sdd-document)
 
 Meta-commands (type directly — orchestrator handles them, won't appear in autocomplete):
-- `/sdd-new <change>` → start a new change by delegating exploration + proposal to sub-agents
+- `/sdd-new [change-name] <request>` → start a new change (name derived from the request when missing) by delegating exploration + proposal to sub-agents
 - `/sdd-continue [change]` → run the next dependency-ready phase via sub-agent(s)
 - `/sdd-ff <name>` → fast-forward planning: proposal → specs → design → tasks
-- `/sdd-lite <name>` → classify the change, then use the reduced workflow (`proposal-lite.md` → `tasks.md` → `apply` → `verify`) for trivial/small work
+- `/sdd-lite [change-name] <request>` → classify the change, then use the reduced workflow (`proposal-lite.md` → `tasks.md` → `apply` → `verify`) for trivial/small work
 
 `/sdd-new`, `/sdd-continue`, `/sdd-ff`, and `/sdd-lite` are meta-commands handled by YOU. Do NOT invoke them as skills.
 

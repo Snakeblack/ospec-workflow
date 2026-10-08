@@ -6,8 +6,8 @@
 
 | Comando | Cuándo |
 |---|---|
-| `/sdd-new <cambio>` | Feature o cambio con entidad: ciclo completo con specs |
-| `/sdd-lite <cambio>` | Fix pequeño o trivial: ciclo reducido sin specs/design |
+| `/sdd-new [nombre-cambio] <petición>` | Feature o cambio con entidad: ciclo completo con specs |
+| `/sdd-lite [nombre-cambio] <petición>` | Fix pequeño o trivial: ciclo reducido sin specs/design |
 | `/sdd-continue` | Retomar donde quedó (nueva sesión, post-compact, otro día) |
 | `/sdd-verify` | Validar la implementación contra specs antes de PR |
 

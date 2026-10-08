@@ -1046,3 +1046,27 @@ test("real repo: all seven profile outputs retain the compact lite artifact cont
     }
   }
 });
+
+// E1.8: /sdd-new and /sdd-lite take the whole request as their only input, so a
+// request without a change name is not split into "name" and "intent" words.
+test("real repo: sdd-new and sdd-lite receive the whole request in all seven targets", (t) => {
+  const wholeString = new Set(["claude", "opencode", "codex"]);
+  for (const target of ["claude", "vscode", "github-copilot", "opencode", "codex", "cursor", "antigravity"]) {
+    const out = tmpOut(t);
+    const result = runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false, withSdd: true });
+    for (const command of ["sdd-new", "sdd-lite"]) {
+      const file = result.files.find((entry) =>
+        entry.path.endsWith(`/${command}.md`) || entry.path.endsWith(`/${command}.prompt.md`) ||
+        entry.path === `skills/commands/${command}/SKILL.md`);
+      assert.ok(file, `${target} must ship ${command}`);
+      const { frontmatter, body } = parse(file.content);
+      assert.equal(getField(frontmatter, "arguments"), null, `${target} ${command} must not split the request into named arguments`);
+      assert.doesNotMatch(body, /changeName|\$intent|input:intent|\$[12]\b/, `${target} ${command} must not take a name and an intent separately`);
+      const placeholder = wholeString.has(target) ? "`$ARGUMENTS`" : "`${input:request}`";
+      assert.ok(body.includes(`request: ${placeholder}`), `${target} ${command} must pass the whole request (${placeholder})`);
+      // Both forms: `<name> <request>` keeps its name, a bare request gets a derived one.
+      assert.match(body, /kebab-case name with at least one hyphen/, `${target} ${command} must say when the first word is the name`);
+      assert.match(body, /derive a short kebab-case change name/, `${target} ${command} must derive the name when it is missing`);
+    }
+  }
+});

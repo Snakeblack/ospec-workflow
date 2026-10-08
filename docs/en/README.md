@@ -67,8 +67,8 @@ turn IDD off in a project, declare `mode: sdd` in `idd/config.yaml`.
 
 | Command | Use |
 |---|---|
-| `/sdd-new <change>` | Full cycle with specs for substantial changes |
-| `/sdd-lite <change>` | Reduced cycle for trivial/small work |
+| `/sdd-new [change-name] <request>` | Full cycle with specs for substantial changes |
+| `/sdd-lite [change-name] <request>` | Reduced cycle for trivial/small work |
 | `/sdd-continue` | Resume from filesystem state (new session, post-compact) |
 | `/sdd-verify` | Validate implementation against specs |
 | `/sdd-archive` | Close the change; sync delta specs into the baseline |
