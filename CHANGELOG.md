@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.117.3] - 2026-10-08
+
+### Changed
+- **Cinco oportunidades de mejora continua aceptadas en el roadmap**: se concretan E1.12 (continuidad y reanudación de IDD), E1.13 (Strict TDD según el modo activo) y E2.1 (contrato de conocimiento arquitectónico); se añaden E1.15 (coherencia de la política de revisiones sucesoras, pendiente de decisión humana) y E4.4 (experimento de recursos, empezando por cuatro ejecuciones A/B de effort). Cada oportunidad incluye evidencia, alcance, alternativas y criterios de aceptación. E2.1 conserva `next-eligible` y E1.12 destaca por su retorno inmediato en paralelo. La entrega actualiza la planificación; las capacidades siguen pendientes. Hecho con IDD (`idd/archive/2026-10-08-oportunidades-mejora-continua/`).
+
+**Verificación directa**: `node scripts/check.js` (3368 tests pasando, 0 fallos y 0 omitidos). Comprobación documental: `git diff --check`.
+
 ## [2.117.2] - 2026-10-08
 
 ### Changed

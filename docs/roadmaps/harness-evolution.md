@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.117.2, 2026-10-08.
+> **Versión de referencia:** v2.117.3, 2026-10-08.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -132,6 +132,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.12** | `session-hook-idd` (follow-up del checkpoint de la Etapa 1) | bugfix |
 | `pending` | **E1.13** | `idd-openspec-asymmetries` (follow-up del checkpoint de la Etapa 1) | bugfix |
 | `pending` | **E1.14** | `codex-repo-runtime` (follow-up del checkpoint de la Etapa 1) | bugfix |
+| `pending` | **E1.15** | `idd-review-successor-policy` (coherencia de autoridades; decisión humana pendiente) | contrato |
 | `next-eligible` | **E2.1** | `knowledge-map-contract` | contrato |
 | `pending` | **E2.2** | `decision-gap-engine` | feature |
 | `pending` | **E2.3** | `foundation-discovery-rounds` | feature |
@@ -146,9 +147,22 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E4.1** | `bench-scenarios` (checkpoint `continue` con `idd-2` en v2.111.0) | medición |
 | `pending` | **E4.2** | `head-to-head-gentle-ai` | medición |
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
+| `pending` | **E4.4** | `execution-resource-experiment` (experimento previo a cualquier routing adaptativo) | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E2.1 `knowledge-map-contract`, que abre la Etapa 2. El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) da `continue`: todas sus filas de objetivos se cumplen. Sus follow-ups pasan a ser E1.11–E1.14, `pending` y en paralelo con la Etapa 2, sin bloquearla. El plugin SDD del marketplace sigue como E5.8, por demanda.
+**▶ SIGUIENTE:** E2.1 `knowledge-map-contract`, que abre la Etapa 2. El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) da `continue`: todas sus filas de objetivos se cumplen. Sus follow-ups E1.11–E1.14 y la coherencia de política de E1.15 siguen `pending` y en paralelo con la Etapa 2, sin bloquearla. El plugin SDD del marketplace sigue como E5.8, por demanda.
+
+**Cinco oportunidades aceptadas el 2026-10-08**, en orden de retorno esperado de la auditoría. Se amplían tres ítems existentes y se añaden dos acotados; aceptar su entrada al roadmap no completa sus garantías ni resuelve sus decisiones pendientes.
+
+| Prioridad | Ítem | Beneficio y validación mínima | Coste y límite |
+| --- | --- | --- | --- |
+| 1 | **E1.12** | Reanudar IDD desde disco; consumidor sin `openspec/`, con un cambio abierto y siguiente paso correcto | Corrección localizada; reutilizar store y `next`, sin estado autoritativo nuevo |
+| 2 | **E1.13** | Respetar Strict TDD en el modo activo; matriz IDD/SDD × strict/standard × con/sin tests | Conservar el guard existente; no ampliar la heurística ni sustituir la evidencia del CLI |
+| 3 | **E2.1** | Conocimiento arquitectónico con procedencia y huecos explícitos; esquema y ejemplos de los seis perfiles | Contrato inicial; ADR, consumo selectivo y fitness functions permanecen en E2.4 y E3 |
+| 4 | **E1.15** | Eliminar la contradicción sobre aprobación de sucesores; política explícita y pruebas de linajes | Requiere elegir la política antes de implementarla; sin gates ni revisores adicionales por defecto |
+| 5 | **E4.4** | Saber si ajustar recursos reduce el coste de una entrega válida; ensayo controlado con checks independientes | Primero variar solo effort; no autoriza router, configuración duplicada ni orquestador nuevo |
+
+**Recomendación de ejecución:** E1.12 ofrece el retorno inmediato más claro; puede abordarse en paralelo sin desplazar E2.1 como siguiente paso estratégico. Para recursos, la decisión actual es **optimización mínima** con la infraestructura existente; cualquier routing depende de evidencia posterior de E4.4.
 
 **Dependencias:**
 
@@ -160,10 +174,12 @@ E0.0 ─ E0.1 ─┬─ E0.2 ─┬─ E0.4 ────────────
 E1.1 ─ E1.2 ─┬─ E1.3 ─ E1.4 ───────────────────── E1.6 ─ E1.7 ─ E1.9 ─ E1.10 ─ checkpoint E1
              └─ E1.5 (en paralelo)                                                    │
                                                     E1.11 / E1.12 / E1.13 / E1.14 ◄───┘ (en paralelo con E2)
+E1.4 ─ E1.15 (decisión de política; en paralelo con E2)
 
 E1.2 ─ E2.1 ─ E2.2 ─ E2.3 ─ E2.4 ─ E2.5 ─ E2.6
 E1.4 y E2.4 ─ E3.1 ─ E3.2 ─ E3.3 / E3.4 / E3.5
 E1.6 ─ E4.2 ─ E4.3
+E4.1 ─ E4.4 (experimento independiente de E4.2; sin router)
 ```
 
 E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado con escrituras atómicas propias hasta que `record` exista.
@@ -366,15 +382,19 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 
 - **Origen:** los hooks `Stop` y `PreCompact` buscan el cambio activo solo en `openspec/changes/` (`findActiveChanges`). Con un cambio IDD abierto, `.ospec/session/latest.md` dice «Active change: None» y la sesión siguiente no lo retoma (hallazgo de E1.6 a).
 - **Garantía que protege:** estado en disco y reanudación desde él, no desde la memoria de la conversación.
-- **Alcance:** `Stop` y `PreCompact` reconocen los cambios abiertos de `idd/` y escriben su siguiente paso con `ospec next`; los cambios SDD siguen igual.
-- **Hecho cuando:** con un cambio IDD abierto, `latest.md` lo nombra con su siguiente paso, en los targets que ejecutan esos hooks.
+- **Evidencia adicional (auditoría 2026-10-08):** un consumidor aislado sin `openspec/`, con un cambio abierto mediante el CLI real, reproduce «Active change: None». El cierre IDD y el rechazo de evidencia obsoleta funcionan; el defecto está en la continuidad de sesión.
+- **Alcance:** `Stop` y `PreCompact` reconocen los cambios abiertos de `idd/` y escriben su siguiente paso reutilizando `idd-store.listChanges` e `idd-next.nextForChange`. `latest.md` sigue siendo una vista derivada; los cambios SDD conservan su comportamiento. Si hay varios cambios abiertos, la vista muestra la ambigüedad sin escoger uno como autoridad.
+- **Hecho cuando:** con un cambio IDD abierto, `latest.md` lo nombra con su siguiente paso, en los targets que ejecutan esos hooks. Pruebas en consumidor con runtime instalado cubren cero, uno y varios cambios abiertos, SDD y la paridad JS/Go donde corresponda. Una invocación aislada del hook no se presenta como prueba de entrega de eventos por el host.
+- **Alternativa y coste:** no cambiar conserva el fallo reproducido; reutilizar store y `next` evita un segundo cursor de estado. El ahorro de contexto o de intervenciones se mide al usarlo, no se presupone.
 
 ### E1.13 — `idd-openspec-asymmetries`
 
 - **Origen:** el pre-commit decide Strict TDD solo con `tdd_mode` de `openspec/config.yaml` y no lee `strict_tdd` de `idd/config.yaml`, y los hooks crean `.ospec/` en el proyecto. Hoy `ospec doctor` solo lo avisa (E1.7 a).
 - **Garantía que protege:** Strict TDD con evidencia cuando el proyecto lo declara (principio 8) y que IDD no dependa de `openspec/` (REQ-idd-002).
-- **Alcance:** decidir y aplicar una sola fuente de Strict TDD para el pre-commit según el modo del proyecto, y si `.ospec/` se queda, se mueve o se documenta como derivado.
-- **Hecho cuando:** un proyecto IDD con `strict_tdd: true` y sin `openspec/` recibe del pre-commit la misma comprobación que un proyecto SDD con `tdd_mode: strict`, y el doctor deja de avisar.
+- **Evidencia adicional (auditoría 2026-10-08):** con producción staged sin tests, el pre-commit del consumidor devuelve 0 con solo `idd.strict_tdd: true` y 1 con `openspec.tdd_mode: strict`.
+- **Alcance:** decidir y aplicar una sola fuente de Strict TDD para el pre-commit según el modo resuelto del proyecto, incluida la precedencia cuando ambas configuraciones existen, y si `.ospec/` se queda, se mueve o se documenta como derivado. Conservar la heurística de archivos staged y la detección de secretos; el guard no demuestra red/green ni sustituye a `ospec run`.
+- **Hecho cuando:** un proyecto IDD con `strict_tdd: true` y sin `openspec/` recibe del pre-commit la misma comprobación que un proyecto SDD con `tdd_mode: strict`, y el doctor deja de avisar. La matriz IDD/SDD × strict/standard × con/sin tests y los casos de configuraciones coexistentes prueban la fuente elegida y la ausencia de regresiones.
+- **Alternativa y coste:** documentar la asimetría deja sin aplicar una garantía declarada; resolver la configuración con el mecanismo existente evita un guard o una clasificación nuevos.
 
 ### E1.14 — `codex-repo-runtime`
 
@@ -382,6 +402,14 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Garantía que protege:** multi-target honesto: IDD en cualquier target sin que nadie lo pida (resultado de la Etapa 1).
 - **Alcance:** la instalación de Codex por repositorio lleva el protocolo IDD y un runtime alcanzable (propio o el global declarado), con sus marcadores sustituidos.
 - **Hecho cuando:** un repositorio con solo la instalación de Codex por repositorio ejecuta `ospec next` desde la skill `idd`, y el aviso `codex-repo` del doctor desaparece.
+
+### E1.15 — `idd-review-successor-policy`
+
+- **Origen:** [`AGENTS.md`](../../AGENTS.md#bounded-review-lifecycle) exige un sucesor explícitamente aprobado con predecesor terminal; [REQ-idd-016](../../openspec/specs/idd/spec.md#req-idd-016) exige sucesores sin aprobación (REQ-idd-008). `startTrustReview` en `scripts/lib/idd-review.js` sigue esa spec, mientras `createSuccessor` en `scripts/lib/review-lineage.js` exige una referencia de aprobación. Es una contradicción de autoridades, no una regresión demostrada frente a la spec IDD vigente.
+- **Garantía que protege:** review independiente acotado y aprobaciones solo desde respuestas explícitas (principio 8); ningún retry reinicia un linaje agotado.
+- **Alcance:** elegir explícitamente entre aprobación de sucesores y una excepción IDD autorizada, y alinear instrucciones, spec, CLI y pruebas con esa decisión. La aceptación de este ítem no elige ninguna alternativa. Reutilizar las APIs de linaje; conservar predecesor terminal, identidad del candidato, hallazgos y rutas congelados, presupuesto dentro de cada linaje y lectura de estados históricos.
+- **Hecho cuando:** tras la decisión humana, pruebas independientes del CLI cubren sucesor permitido y rechazado según la política, candidato sin cambios, reconciliación pendiente, agotamiento y compatibilidad de estados; retry, check y close no restauran intentos ni vuelven a lanzar reviewers de descubrimiento.
+- **Alternativas y coste:** no cambiar conserva la contradicción; exigir aprobación añade intervención pero coincide con `AGENTS.md`; autorizar la excepción reduce intervención pero exige justificar su equivalencia. No se crea un sistema de aprobación ni nuevos agentes. Hasta la decisión, rige la instrucción aplicable de `AGENTS.md`.
 
 ## Etapa 2 — Foundation de verdad: descubrimiento de arquitectura
 
@@ -424,8 +452,10 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
 
 ### E2.1 — `knowledge-map-contract`
 
+- **Garantía que protege:** conocer restricciones, límites, atributos de calidad y procedencia antes de tomar decisiones (fila «Conocimiento capturado en foundation»); un hueco de conocimiento no se presenta como un hecho confirmado.
 - **Alcance:** esquema del mapa de conocimiento (ranuras, dimensiones, estados, perfiles y relaciones ranura → decisión), su ubicación (estado de máquina fuera de `openspec/`, que es solo del modo SDD; documentos humanos en `docs/`) y el catálogo inicial de ranuras por perfil.
-- **Hecho cuando:** los seis perfiles tienen su conjunto de ranuras obligatorias con un ejemplo, y "desconocido" se distingue de "N/A" en el esquema.
+- **Hecho cuando:** los seis perfiles tienen su conjunto de ranuras obligatorias con un ejemplo, y "desconocido" se distingue de "N/A" en el esquema. Fixtures válidos e inválidos verifican estados, procedencia y relaciones ranura → decisión, incluidos supuestos con disparador y diferidos con dueño. Los escenarios de calidad expresan estímulo, respuesta observable y medida cuando el proyecto la haya definido; no inventan presupuestos.
+- **Alternativas y límite:** conservar las nueve preguntas actuales evita trabajo pero no cubre el conocimiento objetivo del roadmap. Este ítem entrega solo contrato y ejemplos: el motor y las rondas siguen en E2.2–E2.3, los ADR en E2.4 y su consumo selectivo y comprobaciones ejecutables en E3.1–E3.3. No añade skills por libro ni carga permanente de todos los documentos.
 
 ### E2.2 — `decision-gap-engine`
 
@@ -524,6 +554,16 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
 
 - **Alcance:** los techos de E0.0 bajan en cada release que reduce contexto, y nunca suben sin una justificación registrada.
 
+### E4.4 — `execution-resource-experiment`
+
+- **Problema y garantía:** E4.1 comparó modos con host y modelo fijos; no demuestra que variar modelo, reasoning effort o delegación reduzca el coste manteniendo las garantías. Este ítem mueve las filas «Escenarios comparados» y «Contexto del flujo por defecto» solo si obtiene evidencia, y preserva las obligaciones IDD.
+- **Reutilización:** `scripts/evals/bench/bench.js` ya admite `--model`, `--effort`, `--scenario` y `--repetitions`, con registros de identidad, checks ocultos y métricas. `models.yaml` sigue como configuración canónica de tiers por target. El checkpoint entre modos exige modelo y effort iguales: no se relaja ni se usa para declarar superioridad de una estrategia de recursos.
+- **Primer experimento:** A, configuración habitual sin delegación adicional; B, mismo modelo variando únicamente effort, solo en un host que lo soporte. `bugfix` y `saas-small`, una repetición por escenario y estrategia: cuatro ejecuciones exploratorias. Fijar antes host, versiones, build, modelo, persona, instrucciones, herramientas, corpus, checks, valores de effort y presupuesto; alternar el orden A/B. El análisis separado reutiliza los registros sin añadir un router al producto.
+- **Medición:** corrección, regresiones y defectos escapados; tokens y coste total hasta una entrega válida, incluido setup, persona, caché, revisores y correcciones; latencia, reintentos e intervenciones. Delegaciones y transferencia/integración de contexto se miden cuando el host exponga datos; lo no observado figura como desconocido. Mantener aceptación independiente y versión anterior funcional; un cierre declarado sin estado válido no cuenta como entrega.
+- **Criterio previo y repetición:** acordar el beneficio mínimo y el presupuesto antes de correr, sin inventar un objetivo de rendimiento. Veto a nuevos defectos, regresiones o incumplimientos de contratos y reviews exigidos. Si la señal justifica continuar y hay presupuesto, repetir ambos escenarios con tres repeticiones por estrategia (doce ejecuciones nuevas); la muestra inicial no permite declarar superioridad general.
+- **Siguiente alternativa, condicionada:** probar selección de modelos con effort fijo solo si procede; después delegación selectiva para trabajo independiente con ventaja concreta. Combinar dimensiones únicamente cuando sus ensayos individuales lo justifiquen. Respetar preferencias, capacidades disponibles y degradación explícita; funcionar con un solo modelo. No añadir identificadores de proveedor a reglas de negocio ni una segunda clasificación de impacto.
+- **Hecho cuando:** un informe reproducible declara condiciones, muestras, numeradores, exclusiones y costes completos, y decide entre no implementar, optimización mínima, routing ligero u orquestación avanzada. Adoptar solo una mejora con beneficio medido y coste de mantenimiento aceptable; descartar o revertir si añade más complejidad que valor. No implementar sigue siendo una conclusión válida.
+
 ## Etapa 5 — Plataforma por demanda
 
 Ítems que se abren cuando hay demanda o evidencia, sin orden fijo:
@@ -585,6 +625,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-08: el usuario acepta las cinco oportunidades de la auditoría de ingeniería y eficiencia. Se concretan E1.12, E1.13 y E2.1, y se incorporan E1.15 (política de sucesores, pendiente de decisión) y E4.4 (experimento de recursos, sin router autorizado). E2.1 conserva `next-eligible`; ninguna capacidad nueva se marca como entregada.
 - 2026-07-02 → 2026-10-03: programa K1–K12 y lanes O, PP, CX y R2 (ver el [roadmap archivado](archive/2026-10-03-harness-evolution-kernel.md#historial-consolidado)).
 - 2026-10-03: auditoría de skills, carga *lazy*, instrucciones por target, orquestador y comparación con gentle-ai. El roadmap K1–K12 se archiva y se sustituye por este roadmap único. K10-delivery, K11, K12 longitudinal, CX2–CX6 y Dream-RSI quedan aparcados con criterio de reapertura.
 - 2026-10-03: la arquitectura objetivo del kernel, Adaptive, proporcionalidad, foundation holística y la investigación salen de `docs/architecture/` hacia [`archive/2026-10-03-arquitectura/`](archive/2026-10-03-arquitectura/README.md). La carpeta queda reservada para la arquitectura vigente (E2.6) y `docs/README.md` vuelve a ser el índice de la documentación.

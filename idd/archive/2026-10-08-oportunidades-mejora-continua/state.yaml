@@ -1,0 +1,60 @@
+{
+  "schema": "idd-state/v1",
+  "change": "oportunidades-mejora-continua",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "Incorporar al roadmap canónico las cinco oportunidades priorizadas y aceptadas tras la auditoría.",
+    "acceptance": "El roadmap enlaza las cinco oportunidades con alcance, evidencia y validación; reutiliza E1.12, E1.13 y E2.1, añade política de sucesores y experimento de recursos como pendientes, preserva E2.1 como siguiente estratégico y no implementa capacidades ni adopta un router."
+  },
+  "facts": {
+    "basis": "El usuario aceptó explícitamente las cinco oportunidades y pidió añadirlas primero al roadmap; el documento y la auditoría fijan su alcance, sin decisiones de comportamiento pendientes para esta edición documental."
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-08T12:11:21.531Z",
+      "detail": {
+        "tree": "sha256:db0d2280e56570c5bb2e90ca788c72a3ffebda3ab9ea6fd810d9da4e70e7284d",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "c6e5acce70f2a0d2eb0bd4ec70059657243b0cef",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:66adb5286c276d80566acd3259b4b3f4cc63c6767d08fb2ba802ea31cb0c18bd",
+      "tree": "sha256:db0d2280e56570c5bb2e90ca788c72a3ffebda3ab9ea6fd810d9da4e70e7284d",
+      "recorded_at": "2026-10-08T12:11:21.531Z"
+    }
+  ],
+  "closed_at": "2026-10-08T12:11:37.228Z"
+}
