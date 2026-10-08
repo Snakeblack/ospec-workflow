@@ -140,6 +140,16 @@ test("detect: doctor failure, warning and timeout are classified without throwin
   assert.equal(d.protocol, "absent");
 });
 
+test("detect: the store probe can be skipped without losing host detection", () => {
+  const spawn = makeSpawn({ ...ENGRAM, ...CLAUDE_ABSENT });
+  const d = detectEngram({ spawn, hostBin: CLAUDE, includeDoctor: false });
+  assert.equal(d.doctor, "skipped");
+  assert.equal(d.binary.found, true);
+  assert.equal(d.protocol, "absent");
+  assert.equal(d.mcp, "absent");
+  assert.equal(spawn.calls.includes("engram doctor --json"), false);
+});
+
 test("detect claude: plugin and MCP recognised (with the plugin: prefix); lookalikes are not", () => {
   const spawn = makeSpawn({ ...ENGRAM, "claude plugin list": ok("  > engram@engram\n"), "claude mcp list": ok("plugin:engram:engram: engram mcp - Connected\n") });
   const d = detectEngram({ spawn, hostBin: CLAUDE });
@@ -343,6 +353,50 @@ test("plan: Copilot CLI falls back to an engram stdio MCP entry in ~/.copilot/mc
 
 // --- execution: automatic by default, --no-engram opts out ------------------------
 
+for (const target of Object.keys(TARGETS)) {
+  test(`E1.23: ${target} setup and re-check never scan the Engram store`, () => {
+    let done = false;
+    const files = makeFs();
+    const configure = () => {
+      done = true;
+      const configs = {
+        codex: [home(".codex", "config.toml"), "[mcp_servers.engram]\n"],
+        antigravity: [home(".gemini", "config", "mcp_config.json"), '{"mcpServers":{"engram":{}}}'],
+        opencode: [home(".config", "opencode", "opencode.json"), '{"mcp":{"engram":{}}}'],
+        cursor: [home(".cursor", "mcp.json"), '{"mcpServers":{"engram":{}}}'],
+        vscode: [home(".config", "Code", "User", "mcp.json"), '{"servers":{"engram":{}}}'],
+      };
+      const protocols = {
+        antigravity: [home(".gemini", "GEMINI.md"), "<!-- BEGIN ENGRAM MEMORY PROTOCOL -->"],
+        opencode: [home(".config", "opencode", "plugins", "engram.ts"), "plugin"],
+        cursor: [home(".cursor", "engram-memory-protocol.md"), "protocol"],
+        vscode: [home(".config", "Code", "User", "prompts", "engram.instructions.md"), "protocol"],
+      };
+      for (const entry of [configs[target], protocols[target]].filter(Boolean)) {
+        files.store.set(entry[0], entry[1]);
+      }
+      return ok();
+    };
+    const host = TARGETS[target].host;
+    const spawn = makeSpawn({
+      ...ENGRAM,
+      "engram doctor --json": errored("ETIMEDOUT"),
+      "engram hook": ok(),
+      ...(host ? {
+        [`${host} plugin list`]: () => ok(done ? "  > engram@engram\n" : ""),
+        [`${host} mcp list`]: () => ok(done ? "engram: x\n" : ""),
+      } : {}),
+      ...(TARGETS[target].agent ? { [`engram setup ${TARGETS[target].agent}`]: configure } : {}),
+    });
+    const result = run({ target, spawn, hostBin: host, fs: files });
+    assert.deepEqual(spawn.calls.filter((call) => /^engram(?:\.exe)? doctor\b/.test(call)), []);
+    assert.equal(spawn.calls.filter((call) => call === "engram version").length, 2, "checks before and after setup");
+    assert.match(result.stdout, /Engram configurado|plugin y el MCP de Engram están presentes/);
+    assert.equal(result.stderr, "");
+    assert.deepEqual(mutations(spawn.calls), TARGETS[target].agent ? [`engram setup ${TARGETS[target].agent}`] : []);
+  });
+}
+
 test("run: binary absent prints install guidance and mutates nothing", () => {
   const spawn = makeSpawn({ ...NO_ENGRAM, ...CLAUDE_ABSENT });
   const { result, stdout } = run({ spawn, hostBin: CLAUDE });
@@ -397,9 +451,7 @@ test("run: unknown host state (CLI missing) explains and mutates nothing", () =>
   assert.deepEqual(mutations(spawn.calls), []);
 });
 
-test("run: doctor problems are warnings and failing or throwing steps never throw", () => {
-  const doctor = makeSpawn({ ...CLAUDE_ABSENT, "engram version": ok("engram 1.0.0"), "engram doctor --json": errored("ETIMEDOUT") });
-  assert.match(run({ spawn: doctor, hostBin: CLAUDE, argv: ["--no-engram"] }).stderr, /aviso: engram doctor informó "timeout"/);
+test("run: failing or throwing steps never throw", () => {
   const failing = makeSpawn({ ...ENGRAM, ...CLAUDE_ABSENT, "engram setup claude-code": fail(3, "network down") });
   assert.match(run({ spawn: failing, hostBin: CLAUDE }).stderr, /`engram setup claude-code` falló \(exit 3\)/);
   const throwing = () => { throw new Error("kaboom"); };
