@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.117.4, 2026-10-08.
+> **Versión de referencia:** v2.117.5, 2026-10-08.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -133,8 +133,8 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.13** | `idd-openspec-asymmetries` (follow-up del checkpoint de la Etapa 1) | bugfix |
 | `pending` | **E1.14** | `codex-repo-runtime` (follow-up del checkpoint de la Etapa 1) | bugfix |
 | `pending` | **E1.15** | `idd-review-successor-policy` (coherencia de autoridades; decisión humana pendiente) | contrato |
-| `next-eligible` | **E1.16** | `hook-neutral-permissions` (OSP-017; prioridad de la siguiente sesión) | bugfix |
-| `pending` | **E1.17** | `hook-boundary-reliability` (OSP-001/002/003; secretos y launcher) | bugfix |
+| `done` | **E1.16** | `hook-neutral-permissions` (OSP-017; sin objeción, el hook no decide y el host aplica sus permisos, en v2.117.5) | bugfix |
+| `next-eligible` | **E1.17** | `hook-boundary-reliability` (OSP-001/002/003; secretos y launcher) | bugfix |
 | `pending` | **E1.18** | `idd-evidence-integrity` (OSP-018; frescura de configuración y protección del estado) | bugfix |
 | `pending` | **E1.19** | `idd-review-context` (OSP-019; sobrecarga confirmada, bloqueo no demostrado) | refactor |
 | `pending` | **E1.20** | `installation-docs-sync` (OSP-020; documentación de E1.6/E1.8) | docs |
@@ -155,7 +155,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.4** | `execution-resource-experiment` (experimento previo a cualquier routing adaptativo) | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE SESIÓN:** E1.16 `hook-neutral-permissions` (OSP-017), seguido por E1.17 (OSP-001/002/003), E1.18 (OSP-018), E1.19 (OSP-019) y E1.20 (OSP-020), por decisión del usuario del 2026-10-08. Las correcciones se ejecutarán con IDD; esta actualización solo fija la prioridad y no las declara implementadas. Después se retoma E2.1 `knowledge-map-contract`, que abre la Etapa 2.
+**▶ SIGUIENTE:** E1.17 `hook-boundary-reliability` (OSP-001/002/003), seguido por E1.18 (OSP-018), E1.19 (OSP-019) y E1.20 (OSP-020), por decisión del usuario del 2026-10-08. E1.16 (OSP-017) quedó hecho en v2.117.5. Las correcciones se ejecutan con IDD. Después se retoma E2.1 `knowledge-map-contract`, que abre la Etapa 2.
 
 El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) conserva su resultado histórico `continue`. Los hallazgos posteriores y sus límites están en el [análisis OSP de permisos y evidencia](../analysis/2026-10-08-osp-permisos-y-evidencia.md). E1.11–E1.15 siguen pendientes; el plugin SDD del marketplace permanece en E5.8, por demanda.
 
@@ -434,6 +434,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Alcance mínimo:** ausencia de objeción devuelve ausencia de decisión, sin aplicar una aprobación afirmativa. Mantener deny, ask, errores y bypass explícitos; reutilizar los adaptadores existentes. Codex ya normaliza el allow neutral a `{}` y Cursor conserva su comportamiento hasta verificar su host. Actualizar la spec canónica de hooks con la corrección.
 - **Hecho cuando:** casos neutrales de JS y Go producen stdout vacío y exit 0, el par real deja de conceder Write con plugin, fixtures explícitos permanecen compatibles, Copilot y VS Code no regresan y los checks pasan. Conservar la baseline anterior y no usar el hook modificado como única prueba.
 - **Alternativas y coste:** no cambiar conserva el defecto; preguntar siempre altera permisos del usuario. Retirar el allow neutral es la opción menor, sin reglas por herramienta ni otro sistema de permisos.
+- **Hecho (v2.117.5):** JS y Go no escriben nada sin objeción (exit 0); deny, ask, error y la degradación bypass no cambian; el launcher mantiene `{}` en Codex y `permission: "allow"` en Cursor. El par real (Claude Code 2.1.289, Sonnet, `--permission-mode default`) deniega ahora el Write con y sin plugin; la baseline anterior sigue en el análisis. Copilot y VS Code: su documentación trata la salida vacía como comportamiento por defecto y `allow` como aprobación; no se probaron en real. Spec: hooks §3.1 y Step 7. IDD en `idd/archive/2026-10-08-hook-neutral-permissions/`.
 
 ### E1.17 — `hook-boundary-reliability` (OSP-001/002/003)
 
@@ -675,6 +676,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-08: E1.16 `hook-neutral-permissions` hecho en v2.117.5 (OSP-017): sin objeción, PreToolUse no decide y el host aplica sus permisos. E1.17 pasa a `next-eligible`.
 - 2026-10-08: tras el análisis de permisos, launcher, evidencia y contexto, el usuario prioriza para la siguiente sesión OSP-017, OSP-001/002/003, OSP-018, OSP-019 y OSP-020. Se incorporan como E1.16–E1.20 en ese orden; E1.16 pasa a `next-eligible` y E2.1 a `pending` hasta retomar la Etapa 2. No se implementan arreglos ni se aprueba una política nueva de bypass; se conservan los límites de evidencia del análisis.
 - 2026-10-08: el usuario acepta las cinco oportunidades de la auditoría de ingeniería y eficiencia. Se concretan E1.12, E1.13 y E2.1, y se incorporan E1.15 (política de sucesores, pendiente de decisión) y E4.4 (experimento de recursos, sin router autorizado). E2.1 conserva `next-eligible`; ninguna capacidad nueva se marca como entregada.
 - 2026-07-02 → 2026-10-03: programa K1–K12 y lanes O, PP, CX y R2 (ver el [roadmap archivado](archive/2026-10-03-harness-evolution-kernel.md#historial-consolidado)).
