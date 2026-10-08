@@ -625,3 +625,38 @@ test("a change with a living document closes once its plan and decisions are wri
   assert.match(archived, /- ev-\d+: living-doc-current for living-doc/);
   assert.match(archived, /1\. Count pages\./, "the model-written sections are kept");
 });
+
+// E1.7 (a) ospec doctor (REQ-idd-019): read-only, exit 1 only on errors.
+function doctor(t, root, ...args) {
+  const home = tempRoot(t);
+  const env = { ...process.env, HOME: home, USERPROFILE: home };
+  for (const name of Object.keys(env)) if (name.startsWith("DISABLE_")) delete env[name];
+  const result = spawnSync(process.execPath, [CLI, "doctor", ...args, "--root", root], { encoding: "utf8", env });
+  return { code: result.status, stdout: result.stdout, stderr: result.stderr, json: args.includes("--json") ? JSON.parse(result.stdout) : null };
+}
+
+test("doctor reports a healthy project with exit 0 and an invalid config with exit 1", (t) => {
+  const root = tempRoot(t);
+  const healthy = doctor(t, root, "--json");
+  assert.strictEqual(healthy.code, 0, healthy.stderr);
+  assert.strictEqual(healthy.json.command, "doctor");
+  assert.strictEqual(healthy.json.summary.errors, 0);
+  assert.ok(healthy.json.checks.some((check) => check.scope === "project" && check.id === "mode" && check.detail === "idd"));
+
+  fs.mkdirSync(path.join(root, "idd"), { recursive: true });
+  fs.writeFileSync(path.join(root, "idd", "config.yaml"), "mode: waterfall\n");
+  const broken = doctor(t, root);
+  assert.strictEqual(broken.code, 1);
+  assert.match(broken.stdout, /error\s+project\/idd-config/);
+  assert.match(broken.stdout, /action: /);
+});
+
+test("doctor --target names the hosts it checks and refuses the rest as usage", (t) => {
+  const root = tempRoot(t);
+  const missing = doctor(t, root, "--target", "claude", "--json");
+  assert.strictEqual(missing.code, 1);
+  assert.ok(missing.json.checks.some((check) => check.scope === "claude" && check.id === "plugin" && check.status === "error"));
+  const later = doctor(t, root, "--target", "codex");
+  assert.strictEqual(later.code, 2);
+  assert.match(later.stderr, /E1\.7 \(b\)/);
+});

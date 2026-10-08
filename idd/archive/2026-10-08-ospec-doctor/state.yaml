@@ -1,0 +1,141 @@
+{
+  "schema": "idd-state/v1",
+  "change": "ospec-doctor",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "feature",
+    "summary": "ospec doctor: diagnóstico de solo lectura por target (raíz del plugin, hooks, router, modo, Engram, desfase de versión e instalación, presupuestos E0.0) y recuperación guiada de cambios interrumpidos",
+    "acceptance": "Cada fallo conocido de instalación y de la auditoría aparece en la salida de ospec doctor con su causa y la acción que lo arregla, sin que el comando escriba nada"
+  },
+  "facts": {
+    "open": [
+      "Alcance y entrega: ¿los 7 targets en un PR o PRs encadenados (núcleo + Claude + proyecto, luego el resto)?",
+      "Forma: ¿subcomando ospec doctor del CLI distribuido (proyecto consumidor y checkout), script solo del repo, o ambos? ¿Códigos de salida?",
+      "Recuperación guiada: ¿solo cambios IDD o también cambios SDD en openspec/changes?",
+      "Asimetrías IDD/openspec (pre-commit lee Strict TDD solo de openspec/config.yaml; hooks crean .ospec/): ¿el doctor las reporta, se arreglan en E1.7 o quedan fuera?"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 3 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Alcance: PRs encadenados ((a) núcleo + proyecto + Claude; (b) los otros 6 targets). Forma: subcomando ospec doctor del CLI distribuido, --json y --target, salida 0 sin errores y 1 con algún error (los avisos no cambian el código). Recuperación: IDD y SDD, solo lectura, indica el comando que reanuda y avisa si falta el paquete SDD. Asimetrías: el doctor las reporta como aviso con causa y acción; no se cambian los hooks.",
+      "source": "user"
+    },
+    {
+      "id": "adr-amend-or-contradict",
+      "status": "resolved",
+      "reason": "La comprobación engram del doctor necesita la detección de Engram en el runtime (scripts/lib), y adr-20261002-003 decide que un test de contrato prohíbe engram/mem_* en el código del runtime (REQ-session-memory-002).",
+      "answer": "Enmendar el ADR: excepción acotada en adr-20261002-003 y REQ-session-memory-002; un diagnóstico de solo lectura (engram-detect.js y ospec-doctor.js) puede comprobar si Engram está instalado (binario, plugin, MCP), nunca su contenido, y su resultado no cambia ningún gate ni el código de salida; el test permite esos dos ficheros.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-08T06:21:08.810Z",
+      "detail": {
+        "tree": "sha256:efacdb7db1df32e07cdeab1edfc1fdfe47360f863067860589d93d274b6858be",
+        "runs": [
+          "run-2"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-08T06:21:08.810Z",
+      "detail": {
+        "tree": "sha256:efacdb7db1df32e07cdeab1edfc1fdfe47360f863067860589d93d274b6858be",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/session-memory/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-doctor.test.js",
+          "scripts/ospec.test.js",
+          "scripts/session-memory-contract.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-08T06:21:48.016Z"
+    }
+  ],
+  "base": "ab1ba4f3075a3663a68980249dfd5d94d20402a9",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:19b843803c2b30ce07d37ef0e84f62e86f77620a378948d0dc3fb6f5f56ad89c",
+      "tree": "sha256:1dff271d701bc6750c8b03ab46d67742878e8bea10807fbb5b0ac490d0abfb5c",
+      "recorded_at": "2026-10-08T06:16:49.947Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:09751913e142480fa399278d5b6caf9e973756059bf84d07b4196e87eecda440",
+      "tree": "sha256:efacdb7db1df32e07cdeab1edfc1fdfe47360f863067860589d93d274b6858be",
+      "recorded_at": "2026-10-08T06:21:08.810Z"
+    }
+  ],
+  "closed_at": "2026-10-08T06:21:48.016Z"
+}

@@ -29,6 +29,10 @@ const ALLOWLIST = new Set([
   "rules/engram-session-memory.instructions.md",
   "skills/_shared/sdd-phase-common.md",
 ]);
+// `ospec doctor` detects whether Engram is installed, read-only and never as an
+// error (REQ-session-memory-002 exception, adr-20261002-003 amendment).
+const DIAGNOSIS = ["scripts/lib/engram-detect.js", "scripts/lib/ospec-doctor.js"];
+for (const rel of DIAGNOSIS) ALLOWLIST.add(rel);
 // Target profiles only list the addendum path in their `drop` arrays (ADR-001);
 // that is generator confinement config, not a decision path.
 const ALLOWLIST_PREFIXES = ["scripts/lib/target-profiles/"];
@@ -46,6 +50,17 @@ function walk(rel, acc) {
   }
   return acc;
 }
+
+test("the doctor's Engram diagnosis reads no memory and never fails a run", () => {
+  for (const rel of DIAGNOSIS) {
+    const source = fs.readFileSync(path.join(ROOT, rel), "utf8");
+    assert.doesNotMatch(source, /\bmem_[a-z_]+/, `${rel} must not call mem_* tools`);
+  }
+  const doctor = fs.readFileSync(path.join(ROOT, "scripts/lib/ospec-doctor.js"), "utf8");
+  const engram = doctor.slice(doctor.indexOf("function claudeEngramCheck"), doctor.indexOf("// --- project"));
+  assert.ok(engram.length > 0, "claudeEngramCheck is missing");
+  assert.doesNotMatch(engram, /status: "error"/, "an Engram result is never an error");
+});
 
 test("no decision-path or shipped source references Engram outside the allowlist", () => {
   const offenders = [];

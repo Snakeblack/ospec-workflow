@@ -6,9 +6,11 @@
 // derives impact signals from the declaration and the diff (REQ-idd-012), and
 // check and run, which execute the declared checks and test commands and
 // record what they observed (REQ-idd-014). `record` never takes evidence: the
-// CLI records it only from executions it observes (REQ-idd-007).
+// CLI records it only from executions it observes (REQ-idd-007). `doctor`
+// diagnoses the installation and the project without writing (REQ-idd-019).
 //
-// Exit codes: 0 ok, 1 refused by the IDD contract, 2 usage error.
+// Exit codes: 0 ok, 1 refused by the IDD contract (or doctor found an error),
+// 2 usage error.
 
 const fs = require("node:fs");
 const fsp = require("node:fs/promises");
@@ -43,6 +45,7 @@ const {
   validateTrustCorrection,
 } = require("./lib/idd-review.js");
 const { IddImpactError, matchImpact } = require("./lib/idd-impact.js");
+const { DoctorUsageError, renderDoctor, runDoctor } = require("./lib/ospec-doctor.js");
 const { applyDerivation, deriveSignals } = require("./lib/idd-signals.js");
 const { IddStoreError, changeDir, listChanges, mutateChange, readChange } = require("./lib/idd-store.js");
 const { withFileLock } = require("./lib/ospec-state.js");
@@ -76,6 +79,7 @@ const USAGE = `Usage:
   ospec review start|correct --change <id> [--base <ref>]
   ospec review record|validate --change <id> --result <json>|@<file>
   ospec close --change <id>
+  ospec doctor [--target <host>] [--json]
 
 Options:
   --root <dir>  project root (default: current directory)
@@ -113,6 +117,7 @@ const OPTIONS = {
   plan: { type: "string" },
   result: { type: "string" },
   root: { type: "string" },
+  target: { type: "string" },
   json: { type: "boolean" },
   help: { type: "boolean", short: "h" },
 };
@@ -507,6 +512,7 @@ async function run(command, positionals, values) {
   if (command === "run") return runObligation(root, values);
   if (command === "review") return review(root, positionals, values);
   if (command === "close") return close(root, values);
+  if (command === "doctor") return runDoctor({ root, target: values.target ?? null });
   if (command === "record") {
     const [type] = positionals;
     const reducer = reducerFor(type, values, root);
@@ -618,6 +624,7 @@ function describeClose(result) {
 function describe(command, result) {
   if (command === "next") return describeNext(result);
   if (command === "close") return describeClose(result);
+  if (command === "doctor") return renderDoctor(result);
   if (command === "review") return describeReview(result);
   if (command === "signals") return describeSignals(result);
   if (command === "check") return describeCheck(result);
@@ -651,9 +658,9 @@ async function main(argv = process.argv.slice(2)) {
     const result = await run(command, positionals.slice(1), values);
     if (wantsJson) process.stdout.write(`${JSON.stringify({ ok: true, command, ...result }, null, 2)}\n`);
     else process.stdout.write(`${describe(command, result)}\n`);
-    return 0;
+    return command === "doctor" ? result.exit_code : 0;
   } catch (error) {
-    const usage = error instanceof UsageError || error.code?.startsWith?.("ERR_PARSE_ARGS");
+    const usage = error instanceof UsageError || error instanceof DoctorUsageError || error.code?.startsWith?.("ERR_PARSE_ARGS");
     const known =
       usage ||
       error instanceof IddRecordError ||

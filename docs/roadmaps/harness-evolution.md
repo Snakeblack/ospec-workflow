@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.114.2, 2026-10-08.
+> **Versión de referencia:** v2.115.0, 2026-10-08.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -122,7 +122,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.4** | `ospec-check-and-close` | feature |
 | `done` | **E1.5** | `kernel-wiring-inventory` | refactor |
 | `done` | **E1.6** | `idd-default-entry` (IDD por defecto en v2.112.0, SDD con `--with-sdd` en v2.113.0, README y documentación en v2.114.0) | feature |
-| `next-eligible` | **E1.7** | `ospec-doctor` | feature |
+| `next-eligible` | **E1.7** | `ospec-doctor` ((a) núcleo, proyecto y Claude Code en v2.115.0; falta (b)) | feature |
 | `done` | **E1.8** | `sdd-new-intent-argument` (v2.114.2) | bugfix |
 | `next-eligible` | **E2.1** | `knowledge-map-contract` | contrato |
 | `pending` | **E2.2** | `decision-gap-engine` | feature |
@@ -140,7 +140,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E1.7 `ospec-doctor`, elegible desde que E1.6 está hecho; E2.1 `knowledge-map-contract` sigue elegible en paralelo. E1.8 está hecho desde v2.114.2: `/sdd-new` y `/sdd-lite` reciben la petición completa en los 7 targets. Follow-ups: el plugin SDD del marketplace queda como E5.8, por demanda; el protocolo IDD debe editar ficheros de texto respetando su codificación; `ospec next` no recuerda declarar el plan (`ospec signals`) antes de editar; y E1.7 debe detectar una instalación del plugin desfasada respecto al checkout.
+**▶ SIGUIENTE:** E1.7 (b) `ospec-doctor` con los otros seis targets, que cierra la Etapa 1; E2.1 `knowledge-map-contract` sigue elegible en paralelo. E1.8 está hecho desde v2.114.2: `/sdd-new` y `/sdd-lite` reciben la petición completa en los 7 targets. Follow-ups: el plugin SDD del marketplace queda como E5.8, por demanda; el protocolo IDD debe editar ficheros de texto respetando su codificación; `ospec next` no recuerda declarar el plan (`ospec signals`) antes de editar; y E1.7 debe detectar una instalación del plugin desfasada respecto al checkout.
 
 **Dependencias:**
 
@@ -310,6 +310,8 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 
 - **Alcance:** diagnóstico de solo lectura por target: raíz del plugin, hooks, router instalado, modo activo, Engram, desfase entre `dist/` e instalación y presupuestos de E0.0. Incluye recuperación guiada de un cambio interrumpido.
 - **Hecho cuando:** cada fallo conocido de instalación y de la auditoría aparece con causa y acción.
+- **Decisiones del usuario (2026-10-08):** PRs encadenados, (a) núcleo, proyecto y Claude Code y (b) los otros seis targets; subcomando `ospec doctor` del CLI distribuido, con `--json` y `--target`, que sale con 1 solo si hay un error; recuperación guiada de cambios IDD y SDD, de solo lectura; y las asimetrías IDD/openspec (el pre-commit lee Strict TDD solo de `openspec/config.yaml` y los hooks crean `.ospec/`) se reportan como aviso, sin cambiar los hooks.
+- **(a) entregado en v2.115.0:** `ospec doctor` (REQ-idd-019, `scripts/lib/ospec-doctor.js`) no escribe nada: lee `state.yaml` sin pasar por el almacén, que recupera escrituras interrumpidas, y solo lanza `git check-ignore` y las sondas de Engram. Cada comprobación da `ok`, `info`, `warn` o `error`, y los avisos y errores llevan causa y acción. Desde el checkout compara `dist/` y la instalación con la versión del checkout y mira los git hooks del repositorio. En el proyecto: `idd/config.yaml`, el modo, el paquete SDD (`error` con `mode: sdd` sin él), cada cambio IDD con el comando que lo reanuda (cierre interrumpido, `.bak` huérfano, estado ilegible) y cada cambio SDD con su `/sdd-continue`, las dos asimetrías y las guardas `DISABLE_*` activas. En Claude Code: instalaciones rotas o duplicadas, hooks y binario nativo, bloque del router ausente, desfasado o duplicado fuera del bloque, presupuesto *always-on* de 4 KB y Engram. La detección de Engram pasa de `scripts/configure/engram-setup.js` a `scripts/lib/engram-detect.js`, con una enmienda acotada del ADR `adr-20261002-003` y de REQ-session-memory-002 aprobada por el usuario: detecta presencia, nunca lee memorias ni da `error`. En la máquina del autor detectó la instalación y `dist/` en 2.114.1 frente al checkout en 2.114.2, y la sección SDD duplicada en `~/.claude/CLAUDE.md`. En Windows, `claude` suele ser un shim `.cmd` de npm que no se lanza sin shell, y el doctor usa la misma búsqueda que `setup:claude`. Hecho con IDD (`idd/archive/2026-10-08-ospec-doctor/`).
 
 ### E1.8 — `sdd-new-intent-argument`
 

@@ -509,6 +509,15 @@ Y vuelve a revisar:
 
 ## Solucion de problemas
 
+Empieza por `ospec doctor` desde la raíz del proyecto (`node <runtime>/scripts/ospec.js doctor`,
+o `node scripts/ospec.js doctor` en el checkout de ospec-workflow). No escribe nada e
+informa de cada problema con su causa y la acción que lo arregla: una instalación
+desfasada o duplicada, hooks que faltan, un bloque del router ausente o desfasado,
+`mode: sdd` sin el paquete SDD, un cambio IDD o SDD interrumpido y el comando que lo
+reanuda, guardas de hooks desactivadas y Engram. Sale con 1 solo si encuentra un error;
+`--json` imprime el resultado y `--target claude` comprueba solo ese host. Hoy comprueba
+el host Claude Code; los demás targets vendrán después.
+
 ## Selección de modelos del instalador
 
 El instalador guiado comienza seleccionando un destino y el preset
