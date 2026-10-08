@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.117.1, 2026-10-08.
+> **Versión de referencia:** v2.117.2, 2026-10-08.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -72,7 +72,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | Frontera de seguridad (autenticación, secretos, permisos o entrada externa) | Review independiente de confianza | Hallazgos congelados y, como mucho, una corrección acotada |
 | Toca un componente con ADR o atributo de calidad (desde E3) | Declaración de impacto: ninguno, conforma, enmienda o contradice | *Fitness functions* del ADR (E3.3). Enmendar o contradecir requiere tu decisión |
 
-**Cuándo pregunta IDD.** Solo en tres casos: si la intención es materialmente ambigua, si el cambio enmienda o contradice un ADR, o si hay una operación destructiva o irreversible. En todo lo demás avanza sin gate.
+**Cuándo pregunta IDD.** Solo en cuatro casos: si la intención es materialmente ambigua, si quedan hechos de comportamiento que ni la petición ni el código fijan (todos en un solo lote, antes de editar; desde v2.110.0), si el cambio enmienda o contradice un ADR, o si hay una operación destructiva o irreversible. En todo lo demás avanza sin gate.
 
 **Cómo se ve.** Un typo cierra sin documento ni preguntas, solo con los checks. Un bug cierra con su test de reproducción. Un cambio de API pública abre un documento vivo y actualiza el contrato y su test. Un cambio que contradice el ADR de integración se detiene hasta que decides.
 
@@ -82,18 +82,20 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 
 ## Objetivos medibles
 
-| Métrica | Hoy (v2.81.3) | gentle-ai | Objetivo | Etapa |
-| --- | --- | --- | --- | --- |
-| Instrucciones cargadas siempre (peor target) | 2,7–3,0 KB en los 7 targets desde v2.88.0, router incluido (antes, 63 KB en Codex y 23–26 KB en Cursor, Copilot, OpenCode y Antigravity) | Orquestador de 17–24 KB | Router de ≤ 4 KB | E0.2 ✅, E0.4 ✅ |
-| Contexto del flujo por defecto | Orquestador SDD de 44–63 KB más 60–75 KB por fase | 17–24 KB | Router más protocolo IDD ≤ 16 KB | E1.6 |
-| Agentes que cargan su skill en un proyecto consumidor | 100 % desde v2.83.0 (antes, parcial: `sdd-apply` y `sdd-clarify` sin skill) | — | 100 % | E0.1 ✅ |
-| Obligaciones comprobadas por código | `validate-phase` en ~10 % de los despachos observados | Binario | 100 %, vía `ospec check` | E1.4 |
-| Documentos creados en un cambio trivial | Los de la ruta lite | 1 | 0 | E1.6 |
-| Preguntas antes de empezar un cambio | Hasta 4 por sesión | 0–1 | 0, salvo los tres casos de gate | E1 |
-| Conocimiento capturado en foundation | 9 preguntas lineales | Ninguno | Mapa de conocimiento por perfil, con huecos explícitos | E2 |
-| ADRs de arquitectura (agnósticos de tecnología) | 0: los ADRs actuales son decisiones de desarrollo | 0 | Desde foundation y desde los cambios que tocan arquitectura | E2–E3 |
-| Skills instaladas por defecto | 82; 46 (+6 opcionales) desde v2.91.0 | ~15 | 46 (+6 opcionales); las de fase SDD, en el paquete opcional | E0.3, E1.6 |
-| Escenarios comparados | 0; línea base del modo SDD medida en los 6 (`sdd-baseline-3`, v2.107.1: 0 escapados, 65,7 M tokens) | — | 6, contra el modo SDD y contra gentle-ai, publicados por release | E4 |
+| Métrica | Hoy (v2.81.3) | Cierre E1 (v2.117.1) | gentle-ai | Objetivo | Etapa |
+| --- | --- | --- | --- | --- | --- |
+| Instrucciones cargadas siempre (peor target) | 2,7–3,0 KB en los 7 targets desde v2.88.0, router incluido (antes, 63 KB en Codex y 23–26 KB en Cursor, Copilot, OpenCode y Antigravity) | 3,1–3,5 KB | Orquestador de 17–24 KB | Router de ≤ 4 KB | E0.2 ✅, E0.4 ✅ |
+| Contexto del flujo por defecto | Orquestador SDD de 44–63 KB más 60–75 KB por fase | Router más protocolo IDD: 8,6–9,0 KB (12,8–13,2 KB con el listado de skills); orquestador por defecto, 0 KB | 17–24 KB | Router más protocolo IDD ≤ 16 KB | E1.6 ✅ |
+| Agentes que cargan su skill en un proyecto consumidor | 100 % desde v2.83.0 (antes, parcial: `sdd-apply` y `sdd-clarify` sin skill) | 100 % | — | 100 % | E0.1 ✅ |
+| Obligaciones comprobadas por código | `validate-phase` en ~10 % de los despachos observados | 7 de 7 obligaciones activas, solo con evidencia que registra el CLI (la de ADR, inactiva hasta E3.1) | Binario | 100 %, vía `ospec check` | E1.4 ✅ |
+| Documentos creados en un cambio trivial | Los de la ruta lite | 0 | 1 | 0 | E1.6 ✅ |
+| Preguntas antes de empezar un cambio | Hasta 4 por sesión | Un lote por cambio (3–7 preguntas) en `open-facts`; en el banco, 6 mensajes frente a 13 de SDD | 0–1 | Un solo lote, solo en los cuatro gates (antes, «0, salvo los tres casos de gate»; cuarto gate desde v2.110.0) | E1 ✅ |
+| Conocimiento capturado en foundation | 9 preguntas lineales | Sin cambios | Ninguno | Mapa de conocimiento por perfil, con huecos explícitos | E2 |
+| ADRs de arquitectura (agnósticos de tecnología) | 0: los ADRs actuales son decisiones de desarrollo | Sin cambios | 0 | Desde foundation y desde los cambios que tocan arquitectura | E2–E3 |
+| Skills instaladas por defecto | 82; 46 (+6 opcionales) desde v2.91.0 | 31, con SDD (`--with-sdd`) y 6 extras opcionales | ~15 | 46 (+6 opcionales); las de fase SDD, en el paquete opcional | E0.3 ✅, E1.6 ✅ |
+| Escenarios comparados | 0; línea base del modo SDD medida en los 6 (`sdd-baseline-3`, v2.107.1: 0 escapados, 65,7 M tokens) | 6 contra el modo SDD (`idd-2`: 0 escapados, 3,06 M tokens, el 4,7 %); falta gentle-ai | — | 6, contra el modo SDD y contra gentle-ai, publicados por release | E4 |
+
+**Checkpoint de cierre de la Etapa 1 (2026-10-08): `continue`.** Todas las filas de la Etapa 1 cumplen su objetivo; método, cifras y salvedades en el [informe](../analysis/2026-10-08-checkpoint-etapa-1.md).
 
 ## Cómo se ejecuta este roadmap
 
@@ -126,6 +128,10 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.8** | `sdd-new-intent-argument` (v2.114.2) | bugfix |
 | `done` | **E1.9** | `install-cli-ux` (salida común con fases y resumen en los 7 instaladores y publicación de `dist/vscode` con VS Code abierto, en v2.117.0) | bugfix |
 | `done` | **E1.10** | `vscode-dry-run` (`setup:vscode --dry-run` ya no toca `dist/vscode`, y el árbol se publica preparado o no se publica, en v2.117.1) | bugfix |
+| `pending` | **E1.11** | `idd-protocol-hygiene` (follow-up del checkpoint de la Etapa 1) | bugfix |
+| `pending` | **E1.12** | `session-hook-idd` (follow-up del checkpoint de la Etapa 1) | bugfix |
+| `pending` | **E1.13** | `idd-openspec-asymmetries` (follow-up del checkpoint de la Etapa 1) | bugfix |
+| `pending` | **E1.14** | `codex-repo-runtime` (follow-up del checkpoint de la Etapa 1) | bugfix |
 | `next-eligible` | **E2.1** | `knowledge-map-contract` | contrato |
 | `pending` | **E2.2** | `decision-gap-engine` | feature |
 | `pending` | **E2.3** | `foundation-discovery-rounds` | feature |
@@ -142,7 +148,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** el checkpoint de cierre de la Etapa 1 contra la tabla de objetivos, en una sesión aparte por decisión del usuario; E2.1 `knowledge-map-contract` sigue elegible en paralelo. E1.9 está hecho desde v2.117.0: los 7 instaladores comparten salida y `setup:vscode` publica con VS Code abierto. E1.10 (v2.117.1) cierra el último fallo conocido de `setup:vscode`: el dry-run construye en un directorio temporal y el árbol que carga VS Code ya no puede quedar con marcadores sin sustituir. Follow-ups: el plugin SDD del marketplace queda como E5.8, por demanda; el protocolo IDD debe editar ficheros de texto respetando su codificación; y `ospec next` no recuerda declarar el plan (`ospec signals`) antes de editar.
+**▶ SIGUIENTE:** E2.1 `knowledge-map-contract`, que abre la Etapa 2. El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) da `continue`: todas sus filas de objetivos se cumplen. Sus follow-ups pasan a ser E1.11–E1.14, `pending` y en paralelo con la Etapa 2, sin bloquearla. El plugin SDD del marketplace sigue como E5.8, por demanda.
 
 **Dependencias:**
 
@@ -151,8 +157,9 @@ E0.0 ─ E0.1 ─┬─ E0.2 ─┬─ E0.4 ────────────
              ├─ E0.3 ─┘                             │
              └─ E4.1 (línea base: modo SDD y ODD) ──┤
                                                     ▼
-E1.1 ─ E1.2 ─┬─ E1.3 ─ E1.4 ───────────────────── E1.6 ─ E1.7 ─ E1.9 ─ E1.10
-             └─ E1.5 (en paralelo)
+E1.1 ─ E1.2 ─┬─ E1.3 ─ E1.4 ───────────────────── E1.6 ─ E1.7 ─ E1.9 ─ E1.10 ─ checkpoint E1
+             └─ E1.5 (en paralelo)                                                    │
+                                                    E1.11 / E1.12 / E1.13 / E1.14 ◄───┘ (en paralelo con E2)
 
 E1.2 ─ E2.1 ─ E2.2 ─ E2.3 ─ E2.4 ─ E2.5 ─ E2.6
 E1.4 y E2.4 ─ E3.1 ─ E3.2 ─ E3.3 / E3.4 / E3.5
@@ -343,6 +350,38 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Cuándo:** después de E1.9 y antes del checkpoint de cierre de la Etapa 1, por decisión del usuario (2026-10-08).
 - **Hecho cuando:** tras `setup:vscode --dry-run`, `dist/vscode` queda igual byte a byte (o ausente), y una instalación que falla al preparar la build deja la instalación anterior intacta.
 - **Entregado en v2.117.1, E1.10 hecho:** REQ-install-039. `runConfigure` acepta `prepareTree(dir)`, que corre sobre el staging validado antes de publicarlo y sobre el destino tras una publicación en sitio (REQ-install-038); si falla, el destino queda como estaba y no quedan staging, copia de seguridad ni cerrojo. `setup:vscode` lo usa para copiar el binario de hooks y sustituir los marcadores con las rutas de `dist/vscode`, y la fase «Preparar el plugin» desaparece (queda dentro de «Generar y validar»). Con `--dry-run` construye, valida y sustituye en un directorio temporal que borra después, sin copiar el binario. Hecho con IDD (`idd/archive/2026-10-08-vscode-dry-run/`).
+
+### Checkpoint de cierre de la Etapa 1: `continue`
+
+[Informe](../analysis/2026-10-08-checkpoint-etapa-1.md), medido en v2.117.1. Todas las filas de la etapa cumplen su objetivo: router más protocolo IDD de 8,6–9,0 KB (≤ 16 KB); 7 de 7 obligaciones activas cerradas solo con evidencia del CLI; 0 documentos en un cambio trivial; un lote de preguntas por cambio; y 31 skills por defecto. Decisiones del usuario: `continue`; el objetivo de preguntas pasa a ser «un solo lote, solo en los cuatro gates», porque el cuarto gate (`open-facts`, v2.110.0) es el que bajó los escapados de 6 a 0; y los follow-ups abiertos pasan a ser E1.11–E1.14, en paralelo con la Etapa 2. **Salvedad:** el criterio de E1.6 se probó en real solo en Claude Code; los otros seis targets se cubren con tests de build y con `ospec doctor`. Hecho con IDD (`idd/archive/2026-10-08-checkpoint-etapa-1/`).
+
+### E1.11 — `idd-protocol-hygiene`
+
+- **Origen:** una entrega de `idd-2` dejó un `README.md` en ISO-8859-1 al editarlo con Python sin `encoding`. Además, `ospec next` no pide declarar el plan (`ospec signals`) antes de editar, y en el checkpoint de la Etapa 1 un plan sobredeclarado (los manifiestos de la release activaron `public-contract`) no se pudo corregir: el CLI no deja quitar una señal registrada ni retirar la obligación que deriva, y hubo que borrar el cambio a mano, con autorización del usuario.
+- **Garantía que protege:** cierre por evidencia (las señales se calculan con el plan real) y que IDD no estropee ficheros del usuario.
+- **Alcance:** el protocolo IDD exige editar ficheros de texto conservando su codificación y sus finales de línea; `ospec next` devuelve como paso «declarar el plan» mientras no haya señales de ruta ni diff; y una forma explícita, con motivo, de corregir una señal declarada mientras el diff no la confirma.
+- **Hecho cuando:** un cambio sin plan recibe de `next` el paso de declararlo, y una señal declarada que el diff no confirma se puede retirar con motivo, pero no una que el diff confirma.
+
+### E1.12 — `session-hook-idd`
+
+- **Origen:** los hooks `Stop` y `PreCompact` buscan el cambio activo solo en `openspec/changes/` (`findActiveChanges`). Con un cambio IDD abierto, `.ospec/session/latest.md` dice «Active change: None» y la sesión siguiente no lo retoma (hallazgo de E1.6 a).
+- **Garantía que protege:** estado en disco y reanudación desde él, no desde la memoria de la conversación.
+- **Alcance:** `Stop` y `PreCompact` reconocen los cambios abiertos de `idd/` y escriben su siguiente paso con `ospec next`; los cambios SDD siguen igual.
+- **Hecho cuando:** con un cambio IDD abierto, `latest.md` lo nombra con su siguiente paso, en los targets que ejecutan esos hooks.
+
+### E1.13 — `idd-openspec-asymmetries`
+
+- **Origen:** el pre-commit decide Strict TDD solo con `tdd_mode` de `openspec/config.yaml` y no lee `strict_tdd` de `idd/config.yaml`, y los hooks crean `.ospec/` en el proyecto. Hoy `ospec doctor` solo lo avisa (E1.7 a).
+- **Garantía que protege:** Strict TDD con evidencia cuando el proyecto lo declara (principio 8) y que IDD no dependa de `openspec/` (REQ-idd-002).
+- **Alcance:** decidir y aplicar una sola fuente de Strict TDD para el pre-commit según el modo del proyecto, y si `.ospec/` se queda, se mueve o se documenta como derivado.
+- **Hecho cuando:** un proyecto IDD con `strict_tdd: true` y sin `openspec/` recibe del pre-commit la misma comprobación que un proyecto SDD con `tdd_mode: strict`, y el doctor deja de avisar.
+
+### E1.14 — `codex-repo-runtime`
+
+- **Origen:** `install:codex -- <repo>` instala skills en `.agents/skills`, pero no el runtime de `ospec` ni el protocolo IDD; sin una instalación global de Codex, el repositorio no puede seguir IDD. Hoy `ospec doctor` solo lo avisa (E1.6 a, E1.7 b).
+- **Garantía que protege:** multi-target honesto: IDD en cualquier target sin que nadie lo pida (resultado de la Etapa 1).
+- **Alcance:** la instalación de Codex por repositorio lleva el protocolo IDD y un runtime alcanzable (propio o el global declarado), con sus marcadores sustituidos.
+- **Hecho cuando:** un repositorio con solo la instalación de Codex por repositorio ejecuta `ospec next` desde la skill `idd`, y el aviso `codex-repo` del doctor desaparece.
 
 ## Etapa 2 — Foundation de verdad: descubrimiento de arquitectura
 
