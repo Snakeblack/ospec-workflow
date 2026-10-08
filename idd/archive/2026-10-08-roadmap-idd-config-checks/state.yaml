@@ -1,0 +1,60 @@
+{
+  "schema": "idd-state/v1",
+  "change": "roadmap-idd-config-checks",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "Añadir al roadmap E1.21: sin idd/config.yaml (checks) un cambio IDD queda bloqueado sin guía",
+    "acceptance": "El roadmap tiene la fila E1.21 pending, su sección con origen, alcance (next/check dicen qué falta, la skill propone el comando y lo escribe con aprobación, doctor avisa), hecho-cuando y alternativas; orden: después de E1.17; historial y release 2.117.6"
+  },
+  "facts": {
+    "basis": "El usuario aprobó añadirlo con la corrección 1+2+3 propuesta; el orden se fija en 'después de E1.17' según la pregunta hecha; la evidencia viene de la reproducción del subagente"
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-08T14:43:55.702Z",
+      "detail": {
+        "tree": "sha256:1466a2ba2942b5659687c79d34d7179fcc047da6b15aba7cb7412acb9753819e",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "b4e48a95f80a8bfcd3a2a776b3031e2e28cbe627",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5dbb95ab48279052c56626040dba013589620be33514a7463908d7ddf11564f9",
+      "tree": "sha256:1466a2ba2942b5659687c79d34d7179fcc047da6b15aba7cb7412acb9753819e",
+      "recorded_at": "2026-10-08T14:43:55.702Z"
+    }
+  ],
+  "closed_at": "2026-10-08T14:43:55.966Z"
+}

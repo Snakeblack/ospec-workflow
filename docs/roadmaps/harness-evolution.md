@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.117.5, 2026-10-08.
+> **Versión de referencia:** v2.117.6, 2026-10-08.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -138,6 +138,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.18** | `idd-evidence-integrity` (OSP-018; frescura de configuración y protección del estado) | bugfix |
 | `pending` | **E1.19** | `idd-review-context` (OSP-019; sobrecarga confirmada, bloqueo no demostrado) | refactor |
 | `pending` | **E1.20** | `installation-docs-sync` (OSP-020; documentación de E1.6/E1.8) | docs |
+| `pending` | **E1.21** | `idd-checks-config-guidance` (sin `checks:` en `idd/config.yaml`, ningún cambio IDD cierra y nada lo explica; va después de E1.17) | bugfix |
 | `pending` | **E2.1** | `knowledge-map-contract` (se retoma después de las prioridades OSP) | contrato |
 | `pending` | **E2.2** | `decision-gap-engine` | feature |
 | `pending` | **E2.3** | `foundation-discovery-rounds` | feature |
@@ -155,7 +156,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.4** | `execution-resource-experiment` (experimento previo a cualquier routing adaptativo) | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E1.17 `hook-boundary-reliability` (OSP-001/002/003), seguido por E1.18 (OSP-018), E1.19 (OSP-019) y E1.20 (OSP-020), por decisión del usuario del 2026-10-08. E1.16 (OSP-017) quedó hecho en v2.117.5. Las correcciones se ejecutan con IDD. Después se retoma E2.1 `knowledge-map-contract`, que abre la Etapa 2.
+**▶ SIGUIENTE:** E1.17 `hook-boundary-reliability` (OSP-001/002/003), seguido por E1.21 (`idd/config.yaml` sin checks), E1.18 (OSP-018), E1.19 (OSP-019) y E1.20 (OSP-020), por decisión del usuario del 2026-10-08. E1.16 (OSP-017) quedó hecho en v2.117.5. Las correcciones se ejecutan con IDD. Después se retoma E2.1 `knowledge-map-contract`, que abre la Etapa 2.
 
 El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) conserva su resultado histórico `continue`. Los hallazgos posteriores y sus límites están en el [análisis OSP de permisos y evidencia](../analysis/2026-10-08-osp-permisos-y-evidencia.md). E1.11–E1.15 siguen pendientes; el plugin SDD del marketplace permanece en E5.8, por demanda.
 
@@ -165,6 +166,7 @@ El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-
 | --- | --- | --- | --- |
 | 1 | **E1.16 / OSP-017** | Claude real deniega Write sin plugin y lo ejecuta con plugin; preservar el permiso del host y las aprobaciones explícitas | Salida neutral vacía en JS/Go y repetición del par real; conservar decisiones explícitas y adaptadores |
 | 2 | **E1.17 / OSP-001/002/003** | Shell sin clasificación de secretos; bypass degrada ASK según la política actual; launcher sin deadline propio y continuación ante fallo | Reutilizar clasificador y launcher, comprobar fallos y targets; no imponer otra política bypass ni regex sin casos reproducidos |
+| 2b | **E1.21** | Sin `checks:` en `idd/config.yaml`, `checks-pass` no se satisface, `next` repite `ospec check` y `close` se rechaza; doctor da `ok` y la skill no lo menciona | `next`/`check` nombran lo que falta, la skill propone el comando y lo escribe con aprobación del usuario, doctor avisa; sin crear configuración por adivinación |
 | 3 | **E1.18 / OSP-018** | La configuración de checks queda fuera de la huella: close acepta evidencia anterior tras cambiar a un comando que falla | Invalidar evidencia al cambiar configuración verificadora; conservar escrituras legítimas del CLI y evaluar el guard de estado aparte |
 | 4 | **E1.19 / OSP-019** | 23.517 de 36.865 bytes del revisor son protocolo SDD; review IDD completo sí funcionó con despacho explícito | Simplificar solo si conserva IDD/SDD y demuestra menor contexto; no tratar el bloqueo de formato como probado |
 | 5 | **E1.20 / OSP-020** | Guías EN/ES contradicen argumentos completos de E1.8 y SDD opcional de E1.6 | Corregir entradas existentes contra builds por defecto y con SDD, sin otra guía |
@@ -462,6 +464,14 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Origen y garantía:** [guías EN/ES](../analysis/2026-10-08-osp-permisos-y-evidencia.md#osp-020-documentación-de-instalación) describen todavía el argumento nombrado anterior a E1.8 y emisión incondicional del orquestador, aunque E1.6 hace SDD opcional.
 - **Alcance y cierre:** corregir las entradas existentes de `docs/plugin-installation.md` y `.es.md` contra el transform y las builds por defecto/con `--with-sdd`; sin duplicar guías ni añadir capacidades. Bajo coste y riesgo de implementación; mantener las contradicciones induce instalaciones equivocadas.
 
+### E1.21 — `idd-checks-config-guidance`
+
+- **Origen (2026-10-08):** el usuario lo detectó en otro proyecto (sin `idd/`, `record intent` creó solo `idd/<cambio>/state.yaml`) y se reprodujo en un consumidor temporal con `package.json` y script `test`. Nada crea `idd/config.yaml` (`idd-store.js` crea solo el directorio del cambio; `idd-workspace.js` ignora su ausencia). Sin fichero, `parseIddConfig` devuelve `checks: []` y `settleChecks` exige al menos un run (`idd-check.js`), así que `checks-pass` (señal `always`) queda `pending`: `ospec check` sale con 0 y veredicto `missing` («no checks declared»), `ospec next` vuelve a proponer `ospec check` (bucle), `close` y `record withdraw` se rechazan y `ospec doctor` informa `ok` («defaults apply»). La skill `idd` no menciona el fichero; solo el README explica cómo crearlo. Falla cerrado (no cierra sin evidencia), pero sin guía.
+- **Garantía que protege:** que la evidencia de checks siga siendo obligatoria (principio 3) sin dejar al agente ni al usuario en un bucle sin salida, y que la configuración del proyecto solo se escriba con aprobación explícita (principio 8).
+- **Alcance mínimo (decisión del usuario):** (1) `ospec next` y `ospec check` nombran lo que falta cuando no hay checks: declarar `checks:` en `idd/config.yaml`, con un comando candidato si se detecta; (2) la skill `idd` propone al usuario el comando de test y lo escribe en `idd/config.yaml` solo con su aprobación; (3) `ospec doctor` avisa (`warn`) cuando hay un cambio abierto sin checks declarados. Aclarar REQ-idd-013/014: el fichero es opcional, pero sin `checks` no se puede cerrar ningún cambio.
+- **Hecho cuando:** en un consumidor sin `idd/config.yaml`, `next` y `check` devuelven un paso accionable distinto de repetir `check`; con el comando aprobado escrito, `check` y `close` funcionan; doctor avisa con un cambio abierto sin checks; spec, skill y tests del CLI cubren los tres puntos y los checks pasan.
+- **Alternativas y coste:** crear un `config.yaml` adivinando el comando en `record intent` se descarta (el `"test"` por defecto de npm falla a propósito, monorepos y stacks sin `package.json`, y escribe configuración sin consentimiento); hacer que `check` salga distinto de 0 sin checks no aporta información y contradice REQ-idd-014. El nuevo `next_step` cambia el contrato público de `next` y exige actualizar su spec y tests.
+
 ## Etapa 2 — Foundation de verdad: descubrimiento de arquitectura
 
 **Resultado de la etapa:** al crear un proyecto, ospec hace las preguntas que haría un arquitecto con experiencia en proyectos serios. Captura la información funcional, el contexto del equipo, los atributos de calidad y las restricciones, y produce **ADRs de arquitectura agnósticos de tecnología**, separados de la selección tecnológica. Las preguntas no salen de un cuestionario fijo: salen de los huecos de conocimiento que más condicionan las decisiones pendientes. La foundation sirve igual a IDD y al modo SDD.
@@ -676,6 +686,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-08: el usuario acepta añadir E1.21 `idd-checks-config-guidance` (sin `checks:` en `idd/config.yaml`, ningún cambio IDD cierra y nada lo explica), con la corrección mínima `next`/`check` + skill con aprobación + aviso de doctor. Se ejecuta después de E1.17.
 - 2026-10-08: E1.16 `hook-neutral-permissions` hecho en v2.117.5 (OSP-017): sin objeción, PreToolUse no decide y el host aplica sus permisos. E1.17 pasa a `next-eligible`.
 - 2026-10-08: tras el análisis de permisos, launcher, evidencia y contexto, el usuario prioriza para la siguiente sesión OSP-017, OSP-001/002/003, OSP-018, OSP-019 y OSP-020. Se incorporan como E1.16–E1.20 en ese orden; E1.16 pasa a `next-eligible` y E2.1 a `pending` hasta retomar la Etapa 2. No se implementan arreglos ni se aprueba una política nueva de bypass; se conservan los límites de evidencia del análisis.
 - 2026-10-08: el usuario acepta las cinco oportunidades de la auditoría de ingeniería y eficiencia. Se concretan E1.12, E1.13 y E2.1, y se incorporan E1.15 (política de sucesores, pendiente de decisión) y E4.4 (experimento de recursos, sin router autorizado). E2.1 conserva `next-eligible`; ninguna capacidad nueva se marca como entregada.
