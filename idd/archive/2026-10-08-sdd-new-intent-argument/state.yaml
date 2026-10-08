@@ -2,7 +2,7 @@
   "schema": "idd-state/v1",
   "change": "sdd-new-intent-argument",
   "mode": "idd",
-  "status": "open",
+  "status": "closed",
   "intent": {
     "request": "continua (E1.8 sdd-new-intent-argument del roadmap)",
     "kind": "bug",
@@ -34,7 +34,7 @@
       "signal": "always",
       "status": "satisfied",
       "evidence": [
-        "ev-2"
+        "ev-3"
       ]
     },
     {
@@ -76,6 +76,18 @@
           "run-3"
         ]
       }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-08T05:37:38.786Z",
+      "detail": {
+        "tree": "sha256:f04fd73c95acc65fb2fd29519ea8ea09d4f83636184d575e0f0e19ac81df4a9d",
+        "runs": [
+          "run-4"
+        ]
+      }
     }
   ],
   "base": "55b8464ef0d98294f61ad3464ab791f362f338fc",
@@ -107,6 +119,17 @@
       "output_sha256": "sha256:936ad7ab4c7fd62b763598ea79183377f5a66d8999cccd9598fd7a517b355b33",
       "tree": "sha256:b5c7a951bb902c0cfe44a8c5162f61c3372e1ad063599c13ecfdc8e1fb15a4d3",
       "recorded_at": "2026-10-08T00:46:29.796Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8c8b893f1e443680b94340ce916db79fe9a22b34b878bf78b4b06c268e42f44a",
+      "tree": "sha256:f04fd73c95acc65fb2fd29519ea8ea09d4f83636184d575e0f0e19ac81df4a9d",
+      "recorded_at": "2026-10-08T05:37:38.786Z"
     }
-  ]
+  ],
+  "closed_at": "2026-10-08T05:37:41.341Z"
 }

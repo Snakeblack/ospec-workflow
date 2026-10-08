@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.114.1, 2026-10-08.
+> **Versión de referencia:** v2.114.2, 2026-10-08.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -122,8 +122,8 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.4** | `ospec-check-and-close` | feature |
 | `done` | **E1.5** | `kernel-wiring-inventory` | refactor |
 | `done` | **E1.6** | `idd-default-entry` (IDD por defecto en v2.112.0, SDD con `--with-sdd` en v2.113.0, README y documentación en v2.114.0) | feature |
-| `pending` | **E1.7** | `ospec-doctor` | feature |
-| `next-eligible` | **E1.8** | `sdd-new-intent-argument` | bugfix |
+| `next-eligible` | **E1.7** | `ospec-doctor` | feature |
+| `done` | **E1.8** | `sdd-new-intent-argument` (v2.114.2) | bugfix |
 | `next-eligible` | **E2.1** | `knowledge-map-contract` | contrato |
 | `pending` | **E2.2** | `decision-gap-engine` | feature |
 | `pending` | **E2.3** | `foundation-discovery-rounds` | feature |
@@ -140,7 +140,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E1.8 `sdd-new-intent-argument`: el comando `sdd-new` generado para Claude declara `arguments: changeName intent` y parte la petición. E1.6 está hecho desde v2.114.0: IDD es el flujo por defecto, SDD se instala con `--with-sdd` y el README y la documentación lo presentan así. Follow-ups: el plugin SDD del marketplace queda como E5.8, por demanda; y el protocolo IDD debe editar ficheros de texto respetando su codificación. E2.1 `knowledge-map-contract` sigue elegible en paralelo.
+**▶ SIGUIENTE:** E1.7 `ospec-doctor`, elegible desde que E1.6 está hecho; E2.1 `knowledge-map-contract` sigue elegible en paralelo. E1.8 está hecho desde v2.114.2: `/sdd-new` y `/sdd-lite` reciben la petición completa en los 7 targets. Follow-ups: el plugin SDD del marketplace queda como E5.8, por demanda; el protocolo IDD debe editar ficheros de texto respetando su codificación; `ospec next` no recuerda declarar el plan (`ospec signals`) antes de editar; y E1.7 debe detectar una instalación del plugin desfasada respecto al checkout.
 
 **Dependencias:**
 
@@ -318,6 +318,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Alcance:** `sdd-new` recibe la intención completa aunque no se dé un nombre de cambio, en los 7 targets, y el nombre se deriva de la intención cuando falta. Test de generación que cubre los dos casos (con y sin nombre).
 - **Cuándo:** después de E1.6, por decisión del usuario (2026-10-07). No cambia la comparabilidad del banco: el checkpoint no compara la build del plugin.
 - **Hecho cuando:** `/sdd-new <petición>` sin nombre llega entera al orquestador en todos los targets, y `/sdd-new <nombre> <petición>` sigue funcionando.
+- **Entregado en v2.114.2:** un comando con una sola entrada `${input:x}` recibe la cadena completa (`$ARGUMENTS`) en Claude, OpenCode y Codex, y Claude ya no declara `arguments`; varias entradas siguen posicionales (REQ-generator-026). `sdd-new` y `sdd-lite` piden una sola entrada, `${input:request}`: el primer token es el nombre solo si es kebab-case con guion; si no, el orquestador lo deriva de la petición. Prueba real en Claude Code (`claude -p --plugin-dir`, Sonnet): `/sdd-new Quiero poder exportar…` llega entera ($0,27) y `/sdd-new export-csv Quiero poder exportar…` usa `export-csv` como nombre y el resto como intención ($0,28). Hallazgo: la primera prueba cargó el orquestador `ospec-workflow:sdd-orchestrator` de la instalación global, desfasada, en vez del de `--plugin-dir`; queda como caso para E1.7. Hecho con IDD (`idd/archive/2026-10-08-sdd-new-intent-argument/`).
 
 ## Etapa 2 — Foundation de verdad: descubrimiento de arquitectura
 
