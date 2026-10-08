@@ -1,0 +1,60 @@
+{
+  "schema": "idd-state/v1",
+  "change": "roadmap-sdd-marketplace-plugin",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "El roadmap registra, como ítem por demanda E5.8, publicar un segundo plugin ospec-workflow-sdd en el marketplace de Claude",
+    "acceptance": "docs/roadmaps/harness-evolution.md tiene E5.8 con problema, opciones a decidir y criterio de reapertura, sin cambiar la prioridad: el siguiente sigue siendo E1.8"
+  },
+  "facts": {
+    "basis": "El usuario fijó el alcance: guardar el ítem en el roadmap, no prioritario, siguiente E1.8"
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-07T23:58:58.389Z",
+      "detail": {
+        "tree": "sha256:c287db0068da547cd87aa4dbd7b245c9942517315219b99c9de88fd042bb0887",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "3d59a8f15f7b45a2b9761826017ac07262d2573b",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:421c6d526a5ddfe726484a658982d60436f42230f3b96246f2ae8517394b32e1",
+      "tree": "sha256:c287db0068da547cd87aa4dbd7b245c9942517315219b99c9de88fd042bb0887",
+      "recorded_at": "2026-10-07T23:58:58.389Z"
+    }
+  ],
+  "closed_at": "2026-10-07T23:59:05.205Z"
+}

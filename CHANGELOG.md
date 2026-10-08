@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.114.1] - 2026-10-08
+
+### Changed
+- **Roadmap**: nuevo ítem por demanda E5.8 `sdd-marketplace-plugin`, para publicar un segundo plugin `ospec-workflow-sdd` en el marketplace de Claude, que hoy solo ofrece la build sin SDD. Queda aplazado por decisión del usuario; lo siguiente sigue siendo E1.8. Hecho con IDD (`idd/archive/2026-10-07-roadmap-sdd-marketplace-plugin/`).
+
+**Verificación directa**: `node scripts/check.js` (3307 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.114.0] - 2026-10-08
 
 ### Changed
