@@ -19,7 +19,7 @@ const { safeParseJsonc, mutateFs } = require("./install-engine.js");
 const { parseSddFlag, previousInstallHasSdd, resolveWithSdd } = require("./sdd-package.js");
 const { packagesRow, reportBuildFailure, reporterFor } = require("./install-output.js");
 
-const PHASES = { build: "Generar y validar", prepare: "Preparar el plugin", register: "Registrar en VS Code" };
+const PHASES = { build: "Generar y validar", register: "Registrar en VS Code" };
 
 function getSettingsPaths(deps = {}) {
   const home = deps.homedir ? deps.homedir() : os.homedir();
@@ -162,15 +162,32 @@ function install(argv = process.argv.slice(2), deps = {}) {
   }
 
   const sourceDir = path.resolve(args.source || cwd);
-  const outDir = path.join(sourceDir, "dist", "vscode");
-  const absPluginPath = path.resolve(outDir);
-  reporter.plan(args.dryRun ? [PHASES.build] : [PHASES.build, PHASES.prepare, PHASES.register]);
+  const pluginDir = path.join(sourceDir, "dist", "vscode");
+  const absPluginPath = path.resolve(pluginDir);
+  reporter.plan(args.dryRun ? [PHASES.build] : [PHASES.build, PHASES.register]);
+
+  // E0.4 (b): VS Code loads the dist tree itself, so the markers are rendered
+  // there and stay rendered. E1.10: they are rendered (and the hooks binary
+  // copied) in the validated stage before it is published, so the live tree
+  // is never left half prepared; a dry run builds in a temporary directory.
+  const prepareTree = (dir) => {
+    if (!args.dryRun) copyBinary(dir, "vscode", sourceDir, { fs: fsImpl, stdout: reporter.detail, stderr, required: false });
+    renderSharedDir(dir, sharedDirValue(path.join(absPluginPath, "skills")), fsImpl);
+    renderRuntimeDir(dir, runtimeDirValue(absPluginPath), fsImpl);
+  };
 
   // 1. Build the target vscode to dist/vscode. VS Code loads that tree, so the
   //    previous build tells whether the SDD package was installed (E1.6 d2).
   reporter.begin(PHASES.build);
-  const withSdd = resolveWithSdd(args, () => previousInstallHasSdd({ agentDirs: [path.join(outDir, "agents")], fs: fsImpl }));
-  const result = runConfigureImpl({ sourceDir, target: "vscode", outDir, validate: args.validate, withExtras: Boolean(args.withExtras), withSdd });
+  const withSdd = resolveWithSdd(args, () => previousInstallHasSdd({ agentDirs: [path.join(pluginDir, "agents")], fs: fsImpl }));
+  const dryRunRoot = args.dryRun ? fsImpl.mkdtempSync(path.join(os.tmpdir(), "ospec-vscode-dry-run-")) : null;
+  let result;
+  try {
+    const outDir = dryRunRoot ? path.join(dryRunRoot, "vscode") : pluginDir;
+    result = runConfigureImpl({ sourceDir, target: "vscode", outDir, validate: args.validate, withExtras: Boolean(args.withExtras), withSdd, prepareTree });
+  } finally {
+    if (dryRunRoot) fsImpl.rmSync(dryRunRoot, { recursive: true, force: true });
+  }
   if (reportBuildFailure(reporter, result)) return result.exitCode;
   reporter.set("Destino", absPluginPath);
   reporter.set("Paquetes", packagesRow(args, withSdd));
@@ -178,23 +195,9 @@ function install(argv = process.argv.slice(2), deps = {}) {
   if (result.publication === "in-place") reporter.set("Publicación", "en su sitio (VS Code tenía dist/vscode abierto)");
 
   if (args.dryRun) {
-    reporter.set("Modo", "simulación (--dry-run): no se ha tocado ningún settings.json");
+    reporter.set("Modo", "simulación (--dry-run): build validada en un directorio temporal; no se ha tocado dist/vscode ni ningún settings.json");
     return 0;
   }
-
-  reporter.begin(PHASES.prepare);
-  // Copy compiler hooks binary if present in release/dist/
-  copyBinary(outDir, "vscode", sourceDir, {
-    fs: fsImpl,
-    stdout: reporter.detail,
-    stderr,
-    required: false,
-  });
-
-  // E0.4 (b): VS Code loads the dist tree itself, so the orchestrator's
-  // _shared marker is rendered there and stays rendered.
-  renderSharedDir(outDir, sharedDirValue(path.join(absPluginPath, "skills")), fsImpl);
-  renderRuntimeDir(outDir, runtimeDirValue(absPluginPath), fsImpl);
 
   reporter.begin(PHASES.register);
   const settingsFiles = getSettingsPaths(deps);

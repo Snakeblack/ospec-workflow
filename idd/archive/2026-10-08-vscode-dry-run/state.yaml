@@ -1,0 +1,160 @@
+{
+  "schema": "idd-state/v1",
+  "change": "vscode-dry-run",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "setup:vscode --dry-run reescribe dist/vscode (la instalación que VS Code carga en vivo) sin renderizar __OSPEC_SHARED_DIR__/__OSPEC_RUNTIME_DIR__, dejando el plugin roto",
+    "acceptance": "Tras setup:vscode --dry-run, dist/vscode queda byte a byte como estaba (o ausente si no existía) y el comando sigue informando del resultado de la build"
+  },
+  "facts": {
+    "open": [
+      "¿El dry-run debe construir y validar en un directorio temporal que luego se borra (simulación fiel, mismo tiempo de build), o no construir nada y solo mostrar el plan?",
+      "¿Amplío el alcance para que una instalación real fallida después de la build (copia del binario de hooks, renderizado) tampoco deje dist/vscode con marcadores sin sustituir, o queda como follow-up aparte?"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/configure/cli.js (matches scripts/configure/cli.js)",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "1) Build en temporal: construir y validar en un directorio temporal que luego se borra. 2) Incluirlo ahora: renderizar en el árbol antes de publicar para que dist/vscode nunca quede a medias.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-08T09:06:22.340Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-08T09:10:15.055Z",
+      "detail": {
+        "tree": "sha256:cd213e08efe2e78b5c603daa77657078e827be4f36b8d8d163798bad48fb0615",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-08T09:10:15.055Z",
+      "detail": {
+        "tree": "sha256:cd213e08efe2e78b5c603daa77657078e827be4f36b8d8d163798bad48fb0615",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/install/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/cli.test.js",
+          "scripts/configure/shared-dir.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-08T09:12:22.409Z"
+    }
+  ],
+  "base": "1083c0426dcf3e4d5e8901fd4b523e82961d6cb8",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"setup:vscode\" scripts/configure/shared-dir.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:dc3048964173ba0d5d19c55b3bf04bfe23e7ceaf5f9407c788c9d6995edf573e",
+      "tree": "sha256:cadbb68103c53d9247052e8e15acafa1f46892d145f7af088e9afa20107a3175",
+      "recorded_at": "2026-10-08T09:04:01.628Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"setup:vscode\" scripts/configure/shared-dir.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c97348a5bc19e2e0030ae6ebfa1d706b67023d7d90fef1e92e589df50524fb26",
+      "tree": "sha256:f468047915720d9a8a6d966d687030df2459ce1580af61bee8298f270f20a192",
+      "recorded_at": "2026-10-08T09:06:22.340Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:51addf74a6b36181d511063cf891c3df66c8bfb6a09c4290adc93beb639976db",
+      "tree": "sha256:cd213e08efe2e78b5c603daa77657078e827be4f36b8d8d163798bad48fb0615",
+      "recorded_at": "2026-10-08T09:10:15.055Z"
+    }
+  ],
+  "closed_at": "2026-10-08T09:12:22.409Z"
+}

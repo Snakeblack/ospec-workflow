@@ -199,6 +199,65 @@ test("setup:vscode renders the marker in the dist tree VS Code loads", (t) => {
   assertRuntime(pluginDir, posix(pluginDir), path.join(pluginDir, "scripts", "ospec.js"));
 });
 
+// E1.10 (REQ-install-039): dist/vscode is the tree VS Code loads live, so neither a dry run nor
+// an install that fails after the build may leave it with unrendered markers.
+function snapshotTree(root) {
+  if (!fs.existsSync(root)) return null;
+  const files = {};
+  const visit = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const absolute = path.join(dir, entry.name);
+      if (entry.isDirectory()) visit(absolute);
+      else files[path.relative(root, absolute).split(path.sep).join("/")] = fs.readFileSync(absolute, "utf8");
+    }
+  };
+  visit(root);
+  return files;
+}
+
+function vscodeDeps(t) {
+  const home = tmpDir(t, "ospec-shared-home-");
+  const appData = path.join(home, "AppData");
+  fs.mkdirSync(path.join(appData, "Code", "User"), { recursive: true });
+  return { ...quiet(), homedir: () => home, env: { APPDATA: appData }, platform: "win32" };
+}
+
+test("setup:vscode --dry-run builds elsewhere and leaves the dist tree VS Code loads untouched", (t) => {
+  const { main } = require("./install-vscode.js");
+  const sourceDir = stageRealSource(t);
+  const pluginDir = path.join(sourceDir, "dist", "vscode");
+
+  const deps = vscodeDeps(t);
+  assert.equal(main(["--source", sourceDir, "--no-validate", "--dry-run"], deps), 0, deps.stderr.chunks.join(""));
+  assert.equal(fs.existsSync(pluginDir), false, "a dry run must not create dist/vscode");
+
+  write(pluginDir, "agents/previous.agent.md", "previous install\n");
+  const before = snapshotTree(pluginDir);
+  const again = vscodeDeps(t);
+  assert.equal(main(["--source", sourceDir, "--no-validate", "--dry-run"], again), 0, again.stderr.chunks.join(""));
+  assert.deepEqual(snapshotTree(pluginDir), before, "a dry run must not touch dist/vscode");
+  assert.deepEqual(fs.readdirSync(path.join(sourceDir, "dist")), ["vscode"], "no staging, backup or lock left in dist/");
+});
+
+test("setup:vscode keeps the previous dist tree when preparing the new build fails", (t) => {
+  const { main } = require("./install-vscode.js");
+  const sourceDir = stageRealSource(t);
+  const pluginDir = path.join(sourceDir, "dist", "vscode");
+  write(pluginDir, "agents/previous.agent.md", "previous install\n");
+  const before = snapshotTree(pluginDir);
+
+  const deps = vscodeDeps(t);
+  const code = main(["--source", sourceDir, "--no-validate"], {
+    ...deps,
+    copyBinaryToTree: () => {
+      throw new Error("copy failed");
+    },
+  });
+  assert.notEqual(code, 0);
+  assert.deepEqual(snapshotTree(pluginDir), before, "a failed install must not publish a half-prepared dist/vscode");
+  assert.deepEqual(fs.readdirSync(path.join(sourceDir, "dist")), ["vscode"], "no staging, backup or lock left in dist/");
+});
+
 for (const target of ["opencode", "github-copilot"]) {
   test(`install-target ${target} names the repository's skills/_shared, relative to the repository root`, (t) => {
     const sourceDir = stageRealSource(t);

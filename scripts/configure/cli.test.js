@@ -745,3 +745,61 @@ test("E1.9 repro: an in-place publication that also hits a lock fails with the p
   });
   assert.deepEqual(configureSiblings(parent, "vscode"), []);
 });
+
+// E1.10 (REQ-install-039): prepareTree finishes the validated stage before it is
+// published, and the destination itself when the build is written in place.
+test("REQ-install-039: prepareTree runs on the stage before publication, and a failure keeps the destination", t => {
+  const parent = tmpOut(t);
+  const out = path.join(parent, "vscode");
+  const prepared = [];
+  runConfigure({
+    sourceDir: SOURCE,
+    target: "vscode",
+    outDir: out,
+    validate: false,
+    prepareTree: dir => {
+      prepared.push(dir);
+      assert.equal(fs.existsSync(out), false, "the destination is not published before prepareTree");
+      fs.writeFileSync(path.join(dir, "PREPARED.md"), "prepared\n");
+    },
+  });
+  assert.equal(prepared.length, 1);
+  assert.notEqual(path.resolve(prepared[0]), path.resolve(out));
+  assert.equal(fs.readFileSync(path.join(out, "PREPARED.md"), "utf8"), "prepared\n");
+
+  const before = readTree(out);
+  assert.throws(() => runConfigure({
+    sourceDir: SOURCE,
+    target: "vscode",
+    outDir: out,
+    validate: false,
+    prepareTree: () => {
+      throw new Error("prepare failed");
+    },
+  }), /prepare failed/);
+  assert.deepEqual(readTree(out), before);
+  assert.deepEqual(configureSiblings(parent, "vscode"), []);
+});
+
+test("REQ-install-039: an in-place publication prepares the destination after writing it", t => {
+  const parent = tmpOut(t);
+  const out = path.join(parent, "vscode");
+  runConfigure({ sourceDir: SOURCE, target: "vscode", outDir: out, validate: false });
+  const prepared = [];
+  const result = runConfigure({
+    sourceDir: SOURCE,
+    target: "vscode",
+    outDir: out,
+    validate: false,
+    retryOptions: { maxRetries: 0 },
+    operationObserver: lockedRename("backup"),
+    prepareTree: dir => {
+      prepared.push(path.resolve(dir));
+      fs.writeFileSync(path.join(dir, "PREPARED.md"), "prepared\n");
+    },
+  });
+  assert.equal(result.publication, "in-place");
+  assert.equal(prepared.at(-1), path.resolve(out));
+  assert.equal(fs.readFileSync(path.join(out, "PREPARED.md"), "utf8"), "prepared\n");
+  assert.deepEqual(configureSiblings(parent, "vscode"), []);
+});

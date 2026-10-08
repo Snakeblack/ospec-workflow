@@ -581,11 +581,12 @@ function removeOwned(pathname, operationObserver = () => {}, retryOptions = {}) 
 // writing the validated tree in place when the atomic rename meets a lock.
 const IN_PLACE_ON_LOCK = new Set(["vscode"]);
 
-function publishInPlace({ lock, output, profile, operationObserver, retryOptions, requireK3Closure }) {
+function publishInPlace({ lock, output, profile, operationObserver, retryOptions, requireK3Closure, prepareTree }) {
   const mutate = (operation, pathname, action) => withTransientFsRetries(action, { ...retryOptions, operation, path: pathname });
   try {
     writeTree(lock.destination, output, profile.managedRoots || [], operationObserver, { phase: "in-place", mutate });
     validateStagedTree(lock.destination, output, profile.managedRoots || [], operationObserver, requireK3Closure);
+    prepareTree(lock.destination);
   } catch (error) {
     const partial = new Error(
       `${error.message} ${lock.destination} ha quedado a medio actualizar; vuelve a ejecutar la instalación cuando esté libre.`,
@@ -596,7 +597,10 @@ function publishInPlace({ lock, output, profile, operationObserver, retryOptions
   }
 }
 
-function publishTransaction({ outDir, output, profile, validate, runValidator, operationObserver, requireK3Closure, retryOptions: baseRetryOptions }) {
+// E1.10: prepareTree finishes the validated stage (marker rendering, binaries)
+// before it is published, so a host loading the destination live never sees a
+// tree that is still being prepared, and a failure leaves the destination as it was.
+function publishTransaction({ outDir, output, profile, validate, runValidator, operationObserver, requireK3Closure, retryOptions: baseRetryOptions, prepareTree = () => {} }) {
   const retryOptions = { target: profile.id, ...(baseRetryOptions || {}) };
   const lock = acquireDestinationLock(outDir);
   let stage;
@@ -612,6 +616,7 @@ function publishTransaction({ outDir, output, profile, validate, runValidator, o
       validation = runValidator(profile, stage);
       if (validatorFailed(validation)) return { exitCode: validation.status && validation.status !== 0 ? validation.status : 1, validation };
     }
+    prepareTree(stage);
     if (fs.existsSync(lock.destination)) {
       backup = fs.mkdtempSync(path.join(lock.parent, `.${path.basename(lock.destination)}.configure-backup-`));
       fs.rmdirSync(backup);
@@ -624,7 +629,7 @@ function publishTransaction({ outDir, output, profile, validate, runValidator, o
         // A failed rename moved nothing: the destination is intact.
         backup = null;
         if (!IN_PLACE_ON_LOCK.has(profile.id) || !TRANSIENT_FS_CODES.has(error.code)) throw error;
-        publishInPlace({ lock, output, profile, operationObserver, retryOptions, requireK3Closure });
+        publishInPlace({ lock, output, profile, operationObserver, retryOptions, requireK3Closure, prepareTree });
         return { exitCode: 0, validation, publication: "in-place" };
       }
     }
@@ -662,7 +667,7 @@ function publishTransaction({ outDir, output, profile, validate, runValidator, o
   }
 }
 
-function runConfigure({ sourceDir, target, outDir, validate = true, withExtras = false, withSdd = false, runValidator = defaultRunValidator, operationObserver = () => {}, retryOptions = {}, modelOverrides }) {
+function runConfigure({ sourceDir, target, outDir, validate = true, withExtras = false, withSdd = false, runValidator = defaultRunValidator, operationObserver = () => {}, retryOptions = {}, modelOverrides, prepareTree }) {
   const profile = PROFILES[target];
   if (!profile) {
     throw new Error(`unknown target: ${target}`);
@@ -698,6 +703,7 @@ function runConfigure({ sourceDir, target, outDir, validate = true, withExtras =
     operationObserver,
     retryOptions,
     requireK3Closure: fs.existsSync(path.join(sourceDir, "schemas", "kernel", "manifest.json")),
+    prepareTree,
   });
   return { files: output.files, summary, exitCode: publication.exitCode, validation: publication.validation, publication: publication.publication };
 }
