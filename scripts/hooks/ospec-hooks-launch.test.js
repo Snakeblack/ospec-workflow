@@ -21,6 +21,97 @@ const {
 
 const HOOKS_DIR = path.join("plugins", "ospec-workflow", "scripts", "hooks");
 
+test("launcher bounds children and reports PreToolUse failures through each adapter", (t) => {
+  const cp = require('node:child_process');
+  const fs = require('node:fs');
+  const originalSpawn = cp.spawnSync;
+  const originalRead = fs.readFileSync;
+  const originalWrite = process.stdout.write;
+  const originalErrorWrite = process.stderr.write;
+  const originalTarget = process.env.OSPEC_TARGET;
+  let outcome;
+  let options;
+  cp.spawnSync = (_command, _args, opts) => { options = opts; return outcome; };
+  fs.readFileSync = (file, encoding) => file === 0 ? '{}' : originalRead(file, encoding);
+  process.stderr.write = () => true;
+  t.after(() => {
+    cp.spawnSync = originalSpawn;
+    fs.readFileSync = originalRead;
+    process.stdout.write = originalWrite;
+    process.stderr.write = originalErrorWrite;
+    if (originalTarget === undefined) delete process.env.OSPEC_TARGET;
+    else process.env.OSPEC_TARGET = originalTarget;
+    delete require.cache[require.resolve('./ospec-hooks-launch.js')];
+  });
+  delete require.cache[require.resolve('./ospec-hooks-launch.js')];
+  const launcher = require('./ospec-hooks-launch.js');
+  for (const target of ['claude', 'codex', 'cursor', 'github-copilot', 'vscode', 'opencode', 'antigravity']) {
+    process.env.OSPEC_TARGET = target;
+    for (const mode of ['default', 'bypassPermissions']) {
+    fs.readFileSync = (file, encoding) => file === 0 ? JSON.stringify({ permission_mode: mode }) : originalRead(file, encoding);
+    for (const failure of [
+      { error: Object.assign(new Error('start failed'), { code: 'ENOENT' }), status: null },
+      { error: Object.assign(new Error('deadline'), { code: 'ETIMEDOUT' }), status: null },
+      { status: 7, stdout: '{"hookSpecificOutput":{"permissionDecision":"allow"}}' },
+      { status: null, signal: 'SIGTERM', stdout: '' },
+      { status: 0, stdout: 'invalid output' },
+      { status: 0, stdout: '1' },
+      { status: 0, stdout: '{"continue":true}' },
+    ]) {
+      outcome = failure;
+      const written = [];
+      process.stdout.write = (chunk) => { written.push(String(chunk)); return true; };
+      assert.equal(launcher.main(['pre-tool-use'], HOOKS_DIR), 0);
+      process.stdout.write = originalWrite;
+      assert.ok(options.timeout > 0 && options.timeout < 5000, 'deadline must precede the host deadline');
+      assert.equal(options.killSignal, 'SIGKILL', 'a child must not defeat the deadline by handling SIGTERM');
+      const output = JSON.parse(written.join(''));
+      if (target === 'cursor') {
+        assert.equal(output.permission, 'allow');
+        assert.match(output.agent_message, /could not inspect/);
+      } else if (target === 'codex') {
+        assert.match(output.hookSpecificOutput.additionalContext, /could not inspect/);
+        assert.equal(output.hookSpecificOutput.permissionDecision, undefined);
+      } else {
+        assert.equal(output.hookSpecificOutput.permissionDecision, mode === 'bypassPermissions' ? 'allow' : 'ask');
+        assert.match(output.hookSpecificOutput.permissionDecisionReason, /could not inspect/);
+      }
+    }
+    }
+  }
+  process.env.OSPEC_TARGET = 'claude';
+  fs.readFileSync = (file, encoding) => file === 0 ? '{"permission_mode":"bypassPermissions"}' : originalRead(file, encoding);
+  outcome = { error: Object.assign(new Error('deadline'), { code: 'ETIMEDOUT' }), status: null };
+  const written = [];
+  process.stdout.write = (chunk) => { written.push(String(chunk)); return true; };
+  assert.equal(launcher.main(['pre-tool-use'], HOOKS_DIR), 0);
+  process.stdout.write = originalWrite;
+  const output = JSON.parse(written.join(''));
+  assert.equal(output.hookSpecificOutput.permissionDecision, 'allow');
+  assert.match(output.systemMessage, /ospec advisory/);
+});
+
+test('launcher timeout terminates a real child and returns a visible inspection failure', (t) => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const { spawnSync } = require('node:child_process');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ospec-launch-deadline-'));
+  const hook = path.join(root, 'pre-tool-use.js');
+  fs.writeFileSync(hook, "process.on('SIGTERM', () => {}); setTimeout(() => process.stdout.write('completed'), 8000);");
+  t.after(() => { fs.unlinkSync(hook); fs.rmdirSync(root); });
+  const launcherPath = require.resolve('./ospec-hooks-launch.js');
+  const env = { ...process.env, OSPEC_TARGET: 'claude' };
+  const result = spawnSync(process.execPath, ['-e', 'process.exitCode = require(process.argv[1]).main(["pre-tool-use"], process.argv[2]);', launcherPath, root], {
+    input: '{}', encoding: 'utf8', env, timeout: 10000, killSignal: 'SIGKILL',
+  });
+  assert.equal(result.error, undefined);
+  assert.equal(result.status, 0);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.hookSpecificOutput.permissionDecision, 'ask');
+  assert.match(output.hookSpecificOutput.permissionDecisionReason, /ETIMEDOUT/);
+  assert.doesNotMatch(result.stdout, /completed/);
+});
+
 test("SUBCOMMANDS covers exactly the five hook events", () => {
   assert.deepEqual(
     [...SUBCOMMANDS].sort(),

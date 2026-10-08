@@ -383,6 +383,16 @@ func (h *preToolUseHandler) Run(stdin []byte) ([]byte, int) {
 }
 
 func (h *preToolUseHandler) run(input *preToolUseInput, stdin []byte) ([]byte, int) {
+	cmds := extractCommands(input)
+	// Hard command denials precede all advisories, including secret reads.
+	for _, cmd := range cmds {
+		if action, reason := rules.Evaluate(cmd); action == "deny" {
+			return makeDecision("deny", reason), 0
+		}
+		if reason := checkCommitAttribution(cmd); reason != "" {
+			return makeDecision("deny", reason), 0
+		}
+	}
 
 	if os.Getenv("DISABLE_AGENT_SHIELD") != "true" {
 		var rawInput struct {
@@ -391,12 +401,21 @@ func (h *preToolUseHandler) run(input *preToolUseInput, stdin []byte) ([]byte, i
 		_ = json.Unmarshal(stdin, &rawInput)
 
 		paths := extractPaths(rawInput.ToolInput)
+		for _, cmd := range cmds {
+			for _, file := range extractShellReadPaths(cmd) {
+				if absolute, err := filepath.Abs(file); err == nil {
+					paths = append(paths, absolute)
+				}
+			}
+		}
+		for _, filePath := range paths {
+			if class := classifySensitiveFile(filePath); class != nil && class.action == "deny" {
+				return makeDecision("deny", "Acceso denegado: El archivo es una clave privada o configuración sensible del sistema y no puede ser leído por el agente."), 0
+			}
+		}
 		for _, filePath := range paths {
 			// Bloqueo/advertencia por nombre de archivo (secretscan.go)
 			if class := classifySensitiveFile(filePath); class != nil {
-				if class.action == "deny" {
-					return makeDecision("deny", "Acceso denegado: El archivo es una clave privada o configuración sensible del sistema y no puede ser leído por el agente."), 0
-				}
 				return makeDecision("ask", "Advertencia de seguridad: Se detectó un posible archivo de entorno o secreto. ¿Está seguro de permitir su lectura?"), 0
 			}
 
@@ -433,25 +452,6 @@ func (h *preToolUseHandler) run(input *preToolUseInput, stdin []byte) ([]byte, i
 
 		if currentTokens > 0 {
 			recordTokens(changeName, currentTokens)
-		}
-	}
-
-	cmds := extractCommands(input)
-
-	// Step 5 — DENY rules take priority (only when commands are present).
-	if len(cmds) > 0 {
-		for _, cmd := range cmds {
-			action, reason := rules.Evaluate(cmd)
-			if action == "deny" {
-				return makeDecision("deny", reason), 0
-			}
-		}
-
-		// Deny git commit commands whose message contains AI/model attribution.
-		for _, cmd := range cmds {
-			if reason := checkCommitAttribution(cmd); reason != "" {
-				return makeDecision("deny", reason), 0
-			}
 		}
 	}
 

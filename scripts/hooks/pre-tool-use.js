@@ -18,6 +18,7 @@ const {
   classifySensitiveFile,
   scanFileForSecrets,
 } = require("./lib/secret-scan.js");
+const { extractShellReadPaths } = require("./lib/shell-file-access.js");
 
 /**
  * Regex that matches forbidden AI/model attribution.
@@ -337,18 +338,25 @@ function evaluateToolUse(input, opts) {
 function evaluateToolUseCore(input, opts) {
   const injectedGitRunner = opts && opts.gitRunner ? opts.gitRunner : undefined;
   const workspace = (opts && opts.workspace) || process.cwd();
+  const commands = extractCommands(input?.tool_input);
+  // A secret advisory must never hide a hard command denial, including bypass.
+  for (const command of commands) {
+    const denyRule = findMatchingRule(command, DENY_RULES);
+    const reason = denyRule?.reason || checkCommitAttribution(command);
+    if (reason) return makeDecision("deny", reason);
+  }
 
   if (process.env.DISABLE_AGENT_SHIELD !== "true") {
-    const paths = extractPaths(input?.tool_input);
+    const paths = [...extractPaths(input?.tool_input), ...commands.flatMap(extractShellReadPaths).map(file => path.resolve(workspace, file))];
+    // Evaluate every hard file denial before any secret advisory.
+    for (const filePath of paths) {
+      if (classifySensitiveFile(filePath)?.action === "deny") {
+        return makeDecision("deny", "Acceso denegado: El archivo es una clave privada o configuración sensible del sistema y no puede ser leído por el agente.");
+      }
+    }
     for (const filePath of paths) {
       // Bloqueo/advertencia por nombre de archivo
       const classification = classifySensitiveFile(filePath);
-      if (classification && classification.action === "deny") {
-        return makeDecision(
-          "deny",
-          `Acceso denegado: El archivo es una clave privada o configuración sensible del sistema y no puede ser leído por el agente.`
-        );
-      }
       if (classification && classification.action === "ask") {
         return makeDecision(
           "ask",
@@ -391,26 +399,6 @@ function evaluateToolUseCore(input, opts) {
 
     if (currentTokens > 0) {
       recordTokensSync(changeName, currentTokens);
-    }
-  }
-
-  const commands = extractCommands(input?.tool_input);
-
-  // Step 5 — DENY rules fire first (only when commands are present).
-  if (commands.length > 0) {
-    for (const command of commands) {
-      const denyRule = findMatchingRule(command, DENY_RULES);
-      if (denyRule) {
-        return makeDecision("deny", denyRule.reason);
-      }
-    }
-
-    // Deny git commit commands whose message contains AI/model attribution.
-    for (const command of commands) {
-      const attributionResult = checkCommitAttribution(command);
-      if (attributionResult) {
-        return makeDecision("deny", attributionResult);
-      }
     }
   }
 
