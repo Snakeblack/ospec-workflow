@@ -1,0 +1,73 @@
+{
+  "schema": "idd-state/v1",
+  "change": "checkpoint-etapa-1",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "Checkpoint de cierre de la Etapa 1: medir cada fila de Objetivos medibles con números y dar veredicto continue|revise",
+    "acceptance": "El roadmap registra el checkpoint con cifras medidas en v2.117.1, el veredicto y los follow-ups; ospec check pasa"
+  },
+  "facts": {
+    "open": [
+      "¿Veredicto continue (pasar a Etapa 2) o revise?",
+      "¿Dónde vive el checkpoint: informe fechado en docs/analysis + resumen en el roadmap, o solo en el roadmap?",
+      "¿Cómo se actualiza la tabla: columna nueva 'Cierre E1 (v2.117.1)' conservando 'Hoy (v2.81.3)', o sustituir la columna?",
+      "¿La fila Preguntas pasa a 'un solo lote, solo en los cuatro gates' (open-facts incluido)?",
+      "¿Qué follow-ups abiertos pasan a ítems del roadmap y cuáles quedan como follow-ups?"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Veredicto: continue. Formato: informe fechado en docs/analysis + columna nueva 'Cierre E1 (v2.117.1)' conservando 'Hoy (v2.81.3)'. Preguntas: reescribir objetivo a 'un solo lote, solo en los cuatro gates'. Follow-ups que pasan a ítems: codificación + ospec next, hook de sesión e IDD, asimetrías IDD/openspec, Codex repo sin runtime. (Reabierto limpio por decisión del usuario tras una señal public-contract sobredeclarada.)",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-08T10:32:31.242Z",
+      "detail": {
+        "tree": "sha256:aceab896410b5f7d2344a241b35bcbeaba20997845d5ba0cc680bda727ea6d17",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "686491d48582ddb711e7529e1be40cd41b5b583e",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6bb25c275a2bdf8d5918cade7eece54cc73460179a1d779b6dde392b8e6e97b2",
+      "tree": "sha256:aceab896410b5f7d2344a241b35bcbeaba20997845d5ba0cc680bda727ea6d17",
+      "recorded_at": "2026-10-08T10:32:31.242Z"
+    }
+  ],
+  "closed_at": "2026-10-08T10:32:43.382Z"
+}
