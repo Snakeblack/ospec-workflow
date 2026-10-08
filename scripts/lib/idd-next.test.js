@@ -126,6 +126,25 @@ test("a closed change has no next step", () => {
   assert.deepStrictEqual(nextForChange(state).next_step, { action: "none" });
 });
 
+test("missing checks are a prerequisite for check evidence, preserving reproduction and intent gates", () => {
+  const context = { checks: [], candidateCommand: "pnpm test" };
+  let state = recordIntent(null, { change: "fix-it", kind: "bug", summary: "s", acceptance: "a", ...NO_OPEN_FACTS }).state;
+  assert.strictEqual(nextForChange(state, context).next_step.action, "configure-checks");
+  state = recordSignal(state, { id: "bug-fix", reason: "bug", source: "declaration" }).state;
+  assert.strictEqual(nextForChange(state, context).next_step.obligation, "repro-test");
+  state = recordEvidence(state, { id: "ev-1", kind: "repro-run-pair", obligation: "repro-test", recordedAt: "t" }).state;
+  state = recordSignal(state, { id: "public-contract", reason: "CLI", source: "declaration" }).state;
+  assert.strictEqual(nextForChange(state, context).next_step.action, "configure-checks");
+  assert.strictEqual(nextForProject([state], context).next_step.candidate_command, "pnpm test");
+  assert.strictEqual(nextForChange({ ...state, status: "closed" }, context).next_step.action, "none");
+
+  const ambiguous = recordIntent(null, { change: "vague", ambiguous: true, request: "Improve it" }).state;
+  assert.strictEqual(nextForChange(ambiguous, context).next_step.gate, "ambiguous-intent");
+  const facts = recordIntent(null, { change: "facts", kind: "feature", summary: "s", acceptance: "a", openFacts: ["Which behavior?"] }).state;
+  assert.strictEqual(nextForChange(facts, context).next_step.gate, "open-facts");
+  assert.deepStrictEqual(nextForProject([state, facts], context).next_step.action, "choose-change");
+});
+
 test("project next picks the only open change, asks to choose among several, or to open one", () => {
   const a = recordIntent(null, { change: "b-change", kind: "docs", summary: "s", acceptance: "a", ...NO_OPEN_FACTS }).state;
   const b = recordIntent(null, { change: "a-change", kind: "docs", summary: "s", acceptance: "a", ...NO_OPEN_FACTS }).state;

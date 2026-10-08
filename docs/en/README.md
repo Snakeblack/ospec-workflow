@@ -44,7 +44,11 @@ claude plugin marketplace add https://github.com/snakeblack/ospec-workflow.git#r
 claude plugin install ospec-workflow@ospec-tools
 ```
 
-Then declare your checks once in `idd/config.yaml` at the project root:
+Then declare your checks once in `idd/config.yaml` at the project root. If
+none are declared, `ospec next` offers `configure-checks`: the IDD skill asks
+you to approve a suggested command or provide one, and waits before creating
+or updating the file. It preserves existing settings. For an approved
+`npm test` command:
 
 ```yaml
 checks:

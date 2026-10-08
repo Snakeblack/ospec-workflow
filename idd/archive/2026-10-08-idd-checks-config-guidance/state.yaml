@@ -1,0 +1,145 @@
+{
+  "schema": "idd-state/v1",
+  "change": "idd-checks-config-guidance",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Guiar la declaración de checks IDD ausentes sin repetir check",
+    "acceptance": "next y check indican configurar checks con consentimiento; doctor avisa para cambios abiertos; tras configurar un check aprobado, check y close funcionan"
+  },
+  "facts": {
+    "basis": "Roadmap E1.21 aprobado fija configuración opcional, evidencia obligatoria, consentimiento explícito y avisos sin cambio de exit code; sugerencias son solo propuestas, nunca ejecutadas ni escritas automáticamente"
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-08T21:18:37.721Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-08T21:26:09.848Z",
+      "detail": {
+        "tree": "sha256:89f592e637c9c39d6c7b6f7c5fa9dc172a13698ef782bcb84c9b055c7bbe240b",
+        "runs": [
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-08T21:26:09.848Z",
+      "detail": {
+        "tree": "sha256:89f592e637c9c39d6c7b6f7c5fa9dc172a13698ef782bcb84c9b055c7bbe240b",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/lib/idd-checks-config.test.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-doctor.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    }
+  ],
+  "base": "28bca5139fae1a72fa46e7d0255368da90718279",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"missing checks|empty checks|open IDD change without checks\" scripts/ospec.test.js scripts/lib/ospec-doctor.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:888b58a3a1bd76cb66c286fa0635d3286685c176810554fa359f559c2bb3c614",
+      "tree": "sha256:741a36debf1184eea38a40763c5fc10bc1fac6fdc8cc99c74d1ade75fad04573",
+      "recorded_at": "2026-10-08T21:17:41.344Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"missing checks|empty checks|open IDD change without checks\" scripts/ospec.test.js scripts/lib/ospec-doctor.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3e12132c7208c3ec0a0580d935fef6952e85fd10ab0cfe2de198f4a8e7e8af6",
+      "tree": "sha256:ba577230e90e4e02be97c785a93b14424535a01db469d7f89277bfe6688550a8",
+      "recorded_at": "2026-10-08T21:18:37.721Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:b4fe9dfe1d136b935cb91ca8963b169358fed7564e02f835b3b917d87dc05671",
+      "tree": "sha256:e75e1e70aedca87dbd7e6a8ad9ae9b222b0884c8d6b15d1e5c7c239a57288b2e",
+      "recorded_at": "2026-10-08T21:23:18.037Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ae25951c127adececd584cdc45c3b6ff2c0c8ec7f91790e7686b0725d4f88745",
+      "tree": "sha256:89f592e637c9c39d6c7b6f7c5fa9dc172a13698ef782bcb84c9b055c7bbe240b",
+      "recorded_at": "2026-10-08T21:26:09.848Z"
+    }
+  ],
+  "closed_at": "2026-10-08T21:26:43.059Z"
+}

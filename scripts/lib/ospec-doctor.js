@@ -17,6 +17,7 @@ const { spawnSync } = require("node:child_process");
 const { DEFAULT_MODE, STATE_FILE, resolveMode, validateState } = require("./idd-contract.js");
 const { CONFIG_FILE, CONFIG_KEYS, IddConfigError, parseIddConfig } = require("./idd-config.js");
 const { statusOf } = require("./idd-next.js");
+const { candidateCheckCommand, configureChecksStep } = require("./idd-checks-config.js");
 const { TARGETS: ENGRAM_TARGETS, isConfigured, isUnknown, detectEngram, parseJsonc } = require("./engram-detect.js");
 const { binaryCandidates, hostBinarySuffix } = require("../hooks/ospec-hooks-launch.js");
 const hosts = require("./ospec-doctor-hosts.js");
@@ -390,6 +391,7 @@ function readConfig(root, add) {
 
 function iddChangeChecks(root, add) {
   const base = path.join(root, "idd");
+  let openChanges = 0;
   for (const id of listDirs(base).filter((name) => name !== "archive")) {
     const file = path.join(base, id, STATE_FILE);
     const text = readText(file);
@@ -439,6 +441,7 @@ function iddChangeChecks(root, add) {
         action: `Run \`ospec close --change ${id}\`; it finishes the move.`,
       });
     } else {
+      openChanges += 1;
       const [summary] = statusOf([state]).changes;
       const pending = summary.obligations.pending.join(", ") || "none";
       const gates = summary.open_gates.join(", ") || "none";
@@ -451,6 +454,7 @@ function iddChangeChecks(root, add) {
       });
     }
   }
+  return openChanges;
 }
 
 function sddChanges(root) {
@@ -603,7 +607,15 @@ async function runDoctor({
     ...hosts.hostsWithoutSdd(others),
   ];
   sddPackageCheck({ mode, changes, hostsWithoutSdd }, project);
-  iddChangeChecks(root, project);
+  const openIddChanges = iddChangeChecks(root, project);
+  if (config && openIddChanges > 0 && !config.checks?.length) {
+    project({
+      id: "idd-checks",
+      status: "warn",
+      cause: `no checks declared in ${CONFIG_FILE}; open IDD changes cannot close without check evidence`,
+      action: configureChecksStep(candidateCheckCommand(root)).how,
+    });
+  }
   for (const change of changes) {
     project({
       id: "sdd-change",

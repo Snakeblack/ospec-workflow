@@ -288,8 +288,9 @@ MUST be idempotent: repeating it MUST leave `state.yaml` byte-identical, and
 rewriting a recorded fact with different content MUST be refused. Every write
 MUST run under the state file's lock and replace the file atomically, so an
 interrupted `record` leaves the last committed state readable. A change id
-MUST be kebab-case before it reaches the filesystem. `next` MUST be a pure
-function of the stored state and MUST return the change, its pending
+MUST be kebab-case before it reaches the filesystem. `next` MUST be a read-only
+function of the stored state and, when check evidence is next, the project's
+check configuration and command suggestion. It MUST return the change, its pending
 obligations in work order, the pending decision, the next step and the
 knowledge references. The next step MUST be `resolve-gate` while the intent is
 ambiguous, else `resolve-gate` while `open-facts` is open, else the first
@@ -298,6 +299,14 @@ pending obligation in the order `repro-test`,
 `adr-impact-declaration`, `trust-review`, `checks-pass`, `living-doc`, else the
 first open gate, else `close`. The CLI MUST exit with 0 on success, 1 when the
 IDD contract refuses the request and 2 on a usage error.
+
+Before the pending `checks-pass` or `contract-spec-and-test` step, if no checks
+are declared, `next` MUST instead return `next_step.action: configure-checks`,
+`obligation: checks-pass`, `file: idd/config.yaml`, `requires_approval: true`,
+`candidate_command` (a suggestion or null) and `how` naming the `checks:` edit
+and explicit user approval. This prerequisite MUST NOT override an ambiguous
+intent, open facts, earlier obligations, change selection or a closed change.
+It MUST NOT write configuration, execute a candidate or satisfy evidence.
 
 #### Scenario: Repeated record is a no-op
 
@@ -427,6 +436,22 @@ means none), `impact` (the impact section of REQ-idd-012) and `contracts`
 domain or an unreadable line MUST be refused with the code `config-invalid`;
 invalid contents of `impact` keep the code `impact-config-invalid`.
 
+Optional configuration does not mean optional check evidence: without at
+least one declared check no IDD change can close. The IDD skill MUST ask the
+user to approve the proposed command, or provide one when no candidate is
+known, and wait before creating or updating `checks:`. An approved edit MUST
+preserve the existing configuration. Neither `record intent`, `next`,
+`check` nor `doctor` MUST create this file automatically.
+
+A command suggestion MUST be read-only and never constitute approval. For a
+root `package.json` with a non-empty string `scripts.test` other than npm's
+"no test specified" placeholder, the CLI MAY propose the corresponding
+test command. It MUST honor a recognized explicit `packageManager`
+(`npm`, `pnpm`, `yarn`, `bun`), otherwise use an unambiguous root lockfile or
+`npm test` when no lockfile exists. An invalid or unsupported manager,
+conflicting lockfiles, missing or malformed manifest, missing test script or
+placeholder MUST produce no candidate; the guidance MUST ask for a command.
+
 #### Scenario: SDD configuration does not configure IDD
 
 - GIVEN `strict_tdd: true` and an `impact:` section in `openspec/config.yaml`
@@ -473,6 +498,24 @@ each with the reason it is not met, else `needs-decision` while a gate is open,
 else `ready`. While the intent is ambiguous it MUST answer `needs-decision`
 without running anything. A completed check MUST exit with 0 whatever its
 answer; outside a git work tree it MUST be refused with `not-a-git-repo`.
+
+With no declared checks, `check` MUST keep `checks-pass` pending, answer
+`missing` with a reason naming `checks:` in `idd/config.yaml` and explicit
+approval, include a command suggestion when known, and return the same
+configuration prerequisite as `next` when check evidence is the next step.
+It MUST still exit with 0, record no check runs and never write configuration.
+
+#### Scenario: Missing checks become an approved configuration step
+
+- GIVEN an open documentation change without `idd/config.yaml` and a manifest
+  declaring a real test script
+- WHEN `next` and `check` run
+- THEN the next step MUST be `configure-checks` with a command suggestion,
+  explicit approval and the configuration path, without creating that file
+- AND `check` MUST answer `missing`, exit with 0 and record no check run
+- AND `close` MUST refuse while the evidence is missing
+- WHEN the approved check command is written and `check` observes it passing
+- THEN `checks-pass` MUST be satisfied and `close` MUST succeed
 
 #### Scenario: A claimed passing run closes nothing
 
@@ -690,6 +733,10 @@ The checks MUST cover at least:
   when an installed host's version differs, and `git-hooks` when the
   repository's commit hooks are not installed.
 - `project`: `idd-config` (`error` when `idd/config.yaml` is invalid), `mode`,
+  `idd-checks` (`warn` when configuration is valid or absent and at least one
+  valid open IDD change has no declared checks; action MUST name `checks:` in
+  `idd/config.yaml`, require explicit approval and include a candidate when
+  known; no warning for only archived or closed changes),
   `sdd-package` (`error` when `mode: sdd` and an installed host lacks the SDD
   package, `warn` when `openspec/changes/` holds a change it cannot continue),
   `idd-change` for every change under `idd/` (`warn` with

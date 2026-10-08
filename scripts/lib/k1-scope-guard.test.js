@@ -162,6 +162,9 @@ const SUCCESSOR_K2_EXACT = new Set([
   // E1.4 (0) IDD configuration in idd/config.yaml, outside openspec/ (roadmap harness-evolution).
   "scripts/lib/idd-config.js",
   "scripts/lib/idd-config.test.js",
+  // E1.21 read-only guidance for absent IDD checks (roadmap harness-evolution).
+  "scripts/lib/idd-checks-config.js",
+  "scripts/lib/idd-checks-config.test.js",
   // E1.4 (a) ospec check and ospec run: observed runs and their evidence (roadmap harness-evolution).
   "scripts/lib/idd-check.js",
   "scripts/lib/idd-check.test.js",
@@ -432,6 +435,9 @@ test("K1 scope guard: K2 successor paths are excluded from K1 inventory governan
   assert.equal(isSuccessorK2Path("scripts/lib/flow-validator.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/flow-validator.test.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/idd-signals.js"), true);
+  assert.equal(isSuccessorK2Path("scripts/lib/idd-checks-config.js"), true);
+  assert.equal(isSuccessorK2Path("scripts/lib/idd-checks-config.test.js"), true);
+  assert.equal(isAllowedK1Path("scripts/lib/idd-checks-config.js"), false);
   assert.equal(isSuccessorK2Path("scripts/lib/verify-lineage-recheck.test.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/transition-parity.js"), false);
   assert.equal(isSuccessorK2Path("scripts/lib/canonical-json.js"), false);

@@ -200,7 +200,7 @@ async function signals(root, values) {
     }),
   );
   const { signals: derived, gates, floor } = derivation;
-  return { change: state.change, changed, added, signals: derived, gates, floor, next: nextForChange(state) };
+  return { change: state.change, changed, added, signals: derived, gates, floor, next: nextForChange(state, context) };
 }
 
 // The change's own base keeps its committed work in the diff (REQ-idd-014).
@@ -273,12 +273,13 @@ async function check(root, values) {
   );
   const verdict = checkVerdict(state, {
     checks: context.checks,
+    candidateCommand: context.candidateCommand,
     results: checks,
     treeChanged: tree !== treeBefore,
     reasons,
     livingDoc: readLivingDoc(root, state),
   });
-  return { change: state.change, changed, added, checks, tree, ...verdict, next: nextForChange(state) };
+  return { change: state.change, changed, added, checks, tree, ...verdict, next: nextForChange(state, context) };
 }
 
 // Runs one test command for an obligation `ospec run` proves and records the
@@ -320,8 +321,8 @@ async function runObligation(root, values) {
       return { state: settled.state, changed: true };
     }),
   );
-  const verdict = checkVerdict(state, { checks: context.checks, livingDoc: readLivingDoc(root, state) });
-  return { change: state.change, run: { id: runId, ...extra, ...result }, evidence, ...verdict, next: nextForChange(state) };
+  const verdict = checkVerdict(state, { ...context, livingDoc: readLivingDoc(root, state) });
+  return { change: state.change, run: { id: runId, ...extra, ...result }, evidence, ...verdict, next: nextForChange(state, context) };
 }
 
 // --- close (REQ-idd-009, REQ-idd-017) ---------------------------------------
@@ -501,7 +502,11 @@ async function run(command, positionals, values) {
   }
   if (command === "next") {
     try {
-      return nextForProject(await listChanges(root), { change: values.change });
+      const states = await listChanges(root);
+      const next = nextForProject(states, { change: values.change });
+      // Intent gates and change selection do not depend on configuration.
+      if (next.next_step.action !== "satisfy-obligation" || !["checks-pass", "contract-spec-and-test"].includes(next.next_step.obligation)) return next;
+      return nextForProject(states, { change: values.change, ...readProjectContext(root) });
     } catch (error) {
       if (/^unknown change/.test(error.message)) throw new IddRecordError("unknown-change", error.message);
       throw error;
@@ -528,6 +533,9 @@ function describeNext(result) {
   const lines = [];
   if (result.change) lines.push(`change: ${result.change} (${result.status})`);
   switch (step.action) {
+    case "configure-checks":
+      lines.push(`next: ${step.how}`);
+      break;
     case "satisfy-obligation":
       lines.push(`next: satisfy ${step.obligation} with ${step.evidence} evidence`);
       break;

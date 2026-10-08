@@ -12,6 +12,7 @@
 
 const { GATES, OBLIGATIONS, RUN_EVIDENCE, isIntentAmbiguous } = require("./idd-contract.js");
 const { GATE_QUESTIONS, WORK_ORDER } = require("./idd-next.js");
+const { configureChecksStep } = require("./idd-checks-config.js");
 const { IddRecordError } = require("./idd-record.js");
 const { trustReason } = require("./idd-review.js");
 
@@ -191,8 +192,8 @@ function pairReason(state, obligationId) {
   return `a failing run is recorded: run the same command again after ${moment}`;
 }
 
-function checksReason({ checks, results, treeChanged }) {
-  if (!checks || checks.length === 0) return "no checks declared in idd/config.yaml (checks:)";
+function checksReason({ checks, results, treeChanged, candidateCommand }) {
+  if (!checks || checks.length === 0) return `no checks declared in idd/config.yaml (checks:); ${configureChecksStep(candidateCommand).how}`;
   if (treeChanged) return "the tree changed while the checks ran: run ospec check again";
   const failed = (results || []).find((result) => result.exit_code !== 0);
   if (failed) return `check ${failed.name} failed with exit code ${failed.exit_code}`;
@@ -210,7 +211,7 @@ const DEFAULT_REASONS = Object.freeze({
 
 // living-doc is satisfied by ospec close itself (REQ-idd-004): a current
 // change.md does not hold the verdict back, a stale one says what it lacks.
-function checkVerdict(state, { checks = [], results = [], treeChanged = false, reasons = {}, livingDoc = null } = {}) {
+function checkVerdict(state, { checks = [], results = [], treeChanged = false, reasons = {}, livingDoc = null, candidateCommand } = {}) {
   const openGates = state.gates
     .filter((gate) => gate.status === "open")
     .sort((left, right) => GATES.indexOf(left.id) - GATES.indexOf(right.id));
@@ -224,7 +225,7 @@ function checkVerdict(state, { checks = [], results = [], treeChanged = false, r
     .map((entry) => {
       const evidence = EVIDENCE_BY_OBLIGATION.get(entry.id);
       let reason = reasons[entry.id] || DEFAULT_REASONS[entry.id] || `needs ${evidence} evidence`;
-      if (entry.id === "checks-pass") reason = checksReason({ checks, results, treeChanged });
+      if (entry.id === "checks-pass") reason = checksReason({ checks, results, treeChanged, candidateCommand });
       else if (PAIR_OBLIGATIONS.includes(entry.id)) reason = pairReason(state, entry.id);
       else if (entry.id === "trust-review") reason = trustReason(state);
       else if (entry.id === "living-doc") reason = `${livingDoc?.reason || "change.md was not read"}: ospec close records it once change.md is current`;

@@ -161,6 +161,39 @@ test("an invalid idd/config.yaml is an error", async (t) => {
   assert.equal(result.exit_code, 1);
 });
 
+test("an open IDD change without checks warns with approval guidance and writes nothing", async (t) => {
+  const env = setup(t);
+  write(path.join(env.root, "idd", OPEN_STATE.change, "state.yaml"), OPEN_STATE);
+  write(path.join(env.root, "package.json"), { scripts: { test: "node verify.js" } });
+  const before = treeDigest(env.root);
+  const result = await doctor(env);
+  const check = find(result, "project", "idd-checks");
+  assert.equal(check.status, "warn");
+  assertActionable(check);
+  assert.match(check.cause, /no checks declared/);
+  assert.match(check.action, /idd\/config.yaml/);
+  assert.match(check.action, /npm test/);
+  assert.match(check.action, /approval/i);
+  assert.equal(result.exit_code, 0);
+  assert.equal(treeDigest(env.root), before);
+
+  write(path.join(env.root, "idd", "config.yaml"), "checks:\n");
+  assert.equal(find(await doctor(env), "project", "idd-checks").status, "warn");
+  write(path.join(env.root, "idd", "config.yaml"), "checks:\n  test: npm test\n");
+  assert.equal(find(await doctor(env), "project", "idd-checks"), undefined);
+});
+
+test("missing checks do not warn for invalid config or only archived changes", async (t) => {
+  const env = setup(t);
+  write(path.join(env.root, "idd", "archive", "2026-10-08-add-export", "state.yaml"), { ...OPEN_STATE, status: "closed" });
+  assert.equal(find(await doctor(env), "project", "idd-checks"), undefined);
+  write(path.join(env.root, "idd", OPEN_STATE.change, "state.yaml"), OPEN_STATE);
+  write(path.join(env.root, "idd", "config.yaml"), "mode: invalid\n");
+  const result = await doctor(env);
+  assert.equal(find(result, "project", "idd-config").status, "error");
+  assert.equal(find(result, "project", "idd-checks"), undefined);
+});
+
 test("mode sdd without the SDD package fails and names --with-sdd", async (t) => {
   const env = setup(t);
   write(path.join(env.root, "idd", "config.yaml"), "mode: sdd\n");
