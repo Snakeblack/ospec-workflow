@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.117.9, 2026-10-08.
+> **Versión de referencia:** v2.117.10, 2026-10-08.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -135,10 +135,10 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.15** | `idd-review-successor-policy` (coherencia de autoridades; decisión humana pendiente) | contrato |
 | `done` | **E1.16** | `hook-neutral-permissions` (OSP-017; sin objeción, el hook no decide y el host aplica sus permisos, en v2.117.5) | bugfix |
 | `done` | **E1.17** | `hook-boundary-reliability` (OSP-001/002/003; secretos y launcher, v2.117.9) | bugfix |
-| `pending` | **E1.18** | `idd-evidence-integrity` (OSP-018; frescura de configuración y protección del estado) | bugfix |
+| `next-eligible` | **E1.18** | `idd-evidence-integrity` (OSP-018; frescura de configuración y protección del estado) | bugfix |
 | `pending` | **E1.19** | `idd-review-context` (OSP-019; sobrecarga confirmada, bloqueo no demostrado) | refactor |
 | `pending` | **E1.20** | `installation-docs-sync` (OSP-020; documentación de E1.6/E1.8) | docs |
-| `next-eligible` | **E1.21** | `idd-checks-config-guidance` (sin `checks:` en `idd/config.yaml`, ningún cambio IDD cierra y nada lo explica; va después de E1.17) | bugfix |
+| `done` | **E1.21** | `idd-checks-config-guidance` (guía y consentimiento al faltar checks, v2.117.10) | bugfix |
 | `done` | **E1.22** | `stale-hooks-binary` (los `setup:*` locales recompilan el hook Go si es anterior al código, en v2.117.7) | bugfix |
 | `done` | **E1.23** | `install-engram-no-doctor` (los siete `setup:*` omiten el diagnóstico global de Engram; `ospec doctor` lo conserva, en v2.117.8) | bugfix |
 | `pending` | **E2.1** | `knowledge-map-contract` (se retoma después de las prioridades OSP) | contrato |
@@ -158,7 +158,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.4** | `execution-resource-experiment` (experimento previo a cualquier routing adaptativo) | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E1.21 `idd-checks-config-guidance` (`idd/config.yaml` sin checks), seguido por E1.18 (OSP-018), E1.19 (OSP-019) y E1.20 (OSP-020), por decisión del usuario del 2026-10-08. E1.16 (OSP-017) quedó hecho en v2.117.5 y E1.17 (OSP-001/002/003) en v2.117.9. Las correcciones se ejecutan con IDD. Después se retoma E2.1 `knowledge-map-contract`, que abre la Etapa 2.
+**▶ SIGUIENTE:** E1.18 `idd-evidence-integrity` (OSP-018), seguido por E1.19 (OSP-019) y E1.20 (OSP-020), por decisión del usuario del 2026-10-08. E1.16 (OSP-017) quedó hecho en v2.117.5, E1.17 (OSP-001/002/003) en v2.117.9 y E1.21 (guía de checks IDD) en v2.117.10. Las correcciones se ejecutan con IDD. Después se retoma E2.1 `knowledge-map-contract`, que abre la Etapa 2.
 
 El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) conserva su resultado histórico `continue`. Los hallazgos posteriores y sus límites están en el [análisis OSP de permisos y evidencia](../analysis/2026-10-08-osp-permisos-y-evidencia.md). E1.11–E1.15 siguen pendientes; el plugin SDD del marketplace permanece en E5.8, por demanda.
 
@@ -469,6 +469,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 
 ### E1.21 — `idd-checks-config-guidance`
 
+- **Hecho (v2.117.10):** cerrado con IDD en `idd/archive/2026-10-08-idd-checks-config-guidance/`. `next` ofrece `configure-checks` antes de obtener evidencia de checks, `check` explica la configuración y `doctor` avisa para cambios abiertos. La skill pide aprobación explícita y conserva las claves existentes. Reproducción rojo→verde, contrato y checks completos satisfechos; consumidor sin configuración hasta cierre y distribución a los siete targets probados.
 - **Origen (2026-10-08):** el usuario lo detectó en otro proyecto (sin `idd/`, `record intent` creó solo `idd/<cambio>/state.yaml`) y se reprodujo en un consumidor temporal con `package.json` y script `test`. Nada crea `idd/config.yaml` (`idd-store.js` crea solo el directorio del cambio; `idd-workspace.js` ignora su ausencia). Sin fichero, `parseIddConfig` devuelve `checks: []` y `settleChecks` exige al menos un run (`idd-check.js`), así que `checks-pass` (señal `always`) queda `pending`: `ospec check` sale con 0 y veredicto `missing` («no checks declared»), `ospec next` vuelve a proponer `ospec check` (bucle), `close` y `record withdraw` se rechazan y `ospec doctor` informa `ok` («defaults apply»). La skill `idd` no menciona el fichero; solo el README explica cómo crearlo. Falla cerrado (no cierra sin evidencia), pero sin guía.
 - **Garantía que protege:** que la evidencia de checks siga siendo obligatoria (principio 3) sin dejar al agente ni al usuario en un bucle sin salida, y que la configuración del proyecto solo se escriba con aprobación explícita (principio 8).
 - **Alcance mínimo (decisión del usuario):** (1) `ospec next` y `ospec check` nombran lo que falta cuando no hay checks: declarar `checks:` en `idd/config.yaml`, con un comando candidato si se detecta; (2) la skill `idd` propone al usuario el comando de test y lo escribe en `idd/config.yaml` solo con su aprobación; (3) `ospec doctor` avisa (`warn`) cuando hay un cambio abierto sin checks declarados. Aclarar REQ-idd-013/014: el fichero es opcional, pero sin `checks` no se puede cerrar ningún cambio.
@@ -701,6 +702,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-08: E1.21 `idd-checks-config-guidance` hecho con IDD en v2.117.10. El usuario confirma patch y PR único con `size:exception`; E1.18 pasa a `next-eligible`.
 - 2026-10-08: E1.17 `hook-boundary-reliability` hecho en v2.117.9 con IDD y revisión de seguridad acotada. El usuario conserva bypass y aprueba patch con un PR único y `size:exception`; E1.21 pasa a `next-eligible`.
 - 2026-10-08: E1.23 `install-engram-no-doctor` retira el diagnóstico global de Engram de los siete instaladores a petición del usuario; queda en `ospec doctor`.
 - 2026-10-08: E1.22 `stale-hooks-binary` hecho en v2.117.7 a petición del usuario («desatascar y dejarlo todo funcionando»): los `setup:*` locales ya no instalan un hook Go anterior al código.
