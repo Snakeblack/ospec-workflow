@@ -36,16 +36,54 @@ function hostBinarySuffix() {
   return { os: goos, arch, ext };
 }
 
-// Automatically compile the ospec-hooks Go binary if missing and go is installed
+// The Go sources the hooks binary is built from (E1.22).
+const GO_SOURCE_ROOTS = ["cmd", "internal", "go.mod", "go.sum"];
+
+function newestGoSourceMtime(sourceDir, fsImpl) {
+  let newest = 0;
+  const visit = (entry) => {
+    let stat;
+    try {
+      stat = fsImpl.statSync(entry);
+    } catch {
+      return;
+    }
+    if (stat.isDirectory()) {
+      for (const name of fsImpl.readdirSync(entry)) {
+        visit(path.join(entry, name));
+      }
+    } else if (stat.mtimeMs > newest) {
+      newest = stat.mtimeMs;
+    }
+  };
+  for (const root of GO_SOURCE_ROOTS) {
+    visit(path.join(sourceDir, root));
+  }
+  return newest;
+}
+
+// Compile the ospec-hooks Go binary when it is missing or older than the Go
+// sources (E1.22) and go is installed. Without go, a stale binary is still
+// used, with a warning.
 function ensureRuntimeBinary(sourceDir, deps = {}) {
   const fsImpl = deps.fs || fs;
   const stdout = deps.stdout || process.stdout;
+  const stderr = deps.stderr || process.stderr;
   const spawnSyncImpl = deps.spawnSync || spawnSync;
   const { os: goos, arch, ext } = hostBinarySuffix();
   const distDir = path.join(sourceDir, "release", "dist");
   const srcBin = path.join(distDir, `ospec-hooks-${goos}-${arch}${ext}`);
 
-  if (fsImpl.existsSync(srcBin)) {
+  const exists = fsImpl.existsSync(srcBin);
+  let stale = false;
+  if (exists) {
+    try {
+      stale = fsImpl.statSync(srcBin).mtimeMs < newestGoSourceMtime(sourceDir, fsImpl);
+    } catch {
+      // Without a readable mtime, reuse the binary as before.
+    }
+  }
+  if (exists && !stale) {
     return srcBin;
   }
 
@@ -54,7 +92,8 @@ function ensureRuntimeBinary(sourceDir, deps = {}) {
     try {
       const probe = spawnSyncImpl("go", ["version"], { stdio: "ignore", shell: false });
       if (!probe.error && probe.status === 0) {
-        stdout.write(`  * Compiling ospec-hooks binary for ${goos}-${arch} with local Go toolchain...\n`);
+        const action = stale ? "Recompiling outdated" : "Compiling";
+        stdout.write(`  * ${action} ospec-hooks binary for ${goos}-${arch} with local Go toolchain...\n`);
         fsImpl.mkdirSync(distDir, { recursive: true });
         const buildResult = spawnSyncImpl("go", ["build", "-o", srcBin, "./cmd/ospec-hooks"], {
           cwd: sourceDir,
@@ -71,6 +110,13 @@ function ensureRuntimeBinary(sourceDir, deps = {}) {
     }
   }
 
+  if (exists) {
+    stderr.write(
+      `aviso: el binario ospec-hooks de ${srcBin} es anterior al código Go y puede estar desfasado.\n` +
+        "  Instala Go o ejecuta 'npm run build:hooks' para recompilarlo.\n",
+    );
+    return srcBin;
+  }
   return null;
 }
 
@@ -85,14 +131,9 @@ function copyBinaryToTree(outDir, target, sourceDir, deps = {}) {
   const stderr = deps.stderr || process.stderr;
   const required = Boolean(deps.required);
   const { os: goos, arch, ext } = hostBinarySuffix();
-  let srcBin = path.join(sourceDir, "release", "dist", `ospec-hooks-${goos}-${arch}${ext}`);
-
-  if (!fsImpl.existsSync(srcBin)) {
-    const compiledBin = ensureRuntimeBinary(sourceDir, deps);
-    if (compiledBin) {
-      srcBin = compiledBin;
-    }
-  }
+  const srcBin =
+    ensureRuntimeBinary(sourceDir, deps) ||
+    path.join(sourceDir, "release", "dist", `ospec-hooks-${goos}-${arch}${ext}`);
 
   if (!fsImpl.existsSync(srcBin)) {
     if (required) {

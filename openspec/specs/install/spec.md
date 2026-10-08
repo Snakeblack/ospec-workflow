@@ -227,10 +227,26 @@ The installation process integrates the platform-appropriate pre-compiled Go bin
 - **Best-Effort Delivery (default)**: If the source binary is absent under `release/dist/` (e.g. pre-CI development environment), a warning is written to stderr and installation proceeds without failure unless callers set `required: true`.
 - **Required Delivery**: When `deps.required` is true, a missing source binary or copy failure MUST throw and abort the install path.
 - **Platform Detection**: Platform and architecture are resolved (`hostBinarySuffix()`) to locate the source binary `ospec-hooks-${goos}-${arch}${ext}`.
+- **Freshness (E1.22)**: `ensureRuntimeBinary` MUST treat the source binary as stale when its modification time is older than the newest file under `cmd/`, `internal/`, `go.mod` or `go.sum` of the source checkout. A missing or stale binary MUST be compiled with the local Go toolchain when `go` is available; a fresh one MUST be reused without compiling. Without Go, a stale binary MUST still be used and a warning naming it as possibly outdated MUST be written to stderr. If the modification time cannot be read, the binary is reused as before.
 - **Target-Specific Destination**:
   - For target `opencode`, the binary is copied to `release/dist/ospec-hooks${ext}` in the output tree.
   - For all other targets (including `claude`, `vscode`, `github-copilot`), the binary is copied to `scripts/hooks/ospec-hooks${ext}`.
 - **Permissions**: On POSIX (non-win32) platforms, the copied binary's permissions are updated to `0755` (executable) using `chmodSync`.
+
+(Previously: an existing binary under `release/dist/` was always reused, so local installs kept shipping a Go hook compiled months earlier after the Go sources changed.)
+
+#### Scenario: Stale binary is rebuilt with Go
+
+- GIVEN `release/dist/ospec-hooks-<goos>-<arch>` is older than a file under `internal/`
+- AND `go version` succeeds
+- WHEN `ensureRuntimeBinary` runs
+- THEN it MUST run `go build` and return the rebuilt binary
+
+#### Scenario: Stale binary without Go is used with a warning
+
+- GIVEN a stale source binary AND `go` is unavailable
+- WHEN `ensureRuntimeBinary` runs
+- THEN it MUST return the existing binary AND write a warning that it may be outdated
 
 #### Scenario: Transactional sync rolls back on mid-copy failure
 

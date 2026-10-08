@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.117.7] - 2026-10-08
+
+### Fixed
+- **Los `setup:*` locales instalaban un hook Go desfasado (E1.22)**: `ensureRuntimeBinary` reutilizaba cualquier `release/dist/ospec-hooks-<os>-<arch>` existente, que está fuera de git, y nunca recompilaba; en el checkout había uno de junio, así que VS Code, Cursor, Copilot, Antigravity y Claude instalados desde el checkout llevaban un hook sin E1.16 ni cambios Go posteriores. Ahora, con Go disponible, el binario se recompila si es más antiguo que `cmd/`, `internal/`, `go.mod` o `go.sum`, y se reutiliza si está al día; sin Go se usa el existente con un aviso de posible desfase. Las instalaciones del Marketplace no se veían afectadas. Spec `install` §4.5.
+
+### Changed
+- **Roadmap**: E1.22 `stale-hooks-binary` hecho. Hecho con IDD (`idd/archive/2026-10-08-stale-hooks-binary/`).
+
+**Verificación directa**: `node scripts/check.js` (3374 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.117.6] - 2026-10-08
 
 ### Changed
