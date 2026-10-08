@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.117.9] - 2026-10-08
+
+### Security
+- **Lecturas sensibles desde shell (E1.17, REQ-hooks-024)**: los hooks JS/Go reutilizan AgentShield para operandos literales de lectores comunes y redirecciones de entrada. Las denegaciones de comandos y archivos tienen prioridad frente a los avisos por secretos. Se conserva la política aprobada: ASK en modo normal y aviso sin bloqueo en bypass o hosts sin ASK. Las 18 reglas JS/JSON tienen una prueba de paridad completa.
+
+### Fixed
+- **Deadline y errores del launcher (REQ-hooks-025)**: `scripts/hooks/ospec-hooks-launch.js` limita el hijo directo a 4000 ms con SIGKILL y descarta stdout parcial ante fallos de arranque, señal, salida no cero o respuesta inválida. Los adaptadores conservan el aviso compatible con cada target. La prueba real de un hijo que maneja SIGTERM termina alrededor de 4,1 s en Windows; no se garantiza la contención de descendientes.
+
+### Changed
+- **Contrato, roadmap e inspección de seguridad**: REQ-hooks-024/025 y pruebas de lectores, bypass, adaptadores y fallos actualizados. E1.17 cerrado con IDD (`idd/archive/2026-10-08-hook-boundary-reliability/`), revisión de seguridad y validación dirigida aprobadas; E1.21 queda como siguiente trabajo. El informe `docs/analysis/2026-10-08-hook-security-hardening.md` documenta reproducciones y mejoras pendientes, sin afirmar una auditoría completa ni cambiar la política vigente.
+
+**Verificación directa**: `node scripts/check.js` (3388 tests pasando, 0 fallos y 0 omitidos), incluida la generación de los siete targets. `go test ./...` pasando; reproducciones rojo→verde JS/Go y revisión acotada registradas en IDD.
+
 ## [2.117.8] - 2026-10-08
 
 ### Fixed

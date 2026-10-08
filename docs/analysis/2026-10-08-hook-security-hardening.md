@@ -32,3 +32,7 @@ La comparación con un `.env` inexistente no sirve para demostrar el comportamie
 ## Validación del cambio
 
 Reproducciones rojo→verde JS y Go registradas por IDD. Pruebas de lectores literales, referencias inocuas, precedencia DENY, bypass, adapters, errores de proceso y timeout real. El resultado de la revisión congelada, los checks completos y el cierre se conserva en el estado IDD, no se presume por esta nota.
+
+## Seguimiento de seguridad del repositorio
+
+Durante la preparación de v2.117.9, la API de GitHub para la protección clásica de `main` devolvió `404 Branch not protected` y la consulta de reglas efectivas `repos/Snakeblack/ospec-workflow/rules/branches/main` devolvió `[]`. El flujo exige CI y PR, pero GitHub no impone esas restricciones en `main`. Como mejora pendiente, configurar reglas que exijan PR y checks obligatorios, limitando el push directo y los bypass. Aumenta la protección ante cambios accidentales o una cuenta comprometida; puede bloquear mantenimiento urgente y requiere acordar quién conserva permisos de excepción. No se cambió la configuración remota.

@@ -1632,4 +1632,3 @@ PreToolUse failures MUST return `ask` with an inspection-error reason on the bas
 - GIVEN a child takes 8 s or handles SIGTERM THEN the launcher MUST terminate that direct child at its own deadline and return an inspection-error response.
 - GIVEN a child emits an allow decision but exits nonzero THEN that partial decision MUST NOT be forwarded.
 - GIVEN a malformed response, spawn failure or timeout THEN each adapter MUST retain a visible diagnostic and its supported decision format; Codex/Cursor remain advisory, not fail-closed.
-
