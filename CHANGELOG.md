@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.117.2] - 2026-10-08
+
+### Changed
+- **Checkpoint de cierre de la Etapa 1: `continue`** ([informe](docs/analysis/2026-10-08-checkpoint-etapa-1.md)): medido en v2.117.1, todas las filas de objetivos de la etapa se cumplen. Router más protocolo IDD: 8,6–9,0 KB (objetivo ≤ 16 KB). Las 7 obligaciones activas solo se cierran con evidencia que registra el CLI. Un cambio trivial crea 0 documentos. Las preguntas llegan en un solo lote por cambio. Hay 31 skills por defecto. La tabla «Objetivos medibles» del roadmap gana la columna «Cierre E1 (v2.117.1)», y el objetivo de preguntas pasa a ser «un solo lote, solo en los cuatro gates». Salvedad registrada: el criterio de E1.6 se probó en real solo en Claude Code.
+- **Roadmap**: los follow-ups de la etapa pasan a ser ítems `pending` en paralelo con la Etapa 2: E1.11 `idd-protocol-hygiene` (codificación al editar, `ospec next` pide declarar el plan y corrección de un plan sobredeclarado), E1.12 `session-hook-idd` (`Stop` y `PreCompact` no ven los cambios IDD), E1.13 `idd-openspec-asymmetries` (Strict TDD del pre-commit y `.ospec/`) y E1.14 `codex-repo-runtime`. Lo siguiente es E2.1 `knowledge-map-contract`. Hecho con IDD (`idd/archive/2026-10-08-checkpoint-etapa-1/`).
+
+**Verificación directa**: `node scripts/check.js` (3368 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.117.1] - 2026-10-08
 
 ### Fixed
