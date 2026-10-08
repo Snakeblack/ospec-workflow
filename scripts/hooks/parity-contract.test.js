@@ -22,6 +22,14 @@ const ROOT = path.resolve(__dirname, "..", "..");
 const FIXTURES_DIR = path.join(ROOT, "internal", "testdata", "parity");
 
 const PARSE_ERROR_PREFIX = "The safety hook could not inspect this tool call:";
+test('the complete JS rule table matches the JSON embedded by Go', () => {
+  const { DENY_RULES, ASK_RULES } = require('./pre-tool-use.js');
+  const normalize = pattern => pattern.replace(/\\\//g, '/');
+  const js = [['deny', DENY_RULES], ['ask', ASK_RULES]].flatMap(([action, rules]) => rules.map(({ pattern, reason }) => ({ action, flags: pattern.flags, pattern: normalize(pattern.source), reason })));
+  const go = JSON.parse(fs.readFileSync(path.join(ROOT, 'internal/rules/rules.json'), 'utf8')).map(rule => ({ ...rule, pattern: normalize(rule.pattern) }));
+  assert.equal(js.length, 18);
+  assert.deepEqual(js, go);
+});
 const ACTIVE_PHASE_COST_EXPECTED = {
   phase: "design",
   agent: "sdd-design",

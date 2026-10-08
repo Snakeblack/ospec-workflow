@@ -1611,3 +1611,24 @@ And next action MUST read "Start a new session when more work is needed."
 - WHEN the hook catches the exception
 - THEN the error MUST be logged fail-safely
 - AND the hook MUST emit `{"continue":true}` without blocking the subagent's turn
+
+### Requirement: Literal shell reads share the sensitive-file classifier {#REQ-hooks-024}
+
+AgentShield MUST apply the existing filename classifier and bounded content scan to literal file operands of `cat`, `head`, `tail`, `less`, `more`, `type`, `Get-Content` and `gc`, and literal stdin redirections (`< file`). JS and Go MUST agree. Quoting, escaped spaces, command separators, comments and supported option values MUST preserve the difference between a read and an innocent reference; output redirections and heredoc delimiters MUST NOT count as reads. Variable expansion, globs, nested interpreters, shell functions and aliases beyond this list are outside this bounded recognizer; it MUST NOT claim complete shell inspection.
+
+Hard command denials MUST be evaluated before advisories. All filename denials in an invocation MUST be checked before any secret advisory, so `cat .env id_rsa` and a command array containing a sensitive read and a DENY command remain denied even in bypass. ASK degradation (§3.4.1) and the explicit `DISABLE_AGENT_SHIELD` switch remain unchanged.
+
+- GIVEN `cat .env`, `Get-Content -LiteralPath '.env'`, or `cat < .env` WHEN evaluated THEN the decision MUST be `ask` in default mode and `allow` plus advisory in bypass.
+- GIVEN `echo "cat .env"`, a comment containing that text, or `cat README.md > .env` WHEN evaluated THEN the reference to `.env` MUST NOT trigger AgentShield.
+- GIVEN a hard file or command denial and a secret advisory in the same invocation THEN `deny` MUST win, irrespective of operand order or bypass.
+- The full JS DENY/ASK table MUST match `internal/rules/rules.json`, including regex source, flags, action and reason.
+
+### Requirement: Launcher child deadline and explicit inspection failures {#REQ-hooks-025}
+
+The portable launcher MUST impose a 4000 ms timeout on its direct runtime child, below the 5 s baseline host timeout, and use `SIGKILL` so a child handling `SIGTERM` cannot extend the wait. This bounds the direct child; it is not a process-tree containment guarantee. Spawn errors, termination signals, nonzero exit and invalid nonempty PreToolUse output MUST discard partial child stdout and produce a visible inspection failure, never a neutral successful decision. Empty successful PreToolUse output remains neutral.
+
+PreToolUse failures MUST return `ask` with an inspection-error reason on the baseline protocol. When a valid input declares bypass, that ASK MUST degrade to `allow` plus advisory. Codex MUST surface additional context without unsupported ASK; Cursor MUST surface an allow advisory. Other events MUST continue with an error diagnostic; stderr MUST retain a safe error frame even where a host adapter omits event context. Launcher diagnostics MUST use the error code/signal/exit status, without echoing tool input or partial child output. Input read/evaluation exceptions MUST use the same failure path (unknown permission mode preserves ASK).
+
+- GIVEN a child takes 8 s or handles SIGTERM THEN the launcher MUST terminate that direct child at its own deadline and return an inspection-error response.
+- GIVEN a child emits an allow decision but exits nonzero THEN that partial decision MUST NOT be forwarded.
+- GIVEN a malformed response, spawn failure or timeout THEN each adapter MUST retain a visible diagnostic and its supported decision format; Codex/Cursor remain advisory, not fail-closed.

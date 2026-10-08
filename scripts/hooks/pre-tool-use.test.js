@@ -22,6 +22,53 @@ function decisionFor(command, toolName = "runTerminalCommand") {
   })?.hookSpecificOutput ?? NO_DECISION;
 }
 
+test("shell literal reads use AgentShield and preserve bypass policy", () => {
+  const cases = [
+    ['cat .env', 'ask'],
+    ['cat -n .env', 'ask'],
+    ['cat -n id_rsa', 'deny'],
+    ['less -n id_rsa', 'deny'],
+    ['head -n 2 "config dir/.env.local"', 'ask'],
+    ["Get-Content -LiteralPath '.env'", 'ask'],
+    ['gc .env', 'ask'],
+    ['type credentials', 'ask'],
+    ['cat README.md; cat .npmrc', 'deny'],
+    ['cat .env id_rsa', 'deny'],
+    ['cat .env; git push origin main --force', 'deny'],
+    ['echo "cat .env"', null],
+    ['printf "%s" .env', null],
+    ['cat README.md > .env', null],
+    ['echo ok && cat .env', 'ask'],
+    ['cat <<-EOF\nsafe\nEOF\ncat id_rsa', 'deny'],
+    ['cat <<-EOF\n\tcat id_rsa\n\tEOF\ncat .env', 'ask'],
+    ['cat <<-EOF\n\tcat id_rsa\n\tEOF', null],
+  ];
+  withEnvVars({ DISABLE_AGENT_SHIELD: undefined, OSPEC_TARGET: undefined, OSPEC_CODEX_WRAPPER: undefined }, () => {
+    for (const [command, expected] of cases) {
+      for (const permission_mode of ['default', 'bypassPermissions']) {
+        const result = evaluateToolUse({ tool_name: 'Bash', tool_input: { command }, permission_mode });
+        const decision = result?.hookSpecificOutput?.permissionDecision ?? null;
+        assert.equal(decision, expected === 'ask' && permission_mode === 'bypassPermissions' ? 'allow' : expected, `${command} / ${permission_mode}`);
+        if (expected === 'ask' && permission_mode === 'bypassPermissions') assert.match(result.systemMessage, /ospec advisory/);
+      }
+    }
+  });
+});
+
+test('shell reads share the bounded content scan and explicit shield switch', (t) => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const root = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'ospec-shell-content-'));
+  const file = path.join(root, 'ordinary.txt');
+  fs.writeFileSync(file, 'sk-' + 'x'.repeat(48));
+  t.after(() => { fs.unlinkSync(file); fs.rmdirSync(root); });
+  const input = { tool_name: 'Bash', tool_input: { command: `cat "${file}"` } };
+  withEnvVars({ DISABLE_AGENT_SHIELD: undefined, OSPEC_TARGET: undefined, OSPEC_CODEX_WRAPPER: undefined }, () => {
+    assert.equal(evaluateToolUse(input).hookSpecificOutput.permissionDecision, 'ask');
+    withEnvVars({ DISABLE_AGENT_SHIELD: 'true' }, () => assert.equal(evaluateToolUse(input), null));
+  });
+});
+
 test("makes no decision for normal tools without command payloads", () => {
   for (const toolName of ["readFile", "search", "editFiles"]) {
     const decision = evaluateToolUse({

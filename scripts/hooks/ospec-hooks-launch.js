@@ -33,10 +33,28 @@ const SUBCOMMANDS = new Set([
   "stop",
 ]);
 
-// Non-blocking sentinel: never fail a hook (and thus the session) because of a
-// launcher-level problem. Every Node hook already returns this on its own error
-// path, so emitting it here keeps the contract consistent.
 const CONTINUE = '{"continue":true}\n';
+// Leave one second for launch, normalization and host delivery (host: 5s).
+const CHILD_TIMEOUT_MS = 4000;
+
+function launcherFailure(sub, detail, cursorHost = false, rawInput = "") {
+  process.stderr.write(`[ospec error] Hook ${sub} failed: ${detail}\n`);
+  const message = `The safety hook could not inspect this tool call: ${detail}`;
+  let output = sub === "pre-tool-use"
+    ? { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: message } }
+    : { continue: true, systemMessage: `[ospec error] Hook ${sub} failed: ${detail}` };
+  try {
+    // Native advisory adapters need ASK as input to preserve their context.
+    if (sub === "pre-tool-use" && !cursorHost && process.env.OSPEC_TARGET !== "codex" && JSON.parse(rawInput).permission_mode === "bypassPermissions") {
+      output.hookSpecificOutput.permissionDecision = "allow";
+      output.systemMessage = `[ospec advisory] ${message}`;
+    }
+  } catch { /* Unknown permission mode preserves the inspection-error ASK. */ }
+  if (process.env.OSPEC_TARGET === "codex") output = normalizeCodexHookOutput(sub, output);
+  else if (cursorHost) output = normalizeCursorHookOutput(sub, output);
+  process.stdout.write(`${JSON.stringify(output)}\n`);
+  return 0;
+}
 
 // Cursor's hook stdin is UTF-8 and may start with U+FEFF. encoding/json
 // reports that byte as invalid character 'ï' and the fail-closed hook then
@@ -399,7 +417,7 @@ function resolveInvocation(sub, scriptDir, suffix = hostBinarySuffix(), exists =
 }
 
 
-function main(argv, scriptDir = __dirname) {
+function launch(argv, scriptDir) {
   const sub = argv[0];
   if (!SUBCOMMANDS.has(sub)) {
     process.stderr.write(`ospec-hooks-launch: unknown subcommand '${sub || ""}'\n`);
@@ -417,14 +435,21 @@ function main(argv, scriptDir = __dirname) {
     OSPEC_PLUGIN_ROOT: pluginRoot,
     ...(cursorHost ? { OSPEC_TARGET: process.env.OSPEC_TARGET || "cursor" } : {}),
   };
-  const result = spawnSync(command, args, { input, env, encoding: "utf8" });
+  const result = spawnSync(command, args, { input, env, encoding: "utf8", timeout: CHILD_TIMEOUT_MS, killSignal: "SIGKILL" });
 
-  if (result.error) {
-    process.stdout.write(CONTINUE);
-    return 0;
+  if (result.error || result.signal || result.status !== 0) {
+    // Never forward partial stdout from a failed child as a permission decision.
+    const detail = result.error?.code || result.signal || `exit ${result.status}`;
+    return launcherFailure(sub, detail, cursorHost, rawInput);
   }
   if (result.stderr) {
     process.stderr.write(result.stderr);
+  }
+  if (sub === "pre-tool-use" && result.stdout?.trim()) {
+    const output = parseLastJson(result.stdout)?.hookSpecificOutput;
+    if (output?.hookEventName !== "PreToolUse" || !["allow", "deny", "ask"].includes(output.permissionDecision) || typeof output.permissionDecisionReason !== "string") {
+      return launcherFailure(sub, "invalid output", cursorHost, rawInput);
+    }
   }
   if (process.env.OSPEC_TARGET === "codex") {
     process.stdout.write(`${JSON.stringify(normalizeCodexHookOutput(sub, parseLastJson(result.stdout)))}\n`);
@@ -434,6 +459,14 @@ function main(argv, scriptDir = __dirname) {
     process.stdout.write(result.stdout);
   }
   return result.status == null ? 0 : result.status;
+}
+
+function main(argv, scriptDir = __dirname) {
+  try {
+    return launch(argv, scriptDir);
+  } catch (error) {
+    return launcherFailure(argv[0], error.code || "launcher error", isCursorHost(scriptDir));
+  }
 }
 
 if (require.main === module) {

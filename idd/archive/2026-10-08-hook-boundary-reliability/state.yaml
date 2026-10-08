@@ -1,0 +1,579 @@
+{
+  "schema": "idd-state/v1",
+  "change": "hook-boundary-reliability",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "E1.17: clasificar lecturas shell sensibles con paridad JS/Go y acotar el launcher con errores compatibles por target",
+    "acceptance": "Los accesos shell reproducidos a archivos sensibles usan el clasificador existente, las referencias inocuas no disparan alertas, el launcher termina antes de los 5 segundos del host y comunica fallos de arranque, salida y timeout con el contrato de cada target; las tablas JS/JSON mantienen paridad y la política bypass sigue la decisión explícita del usuario"
+  },
+  "facts": {
+    "open": [
+      "Para las lecturas de secretos, ¿se conserva la política vigente (ASK en modo normal y aviso sin bloqueo en bypass y hosts sin ASK), o se exige confirmación incluso en bypass y se deniega en hosts sin ASK?"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/lib/shell-file-access.js and 6 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "Cambian los contratos públicos de decisiones PreToolUse y errores/deadline del launcher (REQ-hooks-024/025), con spec y tests",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-10"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1",
+        "ev-2",
+        "ev-5",
+        "ev-8"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-9"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-11"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "mira si hay formas de mejorar la seguridad, pero en este caso si mantenlo, pero mira si hay puntos de mejora, en general estamos flojos en seguridad",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-08T19:19:12.637Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-08T19:21:14.487Z",
+      "detail": {
+        "red": "run-3",
+        "green": "run-4"
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-08T19:30:37.132Z",
+      "detail": {
+        "tree": "sha256:351df218c31c0f529f820346fbcc7164bdec57545c10d5f47385b7b25149e373",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-08T19:30:37.132Z",
+      "detail": {
+        "tree": "sha256:351df218c31c0f529f820346fbcc7164bdec57545c10d5f47385b7b25149e373",
+        "check": "ev-3",
+        "documents": [
+          "openspec/specs/hooks/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/parity-contract.test.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-08T19:33:15.383Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-6"
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-08T19:37:40.659Z",
+      "detail": {
+        "tree": "sha256:a4020711374e8b2c08c05b1435516633ca04e98a821ccfc39417dcbe5c108482",
+        "runs": [
+          "run-7"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-08T19:37:40.659Z",
+      "detail": {
+        "tree": "sha256:a4020711374e8b2c08c05b1435516633ca04e98a821ccfc39417dcbe5c108482",
+        "check": "ev-6",
+        "documents": [
+          "openspec/specs/hooks/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/parity-contract.test.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-08T19:42:19.098Z",
+      "detail": {
+        "red": "run-8",
+        "green": "run-9"
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-08T19:46:34.448Z",
+      "detail": {
+        "lineage_id": "sha256:3aa1d613e0755247f37e370615a07cf719c0f07427dcac1a197939311a6fee85",
+        "candidate_id": "sha256:c2b539aa23c4dd6e02f3f1c4074fde9bf2ce67edd214a5094dcb0f48471383a9",
+        "candidate_tree": "92cfcc8de722e6de2026e087d520ae32764f1f0c",
+        "findings_digest": "sha256:15813e4c9b797a54f1e0eabf62cd620cad11712b07f6acbef7d8272d0ffa3469"
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-08T19:54:52.897Z",
+      "detail": {
+        "tree": "sha256:34252aa9b104f1f45410674dbbcea71608b54412b25319b5b2af82e87318dd43",
+        "runs": [
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-11",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-08T19:54:52.897Z",
+      "detail": {
+        "tree": "sha256:34252aa9b104f1f45410674dbbcea71608b54412b25319b5b2af82e87318dd43",
+        "check": "ev-10",
+        "documents": [
+          "openspec/specs/hooks/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/parity-contract.test.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ]
+      }
+    }
+  ],
+  "base": "6b54f4581d8a143bc53e162d90d16ef015322c3a",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"shell literal reads|launcher bounds\" scripts/hooks/pre-tool-use.test.js scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:6fca0adc7379c63d5733f08865b6c0b600efc988660dcc79ed07ada503941f42",
+      "tree": "sha256:1c18c4160feff055ace468549901886399ab962c48e9ba8a06e2383dbb1ced88",
+      "recorded_at": "2026-10-08T19:18:06.269Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"shell literal reads|launcher bounds\" scripts/hooks/pre-tool-use.test.js scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:66303de26f9195c6e196456ae76a0cbd7a543dc0586ecafda59404fb371dc75d",
+      "tree": "sha256:c35d6487c3f9726a48535cda11ccd027ef9d976f2f256475df254d001f2aeb32",
+      "recorded_at": "2026-10-08T19:19:12.637Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "repro-test",
+      "command": "go test ./internal/hooks -run TestShellLiteralReads -count=1",
+      "exit_code": 1,
+      "output_sha256": "sha256:fdb93f13ad62afc49a025f5e01e232889f7fb8292373e42536674bfaa84591d9",
+      "tree": "sha256:0ae3ba5ecdaa6e8b325f65036644849f8b210cb71b56179dd3a27b0657ff0133",
+      "recorded_at": "2026-10-08T19:20:15.872Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "repro-test",
+      "command": "go test ./internal/hooks -run TestShellLiteralReads -count=1",
+      "exit_code": 0,
+      "output_sha256": "sha256:20dc2273c02518dfef9d2b35484ef2b157eb096a14ae22a3748250b38fa947cc",
+      "tree": "sha256:b11557f7685ee0e5b738abc67a2c15471f4bd0c2c6e14be4c60706564c0c26a5",
+      "recorded_at": "2026-10-08T19:21:14.487Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ee2480503c681f65672fcd47cc254d7f3953c4e50a255cff044a63eb50f669d3",
+      "tree": "sha256:351df218c31c0f529f820346fbcc7164bdec57545c10d5f47385b7b25149e373",
+      "recorded_at": "2026-10-08T19:30:37.132Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"shell literal reads|launcher bounds\" scripts/hooks/pre-tool-use.test.js scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8b2406358bd0ff077b0769d285617252d0ef7d0b5d898f358c375c4676493a2f",
+      "tree": "sha256:a4020711374e8b2c08c05b1435516633ca04e98a821ccfc39417dcbe5c108482",
+      "recorded_at": "2026-10-08T19:33:15.383Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d058fd5053ef4c630a9ab5d477b9f95166e2dca682cc48912ad2faee9f280539",
+      "tree": "sha256:a4020711374e8b2c08c05b1435516633ca04e98a821ccfc39417dcbe5c108482",
+      "recorded_at": "2026-10-08T19:37:40.659Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"shell literal reads|launcher bounds\" scripts/hooks/pre-tool-use.test.js scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:8095359e07a9cc4164d35732dcd5e1ca124661bf86cfbec3f93241f8bb4552e3",
+      "tree": "sha256:86cce3747238719186e4d63845044a3794d4f24a91b497e325b731dec217122d",
+      "recorded_at": "2026-10-08T19:40:17.847Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"shell literal reads|launcher bounds\" scripts/hooks/pre-tool-use.test.js scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2607c2da6e202f4d8d6c31e9b5cf200bb8ee5777d2c16d4e420bcb33248fd7ed",
+      "tree": "sha256:f78133ef5970a171e774333cc9a6f27b0cda7ba697bbf30ec27b043699088133",
+      "recorded_at": "2026-10-08T19:42:19.098Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:bfd6450af07fb738ea2a9074c1d4660c1f7bfeb416a25de7f52d3caed8e7c08c",
+      "tree": "sha256:f78133ef5970a171e774333cc9a6f27b0cda7ba697bbf30ec27b043699088133",
+      "recorded_at": "2026-10-08T19:46:01.528Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:46803b767f654bc4a4edeccb2825173d6b18d6c6307d7f71b6b4d8384b991b19",
+      "tree": "sha256:34252aa9b104f1f45410674dbbcea71608b54412b25319b5b2af82e87318dd43",
+      "recorded_at": "2026-10-08T19:54:52.897Z"
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:3aa1d613e0755247f37e370615a07cf719c0f07427dcac1a197939311a6fee85",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 6,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "b9b5063c4ee9e215a760f6d5a30973fea5628625",
+          "candidate_tree": "5e5bb8f96c42a82aa88bdae8bf85287fb5e5cb88",
+          "paths": [
+            "docs/analysis/2026-10-08-hook-security-hardening.md",
+            "docs/analysis/probes/hook-security-boundary.cjs",
+            "docs/roadmaps/harness-evolution.md",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_test.go",
+            "internal/hooks/shellfileaccess.go",
+            "internal/hooks/shellfileaccess_test.go",
+            "openspec/specs/hooks/spec.md",
+            "scripts/hooks/lib/shell-file-access.js",
+            "scripts/hooks/lib/shell-file-access.test.js",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js",
+            "scripts/hooks/parity-contract.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js"
+          ],
+          "diff_hash": "sha256:5ea0d779ae012fae09cac2e66bf5c83a9275f3736326aa1e13c725b432c37f60",
+          "paths_digest": "sha256:d53ca37519e15d2571788ad5c4369e9270a49ab31b6f7bb46a67a3bff9455b5d",
+          "authored_lines": 630,
+          "original_changed_lines": 687
+        },
+        "candidate_id": "sha256:1ef1e549037b9bbd2afe4ee90d592c01be42d602fa27a01b9a66bd350ca344b7",
+        "paths": [
+          "docs/analysis/2026-10-08-hook-security-hardening.md",
+          "docs/analysis/probes/hook-security-boundary.cjs",
+          "docs/roadmaps/harness-evolution.md",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/shellfileaccess.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/lib/shell-file-access.js",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/parity-contract.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "5e5bb8f96c42a82aa88bdae8bf85287fb5e5cb88",
+        "original_changed_lines": 687,
+        "authored_lines": 630
+      },
+      "current_candidate_id": "sha256:c2b539aa23c4dd6e02f3f1c4074fde9bf2ce67edd214a5094dcb0f48471383a9",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "b9b5063c4ee9e215a760f6d5a30973fea5628625",
+        "candidate_tree": "92cfcc8de722e6de2026e087d520ae32764f1f0c",
+        "paths": [
+          "docs/analysis/2026-10-08-hook-security-hardening.md",
+          "docs/analysis/probes/hook-security-boundary.cjs",
+          "docs/roadmaps/harness-evolution.md",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/shellfileaccess.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/lib/shell-file-access.js",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/parity-contract.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "diff_hash": "sha256:0cfd2b89f10cf6631c312194b4d6ac07b5ac19a9b2a754f3f96f95dfa260709a",
+        "paths_digest": "sha256:d53ca37519e15d2571788ad5c4369e9270a49ab31b6f7bb46a67a3bff9455b5d",
+        "authored_lines": 630,
+        "original_changed_lines": 687
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "hook-boundary-reliability:lens-start:1:0",
+          "result_digest": "sha256:7a2a8c48d0730c615f23bdc04de3483e5dc120123d3b1bb8386a279c78d45aec",
+          "result": {
+            "findings": [
+              {
+                "severity": "CRITICAL",
+                "summary": "scripts/hooks/lib/shell-file-access.js:7,72 e internal/hooks/shellfileaccess.go:114-115 consideran -n una opción con valor para todos los lectores. En cat -n id_rsa, -n solo activa la numeración, pero el reconocedor consume id_rsa como su valor y omite la denegación del archivo privado.",
+                "acceptance_criteria": "JS y Go extraen id_rsa de cat -n id_rsa y less -n id_rsa, y PreToolUse devuelve deny en default y bypassPermissions. cat -n .env conserva ASK normal y allow con aviso en bypass. head -n 2 .env sigue ignorando 2 como valor de opción. Resolver la aridad según el lector, sin exigir un parser general."
+              },
+              {
+                "severity": "CRITICAL",
+                "summary": "scripts/hooks/lib/shell-file-access.js:15,36-42 e internal/hooks/shellfileaccess.go:20-21,57-65 registran -EOF como delimitador de cat <<-EOF. El shell termina ese heredoc con EOF; el reconocedor no encuentra su delimitador y descarta los comandos posteriores, incluido un cat id_rsa literal.",
+                "acceptance_criteria": "JS y Go reconocen el final de heredocs <<-EOF, con y sin tabuladores iniciales, y siguen inspeccionando los comandos posteriores. cat <<-EOF\\nsafe\\nEOF\\ncat id_rsa devuelve deny en default y bypassPermissions; un cat id_rsa contenido únicamente dentro del heredoc permanece inerte."
+              },
+              {
+                "severity": "WARNING",
+                "summary": "scripts/hooks/ospec-hooks-launch.js:47-53 degrada el error a allow antes de aplicar los adaptadores. Con permission_mode=bypassPermissions, un timeout o fallo del hijo produce {} en Codex y solo permission:allow en Cursor, perdiendo el aviso de inspección que exige REQ-hooks-025.",
+                "acceptance_criteria": "Ante spawn failure, timeout, salida no cero o respuesta inválida con bypassPermissions, Codex conserva additionalContext con el fallo y Cursor devuelve allow con user_message y agent_message de aviso. Se mantiene el stderr seguro, se descarta stdout parcial y las respuestas neutrales exitosas conservan su formato actual."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "hook-boundary-reliability:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-796cb14bb73eb890",
+          "owner": "trust",
+          "severity": "CRITICAL",
+          "summary": "scripts/hooks/lib/shell-file-access.js:7,72 e internal/hooks/shellfileaccess.go:114-115 consideran -n una opción con valor para todos los lectores. En cat -n id_rsa, -n solo activa la numeración, pero el reconocedor consume id_rsa como su valor y omite la denegación del archivo privado.",
+          "acceptance_criteria": "JS y Go extraen id_rsa de cat -n id_rsa y less -n id_rsa, y PreToolUse devuelve deny en default y bypassPermissions. cat -n .env conserva ASK normal y allow con aviso en bypass. head -n 2 .env sigue ignorando 2 como valor de opción. Resolver la aridad según el lector, sin exigir un parser general.",
+          "blocking": true,
+          "resolution": "resolved"
+        },
+        {
+          "id": "F-365ecfc50b69f0b5",
+          "owner": "trust",
+          "severity": "CRITICAL",
+          "summary": "scripts/hooks/lib/shell-file-access.js:15,36-42 e internal/hooks/shellfileaccess.go:20-21,57-65 registran -EOF como delimitador de cat <<-EOF. El shell termina ese heredoc con EOF; el reconocedor no encuentra su delimitador y descarta los comandos posteriores, incluido un cat id_rsa literal.",
+          "acceptance_criteria": "JS y Go reconocen el final de heredocs <<-EOF, con y sin tabuladores iniciales, y siguen inspeccionando los comandos posteriores. cat <<-EOF\\nsafe\\nEOF\\ncat id_rsa devuelve deny en default y bypassPermissions; un cat id_rsa contenido únicamente dentro del heredoc permanece inerte.",
+          "blocking": true,
+          "resolution": "resolved"
+        },
+        {
+          "id": "F-b92862dbe5982c0b",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/hooks/ospec-hooks-launch.js:47-53 degrada el error a allow antes de aplicar los adaptadores. Con permission_mode=bypassPermissions, un timeout o fallo del hijo produce {} en Codex y solo permission:allow en Cursor, perdiendo el aviso de inspección que exige REQ-hooks-025.",
+          "acceptance_criteria": "Ante spawn failure, timeout, salida no cero o respuesta inválida con bypassPermissions, Codex conserva additionalContext con el fallo y Cursor devuelve allow con user_message y agent_message de aviso. Se mantiene el stderr seguro, se descarta stdout parcial y las respuestas neutrales exitosas conservan su formato actual.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:15813e4c9b797a54f1e0eabf62cd620cad11712b07f6acbef7d8272d0ffa3469",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 87,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [
+        {
+          "attempt": 1,
+          "request_id": "hook-boundary-reliability:correction-start:1:3",
+          "finding_ids": [
+            "F-365ecfc50b69f0b5",
+            "F-796cb14bb73eb890"
+          ],
+          "paths": [
+            "internal/hooks/pretooluse_test.go",
+            "internal/hooks/shellfileaccess.go",
+            "scripts/hooks/lib/shell-file-access.js",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js",
+            "scripts/hooks/pre-tool-use.test.js"
+          ],
+          "base_candidate_id": "sha256:1ef1e549037b9bbd2afe4ee90d592c01be42d602fa27a01b9a66bd350ca344b7",
+          "forecast_lines": 87,
+          "record_request_id": "hook-boundary-reliability:correction-record:1:4",
+          "actual_changed_lines": 87,
+          "corrected_candidate_id": "sha256:c2b539aa23c4dd6e02f3f1c4074fde9bf2ce67edd214a5094dcb0f48471383a9",
+          "status": "passed"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "hook-boundary-reliability:validation:1:5",
+          "request_digest": "sha256:96652e1b37bcce8dc28d39ce7b05aa02dd1b888f184bf9c443bc3e53cca68e92",
+          "outcomes": [
+            {
+              "id": "F-796cb14bb73eb890",
+              "status": "resolved"
+            },
+            {
+              "id": "F-365ecfc50b69f0b5",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "Inspección del delta 5e5bb8f96c42a82aa88bdae8bf85287fb5e5cb88 → 92cfcc8de722e6de2026e087d520ae32764f1f0c: JS y Go determinan la aridad por lector; cat/less -n conservan id_rsa como operando y head -n consume únicamente el valor siguiente. PreToolUse clasifica esos operandos y conserva deny en ambos modos; las aserciones verifican ASK normal y allow con ospec advisory para cat -n .env.",
+              "Traza de los helpers corregidos: <<- se tokeniza como operador, registra EOF como delimitador y elimina exclusivamente tabuladores iniciales al comparar el cierre. El cuerpo permanece inerte y la inspección continúa después del delimitador, con y sin tabuladores; los operandos posteriores pasan al mismo clasificador de denegación.",
+              "Evidencia persistida ev-8: node --test --test-name-pattern=\"shell literal reads|launcher bounds\" scripts/hooks/pre-tool-use.test.js scripts/hooks/ospec-hooks-launch.test.js dio exit_code 1 en run-8 y exit_code 0 en run-9. Las aserciones inspeccionadas cubren los dos modos, cat/less -n, head -n 2 y los heredocs con cierre normal o tabulado y cuerpo inerte.",
+              "Resultado suministrado por root: go test ./internal/hooks -run 'TestShellLiteralReads|TestLiteralReadOperands' -count=1 terminó con exit_code 0. Se inspeccionaron sus aserciones; este validador no ejecutó tests ni atribuye resultado a la suite completa pendiente."
+            ]
+          },
+          "follow_up_count": 0,
+          "result": "passed"
+        }
+      ],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "all-frozen-findings-resolved"
+    }
+  ],
+  "closed_at": "2026-10-08T19:55:17.525Z"
+}

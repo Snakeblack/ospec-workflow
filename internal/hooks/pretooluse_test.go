@@ -47,6 +47,71 @@ func runPreToolUse(t *testing.T, stdin []byte) (hookOutput, int) {
 	return decodePreToolUse(t, out), code
 }
 
+func TestShellLiteralReads(t *testing.T) {
+	t.Setenv("DISABLE_AGENT_SHIELD", "")
+	t.Setenv("OSPEC_TARGET", "")
+	t.Setenv("OSPEC_CODEX_WRAPPER", "")
+	cases := []struct{ command, decision string }{
+		{`cat .env`, "ask"},
+		{`cat -n .env`, "ask"},
+		{`cat -n id_rsa`, "deny"},
+		{`less -n id_rsa`, "deny"},
+		{`head -n 2 "config dir/.env.local"`, "ask"},
+		{`Get-Content -LiteralPath '.env'`, "ask"},
+		{`gc .env`, "ask"},
+		{`type credentials`, "ask"},
+		{`cat README.md; cat .npmrc`, "deny"},
+		{`cat .env id_rsa`, "deny"},
+		{`cat .env; git push origin main --force`, "deny"},
+		{`echo "cat .env"`, ""},
+		{`printf "%s" .env`, ""},
+		{`cat README.md > .env`, ""},
+		{`echo ok && cat .env`, "ask"},
+		{"cat <<-EOF\nsafe\nEOF\ncat id_rsa", "deny"},
+		{"cat <<-EOF\n\tcat id_rsa\n\tEOF\ncat .env", "ask"},
+		{"cat <<-EOF\n\tcat id_rsa\n\tEOF", ""},
+	}
+	for _, tc := range cases {
+		for _, mode := range []string{"default", "bypassPermissions"} {
+			input, _ := json.Marshal(map[string]interface{}{
+				"tool_name": "Bash", "tool_input": map[string]string{"command": tc.command}, "permission_mode": mode,
+			})
+			out, code := hooks.Dispatch([]string{"pre-tool-use"}, input)
+			got := decodePreToolUse(t, out).PermissionDecision
+			want := tc.decision
+			if want == "ask" && mode == "bypassPermissions" {
+				want = "allow"
+				if !strings.Contains(string(out), "ospec advisory") {
+					t.Errorf("missing bypass advisory: %s", out)
+				}
+			}
+			if code != 0 || got != want {
+				t.Errorf("%s / %s: got %s (%d), want %s", tc.command, mode, got, code, want)
+			}
+		}
+	}
+}
+
+func TestShellReadContentScan(t *testing.T) {
+	t.Setenv("DISABLE_AGENT_SHIELD", "")
+	t.Setenv("OSPEC_TARGET", "")
+	t.Setenv("OSPEC_CODEX_WRAPPER", "")
+	file := filepath.Join(t.TempDir(), "ordinary.txt")
+	if err := os.WriteFile(file, []byte("sk-"+strings.Repeat("x", 48)), 0600); err != nil {
+		t.Fatal(err)
+	}
+	input, _ := json.Marshal(map[string]interface{}{"tool_name": "Bash", "tool_input": map[string]string{"command": `cat "` + file + `"`}})
+	decision, _ := runPreToolUse(t, input)
+	if decision.PermissionDecision != "ask" {
+		t.Fatalf("content scan: got %s", decision.PermissionDecision)
+	}
+	t.Setenv("DISABLE_AGENT_SHIELD", "true")
+	decision, _ = runPreToolUse(t, input)
+	if decision.PermissionDecision != "" {
+		t.Fatalf("shield switch: got %s", decision.PermissionDecision)
+	}
+}
+
 func preToolUseInput(toolName, command string) []byte {
 	type Input struct {
 		ToolName  string `json:"tool_name"`
