@@ -42,7 +42,7 @@ test("withTransientFsRetries enriches exhaustion and preserves code and cause", 
       target: "antigravity", operation: "write", path: "C:/x/hooks.json", maxRetries: 1, sleep: () => {},
     }),
     error => error.code === "EPERM" && error.cause === original && error.attempts === 2 &&
-      /antigravity/.test(error.message) && /close the application/i.test(error.message),
+      /antigravity/.test(error.message) && error.message.includes("no se pudo escribir C:/x/hooks.json") && /Cierra Antigravity/.test(error.message),
   );
 });
 

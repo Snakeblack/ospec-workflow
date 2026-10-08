@@ -692,9 +692,9 @@ test("pruneStaleFiles exhaustion diagnosis specifies target: cursor", (t) => {
   assert.equal(exitCode, 1);
   const errOutput = stderr.join("");
   assert.match(errOutput, /cursor:/i);
-  assert.match(errOutput, /remove stale file failed/i);
-  assert.match(errOutput, /after 3 attempts/i);
-  assert.match(errOutput, /close the application/i);
+  assert.match(errOutput, /no se pudo borrar/i);
+  assert.match(errOutput, /tras 3 intentos/i);
+  assert.match(errOutput, /Cierra Cursor \(o el proceso que use esa ruta\)/);
 });
 
 

@@ -164,13 +164,13 @@ test("copyBinaryToTree: skips copy if source binary does not exist", () => {
     stderr: fakeStderr,
   });
 
-  assert.match(stderrChunks.join(""), /binary not found/i);
+  assert.match(stderrChunks.join(""), /no se encontró el binario ospec-hooks/);
 });
 
 test("copyBinaryToTree: required mode throws when the source binary is missing", () => {
   assert.throws(
     () => copyBinaryToTree("/out", "cursor", "/src", { fs: { existsSync: () => false }, required: true }),
-    /required.*binary|binary.*not found/i,
+    /no se encontró el binario ospec-hooks, obligatorio/,
   );
 });
 
@@ -202,7 +202,7 @@ test("copyBinaryToTree: non-required mode reports copy failures and continues", 
       stderr: { write(chunk) { stderrChunks.push(chunk); } },
     }),
   );
-  assert.match(stderrChunks.join(""), /optional copy denied.*Continuing sync/is);
+  assert.match(stderrChunks.join(""), /optional copy denied.*Se continúa/is);
 });
 
 test("copyBinaryToTree: copies binary to correct destination directory", () => {

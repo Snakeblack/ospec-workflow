@@ -1284,3 +1284,27 @@ Every target installer (`setup:claude`, `setup:vscode`, `setup:copilot`, `setup:
 - GIVEN the plugin manifests and `package.json`
 - WHEN a release publishes them or builds the Claude marketplace
 - THEN every description is the same IDD-first text, and the marketplace entry carries the source manifest's description
+
+### Requirement: Installers Share One Output And Survive A Live Plugin Tree {#REQ-install-038}
+
+Every target installer (`setup:claude`, `setup:vscode`, `setup:copilot`, `setup:opencode`, `setup:codex` global and `install:codex -- <destRepo>`, `setup:cursor`, `setup:antigravity`) MUST write through the reporter of `scripts/configure/install-output.js`, in Spanish: a header naming the host, one line per phase in the form `✓ [n/N] <fase> (<s> s)` (or `✗` when it fails), the Engram step as the last phase when it runs, and a final summary (`Listo · <host>` with destination, files, packages, next step and total time, or `✗ Instalación fallida · <host> (código N)`). On an interactive terminal (TTY, no `CI`, `TERM` not `dumb`) the running phase MUST show as `… [n/N] <fase>` and be rewritten in place when it ends; elsewhere each phase prints one line when it ends. The per-file lists, the validator output and the host CLI output MUST print only with `--verbose`, which the installer consumes before its own argument parser; warnings and errors always print, and a failed build always shows the validator output. The output change MUST NOT change what is installed. `configure --target` (`scripts/configure/cli.js`) keeps its own output.
+
+A filesystem mutation that still fails with `EPERM`, `EACCES` or `EBUSY` after its retries MUST raise an error that keeps the code and names the operation, the path and the action, naming the host to close (`Cierra VS Code (o el proceso que use esa ruta) y reintenta la instalación.`). The build publication of `scripts/configure/cli.js` stays an atomic rename, except for the tree a host loads live (`dist/vscode` for `vscode`): when renaming that destination meets one of those codes, it MUST write the already validated tree in place (overwrite and prune within the managed roots, then validate the result), report `publication: "in-place"`, and leave no staging, backup or lock behind. If the in-place write also fails, the error MUST say that the destination is half updated and to run the installation again. Any other target fails with the actionable error and keeps its destination intact.
+
+#### Scenario: VS Code holds dist/vscode open
+
+- GIVEN `dist/vscode` cannot be renamed because VS Code or a shell has it open
+- WHEN `setup:vscode` runs
+- THEN the build is written in place, the summary says so, and the installation ends with code 0
+
+#### Scenario: A locked destination without in-place publication
+
+- GIVEN any other target whose destination rename fails with `EPERM`
+- WHEN its build is published
+- THEN the error names `renombrar`, the destination path and the host to close, and the destination is unchanged
+
+#### Scenario: Seven installers, one format
+
+- GIVEN any of the seven installers
+- WHEN it runs without `--verbose`
+- THEN it prints the header, one line per phase and the final summary, and no per-file list

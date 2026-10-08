@@ -22,10 +22,11 @@ const {
   withTransientFsRetries,
   mutateFs,
 } = require("./install-engine.js");
-const { parseSddFlag, previousInstallHasSdd, resolveWithSdd, sddKeptNote } = require("./sdd-package.js");
+const { parseSddFlag, previousInstallHasSdd, resolveWithSdd } = require("./sdd-package.js");
+const { DRY_RUN_ROW, PHASE_BUILD, PHASE_FILES, filesRow, packagesRow, reportAborted, reportBuildFailure, reporterFor, restartHint } = require("./install-output.js");
 
 function usage() {
-  return "usage: install-antigravity [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>] [--dest <targetDir>]\n";
+  return "uso: install-antigravity [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>] [--dest <targetDir>] [--verbose]\n";
 }
 
 function parseArgs(argv) {
@@ -189,8 +190,8 @@ function installHooksJson(outDir, antigravityRoot, deps = {}) {
 
 function installAntigravityRoot(antigravityRoot, outDir, sourceDir, args, deps) {
   const fsImpl = deps.fs || fs;
-  const stdout = deps.stdout || process.stdout;
-  const stderr = deps.stderr || process.stderr;
+  const reporter = reporterFor("antigravity", deps);
+  const stderr = reporter.err;
   const copyBinary = deps.copyBinaryToTree || copyBinaryToTree;
   const installHooks = deps.installHooksJson || installHooksJson;
   const validateInstalled = deps.validateInstalled || validateInstalledAntigravity;
@@ -202,12 +203,7 @@ function installAntigravityRoot(antigravityRoot, outDir, sourceDir, args, deps) 
     return 1;
   }
 
-  stdout.write(`install-antigravity -> ${antigravityRoot}${args.dryRun ? " (dry-run)" : ""}\n`);
-
-  if (args.dryRun) {
-    stdout.write("dry-run: no files written\n");
-    return 0;
-  }
+  if (args.dryRun) return 0;
 
   let journal = null;
   try {
@@ -217,7 +213,7 @@ function installAntigravityRoot(antigravityRoot, outDir, sourceDir, args, deps) 
 
     copyBinary(outDir, "antigravity", sourceDir, {
       fs: fsImpl,
-      stdout,
+      stdout: reporter.detail,
       stderr,
       required: false,
     });
@@ -274,9 +270,10 @@ function installAntigravityRoot(antigravityRoot, outDir, sourceDir, args, deps) 
       throw new Error(`installed Antigravity validation failed: ${installedValidation.errors.join("; ")}`);
     }
 
-    stdout.write(
-      `  updated ${syncResult.updated.length}, unchanged ${syncResult.unchanged.length}, pruned ${pruneResult.deleted.length}\n`,
-    );
+    const counts = deps.counts || { updated: 0, unchanged: 0, pruned: 0 };
+    counts.updated += syncResult.updated.length;
+    counts.unchanged += syncResult.unchanged.length;
+    counts.pruned += pruneResult.deleted.length;
     return 0;
   } catch (error) {
     let rollbackError = null;
@@ -287,12 +284,7 @@ function installAntigravityRoot(antigravityRoot, outDir, sourceDir, args, deps) 
         rollbackError = failure;
       }
     }
-    stderr.write(
-      `install-antigravity aborted: ${error.message || error}\n` +
-        (rollbackError
-          ? `${rollbackError.message || rollbackError}\nmanual recovery may be required\n`
-          : "managed Antigravity changes were rolled back\n"),
-    );
+    reportAborted(reporter, error, rollbackError);
     return 1;
   }
 }
@@ -300,8 +292,8 @@ function installAntigravityRoot(antigravityRoot, outDir, sourceDir, args, deps) 
 function install(argv = process.argv.slice(2), deps = {}) {
   const args = parseArgs(argv);
   const cwd = deps.cwd || process.cwd();
-  const stdout = deps.stdout || process.stdout;
-  const stderr = deps.stderr || process.stderr;
+  const reporter = reporterFor("antigravity", deps);
+  const stderr = reporter.err;
   const runConfigureImpl = deps.runConfigure || runConfigure;
 
   if (args.error) {
@@ -313,8 +305,9 @@ function install(argv = process.argv.slice(2), deps = {}) {
   const outDir = deps.outDir || path.join(sourceDir, "dist", "antigravity");
   const targetRoots = getDestinationRoots(args.dest, deps);
 
+  reporter.plan(args.dryRun ? [PHASE_BUILD] : [PHASE_BUILD, PHASE_FILES]);
+  reporter.begin(PHASE_BUILD);
   const withSdd = resolveWithSdd(args, () => previousInstallHasSdd({ manifestRoots: targetRoots, fs: deps.fs || fs }));
-  stdout.write(sddKeptNote(args, withSdd));
   const result = runConfigureImpl({
     sourceDir,
     target: "antigravity",
@@ -323,19 +316,26 @@ function install(argv = process.argv.slice(2), deps = {}) {
     withExtras: Boolean(args.withExtras),
     withSdd,
   });
-  if (result.validation?.stdout) stdout.write(result.validation.stdout);
-  if (result.validation?.stderr) stderr.write(result.validation.stderr);
-  if (result.exitCode !== 0) {
-    stderr.write("\nbuild/validation failed; nothing installed\n");
-    return result.exitCode || 1;
+  if (reportBuildFailure(reporter, result)) return result.exitCode || 1;
+  reporter.set("Destino", targetRoots.join(" · "));
+  reporter.set("Paquetes", packagesRow(args, withSdd));
+  if (args.dryRun) {
+    reporter.set("Modo", DRY_RUN_ROW);
+    return 0;
   }
 
+  reporter.begin(PHASE_FILES);
+  const counts = { updated: 0, unchanged: 0, pruned: 0 };
   let exitCode = 0;
   for (const root of targetRoots) {
-    const code = installAntigravityRoot(root, outDir, sourceDir, args, deps);
+    const code = installAntigravityRoot(root, outDir, sourceDir, args, { ...deps, reporter, counts });
     if (code !== 0) {
       exitCode = code;
     }
+  }
+  if (exitCode === 0) {
+    reporter.set("Ficheros", filesRow(counts));
+    restartHint(reporter);
   }
   return exitCode;
 }

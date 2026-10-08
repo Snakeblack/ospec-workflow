@@ -6,7 +6,7 @@
 // tracks ownership manifest, and prunes stale files.
 //
 // Usage:
-//   node scripts/configure/install-global-opencode.js [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>] [--dest <targetDir>]
+//   node scripts/configure/install-global-opencode.js [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>] [--dest <targetDir>] [--verbose]
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -27,10 +27,11 @@ const {
   mergeJsonFile,
   syncTargetTree,
 } = require("./install-engine.js");
-const { parseSddFlag, previousInstallHasSdd, resolveWithSdd, sddKeptNote } = require("./sdd-package.js");
+const { parseSddFlag, previousInstallHasSdd, resolveWithSdd } = require("./sdd-package.js");
+const { DRY_RUN_ROW, PHASE_BUILD, PHASE_FILES, filesRow, packagesRow, reportAborted, reportBuildFailure, reporterFor, restartHint } = require("./install-output.js");
 
 function usage() {
-  return "usage: install-global-opencode [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>] [--dest <targetDir>]\n";
+  return "uso: install-global-opencode [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>] [--dest <targetDir>] [--verbose]\n";
 }
 
 function parseArgs(argv) {
@@ -70,8 +71,8 @@ function install(argv = process.argv.slice(2), deps = {}) {
   const args = parseArgs(argv);
   const cwd = deps.cwd || process.cwd();
   const fsImpl = deps.fs || fs;
-  const stdout = deps.stdout || process.stdout;
-  const stderr = deps.stderr || process.stderr;
+  const reporter = reporterFor("opencode", deps);
+  const stderr = reporter.err;
   const homedir = deps.homedir || os.homedir;
   const runConfigureImpl = deps.runConfigure || runConfigure;
   const copyBinary = deps.copyBinaryToTree || copyBinaryToTree;
@@ -92,8 +93,9 @@ function install(argv = process.argv.slice(2), deps = {}) {
     return 1;
   }
 
+  reporter.plan(args.dryRun ? [PHASE_BUILD] : [PHASE_BUILD, PHASE_FILES]);
+  reporter.begin(PHASE_BUILD);
   const withSdd = resolveWithSdd(args, () => previousInstallHasSdd({ manifestRoots: [globalDir], fs: fsImpl }));
-  stdout.write(sddKeptNote(args, withSdd));
   const result = runConfigureImpl({
     sourceDir,
     target: "opencode",
@@ -102,19 +104,16 @@ function install(argv = process.argv.slice(2), deps = {}) {
     withExtras: Boolean(args.withExtras),
     withSdd,
   });
-  if (result.validation?.stdout) stdout.write(result.validation.stdout);
-  if (result.validation?.stderr) stderr.write(result.validation.stderr);
-  if (result.exitCode !== 0) {
-    stderr.write("\nbuild/validation failed; nothing installed\n");
-    return result.exitCode || 1;
-  }
+  if (reportBuildFailure(reporter, result)) return result.exitCode || 1;
+  reporter.set("Paquetes", packagesRow(args, withSdd));
 
-  stdout.write(`install-global-opencode -> ${globalDir}${args.dryRun ? " (dry-run)" : ""}\n`);
+  reporter.set("Destino", globalDir);
 
   if (args.dryRun) {
-    stdout.write("dry-run: no files written\n");
+    reporter.set("Modo", DRY_RUN_ROW);
     return 0;
   }
+  reporter.begin(PHASE_FILES);
 
   let journal = null;
   try {
@@ -124,7 +123,7 @@ function install(argv = process.argv.slice(2), deps = {}) {
     // Enforce required binary presence (fail-closed if missing)
     copyBinary(outDir, "opencode", sourceDir, {
       fs: fsImpl,
-      stdout,
+      stdout: reporter.detail,
       stderr,
       required: true,
     });
@@ -212,9 +211,8 @@ function install(argv = process.argv.slice(2), deps = {}) {
       journal,
     );
 
-    stdout.write(
-      `  updated ${syncResult.updated.length}, unchanged ${syncResult.unchanged.length}, pruned ${pruneResult.deleted.length}\n`,
-    );
+    reporter.set("Ficheros", filesRow({ updated: syncResult.updated.length, unchanged: syncResult.unchanged.length, pruned: pruneResult.deleted.length }));
+    restartHint(reporter);
     return 0;
   } catch (error) {
     let rollbackError = null;
@@ -225,12 +223,7 @@ function install(argv = process.argv.slice(2), deps = {}) {
         rollbackError = failure;
       }
     }
-    stderr.write(
-      `install-global-opencode aborted: ${error.message || error}\n` +
-        (rollbackError
-          ? `${rollbackError.message || rollbackError}\nmanual recovery may be required\n`
-          : "managed OpenCode changes were rolled back\n"),
-    );
+    reportAborted(reporter, error, rollbackError);
     return 1;
   }
 }

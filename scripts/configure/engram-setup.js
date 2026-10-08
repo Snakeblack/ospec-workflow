@@ -54,8 +54,11 @@ const {
   safeSpawn,
   targetSpec,
 } = require("../lib/engram-detect.js");
+const { createReporter, splitVerbose } = require("./install-output.js");
 
 const MARKETPLACE_NAME = "engram";
+// E1.9: the step is the last phase of every installer's common output.
+const ENGRAM_PHASE = "Memoria Engram";
 const SETUP_TIMEOUT_MS = 120000;
 const SAFE_MODE_VAR = "ENGRAM_CLAUDE_WINDOWS_BASH_SAFE_MODE";
 // The upstream hook's full path forks dirname, date, jq and curl on every prompt.
@@ -84,58 +87,58 @@ function planEngramActions(detection, { enabled = true, homedir = os.homedir } =
 }
 
 function describe(action) {
-  return action.kind === "mcp-json" ? `register engram MCP in ${action.file}` : `${action.bin} ${action.argv.join(" ")}`;
+  return action.kind === "mcp-json" ? `registrar el MCP de engram en ${action.file}` : `${action.bin} ${action.argv.join(" ")}`;
 }
 
 function missingPieces(spec, detection) {
   return [
     detection.protocol !== "registered" && detection.protocol !== NOT_APPLICABLE ? spec.protocol : null,
-    detection.mcp !== "registered" ? "MCP server" : null,
+    detection.mcp !== "registered" ? "servidor MCP" : null,
   ].filter(Boolean);
 }
 
 function manualFix(spec) {
-  return spec.agent ? `\`engram setup ${spec.agent}\`` : "`npm run setup:copilot` with the engram binary on PATH";
+  return spec.agent ? `\`engram setup ${spec.agent}\`` : "`npm run setup:copilot` con el binario engram en el PATH";
 }
 
 function guidance(spec, detection, enabled) {
-  const lines = ["\nEngram session memory (optional, non-authoritative):"];
+  const lines = [];
   if (!detection.binary.found) {
     lines.push(
-      "  - engram binary not found. Session memory is optional; ospec-workflow works without it.",
-      `    To enable it: install Engram (https://github.com/Gentleman-Programming/engram), then re-run \`npm run ${spec.script}\`.`,
+      "  - No se encontró el binario engram. La memoria de sesión es opcional; ospec-workflow funciona sin ella.",
+      `    Para activarla: instala Engram (https://github.com/Gentleman-Programming/engram) y vuelve a ejecutar \`npm run ${spec.script}\`.`,
     );
-    if (spec.host === "claude") lines.push("    The upstream plugin hooks need bash, jq and curl (Git Bash on Windows).");
+    if (spec.host === "claude") lines.push("    Los hooks del plugin upstream necesitan bash, jq y curl (Git Bash en Windows).");
   } else if (spec.agent === "codex" && detection.lifecycle !== "available") {
-    const detail = detection.lifecycle === "unsupported" ? "is incompatible with" : "could not verify";
+    const detail = detection.lifecycle === "unsupported" ? "no es compatible con" : "no pudo verificar";
     lines.push(
-      `  - Engram ${detection.binary.version || "binary"} ${detail} the Codex lifecycle commands: ${CODEX_LIFECYCLE.join(", ")}.`,
+      `  - Engram ${detection.binary.version || "(binario)"} ${detail} los comandos de ciclo de vida de Codex: ${CODEX_LIFECYCLE.join(", ")}.`,
       ...(detection.lifecycleChecks || []).filter((check) => check.state !== "available")
         .map((check) => `    engram hook ${check.action}: ${check.state} (${check.reason}).`),
-      "    Plugin/MCP presence does not confirm runtime session registration; setup alone cannot repair lifecycle incompatibility.",
-      "    Use a compatible Engram binary, then run `engram setup codex` in the host's active CODEX_HOME (including a managed runtime home).",
-      "    Restart or resume Codex and verify the SessionStart hook confirms its runtime identity before agent-attributed writes.",
+      "    Que el plugin y el MCP estén presentes no confirma el registro de la sesión en ejecución; setup no puede reparar una incompatibilidad de ciclo de vida.",
+      "    Usa un binario de Engram compatible y ejecuta `engram setup codex` en el CODEX_HOME activo del host (incluido un home de runtime gestionado).",
+      "    Reinicia o reanuda Codex y comprueba que el hook SessionStart confirma su identidad de ejecución antes de escrituras atribuidas al agente.",
     );
   } else if (isConfigured(detection) && spec.agent === "codex") {
     lines.push(
-      "  - Engram plugin and MCP are present for Codex; session registration is not verified by this static check.",
-      "    Lifecycle commands are available. Verify SessionStart on startup/resume confirms a runtime identity before agent-attributed writes.",
+      "  - El plugin y el MCP de Engram están presentes para Codex; esta comprobación estática no verifica el registro de la sesión.",
+      "    Los comandos de ciclo de vida están disponibles. Comprueba que SessionStart, al arrancar o al reanudar (resume), confirma una identidad de ejecución antes de escrituras atribuidas al agente.",
     );
   } else if (isConfigured(detection)) {
-    lines.push(`  - Engram is already configured for ${spec.label}; nothing to do.`);
+    lines.push(`  - Engram ya está configurado para ${spec.label}; nada que hacer.`);
   } else if (isUnknown(detection)) {
-    lines.push(`  - Engram binary found, but the ${spec.label} memory state could not be read; no changes were made.`);
-    if (spec.host) lines.push(`    Make sure the \`${spec.host}\` CLI is on PATH and re-run \`npm run ${spec.script}\`.`);
+    lines.push(`  - Hay binario engram, pero no se pudo leer el estado de memoria de ${spec.label}; no se ha cambiado nada.`);
+    if (spec.host) lines.push(`    Comprueba que la CLI \`${spec.host}\` está en el PATH y vuelve a ejecutar \`npm run ${spec.script}\`.`);
   } else if (!enabled) {
     lines.push(
-      `  - Engram is not configured for ${spec.label} (missing: ${missingPieces(spec, detection).join(", ")}); skipped by --no-engram.`,
-      `    Run ${manualFix(spec)} or re-run \`npm run ${spec.script}\` without --no-engram.`,
+      `  - Engram no está configurado para ${spec.label} (falta: ${missingPieces(spec, detection).join(", ")}); omitido por --no-engram.`,
+      `    Ejecuta ${manualFix(spec)} o vuelve a ejecutar \`npm run ${spec.script}\` sin --no-engram.`,
     );
   }
   if (detection.binary.found && spec.agent === "codex") {
-    lines.push("    For `Hook failed`, capture the hook event, command, exit status and stderr; a store-wide doctor warning alone does not identify the failed hook.");
+    lines.push("    Ante `Hook failed`, recoge el evento del hook, el comando, el código de salida y stderr; un aviso del doctor sobre todo el almacén no identifica el hook que falló.");
   }
-  return `${lines.join("\n")}\n`;
+  return lines.length ? `${lines.join("\n")}\n` : "";
 }
 
 function readJsonObject(fsImpl, file) {
@@ -195,30 +198,30 @@ function windowsSafeModeStep({ spawn, fs: fsImpl, homedir, env, now, stdout, std
   const settingsFile = path.join(homedir(), ".claude", "settings.json");
   const settings = readJsonObject(fsImpl, settingsFile);
   if (!settings.ok) {
-    stderr.write(`warning: cannot read ${settingsFile} (${settings.reason}); Engram's Windows safe mode left as is.\n`);
+    stderr.write(`aviso: no se puede leer ${settingsFile} (${settings.reason}); el modo seguro de Windows de Engram se deja como está.\n`);
     return;
   }
   const userValue = settings.value.env && Object.hasOwn(settings.value.env, SAFE_MODE_VAR)
     ? settings.value.env[SAFE_MODE_VAR]
     : env[SAFE_MODE_VAR];
   if (userValue !== undefined) {
-    stdout.write(`  - Windows safe mode: ${SAFE_MODE_VAR}=${userValue} already set; left unchanged.\n`);
+    stdout.write(`  - Modo seguro de Windows: ${SAFE_MODE_VAR}=${userValue} ya está definido; se deja igual.\n`);
     return;
   }
 
   const bash = findGitBash({ spawn, fs: fsImpl, env, timeoutMs });
   if (!bash) {
-    stdout.write("  - Windows safe mode kept: Git Bash not found, so prompt capture and save reminders stay off.\n");
+    stdout.write("  - Se mantiene el modo seguro de Windows: no se encontró Git Bash, así que la captura de prompts y los recordatorios de guardado siguen desactivados.\n");
     return;
   }
   const started = now();
   const probe = safeSpawn(spawn, bash, ["-c", FORK_PROBE_SCRIPT], FORK_PROBE_TIMEOUT_MS);
   const elapsed = now() - started;
   if (probe.error || probe.status !== 0 || elapsed > FORK_PROBE_BUDGET_MS) {
-    const reason = probe.error || probe.status !== 0 ? "fork probe failed (jq/curl missing or blocked)" : `forks are slow (${elapsed} ms)`;
+    const reason = probe.error || probe.status !== 0 ? "falló la sonda de fork (falta jq/curl o está bloqueado)" : `los fork son lentos (${elapsed} ms)`;
     stdout.write(
-      `  - Windows safe mode kept: ${reason}. Prompt capture and save reminders stay off to avoid hangs.\n` +
-        `    To force them on, set ${SAFE_MODE_VAR}=0 in the env block of ${settingsFile}.\n`,
+      `  - Se mantiene el modo seguro de Windows: ${reason}. La captura de prompts y los recordatorios de guardado siguen desactivados para evitar bloqueos.\n` +
+        `    Para forzarlos, define ${SAFE_MODE_VAR}=0 en el bloque env de ${settingsFile}.\n`,
     );
     return;
   }
@@ -226,12 +229,12 @@ function windowsSafeModeStep({ spawn, fs: fsImpl, homedir, env, now, stdout, std
   try {
     writeJsonObject(fsImpl, settingsFile, { ...settings.value, env: { ...(settings.value.env || {}), [SAFE_MODE_VAR]: "0" } });
   } catch (error) {
-    stderr.write(`warning: cannot write ${settingsFile} (${error.code || error.message}); Engram's Windows safe mode left as is.\n`);
+    stderr.write(`aviso: no se puede escribir ${settingsFile} (${error.code || error.message}); el modo seguro de Windows de Engram se deja como está.\n`);
     return;
   }
   stdout.write(
-    `  - Windows safe mode off (fork probe ${elapsed} ms): ${SAFE_MODE_VAR}=0 written to ${settingsFile}.\n` +
-      "    Prompt capture and save reminders are on in new Claude Code sessions; remove the line if prompts start to lag.\n",
+    `  - Modo seguro de Windows desactivado (sonda de fork ${elapsed} ms): ${SAFE_MODE_VAR}=0 escrito en ${settingsFile}.\n` +
+      "    La captura de prompts y los recordatorios de guardado se activan en las nuevas sesiones de Claude Code; quita la línea si los prompts empiezan a ir lentos.\n",
   );
 }
 
@@ -259,7 +262,7 @@ function runEngramStep({
     const detection = probe();
 
     if (detection.doctor === "warn" || detection.doctor === "error" || detection.doctor === "timeout") {
-      stderr.write(`warning: engram doctor reported "${detection.doctor}"; continuing (optional integration).\n`);
+      stderr.write(`aviso: engram doctor informó "${detection.doctor}"; se continúa (integración opcional).\n`);
     }
 
     const plan = planEngramActions(detection, { enabled, homedir });
@@ -267,11 +270,11 @@ function runEngramStep({
     if (plan.length === 0) {
       stdout.write(guidance(spec, detection, enabled));
     } else {
-      stdout.write(`\nConfiguring Engram session memory for ${spec.label} (disable with --no-engram):\n`);
+      stdout.write(`  Configurando la memoria Engram para ${spec.label} (desactívala con --no-engram):\n`);
       for (const action of plan) {
         const failure = runAction(action, { spawn, fs: fsImpl });
         if (failure) {
-          stderr.write(`warning: \`${describe(action)}\` failed (${failure}); continuing. Engram is optional.\n`);
+          stderr.write(`aviso: \`${describe(action)}\` falló (${failure}); se continúa. Engram es opcional.\n`);
           return;
         }
         stdout.write(`  - ${describe(action)}: ok\n`);
@@ -282,24 +285,24 @@ function runEngramStep({
       if (configured && target === "codex") {
         stdout.write(guidance(spec, after, enabled));
       } else if (configured) {
-        stdout.write(`  - Engram configured for ${spec.label}. Restart ${spec.label} to load the mem_* tools.\n`);
+        stdout.write(`  - Engram configurado para ${spec.label}. Reinicia ${spec.label} para cargar las herramientas mem_*.\n`);
       } else {
         stderr.write(
-          `warning: Engram is still incomplete for ${spec.label} (missing: ${missingPieces(spec, after).join(", ") || "unreadable state"}).\n` +
-            `  Run ${manualFix(spec)} manually and check its output. Engram is optional.\n`,
+          `aviso: Engram sigue incompleto para ${spec.label} (falta: ${missingPieces(spec, after).join(", ") || "estado ilegible"}).\n` +
+            `  Ejecuta ${manualFix(spec)} a mano y revisa su salida. Engram es opcional.\n`,
         );
       }
     }
 
     if (configured && target === "cursor") {
-      stdout.write("  - Cursor ignores global rule files: paste ~/.cursor/engram-memory-protocol.md into Settings > Rules > User Rules once.\n");
+      stdout.write("  - Cursor ignora los ficheros de reglas globales: pega una vez ~/.cursor/engram-memory-protocol.md en Settings > Rules > User Rules.\n");
     }
     if (enabled && configured && target === "claude" && platform === "win32") {
       windowsSafeModeStep({ spawn, fs: fsImpl, homedir, env, now, stdout, stderr, timeoutMs });
     }
   } catch (error) {
     try {
-      stderr.write(`warning: Engram step skipped (${error && error.message}); continuing.\n`);
+      stderr.write(`aviso: paso Engram omitido (${error && error.message}); se continúa.\n`);
     } catch {
       // Never let the optional step affect the installer.
     }
@@ -312,21 +315,42 @@ function runEngramStep({
 // runs only when the caller passes `deps.engramStep` (the CLI entry and the TUI
 // adapter do): upstream `engram setup` resolves the real home on its own, so an
 // embedded or sandboxed call must never reach it by default.
+//
+// E1.9: the wrapper also owns the common output. It consumes `--verbose`, hands
+// the installer a reporter (`deps.reporter`), runs the step as the last phase
+// and prints the final summary.
 function withEngramStep(target, install, { eligible = () => true, hostBin = () => null } = {}) {
   targetSpec(target);
   return function main(argv = process.argv.slice(2), deps = {}) {
-    const raw = Array.isArray(argv) ? argv : [];
+    const { verbose, argv: raw } = splitVerbose(argv);
     const forwarded = raw.filter((arg) => arg !== "--no-engram" && arg !== "--with-engram");
-    const exitCode = install(forwarded, deps);
-    if (exitCode !== 0 || typeof deps.engramStep !== "function") return exitCode;
+    const stdout = deps.stdout || process.stdout;
     const stderr = deps.stderr || process.stderr;
-    try {
-      if (!eligible(forwarded, deps)) return exitCode;
-      deps.engramStep({ target, argv: raw, hostBin: hostBin(deps), stdout: deps.stdout || process.stdout, stderr });
-    } catch (error) {
-      stderr.write(`warning: Engram step skipped (${error.message}); continuing.\n`);
+    let runStep = false;
+    if (typeof deps.engramStep === "function") {
+      try {
+        runStep = Boolean(eligible(forwarded, deps));
+      } catch (error) {
+        stderr.write(`aviso: paso Engram omitido (${error.message}); se continúa.\n`);
+      }
     }
-    return exitCode;
+    const reporter = deps.reporter || createReporter({ target, stdout, stderr, verbose, trailing: runStep ? [ENGRAM_PHASE] : [] });
+    let exitCode;
+    try {
+      exitCode = install(forwarded, { ...deps, reporter });
+    } catch (error) {
+      reporter.err.write(`error: ${(verbose && error && error.stack) || (error && error.message) || error}\n`);
+      exitCode = 1;
+    }
+    if (exitCode === 0 && runStep) {
+      reporter.begin(ENGRAM_PHASE);
+      try {
+        deps.engramStep({ target, argv: raw, hostBin: hostBin(deps), stdout: reporter.out, stderr: reporter.err });
+      } catch (error) {
+        reporter.err.write(`aviso: paso Engram omitido (${error.message}); se continúa.\n`);
+      }
+    }
+    return reporter.finish(exitCode);
   };
 }
 
@@ -339,4 +363,5 @@ module.exports = {
   TARGETS,
   MARKETPLACE_NAME,
   SAFE_MODE_VAR,
+  ENGRAM_PHASE,
 };

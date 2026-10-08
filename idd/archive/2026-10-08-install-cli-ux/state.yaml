@@ -1,0 +1,170 @@
+{
+  "schema": "idd-state/v1",
+  "change": "install-cli-ux",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "E1.9: setup:vscode no falla con EPERM cuando VS Code tiene cargado dist/vscode, los errores de sistema de ficheros dicen operación, ruta y acción, y los 7 instaladores comparten un formato de salida con fases, progreso y resumen final",
+    "acceptance": "Con un proceso con cwd dentro de dist/vscode, setup:vscode termina o falla con un mensaje que nombra operación, ruta y 'cierra VS Code y reintenta'; los 7 setup:* muestran las mismas fases, progreso en TTY y resumen final; lo instalado no cambia"
+  },
+  "facts": {
+    "open": [
+      "Publicación de dist/vscode: ¿siempre en sitio (sobrescribir + podar, sin atomicidad) o renombrado atómico con fallback en sitio solo ante EPERM?",
+      "Indicador de progreso con instaladores síncronos: ¿línea de fase con ✓ y duración, spinner animado en un worker, o pasar a asíncrono?",
+      "Idioma de la salida de los instaladores: ¿español (como la TUI) o inglés (como hoy)?",
+      "Listado por fichero (+ ruta): ¿se sustituye por recuentos en el resumen con --verbose para verlo, o se mantiene?",
+      "Alcance: ¿solo los 7 setup:* o también configure --target (cli.js) y el paso Engram?"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 3 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/configure/cli.js (matches scripts/configure/cli.js)",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Atómico + fallback en sitio solo ante EPERM/EBUSY; fase con ✓ y duración (reescritura en TTY, una línea por fase en pipe); español; recuentos por defecto + --verbose para el listado; alcance: 7 setup:* y paso Engram, configure --target mantiene su salida",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-08T08:14:32.962Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-08T08:29:57.924Z",
+      "detail": {
+        "tree": "sha256:0536d6b03da14572132f9d096fbaf2f3f58629323485a1fe418e40616073e72c",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-08T08:29:57.924Z",
+      "detail": {
+        "tree": "sha256:0536d6b03da14572132f9d096fbaf2f3f58629323485a1fe418e40616073e72c",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/install/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/cli.test.js",
+          "scripts/configure/engram-setup.test.js",
+          "scripts/configure/install-antigravity.test.js",
+          "scripts/configure/install-claude.test.js",
+          "scripts/configure/install-codex.test.js",
+          "scripts/configure/install-cursor.test.js",
+          "scripts/configure/install-engine.test.js",
+          "scripts/configure/install-output.test.js",
+          "scripts/configure/install-target.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-08T08:32:06.205Z"
+    }
+  ],
+  "base": "1e2f8f05acebb2987d978bb3c8c7e21d36e81996",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"E1.9 repro\" scripts/configure/cli.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:85036d88ef15710d02e409fdf0a266f383f36ab55c743fbe60b5bbf98cb26b17",
+      "tree": "sha256:31cc19fd6864388795fba9f1300f525906ee8294d58cd0e75d95d43e539e7bb2",
+      "recorded_at": "2026-10-08T08:13:01.936Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"E1.9 repro\" scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:86e95452c886521231ce104e1f27e3194e7591473f9cd6b8855ec92ef95e0209",
+      "tree": "sha256:80550f59b761774161420354324fd74798ad01f236fc6a352c10de61e49b245a",
+      "recorded_at": "2026-10-08T08:14:32.962Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0a1c3f4e39848feaa9950c1ba50de6ca63572bfecfcb4d687f4a05ee881d5bae",
+      "tree": "sha256:0536d6b03da14572132f9d096fbaf2f3f58629323485a1fe418e40616073e72c",
+      "recorded_at": "2026-10-08T08:29:57.924Z"
+    }
+  ],
+  "closed_at": "2026-10-08T08:32:06.205Z"
+}
