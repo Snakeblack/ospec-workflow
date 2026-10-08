@@ -13,6 +13,7 @@ const { execFileSync } = require("node:child_process");
 
 const { CHANGE_ROOT } = require("./idd-contract.js");
 const { CONFIG_FILE, parseIddConfig } = require("./idd-config.js");
+const { candidateCheckCommand } = require("./idd-checks-config.js");
 const { resolveContractPatterns } = require("./idd-contracts.js");
 const { detectStacks, normalizePath, publishedPaths, resolvePatterns } = require("./idd-impact.js");
 
@@ -51,6 +52,7 @@ function readProjectContext(root) {
     mode,
     strictTdd,
     checks,
+    candidateCommand: checks.length === 0 ? candidateCheckCommand(root) : null,
     impact,
     stacks,
     patterns: resolvePatterns({ stacks, impact, published }),

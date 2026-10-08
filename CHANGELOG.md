@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.117.10] - 2026-10-08
+
+### Fixed
+- **Guía cuando faltan checks IDD (E1.21)**: `ospec next` ofrece `configure-checks` antes de obtener evidencia de checks; `ospec check` explica cómo declarar `checks:` en `idd/config.yaml` y conserva el veredicto `missing` y exit 0. El comando candidato es una propuesta de solo lectura basada en el manifiesto y gestor del proyecto; un test vacío de npm, un gestor desconocido o lockfiles contradictorios requieren que el usuario indique el comando. `ospec doctor` avisa cuando hay un cambio abierto válido sin checks.
+- **Consentimiento para configurar checks (skill `idd`)**: el protocolo pide aprobación explícita y espera antes de crear o editar `idd/config.yaml`, conservando sus claves. Ningún comando del CLI crea la configuración ni ejecuta la sugerencia automáticamente.
+
+### Changed
+- **Contrato, guías y roadmap**: REQ-idd-011/013/014/019 y pruebas del CLI, de diagnóstico y de distribución actualizados. E1.21 cerrado con IDD (`idd/archive/2026-10-08-idd-checks-config-guidance/`); E1.18 pasa a ser el siguiente trabajo. Los dos módulos nuevos quedan registrados como sucesores de K1 sin ampliar su inventario permitido.
+
+**Verificación directa**: `node scripts/check.js` (3400 tests pasando, 0 fallos y 0 omitidos), incluida la generación y validación de los siete targets. Reproducción rojo→verde y evidencia de contrato y checks registradas por IDD. Consumidor sin configuración → comando aprobado → check pasando → cierre probado; sugerencias y diagnóstico sin escritura cubiertos por tests.
+
 ## [2.117.9] - 2026-10-08
 
 ### Security

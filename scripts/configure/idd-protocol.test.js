@@ -63,6 +63,9 @@ for (const target of Object.keys(ROUTERS)) {
     for (const command of ["ospec next", "ospec record intent", "ospec signals", "ospec check", "ospec close"]) {
       assert.ok(protocol.includes(command), `${target}: protocol must use ${command}`);
     }
+    assert.ok(protocol.includes("configure-checks"), `${target}: missing checks must have an actionable step`);
+    assert.match(protocol, /Ask for explicit approval and stop\s+until the user answers/, `${target}: configuration needs user approval`);
+    assert.match(protocol, /preserve its other keys and\s+checks/, `${target}: an approved edit must retain existing configuration`);
   });
 
   test(`${target}: the router enters IDD by default, off with mode: sdd, and keeps SDD on request`, (t) => {

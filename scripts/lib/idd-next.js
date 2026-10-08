@@ -1,10 +1,11 @@
 "use strict";
 
-// Pure, deterministic reads of idd-state/v1 for `ospec next` and `ospec status`
-// (openspec/specs/idd/spec.md, REQ-idd-011). The same state always yields the
-// same output, whatever order its signals were recorded in.
+// Pure, deterministic reads of idd-state/v1 and supplied check context for
+// `ospec next` and `ospec status` (REQ-idd-011). The same inputs yield the same
+// output, whatever order the state's signals were recorded in.
 
 const { CHANGE_ROOT, GATES, LIVING_DOC_FILE, OBLIGATIONS, isIntentAmbiguous } = require("./idd-contract.js");
+const { configureChecksStep } = require("./idd-checks-config.js");
 
 // Order in which pending obligations are worked: evidence produced while
 // building comes first, checks run on the finished diff, and the living
@@ -60,7 +61,7 @@ function pendingDecision(state, gate) {
   return decision;
 }
 
-function nextForChange(state) {
+function nextForChange(state, { checks, candidateCommand } = {}) {
   const pending = state.obligations
     .filter((obligation) => obligation.status === "pending")
     .sort(byWorkOrder)
@@ -79,6 +80,9 @@ function nextForChange(state) {
   } else if (pending.length > 0) {
     nextStep = { action: "satisfy-obligation", obligation: pending[0].id, evidence: pending[0].evidence };
     if (HOW[pending[0].id]) nextStep.how = HOW[pending[0].id](state.change);
+    if (checks?.length === 0 && ["checks-pass", "contract-spec-and-test"].includes(pending[0].id)) {
+      nextStep = configureChecksStep(candidateCommand);
+    }
   } else if (openGates.length > 0) {
     nextStep = { action: "resolve-gate", gate: openGates[0].id };
   } else {
@@ -96,15 +100,15 @@ function nextForChange(state) {
   };
 }
 
-function nextForProject(states, { change } = {}) {
+function nextForProject(states, { change, ...context } = {}) {
   if (change) {
     const state = states.find((entry) => entry.change === change);
     if (!state) throw new Error(`unknown change: ${change}`);
-    return nextForChange(state);
+    return nextForChange(state, context);
   }
   const open = states.filter((state) => state.status === "open");
   if (open.length === 0) return { change: null, next_step: { action: "open-change" } };
-  if (open.length === 1) return nextForChange(open[0]);
+  if (open.length === 1) return nextForChange(open[0], context);
   return {
     change: null,
     next_step: { action: "choose-change", changes: open.map((state) => state.change).sort() },

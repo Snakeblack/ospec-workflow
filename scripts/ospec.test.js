@@ -346,6 +346,53 @@ test("check without declared checks reports what is missing", (t) => {
   assert.deepStrictEqual(stateOf(root, "fix-readme").runs, []);
 });
 
+test("missing checks guide next and check to approved configuration, then allow close", (t) => {
+  const { root } = project(t, { checks: null });
+  writeFile(root, "package.json", JSON.stringify({ scripts: { test: "node verify.js" } }));
+  ospec(root, ...OPEN_DOCS);
+  const configFile = path.join(root, "idd", "config.yaml");
+  const stateBefore = fs.readFileSync(path.join(root, "idd", "fix-readme", "state.yaml"), "utf8");
+  const next = ospec(root, "next", "--change", "fix-readme", "--json");
+  assert.strictEqual(next.code, 0, next.stderr);
+  assert.strictEqual(next.json.next_step.action, "configure-checks");
+  assert.strictEqual(next.json.next_step.candidate_command, "npm test");
+  assert.strictEqual(next.json.next_step.requires_approval, true);
+  assert.match(next.json.next_step.how, /checks:.*idd\/config.yaml/);
+  assert.strictEqual(fs.readFileSync(path.join(root, "idd", "fix-readme", "state.yaml"), "utf8"), stateBefore);
+  assert.ok(!fs.existsSync(configFile), "guidance never writes configuration");
+  const text = ospec(root, "next", "--change", "fix-readme");
+  assert.match(text.stdout, /idd\/config.yaml/);
+  assert.match(text.stdout, /npm test/);
+  assert.match(text.stdout, /approval/i);
+
+  const checked = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.strictEqual(checked.code, 0);
+  assert.strictEqual(checked.json.verdict, "missing");
+  assert.strictEqual(checked.json.next.next_step.action, "configure-checks");
+  assert.match(checked.json.missing[0].reason, /approval/i);
+  assert.ok(!fs.existsSync(configFile));
+  assert.deepStrictEqual(stateOf(root, "fix-readme").runs, []);
+  assert.strictEqual(ospec(root, "close", "--change", "fix-readme", "--json").code, 1);
+
+  // Represents the user-approved edit; neither next nor check performs it.
+  writeFile(root, "idd/config.yaml", "checks:\n  test: npm test\n");
+  writeFile(root, "src/pages.txt", "2");
+  assert.strictEqual(ospec(root, "next", "--change", "fix-readme", "--json").json.next_step.action, "satisfy-obligation");
+  assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.verdict, "ready");
+  assert.strictEqual(ospec(root, "close", "--change", "fix-readme", "--json").code, 0);
+});
+
+test("empty checks keep configuration and require a user command when no candidate is known", (t) => {
+  const { root } = project(t, { checks: "strict_tdd: false\nchecks:\n" });
+  ospec(root, ...OPEN_DOCS);
+  const before = fs.readFileSync(path.join(root, "idd", "config.yaml"), "utf8");
+  const next = ospec(root, "next", "--change", "fix-readme", "--json");
+  assert.strictEqual(next.json.next_step.action, "configure-checks");
+  assert.strictEqual(next.json.next_step.candidate_command, null);
+  assert.match(next.json.next_step.how, /ask.*command/i);
+  assert.strictEqual(fs.readFileSync(path.join(root, "idd", "config.yaml"), "utf8"), before);
+});
+
 test("check recomputes the signals from the diff: touching a migration adds its obligation", (t) => {
   const { root } = project(t);
   ospec(root, "record", "intent", "--change", "add-index", "--kind", "feature", "--summary", "Faster search.", "--acceptance", "Search under 50 ms.", "--no-open-facts", "--basis", "The request fixes every behavior.");

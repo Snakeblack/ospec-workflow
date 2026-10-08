@@ -22,12 +22,38 @@ CLI owns `idd/<change>/state.yaml`: never write that file, and never move or
 delete anything under `idd/` by hand.
 
 - `ospec next --change <id> --json` names the next step. Its
-  `next_step.how` is the command that records the evidence. Follow it.
+  `next_step.how` tells how to proceed: approve missing check configuration
+  as described below, or run the command that records the evidence. Follow it.
 - An obligation is satisfied only by evidence the CLI records from a run it
   observes (`ospec run`, `ospec check`, `ospec review`). Saying that tests
   pass satisfies nothing.
 - The change is done when `ospec close` succeeds, and only then. Never report
   it done, verified or archived before that.
+
+## Project checks
+
+`idd/config.yaml` is optional, but without at least one `checks:` command no
+IDD change can close. `ospec next` returns `configure-checks` when checks are
+needed and none are declared; `ospec check` names the missing configuration.
+Do not repeat `check` while that configuration is missing.
+
+When `next_step.action` is `configure-checks`, propose its `candidate_command`
+to the user as a suggestion, never as evidence or an approved command. If it
+is null, inspect the project's test documentation and manifests to propose
+a command, or ask which command to use. Ask for explicit approval and stop
+until the user answers. Only after approval, create or update
+`idd/config.yaml` with the approved command, for example:
+
+```yaml
+checks:
+  test: npm test
+```
+
+Read any existing configuration first and preserve its other keys and
+checks. Do not infer consent from a manifest, lockfile or passing test.
+The CLI only suggests this edit; it never creates the configuration.
+Then resume with `ospec next --change <id> --json` and run the declared checks
+when requested. `ospec doctor` warns about open IDD changes without checks.
 
 ## Rules
 
@@ -78,7 +104,7 @@ delete anything under `idd/` by hand.
 
 ## Gates
 
-Stop for the user only at the four gates. Ask with the host's question tool;
+Stop for the user at the four gates and for project-check approval above. Ask with the host's question tool;
 when the host has none, end your turn with the questions and wait for the
 answer:
 
@@ -89,8 +115,8 @@ answer:
 - `adr-amend-or-contradict`: when the change amends or contradicts an ADR.
 
 Resolve each one with `ospec record gate --change <id> --gate <id> --resolve --answer "<their words>" --source user`.
-Only an explicit answer from the user resolves a gate. Anything else is decided
-by the code and the evidence, without asking.
+Only an explicit answer from the user resolves a gate. Outside these gates
+and project-check approval, follow the code and the evidence without asking.
 
 ## Delivery
 
