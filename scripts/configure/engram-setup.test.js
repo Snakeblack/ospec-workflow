@@ -250,8 +250,8 @@ test("run codex: available lifecycle and installed pieces still require host sta
   const spawn = makeSpawn({ ...ENGRAM, "codex plugin list": ok("engram@engram\n"), "engram hook": ok() });
   const files = makeFs({ [home(".codex", "config.toml")]: "[mcp_servers.engram]\n" });
   const { stdout } = run({ target: "codex", spawn, hostBin: "codex", fs: files });
-  assert.match(stdout, /plugin and MCP.*present/);
-  assert.match(stdout, /session registration.*not verified/);
+  assert.match(stdout, /plugin y el MCP de Engram están presentes/);
+  assert.match(stdout, /no verifica el registro de la sesión/);
   assert.match(stdout, /SessionStart.*resume/);
   assert.doesNotMatch(stdout, /already configured/);
   assert.deepEqual(mutations(spawn.calls), []);
@@ -348,9 +348,9 @@ test("run: binary absent prints install guidance and mutates nothing", () => {
   const { result, stdout } = run({ spawn, hostBin: CLAUDE });
   assert.equal(result, undefined);
   assert.deepEqual(mutations(spawn.calls), []);
-  assert.match(stdout, /engram binary not found/);
+  assert.match(stdout, /No se encontró el binario engram/);
   assert.match(stdout, /npm run setup:claude/);
-  assert.match(stdout, /bash, jq and curl/);
+  assert.match(stdout, /bash, jq y curl/);
 });
 
 test("run: by default a found binary configures Claude and confirms the result", () => {
@@ -363,8 +363,8 @@ test("run: by default a found binary configures Claude and confirms the result",
   });
   const { stdout, stderr } = run({ spawn, hostBin: CLAUDE });
   assert.deepEqual(mutations(spawn.calls), ["engram setup claude-code"]);
-  assert.match(stdout, /disable with --no-engram/);
-  assert.match(stdout, /Engram configured for Claude Code/);
+  assert.match(stdout, /desactívala con --no-engram/);
+  assert.match(stdout, /Engram configurado para Claude Code/);
   assert.equal(stderr, "");
 });
 
@@ -372,39 +372,39 @@ test("run: --no-engram never mutates and says how to enable it", () => {
   const spawn = makeSpawn({ ...ENGRAM, ...CLAUDE_ABSENT });
   const { stdout } = run({ spawn, hostBin: CLAUDE, argv: ["--no-engram"] });
   assert.deepEqual(mutations(spawn.calls), []);
-  assert.match(stdout, /skipped by --no-engram/);
+  assert.match(stdout, /omitido por --no-engram/);
   assert.match(stdout, /engram setup claude-code/);
 });
 
 test("run: the legacy --with-engram flag is harmless (the step is already automatic)", () => {
   const spawn = makeSpawn({ ...ENGRAM, "claude plugin list": ok("  > engram@engram\n"), "claude mcp list": ok("engram: x\n") });
   const { stdout } = run({ spawn, hostBin: CLAUDE, argv: ["--with-engram"] });
-  assert.match(stdout, /already configured for Claude Code/);
+  assert.match(stdout, /ya está configurado para Claude Code/);
   assert.deepEqual(mutations(spawn.calls), []);
 });
 
 test("run: a setup that leaves a piece missing warns with the manual fix", () => {
   const spawn = makeSpawn({ ...ENGRAM, ...CLAUDE_ABSENT, "engram setup claude-code": ok() });
   const { stderr } = run({ spawn, hostBin: CLAUDE });
-  assert.match(stderr, /still incomplete for Claude Code \(missing: plugin, MCP server\)/);
+  assert.match(stderr, /sigue incompleto para Claude Code \(falta: plugin, servidor MCP\)/);
   assert.match(stderr, /engram setup claude-code/);
 });
 
 test("run: unknown host state (CLI missing) explains and mutates nothing", () => {
   const spawn = makeSpawn(ENGRAM);
   const { stdout } = run({ spawn, hostBin: null });
-  assert.match(stdout, /could not be read; no changes were made/);
+  assert.match(stdout, /no se pudo leer el estado de memoria de .*; no se ha cambiado nada/);
   assert.deepEqual(mutations(spawn.calls), []);
 });
 
 test("run: doctor problems are warnings and failing or throwing steps never throw", () => {
   const doctor = makeSpawn({ ...CLAUDE_ABSENT, "engram version": ok("engram 1.0.0"), "engram doctor --json": errored("ETIMEDOUT") });
-  assert.match(run({ spawn: doctor, hostBin: CLAUDE, argv: ["--no-engram"] }).stderr, /warning: engram doctor reported "timeout"/);
+  assert.match(run({ spawn: doctor, hostBin: CLAUDE, argv: ["--no-engram"] }).stderr, /aviso: engram doctor informó "timeout"/);
   const failing = makeSpawn({ ...ENGRAM, ...CLAUDE_ABSENT, "engram setup claude-code": fail(3, "network down") });
-  assert.match(run({ spawn: failing, hostBin: CLAUDE }).stderr, /`engram setup claude-code` failed \(exit 3\)/);
+  assert.match(run({ spawn: failing, hostBin: CLAUDE }).stderr, /`engram setup claude-code` falló \(exit 3\)/);
   const throwing = () => { throw new Error("kaboom"); };
   assert.doesNotThrow(() => run({ spawn: throwing, hostBin: CLAUDE }));
-  assert.match(run({ target: "nope", spawn: makeSpawn(ENGRAM) }).stderr, /Engram step skipped \(unknown Engram target: nope\)/);
+  assert.match(run({ target: "nope", spawn: makeSpawn(ENGRAM) }).stderr, /paso Engram omitido \(unknown Engram target: nope\)/);
 });
 
 test("run: file-based targets re-check their config after the upstream setup", () => {
@@ -419,7 +419,7 @@ test("run: file-based targets re-check their config after the upstream setup", (
   });
   const { stdout, stderr } = run({ target: "antigravity", spawn, fs: files });
   assert.deepEqual(mutations(spawn.calls), ["engram setup antigravity-cli"]);
-  assert.match(stdout, /Engram configured for Antigravity/);
+  assert.match(stdout, /Engram configurado para Antigravity/);
   assert.equal(stderr, "");
 });
 
@@ -431,11 +431,11 @@ test("run: Copilot CLI merges the engram entry and keeps existing servers", () =
   assert.deepEqual(Object.keys(doc.mcpServers), ["context7", "engram"]);
   assert.equal(doc.other, true);
   assert.deepEqual(doc.mcpServers.engram.args, ["mcp", "--tools=agent"]);
-  assert.match(stdout, /Engram configured for Copilot CLI/);
+  assert.match(stdout, /Engram configurado para Copilot CLI/);
   assert.equal(stderr, "");
   // Idempotent: a second run changes nothing.
   const again = run({ target: "github-copilot", spawn: makeSpawn(ENGRAM), fs: files });
-  assert.match(again.stdout, /already configured for Copilot CLI/);
+  assert.match(again.stdout, /ya está configurado para Copilot CLI/);
   assert.equal(files.writes.length, 1);
 });
 
@@ -443,7 +443,7 @@ test("run: Copilot CLI never overwrites an unparseable mcp-config.json", () => {
   const file = home(".copilot", "mcp-config.json");
   const files = makeFs({ [file]: "{broken" });
   const { stdout } = run({ target: "github-copilot", spawn: makeSpawn(ENGRAM), fs: files });
-  assert.match(stdout, /could not be read; no changes were made/);
+  assert.match(stdout, /no se pudo leer el estado de memoria de .*; no se ha cambiado nada/);
   assert.equal(files.writes.length, 0);
 });
 
@@ -478,7 +478,7 @@ test("windows: fast forks turn the safe mode off and keep existing settings", ()
   assert.equal(settings.env[SAFE_MODE_VAR], "0");
   assert.equal(settings.env.FOO, "1");
   assert.equal(settings.theme, "dark");
-  assert.match(stdout, /Windows safe mode off \(fork probe 200 ms\)/);
+  assert.match(stdout, /Modo seguro de Windows desactivado \(sonda de fork 200 ms\)/);
 });
 
 test("windows: a missing settings.json is created", () => {
@@ -488,16 +488,16 @@ test("windows: a missing settings.json is created", () => {
 test("windows: slow or failing forks keep the safe mode and write nothing", () => {
   const slow = windowsRun({ settings: "{}", elapsed: 4000 });
   assert.deepEqual(slow.settings, {});
-  assert.match(slow.stdout, /safe mode kept: forks are slow \(4000 ms\)/);
+  assert.match(slow.stdout, /modo seguro de Windows: los fork son lentos \(4000 ms\)/);
   const failing = windowsRun({ settings: "{}", forkResult: fail(127, "jq: not found") });
   assert.deepEqual(failing.settings, {});
-  assert.match(failing.stdout, /fork probe failed/);
+  assert.match(failing.stdout, /falló la sonda de fork/);
 });
 
 test("windows: a value the user already set is never overwritten", () => {
   const set = windowsRun({ settings: JSON.stringify({ env: { [SAFE_MODE_VAR]: "1" } }) });
   assert.equal(set.settings.env[SAFE_MODE_VAR], "1");
-  assert.match(set.stdout, /already set; left unchanged/);
+  assert.match(set.stdout, /ya está definido; se deja igual/);
   assert.ok(!set.spawn.calls.some((call) => call.startsWith(BASH)), "no probe when the user decided");
   const fromEnv = windowsRun({ settings: "{}", env: { [SAFE_MODE_VAR]: "auto" } });
   assert.deepEqual(fromEnv.settings, {});
@@ -506,7 +506,7 @@ test("windows: a value the user already set is never overwritten", () => {
 test("windows: an unparseable settings.json is left untouched with a warning", () => {
   const { stderr, spawn, settings } = windowsRun({ settings: "{oops" });
   assert.equal(settings, "{oops");
-  assert.match(stderr, /cannot read .*settings\.json/);
+  assert.match(stderr, /no se puede leer .*settings\.json/);
   assert.ok(!spawn.calls.some((call) => call.startsWith(BASH)));
 });
 
@@ -543,7 +543,7 @@ test("withEngramStep swallows a throwing step and keeps the exit code", () => {
   const stderr = writer();
   const main = withEngramStep("cursor", () => 0);
   assert.equal(main([], { engramStep() { throw new Error("kaboom"); }, stderr }), 0);
-  assert.match(stderr.value, /warning: Engram step skipped \(kaboom\)/);
+  assert.match(stderr.value, /aviso: paso Engram omitido \(kaboom\)/);
 });
 
 // --- scope: every global installer runs the shared step (REQ-install-028) --------

@@ -112,6 +112,7 @@ It builds `dist/vscode` and adds it to `chat.pluginLocations`. To update after p
   ```
   *(Inside the Claude Code session, type `/reload-plugins` to apply changes).*
 - **Engram session memory**: configured automatically when the `engram` binary is on PATH (`--no-engram` to skip); see [Engram session memory](#-engram-session-memory-every-target).
+- **Installer output**: every `npm run setup:<target>` prints the same phases (`✓ [n/N] phase (s)`) and a final summary, in Spanish; add `-- --verbose` to also see the validator, hook binary and host CLI output.
 - **Fast rebuild during development**:
   ```powershell
   npm run reload:claude

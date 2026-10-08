@@ -11,7 +11,7 @@ const { spawnSync } = require("node:child_process");
 
 const { transform } = require("../lib/target-transform.js");
 const { validateModelOverrides, validateSddModelPolicy } = require("../lib/model-resolver.js");
-const { withTransientFsRetries } = require("./install-engine.js");
+const { withTransientFsRetries, TRANSIENT_FS_CODES } = require("./install-engine.js");
 
 const PROFILES = {
   claude: require("../lib/target-profiles/claude.js"),
@@ -192,7 +192,13 @@ function observe(observer, event) {
   observer({ ...event });
 }
 
-function writeTree(outDir, { files }, additionalManagedRoots = [], operationObserver = () => {}) {
+// `mutate(operation, path, action)` runs each filesystem mutation; the stage
+// runs them directly, an in-place publication (E1.9) with retries and context.
+function runDirect(_operation, _path, action) {
+  return action();
+}
+
+function writeTree(outDir, { files }, additionalManagedRoots = [], operationObserver = () => {}, { phase = "stage", mutate = runDirect } = {}) {
   const sorted = [...files].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   const desired = new Set(sorted.map((file) => file.path));
   const managedRoots = new Set([
@@ -200,21 +206,25 @@ function writeTree(outDir, { files }, additionalManagedRoots = [], operationObse
     ...additionalManagedRoots,
   ]);
 
-  pruneStale(outDir, managedRoots, desired, operationObserver);
+  pruneStale(outDir, managedRoots, desired, operationObserver, { phase, mutate });
 
   for (const file of sorted) {
     const abs = path.join(outDir, ...file.path.split("/"));
-    observe(operationObserver, { phase: "stage", operation: "mkdir", path: path.dirname(abs) });
-    fs.mkdirSync(path.dirname(abs), { recursive: true });
-    observe(operationObserver, { phase: "stage", operation: "write", path: abs });
-    fs.writeFileSync(abs, file.content);
+    mutate("mkdir", path.dirname(abs), () => {
+      observe(operationObserver, { phase, operation: "mkdir", path: path.dirname(abs) });
+      fs.mkdirSync(path.dirname(abs), { recursive: true });
+    });
+    mutate("write", abs, () => {
+      observe(operationObserver, { phase, operation: "write", path: abs });
+      fs.writeFileSync(abs, file.content);
+    });
   }
 }
 
 // Within each managed root, delete files not present in `desired` (POSIX-relative
 // paths), then remove directories left empty. Roots that are files (e.g.
 // .mcp.json) are simply overwritten by the write loop.
-function pruneStale(outDir, managedRoots, desired, operationObserver = () => {}) {
+function pruneStale(outDir, managedRoots, desired, operationObserver = () => {}, { phase = "stage", mutate = runDirect } = {}) {
   for (const root of managedRoots) {
     const absRoot = path.join(outDir, ...root.split("/"));
     if (!fs.existsSync(absRoot)) {
@@ -222,8 +232,10 @@ function pruneStale(outDir, managedRoots, desired, operationObserver = () => {})
     }
     if (fs.statSync(absRoot).isFile()) {
       if (!desired.has(root)) {
-        observe(operationObserver, { phase: "stage", operation: "prune", path: absRoot });
-        fs.rmSync(absRoot, { force: true });
+        mutate("prune", absRoot, () => {
+          observe(operationObserver, { phase, operation: "prune", path: absRoot });
+          fs.rmSync(absRoot, { force: true });
+        });
       }
       continue;
     }
@@ -234,8 +246,10 @@ function pruneStale(outDir, managedRoots, desired, operationObserver = () => {})
       const relFromOut = `${root}/${rel}`;
       if (!desired.has(relFromOut)) {
         const stale = path.join(absRoot, ...rel.split("/"));
-        observe(operationObserver, { phase: "stage", operation: "prune", path: stale });
-        fs.rmSync(stale, { force: true });
+        mutate("prune", stale, () => {
+          observe(operationObserver, { phase, operation: "prune", path: stale });
+          fs.rmSync(stale, { force: true });
+        });
       }
     }
     pruneEmptyDirs(absRoot);
@@ -559,10 +573,31 @@ function removeOwned(pathname, operationObserver = () => {}, retryOptions = {}) 
         retryDelay: 10,
       });
     }
-  }, retryOptions);
+  }, { ...retryOptions, operation: "cleanup", path: pathname });
 }
 
-function publishTransaction({ outDir, output, profile, validate, runValidator, operationObserver, requireK3Closure, retryOptions }) {
+// E1.9: VS Code loads dist/vscode live, and on Windows a directory it (or a
+// shell inside it) holds cannot be renamed. Only these targets fall back to
+// writing the validated tree in place when the atomic rename meets a lock.
+const IN_PLACE_ON_LOCK = new Set(["vscode"]);
+
+function publishInPlace({ lock, output, profile, operationObserver, retryOptions, requireK3Closure }) {
+  const mutate = (operation, pathname, action) => withTransientFsRetries(action, { ...retryOptions, operation, path: pathname });
+  try {
+    writeTree(lock.destination, output, profile.managedRoots || [], operationObserver, { phase: "in-place", mutate });
+    validateStagedTree(lock.destination, output, profile.managedRoots || [], operationObserver, requireK3Closure);
+  } catch (error) {
+    const partial = new Error(
+      `${error.message} ${lock.destination} ha quedado a medio actualizar; vuelve a ejecutar la instalación cuando esté libre.`,
+      { cause: error },
+    );
+    Object.assign(partial, { code: error.code, path: error.path, operation: error.operation, target: error.target });
+    throw partial;
+  }
+}
+
+function publishTransaction({ outDir, output, profile, validate, runValidator, operationObserver, requireK3Closure, retryOptions: baseRetryOptions }) {
+  const retryOptions = { target: profile.id, ...(baseRetryOptions || {}) };
   const lock = acquireDestinationLock(outDir);
   let stage;
   let backup;
@@ -580,16 +615,24 @@ function publishTransaction({ outDir, output, profile, validate, runValidator, o
     if (fs.existsSync(lock.destination)) {
       backup = fs.mkdtempSync(path.join(lock.parent, `.${path.basename(lock.destination)}.configure-backup-`));
       fs.rmdirSync(backup);
-      withTransientFsRetries(() => {
-        observe(operationObserver, { phase: "backup", operation: "rename", from: lock.destination, to: backup });
-        fs.renameSync(lock.destination, backup);
-      }, retryOptions);
+      try {
+        withTransientFsRetries(() => {
+          observe(operationObserver, { phase: "backup", operation: "rename", from: lock.destination, to: backup });
+          fs.renameSync(lock.destination, backup);
+        }, { ...retryOptions, operation: "rename", path: lock.destination });
+      } catch (error) {
+        // A failed rename moved nothing: the destination is intact.
+        backup = null;
+        if (!IN_PLACE_ON_LOCK.has(profile.id) || !TRANSIENT_FS_CODES.has(error.code)) throw error;
+        publishInPlace({ lock, output, profile, operationObserver, retryOptions, requireK3Closure });
+        return { exitCode: 0, validation, publication: "in-place" };
+      }
     }
     try {
       withTransientFsRetries(() => {
         observe(operationObserver, { phase: "publish", operation: "rename", from: stage, to: lock.destination });
         fs.renameSync(stage, lock.destination);
-      }, retryOptions);
+      }, { ...retryOptions, operation: "rename", path: lock.destination });
       stage = null;
     } catch (error) {
       if (backup) {
@@ -597,7 +640,7 @@ function publishTransaction({ outDir, output, profile, validate, runValidator, o
           withTransientFsRetries(() => {
             observe(operationObserver, { phase: "restore", operation: "rename", from: backup, to: lock.destination });
             fs.renameSync(backup, lock.destination);
-          }, retryOptions);
+          }, { ...retryOptions, operation: "rename", path: lock.destination });
           backup = null;
         } catch (restoreError) {
           retainBackup = true;
@@ -606,7 +649,7 @@ function publishTransaction({ outDir, output, profile, validate, runValidator, o
       }
       throw error;
     }
-    return { exitCode: 0, validation };
+    return { exitCode: 0, validation, publication: "atomic" };
   } finally {
     const cleanupErrors = [];
     for (const pathname of [stage, retainBackup ? null : backup, lock.lockPath]) {
@@ -656,7 +699,7 @@ function runConfigure({ sourceDir, target, outDir, validate = true, withExtras =
     retryOptions,
     requireK3Closure: fs.existsSync(path.join(sourceDir, "schemas", "kernel", "manifest.json")),
   });
-  return { files: output.files, summary, exitCode: publication.exitCode, validation: publication.validation };
+  return { files: output.files, summary, exitCode: publication.exitCode, validation: publication.validation, publication: publication.publication };
 }
 
 // --- CLI entry -------------------------------------------------------------

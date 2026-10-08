@@ -59,7 +59,7 @@ function resolveWithSdd(args, previous) {
 
 // What an installer prints when it keeps SDD without being asked.
 function sddKeptNote(args, withSdd) {
-  return withSdd && !args.withSdd ? "keeping the SDD package of the previous install (--no-sdd removes it)\n" : "";
+  return withSdd && !args.withSdd ? "se conserva el paquete SDD de la instalación anterior (--no-sdd lo quita)\n" : "";
 }
 
 module.exports = { hasSddPath, parseSddFlag, previousInstallHasSdd, resolveWithSdd, sddKeptNote };

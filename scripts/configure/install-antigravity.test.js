@@ -145,8 +145,8 @@ test("pruneStaleFiles exhaustion diagnosis specifies target: antigravity", (t) =
   assert.equal(exitCode, 1);
   const errOutput = stderr.join("");
   assert.match(errOutput, /antigravity:/i);
-  assert.match(errOutput, /remove stale file failed/i);
-  assert.match(errOutput, /after 3 attempts/i);
-  assert.match(errOutput, /close the application/i);
+  assert.match(errOutput, /no se pudo borrar/i);
+  assert.match(errOutput, /tras 3 intentos/i);
+  assert.match(errOutput, /Cierra Antigravity \(o el proceso que use esa ruta\)/);
 });
 

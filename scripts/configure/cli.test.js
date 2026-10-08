@@ -653,3 +653,95 @@ test("every script cited by shipped content is distributed in the runtime", () =
   }
   assert.deepEqual([...new Set(missing)].sort(), []);
 });
+
+// E1.9 install-cli-ux (REQ-install-038): VS Code loads dist/vscode live, so on Windows renaming
+// that directory fails with EPERM while VS Code (or a shell inside it) is open.
+function lockedRename(phase) {
+  return event => {
+    if (event.operation === "rename" && event.phase === phase) {
+      throw Object.assign(new Error(`EPERM: operation not permitted, rename '${event.from}'`), { code: "EPERM" });
+    }
+  };
+}
+
+function configureSiblings(parent, name) {
+  return fs.readdirSync(parent).filter(entry => entry.startsWith(`.${name}.configure`));
+}
+
+test("E1.9 repro: vscode publishes in place when the live destination cannot be renamed", t => {
+  const parent = tmpOut(t);
+  const out = path.join(parent, "vscode");
+  runConfigure({ sourceDir: SOURCE, target: "vscode", outDir: out, validate: false });
+  fs.writeFileSync(path.join(out, "NOTES.md"), "unmanaged\n");
+  fs.mkdirSync(path.join(out, "skills", "retired"), { recursive: true });
+  fs.writeFileSync(path.join(out, "skills", "retired", "SKILL.md"), "stale\n");
+  const expected = readTree(out);
+  delete expected["skills/retired/SKILL.md"];
+
+  const result = runConfigure({
+    sourceDir: SOURCE,
+    target: "vscode",
+    outDir: out,
+    validate: false,
+    retryOptions: { maxRetries: 0 },
+    operationObserver: lockedRename("backup"),
+  });
+
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.publication, "in-place");
+  assert.deepEqual(readTree(out), expected);
+  assert.deepEqual(configureSiblings(parent, "vscode"), []);
+});
+
+test("E1.9 repro: a locked destination of a target without in-place publication names operation, path and action", t => {
+  const parent = tmpOut(t);
+  const out = path.join(parent, "cursor");
+  runConfigure({ sourceDir: SOURCE, target: "cursor", outDir: out, validate: false });
+  const before = readTree(out);
+
+  assert.throws(() => runConfigure({
+    sourceDir: SOURCE,
+    target: "cursor",
+    outDir: out,
+    validate: false,
+    retryOptions: { maxRetries: 0 },
+    operationObserver: lockedRename("backup"),
+  }), error => {
+    assert.equal(error.code, "EPERM");
+    assert.equal(error.path, path.resolve(out));
+    assert.match(error.message, /no se pudo renombrar/);
+    assert.ok(error.message.includes(path.resolve(out)));
+    assert.match(error.message, /Cierra Cursor/);
+    return true;
+  });
+  assert.deepEqual(readTree(out), before);
+  assert.deepEqual(configureSiblings(parent, "cursor"), []);
+});
+
+test("E1.9 repro: an in-place publication that also hits a lock fails with the path, the action and the partial state", t => {
+  const parent = tmpOut(t);
+  const out = path.join(parent, "vscode");
+  runConfigure({ sourceDir: SOURCE, target: "vscode", outDir: out, validate: false });
+  const lockAll = event => {
+    lockedRename("backup")(event);
+    if (event.phase === "in-place" && event.operation === "write") {
+      throw Object.assign(new Error(`EBUSY: resource busy or locked, open '${event.path}'`), { code: "EBUSY" });
+    }
+  };
+
+  assert.throws(() => runConfigure({
+    sourceDir: SOURCE,
+    target: "vscode",
+    outDir: out,
+    validate: false,
+    retryOptions: { maxRetries: 0 },
+    operationObserver: lockAll,
+  }), error => {
+    assert.equal(error.code, "EBUSY");
+    assert.match(error.message, /no se pudo escribir/);
+    assert.match(error.message, /Cierra VS Code/);
+    assert.match(error.message, /a medio actualizar/);
+    return true;
+  });
+  assert.deepEqual(configureSiblings(parent, "vscode"), []);
+});

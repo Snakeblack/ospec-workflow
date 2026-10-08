@@ -18,15 +18,20 @@ const {
   pruneStaleFiles,
   toPosix,
 } = require("./install-engine.js");
-const { parseSddFlag, previousInstallHasSdd, resolveWithSdd, sddKeptNote } = require("./sdd-package.js");
+const { parseSddFlag, previousInstallHasSdd, resolveWithSdd } = require("./sdd-package.js");
+const { DRY_RUN_ROW, PHASE_BUILD, PHASE_FILES, packagesRow, reportBuildFailure, reporterFor, restartHint } = require("./install-output.js");
+
+const PHASE_REPAIR = "Reparar config.toml";
+const PHASE_MCP = "Registrar servidores MCP";
 
 
 function usage() {
   return (
-    "usage: install-codex [<destRepo>] [--dry-run] [--repair-config] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--no-router] [--source <sourceRepo>]\n" +
-    "  --no-router      do not write the router into AGENTS.md, and remove the one an earlier install wrote\n" +
-    "  --repair-config  global setup only: remove the exact legacy top-level service_tier = \"default\" assignment, with backup and rollback\n" +
-    "  e.g. npm run install:codex -- ../my-project\n"
+    "uso: install-codex [<destRepo>] [--dry-run] [--repair-config] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--no-router] [--source <sourceRepo>] [--verbose]\n" +
+    "  --no-router      no escribe el router en AGENTS.md y quita el que escribió una instalación anterior\n" +
+    "  --repair-config  solo instalación global: quita la asignación heredada exacta service_tier = \"default\" del nivel superior, con copia de seguridad y vuelta atrás\n" +
+    "  --verbose        muestra el detalle (ficheros, salida de los validadores y de la CLI)\n" +
+    "  p. ej. npm run install:codex -- ../my-project\n"
   );
 }
 
@@ -450,7 +455,7 @@ function ensureCodexMcps(codexBin, definitions, deps = {}) {
   for (const definition of definitions) {
     const equivalent = existing.find((server) => sameMcpIdentity(server, definition));
     if (equivalent) {
-      stdout.write(`reusing existing MCP '${equivalent.name}' for ${definition.name}; no duplicate added\n`);
+      stdout.write(`  se reutiliza el MCP existente '${equivalent.name}' para ${definition.name}; no se añade un duplicado\n`);
       continue;
     }
     const nameCollision = existing.find((server) => server?.name === definition.name);
@@ -1116,13 +1121,13 @@ function installRepoOrchestratorSkill(outDir, repoRoot, writeFs, fsImpl = fs) {
   }
 }
 
-function reportConfigRepair(repair, stdout) {
+function reportConfigRepair(repair, reporter) {
   if (repair.status === "would-repair") {
-    stdout.write('[dry-run] Would remove the exact top-level service_tier = "default" assignment; no files were written.\n');
+    reporter.set("config.toml", 'simulación: se quitaría la asignación exacta service_tier = "default"; no se ha escrito nada');
   } else if (repair.status === "repaired") {
-    stdout.write(`Repaired legacy Codex service_tier configuration; backup retained at ${repair.backupPath}.\n`);
+    reporter.set("config.toml", `service_tier heredado reparado; copia de seguridad conservada en ${repair.backupPath}`);
   } else {
-    stdout.write("No exact top-level service_tier = \"default\" assignment was found; config.toml was not changed.\n");
+    reporter.set("config.toml", 'sin la asignación exacta service_tier = "default"; no se ha cambiado');
   }
 }
 
@@ -1130,8 +1135,9 @@ function install(argv, deps = {}) {
   const args = parseArgs(argv);
   const cwd = deps.cwd || process.cwd();
   const fsImpl = deps.fs || fs;
-  const stdout = deps.stdout || process.stdout;
-  const stderr = deps.stderr || process.stderr;
+  const reporter = reporterFor("codex", deps);
+  const stdout = reporter.out;
+  const stderr = reporter.err;
   const runConfigureImpl = deps.runConfigure || runConfigure;
   const findCodexBinImpl = deps.findCodexBin || findCodexBin;
   const homedir = deps.homedir || os.homedir;
@@ -1147,7 +1153,7 @@ function install(argv, deps = {}) {
   const sourceDir = path.resolve(args.source || cwd);
   const isRepoInstall = Boolean(args.destRepo);
   if (isRepoInstall && args.repairConfig) {
-    stderr.write("--repair-config is available only for global setup and cannot be combined with a repo-local destination\n");
+    stderr.write("--repair-config solo vale para la instalación global: no se combina con un destino de repositorio\n");
     return 2;
   }
   try {
@@ -1156,7 +1162,7 @@ function install(argv, deps = {}) {
       const destRepo = path.resolve(args.destRepo);
       assertSafeDestImpl(destRepo, sourceDir);
       if (!fsImpl.existsSync(destRepo) || !fsImpl.statSync(destRepo).isDirectory()) {
-        stderr.write(`destination is not an existing directory: ${destRepo}\n`);
+        stderr.write(`el destino no es un directorio existente: ${destRepo}\n`);
         return 2;
       }
       codexRoot = path.join(destRepo, ".codex");
@@ -1169,14 +1175,21 @@ function install(argv, deps = {}) {
     }
 
     if (args.dryRun && args.repairConfig) {
+      reporter.plan([PHASE_REPAIR]);
+      reporter.begin(PHASE_REPAIR);
       const repair = repairCodexConfig(path.join(codexRoot, "config.toml"), null, {
         ...deps,
         fs: fsImpl,
         dryRun: true,
       });
-      reportConfigRepair(repair, stdout);
+      reportConfigRepair(repair, reporter);
+      reporter.set("Modo", DRY_RUN_ROW);
       return 0;
     }
+
+    const registersMcp = !args.dryRun && !isRepoInstall;
+    reporter.plan([PHASE_BUILD, ...(!isRepoInstall && args.repairConfig ? [PHASE_REPAIR] : []), ...(registersMcp ? [PHASE_MCP] : []), PHASE_FILES]);
+    reporter.begin(PHASE_BUILD);
 
     // Callers embedding the installer (notably concurrent integration tests)
     // may supply an owned build destination. CLI installs retain dist/codex.
@@ -1186,14 +1199,10 @@ function install(argv, deps = {}) {
     const withSdd = resolveWithSdd(args, () => previousInstallHasSdd(isRepoInstall
       ? { agentDirs: [path.join(codexRoot, "agents")], fs: fsImpl }
       : { manifestRoots: [codexRoot], fs: fsImpl }));
-    stdout.write(sddKeptNote(args, withSdd));
     const result = runConfigureImpl({ sourceDir, target: "codex", outDir, validate: args.validate, withExtras: Boolean(args.withExtras), withSdd });
-    if (result.validation?.stdout) stdout.write(result.validation.stdout);
-    if (result.validation?.stderr) stderr.write(result.validation.stderr);
-    if (result.exitCode !== 0) {
-      stderr.write("\nbuild/validation failed; nothing installed\n");
-      return result.exitCode;
-    }
+    if (reportBuildFailure(reporter, result)) return result.exitCode;
+    reporter.set("Destino", isRepoInstall ? path.dirname(codexRoot) : codexRoot);
+    reporter.set("Paquetes", packagesRow(args, withSdd));
 
     const agentsDest = path.join(codexRoot, "agents");
     let agentDestFile = isRepoInstall
@@ -1216,33 +1225,36 @@ function install(argv, deps = {}) {
 
     let codexBin;
     if (!isRepoInstall && args.repairConfig) {
+      reporter.begin(PHASE_REPAIR);
       codexBin = findCodexBinImpl();
       const repair = repairCodexConfig(path.join(codexRoot, "config.toml"), codexBin, {
         ...deps,
         fs: fsImpl,
       });
-      reportConfigRepair(repair, stdout);
+      reportConfigRepair(repair, reporter);
     }
 
-    if (!args.dryRun && !isRepoInstall) {
+    if (registersMcp) {
+      reporter.begin(PHASE_MCP);
       codexBin = codexBin || findCodexBinImpl();
       const mcpDefinitions = readCodexMcpDefinitions(sourceDir, fsImpl);
       if (!codexBin) {
         stdout.write(
-          "codex CLI not found on PATH; built agent instructions and MCP command(s) are ready:\n" +
+          "aviso: no se encontró la CLI codex en el PATH; registra los MCP a mano:\n" +
             mcpDefinitions.map((server) =>
-              `codex mcp add ${server.name} -- ${server.command} ${server.args.join(" ")}\n`,
+              `  codex mcp add ${server.name} -- ${server.command} ${server.args.join(" ")}\n`,
             ).join(""),
         );
       } else {
         mcpMutationJournal = createMcpMutationJournal(codexBin, deps, stderr);
-        const mcpExitCode = ensureCodexMcps(codexBin, mcpDefinitions, { ...deps, mcpMutationJournal });
+        const mcpExitCode = ensureCodexMcps(codexBin, mcpDefinitions, { ...deps, stdout, stderr, mcpMutationJournal });
         if (mcpExitCode !== 0) {
           return mcpExitCode;
         }
       }
     }
 
+    reporter.begin(PHASE_FILES);
     // Perform security checks immediately before writing to avoid TOCTOU window
     assertManagedPathSafe(codexRoot, agentsDest, "Codex agents destination", fsImpl);
     assertManagedPathSafe(agentApprovedRoot, agentDestFile, "Codex agent file destination", fsImpl);
@@ -1351,16 +1363,12 @@ function install(argv, deps = {}) {
     }
 
     if (args.dryRun) {
-      stdout.write(`[dry-run] Codex agents and AGENTS.md prepared; no files were written.\n`);
+      reporter.set("Modo", DRY_RUN_ROW);
       return 0;
     }
 
-    if (isRepoInstall) {
-      stdout.write(`Done. Codex AGENTS.md and custom agents synced into ${path.dirname(codexRoot)}.\n`);
-      return 0;
-    }
-
-    stdout.write("Done. Codex AGENTS.md, custom agents, skills, and native hooks are ready.\n");
+    reporter.set("Instalado", isRepoInstall ? "AGENTS.md y agentes de Codex" : "AGENTS.md, agentes, skills y hooks nativos de Codex");
+    restartHint(reporter);
     return 0;
   } catch (error) {
     const rollbackErrors = fileTransaction?.rollback() || [];

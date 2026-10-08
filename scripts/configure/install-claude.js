@@ -13,6 +13,7 @@
 //   node scripts/configure/install-claude.js --with-extras # also install the optional extras package
 //   node scripts/configure/install-claude.js --with-sdd    # also install the SDD mode (kept on reinstall; --no-sdd removes it)
 //   node scripts/configure/install-claude.js --no-router   # leave ~/.claude/CLAUDE.md without the ospec router
+//   node scripts/configure/install-claude.js --verbose     # also print the build detail and the claude CLI output
 //
 // Why a wrapper: the README dance was five manual commands (build, two validate
 // calls, Resolve-Path + marketplace add, install). The build already runs the
@@ -25,9 +26,13 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { buildClaudeMarketplace } = require("./claude-marketplace.js");
 const { copyBinaryToTree } = require("./install-target.js");
-const { runEngramStep } = require("./engram-setup.js");
+const { ENGRAM_PHASE, runEngramStep } = require("./engram-setup.js");
 const { removeRouterBlock, writeRouterBlock } = require("./instruction-block.js");
-const { parseSddFlag, previousInstallHasSdd, resolveWithSdd, sddKeptNote } = require("./sdd-package.js");
+const { parseSddFlag, previousInstallHasSdd, resolveWithSdd } = require("./sdd-package.js");
+const { PHASE_BUILD, createReporter, packagesRow, reportBuildFailure, splitVerbose } = require("./install-output.js");
+
+const PHASE_PLUGIN = "Registrar marketplace y plugin";
+const PHASE_ROUTER = "Escribir el router";
 
 const MARKETPLACE = "ospec-tools";
 const PLUGIN = "ospec-workflow";
@@ -62,15 +67,19 @@ function resolveClaudeBin() {
   return null;
 }
 
-function run(bin, args) {
-  process.stdout.write(`\n==> ${bin} ${args.join(" ")}\n`);
-  const result = spawnSync(bin, args, { stdio: "inherit", shell: false });
+// E1.9: the claude CLI output is detail (shown with --verbose); a failure
+// carries it in the error so the reason is never hidden.
+function run(bin, args, detail = process.stdout) {
+  detail.write(`  ==> ${bin} ${args.join(" ")}\n`);
+  const result = spawnSync(bin, args, { encoding: "utf8", shell: false });
   if (result.error) {
-    throw new Error(`Failed to execute ${bin}: ${result.error.message}`);
+    throw new Error(`no se pudo ejecutar ${bin}: ${result.error.message}`);
   }
+  const output = `${result.stdout || ""}${result.stderr || ""}`;
   if (result.status !== 0) {
-    throw new Error(`Command failed with exit code ${result.status}: ${bin} ${args.join(" ")}`);
+    throw new Error(`\`${bin} ${args.join(" ")}\` terminó con código ${result.status}${output.trim() ? `:\n${output.trim()}` : ""}`);
   }
+  if (output) detail.write(output.endsWith("\n") ? output : `${output}\n`);
   return true;
 }
 
@@ -90,19 +99,18 @@ function listOutput(bin, args) {
 function syncRouter(pluginDir, argv, homedir) {
   const claudeMd = path.join(homedir(), ".claude", "CLAUDE.md");
   if (argv.includes("--no-router")) {
-    return removeRouterBlock(claudeMd) ? `Removed the ospec router from ${claudeMd}.\n` : "";
+    return removeRouterBlock(claudeMd) ? `quitado de ${claudeMd}` : "";
   }
   const source = path.join(pluginDir, "global-instructions", "CLAUDE.md");
   if (!fs.existsSync(source)) return "";
   writeRouterBlock(claudeMd, fs.readFileSync(source, "utf8"));
-  return `ospec router written to ${claudeMd} (between ospec-workflow:router markers).\n`;
+  return `${claudeMd} (entre los marcadores ospec-workflow:router)`;
 }
 
-function main(argv = process.argv.slice(2), deps = {}) {
+function main(rawArgv = process.argv.slice(2), deps = {}) {
+  const { verbose, argv } = splitVerbose(rawArgv);
   const buildOnly = argv.includes("--build-only");
   const cwd = deps.cwd || process.cwd();
-  const stdout = deps.stdout || process.stdout;
-  const stderr = deps.stderr || process.stderr;
   const resolveClaudeBinImpl = deps.resolveClaudeBin || resolveClaudeBin;
   const buildClaudeMarketplaceImpl = deps.buildClaudeMarketplace || buildClaudeMarketplace;
   const copyBinaryToTreeImpl = deps.copyBinaryToTree || copyBinaryToTree;
@@ -111,96 +119,108 @@ function main(argv = process.argv.slice(2), deps = {}) {
   // The real Engram step comes only from the CLI entry or the TUI adapter, so an
   // embedded call never reaches the user home through upstream `engram setup`.
   const engramStepImpl = deps.engramStep || null;
-  const sddArgs = {};
-  for (const arg of argv) parseSddFlag(arg, sddArgs);
-  if (sddArgs.error) {
-    stderr.write(`${sddArgs.error}
-`);
-    return 2;
-  }
-  // The marketplace build is what Claude Code installs from, so the previous
-  // build tells whether the SDD package was installed (E1.6 d2).
-  const marketplaceOut = path.join("dist", "claude-marketplace");
-  const withSdd = resolveWithSdd(sddArgs, () => previousInstallHasSdd({
-    agentDirs: [path.resolve(cwd, marketplaceOut, "plugins", PLUGIN, "agents")],
-  }));
-  stdout.write(sddKeptNote(sddArgs, withSdd));
-  const bin = resolveClaudeBinImpl();
+  const reporter = deps.reporter || createReporter({
+    target: "claude",
+    stdout: deps.stdout || process.stdout,
+    stderr: deps.stderr || process.stderr,
+    verbose,
+    trailing: engramStepImpl && !buildOnly ? [ENGRAM_PHASE] : [],
+  });
+  const stderr = reporter.err;
+  return reporter.finish(install());
 
-  const build = buildClaudeMarketplaceImpl({
-    source: cwd,
-    out: marketplaceOut,
-    validate: bin !== null,
-    marketplaceName: MARKETPLACE,
-    pluginName: PLUGIN,
-    withExtras: argv.includes("--with-extras"),
-    withSdd,
-  }, { runConfigure: deps.runConfigure });
+  function install() {
+    const sddArgs = {};
+    for (const arg of argv) parseSddFlag(arg, sddArgs);
+    if (sddArgs.error) {
+      stderr.write(`${sddArgs.error}\n`);
+      return 2;
+    }
+    const bin = resolveClaudeBinImpl();
+    reporter.plan(buildOnly || !bin ? [PHASE_BUILD] : [PHASE_BUILD, PHASE_PLUGIN, PHASE_ROUTER]);
 
-  stdout.write(`claude marketplace -> ${build.outDir}\n`);
-  if (build.validation?.stdout) stdout.write(build.validation.stdout);
-  if (build.validation?.stderr) stderr.write(build.validation.stderr);
+    // The marketplace build is what Claude Code installs from, so the previous
+    // build tells whether the SDD package was installed (E1.6 d2).
+    reporter.begin(PHASE_BUILD);
+    const marketplaceOut = path.join("dist", "claude-marketplace");
+    const withSdd = resolveWithSdd(sddArgs, () => previousInstallHasSdd({
+      agentDirs: [path.resolve(cwd, marketplaceOut, "plugins", PLUGIN, "agents")],
+    }));
 
-  if (build.exitCode !== 0) {
-    stderr.write("\nbuild/validation failed; not touching marketplace state\n");
-    return build.exitCode || 1;
-  }
+    const build = buildClaudeMarketplaceImpl({
+      source: cwd,
+      out: marketplaceOut,
+      validate: bin !== null,
+      marketplaceName: MARKETPLACE,
+      pluginName: PLUGIN,
+      withExtras: argv.includes("--with-extras"),
+      withSdd,
+    }, { runConfigure: deps.runConfigure });
 
-  // Copy the platform-appropriate ospec-hooks binary into the Claude plugin tree
-  // (scripts/hooks/). Best-effort: warns and skips if the binary is absent.
-  copyBinaryToTreeImpl(build.pluginDir, "claude", cwd);
+    if (reportBuildFailure(reporter, build)) return build.exitCode || 1;
+    reporter.set("Destino", build.outDir);
+    reporter.set("Paquetes", packagesRow({ withSdd: sddArgs.withSdd, withExtras: argv.includes("--with-extras") }, withSdd));
 
-  if (buildOnly) {
-    stdout.write("\nBuilt. Run /reload-plugins in your Claude Code session to apply.\n");
-    return 0;
-  }
+    // Copy the platform-appropriate ospec-hooks binary into the Claude plugin tree
+    // (scripts/hooks/). Best-effort: warns and skips if the binary is absent.
+    copyBinaryToTreeImpl(build.pluginDir, "claude", cwd, { stdout: reporter.detail, stderr });
 
-  // Engram integration is automatic, non-authoritative, and fail-open per REQ-install-028:
-  // it never alters the exit code, and is skipped on build/ospec-install failure and --build-only.
-  const engram = () => {
-    if (!engramStepImpl) return;
+    if (buildOnly) {
+      reporter.set("Modo", "solo generar (--build-only): marketplace y plugin sin registrar");
+      reporter.next("Ejecuta /reload-plugins en tu sesión de Claude Code para aplicarlo.");
+      return 0;
+    }
+
+    // Engram integration is automatic, non-authoritative, and fail-open per REQ-install-028:
+    // it never alters the exit code, and is skipped on build/ospec-install failure and --build-only.
+    const engram = () => {
+      if (!engramStepImpl) return;
+      reporter.begin(ENGRAM_PHASE);
+      try {
+        engramStepImpl({ target: "claude", argv: rawArgv, hostBin: bin, stdout: reporter.out, stderr });
+      } catch (error) {
+        stderr.write(`aviso: paso Engram omitido (${error.message}); se continúa.\n`);
+      }
+    };
+
+    if (!bin) {
+      stderr.write(`aviso: no se encontró la CLI claude en el PATH; no se ha registrado el marketplace. La build está lista en ${build.outDir}.\n`);
+      engram();
+      reporter.next("Instala Claude Code y vuelve a ejecutar npm run setup:claude.");
+      return 0;
+    }
+
     try {
-      engramStepImpl({ target: "claude", argv, hostBin: bin, stdout, stderr });
+      reporter.begin(PHASE_PLUGIN);
+      // Marketplace: add the first time, refresh on every subsequent run.
+      if (listOutputImpl(bin, ["plugin", "marketplace", "list"]).includes(MARKETPLACE)) {
+        runImpl(bin, ["plugin", "marketplace", "update", MARKETPLACE], reporter.detail);
+      } else {
+        runImpl(bin, ["plugin", "marketplace", "add", build.outDir, "--scope", "user"], reporter.detail);
+      }
+
+      // Plugin: install the first time, update on every subsequent run. Both the
+      // detection and the update use the qualified `name@marketplace` id — the bare
+      // name is ambiguous to the CLI and `plugin update <name>` reports "not found".
+      const pluginId = `${PLUGIN}@${MARKETPLACE}`;
+      if (listOutputImpl(bin, ["plugin", "list"]).includes(pluginId)) {
+        runImpl(bin, ["plugin", "update", pluginId], reporter.detail);
+      } else {
+        runImpl(bin, ["plugin", "install", pluginId], reporter.detail);
+      }
+      reporter.set("Plugin", pluginId);
+
+      reporter.begin(PHASE_ROUTER);
+      const router = syncRouter(build.pluginDir, argv, deps.homedir || os.homedir);
+      if (router) reporter.set("Router", router);
+      engram();
+
+      reporter.next("Reinicia Claude Code o ejecuta /reload-plugins para aplicarlo.");
+      return 0;
     } catch (error) {
-      stderr.write(`warning: Engram step skipped (${error.message}); continuing.\n`);
+      stderr.write(`error: falló la instalación del marketplace de Claude: ${error.message}\n`);
+      return 1;
     }
-  };
-
-  if (!bin) {
-    stdout.write(
-      "\n'claude' CLI not found on PATH; marketplace not (re)registered.\n" +
-        `Built artifact is ready at ${build.outDir}.\n`,
-    );
-    engram();
-    return 0;
-  }
-
-  try {
-    // Marketplace: add the first time, refresh on every subsequent run.
-    if (listOutputImpl(bin, ["plugin", "marketplace", "list"]).includes(MARKETPLACE)) {
-      runImpl(bin, ["plugin", "marketplace", "update", MARKETPLACE]);
-    } else {
-      runImpl(bin, ["plugin", "marketplace", "add", build.outDir, "--scope", "user"]);
-    }
-
-    // Plugin: install the first time, update on every subsequent run. Both the
-    // detection and the update use the qualified `name@marketplace` id — the bare
-    // name is ambiguous to the CLI and `plugin update <name>` reports "not found".
-    const pluginId = `${PLUGIN}@${MARKETPLACE}`;
-    if (listOutputImpl(bin, ["plugin", "list"]).includes(pluginId)) {
-      runImpl(bin, ["plugin", "update", pluginId]);
-    } else {
-      runImpl(bin, ["plugin", "install", pluginId]);
-    }
-
-    stdout.write(syncRouter(build.pluginDir, argv, deps.homedir || os.homedir));
-    engram();
-
-    stdout.write("\nDone. Restart Claude Code or run /reload-plugins to apply.\n");
-    return 0;
-  } catch (error) {
-    stderr.write(`\nClaude marketplace installation failed: ${error.message}\n`);
-    return 1;
   }
 }
 

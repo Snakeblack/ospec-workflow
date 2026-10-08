@@ -856,7 +856,7 @@ test("ensureCodexMcps skips equivalent pre-existing servers and adds only missin
     ["codex", "mcp", "list", "--json"],
     ["codex", "mcp", "add", "context7", "--", "npx", "@upstash/context7-mcp@1.0.31"],
   ]);
-  assert.match(stdout.join(""), /reusing existing MCP.*my-existing-doc-converter/i);
+  assert.match(stdout.join(""), /se reutiliza el MCP existente 'my-existing-doc-converter'/);
 });
 
 test("readCodexMcpDefinitions normalizes legacy slash-qualified names for Codex", (t) => {
@@ -1114,7 +1114,7 @@ test("main installs repo-local agents without changing an existing config or cop
   assert.equal(fs.readFileSync(path.join(destRepo, ".codex", "config.toml"), "utf8"), "model = \"user-choice\"\n");
   assert.ok(!fs.existsSync(path.join(destRepo, ".codex-plugin", "plugin.json")));
   assert.equal(fs.readFileSync(path.join(destRepo, "README.md"), "utf8"), "keep\n");
-  assert.match(stdout.join(""), /Done\./);
+  assert.match(stdout.join(""), /Listo · Codex/);
 });
 
 test("main dry-run previews actions without writing files or invoking codex", (t) => {
@@ -1169,7 +1169,7 @@ test("main dry-run with --repair-config previews the global repair without writi
   assert.equal(codexInvocations, 0);
   assert.deepEqual(snapshotTree(homeDir), before);
   assert.equal(fs.readFileSync(configPath, "utf8"), 'service_tier = "default"\n');
-  assert.match(stdout.join(""), /would remove.*service_tier/i);
+  assert.match(stdout.join(""), /se quitaría la asignación exacta service_tier/);
 });
 
 test("main global --repair-config repairs before installation and retains user-owned auth", (t) => {
@@ -1205,7 +1205,7 @@ test("main global --repair-config repairs before installation and retains user-o
   assert.equal(fs.readFileSync(authPath, "utf8"), '{"token":"user-owned"}\n');
   assert.ok(fs.readdirSync(codexRoot).some(name => name.startsWith("config.toml.ospec-backup")));
   assert.deepEqual(calls, [["codex", "mcp", "list", "--json"]]);
-  assert.match(stdout.join(""), /backup retained/i);
+  assert.match(stdout.join(""), /copia de seguridad conservada/);
 });
 
 test("main rejects --repair-config for repo-local installation before any global or repo mutation", (t) => {
@@ -1230,7 +1230,7 @@ test("main rejects --repair-config for repo-local installation before any global
   assert.equal(builds, 0);
   assert.equal(fs.readFileSync(globalConfig, "utf8"), 'service_tier = "default"\n');
   assert.ok(!fs.existsSync(path.join(destRepo, ".codex")));
-  assert.match(stderr.join(""), /only.*global/i);
+  assert.match(stderr.join(""), /solo vale para la instalación global/);
 });
 
 test("main advises explicit --repair-config when Codex rejects legacy service_tier without mutating config, auth, or MCPs", (t) => {
@@ -1291,7 +1291,7 @@ test("main rejects incomplete --source usage before build side effects", () => {
 
   assert.equal(exitCode, 2);
   assert.equal(runConfigureCalls, 0);
-  assert.match(stderr.join(""), /usage: install-codex/i);
+  assert.match(stderr.join(""), /uso: install-codex/);
 });
 
 test("main rejects invalid repo destinations before build side effects", (t) => {
@@ -1312,7 +1312,7 @@ test("main rejects invalid repo destinations before build side effects", (t) => 
 
   assert.equal(exitCode, 2);
   assert.equal(runConfigureCalls, 0);
-  assert.match(stderr.join(""), /destination is not an existing directory/i);
+  assert.match(stderr.join(""), /el destino no es un directorio existente/);
 });
 
 

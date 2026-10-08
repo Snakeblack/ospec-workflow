@@ -6,6 +6,42 @@ const path = require("node:path");
 const MANIFEST_FILENAME = ".ospec-workflow-install.json";
 const TRANSIENT_FS_CODES = new Set(["EPERM", "EACCES", "EBUSY"]);
 
+// E1.9: a failed mutation names the host to close, not just "the application".
+const TARGET_APPS = {
+  claude: "Claude Code",
+  vscode: "VS Code",
+  "github-copilot": "GitHub Copilot CLI",
+  opencode: "OpenCode",
+  codex: "Codex",
+  cursor: "Cursor",
+  antigravity: "Antigravity",
+};
+
+// Operation ids stay in English for observers and tests; the message reads them
+// in Spanish by their first matching keyword.
+const OPERATION_LABELS = [
+  [/^rollback/, "restaurar"],
+  [/^(mkdir|create)/, "crear el directorio"],
+  [/^rename/, "renombrar"],
+  [/^(copy|snapshot)/, "copiar"],
+  [/^write/, "escribir"],
+  [/^(remove|rm|prune|cleanup)/, "borrar"],
+  [/^chmod/, "cambiar los permisos de"],
+  [/^symlink/, "crear el enlace"],
+];
+
+function describeOperation(operation) {
+  const found = OPERATION_LABELS.find(([pattern]) => pattern.test(String(operation)));
+  return found ? found[1] : "modificar";
+}
+
+function closeAction(target) {
+  const app = TARGET_APPS[target];
+  return app
+    ? `Cierra ${app} (o el proceso que use esa ruta) y reintenta la instalación.`
+    : "Cierra la aplicación o el proceso que use esa ruta y reintenta la instalación.";
+}
+
 function sleepSync(milliseconds) {
   if (milliseconds > 0) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
 }
@@ -25,10 +61,11 @@ function withTransientFsRetries(operation, options = {}) {
       }
       const target = options.target || "installer";
       const operationName = options.operation || "filesystem mutation";
-      const targetPath = options.path || "unknown path";
+      const targetPath = options.path || error.path || "ruta desconocida";
+      const attempts = attempt + 1;
       const enriched = new Error(
-        `${target}: ${operationName} failed for ${targetPath} after ${attempt + 1} attempts (${error.code}). ` +
-        "Close the application or process using this path, then retry the installation.",
+        `${target}: no se pudo ${describeOperation(operationName)} ${targetPath} tras ${attempts} ${attempts === 1 ? "intento" : "intentos"} ` +
+        `(${error.code}): la ruta está en uso o bloqueada. ${closeAction(target)}`,
         { cause: error },
       );
       enriched.code = error.code;
@@ -498,4 +535,7 @@ module.exports = {
   syncTargetTree,
   withTransientFsRetries,
   mutateFs,
+  closeAction,
+  TARGET_APPS,
+  TRANSIENT_FS_CODES,
 };

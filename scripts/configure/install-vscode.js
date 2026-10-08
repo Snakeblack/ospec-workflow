@@ -5,7 +5,7 @@
 // cleanly using fail-closed JSONC merger.
 //
 // Usage:
-//   node scripts/configure/install-vscode.js [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>]
+//   node scripts/configure/install-vscode.js [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>] [--verbose]
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -16,7 +16,10 @@ const { runEngramStep, withEngramStep } = require("./engram-setup.js");
 const { copyBinaryToTree } = require("./install-target.js");
 const { renderRuntimeDir, renderSharedDir, runtimeDirValue, sharedDirValue } = require("./shared-dir.js");
 const { safeParseJsonc, mutateFs } = require("./install-engine.js");
-const { parseSddFlag, previousInstallHasSdd, resolveWithSdd, sddKeptNote } = require("./sdd-package.js");
+const { parseSddFlag, previousInstallHasSdd, resolveWithSdd } = require("./sdd-package.js");
+const { packagesRow, reportBuildFailure, reporterFor } = require("./install-output.js");
+
+const PHASES = { build: "Generar y validar", prepare: "Preparar el plugin", register: "Registrar en VS Code" };
 
 function getSettingsPaths(deps = {}) {
   const home = deps.homedir ? deps.homedir() : os.homedir();
@@ -147,51 +150,53 @@ function install(argv = process.argv.slice(2), deps = {}) {
   const args = parseArgs(argv);
   const cwd = deps.cwd || process.cwd();
   const fsImpl = deps.fs || fs;
-  const stdout = deps.stdout || process.stdout;
-  const stderr = deps.stderr || process.stderr;
+  const reporter = reporterFor("vscode", deps);
+  const stdout = reporter.out;
+  const stderr = reporter.err;
   const runConfigureImpl = deps.runConfigure || runConfigure;
   const copyBinary = deps.copyBinaryToTree || copyBinaryToTree;
 
   if (args.error) {
-    stderr.write(`usage: install-vscode [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>]\n${args.error}\n`);
+    stderr.write(`uso: install-vscode [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>] [--verbose]\n${args.error}\n`);
     return 2;
   }
 
   const sourceDir = path.resolve(args.source || cwd);
   const outDir = path.join(sourceDir, "dist", "vscode");
+  const absPluginPath = path.resolve(outDir);
+  reporter.plan(args.dryRun ? [PHASES.build] : [PHASES.build, PHASES.prepare, PHASES.register]);
 
   // 1. Build the target vscode to dist/vscode. VS Code loads that tree, so the
   //    previous build tells whether the SDD package was installed (E1.6 d2).
+  reporter.begin(PHASES.build);
   const withSdd = resolveWithSdd(args, () => previousInstallHasSdd({ agentDirs: [path.join(outDir, "agents")], fs: fsImpl }));
-  stdout.write(sddKeptNote(args, withSdd));
   const result = runConfigureImpl({ sourceDir, target: "vscode", outDir, validate: args.validate, withExtras: Boolean(args.withExtras), withSdd });
-  if (result.validation?.stdout) stdout.write(result.validation.stdout);
-  if (result.exitCode !== 0) {
-    stderr.write(`\nVS Code configuration build failed with exit code ${result.exitCode}\n`);
-    return result.exitCode;
+  if (reportBuildFailure(reporter, result)) return result.exitCode;
+  reporter.set("Destino", absPluginPath);
+  reporter.set("Paquetes", packagesRow(args, withSdd));
+  // E1.9: VS Code holds dist/vscode open, so the build may have been written in place.
+  if (result.publication === "in-place") reporter.set("Publicación", "en su sitio (VS Code tenía dist/vscode abierto)");
+
+  if (args.dryRun) {
+    reporter.set("Modo", "simulación (--dry-run): no se ha tocado ningún settings.json");
+    return 0;
   }
 
+  reporter.begin(PHASES.prepare);
   // Copy compiler hooks binary if present in release/dist/
   copyBinary(outDir, "vscode", sourceDir, {
     fs: fsImpl,
-    stdout,
+    stdout: reporter.detail,
     stderr,
     required: false,
   });
-
-  const absPluginPath = path.resolve(outDir);
-  stdout.write(`\nConfiguring VS Code to load plugin from: ${absPluginPath}${args.dryRun ? " (dry-run)" : ""}\n`);
-
-  if (args.dryRun) {
-    stdout.write("dry-run: no files modified\n");
-    return 0;
-  }
 
   // E0.4 (b): VS Code loads the dist tree itself, so the orchestrator's
   // _shared marker is rendered there and stays rendered.
   renderSharedDir(outDir, sharedDirValue(path.join(absPluginPath, "skills")), fsImpl);
   renderRuntimeDir(outDir, runtimeDirValue(absPluginPath), fsImpl);
 
+  reporter.begin(PHASES.register);
   const settingsFiles = getSettingsPaths(deps);
   const preparedWrites = [];
   let hasErrors = false;
@@ -205,7 +210,7 @@ function install(argv = process.argv.slice(2), deps = {}) {
         const { content: updatedContent, updated } = updateSettingsJsoncPreservingComments(raw, absPluginPath);
         preparedWrites.push({ file, content: updatedContent, updated, exists: true });
       } catch (err) {
-        stderr.write(`  [error] Preflight check failed for ${file.name} settings.json: ${err.message}\n`);
+        stderr.write(`error: el settings.json de ${file.name} no es válido: ${err.message}\n`);
         hasErrors = true;
       }
     } else if (fsImpl.existsSync(parentDir)) {
@@ -215,19 +220,19 @@ function install(argv = process.argv.slice(2), deps = {}) {
   }
 
   if (hasErrors) {
-    stderr.write("\nVS Code installation failed due to invalid configuration file(s).\n");
+    stderr.write("No se ha modificado ningún settings.json: corrige el fichero inválido y reintenta.\n");
     return 1;
   }
 
   if (preparedWrites.length === 0) {
     stderr.write(
-      `\nVS Code settings directory not found on host. Please ensure VS Code is installed or configure settings.json manually:\n` +
-        `Add the following path to "chat.pluginLocations":\n` +
+      "No se encontró el directorio de ajustes de VS Code. Instala VS Code o añade a mano esta ruta a \"chat.pluginLocations\" en settings.json:\n" +
         `  "${absPluginPath}"\n`,
     );
     return 1;
   }
 
+  const states = [];
   for (const writeItem of preparedWrites) {
     if (writeItem.updated) {
       mutateFs(
@@ -236,13 +241,13 @@ function install(argv = process.argv.slice(2), deps = {}) {
         () => fsImpl.writeFileSync(writeItem.file.path, writeItem.content, "utf8"),
         { target: "vscode", ...(deps.retryOptions || {}) },
       );
-      stdout.write(`  + ${writeItem.exists ? "Updated" : "Created"} ${writeItem.file.name} settings.json\n`);
+      states.push(`${writeItem.file.name}: ${writeItem.exists ? "actualizado" : "creado"}`);
     } else {
-      stdout.write(`  · ${writeItem.file.name} settings.json already configured\n`);
+      states.push(`${writeItem.file.name}: ya configurado`);
     }
   }
-
-  stdout.write("\nDone. VS Code setup completed successfully. Restart VS Code to apply.\n");
+  reporter.set("settings.json", states.join(" · "));
+  reporter.next("Reinicia VS Code para cargar los cambios.");
   return 0;
 }
 

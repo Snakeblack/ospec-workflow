@@ -37,7 +37,8 @@ test("Claude installer forwards an injected generator to the marketplace build",
   assert.equal(exitCode, 0);
   assert.equal(marketplaceDeps.runConfigure, runConfigure);
   assert.equal(copied, true);
-  assert.match(stdout.value, /Built\. Run \/reload-plugins/);
+  assert.match(stdout.value, /solo generar \(--build-only\)/);
+  assert.match(stdout.value, /Ejecuta \/reload-plugins/);
   assert.equal(stderr.value, "");
 });
 
@@ -92,7 +93,7 @@ test("a throwing Engram step never alters the exit code", () => {
   const stderr = writer();
   const exitCode = main(["--with-engram"], baseDeps({ stderr, engramStep() { throw new Error("kaboom"); } }));
   assert.equal(exitCode, 0);
-  assert.match(stderr.value, /warning/i);
+  assert.match(stderr.value, /aviso: paso Engram omitido/);
 });
 
 test("an ospec install failure still exits 1 and skips the Engram step", () => {

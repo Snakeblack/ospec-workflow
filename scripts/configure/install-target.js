@@ -95,13 +95,12 @@ function copyBinaryToTree(outDir, target, sourceDir, deps = {}) {
   }
 
   if (!fsImpl.existsSync(srcBin)) {
-    const message = `ospec-hooks binary not found at ${srcBin}`;
     if (required) {
-      throw new Error(`required ${message}`);
+      throw new Error(`no se encontró el binario ospec-hooks, obligatorio para este target, en ${srcBin}. Ejecuta 'npm run build:hooks' (o el build de CI build-hooks.yml) y reintenta.`);
     }
     stderr.write(
-      `[warn] ${message}; skipping copy.\n` +
-        `       Run the CI build (build-hooks.yml) or 'npm run build:hooks' first.\n`,
+      `aviso: no se encontró el binario ospec-hooks en ${srcBin}; se omite la copia.\n` +
+        "  Ejecuta 'npm run build:hooks' (o el build de CI build-hooks.yml) y reintenta.\n",
     );
     return;
   }
@@ -130,7 +129,7 @@ function copyBinaryToTree(outDir, target, sourceDir, deps = {}) {
       if (required) {
         throw err;
       }
-      stderr.write(`[warn] failed to copy binary to ${dest}: ${err.message}. Continuing sync.\n`);
+      stderr.write(`aviso: no se pudo copiar ospec-hooks a ${dest}: ${err.message}. Se continúa.\n`);
     }
   }
 }
