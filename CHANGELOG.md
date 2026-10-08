@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.117.0] - 2026-10-08
+
+### Added
+- **Salida común de los instaladores (E1.9, REQ-install-038)**: los 7 `setup:*` y el paso Engram escriben por `scripts/configure/install-output.js`, en español: cabecera con el host, una línea por fase `✓ [n/N] fase (s)` (en terminal interactiva la fase en curso se ve como `… [n/N] fase` y se reescribe en su sitio al terminar) y un resumen final con destino, ficheros, paquetes, siguiente paso y tiempo total, o `✗ Instalación fallida · <host> (código N)`. Nuevo `--verbose`: muestra la salida de los validadores, la copia del binario de hooks y la salida de la CLI `claude`, que por defecto se ocultan. Los avisos y errores salen siempre, y una build fallida muestra siempre la salida del validador.
+
+### Fixed
+- **`setup:vscode` con VS Code abierto**: en Windows, renombrar `dist/vscode` mientras VS Code (o una terminal dentro) lo tiene abierto fallaba con `filesystem mutation failed for unknown path after 4 attempts (EPERM)`. La publicación sigue siendo un renombrado atómico, pero para `dist/vscode`, si choca con `EPERM`, `EACCES` o `EBUSY`, escribe en su sitio el árbol ya validado (sobrescribe y poda dentro de las raíces gestionadas) y lo vuelve a validar; el resumen lo indica. Verificado con un proceso real bloqueando el directorio.
+- **Errores accionables del sistema de ficheros**: un bloqueo que persiste tras los reintentos nombra la operación, la ruta y el host que hay que cerrar («Cierra VS Code (o el proceso que use esa ruta) y reintenta la instalación.»); antes la publicación no pasaba operación ni ruta. Si la publicación en sitio también falla, el error dice que el destino ha quedado a medio actualizar.
+- **Excepciones de un instalador**: el envoltorio común las convierte en `error: …` con código 1 y resumen de fallo, en lugar de terminar con `fatal:` y la pila (que sigue saliendo con `--verbose`).
+
+### Changed
+- **Roadmap**: E1.9 `install-cli-ux` pasa a hecho; lo siguiente es el checkpoint de cierre de la Etapa 1, en una sesión aparte. Hecho con IDD (`idd/archive/2026-10-08-install-cli-ux/`).
+
+**Verificación directa**: `node scripts/check.js` (3364 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.116.0] - 2026-10-08
 
 ### Added

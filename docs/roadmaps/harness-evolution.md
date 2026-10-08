@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.116.0, 2026-10-08.
+> **Versión de referencia:** v2.117.0, 2026-10-08.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -124,7 +124,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.6** | `idd-default-entry` (IDD por defecto en v2.112.0, SDD con `--with-sdd` en v2.113.0, README y documentación en v2.114.0) | feature |
 | `done` | **E1.7** | `ospec-doctor` ((a) núcleo, proyecto y Claude Code en v2.115.0; (b) los otros seis targets en v2.116.0) | feature |
 | `done` | **E1.8** | `sdd-new-intent-argument` (v2.114.2) | bugfix |
-| `next-eligible` | **E1.9** | `install-cli-ux` (instalación por CLI coherente y con progreso en los 7 targets; arregla el EPERM de `setup:vscode`) | bugfix |
+| `done` | **E1.9** | `install-cli-ux` (salida común con fases y resumen en los 7 instaladores y publicación de `dist/vscode` con VS Code abierto, en v2.117.0) | bugfix |
 | `next-eligible` | **E2.1** | `knowledge-map-contract` | contrato |
 | `pending` | **E2.2** | `decision-gap-engine` | feature |
 | `pending` | **E2.3** | `foundation-discovery-rounds` | feature |
@@ -141,7 +141,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E1.9 `install-cli-ux`, por decisión del usuario, y después el checkpoint de cierre de la Etapa 1 contra la tabla de objetivos; E2.1 `knowledge-map-contract` sigue elegible en paralelo. E1.7 está hecho desde v2.116.0: `ospec doctor` diagnostica los 7 targets. Follow-ups: el plugin SDD del marketplace queda como E5.8, por demanda; el protocolo IDD debe editar ficheros de texto respetando su codificación; y `ospec next` no recuerda declarar el plan (`ospec signals`) antes de editar.
+**▶ SIGUIENTE:** el checkpoint de cierre de la Etapa 1 contra la tabla de objetivos, en una sesión aparte por decisión del usuario; E2.1 `knowledge-map-contract` sigue elegible en paralelo. E1.9 está hecho desde v2.117.0: los 7 instaladores comparten salida y `setup:vscode` publica con VS Code abierto. Follow-ups: el plugin SDD del marketplace queda como E5.8, por demanda; el protocolo IDD debe editar ficheros de texto respetando su codificación; y `ospec next` no recuerda declarar el plan (`ospec signals`) antes de editar.
 
 **Dependencias:**
 
@@ -332,6 +332,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Alcance:** publicar en su sitio el árbol que un host carga en vivo (`dist/vscode`), en vez de renombrarlo; errores con operación, ruta y acción («cierra VS Code y reintenta»); y una salida común en los 7 instaladores, con fases, indicador de progreso en terminal interactiva y resumen final, sin cambiar lo que se instala.
 - **Cuándo:** después de E1.7, por decisión del usuario (2026-10-08).
 - **Hecho cuando:** `setup:vscode` con VS Code abierto termina o falla con un mensaje accionable, y los 7 instaladores muestran el mismo formato de progreso y resumen.
+- **Entregado en v2.117.0, E1.9 hecho:** REQ-install-038. `scripts/configure/install-output.js` da a los 7 instaladores y al paso Engram una salida común en español: cabecera, una línea por fase `✓ [n/N] fase (s)` que en terminal interactiva se reescribe en su sitio, y resumen final (destino, ficheros, paquetes, siguiente paso y tiempo) o `✗ Instalación fallida`. El detalle (validadores, binario de hooks, CLI `claude`) sale solo con `--verbose`. La publicación de `scripts/configure/cli.js` sigue siendo un renombrado atómico; solo para `dist/vscode`, si el renombrado choca con un bloqueo (`EPERM`, `EACCES`, `EBUSY`), escribe en su sitio el árbol ya validado y lo vuelve a validar. Los errores de sistema de ficheros nombran operación, ruta y el host que hay que cerrar. Decisiones del usuario: renombrado atómico con fallback en sitio, fase con ✓ y duración sin spinner (los instaladores son síncronos), salida en español, y recuentos por defecto con `--verbose`; `configure --target` e `install-target` conservan su salida. Verificado en real con un proceso bloqueando `dist/vscode`. Hecho con IDD (`idd/archive/2026-10-08-install-cli-ux/`).
 
 ## Etapa 2 — Foundation de verdad: descubrimiento de arquitectura
 
