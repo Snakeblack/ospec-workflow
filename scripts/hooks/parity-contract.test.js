@@ -82,6 +82,10 @@ const FIXTURE_FAMILY = [
     // Identifies the fail-open fixture by its expectedStdout content, then
     // compares only the stable fields exactly and the reason by prefix.
     isFailOpen(expected) {
+      // A neutral call writes nothing (OSP-017): compared byte-for-byte.
+      if (expected === "") {
+        return false;
+      }
       const parsed = JSON.parse(expected);
       return parsed.hookSpecificOutput.permissionDecisionReason.startsWith(PARSE_ERROR_PREFIX);
     },

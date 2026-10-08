@@ -119,6 +119,11 @@ func extractCommands(input *preToolUseInput) []string {
 	return cmds
 }
 
+// noDecision is the output of a call without objection: empty stdout, so the
+// host applies its own permission prompt and rules. An affirmative allow would
+// skip them (OSP-017).
+var noDecision []byte
+
 // makeDecision builds the hookSpecificOutput JSON blob.
 func makeDecision(decision, reason string) []byte {
 	type hookOutput struct {
@@ -470,11 +475,11 @@ func (h *preToolUseHandler) run(input *preToolUseInput, stdin []byte) ([]byte, i
 		}
 	}
 
-	// No commands present — allow without reaching the ASK/ALLOW pass.
+	// No commands present — no objection, so no decision (OSP-017).
 	// Step 5b only ever fires for commands matching `git commit`, so tools with
 	// no command payload (Edit, Write, etc.) always fall through to here.
 	if len(cmds) == 0 {
-		return makeDecision("allow", "Tool did not include a command payload."), 0
+		return noDecision, 0
 	}
 
 	// Step 6 — ASK rules (only if no deny or guard match).
@@ -485,5 +490,5 @@ func (h *preToolUseHandler) run(input *preToolUseInput, stdin []byte) ([]byte, i
 		}
 	}
 
-	return makeDecision("allow", "Command payload passed the safety policy."), 0
+	return noDecision, 0
 }

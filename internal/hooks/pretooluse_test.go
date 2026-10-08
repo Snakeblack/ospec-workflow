@@ -25,8 +25,15 @@ type preToolUseStdout struct {
 	HookSpecificOutput hookOutput `json:"hookSpecificOutput"`
 }
 
+// noDecision is the decoded decision of a call without objection: the hook
+// writes nothing (OSP-017).
+const noDecision = ""
+
 func decodePreToolUse(t *testing.T, out []byte) hookOutput {
 	t.Helper()
+	if len(out) == 0 {
+		return hookOutput{}
+	}
 	var result preToolUseStdout
 	if err := json.Unmarshal(out, &result); err != nil {
 		t.Fatalf("parse pretooluse stdout: %v; raw=%q", err, out)
@@ -121,7 +128,7 @@ func TestPreToolUse_AskCorpus(t *testing.T) {
 	}
 }
 
-// ── allow corpus ──────────────────────────────────────────────────────────────
+// ── no-decision corpus ───────────────────────────────────────────────────
 
 func TestPreToolUse_AllowCorpus(t *testing.T) {
 	commands := []string{
@@ -134,8 +141,8 @@ func TestPreToolUse_AllowCorpus(t *testing.T) {
 	for _, cmd := range commands {
 		t.Run(cmd, func(t *testing.T) {
 			got, code := runPreToolUse(t, preToolUseInput("runTerminalCommand", cmd))
-			if got.PermissionDecision != "allow" {
-				t.Errorf("expected allow, got %q for cmd %q", got.PermissionDecision, cmd)
+			if got.PermissionDecision != noDecision {
+				t.Errorf("expected no decision, got %q for cmd %q", got.PermissionDecision, cmd)
 			}
 			if code != 0 {
 				t.Errorf("exitCode: got %d, want 0", code)
@@ -189,19 +196,19 @@ func TestPreToolUse_CommandsArray(t *testing.T) {
 		}
 	})
 
-	t.Run("no-command non-shell tool is allow", func(t *testing.T) {
+	t.Run("no-command non-shell tool makes no decision", func(t *testing.T) {
 		stdin := []byte(`{"tool_name": "readFile", "tool_input": {}}`)
 		got, _ := runPreToolUse(t, stdin)
-		if got.PermissionDecision != "allow" {
-			t.Errorf("expected allow, got %q", got.PermissionDecision)
+		if got.PermissionDecision != noDecision {
+			t.Errorf("expected no decision, got %q", got.PermissionDecision)
 		}
 	})
 
-	t.Run("no-command shell tool is allow", func(t *testing.T) {
+	t.Run("no-command shell tool makes no decision", func(t *testing.T) {
 		stdin := []byte(`{"tool_name": "runTerminalCommand", "tool_input": {}}`)
 		got, _ := runPreToolUse(t, stdin)
-		if got.PermissionDecision != "allow" {
-			t.Errorf("expected allow, got %q", got.PermissionDecision)
+		if got.PermissionDecision != noDecision {
+			t.Errorf("expected no decision, got %q", got.PermissionDecision)
 		}
 	})
 
@@ -258,17 +265,17 @@ func TestPreToolUse_ParityFixtures(t *testing.T) {
 // ── triangulation ─────────────────────────────────────────────────────────────
 
 func TestPreToolUse_Triangulate(t *testing.T) {
-	t.Run("empty stdin treated as no-command allow", func(t *testing.T) {
+	t.Run("empty stdin treated as no-command, no decision", func(t *testing.T) {
 		got, _ := runPreToolUse(t, []byte("{}"))
-		if got.PermissionDecision != "allow" {
-			t.Errorf("expected allow, got %q", got.PermissionDecision)
+		if got.PermissionDecision != noDecision {
+			t.Errorf("expected no decision, got %q", got.PermissionDecision)
 		}
 	})
 
-	t.Run("unicode command that is safe is allow", func(t *testing.T) {
+	t.Run("unicode command that is safe makes no decision", func(t *testing.T) {
 		got, _ := runPreToolUse(t, preToolUseInput("runTerminalCommand", "echo '日本語テスト'"))
-		if got.PermissionDecision != "allow" {
-			t.Errorf("expected allow for unicode cmd, got %q", got.PermissionDecision)
+		if got.PermissionDecision != noDecision {
+			t.Errorf("expected no decision for unicode cmd, got %q", got.PermissionDecision)
 		}
 	})
 
@@ -307,8 +314,8 @@ func TestPreToolUse_TokenBudgetAdvisor(t *testing.T) {
 			}
 		}`)
 		got, _ := runPreToolUse(t, stdin)
-		if got.PermissionDecision != "allow" {
-			t.Errorf("expected allow, got %q", got.PermissionDecision)
+		if got.PermissionDecision != noDecision {
+			t.Errorf("expected no decision, got %q", got.PermissionDecision)
 		}
 	})
 
@@ -398,8 +405,8 @@ func TestPreToolUse_TokenBudgetAdvisor(t *testing.T) {
 			}
 		}`)
 		got, _ := runPreToolUse(t, stdin)
-		if got.PermissionDecision != "allow" {
-			t.Errorf("expected allow, got %q", got.PermissionDecision)
+		if got.PermissionDecision != noDecision {
+			t.Errorf("expected no decision, got %q", got.PermissionDecision)
 		}
 	})
 
@@ -570,8 +577,8 @@ func TestPreToolUse_GitGuard_WriteToolAloneOnDefaultBranch(t *testing.T) {
 	defer restore()
 
 	got, _ := runPreToolUse(t, preToolUseInputWithTool("edit", ""))
-	if got.PermissionDecision != "allow" {
-		t.Errorf("expected allow (write tools alone must not trigger the guard), got %q", got.PermissionDecision)
+	if got.PermissionDecision != noDecision {
+		t.Errorf("expected no decision (write tools alone must not trigger the guard), got %q", got.PermissionDecision)
 	}
 }
 
@@ -585,8 +592,8 @@ func TestPreToolUse_GitGuard_WriteToolAloneOnDirtyFeatureBranch(t *testing.T) {
 	defer restore()
 
 	got, _ := runPreToolUse(t, preToolUseInputWithTool("write", ""))
-	if got.PermissionDecision != "allow" {
-		t.Errorf("expected allow (write tools alone must not trigger the guard), got %q", got.PermissionDecision)
+	if got.PermissionDecision != noDecision {
+		t.Errorf("expected no decision (write tools alone must not trigger the guard), got %q", got.PermissionDecision)
 	}
 }
 
@@ -663,8 +670,8 @@ func TestPreToolUse_GitGuard_CleanFeatureBranch(t *testing.T) {
 	defer restore()
 
 	got, _ := runPreToolUse(t, preToolUseInput("runTerminalCommand", "git commit -m 'fix: x'"))
-	if got.PermissionDecision != "allow" {
-		t.Errorf("expected allow for clean feature branch, got %q", got.PermissionDecision)
+	if got.PermissionDecision != noDecision {
+		t.Errorf("expected no decision for clean feature branch, got %q", got.PermissionDecision)
 	}
 }
 
@@ -681,8 +688,8 @@ func TestPreToolUse_GitGuard_EnvBypass(t *testing.T) {
 	defer restore()
 
 	got, _ := runPreToolUse(t, preToolUseInput("runTerminalCommand", "git commit -m 'fix: x'"))
-	if got.PermissionDecision != "allow" {
-		t.Errorf("expected allow when guard disabled, got %q", got.PermissionDecision)
+	if got.PermissionDecision != noDecision {
+		t.Errorf("expected no decision when guard disabled, got %q", got.PermissionDecision)
 	}
 	if invoked {
 		t.Error("git runner must NOT be invoked when DISABLE_GIT_COLLABORATION_GUARD=true")
@@ -714,8 +721,8 @@ func TestPreToolUse_GitGuard_ReadOnlyTool(t *testing.T) {
 	defer restore()
 
 	got, _ := runPreToolUse(t, preToolUseInputWithTool("Grep", ""))
-	if got.PermissionDecision != "allow" {
-		t.Errorf("expected allow for read-only tool, got %q", got.PermissionDecision)
+	if got.PermissionDecision != noDecision {
+		t.Errorf("expected no decision for read-only tool, got %q", got.PermissionDecision)
 	}
 }
 
@@ -963,5 +970,49 @@ func TestPreToolUse_CommitAttribution_NonCommitCommandsPass(t *testing.T) {
 				t.Errorf("non-commit command %q must not be denied by the attribution guard", cmd)
 			}
 		})
+	}
+}
+
+// ── OSP-017 (E1.16): no objection → no decision ─────────────────────────────
+// An affirmative allow would skip the host's own permission prompt, so neutral
+// calls must exit 0 with empty stdout. Explicit decisions keep their JSON.
+
+func TestPreToolUse_OSP017_NeutralEmitsNothing(t *testing.T) {
+	for _, key := range []string{"DISABLE_AGENT_SHIELD", "DISABLE_GIT_COLLABORATION_GUARD", "DISABLE_TOKEN_ADVISOR", "DISABLE_SPEC_DRIFT_GUARD"} {
+		t.Setenv(key, "")
+	}
+	probe := filepath.Join(t.TempDir(), "probe.txt")
+	inputs := []map[string]interface{}{
+		{"tool_name": "Write", "tool_input": map[string]interface{}{"file_path": probe, "content": "OSP-017\n"}, "permission_mode": "default"},
+		{"tool_name": "Bash", "tool_input": map[string]interface{}{"command": "git status --short"}, "permission_mode": "default"},
+		{"tool_name": "Bash", "tool_input": map[string]interface{}{}, "permission_mode": "default"},
+		{"tool_name": "Write", "tool_input": map[string]interface{}{"file_path": probe, "content": "x"}, "permission_mode": "bypassPermissions"},
+	}
+	for _, in := range inputs {
+		stdin, _ := json.Marshal(in)
+		out, code := hooks.Dispatch([]string{"pre-tool-use"}, stdin)
+		if code != 0 || len(out) != 0 {
+			t.Errorf("expected exit 0 and empty stdout for %s, got code %d stdout %q", stdin, code, out)
+		}
+	}
+}
+
+func TestPreToolUse_OSP017_ExplicitDecisionsKeepOutput(t *testing.T) {
+	for _, key := range []string{"DISABLE_AGENT_SHIELD", "DISABLE_GIT_COLLABORATION_GUARD", "DISABLE_TOKEN_ADVISOR", "DISABLE_SPEC_DRIFT_GUARD"} {
+		t.Setenv(key, "")
+	}
+	cases := []struct {
+		stdin string
+		want  string
+	}{
+		{`{"tool_name":"Bash","tool_input":{"command":"rm -rf /"}}`, "deny"},
+		{`{"tool_name":"Bash","tool_input":{"command":"npm install left-pad"}}`, "ask"},
+		{`{"tool_name":"Bash","tool_input":{"command":"npm install left-pad"},"permission_mode":"bypassPermissions"}`, "allow"},
+	}
+	for _, c := range cases {
+		got, code := runPreToolUse(t, []byte(c.stdin))
+		if code != 0 || got.PermissionDecision != c.want {
+			t.Errorf("%s: expected %s (exit 0), got %q (exit %d)", c.stdin, c.want, got.PermissionDecision, code)
+		}
 	}
 }

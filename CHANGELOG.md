@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.117.5] - 2026-10-08
+
+### Fixed
+- **El hook PreToolUse concedía permisos que el host habría pedido (E1.16, OSP-017)**: sin ninguna objeción, los hooks JS y Go devolvían `permissionDecision: "allow"`, y Claude Code y VS Code lo tratan como aprobación que se salta su propio aviso de permisos. Con el plugin instalado, un Write que el host deniega sin plugin se ejecutaba. Ahora, sin objeción, el hook no escribe nada y sale con 0, así que el host aplica su modo, avisos y reglas. Las decisiones explícitas no cambian: `deny`, `ask`, el `ask` del error de parseo y la degradación de `ask` a `allow` en `bypassPermissions`. Codex sigue recibiendo `{}` y Cursor `permission: "allow"`. Verificado en real con Claude Code: el mismo Write se deniega ahora con y sin plugin. Spec de hooks (§3.1 y Step 7), hooks-runtime y git-collaboration-guard alineadas; el fixture de paridad pasa a `pre-tool-use-neutral.json` con salida vacía.
+
+### Changed
+- **Roadmap**: E1.16 hecho; E1.17 `hook-boundary-reliability` (OSP-001/002/003) pasa a `next-eligible`. Hecho con IDD (`idd/archive/2026-10-08-hook-neutral-permissions/`).
+
+**Verificación directa**: `node scripts/check.js` (3371 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.117.4] - 2026-10-08
 
 ### Changed

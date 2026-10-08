@@ -1,0 +1,5 @@
+{
+  "description": "NEUTRAL: git status matches no rule, so the hook makes no decision and writes nothing (OSP-017)",
+  "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git status\"}}",
+  "expectedStdout": ""
+}

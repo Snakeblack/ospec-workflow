@@ -746,7 +746,7 @@ stdout and set `process.exitCode = 1`.
 
 Given a tool call is about to execute,
 When the hook receives `{tool_name, tool_input}`,
-Then it MUST evaluate the call and return:
+Then it MUST evaluate the call and, when a step objects, return:
 ```json
 {
   "hookSpecificOutput": {
@@ -757,7 +757,18 @@ Then it MUST evaluate the call and return:
 }
 ```
 
+When no step objects, the hook MUST make no decision: it MUST write nothing to stdout and exit 0, so the host applies its own permission mode, prompts and rules. It MUST NOT return an affirmative `allow` for a call without objection, because the host treats `allow` as an approval that skips its permission prompt (OSP-017). `allow` appears only in the bypass degradation of §3.4.1.
+
+(Previously: a call without objection returned `permissionDecision: "allow"`, which granted in Claude Code a Write the host denies without the plugin.)
+
 (Previously: Evaluaba los comandos de terminal en busca de reglas de DENY y ASK. Ahora incorpora además las validaciones de límites de tokens del Token Budget Advisor).
+
+#### Scenarios
+
+- **Neutral call makes no decision**: GIVEN a `Write` call, a `Bash` call with `git status`, or a shell call without a command payload, with no step objecting WHEN PreToolUse evaluates THEN stdout MUST be empty AND the exit code MUST be 0, in both the Node and Go implementations.
+- **Neutral call in bypass makes no decision**: GIVEN `permission_mode: bypassPermissions` AND a call without objection WHEN PreToolUse evaluates THEN stdout MUST be empty (only an `ask` is degraded to `allow`).
+- **Explicit decisions keep their output**: GIVEN a DENY rule match, an ASK rule match, or an ASK degraded in bypass WHEN PreToolUse evaluates THEN stdout MUST carry `deny`, `ask` or `allow` respectively.
+- **Targets keep their no-objection shape**: GIVEN the hook writes nothing WHEN the launcher normalizes the output THEN Claude-format hosts (Claude Code, VS Code, Copilot) MUST receive no output, Codex MUST receive `{}` and Cursor MUST receive `{ permission: "allow" }`.
 
 ### 3.2 Command extraction
 
@@ -767,8 +778,8 @@ The hook MUST extract candidate commands from `tool_input` as follows:
   `.command` string property as a command.
 - Null, undefined, non-array, and non-string elements are silently skipped.
 
-If no commands are extracted (regardless of whether the tool is a shell tool): return
-`allow` (a menos que se disparen las alertas de lectura pesada de archivos descritas en §3.6).
+If no commands are extracted (regardless of whether the tool is a shell tool): make no
+decision (§3.1) (a menos que se disparen las alertas de lectura pesada de archivos descritas en §3.6).
 
 ### 3.3 Shell tool recognition
 
@@ -867,7 +878,7 @@ Si algún comando coincide con una regla de consulta: retornar `ask` con la raz�
 | Force-push with lease | `git push --force-with-lease` |
 | Machine restart or shutdown | `shutdown -h now`, `reboot`, `Restart-Computer` |
 
-**Step 7 — ALLOW.** Retornar `allow`.
+**Step 7 — NO DECISION.** Ningún paso objeta: no escribir nada en stdout y salir con 0 (§3.1). En los pasos anteriores, «returns `allow`» significa que ese paso no objeta y la evaluación continúa.
 
 **Deny beats ask**: Cuando una secuencia de comandos coincide a la vez con una regla de denegación y una de consulta (en comandos separados del array), `deny` MUST ganar.
 
