@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.115.0, 2026-10-08.
+> **Versión de referencia:** v2.116.0, 2026-10-08.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -122,8 +122,9 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.4** | `ospec-check-and-close` | feature |
 | `done` | **E1.5** | `kernel-wiring-inventory` | refactor |
 | `done` | **E1.6** | `idd-default-entry` (IDD por defecto en v2.112.0, SDD con `--with-sdd` en v2.113.0, README y documentación en v2.114.0) | feature |
-| `next-eligible` | **E1.7** | `ospec-doctor` ((a) núcleo, proyecto y Claude Code en v2.115.0; falta (b)) | feature |
+| `done` | **E1.7** | `ospec-doctor` ((a) núcleo, proyecto y Claude Code en v2.115.0; (b) los otros seis targets en v2.116.0) | feature |
 | `done` | **E1.8** | `sdd-new-intent-argument` (v2.114.2) | bugfix |
+| `next-eligible` | **E1.9** | `install-cli-ux` (instalación por CLI coherente y con progreso en los 7 targets; arregla el EPERM de `setup:vscode`) | bugfix |
 | `next-eligible` | **E2.1** | `knowledge-map-contract` | contrato |
 | `pending` | **E2.2** | `decision-gap-engine` | feature |
 | `pending` | **E2.3** | `foundation-discovery-rounds` | feature |
@@ -140,7 +141,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E1.7 (b) `ospec-doctor` con los otros seis targets, que cierra la Etapa 1; E2.1 `knowledge-map-contract` sigue elegible en paralelo. E1.8 está hecho desde v2.114.2: `/sdd-new` y `/sdd-lite` reciben la petición completa en los 7 targets. Follow-ups: el plugin SDD del marketplace queda como E5.8, por demanda; el protocolo IDD debe editar ficheros de texto respetando su codificación; `ospec next` no recuerda declarar el plan (`ospec signals`) antes de editar; y E1.7 debe detectar una instalación del plugin desfasada respecto al checkout.
+**▶ SIGUIENTE:** E1.9 `install-cli-ux`, por decisión del usuario, y después el checkpoint de cierre de la Etapa 1 contra la tabla de objetivos; E2.1 `knowledge-map-contract` sigue elegible en paralelo. E1.7 está hecho desde v2.116.0: `ospec doctor` diagnostica los 7 targets. Follow-ups: el plugin SDD del marketplace queda como E5.8, por demanda; el protocolo IDD debe editar ficheros de texto respetando su codificación; y `ospec next` no recuerda declarar el plan (`ospec signals`) antes de editar.
 
 **Dependencias:**
 
@@ -149,7 +150,7 @@ E0.0 ─ E0.1 ─┬─ E0.2 ─┬─ E0.4 ────────────
              ├─ E0.3 ─┘                             │
              └─ E4.1 (línea base: modo SDD y ODD) ──┤
                                                     ▼
-E1.1 ─ E1.2 ─┬─ E1.3 ─ E1.4 ───────────────────── E1.6 ─ E1.7
+E1.1 ─ E1.2 ─┬─ E1.3 ─ E1.4 ───────────────────── E1.6 ─ E1.7 ─ E1.9
              └─ E1.5 (en paralelo)
 
 E1.2 ─ E2.1 ─ E2.2 ─ E2.3 ─ E2.4 ─ E2.5 ─ E2.6
@@ -313,6 +314,8 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Decisiones del usuario (2026-10-08):** PRs encadenados, (a) núcleo, proyecto y Claude Code y (b) los otros seis targets; subcomando `ospec doctor` del CLI distribuido, con `--json` y `--target`, que sale con 1 solo si hay un error; recuperación guiada de cambios IDD y SDD, de solo lectura; y las asimetrías IDD/openspec (el pre-commit lee Strict TDD solo de `openspec/config.yaml` y los hooks crean `.ospec/`) se reportan como aviso, sin cambiar los hooks.
 - **(a) entregado en v2.115.0:** `ospec doctor` (REQ-idd-019, `scripts/lib/ospec-doctor.js`) no escribe nada: lee `state.yaml` sin pasar por el almacén, que recupera escrituras interrumpidas, y solo lanza `git check-ignore` y las sondas de Engram. Cada comprobación da `ok`, `info`, `warn` o `error`, y los avisos y errores llevan causa y acción. Desde el checkout compara `dist/` y la instalación con la versión del checkout y mira los git hooks del repositorio. En el proyecto: `idd/config.yaml`, el modo, el paquete SDD (`error` con `mode: sdd` sin él), cada cambio IDD con el comando que lo reanuda (cierre interrumpido, `.bak` huérfano, estado ilegible) y cada cambio SDD con su `/sdd-continue`, las dos asimetrías y las guardas `DISABLE_*` activas. En Claude Code: instalaciones rotas o duplicadas, hooks y binario nativo, bloque del router ausente, desfasado o duplicado fuera del bloque, presupuesto *always-on* de 4 KB y Engram. La detección de Engram pasa de `scripts/configure/engram-setup.js` a `scripts/lib/engram-detect.js`, con una enmienda acotada del ADR `adr-20261002-003` y de REQ-session-memory-002 aprobada por el usuario: detecta presencia, nunca lee memorias ni da `error`. En la máquina del autor detectó la instalación y `dist/` en 2.114.1 frente al checkout en 2.114.2, y la sección SDD duplicada en `~/.claude/CLAUDE.md`. En Windows, `claude` suele ser un shim `.cmd` de npm que no se lanza sin shell, y el doctor usa la misma búsqueda que `setup:claude`. Hecho con IDD (`idd/archive/2026-10-08-ospec-doctor/`).
 
+- **(b) entregado en v2.116.0, E1.7 hecho:** `ospec doctor` cubre los 7 targets (REQ-idd-019). Codex, Cursor, Antigravity, OpenCode y GitHub Copilot CLI se detectan por el `.ospec-workflow-install.json` de su instalador global (Codex con `CODEX_HOME`), y VS Code por las entradas `ospec-workflow` de `chat.pluginLocations` en VS Code y VS Code Insiders, como lista o como mapa `{ ruta: true }`. Por host: `install` (`error` con un manifiesto ilegible o sin versión o con `0.0.0`), `runtime` (`error` sin `scripts/ospec.js`), `markers` (`error` si una skill o un agente instalado conserva `__OSPEC_RUNTIME_DIR__`, `__OSPEC_SHARED_DIR__` o `{{ospec-cli}}`), `router` (`warn` sin router, con la copia del orquestador anterior a E0.4 en el `AGENTS.md` de Codex o sin `instructions/*.md` en `opencode.json`), `budget`, `hooks` y Engram; en VS Code, `plugin-locations` (`error` si una entrada carga el checkout fuente o una ruta que no existe, `warn` con varias builds) y `agent-files`. `install-drift` compara cada host con el checkout, `sdd-package` nombra todos los hosts sin SDD y `codex-repo` avisa de una instalación de Codex en el repositorio sin protocolo IDD. Engram se sondea en cada host con una sola ejecución de `engram version` y `engram doctor`. Decisiones del usuario: Engram en cada target detectado; marcadores sin sustituir, checkout fuente y ruta inexistente son `error`, varias entradas son `warn`; y entran en (b) la instalación de Codex en el repositorio, la corrección de las guías (la «Opción A» de VS Code y la instalación desde una URL Git, rotas desde E0.4 y E1.6, se retiran del README y de `docs/plugin-installation`) y la fuga de un test a `~/.copilot`. En la máquina del autor detectó Cursor (2.70.0), OpenCode (2.58.0) y Antigravity (2.91.0) sin runtime, y un manifiesto de Copilot `0.0.0` con tres ficheros del 2026-08-14: lo escribió la versión en desarrollo de `tests/integration/installation-convergence.test.js` nueve minutos antes del commit de #106; la versión commiteada ya usa `--dest`, y la suite completa no toca los manifiestos reales. Hecho con IDD (`idd/archive/2026-10-08-ospec-doctor-targets/`).
+
 ### E1.8 — `sdd-new-intent-argument`
 
 - **Origen:** hallazgo de la línea base `sdd-baseline-3` ([informe](../analysis/2026-10-07-bench-linea-base-sdd-3.md#4-hallazgos)). En Claude, el comando `sdd-new` generado declara dos argumentos posicionales (`arguments: changeName intent`), así que `/ospec-workflow:sdd-new Quiero poder …` llega con `Quiero` como nombre del cambio y `poder` como intención. El agente lo detectó y recuperó la petición completa en `cli-local` y `public-library`, sin defectos escapados, pero un usuario que escriba la intención sin nombre choca con lo mismo.
@@ -321,6 +324,14 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Cuándo:** después de E1.6, por decisión del usuario (2026-10-07). No cambia la comparabilidad del banco: el checkpoint no compara la build del plugin.
 - **Hecho cuando:** `/sdd-new <petición>` sin nombre llega entera al orquestador en todos los targets, y `/sdd-new <nombre> <petición>` sigue funcionando.
 - **Entregado en v2.114.2:** un comando con una sola entrada `${input:x}` recibe la cadena completa (`$ARGUMENTS`) en Claude, OpenCode y Codex, y Claude ya no declara `arguments`; varias entradas siguen posicionales (REQ-generator-026). `sdd-new` y `sdd-lite` piden una sola entrada, `${input:request}`: el primer token es el nombre solo si es kebab-case con guion; si no, el orquestador lo deriva de la petición. Prueba real en Claude Code (`claude -p --plugin-dir`, Sonnet): `/sdd-new Quiero poder exportar…` llega entera ($0,27) y `/sdd-new export-csv Quiero poder exportar…` usa `export-csv` como nombre y el resto como intención ($0,28). Hallazgo: la primera prueba cargó el orquestador `ospec-workflow:sdd-orchestrator` de la instalación global, desfasada, en vez del de `--plugin-dir`; queda como caso para E1.7. Hecho con IDD (`idd/archive/2026-10-08-sdd-new-intent-argument/`).
+
+### E1.9 — `install-cli-ux`
+
+- **Origen:** `npm run setup:vscode` falla en Windows con `filesystem mutation failed for unknown path after 4 attempts (EPERM)` cuando VS Code tiene cargado `dist/vscode`: la publicación renombra el directorio entero y los reintentos de `scripts/configure/cli.js` no pasan la operación ni la ruta. Además, cada instalador escribe su propia salida, y las fases largas (build, validación, copia y Engram) pasan sin señal de progreso.
+- **Garantía que protege:** que ospec se instale igual en los 7 targets (resultado de la Etapa 0) y que un fallo de instalación diga qué falló y cómo arreglarlo, como exige E1.7 al doctor.
+- **Alcance:** publicar en su sitio el árbol que un host carga en vivo (`dist/vscode`), en vez de renombrarlo; errores con operación, ruta y acción («cierra VS Code y reintenta»); y una salida común en los 7 instaladores, con fases, indicador de progreso en terminal interactiva y resumen final, sin cambiar lo que se instala.
+- **Cuándo:** después de E1.7, por decisión del usuario (2026-10-08).
+- **Hecho cuando:** `setup:vscode` con VS Code abierto termina o falla con un mensaje accionable, y los 7 instaladores muestran el mismo formato de progreso y resumen.
 
 ## Etapa 2 — Foundation de verdad: descubrimiento de arquitectura
 
