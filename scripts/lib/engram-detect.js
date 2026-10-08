@@ -274,13 +274,16 @@ function detectEngram({
   env = process.env,
   platform = process.platform,
   timeoutMs = DEFAULT_TIMEOUT_MS,
+  includeDoctor = true,
 } = {}) {
   targetSpec(target);
   const binary = probeBinary(spawn, timeoutMs);
   return {
     target,
     binary,
-    doctor: probeDoctor(spawn, binary, timeoutMs),
+    // Installers need host registration, not a scan of the whole memory store.
+    // The explicit `ospec doctor` diagnostic keeps the probe enabled.
+    doctor: includeDoctor ? probeDoctor(spawn, binary, timeoutMs) : "skipped",
     ...(target === "codex" ? probeCodexLifecycle(spawn, binary, timeoutMs) : {}),
     ...probeHost(target, { spawn, hostBin: hostBin || claudeBin, fs: fsImpl, homedir, env, platform, timeoutMs }),
   };

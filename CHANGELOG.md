@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.117.8] - 2026-10-08
+
+### Fixed
+- **Los instaladores recorrían el almacén de Engram sin necesitarlo (E1.23)**: los siete `setup:*` dejan de ejecutar `engram doctor` antes y después del setup, evitando dos sondas que podían agotar 60 s cada una y cuyo resultado solo generaba un aviso. Se conservan la detección del binario, MCP y protocolo, la compatibilidad del ciclo de vida, el registro idempotente y el comportamiento fail-open. El diagnóstico global sigue disponible con `ospec doctor`.
+
+### Changed
+- **Contrato y documentación**: REQ-install-028 y guías de instalación EN/ES describen las comprobaciones por target y el diagnóstico explícito. Roadmap E1.23 hecho con IDD (`idd/archive/2026-10-08-install-engram-no-doctor/`).
+
+**Verificación directa**: `node scripts/check.js` (3382 tests pasando, 0 fallos y 0 omitidos), incluida la generación de los siete targets. Reproducción rojo→verde en los siete targets y 71 pruebas enfocadas pasando.
+
 ## [2.117.7] - 2026-10-08
 
 ### Fixed

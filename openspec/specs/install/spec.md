@@ -1155,7 +1155,7 @@ Acceptance of the global-install root split MUST include an independent Node pro
 
 ### Requirement: Target Installers Detect Engram Fail-Open {#REQ-install-028}
 
-Every global target installer (`setup:claude`, `setup:codex`, `setup:antigravity`, `setup:opencode`, `setup:cursor`, `setup:vscode`, `setup:copilot`) MUST detect, by capability and not by version, whether the Engram binary is on PATH, what `engram doctor` (JSON output where available) reports, and whether the host already has both the `engram` MCP server and its memory-protocol piece (Claude/Codex: the `engram@engram` plugin; Antigravity: the marked GEMINI.md block; OpenCode: `plugins/engram.ts`; Cursor: `engram-memory-protocol.md`; VS Code: `prompts/engram.instructions.md`; Copilot CLI: no separate piece). Detection MUST be non-fatal: absence, probe failure or timeout MUST NOT change the install outcome, the exit code, or the existing REQ-install-014 exit-code checks for ospec's own steps. The step MUST NOT run on `--dry-run`, `--build-only`, a custom `--dest`/repo destination, or after a failed install. The installers MUST NOT download or install the Engram binary.
+Every global target installer (`setup:claude`, `setup:codex`, `setup:antigravity`, `setup:opencode`, `setup:cursor`, `setup:vscode`, `setup:copilot`) MUST detect, by capability and not by version, whether the Engram binary is on PATH and whether the host already has both the `engram` MCP server and its memory-protocol piece (Claude/Codex: the `engram@engram` plugin; Antigravity: the marked GEMINI.md block; OpenCode: `plugins/engram.ts`; Cursor: `engram-memory-protocol.md`; VS Code: `prompts/engram.instructions.md`; Copilot CLI: no separate piece). The installers MUST NOT invoke `engram doctor`, either during initial detection or when re-checking setup; the whole-store diagnostic remains available through the explicit `ospec doctor` command (REQ-idd-019). Detection MUST be non-fatal: absence, probe failure or timeout MUST NOT change the install outcome, the exit code, or the existing REQ-install-014 exit-code checks for ospec's own steps. The step MUST NOT run on `--dry-run`, `--build-only`, a custom `--dest`/repo destination, or after a failed install. The installers MUST NOT download or install the Engram binary.
 
 #### Scenario: Engram absent
 
@@ -1163,11 +1163,13 @@ Every global target installer (`setup:claude`, `setup:codex`, `setup:antigravity
 - WHEN any `npm run setup:<target>` runs
 - THEN it prints informational install guidance only and exits 0 if ospec's own steps succeed
 
-#### Scenario: Doctor probe fails
+#### Scenario: Installation does not scan the Engram store
 
-- GIVEN the binary exists but `engram doctor` errors or times out
+- GIVEN the binary exists and `engram doctor` would error or time out
 - WHEN a target installer runs
-- THEN a warning is printed and the exit code is unaffected
+- THEN it detects the host's registration without invoking `engram doctor`
+- AND if setup runs, the re-check also omits `engram doctor`
+- AND the host's registration and the installer exit code follow the existing setup rules
 
 ### Requirement: Engram Setup Runs Automatically Unless Disabled {#REQ-install-029}
 

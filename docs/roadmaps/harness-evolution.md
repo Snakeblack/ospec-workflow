@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.117.7, 2026-10-08.
+> **Versión de referencia:** v2.117.8, 2026-10-08.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -140,6 +140,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.20** | `installation-docs-sync` (OSP-020; documentación de E1.6/E1.8) | docs |
 | `pending` | **E1.21** | `idd-checks-config-guidance` (sin `checks:` en `idd/config.yaml`, ningún cambio IDD cierra y nada lo explica; va después de E1.17) | bugfix |
 | `done` | **E1.22** | `stale-hooks-binary` (los `setup:*` locales recompilan el hook Go si es anterior al código, en v2.117.7) | bugfix |
+| `done` | **E1.23** | `install-engram-no-doctor` (los siete `setup:*` omiten el diagnóstico global de Engram; `ospec doctor` lo conserva, en v2.117.8) | bugfix |
 | `pending` | **E2.1** | `knowledge-map-contract` (se retoma después de las prioridades OSP) | contrato |
 | `pending` | **E2.2** | `decision-gap-engine` | feature |
 | `pending` | **E2.3** | `foundation-discovery-rounds` | feature |
@@ -478,6 +479,13 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Origen (2026-10-08):** `ensureRuntimeBinary` (`scripts/configure/install-target.js`) reutilizaba cualquier `release/dist/ospec-hooks-<os>-<arch>` existente (fuera de git) y nunca recompilaba. En el checkout del usuario había un binario del 2026-06-19: los `setup:*` locales instalaban un hook Go de junio, sin E1.16 ni cambios Go posteriores. Las instalaciones del Marketplace no se ven afectadas (CI compila en cada release).
 - **Hecho (v2.117.7):** con Go disponible, un binario más antiguo que `cmd/`, `internal/`, `go.mod` o `go.sum` se recompila y uno al día se reutiliza; sin Go se usa el existente con un aviso de posible desfase. Spec `install` §4.5. IDD en `idd/archive/2026-10-08-stale-hooks-binary/`.
 
+### E1.23 — `install-engram-no-doctor`
+
+- **Origen:** el usuario acepta retirar `engram doctor` de los instaladores y conservarlo en `ospec doctor`. La detección compartida lo ejecutaba antes y después del setup, con hasta 60 s por llamada; su resultado solo producía un aviso y no decidía las acciones de registro.
+- **Corrección:** los siete `setup:*` omiten esa sonda en ambas comprobaciones. Se mantienen la detección del binario, MCP y protocolo, la compatibilidad del ciclo de vida de Codex, el registro idempotente y el comportamiento fail-open. `ospec doctor` conserva el diagnóstico del almacén. REQ-install-028 y guías EN/ES actualizados.
+- **Evidencia:** reproducción rojo→verde registrada con IDD para los siete targets; prueba de que `ospec doctor` sigue ejecutando la sonda una vez. No se atribuye un ahorro de tiempo real sin medir una instalación.
+- **Siguiente paso operativo:** publicar la corrección, reinstalar los siete targets desde main y repasar `ospec doctor`; después retomar E1.17.
+
 ## Etapa 2 — Foundation de verdad: descubrimiento de arquitectura
 
 **Resultado de la etapa:** al crear un proyecto, ospec hace las preguntas que haría un arquitecto con experiencia en proyectos serios. Captura la información funcional, el contexto del equipo, los atributos de calidad y las restricciones, y produce **ADRs de arquitectura agnósticos de tecnología**, separados de la selección tecnológica. Las preguntas no salen de un cuestionario fijo: salen de los huecos de conocimiento que más condicionan las decisiones pendientes. La foundation sirve igual a IDD y al modo SDD.
@@ -692,6 +700,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-08: E1.23 `install-engram-no-doctor` retira el diagnóstico global de Engram de los siete instaladores a petición del usuario; queda en `ospec doctor`.
 - 2026-10-08: E1.22 `stale-hooks-binary` hecho en v2.117.7 a petición del usuario («desatascar y dejarlo todo funcionando»): los `setup:*` locales ya no instalan un hook Go anterior al código.
 - 2026-10-08: el usuario acepta añadir E1.21 `idd-checks-config-guidance` (sin `checks:` en `idd/config.yaml`, ningún cambio IDD cierra y nada lo explica), con la corrección mínima `next`/`check` + skill con aprobación + aviso de doctor. Se ejecuta después de E1.17.
 - 2026-10-08: E1.16 `hook-neutral-permissions` hecho en v2.117.5 (OSP-017): sin objeción, PreToolUse no decide y el host aplica sus permisos. E1.17 pasa a `next-eligible`.

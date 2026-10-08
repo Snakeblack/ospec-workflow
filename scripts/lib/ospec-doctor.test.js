@@ -349,6 +349,7 @@ test("Engram detection is read-only and reports a partial setup", async (t) => {
   assert.equal(engram.status, "warn");
   assertActionable(engram);
   assert.match(engram.action, /engram setup claude-code/);
+  assert.equal(spawn.calls.filter((call) => call === "engram doctor --json").length, 1, "explicit diagnosis keeps the store probe");
   assert.equal(spawn.calls.some((call) => / setup /.test(` ${call} `)), false, "no mutating command");
 });
 

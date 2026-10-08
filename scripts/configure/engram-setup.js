@@ -258,12 +258,8 @@ function runEngramStep({
   try {
     const spec = targetSpec(target);
     const enabled = !(Array.isArray(argv) && argv.includes("--no-engram"));
-    const probe = () => detectEngram({ target, spawn, hostBin: hostBin || claudeBin, fs: fsImpl, homedir, env, platform, timeoutMs });
+    const probe = () => detectEngram({ target, spawn, hostBin: hostBin || claudeBin, fs: fsImpl, homedir, env, platform, timeoutMs, includeDoctor: false });
     const detection = probe();
-
-    if (detection.doctor === "warn" || detection.doctor === "error" || detection.doctor === "timeout") {
-      stderr.write(`aviso: engram doctor informó "${detection.doctor}"; se continúa (integración opcional).\n`);
-    }
 
     const plan = planEngramActions(detection, { enabled, homedir });
     let configured = isConfigured(detection);

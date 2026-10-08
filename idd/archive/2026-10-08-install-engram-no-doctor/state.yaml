@@ -1,0 +1,101 @@
+{
+  "schema": "idd-state/v1",
+  "change": "install-engram-no-doctor",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "E1.23: quitar el diagnóstico global de Engram de los instaladores, donde solo aporta avisos y puede bloquear hasta dos minutos",
+    "acceptance": "Los siete setup:* no ejecutan engram doctor ni antes ni después de configurar; mantienen detección, registro y comprobación por target; ospec doctor conserva el diagnóstico; contrato, guías y roadmap reflejan el comportamiento"
+  },
+  "facts": {
+    "basis": "El usuario aceptó quitar doctor del instalador y dejarlo solo en ospec doctor en la sesión anterior (si, pero en la siguiente sesion); continua retoma ese alcance. Se conservan los demás comportamientos existentes."
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-08T17:37:04.905Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-08T17:40:03.779Z",
+      "detail": {
+        "tree": "sha256:f4b4dc5ee92c4296a6784f6bd7ecbed0bdd6530a849b1e860d601c3f9136c2b9",
+        "runs": [
+          "run-3"
+        ]
+      }
+    }
+  ],
+  "base": "002ccf75e7713ffeb2530471626839001a7c7404",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=E1.23 scripts/configure/engram-setup.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:ca64487e948d463292233b1daa0c41060248fb49a2a7f8ed60dae219a3118399",
+      "tree": "sha256:2d57f96f0f8c9391e6d0e6d13131d701d98cf5dd1172305c3d1fd30375868e4c",
+      "recorded_at": "2026-10-08T17:36:34.996Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=E1.23 scripts/configure/engram-setup.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:592ad548ac471f54e6f700e9002195301de2b65a01c6fc7d0350b7738e63a14f",
+      "tree": "sha256:cd1a4c78b97b80bbedab78d35d8246a3533e4d2f3792810478facb5fcb714817",
+      "recorded_at": "2026-10-08T17:37:04.905Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ec32c709783057a26cc961f16e70f45dd77ccc17441861dbe04712d2c6fe3edc",
+      "tree": "sha256:f4b4dc5ee92c4296a6784f6bd7ecbed0bdd6530a849b1e860d601c3f9136c2b9",
+      "recorded_at": "2026-10-08T17:40:03.779Z"
+    }
+  ],
+  "closed_at": "2026-10-08T17:40:23.773Z"
+}
