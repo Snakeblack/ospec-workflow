@@ -11,21 +11,25 @@ const {
   findActiveChangeNameSync,
 } = require("./pre-tool-use.js");
 
+// A call without objection makes no decision (OSP-017): evaluateToolUse
+// returns null and the hook writes nothing.
+const NO_DECISION = { permissionDecision: null };
+
 function decisionFor(command, toolName = "runTerminalCommand") {
   return evaluateToolUse({
     tool_name: toolName,
     tool_input: { command },
-  }).hookSpecificOutput;
+  })?.hookSpecificOutput ?? NO_DECISION;
 }
 
-test("allows normal tools without command payloads", () => {
+test("makes no decision for normal tools without command payloads", () => {
   for (const toolName of ["readFile", "search", "editFiles"]) {
     const decision = evaluateToolUse({
       tool_name: toolName,
       tool_input: {},
-    }).hookSpecificOutput;
+    })?.hookSpecificOutput ?? NO_DECISION;
 
-    assert.equal(decision.permissionDecision, "allow");
+    assert.equal(decision.permissionDecision, null);
   }
 });
 
@@ -43,7 +47,7 @@ test("inspects command payloads even for unknown tools", () => {
   );
   assert.equal(
     decisionFor("git status --short", "unknownTool").permissionDecision,
-    "allow",
+    null,
   );
 });
 
@@ -129,12 +133,12 @@ test("deny wins over ask and allow across command arrays", () => {
     tool_input: {
       commands: ["git status --short", { command: "npm install" }, "rm -rf /"],
     },
-  }).hookSpecificOutput;
+  })?.hookSpecificOutput ?? NO_DECISION;
 
   assert.equal(decision.permissionDecision, "deny");
 });
 
-test("allows ordinary shell commands", () => {
+test("makes no decision for ordinary shell commands", () => {
   const commands = [
     "npm test",
     "git status --short",
@@ -145,7 +149,7 @@ test("allows ordinary shell commands", () => {
   ];
 
   for (const command of commands) {
-    assert.equal(decisionFor(command).permissionDecision, "allow", command);
+    assert.equal(decisionFor(command).permissionDecision, null, command);
   }
 });
 
@@ -162,24 +166,24 @@ test("supports command arrays", () => {
     tool_input: {
       commands: ["git status", { command: "npm install" }],
     },
-  }).hookSpecificOutput;
+  })?.hookSpecificOutput ?? NO_DECISION;
 
   assert.equal(decision.permissionDecision, "ask");
 });
 
-test("allows shell tools without a command payload", () => {
+test("makes no decision for shell tools without a command payload", () => {
   const decision = evaluateToolUse({
     tool_name: "runTerminalCommand",
     tool_input: {},
-  }).hookSpecificOutput;
+  })?.hookSpecificOutput ?? NO_DECISION;
 
-  assert.equal(decision.permissionDecision, "allow");
+  assert.equal(decision.permissionDecision, null);
 });
 
-test("allows malformed command input without crashing", () => {
+test("makes no decision on malformed command input without crashing", () => {
   assert.equal(
-    evaluateToolUse(undefined).hookSpecificOutput.permissionDecision,
-    "allow",
+    evaluateToolUse(undefined),
+    null,
   );
 
   for (const tool_input of [
@@ -191,9 +195,9 @@ test("allows malformed command input without crashing", () => {
     const decision = evaluateToolUse({
       tool_name: "unknownTool",
       tool_input,
-    }).hookSpecificOutput;
+    })?.hookSpecificOutput ?? NO_DECISION;
 
-    assert.equal(decision.permissionDecision, "allow");
+    assert.equal(decision.permissionDecision, null);
   }
 });
 
@@ -210,9 +214,9 @@ test("token budget advisor: respects DISABLE_TOKEN_ADVISOR env bypass", () => {
     const decision = evaluateToolUse({
       tool_name: "view_file",
       tool_input: { AbsolutePath: tempFile },
-    }).hookSpecificOutput;
+    })?.hookSpecificOutput ?? NO_DECISION;
 
-    assert.equal(decision.permissionDecision, "allow");
+    assert.equal(decision.permissionDecision, null);
     fs.unlinkSync(tempFile);
   } finally {
     if (oldEnv === undefined) {
@@ -232,7 +236,7 @@ test("token budget advisor: asks on heavy file reads exceeding 50k tokens", () =
     const decision = evaluateToolUse({
       tool_name: "view_file",
       tool_input: { AbsolutePath: tempFile },
-    }).hookSpecificOutput;
+    })?.hookSpecificOutput ?? NO_DECISION;
 
     assert.equal(decision.permissionDecision, "ask");
     assert.match(decision.permissionDecisionReason, /tokens/i);
@@ -257,7 +261,7 @@ test("token budget advisor: asks on cumulative session tokens exceeding 150k tok
     const decision = evaluateToolUse({
       tool_name: "view_file",
       tool_input: { AbsolutePath: "some_small_file.txt" },
-    }).hookSpecificOutput;
+    })?.hookSpecificOutput ?? NO_DECISION;
 
     assert.equal(decision.permissionDecision, "ask");
     assert.match(decision.permissionDecisionReason, /compacta/i);
@@ -276,8 +280,8 @@ test("agent-shield: respects DISABLE_AGENT_SHIELD env bypass in PreToolUse", () 
       const decision = evaluateToolUse({
         tool_name: "view_file",
         tool_input: { AbsolutePath: tempFile },
-      }).hookSpecificOutput;
-      assert.equal(decision.permissionDecision, "allow");
+      })?.hookSpecificOutput ?? NO_DECISION;
+      assert.equal(decision.permissionDecision, null);
     } finally {
       fs.unlinkSync(tempFile);
     }
@@ -299,7 +303,7 @@ test("agent-shield: denies SSH private keys, workspace .git/config, and .npmrc",
       const decision = evaluateToolUse({
         tool_name: "view_file",
         tool_input: { AbsolutePath: tempFile },
-      }).hookSpecificOutput;
+      })?.hookSpecificOutput ?? NO_DECISION;
       assert.equal(decision.permissionDecision, "deny", filename);
     } finally {
       fs.unlinkSync(tempFile);
@@ -316,7 +320,7 @@ test("agent-shield: denies SSH private keys, workspace .git/config, and .npmrc",
     const decision = evaluateToolUse({
       tool_name: "view_file",
       tool_input: { AbsolutePath: gitConfig },
-    }).hookSpecificOutput;
+    })?.hookSpecificOutput ?? NO_DECISION;
     assert.equal(decision.permissionDecision, "deny", "git config");
   } finally {
     fs.unlinkSync(gitConfig);
@@ -334,7 +338,7 @@ test("agent-shield: asks before reading .env, secrets.json, and credentials", ()
       const decision = evaluateToolUse({
         tool_name: "view_file",
         tool_input: { AbsolutePath: tempFile },
-      }).hookSpecificOutput;
+      })?.hookSpecificOutput ?? NO_DECISION;
       assert.equal(decision.permissionDecision, "ask", filename);
     } finally {
       fs.unlinkSync(tempFile);
@@ -345,12 +349,14 @@ test("agent-shield: asks before reading .env, secrets.json, and credentials", ()
 test("agent-shield: scans file contents for API tokens and passwords", () => {
   // Test OpenAI API key pattern
   const tempFile = path.join(process.cwd(), "code_sample.js");
-  fs.writeFileSync(tempFile, "const openAIKey = 'sk-123456789012345678901234567890123456789012345678';", "utf8");
+  // Built at runtime so the pre-commit secret scan does not flag this fake key.
+  const fakeKey = "sk-" + "1234567890".repeat(4) + "12345678";
+  fs.writeFileSync(tempFile, `const openAIKey = '${fakeKey}';`, "utf8");
   try {
     const decision = evaluateToolUse({
       tool_name: "view_file",
       tool_input: { AbsolutePath: tempFile },
-    }).hookSpecificOutput;
+    })?.hookSpecificOutput ?? NO_DECISION;
     assert.equal(decision.permissionDecision, "ask", "OpenAI key");
   } finally {
     fs.unlinkSync(tempFile);
@@ -362,7 +368,7 @@ test("agent-shield: scans file contents for API tokens and passwords", () => {
     const decision = evaluateToolUse({
       tool_name: "view_file",
       tool_input: { AbsolutePath: tempFile },
-    }).hookSpecificOutput;
+    })?.hookSpecificOutput ?? NO_DECISION;
     assert.equal(decision.permissionDecision, "ask", "generic password");
   } finally {
     fs.unlinkSync(tempFile);
@@ -411,13 +417,13 @@ test("evaluateToolUse denies git commit with attribution via shell tool", () => 
     tool_input: {
       command: 'git commit -m "release: v2.4.6 con correcciones" -m "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"',
     },
-  }).hookSpecificOutput;
+  })?.hookSpecificOutput ?? NO_DECISION;
 
   assert.equal(decision.permissionDecision, "deny");
   assert.match(decision.permissionDecisionReason, /atribuci[oó]n/i);
 });
 
-test("evaluateToolUse allows clean git commit via shell tool", () => {
+test("evaluateToolUse makes no decision on a clean git commit via shell tool", () => {
   // Disable the git guard and the spec-drift guard so this test stays focused
   // on attribution behavior (each guard is exercised in its own test section
   // below) instead of on this process's real, uncontrolled git/drift state.
@@ -431,9 +437,9 @@ test("evaluateToolUse allows clean git commit via shell tool", () => {
       tool_input: {
         command: 'git commit -m "feat: add token budget advisor"',
       },
-    }).hookSpecificOutput;
+    })?.hookSpecificOutput ?? NO_DECISION;
 
-    assert.equal(decision.permissionDecision, "allow");
+    assert.equal(decision.permissionDecision, null);
   } finally {
     if (oldGitGuardEnv === undefined) {
       delete process.env.DISABLE_GIT_COLLABORATION_GUARD;
@@ -477,31 +483,31 @@ function gitGuardDecision(toolName, toolInputOrCommand, gitRunner) {
   return evaluateToolUse(
     { tool_name: toolName, tool_input: toolInput },
     { gitRunner }
-  ).hookSpecificOutput;
+  )?.hookSpecificOutput ?? NO_DECISION;
 }
 
-// (a) file-write tool alone (no command payload) on default branch → allow.
+// (a) file-write tool alone (no command payload) on default branch → no decision.
 // The guard no longer fires on Edit/Write by themselves — only on an actual
 // `git commit` command, so it behaves like a pre-commit check.
-test("git-guard: file-write tool alone on default branch → allow (write tools no longer risky)", () => {
+test("git-guard: file-write tool alone on default branch → no decision (write tools no longer risky)", () => {
   const runner = makeGitStubRunner({
     "symbolic-ref": "origin/main",
     "--show-current": "main",
     "--porcelain": "",
   });
   const d = gitGuardDecision("Edit", null, runner);
-  assert.equal(d.permissionDecision, "allow", "file-write tools alone must not trigger the guard");
+  assert.equal(d.permissionDecision, null, "file-write tools alone must not trigger the guard");
 });
 
-// (b) file-write tool alone on a dirty feature branch → allow (same reason as (a))
-test("git-guard: file-write tool alone on dirty feature branch → allow", () => {
+// (b) file-write tool alone on a dirty feature branch → no decision (same reason as (a))
+test("git-guard: file-write tool alone on dirty feature branch → no decision", () => {
   const runner = makeGitStubRunner({
     "symbolic-ref": "origin/main",
     "--show-current": "feat/x",
     "--porcelain": "M modified.js",
   });
   const d = gitGuardDecision("write", null, runner);
-  assert.equal(d.permissionDecision, "allow", "file-write tools alone must not trigger the guard");
+  assert.equal(d.permissionDecision, null, "file-write tools alone must not trigger the guard");
 });
 
 // (c) git commit command on default branch, clean tree → ask with "rama por defecto", not "sin commitear"
@@ -543,18 +549,18 @@ test("git-guard: combined condition → single ask with both default-branch and 
   assert.ok(d.permissionDecisionReason.includes("sin commitear"), "combined must mention uncommitted changes");
 });
 
-// (f) git commit command on clean feature branch → allow
-test("git-guard: git commit on clean feature branch → allow", () => {
+// (f) git commit command on clean feature branch → no decision
+test("git-guard: git commit on clean feature branch → no decision", () => {
   const runner = makeGitStubRunner({
     "symbolic-ref": "origin/main",
     "--show-current": "feat/clean",
     "--porcelain": "",
   });
   const d = gitGuardDecision("runTerminalCommand", "git commit -m 'fix: x'", runner);
-  assert.equal(d.permissionDecision, "allow");
+  assert.equal(d.permissionDecision, null);
 });
 
-// (g) DISABLE_GIT_COLLABORATION_GUARD=true + git commit on dirty main → allow, git runner NOT invoked
+// (g) DISABLE_GIT_COLLABORATION_GUARD=true + git commit on dirty main → no decision, git runner NOT invoked
 test("git-guard: DISABLE_GIT_COLLABORATION_GUARD=true suppresses advisory and skips git calls", () => {
   const oldEnv = process.env.DISABLE_GIT_COLLABORATION_GUARD;
   // Also disable Step 5c (spec-drift guard) — it independently invokes the
@@ -570,7 +576,7 @@ test("git-guard: DISABLE_GIT_COLLABORATION_GUARD=true suppresses advisory and sk
   };
   try {
     const d = gitGuardDecision("runTerminalCommand", "git commit -m 'fix: x'", runner);
-    assert.equal(d.permissionDecision, "allow");
+    assert.equal(d.permissionDecision, null);
     assert.equal(runnerInvoked, false, "git runner must NOT be invoked when guard is disabled");
   } finally {
     if (oldEnv === undefined) {
@@ -597,15 +603,15 @@ test("git-guard: git push --force → deny (DENY rule wins before guard fires)",
   assert.equal(d.permissionDecision, "deny", "force push is always denied by DENY rule");
 });
 
-// (i) read-only tool (Grep) on dirty main → allow (not a risky action)
-test("git-guard: read-only tool on dirty main → allow (isRiskyAction=false)", () => {
+// (i) read-only tool (Grep) on dirty main → no decision (not a risky action)
+test("git-guard: read-only tool on dirty main → no decision (isRiskyAction=false)", () => {
   const runner = makeGitStubRunner({
     "symbolic-ref": "origin/main",
     "--show-current": "main",
     "--porcelain": "M modified.js",
   });
   const d = gitGuardDecision("Grep", null, runner);
-  assert.equal(d.permissionDecision, "allow", "read-only tools are never risky");
+  assert.equal(d.permissionDecision, null, "read-only tools are never risky");
 });
 
 // ---------------------------------------------------------------------------
@@ -724,7 +730,7 @@ function driftGuardDecision(command, { gitRunner, workspace } = {}) {
   return evaluateToolUse(
     { tool_name: "runTerminalCommand", tool_input: { command } },
     { gitRunner, workspace },
-  ).hookSpecificOutput;
+  )?.hookSpecificOutput ?? NO_DECISION;
 }
 
 // (a) staged files overlap a drifted domain → Step 5c fires ask naming the domain
@@ -751,7 +757,7 @@ test("spec-drift-guard: no overlap between staged files and drifted domains → 
 
   const d = driftGuardDecision('git commit -m "docs: update readme"', { gitRunner, workspace });
 
-  assert.equal(d.permissionDecision, "allow");
+  assert.equal(d.permissionDecision, null);
 });
 
 // (c) a DENY rule matches first → deny, drift probes never invoked
@@ -789,7 +795,7 @@ test("spec-drift-guard: DISABLE_SPEC_DRIFT_GUARD=true → skipped, no drift git 
   process.env.DISABLE_SPEC_DRIFT_GUARD = "true";
   try {
     const d = driftGuardDecision('git commit -m "feat: update hook"', { gitRunner, workspace });
-    assert.equal(d.permissionDecision, "allow");
+    assert.equal(d.permissionDecision, null);
     assert.equal(driftProbeInvoked, false, "drift git probe must not be invoked when the guard is disabled");
   } finally {
     if (oldEnv === undefined) delete process.env.DISABLE_SPEC_DRIFT_GUARD;
@@ -807,7 +813,7 @@ test("spec-drift-guard: staged-file resolution fails → best-effort empty array
 
   const d = driftGuardDecision('git commit -m "feat: update hook"', { gitRunner, workspace });
 
-  assert.equal(d.permissionDecision, "allow");
+  assert.equal(d.permissionDecision, null);
 });
 
 // (f) Step 5b fires first → its ask wins, no double prompt, drift probe never invoked
@@ -859,7 +865,7 @@ test("spec-drift-guard: commit command mixed with non-commit commands → still 
       },
     },
     { gitRunner, workspace },
-  ).hookSpecificOutput;
+  )?.hookSpecificOutput ?? NO_DECISION;
 
   assert.equal(d.permissionDecision, "ask");
   assert.match(d.permissionDecisionReason, /hooks/);
@@ -1061,4 +1067,67 @@ test("permission-mode: token advisor heavy read in bypassPermissions → allow +
     assert.ok(result.systemMessage, "systemMessage must carry the token advisory");
     assert.match(result.systemMessage, /50,000/);
   });
+});
+
+// ---------------------------------------------------------------------------
+// OSP-017 (E1.16): without an objection the hook makes no decision. An
+// affirmative `allow` would skip the host's own permission prompt.
+// ---------------------------------------------------------------------------
+
+function runHookProcess(stdin, cwd) {
+  const { spawnSync } = require("node:child_process");
+  const pathMod = require("node:path");
+  const env = { ...process.env };
+  for (const key of [
+    "DISABLE_AGENT_SHIELD",
+    "DISABLE_GIT_COLLABORATION_GUARD",
+    "DISABLE_TOKEN_ADVISOR",
+    "DISABLE_SPEC_DRIFT_GUARD",
+  ]) {
+    delete env[key];
+  }
+  return spawnSync(process.execPath, [pathMod.join(__dirname, "pre-tool-use.js")], {
+    cwd,
+    env,
+    input: JSON.stringify(stdin),
+    encoding: "utf8",
+  });
+}
+
+test("OSP-017: neutral calls exit 0 with empty stdout", (t) => {
+  const os = require("node:os");
+  const fsMod = require("node:fs");
+  const pathMod = require("node:path");
+  const dir = fsMod.mkdtempSync(pathMod.join(os.tmpdir(), "ospec-neutral-"));
+  t.after(() => fsMod.rmSync(dir, { recursive: true, force: true }));
+
+  for (const stdin of [
+    { tool_name: "Write", tool_input: { file_path: pathMod.join(dir, "probe.txt"), content: "OSP-017\n" }, permission_mode: "default" },
+    { tool_name: "Bash", tool_input: { command: "git status --short" }, permission_mode: "default" },
+    { tool_name: "Bash", tool_input: {}, permission_mode: "default" },
+    { tool_name: "Write", tool_input: { file_path: pathMod.join(dir, "probe.txt"), content: "x" }, permission_mode: "bypassPermissions" },
+  ]) {
+    const run = runHookProcess(stdin, dir);
+    assert.equal(run.status, 0, JSON.stringify(stdin));
+    assert.equal(run.stdout, "", JSON.stringify(stdin));
+  }
+});
+
+test("OSP-017: explicit decisions still reach stdout", (t) => {
+  const os = require("node:os");
+  const fsMod = require("node:fs");
+  const pathMod = require("node:path");
+  const dir = fsMod.mkdtempSync(pathMod.join(os.tmpdir(), "ospec-explicit-"));
+  t.after(() => fsMod.rmSync(dir, { recursive: true, force: true }));
+
+  const cases = [
+    [{ tool_name: "Bash", tool_input: { command: "rm -rf /" } }, "deny"],
+    [{ tool_name: "Bash", tool_input: { command: "npm install left-pad" } }, "ask"],
+    [{ tool_name: "Bash", tool_input: { command: "npm install left-pad" }, permission_mode: "bypassPermissions" }, "allow"],
+  ];
+  for (const [stdin, expected] of cases) {
+    const run = runHookProcess(stdin, dir);
+    assert.equal(run.status, 0);
+    assert.equal(JSON.parse(run.stdout).hookSpecificOutput.permissionDecision, expected, JSON.stringify(stdin));
+  }
 });

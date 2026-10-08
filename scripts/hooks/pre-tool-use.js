@@ -165,6 +165,10 @@ function findMatchingRule(command, rules) {
   return rules.find(({ pattern }) => pattern.test(command));
 }
 
+// Without an objection the hook stays silent: an affirmative `allow` would skip
+// the host's own permission prompt and rules (OSP-017). main() writes nothing.
+const NO_DECISION = null;
+
 function makeDecision(permissionDecision, permissionDecisionReason) {
   return {
     hookSpecificOutput: {
@@ -430,14 +434,11 @@ function evaluateToolUseCore(input, opts) {
     }
   }
 
-  // No commands present — allow without reaching the ASK/ALLOW pass.
+  // No commands present — no objection, so no decision (OSP-017).
   // Step 5b only ever fires for commands matching `git commit`, so tools with
   // no command payload (Edit, Write, etc.) always fall through to here.
   if (commands.length === 0) {
-    if (!isShellTool(input?.tool_name)) {
-      return makeDecision("allow", "Tool did not include a command payload.");
-    }
-    return makeDecision("allow", "Shell tool did not include a command payload.");
+    return NO_DECISION;
   }
 
   // Step 5c — Spec drift advisory (always `ask`, never `deny`). Independently
@@ -486,7 +487,7 @@ function evaluateToolUseCore(input, opts) {
     }
   }
 
-  return makeDecision("allow", "Command payload passed the safety policy.");
+  return NO_DECISION;
 }
 
 async function readJsonInput(stream = process.stdin) {
@@ -503,7 +504,9 @@ async function readJsonInput(stream = process.stdin) {
 async function main() {
   try {
     const decision = evaluateToolUse(await readJsonInput());
-    process.stdout.write(`${JSON.stringify(decision)}\n`);
+    if (decision !== NO_DECISION) {
+      process.stdout.write(`${JSON.stringify(decision)}\n`);
+    }
   } catch (error) {
     process.stdout.write(
       `${JSON.stringify(

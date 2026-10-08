@@ -1,0 +1,257 @@
+{
+  "schema": "idd-state/v1",
+  "change": "hook-neutral-permissions",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "E1.16 (OSP-017): los hooks PreToolUse JS y Go devuelven allow afirmativo cuando no tienen objeción, y Claude Code concede así permisos que el host habría pedido o denegado",
+    "acceptance": "Casos neutrales de JS y Go producen stdout vacío y exit 0; deny, ask, error y la degradación bypass se mantienen; Codex y Cursor conservan su salida; el par real Claude sin/con plugin deja de conceder Write con plugin; checks verdes"
+  },
+  "facts": {
+    "basis": "El roadmap E1.16 fija el comportamiento (ausencia de objeción = sin decisión, stdout vacío y exit 0; mantener deny/ask/errores/bypass; Codex ya normaliza a {} y Cursor conserva permission allow vía el launcher); la doc oficial de Claude Code define la salida vacía como sin decisión"
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/ospec-hooks-launch.test.js and 3 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-08T13:56:44.927Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-08T14:01:14.633Z",
+      "detail": {
+        "lineage_id": "sha256:984ef71814f379e6f75b5e6aa71818bd8c3f2b5c07e478717058b249aef56314",
+        "candidate_id": "sha256:090474acf7cd13e0f27022ce7a4251fb4d8f989b720cb067b4d0b715c0b79ccc",
+        "candidate_tree": "c549829e3da521dc8f3463d762de454b1420ab3b",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f"
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-08T14:03:12.188Z",
+      "detail": {
+        "tree": "sha256:57eb8070aefe873ded193971d3ad623d09f684f579ea85fdbb7a97dbef66bf6b",
+        "runs": [
+          "run-3"
+        ]
+      }
+    }
+  ],
+  "base": "b7c8485bcc7c245ea9d945d48d167343082dce1c",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=OSP-017 scripts/hooks/pre-tool-use.test.js && go test ./internal/hooks -run OSP017 -count=1",
+      "exit_code": 1,
+      "output_sha256": "sha256:827e67564678015c9d8cbd4832e95adc54fdec0bb09cf8798d9e032064c8e487",
+      "tree": "sha256:ad846853e17dc1e2e1b32b98675845849a9d6c48c1b7262be14cc7a5bb9f4535",
+      "recorded_at": "2026-10-08T13:56:02.608Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=OSP-017 scripts/hooks/pre-tool-use.test.js && go test ./internal/hooks -run OSP017 -count=1",
+      "exit_code": 0,
+      "output_sha256": "sha256:cd138ff0a1f4ecfd612981cdb26bd1c2dd8f37a9df95952aa2f49597886868d7",
+      "tree": "sha256:e486802f248b75ca5d22783fa57ea5432be82ba7f83c54d75826cbd768c47fe3",
+      "recorded_at": "2026-10-08T13:56:44.927Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d4a886ba6cda18e126594ec61230f4565bb2ffe02801cf95228cabbe544881a1",
+      "tree": "sha256:57eb8070aefe873ded193971d3ad623d09f684f579ea85fdbb7a97dbef66bf6b",
+      "recorded_at": "2026-10-08T14:03:12.188Z"
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:984ef71814f379e6f75b5e6aa71818bd8c3f2b5c07e478717058b249aef56314",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "1942735e76fc6b00e4006498ed965bd760aea32b",
+          "candidate_tree": "c549829e3da521dc8f3463d762de454b1420ab3b",
+          "paths": [
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_test.go",
+            "internal/testdata/parity/pre-tool-use-allow.json",
+            "internal/testdata/parity/pre-tool-use-neutral.json",
+            "openspec/specs/git-collaboration-guard/spec.md",
+            "openspec/specs/hooks-runtime/spec.md",
+            "openspec/specs/hooks/spec.md",
+            "scripts/hooks/ospec-hooks-launch.test.js",
+            "scripts/hooks/parity-contract.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js"
+          ],
+          "diff_hash": "sha256:f22ca8e9c3e6301290568fe81d218637135f901310bc398c6b8c9ca0caa467d5",
+          "paths_digest": "sha256:11801319b8e5d9d638af57e4dcfae1fe3ec1bc43f24b578ed80e0da4ad066b19",
+          "authored_lines": 285,
+          "original_changed_lines": 389
+        },
+        "candidate_id": "sha256:090474acf7cd13e0f27022ce7a4251fb4d8f989b720cb067b4d0b715c0b79ccc",
+        "paths": [
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/testdata/parity/pre-tool-use-allow.json",
+          "internal/testdata/parity/pre-tool-use-neutral.json",
+          "openspec/specs/git-collaboration-guard/spec.md",
+          "openspec/specs/hooks-runtime/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/parity-contract.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "c549829e3da521dc8f3463d762de454b1420ab3b",
+        "original_changed_lines": 389,
+        "authored_lines": 285
+      },
+      "current_candidate_id": "sha256:090474acf7cd13e0f27022ce7a4251fb4d8f989b720cb067b4d0b715c0b79ccc",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "1942735e76fc6b00e4006498ed965bd760aea32b",
+        "candidate_tree": "c549829e3da521dc8f3463d762de454b1420ab3b",
+        "paths": [
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/testdata/parity/pre-tool-use-allow.json",
+          "internal/testdata/parity/pre-tool-use-neutral.json",
+          "openspec/specs/git-collaboration-guard/spec.md",
+          "openspec/specs/hooks-runtime/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/parity-contract.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "diff_hash": "sha256:f22ca8e9c3e6301290568fe81d218637135f901310bc398c6b8c9ca0caa467d5",
+        "paths_digest": "sha256:11801319b8e5d9d638af57e4dcfae1fe3ec1bc43f24b578ed80e0da4ad066b19",
+        "authored_lines": 285,
+        "original_changed_lines": 389
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "hook-neutral-permissions:lens-start:1:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "hook-neutral-permissions:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 195,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-10-08T14:03:16.588Z"
+}

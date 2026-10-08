@@ -229,7 +229,7 @@ The generated plugin MUST:
    pass `{"tool_name": input.tool, "tool_input": output.args || {}}` as UTF-8 JSON
    to stdin, parse stdout JSON.
 3. Apply the decision from `hookSpecificOutput.permissionDecision`:
-   - `"allow"` → return (pass through).
+   - Empty stdout (no decision, hooks spec §3.1) or `"allow"` → return (pass through).
    - `"deny"` or `"ask"` → throw `Error(permissionDecisionReason)`. (opencode has no
      native "ask" surface; both deny and ask collapse to a hard block.)
 4. If spawnSync fails (binary absent, non-zero exit, unparseable stdout): treat as

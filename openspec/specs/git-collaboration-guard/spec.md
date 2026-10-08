@@ -18,7 +18,7 @@ The guard MUST resolve the default branch, the current branch, and the working t
 | Current branch | `git branch --show-current` | Fail open for the default-branch check only; dirty-tree check still runs |
 | Working tree state | `git status --porcelain` → non-empty output = dirty | Fail open: skip dirty-tree advisory, return `allow` for this check |
 
-"Fail open" means the guard MUST NOT fire an advisory for a condition it cannot resolve — it returns `allow` for that specific condition and continues evaluating others.
+"Fail open" means the guard MUST NOT fire an advisory for a condition it cannot resolve — it returns `allow` for that specific condition and continues evaluating others. In this spec, `allow` means the guard step does not object; when no later step objects, the hook makes no decision and writes nothing (hooks spec §3.1, OSP-017).
 
 A detached HEAD, a missing `origin` remote, or a git timeout on the default-branch commands MUST all be treated as "resolution unavailable" for the default-branch check only. The dirty-tree check is independent and MUST still run unless git is completely absent from PATH.
 
@@ -256,13 +256,13 @@ Both implementations MUST produce identical `permissionDecision` values and equi
 
 - GIVEN `DISABLE_GIT_COLLABORATION_GUARD=true` and identical inputs
 - WHEN both implementations evaluate
-- THEN both MUST return `allow` without invoking any git command
+- THEN neither MUST emit an `ask` nor invoke any git command (the guard does not object; with no other objection the hook makes no decision, hooks spec §3.1)
 
 #### Scenario: Go and Node agree on graceful degradation
 
 - GIVEN git is absent from PATH
 - WHEN both implementations attempt any git invocation
-- THEN both MUST return `allow` (fail open) without propagating errors to the Claude host
+- THEN neither MUST emit an `ask` (fail open) nor propagate errors to the Claude host
 
 ---
 

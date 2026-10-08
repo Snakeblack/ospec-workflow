@@ -399,6 +399,46 @@ test("normalizeCursorHookOutput degrades ask to allow and maps deny", () => {
   assert.deepEqual(allow, { permission: "allow" });
 });
 
+// OSP-017: a neutral PreToolUse call writes nothing. Each target keeps its own
+// "no objection" shape: Claude-format hosts get no output, Codex `{}` and
+// Cursor `permission: "allow"` (its contract only accepts allow|deny).
+test("neutral pre-tool-use output keeps each target's no-objection shape", (t) => {
+  assert.deepEqual(normalizeCodexHookOutput("pre-tool-use", null), {});
+  assert.deepEqual(normalizeCursorHookOutput("pre-tool-use", null), { permission: "allow" });
+
+  const cp = require("node:child_process");
+  const fs = require("node:fs");
+  const origSpawnSync = cp.spawnSync;
+  const origReadFileSync = fs.readFileSync;
+  const origWrite = process.stdout.write;
+  const origTarget = process.env.OSPEC_TARGET;
+  cp.spawnSync = () => ({ status: 0, stdout: "", stderr: "" });
+  fs.readFileSync = (fd, encoding) =>
+    fd === 0 ? '{"tool_name":"Write","tool_input":{"file_path":"probe.txt"}}' : origReadFileSync(fd, encoding);
+  process.env.OSPEC_TARGET = "claude";
+  const written = [];
+  t.after(() => {
+    cp.spawnSync = origSpawnSync;
+    fs.readFileSync = origReadFileSync;
+    process.stdout.write = origWrite;
+    if (origTarget === undefined) delete process.env.OSPEC_TARGET;
+    else process.env.OSPEC_TARGET = origTarget;
+    delete require.cache[require.resolve("./ospec-hooks-launch.js")];
+  });
+
+  delete require.cache[require.resolve("./ospec-hooks-launch.js")];
+  const launcher = require("./ospec-hooks-launch.js");
+  process.stdout.write = (chunk) => {
+    written.push(String(chunk));
+    return true;
+  };
+  const code = launcher.main(["pre-tool-use"], __dirname);
+  process.stdout.write = origWrite;
+
+  assert.equal(code, 0);
+  assert.deepEqual(written, []);
+});
+
 test("normalizeCursorHookOutput maps session-start to beforeSubmitPrompt continue", () => {
   assert.deepEqual(
     normalizeCursorHookOutput("session-start", { systemMessage: "Drift warning" }),
