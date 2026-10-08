@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.117.0, 2026-10-08.
+> **Versión de referencia:** v2.117.1, 2026-10-08.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -125,6 +125,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.7** | `ospec-doctor` ((a) núcleo, proyecto y Claude Code en v2.115.0; (b) los otros seis targets en v2.116.0) | feature |
 | `done` | **E1.8** | `sdd-new-intent-argument` (v2.114.2) | bugfix |
 | `done` | **E1.9** | `install-cli-ux` (salida común con fases y resumen en los 7 instaladores y publicación de `dist/vscode` con VS Code abierto, en v2.117.0) | bugfix |
+| `done` | **E1.10** | `vscode-dry-run` (`setup:vscode --dry-run` ya no toca `dist/vscode`, y el árbol se publica preparado o no se publica, en v2.117.1) | bugfix |
 | `next-eligible` | **E2.1** | `knowledge-map-contract` | contrato |
 | `pending` | **E2.2** | `decision-gap-engine` | feature |
 | `pending` | **E2.3** | `foundation-discovery-rounds` | feature |
@@ -141,7 +142,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.3** | `context-budget-ratchet` | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** el checkpoint de cierre de la Etapa 1 contra la tabla de objetivos, en una sesión aparte por decisión del usuario; E2.1 `knowledge-map-contract` sigue elegible en paralelo. E1.9 está hecho desde v2.117.0: los 7 instaladores comparten salida y `setup:vscode` publica con VS Code abierto. Follow-ups: el plugin SDD del marketplace queda como E5.8, por demanda; el protocolo IDD debe editar ficheros de texto respetando su codificación; y `ospec next` no recuerda declarar el plan (`ospec signals`) antes de editar.
+**▶ SIGUIENTE:** el checkpoint de cierre de la Etapa 1 contra la tabla de objetivos, en una sesión aparte por decisión del usuario; E2.1 `knowledge-map-contract` sigue elegible en paralelo. E1.9 está hecho desde v2.117.0: los 7 instaladores comparten salida y `setup:vscode` publica con VS Code abierto. E1.10 (v2.117.1) cierra el último fallo conocido de `setup:vscode`: el dry-run construye en un directorio temporal y el árbol que carga VS Code ya no puede quedar con marcadores sin sustituir. Follow-ups: el plugin SDD del marketplace queda como E5.8, por demanda; el protocolo IDD debe editar ficheros de texto respetando su codificación; y `ospec next` no recuerda declarar el plan (`ospec signals`) antes de editar.
 
 **Dependencias:**
 
@@ -150,7 +151,7 @@ E0.0 ─ E0.1 ─┬─ E0.2 ─┬─ E0.4 ────────────
              ├─ E0.3 ─┘                             │
              └─ E4.1 (línea base: modo SDD y ODD) ──┤
                                                     ▼
-E1.1 ─ E1.2 ─┬─ E1.3 ─ E1.4 ───────────────────── E1.6 ─ E1.7 ─ E1.9
+E1.1 ─ E1.2 ─┬─ E1.3 ─ E1.4 ───────────────────── E1.6 ─ E1.7 ─ E1.9 ─ E1.10
              └─ E1.5 (en paralelo)
 
 E1.2 ─ E2.1 ─ E2.2 ─ E2.3 ─ E2.4 ─ E2.5 ─ E2.6
@@ -333,6 +334,15 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Cuándo:** después de E1.7, por decisión del usuario (2026-10-08).
 - **Hecho cuando:** `setup:vscode` con VS Code abierto termina o falla con un mensaje accionable, y los 7 instaladores muestran el mismo formato de progreso y resumen.
 - **Entregado en v2.117.0, E1.9 hecho:** REQ-install-038. `scripts/configure/install-output.js` da a los 7 instaladores y al paso Engram una salida común en español: cabecera, una línea por fase `✓ [n/N] fase (s)` que en terminal interactiva se reescribe en su sitio, y resumen final (destino, ficheros, paquetes, siguiente paso y tiempo) o `✗ Instalación fallida`. El detalle (validadores, binario de hooks, CLI `claude`) sale solo con `--verbose`. La publicación de `scripts/configure/cli.js` sigue siendo un renombrado atómico; solo para `dist/vscode`, si el renombrado choca con un bloqueo (`EPERM`, `EACCES`, `EBUSY`), escribe en su sitio el árbol ya validado y lo vuelve a validar. Los errores de sistema de ficheros nombran operación, ruta y el host que hay que cerrar. Decisiones del usuario: renombrado atómico con fallback en sitio, fase con ✓ y duración sin spinner (los instaladores son síncronos), salida en español, y recuentos por defecto con `--verbose`; `configure --target` e `install-target` conservan su salida. Verificado en real con un proceso bloqueando `dist/vscode`. Hecho con IDD (`idd/archive/2026-10-08-install-cli-ux/`).
+
+### E1.10 — `vscode-dry-run`
+
+- **Origen:** tras E1.9, `setup:vscode --dry-run` seguía construyendo en `dist/vscode` y salía antes de sustituir `__OSPEC_SHARED_DIR__` y `__OSPEC_RUNTIME_DIR__`. Como VS Code carga ese árbol en vivo, una simulación dejaba el plugin instalado roto. Una instalación real que fallara después de la build (copia del binario de hooks, sustitución de marcadores) lo dejaba igual.
+- **Garantía que protege:** que una simulación no cambie nada instalado y que el árbol que carga un host en vivo nunca quede a medio preparar.
+- **Alcance:** el dry-run de `setup:vscode` construye y valida en un directorio temporal; la sustitución de marcadores y la copia del binario pasan al árbol de staging ya validado, antes de publicarlo (paso `prepareTree` de `runConfigure`). Decisiones del usuario (gate de hechos abiertos): build en temporal, no un dry-run sin build; e incluir el caso de la instalación real fallida.
+- **Cuándo:** después de E1.9 y antes del checkpoint de cierre de la Etapa 1, por decisión del usuario (2026-10-08).
+- **Hecho cuando:** tras `setup:vscode --dry-run`, `dist/vscode` queda igual byte a byte (o ausente), y una instalación que falla al preparar la build deja la instalación anterior intacta.
+- **Entregado en v2.117.1, E1.10 hecho:** REQ-install-039. `runConfigure` acepta `prepareTree(dir)`, que corre sobre el staging validado antes de publicarlo y sobre el destino tras una publicación en sitio (REQ-install-038); si falla, el destino queda como estaba y no quedan staging, copia de seguridad ni cerrojo. `setup:vscode` lo usa para copiar el binario de hooks y sustituir los marcadores con las rutas de `dist/vscode`, y la fase «Preparar el plugin» desaparece (queda dentro de «Generar y validar»). Con `--dry-run` construye, valida y sustituye en un directorio temporal que borra después, sin copiar el binario. Hecho con IDD (`idd/archive/2026-10-08-vscode-dry-run/`).
 
 ## Etapa 2 — Foundation de verdad: descubrimiento de arquitectura
 
