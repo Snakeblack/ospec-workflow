@@ -20,71 +20,47 @@ The repository keeps two manifests in sync: `.plugin.json` is the canonical mani
 
 The `.github/instructions/` directory is only a workspace mirror for instruction files. The rules bundled with the plugin live in `rules/`.
 
-Generated builds and installers leave the SDD package (`sdd-*` skills, agents, commands and rules) out unless you pass `--with-sdd`; see [Optional SDD package](#optional-sdd-package-every-target). Loading this repository directly in VS Code (Option A) loads the whole source, SDD included.
+Generated builds and installers leave the SDD package (`sdd-*` skills, agents, commands and rules) out unless you pass `--with-sdd`; see [Optional SDD package](#optional-sdd-package-every-target).
 
-## How to install from source
+## How to install in VS Code
 
-Use this path when you want VS Code to manage the plugin from a source repository.
+VS Code loads the built tree `dist/vscode` from `chat.pluginLocations`. It cannot load this repository's source, either from disk or from a Git repository URL: the source still carries the `{{ospec-cli}}` placeholder, which only the build renders, so the IDD protocol cannot run the `ospec` CLI, and it carries the whole SDD package.
 
-1. Open a VS Code build that supports the Agent Plugins preview.
-2. Open the Agent Plugins installation flow.
-3. Choose the option to install from a Git repository URL.
-4. Enter this project's repository URL.
-5. Review the plugin manifest, hooks, MCP server configuration, and scripts before accepting the installation.
-6. Enable the plugin when VS Code asks.
-7. Reload VS Code if the plugin does not appear right away.
+1. Open a VS Code build that supports Agent Plugins.
+2. Clone the repository locally.
+3. Run the setup script:
+   ```powershell
+   npm run setup:vscode
+   ```
+   It builds the VS Code target into `dist/vscode`, renders the runtime and shared directories, and adds that path to `chat.pluginLocations` in the user settings of VS Code and VS Code Insiders. Add `--with-sdd` for the SDD package.
+4. Reload VS Code, open the Agent Plugins view and confirm that `ospec-workflow` is enabled.
+5. After pulling changes, run `npm run reload:vscode` and reload VS Code.
 
-Trust checklist before accepting:
+Resulting `settings.json` entry:
 
-- Confirm that `.plugin.json` and `.claude-plugin/plugin.json` point only to the expected plugin assets.
-- Review `hooks/hooks.json` because it starts local Node.js scripts.
-- Review `scripts/hooks/` because those scripts run on hook events.
+```json
+{
+  "chat.pluginLocations": [
+    "C:\\dev\\ospec-workflow\\dist\\vscode"
+  ]
+}
+```
+
+Keep a single `ospec-workflow` entry. `node scripts/ospec.js doctor --target vscode` reports several registered builds, an entry that loads the source checkout, an entry whose path no longer exists, and `chat.agentFilesLocations` entries that load the plugin's agents twice.
+
+Trust checklist before enabling:
+
+- Confirm that `dist/vscode/.claude-plugin/plugin.json` points only to the expected plugin assets.
+- Review `dist/vscode/hooks/hooks.json` because it starts local Node.js scripts.
+- Review `dist/vscode/scripts/hooks/` because those scripts run on hook events.
 - Review `.mcp.json` because it may start local processes for MCP servers.
 - Confirm you are comfortable providing `CONTEXT7_API_KEY` when you need MCP access.
 
 Plugin support may be disabled by organization policy. If the Agent Plugins UI or settings do not appear, check your VS Code version and the configuration managed by your organization.
 
-## How to enable it locally with `chat.pluginLocations`
-
-Use this path when you are developing or testing this repository directly from disk in VS Code. It supports two modes:
-
-### Option A: Without model routing (direct use of the source)
-1. Clone the repository locally.
-2. Open the VS Code settings in JSON format.
-3. Add the root of this repository to `chat.pluginLocations`.
-4. Reload VS Code.
-
-### Option B: With `models.yaml` model routing (Recommended)
-1. Clone the repository locally.
-2. Run the automatic setup script for VS Code:
-   ```powershell
-   npm run setup:vscode
-   ```
-   *(This builds the VS Code target into `dist/vscode` and automatically adds it to `chat.pluginLocations` in your settings).*
-3. If you make code changes and want to reload the plugin, run:
-   ```powershell
-   npm run reload:vscode
-   ```
-4. Reload VS Code.
-
-In both cases, open the Agent Plugins view and confirm that `ospec-workflow` is enabled.
-
-Minimal `settings.json` example:
-
-```json
-{
-  "chat.pluginLocations": [
-    "C:\\dev\\Hiberus\\ospec-workflow"
-  ]
-}
-```
-
-If you keep the repository at another path, replace the value with the local path of your clone.
-
-
 ## Generating for other targets with configure
 
-The repository uses VS Code Agent Plugin as the canonical format. The `vscode` target is identity: VS Code can load the repository directly, without generating `dist/`. For Claude Code and GitHub Copilot CLI, the generator produces native trees under `dist/` without modifying the source.
+The repository uses VS Code Agent Plugin as the canonical format. Every target, `vscode` included, is generated into its own tree under `dist/` without modifying the source.
 
 ```powershell
 # Claude Code: temporary session load
@@ -147,7 +123,7 @@ In Claude Code there are two different outputs:
 
 ## Installing the generated tree per tool
 
-- **VS Code**: use the repository directly (`chat.pluginLocations`), without generating.
+- **VS Code**: `npm run setup:vscode` builds `dist/vscode` and registers it in `chat.pluginLocations`; see [How to install in VS Code](#how-to-install-in-vs-code).
 - **Claude Code temporary**: generate `dist/claude/` and load it with `claude --plugin-dir dist/claude`. This path applies only to the current session.
 - **Claude Code persistent**: generate `dist/claude-marketplace/`, register that local marketplace and then install `ospec-workflow@ospec-tools`.
 - **GitHub Copilot CLI (Local/Project)**: generate `dist/github-copilot/` and copy its contents (`.github/`, `.mcp.json`, and `scripts/`) into the destination repo root.
@@ -513,8 +489,10 @@ and reports each problem with its cause and the action that fixes it: an outdate
 duplicated installation, missing hooks, a missing or outdated router block, `mode: sdd`
 without the SDD package, an interrupted IDD or SDD change and the command that resumes
 it, disabled hook guards, and Engram. It exits with 1 only when it finds an error;
-`--json` prints the result and `--target claude` checks only that host. Today it checks
-the Claude Code host; the other targets follow.
+`--json` prints the result and `--target <host>` checks only that host. It checks the
+seven hosts: Claude Code, Codex, Cursor, Antigravity, OpenCode, GitHub Copilot CLI and
+VS Code, including installations that predate the IDD runtime, placeholders an installer
+left unrendered, and VS Code entries that load the source checkout or a stale build.
 
 ## Installer model selection
 
@@ -530,7 +508,7 @@ IDE targets, so an unavailable or unsupported CLI cannot prevent installation.
 | Symptom | Likely cause | What to check |
 | --- | --- | --- |
 | Agent Plugins UI missing | The Agent Plugins preview is unavailable or policy disables it. | Confirm your VS Code version supports Agent Plugins and review your organization's policy. |
-| The plugin does not appear from `chat.pluginLocations` | The path points to the wrong folder or VS Code has not been reloaded. | Point to the repository root containing `.plugin.json` and then reload VS Code. |
+| The plugin does not appear from `chat.pluginLocations` | The path points to the wrong folder or VS Code has not been reloaded. | Run `npm run setup:vscode`, which registers `dist/vscode`, and reload VS Code; `node scripts/ospec.js doctor --target vscode` names a wrong entry. |
 | Prompt files missing | The plugin is disabled or the prompt assets were not loaded. | Confirm `.plugin.json` references `commands/` and that the plugin is enabled. |
 | `sdd-orchestrator` or `/sdd-*` missing | The install was built without the SDD package, or the agent assets were not loaded. | Reinstall with `--with-sdd`; otherwise confirm `.plugin.json` references `agents/` and that the Agent Plugins view shows no errors. |
 | Skills seem unavailable | The skill assets were not loaded or the request did not trigger a skill. | Confirm `.plugin.json` references `skills/` and try again with a code change request (IDD) or an SDD request. |
@@ -553,7 +531,7 @@ Treat the plugin manifest version as the installed package version.
 Update flow for users who already installed:
 
 1. Review the changelog or the diff before updating, especially if `.plugin.json`, `.claude-plugin/plugin.json`, `.mcp.json`, `hooks/hooks.json`, or `scripts/hooks/` changed.
-2. Pull or reinstall from the Git repository URL.
+2. Pull the repository and run the setup script of each installed target again (`npm run reload:vscode` for VS Code).
 3. Reload VS Code.
 4. Re-run the agent, command, MCP, and hook checks in this document.
 

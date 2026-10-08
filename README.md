@@ -92,17 +92,12 @@ Choose a target, edit models when that target supports it, review the summary, t
 
 ## Detailed Setup per Target
 
-### 🛠️ VS Code (Direct Source Loading)
-- **Option A (Direct source usage - no model routing)**:
-  Add the root of this cloned repository to `chat.pluginLocations` in your `settings.json`.
-- **Option B (Compiled build with model routing - Recommended)**:
-  ```powershell
-  npm run setup:vscode
-  ```
-  To update after making changes to the source:
-  ```powershell
-  npm run reload:vscode
-  ```
+### 🛠️ VS Code (Agent Plugin from `dist/vscode`)
+VS Code loads the built tree, not the source: the source still carries placeholders that only the build renders, and the whole SDD package.
+```powershell
+npm run setup:vscode
+```
+It builds `dist/vscode` and adds it to `chat.pluginLocations`. To update after pulling changes, run `npm run reload:vscode` and reload VS Code. `node scripts/ospec.js doctor --target vscode` reports a duplicated, missing or source-checkout entry.
 
 ### 🤖 Claude Code (Persistent Plugin and Marketplace)
 - **For end users** (without cloning the repository):

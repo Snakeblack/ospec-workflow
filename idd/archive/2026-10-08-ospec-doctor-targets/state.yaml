@@ -1,0 +1,152 @@
+{
+  "schema": "idd-state/v1",
+  "change": "ospec-doctor-targets",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "feature",
+    "summary": "ospec doctor diagnostica los otros 6 targets (codex, cursor, antigravity, opencode, vscode, github-copilot): instalación, versión, runtime, marcadores sin renderizar, router, hooks, paquete SDD y Engram; VS Code con varias entradas en chat.pluginLocations",
+    "acceptance": "ospec doctor y --target <t> reportan cada fallo conocido de instalación de los 7 targets con causa y acción; REQ-idd-019 sin 'unsupported until (b)'; tests cubren cada check"
+  },
+  "facts": {
+    "open": [
+      "Engram: ¿sondear en cada target detectado (una sola sonda del binario y de engram doctor reutilizada) o solo con --target?",
+      "Severidades: marcadores sin renderizar = error; VS Code varias entradas ospec en chat.pluginLocations = warn; entrada al checkout fuente o ruta inexistente = error. ¿De acuerdo?",
+      "Alcance extra en (b): ¿instalación Codex en repo sin runtime, corrección de docs/plugin-installation, investigar el test que escribió ~/.copilot/.ospec-workflow-install.json 0.0.0?"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Engram: cada target detectado (sonda única reutilizada). Severidades: sí, así (marcadores sin renderizar = error; VS Code varias entradas = warn; checkout fuente o ruta inexistente = error). Alcance (b): Codex en repo, docs de instalación y fuga de test a ~/.copilot, los tres.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-08T07:30:48.427Z",
+      "detail": {
+        "tree": "sha256:d6661da793845b8e7a213ad6934ad3d30f4eeb2a8e9bfb33e1f645f723f345f1",
+        "runs": [
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-08T07:30:48.427Z",
+      "detail": {
+        "tree": "sha256:d6661da793845b8e7a213ad6934ad3d30f4eeb2a8e9bfb33e1f645f723f345f1",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/ospec-doctor-hosts.test.js",
+          "scripts/lib/ospec-doctor.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-08T07:31:01.750Z"
+    }
+  ],
+  "base": "86e9434992c6fd986ad1d177ee71d93f571539a3",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:181cbe71fa1b8b99081e905f6bbca14a08927c0cab1ac4bff45ef3510c63ffdb",
+      "tree": "sha256:c9eaa8cd33cd885549fc2aa971c6fae1d3a2d7fab00702922f1430c8ffc57a9c",
+      "recorded_at": "2026-10-08T07:21:30.616Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:d11c11b61c4f24a7f15e0376f2f698b9c2230a832d9e44bf06f3ae774d4a7872",
+      "tree": "sha256:d0813b6c5378134d2c9ed62c0fb7bfeaad48397c665e60c78569c5cab5e8e5f4",
+      "recorded_at": "2026-10-08T07:24:14.437Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:984292501147407c859d3f44b718fbe4feb68c35443ac19b43656ed231ccb5c1",
+      "tree": "sha256:ed238debd55ff04186c8bfa3e2511f46711f8293f5da53bd39b63b07792a2fb5",
+      "recorded_at": "2026-10-08T07:26:25.485Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:05142156419e66c88a8854f28673a73e4af33faa71e11a4a9655c4292937007d",
+      "tree": "sha256:d6661da793845b8e7a213ad6934ad3d30f4eeb2a8e9bfb33e1f645f723f345f1",
+      "recorded_at": "2026-10-08T07:30:48.427Z"
+    }
+  ],
+  "closed_at": "2026-10-08T07:31:01.750Z"
+}

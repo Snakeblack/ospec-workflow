@@ -67,17 +67,12 @@ En Claude Code también puedes entrar en IDD de forma explícita con `/ospec-wor
 
 ## Configuración Detallada por Target
 
-### 🛠️ VS Code (Carga Directa del Source)
-- **Opción A (Uso directo del source - sin ruteo de modelos)**:
-  Añade la raíz de este repositorio clonado a `chat.pluginLocations` en tu `settings.json`.
-- **Opción B (Compilado con ruteo de modelos - Recomendado)**:
-  ```powershell
-  npm run setup:vscode
-  ```
-  Para actualizar tras realizar cambios en el source:
-  ```powershell
-  npm run reload:vscode
-  ```
+### 🛠️ VS Code (Agent Plugin desde `dist/vscode`)
+VS Code carga el árbol compilado, no el source: el source aún lleva marcadores que solo la build sustituye, y todo el paquete SDD.
+```powershell
+npm run setup:vscode
+```
+Compila `dist/vscode` y lo añade a `chat.pluginLocations`. Para actualizar tras un pull, ejecuta `npm run reload:vscode` y recarga VS Code. `node scripts/ospec.js doctor --target vscode` avisa de entradas duplicadas, inexistentes o que cargan el checkout fuente.
 
 ### 🤖 Claude Code (Plugin Persistente y Marketplace)
 - **Para usuarios finales** (sin clonar el repositorio):

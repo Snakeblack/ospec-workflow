@@ -7,7 +7,7 @@
 // read through the store (which recovers interrupted writes), and the only
 // processes spawned are `git check-ignore` and the read-only Engram probes.
 //
-// Release E1.7 (a) checks the Claude Code host; E1.7 (b) adds the others.
+// The Claude Code checks live here; the other six hosts, in ospec-doctor-hosts.js.
 
 const fs = require("node:fs");
 const os = require("node:os");
@@ -17,11 +17,11 @@ const { spawnSync } = require("node:child_process");
 const { DEFAULT_MODE, STATE_FILE, resolveMode, validateState } = require("./idd-contract.js");
 const { CONFIG_FILE, CONFIG_KEYS, IddConfigError, parseIddConfig } = require("./idd-config.js");
 const { statusOf } = require("./idd-next.js");
-const { isConfigured, isUnknown, detectEngram } = require("./engram-detect.js");
+const { TARGETS: ENGRAM_TARGETS, isConfigured, isUnknown, detectEngram, parseJsonc } = require("./engram-detect.js");
 const { binaryCandidates, hostBinarySuffix } = require("../hooks/ospec-hooks-launch.js");
+const hosts = require("./ospec-doctor-hosts.js");
 
-const DOCTOR_TARGETS = ["claude"];
-const HOST_TARGETS = ["claude", "codex", "cursor", "antigravity", "opencode", "vscode", "github-copilot"];
+const DOCTOR_TARGETS = ["claude", ...hosts.HOST_TARGETS];
 const ROUTER_BEGIN = "<!-- ospec-workflow:router:begin -->";
 const ROUTER_END = "<!-- ospec-workflow:router:end -->";
 // E0.4: what a host loads before any work starts must fit in 4 KB per target.
@@ -278,6 +278,91 @@ function claudeEngramCheck({ spawn, home, env, platform }, add) {
   }
 }
 
+// --- Engram on the other hosts ------------------------------------------------
+
+// Engram binaries are probed once for every host: `engram version` and
+// `engram doctor` answer the same whichever host asks.
+function sharedEngramSpawn(spawn) {
+  const cache = new Map();
+  return (bin, args, options) => {
+    if (!/^engram(?:\.exe)?$/i.test(path.basename(String(bin))) || args[0] === "hook") return spawn(bin, args, options);
+    const key = [bin, ...args].join("\0");
+    if (!cache.has(key)) cache.set(key, spawn(bin, args, options));
+    return cache.get(key);
+  };
+}
+
+// The Codex CLI lists its plugins (the Engram protocol). On Windows npm installs
+// a `.cmd` shim that cannot be spawned without a shell: run its JS entry instead.
+function resolveCodexBin({ spawn, env, platform, execPath }) {
+  const candidates = ["codex"];
+  if (platform === "win32") {
+    for (const dir of String(env.PATH || env.Path || "").split(";").filter(Boolean)) {
+      const exe = path.join(dir, "codex.exe");
+      if (fs.existsSync(exe)) candidates.push(exe);
+      const entry = path.join(dir, "node_modules", "@openai", "codex", "bin", "codex.js");
+      if (fs.existsSync(path.join(dir, "codex.cmd")) && fs.existsSync(entry)) candidates.push({ command: execPath, args: [entry] });
+    }
+  }
+  for (const bin of candidates) {
+    const [command, prefix] = typeof bin === "string" ? [bin, []] : [bin.command, bin.args];
+    const result = spawn(command, [...prefix, "--version"], { timeout: 10000 }) || {};
+    if (!result.error && result.status === 0) return bin;
+  }
+  return null;
+}
+
+function hostEngramCheck(target, context, add) {
+  const spec = ENGRAM_TARGETS[target];
+  const detection = detectEngram({
+    target,
+    spawn: context.engramSpawn,
+    hostBin: target === "codex" ? resolveCodexBin(context) : null,
+    homedir: () => context.home,
+    env: context.env,
+    platform: context.platform,
+    timeoutMs: context.engramTimeoutMs,
+  });
+  const setup = spec.agent ? `\`engram setup ${spec.agent}\`` : `\`npm run ${spec.script}\` in the ospec-workflow checkout`;
+  if (!detection.binary.found) {
+    add({
+      id: "engram",
+      status: "info",
+      detail: "engram binary not found; session memory is optional",
+      action: `To enable it, install Engram and run \`npm run ${spec.script}\` again.`,
+    });
+  } else if (isUnknown(detection)) {
+    add({
+      id: "engram",
+      status: "warn",
+      cause: `the ${spec.label} Engram configuration could not be read`,
+      action: target === "codex" ? "Make sure the `codex` CLI is on PATH and run `ospec doctor` again." : `Check the ${spec.label} configuration files, then run ${setup}.`,
+    });
+  } else if (!isConfigured(detection)) {
+    const missing = [
+      detection.protocol === "absent" ? spec.protocol : null,
+      detection.mcp !== "registered" ? "MCP server" : null,
+    ].filter(Boolean);
+    add({
+      id: "engram",
+      status: "warn",
+      cause: `Engram ${detection.binary.version || ""} is installed but ${spec.label} lacks: ${missing.join(", ")}`.replace("  ", " "),
+      action: `Run ${setup}.`,
+    });
+  } else if (target === "codex" && detection.lifecycle === "unsupported") {
+    add({
+      id: "engram",
+      status: "warn",
+      cause: "the Engram binary does not support the Codex session hooks (`engram hook codex-*`)",
+      action: "Update Engram, then run `engram setup codex`.",
+    });
+  } else if (detection.doctor === "warn" || detection.doctor === "error") {
+    add({ id: "engram", status: "warn", cause: `\`engram doctor\` reports ${detection.doctor}`, action: "Run `engram doctor` and follow its advice." });
+  } else {
+    add({ id: "engram", status: "ok", detail: detection.binary.version || "" });
+  }
+}
+
 // --- project ----------------------------------------------------------------
 
 function readConfig(root, add) {
@@ -441,7 +526,7 @@ function hookGuardCheck(env, add) {
 
 // --- checkout -----------------------------------------------------------------
 
-function checkoutChecks(root, version, claude, add) {
+function checkoutChecks(root, version, claude, others, add) {
   const dist = readJson(path.join(root, "dist", "claude-marketplace", "plugins", "ospec-workflow", ".claude-plugin", "plugin.json"));
   if (dist?.version) {
     add(dist.version === version
@@ -465,6 +550,7 @@ function checkoutChecks(root, version, claude, add) {
           action: "Run `npm run setup:claude`, then /reload-plugins or restart Claude Code.",
         });
   }
+  hosts.installDriftChecks(version, others, add);
   if (!fs.existsSync(path.join(root, ".git", "hooks"))) return;
   const missing = [
     gitHookText(root, "pre-commit").includes("pre-commit-hook.js") ? null : "pre-commit",
@@ -491,11 +577,10 @@ async function runDoctor({
   spawn = defaultSpawn,
   target = null,
   runtimeRoot = path.resolve(__dirname, "..", ".."),
+  execPath = process.execPath,
 } = {}) {
   if (target && !DOCTOR_TARGETS.includes(target)) {
-    throw new DoctorUsageError(HOST_TARGETS.includes(target)
-      ? `doctor checks for ${target} arrive in E1.7 (b); today it checks: ${DOCTOR_TARGETS.join(", ")}`
-      : `unknown target: ${target} (one of ${HOST_TARGETS.join(", ")})`);
+    throw new DoctorUsageError(`unknown target: ${target} (one of ${DOCTOR_TARGETS.join(", ")})`);
   }
   const checks = [];
   const adder = (scope) => (check) => checks.push({ scope, ...check });
@@ -504,15 +589,19 @@ async function runDoctor({
   adder("runtime")({ id: "runtime", status: "info", detail: `${version || "unknown version"} at ${runtimeRoot}` });
 
   const claude = detectClaude(home);
+  const others = hosts.detectHosts({ home, env, platform, parseJsonc });
   const checkout = checkoutVersion(root);
-  if (checkout) checkoutChecks(root, checkout, claude, adder("checkout"));
+  if (checkout) checkoutChecks(root, checkout, claude, others, adder("checkout"));
 
   const project = adder("project");
   const config = readConfig(root, project);
   const mode = config ? resolveMode({ projectMode: config.mode }) : DEFAULT_MODE;
   project({ id: "mode", status: "info", detail: mode });
   const changes = sddChanges(root);
-  const hostsWithoutSdd = claude?.primary && !hasSddPackage(claude.primary.installPath) ? ["claude"] : [];
+  const hostsWithoutSdd = [
+    ...(claude?.primary && !hasSddPackage(claude.primary.installPath) ? ["claude"] : []),
+    ...hosts.hostsWithoutSdd(others),
+  ];
   sddPackageCheck({ mode, changes, hostsWithoutSdd }, project);
   iddChangeChecks(root, project);
   for (const change of changes) {
@@ -527,8 +616,10 @@ async function runDoctor({
   strictTddCheck(root, config, project);
   sessionDirCheck(root, spawn, project);
   hookGuardCheck(env, project);
+  hosts.codexRepoCheck(root, others, project);
 
-  if (claude || target === "claude") {
+  const engramSpawn = sharedEngramSpawn(spawn);
+  if (target ? target === "claude" : claude) {
     const add = adder("claude");
     if (!claude) {
       add({
@@ -542,9 +633,21 @@ async function runDoctor({
       if (claude.primary) {
         claudeHookChecks(claude.primary, { platform, arch }, add);
         claudeRouterChecks(claude.primary, home, add);
-        claudeEngramCheck({ spawn, home, env, platform }, add);
+        claudeEngramCheck({ spawn: engramSpawn, home, env, platform }, add);
       }
     }
+  }
+
+  const engramContext = { home, env, platform, execPath, spawn, engramSpawn, engramTimeoutMs: ENGRAM_TIMEOUT_MS };
+  const context = {
+    home,
+    env,
+    platform,
+    budgetBytes: ALWAYS_ON_BUDGET_BYTES,
+    memoryCheck: (host, add) => hostEngramCheck(host, engramContext, add),
+  };
+  for (const host of hosts.HOST_TARGETS) {
+    if (target ? target === host : others[host]) hosts.hostChecks(host, others[host], context, adder(host));
   }
 
   const errors = checks.filter((check) => check.status === "error").length;
@@ -568,4 +671,4 @@ function renderDoctor(result) {
   return lines.join("\n");
 }
 
-module.exports = { DOCTOR_TARGETS, DoctorUsageError, HOST_TARGETS, renderDoctor, runDoctor };
+module.exports = { DOCTOR_TARGETS, DoctorUsageError, renderDoctor, runDoctor };

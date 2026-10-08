@@ -183,6 +183,8 @@ const SUCCESSOR_K2_EXACT = new Set([
   // the installers (roadmap harness-evolution).
   "scripts/lib/ospec-doctor.js",
   "scripts/lib/ospec-doctor.test.js",
+  "scripts/lib/ospec-doctor-hosts.js",
+  "scripts/lib/ospec-doctor-hosts.test.js",
   "scripts/lib/engram-detect.js",
   // Quality Review Gate successor (live v2 post-verify).
   "scripts/lib/quality-review-kpis.js",

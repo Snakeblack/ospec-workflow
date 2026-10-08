@@ -629,8 +629,8 @@ test("a change with a living document closes once its plan and decisions are wri
 // E1.7 (a) ospec doctor (REQ-idd-019): read-only, exit 1 only on errors.
 function doctor(t, root, ...args) {
   const home = tempRoot(t);
-  const env = { ...process.env, HOME: home, USERPROFILE: home };
-  for (const name of Object.keys(env)) if (name.startsWith("DISABLE_")) delete env[name];
+  const env = { ...process.env, HOME: home, USERPROFILE: home, APPDATA: path.join(home, "AppData", "Roaming") };
+  for (const name of Object.keys(env)) if (name.startsWith("DISABLE_") || name === "CODEX_HOME" || name === "XDG_CONFIG_HOME") delete env[name];
   const result = spawnSync(process.execPath, [CLI, "doctor", ...args, "--root", root], { encoding: "utf8", env });
   return { code: result.status, stdout: result.stdout, stderr: result.stderr, json: args.includes("--json") ? JSON.parse(result.stdout) : null };
 }
@@ -651,12 +651,15 @@ test("doctor reports a healthy project with exit 0 and an invalid config with ex
   assert.match(broken.stdout, /action: /);
 });
 
-test("doctor --target names the hosts it checks and refuses the rest as usage", (t) => {
+test("doctor --target checks one of the seven hosts and refuses an unknown one as usage", (t) => {
   const root = tempRoot(t);
   const missing = doctor(t, root, "--target", "claude", "--json");
   assert.strictEqual(missing.code, 1);
   assert.ok(missing.json.checks.some((check) => check.scope === "claude" && check.id === "plugin" && check.status === "error"));
-  const later = doctor(t, root, "--target", "codex");
-  assert.strictEqual(later.code, 2);
-  assert.match(later.stderr, /E1\.7 \(b\)/);
+  const codex = doctor(t, root, "--target", "codex", "--json");
+  assert.strictEqual(codex.code, 1);
+  assert.ok(codex.json.checks.some((check) => check.scope === "codex" && check.id === "install" && check.status === "error"));
+  const unknown = doctor(t, root, "--target", "emacs");
+  assert.strictEqual(unknown.code, 2);
+  assert.match(unknown.stderr, /unknown target: emacs/);
 });

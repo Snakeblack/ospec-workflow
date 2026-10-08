@@ -679,8 +679,8 @@ It MUST exit with 1 when any check is `error` and with 0 otherwise; warnings
 never change the exit code. `--json` MUST print the result. Without
 `--target`, a host with no installation detected MUST be skipped; with
 `--target <host>`, only that host is checked and a missing installation MUST be
-an `error`. Release E1.7 (a) checks the `claude` host; the other targets are
-reported as unsupported until E1.7 (b).
+an `error`. The hosts are the seven targets: `claude`, `codex`, `cursor`,
+`antigravity`, `opencode`, `github-copilot` and `vscode`.
 
 The checks MUST cover at least:
 
@@ -711,6 +711,32 @@ The checks MUST cover at least:
   `budget` (`warn` when the router block exceeds the 4 KB always-on budget of
   E0.4) and `engram` (read-only Engram detection; `info` when the binary is
   absent, because Engram is optional).
+- `codex`, `cursor`, `antigravity`, `opencode` and `github-copilot`, each found
+  by the `.ospec-workflow-install.json` its global installer writes (Codex
+  under `CODEX_HOME` when set): `install` (`error` when the manifest is not
+  readable or records no version or `0.0.0`, which only a stub install
+  writes), `runtime` (`error` when the installed `scripts/ospec.js` is missing),
+  `markers` (`error` naming the file when an installed skill or agent still
+  carries `__OSPEC_RUNTIME_DIR__`, `__OSPEC_SHARED_DIR__` or `{{ospec-cli}}`),
+  `router` (`warn` when the router file or the Codex `AGENTS.md` block is
+  missing, when that `AGENTS.md` still holds the pre-E0.4 orchestrator, or when
+  `opencode.json` does not list `instructions/*.md`), `budget` (as for
+  `claude`), `hooks` (`error` when the host's hook file is missing) and
+  `engram` (as for `claude`, with that host's `engram setup` action).
+- `vscode`, found by the `ospec-workflow` plugins named in
+  `chat.pluginLocations` of the user settings of VS Code and VS Code Insiders,
+  read as an array or as a `{ path: enabled }` map: `plugin-locations`
+  (`error` for an entry that loads the ospec-workflow source checkout or names
+  a missing path, `warn` when several ospec-workflow builds are registered),
+  `agent-files` (`warn` when `chat.agentFilesLocations` names a directory inside
+  the plugin) and, for the first registered build, `runtime`, `markers`,
+  `router`, `budget`, `hooks` and `engram` as above.
+- With the checkout, `install-drift` covers every installed host, and the
+  VS Code build's version counts as its installation.
+- `project` also reports `codex-repo` when the project has a repository Codex
+  install (`install:codex -- <repo>`): `warn` when neither the repository nor a
+  global Codex install provides the IDD protocol, `info` when the global one
+  does. `sdd-package` names every installed host without the SDD package.
 
 #### Scenario: Doctor writes nothing
 
@@ -726,6 +752,22 @@ The checks MUST cover at least:
 - WHEN `ospec doctor` runs from the checkout
 - THEN `install-drift` MUST be `warn` with `npm run setup:claude` as the action
 - AND the exit code MUST be 0
+
+#### Scenario: A host installed before the IDD runtime fails
+
+- GIVEN a Cursor installation whose manifest exists but has no `scripts/ospec.js`
+- WHEN `ospec doctor` runs
+- THEN `cursor/runtime` MUST be `error` with `npm run setup:cursor` as the action
+- AND the exit code MUST be 1
+
+#### Scenario: VS Code loads the source checkout
+
+- GIVEN `chat.pluginLocations` naming the ospec-workflow source checkout and its
+  `dist/vscode` build
+- WHEN `ospec doctor` runs
+- THEN `vscode/plugin-locations` MUST be `error` for the checkout, with
+  `npm run setup:vscode` in the action
+- AND the build MUST still be checked
 
 #### Scenario: SDD mode without the SDD package fails
 
