@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.117.6] - 2026-10-08
+
+### Changed
+- **Roadmap: E1.21 `idd-checks-config-guidance`**: sin `checks:` en `idd/config.yaml` (nada crea el fichero), `checks-pass` no se puede satisfacer, `ospec next` repite `ospec check`, `close` se rechaza y `ospec doctor` lo da por bueno; la skill `idd` no lo menciona. Reproducido en un consumidor temporal. Corrección mínima aceptada por el usuario: `next`/`check` nombran lo que falta, la skill propone el comando de test y lo escribe solo con aprobación, y doctor avisa con un cambio abierto sin checks. Se ejecuta después de E1.17; la corrección sigue sin implementar. Hecho con IDD (`idd/archive/2026-10-08-roadmap-idd-config-checks/`).
+
+**Verificación directa**: `node scripts/check.js` (3371 tests pasando, 0 fallos y 0 omitidos). Comprobación documental: `git diff --check`.
+
 ## [2.117.5] - 2026-10-08
 
 ### Fixed
