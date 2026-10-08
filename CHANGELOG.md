@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.116.0] - 2026-10-08
+
+### Added
+- **`ospec doctor` cubre los 7 targets (E1.7 (b), REQ-idd-019)**: además de Claude Code, diagnostica Codex, Cursor, Antigravity, OpenCode y GitHub Copilot CLI (por el `.ospec-workflow-install.json` de su instalador global; Codex respeta `CODEX_HOME`) y VS Code (por las entradas `ospec-workflow` de `chat.pluginLocations` en VS Code y VS Code Insiders, como lista o como mapa). Por host: instalación (`error` con manifiesto ilegible, sin versión o `0.0.0`), runtime `scripts/ospec.js` ausente (`error`), marcadores sin sustituir en skills o agentes (`error`), router ausente, copia del orquestador anterior a E0.4 en el `AGENTS.md` de Codex u `opencode.json` sin `instructions/*.md` (`warn`), presupuesto de 4 KB, hooks ausentes (`error`) y Engram. En VS Code avisa de varias builds registradas (`warn`), de entradas que cargan el checkout fuente o rutas inexistentes (`error`) y de `chat.agentFilesLocations` que cargan dos veces los agentes del plugin. `install-drift` compara cada host con el checkout, `sdd-package` nombra todos los hosts sin SDD y `codex-repo` avisa de una instalación de Codex en el repositorio sin protocolo IDD. Engram se sondea en cada host con una sola ejecución de `engram version` y `engram doctor`. `--target <host>` acepta los 7 hosts y comprueba solo ese.
+
+### Changed
+- **Documentación de VS Code**: el README (en/es) y `docs/plugin-installation(.es).md` retiran la «Opción A» (raíz del repositorio en `chat.pluginLocations`) y la instalación desde una URL Git, rotas desde E0.4 y E1.6 porque el source lleva marcadores sin sustituir y todo el paquete SDD; la vía es `npm run setup:vscode`, que registra `dist/vscode`. La resolución de problemas describe el doctor de los 7 hosts.
+- **Roadmap**: E1.7 `ospec-doctor` pasa a hecho. Nuevo ítem E1.9 `install-cli-ux`, elegible por decisión del usuario: arreglar el `EPERM` de `setup:vscode` con VS Code abierto y dar a los 7 instaladores progreso, errores accionables y un resumen común. Hecho con IDD (`idd/archive/2026-10-08-ospec-doctor-targets/`).
+
+### Fixed
+- **Aislamiento del test del CLI `doctor`**: `scripts/ospec.test.js` ya no hereda `APPDATA`, `CODEX_HOME` ni `XDG_CONFIG_HOME` reales. La instalación `0.0.0` de `~/.copilot` que detecta el doctor en la máquina del autor la dejó, el 2026-08-14, una versión en desarrollo de `tests/integration/installation-convergence.test.js`; la versión commiteada ya usa `--dest` y la suite completa no modifica ningún manifiesto real.
+
+**Verificación directa**: `node scripts/check.js` (3349 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.115.0] - 2026-10-08
 
 ### Added
