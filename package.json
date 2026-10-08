@@ -1,6 +1,6 @@
 {
   "name": "ospec-workflow",
-  "version": "2.117.0",
+  "version": "2.117.1",
   "private": true,
   "description": "Impact-driven development (IDD) workflow: the ospec CLI derives each change's obligations from its impact and closes it on observed evidence, with strict TDD, bounded review, hooks, and an optional Spec-Driven Development (SDD) mode with OpenSpec.",
   "license": "MIT",

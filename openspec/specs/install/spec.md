@@ -1308,3 +1308,19 @@ A filesystem mutation that still fails with `EPERM`, `EACCES` or `EBUSY` after i
 - GIVEN any of the seven installers
 - WHEN it runs without `--verbose`
 - THEN it prints the header, one line per phase and the final summary, and no per-file list
+
+### Requirement: The Live VS Code Tree Is Published Prepared Or Not At All {#REQ-install-039}
+
+`setup:vscode` MUST never leave `dist/vscode`, the tree VS Code loads live, holding a build that is not fully prepared. `runConfigure` (`scripts/configure/cli.js`) MUST accept a `prepareTree(dir)` step and run it on the validated stage before publishing it, and on the destination after an in-place publication (REQ-install-038). `setup:vscode` uses that step to copy the hooks binary and to render `__OSPEC_SHARED_DIR__` and `__OSPEC_RUNTIME_DIR__` (REQ-install-034, REQ-install-035) with the paths of `dist/vscode`, so a failure in it leaves the previous `dist/vscode` unchanged and no staging, backup or lock behind. With `--dry-run`, `setup:vscode` MUST build, validate and render in a temporary directory that it removes afterwards, report the result as it does today, and leave `dist/vscode` byte for byte as it was (absent if it did not exist); the dry run copies no hooks binary. The SDD package of the previous install (REQ-install-036) is still read from `dist/vscode/agents`.
+
+#### Scenario: Dry run leaves the live tree alone
+
+- GIVEN `dist/vscode` holds a previous install, or does not exist
+- WHEN `setup:vscode --dry-run` runs
+- THEN the build is validated, the command ends with code 0, and `dist/vscode` is unchanged or still absent
+
+#### Scenario: Preparing the build fails
+
+- GIVEN `dist/vscode` holds a previous install
+- WHEN `setup:vscode` builds and copying the hooks binary or rendering a marker fails
+- THEN the installation fails and `dist/vscode` still holds the previous install, with no marker left unrendered

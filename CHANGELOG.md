@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.117.1] - 2026-10-08
+
+### Fixed
+- **`setup:vscode --dry-run` rompía el plugin instalado (E1.10, REQ-install-039)**: la simulación construía en `dist/vscode`, el árbol que VS Code carga en vivo, y salía antes de sustituir `__OSPEC_SHARED_DIR__` y `__OSPEC_RUNTIME_DIR__`, así que VS Code cargaba una versión rota. Ahora el dry-run construye, valida y sustituye los marcadores en un directorio temporal que borra después; `dist/vscode` queda igual byte a byte (o ausente si no existía). Verificado en real comparando el hash de `dist/vscode` antes y después.
+- **Instalación de VS Code fallida a medias**: si la copia del binario de hooks o la sustitución de marcadores fallaba después de la build, `dist/vscode` quedaba publicado con marcadores sin sustituir. `runConfigure` acepta un paso `prepareTree(dir)` que corre sobre el staging ya validado antes de publicarlo (y sobre el destino tras una publicación en sitio); `setup:vscode` prepara ahí el árbol, de modo que un fallo deja la instalación anterior intacta y sin staging, copia de seguridad ni cerrojo. La fase «Preparar el plugin» pasa a formar parte de «Generar y validar».
+
+### Changed
+- **Roadmap**: E1.10 `vscode-dry-run` hecho; lo siguiente sigue siendo el checkpoint de cierre de la Etapa 1, en una sesión aparte. Hecho con IDD (`idd/archive/2026-10-08-vscode-dry-run/`).
+
+**Verificación directa**: `node scripts/check.js` (3368 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.117.0] - 2026-10-08
 
 ### Added

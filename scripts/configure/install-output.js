@@ -3,9 +3,8 @@
 // E1.9 install-cli-ux: the one output format of the seven installers.
 //
 //   ospec-workflow · instalación para VS Code
-//     ✓ [1/3] Generar y validar (1,2 s)
-//     ✓ [2/3] Preparar el plugin (0,1 s)
-//     ✓ [3/3] Registrar en VS Code (0,0 s)
+//     ✓ [1/2] Generar y validar (1,3 s)
+//     ✓ [2/2] Registrar en VS Code (0,0 s)
 //
 //   Listo · VS Code
 //     Destino     C:\…\dist\vscode
