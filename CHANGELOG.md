@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.115.0] - 2026-10-08
+
+### Added
+- **`ospec doctor` (E1.7 (a), REQ-idd-019)**: diagnóstico de solo lectura de la instalación y del proyecto. Cada comprobación da `ok`, `info`, `warn` o `error`; los avisos y errores llevan causa y acción, y el comando sale con 1 solo si hay un error. `--json` imprime el resultado y `--target claude` limita los hosts. Comprueba el runtime; desde el checkout, `dist/` y la instalación desfasados respecto al checkout y los git hooks; en el proyecto, `idd/config.yaml`, el modo, el paquete SDD, los cambios IDD y SDD interrumpidos con el comando que los reanuda, las asimetrías IDD/openspec y las guardas `DISABLE_*`; y en Claude Code, el plugin, los hooks, el bloque del router (ausente, desfasado o duplicado), el presupuesto *always-on* de 4 KB y Engram. Los otros seis targets llegan en E1.7 (b).
+
+### Changed
+- **Detección de Engram en el runtime**: pasa de `scripts/configure/engram-setup.js` a `scripts/lib/engram-detect.js`, que siguen usando los instaladores. Enmienda acotada de `adr-20261002-003` y de REQ-session-memory-002: el doctor puede detectar si Engram está instalado, nunca lee memorias ni llama a `mem_*`, y ningún resultado de Engram es un error.
+- **Documentación**: las guías de instalación empiezan la resolución de problemas por `ospec doctor`.
+- **Roadmap**: E1.7 (a) entregado; queda (b), que cierra la Etapa 1. Hecho con IDD (`idd/archive/2026-10-08-ospec-doctor/`).
+
+**Verificación directa**: `node scripts/check.js` (3332 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.114.2] - 2026-10-08
 
 ### Fixed
