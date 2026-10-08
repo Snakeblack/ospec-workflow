@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.117.3, 2026-10-08.
+> **Versión de referencia:** v2.117.4, 2026-10-08.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -133,7 +133,12 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.13** | `idd-openspec-asymmetries` (follow-up del checkpoint de la Etapa 1) | bugfix |
 | `pending` | **E1.14** | `codex-repo-runtime` (follow-up del checkpoint de la Etapa 1) | bugfix |
 | `pending` | **E1.15** | `idd-review-successor-policy` (coherencia de autoridades; decisión humana pendiente) | contrato |
-| `next-eligible` | **E2.1** | `knowledge-map-contract` | contrato |
+| `next-eligible` | **E1.16** | `hook-neutral-permissions` (OSP-017; prioridad de la siguiente sesión) | bugfix |
+| `pending` | **E1.17** | `hook-boundary-reliability` (OSP-001/002/003; secretos y launcher) | bugfix |
+| `pending` | **E1.18** | `idd-evidence-integrity` (OSP-018; frescura de configuración y protección del estado) | bugfix |
+| `pending` | **E1.19** | `idd-review-context` (OSP-019; sobrecarga confirmada, bloqueo no demostrado) | refactor |
+| `pending` | **E1.20** | `installation-docs-sync` (OSP-020; documentación de E1.6/E1.8) | docs |
+| `pending` | **E2.1** | `knowledge-map-contract` (se retoma después de las prioridades OSP) | contrato |
 | `pending` | **E2.2** | `decision-gap-engine` | feature |
 | `pending` | **E2.3** | `foundation-discovery-rounds` | feature |
 | `pending` | **E2.4** | `decision-records-model` | feature |
@@ -150,9 +155,21 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.4** | `execution-resource-experiment` (experimento previo a cualquier routing adaptativo) | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E2.1 `knowledge-map-contract`, que abre la Etapa 2. El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) da `continue`: todas sus filas de objetivos se cumplen. Sus follow-ups E1.11–E1.14 y la coherencia de política de E1.15 siguen `pending` y en paralelo con la Etapa 2, sin bloquearla. El plugin SDD del marketplace sigue como E5.8, por demanda.
+**▶ SIGUIENTE SESIÓN:** E1.16 `hook-neutral-permissions` (OSP-017), seguido por E1.17 (OSP-001/002/003), E1.18 (OSP-018), E1.19 (OSP-019) y E1.20 (OSP-020), por decisión del usuario del 2026-10-08. Las correcciones se ejecutarán con IDD; esta actualización solo fija la prioridad y no las declara implementadas. Después se retoma E2.1 `knowledge-map-contract`, que abre la Etapa 2.
 
-**Cinco oportunidades aceptadas el 2026-10-08**, en orden de retorno esperado de la auditoría. Se amplían tres ítems existentes y se añaden dos acotados; aceptar su entrada al roadmap no completa sus garantías ni resuelve sus decisiones pendientes.
+El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) conserva su resultado histórico `continue`. Los hallazgos posteriores y sus límites están en el [análisis OSP de permisos y evidencia](../analysis/2026-10-08-osp-permisos-y-evidencia.md). E1.11–E1.15 siguen pendientes; el plugin SDD del marketplace permanece en E5.8, por demanda.
+
+**Prioridades OSP aceptadas para la siguiente sesión:**
+
+| Orden | Ítem y problema | Evidencia y garantía protegida | Validación mínima y límite |
+| --- | --- | --- | --- |
+| 1 | **E1.16 / OSP-017** | Claude real deniega Write sin plugin y lo ejecuta con plugin; preservar el permiso del host y las aprobaciones explícitas | Salida neutral vacía en JS/Go y repetición del par real; conservar decisiones explícitas y adaptadores |
+| 2 | **E1.17 / OSP-001/002/003** | Shell sin clasificación de secretos; bypass degrada ASK según la política actual; launcher sin deadline propio y continuación ante fallo | Reutilizar clasificador y launcher, comprobar fallos y targets; no imponer otra política bypass ni regex sin casos reproducidos |
+| 3 | **E1.18 / OSP-018** | La configuración de checks queda fuera de la huella: close acepta evidencia anterior tras cambiar a un comando que falla | Invalidar evidencia al cambiar configuración verificadora; conservar escrituras legítimas del CLI y evaluar el guard de estado aparte |
+| 4 | **E1.19 / OSP-019** | 23.517 de 36.865 bytes del revisor son protocolo SDD; review IDD completo sí funcionó con despacho explícito | Simplificar solo si conserva IDD/SDD y demuestra menor contexto; no tratar el bloqueo de formato como probado |
+| 5 | **E1.20 / OSP-020** | Guías EN/ES contradicen argumentos completos de E1.8 y SDD opcional de E1.6 | Corregir entradas existentes contra builds por defecto y con SDD, sin otra guía |
+
+**Cinco oportunidades aceptadas inicialmente el 2026-10-08**, en orden de retorno esperado de la auditoría, ahora detrás de las prioridades OSP. Se amplían tres ítems existentes y se añaden dos acotados; aceptar su entrada al roadmap no completa sus garantías ni resuelve sus decisiones pendientes.
 
 | Prioridad | Ítem | Beneficio y validación mínima | Coste y límite |
 | --- | --- | --- | --- |
@@ -162,7 +179,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | 4 | **E1.15** | Eliminar la contradicción sobre aprobación de sucesores; política explícita y pruebas de linajes | Requiere elegir la política antes de implementarla; sin gates ni revisores adicionales por defecto |
 | 5 | **E4.4** | Saber si ajustar recursos reduce el coste de una entrega válida; ensayo controlado con checks independientes | Primero variar solo effort; no autoriza router, configuración duplicada ni orquestador nuevo |
 
-**Recomendación de ejecución:** E1.12 ofrece el retorno inmediato más claro; puede abordarse en paralelo sin desplazar E2.1 como siguiente paso estratégico. Para recursos, la decisión actual es **optimización mínima** con la infraestructura existente; cualquier routing depende de evidencia posterior de E4.4.
+**Recomendación de ejecución de la auditoría inicial:** E1.12 conserva un retorno inmediato claro y puede abordarse en paralelo, pero la decisión posterior antepone E1.16–E1.20 para la siguiente sesión. Para recursos, la decisión actual es **optimización mínima** con la infraestructura existente; cualquier routing depende de evidencia posterior de E4.4.
 
 **Dependencias:**
 
@@ -411,6 +428,39 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Hecho cuando:** tras la decisión humana, pruebas independientes del CLI cubren sucesor permitido y rechazado según la política, candidato sin cambios, reconciliación pendiente, agotamiento y compatibilidad de estados; retry, check y close no restauran intentos ni vuelven a lanzar reviewers de descubrimiento.
 - **Alternativas y coste:** no cambiar conserva la contradicción; exigir aprobación añade intervención pero coincide con `AGENTS.md`; autorizar la excepción reduce intervención pero exige justificar su equivalencia. No se crea un sistema de aprobación ni nuevos agentes. Hasta la decisión, rige la instrucción aplicable de `AGENTS.md`.
 
+### E1.16 — `hook-neutral-permissions` (OSP-017)
+
+- **Origen y garantía:** [paso 0 real](../analysis/2026-10-08-osp-permisos-y-evidencia.md#osp-017-permiso-afirmativo-sin-objeción), Claude Code 2.1.289 con build 2.117.3. El allow neutral de JS y Go concede un Write que el host deniega sin plugin; afecta a las aprobaciones explícitas del principio 8.
+- **Alcance mínimo:** ausencia de objeción devuelve ausencia de decisión, sin aplicar una aprobación afirmativa. Mantener deny, ask, errores y bypass explícitos; reutilizar los adaptadores existentes. Codex ya normaliza el allow neutral a `{}` y Cursor conserva su comportamiento hasta verificar su host. Actualizar la spec canónica de hooks con la corrección.
+- **Hecho cuando:** casos neutrales de JS y Go producen stdout vacío y exit 0, el par real deja de conceder Write con plugin, fixtures explícitos permanecen compatibles, Copilot y VS Code no regresan y los checks pasan. Conservar la baseline anterior y no usar el hook modificado como única prueba.
+- **Alternativas y coste:** no cambiar conserva el defecto; preguntar siempre altera permisos del usuario. Retirar el allow neutral es la opción menor, sin reglas por herramienta ni otro sistema de permisos.
+
+### E1.17 — `hook-boundary-reliability` (OSP-001/002/003)
+
+- **Origen y garantía:** [probes JS/Go y launcher](../analysis/2026-10-08-osp-permisos-y-evidencia.md#osp-001002003-secretos-y-launcher). La lectura shell de `.env` no se clasifica; un hijo tarda 6.089 s frente a los 5 s del host; error de arranque devuelve `continue: true`. Protege límites de confianza y fiabilidad, sin otro motor de políticas.
+- **Alcance mínimo:** reutilizar `classifySensitiveFile` para los casos de acceso shell demostrados y dar al launcher un deadline inferior al del host y una respuesta de error compatible con cada target. Las 18 reglas JS/JSON coinciden: una comprobación de paridad protege contra deriva futura, no corrige una divergencia actual.
+- **Decisiones pendientes:** ASK de secretos se degrada en bypass conforme a la spec vigente; priorizar este ítem no aprueba otra política. Resolver ese comportamiento mediante el gate aplicable al abrir la implementación. Las tres evasiones mencionadas requieren ejemplos exactos antes de justificar regex; ASK no es una garantía nativa disponible en todos los hosts.
+- **Hecho cuando:** lecturas sensibles, referencias inocuas, bypass, fallos de arranque/salida/timeout y adaptadores tienen evidencia reproducible; las tablas mantienen paridad. No inventar un parser general de shell ni declarar fallo cerrado donde solo hay un aviso.
+
+### E1.18 — `idd-evidence-integrity` (OSP-018)
+
+- **Origen y garantía:** [consumidor aislado real](../analysis/2026-10-08-osp-permisos-y-evidencia.md#osp-018-frescura-de-configuración-y-estado), con check que pasa, cambio posterior de `idd/config.yaml` a un comando que falla con exit 7, huella idéntica y close aceptado. Repara la evidencia de E1.4 y los principios 3/8. El CLI ya valida esquema y referencias; no depende solo de una frase de skill.
+- **Alcance mínimo:** incluir las entradas de configuración verificadora en la identidad que protege la evidencia, manteniendo fuera los estados propios. Revisar el efecto de la exclusión amplia de `idd/` sobre diff y snapshot; la spec REQ-idd-014 también exige esa exclusión y debe alinearse. Evaluar el guard Write/Edit del estado y el aviso ante Bash como protección complementaria, sin impedir escrituras legítimas del CLI ni prometer cubrir cualquier intérprete.
+- **Hecho cuando:** cambiar la configuración invalida la evidencia anterior, un check actual fallido deja pendiente su obligación y un nuevo check válido permite cerrar; cambios normales del estado propio no fuerzan verificaciones redundantes. Pruebas independientes del CLI cubren el consumidor sin manipular `state.yaml` para fabricar cierre.
+- **Alternativas y coste:** bloquear solo el estado no resuelve el caso probado; repetir toda la suite en cada close aumenta coste. Ajustar la identidad de evidencia es preferible a otro almacén, firmas o un sistema de autorización nuevo.
+
+### E1.19 — `idd-review-context` (OSP-019)
+
+- **Origen y garantía:** [build y revisión real](../analysis/2026-10-08-osp-permisos-y-evidencia.md#osp-019-contexto-del-revisor-idd). El protocolo SDD ocupa el 63,79 % del agente por defecto y referencia un orquestador no instalado; afecta a carga bajo demanda y E0.0/E1.4/E1.6. Un despacho IDD explícito completó review, check y close: el bloqueo de formato no está demostrado.
+- **Alcance mínimo:** recuperar el contexto y contrato pertinentes a IDD mediante las referencias existentes; retirar contexto SDD innecesario solo si se conservan las revisiones del modo SDD. `normalizeLensResult` exige findings, pero admite campos adicionales; no duplicar contratos de hallazgos, reducers ni agentes.
+- **Hecho cuando:** consumidor por defecto y build con SDD completan revisión limpia y con hallazgo comprobable, corrección/validación acotadas y registro del resultado; demostrar reducción de bytes y declarar si hace falta extracción de JSON. Medir ahorro de coste o fiabilidad por separado antes de afirmarlo.
+- **Alternativas y coste:** mantener el sistema es válido si la simplificación no aporta beneficio suficiente; evitar reconstruir un protocolo funcional por una incompatibilidad no reproducida.
+
+### E1.20 — `installation-docs-sync` (OSP-020)
+
+- **Origen y garantía:** [guías EN/ES](../analysis/2026-10-08-osp-permisos-y-evidencia.md#osp-020-documentación-de-instalación) describen todavía el argumento nombrado anterior a E1.8 y emisión incondicional del orquestador, aunque E1.6 hace SDD opcional.
+- **Alcance y cierre:** corregir las entradas existentes de `docs/plugin-installation.md` y `.es.md` contra el transform y las builds por defecto/con `--with-sdd`; sin duplicar guías ni añadir capacidades. Bajo coste y riesgo de implementación; mantener las contradicciones induce instalaciones equivocadas.
+
 ## Etapa 2 — Foundation de verdad: descubrimiento de arquitectura
 
 **Resultado de la etapa:** al crear un proyecto, ospec hace las preguntas que haría un arquitecto con experiencia en proyectos serios. Captura la información funcional, el contexto del equipo, los atributos de calidad y las restricciones, y produce **ADRs de arquitectura agnósticos de tecnología**, separados de la selección tecnológica. Las preguntas no salen de un cuestionario fijo: salen de los huecos de conocimiento que más condicionan las decisiones pendientes. La foundation sirve igual a IDD y al modo SDD.
@@ -625,6 +675,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-08: tras el análisis de permisos, launcher, evidencia y contexto, el usuario prioriza para la siguiente sesión OSP-017, OSP-001/002/003, OSP-018, OSP-019 y OSP-020. Se incorporan como E1.16–E1.20 en ese orden; E1.16 pasa a `next-eligible` y E2.1 a `pending` hasta retomar la Etapa 2. No se implementan arreglos ni se aprueba una política nueva de bypass; se conservan los límites de evidencia del análisis.
 - 2026-10-08: el usuario acepta las cinco oportunidades de la auditoría de ingeniería y eficiencia. Se concretan E1.12, E1.13 y E2.1, y se incorporan E1.15 (política de sucesores, pendiente de decisión) y E4.4 (experimento de recursos, sin router autorizado). E2.1 conserva `next-eligible`; ninguna capacidad nueva se marca como entregada.
 - 2026-07-02 → 2026-10-03: programa K1–K12 y lanes O, PP, CX y R2 (ver el [roadmap archivado](archive/2026-10-03-harness-evolution-kernel.md#historial-consolidado)).
 - 2026-10-03: auditoría de skills, carga *lazy*, instrucciones por target, orquestador y comparación con gentle-ai. El roadmap K1–K12 se archiva y se sustituye por este roadmap único. K10-delivery, K11, K12 longitudinal, CX2–CX6 y Dream-RSI quedan aparcados con criterio de reapertura.

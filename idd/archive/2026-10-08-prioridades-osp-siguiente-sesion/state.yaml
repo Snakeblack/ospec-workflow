@@ -1,0 +1,60 @@
+{
+  "schema": "idd-state/v1",
+  "change": "prioridades-osp-siguiente-sesion",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "Priorizar en el roadmap los cinco grupos OSP analizados para la siguiente sesión.",
+    "acceptance": "OSP-017 es el siguiente ítem; OSP-001/002/003, OSP-018, OSP-019 y OSP-020 quedan ordenados, pendientes y con evidencia y límites; E2.1 se retoma después; ningún arreglo se declara implementado."
+  },
+  "facts": {
+    "basis": "El usuario pide priorizar estos problemas para resolverlos en la siguiente sesión; el informe previo fija el orden y distingue resultados confirmados de hipótesis y decisiones aún pendientes."
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-08T13:23:54.157Z",
+      "detail": {
+        "tree": "sha256:bbba4eb8ffa32ef59abf52e80fb6c84f1e616477c32fe712500d0162f3fc96c0",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "d22a1e00a720c159443326dd5fd68a1c0fc307d3",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fb2f0f4c685c91b112f2c64f981afb5c4e579bf82b9d0bf1cb8eeac52e2d84b0",
+      "tree": "sha256:bbba4eb8ffa32ef59abf52e80fb6c84f1e616477c32fe712500d0162f3fc96c0",
+      "recorded_at": "2026-10-08T13:23:54.157Z"
+    }
+  ],
+  "closed_at": "2026-10-08T13:24:10.156Z"
+}
