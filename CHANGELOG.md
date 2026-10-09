@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.119.1] - 2026-10-10
+
+### Fixed
+- **Hooks .sh de Engram en Windows**: el instalador de Claude Code antepone `bash` a cada comando cuyo ejecutable es un `.sh` en el `hooks.json` instalado de `engram@engram`, también cuando Engram ya está configurado y no se repite el setup upstream. CreateProcess no lee el shebang, así que sin ese prefijo Windows abre el script con el programa asociado a `.sh`. No duplica un lanzador `bash` o `sh` que ya exista, no cambia el resto de comandos, no reescribe un JSON ilegible y no actúa en otros sistemas ni con `--no-engram`. Cubre también `post-compaction.sh`. REQ-install-042. Hecho con IDD (`idd/archive/2026-10-09-engram-windows-bash-hooks/`).
+
+**Verificación directa**: `node scripts/check.js` en verde, con reproducción rojo→verde del prefijo `bash` y la generación de los siete targets.
+
 ## [2.119.0] - 2026-10-09
 
 ### Added
