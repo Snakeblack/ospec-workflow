@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.117.12] - 2026-10-09
+
+### Fixed
+- **Pruebas del instalador que dañaban el perfil global**: los fixtures unitarios, el smoke global y la prueba de convergencia aíslan su entorno con `env: {}`. Un `CODEX_HOME` heredado ya no sustituye los homes temporales ni sobrescribe el runtime, los agentes o los hooks reales. El instalador sigue respetando el home activo en producción.
+- **Regresión de aislamiento**: las tres suites se ejecutan con un home heredado centinela y se comprueba que su inventario y contenido permanecen intactos. El runner anidado elimina `NODE_TEST_CONTEXT` y verifica que las pruebas se hayan ejecutado, evitando un falso resultado satisfactorio.
+
+### Changed
+- **Diagnóstico documentado**: el informe de hooks distingue esta pérdida del runtime de los fallos de shell anteriores. Corrección cerrada con IDD en `idd/archive/2026-10-09-codex-test-home-isolation/`; E1.19 conserva su prioridad.
+
+**Verificación directa**: `node scripts/check.js` (3402 tests pasando, 0 fallos y 0 omitidos), incluida la generación y validación de los siete targets. Reproducción rojo→verde registrada por IDD; cinco hooks instalados con salida 0 y 384 archivos del perfil intactos tras la suite completa.
+
 ## [2.117.11] - 2026-10-09
 
 ### Fixed

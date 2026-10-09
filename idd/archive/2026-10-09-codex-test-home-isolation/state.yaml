@@ -1,0 +1,197 @@
+{
+  "schema": "idd-state/v1",
+  "change": "codex-test-home-isolation",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Aislar los tests del instalador del CODEX_HOME heredado que dañó los hooks globales",
+    "acceptance": "La suite del instalador pasa con CODEX_HOME heredado y conserva intacto ese directorio; fixtures usan solo homes temporales"
+  },
+  "facts": {
+    "basis": "El instalador respeta CODEX_HOME explícito por contrato; los tests ya declaran homes temporales mediante homedir y deben aislar deps.env sin cambiar producción"
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1",
+        "ev-2",
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-09T07:07:13.222Z",
+      "detail": {
+        "red": "run-2",
+        "green": "run-3"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-09T07:10:58.681Z",
+      "detail": {
+        "red": "run-5",
+        "green": "run-6"
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-09T07:15:55.954Z",
+      "detail": {
+        "red": "run-9",
+        "green": "run-10"
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-09T07:19:02.011Z",
+      "detail": {
+        "tree": "sha256:bfa9f9590308d3f29f506180afcc599baddb92d65e1aa56aa76fa1c98a52fd04",
+        "runs": [
+          "run-11"
+        ]
+      }
+    }
+  ],
+  "base": "68bad801bfb09c4601192d84e9fadac81a8f9d20",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/configure/install-codex-env-isolation.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b03f598bd95fde47e1c418a7efdbab8a6784a94e3f40806fee61648c768e59c2",
+      "tree": "sha256:06c921a907bdcfb8e51e5cd76ea39e48c499f03fa0795ff63291b3e3b116e2ab",
+      "recorded_at": "2026-10-09T07:06:06.327Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/configure/install-codex-env-isolation.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:5e8f08ce6086ddcf63987e31930e843cd4700ffbe688792664a665cb6c689341",
+      "tree": "sha256:a5dc29a331098b15609d42c653d3fdf1ba9f34ca758bd5106479c35f38e22ad5",
+      "recorded_at": "2026-10-09T07:06:48.507Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "repro-test",
+      "command": "node --test scripts/configure/install-codex-env-isolation.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:89fb475ebb9eae19b1466b485a5f01961ffbb474729ee10586368b5a934fd16e",
+      "tree": "sha256:951425b9fe5384c3b6bb096497a3c81324df3ddd3df6453bf45aa974d1f3b5b5",
+      "recorded_at": "2026-10-09T07:07:13.222Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:199f7a223899a8ce176747d2fb9e518f0307da86d8e7342e541692b61815b0d8",
+      "tree": "sha256:2b68f3cfffbea9c6889aad5f732a171a1d9faa3a8d9975e907c4069afc30671e",
+      "recorded_at": "2026-10-09T07:09:55.424Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "repro-test",
+      "command": "node --test scripts/configure/install-codex-env-isolation.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:52783200737d1188059693beafcc81e40cd464a7d39634f27c7ea28d8871075c",
+      "tree": "sha256:54930a8e9bcb3375337bf1f32a0210985ea5e056677e2d2e620246effdf0de40",
+      "recorded_at": "2026-10-09T07:10:44.539Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "repro-test",
+      "command": "node --test scripts/configure/install-codex-env-isolation.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:967a5410cddb964027ce63e2da704f2d46f024e9234a046801b1229b6df95c0a",
+      "tree": "sha256:4e2158ff99d3f14d85215e1e87fb89b4192dd92514f2368f995921ba45ce22c2",
+      "recorded_at": "2026-10-09T07:10:58.681Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:060a178218a6da9fc8e76e05af1e9cac195cf4721319cf506287ab7871763f50",
+      "tree": "sha256:9e4e560194a76b0c6e9e5ffb2454921d6dfaadb9ccf9fa7cbdd7b7830f0ff1e8",
+      "recorded_at": "2026-10-09T07:13:40.994Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "repro-test",
+      "command": "node --test scripts/configure/install-codex-env-isolation.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:be0cfd3c23162eb6baedae63d07fbdf553f6a347460009f852e62ad62a8c7159",
+      "tree": "sha256:eab40df69c2d1e2fdff78626e9c2884d0da3efc3de3a4b3c7c78ac1f5e8d6ea9",
+      "recorded_at": "2026-10-09T07:14:49.145Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "repro-test",
+      "command": "node --test scripts/configure/install-codex-env-isolation.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:a0b63b4171de13b0e6585d39a74103cf83d3c9a35f42a54fe365b84376034682",
+      "tree": "sha256:c613a5f11ae932329a401b7d1504cb879bb8f45fddd6086deec442ff1cd4920e",
+      "recorded_at": "2026-10-09T07:15:36.848Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "repro-test",
+      "command": "node --test scripts/configure/install-codex-env-isolation.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:06c30d550995371472cdd87c707554447320718d9d1267502b1a94c4f1c2bc6a",
+      "tree": "sha256:c78b0005a8a57bbab417c6e0bdeedac3dd021926fd47607c0382b59a87cc1d9e",
+      "recorded_at": "2026-10-09T07:15:55.954Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a383703a08c56dd3f7a5967444566be2f35d216bb343b27ce4994dd8afd98bff",
+      "tree": "sha256:bfa9f9590308d3f29f506180afcc599baddb92d65e1aa56aa76fa1c98a52fd04",
+      "recorded_at": "2026-10-09T07:19:02.011Z"
+    }
+  ],
+  "closed_at": "2026-10-09T07:19:56.514Z"
+}
