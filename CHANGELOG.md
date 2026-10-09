@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.117.14] - 2026-10-09
+
+### Changed
+- **Guías de instalación (E1.20)**: `docs/plugin-installation.md` y `.es.md` describen la entrada única completa, las varias entradas nombradas y SDD opcional con `--with-sdd` en las tablas y entradas existentes; reflejan además `dist/vscode` y el `AGENTS.md` de Codex. Contrastadas con 14 builds (siete targets, por defecto y con SDD) y seis casos de argumentos. Sin capacidades nuevas ni otra guía. E1.20 cerrado en `idd/archive/2026-10-09-installation-docs-sync/`; E2.1 pasa a ser el siguiente trabajo.
+
+**Verificación directa**: `node scripts/check.js` (3409 tests pasando, 0 fallos y 0 omitidos), incluida la generación y validación de los siete targets.
+
 ## [2.117.13] - 2026-10-09
 
 ### Fixed
