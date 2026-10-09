@@ -1,0 +1,266 @@
+{
+  "schema": "ospec-knowledge-map/v1",
+  "profile": "regulated",
+  "slots": [
+    {
+      "id": "business.problem",
+      "dimension": "business",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "system-boundaries"
+      ]
+    },
+    {
+      "id": "business.goals",
+      "dimension": "business",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "test-strategy"
+      ]
+    },
+    {
+      "id": "business.constraints",
+      "dimension": "business",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "trust-boundaries",
+        "technology-choice"
+      ]
+    },
+    {
+      "id": "functional.actors",
+      "dimension": "functional",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "system-boundaries"
+      ]
+    },
+    {
+      "id": "functional.capabilities",
+      "dimension": "functional",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "system-boundaries"
+      ]
+    },
+    {
+      "id": "functional.exclusions",
+      "dimension": "functional",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "system-boundaries"
+      ]
+    },
+    {
+      "id": "team.shape",
+      "dimension": "team",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "deployment-topology",
+        "technology-choice"
+      ]
+    },
+    {
+      "id": "team.production-owner",
+      "dimension": "team",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "operability"
+      ]
+    },
+    {
+      "id": "quality.drivers",
+      "dimension": "quality",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "system-boundaries",
+        "deployment-topology"
+      ]
+    },
+    {
+      "id": "architecture.boundaries",
+      "dimension": "architecture",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "system-boundaries",
+        "integration-style"
+      ]
+    },
+    {
+      "id": "architecture.data",
+      "dimension": "architecture",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "data-ownership"
+      ]
+    },
+    {
+      "id": "architecture.integration",
+      "dimension": "architecture",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "integration-style",
+        "contract-evolution"
+      ]
+    },
+    {
+      "id": "architecture.deployment",
+      "dimension": "architecture",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "deployment-topology"
+      ]
+    },
+    {
+      "id": "architecture.trust",
+      "dimension": "architecture",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "trust-boundaries"
+      ]
+    },
+    {
+      "id": "technology.stack",
+      "dimension": "technology",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "technology-choice"
+      ]
+    },
+    {
+      "id": "technology.licenses",
+      "dimension": "technology",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "technology-choice"
+      ]
+    },
+    {
+      "id": "operation.observability",
+      "dimension": "operation",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "operability"
+      ]
+    },
+    {
+      "id": "operation.backup",
+      "dimension": "operation",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "data-ownership",
+        "operability"
+      ]
+    },
+    {
+      "id": "delivery.environments",
+      "dimension": "delivery",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "delivery-target",
+        "deployment-topology"
+      ]
+    },
+    {
+      "id": "delivery.versioning",
+      "dimension": "delivery",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "contract-evolution",
+        "delivery-target"
+      ]
+    }
+  ],
+  "quality_scenarios": [
+    {
+      "id": "deletion-request",
+      "origin": "data subject",
+      "stimulus": "asks for deletion of their personal data",
+      "environment": "production",
+      "artifact": "the regulated service",
+      "response": "deletes the data the policy covers and records the request",
+      "measure": "within 30 days",
+      "measure_source": "user stated the deadline they must meet, 2026-10-09"
+    }
+  ]
+}

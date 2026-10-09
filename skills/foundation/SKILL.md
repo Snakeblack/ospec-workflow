@@ -55,10 +55,14 @@ round. The documents are the state, never the conversation.
 1. Read what exists first: `docs/**`, ADRs, manifests, `idd/config.yaml`,
    `openspec/config.yaml` and the sources the user supplies. Mark each fact
    with its source.
-2. Keep the knowledge map in `docs/roadmap-gaps.md`: each slot (business,
-   functional, team, quality, architecture, technology, operation, delivery)
-   is `confirmed`, `assumed` (with what would change it), `n/a` or `deferred`
-   (with an owner), and names the decisions it feeds.
+2. Keep the knowledge map at `docs/architecture/knowledge-map.yaml`
+   (`ospec-knowledge-map/v1`). Each slot (business, functional, team, quality,
+   architecture, technology, operation, delivery) is `unknown`, `confirmed`
+   (with its source), `assumed` (with its source and what would change it),
+   `n/a` (with why it does not apply) or `deferred` (with an owner), and names
+   the decisions it feeds. `unknown` is not `n/a`. A quality scenario states
+   origin, stimulus, environment, artifact and response; add a measure only
+   when the user gives one, and record who gave it.
 3. Ask at most four questions per round, grouped by topic, the ones that
    unblock most pending decisions first. Each offers a recommended answer and
    "I don't know"; "I don't know" never blocks: record an explicit assumption
@@ -83,7 +87,7 @@ Read each file before writing and update it; never discard what the user wrote.
 | `docs/architecture/technical-baseline.md` | Context and boundaries, components and data ownership, integrations, quality scenarios, constraints, test strategy by risk, technology record |
 | `docs/architecture/decisions/NNNN-<title>.md` | One ADR per structural decision |
 | `docs/roadmap.md` | The first slice as a walking skeleton, then milestones; deferred decisions with their last responsible moment |
-| `docs/roadmap-gaps.md` | The knowledge map and its open gaps |
+| `docs/architecture/knowledge-map.yaml` | The knowledge map and its open gaps |
 
 Every ADR holds its context and drivers, at least two considered options, the
 decision, its consequences (including what gets harder), a fitness function or

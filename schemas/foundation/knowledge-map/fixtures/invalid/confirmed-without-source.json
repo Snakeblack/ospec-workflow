@@ -1,0 +1,84 @@
+{
+  "schema": "ospec-knowledge-map/v1",
+  "profile": "prototype",
+  "slots": [
+    {
+      "id": "business.problem",
+      "dimension": "business",
+      "state": "confirmed",
+      "decisions": [
+        "system-boundaries"
+      ]
+    },
+    {
+      "id": "functional.actors",
+      "dimension": "functional",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "system-boundaries"
+      ]
+    },
+    {
+      "id": "functional.capabilities",
+      "dimension": "functional",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "system-boundaries"
+      ]
+    },
+    {
+      "id": "quality.drivers",
+      "dimension": "quality",
+      "state": "assumed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "system-boundaries",
+        "deployment-topology"
+      ],
+      "review_trigger": "the first user beyond the author"
+    },
+    {
+      "id": "architecture.boundaries",
+      "dimension": "architecture",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "system-boundaries",
+        "integration-style"
+      ]
+    },
+    {
+      "id": "technology.stack",
+      "dimension": "technology",
+      "state": "unknown",
+      "decisions": [
+        "technology-choice"
+      ]
+    }
+  ],
+  "quality_scenarios": [
+    {
+      "id": "first-command",
+      "origin": "author",
+      "stimulus": "runs the first command on a sample input",
+      "environment": "their own machine",
+      "artifact": "walking skeleton",
+      "response": "prints a result"
+    }
+  ],
+  "expected_error": "missing required property \"source\""
+}

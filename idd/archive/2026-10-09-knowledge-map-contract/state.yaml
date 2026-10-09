@@ -1,0 +1,152 @@
+{
+  "schema": "idd-state/v1",
+  "change": "knowledge-map-contract",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "feature",
+    "summary": "Knowledge-map contract for foundation: schema, slot states, six profiles and slot-to-decision links, with valid and invalid fixtures.",
+    "acceptance": "The six profiles each have their mandatory slots and one example; the schema distinguishes unknown from n/a; valid and invalid fixtures check states, provenance and slot-to-decision links, including assumptions with a review trigger and deferred slots with an owner; a quality scenario states stimulus, observable response and a measure only when the project defines one."
+  },
+  "facts": {
+    "open": [
+      "Where does a project store the knowledge map? idd/ cannot hold project knowledge (REQ-idd-002), openspec/ is SDD-only, and .ospec/ is gitignored. Choose docs/architecture/knowledge-map.yaml, docs/roadmap-gaps.yaml next to the current markdown, or foundation/knowledge-map.yaml at the project root."
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "idd/knowledge-map-contract/change.md",
+      "openspec/specs/knowledge-map/spec.md",
+      "schemas/foundation/knowledge-map/catalog.json",
+      "schemas/foundation/knowledge-map/fixtures/invalid/assumed-without-trigger.json",
+      "schemas/foundation/knowledge-map/fixtures/invalid/confirmed-without-source.json",
+      "schemas/foundation/knowledge-map/fixtures/invalid/deferred-without-owner.json",
+      "schemas/foundation/knowledge-map/fixtures/invalid/mandatory-left-unknown.json",
+      "schemas/foundation/knowledge-map/fixtures/invalid/measure-without-source.json",
+      "schemas/foundation/knowledge-map/fixtures/invalid/na-without-reason.json",
+      "schemas/foundation/knowledge-map/fixtures/invalid/regulated-missing-trust.json",
+      "schemas/foundation/knowledge-map/fixtures/invalid/unknown-decision.json",
+      "schemas/foundation/knowledge-map/fixtures/invalid/unknown-slot.json",
+      "schemas/foundation/knowledge-map/fixtures/invalid/unknown-with-source.json",
+      "schemas/foundation/knowledge-map/fixtures/valid/embedded.json",
+      "schemas/foundation/knowledge-map/fixtures/valid/internal-tool.json",
+      "schemas/foundation/knowledge-map/fixtures/valid/product.json",
+      "schemas/foundation/knowledge-map/fixtures/valid/prototype.json",
+      "schemas/foundation/knowledge-map/fixtures/valid/public-library.json",
+      "schemas/foundation/knowledge-map/fixtures/valid/regulated.json",
+      "schemas/foundation/knowledge-map/v1.schema.json",
+      "scripts/configure/cli.test.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/lib/knowledge-map.js",
+      "scripts/lib/knowledge-map.test.js",
+      "skills/foundation/SKILL.md",
+      "skills/foundation/references/foundation-details.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "docs/architecture/knowledge-map.yaml: versionado, junto a los ADR; el esquema vive en schemas/ y el markdown narrativo no cambia",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-09T20:35:36.148Z",
+      "detail": {
+        "tree": "sha256:2c7d31103ee34c1c462c30efa4569219a3b80c93ac1d50a27e0f68bf609be26c",
+        "runs": [
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-09T20:36:23.525Z"
+    }
+  ],
+  "base": "c6cf65426b1da69cd3704c0ab29db5422620c919",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:385ac90f93a86328667e771304e8c7dc60ba360a7a6c012a0f966056f1a2fbf8",
+      "tree": "sha256:ac532abd6bea475b468f17d88adec25abffc6c02c6777250eb048a0f913b3688",
+      "recorded_at": "2026-10-09T20:21:49.473Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:9db6d7354017369a2f77f00118ee6aaf73dc3e67d7dda2095a859e23129b4e8b",
+      "tree": "sha256:ac532abd6bea475b468f17d88adec25abffc6c02c6777250eb048a0f913b3688",
+      "recorded_at": "2026-10-09T20:28:01.013Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:d0eddcb774f8d402c8f1d94bf2309db4f261e43662ff59c7f8530c10a6777911",
+      "tree": "sha256:2c7d31103ee34c1c462c30efa4569219a3b80c93ac1d50a27e0f68bf609be26c",
+      "recorded_at": "2026-10-09T20:32:22.433Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9cb14c122d923c54ab96e355f4fc3ffa5b725f67809891624d50d9dcf92db4d5",
+      "tree": "sha256:2c7d31103ee34c1c462c30efa4569219a3b80c93ac1d50a27e0f68bf609be26c",
+      "recorded_at": "2026-10-09T20:35:36.148Z"
+    }
+  ],
+  "closed_at": "2026-10-09T20:36:23.525Z"
+}
