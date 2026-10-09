@@ -337,6 +337,22 @@ test("check runs the declared checks and satisfies checks-pass only on the tree 
   assert.match(text.stdout, /^ready: fix-readme can close/m);
 });
 
+test("close refuses old check evidence after the configured check changes", (t) => {
+  const { root } = project(t, { checks: 'checks:\n  smoke: node -e "process.exit(0)"\n' });
+  ospec(root, ...OPEN_DOCS);
+
+  const checked = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.strictEqual(checked.code, 0, checked.stderr);
+  assert.strictEqual(checked.json.verdict, "ready");
+
+  writeFile(root, "idd/config.yaml", 'checks:\n  smoke: node -e "process.exit(7)"\n');
+  const close = ospec(root, "close", "--change", "fix-readme", "--json");
+
+  assert.strictEqual(close.code, 1);
+  assert.strictEqual(close.json.error.code, "evidence-stale");
+  assert.strictEqual(stateOf(root, "fix-readme").status, "open");
+});
+
 test("check without declared checks reports what is missing", (t) => {
   const { root } = project(t, { checks: null });
   ospec(root, ...OPEN_DOCS);

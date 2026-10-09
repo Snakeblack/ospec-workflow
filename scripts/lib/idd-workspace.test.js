@@ -15,6 +15,7 @@ const {
   EMPTY_TREE,
   IddWorkspaceError,
   commitTree,
+  readCheckTreeFingerprint,
   readGitDiff,
   readHead,
   readProjectContext,
@@ -153,7 +154,7 @@ test("the head commit is the change base, and null outside git or before the fir
   assert.strictEqual(readHead(root), git(root, "rev-parse", "HEAD").trim());
 });
 
-test("the tree fingerprint follows the working tree and ignores idd/", (t) => {
+test("the source tree ignores idd/ while check-tree identity tracks only effective checks", (t) => {
   const root = gitRepo(t);
   write(root, "src/app.js", "module.exports = 1;\n");
   commitAll(root, "base");
@@ -165,6 +166,21 @@ test("the tree fingerprint follows the working tree and ignores idd/", (t) => {
   write(root, "idd/fix/state.yaml", "{}\n");
   write(root, "idd/config.yaml", "strict_tdd: true\n");
   assert.strictEqual(readTreeFingerprint(root), clean, "IDD state is not part of the tree");
+  const noChecks = readCheckTreeFingerprint(root);
+  assert.strictEqual(readCheckTreeFingerprint(root), noChecks, "check identity is stable");
+
+  write(root, "idd/config.yaml", "# verifier config\nstrict_tdd: false\n");
+  assert.strictEqual(readCheckTreeFingerprint(root), noChecks, "unrelated config and formatting do not invalidate checks");
+  write(root, "idd/config.yaml", "strict_tdd: false\nchecks:\n  test: npm test\n");
+  const configured = readCheckTreeFingerprint(root);
+  assert.notStrictEqual(configured, noChecks, "adding a check changes check identity");
+  write(root, "idd/config.yaml", "strict_tdd: true # unrelated\nchecks:\n  test: npm test\n");
+  assert.strictEqual(readCheckTreeFingerprint(root), configured, "unrelated fields and formatting preserve check identity");
+  write(root, "idd/config.yaml", "checks:\n  test: npm run test\n");
+  assert.notStrictEqual(readCheckTreeFingerprint(root), configured, "changing a command invalidates check identity");
+  const changedChecks = readCheckTreeFingerprint(root);
+  write(root, "idd/fix/state.yaml", "{\"status\":\"closed\"}\n");
+  assert.strictEqual(readCheckTreeFingerprint(root), changedChecks, "CLI state writes do not invalidate check evidence");
 
   write(root, "src/app.js", "module.exports = 2;\n");
   const edited = readTreeFingerprint(root);

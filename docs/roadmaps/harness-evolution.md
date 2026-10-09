@@ -135,7 +135,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.15** | `idd-review-successor-policy` (coherencia de autoridades; decisión humana pendiente) | contrato |
 | `done` | **E1.16** | `hook-neutral-permissions` (OSP-017; sin objeción, el hook no decide y el host aplica sus permisos, en v2.117.5) | bugfix |
 | `done` | **E1.17** | `hook-boundary-reliability` (OSP-001/002/003; secretos y launcher, v2.117.9) | bugfix |
-| `next-eligible` | **E1.18** | `idd-evidence-integrity` (OSP-018; frescura de configuración y protección del estado) | bugfix |
+| `next-eligible` | **E1.18** | `idd-evidence-integrity` (OSP-018; frescura de evidencia de checks) | bugfix |
 | `pending` | **E1.19** | `idd-review-context` (OSP-019; sobrecarga confirmada, bloqueo no demostrado) | refactor |
 | `pending` | **E1.20** | `installation-docs-sync` (OSP-020; documentación de E1.6/E1.8) | docs |
 | `done` | **E1.21** | `idd-checks-config-guidance` (guía y consentimiento al faltar checks, v2.117.10) | bugfix |
@@ -451,9 +451,9 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 ### E1.18 — `idd-evidence-integrity` (OSP-018)
 
 - **Origen y garantía:** [consumidor aislado real](../analysis/2026-10-08-osp-permisos-y-evidencia.md#osp-018-frescura-de-configuración-y-estado), con check que pasa, cambio posterior de `idd/config.yaml` a un comando que falla con exit 7, huella idéntica y close aceptado. Repara la evidencia de E1.4 y los principios 3/8. El CLI ya valida esquema y referencias; no depende solo de una frase de skill.
-- **Alcance mínimo:** incluir las entradas de configuración verificadora en la identidad que protege la evidencia, manteniendo fuera los estados propios. Revisar el efecto de la exclusión amplia de `idd/` sobre diff y snapshot; la spec REQ-idd-014 también exige esa exclusión y debe alinearse. Evaluar el guard Write/Edit del estado y el aviso ante Bash como protección complementaria, sin impedir escrituras legítimas del CLI ni prometer cubrir cualquier intérprete.
-- **Hecho cuando:** cambiar la configuración invalida la evidencia anterior, un check actual fallido deja pendiente su obligación y un nuevo check válido permite cerrar; cambios normales del estado propio no fuerzan verificaciones redundantes. Pruebas independientes del CLI cubren el consumidor sin manipular `state.yaml` para fabricar cierre.
-- **Alternativas y coste:** bloquear solo el estado no resuelve el caso probado; repetir toda la suite en cada close aumenta coste. Ajustar la identidad de evidencia es preferible a otro almacén, firmas o un sistema de autorización nuevo.
+- **Alcance mínimo:** incluir nombre, comando y orden de la lista efectiva `checks:` solo en la identidad de `checks-pass`; los checks nuevos o modificados invalidan evidencia previa, aunque `idd/` siga excluido de diff y snapshot. Mantener la huella de `ospec run` independiente de esa lista para que cambiar el verificador no simule un árbol distinto en una reproducción rojo→verde. Las escrituras del CLI bajo `idd/<cambio>/` siguen sin alterar la identidad. El análisis no encontró una falsificación válida de `state.yaml`, así que el guard Write/Edit queda fuera de esta corrección.
+- **Hecho cuando:** después de cambiar una declaración efectiva, `close` rechaza la evidencia anterior y un `ospec check` satisfactorio permite cerrar; cambiar solo otras claves de configuración o el estado propio no invalida checks. Pruebas independientes del CLI cubren el consumidor sin manipular `state.yaml` para fabricar cierre.
+- **Alternativas y coste:** bloquear solo el estado no resuelve el caso probado; repetir toda la suite en cada close aumenta coste. Vincular `checks-pass` a su configuración efectiva es preferible a ampliar todos los fingerprints, otro almacén, firmas o un sistema de autorización nuevo.
 
 ### E1.19 — `idd-review-context` (OSP-019)
 
