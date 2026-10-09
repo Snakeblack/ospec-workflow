@@ -25,9 +25,11 @@ function renderSharedDir(rootDir, value, fsImpl = fs) {
 
 // E1.6 (a): the IDD protocol runs the installed `ospec` CLI, so it names the
 // directory that holds the runtime `scripts/` (the install root, except for
-// Codex, which keeps it under ~/.codex/ospec-workflow).
-function runtimeDirValue(dir) {
-  return path.resolve(dir).split(path.sep).join("/");
+// Codex, which keeps it under ~/.codex/ospec-workflow). A Codex repository
+// install (E1.14) names its own copy relative to the repository root, where
+// the protocol runs `ospec`, so the committed files work on every clone.
+function runtimeDirValue(dir, { relative = false } = {}) {
+  return (relative ? String(dir) : path.resolve(dir)).split(path.sep).join("/");
 }
 
 function renderRuntimeDir(rootDir, value, fsImpl = fs) {

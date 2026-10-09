@@ -1,0 +1,164 @@
+{
+  "schema": "idd-state/v1",
+  "change": "codex-repo-runtime",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "La instalación de Codex por repositorio lleva el protocolo IDD y un runtime propio alcanzable (E1.14)",
+    "acceptance": "Tras install:codex -- <repo>, el repositorio tiene .agents/skills/idd con la ruta relativa del runtime copiado en .codex/ospec-workflow, ospec next se ejecuta desde la skill idd sin instalación global y el aviso codex-repo del doctor desaparece"
+  },
+  "facts": {
+    "open": [
+      "¿Qué runtime de ospec usa la instalación de Codex por repositorio: copia propia relativa o el runtime global declarado?",
+      "¿Qué skills instala install:codex -- <repo> en .agents/skills?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      ".claude-plugin/plugin.json",
+      ".plugin.json",
+      "CHANGELOG.md",
+      "docs/plugin-installation.es.md",
+      "docs/plugin-installation.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/config.yaml",
+      "openspec/specs/install/spec.md",
+      "package.json",
+      "scripts/configure/install-codex.js",
+      "scripts/configure/install-codex.test.js",
+      "scripts/configure/shared-dir.js",
+      "scripts/configure/shared-dir.test.js",
+      "scripts/lib/ospec-doctor-hosts.js",
+      "scripts/lib/ospec-doctor-hosts.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches .claude-plugin/plugin.json and 1 more (matches .claude-plugin/**)",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "1) Copia propia relativa: copia el runtime (scripts/ y schemas/) en <repo>/.codex/ospec-workflow/ y la skill idd lo nombra con una ruta relativa a la raíz del repositorio, que queda autosuficiente y versionable. 2) idd + review: el protocolo idd y las skills a las que despacha (review-trust, review-correction), junto al sdd-orchestrator y _shared actuales.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-09T11:55:55.198Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-09T11:58:31.814Z",
+      "detail": {
+        "tree": "sha256:f8d5bc0724627e6f1192507afde9eab351f081ea76bae4dacbca84119af2e6fd",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-09T11:58:31.814Z",
+      "detail": {
+        "tree": "sha256:f8d5bc0724627e6f1192507afde9eab351f081ea76bae4dacbca84119af2e6fd",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/install/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/install-codex.test.js",
+          "scripts/configure/shared-dir.test.js",
+          "scripts/lib/ospec-doctor-hosts.test.js"
+        ]
+      }
+    }
+  ],
+  "base": "50c4137d753496fdfc3682ab69e2edc45137afe9",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"repository install carries|repository dry run|names a runtime that exists\" scripts/configure/install-codex.test.js scripts/lib/ospec-doctor-hosts.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:7d95534b6d3c83f8cd6a05b670ce24052b85ae5038616f723b223599cda5f0a9",
+      "tree": "sha256:c020b32b9d8ee62ae8eafa38983de29e9dd84183e7d9297ec2cff48edc902425",
+      "recorded_at": "2026-10-09T11:54:50.924Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"repository install carries|repository dry run|names a runtime that exists\" scripts/configure/install-codex.test.js scripts/lib/ospec-doctor-hosts.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bb0a8534783f6ce3a818f640773c8b4b6284d9256d5ca07ba411095beb308f7b",
+      "tree": "sha256:851ed3876db4b0789595d8f5111eb952a0f4b1829cac682d35eef49805afb1f3",
+      "recorded_at": "2026-10-09T11:55:55.198Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:672a3cc730ca93a9e68baff9288a74d28250bb12782818fa12b8e1a3778ff857",
+      "tree": "sha256:f8d5bc0724627e6f1192507afde9eab351f081ea76bae4dacbca84119af2e6fd",
+      "recorded_at": "2026-10-09T11:58:31.814Z"
+    }
+  ],
+  "closed_at": "2026-10-09T11:58:35.134Z"
+}

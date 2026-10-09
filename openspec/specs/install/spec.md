@@ -55,7 +55,7 @@ Copilot (`~/.copilot/` or `.github/`) and OpenCode (`~/.config/opencode/` or `.o
 
 ### 1.3 Codex — Native Global Installation & Ownership
 
-`npm run setup:codex` MUST install the generated router into `~/.codex/AGENTS.md` as a marked block (REQ-install-033), and `.codex/agents/*.toml`, skills (including the `sdd-orchestrator` skill), runtime scripts and native `hooks.json` under the user's `~/.codex/` and `~/.agents/skills/`, without a plugin or marketplace. It MUST register only missing global MCP definitions through `codex mcp add`, deduplicating by command plus ordered arguments and preserving name collisions. It MUST merge its own hook groups while preserving user-owned groups. `npm run install:codex -- <destRepo>` targets `<destRepo>/.codex/agents/`, writes the router block into `<destRepo>/AGENTS.md` and the orchestrator skill into `<destRepo>/.agents/skills/sdd-orchestrator/`, and MUST NOT modify the destination project's `.codex/config.toml`.
+`npm run setup:codex` MUST install the generated router into `~/.codex/AGENTS.md` as a marked block (REQ-install-033), and `.codex/agents/*.toml`, skills (including the `sdd-orchestrator` skill), runtime scripts and native `hooks.json` under the user's `~/.codex/` and `~/.agents/skills/`, without a plugin or marketplace. It MUST register only missing global MCP definitions through `codex mcp add`, deduplicating by command plus ordered arguments and preserving name collisions. It MUST merge its own hook groups while preserving user-owned groups. `npm run install:codex -- <destRepo>` targets `<destRepo>/.codex/agents/`, writes the router block into `<destRepo>/AGENTS.md`, the IDD protocol, its reviewers and (with SDD) the orchestrator skill into `<destRepo>/.agents/skills/` and its own runtime into `<destRepo>/.codex/ospec-workflow/` (REQ-install-041), and MUST NOT modify the destination project's `.codex/config.toml`.
 
 The generated Codex tree MUST contain `agent.md`, `.codex/agents/*.toml`, `skills/`, runtime `scripts/` and `hooks.json`, and MUST NOT contain `.codex-plugin/`, `.codex/config.toml` or `.mcp.json`. The Codex validator MUST reject generated config and plugin artifacts, and require a valid native hooks payload with the runtime placeholder. It maintains `.ospec-workflow-install.json`, and prunes stale agents/scripts upon upgrade.
 
@@ -1358,3 +1358,14 @@ A filesystem mutation that still fails with `EPERM`, `EACCES` or `EBUSY` after i
 - GIVEN a PowerShell session where `npm run setup:codex -- --no-sdd` is rejected by npm
 - WHEN `npm run setup:codex:no-sdd` runs
 - THEN the Codex installer runs with `--no-sdd`
+
+### Requirement: Codex Repository Install Carries The IDD Protocol And Its Runtime {#REQ-install-041}
+
+`npm run install:codex -- <destRepo>` MUST let the repository follow IDD without a global install (E1.14). Besides the agents and the router, it MUST write into `<destRepo>/.agents/skills/` the `idd` protocol and the `review-trust` and `review-correction` skills it dispatches (plus `sdd-orchestrator` when the build has SDD), with the `_shared` handlers beside them, and MUST copy the runtime (`scripts/` and `schemas/`) into `<destRepo>/.codex/ospec-workflow/`. The installed skills MUST name `_shared` as `.agents/skills/_shared` and the runtime as `.codex/ospec-workflow`, relative to the repository root where the protocol runs `ospec`, and MUST keep no install marker. The runtime directory belongs to the install: a later install MUST remove the files the build no longer has. Every destination MUST pass the managed-path checks before anything is written, and `--dry-run` MUST write nothing. `ospec doctor` MUST report `codex-repo` as `ok` only when the runtime the repository's `idd` protocol names exists, and as `warn` with the reinstall command otherwise.
+
+#### Scenario: A repository-only Codex install runs ospec next
+
+- GIVEN a repository with no global Codex install
+- WHEN `npm run install:codex -- <repo>` runs and the command the `idd` skill names, `node ".codex/ospec-workflow/scripts/ospec.js" next --json`, runs from the repository root
+- THEN it exits with 0 and returns the `open-change` step
+- AND `ospec doctor` reports `codex-repo` as `ok`

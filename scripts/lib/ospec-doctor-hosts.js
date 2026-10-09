@@ -455,14 +455,26 @@ function hostChecks(target, host, context, add) {
 // --- project and checkout -----------------------------------------------------
 
 // `install:codex -- <repo>` writes the router into the repository and its
-// agents into <repo>/.codex, but no runtime and no IDD protocol: the router then
-// works only through a global Codex install.
+// agents into <repo>/.codex. Since E1.14 it also carries the IDD protocol in
+// <repo>/.agents/skills/idd, naming its own runtime relative to the repository
+// root; installs from before then work only through a global Codex install.
+const REPO_PROTOCOL_CLI = /node "([^"]+\/scripts\/ospec\.js)"/;
+
 function codexRepoCheck(root, hosts, add) {
   const agents = readText(path.join(root, "AGENTS.md")) || "";
   const repoInstall = agents.includes(ROUTER_BEGIN) || isDir(path.join(root, ".codex", "agents"));
   if (!repoInstall) return;
-  if (fs.existsSync(path.join(root, ".agents", "skills", "idd", "SKILL.md"))) {
-    add({ id: "codex-repo", status: "ok" });
+  const protocol = readText(path.join(root, ".agents", "skills", "idd", "SKILL.md"));
+  if (protocol !== null) {
+    const cli = REPO_PROTOCOL_CLI.exec(protocol)?.[1];
+    add(cli && fs.existsSync(path.resolve(root, cli))
+      ? { id: "codex-repo", status: "ok", detail: cli }
+      : {
+          id: "codex-repo",
+          status: "warn",
+          cause: `the repository IDD protocol runs \`${cli ?? "ospec"}\`, which does not exist in this repository`,
+          action: "Run `npm run install:codex -- <repo>` in the ospec-workflow checkout to reinstall the protocol with its runtime.",
+        });
     return;
   }
   const global = hosts.codex;

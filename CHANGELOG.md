@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.117.18] - 2026-10-09
+
+### Fixed
+- **Codex por repositorio sigue IDD (E1.14)**: `install:codex -- <repo>` no instalaba el runtime de `ospec` ni el protocolo IDD, así que el repositorio solo podía seguir IDD con una instalación global de Codex. Ahora escribe en `<repo>/.agents/skills/` las skills `idd`, `review-trust` y `review-correction` (y `sdd-orchestrator` con `--with-sdd`) con sus `_shared`, y copia el runtime en `<repo>/.codex/ospec-workflow/`. Las skills lo nombran con una ruta relativa a la raíz del repositorio, así que los ficheros versionados funcionan en cualquier clon.
+- **Instalación segura y convergente**: todos los destinos pasan las comprobaciones de rutas gestionadas antes de escribir, una reinstalación poda los ficheros del runtime que la build ya no tiene y `--dry-run` no escribe nada.
+- **Doctor**: `codex-repo` es `ok` solo si existe el runtime que nombra la skill `idd` del repositorio; si no, avisa con el comando para reinstalar.
+
+### Changed
+- **Contrato y guías**: REQ-install-041 y guías EN/ES de instalación. E1.14 cerrado en `idd/archive/2026-10-09-codex-repo-runtime/`.
+
+**Verificación directa**: `node scripts/check.js` (3430 tests pasando, 0 fallos y 4 omitidos), con las omisiones debidas a que el entorno no permite crear enlaces simbólicos, incluida la generación y validación de los siete targets. Reproducción rojo→verde registrada por IDD, con una instalación real en un repositorio sin instalación global que ejecuta `ospec next` desde la skill `idd`.
+
 ## [2.117.17] - 2026-10-09
 
 ### Fixed

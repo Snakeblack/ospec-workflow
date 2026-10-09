@@ -12,7 +12,7 @@ const path = require("node:path");
 const test = require("node:test");
 
 const { runConfigure } = require("./cli.js");
-const { RUNTIME_DIR_MARKER, SHARED_DIR_MARKER, renderRuntimeDir, renderSharedDir, sharedDirValue } = require("./shared-dir.js");
+const { RUNTIME_DIR_MARKER, SHARED_DIR_MARKER, renderRuntimeDir, renderSharedDir, runtimeDirValue, sharedDirValue } = require("./shared-dir.js");
 const { hostBinarySuffix } = require("./install-target.js");
 
 const ROOT = path.resolve(__dirname, "..", "..");
@@ -281,4 +281,9 @@ test("renderSharedDir is a no-op on a tree without the marker", (t) => {
   assert.deepEqual(rendered.files, []);
   rendered.restore();
   assert.equal(fs.readFileSync(path.join(dir, "a.md"), "utf8"), "plain\n");
+});
+
+test("runtimeDirValue keeps a repository-relative runtime relative, with forward slashes (E1.14)", () => {
+  assert.equal(runtimeDirValue(path.join(".codex", "ospec-workflow"), { relative: true }), ".codex/ospec-workflow");
+  assert.equal(runtimeDirValue("/home/me/.codex/ospec-workflow"), path.resolve("/home/me/.codex/ospec-workflow").split(path.sep).join("/"));
 });

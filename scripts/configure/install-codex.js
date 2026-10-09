@@ -9,7 +9,7 @@ const { runConfigure } = require("./cli.js");
 const { runEngramStep, withEngramStep } = require("./engram-setup.js");
 const { assertSafeDest } = require("./install-target.js");
 const { removeRouterBlock, writeRouterBlock } = require("./instruction-block.js");
-const { SHARED_DIR_MARKER, renderRuntimeDir, renderSharedDir, runtimeDirValue, sharedDirValue } = require("./shared-dir.js");
+const { RUNTIME_DIR_MARKER, SHARED_DIR_MARKER, renderRuntimeDir, renderSharedDir, runtimeDirValue, sharedDirValue } = require("./shared-dir.js");
 const {
   readOwnershipManifest,
   writeOwnershipManifest,
@@ -1094,21 +1094,67 @@ function gatherCodexSkillsFiles(outDir, fsImpl = fs) {
   return owned;
 }
 
-// A repository install has no global skills: the orchestrator skill goes to
-// the repository's .agents/skills, where Codex looks for repo-scoped skills,
-// with the `_shared` handlers it reads on demand beside it (E0.4 b). The
-// skill names them relative to the repository, whose files are shared.
+// A repository install has no global skills: they go to the repository's
+// .agents/skills, where Codex looks for repo-scoped skills, with the `_shared`
+// handlers they read on demand beside them (E0.4 b). E1.14: besides the SDD
+// orchestrator (with --with-sdd), it carries the IDD protocol and the
+// reviewers it dispatches, and its own runtime under .codex/ospec-workflow, so
+// the repository follows IDD without a global install. Both are named relative
+// to the repository root, whose files are shared.
 const REPO_SKILLS_DIR = ".agents/skills";
+const REPO_SKILLS = Object.freeze(["sdd-orchestrator", "idd", "review-trust", "review-correction"]);
+const REPO_RUNTIME_DIR = ".codex/ospec-workflow";
 
-function installRepoOrchestratorSkill(outDir, repoRoot, writeFs, fsImpl = fs) {
-  const source = path.join(outDir, "skills", "sdd-orchestrator", "SKILL.md");
-  if (!fsImpl.existsSync(source)) return;
+function renderRepoMarkers(content) {
+  return content
+    .split(SHARED_DIR_MARKER).join(sharedDirValue(REPO_SKILLS_DIR, { relative: true }))
+    .split(RUNTIME_DIR_MARKER).join(runtimeDirValue(REPO_RUNTIME_DIR, { relative: true }));
+}
+
+// Copies a generated tree, rendering the install markers in its text files.
+function copyRenderedTree(sourceDir, destDir, writeFs, fsImpl) {
+  writeFs.mkdirSync(destDir, { recursive: true });
+  for (const entry of fsImpl.readdirSync(sourceDir, { withFileTypes: true })) {
+    const source = path.join(sourceDir, entry.name);
+    const destination = path.join(destDir, entry.name);
+    if (entry.isDirectory()) {
+      copyRenderedTree(source, destination, writeFs, fsImpl);
+    } else if (/\.(md|toml)$/.test(entry.name)) {
+      writeFs.writeFileSync(destination, renderRepoMarkers(fsImpl.readFileSync(source, "utf8")));
+    } else {
+      writeFs.copyFileSync(source, destination);
+    }
+  }
+}
+
+function repoSkillSources(outDir, fsImpl) {
+  return REPO_SKILLS.map((name) => ({ name, source: path.join(outDir, "skills", name) })).filter(({ source }) => fsImpl.existsSync(source));
+}
+
+// Every repository destination is checked before anything is written.
+function preflightRepoInstall(outDir, repoRoot, fsImpl = fs) {
   const skillsRoot = path.join(repoRoot, ...REPO_SKILLS_DIR.split("/"));
-  const destination = path.join(skillsRoot, "sdd-orchestrator", "SKILL.md");
-  assertManagedPathSafe(repoRoot, destination, "Codex orchestrator skill destination", fsImpl);
-  writeFs.mkdirSync(path.dirname(destination), { recursive: true });
-  const sharedDir = sharedDirValue(REPO_SKILLS_DIR, { relative: true });
-  writeFs.writeFileSync(destination, fsImpl.readFileSync(source, "utf8").split(SHARED_DIR_MARKER).join(sharedDir));
+  for (const { name, source } of repoSkillSources(outDir, fsImpl)) {
+    preflightManagedTree(source, path.join(skillsRoot, name), repoRoot, fsImpl);
+  }
+  const sharedSource = path.join(outDir, "skills", "_shared");
+  if (fsImpl.existsSync(sharedSource)) preflightManagedTree(sharedSource, path.join(skillsRoot, "_shared"), repoRoot, fsImpl);
+  const runtimeDir = path.join(repoRoot, ...REPO_RUNTIME_DIR.split("/"));
+  assertManagedPathSafe(repoRoot, runtimeDir, "Codex repository runtime directory", fsImpl);
+  for (const tree of ["scripts", "schemas"]) {
+    const source = path.join(outDir, tree);
+    if (fsImpl.existsSync(source)) preflightManagedTree(source, path.join(runtimeDir, tree), repoRoot, fsImpl);
+  }
+}
+
+function installRepoSkills(outDir, repoRoot, writeFs, fsImpl = fs) {
+  const skillsRoot = path.join(repoRoot, ...REPO_SKILLS_DIR.split("/"));
+  for (const { name, source } of repoSkillSources(outDir, fsImpl)) {
+    const destination = path.join(skillsRoot, name);
+    assertManagedPathSafe(repoRoot, destination, "Codex repository skill destination", fsImpl);
+    pruneManagedTree(source, destination, writeFs);
+    copyRenderedTree(source, destination, writeFs, fsImpl);
+  }
 
   const sharedSource = path.join(outDir, "skills", "_shared");
   if (!fsImpl.existsSync(sharedSource)) return;
@@ -1119,6 +1165,14 @@ function installRepoOrchestratorSkill(outDir, repoRoot, writeFs, fsImpl = fs) {
     writeFs.mkdirSync(path.dirname(sharedDestination), { recursive: true });
     writeFs.copyFileSync(path.join(sharedSource, entry.name), sharedDestination);
   }
+}
+
+// The runtime directory is owned by ospec: files the build no longer has go.
+function installRepoRuntime(outDir, repoRoot, writeFs) {
+  const runtimeDir = path.join(repoRoot, ...REPO_RUNTIME_DIR.split("/"));
+  const scriptsSource = path.join(outDir, "scripts");
+  if (writeFs.existsSync(scriptsSource)) pruneManagedTree(scriptsSource, path.join(runtimeDir, "scripts"), writeFs);
+  copyCodexRuntime(outDir, runtimeDir, { fs: writeFs });
 }
 
 function reportConfigRepair(repair, reporter) {
@@ -1262,6 +1316,7 @@ function install(argv, deps = {}) {
     const userHome = isRepoInstall ? undefined : path.resolve(homedir());
     const globalSkillsRoot = isRepoInstall ? undefined : path.join(userHome, ".agents", "skills");
     preflightCodexAgents(outDir, agentsDest, codexRoot, fsImpl);
+    if (isRepoInstall) preflightRepoInstall(outDir, path.dirname(codexRoot), fsImpl);
 
     if (!isRepoInstall) {
       const runtimeDir = path.join(codexRoot, "ospec-workflow");
@@ -1300,7 +1355,8 @@ function install(argv, deps = {}) {
         writeRouterBlock(agentDestFile, router, { fs: writeFs, replaceWhole: ownedAgentsMd });
       }
       if (isRepoInstall) {
-        installRepoOrchestratorSkill(outDir, path.dirname(codexRoot), writeFs, fsImpl);
+        installRepoSkills(outDir, path.dirname(codexRoot), writeFs, fsImpl);
+        installRepoRuntime(outDir, path.dirname(codexRoot), writeFs);
       }
       if (!isRepoInstall) {
         const runtimeDir = path.join(codexRoot, "ospec-workflow");
@@ -1367,7 +1423,7 @@ function install(argv, deps = {}) {
       return 0;
     }
 
-    reporter.set("Instalado", isRepoInstall ? "AGENTS.md y agentes de Codex" : "AGENTS.md, agentes, skills y hooks nativos de Codex");
+    reporter.set("Instalado", isRepoInstall ? "AGENTS.md, agentes, protocolo IDD y runtime de Codex" : "AGENTS.md, agentes, skills y hooks nativos de Codex");
     restartHint(reporter);
     return 0;
   } catch (error) {

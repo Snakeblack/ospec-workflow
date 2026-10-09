@@ -359,3 +359,19 @@ test("the doctor writes nothing under the home directory", async (t) => {
   await doctor(env);
   assert.equal(treeDigest(env.home), before);
 });
+
+// E1.14: the repository install carries the IDD protocol and its runtime; the
+// check is ok only when the runtime the protocol names exists.
+test("a repository Codex install is ok when its IDD protocol names a runtime that exists", async (t) => {
+  const repo = setup(t);
+  write(path.join(repo.root, "AGENTS.md"), `${BEGIN}\n${ROUTER}${END}\n`);
+  write(path.join(repo.root, ".agents", "skills", "idd", "SKILL.md"), "---\nname: idd\n---\n\n`ospec` below means `node \".codex/ospec-workflow/scripts/ospec.js\"`, run from the project root.\n");
+  const missing = find(await doctor(repo), "project", "codex-repo");
+  assert.equal(missing.status, "warn");
+  assertActionable(missing, "codex repo runtime");
+  assert.match(missing.cause, /\.codex\/ospec-workflow\/scripts\/ospec\.js/);
+  assert.match(missing.action, /install:codex -- <repo>/);
+
+  write(path.join(repo.root, ".codex", "ospec-workflow", "scripts", "ospec.js"), "// ospec CLI\n");
+  assert.equal(find(await doctor(repo), "project", "codex-repo").status, "ok");
+});
