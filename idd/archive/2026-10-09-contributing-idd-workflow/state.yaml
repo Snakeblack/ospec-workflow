@@ -1,0 +1,68 @@
+{
+  "schema": "idd-state/v1",
+  "change": "contributing-idd-workflow",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "CONTRIBUTING describes SDD and OpenSpec as the repository's workflow and only the Node gate, while every change since E1.6 runs through IDD and the Go runtime has its own checks",
+    "acceptance": "CONTRIBUTING says changes run through IDD with ospec (SDD on request), names idd/ as the change state, and lists go vet and go test for Go changes next to node scripts/check.js"
+  },
+  "facts": {
+    "basis": "idd/archive holds every change since E1.6; the roadmap states that items run with IDD; build-hooks CI runs the Go checks"
+  },
+  "plan": {
+    "paths": [
+      "CONTRIBUTING.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-09T13:08:45.031Z",
+      "detail": {
+        "tree": "sha256:f494cb9f60f3df1bff716008a39786d28f2e158e48576a137e6e6d9d58026efe",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "7753b581efb1643d17374138ff2e03e72a06992e",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9af6b27cd8bbd43358f7d8e63cdf165aa4b1e3d451445af3f131e799efb81706",
+      "tree": "sha256:f494cb9f60f3df1bff716008a39786d28f2e158e48576a137e6e6d9d58026efe",
+      "recorded_at": "2026-10-09T13:08:45.031Z"
+    }
+  ],
+  "closed_at": "2026-10-09T13:08:45.169Z"
+}
