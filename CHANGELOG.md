@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.117.16] - 2026-10-09
+
+### Fixed
+- **`ospec next` pide declarar el plan (E1.11)**: `ospec signals` guarda el plan declarado en el state (`plan`: rutas, unidades de trabajo, decisión y operaciones; las declaraciones posteriores lo amplían). Mientras un cambio no tenga plan, señales del diff ni ejecuciones, `next` devuelve `declare-plan` después de los gates de intención y `open-facts` y antes de cualquier obligación.
+- **Plan sobredeclarado corregible**: `ospec record retract --change <id> --signal <id> --reason <texto>` retira una señal declarada de rutas o unidades (`public-contract`, `persistent-data`, `security-boundary`, `multi-unit-or-decision`) que el diff no confirma. Su obligación pendiente pasa a `withdrawn` con el motivo y la señal queda en `retracted`. Se rechaza si el diff la confirma, si su origen es el diff o si su obligación ya está satisfecha; si el diff la dispara después, vuelve y reabre la obligación.
+- **Codificación de ficheros en IDD**: el protocolo `idd` exige editar los ficheros de texto conservando su codificación y sus finales de línea.
+
+### Changed
+- **Contrato IDD**: REQ-idd-003 (campos `plan` y `retracted`, opcionales para los states anteriores), REQ-idd-006 (retirada de señales), REQ-idd-011 (paso `declare-plan` y record `retract`) y REQ-idd-012 (registro del plan). E1.11 cerrado en `idd/archive/2026-10-09-idd-protocol-hygiene/`.
+
+**Verificación directa**: `node scripts/check.js` (3417 tests pasando, 0 fallos y 4 omitidos), con las omisiones debidas a que el entorno no permite crear enlaces simbólicos, incluida la generación y validación de los siete targets. Reproducción rojo→verde registrada por IDD.
+
 ## [2.117.15] - 2026-10-09
 
 ### Fixed

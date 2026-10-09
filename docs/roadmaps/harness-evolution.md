@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.117.15, 2026-10-09.
+> **Versión de referencia:** v2.117.16, 2026-10-09.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -128,7 +128,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.8** | `sdd-new-intent-argument` (v2.114.2) | bugfix |
 | `done` | **E1.9** | `install-cli-ux` (salida común con fases y resumen en los 7 instaladores y publicación de `dist/vscode` con VS Code abierto, en v2.117.0) | bugfix |
 | `done` | **E1.10** | `vscode-dry-run` (`setup:vscode --dry-run` ya no toca `dist/vscode`, y el árbol se publica preparado o no se publica, en v2.117.1) | bugfix |
-| `pending` | **E1.11** | `idd-protocol-hygiene` (follow-up del checkpoint de la Etapa 1) | bugfix |
+| `done` | **E1.11** | `idd-protocol-hygiene` (`next` pide declarar el plan, `record retract` corrige un plan sobredeclarado y el protocolo conserva codificación, en v2.117.16) | bugfix |
 | `pending` | **E1.12** | `session-hook-idd` (follow-up del checkpoint de la Etapa 1) | bugfix |
 | `pending` | **E1.13** | `idd-openspec-asymmetries` (follow-up del checkpoint de la Etapa 1) | bugfix |
 | `pending` | **E1.14** | `codex-repo-runtime` (follow-up del checkpoint de la Etapa 1) | bugfix |
@@ -161,7 +161,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 
 **▶ SIGUIENTE:** E2.1 `knowledge-map-contract`, que abre la Etapa 2 después de las prioridades OSP aceptadas el 2026-10-08. E1.20 (OSP-020) quedó cerrado con IDD; su publicación está pendiente de elegir versión. E1.19 `idd-review-context` quedó hecho en v2.117.13, E1.16 (OSP-017) en v2.117.5, E1.17 (OSP-001/002/003) en v2.117.9, E1.21 (guía de checks IDD) en v2.117.10 y E1.18 (frescura de evidencia) en v2.117.11. Los ítems se ejecutan con IDD.
 
-El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) conserva su resultado histórico `continue`. Los hallazgos posteriores y sus límites están en el [análisis OSP de permisos y evidencia](../analysis/2026-10-08-osp-permisos-y-evidencia.md). E1.11–E1.15 siguen pendientes; el plugin SDD del marketplace permanece en E5.8, por demanda.
+El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) conserva su resultado histórico `continue`. Los hallazgos posteriores y sus límites están en el [análisis OSP de permisos y evidencia](../analysis/2026-10-08-osp-permisos-y-evidencia.md). E1.11 quedó hecho en v2.117.16; E1.12–E1.15 siguen pendientes; el plugin SDD del marketplace permanece en E5.8, por demanda.
 
 **Prioridades OSP aceptadas para la siguiente sesión:**
 
@@ -399,6 +399,8 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Garantía que protege:** cierre por evidencia (las señales se calculan con el plan real) y que IDD no estropee ficheros del usuario.
 - **Alcance:** el protocolo IDD exige editar ficheros de texto conservando su codificación y sus finales de línea; `ospec next` devuelve como paso «declarar el plan» mientras no haya señales de ruta ni diff; y una forma explícita, con motivo, de corregir una señal declarada mientras el diff no la confirma.
 - **Hecho cuando:** un cambio sin plan recibe de `next` el paso de declararlo, y una señal declarada que el diff no confirma se puede retirar con motivo, pero no una que el diff confirma.
+- **Decisiones del usuario (gate `open-facts`):** un tipo de record nuevo, `retract`, en lugar de ampliar `withdraw`; y un campo `plan` en el state con un paso `declare-plan` bloqueante, no un aviso.
+- **Entregado en v2.117.16, E1.11 hecho:** `ospec signals` guarda el plan declarado (`plan`: rutas, unidades, decisión y operaciones; las declaraciones posteriores lo amplían) y `ospec next` devuelve `declare-plan` tras los gates de intención y `open-facts` mientras no haya plan, señales del diff ni ejecuciones. `ospec record retract --signal <id> --reason <texto>` retira una señal declarada de rutas o unidades (`public-contract`, `persistent-data`, `security-boundary`, `multi-unit-or-decision`), retira su obligación pendiente con el motivo y la anota en `retracted`; se rechaza si el diff la confirma, si viene del diff o si su obligación ya está satisfecha, y el diff la recupera si después la dispara. La skill `idd` exige editar conservando codificación y finales de línea. REQ-idd-003, 006, 011 y 012 actualizados. Hecho con IDD (`idd/archive/2026-10-09-idd-protocol-hygiene/`).
 
 ### E1.12 — `session-hook-idd`
 
@@ -712,6 +714,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-09: E1.11 `idd-protocol-hygiene` hecho con IDD en v2.117.16; plan declarado en el state, paso `declare-plan` y `record retract` para señales sobredeclaradas.
 - 2026-10-09: E1.24 `setup-flags-reliability` añadido a petición del usuario: `setup:claude --dry-run` instalaba de verdad y `--no-sdd` falla en PowerShell por el `--` que consume `npm.ps1`.
 - 2026-10-09: E1.20 cerrado con IDD; guías EN/ES sincronizadas con E1.6/E1.8 y contrastadas con ambos modos en los siete targets. Publicación pendiente de versión; E2.1 pasa a `next-eligible`.
 - 2026-10-09: E1.19 cerrado con IDD para v2.117.13; contexto de revisión por defecto reducido y protocolo SDD conservado. E1.20 pasa a `next-eligible`.

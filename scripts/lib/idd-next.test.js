@@ -10,7 +10,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const { nextForChange, nextForProject, statusOf } = require("./idd-next.js");
-const { recordEvidence, recordGate, recordIntent, recordSignal } = require("./idd-record.js");
+const { recordEvidence, recordGate, recordIntent, recordPlan, recordSignal } = require("./idd-record.js");
 
 const FIXTURES_DIR = path.join(__dirname, "..", "fixtures", "idd");
 const NO_OPEN_FACTS = Object.freeze({ noOpenFacts: true, basis: "The request fixes every behavior." });
@@ -37,6 +37,14 @@ function stateFromFixture(fixture, signalOrder = (ids) => ids) {
         ...NO_OPEN_FACTS,
       };
   let state = recordIntent(null, intent).state;
+  if (!input.intent.ambiguous) {
+    state = recordPlan(state, {
+      paths: input.paths,
+      workUnits: input.work_units,
+      nonObviousDecision: input.non_obvious_decision,
+      operations: input.operations,
+    }).state;
+  }
   for (const id of signalOrder(expected.signals.filter((s) => s !== "always"))) {
     state = recordSignal(state, { id, reason: `fixture ${fixture.id}`, source: "declaration" }).state;
   }
@@ -44,6 +52,11 @@ function stateFromFixture(fixture, signalOrder = (ids) => ids) {
     state = recordGate(state, { id, action: "open", reason: `fixture ${fixture.id}` }).state;
   }
   return state;
+}
+
+// An opened change whose plan is declared, so next moves on to its obligations.
+function planned(input) {
+  return recordPlan(recordIntent(null, input).state, { paths: ["src/a.js"] }).state;
 }
 
 for (const fixture of loadFixtures()) {
@@ -96,7 +109,7 @@ test("an ambiguous intent blocks on its gate with the original request", () => {
 
 test("open facts are asked before any obligation, as one batch of questions", () => {
   const questions = ["Is the threshold checked after the discount?", "Is an unknown code an error?"];
-  let state = recordIntent(null, { change: "discount-codes", kind: "feature", summary: "s", acceptance: "a", openFacts: questions }).state;
+  let state = planned({ change: "discount-codes", kind: "feature", summary: "s", acceptance: "a", openFacts: questions });
   const result = nextForChange(state);
   assert.deepStrictEqual(result.next_step, { action: "resolve-gate", gate: "open-facts" });
   assert.strictEqual(result.pending_decision.gate, "open-facts");
@@ -110,7 +123,7 @@ test("open facts are asked before any obligation, as one batch of questions", ()
 });
 
 test("an open gate blocks close once obligations are settled, then close is next", () => {
-  let state = recordIntent(null, { change: "drop-fax", kind: "refactor", summary: "s", acceptance: "a", ...NO_OPEN_FACTS }).state;
+  let state = planned({ change: "drop-fax", kind: "refactor", summary: "s", acceptance: "a", ...NO_OPEN_FACTS });
   state = recordGate(state, { id: "irreversible-operation", action: "open", reason: "drops fax_number" }).state;
   state = recordEvidence(state, { id: "ev-1", kind: "check-run", obligation: "checks-pass", recordedAt: "t" }).state;
   assert.deepStrictEqual(nextForChange(state).next_step, { action: "resolve-gate", gate: "irreversible-operation" });
@@ -128,7 +141,7 @@ test("a closed change has no next step", () => {
 
 test("missing checks are a prerequisite for check evidence, preserving reproduction and intent gates", () => {
   const context = { checks: [], candidateCommand: "pnpm test" };
-  let state = recordIntent(null, { change: "fix-it", kind: "bug", summary: "s", acceptance: "a", ...NO_OPEN_FACTS }).state;
+  let state = planned({ change: "fix-it", kind: "bug", summary: "s", acceptance: "a", ...NO_OPEN_FACTS });
   assert.strictEqual(nextForChange(state, context).next_step.action, "configure-checks");
   state = recordSignal(state, { id: "bug-fix", reason: "bug", source: "declaration" }).state;
   assert.strictEqual(nextForChange(state, context).next_step.obligation, "repro-test");
@@ -201,4 +214,31 @@ test("the work order is the one REQ-idd-011 names", () => {
   const section = spec.slice(spec.indexOf("{#REQ-idd-011}")).replace(/\s+/g, " ");
   const listed = WORK_ORDER.slice(0, -1).map((id) => `\`${id}\``).join(", ");
   assert.ok(section.includes(`${listed}, \`${WORK_ORDER.at(-1)}\``), "REQ-idd-011 must list the work order");
+});
+
+// E1.11: the plan is declared before any obligation is worked (REQ-idd-011).
+test("next asks to declare the plan after the intent gates and before any obligation", () => {
+  const { recordPlan } = require("./idd-record.js");
+  const opened = recordIntent(null, { change: "fix-it", kind: "bug", summary: "s", acceptance: "a", ...NO_OPEN_FACTS }).state;
+  const unplanned = recordSignal(opened, { id: "bug-fix", reason: "bug", source: "declaration" }).state;
+  assert.deepStrictEqual(nextForChange(unplanned).next_step, {
+    action: "declare-plan",
+    how: "ospec signals --change fix-it --path <file>... [--work-units <n>] [--decision] [--operation <op>]",
+  });
+  assert.strictEqual(nextForChange(unplanned, { checks: [] }).next_step.action, "declare-plan");
+  assert.deepStrictEqual(nextForChange(unplanned).pending_obligations.map((o) => o.id), ["repro-test", "checks-pass"]);
+
+  const planned = recordPlan(unplanned, { paths: ["src/a.js"] }).state;
+  assert.strictEqual(nextForChange(planned).next_step.obligation, "repro-test");
+
+  const fromDiff = recordSignal(opened, { id: "public-contract", reason: "diff", source: "diff" }).state;
+  assert.strictEqual(nextForChange(fromDiff).next_step.obligation, "contract-spec-and-test");
+  const withRun = { ...opened, runs: [{ id: "run-1" }] };
+  assert.strictEqual(nextForChange(withRun).next_step.obligation, "checks-pass");
+
+  const facts = recordIntent(null, { change: "facts", kind: "feature", summary: "s", acceptance: "a", openFacts: ["Which?"] }).state;
+  assert.deepStrictEqual(nextForChange(facts).next_step, { action: "resolve-gate", gate: "open-facts" });
+  const ambiguous = recordIntent(null, { change: "vague", ambiguous: true, request: "Improve it" }).state;
+  assert.strictEqual(nextForChange(ambiguous).next_step.gate, "ambiguous-intent");
+  assert.deepStrictEqual(nextForChange({ ...unplanned, status: "closed" }).next_step, { action: "none" });
 });

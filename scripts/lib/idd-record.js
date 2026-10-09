@@ -12,12 +12,14 @@ const {
   GATES,
   INTENT_KINDS,
   OBLIGATIONS,
+  RETRACTABLE_SIGNALS,
   SIGNALS,
   SIGNAL_SOURCES,
   STATE_SCHEMA,
   canWithdraw,
   isIntentAmbiguous,
 } = require("./idd-contract.js");
+const { normalizePath } = require("./idd-impact.js");
 
 const SIGNAL_BY_ID = new Map(SIGNALS.map((signal) => [signal.id, signal]));
 const OBLIGATION_BY_ID = new Map(OBLIGATIONS.map((obligation) => [obligation.id, obligation]));
@@ -257,6 +259,65 @@ function recordWithdraw(state, { obligation: obligationId, reason } = {}) {
   return { state: next, changed: true };
 }
 
+function sortedUnion(left, right) {
+  return [...new Set([...left, ...right])].sort();
+}
+
+// Records the plan `ospec signals` was told about (E1.11). A later declaration
+// widens it: paths and operations accumulate, the work units keep the largest
+// count and a declared decision stays declared, so nothing planned is dropped.
+function recordPlan(state, { paths = [], workUnits = 1, nonObviousDecision = false, operations = [] } = {}) {
+  requireOpen(state);
+  if (isIntentAmbiguous(state)) refuse("ambiguous-intent-open", "no plan is declared while the intent is ambiguous");
+  if (!Number.isInteger(workUnits) || workUnits < 1) refuse("invalid-plan", "work units must be a positive integer");
+  const previous = state.plan || { paths: [], work_units: 1, decision: false, operations: [] };
+  const plan = {
+    paths: sortedUnion(previous.paths, paths.map(normalizePath)),
+    work_units: Math.max(previous.work_units, workUnits),
+    decision: previous.decision || nonObviousDecision === true,
+    operations: sortedUnion(previous.operations, operations.map(String)),
+  };
+  if (state.plan && sameJson(plan, state.plan)) return unchanged(state);
+  return { state: { ...structuredClone(state), plan }, changed: true };
+}
+
+// Retracts a declared signal the diff does not confirm (E1.11): the signal
+// leaves the active list, its pending obligation is withdrawn with the reason
+// and the retraction stays recorded. `confirmedBy` is the reason the current
+// diff derives the signal, or null; idd-workspace.js reads the diff. A later
+// diff or declaration that derives the signal again reopens its obligation
+// (REQ-idd-006).
+function recordRetract(state, { id, reason, confirmedBy = null } = {}) {
+  requireOpen(state);
+  if (!SIGNAL_BY_ID.has(id)) refuse("unknown-signal", `unknown signal: ${id}`);
+  if (!RETRACTABLE_SIGNALS.includes(id)) {
+    refuse("signal-not-retractable", `signal ${id} derives from the intent or the project configuration; only ${RETRACTABLE_SIGNALS.join(", ")} can be retracted`);
+  }
+  requireText(reason, "reason-required", `retracting ${id} needs a reason`);
+  const signal = state.signals.find((entry) => entry.id === id);
+  if (!signal) {
+    const last = (state.retracted || []).findLast((entry) => entry.id === id);
+    if (!last) refuse("signal-not-recorded", `change ${state.change} has no signal ${id}`);
+    if (last.retract_reason === reason) return unchanged(state);
+    refuse("retract-conflict", `signal ${id} was retracted with a different reason`);
+  }
+  if (signal.source !== "declaration") refuse("signal-confirmed-by-diff", `signal ${id} comes from the diff: ${signal.reason}`);
+  if (confirmedBy) refuse("signal-confirmed-by-diff", `the diff confirms signal ${id}: ${confirmedBy}`);
+  const obligationId = SIGNAL_BY_ID.get(id).obligation;
+  const obligation = state.obligations.find((entry) => entry.id === obligationId);
+  if (obligation?.status === "satisfied") refuse("obligation-satisfied", `obligation ${obligationId} of signal ${id} is already satisfied`);
+
+  const next = structuredClone(state);
+  next.signals = next.signals.filter((entry) => entry.id !== id);
+  next.retracted = [...(next.retracted || []), { id, reason: signal.reason, source: signal.source, retract_reason: reason }];
+  const target = next.obligations.find((entry) => entry.id === obligationId);
+  if (target && target.status === "pending") {
+    target.status = "withdrawn";
+    target.withdrawn_reason = reason;
+  }
+  return { state: next, changed: true };
+}
+
 // Library-only until E1.4 wires it to the commands that produce evidence
 // (REQ-idd-007): the CLI never lets the model assert evidence.
 function recordEvidence(state, { id, kind, obligation: obligationId, recordedAt, detail } = {}) {
@@ -290,6 +351,8 @@ module.exports = {
   recordEvidence,
   recordGate,
   recordIntent,
+  recordPlan,
+  recordRetract,
   recordSignal,
   recordWithdraw,
 };

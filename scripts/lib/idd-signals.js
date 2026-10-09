@@ -10,7 +10,7 @@
 const { classifyChange } = require("./change-classification.js");
 const { SIGNALS, isIntentAmbiguous } = require("./idd-contract.js");
 const { IMPACT_SIGNALS, matchImpact, normalizePath } = require("./idd-impact.js");
-const { IddRecordError, recordGate, recordSignal } = require("./idd-record.js");
+const { IddRecordError, recordGate, recordPlan, recordSignal } = require("./idd-record.js");
 
 // K1 hard-floor evidence key → IDD signal. mechanical_no_behavior has no
 // signal: a mechanical change only lowers the floor.
@@ -147,16 +147,22 @@ function deriveSignals({ intent, strictTdd = false, declaration = {}, diff = {},
   return { signals, gates, floor: risk.floor, floor_source: risk.floor_source };
 }
 
-// Records what a derivation adds to the stored state. Signals and gates already
-// recorded stay as they are, and a signal the derivation misses is never
-// dropped (REQ-idd-006).
-function applyDerivation(state, derivation) {
+// Records what a derivation adds to the stored state, plus the declared plan
+// when there is one (E1.11). Signals and gates already recorded stay as they
+// are, and a signal the derivation misses is never dropped (REQ-idd-006).
+function applyDerivation(state, derivation, { plan = null } = {}) {
   if (state.status === "closed") throw new IddRecordError("change-closed", `change ${state.change} is closed`);
   if (isIntentAmbiguous(state)) {
     throw new IddRecordError("ambiguous-intent-open", "no signal is derived while the intent is ambiguous");
   }
   let current = state;
   const added = { signals: [], gates: [] };
+  let planChanged = false;
+  if (plan) {
+    const result = recordPlan(current, plan);
+    planChanged = result.changed;
+    current = result.state;
+  }
   for (const signal of derivation.signals) {
     const result = recordSignal(current, signal);
     if (result.changed) added.signals.push(signal.id);
@@ -167,7 +173,7 @@ function applyDerivation(state, derivation) {
     if (result.changed) added.gates.push(gate.id);
     current = result.state;
   }
-  return { state: current, changed: added.signals.length + added.gates.length > 0, added };
+  return { state: current, changed: planChanged || added.signals.length + added.gates.length > 0, added };
 }
 
 module.exports = {

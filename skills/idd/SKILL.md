@@ -77,7 +77,10 @@ when requested. `ospec doctor` warns about open IDD changes without checks.
 4. Declare the plan before editing: `ospec signals --change <id> --path <file>...`
    with every file you expect to touch; add `--work-units <n>` when the work
    splits into several units, `--decision` when it records a design decision,
-   and `--operation <op>` for a destructive or irreversible operation.
+   and `--operation <op>` for a destructive or irreversible operation. `next`
+   returns `declare-plan` until you do. If the plan overstated a signal, retract
+   it with `ospec record retract --change <id> --signal <id> --reason "<why>"`;
+   the CLI refuses while the diff confirms it.
 5. Loop: `ospec next --change <id> --json`, do what `next_step` says, repeat.
    Work the obligations in the order `next` gives them:
    - `repro-test`: write the reproduction test first and run it with
@@ -99,7 +102,10 @@ when requested. `ospec doctor` warns about open IDD changes without checks.
 6. `ospec check` recomputes the signals from the real diff. New obligations can
    appear: work them like the rest. One leaves `pending` only through evidence,
    or through `ospec record withdraw --reason` when no active signal derives it.
-7. When `next_step.action` is `close`, run `ospec close --change <id>`. A
+7. Edit text files keeping their encoding and line endings: never rewrite a
+   file through a tool or script that changes them (for example Python
+   `open()` without `encoding=` and `newline=`).
+8. When `next_step.action` is `close`, run `ospec close --change <id>`. A
    refusal names what is still pending: settle it and close again.
 
 ## Gates
