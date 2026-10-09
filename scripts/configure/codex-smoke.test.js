@@ -94,6 +94,7 @@ test("codex smoke: global install contains every generated skill and preserves u
 
   const runInstall = () => installMain([], {
     cwd: installSource,
+    env: {},
     homedir: () => homeDir,
     stdout: { write() {} },
     stderr: { write() {} },

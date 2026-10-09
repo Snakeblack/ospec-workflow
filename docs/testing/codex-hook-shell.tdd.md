@@ -55,3 +55,11 @@ Se ejecutaron 24 llamadas con los comandos instalados: SessionStart, PreToolUse 
 La matriz CI existente ejecuta `node scripts/check.js` en Ubuntu, Windows y macOS. Las pruebas de shell usan sh y Bash en POSIX, y cmd, Windows PowerShell y los shells adicionales disponibles en Windows. No se presenta una ejecución local Windows como evidencia de CI o de un nuevo arranque automático del host.
 
 El arranque automático requiere reiniciar o reanudar Codex para cargar las definiciones. No se alteraron hashes de confianza del host. El texto de Engram que solicita ToolSearch es un mensaje independiente del plugin, no la causa de estos fallos de comandos OSpec.
+
+## Aislamiento de pruebas (2026-10-09)
+
+El aviso `Hook failed - hook exited with code 1` se reprodujo por otra causa: los tests heredaban el `CODEX_HOME` real pese a inyectar un `homedir` temporal. Los fixtures unitarios y de convergencia reemplazaron el runtime y dejaron grupos `node test.js`; el hook configurado terminaba con `MODULE_NOT_FOUND`. El smoke global también escribía agentes en el perfil real.
+
+Las tres suites inyectan ahora `env: {}` en las instalaciones globales simuladas. Las pruebas de homes activos conservan su entorno explícito; el contrato del instalador en producción sigue respetando `CODEX_HOME`.
+
+`scripts/configure/install-codex-env-isolation.test.js` ejecuta las tres suites con un home heredado centinela y compara la huella de sus rutas y bytes antes y después. El proceso hijo elimina `NODE_TEST_CONTEXT` y comprueba el contador de pruebas para no aceptar una ejecución vacía. La reproducción y el cierre están en `idd/archive/2026-10-09-codex-test-home-isolation/`.

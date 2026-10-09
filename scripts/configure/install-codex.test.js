@@ -22,8 +22,14 @@ const {
   transformLegacyServiceTier,
   repairCodexConfig,
   createFilesystemTransaction,
-  main,
+  main: installMain,
 } = require("./install-codex.js");
+
+function main(argv, deps = {}) {
+  // Fixtures own temporary homes. The host's CODEX_HOME must never override
+  // their homedir mock; tests for an active home can still inject deps.env.
+  return installMain(argv, { env: {}, ...deps });
+}
 
 function makeTempDir(t, prefix) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));

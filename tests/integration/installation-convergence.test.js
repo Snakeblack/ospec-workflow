@@ -253,6 +253,7 @@ test("Codex installation engine: multi-version upgrade converges skills and agen
 
   const codeV1 = installCodex(["--source", sourceV1, "--no-validate"], {
     fs,
+    env: {},
     homedir: () => home,
     outDir: outDirV1,
     runConfigure: () => ({ exitCode: 0 }),
@@ -280,6 +281,7 @@ test("Codex installation engine: multi-version upgrade converges skills and agen
 
   const codeV2 = installCodex(["--source", sourceV2, "--no-validate"], {
     fs,
+    env: {},
     homedir: () => home,
     outDir: outDirV2,
     runConfigure: () => ({ exitCode: 0 }),
