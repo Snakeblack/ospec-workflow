@@ -921,7 +921,7 @@ When the hook runs,
 Then it MUST always write `{"continue":true}` to stdout (errors include a
 `systemMessage` key but still set `continue: true`) and MUST NOT block compaction.
 
-Given no active change exists in the workspace,
+Given no active change and no open IDD change (§4.7) exist in the workspace,
 When the hook runs,
 Then it MUST return `{status: "skipped", reason: "no-active-change"}` internally and
 MUST NOT create any `.ospec/` files.
@@ -1161,6 +1161,71 @@ Lock acquisition protocol:
 ### 5.4 Error handling
 Any unhandled error MUST produce `{"continue":true,"systemMessage":"SubagentStop observability failed: <msg>"}`. The hook MUST NOT exit non-zero or suppress `continue: true`.
 
+### 4.7 Open IDD changes (E1.12)
+
+IDD keeps its changes in `idd/<change>/state.yaml` (`idd-state/v1`, written by
+the `ospec` CLI), not in `openspec/changes/`. Both hooks MUST also read the open
+IDD changes: every directory under `idd/` except `archive/` whose `state.yaml`
+is valid, names that directory and has `status: open`, sorted by id. The hooks
+MUST read those states without writing, locking or recovering them; a state
+they cannot read (missing, a directory, without permission or malformed) MUST
+be skipped without failing the hook, so the SDD trace is still written; a
+malformed state includes list elements that are not objects and ids or
+statuses outside the `idd-state/v1` catalog, which no hook may render. The next step of each change MUST be the one
+`ospec next` gives (`nextForChange` of `scripts/lib/idd-next.js`), with
+`idd/config.yaml` counted as declaring checks when a top-level `checks:`
+section holds at least one `name: command` line (an unreadable file declares
+none), and written as one line:
+
+| `ospec next` step | Line |
+|---|---|
+| `resolve-gate` | ``Resolve the `{gate}` gate with the user: `ospec next --change {id}` shows what to ask.`` |
+| `declare-plan` | ``Declare the plan: `{how}`.`` |
+| `configure-checks` | ``Configure the project checks before `checks-pass`: `ospec next --change {id}` proposes the command, which needs the user's approval.`` |
+| `satisfy-obligation` | ``Satisfy `{obligation}` with {evidence} evidence: {how}.`` |
+| `close` | ``Close it: `ospec close --change {id}`.`` |
+
+Given open IDD changes,
+When PreCompact runs,
+Then, besides the summary of the selected SDD change (if any), it MUST write
+(or leave fresh, §4.6) `.ospec/session/{id}/session-summary.md` for each one:
+
+```markdown
+# Session Summary
+
+## Active change
+`{id}` (IDD)
+
+## Intent
+{kind}: {summary}        ← or "ambiguous: {request}"
+
+## Pending obligations
+- {obligation, in ospec next work order}
+- None  ← when list is empty
+
+## Open gates
+- {gate, in gate order}
+- None  ← when list is empty
+
+## Next recommended action
+{next step line}
+```
+
+and return the SDD result (or `{status}`, `written` when any IDD summary was
+written, else `fresh`) with `idd: [{change, status, path}]`.
+
+The Node hooks (`scripts/hooks/lib/idd-session.js`) and the Go hooks
+(`internal/iddsession`) MUST write the same bytes for the golden cases of
+`internal/testdata/idd-session/`.
+
+#### Scenario: PreCompact summarizes an open IDD change
+
+- GIVEN a workspace without `openspec/` and one open IDD change `fix-a` whose
+  next step is `repro-test`
+- WHEN PreCompact runs
+- THEN `.ospec/session/fix-a/session-summary.md` MUST name `fix-a` (IDD), its
+  pending `repro-test` and `checks-pass`, and the `ospec run` step
+
 ---
 
 ## 6. Stop
@@ -1221,6 +1286,40 @@ Then it MUST treat the workspace as having no active change.
 
 ### 6.3 Error handling
 On any unhandled error: output `{"continue":true,"systemMessage":"Stop hook could not write the session trace: <msg>"}`. The hook MUST NOT exit non-zero.
+
+### 6.4 Open IDD changes (E1.12)
+
+Without open IDD changes (§4.7), §6.1–§6.2 apply unchanged, including the
+selection of one SDD change. With open IDD changes, the open changes are every
+active SDD change (in §4.2 order) followed by the open IDD changes (by id):
+
+- With exactly one open change, it MUST be the active change: its id, current
+  phase `idd`, its status (`open`), its detailed summary (§6.2) and its next
+  step line (§4.7) as the next recommended action.
+- With several, the hook MUST NOT choose one. `Active change` MUST list every
+  open change followed by `(ambiguous: {n} open changes)`, `Current phase` and
+  `Change status` MUST be `multiple`, `Detailed summary` MUST be `None`, and
+  the next recommended action MUST read
+  `Several changes are open; choose the one to resume:` followed by one line
+  per change, ``- `{name}` ({sdd|idd}): {next action}``.
+
+The hook MUST return `activeChange` with the single change, or `null` with
+`openChanges` listing them.
+
+#### Scenario: Stop names the only open IDD change
+
+- GIVEN a workspace without `openspec/` and one open IDD change `fix-a`
+- WHEN Stop runs
+- THEN `latest.md` MUST name `fix-a` as the active change, with current phase
+  `idd` and the next step of `ospec next`
+
+#### Scenario: Stop lists several open changes without choosing
+
+- GIVEN an active SDD change `add-export` and open IDD changes `a-config`,
+  `b-docs` and `c-facts`
+- WHEN Stop runs
+- THEN `Active change` MUST list the four, SDD first, marked ambiguous
+- AND the next recommended action MUST give each one's own next step
 
 ---
 

@@ -1,0 +1,50 @@
+{
+  "schema": "idd-state/v1",
+  "change": "unknown-status",
+  "mode": "idd",
+  "status": "open",
+  "intent": {
+    "kind": "bug",
+    "summary": "Fix the last page.",
+    "acceptance": "Two full pages."
+  },
+  "facts": {
+    "basis": "The request fixes every behavior."
+  },
+  "plan": {
+    "paths": [
+      "src/paginate.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "skipped",
+      "evidence": []
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "pending",
+      "evidence": []
+    }
+  ],
+  "gates": [],
+  "evidence": []
+}

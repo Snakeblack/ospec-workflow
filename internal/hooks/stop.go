@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/snakeblack/ospec-workflow/internal/iddsession"
 	"github.com/snakeblack/ospec-workflow/internal/store"
 	"github.com/snakeblack/ospec-workflow/internal/yamllite"
 )
@@ -61,6 +62,9 @@ func runStop(input stopInput) error {
 	if err != nil {
 		return err
 	}
+	if idd := iddsession.Read(workspace); len(idd) > 0 {
+		return writeLatestWithIdd(s, workspace, input, changes, idd)
+	}
 
 	var activeChange *store.ActiveChange
 	if len(changes) > 0 {
@@ -93,33 +97,12 @@ func runStop(input stopInput) error {
 		})
 	}
 
-	// Resolve timestamp.
-	ts := strings.TrimSpace(input.Timestamp)
-	if ts == "" {
-		ts = time.Now().UTC().Format(time.RFC3339Nano)
-	}
+	ts := resolveStopTimestamp(input)
+	sessionID := resolveStopSessionID(input)
 
-	// Resolve session ID — camelCase takes priority, then underscore.
-	sessionID := strings.TrimSpace(input.SessionID)
-	if sessionID == "" {
-		sessionID = strings.TrimSpace(input.SessionIDUnderscore)
-	}
-	if sessionID == "" {
-		sessionID = "unknown"
-	}
-
-	// Detailed summary path.
 	detailedSummary := "None"
 	if activeChange != nil {
-		summaryPath := s.SessionSummaryPath(activeChange.DirectoryName)
-		if info, err := os.Stat(summaryPath); err == nil && info.Mode().IsRegular() {
-			rel, err := filepath.Rel(workspace, summaryPath)
-			if err == nil {
-				detailedSummary = filepath.ToSlash(rel)
-			} else {
-				detailedSummary = filepath.ToSlash(summaryPath)
-			}
-		}
+		detailedSummary = detailedSummaryPath(s, workspace, activeChange.DirectoryName)
 	}
 
 	// Resolve next action.
@@ -141,11 +124,105 @@ func runStop(input stopInput) error {
 		nextAction:   nextAction,
 	})
 
+	return writeLatest(s, latestContent)
+}
+
+// resolveStopTimestamp uses input.timestamp, else the current UTC time.
+func resolveStopTimestamp(input stopInput) string {
+	if ts := strings.TrimSpace(input.Timestamp); ts != "" {
+		return ts
+	}
+	return time.Now().UTC().Format(time.RFC3339Nano)
+}
+
+// resolveStopSessionID prefers sessionId, then session_id, else "unknown".
+func resolveStopSessionID(input stopInput) string {
+	if id := strings.TrimSpace(input.SessionID); id != "" {
+		return id
+	}
+	if id := strings.TrimSpace(input.SessionIDUnderscore); id != "" {
+		return id
+	}
+	return "unknown"
+}
+
+func writeLatest(s *store.Store, content string) error {
 	latestPath := s.LatestSessionPath()
 	if err := os.MkdirAll(filepath.Dir(latestPath), 0755); err != nil {
 		return fmt.Errorf("stop: mkdir: %w", err)
 	}
-	return os.WriteFile(latestPath, []byte(latestContent), 0644)
+	return os.WriteFile(latestPath, []byte(content), 0644)
+}
+
+// detailedSummaryPath is the portable path of a change's session summary, or
+// "None" when PreCompact has not written it.
+func detailedSummaryPath(s *store.Store, workspace, changeName string) string {
+	summaryPath := s.SessionSummaryPath(changeName)
+	info, err := os.Stat(summaryPath)
+	if err != nil || !info.Mode().IsRegular() {
+		return "None"
+	}
+	if rel, err := filepath.Rel(workspace, summaryPath); err == nil {
+		return filepath.ToSlash(rel)
+	}
+	return filepath.ToSlash(summaryPath)
+}
+
+// writeLatestWithIdd is writeWithIdd of stop.js (E1.12, spec §6.4): one open
+// change in total is the active change; several are listed without choosing
+// one, SDD first and then IDD by id.
+func writeLatestWithIdd(s *store.Store, workspace string, input stopInput, sdd []*store.ActiveChange, idd []iddsession.Entry) error {
+	type openChange struct{ name, mode, nextAction string }
+	var open []openChange
+	for _, change := range sdd {
+		name := yamllite.ExtractFirstScalar(change.Content, [][]string{{"change", "name"}})
+		if name == "" {
+			name = change.DirectoryName
+		}
+		next := yamllite.ExtractFirstScalar(change.Content, [][]string{{"next_recommended"}})
+		open = append(open, openChange{name, "sdd", yamllite.FormatNextAction(next, name)})
+	}
+	for _, entry := range idd {
+		open = append(open, openChange{entry.Change, "idd", entry.NextAction})
+	}
+
+	ts := resolveStopTimestamp(input)
+	sessionID := resolveStopSessionID(input)
+	if len(open) == 1 {
+		entry := idd[0]
+		return writeLatest(s, renderLatestSummary(renderLatestArgs{
+			hasChange:       true,
+			changeName:      entry.Change,
+			currentPhase:    "idd",
+			status:          entry.State.Status,
+			detailedSummary: detailedSummaryPath(s, workspace, entry.Change),
+			endedAt:         ts,
+			sessionID:       sessionID,
+			nextAction:      entry.NextAction,
+		}))
+	}
+
+	names := make([]string, len(open))
+	steps := []string{"Several changes are open; choose the one to resume:"}
+	for i, change := range open {
+		names[i] = "`" + change.name + "`"
+		steps = append(steps, "- `"+change.name+"` ("+change.mode+"): "+change.nextAction)
+	}
+	lines := []string{
+		"# Latest Session",
+		"",
+		"- Ended at: `" + ts + "`",
+		"- Session: `" + sessionID + "`",
+		"- Active change: " + strings.Join(names, ", ") + fmt.Sprintf(" (ambiguous: %d open changes)", len(open)),
+		"- Current phase: `multiple`",
+		"- Change status: `multiple`",
+		"- Detailed summary: `None`",
+		"",
+		"## Next recommended action",
+		strings.Join(steps, "\n"),
+		"",
+	}
+	return writeLatest(s, strings.Join(lines, "\n"))
 }
 
 // renderLatestArgs bundles all rendering parameters.

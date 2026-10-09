@@ -1,0 +1,31 @@
+{
+  "schema": "idd-state/v1",
+  "change": "b-docs",
+  "mode": "idd",
+  "status": "open",
+  "intent": {
+    "kind": "docs",
+    "summary": "Document paging.",
+    "acceptance": "README explains paging."
+  },
+  "facts": {
+    "basis": "The request fixes every behavior."
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "pending",
+      "evidence": []
+    }
+  ],
+  "gates": [],
+  "evidence": []
+}

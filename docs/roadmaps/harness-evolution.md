@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.117.16, 2026-10-09.
+> **Versión de referencia:** v2.117.17, 2026-10-09.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -129,7 +129,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.9** | `install-cli-ux` (salida común con fases y resumen en los 7 instaladores y publicación de `dist/vscode` con VS Code abierto, en v2.117.0) | bugfix |
 | `done` | **E1.10** | `vscode-dry-run` (`setup:vscode --dry-run` ya no toca `dist/vscode`, y el árbol se publica preparado o no se publica, en v2.117.1) | bugfix |
 | `done` | **E1.11** | `idd-protocol-hygiene` (`next` pide declarar el plan, `record retract` corrige un plan sobredeclarado y el protocolo conserva codificación, en v2.117.16) | bugfix |
-| `pending` | **E1.12** | `session-hook-idd` (follow-up del checkpoint de la Etapa 1) | bugfix |
+| `done` | **E1.12** | `session-hook-idd` (`Stop` y `PreCompact` ven los cambios IDD abiertos y escriben su siguiente paso, con paridad JS/Go, en v2.117.17) | bugfix |
 | `pending` | **E1.13** | `idd-openspec-asymmetries` (follow-up del checkpoint de la Etapa 1) | bugfix |
 | `pending` | **E1.14** | `codex-repo-runtime` (follow-up del checkpoint de la Etapa 1) | bugfix |
 | `pending` | **E1.15** | `idd-review-successor-policy` (coherencia de autoridades; decisión humana pendiente) | contrato |
@@ -161,7 +161,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 
 **▶ SIGUIENTE:** E2.1 `knowledge-map-contract`, que abre la Etapa 2 después de las prioridades OSP aceptadas el 2026-10-08. E1.20 (OSP-020) quedó cerrado con IDD; su publicación está pendiente de elegir versión. E1.19 `idd-review-context` quedó hecho en v2.117.13, E1.16 (OSP-017) en v2.117.5, E1.17 (OSP-001/002/003) en v2.117.9, E1.21 (guía de checks IDD) en v2.117.10 y E1.18 (frescura de evidencia) en v2.117.11. Los ítems se ejecutan con IDD.
 
-El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) conserva su resultado histórico `continue`. Los hallazgos posteriores y sus límites están en el [análisis OSP de permisos y evidencia](../analysis/2026-10-08-osp-permisos-y-evidencia.md). E1.11 quedó hecho en v2.117.16; E1.12–E1.15 siguen pendientes; el plugin SDD del marketplace permanece en E5.8, por demanda.
+El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) conserva su resultado histórico `continue`. Los hallazgos posteriores y sus límites están en el [análisis OSP de permisos y evidencia](../analysis/2026-10-08-osp-permisos-y-evidencia.md). E1.11 quedó hecho en v2.117.16 y E1.12 en v2.117.17; E1.13–E1.15 siguen pendientes; el plugin SDD del marketplace permanece en E5.8, por demanda.
 
 **Prioridades OSP aceptadas para la siguiente sesión:**
 
@@ -410,6 +410,8 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Alcance:** `Stop` y `PreCompact` reconocen los cambios abiertos de `idd/` y escriben su siguiente paso reutilizando `idd-store.listChanges` e `idd-next.nextForChange`. `latest.md` sigue siendo una vista derivada; los cambios SDD conservan su comportamiento. Si hay varios cambios abiertos, la vista muestra la ambigüedad sin escoger uno como autoridad.
 - **Hecho cuando:** con un cambio IDD abierto, `latest.md` lo nombra con su siguiente paso, en los targets que ejecutan esos hooks. Pruebas en consumidor con runtime instalado cubren cero, uno y varios cambios abiertos, SDD y la paridad JS/Go donde corresponda. Una invocación aislada del hook no se presenta como prueba de entrega de eventos por el host.
 - **Alternativa y coste:** no cambiar conserva el fallo reproducido; reutilizar store y `next` evita un segundo cursor de estado. El ahorro de contexto o de intervenciones se mide al usarlo, no se presupone.
+- **Decisiones del usuario (gate `open-facts`):** con varios cambios abiertos, `latest.md` los lista todos sin elegir, cada uno con su siguiente paso, y sin cambios IDD la salida no cambia; `PreCompact` escribe un resumen por cambio IDD abierto.
+- **Entregado en v2.117.17, E1.12 hecho:** `scripts/hooks/lib/idd-session.js` (Node) e `internal/iddsession` (Go) leen los cambios IDD abiertos de `idd/` sin escribir ni bloquear su state y obtienen su siguiente paso con `nextForChange`. Con un único cambio abierto, `latest.md` lo nombra (fase `idd`) con ese paso; con varios, SDD incluidos, los lista sin elegir; `PreCompact` escribe `.ospec/session/<id>/session-summary.md` por cambio IDD con intención, obligaciones pendientes, gates abiertos y siguiente paso. Tres casos golden compartidos (`internal/testdata/idd-session/`: uno, varios con SDD, y cada tipo de paso) prueban la paridad byte a byte de Node y Go; la invocación directa del hook no se presenta como prueba de entrega de eventos por el host. Spec de hooks §4.7 y §6.4. Hecho con IDD (`idd/archive/2026-10-09-session-hook-idd/`).
 
 ### E1.13 — `idd-openspec-asymmetries`
 
@@ -714,6 +716,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-09: E1.12 `session-hook-idd` hecho con IDD en v2.117.17; `Stop` y `PreCompact` retoman los cambios IDD desde disco, con paridad JS/Go.
 - 2026-10-09: E1.11 `idd-protocol-hygiene` hecho con IDD en v2.117.16; plan declarado en el state, paso `declare-plan` y `record retract` para señales sobredeclaradas.
 - 2026-10-09: E1.24 `setup-flags-reliability` añadido a petición del usuario: `setup:claude --dry-run` instalaba de verdad y `--no-sdd` falla en PowerShell por el `--` que consume `npm.ps1`.
 - 2026-10-09: E1.20 cerrado con IDD; guías EN/ES sincronizadas con E1.6/E1.8 y contrastadas con ambos modos en los siete targets. Publicación pendiente de versión; E2.1 pasa a `next-eligible`.

@@ -14,3 +14,6 @@ schemas/kernel/** text eol=lf
 # Runtime receipts are content-addressed raw bytes: never rewrite them at checkout.
 # Ignore trailing-space diagnostics only for these immutable execution artifacts.
 openspec/changes/**/evidence/receipts/** -text -whitespace
+
+# IDD session golden fixtures (E1.12) are compared byte for byte by Node and Go.
+internal/testdata/idd-session/** text eol=lf

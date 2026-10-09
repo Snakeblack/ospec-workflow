@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/snakeblack/ospec-workflow/internal/iddsession"
 	"github.com/snakeblack/ospec-workflow/internal/store"
 	"github.com/snakeblack/ospec-workflow/internal/yamllite"
 )
@@ -87,11 +88,30 @@ func runPreCompact(cwd string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if len(changes) == 0 {
+	idd := iddsession.Read(workspace)
+	if len(changes) == 0 && len(idd) == 0 {
 		return "", nil // no active change → silently skip
 	}
-	activeChange := changes[0]
 
+	walkWarning := ""
+	if len(changes) > 0 {
+		walkWarning, err = writeSddSummaryPC(s, workspace, changes[0])
+		if err != nil {
+			return "", err
+		}
+	}
+	// E1.12: one detailed summary per open IDD change (spec §4.7).
+	for _, entry := range idd {
+		if _, err := s.WriteSessionSummary(entry.Change, iddsession.RenderSummary(entry.State, entry.NextAction)); err != nil {
+			return "", err
+		}
+	}
+	return walkWarning, nil
+}
+
+// writeSddSummaryPC writes the session summary of the selected SDD change and
+// returns the artifact walk warning, if any.
+func writeSddSummaryPC(s *store.Store, workspace string, activeChange *store.ActiveChange) (string, error) {
 	changeName := yamllite.ExtractFirstScalar(activeChange.Content, [][]string{
 		{"change", "name"},
 	})

@@ -1,0 +1,21 @@
+{
+  "schema": "idd-state/v1",
+  "change": "s-vague",
+  "mode": "idd",
+  "status": "open",
+  "intent": {
+    "request": "Improve the login.",
+    "kind": null,
+    "summary": null,
+    "acceptance": null
+  },
+  "signals": [],
+  "obligations": [],
+  "gates": [
+    {
+      "id": "ambiguous-intent",
+      "status": "open"
+    }
+  ],
+  "evidence": []
+}

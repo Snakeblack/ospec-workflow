@@ -1,0 +1,39 @@
+{
+  "schema": "idd-state/v1",
+  "change": "a-config",
+  "mode": "idd",
+  "status": "open",
+  "intent": {
+    "kind": "refactor",
+    "summary": "Split the pager.",
+    "acceptance": "Same pages."
+  },
+  "facts": {
+    "basis": "The request fixes every behavior."
+  },
+  "plan": {
+    "paths": [
+      "src/pager.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "pending",
+      "evidence": []
+    }
+  ],
+  "gates": [],
+  "evidence": []
+}

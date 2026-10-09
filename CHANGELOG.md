@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.117.17] - 2026-10-09
+
+### Fixed
+- **Los hooks de sesión ven los cambios IDD (E1.12)**: `Stop` y `PreCompact` solo buscaban el cambio activo en `openspec/changes/`, así que con un cambio IDD abierto `.ospec/session/latest.md` decía «Active change: None» y la sesión siguiente no lo retomaba. Ahora leen los cambios abiertos de `idd/`, sin escribir ni bloquear su state, y escriben el siguiente paso que da `ospec next`. Con un único cambio abierto, `latest.md` lo nombra con fase `idd`; con varios, SDD incluidos, los lista sin elegir ninguno, cada uno con su paso. Sin cambios IDD la salida no cambia.
+- **Resumen por cambio IDD**: `PreCompact` escribe `.ospec/session/<id>/session-summary.md` por cada cambio IDD abierto, con intención, obligaciones pendientes, gates abiertos y siguiente paso.
+
+### Changed
+- **Paridad Node/Go**: `scripts/hooks/lib/idd-session.js` e `internal/iddsession` producen los mismos bytes en tres casos golden compartidos (`internal/testdata/idd-session/`). Spec de hooks §4.7 y §6.4. E1.12 cerrado en `idd/archive/2026-10-09-session-hook-idd/`.
+
+- **Revisión de confianza**: tres revisiones `review-trust` (la última limpia) endurecieron la lectura: un `state.yaml` o `idd/config.yaml` ilegible, un directorio o un JSON malformado se salta sin tumbar la traza, también la SDD, y Go solo escribe ids y estados del catálogo de `idd-state/v1` (caso golden `malformed`).
+
+**Verificación directa**: `node scripts/check.js` (3426 tests pasando, 0 fallos y 4 omitidos), con las omisiones debidas a que el entorno no permite crear enlaces simbólicos, incluida la generación y validación de los siete targets; `go test ./internal/hooks/ ./internal/iddsession/` en verde. Reproducción rojo→verde registrada por IDD en Node y Go.
+
 ## [2.117.16] - 2026-10-09
 
 ### Fixed

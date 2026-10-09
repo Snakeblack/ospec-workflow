@@ -1,0 +1,77 @@
+{
+  "schema": "idd-state/v1",
+  "change": "s-living",
+  "mode": "idd",
+  "status": "open",
+  "intent": {
+    "kind": "feature",
+    "summary": "Two units.",
+    "acceptance": "It works."
+  },
+  "facts": {
+    "basis": "The request fixes every behavior."
+  },
+  "plan": {
+    "paths": [
+      "src/a.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared multi-unit-or-decision",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "pending",
+      "evidence": []
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-09T10:00:00.000Z",
+      "detail": {
+        "tree": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "npm test",
+      "exit_code": 0,
+      "output_sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "tree": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "recorded_at": "2026-10-09T10:00:00.000Z"
+    }
+  ]
+}
