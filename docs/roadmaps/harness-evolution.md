@@ -142,8 +142,8 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.22** | `stale-hooks-binary` (los `setup:*` locales recompilan el hook Go si es anterior al código, en v2.117.7) | bugfix |
 | `done` | **E1.23** | `install-engram-no-doctor` (los siete `setup:*` omiten el diagnóstico global de Engram; `ospec doctor` lo conserva, en v2.117.8) | bugfix |
 | `done` | **E1.24** | `setup-flags-reliability` (`setup:claude --dry-run` simula de verdad y los flags de `setup:*` funcionan desde PowerShell) | bugfix |
-| `next-eligible` | **E2.1** | `knowledge-map-contract` (prioridades OSP cerradas; se retoma la Etapa 2) | contrato |
-| `pending` | **E2.2** | `decision-gap-engine` | feature |
+| `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
+| `next-eligible` | **E2.2** | `decision-gap-engine` | feature |
 | `pending` | **E2.3** | `foundation-discovery-rounds` | feature |
 | `pending` | **E2.4** | `decision-records-model` | feature |
 | `pending` | **E2.5** | `brownfield-architecture-recovery` | feature |
@@ -159,7 +159,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.4** | `execution-resource-experiment` (experimento previo a cualquier routing adaptativo) | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E2.1 `knowledge-map-contract`, que abre la Etapa 2 después de las prioridades OSP aceptadas el 2026-10-08. La auditoría del 2026-10-09 (v2.118.0) corrigió defectos de coordinación de IDD (gates antes del trabajo, apertura del gate ADR, Strict TDD en refactors), añadió el criterio de tests por riesgo y adelantó parte de E2.3. E1.20 (OSP-020) quedó cerrado con IDD; su publicación está pendiente de elegir versión. E1.19 `idd-review-context` quedó hecho en v2.117.13, E1.16 (OSP-017) en v2.117.5, E1.17 (OSP-001/002/003) en v2.117.9, E1.21 (guía de checks IDD) en v2.117.10 y E1.18 (frescura de evidencia) en v2.117.11. Los ítems se ejecutan con IDD.
+**▶ SIGUIENTE:** E2.2 `decision-gap-engine`. E2.1 `knowledge-map-contract` queda hecho: un proyecto guarda el mapa en `docs/architecture/knowledge-map.yaml`. La auditoría del 2026-10-09 (v2.118.0) corrigió defectos de coordinación de IDD (gates antes del trabajo, apertura del gate ADR, Strict TDD en refactors), añadió el criterio de tests por riesgo y adelantó parte de E2.3. E1.20 (OSP-020) quedó cerrado con IDD; su publicación está pendiente de elegir versión. E1.19 `idd-review-context` quedó hecho en v2.117.13, E1.16 (OSP-017) en v2.117.5, E1.17 (OSP-001/002/003) en v2.117.9, E1.21 (guía de checks IDD) en v2.117.10 y E1.18 (frescura de evidencia) en v2.117.11. Los ítems se ejecutan con IDD.
 
 El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) conserva su resultado histórico `continue`. Los hallazgos posteriores y sus límites están en el [análisis OSP de permisos y evidencia](../analysis/2026-10-08-osp-permisos-y-evidencia.md). E1.11 quedó hecho en v2.117.16, E1.12 en v2.117.17 y E1.14 en v2.117.18; E1.13 y E1.15 siguen pendientes; el plugin SDD del marketplace permanece en E5.8, por demanda.
 
@@ -549,6 +549,7 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
 - **Alcance:** esquema del mapa de conocimiento (ranuras, dimensiones, estados, perfiles y relaciones ranura → decisión), su ubicación (estado de máquina fuera de `openspec/`, que es solo del modo SDD; documentos humanos en `docs/`) y el catálogo inicial de ranuras por perfil.
 - **Hecho cuando:** los seis perfiles tienen su conjunto de ranuras obligatorias con un ejemplo, y "desconocido" se distingue de "N/A" en el esquema. Fixtures válidos e inválidos verifican estados, procedencia y relaciones ranura → decisión, incluidos supuestos con disparador y diferidos con dueño. Los escenarios de calidad expresan estímulo, respuesta observable y medida cuando el proyecto la haya definido; no inventan presupuestos.
 - **Alternativas y límite:** conservar las nueve preguntas actuales evita trabajo pero no cubre el conocimiento objetivo del roadmap. Este ítem entrega solo contrato y ejemplos: el motor y las rondas siguen en E2.2–E2.3, los ADR en E2.4 y su consumo selectivo y comprobaciones ejecutables en E3.1–E3.3. No añade skills por libro ni carga permanente de todos los documentos.
+- **Hecho:** el contrato es `ospec-knowledge-map/v1` (`schemas/foundation/knowledge-map/`). Un proyecto guarda el mapa en `docs/architecture/knowledge-map.yaml` (la misma forma; los ejemplos del contrato son JSON). `unknown` y `n/a` son estados distintos. Una ranura obligatoria del perfil no puede quedar en `unknown`. La medida de un escenario solo vale con quien la definió. Hecho con IDD (`idd/archive/2026-10-09-knowledge-map-contract/`).
 
 ### E2.2 — `decision-gap-engine`
 
@@ -559,7 +560,7 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
 
 - **Alcance:** reescribir la foundation (antes `sdd-foundation`, hoy `foundation`) como capacidad propia, independiente del modo, sobre el ciclo descrito: rondas reanudables, ingestión de fuentes y documentos `docs/product/*`, `docs/architecture/*` y `docs/roadmap*.md` actualizados de forma incremental. Absorbe el diseño de [foundation holística](archive/2026-10-03-arquitectura/harness-foundation-holistic.md) (antes R2.1/R2.4, archivado como insumo).
 - **Hecho cuando:** ningún scaffold ni código se genera sin aprobación, y se cumplen los escenarios de aceptación de ese diseño (CLI local, SaaS pequeño, regulado, brownfield, fuente desactualizada y cambio pequeño posterior).
-- **Adelanto en v2.118.0 (`idd/archive/2026-10-09-foundation-architect/`):** a petición del usuario, `sdd-foundation` pasa a ser la skill `foundation`, presente en toda instalación (su agente sigue en el paquete SDD como delegado de la ruta, y el dispatcher lee la fase heredada `sdd-foundation`). Pregunta en rondas de cuatro como máximo con respuesta recomendada y supuestos explícitos, registra ADR de arquitectura agnósticos y escenarios de calidad, y propone `idd/config.yaml` con aprobación; el router le envía los proyectos sin código. Siguen pendientes el contrato del mapa de conocimiento (E2.1), el motor determinista de rondas (E2.2), el lint de ADR (E2.4) y los escenarios de aceptación de este ítem.
+- **Adelanto en v2.118.0 (`idd/archive/2026-10-09-foundation-architect/`):** a petición del usuario, `sdd-foundation` pasa a ser la skill `foundation`, presente en toda instalación (su agente sigue en el paquete SDD como delegado de la ruta, y el dispatcher lee la fase heredada `sdd-foundation`). Pregunta en rondas de cuatro como máximo con respuesta recomendada y supuestos explícitos, registra ADR de arquitectura agnósticos y escenarios de calidad, y propone `idd/config.yaml` con aprobación; el router le envía los proyectos sin código. El contrato del mapa quedó en E2.1. Siguen pendientes el motor determinista de rondas (E2.2), el lint de ADR (E2.4) y los escenarios de aceptación de este ítem.
 
 ### E2.4 — `decision-records-model`
 
@@ -719,6 +720,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-09: E2.1 `knowledge-map-contract` hecho con IDD. El mapa de un proyecto vive en `docs/architecture/knowledge-map.yaml`; el contrato y los ejemplos de los seis perfiles están en `schemas/foundation/knowledge-map/`. E2.2 pasa a `next-eligible`.
 - 2026-10-09: E1.14 `codex-repo-runtime` hecho con IDD en v2.117.18; la instalación de Codex por repositorio sigue IDD sin instalación global.
 - 2026-10-09: E1.12 `session-hook-idd` hecho con IDD en v2.117.17; `Stop` y `PreCompact` retoman los cambios IDD desde disco, con paridad JS/Go.
 - 2026-10-09: E1.11 `idd-protocol-hygiene` hecho con IDD en v2.117.16; plan declarado en el state, paso `declare-plan` y `record retract` para señales sobredeclaradas.

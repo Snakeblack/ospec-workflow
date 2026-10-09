@@ -345,7 +345,16 @@ test("runConfigure aborts before writing on a structural model policy error", (t
 test("RED: evidence authorization rejects a symlinked change root", (t) => {
   const outside = fs.mkdtempSync(path.join(os.tmpdir(), "evidence-outside-"));
   const link = path.join(process.cwd(), "openspec", "changes", "evidence-link");
-  t.after(() => { fs.rmSync(link, { force: true }); fs.rmSync(outside, { recursive: true, force: true }); });
+  t.after(() => {
+    // Node 24 rejects rmSync on a junction unless it is recursive, and recursive
+    // would delete the target. Unlink removes the junction only.
+    try {
+      fs.unlinkSync(link);
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+    fs.rmSync(outside, { recursive: true, force: true });
+  });
   fs.writeFileSync(path.join(outside, "apply-progress.md"), "evidence");
   fs.symlinkSync(outside, link, "junction");
   assert.equal(rootedEvidencePath(process.cwd(), "openspec/changes/evidence-link/apply-progress.md", "evidence-link"), null);

@@ -9,8 +9,9 @@ Foundation captures agreed intent where there is not enough code to detect;
 - Lead with the decision or the current truth; keep each document short
   enough to scan.
 - Use tables for decisions, constraints, scenarios and open questions.
-- Never bury an unknown: write `Unknown` or `TBD` and add it to
-  `docs/roadmap-gaps.md` with the question that would settle it.
+- Never bury an unknown: record the slot as `unknown` in
+  `docs/architecture/knowledge-map.yaml`, with the question that would settle it.
+  `n/a` is a different state and needs a reason.
 - Processed references (`docs/references/processed/`) name their source file,
   the useful facts, the noise removed, the assumptions and the open questions.
 

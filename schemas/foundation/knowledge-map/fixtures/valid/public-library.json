@@ -1,0 +1,151 @@
+{
+  "schema": "ospec-knowledge-map/v1",
+  "profile": "public-library",
+  "slots": [
+    {
+      "id": "business.problem",
+      "dimension": "business",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "system-boundaries"
+      ]
+    },
+    {
+      "id": "functional.actors",
+      "dimension": "functional",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "system-boundaries"
+      ]
+    },
+    {
+      "id": "functional.capabilities",
+      "dimension": "functional",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "system-boundaries"
+      ]
+    },
+    {
+      "id": "functional.exclusions",
+      "dimension": "functional",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "system-boundaries"
+      ]
+    },
+    {
+      "id": "team.shape",
+      "dimension": "team",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "deployment-topology",
+        "technology-choice"
+      ]
+    },
+    {
+      "id": "quality.drivers",
+      "dimension": "quality",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "system-boundaries",
+        "deployment-topology"
+      ]
+    },
+    {
+      "id": "architecture.boundaries",
+      "dimension": "architecture",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "system-boundaries",
+        "integration-style"
+      ]
+    },
+    {
+      "id": "architecture.integration",
+      "dimension": "architecture",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "integration-style",
+        "contract-evolution"
+      ]
+    },
+    {
+      "id": "technology.licenses",
+      "dimension": "technology",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "technology-choice"
+      ]
+    },
+    {
+      "id": "delivery.versioning",
+      "dimension": "delivery",
+      "state": "confirmed",
+      "source": {
+        "kind": "user",
+        "ref": "example"
+      },
+      "decisions": [
+        "contract-evolution",
+        "delivery-target"
+      ]
+    },
+    {
+      "id": "operation.backup",
+      "dimension": "operation",
+      "state": "n/a",
+      "reason": "a library ships no durable state of its own",
+      "decisions": [
+        "data-ownership",
+        "operability"
+      ]
+    }
+  ],
+  "quality_scenarios": [
+    {
+      "id": "minor-upgrade",
+      "origin": "downstream maintainer",
+      "stimulus": "upgrades one minor version",
+      "environment": "a supported language runtime",
+      "artifact": "the published library",
+      "response": "existing supported callers keep compiling"
+    }
+  ]
+}
