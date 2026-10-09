@@ -1,0 +1,159 @@
+{
+  "schema": "idd-state/v1",
+  "change": "idd-review-context",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Retirar protocolo SDD innecesario del revisor IDD por defecto (E1.19)",
+    "acceptance": "Build por defecto con revisión limpia, hallazgo comprobable y corrección acotada registrables; misma capacidad en build con SDD, contratos de hallazgos intactos y reducción de bytes medida"
+  },
+  "facts": {
+    "basis": "E1.19 pide reducir contexto conservando ambos modos; el CLI IDD exige findings y admite campos extra, review-judgment ya acepta el contrato de despacho; sin cambiar esquemas, reducers, presupuestos ni política de aprobación"
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1",
+        "ev-2"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-09T07:51:00.201Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-09T08:06:52.537Z",
+      "detail": {
+        "red": "run-4",
+        "green": "run-5"
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-09T08:09:41.721Z",
+      "detail": {
+        "tree": "sha256:6a4a01a44b732de1d504b883044e259bb0497b12cfd674b49b06715c314223be",
+        "runs": [
+          "run-6"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-09T08:10:26.444Z"
+    }
+  ],
+  "base": "b30cd0ef2d659b21a5d5feefbf60c240673fa957",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/agent-review-context.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:725501c67abf5acccf18f3f99a2f26e1c3b474767697e3235ab87d9ab5739132",
+      "tree": "sha256:c6b8f1e2dc5aad84007c288941cfdc4fbd9f9ce527919e70e2a5e9c8186ee17f",
+      "recorded_at": "2026-10-09T07:50:12.140Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/agent-review-context.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cbc932cac6cfadb57fd26fb780bb4b2b11a626131a96eb8572248b74a4237ba2",
+      "tree": "sha256:8c15833a67ed4c61c21e071159ccac114c9bb2272792f1fba0919253e853afbd",
+      "recorded_at": "2026-10-09T07:51:00.201Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:7ed2c59ee1c5b0cfc5839f57f66b15505d45a91963684290b297b2b19cc228a7",
+      "tree": "sha256:1830c02ea7ce68d713a4412b13996fa358807a29a88754c5c3635729a8c70cb7",
+      "recorded_at": "2026-10-09T08:05:01.940Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/agent-embed.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:15e64903d470d726f5a14b0889cefee386dea48735d05682a02deedf3cce29a5",
+      "tree": "sha256:a3f25803a0d066f286784ac00a51b2933d4d2f42d75d95e620f06947837301de",
+      "recorded_at": "2026-10-09T08:06:50.228Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/agent-embed.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d927bbee6914a822e3530309da0fbfcb99a1dd0213461e8c3040ec02ade93db3",
+      "tree": "sha256:60e35bf0cd2de4a31933321c3dc4cd0bf56b59db7d526eba1fcc00c8c1c7ee66",
+      "recorded_at": "2026-10-09T08:06:52.537Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:41d2a1e820028d8cc63274cd2d166f3fdbc4d57e591088da71075e013ade4264",
+      "tree": "sha256:6a4a01a44b732de1d504b883044e259bb0497b12cfd674b49b06715c314223be",
+      "recorded_at": "2026-10-09T08:09:41.721Z"
+    }
+  ],
+  "closed_at": "2026-10-09T08:10:26.444Z"
+}

@@ -10,10 +10,10 @@
       "agent_read_bytes": {
         "review-change": 4757,
         "review-correction": 5197,
-        "review-efficiency": 36897,
-        "review-evolution": 37102,
-        "review-runtime": 36962,
-        "review-trust": 36865
+        "review-efficiency": 13871,
+        "review-evolution": 14077,
+        "review-runtime": 13939,
+        "review-trust": 13844
       }
     },
     "vscode": {
@@ -25,10 +25,10 @@
       "agent_read_bytes": {
         "review-change": 4785,
         "review-correction": 5225,
-        "review-efficiency": 36927,
-        "review-evolution": 37132,
-        "review-runtime": 36992,
-        "review-trust": 36895
+        "review-efficiency": 13901,
+        "review-evolution": 14107,
+        "review-runtime": 13969,
+        "review-trust": 13874
       }
     },
     "github-copilot": {
@@ -40,10 +40,10 @@
       "agent_read_bytes": {
         "review-change": 4771,
         "review-correction": 5211,
-        "review-efficiency": 36913,
-        "review-evolution": 37118,
-        "review-runtime": 36978,
-        "review-trust": 36881
+        "review-efficiency": 13887,
+        "review-evolution": 14093,
+        "review-runtime": 13955,
+        "review-trust": 13860
       }
     },
     "opencode": {
@@ -55,10 +55,10 @@
       "agent_read_bytes": {
         "review-change": 4783,
         "review-correction": 5227,
-        "review-efficiency": 36925,
-        "review-evolution": 37130,
-        "review-runtime": 36990,
-        "review-trust": 36893
+        "review-efficiency": 13901,
+        "review-evolution": 14107,
+        "review-runtime": 13969,
+        "review-trust": 13874
       }
     },
     "codex": {
@@ -70,10 +70,10 @@
       "agent_read_bytes": {
         "review-change": 4878,
         "review-correction": 5316,
-        "review-efficiency": 37017,
-        "review-evolution": 37222,
-        "review-runtime": 37082,
-        "review-trust": 36985
+        "review-efficiency": 13990,
+        "review-evolution": 14196,
+        "review-runtime": 14058,
+        "review-trust": 13963
       }
     },
     "cursor": {
@@ -85,10 +85,10 @@
       "agent_read_bytes": {
         "review-change": 4725,
         "review-correction": 5172,
-        "review-efficiency": 36872,
-        "review-evolution": 37077,
-        "review-runtime": 36937,
-        "review-trust": 36840
+        "review-efficiency": 13846,
+        "review-evolution": 14052,
+        "review-runtime": 13914,
+        "review-trust": 13819
       }
     },
     "antigravity": {
@@ -100,10 +100,10 @@
       "agent_read_bytes": {
         "review-change": 4761,
         "review-correction": 5199,
-        "review-efficiency": 36911,
-        "review-evolution": 37116,
-        "review-runtime": 36976,
-        "review-trust": 36879
+        "review-efficiency": 13885,
+        "review-evolution": 14091,
+        "review-runtime": 13953,
+        "review-trust": 13858
       }
     }
   }

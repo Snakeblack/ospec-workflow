@@ -22,7 +22,7 @@ Trace resource use, loop I/O, collection growth, and repeated scans to evidenced
 
 ## Result contract
 
-Keep `BLOCKER`, `CRITICAL`, `WARNING`, and `SUGGESTION` severities and the existing return envelope in `skills/_shared/sdd-phase-common.md`. For bounded lineage, retain evidence in `summary` and observable `acceptance_criteria`; never assign finding IDs or change frozen criteria.
+Keep `BLOCKER`, `CRITICAL`, `WARNING`, and `SUGGESTION` severities and the dispatch result contract in `skills/_shared/review-judgment.md`. For bounded lineage, retain evidence in `summary` and observable `acceptance_criteria`; never assign finding IDs or change frozen criteria.
 
 When a completed review has no findings, its findings report text is exactly (preserve the required outer envelope and `findings: []` as specified in `review-judgment.md`):
 

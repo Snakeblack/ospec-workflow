@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.117.13] - 2026-10-09
+
+### Fixed
+- **Contexto de revisión por defecto (E1.19)**: los cuatro especialistas usan el contrato de despacho de `review-judgment.md`. La build por defecto deja de cargar la inicialización y persistencia de fases SDD; con `withSdd` se incorpora el protocolo completo mediante su referencia existente. El contexto de `review-trust` baja un 62,25–62,49 % según target, sin duplicar esquemas, agentes ni reducers.
+
+### Changed
+- **Contratos y evidencia**: IDD conserva su JSON con `findings`, SDD su envelope canónico y el validador su payload acotado. Cuatro consumidores completaron revisión limpia o con hallazgo comprobable, corrección, validación y cierre. Se documentan las extracciones de JSON necesarias y la carga nativa pendiente por OAuth caducado, sin atribuir ahorro de coste ni mejoras de fiabilidad. E1.19 cerrado en `idd/archive/2026-10-09-idd-review-context/`; E1.20 pasa a ser el siguiente trabajo.
+
+**Verificación directa**: `node scripts/check.js` (3409 tests pasando, 0 fallos y 0 omitidos), incluida la generación y validación de los siete targets. Reproducción rojo→verde registrada por IDD; las siete builds con SDD también validan y los techos de contexto se reducen.
+
 ## [2.117.12] - 2026-10-09
 
 ### Fixed
