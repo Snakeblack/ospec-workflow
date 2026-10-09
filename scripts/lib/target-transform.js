@@ -35,7 +35,7 @@ function transform({ files: sourceFiles, profile, models, withExtras = false, wi
   const out = [];
 
   for (const file of files) {
-    const handled = handleFile(file, profile, models, rulesContent, sources);
+    const handled = handleFile(file, profile, models, rulesContent, sources, withSdd);
     if (handled === null) {
       continue; // dropped (e.g. rules inlined elsewhere, or folded into the global rules file)
     }
@@ -56,7 +56,7 @@ function transform({ files: sourceFiles, profile, models, withExtras = false, wi
   return { files: out };
 }
 
-function handleFile(file, profile, models, rulesContent, sources) {
+function handleFile(file, profile, models, rulesContent, sources, withSdd) {
   const { path } = file;
 
   if (isDropped(path, profile)) {
@@ -110,7 +110,7 @@ function handleFile(file, profile, models, rulesContent, sources) {
     if (profile.orchestrator && profile.orchestrator.emitAs === "skill" && agentBaseName(path, profile) === profile.orchestrator.agent) {
       return emitOrchestratorSkill(file, profile, rulesContent);
     }
-    let content = embedAgentReferences({ agentPath: path, content: sources.get(path), sources });
+    let content = embedAgentReferences({ agentPath: path, content: sources.get(path), sources, withSdd });
     if (agentBaseName(path, profile) === orchestratorAgent(profile)) {
       if (rulesContent && isScopedStrategy(profile.rules.strategy)) {
         content = content.replace(/\s*$/, "") + "\n\n" + rulesContent + "\n";

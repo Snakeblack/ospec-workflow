@@ -5,8 +5,8 @@
 // pure helper makes a worker agent self-contained: it embeds the agent's own
 // skill, the modules in that skill's directory, and the `_shared` files the
 // agent or those files name, then rewrites each reference to an embedded
-// section marker «id». `_shared` files are leaves: what they name is not
-// followed, only relabelled as living in the installed ospec skills.
+// section marker «id». `_shared` files are leaves, except the review judgment's
+// conditional SDD envelope; other references are relabelled as installed skills.
 
 const posix = require("node:path").posix;
 const { parse } = require("./frontmatter.js");
@@ -20,13 +20,13 @@ const SHARED_DIR = "skills/_shared/";
 // skill to delegate instead; inside the worker it embeds into, it is noise.
 const ORCHESTRATOR_GATE = /^\s*> \*\*ORCHESTRATOR GATE\*\*[^\n]*\n(?:>[^\n]*\n)*/;
 
-function embedAgentReferences({ agentPath, content, sources }) {
+function embedAgentReferences({ agentPath, content, sources, withSdd = false }) {
   const name = posix.basename(agentPath).replace(/\.agent\.md$/, "");
   const skillDir = `skills/${name}/`;
   const ownSkill = `${skillDir}SKILL.md`;
   if (!sources.has(ownSkill)) return content; // coordinators keep their text
 
-  const ctx = { sources, name, skillDir, ownSkill, agentPath };
+  const ctx = { sources, name, skillDir, ownSkill, agentPath, withSdd };
   const embedded = collectEmbedded(content, ctx);
   const ids = assignIds(embedded, ctx);
 
@@ -62,6 +62,15 @@ function collectEmbedded(agentContent, ctx) {
         embedded.push(target);
       }
     }
+  }
+  // Discovery reviewers share a dispatch contract. Its SDD envelope is a
+  // conditional dependency, not an IDD phase procedure. Follow only that
+  // existing reference when SDD is requested; other shared files stay leaves.
+  const judgment = `${SHARED_DIR}review-judgment.md`;
+  const sddCommon = `${SHARED_DIR}sdd-phase-common.md`;
+  if (ctx.withSdd && embedded.includes(judgment) && !embedded.includes(sddCommon)
+      && referencedFiles(ctx.sources.get(judgment), judgment, ctx).includes(sddCommon)) {
+    embedded.push(sddCommon);
   }
   return embedded;
 }

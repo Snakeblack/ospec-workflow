@@ -856,6 +856,17 @@ The generator MUST include the host-neutral Engram session-memory addendum rule 
 
 Every generated worker agent (SDD phase and review agents; any agent with a matching `skills/<agent>/SKILL.md` in the source) MUST be self-contained, because a consumer project has no `skills/` tree. The generator MUST embed, under a final `## Embedded references` section, the agent's own skill body (without frontmatter or orchestrator gate), every file in that skill's directory that the skill names (followed transitively within the directory), and every `skills/_shared/` file named by the agent, its skill, or those modules. References between embedded `_shared` files MUST NOT be followed. Each reference to an embedded file MUST be rewritten to the marker `«id»` of its section; a reference to another ospec skill file that is not embedded MUST be relabelled as living in the installed ospec skills, never left as a relative `skills/` path. Coordinators without a matching skill MUST be emitted unchanged. The rule applies identically to every target, including TOML agents.
 
+Exception to the shared-leaf rule: the existing conditional `review-judgment.md` → `sdd-phase-common.md` return-envelope dependency MUST be embedded when `withSdd` is enabled. Discovery reviewers use the dispatch contract from `review-judgment.md`; the default build MUST NOT embed the SDD phase procedure in those reviewers. IDD's findings payload and the canonical SDD envelope remain unchanged. The full SDD common protocol MUST be embedded for those reviewers when the build requests SDD.
+
+#### Scenario: Review context follows the requested build mode
+
+- GIVEN default and `withSdd` builds for each of the seven targets
+- WHEN the four discovery reviewers are inspected
+- THEN both retain their finding schema, read-only boundary and bounded lineage rules
+- AND only the SDD build embeds `sdd-phase-common`, including its result envelope and reply language protocol
+- AND the default review context is smaller and has no reference to an absent SDD orchestrator
+- AND the canonical shared file and the correction validator's payload are unchanged
+
 #### Scenario: No generated worker agent depends on a relative skills path
 
 - GIVEN a build is generated in memory for each of the 7 targets

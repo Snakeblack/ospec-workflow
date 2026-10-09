@@ -115,3 +115,37 @@ for (const [target, profile] of Object.entries(PROFILES)) {
     }
   });
 }
+
+// E1.19: review context follows the requested build mode.
+const REVIEWERS = ["trust", "runtime", "evolution", "efficiency"];
+
+for (const [target, profile] of Object.entries(PROFILES)) {
+  test(`${target}: default reviewers retain findings without the SDD phase procedure`, () => {
+    const modes = [false, true].map((withSdd) => buildTargetFiles(ROOT, profile, { withSdd }));
+    for (const lens of REVIEWERS) {
+      const agents = modes.map((files) => files.find((file) => new RegExp(`/review-${lens}\\.(agent\\.md|md|toml)$`).test(file.path)));
+      assert.ok(agents.every(Boolean), `missing review-${lens}`);
+      const [idd, sdd] = agents.map((file) => file.content.replace(/\r\n/g, "\n"));
+      for (const content of [idd, sdd]) {
+        assert.match(content, /### «review-judgment»/);
+        assert.match(content, /acceptance_criteria/);
+        assert.match(content, /findings: \[\]/);
+        assert.match(content, /read-only|Read\/search only/);
+        const sections = new Set([...content.matchAll(/^### «([^»]+)»/gm)].map((m) => m[1]));
+        for (const [, id] of content.matchAll(/«([^»\n]+)»/g)) assert.ok(sections.has(id), `missing ${id}`);
+      }
+      assert.doesNotMatch(idd, /### «sdd-phase-common»|Artifact Persistence|Three-Step Phase Initialization|sdd-orchestrator\.agent\.md/);
+      assert.match(sdd, /### «sdd-phase-common»/);
+      assert.match(sdd, /json:result-envelope/);
+      assert.match(sdd, /Communication Language/);
+      assert.ok(Buffer.byteLength(idd) < Buffer.byteLength(sdd) * 0.5, "default review context must drop at least half the SDD build bytes");
+    }
+    // The canonical support file remains available for optional SDD; its
+    // body and the correction validator's exact payload are not rewritten.
+    for (const filePath of ["skills/_shared/sdd-phase-common.md", "skills/review-correction/SKILL.md"]) {
+      const [idd, sdd] = modes.map((files) => files.find((file) => file.path === filePath));
+      assert.ok(idd && sdd, filePath);
+      assert.equal(idd.content, sdd.content);
+    }
+  });
+}

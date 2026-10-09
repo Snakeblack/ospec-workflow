@@ -42,7 +42,9 @@ The reducer owns IDs, freeze, executions, and budgets. Each selected specialist 
 
 ## Completion
 
-Preserve the outer return envelope required by `skills/_shared/sdd-phase-common.md` or the dispatch contract, including reply language and `skill_resolution`. After a completed review with no supported findings, the **findings report text** is exactly:
+Follow the supplied dispatch result contract, reply language, and `skill_resolution` requirement. IDD's `ospec review record` consumes a JSON object with a `findings` array; use the finding fields above and do not wrap that object in prose. Additional envelope fields are accepted by that consumer but are not required. Only an SDD dispatch uses the outer return envelope in `skills/_shared/sdd-phase-common.md`; that conditional protocol is supplied in builds with SDD. A review is read-only in either mode and never performs SDD artifact/state persistence.
+
+After a completed review with no supported findings, the **findings report text** is exactly:
 
 ```text
 No findings.
