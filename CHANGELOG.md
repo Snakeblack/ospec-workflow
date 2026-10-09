@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.119.0] - 2026-10-09
+
+### Added
+- **Contrato del mapa de conocimiento (E2.1)**: un proyecto guarda el mapa en `docs/architecture/knowledge-map.yaml`. El esquema `ospec-knowledge-map/v1` (`schemas/foundation/knowledge-map/v1.schema.json`) distingue `unknown` de `n/a`: un supuesto exige fuente y disparador, un diferido exige dueño, un confirmado exige fuente y `n/a` exige la razón por la que no aplica. El catálogo da a cada uno de los seis perfiles (prototipo, herramienta interna, producto, regulado, librería o CLI pública, embebido) sus ranuras obligatorias, que no pueden quedar en `unknown`. Cada ranura nombra las decisiones que alimenta. Un escenario de calidad lleva origen, estímulo, entorno, elemento y respuesta; la medida solo vale si dice quién la definió. La skill `foundation` escribe ese fichero. El motor de rondas sigue en E2.2. Hecho con IDD (`idd/archive/2026-10-09-knowledge-map-contract/`).
+
+### Fixed
+- **Limpieza del junction de evidencia en Node 24**: `scripts/configure/cli.test.js` quitaba `openspec/changes/evidence-link` con `rmSync` sin `recursive`, que lanza `EISDIR` y deja el enlace en el árbol. Ahora usa `unlink`, que retira el junction y no el destino.
+
+### Changed
+- **Roadmap**: E2.1 `knowledge-map-contract` pasa a hecho y E2.2 `decision-gap-engine` queda como siguiente.
+
+**Verificación directa**: `node scripts/check.js` (3448 tests pasando, 0 fallos y 0 omitidos).
+
 ## [2.118.1] - 2026-10-09
 
 ### Changed
