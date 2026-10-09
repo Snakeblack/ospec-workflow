@@ -26,17 +26,17 @@ func (h *preCompactHandler) Name() string { return "pre-compact" }
 
 // phaseRanks mirrors PHASE_RANKS in pre-compact.js.
 var phaseRanks = map[string]int{
-	"explore":    1,
+	"explore":     1,
 	"exploration": 1,
-	"propose":    2,
-	"proposal":   2,
-	"spec":       3,
-	"specs":      3,
-	"design":     3,
-	"tasks":      4,
-	"apply":      5,
-	"verify":     6,
-	"archive":    7,
+	"propose":     2,
+	"proposal":    2,
+	"spec":        3,
+	"specs":       3,
+	"design":      3,
+	"tasks":       4,
+	"apply":       5,
+	"verify":      6,
+	"archive":     7,
 }
 
 // artifactCandidates mirrors ARTIFACT_CANDIDATES in pre-compact.js.

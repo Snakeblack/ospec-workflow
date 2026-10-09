@@ -44,8 +44,8 @@ func TestSearchRetainsChoiceAndFiltersCaseInsensitively(t *testing.T) {
 func TestCustomReasoningFlowReachesReviewAndInstall(t *testing.T) {
 	control := Control{Values: []string{"low", "high"}, Default: "high"}
 	plan := Plan{Version: 2, Targets: []Target{{
-		ID: "claude",
-		Agents: []Agent{{ID: "apply", Selectable: true, Choices: []Choice{choice("sonnet", map[string]Control{"effort": control})}}},
+		ID:      "claude",
+		Agents:  []Agent{{ID: "apply", Selectable: true, Choices: []Choice{choice("sonnet", map[string]Control{"effort": control})}}},
 		Presets: []Preset{{ID: "recommended", Selections: map[string]Selection{"apply": {ChoiceID: "sonnet", Controls: map[string]string{}}}}},
 	}}}
 	m := NewModel(plan)

@@ -232,23 +232,33 @@ func TestCacheRoundTrip(t *testing.T) {
 
 // ── CX0 Robustness Tests (REQ-skill-registry-004, REQ-skill-registry-002) ─────
 
+// makeUnreadableFile denies reads on path and returns the restore function. A
+// user the OS lets read it anyway (root, CAP_DAC_OVERRIDE, backup privilege)
+// cannot exercise the unreadable branch, so the test skips instead of failing.
 func makeUnreadableFile(t *testing.T, path string) func() {
 	t.Helper()
+	var restore func()
 	if runtime.GOOS == "windows" {
 		out, err := exec.Command("icacls", path, "/deny", "*S-1-1-0:(R)").CombinedOutput()
 		if err != nil {
 			t.Fatalf("icacls deny failed: %v, output: %s", err, out)
 		}
-		return func() {
+		restore = func() {
 			_ = exec.Command("icacls", path, "/grant", "*S-1-1-0:(R)").Run()
 		}
+	} else {
+		if err := os.Chmod(path, 0000); err != nil {
+			t.Fatalf("chmod 0000: %v", err)
+		}
+		restore = func() {
+			_ = os.Chmod(path, 0644)
+		}
 	}
-	if err := os.Chmod(path, 0000); err != nil {
-		t.Fatalf("chmod 0000: %v", err)
+	if _, err := os.ReadFile(path); err == nil {
+		restore()
+		t.Skip("the OS still grants this user read access to a file without read permission (e.g. root)")
 	}
-	return func() {
-		_ = os.Chmod(path, 0644)
-	}
+	return restore
 }
 
 func TestDiscoverSkills_UnreadableSkillDegradation(t *testing.T) {
@@ -389,6 +399,44 @@ func TestDiscoverSkills_ForeignOnlyExternalSkillsRootRejection(t *testing.T) {
 }
 
 // ── Cross-Runtime Parity Verification (Task 3.1, REQ-skill-registry-004) ─────
+
+// The Go and Node hooks share one cache, so a readable tree must fingerprint
+// the same in both runtimes for every user, root included.
+func TestCrossRuntime_FingerprintParity(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skipf("Node binary not found: %v", err)
+	}
+	root := makePluginRoot(t)
+
+	goResult, err := skillreg.DiscoverSkills(root, skillreg.DiscoverOptions{})
+	if err != nil {
+		t.Fatalf("Go DiscoverSkills failed: %v", err)
+	}
+	goFp, err := skillreg.CalculateFingerprint(goResult.FingerprintPaths)
+	if err != nil {
+		t.Fatalf("Go CalculateFingerprint failed: %v", err)
+	}
+
+	script, err := filepath.Abs(filepath.Join("..", "..", "scripts", "lib", "skill-registry.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	js := `
+		const reg = require(process.argv[1]);
+		reg.discoverSkills(process.argv[2])
+			.then(r => reg.calculateFingerprint(r.fingerprintPaths))
+			.then(fp => console.log(fp))
+			.catch(e => { console.error(e); process.exit(1); });
+	`
+	out, err := exec.Command(node, "-e", js, script, root).Output()
+	if err != nil {
+		t.Fatalf("Node discovery/fingerprint failed: %v", err)
+	}
+	if nodeFp := strings.TrimSpace(string(out)); goFp != nodeFp {
+		t.Fatalf("Cross-runtime fingerprint mismatch:\nGo:   %s\nNode: %s", goFp, nodeFp)
+	}
+}
 
 func TestCrossRuntime_UnreadableFileParity(t *testing.T) {
 	node, err := exec.LookPath("node")

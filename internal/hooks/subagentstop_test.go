@@ -769,9 +769,9 @@ func TestSubagentStop_ProjectsEnvelopeWithReducerParity(t *testing.T) {
 	blockedEnvelope["question_gate"] = map[string]any{
 		"reason": "The implementation contradicts the approved design.",
 		"questions": []any{map[string]any{
-			"header": "Resolve design mismatch",
+			"header":   "Resolve design mismatch",
 			"question": "Should the implementation follow the approved design?",
-			"options": []any{map[string]any{"label": "follow-design"}},
+			"options":  []any{map[string]any{"label": "follow-design"}},
 		}},
 	}
 	partialEnvelope := validSubagentEnvelope()
@@ -780,12 +780,12 @@ func TestSubagentStop_ProjectsEnvelopeWithReducerParity(t *testing.T) {
 	verifyFailureEnvelope["verify_outcome"] = "FAIL"
 
 	cases := []struct {
-		name        string
-		phase       string
-		state       string
-		envelope    map[string]any
-		want        []string
-		replay      bool
+		name     string
+		phase    string
+		state    string
+		envelope map[string]any
+		want     []string
+		replay   bool
 	}{
 		{
 			name:     "success advances state and records a replay hash",
@@ -815,9 +815,9 @@ func TestSubagentStop_ProjectsEnvelopeWithReducerParity(t *testing.T) {
 			},
 		},
 		{
-			name:  "partial apply remains applying",
-			phase: "apply",
-			state: "change: strict-result-envelope\nstatus: ready-for-apply\nphases:\n  apply:\n    status: pending\n",
+			name:     "partial apply remains applying",
+			phase:    "apply",
+			state:    "change: strict-result-envelope\nstatus: ready-for-apply\nphases:\n  apply:\n    status: pending\n",
 			envelope: partialEnvelope,
 			want: []string{
 				"status: applying",
@@ -825,9 +825,9 @@ func TestSubagentStop_ProjectsEnvelopeWithReducerParity(t *testing.T) {
 			},
 		},
 		{
-			name:  "failed verification blocks state",
-			phase: "verify",
-			state: "change: strict-result-envelope\nstatus: ready-for-verify\nphases:\n  verify:\n    status: pending\n",
+			name:     "failed verification blocks state",
+			phase:    "verify",
+			state:    "change: strict-result-envelope\nstatus: ready-for-verify\nphases:\n  verify:\n    status: pending\n",
 			envelope: verifyFailureEnvelope,
 			want: []string{
 				"status: blocked",
@@ -2367,5 +2367,3 @@ func TestSubagentStop_Integration_LegacyDispatchAndProjection(t *testing.T) {
 		t.Errorf("expected state.yaml summary to be persisted, got:\n%s", updated)
 	}
 }
-
-

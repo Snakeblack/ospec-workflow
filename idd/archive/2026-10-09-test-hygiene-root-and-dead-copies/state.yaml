@@ -1,0 +1,121 @@
+{
+  "schema": "idd-state/v1",
+  "change": "test-hygiene-root-and-dead-copies",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Go skillreg permission tests fail when run as root; test/e2e holds a divergent copy CI never runs; CI never runs go vet",
+    "acceptance": "go test ./internal/skillreg passes as root (permission cases skip with a reason when the OS grants the read), test/e2e is gone with its cases covered in scripts/lib, and build-hooks CI runs go vet"
+  },
+  "facts": {
+    "basis": "The defect reproduces locally (2 FAIL as uid 0); the e2e cases are each covered by scripts/lib unit tests (verified by name); go vet ./... is clean today"
+  },
+  "plan": {
+    "paths": [
+      ".github/workflows/build-hooks.yml",
+      "cmd/ospec-hooks/main_test.go",
+      "internal/hooks/phase-completion-reducer_test.go",
+      "internal/hooks/precompact.go",
+      "internal/hooks/readfilepermissive_test.go",
+      "internal/hooks/sessionstart.go",
+      "internal/hooks/stop.go",
+      "internal/hooks/stop_test.go",
+      "internal/hooks/subagentstop_test.go",
+      "internal/installer/model_test.go",
+      "internal/modelconfig/models.go",
+      "internal/skillreg/skillreg_test.go",
+      "test/e2e/k6b-verifier-assurance-graph-e2e.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-09T12:34:10.690Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-09T12:36:42.659Z",
+      "detail": {
+        "tree": "sha256:c83ff27de5f236268d7948dbef3c83abf0fe15b0931ebd9db95a74b2d9286206",
+        "runs": [
+          "run-3"
+        ]
+      }
+    }
+  ],
+  "base": "d82f5de95b24e08efe27c02eae883aa7ad16b3be",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "go test ./internal/skillreg/",
+      "exit_code": 1,
+      "output_sha256": "sha256:61b1288dd5b02401afaf9a4c7740b2ed20f13ff63646cb95007e6c944740aa70",
+      "tree": "sha256:d698594c93c8706090a3e503804c6d72484ff197949795dbbe0f783a6d3206a8",
+      "recorded_at": "2026-10-09T12:33:53.468Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "go test ./internal/skillreg/",
+      "exit_code": 0,
+      "output_sha256": "sha256:a656f462f9c7cda53352a57a5b495d8e169acd1efaeb5b781be413c5c9cc9753",
+      "tree": "sha256:a2e10d4b85dbc1ea514ece62ed7cfd6755516890cefc336394f413e4227869ff",
+      "recorded_at": "2026-10-09T12:34:10.690Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ed7ed198a57f050b6eb46faa28a05706de168159479bcaf0c66a66e6e89123f3",
+      "tree": "sha256:c83ff27de5f236268d7948dbef3c83abf0fe15b0931ebd9db95a74b2d9286206",
+      "recorded_at": "2026-10-09T12:36:42.659Z"
+    }
+  ],
+  "closed_at": "2026-10-09T12:36:45.659Z"
+}

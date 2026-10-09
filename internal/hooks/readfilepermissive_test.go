@@ -1,12 +1,13 @@
 // Tests for readFilePermissive (internal package, same pattern as pathsafe_posix_test.go).
 // fu-pt3: covers the three distinct branches of readFilePermissive:
-//   Row A — ENOENT   → (nil, nil): file absent, treated as absent.
-//   Row B — EACCES   → (nil, nil): permission denied, treated as absent.
-//                       POSIX-only; skipped on Windows (chmod 0000 is a no-op)
-//                       and when root (root can read mode-0000 files).
-//   Row C — directory → (nil, err) with err != nil: non-ENOENT/EACCES I/O error
-//                       propagated to caller (EISDIR on POSIX,
-//                       ERROR_INVALID_FUNCTION on Windows).
+//
+//	Row A — ENOENT   → (nil, nil): file absent, treated as absent.
+//	Row B — EACCES   → (nil, nil): permission denied, treated as absent.
+//	                    POSIX-only; skipped on Windows (chmod 0000 is a no-op)
+//	                    and when root (root can read mode-0000 files).
+//	Row C — directory → (nil, err) with err != nil: non-ENOENT/EACCES I/O error
+//	                    propagated to caller (EISDIR on POSIX,
+//	                    ERROR_INVALID_FUNCTION on Windows).
 package hooks
 
 import (

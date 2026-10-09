@@ -51,7 +51,7 @@ func ResolveModelTier(agent string, pluginRoot string) string {
 			}
 		} else if indent == 2 {
 			if currentSection == "agents" {
-				agents[key] = strings.Trim(val, `"'` + "`")
+				agents[key] = strings.Trim(val, `"'`+"`")
 			} else if currentSection == "tiers" {
 				currentTier = key
 				tiers[currentTier] = true

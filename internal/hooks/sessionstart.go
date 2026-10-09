@@ -35,13 +35,13 @@ type sessionStartInput struct {
 
 // sessionStartOutput is the JSON written to stdout on success.
 type sessionStartOutput struct {
-	Status           string                    `json:"status"`
-	OspecDetected    bool                      `json:"ospecDetected"`
-	Registry         registryResult            `json:"registry"`
-	Baseline         *baselineResult           `json:"baseline,omitempty"`
-	Security         *securityResult           `json:"security,omitempty"`
-	GitCollaboration *gitCollaborationResult   `json:"gitCollaboration,omitempty"`
-	SystemMessage    string                    `json:"systemMessage,omitempty"`
+	Status           string                  `json:"status"`
+	OspecDetected    bool                    `json:"ospecDetected"`
+	Registry         registryResult          `json:"registry"`
+	Baseline         *baselineResult         `json:"baseline,omitempty"`
+	Security         *securityResult         `json:"security,omitempty"`
+	GitCollaboration *gitCollaborationResult `json:"gitCollaboration,omitempty"`
+	SystemMessage    string                  `json:"systemMessage,omitempty"`
 }
 
 // gitCollaborationResult holds the git collaboration advisory data.
