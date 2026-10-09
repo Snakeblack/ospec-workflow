@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.117.15] - 2026-10-09
+
+### Fixed
+- **`setup:claude --dry-run` instalaba de verdad (E1.24)**: el instalador de Claude ignoraba el flag y registraba marketplace y plugin y reescribía el router de `~/.claude/CLAUDE.md`. Ahora construye y valida en un directorio temporal que borra al terminar, sin registrar, sin router, sin Engram y sin tocar `dist/claude-marketplace`.
+- **Flags de `setup:*` desde PowerShell**: el shim `npm.ps1` consume el `--`, así que `npm run setup:codex -- --no-sdd` fallaba con `EUNKNOWNCONFIG`. Cada target tiene ahora los scripts fijos `setup:<target>:sdd` y `setup:<target>:no-sdd`, que no necesitan separador.
+
+### Changed
+- **Documentación y contrato**: REQ-install-040, nota de PowerShell en las guías EN/ES (`npm.cmd run … -- --no-sdd` o `'--'` entre comillas) y menciones en los README. E1.24 cerrado en `idd/archive/2026-10-09-setup-flags-reliability/`.
+
+**Verificación directa**: `node scripts/check.js` (3417 tests pasando, 0 fallos y 0 omitidos), incluida la generación y validación de los siete targets. Reproducción rojo→verde registrada por IDD; `setup:claude:no-sdd -- --dry-run` ejecutado de verdad sin cambios en `~/.claude/CLAUDE.md` ni en `dist/claude-marketplace`.
+
 ## [2.117.14] - 2026-10-09
 
 ### Changed

@@ -9,6 +9,7 @@
 // Usage:
 //   node scripts/configure/install-claude.js            # build + add/update + install/update
 //   node scripts/configure/install-claude.js --build-only  # build only (use /reload-plugins in-session)
+//   node scripts/configure/install-claude.js --dry-run     # build and validate in a temp dir; register and write nothing
 //   node scripts/configure/install-claude.js --no-engram   # skip the automatic Engram session-memory step
 //   node scripts/configure/install-claude.js --with-extras # also install the optional extras package
 //   node scripts/configure/install-claude.js --with-sdd    # also install the SDD mode (kept on reinstall; --no-sdd removes it)
@@ -110,6 +111,7 @@ function syncRouter(pluginDir, argv, homedir) {
 function main(rawArgv = process.argv.slice(2), deps = {}) {
   const { verbose, argv } = splitVerbose(rawArgv);
   const buildOnly = argv.includes("--build-only");
+  const dryRun = argv.includes("--dry-run");
   const cwd = deps.cwd || process.cwd();
   const resolveClaudeBinImpl = deps.resolveClaudeBin || resolveClaudeBin;
   const buildClaudeMarketplaceImpl = deps.buildClaudeMarketplace || buildClaudeMarketplace;
@@ -124,7 +126,7 @@ function main(rawArgv = process.argv.slice(2), deps = {}) {
     stdout: deps.stdout || process.stdout,
     stderr: deps.stderr || process.stderr,
     verbose,
-    trailing: engramStepImpl && !buildOnly ? [ENGRAM_PHASE] : [],
+    trailing: engramStepImpl && !buildOnly && !dryRun ? [ENGRAM_PHASE] : [],
   });
   const stderr = reporter.err;
   return reporter.finish(install());
@@ -137,7 +139,7 @@ function main(rawArgv = process.argv.slice(2), deps = {}) {
       return 2;
     }
     const bin = resolveClaudeBinImpl();
-    reporter.plan(buildOnly || !bin ? [PHASE_BUILD] : [PHASE_BUILD, PHASE_PLUGIN, PHASE_ROUTER]);
+    reporter.plan(buildOnly || dryRun || !bin ? [PHASE_BUILD] : [PHASE_BUILD, PHASE_PLUGIN, PHASE_ROUTER]);
 
     // The marketplace build is what Claude Code installs from, so the previous
     // build tells whether the SDD package was installed (E1.6 d2).
@@ -147,19 +149,32 @@ function main(rawArgv = process.argv.slice(2), deps = {}) {
       agentDirs: [path.resolve(cwd, marketplaceOut, "plugins", PLUGIN, "agents")],
     }));
 
-    const build = buildClaudeMarketplaceImpl({
-      source: cwd,
-      out: marketplaceOut,
-      validate: bin !== null,
-      marketplaceName: MARKETPLACE,
-      pluginName: PLUGIN,
-      withExtras: argv.includes("--with-extras"),
-      withSdd,
-    }, { runConfigure: deps.runConfigure });
+    // E1.24: a dry run builds and validates in a temp dir that is removed
+    // afterwards, so neither dist/claude-marketplace nor the host are touched.
+    const dryRunRoot = dryRun ? fs.mkdtempSync(path.join(os.tmpdir(), "ospec-claude-dry-run-")) : null;
+    let build;
+    try {
+      build = buildClaudeMarketplaceImpl({
+        source: cwd,
+        out: dryRunRoot ? path.join(dryRunRoot, "claude-marketplace") : marketplaceOut,
+        validate: bin !== null,
+        marketplaceName: MARKETPLACE,
+        pluginName: PLUGIN,
+        withExtras: argv.includes("--with-extras"),
+        withSdd,
+      }, { runConfigure: deps.runConfigure });
+    } finally {
+      if (dryRunRoot) fs.rmSync(dryRunRoot, { recursive: true, force: true });
+    }
 
     if (reportBuildFailure(reporter, build)) return build.exitCode || 1;
-    reporter.set("Destino", build.outDir);
+    reporter.set("Destino", dryRun ? path.resolve(cwd, marketplaceOut) : build.outDir);
     reporter.set("Paquetes", packagesRow({ withSdd: sddArgs.withSdd, withExtras: argv.includes("--with-extras") }, withSdd));
+
+    if (dryRun) {
+      reporter.set("Modo", "simulación (--dry-run): build validada en un directorio temporal; no se ha registrado el marketplace ni el plugin ni se ha tocado ~/.claude/CLAUDE.md");
+      return 0;
+    }
 
     // Copy the platform-appropriate ospec-hooks binary into the Claude plugin tree
     // (scripts/hooks/). Best-effort: warns and skips if the binary is absent.
