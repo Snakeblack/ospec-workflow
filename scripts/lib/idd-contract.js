@@ -28,7 +28,9 @@ const STATE_FIELDS = Object.freeze([
   "status",
   "intent",
   "facts",
+  "plan",
   "signals",
+  "retracted",
   "obligations",
   "gates",
   "evidence",
@@ -85,6 +87,11 @@ const EVIDENCE_KINDS = Object.freeze(OBLIGATIONS.map((obligation) => obligation.
 
 const GATES = Object.freeze(["ambiguous-intent", "open-facts", "adr-amend-or-contradict", "irreversible-operation"]);
 
+// Signals a declaration of planned paths or work units can overstate, so a
+// declared one may be retracted while the diff does not confirm it (E1.11).
+// The rest derive from the intent or the project configuration.
+const RETRACTABLE_SIGNALS = Object.freeze(["multi-unit-or-decision", "public-contract", "persistent-data", "security-boundary"]);
+
 const SIGNAL_BY_ID = new Map(SIGNALS.map((signal) => [signal.id, signal]));
 const OBLIGATION_BY_ID = new Map(OBLIGATIONS.map((obligation) => [obligation.id, obligation]));
 
@@ -130,6 +137,7 @@ function validateState(state) {
   }
   if ("runs" in state && !Array.isArray(state.runs)) fail("runs must be a list");
   if ("reviews" in state && !Array.isArray(state.reviews)) fail("reviews must be a list");
+  if ("retracted" in state && !Array.isArray(state.retracted)) fail("retracted must be a list");
   if (state.closed_at != null && (state.status !== "closed" || typeof state.closed_at !== "string")) {
     fail("closed_at is the close time of a closed change");
   }
@@ -154,11 +162,19 @@ function validateState(state) {
   }
   if (intent.request != null && typeof intent.request !== "string") fail("intent.request must be text");
   validateFacts(state, fail);
+  validatePlan(state.plan, fail);
 
   for (const signal of state.signals) {
     if (!SIGNAL_BY_ID.has(signal.id)) fail(`unknown signal: ${signal.id}`);
     if (typeof signal.reason !== "string" || signal.reason === "") fail(`signal ${signal.id} needs a reason`);
     if (!SIGNAL_SOURCES.includes(signal.source)) fail(`signal ${signal.id} source must be declaration or diff`);
+  }
+  for (const entry of state.retracted || []) {
+    const isText = (value) => typeof value === "string" && value.trim() !== "";
+    if (!RETRACTABLE_SIGNALS.includes(entry?.id)) fail(`retracted signal ${entry?.id} is not retractable`);
+    else if (!isText(entry.reason) || entry.source !== "declaration" || !isText(entry.retract_reason)) {
+      fail(`retracted signal ${entry.id} needs its declared reason and the reason it was retracted`);
+    }
   }
 
   const runs = state.runs || [];
@@ -333,6 +349,23 @@ function validateFacts(state, fail) {
   }
 }
 
+// The declared plan (E1.11): what `ospec signals` was told the change touches.
+// States recorded before the plan existed have none and stay valid.
+function validatePlan(plan, fail) {
+  if (plan === undefined) return;
+  const isTextList = (value) => Array.isArray(value) && value.every((entry) => typeof entry === "string" && entry !== "");
+  const valid =
+    plan !== null &&
+    typeof plan === "object" &&
+    isTextList(plan.paths) &&
+    Number.isInteger(plan.work_units) &&
+    plan.work_units >= 1 &&
+    typeof plan.decision === "boolean" &&
+    isTextList(plan.operations) &&
+    Object.keys(plan).length === 4;
+  if (!valid) fail("plan must hold its paths, work_units (at least 1), decision and operations");
+}
+
 function isIntentAmbiguous(state) {
   return state.gates.some((gate) => gate.id === "ambiguous-intent" && gate.status === "open");
 }
@@ -371,6 +404,7 @@ module.exports = {
   OBLIGATIONS,
   OBLIGATION_STATUSES,
   RUN_EVIDENCE,
+  RETRACTABLE_SIGNALS,
   RUN_PURPOSES,
   SIGNALS,
   SIGNAL_SOURCES,

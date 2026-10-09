@@ -52,10 +52,8 @@ test("record intent opens the change, reports the next step and is idempotent", 
   assert.strictEqual(first.json.change, "fix-pagination");
   assert.strictEqual(first.json.changed, true);
   assert.deepStrictEqual(first.json.next.next_step, {
-    action: "satisfy-obligation",
-    obligation: "checks-pass",
-    evidence: "check-run",
-    how: "ospec check --change fix-pagination",
+    action: "declare-plan",
+    how: "ospec signals --change fix-pagination --path <file>... [--work-units <n>] [--decision] [--operation <op>]",
   });
 
   const file = path.join(root, "idd", "fix-pagination", "state.yaml");
@@ -69,6 +67,7 @@ test("record intent opens the change, reports the next step and is idempotent", 
 test("signals, gates and refused withdrawals flow through record", (t) => {
   const root = tempRoot(t);
   ospec(root, ...OPEN_BUG);
+  ospec(root, "signals", "--change", "fix-pagination", "--path", "src/lib/paginate.js");
   const signal = ospec(root, "record", "signal", "--change", "fix-pagination", "--signal", "bug-fix", "--reason", "intent kind bug", "--json");
   assert.strictEqual(signal.code, 0, signal.stderr);
   assert.strictEqual(signal.json.next.next_step.obligation, "repro-test");
@@ -119,7 +118,7 @@ test("record intent needs the open-facts declaration, and open facts are asked f
 
   const resolved = ospec(root, "record", "gate", "--change", "discount-codes", "--gate", "open-facts", "--resolve", "--answer", "It throws; case does not matter.", "--source", "user", "--json");
   assert.strictEqual(resolved.code, 0, resolved.stderr);
-  assert.strictEqual(resolved.json.next.next_step.obligation, "checks-pass");
+  assert.strictEqual(resolved.json.next.next_step.action, "declare-plan");
 });
 
 test("an ambiguous intent is recorded with its gate and next asks to resolve it", (t) => {
@@ -366,6 +365,7 @@ test("missing checks guide next and check to approved configuration, then allow 
   const { root } = project(t, { checks: null });
   writeFile(root, "package.json", JSON.stringify({ scripts: { test: "node verify.js" } }));
   ospec(root, ...OPEN_DOCS);
+  ospec(root, "signals", "--change", "fix-readme", "--path", "README.md");
   const configFile = path.join(root, "idd", "config.yaml");
   const stateBefore = fs.readFileSync(path.join(root, "idd", "fix-readme", "state.yaml"), "utf8");
   const next = ospec(root, "next", "--change", "fix-readme", "--json");
@@ -401,6 +401,7 @@ test("missing checks guide next and check to approved configuration, then allow 
 test("empty checks keep configuration and require a user command when no candidate is known", (t) => {
   const { root } = project(t, { checks: "strict_tdd: false\nchecks:\n" });
   ospec(root, ...OPEN_DOCS);
+  ospec(root, "signals", "--change", "fix-readme", "--path", "README.md");
   const before = fs.readFileSync(path.join(root, "idd", "config.yaml"), "utf8");
   const next = ospec(root, "next", "--change", "fix-readme", "--json");
   assert.strictEqual(next.json.next_step.action, "configure-checks");
@@ -725,4 +726,117 @@ test("doctor --target checks one of the seven hosts and refuses an unknown one a
   const unknown = doctor(t, root, "--target", "emacs");
   assert.strictEqual(unknown.code, 2);
   assert.match(unknown.stderr, /unknown target: emacs/);
+});
+
+// E1.11 idd-protocol-hygiene: next asks for the plan before any obligation,
+// and a declared signal the diff does not confirm can be retracted with a
+// reason (REQ-idd-006, REQ-idd-011, REQ-idd-012).
+
+test("next asks to declare the plan after the intent gates and until signals records it", (t) => {
+  const root = tempRoot(t);
+  const opened = ospec(root, ...OPEN_BUG);
+  assert.deepStrictEqual(opened.json.next.next_step, {
+    action: "declare-plan",
+    how: "ospec signals --change fix-pagination --path <file>... [--work-units <n>] [--decision] [--operation <op>]",
+  });
+  assert.match(ospec(root, "next", "--change", "fix-pagination").stdout, /next: declare the plan: ospec signals --change fix-pagination/);
+
+  const declared = ospec(root, "signals", "--change", "fix-pagination", "--path", "src/lib/paginate.js", "--path", "src/lib/paginate.test.js", "--json");
+  assert.strictEqual(declared.code, 0, declared.stderr);
+  assert.strictEqual(declared.json.next.next_step.obligation, "repro-test");
+  assert.deepStrictEqual(stateOf(root, "fix-pagination").plan, {
+    paths: ["src/lib/paginate.js", "src/lib/paginate.test.js"],
+    work_units: 1,
+    decision: false,
+    operations: [],
+  });
+
+  const widened = ospec(root, "signals", "--change", "fix-pagination", "--path", "src/lib/page-size.js", "--work-units", "2", "--json");
+  assert.strictEqual(widened.code, 0, widened.stderr);
+  assert.deepStrictEqual(stateOf(root, "fix-pagination").plan, {
+    paths: ["src/lib/page-size.js", "src/lib/paginate.js", "src/lib/paginate.test.js"],
+    work_units: 2,
+    decision: false,
+    operations: [],
+  });
+
+  const base = ["record", "intent", "--change", "discount-codes", "--kind", "feature", "--summary", "Discount codes.", "--acceptance", "VERANO10 takes 10%."];
+  const facts = ospec(root, ...base, "--open-fact", "Does case matter?", "--json");
+  assert.deepStrictEqual(facts.json.next.next_step, { action: "resolve-gate", gate: "open-facts" });
+  const resolved = ospec(root, "record", "gate", "--change", "discount-codes", "--gate", "open-facts", "--resolve", "--answer", "No.", "--source", "user", "--json");
+  assert.strictEqual(resolved.json.next.next_step.action, "declare-plan");
+});
+
+test("record retract withdraws a declared signal the diff does not confirm and refuses one it confirms", (t) => {
+  const { root } = project(t);
+  ospec(root, "record", "intent", "--change", "add-index", "--kind", "feature", "--summary", "Faster search.", "--acceptance", "Search under 50 ms.", "--no-open-facts", "--basis", "The request fixes every behavior.");
+  ospec(root, "signals", "--change", "add-index", "--path", "src/api/search.js", "--path", "db/migrations/004_add_index.sql", "--path", "src/pages.txt");
+  writeFile(root, "db/migrations/004_add_index.sql", "CREATE INDEX customers_name ON customers (name);\n");
+  writeFile(root, "src/pages.txt", "2");
+
+  const retract = ["record", "retract", "--change", "add-index", "--signal", "public-contract", "--reason", "the search API stays as it is", "--json"];
+  const retracted = ospec(root, ...retract);
+  assert.strictEqual(retracted.code, 0, retracted.stderr);
+  assert.strictEqual(retracted.json.changed, true);
+  let state = stateOf(root, "add-index");
+  assert.ok(!state.signals.some((signal) => signal.id === "public-contract"));
+  assert.deepStrictEqual(state.obligations.find((o) => o.id === "contract-spec-and-test"), {
+    id: "contract-spec-and-test",
+    signal: "public-contract",
+    status: "withdrawn",
+    evidence: [],
+    withdrawn_reason: "the search API stays as it is",
+  });
+  assert.deepStrictEqual(state.retracted, [
+    {
+      id: "public-contract",
+      reason: "public contract: touches src/api/search.js (matches **/api/**)",
+      source: "declaration",
+      retract_reason: "the search API stays as it is",
+    },
+  ]);
+
+  const file = path.join(root, "idd", "add-index", "state.yaml");
+  const before = fs.readFileSync(file, "utf8");
+  const again = ospec(root, ...retract);
+  assert.strictEqual(again.code, 0, again.stderr);
+  assert.strictEqual(again.json.changed, false);
+  assert.strictEqual(fs.readFileSync(file, "utf8"), before);
+
+  const confirmed = ospec(root, "record", "retract", "--change", "add-index", "--signal", "persistent-data", "--reason", "not a migration", "--json");
+  assert.strictEqual(confirmed.code, 1);
+  assert.strictEqual(confirmed.json.error.code, "signal-confirmed-by-diff");
+  assert.match(confirmed.json.error.message, /db\/migrations\/004_add_index\.sql/);
+  assert.strictEqual(stateOf(root, "add-index").obligations.find((o) => o.id === "migration-compat-and-test").status, "pending");
+
+  const always = ospec(root, "record", "retract", "--change", "add-index", "--signal", "always", "--reason", "no checks", "--json");
+  assert.strictEqual(always.json.error.code, "signal-not-retractable");
+  const missing = ospec(root, "record", "retract", "--change", "add-index", "--signal", "security-boundary", "--reason", "never declared", "--json");
+  assert.strictEqual(missing.json.error.code, "signal-not-recorded");
+  const noReason = ospec(root, "record", "retract", "--change", "add-index", "--signal", "persistent-data", "--json");
+  assert.strictEqual(noReason.json.error.code, "reason-required");
+  assert.strictEqual(ospec(root, "record", "retract", "--change", "add-index", "--reason", "x", "--json").code, 2);
+
+  // The diff now touches the API: check brings the signal back from the diff.
+  writeFile(root, "src/api/search.js", "module.exports = {};\n");
+  const checked = ospec(root, "check", "--change", "add-index", "--json");
+  assert.strictEqual(checked.code, 0, checked.stderr);
+  assert.ok(checked.json.added.signals.includes("public-contract"));
+  state = stateOf(root, "add-index");
+  assert.strictEqual(state.signals.find((signal) => signal.id === "public-contract").source, "diff");
+  assert.strictEqual(state.obligations.find((o) => o.id === "contract-spec-and-test").status, "pending");
+  const back = ospec(root, "record", "retract", "--change", "add-index", "--signal", "public-contract", "--reason", "again", "--json");
+  assert.strictEqual(back.json.error.code, "signal-confirmed-by-diff");
+});
+
+test("record retract withdraws a declared work-unit signal, which the diff never confirms", (t) => {
+  const { root } = project(t);
+  ospec(root, "record", "intent", "--change", "split-pages", "--kind", "refactor", "--summary", "Split pages.", "--acceptance", "Two pages.", "--no-open-facts", "--basis", "The request fixes every behavior.");
+  ospec(root, "signals", "--change", "split-pages", "--path", "src/pages.txt", "--work-units", "2");
+  writeFile(root, "src/pages.txt", "2");
+  const retracted = ospec(root, "record", "retract", "--change", "split-pages", "--signal", "multi-unit-or-decision", "--reason", "one unit after all", "--json");
+  assert.strictEqual(retracted.code, 0, retracted.stderr);
+  assert.strictEqual(stateOf(root, "split-pages").obligations.find((o) => o.id === "living-doc").status, "withdrawn");
+  assert.strictEqual(retracted.json.next.next_step.obligation, "checks-pass");
+  assert.match(ospec(root, "record", "retract", "--change", "split-pages", "--signal", "multi-unit-or-decision", "--reason", "one unit after all").stdout, /no change: retract already recorded/);
 });

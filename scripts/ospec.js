@@ -33,7 +33,7 @@ const { IddConfigError } = require("./lib/idd-config.js");
 const { ARCHIVE_ROOT, LIVING_DOC_FILE, STATE_FILE, isIntentAmbiguous } = require("./lib/idd-contract.js");
 const { runCommand } = require("./lib/idd-exec.js");
 const { nextForChange, nextForProject, statusOf } = require("./lib/idd-next.js");
-const { IddRecordError, recordGate, recordIntent, recordSignal, recordWithdraw } = require("./lib/idd-record.js");
+const { IddRecordError, recordGate, recordIntent, recordRetract, recordSignal, recordWithdraw } = require("./lib/idd-record.js");
 const {
   buildCandidate,
   candidateDiffHash,
@@ -72,6 +72,7 @@ const USAGE = `Usage:
   ospec record signal --change <id> --signal <id> --reason <text> [--source declaration|diff]
   ospec record gate --change <id> --gate <id> (--open [--reason <text>] | --resolve --answer <text> --source <text>)
   ospec record withdraw --change <id> --obligation <id> --reason <text>
+  ospec record retract --change <id> --signal <id> --reason <text>
   ospec signals --change <id> [--path <file>]... [--work-units <n>] [--decision]
                 [--operation <op>]... [--diff] [--base <ref>]
   ospec check --change <id> [--base <ref>]
@@ -161,9 +162,23 @@ function reducerFor(type, values, root) {
     }
     case "withdraw":
       return existing((state) => recordWithdraw(state, { obligation: values.obligation, reason: values.reason }));
+    case "retract":
+      if (!values.signal) throw new UsageError("record retract needs --signal <id>");
+      return existing((state) => recordRetract(state, { id: values.signal, reason: values.reason, confirmedBy: diffConfirmation(root, state, values.signal) }));
     default:
-      throw new UsageError(`unknown record type: ${type ?? "(none)"}; expected intent, signal, gate or withdraw`);
+      throw new UsageError(`unknown record type: ${type ?? "(none)"}; expected intent, signal, gate, withdraw or retract`);
   }
+}
+
+// The reason the current diff derives a signal, or null (E1.11). Only the diff
+// confirms a declared signal, so a retraction reads it against the change's base
+// and needs git, as `ospec check` does.
+function diffConfirmation(root, state, signalId) {
+  if (state.status !== "open" || !state.signals.some((signal) => signal.id === signalId && signal.source === "declaration")) return null;
+  const context = readProjectContext(root);
+  const diff = readGitDiff(root, { base: diffBase({}, state) });
+  const { signals: derived } = deriveSignals({ intent: state.intent, diff, patterns: context.patterns });
+  return derived.find((signal) => signal.id === signalId && signal.source === "diff")?.reason ?? null;
 }
 
 function existing(reducer) {
@@ -177,6 +192,12 @@ function parseWorkUnits(raw) {
   if (raw === undefined) return 1;
   if (!/^[1-9]\d*$/.test(raw)) throw new UsageError(`--work-units must be a positive integer, got ${JSON.stringify(raw)}`);
   return Number(raw);
+}
+
+// A call that names paths, work units, a decision or an operation declares the
+// plan; one that only reads the diff does not (E1.11).
+function declaresPlan(values) {
+  return Boolean(values.path?.length || values["work-units"] !== undefined || values.decision || values.operation?.length);
 }
 
 async function signals(root, values) {
@@ -197,7 +218,7 @@ async function signals(root, values) {
     existing((current) => {
       const intent = current.intent && current.intent.kind ? current.intent : null;
       derivation = deriveSignals({ intent, strictTdd: context.strictTdd, declaration, diff, patterns: context.patterns });
-      return applyDerivation(current, derivation);
+      return applyDerivation(current, derivation, { plan: declaresPlan(values) ? declaration : null });
     }),
   );
   const { signals: derived, gates, floor } = derivation;
@@ -538,6 +559,9 @@ function describeNext(result) {
   switch (step.action) {
     case "configure-checks":
       lines.push(`next: ${step.how}`);
+      break;
+    case "declare-plan":
+      lines.push(`next: declare the plan: ${step.how}`);
       break;
     case "satisfy-obligation":
       lines.push(`next: satisfy ${step.obligation} with ${step.evidence} evidence`);

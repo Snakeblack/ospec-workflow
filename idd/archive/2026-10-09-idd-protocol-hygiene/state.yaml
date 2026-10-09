@@ -1,0 +1,162 @@
+{
+  "schema": "idd-state/v1",
+  "change": "idd-protocol-hygiene",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "next pide declarar el plan, una señal declarada sin confirmar en el diff se puede retirar con motivo y el protocolo IDD conserva codificación y finales de línea (E1.11)",
+    "acceptance": "Un cambio sin plan recibe de ospec next el paso declare-plan; ospec record retract retira con motivo una señal declarada que el diff no confirma y rechaza una que el diff confirma; la skill idd exige editar conservando codificación y finales de línea"
+  },
+  "facts": {
+    "open": [
+      "¿Cómo se retira una señal declarada que el diff no confirma: un record nuevo o ampliar record withdraw?",
+      "¿Cuándo pide ospec next declarar el plan: campo plan bloqueante o solo aviso?"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches .claude-plugin/plugin.json and 2 more (matches .claude-plugin/**)",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "1) record retract: nuevo ospec record retract --change --signal --reason, solo para señales de declaración de rutas o unidades (public-contract, persistent-data, security-boundary, multi-unit-or-decision); se rechaza si el diff actual la deriva o si su obligación ya está satisfecha; la señal sale de signals, su obligación pendiente pasa a withdrawn con el motivo y queda un historial retracted en el state; si luego el diff la dispara, vuelve con source diff y reabre la obligación. 2) Campo plan bloqueante: ospec signals guarda el plan declarado; next devuelve declare-plan tras los gates de intención y open-facts y antes de las obligaciones, mientras no haya plan, señales del diff ni ejecuciones registradas; los states antiguos siguen siendo válidos.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-09T10:39:31.856Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-09T10:48:38.007Z",
+      "detail": {
+        "tree": "sha256:6e282b2348ff4d1d6932cdcd827a8e8b4d9e2add0b5a40f127767b95a5cd7675",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-09T10:48:38.007Z",
+      "detail": {
+        "tree": "sha256:6e282b2348ff4d1d6932cdcd827a8e8b4d9e2add0b5a40f127767b95a5cd7675",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    }
+  ],
+  "base": "4d5b8fb8fa616947c34472f5c255f655004a97c0",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/ospec.test.js scripts/lib/idd-next.test.js scripts/lib/idd-record.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:c50c834a6a8eebc1a8c60557e28254368d0b4e9dae329ce073f269e16f1a35f0",
+      "tree": "sha256:d958810f1c552d5fe4e4b84f5d410407053a996f9d47f533955a8aa760582b11",
+      "recorded_at": "2026-10-09T10:37:06.722Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/ospec.test.js scripts/lib/idd-next.test.js scripts/lib/idd-record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d84072d25e7ceb94f699d80fb7279539f63efb7b57d367df2a59ba215477e599",
+      "tree": "sha256:92415c70f5c8cc274f772cbc225df04c2c882216cb7a55d928106705b7fa23e6",
+      "recorded_at": "2026-10-09T10:39:31.856Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:fbf88b25df52876984ee9ae37402d95272edcf2b6de88b6281e1544cb7db894f",
+      "tree": "sha256:590575a276bf803649a6537650f8b41e3486ddde217404ab498389d5b6af6386",
+      "recorded_at": "2026-10-09T10:41:59.799Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:8eb81149a280c56b2c6d9f010713199c28c5f8059b41e1b525c138cdf09b752e",
+      "tree": "sha256:421c2cbd31aeec183e039cb5eb253c006bb577cf9696f32f1415118e9bcd08c5",
+      "recorded_at": "2026-10-09T10:45:20.318Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:05eed411859cd1f6ef94b601e3aa0d372e25c707625ea1da40d1683bc577ea68",
+      "tree": "sha256:6e282b2348ff4d1d6932cdcd827a8e8b4d9e2add0b5a40f127767b95a5cd7675",
+      "recorded_at": "2026-10-09T10:48:38.007Z"
+    }
+  ],
+  "closed_at": "2026-10-09T10:48:45.320Z"
+}

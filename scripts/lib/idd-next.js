@@ -45,6 +45,20 @@ const HOW = Object.freeze({
     `ospec run --change ${change} --obligation migration-compat-and-test --command "<migration test>" --plan "<compatibility or rollback>"`,
 });
 
+// The plan is declared once `ospec signals` recorded it, or once the change
+// has evidence of its own: a signal the diff derived or a run the CLI observed
+// (E1.11). States recorded before the plan existed are judged by the latter.
+function planDeclared(state) {
+  return state.plan != null || state.signals.some((signal) => signal.source === "diff") || (state.runs || []).length > 0;
+}
+
+function declarePlanStep(change) {
+  return {
+    action: "declare-plan",
+    how: `ospec signals --change ${change} --path <file>... [--work-units <n>] [--decision] [--operation <op>]`,
+  };
+}
+
 function byWorkOrder(left, right) {
   return WORK_ORDER.indexOf(left.id) - WORK_ORDER.indexOf(right.id);
 }
@@ -77,6 +91,9 @@ function nextForChange(state, { checks, candidateCommand } = {}) {
   } else if (openGates.some((gate) => gate.id === "open-facts")) {
     // Open facts are asked before anything is built (REQ-idd-018).
     nextStep = { action: "resolve-gate", gate: "open-facts" };
+  } else if (!planDeclared(state)) {
+    // The plan is declared before anything is edited (E1.11).
+    nextStep = declarePlanStep(state.change);
   } else if (pending.length > 0) {
     nextStep = { action: "satisfy-obligation", obligation: pending[0].id, evidence: pending[0].evidence };
     if (HOW[pending[0].id]) nextStep.how = HOW[pending[0].id](state.change);
@@ -147,6 +164,7 @@ module.exports = {
   GATE_QUESTIONS,
   WORK_ORDER,
   nextForChange,
+  planDeclared,
   nextForProject,
   statusOf,
 };

@@ -82,11 +82,14 @@ withdrawn, `withdrawn_reason`), `gates` (each with `id`, `status` `open` or
 `resolved`, an optional `reason` and, when resolved, `answer` and `source`) and
 `evidence` (each with `id`, `kind`, `obligation` and `recorded_at`, plus the
 `detail` that names the runs behind run evidence), and optionally `base` (the
-commit the change started from, or null outside git), `runs` (each
+commit the change started from, or null outside git), `plan` (the plan
+`ospec signals` was declared, REQ-idd-012: `paths`, `work_units`, `decision`
+and `operations`), `retracted` (each declared signal retracted under
+REQ-idd-006, with its `id`, `reason`, `source` and `retract_reason`), `runs` (each
 CLI-observed execution of REQ-idd-014) and `reviews` (the trust review
 lineages of REQ-idd-016, oldest first), plus `closed_at` once the change is
-closed (REQ-idd-017). A state without `base`, `runs`, `reviews` or `facts` MUST
-stay valid, as the states written before they existed. While the
+closed (REQ-idd-017). A state without `base`, `plan`, `retracted`, `runs`,
+`reviews` or `facts` MUST stay valid, as the states written before they existed. While the
 `ambiguous-intent` gate is open, `intent.kind`, `intent.summary` and
 `intent.acceptance` MUST be null, `intent.request` MUST hold the original
 request, and `signals` and `obligations` MUST be empty. `state.yaml` MUST be
@@ -190,6 +193,32 @@ its obligations immediately with `source: diff`. An obligation MUST leave
 reason, and a withdrawal MUST be refused while any active signal still derives
 that obligation.
 
+A declared signal the plan overstated MUST be correctable before the diff
+confirms it: `ospec record retract --signal <id> --reason <text>` MUST remove a
+`multi-unit-or-decision`, `public-contract`, `persistent-data` or
+`security-boundary` signal recorded with `source: declaration`, withdraw its
+pending obligation with that reason and append the signal to `retracted`. It
+MUST be refused for any other signal, for a signal with `source: diff`, while
+the diff against the change's base derives the signal (naming why), and when
+its obligation is already satisfied. Repeating it MUST be a no-op. A signal the
+diff or a declaration derives again after its retraction MUST return and
+reopen its obligation.
+
+#### Scenario: Overstated plan is corrected before the diff confirms it
+
+- GIVEN a change whose plan declared `src/api/search.js`, so `public-contract`
+  is active with `source: declaration`, and a diff that does not touch it
+- WHEN `record retract --signal public-contract --reason "no API change"` runs
+- THEN `public-contract` MUST leave `signals` and be listed in `retracted`
+- AND `contract-spec-and-test` MUST be `withdrawn` with that reason
+
+#### Scenario: A signal the diff confirms cannot be retracted
+
+- GIVEN a declared `persistent-data` signal and a diff that adds a migration
+- WHEN its retraction is requested
+- THEN it MUST be refused with `signal-confirmed-by-diff`
+- AND `migration-compat-and-test` MUST stay `pending`
+
 #### Scenario: Diff adds a migration obligation
 
 - GIVEN an open change without `persistent-data`
@@ -281,8 +310,8 @@ reproduce these expectations.
 ### Requirement: CLI Core Status Next And Record {#REQ-idd-011}
 
 The `ospec` CLI MUST expose `status`, `next` and `record`, each with a `--json`
-output. `record` MUST accept the types `intent`, `signal`, `gate` and
-`withdraw`, and MUST NOT accept evidence: evidence is recorded only by the CLI
+output. `record` MUST accept the types `intent`, `signal`, `gate`, `withdraw` and
+`retract` (REQ-idd-006), and MUST NOT accept evidence: evidence is recorded only by the CLI
 commands that observe the execution it proves (REQ-idd-007). Every `record`
 MUST be idempotent: repeating it MUST leave `state.yaml` byte-identical, and
 rewriting a recorded fact with different content MUST be refused. Every write
@@ -293,7 +322,9 @@ function of the stored state and, when check evidence is next, the project's
 check configuration and command suggestion. It MUST return the change, its pending
 obligations in work order, the pending decision, the next step and the
 knowledge references. The next step MUST be `resolve-gate` while the intent is
-ambiguous, else `resolve-gate` while `open-facts` is open, else the first
+ambiguous, else `resolve-gate` while `open-facts` is open, else
+`declare-plan` (with `how` naming `ospec signals`) while the change has no
+recorded `plan`, no signal from the diff and no run, else the first
 pending obligation in the order `repro-test`,
 `tdd-red-green`, `contract-spec-and-test`, `migration-compat-and-test`,
 `adr-impact-declaration`, `trust-review`, `checks-pass`, `living-doc`, else the
@@ -307,6 +338,14 @@ are declared, `next` MUST instead return `next_step.action: configure-checks`,
 and explicit user approval. This prerequisite MUST NOT override an ambiguous
 intent, open facts, earlier obligations, change selection or a closed change.
 It MUST NOT write configuration, execute a candidate or satisfy evidence.
+
+#### Scenario: Next asks for the plan before any obligation
+
+- GIVEN an open change with a resolved intent and no open facts
+- WHEN `next` runs before `ospec signals` declares any path
+- THEN the next step MUST be `declare-plan`
+- AND once `signals --path src/lib/paginate.js` runs, it MUST be the first
+  pending obligation
 
 #### Scenario: Repeated record is a no-op
 
@@ -342,7 +381,10 @@ intent and record the ones not yet recorded. `always` MUST derive from the
 resolved intent; `strict-tdd` from `strict_tdd: true` in `idd/config.yaml`
 unless the intent kind is `docs`; `bug-fix` from the intent kind `bug`; and
 `multi-unit-or-decision` from more than one declared work unit or a declared
-non-obvious decision. `public-contract`, `persistent-data` and
+non-obvious decision. A call that names paths, work units, a decision or an
+operation MUST record them as the change's `plan`, widening any plan already
+recorded (paths and operations accumulate, the largest work-unit count and a
+declared decision stay); a call that only reads the diff declares no plan. `public-contract`, `persistent-data` and
 `security-boundary` MUST derive from paths matching their impact patterns: the
 planned paths give `source: declaration` and, with `--diff`, the paths of the
 git diff against a base commit (default: the change's recorded `base`, else

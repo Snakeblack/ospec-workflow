@@ -402,3 +402,82 @@ test("opening a change records its base commit, which must be a commit id or nul
   const { state } = recordIntent(null, { ...input, base: "3b0378e3" });
   assert.strictEqual(recordIntent(state, { ...input, base: "ffffffff" }).changed, false, "the base never moves");
 });
+
+// ---------------------------------------------------------------------------
+// E1.11: record plan and record retract
+// ---------------------------------------------------------------------------
+
+test("the declared plan is recorded once, widened by later declarations and kept valid", () => {
+  const { recordPlan } = require("./idd-record.js");
+  const first = recordPlan(opened(), { paths: ["src\\b.js", "src/a.js", "src/a.js"], workUnits: 1 });
+  assert.strictEqual(first.changed, true);
+  assertValid(first.state);
+  assert.deepStrictEqual(first.state.plan, { paths: ["src/a.js", "src/b.js"], work_units: 1, decision: false, operations: [] });
+  assert.strictEqual(recordPlan(first.state, { paths: ["src/a.js"] }).changed, false);
+
+  const widened = recordPlan(first.state, { paths: ["src/c.js"], workUnits: 3, nonObviousDecision: true, operations: ["drop-table"] });
+  assert.deepStrictEqual(widened.state.plan, {
+    paths: ["src/a.js", "src/b.js", "src/c.js"],
+    work_units: 3,
+    decision: true,
+    operations: ["drop-table"],
+  });
+  assert.strictEqual(recordPlan(widened.state, { paths: [], workUnits: 1 }).changed, false);
+  assertCode(() => recordPlan({ ...opened(), status: "closed" }, { paths: [] }), "change-closed");
+
+  const invalid = validateState({ ...opened(), plan: { paths: "src/a.js", work_units: 0, decision: "no", operations: [] } });
+  assert.strictEqual(invalid.ok, false);
+  assert.ok(invalid.errors.some((error) => /plan/.test(error)));
+});
+
+test("a declared signal the diff does not confirm is retracted with its reason", () => {
+  const { recordRetract } = require("./idd-record.js");
+  const state = recordSignal(opened(), { id: "public-contract", reason: "public contract: touches src/api/a.js", source: "declaration" }).state;
+  const { state: retracted, changed } = recordRetract(state, { id: "public-contract", reason: "no API change", confirmedBy: null });
+  assert.strictEqual(changed, true);
+  assertValid(retracted);
+  assert.ok(!retracted.signals.some((signal) => signal.id === "public-contract"));
+  assert.deepStrictEqual(retracted.obligations.find((o) => o.id === "contract-spec-and-test"), {
+    id: "contract-spec-and-test",
+    signal: "public-contract",
+    status: "withdrawn",
+    evidence: [],
+    withdrawn_reason: "no API change",
+  });
+  assert.deepStrictEqual(retracted.retracted, [
+    { id: "public-contract", reason: "public contract: touches src/api/a.js", source: "declaration", retract_reason: "no API change" },
+  ]);
+  assert.deepStrictEqual(state.signals.map((s) => s.id), ["always", "public-contract"], "the input is not mutated");
+  assert.strictEqual(recordRetract(retracted, { id: "public-contract", reason: "no API change" }).changed, false);
+  assertCode(() => recordRetract(retracted, { id: "public-contract", reason: "other" }), "retract-conflict");
+
+  // Declared again, it comes back pending and can be retracted again.
+  const again = recordSignal(retracted, { id: "public-contract", reason: "declared again", source: "declaration" }).state;
+  assert.strictEqual(again.obligations.find((o) => o.id === "contract-spec-and-test").status, "pending");
+  const twice = recordRetract(again, { id: "public-contract", reason: "still no API change" }).state;
+  assert.strictEqual(twice.retracted.length, 2);
+  assertValid(twice);
+});
+
+test("retract is refused for confirmed, diff, satisfied, unknown and non-path signals", () => {
+  const { recordRetract } = require("./idd-record.js");
+  let state = recordSignal(opened(), { id: "persistent-data", reason: "plan", source: "declaration" }).state;
+  assertCode(() => recordRetract(state, { id: "persistent-data", reason: "r", confirmedBy: "persistent data: touches db/m.sql" }), "signal-confirmed-by-diff");
+  assertCode(() => recordRetract(state, { id: "persistent-data", reason: " " }), "reason-required");
+  assertCode(() => recordRetract(state, { id: "bug-fix", reason: "r" }), "signal-not-retractable");
+  assertCode(() => recordRetract(state, { id: "always", reason: "r" }), "signal-not-retractable");
+  assertCode(() => recordRetract(state, { id: "nope", reason: "r" }), "unknown-signal");
+  assertCode(() => recordRetract(state, { id: "security-boundary", reason: "r" }), "signal-not-recorded");
+
+  const fromDiff = recordSignal(opened(), { id: "security-boundary", reason: "diff", source: "diff" }).state;
+  assertCode(() => recordRetract(fromDiff, { id: "security-boundary", reason: "r" }), "signal-confirmed-by-diff");
+
+  state = recordSignal(opened(), { id: "multi-unit-or-decision", reason: "two units", source: "declaration" }).state;
+  const satisfied = structuredClone(state);
+  const doc = satisfied.obligations.find((o) => o.id === "living-doc");
+  doc.status = "satisfied";
+  doc.evidence = ["ev-1"];
+  satisfied.evidence.push({ id: "ev-1", kind: "living-doc-current", obligation: "living-doc", recorded_at: "t" });
+  assertCode(() => recordRetract(satisfied, { id: "multi-unit-or-decision", reason: "r" }), "obligation-satisfied");
+  assertCode(() => recordRetract({ ...state, status: "closed" }, { id: "multi-unit-or-decision", reason: "r" }), "change-closed");
+});
