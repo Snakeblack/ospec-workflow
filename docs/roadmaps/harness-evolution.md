@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.117.18, 2026-10-09.
+> **Versión de referencia:** v2.118.0, 2026-10-09.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -159,7 +159,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.4** | `execution-resource-experiment` (experimento previo a cualquier routing adaptativo) | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E2.1 `knowledge-map-contract`, que abre la Etapa 2 después de las prioridades OSP aceptadas el 2026-10-08. E1.20 (OSP-020) quedó cerrado con IDD; su publicación está pendiente de elegir versión. E1.19 `idd-review-context` quedó hecho en v2.117.13, E1.16 (OSP-017) en v2.117.5, E1.17 (OSP-001/002/003) en v2.117.9, E1.21 (guía de checks IDD) en v2.117.10 y E1.18 (frescura de evidencia) en v2.117.11. Los ítems se ejecutan con IDD.
+**▶ SIGUIENTE:** E2.1 `knowledge-map-contract`, que abre la Etapa 2 después de las prioridades OSP aceptadas el 2026-10-08. La auditoría del 2026-10-09 (v2.118.0) corrigió defectos de coordinación de IDD (gates antes del trabajo, apertura del gate ADR, Strict TDD en refactors), añadió el criterio de tests por riesgo y adelantó parte de E2.3. E1.20 (OSP-020) quedó cerrado con IDD; su publicación está pendiente de elegir versión. E1.19 `idd-review-context` quedó hecho en v2.117.13, E1.16 (OSP-017) en v2.117.5, E1.17 (OSP-001/002/003) en v2.117.9, E1.21 (guía de checks IDD) en v2.117.10 y E1.18 (frescura de evidencia) en v2.117.11. Los ítems se ejecutan con IDD.
 
 El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) conserva su resultado histórico `continue`. Los hallazgos posteriores y sus límites están en el [análisis OSP de permisos y evidencia](../analysis/2026-10-08-osp-permisos-y-evidencia.md). E1.11 quedó hecho en v2.117.16, E1.12 en v2.117.17 y E1.14 en v2.117.18; E1.13 y E1.15 siguen pendientes; el plugin SDD del marketplace permanece en E5.8, por demanda.
 
@@ -557,8 +557,9 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
 
 ### E2.3 — `foundation-discovery-rounds`
 
-- **Alcance:** reescribir la foundation (hoy `sdd-foundation`) como capacidad propia, independiente del modo, sobre el ciclo descrito: rondas reanudables, ingestión de fuentes y documentos `docs/product/*`, `docs/architecture/*` y `docs/roadmap*.md` actualizados de forma incremental. Absorbe el diseño de [foundation holística](archive/2026-10-03-arquitectura/harness-foundation-holistic.md) (antes R2.1/R2.4, archivado como insumo).
+- **Alcance:** reescribir la foundation (antes `sdd-foundation`, hoy `foundation`) como capacidad propia, independiente del modo, sobre el ciclo descrito: rondas reanudables, ingestión de fuentes y documentos `docs/product/*`, `docs/architecture/*` y `docs/roadmap*.md` actualizados de forma incremental. Absorbe el diseño de [foundation holística](archive/2026-10-03-arquitectura/harness-foundation-holistic.md) (antes R2.1/R2.4, archivado como insumo).
 - **Hecho cuando:** ningún scaffold ni código se genera sin aprobación, y se cumplen los escenarios de aceptación de ese diseño (CLI local, SaaS pequeño, regulado, brownfield, fuente desactualizada y cambio pequeño posterior).
+- **Adelanto en v2.118.0 (`idd/archive/2026-10-09-foundation-architect/`):** a petición del usuario, `sdd-foundation` pasa a ser la skill `foundation`, presente en toda instalación (su agente sigue en el paquete SDD como delegado de la ruta, y el dispatcher lee la fase heredada `sdd-foundation`). Pregunta en rondas de cuatro como máximo con respuesta recomendada y supuestos explícitos, registra ADR de arquitectura agnósticos y escenarios de calidad, y propone `idd/config.yaml` con aprobación; el router le envía los proyectos sin código. Siguen pendientes el contrato del mapa de conocimiento (E2.1), el motor determinista de rondas (E2.2), el lint de ADR (E2.4) y los escenarios de aceptación de este ítem.
 
 ### E2.4 — `decision-records-model`
 
