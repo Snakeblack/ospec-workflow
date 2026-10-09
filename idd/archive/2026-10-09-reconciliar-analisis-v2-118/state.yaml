@@ -1,0 +1,68 @@
+{
+  "schema": "idd-state/v1",
+  "change": "reconciliar-analisis-v2-118",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "Reconciliar el análisis de mejoras del harness con lo entregado en v2.118.0 (rama de la sesión en la nube)",
+    "acceptance": "El análisis marca qué mejoras quedaron hechas o parciales en v2.118.0 y qué queda, sin afirmar como hueco actual algo ya resuelto; sección de reconciliación, filas H1/H2/H4/H10/H11 y fases A/C actualizadas"
+  },
+  "facts": {
+    "basis": "Cambio documental sobre hechos verificados en el diff de la rama claude/friendly-cannon-653d45 (v2.118.0)"
+  },
+  "plan": {
+    "paths": [
+      "docs/analysis/2026-10-09-mejoras-harness-alto-nivel.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-09T15:14:10.716Z",
+      "detail": {
+        "tree": "sha256:6cc3a1dfd822021327f47dd05075691ca1dcbb772abe2519ca13899e20b2c9b4",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "760abf3ad6faeb0e60dc3d6c0c2b63bcd360c23b",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ace64299056b1a3aaa233c272795106500d6b51c7ecb76aafa68b3b450e0d630",
+      "tree": "sha256:6cc3a1dfd822021327f47dd05075691ca1dcbb772abe2519ca13899e20b2c9b4",
+      "recorded_at": "2026-10-09T15:14:10.716Z"
+    }
+  ],
+  "closed_at": "2026-10-09T15:19:56.644Z"
+}
