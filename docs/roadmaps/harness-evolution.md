@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.117.17, 2026-10-09.
+> **Versión de referencia:** v2.117.18, 2026-10-09.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -131,7 +131,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.11** | `idd-protocol-hygiene` (`next` pide declarar el plan, `record retract` corrige un plan sobredeclarado y el protocolo conserva codificación, en v2.117.16) | bugfix |
 | `done` | **E1.12** | `session-hook-idd` (`Stop` y `PreCompact` ven los cambios IDD abiertos y escriben su siguiente paso, con paridad JS/Go, en v2.117.17) | bugfix |
 | `pending` | **E1.13** | `idd-openspec-asymmetries` (follow-up del checkpoint de la Etapa 1) | bugfix |
-| `pending` | **E1.14** | `codex-repo-runtime` (follow-up del checkpoint de la Etapa 1) | bugfix |
+| `done` | **E1.14** | `codex-repo-runtime` (`install:codex -- <repo>` lleva el protocolo IDD, sus revisores y un runtime propio relativo, en v2.117.18) | bugfix |
 | `pending` | **E1.15** | `idd-review-successor-policy` (coherencia de autoridades; decisión humana pendiente) | contrato |
 | `done` | **E1.16** | `hook-neutral-permissions` (OSP-017; sin objeción, el hook no decide y el host aplica sus permisos, en v2.117.5) | bugfix |
 | `done` | **E1.17** | `hook-boundary-reliability` (OSP-001/002/003; secretos y launcher, v2.117.9) | bugfix |
@@ -161,7 +161,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 
 **▶ SIGUIENTE:** E2.1 `knowledge-map-contract`, que abre la Etapa 2 después de las prioridades OSP aceptadas el 2026-10-08. E1.20 (OSP-020) quedó cerrado con IDD; su publicación está pendiente de elegir versión. E1.19 `idd-review-context` quedó hecho en v2.117.13, E1.16 (OSP-017) en v2.117.5, E1.17 (OSP-001/002/003) en v2.117.9, E1.21 (guía de checks IDD) en v2.117.10 y E1.18 (frescura de evidencia) en v2.117.11. Los ítems se ejecutan con IDD.
 
-El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) conserva su resultado histórico `continue`. Los hallazgos posteriores y sus límites están en el [análisis OSP de permisos y evidencia](../analysis/2026-10-08-osp-permisos-y-evidencia.md). E1.11 quedó hecho en v2.117.16 y E1.12 en v2.117.17; E1.13–E1.15 siguen pendientes; el plugin SDD del marketplace permanece en E5.8, por demanda.
+El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) conserva su resultado histórico `continue`. Los hallazgos posteriores y sus límites están en el [análisis OSP de permisos y evidencia](../analysis/2026-10-08-osp-permisos-y-evidencia.md). E1.11 quedó hecho en v2.117.16, E1.12 en v2.117.17 y E1.14 en v2.117.18; E1.13 y E1.15 siguen pendientes; el plugin SDD del marketplace permanece en E5.8, por demanda.
 
 **Prioridades OSP aceptadas para la siguiente sesión:**
 
@@ -428,6 +428,8 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Garantía que protege:** multi-target honesto: IDD en cualquier target sin que nadie lo pida (resultado de la Etapa 1).
 - **Alcance:** la instalación de Codex por repositorio lleva el protocolo IDD y un runtime alcanzable (propio o el global declarado), con sus marcadores sustituidos.
 - **Hecho cuando:** un repositorio con solo la instalación de Codex por repositorio ejecuta `ospec next` desde la skill `idd`, y el aviso `codex-repo` del doctor desaparece.
+- **Decisiones del usuario (gate `open-facts`):** copia propia del runtime en el repositorio, nombrada con ruta relativa, en lugar del runtime global; y solo el protocolo `idd` y los revisores a los que despacha, no todas las skills de la build.
+- **Entregado en v2.117.18, E1.14 hecho:** REQ-install-041. `install:codex -- <repo>` escribe en `<repo>/.agents/skills/` las skills `idd`, `review-trust` y `review-correction` (y `sdd-orchestrator` con SDD) con sus `_shared`, y copia el runtime en `<repo>/.codex/ospec-workflow/`; las skills lo nombran como `.codex/ospec-workflow`, relativo a la raíz, así que funciona en cualquier clon. Comprueba todos los destinos antes de escribir, poda los ficheros del runtime que la build ya no tiene y no escribe nada con `--dry-run`. Un test de extremo a extremo instala la build real en un repositorio sin instalación global y ejecuta `ospec next` con el comando que nombra la skill. `ospec doctor` da `codex-repo` `ok` solo si existe el runtime que nombra la skill. Hecho con IDD (`idd/archive/2026-10-09-codex-repo-runtime/`).
 
 ### E1.15 — `idd-review-successor-policy`
 
@@ -716,6 +718,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-09: E1.14 `codex-repo-runtime` hecho con IDD en v2.117.18; la instalación de Codex por repositorio sigue IDD sin instalación global.
 - 2026-10-09: E1.12 `session-hook-idd` hecho con IDD en v2.117.17; `Stop` y `PreCompact` retoman los cambios IDD desde disco, con paridad JS/Go.
 - 2026-10-09: E1.11 `idd-protocol-hygiene` hecho con IDD en v2.117.16; plan declarado en el state, paso `declare-plan` y `record retract` para señales sobredeclaradas.
 - 2026-10-09: E1.24 `setup-flags-reliability` añadido a petición del usuario: `setup:claude --dry-run` instalaba de verdad y `--no-sdd` falla en PowerShell por el `--` que consume `npm.ps1`.

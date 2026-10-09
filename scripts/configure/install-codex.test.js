@@ -2171,3 +2171,69 @@ test("--no-router installs without the router and removes an earlier block", (t)
   assert.equal(installRouter(t, ["--no-router"], { homeDir }), 0);
   assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "AGENTS.md")));
 });
+
+// E1.14 codex-repo-runtime: a repository-only Codex install carries the IDD
+// protocol and its own runtime, so `ospec next` runs from the `idd` skill.
+test("a repository install carries the IDD protocol and a relative runtime that ospec next runs from", async (t) => {
+  const { spawnSync } = require("node:child_process");
+  const { runDoctor } = require("../lib/ospec-doctor.js");
+  const sourceDir = path.resolve(__dirname, "..", "..");
+  const outDir = makeTempDir(t, "codex-repo-runtime-build-");
+  const destRepo = makeTempDir(t, "codex-repo-runtime-dest-");
+  const home = makeTempDir(t, "codex-repo-runtime-home-");
+
+  const exitCode = main([destRepo, "--no-validate"], {
+    cwd: sourceDir,
+    outDir,
+    homedir: () => home,
+    stdout: { write() {} },
+    stderr: { write() {} },
+    findCodexBin: () => null,
+    runCodexCommand() {
+      throw new Error("repo install must not run codex");
+    },
+  });
+  assert.equal(exitCode, 0);
+
+  const skills = path.join(destRepo, ".agents", "skills");
+  const protocol = fs.readFileSync(path.join(skills, "idd", "SKILL.md"), "utf8");
+  assert.match(protocol, /`ospec` below means `node "\.codex\/ospec-workflow\/scripts\/ospec\.js"`/);
+  assert.doesNotMatch(protocol, /__OSPEC_[A-Z_]+__/);
+  for (const skill of ["review-trust", "review-correction"]) {
+    assert.ok(fs.existsSync(path.join(skills, skill, "SKILL.md")), `${skill} is installed`);
+  }
+  assert.ok(fs.existsSync(path.join(skills, "_shared", "review-judgment.md")), "the reviewers' _shared handlers are installed");
+  assert.ok(!fs.existsSync(path.join(skills, "stack-go")), "only the IDD protocol and its reviewers are installed");
+
+  // The command the skill names, run from the repository root as the skill says.
+  const [, cli] = /node "([^"]+)"/.exec(protocol);
+  const next = spawnSync(process.execPath, [cli, "next", "--json"], { cwd: destRepo, encoding: "utf8", env: { ...process.env, HOME: home, USERPROFILE: home } });
+  assert.equal(next.status, 0, next.stderr);
+  assert.deepEqual(JSON.parse(next.stdout).next_step, { action: "open-change" });
+
+  const result = await runDoctor({ root: destRepo, home, env: {}, platform: "linux", arch: "x64", spawn: () => ({ status: 1, stdout: "", stderr: "" }) });
+  const check = result.checks.find((entry) => entry.scope === "project" && entry.id === "codex-repo");
+  assert.equal(check?.status, "ok", JSON.stringify(check));
+
+  // A second install converges and removes runtime files the build no longer has.
+  const stale = path.join(destRepo, ".codex", "ospec-workflow", "scripts", "lib", "stale-module.js");
+  fs.writeFileSync(stale, "// stale\n");
+  assert.equal(main([destRepo, "--no-validate"], { cwd: sourceDir, outDir, homedir: () => home, stdout: { write() {} }, stderr: { write() {} }, findCodexBin: () => null }), 0);
+  assert.ok(!fs.existsSync(stale), "the managed runtime keeps no stale file");
+  assert.ok(fs.existsSync(path.join(destRepo, ".codex", "ospec-workflow", "scripts", "ospec.js")));
+});
+
+test("a repository dry run writes neither the protocol nor the runtime", (t) => {
+  const sourceDir = path.resolve(__dirname, "..", "..");
+  const outDir = makeTempDir(t, "codex-repo-dry-build-");
+  const destRepo = makeTempDir(t, "codex-repo-dry-dest-");
+  const exitCode = main([destRepo, "--no-validate", "--dry-run"], {
+    cwd: sourceDir,
+    outDir,
+    stdout: { write() {} },
+    stderr: { write() {} },
+    findCodexBin: () => null,
+  });
+  assert.equal(exitCode, 0);
+  assert.deepEqual(fs.readdirSync(destRepo), []);
+});
