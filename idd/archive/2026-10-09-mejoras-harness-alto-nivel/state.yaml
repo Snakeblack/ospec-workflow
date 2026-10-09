@@ -1,0 +1,68 @@
+{
+  "schema": "idd-state/v1",
+  "change": "mejoras-harness-alto-nivel",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "Análisis detallado de puntos de mejora del harness para desarrollo de alto nivel: cambios pequeños y grandes, contexto multi-servicio, workspace federado con IDD y foundation con visión de arquitecto sin sobreingeniería",
+    "acceptance": "Documento fechado en docs/analysis con diagnóstico basado en evidencia del repo, puntos de mejora priorizados (problema, propuesta mínima, alternativas, criterio de hecho) para IDD, foundation, federación/workspace y escalado pequeño-grande; sin implementar código"
+  },
+  "facts": {
+    "basis": "Petición explícita del usuario; es un análisis documental, no fija comportamiento del sistema; su incorporación al roadmap queda para decisión posterior"
+  },
+  "plan": {
+    "paths": [
+      "docs/analysis/2026-10-09-mejoras-harness-alto-nivel.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-09T14:45:03.730Z",
+      "detail": {
+        "tree": "sha256:10b2cc634d73bc1a39114b3205729f6643362fd6b1184f7af1f9db4e7e6ac5c7",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "d82f5de95b24e08efe27c02eae883aa7ad16b3be",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8ee41b1b88cfbc0767ebbe12d987bdb39d93f7b4b9719b450e9822f5fdb9aa3d",
+      "tree": "sha256:10b2cc634d73bc1a39114b3205729f6643362fd6b1184f7af1f9db4e7e6ac5c7",
+      "recorded_at": "2026-10-09T14:45:03.730Z"
+    }
+  ],
+  "closed_at": "2026-10-09T14:45:18.839Z"
+}
