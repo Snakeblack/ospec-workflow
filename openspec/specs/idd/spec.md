@@ -390,7 +390,9 @@ It MUST NOT write configuration, execute a candidate or satisfy evidence.
 `ospec signals` MUST derive the signals of an open change with a resolved
 intent and record the ones not yet recorded. `always` MUST derive from the
 resolved intent; `strict-tdd` from `strict_tdd: true` in `idd/config.yaml`
-unless the intent kind is `docs`; `bug-fix` from the intent kind `bug`; and
+unless the intent kind is `docs` or `refactor` (a red test describes new
+behavior, and a refactor keeps behavior under the tests that already pass);
+`bug-fix` from the intent kind `bug`; and
 `multi-unit-or-decision` from more than one declared work unit or a declared
 non-obvious decision. A call that names paths, work units, a decision or an
 operation MUST record them as the change's `plan`, widening any plan already
@@ -460,6 +462,13 @@ derivation misses, nor reopen a resolved gate (REQ-idd-006). While
   project with `strict_tdd: true`
 - WHEN its signals are derived
 - THEN the only signal MUST be `always`
+
+#### Scenario: A refactor under strict TDD owes no red test
+
+- GIVEN a `refactor` change in a project with `strict_tdd: true`
+- WHEN its signals are derived
+- THEN `strict-tdd` MUST NOT be active and `tdd-red-green` MUST NOT be owed
+- AND `checks-pass` MUST still require every check to pass on the final tree
 
 #### Scenario: A published file is a public contract
 

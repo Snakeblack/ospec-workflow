@@ -23,7 +23,7 @@ Un arreglo de una línea y una migración de esquema no necesitan la misma cerem
 | --- | --- | --- |
 | `always` | Todo cambio con intención resuelta | `checks-pass`: `ospec check` ejecuta los checks declarados en `idd/config.yaml` sobre el árbol actual |
 | `bug-fix` | La intención es un bug | `repro-test`: el test de reproducción falla primero y después pasa |
-| `strict-tdd` | `strict_tdd: true` en `idd/config.yaml` | `tdd-red-green`: un par rojo → verde por unidad |
+| `strict-tdd` | `strict_tdd: true` en `idd/config.yaml`, salvo en cambios de documentación y refactors | `tdd-red-green`: un par rojo → verde por unidad |
 | `public-contract` | El cambio toca rutas de API, esquemas OpenAPI, proto o GraphQL, o lo que publica un `package.json` no privado | `contract-spec-and-test`: el documento de contrato y su test cambian en el diff |
 | `persistent-data` | El cambio toca migraciones, SQL o esquemas de ORM | `migration-compat-and-test`: un test de migración con plan de compatibilidad o de vuelta atrás |
 | `security-boundary` | El cambio toca autenticación, seguridad, permisos, secretos o credenciales | `trust-review`: una revisión de confianza acotada y de solo lectura |

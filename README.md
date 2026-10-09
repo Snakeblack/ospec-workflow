@@ -37,7 +37,7 @@ A one-line fix and a schema migration do not need the same ceremony. IDD has no 
 | --- | --- | --- |
 | `always` | Every change with a resolved intent | `checks-pass`: `ospec check` runs the checks declared in `idd/config.yaml` on the current tree |
 | `bug-fix` | The intent is a bug | `repro-test`: the reproduction test fails first, then passes |
-| `strict-tdd` | `strict_tdd: true` in `idd/config.yaml` | `tdd-red-green`: a red → green pair per unit |
+| `strict-tdd` | `strict_tdd: true` in `idd/config.yaml`, except for docs and refactor changes | `tdd-red-green`: a red → green pair per unit |
 | `public-contract` | The change touches API routes, OpenAPI, proto or GraphQL schemas, or what a non-private `package.json` publishes | `contract-spec-and-test`: the contract document and its test change in the diff |
 | `persistent-data` | The change touches migrations, SQL or ORM schemas | `migration-compat-and-test`: a migration test with a compatibility or rollback plan |
 | `security-boundary` | The change touches auth, security, permissions, secrets or credentials | `trust-review`: a bounded read-only trust review |

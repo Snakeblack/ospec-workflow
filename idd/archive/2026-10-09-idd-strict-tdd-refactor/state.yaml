@@ -1,0 +1,113 @@
+{
+  "schema": "idd-state/v1",
+  "change": "idd-strict-tdd-refactor",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "With strict_tdd a behavior-preserving refactor owes tdd-red-green, which it can only satisfy with a fabricated failing test",
+    "acceptance": "strict-tdd derives for every resolved intent except docs and refactor; a refactor under strict TDD owes checks-pass on the final tree; spec, tests and README say so"
+  },
+  "facts": {
+    "basis": "The harness defines REFACTOR as a green-to-green step (skills/sdd-apply/strict-tdd.md) and the SDD refactor route as behavior-preserving; a red test needs new behavior, which a refactor has none of"
+  },
+  "plan": {
+    "paths": [
+      "README.es.md",
+      "README.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-signals.js",
+      "scripts/lib/idd-signals.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-09T12:44:49.668Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-09T12:46:21.596Z",
+      "detail": {
+        "tree": "sha256:c66727dc9d25aa629703cb443059840529ad3a1d35c8e7684db46fc92ca5df04",
+        "runs": [
+          "run-3"
+        ]
+      }
+    }
+  ],
+  "base": "2a4392656814a55e2e0bbc871ba8eb16ea81ace2",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:417c777a6546b75b2ef70d94c0de78402b5e552bb40731f1c9125eb035c50ac9",
+      "tree": "sha256:b782d7b012838b43c76f24bdfc1de3fcc0ec463cf1225c63e1daf89fdb3772eb",
+      "recorded_at": "2026-10-09T12:44:04.775Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0c2f600ac6653ce0228a7ecf427f0e9bc426e877b9d6a4aa75cc099991fb7127",
+      "tree": "sha256:ee7693e9d3270e5c662f1fe47bdb8af2c3133f74c2969c86ecaae95b03283372",
+      "recorded_at": "2026-10-09T12:44:49.668Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b2ab8528e6d1aff8727787e0a47c4eabae06963a1acd9d0a6d1f64ef86cbfd72",
+      "tree": "sha256:c66727dc9d25aa629703cb443059840529ad3a1d35c8e7684db46fc92ca5df04",
+      "recorded_at": "2026-10-09T12:46:21.596Z"
+    }
+  ],
+  "closed_at": "2026-10-09T12:46:21.746Z"
+}
