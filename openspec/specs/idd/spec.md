@@ -253,7 +253,9 @@ neither the request nor the code settles are open (REQ-idd-018),
 or contradicts an ADR, and `irreversible-operation` before a destructive or
 irreversible operation. No other question MAY block progress. A gate MUST be
 resolved only by an explicit user answer, recorded with its source. While
-`ambiguous-intent` is open, no signal MUST be derived.
+`ambiguous-intent` is open, no signal MUST be derived. Until E3.1 derives ADR
+impact, no derivation opens `adr-amend-or-contradict`: the agent MUST open it
+with `record gate --open` and a reason naming the ADR before it asks.
 
 #### Scenario: Ambiguous intent stops before signals
 
@@ -321,22 +323,23 @@ MUST be kebab-case before it reaches the filesystem. `next` MUST be a read-only
 function of the stored state and, when check evidence is next, the project's
 check configuration and command suggestion. It MUST return the change, its pending
 obligations in work order, the pending decision, the next step and the
-knowledge references. The next step MUST be `resolve-gate` while the intent is
-ambiguous, else `resolve-gate` while `open-facts` is open, else
-`declare-plan` (with `how` naming `ospec signals`) while the change has no
-recorded `plan`, no signal from the diff and no run, else the first
-pending obligation in the order `repro-test`,
-`tdd-red-green`, `contract-spec-and-test`, `migration-compat-and-test`,
-`adr-impact-declaration`, `trust-review`, `checks-pass`, `living-doc`, else the
-first open gate, else `close`. The CLI MUST exit with 0 on success, 1 when the
-IDD contract refuses the request and 2 on a usage error.
+knowledge references. The next step MUST be `resolve-gate` for the first open
+gate in the order `ambiguous-intent`, `open-facts`, `adr-amend-or-contradict`,
+`irreversible-operation`, because every gate is a decision the user takes
+before the work it decides (REQ-idd-008); else `declare-plan` (with `how`
+naming `ospec signals`) while the change has no recorded `plan`, no signal
+from the diff and no run; else the first pending obligation in the order
+`repro-test`, `tdd-red-green`, `contract-spec-and-test`,
+`migration-compat-and-test`, `adr-impact-declaration`, `trust-review`,
+`checks-pass`, `living-doc`; else `close`. The CLI MUST exit with 0 on
+success, 1 when the IDD contract refuses the request and 2 on a usage error.
 
 Before the pending `checks-pass` or `contract-spec-and-test` step, if no checks
 are declared, `next` MUST instead return `next_step.action: configure-checks`,
 `obligation: checks-pass`, `file: idd/config.yaml`, `requires_approval: true`,
 `candidate_command` (a suggestion or null) and `how` naming the `checks:` edit
-and explicit user approval. This prerequisite MUST NOT override an ambiguous
-intent, open facts, earlier obligations, change selection or a closed change.
+and explicit user approval. This prerequisite MUST NOT override an open gate,
+earlier obligations, change selection or a closed change.
 It MUST NOT write configuration, execute a candidate or satisfy evidence.
 
 #### Scenario: Next asks for the plan before any obligation
@@ -346,6 +349,14 @@ It MUST NOT write configuration, execute a candidate or satisfy evidence.
 - THEN the next step MUST be `declare-plan`
 - AND once `signals --path src/lib/paginate.js` runs, it MUST be the first
   pending obligation
+
+#### Scenario: A decision gate comes before the work it decides
+
+- GIVEN an open change with a declared plan, a pending
+  `migration-compat-and-test` and an open `irreversible-operation` gate
+- WHEN `next` runs
+- THEN the next step MUST be `resolve-gate` for `irreversible-operation`
+- AND the pending obligations MUST still list `migration-compat-and-test`
 
 #### Scenario: Repeated record is a no-op
 

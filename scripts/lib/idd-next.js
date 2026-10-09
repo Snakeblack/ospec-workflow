@@ -4,7 +4,7 @@
 // `ospec next` and `ospec status` (REQ-idd-011). The same inputs yield the same
 // output, whatever order the state's signals were recorded in.
 
-const { CHANGE_ROOT, GATES, LIVING_DOC_FILE, OBLIGATIONS, isIntentAmbiguous } = require("./idd-contract.js");
+const { CHANGE_ROOT, GATES, LIVING_DOC_FILE, OBLIGATIONS } = require("./idd-contract.js");
 const { configureChecksStep } = require("./idd-checks-config.js");
 
 // Order in which pending obligations are worked: evidence produced while
@@ -86,11 +86,10 @@ function nextForChange(state, { checks, candidateCommand } = {}) {
   let nextStep;
   if (state.status === "closed") {
     nextStep = { action: "none" };
-  } else if (isIntentAmbiguous(state)) {
-    nextStep = { action: "resolve-gate", gate: "ambiguous-intent" };
-  } else if (openGates.some((gate) => gate.id === "open-facts")) {
-    // Open facts are asked before anything is built (REQ-idd-018).
-    nextStep = { action: "resolve-gate", gate: "open-facts" };
+  } else if (openGates.length > 0) {
+    // Every gate is the user's decision, taken before the work it decides
+    // (REQ-idd-008, REQ-idd-018), in gate order: ambiguous-intent first.
+    nextStep = { action: "resolve-gate", gate: openGates[0].id };
   } else if (!planDeclared(state)) {
     // The plan is declared before anything is edited (E1.11).
     nextStep = declarePlanStep(state.change);
@@ -100,8 +99,6 @@ function nextForChange(state, { checks, candidateCommand } = {}) {
     if (checks?.length === 0 && ["checks-pass", "contract-spec-and-test"].includes(pending[0].id)) {
       nextStep = configureChecksStep(candidateCommand);
     }
-  } else if (openGates.length > 0) {
-    nextStep = { action: "resolve-gate", gate: openGates[0].id };
   } else {
     nextStep = { action: "close" };
   }

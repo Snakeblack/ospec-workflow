@@ -82,7 +82,9 @@ when requested. `ospec doctor` warns about open IDD changes without checks.
    it with `ospec record retract --change <id> --signal <id> --reason "<why>"`;
    the CLI refuses while the diff confirms it.
 5. Loop: `ospec next --change <id> --json`, do what `next_step` says, repeat.
-   Work the obligations in the order `next` gives them:
+   `resolve-gate` comes first while any gate is open: ask its
+   `pending_decision` (see Gates) and build nothing it decides until the user
+   answers. Work the obligations in the order `next` gives them:
    - `repro-test`: write the reproduction test first and run it with
      `ospec run --obligation repro-test --command "<test>"` while it fails;
      fix the code; run the same command again so it passes.
@@ -117,8 +119,16 @@ answer:
 - `ambiguous-intent`: rule 3.
 - `open-facts`: rule 2. Ask every question of `pending_decision.questions` in
   one message.
-- `irreversible-operation`: before a destructive or irreversible operation.
-- `adr-amend-or-contradict`: when the change amends or contradicts an ADR.
+- `irreversible-operation`: `--operation` in rule 4 or a destructive
+  statement in the diff opens it. Before any other destructive or
+  irreversible step (deleting data, rewriting published history), open it
+  yourself: `ospec record gate --change <id> --gate irreversible-operation --open --reason "<operation>"`.
+- `adr-amend-or-contradict`: no command detects it, so check it yourself
+  before declaring the plan. Read the architecture decisions that govern the
+  code you will touch (`docs/architecture/decisions/` unless the project keeps
+  them elsewhere). If the change amends or contradicts one, open the gate with
+  `ospec record gate --change <id> --gate adr-amend-or-contradict --open --reason "<ADR>: <how the change departs from it>"`
+  and ask. A change that conforms opens nothing.
 
 Resolve each one with `ospec record gate --change <id> --gate <id> --resolve --answer "<their words>" --source user`.
 Only an explicit answer from the user resolves a gate. Outside these gates

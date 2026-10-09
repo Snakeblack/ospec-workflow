@@ -594,7 +594,9 @@ function describeSignals(result) {
   const lines = result.signals.map((s) => `${s.id} (${s.source}): ${s.reason}`);
   for (const gate of result.gates) lines.push(`gate ${gate.id}: ${gate.reason}`);
   const added = [...result.added.signals, ...result.added.gates.map((g) => `gate:${g}`)];
-  lines.push(added.length ? `recorded: ${added.join(", ")}` : "no change: every derived signal was already recorded");
+  if (added.length) lines.push(`recorded: ${added.join(", ")}`);
+  else if (result.changed) lines.push("recorded the plan; every derived signal was already recorded");
+  else lines.push("no change: the plan and every derived signal were already recorded");
   if (result.floor) lines.push(`floor: ${result.floor}`);
   lines.push(describeNext(result.next));
   return lines.join("\n");

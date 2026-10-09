@@ -60,6 +60,9 @@ for (const target of Object.keys(ROUTERS)) {
     for (const gate of ["ambiguous-intent", "open-facts", "irreversible-operation", "adr-amend-or-contradict"]) {
       assert.ok(protocol.includes(`\`${gate}\``), `${target}: protocol must name the ${gate} gate`);
     }
+    // No derivation opens the ADR gate: resolving it unopened fails with gate-not-open.
+    assert.ok(protocol.includes("--gate adr-amend-or-contradict --open"), `${target}: protocol must say how to open the ADR gate`);
+    assert.match(protocol, /`resolve-gate` comes first/, `${target}: an open gate is asked before the work it decides`);
     for (const command of ["ospec next", "ospec record intent", "ospec signals", "ospec check", "ospec close"]) {
       assert.ok(protocol.includes(command), `${target}: protocol must use ${command}`);
     }

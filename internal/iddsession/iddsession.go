@@ -344,11 +344,9 @@ func DescribeStep(s *State, hasChecks bool) string {
 	resolveGate := func(gate string) string {
 		return "Resolve the `" + gate + "` gate with the user: `ospec next --change " + change + "` shows what to ask."
 	}
-	if s.gateOpen("ambiguous-intent") {
-		return resolveGate("ambiguous-intent")
-	}
-	if s.gateOpen("open-facts") {
-		return resolveGate("open-facts")
+	// Every gate is the user's decision, taken before the work it decides.
+	if open := s.OpenGates(); len(open) > 0 {
+		return resolveGate(open[0])
 	}
 	if !s.planDeclared() {
 		return "Declare the plan: `ospec signals --change " + change + " --path <file>... [--work-units <n>] [--decision] [--operation <op>]`."
@@ -363,9 +361,6 @@ func DescribeStep(s *State, hasChecks bool) string {
 			return "Satisfy `" + first + "` with " + evidenceKinds[first] + " evidence: run `ospec next --change " + change + "`."
 		}
 		return "Satisfy `" + first + "` with " + evidenceKinds[first] + " evidence: " + step(change) + "."
-	}
-	if open := s.OpenGates(); len(open) > 0 {
-		return resolveGate(open[0])
 	}
 	return "Close it: `ospec close --change " + change + "`."
 }
