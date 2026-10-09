@@ -1,0 +1,3 @@
+# project checks
+checks:
+  test: npm test # unit and integration

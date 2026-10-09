@@ -1,0 +1,43 @@
+{
+  "schema": "idd-state/v1",
+  "change": "c-facts",
+  "mode": "idd",
+  "status": "open",
+  "intent": {
+    "kind": "feature",
+    "summary": "Discount codes.",
+    "acceptance": "VERANO10 takes 10%."
+  },
+  "facts": {
+    "open": [
+      "Does case matter?"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "pending",
+      "evidence": []
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "open"
+    },
+    {
+      "id": "irreversible-operation",
+      "status": "open",
+      "reason": "drops a table"
+    }
+  ],
+  "evidence": []
+}

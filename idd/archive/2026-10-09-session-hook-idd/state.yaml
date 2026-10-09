@@ -1,0 +1,1190 @@
+{
+  "schema": "idd-state/v1",
+  "change": "session-hook-idd",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Los hooks Stop y PreCompact reconocen los cambios IDD abiertos y escriben su siguiente paso (E1.12)",
+    "acceptance": "Con un cambio IDD abierto, latest.md lo nombra con su siguiente paso de nextForChange; con varios cambios abiertos los lista sin elegir; PreCompact escribe un resumen por cambio IDD; los cambios solo SDD conservan su salida; paridad JS/Go"
+  },
+  "facts": {
+    "open": [
+      "Con varios cambios abiertos (IDD y/o SDD), ¿qué escribe Stop en latest.md?",
+      "¿Qué hace PreCompact con los cambios IDD abiertos?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      ".claude-plugin/plugin.json",
+      ".plugin.json",
+      "CHANGELOG.md",
+      "docs/roadmaps/harness-evolution.md",
+      "internal/hooks/iddsession_golden_test.go",
+      "internal/hooks/precompact.go",
+      "internal/hooks/stop.go",
+      "internal/iddsession/iddsession.go",
+      "internal/iddsession/iddsession_test.go",
+      "internal/testdata/idd-session/one-idd/idd/fix-a/state.yaml",
+      "openspec/config.yaml",
+      "openspec/specs/hooks/spec.md",
+      "package.json",
+      "scripts/hooks/idd-session.test.js",
+      "scripts/hooks/lib/idd-session.js",
+      "scripts/hooks/pre-compact.js",
+      "scripts/hooks/stop.js"
+    ],
+    "work_units": 2,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches .claude-plugin/plugin.json and 1 more (matches .claude-plugin/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/idd-session.test.js and 3 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-11"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-9"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-10"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "1) Listar sin elegir: con un único cambio, su nombre, la fase (idd para IDD), el estado y el siguiente paso de nextForChange; con varios, Active change los lista todos y marca la ambigüedad, y la acción siguiente da el paso de cada uno sin elegir ninguno; si solo hay cambios SDD, la salida no cambia. 2) Resumen por cambio: PreCompact escribe el resumen detallado de cada cambio IDD abierto en su ruta de sesión (intención, obligaciones pendientes, gates abiertos y siguiente paso), con paridad JS/Go en Stop y PreCompact.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-09T11:06:23.342Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-09T11:09:06.874Z",
+      "detail": {
+        "tree": "sha256:100678b4323812773e42dd3a87ff7bce20ca39bc6f2188d0a548977168ae0c6e",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-09T11:09:06.874Z",
+      "detail": {
+        "tree": "sha256:100678b4323812773e42dd3a87ff7bce20ca39bc6f2188d0a548977168ae0c6e",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/hooks/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/iddsession_golden_test.go",
+          "internal/iddsession/iddsession_test.go",
+          "scripts/hooks/idd-session.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-09T11:11:55.348Z",
+      "detail": {
+        "lineage_id": "sha256:82dfb43012a442c28c79189158f0d24a94bdbb2b58b3d9c54002c3c92eb17cd4",
+        "candidate_id": "sha256:daaef8b7ca11266c659ae34b96821fc739356edb6b46b62a6d971673fd716964",
+        "candidate_tree": "34cf6e96a830bb24daf590505af02a0ed02a1ac9",
+        "findings_digest": "sha256:432f33dde004afce2b4c8230da13bd97b28b1b74786c56bc5aa8d40a6b1c515f"
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-09T11:33:20.275Z",
+      "detail": {
+        "tree": "sha256:b7c07647535fa79cfb729a9bad5a00e702c2576a77a355a49b8da9d10b529596",
+        "runs": [
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-09T11:33:20.275Z",
+      "detail": {
+        "tree": "sha256:b7c07647535fa79cfb729a9bad5a00e702c2576a77a355a49b8da9d10b529596",
+        "check": "ev-5",
+        "documents": [
+          "openspec/specs/hooks/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/iddsession_golden_test.go",
+          "internal/iddsession/iddsession_test.go",
+          "scripts/hooks/idd-session.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-09T11:37:58.919Z",
+      "detail": {
+        "lineage_id": "sha256:112b54eacc8f53be85f2ccbabd254e2a68341c1d9f3d4cfd8fe5624becc567cb",
+        "candidate_id": "sha256:da2adf362cc7fc71b04b41dee3293b95120e65dec05a37c424626318cf1df0b8",
+        "candidate_tree": "72e57c7ec194487e1e1ba2412441b5c427025749",
+        "findings_digest": "sha256:2d2c86f8e5ec8a040b5f5fbf1da86b3448ef30be263f8e338b3b37e9d71d26dd"
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-09T11:41:35.761Z",
+      "detail": {
+        "tree": "sha256:ef5d2fb4fe66e63f66ecaa5f38df2f4f1b2597b3f7770666a27138a7ae71feef",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-09T11:41:35.761Z",
+      "detail": {
+        "tree": "sha256:ef5d2fb4fe66e63f66ecaa5f38df2f4f1b2597b3f7770666a27138a7ae71feef",
+        "check": "ev-8",
+        "documents": [
+          "openspec/specs/hooks/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/iddsession_golden_test.go",
+          "internal/iddsession/iddsession_test.go",
+          "scripts/hooks/idd-session.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-09T11:43:14.946Z",
+      "detail": {
+        "lineage_id": "sha256:dd25eccab578b204dc6e01c58a5c1b0497c90f620ed412c6e8695918103c3d84",
+        "candidate_id": "sha256:ff274820ee98e6642524f1a78b4ca501ae2080b8df845729701530e3e81903f1",
+        "candidate_tree": "a43806f422acab23e249d6570e0413bb145aa095",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f"
+      }
+    },
+    {
+      "id": "ev-11",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-09T11:43:15.111Z"
+    }
+  ],
+  "base": "e5af36d2ba36fcd18ec73782e5c858b1fa263263",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/idd-session.test.js && go test -count=1 -run IddSession ./internal/hooks/",
+      "exit_code": 1,
+      "output_sha256": "sha256:143e014f74e5bae1554060e548659851f0fc0d34e80c78dc163a5b86fcf358f7",
+      "tree": "sha256:d55544fcaa24580af4b52fd02a71905461cd09871df59fac503aa52cd9889c1d",
+      "recorded_at": "2026-10-09T11:02:34.596Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/idd-session.test.js && go test -count=1 -run IddSession ./internal/hooks/",
+      "exit_code": 0,
+      "output_sha256": "sha256:07cfeefe1cda6e0ae5f7036fc84d3cb5232a5c7cae543ac6491cddf6808fa395",
+      "tree": "sha256:efe9e3716b53eef9245797c7dcef1a8ee1b56056904b0a41ff4382c1eabf0aba",
+      "recorded_at": "2026-10-09T11:06:23.342Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5850fbc4f5f14d8abb9e4f3b7e86b8979380facf98ac8218f8213d95b9c67c12",
+      "tree": "sha256:100678b4323812773e42dd3a87ff7bce20ca39bc6f2188d0a548977168ae0c6e",
+      "recorded_at": "2026-10-09T11:09:06.874Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:739c573fd6db4968c6839f0a470d00c6e5a1d6c29eb5e1a622ac9baadbde6009",
+      "tree": "sha256:b7c07647535fa79cfb729a9bad5a00e702c2576a77a355a49b8da9d10b529596",
+      "recorded_at": "2026-10-09T11:33:20.275Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9b80f415e1effb2ccb2e8b334d4bb63d65f59ac27f5a43aa448d15165b72186d",
+      "tree": "sha256:ef5d2fb4fe66e63f66ecaa5f38df2f4f1b2597b3f7770666a27138a7ae71feef",
+      "recorded_at": "2026-10-09T11:41:35.761Z"
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:82dfb43012a442c28c79189158f0d24a94bdbb2b58b3d9c54002c3c92eb17cd4",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "3900436bf4f41be3bbed5a7e44f717c849bad207",
+          "candidate_tree": "34cf6e96a830bb24daf590505af02a0ed02a1ac9",
+          "paths": [
+            ".claude-plugin/plugin.json",
+            ".gitattributes",
+            ".plugin.json",
+            "CHANGELOG.md",
+            "docs/roadmaps/harness-evolution.md",
+            "internal/hooks/iddsession_golden_test.go",
+            "internal/hooks/precompact.go",
+            "internal/hooks/stop.go",
+            "internal/iddsession/iddsession.go",
+            "internal/iddsession/iddsession_test.go",
+            "internal/testdata/idd-session/README.md",
+            "internal/testdata/idd-session/many/expected/session/a-config/session-summary.md",
+            "internal/testdata/idd-session/many/expected/session/b-docs/session-summary.md",
+            "internal/testdata/idd-session/many/expected/session/c-facts/session-summary.md",
+            "internal/testdata/idd-session/many/expected/session/latest.md",
+            "internal/testdata/idd-session/many/input.json",
+            "internal/testdata/idd-session/many/workspace/idd/a-config/state.yaml",
+            "internal/testdata/idd-session/many/workspace/idd/archive/2026-10-08-old/state.yaml",
+            "internal/testdata/idd-session/many/workspace/idd/b-docs/state.yaml",
+            "internal/testdata/idd-session/many/workspace/idd/c-facts/state.yaml",
+            "internal/testdata/idd-session/many/workspace/idd/z-closed/state.yaml",
+            "internal/testdata/idd-session/many/workspace/openspec/changes/add-export/state.yaml",
+            "internal/testdata/idd-session/one-idd/expected/session/fix-a/session-summary.md",
+            "internal/testdata/idd-session/one-idd/expected/session/latest.md",
+            "internal/testdata/idd-session/one-idd/input.json",
+            "internal/testdata/idd-session/one-idd/workspace/idd/config.yaml",
+            "internal/testdata/idd-session/one-idd/workspace/idd/fix-a/state.yaml",
+            "internal/testdata/idd-session/steps/expected/session/latest.md",
+            "internal/testdata/idd-session/steps/expected/session/s-checks/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-close/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-contract/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-gate/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-living/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-migration/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-review/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-tdd/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-vague/session-summary.md",
+            "internal/testdata/idd-session/steps/input.json",
+            "internal/testdata/idd-session/steps/workspace/idd/config.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-checks/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-close/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-contract/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-gate/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-living/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-migration/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-review/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-tdd/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-vague/state.yaml",
+            "openspec/config.yaml",
+            "openspec/specs/hooks/spec.md",
+            "package.json",
+            "scripts/hooks/idd-session.test.js",
+            "scripts/hooks/lib/idd-session.js",
+            "scripts/hooks/pre-compact.js",
+            "scripts/hooks/stop.js"
+          ],
+          "diff_hash": "sha256:2dc74ad5c5764291104a96a590b64e4359898a7dcd2487e7fac69a1a3206c608",
+          "paths_digest": "sha256:e70e72ea901fa7f4ccc1771a06e2004fefb2d227243053732569719e241f122f",
+          "authored_lines": 2228,
+          "original_changed_lines": 2270
+        },
+        "candidate_id": "sha256:daaef8b7ca11266c659ae34b96821fc739356edb6b46b62a6d971673fd716964",
+        "paths": [
+          ".claude-plugin/plugin.json",
+          ".gitattributes",
+          ".plugin.json",
+          "CHANGELOG.md",
+          "docs/roadmaps/harness-evolution.md",
+          "internal/hooks/iddsession_golden_test.go",
+          "internal/hooks/precompact.go",
+          "internal/hooks/stop.go",
+          "internal/iddsession/iddsession.go",
+          "internal/iddsession/iddsession_test.go",
+          "internal/testdata/idd-session/README.md",
+          "internal/testdata/idd-session/many/expected/session/a-config/session-summary.md",
+          "internal/testdata/idd-session/many/expected/session/b-docs/session-summary.md",
+          "internal/testdata/idd-session/many/expected/session/c-facts/session-summary.md",
+          "internal/testdata/idd-session/many/expected/session/latest.md",
+          "internal/testdata/idd-session/many/input.json",
+          "internal/testdata/idd-session/many/workspace/idd/a-config/state.yaml",
+          "internal/testdata/idd-session/many/workspace/idd/archive/2026-10-08-old/state.yaml",
+          "internal/testdata/idd-session/many/workspace/idd/b-docs/state.yaml",
+          "internal/testdata/idd-session/many/workspace/idd/c-facts/state.yaml",
+          "internal/testdata/idd-session/many/workspace/idd/z-closed/state.yaml",
+          "internal/testdata/idd-session/many/workspace/openspec/changes/add-export/state.yaml",
+          "internal/testdata/idd-session/one-idd/expected/session/fix-a/session-summary.md",
+          "internal/testdata/idd-session/one-idd/expected/session/latest.md",
+          "internal/testdata/idd-session/one-idd/input.json",
+          "internal/testdata/idd-session/one-idd/workspace/idd/config.yaml",
+          "internal/testdata/idd-session/one-idd/workspace/idd/fix-a/state.yaml",
+          "internal/testdata/idd-session/steps/expected/session/latest.md",
+          "internal/testdata/idd-session/steps/expected/session/s-checks/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-close/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-contract/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-gate/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-living/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-migration/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-review/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-tdd/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-vague/session-summary.md",
+          "internal/testdata/idd-session/steps/input.json",
+          "internal/testdata/idd-session/steps/workspace/idd/config.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-checks/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-close/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-contract/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-gate/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-living/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-migration/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-review/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-tdd/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-vague/state.yaml",
+          "openspec/config.yaml",
+          "openspec/specs/hooks/spec.md",
+          "package.json",
+          "scripts/hooks/idd-session.test.js",
+          "scripts/hooks/lib/idd-session.js",
+          "scripts/hooks/pre-compact.js",
+          "scripts/hooks/stop.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "34cf6e96a830bb24daf590505af02a0ed02a1ac9",
+        "original_changed_lines": 2270,
+        "authored_lines": 2228
+      },
+      "current_candidate_id": "sha256:daaef8b7ca11266c659ae34b96821fc739356edb6b46b62a6d971673fd716964",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "3900436bf4f41be3bbed5a7e44f717c849bad207",
+        "candidate_tree": "34cf6e96a830bb24daf590505af02a0ed02a1ac9",
+        "paths": [
+          ".claude-plugin/plugin.json",
+          ".gitattributes",
+          ".plugin.json",
+          "CHANGELOG.md",
+          "docs/roadmaps/harness-evolution.md",
+          "internal/hooks/iddsession_golden_test.go",
+          "internal/hooks/precompact.go",
+          "internal/hooks/stop.go",
+          "internal/iddsession/iddsession.go",
+          "internal/iddsession/iddsession_test.go",
+          "internal/testdata/idd-session/README.md",
+          "internal/testdata/idd-session/many/expected/session/a-config/session-summary.md",
+          "internal/testdata/idd-session/many/expected/session/b-docs/session-summary.md",
+          "internal/testdata/idd-session/many/expected/session/c-facts/session-summary.md",
+          "internal/testdata/idd-session/many/expected/session/latest.md",
+          "internal/testdata/idd-session/many/input.json",
+          "internal/testdata/idd-session/many/workspace/idd/a-config/state.yaml",
+          "internal/testdata/idd-session/many/workspace/idd/archive/2026-10-08-old/state.yaml",
+          "internal/testdata/idd-session/many/workspace/idd/b-docs/state.yaml",
+          "internal/testdata/idd-session/many/workspace/idd/c-facts/state.yaml",
+          "internal/testdata/idd-session/many/workspace/idd/z-closed/state.yaml",
+          "internal/testdata/idd-session/many/workspace/openspec/changes/add-export/state.yaml",
+          "internal/testdata/idd-session/one-idd/expected/session/fix-a/session-summary.md",
+          "internal/testdata/idd-session/one-idd/expected/session/latest.md",
+          "internal/testdata/idd-session/one-idd/input.json",
+          "internal/testdata/idd-session/one-idd/workspace/idd/config.yaml",
+          "internal/testdata/idd-session/one-idd/workspace/idd/fix-a/state.yaml",
+          "internal/testdata/idd-session/steps/expected/session/latest.md",
+          "internal/testdata/idd-session/steps/expected/session/s-checks/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-close/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-contract/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-gate/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-living/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-migration/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-review/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-tdd/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-vague/session-summary.md",
+          "internal/testdata/idd-session/steps/input.json",
+          "internal/testdata/idd-session/steps/workspace/idd/config.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-checks/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-close/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-contract/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-gate/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-living/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-migration/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-review/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-tdd/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-vague/state.yaml",
+          "openspec/config.yaml",
+          "openspec/specs/hooks/spec.md",
+          "package.json",
+          "scripts/hooks/idd-session.test.js",
+          "scripts/hooks/lib/idd-session.js",
+          "scripts/hooks/pre-compact.js",
+          "scripts/hooks/stop.js"
+        ],
+        "diff_hash": "sha256:2dc74ad5c5764291104a96a590b64e4359898a7dcd2487e7fac69a1a3206c608",
+        "paths_digest": "sha256:e70e72ea901fa7f4ccc1771a06e2004fefb2d227243053732569719e241f122f",
+        "authored_lines": 2228,
+        "original_changed_lines": 2270
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "session-hook-idd:lens-start:1:0",
+          "result_digest": "sha256:e1fc4be1cec20c787b1fb27ddeeaff1f6451cf139e137350f84588287d214889",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "idd-session.js:20-27 and iddsession.go:179/224 skip only ENOENT/ENOTDIR. A state.yaml (or idd/config.yaml) that is a directory or unreadable (EISDIR/EACCES) throws out of readIddSession/iddsession.Read. Stop and PreCompact in Node (stop.js:153, pre-compact.js:528) and Go (stop.go:65, precompact.go:91) then abort before writing latest.md or any SDD/IDD session summary. Content committed to a repository can therefore turn off the session trace for all changes, against spec §4.7 ('a state they cannot read MUST be skipped'). The host still continues.",
+                "acceptance_criteria": "Take a workspace with one valid open IDD change `fix-a` plus `idd/broken/state.yaml` created as a directory (and, separately, an unreadable state.yaml where the platform allows it). Run Stop and PreCompact through both the Node hooks and the Go dispatcher. Each must still write latest.md naming `fix-a` and `.ospec/session/fix-a/session-summary.md`. Nothing may be written for `broken`, and both hooks must return continue:true. With an active SDD change in the workspace, its trace is written too. A directory at `idd/config.yaml` is treated as declaring no checks rather than failing the hook."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "session-hook-idd:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-e15f81131fbd4828",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "idd-session.js:20-27 and iddsession.go:179/224 skip only ENOENT/ENOTDIR. A state.yaml (or idd/config.yaml) that is a directory or unreadable (EISDIR/EACCES) throws out of readIddSession/iddsession.Read. Stop and PreCompact in Node (stop.js:153, pre-compact.js:528) and Go (stop.go:65, precompact.go:91) then abort before writing latest.md or any SDD/IDD session summary. Content committed to a repository can therefore turn off the session trace for all changes, against spec §4.7 ('a state they cannot read MUST be skipped'). The host still continues.",
+          "acceptance_criteria": "Take a workspace with one valid open IDD change `fix-a` plus `idd/broken/state.yaml` created as a directory (and, separately, an unreadable state.yaml where the platform allows it). Run Stop and PreCompact through both the Node hooks and the Go dispatcher. Each must still write latest.md naming `fix-a` and `.ospec/session/fix-a/session-summary.md`. Nothing may be written for `broken`, and both hooks must return continue:true. With an active SDD change in the workspace, its trace is written too. A directory at `idd/config.yaml` is treated as declaring no checks rather than failing the hook.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:432f33dde004afce2b4c8230da13bd97b28b1b74786c56bc5aa8d40a6b1c515f",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:112b54eacc8f53be85f2ccbabd254e2a68341c1d9f3d4cfd8fe5624becc567cb",
+      "generation": 2,
+      "predecessor_lineage_id": "sha256:82dfb43012a442c28c79189158f0d24a94bdbb2b58b3d9c54002c3c92eb17cd4",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "3900436bf4f41be3bbed5a7e44f717c849bad207",
+          "candidate_tree": "72e57c7ec194487e1e1ba2412441b5c427025749",
+          "paths": [
+            ".claude-plugin/plugin.json",
+            ".gitattributes",
+            ".plugin.json",
+            "CHANGELOG.md",
+            "docs/roadmaps/harness-evolution.md",
+            "internal/hooks/iddsession_golden_test.go",
+            "internal/hooks/precompact.go",
+            "internal/hooks/stop.go",
+            "internal/iddsession/iddsession.go",
+            "internal/iddsession/iddsession_test.go",
+            "internal/testdata/idd-session/README.md",
+            "internal/testdata/idd-session/many/expected/session/a-config/session-summary.md",
+            "internal/testdata/idd-session/many/expected/session/b-docs/session-summary.md",
+            "internal/testdata/idd-session/many/expected/session/c-facts/session-summary.md",
+            "internal/testdata/idd-session/many/expected/session/latest.md",
+            "internal/testdata/idd-session/many/input.json",
+            "internal/testdata/idd-session/many/workspace/idd/a-config/state.yaml",
+            "internal/testdata/idd-session/many/workspace/idd/archive/2026-10-08-old/state.yaml",
+            "internal/testdata/idd-session/many/workspace/idd/b-docs/state.yaml",
+            "internal/testdata/idd-session/many/workspace/idd/c-facts/state.yaml",
+            "internal/testdata/idd-session/many/workspace/idd/z-closed/state.yaml",
+            "internal/testdata/idd-session/many/workspace/openspec/changes/add-export/state.yaml",
+            "internal/testdata/idd-session/one-idd/expected/session/fix-a/session-summary.md",
+            "internal/testdata/idd-session/one-idd/expected/session/latest.md",
+            "internal/testdata/idd-session/one-idd/input.json",
+            "internal/testdata/idd-session/one-idd/workspace/idd/config.yaml",
+            "internal/testdata/idd-session/one-idd/workspace/idd/fix-a/state.yaml",
+            "internal/testdata/idd-session/steps/expected/session/latest.md",
+            "internal/testdata/idd-session/steps/expected/session/s-checks/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-close/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-contract/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-gate/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-living/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-migration/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-review/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-tdd/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-vague/session-summary.md",
+            "internal/testdata/idd-session/steps/input.json",
+            "internal/testdata/idd-session/steps/workspace/idd/config.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-checks/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-close/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-contract/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-gate/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-living/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-migration/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-review/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-tdd/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-vague/state.yaml",
+            "openspec/config.yaml",
+            "openspec/specs/hooks/spec.md",
+            "package.json",
+            "scripts/hooks/idd-session.test.js",
+            "scripts/hooks/lib/idd-session.js",
+            "scripts/hooks/pre-compact.js",
+            "scripts/hooks/stop.js"
+          ],
+          "diff_hash": "sha256:97f27465a5fa59a9ff70ed5161da3c67571f1f75150897bf5e272d6b552e7bc4",
+          "paths_digest": "sha256:e70e72ea901fa7f4ccc1771a06e2004fefb2d227243053732569719e241f122f",
+          "authored_lines": 2255,
+          "original_changed_lines": 2297
+        },
+        "candidate_id": "sha256:da2adf362cc7fc71b04b41dee3293b95120e65dec05a37c424626318cf1df0b8",
+        "paths": [
+          ".claude-plugin/plugin.json",
+          ".gitattributes",
+          ".plugin.json",
+          "CHANGELOG.md",
+          "docs/roadmaps/harness-evolution.md",
+          "internal/hooks/iddsession_golden_test.go",
+          "internal/hooks/precompact.go",
+          "internal/hooks/stop.go",
+          "internal/iddsession/iddsession.go",
+          "internal/iddsession/iddsession_test.go",
+          "internal/testdata/idd-session/README.md",
+          "internal/testdata/idd-session/many/expected/session/a-config/session-summary.md",
+          "internal/testdata/idd-session/many/expected/session/b-docs/session-summary.md",
+          "internal/testdata/idd-session/many/expected/session/c-facts/session-summary.md",
+          "internal/testdata/idd-session/many/expected/session/latest.md",
+          "internal/testdata/idd-session/many/input.json",
+          "internal/testdata/idd-session/many/workspace/idd/a-config/state.yaml",
+          "internal/testdata/idd-session/many/workspace/idd/archive/2026-10-08-old/state.yaml",
+          "internal/testdata/idd-session/many/workspace/idd/b-docs/state.yaml",
+          "internal/testdata/idd-session/many/workspace/idd/c-facts/state.yaml",
+          "internal/testdata/idd-session/many/workspace/idd/z-closed/state.yaml",
+          "internal/testdata/idd-session/many/workspace/openspec/changes/add-export/state.yaml",
+          "internal/testdata/idd-session/one-idd/expected/session/fix-a/session-summary.md",
+          "internal/testdata/idd-session/one-idd/expected/session/latest.md",
+          "internal/testdata/idd-session/one-idd/input.json",
+          "internal/testdata/idd-session/one-idd/workspace/idd/config.yaml",
+          "internal/testdata/idd-session/one-idd/workspace/idd/fix-a/state.yaml",
+          "internal/testdata/idd-session/steps/expected/session/latest.md",
+          "internal/testdata/idd-session/steps/expected/session/s-checks/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-close/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-contract/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-gate/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-living/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-migration/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-review/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-tdd/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-vague/session-summary.md",
+          "internal/testdata/idd-session/steps/input.json",
+          "internal/testdata/idd-session/steps/workspace/idd/config.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-checks/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-close/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-contract/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-gate/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-living/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-migration/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-review/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-tdd/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-vague/state.yaml",
+          "openspec/config.yaml",
+          "openspec/specs/hooks/spec.md",
+          "package.json",
+          "scripts/hooks/idd-session.test.js",
+          "scripts/hooks/lib/idd-session.js",
+          "scripts/hooks/pre-compact.js",
+          "scripts/hooks/stop.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "72e57c7ec194487e1e1ba2412441b5c427025749",
+        "original_changed_lines": 2297,
+        "authored_lines": 2255
+      },
+      "current_candidate_id": "sha256:da2adf362cc7fc71b04b41dee3293b95120e65dec05a37c424626318cf1df0b8",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "3900436bf4f41be3bbed5a7e44f717c849bad207",
+        "candidate_tree": "72e57c7ec194487e1e1ba2412441b5c427025749",
+        "paths": [
+          ".claude-plugin/plugin.json",
+          ".gitattributes",
+          ".plugin.json",
+          "CHANGELOG.md",
+          "docs/roadmaps/harness-evolution.md",
+          "internal/hooks/iddsession_golden_test.go",
+          "internal/hooks/precompact.go",
+          "internal/hooks/stop.go",
+          "internal/iddsession/iddsession.go",
+          "internal/iddsession/iddsession_test.go",
+          "internal/testdata/idd-session/README.md",
+          "internal/testdata/idd-session/many/expected/session/a-config/session-summary.md",
+          "internal/testdata/idd-session/many/expected/session/b-docs/session-summary.md",
+          "internal/testdata/idd-session/many/expected/session/c-facts/session-summary.md",
+          "internal/testdata/idd-session/many/expected/session/latest.md",
+          "internal/testdata/idd-session/many/input.json",
+          "internal/testdata/idd-session/many/workspace/idd/a-config/state.yaml",
+          "internal/testdata/idd-session/many/workspace/idd/archive/2026-10-08-old/state.yaml",
+          "internal/testdata/idd-session/many/workspace/idd/b-docs/state.yaml",
+          "internal/testdata/idd-session/many/workspace/idd/c-facts/state.yaml",
+          "internal/testdata/idd-session/many/workspace/idd/z-closed/state.yaml",
+          "internal/testdata/idd-session/many/workspace/openspec/changes/add-export/state.yaml",
+          "internal/testdata/idd-session/one-idd/expected/session/fix-a/session-summary.md",
+          "internal/testdata/idd-session/one-idd/expected/session/latest.md",
+          "internal/testdata/idd-session/one-idd/input.json",
+          "internal/testdata/idd-session/one-idd/workspace/idd/config.yaml",
+          "internal/testdata/idd-session/one-idd/workspace/idd/fix-a/state.yaml",
+          "internal/testdata/idd-session/steps/expected/session/latest.md",
+          "internal/testdata/idd-session/steps/expected/session/s-checks/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-close/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-contract/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-gate/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-living/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-migration/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-review/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-tdd/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-vague/session-summary.md",
+          "internal/testdata/idd-session/steps/input.json",
+          "internal/testdata/idd-session/steps/workspace/idd/config.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-checks/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-close/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-contract/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-gate/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-living/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-migration/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-review/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-tdd/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-vague/state.yaml",
+          "openspec/config.yaml",
+          "openspec/specs/hooks/spec.md",
+          "package.json",
+          "scripts/hooks/idd-session.test.js",
+          "scripts/hooks/lib/idd-session.js",
+          "scripts/hooks/pre-compact.js",
+          "scripts/hooks/stop.js"
+        ],
+        "diff_hash": "sha256:97f27465a5fa59a9ff70ed5161da3c67571f1f75150897bf5e272d6b552e7bc4",
+        "paths_digest": "sha256:e70e72ea901fa7f4ccc1771a06e2004fefb2d227243053732569719e241f122f",
+        "authored_lines": 2255,
+        "original_changed_lines": 2297
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "session-hook-idd:lens-start:2:0",
+          "result_digest": "sha256:be26273c649f638f7ea8d6daf24e6fb90ea4efead09e515d69335a14c5f997c6",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "idd-session.js:40 calls validateState without a try/catch. A parseable state.yaml whose arrays hold null elements (e.g. \"gates\":[null] or \"runs\":[null]) makes validateState throw a TypeError (idd-contract.js:370/:183). That rejects readIddSession, which stop.js:153 and pre-compact.js:528 await before any write. Neither latest.md nor any SDD or IDD session-summary.md is written; the hook only returns a systemMessage. This is the same failure class as the predecessor finding (§4.7: a malformed state MUST be skipped so the SDD trace is still written), reached through malformed content instead of EISDIR. The Go port skips such states, so Node and Go diverge.",
+                "acceptance_criteria": "With an active SDD change and an extra idd/<id>/state.yaml that is valid JSON but has a null element in gates, signals, obligations, evidence or runs, Node Stop still writes .ospec/session/latest.md naming the SDD change, and Node PreCompact still writes that change's session-summary.md, both without a systemMessage. The malformed IDD change is absent from both files. Go produces the same result for the same workspace, and a test in idd-session.test.js (and/or the Go golden test) covers this case."
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "iddsession.go:154-170 (readOpenState) checks only schema, mode, change, status and intent presence, not the full idd-state/v1 validation that the Node port applies at idd-session.js:40 and spec §4.7 requires. An open state with an uncatalogued obligation or gate id is accepted by Go and rendered verbatim by DescribeStep (:282-286, :288-289) into latest.md's next recommended action (stop.go writeLatestWithIdd) and into session-summary.md. Node skips the same state as invalid. Impact: Node/Go byte divergence, and in Go only, attacker-chosen text in the next-step line, a line that is otherwise fully constrained.",
+                "acceptance_criteria": "Take a workspace whose only idd/<id>/state.yaml is open but invalid under validateState (e.g. a pending obligation or open gate with an id outside the catalog, or an obligation with an unknown status). Go Stop and PreCompact then write exactly the bytes Node writes for that workspace, with the invalid change absent from latest.md and with no .ospec/session/<id>/session-summary.md. A Go or golden test covers the case."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "session-hook-idd:lens-result:2:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-36f1b97e845e1e3d",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "idd-session.js:40 calls validateState without a try/catch. A parseable state.yaml whose arrays hold null elements (e.g. \"gates\":[null] or \"runs\":[null]) makes validateState throw a TypeError (idd-contract.js:370/:183). That rejects readIddSession, which stop.js:153 and pre-compact.js:528 await before any write. Neither latest.md nor any SDD or IDD session-summary.md is written; the hook only returns a systemMessage. This is the same failure class as the predecessor finding (§4.7: a malformed state MUST be skipped so the SDD trace is still written), reached through malformed content instead of EISDIR. The Go port skips such states, so Node and Go diverge.",
+          "acceptance_criteria": "With an active SDD change and an extra idd/<id>/state.yaml that is valid JSON but has a null element in gates, signals, obligations, evidence or runs, Node Stop still writes .ospec/session/latest.md naming the SDD change, and Node PreCompact still writes that change's session-summary.md, both without a systemMessage. The malformed IDD change is absent from both files. Go produces the same result for the same workspace, and a test in idd-session.test.js (and/or the Go golden test) covers this case.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-7215c4949b0ed452",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "iddsession.go:154-170 (readOpenState) checks only schema, mode, change, status and intent presence, not the full idd-state/v1 validation that the Node port applies at idd-session.js:40 and spec §4.7 requires. An open state with an uncatalogued obligation or gate id is accepted by Go and rendered verbatim by DescribeStep (:282-286, :288-289) into latest.md's next recommended action (stop.go writeLatestWithIdd) and into session-summary.md. Node skips the same state as invalid. Impact: Node/Go byte divergence, and in Go only, attacker-chosen text in the next-step line, a line that is otherwise fully constrained.",
+          "acceptance_criteria": "Take a workspace whose only idd/<id>/state.yaml is open but invalid under validateState (e.g. a pending obligation or open gate with an id outside the catalog, or an obligation with an unknown status). Go Stop and PreCompact then write exactly the bytes Node writes for that workspace, with the invalid change absent from latest.md and with no .ospec/session/<id>/session-summary.md. A Go or golden test covers the case.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:2d2c86f8e5ec8a040b5f5fbf1da86b3448ef30be263f8e338b3b37e9d71d26dd",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:dd25eccab578b204dc6e01c58a5c1b0497c90f620ed412c6e8695918103c3d84",
+      "generation": 3,
+      "predecessor_lineage_id": "sha256:112b54eacc8f53be85f2ccbabd254e2a68341c1d9f3d4cfd8fe5624becc567cb",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "3900436bf4f41be3bbed5a7e44f717c849bad207",
+          "candidate_tree": "a43806f422acab23e249d6570e0413bb145aa095",
+          "paths": [
+            ".claude-plugin/plugin.json",
+            ".gitattributes",
+            ".plugin.json",
+            "CHANGELOG.md",
+            "docs/roadmaps/harness-evolution.md",
+            "internal/hooks/iddsession_golden_test.go",
+            "internal/hooks/precompact.go",
+            "internal/hooks/stop.go",
+            "internal/iddsession/iddsession.go",
+            "internal/iddsession/iddsession_test.go",
+            "internal/testdata/idd-session/README.md",
+            "internal/testdata/idd-session/malformed/expected/session/fix-a/session-summary.md",
+            "internal/testdata/idd-session/malformed/expected/session/latest.md",
+            "internal/testdata/idd-session/malformed/input.json",
+            "internal/testdata/idd-session/malformed/workspace/idd/bad-intent-kind/state.yaml",
+            "internal/testdata/idd-session/malformed/workspace/idd/bad-plan/state.yaml",
+            "internal/testdata/idd-session/malformed/workspace/idd/config.yaml",
+            "internal/testdata/idd-session/malformed/workspace/idd/fix-a/state.yaml",
+            "internal/testdata/idd-session/malformed/workspace/idd/null-evidence/state.yaml",
+            "internal/testdata/idd-session/malformed/workspace/idd/null-gate/state.yaml",
+            "internal/testdata/idd-session/malformed/workspace/idd/null-obligation/state.yaml",
+            "internal/testdata/idd-session/malformed/workspace/idd/null-run/state.yaml",
+            "internal/testdata/idd-session/malformed/workspace/idd/null-signal/state.yaml",
+            "internal/testdata/idd-session/malformed/workspace/idd/uncatalogued-obligation/state.yaml",
+            "internal/testdata/idd-session/malformed/workspace/idd/unknown-gate/state.yaml",
+            "internal/testdata/idd-session/malformed/workspace/idd/unknown-status/state.yaml",
+            "internal/testdata/idd-session/many/expected/session/a-config/session-summary.md",
+            "internal/testdata/idd-session/many/expected/session/b-docs/session-summary.md",
+            "internal/testdata/idd-session/many/expected/session/c-facts/session-summary.md",
+            "internal/testdata/idd-session/many/expected/session/latest.md",
+            "internal/testdata/idd-session/many/input.json",
+            "internal/testdata/idd-session/many/workspace/idd/a-config/state.yaml",
+            "internal/testdata/idd-session/many/workspace/idd/archive/2026-10-08-old/state.yaml",
+            "internal/testdata/idd-session/many/workspace/idd/b-docs/state.yaml",
+            "internal/testdata/idd-session/many/workspace/idd/c-facts/state.yaml",
+            "internal/testdata/idd-session/many/workspace/idd/z-closed/state.yaml",
+            "internal/testdata/idd-session/many/workspace/openspec/changes/add-export/state.yaml",
+            "internal/testdata/idd-session/one-idd/expected/session/fix-a/session-summary.md",
+            "internal/testdata/idd-session/one-idd/expected/session/latest.md",
+            "internal/testdata/idd-session/one-idd/input.json",
+            "internal/testdata/idd-session/one-idd/workspace/idd/config.yaml",
+            "internal/testdata/idd-session/one-idd/workspace/idd/fix-a/state.yaml",
+            "internal/testdata/idd-session/steps/expected/session/latest.md",
+            "internal/testdata/idd-session/steps/expected/session/s-checks/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-close/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-contract/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-gate/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-living/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-migration/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-review/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-tdd/session-summary.md",
+            "internal/testdata/idd-session/steps/expected/session/s-vague/session-summary.md",
+            "internal/testdata/idd-session/steps/input.json",
+            "internal/testdata/idd-session/steps/workspace/idd/config.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-checks/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-close/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-contract/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-gate/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-living/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-migration/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-review/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-tdd/state.yaml",
+            "internal/testdata/idd-session/steps/workspace/idd/s-vague/state.yaml",
+            "openspec/config.yaml",
+            "openspec/specs/hooks/spec.md",
+            "package.json",
+            "scripts/hooks/idd-session.test.js",
+            "scripts/hooks/lib/idd-session.js",
+            "scripts/hooks/pre-compact.js",
+            "scripts/hooks/stop.js"
+          ],
+          "diff_hash": "sha256:ea6b5b8a5729e7602bc6ebddcc96e1e942c6ef124976ae7140f8406c3fe1e8a3",
+          "paths_digest": "sha256:910b817f62739ac1cdde5986461d69017dff772f4c07ecf78022e9c06fc5b20b",
+          "authored_lines": 2947,
+          "original_changed_lines": 2989
+        },
+        "candidate_id": "sha256:ff274820ee98e6642524f1a78b4ca501ae2080b8df845729701530e3e81903f1",
+        "paths": [
+          ".claude-plugin/plugin.json",
+          ".gitattributes",
+          ".plugin.json",
+          "CHANGELOG.md",
+          "docs/roadmaps/harness-evolution.md",
+          "internal/hooks/iddsession_golden_test.go",
+          "internal/hooks/precompact.go",
+          "internal/hooks/stop.go",
+          "internal/iddsession/iddsession.go",
+          "internal/iddsession/iddsession_test.go",
+          "internal/testdata/idd-session/README.md",
+          "internal/testdata/idd-session/malformed/expected/session/fix-a/session-summary.md",
+          "internal/testdata/idd-session/malformed/expected/session/latest.md",
+          "internal/testdata/idd-session/malformed/input.json",
+          "internal/testdata/idd-session/malformed/workspace/idd/bad-intent-kind/state.yaml",
+          "internal/testdata/idd-session/malformed/workspace/idd/bad-plan/state.yaml",
+          "internal/testdata/idd-session/malformed/workspace/idd/config.yaml",
+          "internal/testdata/idd-session/malformed/workspace/idd/fix-a/state.yaml",
+          "internal/testdata/idd-session/malformed/workspace/idd/null-evidence/state.yaml",
+          "internal/testdata/idd-session/malformed/workspace/idd/null-gate/state.yaml",
+          "internal/testdata/idd-session/malformed/workspace/idd/null-obligation/state.yaml",
+          "internal/testdata/idd-session/malformed/workspace/idd/null-run/state.yaml",
+          "internal/testdata/idd-session/malformed/workspace/idd/null-signal/state.yaml",
+          "internal/testdata/idd-session/malformed/workspace/idd/uncatalogued-obligation/state.yaml",
+          "internal/testdata/idd-session/malformed/workspace/idd/unknown-gate/state.yaml",
+          "internal/testdata/idd-session/malformed/workspace/idd/unknown-status/state.yaml",
+          "internal/testdata/idd-session/many/expected/session/a-config/session-summary.md",
+          "internal/testdata/idd-session/many/expected/session/b-docs/session-summary.md",
+          "internal/testdata/idd-session/many/expected/session/c-facts/session-summary.md",
+          "internal/testdata/idd-session/many/expected/session/latest.md",
+          "internal/testdata/idd-session/many/input.json",
+          "internal/testdata/idd-session/many/workspace/idd/a-config/state.yaml",
+          "internal/testdata/idd-session/many/workspace/idd/archive/2026-10-08-old/state.yaml",
+          "internal/testdata/idd-session/many/workspace/idd/b-docs/state.yaml",
+          "internal/testdata/idd-session/many/workspace/idd/c-facts/state.yaml",
+          "internal/testdata/idd-session/many/workspace/idd/z-closed/state.yaml",
+          "internal/testdata/idd-session/many/workspace/openspec/changes/add-export/state.yaml",
+          "internal/testdata/idd-session/one-idd/expected/session/fix-a/session-summary.md",
+          "internal/testdata/idd-session/one-idd/expected/session/latest.md",
+          "internal/testdata/idd-session/one-idd/input.json",
+          "internal/testdata/idd-session/one-idd/workspace/idd/config.yaml",
+          "internal/testdata/idd-session/one-idd/workspace/idd/fix-a/state.yaml",
+          "internal/testdata/idd-session/steps/expected/session/latest.md",
+          "internal/testdata/idd-session/steps/expected/session/s-checks/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-close/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-contract/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-gate/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-living/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-migration/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-review/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-tdd/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-vague/session-summary.md",
+          "internal/testdata/idd-session/steps/input.json",
+          "internal/testdata/idd-session/steps/workspace/idd/config.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-checks/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-close/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-contract/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-gate/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-living/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-migration/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-review/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-tdd/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-vague/state.yaml",
+          "openspec/config.yaml",
+          "openspec/specs/hooks/spec.md",
+          "package.json",
+          "scripts/hooks/idd-session.test.js",
+          "scripts/hooks/lib/idd-session.js",
+          "scripts/hooks/pre-compact.js",
+          "scripts/hooks/stop.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "a43806f422acab23e249d6570e0413bb145aa095",
+        "original_changed_lines": 2989,
+        "authored_lines": 2947
+      },
+      "current_candidate_id": "sha256:ff274820ee98e6642524f1a78b4ca501ae2080b8df845729701530e3e81903f1",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "3900436bf4f41be3bbed5a7e44f717c849bad207",
+        "candidate_tree": "a43806f422acab23e249d6570e0413bb145aa095",
+        "paths": [
+          ".claude-plugin/plugin.json",
+          ".gitattributes",
+          ".plugin.json",
+          "CHANGELOG.md",
+          "docs/roadmaps/harness-evolution.md",
+          "internal/hooks/iddsession_golden_test.go",
+          "internal/hooks/precompact.go",
+          "internal/hooks/stop.go",
+          "internal/iddsession/iddsession.go",
+          "internal/iddsession/iddsession_test.go",
+          "internal/testdata/idd-session/README.md",
+          "internal/testdata/idd-session/malformed/expected/session/fix-a/session-summary.md",
+          "internal/testdata/idd-session/malformed/expected/session/latest.md",
+          "internal/testdata/idd-session/malformed/input.json",
+          "internal/testdata/idd-session/malformed/workspace/idd/bad-intent-kind/state.yaml",
+          "internal/testdata/idd-session/malformed/workspace/idd/bad-plan/state.yaml",
+          "internal/testdata/idd-session/malformed/workspace/idd/config.yaml",
+          "internal/testdata/idd-session/malformed/workspace/idd/fix-a/state.yaml",
+          "internal/testdata/idd-session/malformed/workspace/idd/null-evidence/state.yaml",
+          "internal/testdata/idd-session/malformed/workspace/idd/null-gate/state.yaml",
+          "internal/testdata/idd-session/malformed/workspace/idd/null-obligation/state.yaml",
+          "internal/testdata/idd-session/malformed/workspace/idd/null-run/state.yaml",
+          "internal/testdata/idd-session/malformed/workspace/idd/null-signal/state.yaml",
+          "internal/testdata/idd-session/malformed/workspace/idd/uncatalogued-obligation/state.yaml",
+          "internal/testdata/idd-session/malformed/workspace/idd/unknown-gate/state.yaml",
+          "internal/testdata/idd-session/malformed/workspace/idd/unknown-status/state.yaml",
+          "internal/testdata/idd-session/many/expected/session/a-config/session-summary.md",
+          "internal/testdata/idd-session/many/expected/session/b-docs/session-summary.md",
+          "internal/testdata/idd-session/many/expected/session/c-facts/session-summary.md",
+          "internal/testdata/idd-session/many/expected/session/latest.md",
+          "internal/testdata/idd-session/many/input.json",
+          "internal/testdata/idd-session/many/workspace/idd/a-config/state.yaml",
+          "internal/testdata/idd-session/many/workspace/idd/archive/2026-10-08-old/state.yaml",
+          "internal/testdata/idd-session/many/workspace/idd/b-docs/state.yaml",
+          "internal/testdata/idd-session/many/workspace/idd/c-facts/state.yaml",
+          "internal/testdata/idd-session/many/workspace/idd/z-closed/state.yaml",
+          "internal/testdata/idd-session/many/workspace/openspec/changes/add-export/state.yaml",
+          "internal/testdata/idd-session/one-idd/expected/session/fix-a/session-summary.md",
+          "internal/testdata/idd-session/one-idd/expected/session/latest.md",
+          "internal/testdata/idd-session/one-idd/input.json",
+          "internal/testdata/idd-session/one-idd/workspace/idd/config.yaml",
+          "internal/testdata/idd-session/one-idd/workspace/idd/fix-a/state.yaml",
+          "internal/testdata/idd-session/steps/expected/session/latest.md",
+          "internal/testdata/idd-session/steps/expected/session/s-checks/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-close/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-contract/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-gate/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-living/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-migration/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-review/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-tdd/session-summary.md",
+          "internal/testdata/idd-session/steps/expected/session/s-vague/session-summary.md",
+          "internal/testdata/idd-session/steps/input.json",
+          "internal/testdata/idd-session/steps/workspace/idd/config.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-checks/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-close/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-contract/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-gate/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-living/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-migration/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-review/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-tdd/state.yaml",
+          "internal/testdata/idd-session/steps/workspace/idd/s-vague/state.yaml",
+          "openspec/config.yaml",
+          "openspec/specs/hooks/spec.md",
+          "package.json",
+          "scripts/hooks/idd-session.test.js",
+          "scripts/hooks/lib/idd-session.js",
+          "scripts/hooks/pre-compact.js",
+          "scripts/hooks/stop.js"
+        ],
+        "diff_hash": "sha256:ea6b5b8a5729e7602bc6ebddcc96e1e942c6ef124976ae7140f8406c3fe1e8a3",
+        "paths_digest": "sha256:910b817f62739ac1cdde5986461d69017dff772f4c07ecf78022e9c06fc5b20b",
+        "authored_lines": 2947,
+        "original_changed_lines": 2989
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "session-hook-idd:lens-start:3:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "session-hook-idd:lens-result:3:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-10-09T11:43:15.111Z"
+}

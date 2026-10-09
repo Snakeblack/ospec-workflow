@@ -15,6 +15,7 @@ const {
 } = require("../lib/artifact-store.js");
 const { writeFileAtomic } = require("../lib/atomic-write.js");
 const { resolveWorkspaceCwd } = require("../lib/pathsafe.js");
+const { readIddSession } = require("./lib/idd-session.js");
 
 const LATEST_RELATIVE_PATH = ARTIFACT_STORE_RELATIVE_PATHS.latestSession;
 
@@ -64,9 +65,8 @@ async function resolveDetailedSummary(store, activeChange) {
     : "None";
 }
 
-function renderLatestSummary({
+function renderLatestDocument({
   activeChange,
-  changeName,
   currentPhase,
   detailedSummary,
   endedAt,
@@ -79,15 +79,60 @@ function renderLatestSummary({
     "",
     `- Ended at: \`${endedAt}\``,
     `- Session: \`${sessionId}\``,
-    `- Active change: \`${activeChange ? changeName : "None"}\``,
-    `- Current phase: \`${activeChange ? currentPhase || "unknown" : "None"}\``,
-    `- Change status: \`${activeChange ? status || "active" : "None"}\``,
+    `- Active change: ${activeChange}`,
+    `- Current phase: \`${currentPhase}\``,
+    `- Change status: \`${status}\``,
     `- Detailed summary: \`${detailedSummary}\``,
     "",
     "## Next recommended action",
     nextAction,
     "",
   ].join("\n");
+}
+
+function renderLatestSummary({
+  activeChange,
+  changeName,
+  currentPhase,
+  detailedSummary,
+  endedAt,
+  nextAction,
+  sessionId,
+  status,
+}) {
+  return renderLatestDocument({
+    activeChange: `\`${activeChange ? changeName : "None"}\``,
+    currentPhase: activeChange ? currentPhase || "unknown" : "None",
+    detailedSummary,
+    endedAt,
+    nextAction,
+    sessionId,
+    status: activeChange ? status || "active" : "None",
+  });
+}
+
+// E1.12 (§6.4): several open changes, IDD among them, are listed without
+// choosing one; each line carries that change's own next step.
+function renderOpenChanges({ endedAt, sessionId, openChanges }) {
+  return renderLatestDocument({
+    activeChange: `${openChanges.map(({ name }) => `\`${name}\``).join(", ")} (ambiguous: ${openChanges.length} open changes)`,
+    currentPhase: "multiple",
+    detailedSummary: "None",
+    endedAt,
+    nextAction: [
+      "Several changes are open; choose the one to resume:",
+      ...openChanges.map(({ name, mode, nextAction }) => `- \`${name}\` (${mode}): ${nextAction}`),
+    ].join("\n"),
+    sessionId,
+    status: "multiple",
+  });
+}
+
+function sddChangeName(change) {
+  return (
+    extractFirstScalar(change.content, [["change", "name"]]) ||
+    change.directoryName
+  );
 }
 
 async function writeLatestTrace(filePath, content) {
@@ -104,7 +149,14 @@ async function runStop({
 } = {}) {
   const workspace = resolveWorkspaceCwd(input.cwd, fallbackCwd);
   const store = await createArtifactStoreFromConfig({ mode, workspace });
-  const activeChange = (await store.findActiveChanges())[0] || null;
+  const sddChanges = await store.findActiveChanges();
+  const iddSession = await readIddSession(workspace);
+
+  if (iddSession.length > 0) {
+    return writeWithIdd({ input, now, store, sddChanges, iddSession });
+  }
+
+  const activeChange = sddChanges[0] || null;
   const changeName = activeChange
     ? extractFirstScalar(activeChange.content, [["change", "name"]]) ||
       activeChange.directoryName
@@ -146,6 +198,61 @@ async function runStop({
     path: LATEST_RELATIVE_PATH,
     activeChange: changeName || null,
   };
+}
+
+// E1.12 (§6.4): with open IDD changes, one change in total is the active
+// change; several are listed, SDD first and then IDD by id.
+async function writeWithIdd({ input, now, store, sddChanges, iddSession }) {
+  const endedAt = resolveTimestamp(input, now);
+  const sessionId = resolveSessionId(input);
+  const openChanges = [
+    ...sddChanges.map((change) => {
+      const name = sddChangeName(change);
+      return {
+        name,
+        mode: "sdd",
+        nextAction: formatNextAction(
+          extractFirstScalar(change.content, [["next_recommended"]]),
+          name,
+        ),
+      };
+    }),
+    ...iddSession.map(({ change, nextAction }) => ({
+      name: change,
+      mode: "idd",
+      nextAction,
+    })),
+  ];
+  let content;
+  let result;
+
+  if (openChanges.length === 1) {
+    const [{ change, state, nextAction }] = iddSession;
+
+    content = renderLatestSummary({
+      activeChange: true,
+      changeName: change,
+      currentPhase: "idd",
+      detailedSummary: await resolveDetailedSummary(store, {
+        directoryName: change,
+      }),
+      endedAt,
+      nextAction,
+      sessionId,
+      status: state.status,
+    });
+    result = { activeChange: change };
+  } else {
+    content = renderOpenChanges({ endedAt, sessionId, openChanges });
+    result = {
+      activeChange: null,
+      openChanges: openChanges.map(({ name }) => name),
+    };
+  }
+
+  await writeLatestTrace(store.latestSessionPath(), content);
+
+  return { status: "written", path: LATEST_RELATIVE_PATH, ...result };
 }
 
 async function readJsonInput(stream = process.stdin) {

@@ -7,7 +7,9 @@ const path = require("node:path");
 const {
   createArtifactStoreFromConfig,
 } = require("../lib/artifact-store.js");
+const { writeFileAtomic } = require("../lib/atomic-write.js");
 const { resolveWorkspaceCwd } = require("../lib/pathsafe.js");
+const { readIddSession, renderIddSummary } = require("./lib/idd-session.js");
 
 const PHASE_RANKS = new Map([
   ["explore", 1],
@@ -478,6 +480,43 @@ function renderSummary({
   ].join("\n");
 }
 
+// Writes a session summary unless the file already holds it (§4.6).
+async function writeSummaryIfChanged(summaryPath, summary) {
+  try {
+    if ((await fs.readFile(summaryPath, "utf8")) === summary) {
+      return "fresh";
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      throw error;
+    }
+  }
+
+  await writeFileAtomic(summaryPath, summary);
+  return "written";
+}
+
+// E1.12: one detailed summary per open IDD change (§4.7).
+async function writeIddSummaries(store, session) {
+  const results = [];
+
+  for (const { change, state, nextAction } of session) {
+    const summaryPath = store.sessionSummaryPath(change);
+    const status = await writeSummaryIfChanged(
+      summaryPath,
+      renderIddSummary(state, nextAction),
+    );
+
+    results.push({
+      change,
+      status,
+      path: toPortablePath(path.relative(store.workspace, summaryPath)),
+    });
+  }
+
+  return results;
+}
+
 async function runPreCompact({
   input = {},
   fallbackCwd = process.cwd(),
@@ -486,11 +525,29 @@ async function runPreCompact({
   const workspace = resolveWorkspaceCwd(input.cwd, fallbackCwd);
   const store = await createArtifactStoreFromConfig({ mode, workspace });
   const activeChange = (await store.findActiveChanges())[0] || null;
+  const iddSession = await readIddSession(workspace);
 
-  if (!activeChange) {
+  if (!activeChange && iddSession.length === 0) {
     return { status: "skipped", reason: "no-active-change" };
   }
 
+  const sddResult = activeChange
+    ? await writeSddSummary(store, workspace, activeChange)
+    : null;
+
+  if (iddSession.length === 0) {
+    return sddResult;
+  }
+
+  const idd = await writeIddSummaries(store, iddSession);
+  const status = idd.some((entry) => entry.status === "written")
+    ? "written"
+    : "fresh";
+
+  return { ...(sddResult ?? { status }), idd };
+}
+
+async function writeSddSummary(store, workspace, activeChange) {
   const changeName =
     extractFirstScalar(activeChange.content, [["change", "name"]]) ||
     activeChange.directoryName;

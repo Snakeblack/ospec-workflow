@@ -1,0 +1,32 @@
+{
+  "schema": "idd-state/v1",
+  "change": "z-closed",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "Done.",
+    "acceptance": "Done."
+  },
+  "facts": {
+    "basis": "The request fixes every behavior."
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "pending",
+      "evidence": []
+    }
+  ],
+  "gates": [],
+  "evidence": [],
+  "closed_at": "2026-10-09T10:00:00.000Z"
+}
