@@ -29,6 +29,13 @@
 // ENGRAM_CLAUDE_WINDOWS_BASH_SAFE_MODE=0 in ~/.claude/settings.json; slow or failing
 // forks keep the safe mode. A value the user already set is never overwritten.
 //
+// CreateProcess does not read a script shebang. Upstream hooks.json launches some
+// .sh files directly, so Windows opens them with the associated program. Once
+// Claude is configured, every bare .sh hook command in the installed engram@engram
+// plugin gets a `bash` prefix. A command that already starts with bash or sh is
+// left alone. The patch does not depend on the fork probe: without bash the
+// script never starts, safe mode included.
+//
 // Semantics are deliberately the opposite of the installers' own steps (which abort
 // on failure): every probe or action here is fail-open. A failure becomes a warning
 // and NEVER throws or changes the installer exit code. Detection is by capability,
@@ -61,6 +68,9 @@ const MARKETPLACE_NAME = "engram";
 const ENGRAM_PHASE = "Memoria Engram";
 const SETUP_TIMEOUT_MS = 120000;
 const SAFE_MODE_VAR = "ENGRAM_CLAUDE_WINDOWS_BASH_SAFE_MODE";
+const ENGRAM_PLUGIN_ID = "engram@engram";
+const BASH_LAUNCHER = "bash";
+const SHELL_LAUNCHERS = new Set(["bash", "bash.exe", "sh", "sh.exe"]);
 // The upstream hook's full path forks dirname, date, jq and curl on every prompt.
 // Three rounds must finish well under the time a user would notice on submit.
 const FORK_PROBE_SCRIPT = "for i in 1 2 3; do dirname /a/b; date +%s; jq -n 1; curl --version; done >/dev/null";
@@ -238,6 +248,105 @@ function windowsSafeModeStep({ spawn, fs: fsImpl, homedir, env, now, stdout, std
   );
 }
 
+// --- Windows: launch upstream .sh hooks with bash -----------------------------
+
+function commandBasename(executable) {
+  const normalized = String(executable).replace(/\\/g, "/");
+  const slash = normalized.lastIndexOf("/");
+  return (slash === -1 ? normalized : normalized.slice(slash + 1)).toLowerCase();
+}
+
+function leadingExecutable(command) {
+  const trimmed = command.trim();
+  if (trimmed.startsWith("\"")) {
+    const end = trimmed.indexOf("\"", 1);
+    return end === -1 ? trimmed.slice(1) : trimmed.slice(1, end);
+  }
+  const space = trimmed.search(/\s/);
+  return space === -1 ? trimmed : trimmed.slice(0, space);
+}
+
+function bareShellScript(command) {
+  if (typeof command !== "string" || command.trim() === "") return false;
+  const base = commandBasename(leadingExecutable(command));
+  if (SHELL_LAUNCHERS.has(base)) return false;
+  return base.endsWith(".sh");
+}
+
+function prefixBareShellCommands(node) {
+  if (Array.isArray(node)) return node.reduce((count, item) => count + prefixBareShellCommands(item), 0);
+  if (!node || typeof node !== "object") return 0;
+  let count = 0;
+  if (bareShellScript(node.command)) {
+    node.command = `${BASH_LAUNCHER} ${node.command}`;
+    count += 1;
+  }
+  for (const value of Object.values(node)) {
+    if (value && typeof value === "object") count += prefixBareShellCommands(value);
+  }
+  return count;
+}
+
+function engramHookFiles(fsImpl, homedir) {
+  const registry = path.join(homedir(), ".claude", "plugins", "installed_plugins.json");
+  const presence = probeExists(fsImpl, registry);
+  if (presence === "absent") return { ok: false, missing: true, file: registry, hooks: [] };
+  if (presence !== "registered") return { ok: false, reason: "unreadable", file: registry, hooks: [] };
+  const doc = readJsonObject(fsImpl, registry);
+  if (!doc.ok) return { ok: false, reason: doc.reason, file: registry, hooks: [] };
+  const plugins = doc.value.plugins;
+  if (!plugins || typeof plugins !== "object" || Array.isArray(plugins) || !Object.hasOwn(plugins, ENGRAM_PLUGIN_ID)) {
+    return { ok: true, file: registry, hooks: [] };
+  }
+  const entries = plugins[ENGRAM_PLUGIN_ID];
+  if (!Array.isArray(entries)) return { ok: false, reason: "engram@engram is not an install list", file: registry, hooks: [] };
+  const hooks = [];
+  for (const entry of entries) {
+    if (!entry || typeof entry.installPath !== "string" || entry.installPath.trim() === "") continue;
+    hooks.push(path.join(entry.installPath, "hooks", "hooks.json"));
+  }
+  return { ok: true, file: registry, hooks };
+}
+
+function patchHookFile(fsImpl, file, stdout, stderr) {
+  const presence = probeExists(fsImpl, file);
+  if (presence !== "registered") {
+    stderr.write(`aviso: no está ${file}; los hooks .sh de Engram se dejan como están.\n`);
+    return;
+  }
+  const doc = readJsonObject(fsImpl, file);
+  if (!doc.ok) {
+    stderr.write(`aviso: no se puede leer ${file} (${doc.reason}); los hooks .sh de Engram se dejan como están.\n`);
+    return;
+  }
+  const changed = prefixBareShellCommands(doc.value);
+  if (changed === 0) {
+    stdout.write(`  - Los hooks .sh de Engram ya arrancan con bash (${file}).\n`);
+    return;
+  }
+  try {
+    writeJsonObject(fsImpl, file, doc.value);
+  } catch (error) {
+    stderr.write(`aviso: no se puede escribir ${file} (${error.code || error.message}); los hooks .sh de Engram se dejan como están.\n`);
+    return;
+  }
+  stdout.write(`  - Hooks .sh de Engram: ${changed} comando(s) ahora arrancan con bash (${file}).\n`);
+}
+
+function windowsBashHooksStep({ fs: fsImpl, homedir, stdout, stderr }) {
+  const found = engramHookFiles(fsImpl, homedir);
+  if (!found.ok) {
+    const reason = found.missing ? "no existe" : found.reason;
+    stderr.write(`aviso: no se puede leer ${found.file} (${reason}); los hooks .sh de Engram se dejan como están.\n`);
+    return;
+  }
+  if (found.hooks.length === 0) {
+    stdout.write("  - No hay una instalación engram@engram en el registro de plugins; no se parchean hooks .sh.\n");
+    return;
+  }
+  for (const file of found.hooks) patchHookFile(fsImpl, file, stdout, stderr);
+}
+
 // --- step entry point --------------------------------------------------------
 
 function runEngramStep({
@@ -295,6 +404,7 @@ function runEngramStep({
     }
     if (enabled && configured && target === "claude" && platform === "win32") {
       windowsSafeModeStep({ spawn, fs: fsImpl, homedir, env, now, stdout, stderr, timeoutMs });
+      windowsBashHooksStep({ fs: fsImpl, homedir, stdout, stderr });
     }
   } catch (error) {
     try {

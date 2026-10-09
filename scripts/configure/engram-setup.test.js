@@ -2,7 +2,7 @@
 
 // REQ-install-028/029/030 (engram-per-target, adr-20261003-001): fail-open detection,
 // automatic idempotent registration on every supported target, `--no-engram`
-// opt-out and the Windows safe-mode probe for Claude. Spawning, the filesystem,
+// opt-out, the Windows safe-mode probe and the bash prefix for bare .sh hooks. Spawning, the filesystem,
 // the home directory, the platform and the clock are injected; nothing here
 // touches the host.
 
@@ -567,6 +567,136 @@ test("windows: the probe is Claude- and win32-only", () => {
   const spawn = makeSpawn({ ...ENGRAM, "claude plugin list": ok("  > engram@engram\n"), "claude mcp list": ok("engram: x\n"), git: ok("/git/mingw64/libexec/git-core\n") });
   run({ spawn, hostBin: CLAUDE, fs: files, platform: "linux" });
   assert.ok(!spawn.calls.some((call) => call.startsWith("git")));
+});
+
+// --- Windows: CreateProcess does not read shebangs, so bare .sh hooks open in the
+// associated editor. Upstream already launches SessionEnd with bash. -------------------
+
+const PLUGIN_ROOT = home(".claude", "plugins", "cache", "engram", "engram", "0.1.5");
+const HOOKS_FILE = path.join(PLUGIN_ROOT, "hooks", "hooks.json");
+const quotedScript = (name) => `"\${CLAUDE_PLUGIN_ROOT}/scripts/${name}"`;
+
+function engramHooksDocument() {
+  return {
+    hooks: {
+      SessionStart: [{
+        matcher: "startup|resume|clear|compact",
+        hooks: [
+          { type: "command", command: quotedScript("session-start.sh"), timeout: 10 },
+          { type: "command", command: quotedScript("post-compaction.sh"), timeout: 10 },
+        ],
+      }],
+      UserPromptSubmit: [{ hooks: [{ type: "command", command: quotedScript("user-prompt-submit.sh"), timeout: 10 }] }],
+      SubagentStop: [{ hooks: [{ type: "command", command: quotedScript("subagent-stop.sh"), timeout: 10, async: true }] }],
+      SessionEnd: [{ hooks: [{ type: "command", command: `bash ${quotedScript("session-end.sh")}`, timeout: 5 }] }],
+      PreToolUse: [{ hooks: [{ type: "command", command: "engram hook claude-pre-tool-use", timeout: 5 }] }],
+      Custom: [{ hooks: [{ type: "command", command: `sh ${quotedScript("custom.sh")}` }] }],
+    },
+  };
+}
+
+function pluginRegistry(installPaths = [PLUGIN_ROOT]) {
+  return JSON.stringify({
+    version: 2,
+    plugins: {
+      "engram@engram": installPaths.map((installPath) => ({ scope: "user", installPath, version: "0.1.5" })),
+    },
+  });
+}
+
+function bashHooksRun({ hooksText, platform = "win32", argv = [], registryText = pluginRegistry(), includeHooks = true, includeRegistry = true, extraFiles = {} } = {}) {
+  const files = makeFs({
+    [BASH]: "",
+    [home(".claude", "settings.json")]: "{}",
+    ...(includeRegistry ? { [home(".claude", "plugins", "installed_plugins.json")]: registryText } : {}),
+    ...(includeHooks ? { [HOOKS_FILE]: hooksText } : {}),
+    ...extraFiles,
+  });
+  const spawn = makeSpawn({
+    ...ENGRAM,
+    "claude plugin list": ok("  > engram@engram\n"),
+    "claude mcp list": ok("engram: x\n"),
+    git: ok(`${path.resolve("/git/mingw64/libexec/git-core")}\n`),
+    [BASH]: ok(),
+  });
+  let tick = 0;
+  const now = () => (tick++ === 0 ? 1000 : 1200);
+  const out = run({ spawn, hostBin: CLAUDE, fs: files, platform, env: {}, now, argv });
+  const raw = files.store.get(path.resolve(HOOKS_FILE));
+  return { ...out, files, spawn, raw };
+}
+
+function hookWrites(files) {
+  return files.writes.filter((file) => file === path.resolve(HOOKS_FILE));
+}
+
+test("windows bash hooks: bare sh commands gain a bash launcher without a second rewrite", () => {
+  const original = `${JSON.stringify(engramHooksDocument(), null, 2)}\n`;
+  const first = bashHooksRun({ hooksText: original });
+  const doc = JSON.parse(first.raw);
+  assert.equal(doc.hooks.SessionStart[0].hooks[0].command, `bash ${quotedScript("session-start.sh")}`);
+  assert.equal(doc.hooks.SessionStart[0].hooks[0].timeout, 10);
+  assert.equal(doc.hooks.SessionStart[0].hooks[1].command, `bash ${quotedScript("post-compaction.sh")}`);
+  assert.equal(doc.hooks.UserPromptSubmit[0].hooks[0].command, `bash ${quotedScript("user-prompt-submit.sh")}`);
+  assert.equal(doc.hooks.SubagentStop[0].hooks[0].command, `bash ${quotedScript("subagent-stop.sh")}`);
+  assert.equal(doc.hooks.SubagentStop[0].hooks[0].async, true);
+  assert.equal(doc.hooks.SessionEnd[0].hooks[0].command, `bash ${quotedScript("session-end.sh")}`);
+  assert.equal(doc.hooks.PreToolUse[0].hooks[0].command, "engram hook claude-pre-tool-use");
+  assert.equal(doc.hooks.Custom[0].hooks[0].command, `sh ${quotedScript("custom.sh")}`);
+  assert.ok(!first.spawn.calls.some((call) => call.startsWith("engram setup")));
+  assert.equal(hookWrites(first.files).length, 1);
+
+  const second = bashHooksRun({ hooksText: first.raw });
+  assert.equal(hookWrites(second.files).length, 0);
+  assert.equal(second.raw, first.raw);
+});
+
+test("windows bash hooks: an unparseable hooks.json is left untouched", () => {
+  const { raw, files, stderr } = bashHooksRun({ hooksText: "{oops" });
+  assert.equal(raw, "{oops");
+  assert.equal(hookWrites(files).length, 0);
+  assert.match(stderr, /hooks\.json/);
+});
+
+test("windows bash hooks: linux and --no-engram leave the plugin untouched", () => {
+  const text = `${JSON.stringify(engramHooksDocument())}\n`;
+  const linux = bashHooksRun({ hooksText: text, platform: "linux" });
+  assert.equal(linux.raw, text);
+  assert.equal(hookWrites(linux.files).length, 0);
+  const skipped = bashHooksRun({ hooksText: text, argv: ["--no-engram"] });
+  assert.equal(skipped.raw, text);
+  assert.equal(hookWrites(skipped.files).length, 0);
+});
+
+test("windows bash hooks: every registered install is patched", () => {
+  const otherRoot = home(".claude", "plugins", "cache", "engram", "engram", "0.1.4");
+  const otherHooks = path.join(otherRoot, "hooks", "hooks.json");
+  const text = `${JSON.stringify(engramHooksDocument(), null, 2)}\n`;
+  const { files } = bashHooksRun({
+    hooksText: text,
+    registryText: pluginRegistry([PLUGIN_ROOT, otherRoot]),
+    extraFiles: { [otherHooks]: text },
+  });
+  const other = JSON.parse(files.store.get(path.resolve(otherHooks)));
+  assert.equal(other.hooks.UserPromptSubmit[0].hooks[0].command, `bash ${quotedScript("user-prompt-submit.sh")}`);
+  assert.equal(files.writes.filter((file) => file === path.resolve(otherHooks)).length, 1);
+});
+
+test("windows bash hooks: a missing hooks file warns and is not created", () => {
+  const { files, stderr } = bashHooksRun({ includeHooks: false });
+  assert.match(stderr, /hooks\.json/);
+  assert.equal(files.store.has(path.resolve(HOOKS_FILE)), false);
+});
+
+test("windows bash hooks: a missing or unreadable registry does not rewrite hooks", () => {
+  const text = `${JSON.stringify(engramHooksDocument())}\n`;
+  const missing = bashHooksRun({ hooksText: text, includeRegistry: false });
+  assert.equal(missing.raw, text);
+  assert.match(missing.stderr, /installed_plugins\.json/);
+  const broken = bashHooksRun({ hooksText: text, registryText: "{oops" });
+  assert.equal(broken.raw, text);
+  assert.equal(hookWrites(broken.files).length, 0);
+  assert.match(broken.stderr, /installed_plugins\.json/);
 });
 
 // --- installer wrapper ------------------------------------------------------------

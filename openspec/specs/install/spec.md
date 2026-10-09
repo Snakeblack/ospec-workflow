@@ -1219,6 +1219,22 @@ On Windows, after Engram is configured for Claude Code, `setup:claude` MUST deci
 - WHEN `setup:claude` runs
 - THEN no probe runs and the value is left unchanged
 
+### Requirement: Windows Engram Shell Hooks Launch With Bash {#REQ-install-042}
+
+On Windows, once Engram is configured for Claude Code, `setup:claude` MUST prefix `bash` on every hook command in each installed `engram@engram` plugin whose executable is a `.sh` script and that does not already start with `bash` or `sh`. It MUST do this even when registration is skipped because Engram is already configured, and it MUST NOT wait on the fork probe of REQ-install-031: without the prefix Windows opens the script through its file association before the script can read the safe-mode variable. It MUST NOT double an existing launcher, MUST NOT change any other command or field, MUST NOT rewrite an unparseable `hooks.json` or an unparseable plugin registry, and MUST NOT create a missing hooks file. It MUST NOT do this on other targets, platforms, or with `--no-engram`. A missing registry or hooks file MUST be reported without failing the install. Re-running when every `.sh` command is already launched with bash MUST NOT rewrite the file.
+
+#### Scenario: Bare shell hooks
+
+- GIVEN Windows, Engram already configured for Claude Code, and an installed plugin whose hooks.json quotes `.sh` scripts without `bash`, plus one command that already uses `bash` and one that is not a shell script
+- WHEN `setup:claude` runs twice
+- THEN each bare `.sh` command starts with `bash`, the other commands and fields are unchanged, and the second run does not rewrite the file
+
+#### Scenario: Unparseable hooks file
+
+- GIVEN the installed hooks.json is not valid JSON
+- WHEN `setup:claude` runs
+- THEN the file is left unchanged and the install still succeeds
+
 ### Requirement: Installers Accept The Extras Package Flag {#REQ-install-032}
 
 Every target installer (`setup:claude`, `setup:vscode`, `setup:copilot`, `setup:opencode`, `setup:codex`, `setup:cursor`, `setup:antigravity`) and the repo-local `install-target` MUST accept `--with-extras` and forward it to the build (REQ-generator-021). Without the flag they MUST install the default package. Because installs prune files of the previous install that the new build no longer has, re-running an installer without the flag removes extras installed earlier.
