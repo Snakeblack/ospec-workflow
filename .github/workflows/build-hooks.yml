@@ -44,6 +44,15 @@ jobs:
         with:
           go-version: '1.23'
 
+      # A Windows checkout may carry CRLF, which gofmt reports as unformatted.
+      - name: gofmt
+        if: runner.os == 'Linux'
+        run: test -z "$(gofmt -l cmd internal)" || { gofmt -l cmd internal; exit 1; }
+
+      # Each runner vets its own build tags (pathsafe_windows vs. _posix).
+      - name: go vet
+        run: go vet ./...
+
       - name: go test
         run: go test ./...
 

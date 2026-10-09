@@ -43,7 +43,7 @@ docs/
 |-------|----------------|------|
 | orchestrator | Creates/Updates/Repairs | `openspec/changes/{change-name}/state.yaml` |
 | sdd-init | Creates | `openspec/config.yaml`, `openspec/specs/`, `openspec/changes/`, `openspec/changes/archive/` |
-| sdd-foundation | Creates/Updates | `docs/product/**`, `docs/architecture/**`, `docs/references/**`, `docs/roadmap.md`, `openspec/config.yaml` |
+| foundation | Creates/Updates | `docs/product/**`, `docs/architecture/**`, `docs/references/**`, `docs/roadmap.md`, `docs/roadmap-gaps.md`, `openspec/config.yaml`, `idd/config.yaml` (approved) |
 | sdd-explore | Creates (optional) | `openspec/changes/{change-name}/exploration.md` |
 | sdd-propose | Creates | `openspec/changes/{change-name}/proposal.md` |
 | sdd-propose (lite mode) | Creates | `openspec/changes/{change-name}/proposal-lite.md` |
@@ -127,7 +127,7 @@ context: |
 
 rules:
   foundation:
-    - Ask one blocking question at a time
+    - Ask at most four questions per round, each with a recommended answer
     - Do not generate application code before scaffold/project setup is approved
   proposal:
     - Include rollback plan for risky changes

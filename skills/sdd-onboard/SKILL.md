@@ -44,7 +44,7 @@ Let me scan your codebase for opportunities..."
 
 Then scan the codebase for a real, small improvement opportunity:
 
-If the project has no application code, manifests, or actionable docs, STOP and recommend `sdd-foundation` first. Do not invent an onboarding change in an empty workspace.
+If the project has no application code, manifests, or actionable docs, STOP and recommend `foundation` first. Do not invent an onboarding change in an empty workspace.
 
 ```
 Criteria for a good onboarding change:
@@ -230,6 +230,6 @@ Return a structured result with these fields:
 - `status`: `success` | `blocked` | `partial`
 - `executive_summary`: one-sentence description of what was onboarded
 - `artifacts`: OpenSpec paths written for the onboarding change
-- `next_recommended`: `sdd-foundation` if blocked for empty project, otherwise `sdd-new`
+- `next_recommended`: `foundation` if blocked for empty project, otherwise `sdd-new`
 - `risks`: onboarding warnings or blockers discovered during the guided cycle
 - `skill_resolution`: `injected`, `fallback-registry`, `fallback-path`, or `none`

@@ -108,7 +108,7 @@ test("PHASE_SKILLS is exactly the 14 canonical names and excludes sdd-document/s
       "sdd-clarify",
       "sdd-design",
       "sdd-explore",
-      "sdd-foundation",
+      "foundation",
       "sdd-init",
       "sdd-onboard",
       "sdd-propose",

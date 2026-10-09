@@ -29,7 +29,7 @@ All files below have `user-invocable: false` and `tools: ['read', 'search', 'edi
 | File | Phase purpose |
 |------|--------------|
 | `agents/sdd-init.agent.md` | Initialize OpenSpec context, detect stack, bootstrap persistence |
-| `agents/sdd-foundation.agent.md` | Guide new-project discovery, foundation docs, config completion |
+| `agents/foundation.agent.md` | Foundation route delegate: architecture discovery, foundation docs, ADRs and the IDD configuration |
 | `agents/sdd-baseline.agent.md` | Seed baseline specs for brownfield repos, one domain per batch |
 | `agents/sdd-workspace.agent.md` | Federated multi-repo workspace operations |
 | `agents/sdd-explore.agent.md` | Codebase investigation; reads only, no spec files created |
@@ -1619,18 +1619,18 @@ MUST NOT create files at any unintended location.
 
 ### Requirement: sdd-orchestrator Federated Foundation Delegation
 
-Cuando el backend de almacenamiento es `workspace-federated` y se inicia la fase de foundation, el orquestador delegará en `sdd-foundation` pasando `workspace_yaml` apuntando a `workspace.yaml` y `parent_change` conteniendo el nombre del cambio activo.
+Cuando el backend de almacenamiento es `workspace-federated` y se inicia la fase de foundation, el orquestador delegará en `foundation` pasando `workspace_yaml` apuntando a `workspace.yaml` y `parent_change` conteniendo el nombre del cambio activo.
 
 #### Scenario: Delegating with workspace_yaml
 - GIVEN the workspace-federated backend is active and the foundation phase is triggered
-- WHEN the orchestrator delegates to `sdd-foundation`
+- WHEN the orchestrator delegates to `foundation`
 - THEN it passes `workspace_yaml` pointing to the physical atlas cache and `parent_change` containing the active change name
 
 ---
 
-### Requirement: sdd-foundation Federated Scans
+### Requirement: foundation Federated Scans
 
-El agente `sdd-foundation` en modo federado aceptará y procesará `workspace_yaml` y `parent_change` para escanear las especificaciones miembro locales (`{member}/openspec/specs/**/spec.md`) e integrarlas en la síntesis del baseline técnico del coordinador.
+El agente `foundation` en modo federado aceptará y procesará `workspace_yaml` y `parent_change` para escanear las especificaciones miembro locales (`{member}/openspec/specs/**/spec.md`) e integrarlas en la síntesis del baseline técnico del coordinador.
 
 #### Scenario: Scanning member specs
 - GIVEN the foundation agent runs in federated mode with `workspace_yaml`
@@ -1640,20 +1640,34 @@ El agente `sdd-foundation` en modo federado aceptará y procesará `workspace_ya
 
 ---
 
-### Requirement: sdd-foundation Interactive Fallback Loop
+### Requirement: foundation Runs Directly Or Delegated
 
-El agente `sdd-foundation` iniciará un bucle interactivo de remediación si el servidor MCP de MarkItDown no está configurado, deteniendo la ingesta y preguntando al usuario vía `vscode/askQuestions` antes de continuar con el descubrimiento manual.
+`foundation` (renamed from `sdd-foundation` in E2.3) is a mode-independent capability. Loaded directly (by the user, the router or IDD), the session asks each discovery round itself with the host's question tool. Delegated by the SDD orchestrator for the `foundation` route, the agent MUST NOT ask the user: it returns `status: blocked` with a `question_gate` holding the round. A round MUST hold at most four questions, each with a recommended answer and an "I don't know" that records an explicit assumption instead of blocking.
 
-The agent calls the available MarkItDown MCP `convert_to_markdown` tool for document conversion:
-- The default name on Codex is `mcp__markitdown__convert_to_markdown`.
-- The default name on other targets is `mcp__microsoft_markitdown__convert_to_markdown`.
-- Any pre-existing equivalent server matching a different prefix MUST be reused instead of duplicating the MCP server process.
+#### Scenario: Delegated foundation returns its round
+- GIVEN the orchestrator launches the `foundation` agent and a decision-blocking slot is unknown
+- WHEN the agent needs the user's input
+- THEN it returns `status: blocked` with a `question_gate` of at most four questions
+- AND it calls no question tool itself
 
-#### Scenario: Interactive fallback loop executed
-- GIVEN the MarkItDown MCP server is not available during document ingestion
-- WHEN the agent executes the fallback check
-- THEN it presents the interactive gate via `vscode/askQuestions`
-- AND acts according to the selected option (automatic setup, manual guided configuration, or skip)
+### Requirement: foundation Source Documents Without Server Installation
+
+The skill reads text and Markdown sources directly. For binary documents it calls an available MarkItDown MCP `convert_to_markdown` tool, whatever its server prefix (`mcp__markitdown__convert_to_markdown` on Codex by default), reusing an existing server instead of duplicating it, and declares `runtime_capabilities.mcp: true` (REQ-skills-001). It MUST NOT install or register an MCP server: without the tool it asks the user to paste or convert the document, or skips it, and a failed conversion skips only that document.
+
+#### Scenario: No conversion tool is available
+- GIVEN a PDF source and no `convert_to_markdown` tool in the session
+- WHEN foundation ingests its sources
+- THEN it installs and registers nothing
+- AND it offers to paste or convert the document, or to skip it
+
+### Requirement: foundation Records Architecture For IDD
+
+Foundation records structural decisions as ADRs under `docs/architecture/decisions/` (context and drivers, at least two options, decision without product names, consequences, fitness function, review trigger) and quality drivers as scenarios with a measure only when the user gives one. It proposes `idd/config.yaml` (`checks`, `strict_tdd`, `impact`, `contracts.documents`) and writes it only after the user's explicit approval, preserving existing keys; it never writes application code, manifests or scaffolds.
+
+#### Scenario: The first change derives the obligations foundation planned
+- GIVEN foundation recorded `impact.public_contract` for the planned API paths with the user's approval
+- WHEN the first IDD change plans a path under them
+- THEN `public-contract` is derived and `contract-spec-and-test` is owed
 
 ---
 
@@ -1950,7 +1964,7 @@ inlined in the always-loaded body and MUST each reside in a dedicated
 | Archive / quality-gate guard | before archive phase |
 | Repeated `askQuestions` payload shapes | referenced when constructing gate payloads — backed by `skills/_shared/question-shapes.md` (delivery-strategy, review-workload, and blocked-envelope payload shapes) |
 | Clarify gate handler | the clarify gate RUNS per the `sdd-clarify` routing rule — success/blocked/user-skip and `phases.clarify.status` bookkeeping, backed by `skills/_shared/clarify-routing.md` |
-| Gaps resolution handler | `sdd-foundation` returns `status: blocked` with unresolved functional/technical gaps, backed by `skills/_shared/gaps-resolution.md` |
+| Gaps resolution handler | `foundation` returns `status: blocked` with unresolved functional/technical gaps, backed by `skills/_shared/gaps-resolution.md` |
 
 Each handler file MUST be loaded via the orchestrator's `read` tool ONLY when its
 designated trigger fires. The CORE MUST include a pointer table mapping every

@@ -122,6 +122,26 @@ test("open facts are asked before any obligation, as one batch of questions", ()
   assert.strictEqual(nextForChange(state).pending_decision, null);
 });
 
+test("a decision gate comes before the plan and the obligations it decides", () => {
+  let state = recordIntent(null, { change: "cache-sums", kind: "feature", summary: "s", acceptance: "a", ...NO_OPEN_FACTS }).state;
+  state = recordGate(state, { id: "adr-amend-or-contradict", action: "open", reason: "ADR-0003 forbids external caches" }).state;
+  assert.deepStrictEqual(nextForChange(state).next_step, { action: "resolve-gate", gate: "adr-amend-or-contradict" });
+
+  state = recordPlan(state, { paths: ["db/migrations/drop.sql"], operations: ["drop-column"] }).state;
+  state = recordSignal(state, { id: "persistent-data", reason: "touches db/migrations/drop.sql", source: "declaration" }).state;
+  state = recordGate(state, { id: "irreversible-operation", action: "open", reason: "declared drop-column" }).state;
+  state = recordGate(state, { id: "adr-amend-or-contradict", action: "resolve", answer: "amend ADR-0003", source: "user" }).state;
+  const result = nextForChange(state);
+  assert.deepStrictEqual(result.next_step, { action: "resolve-gate", gate: "irreversible-operation" });
+  assert.deepStrictEqual(result.pending_obligations.map((o) => o.id), ["migration-compat-and-test", "checks-pass"]);
+  assert.strictEqual(result.pending_decision.gate, "irreversible-operation");
+
+  state = recordGate(state, { id: "irreversible-operation", action: "resolve", answer: "approve", source: "user" }).state;
+  assert.strictEqual(nextForChange(state).next_step.obligation, "migration-compat-and-test");
+  // Checks are configured only after every decision is taken.
+  assert.strictEqual(nextForChange(state, { checks: [] }).next_step.obligation, "migration-compat-and-test");
+});
+
 test("an open gate blocks close once obligations are settled, then close is next", () => {
   let state = planned({ change: "drop-fax", kind: "refactor", summary: "s", acceptance: "a", ...NO_OPEN_FACTS });
   state = recordGate(state, { id: "irreversible-operation", action: "open", reason: "drops fax_number" }).state;

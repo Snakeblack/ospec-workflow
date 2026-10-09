@@ -11,7 +11,7 @@ context: |
 
 project:
   name: ospec-workflow
-  version: 2.117.18
+  version: 2.118.0
   status: active
 
 artifact_store:
@@ -59,7 +59,7 @@ baseline:
 
 rules:
   foundation:
-    - Ask one blocking question at a time
+    - Ask at most four questions per round, each with a recommended answer
     - Do not generate application code before scaffold/project setup is approved
   proposal:
     - Include rollback plan for risky changes
@@ -90,7 +90,7 @@ routing:
     classification: [trivial, small, normal, high-risk]
     conditions:
       project.status: empty
-    phases: [sdd-foundation]
+    phases: [foundation]
     gates: []
     description: "Guided pre-SDD foundation phase for empty projects."
     cost: medium

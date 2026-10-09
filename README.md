@@ -37,13 +37,19 @@ A one-line fix and a schema migration do not need the same ceremony. IDD has no 
 | --- | --- | --- |
 | `always` | Every change with a resolved intent | `checks-pass`: `ospec check` runs the checks declared in `idd/config.yaml` on the current tree |
 | `bug-fix` | The intent is a bug | `repro-test`: the reproduction test fails first, then passes |
-| `strict-tdd` | `strict_tdd: true` in `idd/config.yaml` | `tdd-red-green`: a red → green pair per unit |
+| `strict-tdd` | `strict_tdd: true` in `idd/config.yaml`, except for docs and refactor changes | `tdd-red-green`: a red → green pair per unit |
 | `public-contract` | The change touches API routes, OpenAPI, proto or GraphQL schemas, or what a non-private `package.json` publishes | `contract-spec-and-test`: the contract document and its test change in the diff |
 | `persistent-data` | The change touches migrations, SQL or ORM schemas | `migration-compat-and-test`: a migration test with a compatibility or rollback plan |
 | `security-boundary` | The change touches auth, security, permissions, secrets or credentials | `trust-review`: a bounded read-only trust review |
 | `multi-unit-or-decision` | Several work units or a recorded design decision | `living-doc`: `idd/<change>/change.md` keeps the plan and decisions current |
 
-The patterns adapt to the detected stack (Node, JVM, .NET, Python, Go) and extend under `impact:` in `idd/config.yaml`. The four gates are `ambiguous-intent` (no acceptance can be stated yet), `open-facts` (behaviors that neither the request nor the code settle, asked all at once before editing), `irreversible-operation` and `adr-amend-or-contradict`.
+The patterns adapt to the detected stack (Node, JVM, .NET, Python, Go) and extend under `impact:` in `idd/config.yaml`. The four gates are `ambiguous-intent` (no acceptance can be stated yet), `open-facts` (behaviors that neither the request nor the code settle, asked all at once before editing), `irreversible-operation` and `adr-amend-or-contradict`. Every open gate is asked before the work it decides.
+
+The agent builds the smallest change that meets the acceptance and chooses tests by risk: business rules, validation, non-trivial transformations, algorithms and contracts, with their error and edge paths. Unit tests stay deterministic and offline; no coverage percentage replaces that choice.
+
+### Foundation: architecture before the first change
+
+A new project, or a request to define a system's architecture, starts with the `foundation` skill in any mode. It asks rounds of at most four questions, each with a recommended answer, and works like an architect: quality drivers as measurable scenarios, the simplest structure that meets them (services only for a named driver), and decisions deferred until their last responsible moment. It records the product docs, one ADR per structural decision under `docs/architecture/decisions/` and, with your approval, the `idd/config.yaml` that IDD needs (checks, Strict TDD, impact paths, contract documents). A later change that departs from an ADR stops at `adr-amend-or-contradict`. It never writes application code.
 
 ---
 
@@ -241,7 +247,7 @@ SDD runs a change through planned phases (proposal, specs, design, tasks, apply,
 | `/sdd-archive` | Consolidates and archives a verified change. |
 | `/sdd-onboard` | Walks through a real SDD cycle on the current repository. |
 
-`sdd-foundation` builds the documentary base when the project is empty. Phase agents must not be invoked as an uncoordinated team: the orchestrator preserves order and contracts.
+In SDD, the `foundation` route delegates to the `foundation` agent when the project is empty. Phase agents must not be invoked as an uncoordinated team: the orchestrator preserves order and contracts.
 
 ### SDD Flows
 
@@ -258,7 +264,7 @@ But not every change needs the full cycle. The orchestrator evaluates the routin
 
 | Route | Classification | When | Phases |
 | --- | --- | --- | --- |
-| **foundation** | normal, high-risk | Empty project, no stack or architecture | `sdd-foundation` |
+| **foundation** | normal, high-risk | Empty project, no stack or architecture | `foundation` |
 | **federated** | normal, high-risk | Multi-repo workspace (`workspace-federated`) | `sdd-workspace` → propose → spec → design → tasks → apply → verify → archive |
 | **bugfix** | small, normal | User states an explicit bugfix intent | `sdd-explore` → tasks → apply → verify → archive |
 | **brownfield** | normal, high-risk | There is code but `openspec/specs/` is empty | `sdd-baseline` (in batches per domain) |

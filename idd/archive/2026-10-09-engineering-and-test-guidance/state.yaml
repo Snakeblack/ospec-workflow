@@ -1,0 +1,93 @@
+{
+  "schema": "idd-state/v1",
+  "change": "engineering-and-test-guidance",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "feature",
+    "summary": "IDD, the default path, carries no guidance on solution simplicity, test selection by risk, unit-test isolation or multi-service changes; Strict TDD apply demands a red test of every task while verify lets any task mark it N/A",
+    "acceptance": "The idd protocol (within 12 KB) says how to build simply, which tests to write by risk and how to keep unit tests deterministic and offline, how a refactor records its safety net, and how changes span repositories or monorepo services; engineering-judgment.md holds the canonical test-by-risk criteria; Strict TDD apply and verify agree on the N/A cases and verify flags N/A on a behavior change"
+  },
+  "facts": {
+    "basis": "The user's request states the testing and simplicity policy; roadmap principles and engineering-judgment.md already define proportionality; the apply/verify mismatch is read from both files"
+  },
+  "plan": {
+    "paths": [
+      "rules/sdd-strict-tdd.instructions.md",
+      "scripts/configure/idd-protocol.test.js",
+      "scripts/fixtures/context-baseline.json",
+      "skills/_shared/engineering-judgment.md",
+      "skills/idd/SKILL.md",
+      "skills/sdd-apply/strict-tdd.md",
+      "skills/sdd-verify/strict-tdd-verify.md"
+    ],
+    "work_units": 3,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 3 work units",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-09T12:49:45.013Z",
+      "detail": {
+        "tree": "sha256:a6597bd29a71a544d72afb50dc40d26472b3a8ec7724641bc278e78ceaec5d63",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-09T12:49:45.167Z"
+    }
+  ],
+  "base": "61b453c7268ee624990a0560191825f4e3ca8670",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5c312b7b70a598932010edf1c776d6fedcecbcb2bb3e1a121f0b8d178328472f",
+      "tree": "sha256:a6597bd29a71a544d72afb50dc40d26472b3a8ec7724641bc278e78ceaec5d63",
+      "recorded_at": "2026-10-09T12:49:45.013Z"
+    }
+  ],
+  "closed_at": "2026-10-09T12:49:45.167Z"
+}

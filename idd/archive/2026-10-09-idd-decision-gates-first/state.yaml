@@ -1,0 +1,170 @@
+{
+  "schema": "idd-state/v1",
+  "change": "idd-decision-gates-first",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "ospec next and the session hooks send the agent to build while an adr-amend-or-contradict or irreversible-operation gate is open, and the IDD protocol never says how to open the ADR gate, so resolving it fails with gate-not-open",
+    "acceptance": "With any gate open, next_step is resolve-gate for it (gate order) before the plan and every obligation, in the CLI and in both hook runtimes; the IDD protocol says how to open adr-amend-or-contradict and that a pending_decision is asked first; signals reports a recorded plan"
+  },
+  "facts": {
+    "basis": "REQ-idd-008 makes every gate a user decision taken before the operation, and the destructive-migration fixture's own acceptance says the data loss is approved before it runs; reproduced in a scratch repo (gate-not-open, satisfy-obligation with the ADR gate open)"
+  },
+  "plan": {
+    "paths": [
+      "internal/iddsession/iddsession.go",
+      "internal/iddsession/iddsession_test.go",
+      "internal/testdata/idd-session/steps/workspace/idd/s-adr-gate/state.yaml",
+      "openspec/specs/idd/spec.md",
+      "scripts/configure/idd-protocol.test.js",
+      "scripts/fixtures/idd/destructive-migration.json",
+      "scripts/lib/idd-next.js",
+      "scripts/lib/idd-next.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js",
+      "skills/idd/SKILL.md"
+    ],
+    "work_units": 2,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-09T12:41:54.998Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-09T12:43:21.227Z",
+      "detail": {
+        "tree": "sha256:ad023bb5925f3e2d608a9ca8b85574e94d324829b85ed56abaf67044c8f4710a",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-09T12:43:21.227Z",
+      "detail": {
+        "tree": "sha256:ad023bb5925f3e2d608a9ca8b85574e94d324829b85ed56abaf67044c8f4710a",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "internal/iddsession/iddsession_test.go",
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-09T12:43:30.815Z"
+    }
+  ],
+  "base": "e4a0b69caddf3ca227ec9f8509d67bfa14d50495",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/idd-next.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:482c2c2398f445b0f75077bcc996d0e4755196c9dc9cf9c8f86e93f58b53f4f5",
+      "tree": "sha256:73a7735f99113ec709dbaf1d00df904964bd6414dc6cb3e8b0ce31653a8efd86",
+      "recorded_at": "2026-10-09T12:37:35.061Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/idd-next.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ea9eb6052ff22e6c430d5c273c837da045a3fd3f067a2ada9d2fb63044cf2a98",
+      "tree": "sha256:9e8599502ff89a836bc073246b8edc64f4ae36ab50a70c5ff3ba6cf6d8e15bcc",
+      "recorded_at": "2026-10-09T12:41:54.998Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d5f564ba6c69599ee1b0ee367a2545961206b6a6a5a3ffb83d0cb3cd581c2cca",
+      "tree": "sha256:ad023bb5925f3e2d608a9ca8b85574e94d324829b85ed56abaf67044c8f4710a",
+      "recorded_at": "2026-10-09T12:43:21.227Z"
+    }
+  ],
+  "closed_at": "2026-10-09T12:43:30.815Z"
+}

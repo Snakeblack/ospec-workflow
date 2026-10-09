@@ -20,6 +20,6 @@
     "obligations": ["checks-pass", "migration-compat-and-test"],
     "gates": ["irreversible-operation"],
     "living_doc": false,
-    "next": { "action": "satisfy-obligation", "obligation": "migration-compat-and-test", "pending_decision": "irreversible-operation" }
+    "next": { "action": "resolve-gate", "gate": "irreversible-operation", "pending_decision": "irreversible-operation" }
   }
 }

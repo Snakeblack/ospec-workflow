@@ -15,7 +15,7 @@ agents:
   sdd-propose: premium
   sdd-design: premium
   sdd-verify: premium
-  sdd-foundation: premium
+  foundation: premium
   sdd-workspace: premium
 
   # Default:
@@ -53,7 +53,7 @@ installer:
   phase_groups:
     phases:
       label: Fases
-      agents: [sdd-propose, sdd-design, sdd-verify, sdd-foundation, sdd-workspace, sdd-orchestrator, sdd-spec, sdd-clarify, sdd-apply, sdd-reconcile, sdd-baseline, sdd-init, sdd-explore, sdd-tasks, sdd-archive, sdd-onboard, sdd-document, review-change, review-correction, review-trust, review-runtime, review-evolution, review-efficiency]
+      agents: [sdd-propose, sdd-design, sdd-verify, foundation, sdd-workspace, sdd-orchestrator, sdd-spec, sdd-clarify, sdd-apply, sdd-reconcile, sdd-baseline, sdd-init, sdd-explore, sdd-tasks, sdd-archive, sdd-onboard, sdd-document, review-change, review-correction, review-trust, review-runtime, review-evolution, review-efficiency]
   presets:
     recommended:
       label: Recomendado

@@ -165,11 +165,11 @@ test("claude: the marketplace builder forwards withSdd to runConfigure, and its 
   assert.equal(parseArgs(["--with-sdd"]).withSdd, true);
 });
 
-test("the SDD package is every sdd-* skill, agent and command, and nothing else", () => {
-  for (const file of ["skills/sdd-apply/SKILL.md", "skills/sdd-verify/references/ai-blind-spots.md", "agents/sdd-orchestrator.agent.md", "commands/sdd-new.prompt.md", "rules/sdd-strict-tdd.instructions.md"]) {
+test("the SDD package is every sdd-* skill, agent and command plus the foundation delegate, and nothing else", () => {
+  for (const file of ["skills/sdd-apply/SKILL.md", "skills/sdd-verify/references/ai-blind-spots.md", "agents/sdd-orchestrator.agent.md", "commands/sdd-new.prompt.md", "rules/sdd-strict-tdd.instructions.md", "agents/foundation.agent.md"]) {
     assert.equal(isSddPackagePath(file), true, file);
   }
-  for (const file of ["skills/idd/SKILL.md", "skills/_shared/sdd-phase-common.md", "agents/review-trust.agent.md", "skills/review-trust/SKILL.md", "rules/ospec-router.instructions.md", "skills/sdd/SKILL.md"]) {
+  for (const file of ["skills/idd/SKILL.md", "skills/_shared/sdd-phase-common.md", "agents/review-trust.agent.md", "skills/review-trust/SKILL.md", "rules/ospec-router.instructions.md", "skills/sdd/SKILL.md", "skills/foundation/SKILL.md", "skills/foundation/references/foundation-details.md"]) {
     assert.equal(isSddPackagePath(file), false, file);
   }
 });

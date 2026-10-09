@@ -535,34 +535,27 @@ test("real repo: all six targets preserve D2 intent-briefing landmarks", (t) => 
   }
 });
 
-test("real repo: sdd-foundation agent mentions markitdown degradation", (t) => {
+test("real repo: foundation runs without SDD; its delegate agent ships with SDD and never installs a MarkItDown server", (t) => {
   const targetPaths = {
-    claude: "agents/sdd-foundation.md",
-    vscode: "agents/sdd-foundation.agent.md",
-    "github-copilot": ".github/agents/sdd-foundation.agent.md",
-    opencode: ".opencode/agents/sdd-foundation.md",
+    claude: "agents/foundation.md",
+    vscode: "agents/foundation.agent.md",
+    "github-copilot": ".github/agents/foundation.agent.md",
+    opencode: ".opencode/agents/foundation.md",
   };
 
   for (const [target, expectedPath] of Object.entries(targetPaths)) {
+    const plain = tmpOut(t);
+    runConfigure({ sourceDir: ROOT, target, outDir: plain, validate: false });
+    assert.ok(fs.existsSync(path.join(plain, "skills", "foundation", "SKILL.md")), `${target}: the foundation skill ships in every install`);
+    assert.ok(!fs.existsSync(path.join(plain, expectedPath)), `${target}: the foundation agent is the SDD orchestrator's delegate`);
+
     const out = tmpOut(t);
     runConfigure({ sourceDir: ROOT, target, outDir: out, validate: false, withSdd: true });
-
-    assert.ok(
-      fs.existsSync(path.join(out, expectedPath)),
-      `sdd-foundation agent missing from ${target} output at ${expectedPath}`
-    );
+    assert.ok(fs.existsSync(path.join(out, expectedPath)), `foundation agent missing from ${target} output at ${expectedPath}`);
 
     const text = fs.readFileSync(path.join(out, expectedPath), "utf8");
-    assert.match(
-      text,
-      /(?:mcp__markitdown__)?convert_to_markdown/,
-      `sdd-foundation agent (${target}) must reference the MarkItDown convert_to_markdown tool`
-    );
-    assert.match(
-      text,
-      /fallback|degradation/i,
-      `sdd-foundation agent (${target}) must contain a fallback/degradation reference`
-    );
+    assert.match(text, /convert_to_markdown/, `foundation agent (${target}) must reference the MarkItDown convert_to_markdown tool`);
+    assert.match(text, /never\s+install\s+or\s+register\s+a\s+server/, `foundation agent (${target}) must not install MCP servers itself`);
   }
 });
 

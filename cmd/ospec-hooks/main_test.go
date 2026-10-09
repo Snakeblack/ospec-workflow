@@ -59,5 +59,5 @@ type stubHandler struct {
 	code   int
 }
 
-func (s *stubHandler) Name() string                              { return s.name }
-func (s *stubHandler) Run(_ []byte) ([]byte, int)               { return s.output, s.code }
+func (s *stubHandler) Name() string               { return s.name }
+func (s *stubHandler) Run(_ []byte) ([]byte, int) { return s.output, s.code }

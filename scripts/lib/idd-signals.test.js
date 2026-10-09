@@ -102,6 +102,20 @@ test("a large mechanical refactor outside every impact pattern opens no gate", (
   assert.deepStrictEqual(derivation.gates, []);
 });
 
+test("strict TDD owes a red test to new behavior only: not to docs or a refactor", () => {
+  const derive = (kind) =>
+    deriveSignals({
+      intent: { kind, summary: "s", acceptance: "a" },
+      strictTdd: true,
+      declaration: { paths: ["src/lib/paginate.js"] },
+      patterns: patternsFor(),
+    }).signals.map((s) => s.id);
+  assert.deepStrictEqual(derive("feature"), ["always", "strict-tdd"]);
+  assert.deepStrictEqual(derive("bug"), ["always", "strict-tdd", "bug-fix"]);
+  assert.deepStrictEqual(derive("refactor"), ["always"]);
+  assert.deepStrictEqual(derive("docs"), ["always"]);
+});
+
 // ---------------------------------------------------------------------------
 // Reasons, sources and determinism
 // ---------------------------------------------------------------------------

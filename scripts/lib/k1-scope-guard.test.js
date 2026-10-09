@@ -218,6 +218,10 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/review-k7-binding.test.js",
   // K8 candidate evaluation attestation schema boundary (WU1).
   "scripts/lib/k8-schema-fixtures.test.js",
+  // E2.3 (rename) `sdd-foundation` became the mode-independent `foundation`:
+  // the manifest checker's phase-skill roster follows the new name.
+  "scripts/lib/contract-checkers/i1-manifest.js",
+  "scripts/lib/contract-checkers/i1-manifest.test.js",
 ]);
 
 const SUCCESSOR_K2_PREFIXES = [
@@ -505,6 +509,13 @@ test("K1 scope guard: fixed routing and phase validation remain byte-equivalent 
           .replace(
             /# -{20,}\n#\n# -{20,}\n# quality_review\.attribution_override:.*?- "public-kernel-contract-unattributed"\n/gs,
             ""
+          )
+          // Sanctioned successor evolution (E2.3 rename, foundation-architect): the
+          // foundation route's phase is `foundation` and it asks in rounds.
+          .replace(/^(\s*phases:\s*)\[foundation\]$/m, "$1[sdd-foundation]")
+          .replace(
+            /^(\s*- )Ask at most four questions per round, each with a recommended answer$/m,
+            "$1Ask one blocking question at a time"
           )
           .replace(/\n{3,}/g, "\n\n");
       assert.equal(

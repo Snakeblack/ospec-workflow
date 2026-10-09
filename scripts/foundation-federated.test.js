@@ -6,8 +6,8 @@ const path = require("node:path");
 const test = require("node:test");
 
 const ROOT = path.resolve(__dirname, "..");
-const SKILL = path.join(ROOT, "skills", "sdd-foundation", "SKILL.md");
-const AGENT = path.join(ROOT, "agents", "sdd-foundation.agent.md");
+const SKILL = path.join(ROOT, "skills", "foundation", "SKILL.md");
+const AGENT = path.join(ROOT, "agents", "foundation.agent.md");
 const ORCHESTRATOR = path.join(ROOT, "agents", "sdd-orchestrator.agent.md");
 // After refactor-orchestrator-lazy, federation logic lives in the _shared/ handler file
 // that the orchestrator reads on-demand via the pointer table.
@@ -50,13 +50,40 @@ test("SKILL.md documents raw-to-processed conversion via MarkItDown", () => {
   );
 });
 
-test("SKILL.md documents the interactive fallback loop when MarkItDown is not available", () => {
+test("SKILL.md never installs a MarkItDown server and lets the user paste, convert or skip", () => {
   const text = read(SKILL);
-  assert.match(
-    text,
-    /markitdown[\s\S]{0,300}?(manual|guía|auto-instalación|configurar|saltar|remediación)/i,
-    "SKILL.md must describe the interactive setup options for MarkItDown fallback"
-  );
+  assert.match(text, /convert_to_markdown/);
+  assert.match(text, /never\s+install\s+or\s+register\s+a\s+server/i);
+  assert.match(text, /paste or convert the\s+document, or skip it/);
+});
+
+// --- Contract fixed by the foundation rework --------------------------------
+
+test("SKILL.md declares the MCP use its body instructs (REQ-skills-001)", () => {
+  const text = read(SKILL);
+  assert.match(text, /runtime_capabilities:\s*\n\s*execute: false\s*\n\s*mcp: true\s*\n\s*write: true/);
+});
+
+test("delegated foundation never asks the user; direct foundation asks rounds itself", () => {
+  const skill = read(SKILL);
+  assert.match(skill, /\*\*Delegated\*\*[\s\S]{0,200}never\s+ask the user/);
+  assert.match(skill, /\*\*Direct\*\*[\s\S]{0,200}ask each round/);
+  assert.match(skill, /at most four questions per round/);
+  assert.doesNotMatch(skill, /vscode\/askQuestions/, "an executor must not call the host question tool");
+  assert.match(read(AGENT), /Never ask the user directly: return `status: blocked` with a `question_gate`/);
+});
+
+test("foundation records architecture ADRs and hands IDD its configuration after approval", () => {
+  const skill = read(SKILL);
+  assert.match(skill, /docs\/architecture\/decisions\/NNNN-<title>\.md/);
+  assert.match(skill, /at least two considered options/);
+  assert.match(skill, /fitness function/);
+  assert.match(skill, /write `idd\/config\.yaml` only after\s+explicit approval/);
+  for (const key of ["checks:", "strict_tdd:", "impact:", "contracts.documents:"]) {
+    assert.ok(skill.includes(`\`${key}`), `hand-off must cover ${key}`);
+  }
+  assert.match(skill, /`adr-amend-or-contradict`/, "the ADRs feed the IDD gate");
+  assert.doesNotMatch(skill, /disable-model-invocation|delegate_only/, "foundation runs outside SDD too");
 });
 
 test("SKILL.md documents synthesizing the 'Mapa de Contratos e Interacciones' section", () => {
@@ -132,14 +159,14 @@ test("agent.md documents gaps mapping and roadmap consolidation", () => {
 
 // --- agents/sdd-orchestrator.agent.md -----------------------------------------
 
-test("orchestrator.agent.md documents routing to sdd-foundation with federated parameters", () => {
+test("orchestrator.agent.md documents routing to foundation with federated parameters", () => {
   // After refactor-orchestrator-lazy, federation routing lives in _shared/route-federation.md
   // (loaded on-demand via the pointer table). Check the combined text.
   const text = orchestratorAndFederationText();
   assert.match(
     text,
-    /sdd-foundation[\s\S]{0,300}?(federated|federado|workspace\.yaml)/i,
-    "orchestrator.agent.md or its _shared/ federation handler must describe routing to sdd-foundation with federated parameters"
+    /`foundation`[\s\S]{0,300}?(federated|federado|workspace\.yaml)/i,
+    "orchestrator.agent.md or its _shared/ federation handler must describe routing to foundation with federated parameters"
   );
 });
 

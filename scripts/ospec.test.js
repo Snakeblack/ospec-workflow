@@ -217,6 +217,31 @@ test("signals derives declaration signals with their reasons and is idempotent",
   const text = ospec(root, ...args.filter((arg) => arg !== "--json"));
   assert.strictEqual(text.code, 0);
   assert.match(text.stdout, /public-contract \(declaration\): public contract: touches src\/api\/pages\.js/);
+  assert.match(text.stdout, /no change: the plan and every derived signal were already recorded/);
+
+  // A wider plan that derives no new signal is still recorded, and says so.
+  const widened = ospec(root, "signals", "--change", "fix-pagination", "--path", "src/lib/paginate.js");
+  assert.strictEqual(widened.code, 0, widened.stderr);
+  assert.match(widened.stdout, /recorded the plan; every derived signal was already recorded/);
+});
+
+test("an open ADR gate is asked before the plan and the obligations", (t) => {
+  const root = tempRoot(t);
+  ospec(root, ...OPEN_BUG);
+  const refused = ospec(root, "record", "gate", "--change", "fix-pagination", "--gate", "adr-amend-or-contradict", "--resolve", "--answer", "amend", "--source", "user", "--json");
+  assert.strictEqual(refused.json.error.code, "gate-not-open");
+
+  const opened = ospec(root, "record", "gate", "--change", "fix-pagination", "--gate", "adr-amend-or-contradict", "--open", "--reason", "ADR-0003 fixes page size", "--json");
+  assert.strictEqual(opened.code, 0, opened.stderr);
+  assert.deepStrictEqual(opened.json.next.next_step, { action: "resolve-gate", gate: "adr-amend-or-contradict" });
+
+  ospec(root, "signals", "--change", "fix-pagination", "--path", "src/lib/paginate.js");
+  const next = ospec(root, "next", "--change", "fix-pagination", "--json");
+  assert.deepStrictEqual(next.json.next_step, { action: "resolve-gate", gate: "adr-amend-or-contradict" });
+  assert.deepStrictEqual(next.json.pending_obligations.map((o) => o.id), ["repro-test", "checks-pass"]);
+
+  const resolved = ospec(root, "record", "gate", "--change", "fix-pagination", "--gate", "adr-amend-or-contradict", "--resolve", "--answer", "amend ADR-0003", "--source", "user", "--json");
+  assert.strictEqual(resolved.json.next.next_step.obligation, "repro-test");
 });
 
 test("signals --diff adds diff signals and opens the irreversible gate", (t) => {

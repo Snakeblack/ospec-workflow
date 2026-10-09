@@ -194,7 +194,7 @@ func v267NestedEnvelope() map[string]any {
 	return map[string]any{
 		"schema_version": 1, "status": "blocked",
 		"executive_summary": "v2.67 nested question_gate replay fixture.",
-		"artifacts": []any{"inline"}, "next_recommended": "sdd-design",
+		"artifacts":         []any{"inline"}, "next_recommended": "sdd-design",
 		"risks": "None", "skill_resolution": "injected", "blocker_type": "design-mismatch",
 		"question_gate": map[string]any{
 			"reason": "Need a decision.",

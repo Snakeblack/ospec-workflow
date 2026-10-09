@@ -29,6 +29,7 @@ const ROUTERS = {
 };
 
 const IDD_ENTRY = { claude: "skill `ospec-workflow:idd`" };
+const FOUNDATION_ENTRY = { claude: "skill `ospec-workflow:foundation`" };
 
 function generate(t, target) {
   const out = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-idd-"));
@@ -60,6 +61,13 @@ for (const target of Object.keys(ROUTERS)) {
     for (const gate of ["ambiguous-intent", "open-facts", "irreversible-operation", "adr-amend-or-contradict"]) {
       assert.ok(protocol.includes(`\`${gate}\``), `${target}: protocol must name the ${gate} gate`);
     }
+    // No derivation opens the ADR gate: resolving it unopened fails with gate-not-open.
+    assert.ok(protocol.includes("--gate adr-amend-or-contradict --open"), `${target}: protocol must say how to open the ADR gate`);
+    assert.match(protocol, /`resolve-gate` comes first/, `${target}: an open gate is asked before the work it decides`);
+    for (const section of ["## Build it simply", "## Tests by risk", "## Several services or repositories"]) {
+      assert.ok(protocol.includes(section), `${target}: protocol must keep ${section}`);
+    }
+    assert.match(protocol, /deterministic and offline/, `${target}: unit tests stay isolated from external dependencies`);
     for (const command of ["ospec next", "ospec record intent", "ospec signals", "ospec check", "ospec close"]) {
       assert.ok(protocol.includes(command), `${target}: protocol must use ${command}`);
     }
@@ -78,6 +86,10 @@ for (const target of Object.keys(ROUTERS)) {
     assert.match(router, /`mode: sdd` in `idd\/config\.yaml`/, `${target}: router must name the SDD project mode`);
     assert.match(router, /explicitly asks[^.]*without IDD/, `${target}: direct work only on an explicit request`);
     assert.ok(router.includes(`Load the ${IDD_ENTRY[target] || "skill `idd`"}`), `${target}: router must name the IDD entry`);
+    assert.ok(
+      router.includes(`starts with the ${FOUNDATION_ENTRY[target] || "skill `foundation`"}`),
+      `${target}: router must send a new project to the foundation entry`,
+    );
     assert.match(router, /\/sdd-\*/, `${target}: SDD stays reachable on request`);
     assert.match(router, /not installed[^.]*`--with-sdd`/, `${target}: the router says how to install SDD when it is missing`);
   });

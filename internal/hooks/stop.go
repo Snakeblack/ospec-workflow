@@ -26,18 +26,18 @@ func (h *stopHandler) Name() string { return "stop" }
 
 // stopInput is the stdin payload for stop.
 type stopInput struct {
-	Cwd       string `json:"cwd"`
-	Timestamp string `json:"timestamp"`
-	SessionID string `json:"sessionId"`
+	Cwd                 string `json:"cwd"`
+	Timestamp           string `json:"timestamp"`
+	SessionID           string `json:"sessionId"`
 	SessionIDUnderscore string `json:"session_id"`
 }
 
 type stopOutput struct {
-	Continue     bool    `json:"continue"`
-	Status       string  `json:"status,omitempty"`
-	Path         string  `json:"path,omitempty"`
-	ActiveChange *string `json:"activeChange,omitempty"`
-	SystemMessage string `json:"systemMessage,omitempty"`
+	Continue      bool    `json:"continue"`
+	Status        string  `json:"status,omitempty"`
+	Path          string  `json:"path,omitempty"`
+	ActiveChange  *string `json:"activeChange,omitempty"`
+	SystemMessage string  `json:"systemMessage,omitempty"`
 }
 
 func (h *stopHandler) Run(stdin []byte) ([]byte, int) {
@@ -114,14 +114,14 @@ func runStop(input stopInput) error {
 	}
 
 	latestContent := renderLatestSummary(renderLatestArgs{
-		hasChange:    activeChange != nil,
-		changeName:   changeName,
-		currentPhase: currentPhase,
-		status:       status,
+		hasChange:       activeChange != nil,
+		changeName:      changeName,
+		currentPhase:    currentPhase,
+		status:          status,
 		detailedSummary: detailedSummary,
-		endedAt:      ts,
-		sessionID:    sessionID,
-		nextAction:   nextAction,
+		endedAt:         ts,
+		sessionID:       sessionID,
+		nextAction:      nextAction,
 	})
 
 	return writeLatest(s, latestContent)

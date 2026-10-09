@@ -18,7 +18,7 @@ A route is a **distinct user intent**, not an implementation detail. Do not add 
 
 | # | Name | Classification | Key Conditions | Phases | Gates | Cost |
 |---|------|----------------|----------------|--------|-------|------|
-| 1 | `foundation` | trivial, small, normal, high-risk | `project.status: empty` OR `architecture: none-detected` | `[sdd-foundation]` | `[]` | medium |
+| 1 | `foundation` | trivial, small, normal, high-risk | `project.status: empty` OR `architecture: none-detected` | `[foundation]` | `[]` | medium |
 | 2 | `federated` | trivial, small, normal, high-risk | `artifact_store.backend: workspace-federated` | `[sdd-workspace, sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[impact, clarify]` | high |
 | 3 | `debug` | small, normal | Explicit debug intent only (never auto-routed) | `[sdd-explore, sdd-apply]` | `[quality-review-gate]` | low |
 | 4 | `brownfield` | trivial, small, normal, high-risk | `baseline.status: pending` OR empty specs with code present | `[sdd-baseline]` | `[brownfield-advisory]` | medium |
@@ -26,7 +26,7 @@ A route is a **distinct user intent**, not an implementation detail. Do not add 
 | 6 | `lite` | trivial, small | `project.status: active`; classification trivial/small | `[sdd-propose, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[]` | low |
 
 Notes:
-- **foundation** stops after `sdd-foundation` and hands back. It does NOT auto-chain into standard SDD.
+- **foundation** stops after the `foundation` phase and hands back. It does NOT auto-chain into standard SDD. A table that still names the phase `sdd-foundation` keeps working: the dispatcher reads it as `foundation`.
 - **debug** is explicit-only: the user MUST signal debug intent ("debug this", "add logs", "quick fix"). The orchestrator MUST NOT auto-route from classification signals alone.
 - **brownfield** is an advisory preface: the `brownfield-advisory` gate runs first; `sdd-baseline` runs only on user consent. Then re-routes to the underlying change route.
 - **standard** lists `quality-review-gate` in `gates` to ENABLE the Quality Review Gate after a successful `sdd-verify`; removing it disables the gate. `4r-review-gate` is legacy schema-v1 continuation only.

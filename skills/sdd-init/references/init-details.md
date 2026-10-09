@@ -119,4 +119,4 @@ disable the evidence fast path and preserve ordinary CRITICAL remediation.
 
 ## Output Templates
 
-For each mode, include project, stack, persistence, Strict TDD Mode, Testing Capabilities table, artifacts created/saved, limitations where relevant, and next steps. Empty projects must recommend `sdd-foundation`; `none` mode must recommend enabling `openspec` persistence for multi-phase SDD work.
+For each mode, include project, stack, persistence, Strict TDD Mode, Testing Capabilities table, artifacts created/saved, limitations where relevant, and next steps. Empty projects must recommend `foundation`; `none` mode must recommend enabling `openspec` persistence for multi-phase SDD work.

@@ -16,11 +16,11 @@ import (
 // ── helpers ────────────────────────────────────────────────────────────────────
 
 type stopResult struct {
-	Continue      bool   `json:"continue"`
-	Status        string `json:"status"`
-	Path          string `json:"path"`
+	Continue      bool    `json:"continue"`
+	Status        string  `json:"status"`
+	Path          string  `json:"path"`
 	ActiveChange  *string `json:"activeChange"`
-	SystemMessage string `json:"systemMessage"`
+	SystemMessage string  `json:"systemMessage"`
 }
 
 func runStopHook(t *testing.T, stdin []byte) (stopResult, int) {

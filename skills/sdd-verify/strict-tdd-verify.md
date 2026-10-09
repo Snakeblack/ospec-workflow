@@ -18,7 +18,9 @@ Read apply-progress artifact:
 │   ├── (non-coding tasks like docs, configuration, or chores may be excluded or marked N/A)
 │   └── Flag: CRITICAL if any coding task is missing from the table
 ├── FOR EACH task row:
-│   ├── If the task is a non-coding task (or RED/GREEN columns are marked "N/A" or "➖"): verify that the GREEN/RED/TRIANGULATE/SAFETY NET columns are marked "N/A" or "➖" and skip coding/test validation for this task.
+│   ├── If the task is a non-coding task (docs, configuration without logic, chores): verify that the GREEN/RED/TRIANGULATE/SAFETY NET columns are marked "N/A" or "➖" and skip coding/test validation for this task.
+│   ├── If the task is a behavior-preserving refactor with RED and GREEN marked "N/A": its SAFETY NET must show the existing tests passing before the change, and those tests must pass in Step 5b (else CRITICAL). No new test is required.
+│   ├── If any other coding task marks RED or GREEN "N/A" or "➖": CRITICAL — "N/A" never exempts a task that changes behavior.
 │   ├── Otherwise (for coding tasks):
 │   │   ├── RED column: must say "✅ Written" and the test file must exist in the codebase (else CRITICAL)
 │   │   ├── GREEN column:

@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.118.0] - 2026-10-09
+
+Auditoría del harness: defectos de coordinación de IDD, Foundation con criterio de arquitecto e integrada con IDD, criterio de tests por riesgo e higiene de tests y CI. Cada cambio se ejecutó con IDD.
+
+### Added
+- **`foundation` independiente del modo**: `sdd-foundation` se renombra `foundation` y su skill se instala en todos los targets. En modo directo pregunta ella misma; delegada por el orquestador SDD devuelve un `question_gate`. Pregunta en rondas de cuatro como máximo, con respuesta recomendada y supuestos explícitos. Trabaja como un arquitecto: atributos de calidad como escenarios sin medidas inventadas, la estructura más simple que los cumple (servicios solo por un motivo con nombre), propiedad de los datos y modos de fallo de cada integración, y decisiones reversibles aplazadas. Registra un ADR por decisión estructural en `docs/architecture/decisions/`, con opciones, consecuencias, *fitness function* y disparador de revisión, además de una estrategia de tests por riesgo. Propone `idd/config.yaml` (`checks`, `strict_tdd`, `impact`, `contracts.documents`) y solo lo escribe con aprobación. El agente sigue en el paquete SDD como delegado de la ruta, y el dispatcher lee una fase heredada `sdd-foundation` como `foundation`. El router envía a `foundation` los proyectos sin código (`{{foundation-entry}}`). Adelanta parte de E2.3 (`idd/archive/2026-10-09-foundation-architect/`).
+- **Criterio de construcción y de tests en IDD**: el protocolo `idd` incluye «Build it simply» (el cambio mínimo, reutilizar y una capa nueva solo para una necesidad presente) y «Tests by risk». Esta sección pide probar reglas de negocio, validación, transformaciones, algoritmos y contratos con sus caminos de error y borde; tests que fallen si el comportamiento es incorrecto; tests unitarios deterministas y sin red, con dobles en la frontera, y ningún porcentaje de cobertura. Un refactor registra su red de seguridad con `ospec check` antes de editar. La sección «Several services or repositories» pide un cambio IDD por repositorio, contratos compatibles hasta que migren los consumidores e `impact:` para los servicios de un monorepo. La forma canónica vive en `skills/_shared/engineering-judgment.md` (`idd/archive/2026-10-09-engineering-and-test-guidance/`).
+
+### Fixed
+- **Los gates se preguntan antes del trabajo que deciden**: con `adr-amend-or-contradict` o `irreversible-operation` abiertos, `ospec next` y los hooks `Stop` y `PreCompact` (Node y Go) mandaban declarar el plan o satisfacer obligaciones, de modo que la migración se escribía y ejecutaba antes de que el usuario aprobara la pérdida de datos. Ahora cualquier gate abierto va primero, en el orden de los gates (REQ-idd-008, REQ-idd-011, fixture `destructive-migration`) (`idd/archive/2026-10-09-idd-decision-gates-first/`).
+- **Gate ADR alcanzable**: el protocolo pedía resolver `adr-amend-or-contradict`, pero no decía cómo abrirlo, y resolverlo sin abrir falla con `gate-not-open`. Ahora indica leer los ADR que gobiernan el código y abrir el gate con `record gate --open` antes de preguntar.
+- **Strict TDD y refactors**: con `strict_tdd: true`, un refactor debía `tdd-red-green` y solo podía cumplirlo inventando un test rojo. La señal ya no se deriva para `refactor`, como ocurría con `docs` (REQ-idd-012) (`idd/archive/2026-10-09-idd-strict-tdd-refactor/`). En SDD, apply exigía el ciclo rojo-verde a todas las tareas y verify aceptaba `N/A` en cualquiera: ahora ambos admiten `N/A` solo en tareas sin comportamiento y en refactors con red de seguridad, y verify marca CRITICAL el `N/A` de una tarea que cambia comportamiento.
+- **Contradicciones de Foundation**: el ejecutor ya no llama a la herramienta de preguntas del host, declara `mcp: true` como exige REQ-skills-001 y nunca instala un servidor MCP. La regla común y la plantilla de `sdd-init` dejan de exigir una pregunta cada vez.
+- **`ospec signals`** dice que registró el plan cuando no deriva señales nuevas, en lugar de «no change».
+- **Tests deterministas**: los dos tests de ficheros ilegibles de `internal/skillreg` fallaban como root. Ahora sondean la lectura y se saltan con el motivo, y la paridad Go↔Node del fingerprint pasa a un test propio. Se retira `test/e2e/k6b-verifier-assurance-graph-e2e.test.js`: CI no lo ejecutaba, era una copia divergente y sus casos ya estaban cubiertos (`idd/archive/2026-10-09-test-hygiene-root-and-dead-copies/`).
+
+### Changed
+- **CI de Go**: `build-hooks` ejecuta `go vet` en cada sistema y `gofmt` en Linux; se formatean diez ficheros Go (solo espacios).
+- **Techos de contexto**: +1 skill instalada y listada (+244 B de listado), +162–177 B always-on por la línea del router y +725 B de lectura para los cuatro revisores especialistas (criterio de tests).
+- **Documentación**: README EN/ES (Foundation, gates antes del trabajo, tests por riesgo), `docs/` de fases, flujos y enrutado, CONTRIBUTING (flujo IDD, puerta Go, cuatro ficheros de versión), specs `idd`, `agents`, `routing`, `skills`, `generator` y `federated-roadmap-gaps`, y roadmap (adelanto de E2.3).
+
+**Verificación directa**: `node scripts/check.js` (3437 tests pasando, 0 fallos y 4 omitidos), con tres omisiones solo para Windows y una que requiere el CLI de Codex, incluida la generación y validación de los siete targets (Claude con su CLI); `go vet ./...`, `gofmt -l cmd internal` y `go test ./...` en verde, donde, como root, los tres tests de ficheros ilegibles se saltan con su motivo. Reproducciones rojo→verde registradas por IDD en Node y Go.
+
 ## [2.117.18] - 2026-10-09
 
 ### Fixed

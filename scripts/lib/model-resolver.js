@@ -32,7 +32,7 @@ const REQUIRED_SDD_AGENTS = [
   "sdd-design",
   "sdd-document",
   "sdd-explore",
-  "sdd-foundation",
+  "foundation",
   "sdd-init",
   "sdd-onboard",
   "sdd-orchestrator",

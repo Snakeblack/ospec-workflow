@@ -53,6 +53,7 @@ const DESTRUCTIVE_STATEMENTS = Object.freeze([
 ]);
 
 const COMMENT_LINE = /^\s*(--|#|\/\/)/;
+const NO_RED_TEST_KINDS = Object.freeze(["docs", "refactor"]);
 const ALWAYS_REASON = "every change with a resolved intent";
 const SIGNAL_ORDER = SIGNALS.map((signal) => signal.id);
 
@@ -120,7 +121,9 @@ function deriveSignals({ intent, strictTdd = false, declaration = {}, diff = {},
   };
 
   add("always", ALWAYS_REASON, "declaration");
-  if (strictTdd && intent.kind !== "docs") add("strict-tdd", "the project declares strict_tdd", "declaration");
+  // A red test describes new behavior: documentation has none to drive, and a
+  // refactor keeps behavior under the tests that already pass.
+  if (strictTdd && !NO_RED_TEST_KINDS.includes(intent.kind)) add("strict-tdd", "the project declares strict_tdd", "declaration");
   if (intent.kind === "bug") add("bug-fix", "the intent is a bug fix", "declaration");
   if ((declaration.workUnits || 0) > 1) {
     add("multi-unit-or-decision", `declared ${declaration.workUnits} work units`, "declaration");

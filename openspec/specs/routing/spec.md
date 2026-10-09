@@ -109,7 +109,7 @@ All constants are exported from `route-dispatcher.js` and MUST be treated as the
 Ordered list of valid SDD phase names:
 
 ```
-sdd-foundation, sdd-baseline, sdd-workspace, sdd-explore,
+foundation, sdd-baseline, sdd-workspace, sdd-explore,
 sdd-propose, sdd-spec, sdd-design, sdd-tasks,
 sdd-apply, sdd-verify, sdd-archive
 ```
@@ -178,7 +178,7 @@ The `routing:` block in `openspec/config.yaml` declares the ordered list of rout
 
 | # | Name | classification | Key condition | Phases | Gates | Cost |
 |---|------|---------------|---------------|--------|-------|------|
-| 1 | `foundation` | `[trivial, small, normal, high-risk]` | `project.status: empty` | `[sdd-foundation]` | `[]` | medium |
+| 1 | `foundation` | `[trivial, small, normal, high-risk]` | `project.status: empty` | `[foundation]` | `[]` | medium |
 | 2 | `federated` | `[trivial, small, normal, high-risk]` | `artifact_store.backend: workspace-federated` | `[sdd-workspace, sdd-propose, sdd-spec, sdd-design, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[impact, clarify]` | high |
 | 3 | `bugfix` | `[small, normal]` | `explicit_bugfix_intent: true` | `[sdd-explore, sdd-tasks, sdd-apply, sdd-verify, sdd-archive]` | `[quality-review-gate]` | medium |
 | 4 | `brownfield` | `[trivial, small, normal, high-risk]` | `baseline.status: pending` | `[sdd-baseline]` | `[brownfield-advisory]` | medium |
@@ -189,7 +189,7 @@ The `routing:` block in `openspec/config.yaml` declares the ordered list of rout
 
 ### 4.2 Route-Specific Behaviors
 
-**foundation**: Stops after `sdd-foundation` completes. MUST NOT auto-chain into the standard SDD flow.
+**foundation**: Stops after the `foundation` phase completes. MUST NOT auto-chain into the standard SDD flow. A routing table or persisted route that still names the phase `sdd-foundation` (its name before E2.3) MUST parse and validate as `foundation`; any other unknown phase stays refused.
 
 **bugfix**: Is explicit-only. The user MUST signal bugfix intent (e.g., "fix bug", "bugfix", "quick fix"). The orchestrator MUST NOT auto-route to `bugfix` from classification signals alone.
 

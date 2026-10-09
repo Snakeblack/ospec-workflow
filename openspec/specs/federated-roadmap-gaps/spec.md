@@ -14,7 +14,7 @@ La operación de foundation debe buscar y leer el roadmap (`docs/roadmap.md`) de
 
 #### Scenario: Milestones aggregated from members
 - GIVEN a member repository containing a `docs/roadmap.md` with milestones
-- WHEN `sdd-foundation` scans the workspace
+- WHEN `foundation` scans the workspace
 - THEN it aggregates these milestones into the unified `docs/roadmap.md` under the respective member section
 
 ---
@@ -25,7 +25,7 @@ El analizador de foundation debe contrastar el alcance funcional del coordinador
 
 #### Scenario: Functional and technical gaps identified
 - GIVEN a coordinator specifying a capability that no member implements
-- WHEN `sdd-foundation` performs the gap analysis
+- WHEN `foundation` performs the gap analysis
 - THEN it identifies this capability as an active functional gap
 - AND cataloges it in `docs/roadmap-gaps.md`
 
@@ -37,6 +37,6 @@ Si se detectan gaps activos sin resolución, el agente debe suspender el flujo d
 
 #### Scenario: Q&A gate triggered on unresolved gaps
 - GIVEN active gaps exist in the workspace
-- WHEN `sdd-foundation` runs
+- WHEN `foundation` runs
 - THEN the agent blocks and returns a `question_gate` via `vscode/askQuestions`
 - AND upon receiving the user decision, it records the resolution in `docs/roadmap-gaps.md` and updates `openspec/config.yaml`

@@ -12,7 +12,7 @@ Load these rules only when `openspec/config.yaml` explicitly enables `testing.td
 
 ## Apply phase
 
-- Follow RED → GREEN → TRIANGULATE → REFACTOR for every assigned task.
+- Follow RED → GREEN → TRIANGULATE → REFACTOR for every assigned task that changes behavior. A task with no behavior to test (docs, configuration without logic, chores) or a behavior-preserving refactor marks RED/GREEN `N/A` with the reason; a refactor still runs the existing tests before and after.
 - Do not write production code before a failing or newly impossible test exists.
 - Execute the relevant test file for GREEN when a verified command-execution tool is available.
 - If command execution is unavailable, do not fake execution evidence. Instead, perform rigorous static verification (e.g., checking logic, boundary conditions, and mock implementations), document the task as `STATIC_VALIDATED` or `DEFERRED` in the evidence table, and require actual runtime execution verification during a later environment-capable `sdd-verify` phase.

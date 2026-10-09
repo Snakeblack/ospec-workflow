@@ -22,7 +22,7 @@ Cuando una fase necesita decision del usuario, devuelve `status: blocked` con `q
 | Fase | Lee | Escribe | Resultado |
 | --- | --- | --- | --- |
 | `sdd-init` | Repo real, manifests, configs, tests. | `openspec/config.yaml`, carpetas base y registro compacto de skills cuando aplique. | Proyecto listo para SDD persistido. |
-| `sdd-foundation` | `openspec/config.yaml`, `docs/**`, documentos fuente. | `docs/product/**`, `docs/architecture/**`, `docs/roadmap.md`, config actualizada. | Base de producto y arquitectura para proyectos vacios. |
+| `foundation` | `openspec/config.yaml`, `idd/config.yaml`, `docs/**`, documentos fuente. | `docs/product/**`, `docs/architecture/**` (ADR incluidos), `docs/roadmap*.md`, config actualizada e `idd/config.yaml` aprobado. | Base de producto y arquitectura para proyectos vacios. |
 | `sdd-explore` | Codigo, specs y artefactos relevantes cuando hacen falta. | `exploration.md` si hay cambio nombrado. | Estado actual, opciones, riesgos y recomendacion. |
 | `sdd-propose` | Exploracion, specs existentes, peticion del usuario. | `proposal.md` o `proposal-lite.md`. | Intencion, alcance, capacidades, riesgos y rollback. |
 | `sdd-spec` | `proposal.md`, specs principales existentes. | `specs/{domain}/spec.md` dentro del cambio. | Requisitos y escenarios testables sin tocar specs principales. |
@@ -48,11 +48,11 @@ No se dispara en silencio para cualquier pregunta. Solo se autoejecuta antes de 
 
 Evita que cada fase vuelva a descubrir lo mismo y evita que Copilot trabaje con supuestos invisibles.
 
-## `sdd-foundation`
+## `foundation`
 
-Es la fase pre-SDD para proyectos vacios o desde cero. `sdd-init` detecta realidad; `sdd-foundation` captura intencion cuando todavia no hay suficiente realidad que detectar.
+Es la base de un proyecto vacio o desde cero, en cualquier modo (antes `sdd-foundation`). `sdd-init` detecta realidad; `foundation` captura intencion cuando todavia no hay suficiente realidad que detectar. En SDD es la unica fase de la ruta `foundation` y la delega el orquestador; fuera de SDD la carga el router o el usuario y pregunta directamente.
 
-Pregunta una sola cosa bloqueante cada vez y persiste lo confirmado antes de parar. Produce brief de producto, alcance funcional, glosario, baseline tecnico, decisiones iniciales, roadmap y referencias.
+Trabaja como un arquitecto: pregunta en rondas de cuatro preguntas como maximo, cada una con respuesta recomendada y la opcion "no lo se" (que registra un supuesto explicito en vez de bloquear), parte de los atributos de calidad como escenarios medibles y elige la estructura mas simple que los cumple. Persiste lo confirmado antes de cada ronda. Produce brief de producto, alcance funcional, glosario, baseline tecnico con estrategia de tests por riesgo, un ADR por decision estructural, roadmap, mapa de huecos y referencias, y propone el `idd/config.yaml` que IDD necesita.
 
 Regla clave: no crea codigo de aplicacion. Define cimientos. Primero planos, luego ladrillos.
 
@@ -180,7 +180,7 @@ Regla clave: no archiva con issues CRITICAL. El archivo es auditoria, no papeler
 
 Guia al usuario por un ciclo real pequeno en su propio repo. No es una demo de juguete. Busca una mejora de bajo riesgo, crea artefactos, implementa, verifica y archiva.
 
-Regla clave: si el workspace esta vacio, debe recomendar `sdd-foundation` primero. No se inventa una mejora donde no hay sistema.
+Regla clave: si el workspace esta vacio, debe recomendar `foundation` primero. No se inventa una mejora donde no hay sistema.
 
 ## `sdd-baseline`
 

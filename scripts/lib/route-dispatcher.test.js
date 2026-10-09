@@ -112,7 +112,7 @@ const LITE_ROUTE = {
 
 test("KNOWN_PHASES includes all expected phase names", () => {
   const expected = [
-    "sdd-foundation",
+    "foundation",
     "sdd-baseline",
     "sdd-workspace",
     "sdd-explore",
@@ -478,7 +478,7 @@ test("parseRoutingTable parses nested conditions map", () => {
     "    conditions:",
     "      project.status: empty",
     "      architecture: none-detected",
-    "    phases: [sdd-foundation]",
+    "    phases: [foundation]",
     "    gates: []",
     "    description: Foundation route.",
   ].join("\n");
@@ -489,6 +489,25 @@ test("parseRoutingTable parses nested conditions map", () => {
     "project.status": "empty",
     "architecture": "none-detected",
   });
+});
+
+test("a legacy sdd-foundation phase parses and validates as foundation", () => {
+  const content = [
+    "routing:",
+    "  - name: foundation",
+    "    classification: [trivial, small, normal, high-risk]",
+    "    conditions:",
+    "      project.status: empty",
+    "    phases: [sdd-foundation]",
+    "    gates: []",
+    "    description: Foundation route written before the rename.",
+  ].join("\n");
+
+  const [route] = parseRoutingTable(content);
+  assert.deepEqual(route.phases, ["foundation"]);
+  assert.deepEqual(validateRoute(route).errors, []);
+  assert.deepEqual(validateRoute({ ...route, phases: ["sdd-foundation"] }).errors, []);
+  assert.match(validateRoute({ ...route, phases: ["sdd-foundations"] }).errors.join("\n"), /unknown phase 'sdd-foundations'/);
 });
 
 test("parseRoutingTable ignores comment lines and blank lines", () => {
@@ -521,7 +540,7 @@ test("parseRoutingTable parses multiple route entries", () => {
     "    classification: normal",
     "    conditions:",
     "      project.status: empty",
-    "    phases: [sdd-foundation]",
+    "    phases: [foundation]",
     "    gates: []",
     "    description: Foundation.",
     "  - name: lite",
