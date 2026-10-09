@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.117.12, 2026-10-09.
+> **Versión de referencia:** v2.117.13, 2026-10-09.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -136,8 +136,8 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.16** | `hook-neutral-permissions` (OSP-017; sin objeción, el hook no decide y el host aplica sus permisos, en v2.117.5) | bugfix |
 | `done` | **E1.17** | `hook-boundary-reliability` (OSP-001/002/003; secretos y launcher, v2.117.9) | bugfix |
 | `done` | **E1.18** | `idd-evidence-integrity` (OSP-018; evidencia ligada a checks efectivos, en v2.117.11) | bugfix |
-| `next-eligible` | **E1.19** | `idd-review-context` (OSP-019; sobrecarga confirmada, bloqueo no demostrado) | refactor |
-| `pending` | **E1.20** | `installation-docs-sync` (OSP-020; documentación de E1.6/E1.8) | docs |
+| `done` | **E1.19** | `idd-review-context` (OSP-019; contexto reducido conservando IDD/SDD, v2.117.13) | refactor |
+| `next-eligible` | **E1.20** | `installation-docs-sync` (OSP-020; documentación de E1.6/E1.8) | docs |
 | `done` | **E1.21** | `idd-checks-config-guidance` (guía y consentimiento al faltar checks, v2.117.10) | bugfix |
 | `done` | **E1.22** | `stale-hooks-binary` (los `setup:*` locales recompilan el hook Go si es anterior al código, en v2.117.7) | bugfix |
 | `done` | **E1.23** | `install-engram-no-doctor` (los siete `setup:*` omiten el diagnóstico global de Engram; `ospec doctor` lo conserva, en v2.117.8) | bugfix |
@@ -158,7 +158,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.4** | `execution-resource-experiment` (experimento previo a cualquier routing adaptativo) | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E1.19 `idd-review-context` (OSP-019), seguido por E1.20 (OSP-020), por decisión del usuario del 2026-10-08. E1.16 (OSP-017) quedó hecho en v2.117.5, E1.17 (OSP-001/002/003) en v2.117.9, E1.21 (guía de checks IDD) en v2.117.10 y E1.18 (frescura de evidencia) en v2.117.11. Las correcciones se ejecutan con IDD. Después se retoma E2.1 `knowledge-map-contract`, que abre la Etapa 2.
+**▶ SIGUIENTE:** E1.20 (OSP-020), por decisión del usuario del 2026-10-08. E1.19 `idd-review-context` quedó cerrado con IDD para v2.117.13. E1.16 (OSP-017) quedó hecho en v2.117.5, E1.17 (OSP-001/002/003) en v2.117.9, E1.21 (guía de checks IDD) en v2.117.10 y E1.18 (frescura de evidencia) en v2.117.11. Las correcciones se ejecutan con IDD. Después se retoma E2.1 `knowledge-map-contract`, que abre la Etapa 2.
 
 El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) conserva su resultado histórico `continue`. Los hallazgos posteriores y sus límites están en el [análisis OSP de permisos y evidencia](../analysis/2026-10-08-osp-permisos-y-evidencia.md). E1.11–E1.15 siguen pendientes; el plugin SDD del marketplace permanece en E5.8, por demanda.
 
@@ -458,6 +458,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 
 ### E1.19 — `idd-review-context` (OSP-019)
 
+- **Hecho (v2.117.13):** cerrado en `idd/archive/2026-10-09-idd-review-context/`. Los cuatro especialistas cargan el protocolo SDD solo en builds con SDD; el contexto de `review-trust` baja un 62,25–62,49 % según target. Cuatro consumidores completaron revisión limpia o con hallazgo/corrección acotada, registro y cierre; checks completos y siete builds con SDD aprobados. [Evidencia y límites](../testing/idd-review-context.md): se extrajo JSON sin alterar hallazgos; la carga nativa sigue sin probarse por OAuth caducado.
 - **Origen y garantía:** [build y revisión real](../analysis/2026-10-08-osp-permisos-y-evidencia.md#osp-019-contexto-del-revisor-idd). El protocolo SDD ocupa el 63,79 % del agente por defecto y referencia un orquestador no instalado; afecta a carga bajo demanda y E0.0/E1.4/E1.6. Un despacho IDD explícito completó review, check y close: el bloqueo de formato no está demostrado.
 - **Alcance mínimo:** recuperar el contexto y contrato pertinentes a IDD mediante las referencias existentes; retirar contexto SDD innecesario solo si se conservan las revisiones del modo SDD. `normalizeLensResult` exige findings, pero admite campos adicionales; no duplicar contratos de hallazgos, reducers ni agentes.
 - **Hecho cuando:** consumidor por defecto y build con SDD completan revisión limpia y con hallazgo comprobable, corrección/validación acotadas y registro del resultado; demostrar reducción de bytes y declarar si hace falta extracción de JSON. Medir ahorro de coste o fiabilidad por separado antes de afirmarlo.
@@ -703,6 +704,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-09: E1.19 cerrado con IDD para v2.117.13; contexto de revisión por defecto reducido y protocolo SDD conservado. E1.20 pasa a `next-eligible`.
 - 2026-10-09: E1.18 `idd-evidence-integrity` hecho con IDD en v2.117.11; evidencia de checks ligada a su configuración efectiva y E1.19 pasa a `next-eligible`.
 - 2026-10-08: E1.21 `idd-checks-config-guidance` hecho con IDD en v2.117.10. El usuario confirma patch y PR único con `size:exception`; E1.18 pasa a `next-eligible`.
 - 2026-10-08: E1.17 `hook-boundary-reliability` hecho en v2.117.9 con IDD y revisión de seguridad acotada. El usuario conserva bypass y aprueba patch con un PR único y `size:exception`; E1.21 pasa a `next-eligible`.
