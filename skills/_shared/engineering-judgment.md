@@ -18,6 +18,8 @@ Select only quality attributes affected by the change or required by its contrac
 
 Use the smallest verification surface that observes the risk: boundary/integration checks for wiring and failure propagation, focused unit tests for isolated logic, measurements for resource claims. Record unavailable evidence as a limitation, not a pass. No attribute inventory or extra test layer is required for an unaffected concern.
 
+Choose tests by risk, never by a coverage percentage: business rules, validation, non-trivial transformations and mappers, algorithms, contracts, and the error, edge and regression paths whose failure would propagate. Code with nothing to get wrong (plain accessors, wiring without logic, declarations) needs no test of its own. A test must fail when the behavior is wrong: assert observable outcomes rather than the calls made, and see the red step fail for the expected reason. Unit tests stay deterministic and offline: test doubles replace databases, external APIs and infrastructure at the boundary, and time and randomness are injected. An integration test, kept separate, proves the wiring a mocked unit test cannot.
+
 ## Keep structure proportional
 
 Prefer an existing helper or a local implementation when it satisfies the contract. Reuse is justified by shared semantics and ownership, not similar syntax; a little duplication can be cheaper than coupling unrelated policies. Add an interface, layer, dependency, configuration switch, or extension point only for a present requirement or demonstrated constraint, and explain its cost. Do not build for hypothetical consumers.

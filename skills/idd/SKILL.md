@@ -110,6 +110,31 @@ when requested. `ospec doctor` warns about open IDD changes without checks.
 8. When `next_step.action` is `close`, run `ospec close --change <id>`. A
    refusal names what is still pending: settle it and close again.
 
+## Build it simply
+
+Make the smallest change that meets the acceptance. Reuse what the code
+already has and follow its conventions. Add a layer, abstraction, dependency
+or configuration switch only for a need present in this change, and record
+the choice with `--decision` when it is not obvious. Leave unrelated code as
+it is: report a defect outside the change instead of fixing it in passing.
+
+## Tests by risk
+
+Test what would cost something if it broke: business rules, validation,
+non-trivial transformations and mappers, algorithms, contracts, and their
+error, edge and regression paths. Code with nothing to get wrong (plain
+accessors, wiring without logic, declarations) needs no test of its own, and
+no coverage percentage replaces this choice.
+
+- A test must fail when the behavior is wrong: assert observable results, not
+  the calls the code makes, and check that the red run fails for the reason
+  you expect.
+- Unit tests are deterministic and offline: replace databases, external APIs
+  and infrastructure with test doubles at the boundary, and inject time and
+  randomness. An integration test, kept apart, proves the wiring.
+- A refactor writes no new test: run `ospec check` before the first edit, so
+  a recorded run shows the behavior it preserves was tested.
+
 ## Gates
 
 Stop for the user at the four gates and for project-check approval above. Ask with the host's question tool;
@@ -133,6 +158,16 @@ answer:
 Resolve each one with `ospec record gate --change <id> --gate <id> --resolve --answer "<their words>" --source user`.
 Only an explicit answer from the user resolves a gate. Outside these gates
 and project-check approval, follow the code and the evidence without asking.
+
+## Several services or repositories
+
+`ospec` works on one repository root. A change across repositories is one
+IDD change per repository, each closed on its own evidence. Keep a shared
+contract compatible until every consumer moves: extend the provider first,
+then migrate the consumers, and remove the old form last. In a monorepo whose
+services keep their manifests below the root, propose to the user the
+`impact:` entries of `idd/config.yaml` (`stack` and the contract, data and
+security paths of each service), as for checks.
 
 ## Delivery
 

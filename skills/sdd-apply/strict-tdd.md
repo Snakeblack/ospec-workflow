@@ -17,7 +17,7 @@ TDD is not testing. TDD is **software design driven by tests**. You write a test
 
 ## TDD Implementation Cycle
 
-For EVERY task assigned to you, follow this cycle strictly:
+For EVERY task that changes behavior, follow this cycle strictly. Two kinds of task skip RED, GREEN and TRIANGULATE and record them as `N/A` with the reason in the evidence table: a task with no behavior to test (documentation, configuration without logic, a chore), and a behavior-preserving refactor, which runs the SAFETY NET before the change and the same tests after it (step 5) instead of inventing a failing test. A task that changes behavior is never `N/A`.
 
 ```
 FOR EACH TASK:
