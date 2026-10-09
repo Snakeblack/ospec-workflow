@@ -1,0 +1,82 @@
+{
+  "schema": "idd-state/v1",
+  "change": "installation-docs-sync",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "Sincronizar guías de instalación EN/ES con E1.6 y E1.8 (E1.20)",
+    "acceptance": "Las entradas existentes describen argumentos completos y SDD opcional de acuerdo con el transform y las builds por defecto y con SDD, sin añadir capacidades ni otra guía"
+  },
+  "facts": {
+    "basis": "El roadmap E1.20 y OSP-020 limitan el alcance a documentación existente; target-transform, perfiles y instalador establecen todos los comportamientos y rutas que se documentan"
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-09T08:48:32.587Z",
+      "detail": {
+        "tree": "sha256:e84b854e517940b92c087a0d7ea5984706f51dcd4f4dd94f2ef268b2e05ce50f",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-09T08:52:25.437Z",
+      "detail": {
+        "tree": "sha256:6c2e9818a35ea394fe0b5c0da45ea2fd7ff28fc18ee46c52175f9e15e0ad26ba",
+        "runs": [
+          "run-2"
+        ]
+      }
+    }
+  ],
+  "base": "71d9b1ab70eccdfbbeabc93dccada75acc941899",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:25bb7d6a5d95fbf7b563b6bafb02a7ee3b12cc0a0cfca02fadfee97e5c7b8bcf",
+      "tree": "sha256:e84b854e517940b92c087a0d7ea5984706f51dcd4f4dd94f2ef268b2e05ce50f",
+      "recorded_at": "2026-10-09T08:48:32.587Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d006d3e6841901fb302277656ad3c262be62a0764b295fd4ef1dff628a5051a9",
+      "tree": "sha256:6c2e9818a35ea394fe0b5c0da45ea2fd7ff28fc18ee46c52175f9e15e0ad26ba",
+      "recorded_at": "2026-10-09T08:52:25.437Z"
+    }
+  ],
+  "closed_at": "2026-10-09T08:53:05.995Z"
+}

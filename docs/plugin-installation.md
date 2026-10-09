@@ -100,13 +100,13 @@ node scripts/configure/cli.js --target claude --out dist/claude --no-validate
 
 | Target | Output | Validation |
 | --- | --- | --- |
-| `vscode` | Direct load of the source repository with `.plugin.json`; generates no output. | `node scripts/check.js` |
-| `claude` | Renames `*.agent.md`/`*.prompt.md` to `*.md`, restructures the manifest and the hooks, substitutes tool names, rewrites command variables (`${input}` -> `$ARGUMENTS`; `${input:name}` -> `$name` + `arguments:`), bundles `rules/`, and emits the orchestrator as a **skill** (`skills/sdd-orchestrator/SKILL.md`). Generates `dist/claude/`, meant for temporary loading with `claude --plugin-dir`. | `claude plugin validate --strict dist/claude` |
+| `vscode` | Generates `dist/vscode/` with the source agent/command formats, resolved models, and runtime. `setup:vscode` registers that generated tree in `chat.pluginLocations`. | `scripts/configure/validate-vscode.js`, executed by profile validation and by `node scripts/check.js`. |
+| `claude` | Renames `*.agent.md`/`*.prompt.md` to `*.md`, restructures the manifest and the hooks, substitutes tool names, and bundles `rules/`. `${input}` and a single distinct `${input:name}` receive the full `$ARGUMENTS` string; several named inputs use `$name` with `arguments:`. With `--with-sdd`, emits the orchestrator as a **skill** (`skills/sdd-orchestrator/SKILL.md`). Generates `dist/claude/`, meant for temporary loading with `claude --plugin-dir`. | `claude plugin validate --strict dist/claude` |
 | `claude-marketplace` | Wraps the Claude tree into an installable local marketplace. Generates `dist/claude-marketplace/.claude-plugin/marketplace.json` and places the plugin in `dist/claude-marketplace/plugins/ospec-workflow/`. | `claude plugin validate dist/claude-marketplace` and `claude plugin validate --strict dist/claude-marketplace/plugins/ospec-workflow` |
-| `codex` | Generates `agent.md`, `.codex/agents/*.toml`, `skills/`, runtime `scripts/`, and a native `hooks.json`. `setup:codex` installs them globally without using plugins or marketplace. | `scripts/configure/validate-codex.js`, executed by profile validation and by `node scripts/check.js`. |
-| `github-copilot` | Generates a `.github/` layout with instructions, prompts, chatmodes, MCP, and hook runtime for GitHub Copilot CLI / coding agent. | `scripts/configure/validate-github-copilot.js`, executed by profile validation and by `node scripts/check.js`. |
-| `opencode` | Generates a `.opencode/` layout (`agents/`, `commands/`, `instructions/`, `plugins/ospec.js`) plus `opencode.json` (schema + `mcp` + `instructions`) for opencode. Renames the main agent `sdd-orchestrator` to `ospec-workflow` for native display. No shell hooks: the runtime is bridged with a JS plugin. | `scripts/configure/validate-opencode.js`, executed by profile validation and by `node scripts/check.js`. |
-| `cursor` | Generates `agents/*.md`, `commands/*.md`, `rules/*.mdc` (each with its source scope: global rules `alwaysApply`, path rules by `globs`; `agents/**` rules embedded in the orchestrator), camelCase `hooks.json`, and runtime. `build:cursor` / `setup:cursor` are the supported flow: generates `dist/cursor/` and syncs it into `~/.cursor` expanding `__OSPEC_CURSOR_ROOT__`. | `scripts/configure/validate-cursor.js`, executed by profile validation and by `node scripts/check.js`. |
+| `codex` | Generates `AGENTS.md`, `.codex/agents/*.toml`, `skills/`, runtime `scripts/`, and a native `hooks.json`. The default build includes the review agents and IDD skill; with `--with-sdd`, adds the phase agents, command skills, and `sdd-orchestrator` skill. `setup:codex` installs them globally without using plugins or marketplace. | `scripts/configure/validate-codex.js`, executed by profile validation and by `node scripts/check.js`. |
+| `github-copilot` | Generates a `.github/` layout with agents, instructions, MCP, and hook runtime for GitHub Copilot CLI / coding agent; with `--with-sdd`, also emits the SDD prompts. | `scripts/configure/validate-github-copilot.js`, executed by profile validation and by `node scripts/check.js`. |
+| `opencode` | Generates a `.opencode/` layout (`agents/`, `instructions/`, `plugins/ospec.js`) plus `opencode.json` (schema + `mcp` + `instructions`) for opencode. With `--with-sdd`, adds `commands/` and renames the main agent `sdd-orchestrator` to `ospec-workflow` for native display. No shell hooks: the runtime is bridged with a JS plugin. | `scripts/configure/validate-opencode.js`, executed by profile validation and by `node scripts/check.js`. |
+| `cursor` | Generates `agents/*.md`, `rules/*.mdc` (global rules `alwaysApply`, path rules by `globs`), camelCase `hooks.json`, and runtime. With `--with-sdd`, also emits `commands/*.md` and embeds the `agents/**` rules in the orchestrator. `build:cursor` / `setup:cursor` are the supported flow: generates `dist/cursor/` and syncs it into `~/.cursor` expanding `__OSPEC_CURSOR_ROOT__`. | `scripts/configure/validate-cursor.js`, executed by profile validation and by `node scripts/check.js`. |
 
 Each generated tree is **self-contained**: the generator follows the `require` calls from the hooks and includes their runtime (`scripts/hooks/` plus its `scripts/lib/` dependencies), without tests and without the generator itself.
 
@@ -128,10 +128,10 @@ In Claude Code there are two different outputs:
 - **Claude Code persistent**: generate `dist/claude-marketplace/`, register that local marketplace and then install `ospec-workflow@ospec-tools`.
 - **GitHub Copilot CLI (Local/Project)**: generate `dist/github-copilot/` and copy its contents (`.github/`, `.mcp.json`, and `scripts/`) into the destination repo root.
 - **GitHub Copilot CLI (Global)**: builds, copies, and registers all agents, prompts, instructions, hooks, and skills in the user's global directory (`~/.copilot/`), merging the MCP configuration into `mcp-config.json` automatically and permanently for any project.
-- **Codex CLI (Global)**: builds `dist/codex/`, writes the router as a marked block in `~/.codex/AGENTS.md`, installs agents, skills (the orchestrator is the `sdd-orchestrator` skill) and runtime into `~/.codex/` and `~/.agents/skills/`, merges its native hooks into `~/.codex/hooks.json` and reuses equivalent MCPs or adds only the missing ones via `codex mcp`.
-- **Codex CLI (Local/Project)**: `npm run install:codex -- ../my-project` copies `.codex/agents/*.toml` to `<repo>/.codex/agents/`, writes the router as a marked block into `<repo>/AGENTS.md`, and installs the orchestrator skill with its `_shared` files under `<repo>/.agents/skills/`; it preserves any existing `config.toml` and does not copy `.codex-plugin/plugin.json` into the destination repo.
+- **Codex CLI (Global)**: builds `dist/codex/`, writes the router as a marked block in `~/.codex/AGENTS.md`, installs review agents, the IDD skill and runtime into `~/.codex/` and `~/.agents/skills/`, merges its native hooks into `~/.codex/hooks.json` and reuses equivalent MCPs or adds only the missing ones via `codex mcp`. With `--with-sdd`, also installs the phase agents and SDD skills, including `sdd-orchestrator`.
+- **Codex CLI (Local/Project)**: `npm run install:codex -- ../my-project` copies the generated TOML agents to `<repo>/.codex/agents/` and writes the router as a marked block into `<repo>/AGENTS.md`. With `--with-sdd`, also installs the orchestrator skill with its `_shared` files under `<repo>/.agents/skills/`. It preserves any existing `config.toml` and does not copy `.codex-plugin/plugin.json` into the destination repo.
 - **opencode (Local/Project)**: generate `dist/opencode/` and copy its contents (`.opencode/`, `opencode.json`, `skills/`, and `scripts/`) into the destination repo root. opencode discovers agents/commands/instructions under `.opencode/` and reads `opencode.json` (MCP + instructions); the `.opencode/plugins/ospec.js` plugin bridges the hooks runtime.
-- **opencode (Global)**: builds, copies, and registers all agents, commands, instructions, and plugins in the user's global directory (`~/.config/opencode/`), merging the MCP configuration into `opencode.json` automatically and permanently for any project. In both opencode cases, the main agent is renamed to `ospec-workflow`.
+- **opencode (Global)**: builds, copies, and registers the generated agents, instructions, and plugins in the user's global directory (`~/.config/opencode/`), merging the MCP configuration into `opencode.json` automatically and permanently for any project. With `--with-sdd`, both installation modes also include commands and the main agent renamed to `ospec-workflow`.
 - **Cursor IDE (Global)**: `npm run build:cursor` generates `dist/cursor/`; `npm run setup:cursor` validates and syncs that tree into `~/.cursor`, expanding `__OSPEC_CURSOR_ROOT__` in `hooks.json` to the absolute path (quoted only if `$HOME` contains spaces) and copying the `ospec-hooks` binary to the managed runtime.
 
 ### Codex CLI
@@ -162,13 +162,14 @@ This installer:
 npm run install:codex -- ../my-project
 ```
 
-This variant writes only:
+This variant writes the router and generated agents:
 
 ```text
+<repo>/AGENTS.md
 <repo>/.codex/agents/*.toml
 ```
 
-Without additional flags, the installer does not create or modify `.codex/config.toml`. If Codex rejects the exact legacy key `service_tier = "default"`, the global installation offers an explicit repair:
+With `--with-sdd`, it also writes the orchestrator skill and `_shared` files into `<repo>/.agents/skills/`. Without additional flags, the installer does not create or modify `.codex/config.toml`. If Codex rejects the exact legacy key `service_tier = "default"`, the global installation offers an explicit repair:
 
 ```powershell
 npm run setup:codex:repair
@@ -384,7 +385,7 @@ Hooks invoke a Node entry point that sets the Codex markers inside its process, 
 
 ### opencode
 
-The `opencode` target allows two installation modes: local (per project) and global (for the user's whole machine). In both modes, the main agent `sdd-orchestrator` is automatically renamed to `ospec-workflow` to integrate with the OpenCode interface and allow Tab-key autocomplete.
+The `opencode` target allows two installation modes: local (per project) and global (for the user's whole machine). With `--with-sdd`, both modes include the main agent `sdd-orchestrator`, automatically renamed to `ospec-workflow` to integrate with the OpenCode interface and allow Tab-key autocomplete.
 
 #### Local installation (per project)
 
@@ -462,7 +463,7 @@ Start with the visible entry points and inspect further detail only if something
 
 | Environment | Check |
 | --- | --- |
-| VS Code | The plugin appears in the Agent Plugins view and exposes the expected commands/chatmodes. |
+| VS Code | The plugin appears in the Agent Plugins view and exposes the review agents; with the SDD package, also the phase agents and commands. |
 | Claude Code temporary | When launching with `claude --plugin-dir dist/claude`, `ospec-workflow` appears in `/plugin` during that session. |
 | Claude Code persistent | When installing from `ospec-workflow@ospec-tools`, the plugin appears in `/plugin` without using `--plugin-dir`. |
 | GitHub Copilot CLI (Local) | The destination repo contains the generated `.github/`, `.mcp.json`, and `scripts/`. |
