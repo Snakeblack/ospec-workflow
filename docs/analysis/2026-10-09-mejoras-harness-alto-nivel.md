@@ -1,11 +1,12 @@
 # Mejoras del harness para desarrollo de alto nivel
 
-> **Fecha:** 2026-10-09 · **Base:** `main` en v2.117.16+ · **Estado:** completo; pendiente de decisión del usuario (sección 12) antes de pasar al roadmap.
+> **Fecha:** 2026-10-09 · **Base:** analizado sobre `main` v2.117.18 y reconciliado con v2.118.0 (ver «Reconciliación con v2.118.0») · **Estado:** completo; pendiente de decisión del usuario (sección 12) antes de pasar al roadmap.
 > **Pedido del usuario:** puntos de mejora detallados para que el harness sirva a desarrollo de alto nivel: cambios pequeños y grandes, contexto de varios microservicios y servicios, workspace federado que funcione bien con IDD, y una foundation con visión real de arquitecto (holística, sin sobrearquitectura), con un aplicador IDD que haga desarrollos justificados, simples y suficientes.
 > **Alcance:** análisis. No implementa nada ni cambia prioridades; lo que se acepte entra después en el [roadmap](../roadmaps/harness-evolution.md).
 
 ## Índice
 
+0. [Reconciliación con v2.118.0](#reconciliación-con-v21180)
 1. [Resumen ejecutivo](#1-resumen-ejecutivo)
 2. [Método y fuentes](#2-método-y-fuentes)
 3. [Estado actual verificado](#3-estado-actual-verificado)
@@ -19,12 +20,28 @@
 11. [Priorización y secuencia propuesta](#11-priorización-y-secuencia-propuesta)
 12. [Riesgos, límites y decisiones abiertas](#12-riesgos-límites-y-decisiones-abiertas)
 
+## Reconciliación con v2.118.0
+
+Este análisis se escribió sobre v2.117.18, en paralelo a la entrega v2.118.0 («auditoría del harness», hecha en otra sesión). v2.118.0 resuelve parte de lo que aquí se propone. El estado de cada mejora tras ella:
+
+| Mejora | Estado tras v2.118.0 | Qué queda |
+| --- | --- | --- |
+| M5 reglas de diseño | **Hecha:** sección «Build it simply» del protocolo `idd` (cambio mínimo, reutilizar, capa o dependencia solo por necesidad presente, no arreglar lo ajeno de paso) | Nada en la instrucción; la detección y la auditoría siguen en M7–M9 |
+| M10 tests proporcionados | **Hecha:** «Tests by risk» (reglas de negocio, validación, contratos, bordes y errores; tests que fallen si el comportamiento es incorrecto; sin porcentaje de cobertura; refactor con red registrada por `ospec check`) | Medir en el banco los mutantes de frontera (sección 10) |
+| M12 foundation fuera de SDD | **Parcial:** la skill `foundation` se instala en todos los targets, el router le envía los proyectos sin código, pregunta en rondas de ≤ 4 con recomendación y supuestos, registra ADR agnósticos y escenarios, y propone `idd/config.yaml` con aprobación | Motor determinista `ospec foundation next/record` (E2.2) y esquema de máquina del mapa (E2.1): hoy el mapa es Markdown (`docs/roadmap-gaps.md`) y la selección de preguntas la hace el modelo |
+| Reglas de arquitecto (7.2) | **Hechas como instrucción** en «Think like an architect» de la skill `foundation` | El lint de M13 que las haga visibles |
+| M3 reglas de corte / M22 multi-repo | **Parcial, como instrucción:** «Several services or repositories»: un cambio IDD por repositorio y *expand → migrate → contract* | Cortes verticales y esqueleto andante en IDD; programa con cursor (M2) y coordinación por CLI (M22) |
+| H11 conocimiento consumido | **Parcial:** el protocolo lee `docs/architecture/decisions/` para abrir el gate `adr-amend-or-contradict` | `knowledge_refs` sigue devolviendo solo el documento vivo (M11, M17) |
+| H4 monorepos | **Parcial:** el protocolo pide proponer entradas de `impact:` (incluido `stack`, que ya existía: REQ-idd-012) cuando los manifiestos están bajo la raíz | Unidades con checks propios y `check` selectivo (M18) |
+
+El resto (M1, M2, M4, M6–M9, M11, M13–M23) sigue pendiente. Las secciones siguientes conservan el diagnóstico original sobre v2.117.18; donde v2.118.0 lo cambia, la fila o el párrafo lo indica.
+
 ## 1. Resumen ejecutivo
 
 IDD ya resuelve bien el centro del problema: ceremonia por impacto calculada por código, cierre por evidencia y un coste del 4,7 % del modo SDD sin más defectos escapados. Para desarrollo de alto nivel le faltan cuatro cosas, todas verificadas en el código:
 
-1. **Conocimiento.** Con la instalación por defecto no hay foundation, ni recuperación brownfield, ni federación: las tres son fases del paquete SDD opcional (H1). Y aunque existieran, `ospec next` no entrega ninguna referencia de conocimiento salvo el propio documento del cambio (H11). **Hay que cablear el consumo antes de producir más documentos.**
-2. **Criterio de diseño garantizado.** La simplicidad que hoy muestra IDD en el banco (−32 % de código, preferido por alcance) es emergente: la skill no contiene ninguna regla de diseño y nada en el cierre detecta dependencias nuevas, superficie añadida ni trabajo fuera del plan (H2, H3, H7, H8). **Hay que repartir «simple y suficiente» entre instrucción, detección por el CLI y una revisión independiente acotada que ya existe pero IDD no usa.**
+1. **Conocimiento.** En v2.117.18 no había foundation, ni recuperación brownfield, ni federación con la instalación por defecto (H1); v2.118.0 trae la foundation, pero brownfield y federación siguen siendo fases SDD. Y aunque existieran, `ospec next` no entrega ninguna referencia de conocimiento salvo el propio documento del cambio (H11). **Hay que cablear el consumo antes de producir más documentos.**
+2. **Criterio de diseño garantizado.** La simplicidad que muestra IDD en el banco (−32 % de código, preferido por alcance) era emergente. v2.118.0 añade la instrucción («Build it simply», «Tests by risk»), pero nada en el cierre detecta dependencias nuevas, superficie añadida ni trabajo fuera del plan (H2, H3, H7, H8). **Hay que repartir «simple y suficiente» entre instrucción, detección por el CLI y una revisión independiente acotada que ya existe pero IDD no usa.**
 3. **Multi-servicio.** Las señales no ven servicios dentro de un monorepo (stack solo en la raíz), ignoran los contratos asíncronos y no leen el atlas federado, que ya sabe qué servicios consumen cada contrato (H4, H5, H6). **Hay que introducir un modelo único de unidades y contratos que sirva igual para un servicio, un monorepo y varios repos.**
 4. **Escala.** Un objetivo grande no tiene forma propia más allá de `--work-units` (H9). **Hace falta un programa mínimo (objetivo, hijos, dependencias y cursor) que reanude desde disco, con reglas de corte vertical y *expand → migrate → contract*.**
 
@@ -47,17 +64,17 @@ Lectura directa del repositorio en `main` (v2.117.16 y posteriores): roadmap ún
 
 | # | Hueco | Evidencia | Consecuencia |
 | --- | --- | --- | --- |
-| H1 | **IDD no tiene foundation, ni brownfield, ni federación.** Las tres capacidades existen solo como fases SDD, y el paquete SDD es opcional | `scripts/lib/skill-extras.js:29-34` excluye `skills/sdd-*`, `agents/sdd-*` y `commands/sdd-*` de la instalación por defecto; `sdd-foundation` exige `openspec/config.yaml` y recomienda `/sdd-new` (`skills/sdd-foundation/SKILL.md:29,109`) | Con la instalación por defecto, un proyecto nuevo, un repo heredado o un sistema de varios servicios no reciben conocimiento de arquitectura: IDD trabaja solo con el diff |
-| H2 | **El aplicador no tiene criterio de diseño.** La skill `idd` dice qué evidencia registrar, pero no cómo decidir la solución | `skills/idd/SKILL.md` (132 líneas): reglas de hechos abiertos, plan, obligaciones, codificación y gates; ninguna sobre simplicidad, reutilización, alcance o justificación | La calidad del diseño depende del modelo; nada impide añadir capas, abstracciones o dependencias que el cambio no necesita, ni lo hace visible |
+| H1 | **IDD no tiene foundation, ni brownfield, ni federación.** Las tres capacidades existen solo como fases SDD, y el paquete SDD es opcional | `scripts/lib/skill-extras.js:29-34` excluye `skills/sdd-*`, `agents/sdd-*` y `commands/sdd-*` de la instalación por defecto; `sdd-foundation` exige `openspec/config.yaml` y recomienda `/sdd-new` (`skills/sdd-foundation/SKILL.md:29,109`) | Con la instalación por defecto, un proyecto nuevo, un repo heredado o un sistema de varios servicios no reciben conocimiento de arquitectura: IDD trabaja solo con el diff. **v2.118.0:** la foundation ya se instala siempre (skill `foundation`); brownfield y federación siguen en el paquete SDD |
+| H2 | **El aplicador no tiene criterio de diseño.** La skill `idd` dice qué evidencia registrar, pero no cómo decidir la solución | `skills/idd/SKILL.md` (132 líneas): reglas de hechos abiertos, plan, obligaciones, codificación y gates; ninguna sobre simplicidad, reutilización, alcance o justificación | La calidad del diseño depende del modelo; nada impide añadir capas, abstracciones o dependencias que el cambio no necesita, ni lo hace visible. **v2.118.0:** la instrucción existe («Build it simply», «Tests by risk»); siguen faltando la detección y la auditoría |
 | H3 | **El documento vivo no exige justificación.** Secciones fijas: «Intent and acceptance», «Plan», «Decisions», «Evidence» | `scripts/lib/idd-contract.js:17`; `idd-close.js:84-88` solo comprueba que el documento sea legible y esté al día | Un cambio grande puede cerrar con un plan sin alternativas ni razones, y un cambio pequeño no necesita nada de eso: falta proporcionalidad dentro del documento |
-| H4 | **Las señales no entienden monorepos ni servicios.** El stack se detecta por los ficheros de la raíz | `scripts/lib/idd-workspace.js:43` llama a `detectStacks(fs.readdirSync(root))`; `STACK_MARKERS` en `scripts/lib/idd-impact.js:69` | En `services/orders/pom.xml` + `services/web/package.json` sin manifiesto en la raíz no se aplica ningún patrón de stack: solo los patrones base (`**/api/**`, `*.proto`…), así que un `*Controller.java` de un servicio no activa `public-contract` |
+| H4 | **Las señales no entienden monorepos ni servicios.** El stack se detecta por los ficheros de la raíz | `scripts/lib/idd-workspace.js:43` llama a `detectStacks(fs.readdirSync(root))`; `STACK_MARKERS` en `scripts/lib/idd-impact.js:69` | En `services/orders/pom.xml` + `services/web/package.json` sin manifiesto en la raíz no se aplica ningún patrón de stack: solo los patrones base (`**/api/**`, `*.proto`…), así que un `*Controller.java` de un servicio no activa `public-contract`. `impact.stack` (REQ-idd-012) permite declararlo a mano, pero para todo el repo, no por servicio; **v2.118.0** pide al agente proponer esas entradas |
 | H5 | **Los contratos asíncronos no son contrato público.** Los patrones base cubren REST, OpenAPI, proto y GraphQL | `scripts/lib/idd-impact.js:17-24` | Cambiar un esquema de evento (AsyncAPI, Avro, JSON Schema de un topic) no pide actualizar contrato ni test: es el modo de rotura más habitual entre microservicios |
 | H6 | **IDD ignora el atlas federado.** El atlas ya calcula el conjunto de impacto de un proveedor (proveedor ∪ consumidores) | `scripts/lib/workspace-atlas.js:190-215`; ningún `scripts/lib/idd-*.js` lee `workspace.yaml` | Un cambio en el proveedor no sabe qué servicios consumen su contrato, ni pide evidencia de compatibilidad para ellos |
 | H7 | **El alcance no se vigila.** Las rutas del plan y las del diff solo alimentan señales | `scripts/lib/idd-signals.js:130-134` recorre `declaration.paths` y `diff.paths` por separado para derivar señales; no encontré ninguna comparación entre ambos conjuntos | Un cambio puede crecer fuera de lo planificado (refactors oportunistas, «ya que estoy») sin que el cierre lo note |
 | H8 | **El revisor de mantenibilidad no es alcanzable desde IDD.** IDD solo abre la lente `trust` | `scripts/lib/idd-review.js:26-28` fija `trust-review`, lente `trust` y revisor `review-trust`; `review-evolution` («complejidad estructural y deriva de contrato», `agents/review-evolution.agent.md:3`) solo lo usa el gate 4R del modo SDD | La sobreingeniería no tiene ninguna revisión independiente en el flujo por defecto, aunque el revisor ya existe |
 | H9 | **Un cambio grande no tiene forma propia.** `--work-units` solo activa el documento vivo | `scripts/lib/idd-contract.js:65`; el *Change Program* (objetivo → cambios hijos con cursor) está aparcado como E5.5 | Un objetivo de varias semanas o varios servicios cabe en un único cambio IDD sin cortes entregables, o se trocea a mano sin continuidad entre sesiones |
-| H10 | **La foundation actual es un cuestionario de 9 preguntas, una por turno.** | `skills/sdd-foundation/SKILL.md:30` («una pregunta bloqueante cada vez»); fila «Conocimiento capturado en foundation» del roadmap: «9 preguntas lineales» | No razona desde huecos de decisión ni separa arquitectura de tecnología; E2.1–E2.6 lo resuelven en el papel, pero sin empezar |
-| H11 | **El conocimiento escrito no llega al cambio.** `knowledge_refs` solo contiene el documento vivo del propio cambio | `scripts/lib/idd-next.js:116`; ni `skills/idd` ni los revisores mencionan `docs/product/*` ni `docs/architecture/*`. Ya en julio se detectó que ninguna fase SDD leía los documentos de foundation (memoria «Eje G», G4) | Aunque exista una foundation excelente, IDD no la consulta: sería papel muerto. Cualquier inversión en foundation sin consumo aguas abajo no cambia ningún resultado |
+| H10 | **La foundation actual es un cuestionario de 9 preguntas, una por turno.** | `skills/sdd-foundation/SKILL.md:30` («una pregunta bloqueante cada vez»); fila «Conocimiento capturado en foundation» del roadmap: «9 preguntas lineales» | No razona desde huecos de decisión ni separa arquitectura de tecnología; E2.1–E2.6 lo resuelven en el papel, pero sin empezar. **v2.118.0:** rondas de ≤ 4 con recomendación, ADR agnósticos y criterio de arquitecto, guiados por el modelo (sin motor determinista) |
+| H11 | **El conocimiento escrito no llega al cambio.** `knowledge_refs` solo contiene el documento vivo del propio cambio | `scripts/lib/idd-next.js:116`; ni `skills/idd` ni los revisores mencionan `docs/product/*` ni `docs/architecture/*`. Ya en julio se detectó que ninguna fase SDD leía los documentos de foundation (memoria «Eje G», G4) | Aunque exista una foundation excelente, IDD no la consulta: sería papel muerto. Cualquier inversión en foundation sin consumo aguas abajo no cambia ningún resultado. **v2.118.0:** el protocolo lee los ADR solo para decidir el gate `adr-amend-or-contradict` |
 
 ### 3.3 Lo que ya existe y se puede reutilizar
 
@@ -175,7 +192,7 @@ Obligación derivada: `justify-new-surface`, satisfecha por una entrada de «Dec
 
 ### 7.1 Diagnóstico
 
-- **No existe para el flujo por defecto** (H1): la foundation, la recuperación brownfield y el workspace son fases SDD del paquete opcional.
+- **No existía para el flujo por defecto** (H1): en v2.117.18, la foundation, la recuperación brownfield y el workspace eran fases SDD del paquete opcional. v2.118.0 saca la foundation (skill `foundation`, instalada siempre); brownfield y workspace siguen en SDD.
 - **Lo que existe es un cuestionario** (H10): 9 preguntas, una por turno, que producen `brief`, `functional-scope`, `technical-baseline` y un índice de decisiones. Marca los desconocidos, pero no razona desde decisiones pendientes ni separa arquitectura de tecnología.
 - **Lo que produce no se consume** (H11): ningún paso posterior lee esos documentos. Ya se detectó en julio y sigue igual en IDD.
 - **El diseño correcto ya existe en el papel:** el ciclo de E2 (mapa de conocimiento por perfil → huecos que bloquean decisiones → rondas de ≤ 4 preguntas → drivers → ADR agnóstico → registro tecnológico → herramientas → primer *slice*) y la tabla de profundidad del diseño archivado. El problema no es de visión, sino de **orden de construcción y de cableado**.
@@ -183,7 +200,7 @@ Obligación derivada: `justify-new-surface`, satisfecha por una entrada de «Dec
 
 ### 7.2 Qué significa «visión de arquitecto» sin sobrearquitectura
 
-Un arquitecto con experiencia no empieza por el estilo (microservicios, eventos, hexagonal), sino por **qué tiene que ser verdad** para que el sistema sirva: drivers de negocio, atributos de calidad medibles, restricciones del equipo y de la organización. Después decide **solo lo que es caro de cambiar y bloquea el primer incremento**, y deja escritas las decisiones diferidas con el momento en que habrá que tomarlas. Las reglas operativas que la foundation debe aplicar (y que un lint puede comprobar):
+Un arquitecto con experiencia no empieza por el estilo (microservicios, eventos, hexagonal), sino por **qué tiene que ser verdad** para que el sistema sirva: drivers de negocio, atributos de calidad medibles, restricciones del equipo y de la organización. Después decide **solo lo que es caro de cambiar y bloquea el primer incremento**, y deja escritas las decisiones diferidas con el momento en que habrá que tomarlas. Las reglas operativas que la foundation debe aplicar (y que un lint puede comprobar). v2.118.0 ya las incluye como instrucción en «Think like an architect»; lo que falta es comprobarlas (M13):
 
 1. **Sin driver no hay decisión estructural.** Cada ADR cita al menos un escenario de calidad, restricción o requisito confirmado (o un supuesto con disparador). Un ADR sin driver es un aviso del lint de E2.4.
 2. **La opción más simple viable es el punto de partida.** Por defecto, una unidad desplegable con módulos de límites claros (monolito modular). Distribuir (servicios, colas, bases de datos separadas) exige un driver explícito: escalado independiente medido, equipos autónomos con cadencias distintas, aislamiento de fallos o regulatorio, o tecnología incompatible. La alternativa simple aparece siempre entre las opciones comparadas del ADR.
@@ -346,7 +363,7 @@ Criterio: valor por unidad de coste, **consumir antes que producir** (principio 
 
 | Orden | Mejora | Tamaño | Encaje en el roadmap |
 | --- | --- | --- | --- |
-| A1 | M5 + M10: reglas de diseño y de tests en la skill `idd` | S | Ítem nuevo de Etapa 1 (protocolo); mueve «calidad de la entrega» |
+| A1 | ~~M5 + M10: reglas de diseño y de tests en la skill `idd`~~ | — | **Hecho en v2.118.0** |
 | A2 | M19: contratos asíncronos en los patrones base | S | Ítem nuevo; amplía REQ-idd-012 |
 | A3 | M9: `undeclared_paths` en `check` | S–M | Ítem nuevo; amplía REQ-idd-014 |
 | A4 | M6: forma mínima de «Decisions» y su lint en `close` | S | Ítem nuevo; amplía REQ-idd-017 |
@@ -365,7 +382,7 @@ Criterio: valor por unidad de coste, **consumir antes que producir** (principio 
 | Orden | Mejora | Tamaño | Encaje |
 | --- | --- | --- | --- |
 | C1 | E2.1 con la ubicación decidida y el esquema que alimenta `components.yaml` | M | E2.1 (next-eligible) |
-| C2 | M12: `ospec foundation next/record` + skill `foundation` instalada por defecto | L | E2.2 + E2.3 |
+| C2 | M12: `ospec foundation next/record` (la skill `foundation` instalada por defecto ya llegó en v2.118.0) | M | E2.2 + resto de E2.3 |
 | C3 | M13 + M14: reglas de arquitecto, lint de ADR/TSR y profundidad por perfil | M | E2.4 |
 | C4 | M15: brownfield ligero que propone `components.yaml` y ADRs inferidos | M | E2.5 |
 | C5 | M16 + M17: *fitness functions* como checks con `adr` y vigencia de referencias | S–M | E3.3 mínimo + E3.2 |
