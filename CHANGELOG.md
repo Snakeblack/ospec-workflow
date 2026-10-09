@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.118.1] - 2026-10-09
+
+### Changed
+- **Análisis de mejoras para desarrollo de alto nivel** ([informe](docs/analysis/2026-10-09-mejoras-harness-alto-nivel.md)): once huecos verificados en el código y 23 mejoras priorizadas en cuatro fases para que el harness sirva a cambios pequeños y grandes, varios servicios y workspaces federados con IDD, y a una foundation con criterio de arquitecto sin sobrearquitectura. Los huecos incluyen: brownfield y federación fuera del flujo por defecto, conocimiento que no llega al cambio, señales sin unidades ni contratos asíncronos, ni detección de superficie nueva o trabajo fuera del plan, y cambios grandes sin forma propia. Cada mejora indica su alternativa descartada, su criterio de hecho y su medición, y el informe recoge seis decisiones abiertas. Está reconciliado con 2.118.0: marca como hechas las reglas de construcción y de tests del protocolo IDD, y como parciales la foundation independiente del modo y el trabajo multi-repo. No implementa nada ni cambia prioridades del roadmap. Hecho con IDD (`idd/archive/2026-10-09-mejoras-harness-alto-nivel/`, `idd/archive/2026-10-09-reconciliar-analisis-v2-118/`).
+
+**Verificación directa**: `node scripts/check.js` (3444 tests pasando, 0 fallos y 0 omitidos). Comprobación documental: `git diff --check`.
+
 ## [2.118.0] - 2026-10-09
 
 Auditoría del harness: defectos de coordinación de IDD, Foundation con criterio de arquitecto e integrada con IDD, criterio de tests por riesgo e higiene de tests y CI. Cada cambio se ejecutó con IDD.
