@@ -2,7 +2,7 @@
 name: sdd-orchestrator
 description: Orchestrates the SDD workflow by delegating phases to specialized SDD subagents.
 tools: ['read', 'search', 'edit', 'execute', 'agent', 'vscode/askQuestions']
-agents: ['sdd-init', 'sdd-foundation', 'sdd-baseline', 'sdd-workspace', 'sdd-explore', 'sdd-propose', 'sdd-spec', 'sdd-clarify', 'sdd-design', 'sdd-tasks', 'sdd-apply', 'sdd-verify', 'sdd-archive', 'sdd-reconcile', 'sdd-onboard', 'sdd-document', 'review-change', 'review-correction', 'review-trust', 'review-runtime', 'review-evolution', 'review-efficiency']
+agents: ['sdd-init', 'foundation', 'sdd-baseline', 'sdd-workspace', 'sdd-explore', 'sdd-propose', 'sdd-spec', 'sdd-clarify', 'sdd-design', 'sdd-tasks', 'sdd-apply', 'sdd-verify', 'sdd-archive', 'sdd-reconcile', 'sdd-onboard', 'sdd-document', 'review-change', 'review-correction', 'review-trust', 'review-runtime', 'review-evolution', 'review-efficiency']
 # modelo intencionalmente omitido.
 # Routing de modelos esta controlada por docs/model-routing.md o configuracion local del usuario.
 user-invocable: true
@@ -60,7 +60,7 @@ SDD is the structured planning layer for substantial changes.
 
 Skills (appear in autocomplete):
 - `/sdd-init` → initialize SDD context; detects stack, bootstraps persistence
-- `/sdd-foundation` → guide new-project discovery, foundation docs, and config completion for empty workspaces
+- `foundation` (a skill outside SDD too) → architecture discovery for a new project: foundation docs, architecture ADRs and the IDD configuration; inside SDD it is the `foundation` route's phase
 - `/sdd-explore <topic>` → investigate an idea; reads codebase, compares approaches; no files created
 - `/sdd-apply [change]` → implement tasks in batches; checks off items as it goes
 - `/sdd-verify [change]` → validate implementation against specs; reports CRITICAL / WARNING / SUGGESTION
@@ -145,7 +145,7 @@ Standing responsibility, independent of route/gate configuration: immediately af
 
 ### SDD Init Guard (MANDATORY)
 
-Before executing ANY explicit persisted SDD command (`/sdd-foundation`, `/sdd-new`, `/sdd-ff`, `/sdd-continue`, `/sdd-lite`, `/sdd-explore`, `/sdd-apply`, `/sdd-verify`, `/sdd-archive`), check if `sdd-init` has been run for this project:
+Before executing ANY explicit persisted SDD command (`/sdd-new`, `/sdd-ff`, `/sdd-continue`, `/sdd-lite`, `/sdd-explore`, `/sdd-apply`, `/sdd-verify`, `/sdd-archive`), check if `sdd-init` has been run for this project:
 
 1. Check for `openspec/config.yaml` with project context and testing capabilities.
 2. If found, init was done; proceed normally.
@@ -250,7 +250,7 @@ For Strict TDD evidence remediation, enter the fast path only for an observed fo
 
 #### Graceful Degradation (routing: absent or empty)
 
-When `routing:` is absent from `openspec/config.yaml` or resolves to `[]`, the orchestrator MUST fall back to its legacy guard sequence without error: (1) **Foundation check** — if `project.status: empty`, `architecture: none-detected`, or the user asks to build from scratch, run `sdd-foundation` first; (2) **Change Classification** — classify and select `lite` (trivial/small) or standard SDD (normal/high-risk); (3) no `route:` block is written to `state.yaml` in fallback mode.
+When `routing:` is absent from `openspec/config.yaml` or resolves to `[]`, the orchestrator MUST fall back to its legacy guard sequence without error: (1) **Foundation check** — if `project.status: empty`, `architecture: none-detected`, or the user asks to build from scratch, run the `foundation` phase first; (2) **Change Classification** — classify and select `lite` (trivial/small) or standard SDD (normal/high-risk); (3) no `route:` block is written to `state.yaml` in fallback mode.
 
 ### Execution Mode
 
@@ -376,7 +376,7 @@ Each phase has explicit read/write rules:
 
 | Phase | Reads | Writes |
 |-------|-------|--------|
-| `sdd-foundation` | `openspec/config.yaml` + `docs/**` | foundation docs + updated `openspec/config.yaml` |
+| `foundation` | `openspec/config.yaml` + `idd/config.yaml` + `docs/**` | foundation docs, architecture ADRs, updated `openspec/config.yaml`, approved `idd/config.yaml` |
 | `sdd-explore` | codebase/specs context as needed | `exploration.md` |
 | `sdd-propose` | exploration (optional) | `proposal` or `proposal-lite` |
 | `sdd-spec` | proposal (required) | `spec` |
@@ -441,7 +441,7 @@ When launching sub-agents for SDD phases, pass these exact OpenSpec paths as art
 | Artifact | Path |
 |----------|-----------|
 | Project context/testing | `openspec/config.yaml` |
-| Foundation docs | `docs/product/brief.md`, `docs/product/functional-scope.md`, `docs/architecture/technical-baseline.md`, `docs/roadmap.md` |
+| Foundation docs | `docs/product/brief.md`, `docs/product/functional-scope.md`, `docs/architecture/technical-baseline.md`, `docs/architecture/decisions/`, `docs/roadmap.md` |
 | Roadmap gaps | `docs/roadmap-gaps.md` |
 | Exploration | `openspec/changes/{change-name}/exploration.md` |
 | Proposal | `openspec/changes/{change-name}/proposal.md` |
@@ -474,7 +474,7 @@ here.
 | Change Collision Gate | before dispatching `sdd-apply` AND at least one OTHER active (non-terminal) change exists | `skills/_shared/gate-change-collision.md` | At the apply guard, after the Review Workload Guard resolves |
 | Question Shape Library | composing a delivery-strategy, review-workload, or blocked-envelope question | `skills/_shared/question-shapes.md` | At the ask point, before the first such `vscode/askQuestions` call in a session |
 | Clarify Gate Handler | a successful `sdd-spec` envelope passes phase-aware validation | `skills/_shared/clarify-routing.md` | After `sdd-spec` success, before dispatching `sdd-clarify`/`sdd-design` |
-| Gaps Resolution Handler (MANDATORY) | `sdd-foundation` returns `status: blocked` with unresolved functional/technical gaps — resolutions are recorded under the `approvals` ledger in `state.yaml` and `gaps_resolutions` in `openspec/config.yaml` | `skills/_shared/gaps-resolution.md` | On the blocked return, before relaunching `sdd-foundation` |
+| Gaps Resolution Handler (MANDATORY) | `foundation` returns `status: blocked` with unresolved functional/technical gaps — resolutions are recorded under the `approvals` ledger in `state.yaml` and `gaps_resolutions` in `openspec/config.yaml` | `skills/_shared/gaps-resolution.md` | On the blocked return, before relaunching `foundation` |
 | Document Route Handler | `/sdd-document` invoked (or route dispatch selects the `sdd-document` phase) | `skills/_shared/route-document.md` | At route dispatch, before the batched language+scope gate |
 
 ### State and Conventions

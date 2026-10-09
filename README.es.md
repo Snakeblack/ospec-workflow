@@ -29,7 +29,13 @@ Un arreglo de una línea y una migración de esquema no necesitan la misma cerem
 | `security-boundary` | El cambio toca autenticación, seguridad, permisos, secretos o credenciales | `trust-review`: una revisión de confianza acotada y de solo lectura |
 | `multi-unit-or-decision` | Varias unidades de trabajo o una decisión de diseño registrada | `living-doc`: `idd/<cambio>/change.md` mantiene al día el plan y las decisiones |
 
-Los patrones se adaptan al stack detectado (Node, JVM, .NET, Python, Go) y se amplían en `impact:` de `idd/config.yaml`. Los cuatro gates son `ambiguous-intent` (aún no se puede enunciar la aceptación), `open-facts` (comportamientos que ni la petición ni el código fijan, preguntados todos juntos antes de editar), `irreversible-operation` y `adr-amend-or-contradict`.
+Los patrones se adaptan al stack detectado (Node, JVM, .NET, Python, Go) y se amplían en `impact:` de `idd/config.yaml`. Los cuatro gates son `ambiguous-intent` (aún no se puede enunciar la aceptación), `open-facts` (comportamientos que ni la petición ni el código fijan, preguntados todos juntos antes de editar), `irreversible-operation` y `adr-amend-or-contradict`. Cada gate abierto se pregunta antes del trabajo que decide.
+
+El agente construye el cambio mínimo que cumple la aceptación y elige los tests por riesgo: reglas de negocio, validación, transformaciones no triviales, algoritmos y contratos, con sus caminos de error y de borde. Los tests unitarios son deterministas y no usan red; ningún porcentaje de cobertura sustituye esa elección.
+
+### Foundation: arquitectura antes del primer cambio
+
+Un proyecto nuevo, o una petición para definir la arquitectura de un sistema, empieza con la skill `foundation` en cualquier modo. Pregunta en rondas de cuatro preguntas como máximo, cada una con una respuesta recomendada, y trabaja como un arquitecto: atributos de calidad como escenarios medibles, la estructura más simple que los cumple (servicios solo por un motivo con nombre) y decisiones aplazadas hasta su último momento responsable. Registra los documentos de producto, un ADR por decisión estructural en `docs/architecture/decisions/` y, con tu aprobación, el `idd/config.yaml` que necesita IDD (checks, Strict TDD, rutas de impacto, documentos de contrato). Un cambio posterior que se aparta de un ADR se detiene en `adr-amend-or-contradict`. Nunca escribe código de aplicación.
 
 ---
 
@@ -216,7 +222,7 @@ SDD lleva un cambio por fases planificadas (propuesta, specs, diseño, tareas, a
 | `/sdd-archive` | Consolida y archiva un cambio verificado. |
 | `/sdd-onboard` | Guía un ciclo SDD real sobre el repositorio actual. |
 
-`sdd-foundation` crea la base documental cuando el proyecto está vacío. Los agentes de fase no deben invocarse como un equipo descoordinado: el orquestador conserva el orden y los contratos.
+En SDD, la ruta `foundation` delega en el agente `foundation` cuando el proyecto está vacío. Los agentes de fase no deben invocarse como un equipo descoordinado: el orquestador conserva el orden y los contratos.
 
 ### Flujos SDD
 
@@ -233,7 +239,7 @@ Pero no todo cambio necesita el ciclo entero. El orquestador evalúa la tabla de
 
 | Ruta | Clasificación | Cuándo | Fases |
 | --- | --- | --- | --- |
-| **foundation** | normal, high-risk | Proyecto vacío, sin stack ni arquitectura | `sdd-foundation` |
+| **foundation** | normal, high-risk | Proyecto vacío, sin stack ni arquitectura | `foundation` |
 | **federated** | normal, high-risk | Workspace multi-repo (`workspace-federated`) | `sdd-workspace` → propose → spec → design → tasks → apply → verify → archive |
 | **bugfix** | small, normal | El usuario indica intención explícita de bugfix | `sdd-explore` → tasks → apply → verify → archive |
 | **brownfield** | normal, high-risk | Hay código pero `openspec/specs/` está vacío | `sdd-baseline` (en tandas por dominio) |

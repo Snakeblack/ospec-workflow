@@ -1,7 +1,7 @@
 agents:
   sdd-design: premium
   sdd-verify: premium
-  sdd-foundation: premium
+  foundation: premium
   sdd-workspace: premium
   sdd-orchestrator: default
   sdd-propose: default

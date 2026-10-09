@@ -41,7 +41,7 @@ Guarda contexto del proyecto:
 | Reglas | Normas por fase: proposal, specs, design, tasks, apply, verify, archive. |
 | Foundation | Docs de producto, baseline tecnico, roadmap y preguntas abiertas. |
 
-`sdd-init` lo crea. `sdd-foundation` lo completa cuando el proyecto esta vacio.
+`sdd-init` lo crea. `foundation` lo completa cuando el proyecto esta vacio.
 
 ## Specs principales vs specs delta
 

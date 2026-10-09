@@ -55,14 +55,14 @@ Usa esta linea cuando no hay producto, stack o arquitectura definidos.
 
 ```text
 /sdd-init
-/sdd-foundation
+foundation            (la skill; en SDD, la ruta foundation la delega)
 /sdd-new scaffold-project
 /sdd-ff first-capability
 ```
 
 El guard de foundation se activa si `openspec/config.yaml` indica repo vacio, arquitectura no detectada, stacks vacios o el usuario pide construir desde cero.
 
-`sdd-foundation` pregunta una sola cosa bloqueante cada vez. Esto es intencionado. Cuando no sabemos producto, usuarios, stack o testing, inventar una app completa es velocidad falsa. Primero hay que fijar cimientos.
+`foundation` pregunta en rondas de cuatro preguntas como maximo, cada una con una respuesta recomendada. Esto es intencionado. Cuando no sabemos producto, usuarios, stack o testing, inventar una app completa es velocidad falsa. Primero hay que fijar cimientos, y una ronda agrupada evita nueve idas y vueltas.
 
 ## 3. Fast-forward de planificacion
 
@@ -192,7 +192,7 @@ Usa esta linea para aprender la metodologia sobre un caso real:
 /sdd-onboard
 ```
 
-El agente busca una mejora pequena, la propone y guia el ciclo completo. Si el repo esta vacio, debe mandar a `sdd-foundation`.
+El agente busca una mejora pequena, la propone y guia el ciclo completo. Si el repo esta vacio, debe mandar a `foundation`.
 
 ## 10. Modo de ejecucion
 

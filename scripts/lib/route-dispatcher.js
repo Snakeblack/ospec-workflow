@@ -14,7 +14,7 @@ const {
 } = require("./change-classification.js");
 
 const KNOWN_PHASES = [
-  "sdd-foundation",
+  "foundation",
   "sdd-baseline",
   "sdd-workspace",
   "sdd-explore",
@@ -26,6 +26,15 @@ const KNOWN_PHASES = [
   "sdd-verify",
   "sdd-archive",
 ];
+
+// Phase names a routing table may still carry from an earlier release, and the
+// phase each one became. Parsing normalizes them, so existing configurations
+// and persisted routes keep dispatching (`sdd-foundation` → `foundation`).
+const LEGACY_PHASE_ALIASES = Object.freeze({ "sdd-foundation": "foundation" });
+
+function canonicalPhase(phase) {
+  return Object.hasOwn(LEGACY_PHASE_ALIASES, phase) ? LEGACY_PHASE_ALIASES[phase] : phase;
+}
 
 const KNOWN_GATES = LEXICAL_GATES;
 
@@ -308,7 +317,7 @@ function validateRoute(entry) {
     errors.push("phases must not be empty");
   } else {
     for (const phase of entry.phases) {
-      if (!KNOWN_PHASES.includes(phase)) {
+      if (!KNOWN_PHASES.includes(canonicalPhase(phase))) {
         errors.push(
           `unknown phase '${phase}'; must be one of [${KNOWN_PHASES.join(", ")}]`,
         );
@@ -592,6 +601,9 @@ function parseRoutingTable(content) {
   }
 
   finalizeEntry();
+  for (const entry of entries) {
+    if (Array.isArray(entry.phases)) entry.phases = entry.phases.map(canonicalPhase);
+  }
   return entries;
 }
 
@@ -1030,6 +1042,8 @@ function parsePersistedRouteSection(stateContent) {
 
 module.exports = {
   KNOWN_PHASES,
+  LEGACY_PHASE_ALIASES,
+  canonicalPhase,
   KNOWN_GATES,
   LEXICAL_GATES,
   ACTIVE_GATES,

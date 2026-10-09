@@ -53,7 +53,7 @@ El orquestador consulta la tabla de rutas de `openspec/config.yaml` y activa la 
 | **hotfix** | Corrección urgente de emergencia que debe aplicarse ya. | `apply → verify → archive` |
 | **bugfix** | Corrección de un fallo tras investigar la causa raíz. | `explore → tasks → apply → verify → archive` |
 | **refactor** | Reestructuración de código sin alterar el comportamiento externo. | `design → tasks → apply → verify → archive` |
-| **foundation** | Creación inicial de un proyecto desde cero. | `sdd-foundation` (construye la base antes de programar) |
+| **foundation** | Creación inicial de un proyecto desde cero. | `foundation` (construye la base antes de programar) |
 | **brownfield** | Proyectos existentes con código pero sin especificaciones. | `sdd-baseline` (genera especificaciones por dominios) |
 | **federated** | Cambios coordinados en múltiples repositorios a la vez. | `sdd-workspace → propose → spec → design → ...` |
 

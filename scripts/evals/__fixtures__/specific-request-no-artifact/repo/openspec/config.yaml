@@ -57,7 +57,7 @@ routing:
     classification: [normal, high-risk]
     conditions:
       project.status: empty
-    phases: [sdd-foundation]
+    phases: [foundation]
     gates: []
     description: "Guided pre-SDD foundation phase for empty projects."
     cost: medium

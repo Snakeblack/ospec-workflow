@@ -29,9 +29,9 @@ Use this file as a compact entry point. Agent files own roles and tool boundarie
 
 ## Empty Project Foundation
 
-- If `openspec/config.yaml` exists but says `project.status: empty`, stack arrays are empty, or architecture is `none-detected`, route new-project work through `sdd-foundation` before normal SDD changes.
-- `sdd-foundation` may write foundation docs and update `openspec/config.yaml`; it must not create application code or scaffolds.
-- When `sdd-foundation` returns `blocked` with `next_question`, surface that single question and stop.
+- If `openspec/config.yaml` exists but says `project.status: empty`, stack arrays are empty, or architecture is `none-detected`, route new-project work through the `foundation` phase before normal SDD changes.
+- `foundation` writes foundation docs, architecture ADRs, `openspec/config.yaml` and, once the user approves it, `idd/config.yaml`; it never creates application code or scaffolds.
+- When `foundation` returns `blocked` with a `question_gate`, ask its round (at most four questions) and relaunch it with the answers.
 
 ## Skill loading compatibility
 
@@ -83,4 +83,4 @@ Every phase returns:
 - `risks`: discovered risks or `None`
 - `skill_resolution`: `injected`, `fallback-registry`, `fallback-path`, or `none`
 
-`sdd-foundation` may also return `open_questions` and one `next_question` when blocked.
+`foundation` may also return `open_questions`.

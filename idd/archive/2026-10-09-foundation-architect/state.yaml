@@ -1,0 +1,145 @@
+{
+  "schema": "idd-state/v1",
+  "change": "foundation-architect",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "feature",
+    "summary": "Rename sdd-foundation to foundation as a mode-independent capability that discovers like an architect (drivers, quality scenarios, constraints, architecture ADRs, technology record) and hands IDD its ADRs and idd/config.yaml, fixing its executor-boundary, capability and language contradictions",
+    "acceptance": "foundation ships in every install and runs directly (asking rounds of at most four questions) or delegated by the SDD orchestrator (returning a question_gate); sdd-foundation stays accepted as a legacy route phase; it writes architecture ADRs under docs/architecture/decisions and proposes idd/config.yaml checks, strict_tdd and impact paths for approval; the router sends new projects to it; specs, tests, models, docs and context ceilings follow"
+  },
+  "facts": {
+    "basis": "The user asked for the rename; roadmap E2 (harness-evolution.md) fixes the discovery cycle, ADR model and the idd/config.yaml hand-off; the contradictions are read from the skill, agent, REQ-skills-001 and sdd-phase-common"
+  },
+  "plan": {
+    "paths": [
+      "README.es.md",
+      "README.md",
+      "agents/foundation.agent.md",
+      "agents/sdd-foundation.agent.md",
+      "agents/sdd-onboard.agent.md",
+      "agents/sdd-orchestrator.agent.md",
+      "docs/openspec.md",
+      "docs/sdd-fases.md",
+      "docs/sdd-routing.md",
+      "docs/sdd-workflows.md",
+      "models.yaml",
+      "openspec/config.yaml",
+      "openspec/specs/agents/spec.md",
+      "openspec/specs/federated-roadmap-gaps/spec.md",
+      "openspec/specs/generator/spec.md",
+      "openspec/specs/routing/spec.md",
+      "openspec/specs/skills/spec.md",
+      "openwiki/orchestration/routing.md",
+      "profiles/models/default.yaml",
+      "rules/ospec-router.instructions.md",
+      "rules/sdd-common.instructions.md",
+      "scripts/configure/__fixtures__/golden/claude/models.yaml",
+      "scripts/configure/__fixtures__/golden/codex/models.yaml",
+      "scripts/configure/__fixtures__/golden/cursor/models.yaml",
+      "scripts/configure/__fixtures__/golden/github-copilot/models.yaml",
+      "scripts/configure/__fixtures__/golden/opencode/models.yaml",
+      "scripts/configure/__fixtures__/source/models.yaml",
+      "scripts/configure/idd-protocol.test.js",
+      "scripts/configure/real-repo.test.js",
+      "scripts/configure/with-sdd.test.js",
+      "scripts/evals/__fixtures__/apply-design-mismatch-blocked/repo/openspec/config.yaml",
+      "scripts/evals/__fixtures__/continue-no-rebrief/repo/openspec/config.yaml",
+      "scripts/evals/__fixtures__/document-batched-gate/repo/openspec/config.yaml",
+      "scripts/evals/__fixtures__/document-sandbox-violation-blocked/repo/openspec/config.yaml",
+      "scripts/evals/__fixtures__/document-update-noop/repo/openspec/config.yaml",
+      "scripts/evals/__fixtures__/high-risk-clarify-route/repo/openspec/config.yaml",
+      "scripts/evals/__fixtures__/specific-request-no-artifact/repo/openspec/config.yaml",
+      "scripts/evals/__fixtures__/vague-request-no-artifact/repo/openspec/config.yaml",
+      "scripts/evals/__fixtures__/verify-fail-spec-gap-routes-sdd-spec/repo/openspec/config.yaml",
+      "scripts/fixtures/context-baseline.json",
+      "scripts/foundation-federated.test.js",
+      "scripts/lib/contract-checkers/i1-manifest.js",
+      "scripts/lib/contract-checkers/i1-manifest.test.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/lib/model-resolver.js",
+      "scripts/lib/route-dispatcher.js",
+      "scripts/lib/route-dispatcher.test.js",
+      "scripts/lib/skill-extras.js",
+      "scripts/lib/target-profiles/claude.js",
+      "scripts/lib/target-transform.js",
+      "skills/_shared/gaps-resolution.md",
+      "skills/_shared/openspec-convention.md",
+      "skills/_shared/route-federation.md",
+      "skills/foundation/SKILL.md",
+      "skills/foundation/references/foundation-details.md",
+      "skills/sdd-foundation/SKILL.md",
+      "skills/sdd-init/SKILL.md",
+      "skills/sdd-init/references/init-details.md",
+      "skills/sdd-onboard/SKILL.md"
+    ],
+    "work_units": 4,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 4 work units",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-09T13:06:03.288Z",
+      "detail": {
+        "tree": "sha256:a622e8c8de0b37e2acfc93d4104f8aab5b57af9a76c3d3e807193a74f623c9b4",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-09T13:06:03.448Z"
+    }
+  ],
+  "base": "f7f8fc921862a7d5f145a3129ba7a3a1a79be728",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bbd8d3c4f27c6105a0dee686a8d7084ad04a03504bedadb09bdf2a9f8788ae1d",
+      "tree": "sha256:a622e8c8de0b37e2acfc93d4104f8aab5b57af9a76c3d3e807193a74f623c9b4",
+      "recorded_at": "2026-10-09T13:06:03.288Z"
+    }
+  ],
+  "closed_at": "2026-10-09T13:06:03.448Z"
+}

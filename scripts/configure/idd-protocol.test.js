@@ -29,6 +29,7 @@ const ROUTERS = {
 };
 
 const IDD_ENTRY = { claude: "skill `ospec-workflow:idd`" };
+const FOUNDATION_ENTRY = { claude: "skill `ospec-workflow:foundation`" };
 
 function generate(t, target) {
   const out = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-idd-"));
@@ -85,6 +86,10 @@ for (const target of Object.keys(ROUTERS)) {
     assert.match(router, /`mode: sdd` in `idd\/config\.yaml`/, `${target}: router must name the SDD project mode`);
     assert.match(router, /explicitly asks[^.]*without IDD/, `${target}: direct work only on an explicit request`);
     assert.ok(router.includes(`Load the ${IDD_ENTRY[target] || "skill `idd`"}`), `${target}: router must name the IDD entry`);
+    assert.ok(
+      router.includes(`starts with the ${FOUNDATION_ENTRY[target] || "skill `foundation`"}`),
+      `${target}: router must send a new project to the foundation entry`,
+    );
     assert.match(router, /\/sdd-\*/, `${target}: SDD stays reachable on request`);
     assert.match(router, /not installed[^.]*`--with-sdd`/, `${target}: the router says how to install SDD when it is missing`);
   });

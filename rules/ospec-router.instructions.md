@@ -11,6 +11,8 @@ ospec-workflow is installed. Its SDD mode (OpenSpec proposal, specs, design, tas
 
 Code changes that are not SDD requests go through IDD (impact-driven development) by default. Load the {{idd-entry}} once and follow it. Questions, explanations and read-only work stay direct. Work directly only when the user explicitly asks for that change without IDD; never offer it. With `mode: sdd` in `idd/config.yaml`, IDD is off: work directly and enter SDD only on request.
 
+A new project with no code yet, or a request to define a system's architecture, starts with the {{foundation-entry}}; IDD then builds on the decisions it records.
+
 ## When to enter SDD
 
 - Enter only when the user invokes a `/sdd-*` command or asks for spec-driven work explicitly ("do SDD for X", "hazme un SDD para X").

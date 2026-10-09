@@ -29,7 +29,7 @@ const PHASE_SKILLS = [
   "sdd-clarify",
   "sdd-design",
   "sdd-explore",
-  "sdd-foundation",
+  "foundation",
   "sdd-init",
   "sdd-onboard",
   "sdd-propose",

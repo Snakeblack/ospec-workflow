@@ -3,7 +3,7 @@
 This applies only when `openspec/config.yaml` has `artifact_store.backend: workspace-federated`.
 For single-repo work (the default `openspec` backend) skip this section entirely.
 
-**Federated Foundation delegation.** When the `workspace-federated` backend is active and the foundation phase is triggered, the orchestrator delegates to `sdd-foundation` in federated mode, passing `workspace_yaml` pointing to `workspace.yaml` and `parent_change` containing the active change name.
+**Federated Foundation delegation.** When the `workspace-federated` backend is active and the foundation phase is triggered, the orchestrator delegates to `foundation` in federated mode, passing `workspace_yaml` pointing to `workspace.yaml` and `parent_change` containing the active change name.
 
 **Aggregated recovery.** When the backend is federated, the active-change view spans all
 member repos declared in `openspec/workspace.yaml`. Recover from the **aggregated**

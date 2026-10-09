@@ -62,6 +62,7 @@ module.exports = {
     entry: "skill `ospec-workflow:idd`",
     ospecCli: "${CLAUDE_SKILL_DIR}/../../scripts/ospec.js",
   },
+  foundation: { entry: "skill `ospec-workflow:foundation`" },
   // Rewrite ${input:NAME} → ${NAME:-} in .mcp.json env/args/url/headers.
   // Claude Code expands ${VAR:-default}; the empty default keeps config
   // parseable when the variable is unset.

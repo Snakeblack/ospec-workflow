@@ -23,7 +23,7 @@ loaded by sub-agents, never executed inline by the orchestrator.
 
 Canonical set:
 `sdd-apply`, `sdd-archive`, `sdd-baseline`, `sdd-clarify`, `sdd-design`,
-`sdd-explore`, `sdd-foundation`, `sdd-init`, `sdd-onboard`, `sdd-propose`,
+`sdd-explore`, `foundation`, `sdd-init`, `sdd-onboard`, `sdd-propose`,
 `sdd-spec`, `sdd-tasks`, `sdd-verify`, `sdd-workspace`.
 
 Identifying traits:
@@ -591,12 +591,12 @@ be idempotent and MUST be accessible only when the caller is the orchestrator.
 
 ### Requirement: Federated Foundation Parameter Passing
 
-Cuando opera en un espacio de trabajo federado (multirepo), la fase `sdd-foundation` acepta y utiliza los siguientes parámetros inyectados por el orquestador:
+Cuando opera en un espacio de trabajo federado (multirepo), la fase `foundation` acepta y utiliza los siguientes parámetros inyectados por el orquestador:
 - `workspace_yaml`: Ruta física del atlas cache (`openspec/workspace.yaml`) en el coordinador.
 - `parent_change`: Nombre del cambio activo en el coordinador.
 
 #### Scenario: Parameters parsed in federated mode
-- GIVEN `sdd-foundation` is launched in a federated workspace context
+- GIVEN `foundation` is launched in a federated workspace context
 - WHEN the agent evaluates its parameters
 - THEN it reads the path to `workspace.yaml` and maps member locations
 

@@ -29,7 +29,7 @@ Treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as the ca
 
 Keep teaching concise: explain the concept, show the artifact, then continue only with user approval at required gates.
 
-If the project is empty or lacks a real codebase to improve, return `blocked` and recommend `sdd-foundation`. Do not invent a toy onboarding change.
+If the project is empty or lacks a real codebase to improve, return `blocked` and recommend `foundation`. Do not invent a toy onboarding change.
 
 ## Result Contract
 

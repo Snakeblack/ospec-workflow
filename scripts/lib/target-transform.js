@@ -198,16 +198,22 @@ function resolveOrchestratorEntry(files, profile) {
 // otherwise through a marker each installer renders to the directory that
 // holds the runtime `scripts/` (scripts/configure/shared-dir.js).
 const IDD_ENTRY = "{{idd-entry}}";
+// The router also names the host's way into the mode-independent foundation
+// skill, which a new project runs before its first IDD change.
+const FOUNDATION_ENTRY = "{{foundation-entry}}";
 const OSPEC_CLI = "{{ospec-cli}}";
 const RUNTIME_DIR_MARKER = "__OSPEC_RUNTIME_DIR__";
 
 function resolveIddProtocol(files, profile) {
   const idd = profile.idd || {};
   const entry = idd.entry || "skill `idd`";
+  const foundationEntry = (profile.foundation && profile.foundation.entry) || "skill `foundation`";
   const cli = idd.ospecCli || `${RUNTIME_DIR_MARKER}/scripts/ospec.js`;
   return files.map((file) => {
     const content = String(file.content);
-    if (isRulesFile(file.path) && content.includes(IDD_ENTRY)) return { ...file, content: content.split(IDD_ENTRY).join(entry) };
+    if (isRulesFile(file.path) && (content.includes(IDD_ENTRY) || content.includes(FOUNDATION_ENTRY))) {
+      return { ...file, content: content.split(IDD_ENTRY).join(entry).split(FOUNDATION_ENTRY).join(foundationEntry) };
+    }
     if (file.path.startsWith("skills/") && content.includes(OSPEC_CLI)) return { ...file, content: content.split(OSPEC_CLI).join(cli) };
     return file;
   });
