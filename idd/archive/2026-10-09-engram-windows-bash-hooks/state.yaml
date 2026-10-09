@@ -1,0 +1,133 @@
+{
+  "schema": "idd-state/v1",
+  "change": "engram-windows-bash-hooks",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "En Windows, setup:claude antepone bash a los hooks .sh del plugin Engram para que Claude no los abra con el editor asociado.",
+    "acceptance": "Con Engram configurado para Claude en Windows, cada comando .sh de hooks.json del plugin instalado arranca con bash; un comando que ya usa bash o que no es .sh no cambia; una segunda ejecucion no reescribe el fichero; un JSON ilegible se deja igual; en otros sistemas o con --no-engram no se toca."
+  },
+  "facts": {
+    "basis": "El instalador ya aplica el arreglo de Windows cuando Engram esta configurado para Claude, aunque no repita engram setup. El hooks.json instalado muestra el defecto en cada comando .sh entre comillas y la forma valida en SessionEnd (bash mas el script). El parche cubre todo ejecutable .sh sin lanzador bash o sh, no depende de la sonda de fork, no reescribe JSON ilegible y no falla el instalador. La ruta sale de installed_plugins.json para engram@engram."
+  },
+  "plan": {
+    "paths": [
+      "README.es.md",
+      "README.md",
+      "docs/plugin-installation.es.md",
+      "docs/plugin-installation.md",
+      "openspec/specs/install/spec.md",
+      "scripts/configure/engram-setup.js",
+      "scripts/configure/engram-setup.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "adr-amend-or-contradict",
+      "status": "resolved",
+      "reason": "ADR-20261003-001 solo contempla como mutaciones del host el setup upstream, el merge de Copilot y la escritura del modo seguro. Anteponer bash en el hooks.json instalado de engram@engram es una mutacion adicional de la cache del plugin.",
+      "answer": "Anadir en scripts/configure/engram-setup.js un paso tras engram setup claude-code que en Windows parchee el hooks.json del plugin asegurando que los comandos .sh lleven bash delante.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-09T22:43:26.159Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-09T22:51:07.606Z",
+      "detail": {
+        "tree": "sha256:fd8b8272b80b2f70b17bda42342536a513e5825997e874a2d0a508c7b61af5d8",
+        "runs": [
+          "run-4"
+        ]
+      }
+    }
+  ],
+  "base": "93b3fd05f5aa9eef7e441fa18ab678fba24a2344",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern \"bare sh commands\" scripts/configure/engram-setup.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:d0d2d9354021405340ceea17f80d3831fd5131e144446dd82fdb64cb1a215bd4",
+      "tree": "sha256:f89cc90d1e697b318788a31d65495a84bf516a25e77a7476fad0840be3edc84e",
+      "recorded_at": "2026-10-09T22:35:47.594Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern \"bare sh commands\" scripts/configure/engram-setup.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f058f456a3ca8704b9e5cb2044a5ef2e83c113c5e0adce5b2be0cfb92806aa7f",
+      "tree": "sha256:5ef650773d14261132252d961245a45e4886e3535a3cca4b61af850457a00b35",
+      "recorded_at": "2026-10-09T22:43:26.159Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:454a0ab77c936abb1b25bb913e6804663176f3c1adf636a8f81b1ea3bbd4113f",
+      "tree": "sha256:fd8b8272b80b2f70b17bda42342536a513e5825997e874a2d0a508c7b61af5d8",
+      "recorded_at": "2026-10-09T22:47:11.309Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:eb3c00a4bcb5cbafeab2865da3c2d65ea09fdbc78a162c7112e10e9cac9b798b",
+      "tree": "sha256:fd8b8272b80b2f70b17bda42342536a513e5825997e874a2d0a508c7b61af5d8",
+      "recorded_at": "2026-10-09T22:51:07.606Z"
+    }
+  ],
+  "closed_at": "2026-10-09T22:51:45.296Z"
+}
