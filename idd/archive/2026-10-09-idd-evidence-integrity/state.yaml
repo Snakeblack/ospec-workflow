@@ -1,0 +1,141 @@
+{
+  "schema": "idd-state/v1",
+  "change": "idd-evidence-integrity",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Incluye la configuración efectiva de checks en la identidad de evidencia IDD para que close rechace checks obsoletos",
+    "acceptance": "Cambiar la lista efectiva de checks después de un ospec check exitoso hace que close rechace la evidencia antigua; volver a ejecutar los checks satisfactorios permite cerrar. Cambiar secciones ajenas a checks o escribir estado legítimo del CLI bajo idd/<cambio>/ no altera la huella. No se añade un guard de estado sin una falsificación válida reproducida."
+  },
+  "facts": {
+    "basis": "OSP-018 documenta una reproducción real donde solo cambia el comando smoke de checks de exit 0 a exit 7, la huella actual permanece igual y close acepta la evidencia vieja. El código define checks ejecutados por nombre/comando/orden en parseIddConfig; comparar esa lista semántica cubre el cambio de verificador sin hacer que campos ajenos de idd/config.yaml ni los archivos de estado bajo idd/ cambien la identidad. El análisis afirma que no se demostró falsificación válida de state.yaml; el guard queda fuera de alcance."
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "diff"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-08T22:21:44.326Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-09T01:48:13.960Z",
+      "detail": {
+        "tree": "sha256:6eb6f21475e2915f70d679a6cb63ee3806f6e920b2d9f3a00d5c3fe1f2793a5f",
+        "runs": [
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-09T01:48:13.960Z",
+      "detail": {
+        "tree": "sha256:6eb6f21475e2915f70d679a6cb63ee3806f6e920b2d9f3a00d5c3fe1f2793a5f",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    }
+  ],
+  "base": "e9270e92098370d41f8d9203ce81bad09288a9b3",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"close refuses old check evidence after the configured check changes\" scripts/ospec.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:3a2e864367e65c2c2de491520c0bc5c920890ea4e2ebbc51bf91b17d2f4fd39a",
+      "tree": "sha256:6a2c1be4608fb4dfab19550bc9f9e0fad4c1fdac796cb29875f227499064bf3a",
+      "recorded_at": "2026-10-08T22:20:08.940Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"close refuses old check evidence after the configured check changes\" scripts/ospec.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9cf70b29aa2e149df343c0ba51b382d7ab6ef2abd44e0c0c4a318e18ab2143d7",
+      "tree": "sha256:b2a746d07242320787aec0370f3b16b649e7efb4e1a1be8f0bbc123e315dcef6",
+      "recorded_at": "2026-10-08T22:21:44.326Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:e992220523453ab403ee5a2ffe60df74f8d96b7c3f9cf40cd254168af4f79d67",
+      "tree": "sha256:f2c41dc7810b8f9b5bd23fda562d144f9897ebe0b92d5db6d75103fe4bae632f",
+      "recorded_at": "2026-10-09T01:45:38.320Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e219733d149ec9058c45d3870f7c5fbd106676b35d89f32b10c2306f2eca5eff",
+      "tree": "sha256:6eb6f21475e2915f70d679a6cb63ee3806f6e920b2d9f3a00d5c3fe1f2793a5f",
+      "recorded_at": "2026-10-09T01:48:13.960Z"
+    }
+  ],
+  "closed_at": "2026-10-09T01:48:37.863Z"
+}

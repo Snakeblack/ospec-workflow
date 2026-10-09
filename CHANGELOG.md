@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.117.11] - 2026-10-09
+
+### Fixed
+- **Frescura de evidencia de checks IDD (E1.18)**: `checks-pass` queda ligado a la huella del árbol y a la lista efectiva de checks (`nombre`, comando y orden). Si cambia el verificador, `close` rechaza la evidencia anterior hasta ejecutar checks satisfactorios; los cambios no relacionados de configuración y las escrituras válidas del CLI no la invalidan.
+
+### Changed
+- **Contrato y roadmap**: REQ-idd-014 y escenarios actualizados; E1.18 cerrado con IDD en `idd/archive/2026-10-09-idd-evidence-integrity/`, y E1.19 pasa a ser el siguiente trabajo.
+
+**Verificación directa**: `node scripts/check.js` (3400 tests pasando, 0 fallos y 0 omitidos), incluida la generación y validación de los siete targets. La reproducción de evidencia obsoleta y el cierre con configuración cambiada se validaron con IDD.
+
 ## [2.117.10] - 2026-10-08
 
 ### Fixed

@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.117.10, 2026-10-08.
+> **Versión de referencia:** v2.117.11, 2026-10-09.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -135,8 +135,8 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.15** | `idd-review-successor-policy` (coherencia de autoridades; decisión humana pendiente) | contrato |
 | `done` | **E1.16** | `hook-neutral-permissions` (OSP-017; sin objeción, el hook no decide y el host aplica sus permisos, en v2.117.5) | bugfix |
 | `done` | **E1.17** | `hook-boundary-reliability` (OSP-001/002/003; secretos y launcher, v2.117.9) | bugfix |
-| `next-eligible` | **E1.18** | `idd-evidence-integrity` (OSP-018; frescura de configuración y protección del estado) | bugfix |
-| `pending` | **E1.19** | `idd-review-context` (OSP-019; sobrecarga confirmada, bloqueo no demostrado) | refactor |
+| `done` | **E1.18** | `idd-evidence-integrity` (OSP-018; evidencia ligada a checks efectivos, en v2.117.11) | bugfix |
+| `next-eligible` | **E1.19** | `idd-review-context` (OSP-019; sobrecarga confirmada, bloqueo no demostrado) | refactor |
 | `pending` | **E1.20** | `installation-docs-sync` (OSP-020; documentación de E1.6/E1.8) | docs |
 | `done` | **E1.21** | `idd-checks-config-guidance` (guía y consentimiento al faltar checks, v2.117.10) | bugfix |
 | `done` | **E1.22** | `stale-hooks-binary` (los `setup:*` locales recompilan el hook Go si es anterior al código, en v2.117.7) | bugfix |
@@ -158,7 +158,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.4** | `execution-resource-experiment` (experimento previo a cualquier routing adaptativo) | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E1.18 `idd-evidence-integrity` (OSP-018), seguido por E1.19 (OSP-019) y E1.20 (OSP-020), por decisión del usuario del 2026-10-08. E1.16 (OSP-017) quedó hecho en v2.117.5, E1.17 (OSP-001/002/003) en v2.117.9 y E1.21 (guía de checks IDD) en v2.117.10. Las correcciones se ejecutan con IDD. Después se retoma E2.1 `knowledge-map-contract`, que abre la Etapa 2.
+**▶ SIGUIENTE:** E1.19 `idd-review-context` (OSP-019), seguido por E1.20 (OSP-020), por decisión del usuario del 2026-10-08. E1.16 (OSP-017) quedó hecho en v2.117.5, E1.17 (OSP-001/002/003) en v2.117.9, E1.21 (guía de checks IDD) en v2.117.10 y E1.18 (frescura de evidencia) en v2.117.11. Las correcciones se ejecutan con IDD. Después se retoma E2.1 `knowledge-map-contract`, que abre la Etapa 2.
 
 El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) conserva su resultado histórico `continue`. Los hallazgos posteriores y sus límites están en el [análisis OSP de permisos y evidencia](../analysis/2026-10-08-osp-permisos-y-evidencia.md). E1.11–E1.15 siguen pendientes; el plugin SDD del marketplace permanece en E5.8, por demanda.
 
@@ -450,10 +450,11 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 
 ### E1.18 — `idd-evidence-integrity` (OSP-018)
 
+- **Hecho (v2.117.11):** cerrado con IDD en `idd/archive/2026-10-09-idd-evidence-integrity/`. La huella de checks incorpora el árbol fuente y nombre, comando y orden de los verificadores; `close` rechaza evidencia obsoleta tras cambiar un check, y conserva la identidad de `ospec run` independiente de la configuración verificadora. La suite completa y los siete targets pasaron.
 - **Origen y garantía:** [consumidor aislado real](../analysis/2026-10-08-osp-permisos-y-evidencia.md#osp-018-frescura-de-configuración-y-estado), con check que pasa, cambio posterior de `idd/config.yaml` a un comando que falla con exit 7, huella idéntica y close aceptado. Repara la evidencia de E1.4 y los principios 3/8. El CLI ya valida esquema y referencias; no depende solo de una frase de skill.
-- **Alcance mínimo:** incluir las entradas de configuración verificadora en la identidad que protege la evidencia, manteniendo fuera los estados propios. Revisar el efecto de la exclusión amplia de `idd/` sobre diff y snapshot; la spec REQ-idd-014 también exige esa exclusión y debe alinearse. Evaluar el guard Write/Edit del estado y el aviso ante Bash como protección complementaria, sin impedir escrituras legítimas del CLI ni prometer cubrir cualquier intérprete.
-- **Hecho cuando:** cambiar la configuración invalida la evidencia anterior, un check actual fallido deja pendiente su obligación y un nuevo check válido permite cerrar; cambios normales del estado propio no fuerzan verificaciones redundantes. Pruebas independientes del CLI cubren el consumidor sin manipular `state.yaml` para fabricar cierre.
-- **Alternativas y coste:** bloquear solo el estado no resuelve el caso probado; repetir toda la suite en cada close aumenta coste. Ajustar la identidad de evidencia es preferible a otro almacén, firmas o un sistema de autorización nuevo.
+- **Alcance mínimo:** incluir nombre, comando y orden de la lista efectiva `checks:` solo en la identidad de `checks-pass`; los checks nuevos o modificados invalidan evidencia previa, aunque `idd/` siga excluido de diff y snapshot. Mantener la huella de `ospec run` independiente de esa lista para que cambiar el verificador no simule un árbol distinto en una reproducción rojo→verde. Las escrituras del CLI bajo `idd/<cambio>/` siguen sin alterar la identidad. El análisis no encontró una falsificación válida de `state.yaml`, así que el guard Write/Edit queda fuera de esta corrección.
+- **Hecho cuando:** después de cambiar una declaración efectiva, `close` rechaza la evidencia anterior y un `ospec check` satisfactorio permite cerrar; cambiar solo otras claves de configuración o el estado propio no invalida checks. Pruebas independientes del CLI cubren el consumidor sin manipular `state.yaml` para fabricar cierre.
+- **Alternativas y coste:** bloquear solo el estado no resuelve el caso probado; repetir toda la suite en cada close aumenta coste. Vincular `checks-pass` a su configuración efectiva es preferible a ampliar todos los fingerprints, otro almacén, firmas o un sistema de autorización nuevo.
 
 ### E1.19 — `idd-review-context` (OSP-019)
 
@@ -702,6 +703,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-09: E1.18 `idd-evidence-integrity` hecho con IDD en v2.117.11; evidencia de checks ligada a su configuración efectiva y E1.19 pasa a `next-eligible`.
 - 2026-10-08: E1.21 `idd-checks-config-guidance` hecho con IDD en v2.117.10. El usuario confirma patch y PR único con `size:exception`; E1.18 pasa a `next-eligible`.
 - 2026-10-08: E1.17 `hook-boundary-reliability` hecho en v2.117.9 con IDD y revisión de seguridad acotada. El usuario conserva bypass y aprueba patch con un PR único y `size:exception`; E1.21 pasa a `next-eligible`.
 - 2026-10-08: E1.23 `install-engram-no-doctor` retira el diagnóstico global de Engram de los siete instaladores a petición del usuario; queda en `ospec doctor`.
@@ -714,3 +716,4 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 - 2026-10-03: auditoría de skills, carga *lazy*, instrucciones por target, orquestador y comparación con gentle-ai. El roadmap K1–K12 se archiva y se sustituye por este roadmap único. K10-delivery, K11, K12 longitudinal, CX2–CX6 y Dream-RSI quedan aparcados con criterio de reapertura.
 - 2026-10-03: la arquitectura objetivo del kernel, Adaptive, proporcionalidad, foundation holística y la investigación salen de `docs/architecture/` hacia [`archive/2026-10-03-arquitectura/`](archive/2026-10-03-arquitectura/README.md). La carpeta queda reservada para la arquitectura vigente (E2.6) y `docs/README.md` vuelve a ser el índice de la documentación.
 - 2026-10-03: SDD deja de ser el flujo por defecto. El roadmap se reorienta a **IDD** (profundidad por impacto, cierre por evidencia) como flujo propio, con SDD como modo opcional. Las recetas Direct, Repair y Critical (antes E4.2) y la clasificación por impacto (antes E4.1) pasan a ser señales y obligaciones de la Etapa 1. El motor de estado se reorienta a IDD, y migrar el orquestador SDD al CLI queda aparcado. Change Program pasa a la plataforma por demanda.
+

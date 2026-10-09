@@ -39,13 +39,7 @@ function readManifest(root) {
 }
 
 function readProjectContext(root) {
-  let text = "";
-  try {
-    text = fs.readFileSync(path.join(root, CONFIG_FILE), "utf8");
-  } catch (error) {
-    if (error.code !== "ENOENT") throw error;
-  }
-  const { mode, strictTdd, checks, impact, contracts } = parseIddConfig(text);
+  const { mode, strictTdd, checks, impact, contracts } = parseIddConfig(readIddConfig(root));
   const stacks = detectStacks(fs.readdirSync(root));
   const published = publishedPaths(readManifest(root));
   return {
@@ -58,6 +52,15 @@ function readProjectContext(root) {
     patterns: resolvePatterns({ stacks, impact, published }),
     contractPatterns: resolveContractPatterns({ stacks: impact.stack ?? stacks, contracts }),
   };
+}
+
+function readIddConfig(root) {
+  try {
+    return fs.readFileSync(path.join(root, CONFIG_FILE), "utf8");
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    return "";
+  }
 }
 
 function git(root, args, { env } = {}) {
@@ -191,6 +194,13 @@ function readTreeFingerprint(root) {
   return `sha256:${hash.digest("hex")}`;
 }
 
+/** Identity for a check run: the source tree plus the effective verifier list. */
+function readCheckTreeFingerprint(root, checks = parseIddConfig(readIddConfig(root)).checks) {
+  const hash = crypto.createHash("sha256");
+  hash.update(`check-tree\0${readTreeFingerprint(root)}\0${JSON.stringify(checks)}`);
+  return `sha256:${hash.digest("hex")}`;
+}
+
 /**
  * The working tree as a git tree object (REQ-idd-016): tracked and untracked
  * files, never ignored ones nor idd/. A throwaway index keeps the real index
@@ -249,6 +259,7 @@ module.exports = {
   EMPTY_TREE,
   IddWorkspaceError,
   commitTree,
+  readCheckTreeFingerprint,
   readGitDiff,
   readHead,
   readProjectContext,

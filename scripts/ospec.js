@@ -52,6 +52,7 @@ const { withFileLock } = require("./lib/ospec-state.js");
 const {
   IddWorkspaceError,
   commitTree,
+  readCheckTreeFingerprint,
   readGitDiff,
   readHead,
   readProjectContext,
@@ -236,8 +237,10 @@ async function check(root, values) {
   const context = readProjectContext(root);
   const diff = readGitDiff(root, { base: diffBase(values, current) });
   const treeBefore = readTreeFingerprint(root);
+  const checkTreeBefore = readCheckTreeFingerprint(root, context.checks);
   const checks = context.checks.map(({ name, command }) => ({ name, command, ...runCommand(command, { cwd: root }) }));
   const tree = readTreeFingerprint(root);
+  const checkTree = readCheckTreeFingerprint(root);
   const recordedAt = new Date().toISOString();
   const contractPaths = classifyContractPaths(diff.paths, context.contractPatterns);
   const reasons = {};
@@ -261,11 +264,11 @@ async function check(root, values) {
       });
       const derived = applyDerivation(stored, derivation);
       added = derived.added;
-      const runs = checks.map((result) => runRecord("checks", result.command, result, treeBefore, recordedAt, { name: result.name }));
+      const runs = checks.map((result) => runRecord("checks", result.command, result, checkTreeBefore, recordedAt, { name: result.name }));
       const recorded = recordRuns(derived.state, runs);
-      const settled = settleChecks(recorded.state, { tree, runIds: recorded.ids, recordedAt });
+      const settled = settleChecks(recorded.state, { tree: checkTree, runIds: recorded.ids, recordedAt });
       const bound = settleTreeBound(settled.state, { tree });
-      const contract = settleContract(bound, { tree, checkEvidence: settled.evidence, ...contractPaths, recordedAt });
+      const contract = settleContract(bound, { tree: checkTree, checkEvidence: settled.evidence, ...contractPaths, recordedAt });
       if (contract.reason) reasons["contract-spec-and-test"] = contract.reason;
       const fresh = settleReviewFreshness(contract.state, { reviewedChanged });
       return { state: fresh, changed: changedFrom(stored, fresh) };
@@ -275,11 +278,11 @@ async function check(root, values) {
     checks: context.checks,
     candidateCommand: context.candidateCommand,
     results: checks,
-    treeChanged: tree !== treeBefore,
+    treeChanged: tree !== treeBefore || checkTree !== checkTreeBefore,
     reasons,
     livingDoc: readLivingDoc(root, state),
   });
-  return { change: state.change, changed, added, checks, tree, ...verdict, next: nextForChange(state, context) };
+  return { change: state.change, changed, added, checks, tree: checkTree, ...verdict, next: nextForChange(state, context) };
 }
 
 // Runs one test command for an obligation `ospec run` proves and records the
@@ -355,7 +358,7 @@ function requireFreshChecks(root, state) {
   const checks = state.obligations.find((entry) => entry.id === "checks-pass");
   if (checks?.status !== "satisfied") return;
   const evidence = state.evidence.find((entry) => entry.id === checks.evidence.at(-1));
-  if (evidence?.detail?.tree !== readTreeFingerprint(root)) {
+  if (evidence?.detail?.tree !== readCheckTreeFingerprint(root)) {
     throw new IddRecordError("evidence-stale", "the tree changed after the last ospec check: run ospec check before closing");
   }
 }

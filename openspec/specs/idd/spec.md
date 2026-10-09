@@ -481,8 +481,15 @@ ambiguous intent. A run MUST hold `id`, `purpose` (`checks`, `repro-test`,
 `tdd-red-green` or `migration-test`), `command`, `exit_code`, `output_sha256`,
 `tree`, `recorded_at` and, for a check, its `name`. `tree` MUST digest the
 working tree the run executed on: `HEAD`, the binary diff of tracked files
-against it and the content of untracked files, never anything under `idd/`. A
-command that cannot start or ends by a signal MUST NOT count as passing.
+against it and the content of untracked files, never the change state under
+`idd/`. A check run MUST also bind the effective verifier list from
+`idd/config.yaml`: each check's name, command and declared order. Missing
+configuration is an empty list. Other IDD configuration and state MUST NOT
+change this check identity. `ospec run` evidence MUST continue to exclude all
+of `idd/`, so changing a verifier cannot create a different tree for a
+reproduction pair. The source-tree identity used to settle migration-test
+evidence MUST also remain independent of the verifier list. A command that
+cannot start or ends by a signal MUST NOT count as passing.
 
 `check-run` evidence MUST name its tree and the runs of one `check` in which
 every declared check passed on that tree, the tree current when the checks
@@ -492,6 +499,16 @@ older evidence proved an older tree. `repro-run-pair` and `tdd-red-green`
 evidence MUST name a failing run and a later passing run of the same purpose,
 command and unit on a different tree, and `ospec run` MUST record it when such
 a passing run is recorded.
+
+#### Scenario: Changed verifier invalidates old check evidence
+
+- GIVEN every declared check passed and `checks-pass` is satisfied
+- WHEN a check's name, command or declared order changes in `idd/config.yaml`
+- THEN `ospec close` MUST refuse with `evidence-stale`
+- AND a new passing `ospec check` MUST allow close
+- BUT changing only other IDD configuration or the CLI's change state MUST NOT
+  change check identity
+- AND changing the verifier MUST NOT count as a different tree for `ospec run`
 
 `ospec check` MUST answer `missing` while an obligation is pending, naming
 each with the reason it is not met, else `needs-decision` while a gate is open,
