@@ -1342,3 +1342,19 @@ A filesystem mutation that still fails with `EPERM`, `EACCES` or `EBUSY` after i
 - GIVEN `dist/vscode` holds a previous install
 - WHEN `setup:vscode` builds and copying the hooks binary or rendering a marker fails
 - THEN the installation fails and `dist/vscode` still holds the previous install, with no marker left unrendered
+
+### Requirement: Setup Flags Work From Every Shell And Claude Dry Run Writes Nothing {#REQ-install-040}
+
+`setup:claude --dry-run` MUST build and validate the marketplace in a temporary directory that it removes afterwards, report the result, and exit with code 0 without registering the marketplace or the plugin, without writing the router block of `~/.claude/CLAUDE.md`, without copying the hooks binary, without running the Engram step and without touching `dist/claude-marketplace`. PowerShell's `npm.ps1` shim consumes the `--` that separates `npm run` from the script flags, so every target (`claude`, `copilot`, `opencode`, `codex`, `vscode`, `cursor`, `antigravity`) MUST also have the fixed scripts `setup:<target>:sdd` and `setup:<target>:no-sdd`, which run the same installer with `--with-sdd` and `--no-sdd` and need no separator. The guides MUST say that `npm.cmd run setup:<target> -- <flags>` and a quoted `'--'` also work in PowerShell.
+
+#### Scenario: Claude dry run installs nothing
+
+- GIVEN `~/.claude/CLAUDE.md` and `dist/claude-marketplace` exist
+- WHEN `setup:claude --dry-run` runs
+- THEN the build is validated, the command ends with code 0, no `claude plugin` command runs, `~/.claude/CLAUDE.md` and `dist/claude-marketplace` are unchanged and no temporary directory is left
+
+#### Scenario: Fixed SDD scripts need no separator
+
+- GIVEN a PowerShell session where `npm run setup:codex -- --no-sdd` is rejected by npm
+- WHEN `npm run setup:codex:no-sdd` runs
+- THEN the Codex installer runs with `--no-sdd`

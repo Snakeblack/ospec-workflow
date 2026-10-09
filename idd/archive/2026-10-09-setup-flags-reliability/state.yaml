@@ -1,0 +1,111 @@
+{
+  "schema": "idd-state/v1",
+  "change": "setup-flags-reliability",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "setup:claude --dry-run simula sin escribir y los flags de setup:* funcionan desde PowerShell (E1.24)",
+    "acceptance": "setup:claude --dry-run no registra marketplace ni plugin, no toca ~/.claude/CLAUDE.md ni dist/claude-marketplace, y la forma de pasar --with-sdd/--no-sdd/--dry-run desde PowerShell queda resuelta y documentada"
+  },
+  "facts": {
+    "open": [
+      "setup:claude --dry-run: construye y valida en un directorio temporal (como vscode) sin registrar marketplace/plugin, sin escribir el router y sin paso Engram, o rechaza el flag con error de uso?",
+      "PowerShell se traga el '--' de npm.ps1: solo documentar npm.cmd run ... o '--' entre comillas (README, guías, uso de cada instalador), o además añadir scripts npm fijos setup:<target>:sdd y :no-sdd?"
+    ]
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "1) setup:claude --dry-run simula en un directorio temporal (build y validación) sin registrar marketplace/plugin, sin router, sin Engram y sin tocar dist/claude-marketplace. 2) Documentar npm.cmd/'--' y añadir scripts fijos setup:<target>:sdd y :no-sdd para los 7 targets.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-09T09:26:42.053Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-09T09:29:11.895Z",
+      "detail": {
+        "tree": "sha256:14fe429c75dbdf59dcf916972fea2924bc98bba6863c521896c1a380b0f9c31b",
+        "runs": [
+          "run-3"
+        ]
+      }
+    }
+  ],
+  "base": "de07c392db09c2cf678e5c307597f520571e0821",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/configure/install-claude.test.js scripts/configure/setup-scripts.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:9a95d89282888c78c79f03e932dcb3bc771eddab091db95f3bebb0a906ba0b82",
+      "tree": "sha256:1490dd80d79cd161c38a37c4e11f7e7e4778d90c1863eb9e1f17739e571cebf5",
+      "recorded_at": "2026-10-09T09:26:20.590Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/configure/install-claude.test.js scripts/configure/setup-scripts.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7bef2676204ac9f5c35059a737c7d75aa6b708bba591c9036036fdaec597a1dd",
+      "tree": "sha256:405b71a725d931223a9fcf5477627416ec4c8aa8e999939ae5692247d645b8ab",
+      "recorded_at": "2026-10-09T09:26:42.053Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d8d33c719a8c4bda059914af01a2d3e2a7ce2341fd012d827aa903f29d88472a",
+      "tree": "sha256:14fe429c75dbdf59dcf916972fea2924bc98bba6863c521896c1a380b0f9c31b",
+      "recorded_at": "2026-10-09T09:29:11.895Z"
+    }
+  ],
+  "closed_at": "2026-10-09T09:29:18.059Z"
+}

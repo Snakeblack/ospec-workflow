@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.117.14, 2026-10-09.
+> **Versión de referencia:** v2.117.15, 2026-10-09.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -141,6 +141,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.21** | `idd-checks-config-guidance` (guía y consentimiento al faltar checks, v2.117.10) | bugfix |
 | `done` | **E1.22** | `stale-hooks-binary` (los `setup:*` locales recompilan el hook Go si es anterior al código, en v2.117.7) | bugfix |
 | `done` | **E1.23** | `install-engram-no-doctor` (los siete `setup:*` omiten el diagnóstico global de Engram; `ospec doctor` lo conserva, en v2.117.8) | bugfix |
+| `done` | **E1.24** | `setup-flags-reliability` (`setup:claude --dry-run` simula de verdad y los flags de `setup:*` funcionan desde PowerShell) | bugfix |
 | `next-eligible` | **E2.1** | `knowledge-map-contract` (prioridades OSP cerradas; se retoma la Etapa 2) | contrato |
 | `pending` | **E2.2** | `decision-gap-engine` | feature |
 | `pending` | **E2.3** | `foundation-discovery-rounds` | feature |
@@ -491,6 +492,12 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Evidencia:** reproducción rojo→verde registrada con IDD para los siete targets; prueba de que `ospec doctor` sigue ejecutando la sonda una vez. No se atribuye un ahorro de tiempo real sin medir una instalación.
 - **Hecho (v2.117.8):** corrección publicada e instalada en los siete targets desde main; `ospec doctor` verificado. E1.17 se completó después en v2.117.9.
 
+### E1.24 — `setup-flags-reliability`
+
+- **Origen (2026-10-09):** el usuario ejecutó `npm run setup:codex --no-sdd` en PowerShell y npm abortó con `EUNKNOWNCONFIG ... --sdd` antes de llegar al instalador. Con el separador (`-- --no-sdd`) falla igual en PowerShell: el shim `npm.ps1` consume el `--`; con `npm.cmd run ...` o con `'--'` entre comillas funciona (probado con `--dry-run` en codex). Además, `install-claude.js` no reconoce `--dry-run` y una prueba con ese flag hizo una instalación real (marketplace, plugin y router de `~/.claude/CLAUDE.md`), a diferencia de los otros seis instaladores.
+- **Alcance y cierre:** que `setup:claude --dry-run` no escriba nada fuera de un directorio temporal, y que la forma de pasar `--with-sdd`/`--no-sdd`/`--dry-run` desde PowerShell quede resuelta y documentada. Las decisiones de comportamiento se fijan en el gate `open-facts` del cambio IDD.
+- **Decisión del usuario (gate `open-facts`):** `--dry-run` de Claude construye y valida en un temporal sin registrar, sin router y sin Engram; además de documentar `npm.cmd`/`'--'`, cada target tiene los scripts fijos `setup:<target>:sdd` y `:no-sdd` (REQ-install-040).
+
 ## Etapa 2 — Foundation de verdad: descubrimiento de arquitectura
 
 **Resultado de la etapa:** al crear un proyecto, ospec hace las preguntas que haría un arquitecto con experiencia en proyectos serios. Captura la información funcional, el contexto del equipo, los atributos de calidad y las restricciones, y produce **ADRs de arquitectura agnósticos de tecnología**, separados de la selección tecnológica. Las preguntas no salen de un cuestionario fijo: salen de los huecos de conocimiento que más condicionan las decisiones pendientes. La foundation sirve igual a IDD y al modo SDD.
@@ -705,6 +712,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-09: E1.24 `setup-flags-reliability` añadido a petición del usuario: `setup:claude --dry-run` instalaba de verdad y `--no-sdd` falla en PowerShell por el `--` que consume `npm.ps1`.
 - 2026-10-09: E1.20 cerrado con IDD; guías EN/ES sincronizadas con E1.6/E1.8 y contrastadas con ambos modos en los siete targets. Publicación pendiente de versión; E2.1 pasa a `next-eligible`.
 - 2026-10-09: E1.19 cerrado con IDD para v2.117.13; contexto de revisión por defecto reducido y protocolo SDD conservado. E1.20 pasa a `next-eligible`.
 - 2026-10-09: E1.18 `idd-evidence-integrity` hecho con IDD en v2.117.11; evidencia de checks ligada a su configuración efectiva y E1.19 pasa a `next-eligible`.

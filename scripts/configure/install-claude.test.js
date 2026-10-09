@@ -148,3 +148,33 @@ test("--build-only and a missing claude CLI leave ~/.claude/CLAUDE.md alone", (t
   assert.equal(main([], deps({ resolveClaudeBin: () => null })), 0);
   assert.equal(fs.readFileSync(claudeMd, "utf8"), "# Mine\n");
 });
+
+// --- E1.24: --dry-run simulates, it never installs ---------------------------
+
+test("--dry-run builds in a temporary directory and registers, installs and writes nothing", (t) => {
+  const { claudeMd, deps } = routerFixture(t);
+  const stdout = writer();
+  const calls = [];
+  let engram = false;
+  let copied = false;
+  let buildOut;
+  const exitCode = main(["--dry-run"], deps({
+    stdout,
+    run(bin, args) { calls.push(["run", ...args]); return true; },
+    listOutput(bin, args) { calls.push(["list", ...args]); return ""; },
+    engramStep() { engram = true; },
+    copyBinaryToTree() { copied = true; },
+    buildClaudeMarketplace(options) {
+      buildOut = options.out;
+      return { outDir: path.resolve("/repository", options.out), pluginDir: "/plugin", exitCode: 0, validation: null };
+    },
+  }));
+  assert.equal(exitCode, 0);
+  assert.deepEqual(calls, [], "the claude CLI is not touched");
+  assert.equal(fs.readFileSync(claudeMd, "utf8"), "# Mine\n", "the router block is not written");
+  assert.equal(engram, false, "the Engram step is skipped");
+  assert.equal(copied, false);
+  assert.ok(path.isAbsolute(buildOut) && path.relative(os.tmpdir(), buildOut).startsWith("ospec-claude-dry-run-"), `built under the OS temp dir, got ${buildOut}`);
+  assert.equal(fs.existsSync(buildOut), false, "the temporary build is removed");
+  assert.match(stdout.value, /simulación \(--dry-run\)/);
+});
