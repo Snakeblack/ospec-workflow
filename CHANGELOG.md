@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.121.0] - 2026-10-10
+
+### Added
+- **Rondas de descubrimiento (E2.3)**: la skill `foundation` fija los seis escenarios del diseño holístico. Una CLI local cubre archivos, errores, compatibilidad, distribución y tests, y no carga CNCF ni exige Kubernetes. Un SaaS pequeño compara la operación simple con alternativas y deja el coste y las competencias en desconocido, sin inventar un SLO. Un producto regulado profundiza datos, permisos, trazabilidad y recuperación, y deja como hueco toda obligación sin fuente competente. Un brownfield documentado conserva el texto previo, anota la divergencia y propone un delta, sin inferir componentes ni escribir un ADR `inferred`. Una fuente desactualizada muestra revisión o fecha y deja en desconocido solo la decisión que depende de ella, sin añadir un estado `stale` al mapa. Un cambio pequeño posterior escribe solo el delta y no regenera foundation ni lanza una búsqueda tecnológica general. Ningún scaffold ni código se escribe sin aprobación. Hecho con IDD (`idd/archive/2026-10-10-foundation-discovery-rounds/`).
+- **Skill `cncf-landscape`**: viaja en la instalación por defecto. Se carga solo cuando una decisión necesita entrega de aplicaciones, observabilidad, contenedores, orquestación o servicios de plataforma y no hay una alternativa sustentada, o cuando el usuario pide explorar CNCF. Devuelve como mucho cinco fichas con procedencia, no pega el catálogo, no instala software ni adopta un candidato, y una consulta no es una aceptación.
+
+### Changed
+- **Roadmap**: E2.3 `foundation-discovery-rounds` pasa a hecho y E2.4 `decision-records-model` queda como siguiente.
+- **Contexto**: el listado de skills pasa de 32 instaladas y 26 listadas (4434 bytes) a 33 y 27 (4613 bytes). El contexto siempre activo no cambia.
+
+**Verificación directa**: `node scripts/check.js` (3464 tests pasando, 0 fallos y 4 omitidos).
+
 ## [2.120.0] - 2026-10-10
 
 ### Added
