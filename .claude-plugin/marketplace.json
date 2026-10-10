@@ -1,0 +1,27 @@
+{
+  "name": "ospec-tools",
+  "description": "OSpec Workflow Claude Code local marketplace",
+  "owner": {
+    "name": "Manuel Michael Retamozo García",
+    "email": "hello@mretamozo.com"
+  },
+  "plugins": [
+    {
+      "name": "ospec-workflow",
+      "displayName": "OSpec Workflow",
+      "description": "Impact-driven development (IDD) workflow: the ospec CLI derives each change's obligations from its impact and closes it on observed evidence, with strict TDD, bounded review, hooks, and an optional Spec-Driven Development (SDD) mode with OpenSpec.",
+      "source": "./plugins/ospec-workflow",
+      "repository": "https://github.com/snakeblack/ospec-workflow",
+      "license": "MIT",
+      "keywords": [
+        "idd",
+        "sdd",
+        "openspec",
+        "tdd",
+        "agents",
+        "workflow"
+      ],
+      "category": "development"
+    }
+  ]
+}

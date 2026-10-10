@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/authority-effect-budget/v1",
+  "title": "AuthorityEffectBudgetV1",
+  "description": "Authority and Effect Execution Budget Schema v1 for authoritative mutations and sweeps.",
+  "type": "object",
+  "schema_version": 1,
+  "required": [
+    "schema_version",
+    "effect_attempts",
+    "authority_mutations",
+    "evidence_runs",
+    "review_sweeps"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "effect_attempts": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "authority_mutations": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "evidence_runs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "review_sweeps": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "kind": "challenge-result/v1",
+  "result_id": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+  "plan_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "candidate_id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "policy_snapshot_id": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "evidence_strategy": "bug",
+  "challenge_type": "focal-mutation",
+  "outcome": "passed",
+  "node_id": "repair-focal",
+  "evidence_ids": [
+    "sha256:5555555555555555555555555555555555555555555555555555555555555555"
+  ],
+  "details": {
+    "mutations_tested": 3,
+    "defects_detected": 3,
+    "complacent_tests": 0
+  }
+}

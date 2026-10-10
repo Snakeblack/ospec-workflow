@@ -1,0 +1,10 @@
+{
+  "status": "success",
+  "executive_summary": "Legacy unversioned envelope missing schema_version.",
+  "artifacts": [
+    "openspec/changes/foo/design.md"
+  ],
+  "next_recommended": "sdd-tasks",
+  "risks": "None",
+  "skill_resolution": "injected"
+}

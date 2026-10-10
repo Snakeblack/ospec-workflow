@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "status": "blocked",
+  "executive_summary": "Phase blocked waiting for workload decision.",
+  "artifacts": "inline",
+  "next_recommended": "sdd-tasks",
+  "risks": "Exceeding 400-line review budget",
+  "skill_resolution": "injected",
+  "blocker_type": "workload-escalation",
+  "question_gate": {
+    "reason": "Workload exceeds single PR limit and requires user decision on delivery strategy.",
+    "questions": [
+      {
+        "header": "Review Workload Decision",
+        "question": "Which delivery strategy should be used?",
+        "options": [
+          {
+            "label": "feature-branch-chain",
+            "description": "Chain multiple small PRs to feature branch",
+            "recommended": true
+          },
+          {
+            "label": "single-pr",
+            "description": "Deliver everything in a single PR with exception",
+            "recommended": false
+          }
+        ],
+        "multiSelect": false,
+        "allowFreeformInput": false
+      }
+    ]
+  }
+}

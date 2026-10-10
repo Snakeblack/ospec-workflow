@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "node_id": "n1",
+  "kind": "apply",
+  "operation": "implement-task",
+  "depends_on": [],
+  "fingerprint": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+}

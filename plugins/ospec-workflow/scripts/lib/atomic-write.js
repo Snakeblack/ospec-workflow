@@ -1,0 +1,190 @@
+"use strict";
+
+const fs = require("node:fs/promises");
+const path = require("node:path");
+
+/**
+ * Restores an orphaned target.bak to target if target is absent.
+ * @param {string} targetPath
+ */
+async function recoverOrphanBak(targetPath) {
+  const bakPath = targetPath + ".bak";
+  try {
+    const targetExists = await fs.stat(targetPath).then(() => true, () => false);
+    if (!targetExists) {
+      const bakExists = await fs.stat(bakPath).then(() => true, () => false);
+      if (bakExists) {
+        await fs.rename(bakPath, targetPath);
+      }
+    }
+  } catch (error) {
+    // Ignore recovery errors, but let it fail open or log if critical.
+  }
+}
+
+/**
+ * Writes content to targetPath atomically using temp + rename.
+ * @param {string} targetPath
+ * @param {string} content
+ */
+async function writeFileAtomic(targetPath, content) {
+  const tempPath = targetPath + ".tmp";
+  const bakPath = targetPath + ".bak";
+
+  // 1. Unconditionally clean up any pre-existing stale temp file
+  try {
+    await fs.unlink(tempPath);
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      throw error;
+    }
+  }
+
+  // 2. Write new content to the temp file
+  try {
+    // Ensure parent directory exists (needed if directory structure doesn't exist yet)
+    await fs.mkdir(path.dirname(targetPath), { recursive: true });
+    await fs.writeFile(tempPath, content, "utf8");
+  } catch (error) {
+    // Clean up temp file on failure, ignore if doesn't exist
+    try {
+      await fs.unlink(tempPath);
+    } catch (_) {}
+    throw error;
+  }
+
+  // 3. Rename temp file to target
+  try {
+    await fs.rename(tempPath, targetPath);
+  } catch (error) {
+    // Fallback for Windows rename issue: target exists and throws EEXIST or EPERM
+    if (error.code === "EEXIST" || error.code === "EPERM") {
+      let backedUp = false;
+      try {
+        // Try to backup existing target
+        await fs.rename(targetPath, bakPath);
+        backedUp = true;
+
+        // Try renaming temp to target again
+        await fs.rename(tempPath, targetPath);
+
+        // Delete backup on success
+        await fs.unlink(bakPath);
+      } catch (fallbackError) {
+        // Rollback: if backed up, restore original target
+        if (backedUp) {
+          try {
+            await fs.rename(bakPath, targetPath);
+          } catch (rollbackError) {
+            // Rollback itself failed: target is now MISSING and the only
+            // surviving copy of the pre-write content is at bakPath. Do not
+            // swallow this — surface the .bak path in the thrown error so a
+            // caller (or a recoverOrphanBak() call on the next read) can
+            // restore it, instead of the failure looking identical to a
+            // clean single-rename failure with the original file intact.
+            try {
+              await fs.unlink(tempPath);
+            } catch (_) {}
+            const aggregate = new Error(
+              `writeFileAtomic: rollback to "${bakPath}" also failed after the ` +
+                `rename fallback errored; the pre-write content is still recoverable ` +
+                `at "${bakPath}" (original error: ${fallbackError.message}; ` +
+                `rollback error: ${rollbackError.message})`,
+            );
+            aggregate.code = fallbackError.code;
+            aggregate.bakPath = bakPath;
+            aggregate.cause = fallbackError;
+            throw aggregate;
+          }
+        }
+        // Clean up temp file
+        try {
+          await fs.unlink(tempPath);
+        } catch (_) {}
+        throw fallbackError;
+      }
+    } else {
+      // Normal error path
+      try {
+        await fs.unlink(tempPath);
+      } catch (_) {}
+      throw error;
+    }
+  }
+}
+
+/**
+ * Renames sourcePath → targetPath with Windows EPERM/EEXIST fallback
+ * (backup target → .bak, retry rename, remove .bak). Works for files and directories.
+ * @param {string} sourcePath
+ * @param {string} targetPath
+ * @param {{fsImpl?: {rename, unlink, rm, stat}}} [options]
+ */
+async function renameWithFallback(sourcePath, targetPath, options = {}) {
+  const fsImpl = options.fsImpl || {
+    rename: fs.rename,
+    unlink: fs.unlink,
+    rm: fs.rm,
+    stat: fs.stat,
+  };
+  const bakPath = targetPath + ".bak";
+
+  try {
+    await fsImpl.rename(sourcePath, targetPath);
+    return;
+  } catch (error) {
+    if (error.code !== "EEXIST" && error.code !== "EPERM") {
+      throw error;
+    }
+  }
+
+  let backedUp = false;
+  try {
+    try {
+      await fsImpl.rename(targetPath, bakPath);
+      backedUp = true;
+    } catch (bakErr) {
+      // Target may be absent (injected EPERM on create) — retry bare rename.
+      if (bakErr.code === "ENOENT") {
+        await fsImpl.rename(sourcePath, targetPath);
+        return;
+      }
+      throw bakErr;
+    }
+    await fsImpl.rename(sourcePath, targetPath);
+    // Remove backup: file via unlink, directory via rm
+    try {
+      await fsImpl.unlink(bakPath);
+    } catch (unlinkErr) {
+      if (unlinkErr.code === "EISDIR" || unlinkErr.code === "EPERM") {
+        await fsImpl.rm(bakPath, { recursive: true, force: true });
+      } else if (unlinkErr.code !== "ENOENT") {
+        // Directory on some platforms: try rm
+        await fsImpl.rm(bakPath, { recursive: true, force: true });
+      }
+    }
+  } catch (fallbackError) {
+    if (backedUp) {
+      try {
+        await fsImpl.rename(bakPath, targetPath);
+      } catch (rollbackError) {
+        const aggregate = new Error(
+          `renameWithFallback: rollback to "${bakPath}" also failed; ` +
+            `pre-rename content may be at "${bakPath}" ` +
+            `(original: ${fallbackError.message}; rollback: ${rollbackError.message})`,
+        );
+        aggregate.code = fallbackError.code;
+        aggregate.bakPath = bakPath;
+        aggregate.cause = fallbackError;
+        throw aggregate;
+      }
+    }
+    throw fallbackError;
+  }
+}
+
+module.exports = {
+  writeFileAtomic,
+  recoverOrphanBak,
+  renameWithFallback,
+};

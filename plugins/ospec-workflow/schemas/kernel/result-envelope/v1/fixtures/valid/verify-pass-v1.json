@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "status": "success",
+  "executive_summary": "Verification completed successfully with PASS outcome.",
+  "artifacts": [
+    "openspec/changes/foo/verify-report.md"
+  ],
+  "next_recommended": "sdd-archive",
+  "risks": "None",
+  "skill_resolution": "injected",
+  "verify_outcome": "PASS"
+}
