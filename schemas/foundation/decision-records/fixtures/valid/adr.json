@@ -1,0 +1,21 @@
+{
+  "schema": "ospec-decision-record/v1",
+  "kind": "adr",
+  "id": "0001",
+  "title": "One deployable unit owns its data",
+  "status": "accepted",
+  "date": "2026-10-10",
+  "context_and_drivers": "A single write path keeps the latency scenario observable.",
+  "drivers": [
+    { "kind": "scenario", "id": "latency-under-load" }
+  ],
+  "options": [
+    "One deployable unit: one write path and one failure domain.",
+    "PostgreSQL per service: rejected here; a product name belongs in the technology record."
+  ],
+  "decision": "One deployable unit owns its data and its write path.",
+  "consequences": "A second unit needs a new ADR. Independent scaling is not available.",
+  "fitness_function": "A dependency rule rejects a domain import of an adapter.",
+  "review_trigger": "A second team needs to deploy on its own cadence.",
+  "stack": ["PostgreSQL", "Go"]
+}

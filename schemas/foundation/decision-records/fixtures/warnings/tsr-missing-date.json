@@ -1,0 +1,14 @@
+{
+  "schema": "ospec-decision-record/v1",
+  "kind": "tsr",
+  "id": "0003",
+  "title": "Storage with an undated source",
+  "status": "proposed",
+  "date": "2026-10-10",
+  "implements": ["0001"],
+  "alternatives": ["The database the team already operates."],
+  "sources": [
+    { "ref": "Vendor documentation" }
+  ],
+  "expected_warnings": ["missing-dated-source"]
+}

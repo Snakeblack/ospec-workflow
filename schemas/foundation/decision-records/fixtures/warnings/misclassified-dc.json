@@ -1,0 +1,8 @@
+{
+  "schema": "ospec-decision-record/v1",
+  "kind": "dc",
+  "as": "adr",
+  "title": "Rename the private health endpoint",
+  "decision": "Rename /internal/ping to /internal/health.",
+  "expected_warnings": ["misclassified-development-decision"]
+}

@@ -1,0 +1,16 @@
+{
+  "schema": "ospec-decision-record/v1",
+  "kind": "tsr",
+  "id": "0001",
+  "title": "Storage for the single write path",
+  "status": "accepted",
+  "date": "2026-10-10",
+  "implements": ["0001"],
+  "alternatives": [
+    "The database the team already operates.",
+    "A document store."
+  ],
+  "sources": [
+    { "ref": "Team standard, reviewed with the operator", "date": "2026-10-01" }
+  ]
+}

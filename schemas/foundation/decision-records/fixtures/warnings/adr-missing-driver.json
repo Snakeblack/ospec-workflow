@@ -1,0 +1,20 @@
+{
+  "schema": "ospec-decision-record/v1",
+  "kind": "adr",
+  "id": "0003",
+  "title": "One deployable unit without a cited driver",
+  "status": "proposed",
+  "date": "2026-10-10",
+  "context_and_drivers": "The forces are described, but no scenario, constraint or assumption is cited.",
+  "drivers": [],
+  "options": [
+    "One deployable unit.",
+    "A service per capability."
+  ],
+  "decision": "One deployable unit owns its data and its write path.",
+  "consequences": "Nothing in the record says which driver this serves.",
+  "fitness_function": "The lint reports missing-driver.",
+  "review_trigger": "A driver is confirmed.",
+  "stack": ["PostgreSQL"],
+  "expected_warnings": ["missing-driver"]
+}

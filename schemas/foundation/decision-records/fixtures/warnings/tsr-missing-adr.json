@@ -1,0 +1,14 @@
+{
+  "schema": "ospec-decision-record/v1",
+  "kind": "tsr",
+  "id": "0002",
+  "title": "Storage with no architecture decision",
+  "status": "proposed",
+  "date": "2026-10-10",
+  "implements": [],
+  "alternatives": ["The database the team already operates."],
+  "sources": [
+    { "ref": "Team standard", "date": "2026-10-01" }
+  ],
+  "expected_warnings": ["missing-adr"]
+}

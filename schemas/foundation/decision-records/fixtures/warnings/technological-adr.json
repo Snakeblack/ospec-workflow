@@ -1,0 +1,22 @@
+{
+  "schema": "ospec-decision-record/v1",
+  "kind": "adr",
+  "id": "0002",
+  "title": "Store the write path in a named product",
+  "status": "proposed",
+  "date": "2026-10-10",
+  "context_and_drivers": "The latency scenario still needs one write path.",
+  "drivers": [
+    { "kind": "constraint", "id": "team-operates-one-database" }
+  ],
+  "options": [
+    "One deployable unit with storage chosen later.",
+    "A product named in the decision."
+  ],
+  "decision": "Store the write path in postgresql.",
+  "consequences": "The architecture decision now depends on one product.",
+  "fitness_function": "The lint reports technology-in-decision.",
+  "review_trigger": "The team can no longer operate that product.",
+  "stack": ["PostgreSQL"],
+  "expected_warnings": ["technology-in-decision"]
+}

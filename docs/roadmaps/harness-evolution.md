@@ -145,8 +145,8 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
-| `next-eligible` | **E2.4** | `decision-records-model` | feature |
-| `pending` | **E2.5** | `brownfield-architecture-recovery` | feature |
+| `done` | **E2.4** | `decision-records-model` (ADR, TSR y DC con plantilla y lint de avisos) | feature |
+| `next-eligible` | **E2.5** | `brownfield-architecture-recovery` | feature |
 | `pending` | **E2.6** | `dogfood-ospec-foundation` | dogfooding |
 | `pending` | **E3.1** | `change-decisions-and-adr-impact` | feature |
 | `pending` | **E3.2** | `knowledge-by-reference` | feature |
@@ -159,7 +159,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.4** | `execution-resource-experiment` (experimento previo a cualquier routing adaptativo) | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E2.4 `decision-records-model`. E2.3 `foundation-discovery-rounds` queda hecho: la skill `foundation` cumple los seis escenarios de aceptación y `cncf-landscape` viaja en la instalación por defecto. E2.2 `decision-gap-engine` queda hecho: `ospec foundation next` elige la ronda y `ospec foundation record` persiste la respuesta. E2.1 `knowledge-map-contract` queda hecho: un proyecto guarda el mapa en `docs/architecture/knowledge-map.yaml`. La auditoría del 2026-10-09 (v2.118.0) corrigió defectos de coordinación de IDD (gates antes del trabajo, apertura del gate ADR, Strict TDD en refactors), añadió el criterio de tests por riesgo y adelantó parte de E2.3. E1.20 (OSP-020) quedó cerrado con IDD; su publicación está pendiente de elegir versión. E1.19 `idd-review-context` quedó hecho en v2.117.13, E1.16 (OSP-017) en v2.117.5, E1.17 (OSP-001/002/003) en v2.117.9, E1.21 (guía de checks IDD) en v2.117.10 y E1.18 (frescura de evidencia) en v2.117.11. Los ítems se ejecutan con IDD.
+**▶ SIGUIENTE:** E2.5 `brownfield-architecture-recovery`. E2.4 `decision-records-model` queda hecho: el contrato `ospec-decision-record/v1` distingue con fixtures un ADR válido, un ADR tecnológico (aviso) y una decisión de desarrollo clasificada como ADR. E2.3 `foundation-discovery-rounds` queda hecho: la skill `foundation` cumple los seis escenarios de aceptación y `cncf-landscape` viaja en la instalación por defecto. E2.2 `decision-gap-engine` queda hecho: `ospec foundation next` elige la ronda y `ospec foundation record` persiste la respuesta. E2.1 `knowledge-map-contract` queda hecho: un proyecto guarda el mapa en `docs/architecture/knowledge-map.yaml`. La auditoría del 2026-10-09 (v2.118.0) corrigió defectos de coordinación de IDD (gates antes del trabajo, apertura del gate ADR, Strict TDD en refactors), añadió el criterio de tests por riesgo y adelantó parte de E2.3. E1.20 (OSP-020) quedó cerrado con IDD; su publicación está pendiente de elegir versión. E1.19 `idd-review-context` quedó hecho en v2.117.13, E1.16 (OSP-017) en v2.117.5, E1.17 (OSP-001/002/003) en v2.117.9, E1.21 (guía de checks IDD) en v2.117.10 y E1.18 (frescura de evidencia) en v2.117.11. Los ítems se ejecutan con IDD.
 
 El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) conserva su resultado histórico `continue`. Los hallazgos posteriores y sus límites están en el [análisis OSP de permisos y evidencia](../analysis/2026-10-08-osp-permisos-y-evidencia.md). E1.11 quedó hecho en v2.117.16, E1.12 en v2.117.17 y E1.14 en v2.117.18; E1.13 y E1.15 siguen pendientes; el plugin SDD del marketplace permanece en E5.8, por demanda.
 
@@ -576,6 +576,7 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
 
   El lint avisa si la sección "Decisión" de un ADR nombra productos o librerías del stack detectado, o si un ADR no referencia ningún driver. Ocupa el lugar de la skill `architecture-decision-records`, retirada en v2.86.0.
 - **Hecho cuando:** los fixtures distinguen un ADR válido, un ADR "tecnológico" (aviso) y una decisión de desarrollo mal clasificada como ADR.
+- **Hecho:** el contrato es `ospec-decision-record/v1` (`schemas/foundation/decision-records/`). Los fixtures son JSON de ese modelo. Un ADR válido no produce avisos. La lista de productos acompaña al documento o llega como argumento del lint; si la sección Decision nombra uno, el aviso es `technology-in-decision` y el registro sigue siendo válido. Una DC (`kind: dc`) clasificada como ADR produce `misclassified-development-decision`, también como aviso. Un ADR sin identificador de escenario, restricción o supuesto produce `missing-driver`. Un TSR sin ADR citado produce `missing-adr`; sin fuente fechada, `missing-dated-source`. Foundation sigue escribiendo el registro tecnológico en la sección del technical baseline. Hecho con IDD (`idd/archive/2026-10-10-decision-records-model/`).
 
 ### E2.5 — `brownfield-architecture-recovery`
 
@@ -722,6 +723,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-10: E2.4 `decision-records-model` hecho con IDD. ADR, TSR y DC tienen plantilla y lint de avisos. E2.5 pasa a `next-eligible`.
 - 2026-10-10: E2.3 `foundation-discovery-rounds` hecho con IDD. La skill `foundation` cumple los seis escenarios y `cncf-landscape` entra en la instalación por defecto. E2.4 pasa a `next-eligible`.
 - 2026-10-10: E2.2 `decision-gap-engine` hecho con IDD. `ospec foundation next` elige la ronda y `ospec foundation record` persiste la respuesta. E2.3 pasa a `next-eligible`.
 - 2026-10-09: E2.1 `knowledge-map-contract` hecho con IDD. El mapa de un proyecto vive en `docs/architecture/knowledge-map.yaml`; el contrato y los ejemplos de los seis perfiles están en `schemas/foundation/knowledge-map/`. E2.2 pasa a `next-eligible`.

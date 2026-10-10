@@ -1,6 +1,8 @@
 # Arquitectura de ospec-workflow
 
-Esta carpeta queda reservada para la arquitectura **vigente** de ospec: `technical-baseline.md`, los ADR de arquitectura en `decisions/` y los registros tecnológicos en `technology/`. Los generará la foundation de ospec aplicada a este mismo repositorio ([E2.6](../roadmaps/harness-evolution.md#e26--dogfood-ospec-foundation)), con el modelo de registros de E2.4.
+Esta carpeta queda reservada para la arquitectura **vigente** de ospec: `technical-baseline.md`, los ADR de arquitectura en `decisions/` y los registros tecnológicos en `technology/`. Los generará la foundation de ospec aplicada a este mismo repositorio ([E2.6](../roadmaps/harness-evolution.md#e26--dogfood-ospec-foundation)).
+
+El modelo de esos registros es `ospec-decision-record/v1` ([E2.4](../roadmaps/harness-evolution.md#e24--decision-records-model), `schemas/foundation/decision-records/`): ADR, TSR y DC, con plantillas y un lint de avisos. Esta carpeta aún no contiene los ADR de ospec.
 
 Mientras tanto, la referencia técnica vigente es:
 

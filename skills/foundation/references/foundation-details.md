@@ -27,6 +27,7 @@ Foundation captures agreed intent where there is not enough code to detect;
 
 ## Context and drivers
 The forces at play and the quality scenarios or constraints this decision serves.
+Cite at least one driver id, as `scenario:<id>`, `constraint:<id>` or `assumption:<id>`.
 
 ## Options considered
 1. <Option A>: what it gives, what it costs.
@@ -45,6 +46,47 @@ The check (test, rule, measurement or review item) that detects a violation.
 The fact that would reopen this decision.
 ```
 
+## Technology record template
+
+Foundation still writes this content in the **Technology record** section of
+`docs/architecture/technical-baseline.md`. The model location of a TSR file is
+`docs/architecture/technology/NNNN-<kebab-title>.md`; do not switch foundation
+to that path.
+
+```markdown
+# NNNN. <Technology choice>
+
+- Status: proposed | accepted | superseded by NNNN
+- Date: YYYY-MM-DD
+- Implements: NNNN (one or more architecture ADRs)
+
+## Alternatives
+1. <Candidate, including what the team already has>: why it fits or fails.
+2. <Another candidate>: why it fits or fails.
+
+## Sources
+- YYYY-MM-DD — <source consulted, with enough detail to find it again>
+```
+
+A TSR that implements no ADR, or that has no source dated `YYYY-MM-DD`, is a
+lint warning. The record stays valid.
+
+## Change decision template
+
+A development decision (`kind: dc`) stays in the living document of the
+change: `design.md` when the project uses SDD, and the Decisions section of
+`idd/<change>/change.md` otherwise. Foundation does not write one during
+discovery. Filing it as an ADR (`kind: dc` classified as `adr`) is a lint
+warning.
+
+```markdown
+## Decision: <short title>
+
+Kind: dc
+
+<What this change decided, including what was deferred.>
+```
+
 ## Technical baseline skeleton
 
 ```markdown
@@ -56,7 +98,7 @@ The fact that would reopen this decision.
 ## Quality scenarios           (attribute | stimulus | response | measure | priority)
 ## Constraints                 (source of each constraint)
 ## Test strategy               (what unit, integration/contract and measurement each protect)
-## Technology record           (choice | implements ADR | alternatives | why: team, maturity, license, cost)
+## Technology record           (choice | implements ADR | alternatives | why: team, maturity, license, cost | dated source)
 ```
 
 ## IDD configuration example

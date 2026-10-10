@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/foundation/decision-records/v1",
+  "title": "ospec-decision-record/v1",
+  "oneOf": [
+    { "$ref": "#/$defs/adr" },
+    { "$ref": "#/$defs/tsr" },
+    { "$ref": "#/$defs/dc" }
+  ],
+  "$defs": {
+    "text": { "type": "string", "minLength": 1 },
+    "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+    "recordId": { "type": "string", "pattern": "^[0-9]{4}$" },
+    "driverId": { "type": "string", "pattern": "^[a-z][a-z0-9.-]{0,63}$" },
+    "classification": { "enum": ["adr", "tsr", "dc"] },
+    "status": { "enum": ["proposed", "accepted", "superseded"] },
+    "driver": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "enum": ["scenario", "constraint", "assumption"] },
+        "id": { "$ref": "#/$defs/driverId" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref"],
+      "properties": {
+        "ref": { "$ref": "#/$defs/text" },
+        "date": { "$ref": "#/$defs/date" }
+      }
+    },
+    "adr": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "kind",
+        "id",
+        "title",
+        "status",
+        "date",
+        "context_and_drivers",
+        "drivers",
+        "options",
+        "decision",
+        "consequences",
+        "fitness_function",
+        "review_trigger",
+        "stack"
+      ],
+      "properties": {
+        "schema": { "const": "ospec-decision-record/v1" },
+        "kind": { "const": "adr" },
+        "as": { "$ref": "#/$defs/classification" },
+        "id": { "$ref": "#/$defs/recordId" },
+        "title": { "$ref": "#/$defs/text" },
+        "status": { "$ref": "#/$defs/status" },
+        "date": { "$ref": "#/$defs/date" },
+        "context_and_drivers": { "$ref": "#/$defs/text" },
+        "drivers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/driver" }
+        },
+        "options": {
+          "type": "array",
+          "minItems": 2,
+          "items": { "$ref": "#/$defs/text" }
+        },
+        "decision": { "$ref": "#/$defs/text" },
+        "consequences": { "$ref": "#/$defs/text" },
+        "fitness_function": { "$ref": "#/$defs/text" },
+        "review_trigger": { "$ref": "#/$defs/text" },
+        "stack": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/text" }
+        }
+      }
+    },
+    "tsr": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "kind", "id", "title", "status", "date", "implements", "alternatives", "sources"],
+      "properties": {
+        "schema": { "const": "ospec-decision-record/v1" },
+        "kind": { "const": "tsr" },
+        "as": { "$ref": "#/$defs/classification" },
+        "id": { "$ref": "#/$defs/recordId" },
+        "title": { "$ref": "#/$defs/text" },
+        "status": { "$ref": "#/$defs/status" },
+        "date": { "$ref": "#/$defs/date" },
+        "implements": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/recordId" }
+        },
+        "alternatives": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/text" }
+        },
+        "sources": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/source" }
+        }
+      }
+    },
+    "dc": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "kind", "title", "decision"],
+      "properties": {
+        "schema": { "const": "ospec-decision-record/v1" },
+        "kind": { "const": "dc" },
+        "as": { "$ref": "#/$defs/classification" },
+        "title": { "$ref": "#/$defs/text" },
+        "decision": { "$ref": "#/$defs/text" }
+      }
+    }
+  }
+}
