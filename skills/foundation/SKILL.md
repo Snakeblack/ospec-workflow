@@ -77,6 +77,27 @@ round. The documents are the state, never the conversation.
    slot that blocks the first slice is confirmed, assumed or deferred with an
    owner. The whole future need not be settled.
 
+## Acceptance scenarios
+
+Match one row and follow it. The notes in `assets/scenarios/` show the shape.
+Do not write application code, manifests, dependencies, CI files or scaffolds
+without approval.
+
+| Case | Do | Do not |
+| --- | --- | --- |
+| CLI local without a service | Cover files, errors, compatibility, distribution and tests. | Load `cncf-landscape`. Treat Kubernetes as a requirement. |
+| Small SaaS | Compare the simple existing or managed operation with alternatives. Record unknown cost and competencies. | Invent an SLO or any numeric budget. |
+| Regulated or high-risk | Go deeper on data, permissions, traceability and recovery. | Confirm an obligation no competent source confirmed. Leave it a gap. |
+| Documented brownfield | Read the baseline and its evidence. Record divergences and propose a focused delta. Preserve prior content and the approval already in force. | Infer components or write an ADR with `status: inferred`. Overwrite prior text. |
+| Stale source or offline | Show the revision or date and what is unknown. Leave unknown only the decision that depends on the missing evidence. Use the existing `unknown` or `assumed` slot. | Stop the decisions that do not depend on that source. Add a stale state to the knowledge map. |
+| Small later change | Read the applicable sections and write only the delta. | Regenerate foundation. Run a general technology search. |
+
+Load `cncf-landscape` only when a decision needs application delivery,
+observability, containers, orchestration or platform services and no
+well-supported alternative is recorded, or when the user asks to explore CNCF.
+A local CLI, a language choice or bootstrap does not load it. Loading it does
+not adopt a project.
+
 ## Outputs
 
 Read each file before writing and update it; never discard what the user wrote.
