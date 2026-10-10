@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.120.0, 2026-10-10.
+> **Versión de referencia:** v2.121.0, 2026-10-10.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -144,8 +144,8 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.24** | `setup-flags-reliability` (`setup:claude --dry-run` simula de verdad y los flags de `setup:*` funcionan desde PowerShell) | bugfix |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
-| `next-eligible` | **E2.3** | `foundation-discovery-rounds` | feature |
-| `pending` | **E2.4** | `decision-records-model` | feature |
+| `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
+| `next-eligible` | **E2.4** | `decision-records-model` | feature |
 | `pending` | **E2.5** | `brownfield-architecture-recovery` | feature |
 | `pending` | **E2.6** | `dogfood-ospec-foundation` | dogfooding |
 | `pending` | **E3.1** | `change-decisions-and-adr-impact` | feature |
@@ -159,7 +159,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.4** | `execution-resource-experiment` (experimento previo a cualquier routing adaptativo) | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E2.3 `foundation-discovery-rounds`. E2.2 `decision-gap-engine` queda hecho: `ospec foundation next` elige la ronda y `ospec foundation record` persiste la respuesta. E2.1 `knowledge-map-contract` queda hecho: un proyecto guarda el mapa en `docs/architecture/knowledge-map.yaml`. La auditoría del 2026-10-09 (v2.118.0) corrigió defectos de coordinación de IDD (gates antes del trabajo, apertura del gate ADR, Strict TDD en refactors), añadió el criterio de tests por riesgo y adelantó parte de E2.3. E1.20 (OSP-020) quedó cerrado con IDD; su publicación está pendiente de elegir versión. E1.19 `idd-review-context` quedó hecho en v2.117.13, E1.16 (OSP-017) en v2.117.5, E1.17 (OSP-001/002/003) en v2.117.9, E1.21 (guía de checks IDD) en v2.117.10 y E1.18 (frescura de evidencia) en v2.117.11. Los ítems se ejecutan con IDD.
+**▶ SIGUIENTE:** E2.4 `decision-records-model`. E2.3 `foundation-discovery-rounds` queda hecho: la skill `foundation` cumple los seis escenarios de aceptación y `cncf-landscape` viaja en la instalación por defecto. E2.2 `decision-gap-engine` queda hecho: `ospec foundation next` elige la ronda y `ospec foundation record` persiste la respuesta. E2.1 `knowledge-map-contract` queda hecho: un proyecto guarda el mapa en `docs/architecture/knowledge-map.yaml`. La auditoría del 2026-10-09 (v2.118.0) corrigió defectos de coordinación de IDD (gates antes del trabajo, apertura del gate ADR, Strict TDD en refactors), añadió el criterio de tests por riesgo y adelantó parte de E2.3. E1.20 (OSP-020) quedó cerrado con IDD; su publicación está pendiente de elegir versión. E1.19 `idd-review-context` quedó hecho en v2.117.13, E1.16 (OSP-017) en v2.117.5, E1.17 (OSP-001/002/003) en v2.117.9, E1.21 (guía de checks IDD) en v2.117.10 y E1.18 (frescura de evidencia) en v2.117.11. Los ítems se ejecutan con IDD.
 
 El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) conserva su resultado histórico `continue`. Los hallazgos posteriores y sus límites están en el [análisis OSP de permisos y evidencia](../analysis/2026-10-08-osp-permisos-y-evidencia.md). E1.11 quedó hecho en v2.117.16, E1.12 en v2.117.17 y E1.14 en v2.117.18; E1.13 y E1.15 siguen pendientes; el plugin SDD del marketplace permanece en E5.8, por demanda.
 
@@ -561,7 +561,8 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
 
 - **Alcance:** reescribir la foundation (antes `sdd-foundation`, hoy `foundation`) como capacidad propia, independiente del modo, sobre el ciclo descrito: rondas reanudables, ingestión de fuentes y documentos `docs/product/*`, `docs/architecture/*` y `docs/roadmap*.md` actualizados de forma incremental. Absorbe el diseño de [foundation holística](archive/2026-10-03-arquitectura/harness-foundation-holistic.md) (antes R2.1/R2.4, archivado como insumo).
 - **Hecho cuando:** ningún scaffold ni código se genera sin aprobación, y se cumplen los escenarios de aceptación de ese diseño (CLI local, SaaS pequeño, regulado, brownfield, fuente desactualizada y cambio pequeño posterior).
-- **Adelanto en v2.118.0 (`idd/archive/2026-10-09-foundation-architect/`):** a petición del usuario, `sdd-foundation` pasa a ser la skill `foundation`, presente en toda instalación (su agente sigue en el paquete SDD como delegado de la ruta, y el dispatcher lee la fase heredada `sdd-foundation`). Pregunta en rondas de cuatro como máximo con respuesta recomendada y supuestos explícitos, registra ADR de arquitectura agnósticos y escenarios de calidad, y propone `idd/config.yaml` con aprobación; el router le envía los proyectos sin código. El contrato del mapa quedó en E2.1. Siguen pendientes el motor determinista de rondas (E2.2), el lint de ADR (E2.4) y los escenarios de aceptación de este ítem.
+- **Adelanto en v2.118.0 (`idd/archive/2026-10-09-foundation-architect/`):** a petición del usuario, `sdd-foundation` pasa a ser la skill `foundation`, presente en toda instalación (su agente sigue en el paquete SDD como delegado de la ruta, y el dispatcher lee la fase heredada `sdd-foundation`). Pregunta en rondas de cuatro como máximo con respuesta recomendada y supuestos explícitos, registra ADR de arquitectura agnósticos y escenarios de calidad, y propone `idd/config.yaml` con aprobación; el router le envía los proyectos sin código. El contrato del mapa quedó en E2.1 y el motor de rondas en E2.2.
+- **Hecho:** la skill `foundation` fija los seis escenarios (CLI local, SaaS pequeño, regulado, brownfield documentado, fuente desactualizada y cambio pequeño posterior) y no escribe scaffold ni código sin aprobación. El brownfield conserva el texto previo, anota la divergencia y propone un delta; no infiere componentes ni escribe un ADR `inferred` (eso es E2.5). Una fuente vieja muestra revisión o fecha y deja en desconocido solo la decisión que depende de ella, sin estado `stale` en el mapa. Un cambio pequeño posterior escribe solo el delta. `cncf-landscape` viaja en la instalación por defecto, se carga solo ante una necesidad de plataforma sin alternativa sustentada o si el usuario lo pide, y no se carga para una CLI local. El lint de ADR sigue en E2.4. Hecho con IDD (`idd/archive/2026-10-10-foundation-discovery-rounds/`).
 
 ### E2.4 — `decision-records-model`
 
@@ -721,6 +722,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-10: E2.3 `foundation-discovery-rounds` hecho con IDD. La skill `foundation` cumple los seis escenarios y `cncf-landscape` entra en la instalación por defecto. E2.4 pasa a `next-eligible`.
 - 2026-10-10: E2.2 `decision-gap-engine` hecho con IDD. `ospec foundation next` elige la ronda y `ospec foundation record` persiste la respuesta. E2.3 pasa a `next-eligible`.
 - 2026-10-09: E2.1 `knowledge-map-contract` hecho con IDD. El mapa de un proyecto vive en `docs/architecture/knowledge-map.yaml`; el contrato y los ejemplos de los seis perfiles están en `schemas/foundation/knowledge-map/`. E2.2 pasa a `next-eligible`.
 - 2026-10-09: E1.14 `codex-repo-runtime` hecho con IDD en v2.117.18; la instalación de Codex por repositorio sigue IDD sin instalación global.
