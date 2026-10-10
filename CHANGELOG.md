@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.120.0] - 2026-10-10
+
+### Added
+- **Motor de huecos de decisión (E2.2)**: `ospec foundation next` puntúa los huecos del mapa de conocimiento y devuelve una ronda de como mucho cuatro ranuras, todas de la dimensión de mayor prioridad. La prioridad es impacto × incertidumbre × irreversibilidad × peso del perfil: el impacto cuenta las decisiones del catálogo que aún tienen alguna ranura sin responder, la incertidumbre es 1 si la ranura está `unknown` o falta, la irreversibilidad es 1 y el peso es 2 si la ranura es obligatoria para el perfil y 1 si no. El empate sigue el orden del catálogo. `ospec foundation record` guarda una respuesta (`confirmed`, `assumed`, `n/a` o `deferred`) y no repite esa ranura. Si el mapa no existe, `next --profile` calcula la ronda y devuelve la plantilla sin escribir; `record` se niega hasta que el fichero exista. El validador del mapa cerrado no cambia. Los perfiles del criterio son `prototype`, `product` y `regulated`, y sus secuencias de rondas son distintas. La skill `foundation` pide la ronda al motor y redacta la pregunta. El catálogo y el esquema viajan con el CLI instalado. Hecho con IDD (`idd/archive/2026-10-10-decision-gap-engine/`).
+
+### Changed
+- **Roadmap**: E2.2 `decision-gap-engine` pasa a hecho y E2.3 `foundation-discovery-rounds` queda como siguiente.
+
+**Verificación directa**: `node scripts/check.js` (3454 tests pasando, 0 fallos y 4 omitidos).
+
 ## [2.119.1] - 2026-10-10
 
 ### Fixed
