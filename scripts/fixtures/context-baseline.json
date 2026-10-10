@@ -4,9 +4,9 @@
     "claude": {
       "always_on_bytes": 3335,
       "orchestrator_bytes": 0,
-      "skills_installed": 32,
-      "skills_listed": 26,
-      "skill_listing_bytes": 4434,
+      "skills_installed": 33,
+      "skills_listed": 27,
+      "skill_listing_bytes": 4613,
       "agent_read_bytes": {
         "review-change": 4757,
         "review-correction": 5197,
@@ -19,9 +19,9 @@
     "vscode": {
       "always_on_bytes": 3609,
       "orchestrator_bytes": 0,
-      "skills_installed": 32,
-      "skills_listed": 26,
-      "skill_listing_bytes": 4434,
+      "skills_installed": 33,
+      "skills_listed": 27,
+      "skill_listing_bytes": 4613,
       "agent_read_bytes": {
         "review-change": 4785,
         "review-correction": 5225,
@@ -34,9 +34,9 @@
     "github-copilot": {
       "always_on_bytes": 3609,
       "orchestrator_bytes": 0,
-      "skills_installed": 32,
-      "skills_listed": 26,
-      "skill_listing_bytes": 4434,
+      "skills_installed": 33,
+      "skills_listed": 27,
+      "skill_listing_bytes": 4613,
       "agent_read_bytes": {
         "review-change": 4771,
         "review-correction": 5211,
@@ -49,9 +49,9 @@
     "opencode": {
       "always_on_bytes": 3287,
       "orchestrator_bytes": 0,
-      "skills_installed": 32,
-      "skills_listed": 26,
-      "skill_listing_bytes": 4434,
+      "skills_installed": 33,
+      "skills_listed": 27,
+      "skill_listing_bytes": 4613,
       "agent_read_bytes": {
         "review-change": 4783,
         "review-correction": 5227,
@@ -64,9 +64,9 @@
     "codex": {
       "always_on_bytes": 3290,
       "orchestrator_bytes": 0,
-      "skills_installed": 32,
-      "skills_listed": 26,
-      "skill_listing_bytes": 4434,
+      "skills_installed": 33,
+      "skills_listed": 27,
+      "skill_listing_bytes": 4613,
       "agent_read_bytes": {
         "review-change": 4878,
         "review-correction": 5316,
@@ -79,9 +79,9 @@
     "cursor": {
       "always_on_bytes": 3617,
       "orchestrator_bytes": 0,
-      "skills_installed": 32,
-      "skills_listed": 26,
-      "skill_listing_bytes": 4434,
+      "skills_installed": 33,
+      "skills_listed": 27,
+      "skill_listing_bytes": 4613,
       "agent_read_bytes": {
         "review-change": 4725,
         "review-correction": 5172,
@@ -94,9 +94,9 @@
     "antigravity": {
       "always_on_bytes": 3619,
       "orchestrator_bytes": 0,
-      "skills_installed": 32,
-      "skills_listed": 26,
-      "skill_listing_bytes": 4434,
+      "skills_installed": 33,
+      "skills_listed": 27,
+      "skill_listing_bytes": 4613,
       "agent_read_bytes": {
         "review-change": 4761,
         "review-correction": 5199,

@@ -1,0 +1,113 @@
+{
+  "schema": "idd-state/v1",
+  "change": "foundation-discovery-rounds",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "feature",
+    "summary": "Completar foundation como descubrimiento reanudable: ingesta de fuentes y actualización incremental de docs/product, docs/architecture y docs/roadmap, cumpliendo los seis escenarios del diseño holístico.",
+    "acceptance": "Ningún scaffold ni código se genera sin aprobación, y se cumplen los escenarios CLI local, SaaS pequeño, regulado, brownfield documentado, fuente desactualizada y cambio pequeño posterior. El lint de ADR queda en E2.4."
+  },
+  "facts": {
+    "open": [
+      "¿Los seis escenarios se comprueban como contrato de la skill foundation (tests sobre el texto y fixtures de documentos) o como un comando CLI que, dado el perfil y las fuentes, emite el delta de documentos y las exclusiones?",
+      "El escenario brownfield pide leer el baseline, registrar divergencias y proponer deltas sin sobrescribir. E2.5 infiere componentes y ADRs inferred con evidencia ruta:línea. ¿E2.3 se queda en conservar documentos y anotar divergencias, y deja la inferencia para E2.5?",
+      "El diseño holístico describe cncf-landscape como capacidad futura y el escenario de CLI local exige que CNCF no se active ni Kubernetes aparezca como requisito. ¿E2.3 solo fija esa regla de no activación dentro de foundation, sin crear la skill?",
+      "Una fuente desactualizada o el trabajo offline deben mostrar revisión o fecha y dejar en desconocido solo la decisión que depende de esa evidencia. ¿Eso añade un estado stale y una fecha al contrato del mapa de E2.1, o la skill lo registra sin cambiar el esquema?",
+      "Un cambio pequeño posterior no debe regenerar foundation ni lanzar búsquedas tecnológicas generales. ¿Eso es una regla de la skill, o foundation next cambia de comportamiento cuando el mapa ya cubre el primer slice?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "idd/foundation-discovery-rounds/change.md",
+      "scripts/cncf-landscape.test.js",
+      "scripts/fixtures/context-baseline.json",
+      "scripts/foundation-discovery-rounds.test.js",
+      "skills/cncf-landscape/SKILL.md",
+      "skills/cncf-landscape/references/card.md",
+      "skills/foundation/SKILL.md",
+      "skills/foundation/assets/scenarios/brownfield.md",
+      "skills/foundation/assets/scenarios/cli-local.md",
+      "skills/foundation/assets/scenarios/regulated.md",
+      "skills/foundation/assets/scenarios/small-change.md",
+      "skills/foundation/assets/scenarios/small-saas.md",
+      "skills/foundation/assets/scenarios/stale-source.md"
+    ],
+    "work_units": 2,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Los seis escenarios se comprueban como contrato de la skill foundation, con tests sobre el texto y fixtures de documentos. E2.3 conserva documentos y anota divergencias; la inferencia de componentes y ADRs inferred queda en E2.5. E2.3 también crea la skill cncf-landscape. La fuente desactualizada se registra en la skill sin cambiar el esquema de E2.1. El cambio pequeño posterior es una regla de la skill: no regenerar foundation ni lanzar búsquedas tecnológicas generales.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-10T14:50:56.964Z",
+      "detail": {
+        "tree": "sha256:1715fe4ac80524ab033a11df7a2263bc437cfa51fe8efe920f5954d5feee082c",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-10T14:51:09.138Z"
+    }
+  ],
+  "base": "d8dbebcddd7d221de6c46d61a9c8b67299c2c9a6",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e1bba3a71c22ebfd3ffdafb30d2f0e767c4d24f46403d41fafe0602b6a83ae3f",
+      "tree": "sha256:1715fe4ac80524ab033a11df7a2263bc437cfa51fe8efe920f5954d5feee082c",
+      "recorded_at": "2026-10-10T14:50:56.964Z"
+    }
+  ],
+  "closed_at": "2026-10-10T14:51:09.138Z"
+}
