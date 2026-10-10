@@ -168,6 +168,9 @@ const SUCCESSOR_K2_EXACT = new Set([
   // E2.1 knowledge-map contract (roadmap harness-evolution).
   "scripts/lib/knowledge-map.js",
   "scripts/lib/knowledge-map.test.js",
+  // E2.2 decision-gap engine (roadmap harness-evolution).
+  "scripts/lib/decision-gap.js",
+  "scripts/lib/decision-gap.test.js",
   // E1.4 (a) ospec check and ospec run: observed runs and their evidence (roadmap harness-evolution).
   "scripts/lib/idd-check.js",
   "scripts/lib/idd-check.test.js",

@@ -170,7 +170,7 @@ function gatherRuntimeScripts(sourceDir) {
     let match;
     while ((match = requireRe.exec(content)) !== null) {
       let dep = match[1];
-      if (!dep.endsWith(".js")) {
+      if (!dep.endsWith(".js") && !dep.endsWith(".json")) {
         dep += ".js";
       }
       const depRel = path.posix.normalize(path.posix.join(path.posix.dirname(rel), dep));

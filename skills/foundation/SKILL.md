@@ -63,17 +63,19 @@ round. The documents are the state, never the conversation.
    the decisions it feeds. `unknown` is not `n/a`. A quality scenario states
    origin, stimulus, environment, artifact and response; add a measure only
    when the user gives one, and record who gave it.
-3. Ask at most four questions per round, grouped by topic, the ones that
-   unblock most pending decisions first. Each offers a recommended answer and
-   "I don't know"; "I don't know" never blocks: record an explicit assumption
-   with its review trigger.
-4. Stop when every slot that blocks the first slice is confirmed, assumed or
-   deferred with an owner. The whole future need not be settled.
-
-When nothing is known, cover in this order: product goal and users; first
-capabilities; constraints (deadlines, compliance, data sensitivity,
-integrations, cost); quality drivers; team (size, skills, who operates
-production); stack constraints or freedom; testing bar; delivery target.
+3. Take the round from `ospec foundation next`. When the map does not exist
+   yet, pass `--profile` and write the returned `template` to
+   `docs/architecture/knowledge-map.yaml` before recording: `next` does not
+   create the file. Ask only the slots in that round, in that order, all in
+   the returned theme. The engine returns at most four questions per round.
+   Phrase each question for this project. Offer a
+   recommended answer aimed at `recommendation.unblocks`, plus "I don't know".
+   Record each answer with `ospec foundation record` before asking for the
+   next round. "I don't know" is `--state assumed` with a source and a
+   `--review-trigger`. Do not ask a slot the engine omitted.
+4. Stop when `foundation next` returns an empty round, or earlier when every
+   slot that blocks the first slice is confirmed, assumed or deferred with an
+   owner. The whole future need not be settled.
 
 ## Outputs
 

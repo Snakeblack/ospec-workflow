@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.119.1, 2026-10-10.
+> **Versión de referencia:** v2.120.0, 2026-10-10.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -143,8 +143,8 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.23** | `install-engram-no-doctor` (los siete `setup:*` omiten el diagnóstico global de Engram; `ospec doctor` lo conserva, en v2.117.8) | bugfix |
 | `done` | **E1.24** | `setup-flags-reliability` (`setup:claude --dry-run` simula de verdad y los flags de `setup:*` funcionan desde PowerShell) | bugfix |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
-| `next-eligible` | **E2.2** | `decision-gap-engine` | feature |
-| `pending` | **E2.3** | `foundation-discovery-rounds` | feature |
+| `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
+| `next-eligible` | **E2.3** | `foundation-discovery-rounds` | feature |
 | `pending` | **E2.4** | `decision-records-model` | feature |
 | `pending` | **E2.5** | `brownfield-architecture-recovery` | feature |
 | `pending` | **E2.6** | `dogfood-ospec-foundation` | dogfooding |
@@ -159,7 +159,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.4** | `execution-resource-experiment` (experimento previo a cualquier routing adaptativo) | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E2.2 `decision-gap-engine`. E2.1 `knowledge-map-contract` queda hecho: un proyecto guarda el mapa en `docs/architecture/knowledge-map.yaml`. La auditoría del 2026-10-09 (v2.118.0) corrigió defectos de coordinación de IDD (gates antes del trabajo, apertura del gate ADR, Strict TDD en refactors), añadió el criterio de tests por riesgo y adelantó parte de E2.3. E1.20 (OSP-020) quedó cerrado con IDD; su publicación está pendiente de elegir versión. E1.19 `idd-review-context` quedó hecho en v2.117.13, E1.16 (OSP-017) en v2.117.5, E1.17 (OSP-001/002/003) en v2.117.9, E1.21 (guía de checks IDD) en v2.117.10 y E1.18 (frescura de evidencia) en v2.117.11. Los ítems se ejecutan con IDD.
+**▶ SIGUIENTE:** E2.3 `foundation-discovery-rounds`. E2.2 `decision-gap-engine` queda hecho: `ospec foundation next` elige la ronda y `ospec foundation record` persiste la respuesta. E2.1 `knowledge-map-contract` queda hecho: un proyecto guarda el mapa en `docs/architecture/knowledge-map.yaml`. La auditoría del 2026-10-09 (v2.118.0) corrigió defectos de coordinación de IDD (gates antes del trabajo, apertura del gate ADR, Strict TDD en refactors), añadió el criterio de tests por riesgo y adelantó parte de E2.3. E1.20 (OSP-020) quedó cerrado con IDD; su publicación está pendiente de elegir versión. E1.19 `idd-review-context` quedó hecho en v2.117.13, E1.16 (OSP-017) en v2.117.5, E1.17 (OSP-001/002/003) en v2.117.9, E1.21 (guía de checks IDD) en v2.117.10 y E1.18 (frescura de evidencia) en v2.117.11. Los ítems se ejecutan con IDD.
 
 El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) conserva su resultado histórico `continue`. Los hallazgos posteriores y sus límites están en el [análisis OSP de permisos y evidencia](../analysis/2026-10-08-osp-permisos-y-evidencia.md). E1.11 quedó hecho en v2.117.16, E1.12 en v2.117.17 y E1.14 en v2.117.18; E1.13 y E1.15 siguen pendientes; el plugin SDD del marketplace permanece en E5.8, por demanda.
 
@@ -555,6 +555,7 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
 
 - **Alcance:** `ospec foundation next` aplica la fórmula de priorización, agrupa por tema y devuelve la siguiente ronda con recomendaciones; `record` persiste respuestas y supuestos.
 - **Hecho cuando:** una CLI local, un SaaS pequeño y un producto regulado producen rondas distintas y deterministas a partir del mismo motor, y reanudar no repite preguntas ya respondidas.
+- **Hecho:** `ospec foundation next` puntúa cada hueco como impacto × incertidumbre × irreversibilidad × peso del perfil. El impacto es el número de decisiones del catálogo de esa ranura que aún tienen alguna ranura sin responder; la incertidumbre es 1 si está `unknown` o falta; la irreversibilidad es 1; el peso es 2 si la ranura es obligatoria para el perfil y 1 si no; el empate conserva el orden del catálogo. La ronda es solo la dimensión de mayor prioridad, como mucho cuatro ranuras. No repite una ranura ya respondida. Si falta el mapa, `next --profile` calcula la ronda y devuelve la plantilla sin escribir; `record` se niega. El validador de mapa cerrado no cambia. Los perfiles del criterio son `prototype`, `product` y `regulated`. Hecho con IDD (`idd/archive/2026-10-10-decision-gap-engine/`).
 
 ### E2.3 — `foundation-discovery-rounds`
 
@@ -720,6 +721,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-10: E2.2 `decision-gap-engine` hecho con IDD. `ospec foundation next` elige la ronda y `ospec foundation record` persiste la respuesta. E2.3 pasa a `next-eligible`.
 - 2026-10-09: E2.1 `knowledge-map-contract` hecho con IDD. El mapa de un proyecto vive en `docs/architecture/knowledge-map.yaml`; el contrato y los ejemplos de los seis perfiles están en `schemas/foundation/knowledge-map/`. E2.2 pasa a `next-eligible`.
 - 2026-10-09: E1.14 `codex-repo-runtime` hecho con IDD en v2.117.18; la instalación de Codex por repositorio sigue IDD sin instalación global.
 - 2026-10-09: E1.12 `session-hook-idd` hecho con IDD en v2.117.17; `Stop` y `PreCompact` retoman los cambios IDD desde disco, con paridad JS/Go.

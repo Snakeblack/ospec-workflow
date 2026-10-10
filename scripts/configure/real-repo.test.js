@@ -998,6 +998,22 @@ test("real repo: every target ships the ospec CLI and it runs from the generated
       encoding: "utf8",
     });
     assert.deepStrictEqual(JSON.parse(output).next_step, { action: "open-change" });
+    for (const rel of [
+      "scripts/lib/decision-gap.js",
+      "schemas/foundation/knowledge-map/catalog.json",
+      "schemas/foundation/knowledge-map/v1.schema.json",
+    ]) {
+      assert.ok(result.files.some((file) => file.path === rel), `${target} dropped ${rel}`);
+    }
+    const foundation = execFileSync(
+      process.execPath,
+      [path.join(out, "scripts", "ospec.js"), "foundation", "next", "--profile", "prototype", "--json", "--root", project],
+      { encoding: "utf8" },
+    );
+    const round = JSON.parse(foundation);
+    assert.equal(round.exists, false);
+    assert.deepStrictEqual(round.round.map((slot) => slot.id), ["quality.drivers"]);
+    assert.equal(fs.existsSync(path.join(project, "docs", "architecture", "knowledge-map.yaml")), false);
   }
 });
 

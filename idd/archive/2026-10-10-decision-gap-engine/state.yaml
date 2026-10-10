@@ -1,0 +1,151 @@
+{
+  "schema": "idd-state/v1",
+  "change": "decision-gap-engine",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "feature",
+    "summary": "ospec foundation next ranks knowledge-map gaps into a deterministic round and foundation record persists answers and assumptions",
+    "acceptance": "The same engine returns distinct deterministic rounds for a local CLI, a small SaaS and a regulated product, and a resumed map does not repeat a slot that already has an answer"
+  },
+  "facts": {
+    "open": [
+      "The catalog has no numeric impact, uncertainty, irreversibility or profile weight. How does foundation next score a slot? Proposed rule: impact is the number of that slot's catalog decisions that still have an unanswered feeding slot; uncertainty is 1 when the slot is unknown or missing and 0 when it already has another state; irreversibility is 1 for every decision; profile weight is 2 when the slot is mandatory for the profile and 1 when it is optional; equal scores keep catalog order.",
+      "A round has at most four questions grouped by theme. Is the theme the slot dimension, and does the round take only the highest-priority dimension (shorter if that dimension has fewer gaps), or the four highest slots overall and then group them by dimension?",
+      "A map whose mandatory slots are still unknown fails the finished-map validator. Should foundation next and foundation record read and write that draft at docs/architecture/knowledge-map.yaml without the mandatory-cannot-be-unknown rule, leaving validateKnowledgeMap unchanged? If the file is missing, should foundation next --profile compute the first round as if every catalog slot were unknown and write nothing, while record refuses until the file exists?",
+      "The done criterion names a local CLI, a small SaaS and a regulated product. Which catalog profiles are those three cases: prototype, product and regulated, or public-library, product and regulated?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/specs/decision-gap/spec.md",
+      "scripts/configure/cli.js",
+      "scripts/configure/cli.test.js",
+      "scripts/lib/decision-gap.js",
+      "scripts/lib/decision-gap.test.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js",
+      "skills/foundation/SKILL.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/configure/cli.js and 1 more (matches scripts/configure/cli.js)",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Scoring: use the proposed rule (impact = catalog decisions of that slot that still have an unanswered feeding slot; uncertainty = 1 if unknown or missing, 0 otherwise; irreversibility = 1; profile weight = 2 if mandatory and 1 if optional; ties keep catalog order). Theme: the slot dimension; a round takes only the highest-priority dimension, at most 4 slots, and does not fill from another dimension. Draft: next and record read and write the draft at docs/architecture/knowledge-map.yaml without the mandatory-cannot-be-unknown rule; validateKnowledgeMap stays unchanged; if the file is missing, foundation next --profile computes the first round as if every catalog slot were unknown and writes nothing, while record refuses until the file exists. Profiles for the done criterion: prototype, product and regulated.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-10T13:04:29.064Z",
+      "detail": {
+        "tree": "sha256:3bb77a83989f1b9954b2246ba04a43c098db25f3ba47bb3703b191e6eacc99db",
+        "runs": [
+          "run-2"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-10T13:04:29.064Z",
+      "detail": {
+        "tree": "sha256:3bb77a83989f1b9954b2246ba04a43c098db25f3ba47bb3703b191e6eacc99db",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/decision-gap/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/cli.test.js",
+          "scripts/configure/real-repo.test.js",
+          "scripts/lib/decision-gap.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-10T13:04:37.008Z"
+    }
+  ],
+  "base": "df4840fc5058c690a3c58edacff80cf5ec83e6cd",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:65fa34862db80208bb0fb609053e955429fadba059a72e664d20650a9431d68c",
+      "tree": "sha256:7b196d8e7af6842b7a4cc28a7df8551b6e9bccd6a0e296783e3c82c9a8fe5276",
+      "recorded_at": "2026-10-10T13:03:52.073Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:88efb694263ee2baa66fac46da91807cfd22e2ea167dda9349609542e7937a44",
+      "tree": "sha256:3bb77a83989f1b9954b2246ba04a43c098db25f3ba47bb3703b191e6eacc99db",
+      "recorded_at": "2026-10-10T13:04:29.064Z"
+    }
+  ],
+  "closed_at": "2026-10-10T13:04:37.008Z"
+}
