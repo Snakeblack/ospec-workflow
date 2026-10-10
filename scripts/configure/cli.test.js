@@ -453,6 +453,18 @@ test("G3: gatherRuntimeScripts includes a non-excluded transitive dep of a skill
   assert.ok(paths.includes("scripts/lib/some-dep.js"), "non-excluded transitive dep must be in dist");
 });
 
+test("[REQ-decision-gap-004] gatherRuntimeScripts ships a required JSON catalog", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-json-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(dir, "scripts/hooks"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "scripts/lib"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "scripts/lib/federation-marker.js"), '"use strict";\nrequire("./payload.json");\n');
+  fs.writeFileSync(path.join(dir, "scripts/lib/payload.json"), "{}\n");
+
+  const paths = gatherRuntimeScripts(dir).map((file) => file.path);
+  assert.ok(paths.includes("scripts/lib/payload.json"), "a required JSON file must be copied with its .json suffix");
+});
+
 // ---------------------------------------------------------------------------
 // G4 — Transitive require to scripts/configure/ is excluded from dist
 // ---------------------------------------------------------------------------

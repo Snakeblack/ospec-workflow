@@ -854,6 +854,27 @@ test("record retract withdraws a declared signal the diff does not confirm and r
   assert.strictEqual(back.json.error.code, "signal-confirmed-by-diff");
 });
 
+test("[REQ-decision-gap-003] foundation next does not write a missing map and record refuses", (t) => {
+  const root = tempRoot(t);
+  const next = ospec(root, "foundation", "next", "--profile", "prototype", "--json");
+  assert.strictEqual(next.code, 0, next.stderr);
+  assert.strictEqual(next.json.exists, false);
+  assert.deepStrictEqual(next.json.round.map((slot) => slot.id), ["quality.drivers"]);
+  assert.strictEqual(fs.existsSync(path.join(root, "docs", "architecture", "knowledge-map.yaml")), false);
+
+  const refused = ospec(root, "foundation", "record", "--slot", "quality.drivers", "--state", "confirmed", "--source-kind", "user", "--source-ref", "author", "--json");
+  assert.strictEqual(refused.code, 1);
+  assert.strictEqual(refused.json.error.code, "map-missing");
+  assert.strictEqual(fs.existsSync(path.join(root, "docs", "architecture", "knowledge-map.yaml")), false);
+
+  fs.mkdirSync(path.join(root, "docs", "architecture"), { recursive: true });
+  fs.writeFileSync(path.join(root, "docs", "architecture", "knowledge-map.yaml"), `${JSON.stringify(next.json.template, null, 2)}\n`);
+  const recorded = ospec(root, "foundation", "record", "--slot", "quality.drivers", "--state", "confirmed", "--source-kind", "user", "--source-ref", "author", "--json");
+  assert.strictEqual(recorded.code, 0, recorded.stderr);
+  assert.strictEqual(recorded.json.changed, true);
+  assert.strictEqual(recorded.json.round.some((slot) => slot.id === "quality.drivers"), false);
+});
+
 test("record retract withdraws a declared work-unit signal, which the diff never confirms", (t) => {
   const { root } = project(t);
   ospec(root, "record", "intent", "--change", "split-pages", "--kind", "refactor", "--summary", "Split pages.", "--acceptance", "Two pages.", "--no-open-facts", "--basis", "The request fixes every behavior.");

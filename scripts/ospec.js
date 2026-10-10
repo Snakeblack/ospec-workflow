@@ -45,6 +45,7 @@ const {
   validateTrustCorrection,
 } = require("./lib/idd-review.js");
 const { IddImpactError, matchImpact } = require("./lib/idd-impact.js");
+const { DecisionGapError, nextRound, recordAnswer } = require("./lib/decision-gap.js");
 const { DoctorUsageError, renderDoctor, runDoctor } = require("./lib/ospec-doctor.js");
 const { applyDerivation, deriveSignals } = require("./lib/idd-signals.js");
 const { IddStoreError, changeDir, listChanges, mutateChange, readChange } = require("./lib/idd-store.js");
@@ -82,6 +83,11 @@ const USAGE = `Usage:
   ospec review record|validate --change <id> --result <json>|@<file>
   ospec close --change <id>
   ospec doctor [--target <host>] [--json]
+  ospec foundation next [--profile <id>] [--map <path>] [--json]
+  ospec foundation record --slot <id> --state <confirmed|assumed|n/a|deferred>
+                          [--source-kind <user|document|repository>] [--source-ref <text>]
+                          [--review-trigger <text>] [--reason <text>] [--owner <text>]
+                          [--map <path>] [--json]
 
 Options:
   --root <dir>  project root (default: current directory)
@@ -120,6 +126,14 @@ const OPTIONS = {
   result: { type: "string" },
   root: { type: "string" },
   target: { type: "string" },
+  profile: { type: "string" },
+  map: { type: "string" },
+  slot: { type: "string" },
+  state: { type: "string" },
+  "source-kind": { type: "string" },
+  "source-ref": { type: "string" },
+  "review-trigger": { type: "string" },
+  owner: { type: "string" },
   json: { type: "boolean" },
   help: { type: "boolean", short: "h" },
 };
@@ -542,6 +556,7 @@ async function run(command, positionals, values) {
   if (command === "review") return review(root, positionals, values);
   if (command === "close") return close(root, values);
   if (command === "doctor") return runDoctor({ root, target: values.target ?? null });
+  if (command === "foundation") return foundation(root, positionals, values);
   if (command === "record") {
     const [type] = positionals;
     const reducer = reducerFor(type, values, root);
@@ -658,8 +673,45 @@ function describeClose(result) {
   return `${result.change} ${how} ${archive.destination} (${archive.files} files, ${archive.inventory_sha256})`;
 }
 
+async function foundation(root, positionals, values) {
+  const action = positionals[0];
+  const map = values.map ?? null;
+  if (action === "next") return nextRound({ root, profile: values.profile ?? null, map });
+  if (action === "record") {
+    if (!values.slot) throw new UsageError("foundation record needs --slot <id>");
+    if (!values.state) throw new UsageError("foundation record needs --state <confirmed|assumed|n/a|deferred>");
+    return recordAnswer({
+      root,
+      map,
+      slot: values.slot,
+      state: values.state,
+      sourceKind: values["source-kind"] ?? null,
+      sourceRef: values["source-ref"] ?? null,
+      reviewTrigger: values["review-trigger"] ?? null,
+      reason: values.reason ?? null,
+      owner: values.owner ?? null,
+    });
+  }
+  throw new UsageError(`foundation needs next or record, got ${action ?? "(none)"}`);
+}
+
+function describeFoundation(result) {
+  const lines = [];
+  if ("changed" in result) lines.push(result.changed ? `recorded ${result.slot}` : `no change: ${result.slot} already recorded`);
+  lines.push(`profile: ${result.profile}`);
+  if (result.round.length === 0) {
+    lines.push("round: no open gaps");
+  } else {
+    lines.push(`theme: ${result.theme}`);
+    for (const slot of result.round) lines.push(`- ${slot.id} (priority ${slot.priority}; unblocks ${slot.decisions.join(", ")})`);
+  }
+  if (result.exists === false) lines.push("map: missing; template returned and not written");
+  return lines.join("\n");
+}
+
 function describe(command, result) {
   if (command === "next") return describeNext(result);
+  if (command === "foundation") return describeFoundation(result);
   if (command === "close") return describeClose(result);
   if (command === "doctor") return renderDoctor(result);
   if (command === "review") return describeReview(result);
@@ -704,7 +756,8 @@ async function main(argv = process.argv.slice(2)) {
       error instanceof IddStoreError ||
       error instanceof IddConfigError ||
       error instanceof IddImpactError ||
-      error instanceof IddWorkspaceError;
+      error instanceof IddWorkspaceError ||
+      error instanceof DecisionGapError;
     if (!known) throw error;
     const code = usage ? "usage" : error.code;
     if (wantsJson) {
