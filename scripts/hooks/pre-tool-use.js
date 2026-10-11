@@ -16,6 +16,7 @@ const {
 } = require("../lib/ospec-state.js");
 const {
   classifySensitiveFile,
+  scanContentForSecrets,
   scanFileForSecrets,
 } = require("./lib/secret-scan.js");
 const { extractShellReadPaths } = require("./lib/shell-file-access.js");
@@ -44,11 +45,11 @@ const SHELL_TOOL_NAMES = new Set([
 const DENY_RULES = [
   {
     pattern:
-      /\brm\b(?=[^\r\n;&|]*\s-(?:[a-z]*r[a-z]*f|[a-z]*f[a-z]*r)\b)[^\r\n;&|]*(?:\s\/(?:\s|$)|--no-preserve-root\b)/i,
+      /\brm\b(?=[^\r\n;&|]*\s-[a-z]*r)(?=[^\r\n;&|]*\s-[a-z]*f)[^\r\n;&|]*(?:\s\/(?:\s|$)|--no-preserve-root\b)/i,
     reason: "Recursive forced deletion of the filesystem root is blocked.",
   },
   {
-    pattern: /\bgit\s+push\b[^\r\n;&|]*(?:--force(?:=|\s|$)|\s-f(?:\s|$))/i,
+    pattern: /\bgit\s+push\b[^\r\n;&|]*(?:--force(?:=|\s|$)|\s-f(?:\s|$)|\s\+[^\s;&|]+)/i,
     reason: "Force-pushing Git history is blocked.",
   },
   {
@@ -101,7 +102,7 @@ const ASK_RULES = [
   },
   {
     pattern:
-      /\brm\b(?=[^\r\n;&|]*\s-(?:[a-z]*r[a-z]*f|[a-z]*f[a-z]*r)\b)/i,
+      /\brm\b(?=[^\r\n;&|]*\s-[a-z]*r)(?=[^\r\n;&|]*\s-[a-z]*f)/i,
     reason: "Recursive forced deletion requires user approval.",
   },
   {
@@ -126,6 +127,11 @@ const ASK_RULES = [
     pattern: /\b(?:shutdown|reboot|poweroff|restart-computer)\b/i,
     reason: "Restarting or shutting down the machine requires approval.",
   },
+  {
+    pattern:
+      /\b(?:curl|wget)\b[^\r\n;&|]*\s(?:-o|-O|--output)\b[^;&|\r\n]*[;&]{1,2}\s*(?:sudo\s+)?(?:sh|bash|zsh|dash|ksh)\b/i,
+    reason: "Downloading a file and then executing a shell requires user approval.",
+  },
 ];
 
 function normalizeToolName(toolName) {
@@ -136,6 +142,18 @@ function normalizeToolName(toolName) {
 
 function isShellTool(toolName) {
   return SHELL_TOOL_NAMES.has(normalizeToolName(toolName));
+}
+
+const DECLARED_PATH_KEYS = new Set(["file_path", "path", "target_file", "notebook_path"]);
+const CONTENT_KEYS = new Set(["content", "contents", "new_string", "new_str", "old_string", "text"]);
+
+function collectKeyedStrings(value, keys, found = []) {
+  if (!value || typeof value !== "object") return found;
+  for (const [key, child] of Object.entries(value)) {
+    if (typeof child === "string" && keys.has(key)) found.push(child);
+    else if (child && typeof child === "object") collectKeyedStrings(child, keys, found);
+  }
+  return found;
 }
 
 function extractCommands(toolInput) {
@@ -347,7 +365,11 @@ function evaluateToolUseCore(input, opts) {
   }
 
   if (process.env.DISABLE_AGENT_SHIELD !== "true") {
-    const paths = [...extractPaths(input?.tool_input), ...commands.flatMap(extractShellReadPaths).map(file => path.resolve(workspace, file))];
+    const paths = [
+      ...extractPaths(input?.tool_input),
+      ...collectKeyedStrings(input?.tool_input, DECLARED_PATH_KEYS).map((file) => path.resolve(workspace, file)),
+      ...commands.flatMap(extractShellReadPaths).map((file) => path.resolve(workspace, file)),
+    ];
     // Evaluate every hard file denial before any secret advisory.
     for (const filePath of paths) {
       if (classifySensitiveFile(filePath)?.action === "deny") {
@@ -366,6 +388,14 @@ function evaluateToolUseCore(input, opts) {
 
       // Escaneo de contenido (tokens conocidos + credenciales genéricas)
       if (scanFileForSecrets(filePath).matched) {
+        return makeDecision(
+          "ask",
+          `Advertencia de seguridad: El contenido de este archivo parece contener credenciales o tokens. ¿Está seguro de permitir su lectura?`
+        );
+      }
+    }
+    for (const body of collectKeyedStrings(input?.tool_input, CONTENT_KEYS)) {
+      if (scanContentForSecrets(body).matched) {
         return makeDecision(
           "ask",
           `Advertencia de seguridad: El contenido de este archivo parece contener credenciales o tokens. ¿Está seguro de permitir su lectura?`

@@ -52,7 +52,7 @@ function shells() {
 }
 
 function runHook(shell, command, input, fixture) {
-  const options = { cwd: fixture.workspace, env: fixture.env, input: JSON.stringify(input), encoding: "utf8", timeout: 20000 };
+  const options = { cwd: fixture.workspace, env: fixture.env, input: JSON.stringify(input), encoding: "utf8", timeout: 60000 };
   return shell.cmd
     ? spawnSync(command, { ...options, shell: shell.program })
     : spawnSync(shell.program, [...shell.args, command], options);

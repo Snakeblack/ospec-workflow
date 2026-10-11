@@ -2,13 +2,13 @@
   {
     "action": "deny",
     "flags": "i",
-    "pattern": "\\brm\\b(?=[^\\r\\n;&|]*\\s-(?:[a-z]*r[a-z]*f|[a-z]*f[a-z]*r)\\b)[^\\r\\n;&|]*(?:\\s/(?:\\s|$)|--no-preserve-root\\b)",
+    "pattern": "\\brm\\b(?=[^\\r\\n;&|]*\\s-[a-z]*r)(?=[^\\r\\n;&|]*\\s-[a-z]*f)[^\\r\\n;&|]*(?:\\s/(?:\\s|$)|--no-preserve-root\\b)",
     "reason": "Recursive forced deletion of the filesystem root is blocked."
   },
   {
     "action": "deny",
     "flags": "i",
-    "pattern": "\\bgit\\s+push\\b[^\\r\\n;&|]*(?:--force(?:=|\\s|$)|\\s-f(?:\\s|$))",
+    "pattern": "\\bgit\\s+push\\b[^\\r\\n;&|]*(?:--force(?:=|\\s|$)|\\s-f(?:\\s|$)|\\s\\+[^\\s;&|]+)",
     "reason": "Force-pushing Git history is blocked."
   },
   {
@@ -74,7 +74,7 @@
   {
     "action": "ask",
     "flags": "i",
-    "pattern": "\\brm\\b(?=[^\\r\\n;&|]*\\s-(?:[a-z]*r[a-z]*f|[a-z]*f[a-z]*r)\\b)",
+    "pattern": "\\brm\\b(?=[^\\r\\n;&|]*\\s-[a-z]*r)(?=[^\\r\\n;&|]*\\s-[a-z]*f)",
     "reason": "Recursive forced deletion requires user approval."
   },
   {
@@ -106,5 +106,11 @@
     "flags": "i",
     "pattern": "\\b(?:shutdown|reboot|poweroff|restart-computer)\\b",
     "reason": "Restarting or shutting down the machine requires approval."
+  },
+  {
+    "action": "ask",
+    "flags": "i",
+    "pattern": "\\b(?:curl|wget)\\b[^\\r\\n;&|]*\\s(?:-o|-O|--output)\\b[^;&|\\r\\n]*[;&]{1,2}\\s*(?:sudo\\s+)?(?:sh|bash|zsh|dash|ksh)\\b",
+    "reason": "Downloading a file and then executing a shell requires user approval."
   }
 ]
