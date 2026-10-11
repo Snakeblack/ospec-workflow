@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-10-11
-- Evidence: skills/idd/SKILL.md:17, scripts/ospec.js:91, skills/_shared/gate-4r-review.md:5
+- Evidence: skills/idd/SKILL.md:17, scripts/ospec.js:93, skills/_shared/gate-4r-review.md:5
 
 ## Context and drivers
 Una regla escrita en prosa la interpreta cada modelo a su manera y no se puede probar. Las decisiones de proceso (siguiente paso, obligaciones, cierre, presupuesto de revisión) deben dar lo mismo en cada sesión. Drivers: `scenario:deterministic-resume` y `constraint:untrusted-model-output`.

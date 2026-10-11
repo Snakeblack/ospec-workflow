@@ -77,10 +77,13 @@ when requested. `ospec doctor` warns about open IDD changes without checks.
 4. Declare the plan before editing: `ospec signals --change <id> --path <file>...`
    with every file you expect to touch; add `--work-units <n>` when the work
    splits into several units, `--decision` when it records a design decision,
-   and `--operation <op>` for a destructive or irreversible operation. Read
-   the ADRs under `docs/architecture/decisions/` that govern that code, and
-   add `--adr <id>` for each one and `--quality <id>` for each quality
-   scenario of `docs/architecture/knowledge-map.yaml` the change bears on.
+   and `--operation <op>` for a destructive or irreversible operation. When
+   `docs/architecture/component-map.yaml` gives components `paths` and
+   `knowledge`, the CLI adds the current ADRs and quality scenarios of the
+   components you touch; declare with `--adr <id>` or `--quality <id>` only
+   the others the change bears on. Without such a map, read the ADRs under
+   `docs/architecture/decisions/` that govern that code and declare each one,
+   and each quality scenario of `docs/architecture/knowledge-map.yaml`.
    `next` returns `declare-plan` until you do. If the plan overstated a signal, retract
    it with `ospec record retract --change <id> --signal <id> --reason "<why>"`;
    the CLI refuses while the diff confirms it.
@@ -114,6 +117,10 @@ when requested. `ospec doctor` warns about open IDD changes without checks.
 
    A `suggestions` entry `adr-promotion` never blocks: when the change takes
    an architecture decision at a boundary, propose an ADR to the user.
+   `references` lists the knowledge of the touched components by id: read only
+   those, and only the `current` ones as the rules the change follows. Each
+   `warnings` entry names a stale or absent reference: tell the user, and
+   never treat it as true until it is fixed.
 6. `ospec check` recomputes the signals from the real diff. New obligations can
    appear: work them like the rest. One leaves `pending` only through evidence,
    or through `ospec record withdraw --reason` when no active signal derives it.

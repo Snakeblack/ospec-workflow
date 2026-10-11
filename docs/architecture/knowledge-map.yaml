@@ -27,7 +27,7 @@
       "id": "functional.capabilities",
       "dimension": "functional",
       "state": "confirmed",
-      "source": { "kind": "repository", "ref": "scripts/ospec.js:91" },
+      "source": { "kind": "repository", "ref": "scripts/ospec.js:93" },
       "decisions": ["system-boundaries"]
     },
     {

@@ -108,7 +108,8 @@ test("[REQ-component-map-001] brownfield recovery cites evidence and lets the us
   for (const rule of [
     "## Brownfield recovery",
     "`path:line` evidence",
-    "`docs/architecture/component-map.yaml` (`ospec-component-map/v1`)",
+    "`docs/architecture/component-map.yaml` (`ospec-component-map/v2`)",
+    "the `paths` it owns as globs",
     "leaves it as written",
     "`status: inferred` and its `evidence`",
     "it becomes `accepted` and keeps its evidence",

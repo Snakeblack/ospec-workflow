@@ -315,3 +315,20 @@ test("a boundary without a declared ADR suggests one and changes nothing else", 
   // A closed change suggests nothing.
   assert.strictEqual(nextForChange({ ...state, status: "closed" }).suggestions, undefined);
 });
+
+test("[REQ-idd-021] next carries the knowledge references and warnings it is given, and keeps knowledge_refs", () => {
+  const bug = loadFixtures().find((f) => f.id === "bug");
+  const state = stateFromFixture(bug);
+  const plain = nextForChange(state);
+  assert.ok(!("references" in plain) && !("warnings" in plain));
+
+  const knowledge = {
+    references: [{ kind: "adr", id: "0002", status: "stale", components: ["orders"], path: "docs/architecture/decisions/0002-x.md", reason: "ADR 0002 is superseded" }],
+    warnings: ["stale ADR 0002 (orders): ADR 0002 is superseded"],
+  };
+  const result = nextForChange(state, { knowledge });
+  assert.deepStrictEqual(result.references, knowledge.references);
+  assert.deepStrictEqual(result.warnings, knowledge.warnings);
+  assert.deepStrictEqual(result.knowledge_refs, plain.knowledge_refs);
+  assert.deepStrictEqual(result.next_step, plain.next_step);
+});

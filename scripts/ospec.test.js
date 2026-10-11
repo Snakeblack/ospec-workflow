@@ -1030,3 +1030,97 @@ test("next suggests an ADR for a boundary without a declared one, without blocki
   assert.deepStrictEqual(next.json.suggestions.map((entry) => entry.id), ["adr-promotion"]);
   assert.strictEqual(next.json.next_step.obligation, "contract-spec-and-test");
 });
+
+// ---------------------------------------------------------------------------
+// E3.2: knowledge by reference from the component map (REQ-idd-021)
+// ---------------------------------------------------------------------------
+
+function knowledgeProject(t, { map } = {}) {
+  const { root, git } = architectureProject(t);
+  writeFile(root, "docs/architecture/decisions/0003-cobro.md", adrText("0003", "El cobro es síncrono"));
+  writeFile(root, "docs/architecture/decisions/0004-antigua.md", adrText("0004", "Antigua").replace("- Status: accepted", "- Status: superseded by 0002"));
+  const component = (id, extra) => ({ id, summary: `${id} component`, evidence: ["verify.js:1"], ...extra });
+  const componentMap = map ?? {
+    schema: "ospec-component-map/v2",
+    components: [
+      component("orders", { paths: ["src/orders/**"], knowledge: { adrs: ["0002", "0004"], scenarios: ["module-integration"], terms: ["Order"] } }),
+      component("billing", { paths: ["src/billing/**"], knowledge: { adrs: ["0003"] } }),
+      component("legacy", { paths: ["src/legacy/**"], knowledge: { adrs: ["0009"] } }),
+    ],
+    boundaries: [],
+    dependencies: [],
+    divergences: [],
+  };
+  writeFile(root, "docs/architecture/component-map.yaml", typeof componentMap === "string" ? componentMap : JSON.stringify(componentMap));
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "component map");
+  return { root, git };
+}
+
+test("[REQ-idd-021] the touched component derives the ADR signal from its current references and next shows each one's currency", (t) => {
+  const { root } = knowledgeProject(t);
+  ospec(root, ...OPEN_EVENTS);
+  const planned = ospec(root, "signals", "--change", "order-events", "--path", "src/orders/place.js", "--json");
+  assert.strictEqual(planned.code, 0, planned.stderr);
+  assert.deepStrictEqual(planned.json.signals.find((entry) => entry.id === "adr-or-quality-attribute"), {
+    id: "adr-or-quality-attribute",
+    reason: "component orders: ADR 0002 and quality scenario module-integration",
+    source: "declaration",
+  });
+  assert.deepStrictEqual(stateOf(root, "order-events").impacts, [
+    { kind: "adr", id: "0002", impact: null },
+    { kind: "scenario", id: "module-integration", impact: null },
+  ]);
+
+  const next = ospec(root, "next", "--change", "order-events", "--json");
+  assert.strictEqual(next.code, 0, next.stderr);
+  assert.deepStrictEqual(
+    next.json.references.map((ref) => `${ref.kind}:${ref.id}:${ref.status}`),
+    ["adr:0002:current", "adr:0004:stale", "scenario:module-integration:current", "term:Order:absent"],
+  );
+  assert.deepStrictEqual(next.json.references[0].components, ["orders"]);
+  assert.strictEqual(next.json.references[0].path, "docs/architecture/decisions/0002-integracion-sincrona.md");
+  assert.deepStrictEqual(next.json.warnings, [
+    "stale ADR 0004 (orders): ADR 0004 is superseded",
+    "absent term Order (orders): docs/product/glossary.md does not exist",
+  ]);
+  assert.deepStrictEqual(next.json.knowledge_refs, []);
+  assert.strictEqual(next.json.next_step.obligation, "adr-impact-declaration");
+
+  const human = ospec(root, "next", "--change", "order-events");
+  assert.match(human.stdout, /ref adr 0002 current \(orders\): docs\/architecture\/decisions\/0002-integracion-sincrona\.md/);
+  assert.match(human.stdout, /warning: stale ADR 0004 \(orders\): ADR 0004 is superseded/);
+});
+
+test("[REQ-idd-021] check derives the references of the components the diff touches", (t) => {
+  const { root } = knowledgeProject(t);
+  ospec(root, ...OPEN_EVENTS);
+  ospec(root, "signals", "--change", "order-events", "--path", "src/orders/place.js");
+  writeFile(root, "src/billing/charge.js", "module.exports = {};\n");
+  const checked = ospec(root, "check", "--change", "order-events", "--json");
+  assert.strictEqual(checked.code, 0, checked.stderr);
+  assert.deepStrictEqual(stateOf(root, "order-events").impacts.map((entry) => `${entry.kind}:${entry.id}`), ["adr:0002", "scenario:module-integration", "adr:0003"]);
+  const next = ospec(root, "next", "--change", "order-events", "--json");
+  assert.deepStrictEqual(next.json.references.filter((ref) => ref.kind === "adr").map((ref) => ref.id), ["0002", "0003", "0004"]);
+  assert.ok(!next.json.references.some((ref) => ref.id === "0009"), "an untouched component gives no reference");
+});
+
+test("[REQ-idd-021] a broken component map warns and gives no references, and no map gives no warning", (t) => {
+  const { root } = knowledgeProject(t, { map: "components: []\n" });
+  ospec(root, ...OPEN_EVENTS);
+  const planned = ospec(root, "signals", "--change", "order-events", "--path", "src/orders/place.js", "--json");
+  assert.strictEqual(planned.code, 0, planned.stderr);
+  assert.ok(!planned.json.signals.some((entry) => entry.id === "adr-or-quality-attribute"));
+  assert.match(planned.json.warnings[0], /component-map\.yaml is not JSON text/);
+  const next = ospec(root, "next", "--change", "order-events", "--json");
+  assert.strictEqual(next.code, 0, next.stderr);
+  assert.deepStrictEqual(next.json.references, []);
+  assert.match(next.json.warnings[0], /component-map\.yaml is not JSON text/);
+  const checked = ospec(root, "check", "--change", "order-events");
+  assert.strictEqual(checked.code, 0, checked.stderr);
+  assert.match(checked.stdout, /warning: docs\/architecture\/component-map\.yaml is not JSON text/);
+
+  fs.rmSync(path.join(root, "docs/architecture/component-map.yaml"));
+  const bare = ospec(root, "next", "--change", "order-events", "--json");
+  assert.deepStrictEqual([bare.json.references, bare.json.warnings], [[], []]);
+});

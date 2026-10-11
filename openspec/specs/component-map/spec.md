@@ -3,8 +3,8 @@
 ## Purpose
 
 Foundation recovers the architecture of an existing repository as a
-component map, `ospec-component-map/v1`
-(`schemas/foundation/component-map/v1.schema.json`), kept in
+component map, `ospec-component-map/v2`
+(`schemas/foundation/component-map/v2.schema.json`; v1 is still read), kept in
 `docs/architecture/component-map.yaml`. It lists components, boundaries,
 dependencies and divergences between the documentation and the code. Every
 entry cites `path:line` evidence. Inferred ADRs use `status: inferred` of
@@ -59,3 +59,22 @@ at least one reference.
 - GIVEN a dependency to an unknown component and one from a component to itself
 - WHEN the map is validated
 - THEN each MUST be rejected with rule `reference`
+
+### Requirement: Components Name Their Paths And Knowledge {#REQ-component-map-004}
+
+`ospec-component-map/v2` MUST be v1 plus two optional fields per component:
+`paths`, a non-empty list of unique relative globs (no leading `/`, no
+whitespace), and `knowledge`, with optional non-empty lists of unique
+`adrs` (four-digit ids), `scenarios` (quality scenario ids), `terms` (glossary
+terms) and `constraints` (knowledge-map slot ids). IDD reads them as knowledge
+by reference (REQ-idd-021). A v1 map MUST still validate against its own
+schema and MUST NOT carry these fields; a map that names neither version MUST
+be rejected with rule `schema` at `/schema`.
+
+#### Scenario: Each version validates against its own schema
+
+- GIVEN the sample recovery as v1 and as v2 with paths and knowledge
+- WHEN both are validated with the repository as root
+- THEN both MUST be valid
+- AND a v1 component with `paths` MUST be rejected with rule
+  `additionalProperties`

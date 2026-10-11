@@ -1004,6 +1004,8 @@ test("real repo: every target ships the ospec CLI and it runs from the generated
       "scripts/lib/component-map.js",
       "scripts/lib/repository-evidence.js",
       "schemas/foundation/component-map/v1.schema.json",
+      "schemas/foundation/component-map/v2.schema.json",
+      "scripts/lib/idd-knowledge.js",
       "schemas/foundation/knowledge-map/catalog.json",
       "schemas/foundation/knowledge-map/v1.schema.json",
       "schemas/foundation/decision-records/v1.schema.json",

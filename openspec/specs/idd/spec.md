@@ -342,7 +342,8 @@ from the diff and no run; else the first pending obligation in the order
 `checks-pass`, `living-doc`; else `close`. The CLI MUST exit with 0 on
 success, 1 when the IDD contract refuses the request and 2 on a usage error.
 `next` MAY add `suggestions` that never block, such as the ADR promotion of
-REQ-idd-020.
+REQ-idd-020. For an open change, `next` MUST also return the `references` and
+`warnings` of REQ-idd-021; `knowledge_refs` keeps naming the living document.
 
 Before the pending `checks-pass` or `contract-spec-and-test` step, if no checks
 are declared, `next` MUST instead return `next_step.action: configure-checks`,
@@ -923,8 +924,8 @@ names an ADR under `docs/architecture/decisions/` by its four-digit id, and
 Either MUST activate `adr-or-quality-attribute` with a reason naming them and
 record each reference in `impacts` without an impact; a reference that does
 not exist on disk MUST be refused, and a new reference MUST reopen a satisfied
-`adr-impact-declaration`. Only a declaration activates the signal: deriving it
-from the touched components belongs to E3.2.
+`adr-impact-declaration`. The components a change touches also activate the
+signal (REQ-idd-021).
 
 `ospec record impact --adr <id>|--quality <id> --impact <value> --reason <text>`
 MUST declare the impact on one declared reference: `none`, `conforms`,
@@ -979,3 +980,61 @@ write a file.
 - WHEN `next` runs
 - THEN it MUST carry the suggestion `adr-promotion` naming the contract
 - AND the next step MUST be the same as without the suggestion
+
+### Requirement: Knowledge By Reference {#REQ-idd-021}
+
+A component of `ospec-component-map/v2` (REQ-component-map-004) MAY name the
+paths it owns as globs and the ids of its knowledge: ADRs, quality scenarios,
+glossary terms and knowledge-map slots as constraints. A change touches a
+component when a path of its declared plan or of its diff matches one of the
+component's globs. A change MUST receive only the references of the components
+it touches, by id and never as document content, each with its components and
+its currency:
+
+| Kind | `current` | `stale` | `absent` |
+| --- | --- | --- | --- |
+| ADR | under `docs/architecture/decisions/` | `superseded`, or an `Evidence` reference that no longer resolves | no ADR with that id |
+| Quality scenario | in the knowledge map | — | not in the knowledge map |
+| Term | a heading or the first cell of a table row in `docs/product/glossary.md` | — | not there, or no glossary |
+| Constraint | slot `confirmed` or `n/a` | slot `assumed` | slot `unknown`, `deferred` or missing |
+
+`next` MUST resolve the references of an open change from disk each time it
+runs, from its declared plan and its current diff, and return them as
+`references` (`kind`, `id`, `status`, `components`, and `path` and `reason`
+when known) with one entry in `warnings` for each stale or absent one. A diff
+that cannot be read MUST narrow the paths to the plan with a warning.
+
+`ospec signals` (from the plan) and `ospec check` (from the diff) MUST activate
+`adr-or-quality-attribute` from the current ADRs and quality scenarios of the
+touched components, with a reason naming the components, and record them in
+`impacts` as declared references of REQ-idd-020. A stale or absent reference
+MUST NOT activate the signal or enter `impacts`: it is a warning, never the
+truth the change is held to.
+
+A project without a component map, or with a v1 map, MUST get no references
+and no warnings. A component map or knowledge map that does not parse or does
+not validate MUST be a warning in `next`, `signals` and `check` and give no
+references; it MUST NOT stop them.
+
+#### Scenario: A change receives only the references of the component it touches
+
+- GIVEN a v2 map whose `orders` component owns `src/orders/**` and names ADR
+  0002, ADR 0004 (superseded), a quality scenario and a term with no glossary
+- WHEN a change declares `src/orders/place.js` and `next` runs
+- THEN `references` MUST list ADR 0002 and the scenario as `current`, ADR 0004
+  as `stale` and the term as `absent`, all from `orders`
+- AND `warnings` MUST name ADR 0004 and the term
+- AND `impacts` MUST hold ADR 0002 and the scenario only
+
+#### Scenario: The diff adds the references of another component
+
+- GIVEN that change, with a new file under the `billing` component
+- WHEN `ospec check` runs
+- THEN `impacts` MUST add billing's current ADR
+- AND an untouched component MUST give no reference
+
+#### Scenario: A broken map warns without blocking
+
+- GIVEN a component map that is not JSON text
+- WHEN `signals`, `check` and `next` run
+- THEN each MUST succeed with a warning naming the map and no references

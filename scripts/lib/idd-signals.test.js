@@ -384,12 +384,95 @@ test("declared ADRs and quality scenarios activate the ADR signal with a reason 
   assert.deepStrictEqual(derivation.gates, []);
 });
 
-test("paths alone never activate the ADR signal: its derivation from components is E3.2", () => {
+test("paths without a component map never activate the ADR signal", () => {
   const derivation = deriveSignals({
     intent: { kind: "feature", summary: "s", acceptance: "a" },
     declaration: { paths: ["docs/architecture/decisions/0002-x.md", "src/api/orders.js"] },
     diff: { paths: ["src/orders/place-order.js"] },
     patterns: patternsFor(),
+  });
+  assert.ok(!derivation.signals.some((s) => s.id === "adr-or-quality-attribute"));
+  assert.deepStrictEqual(derivation.references, []);
+});
+
+// ---------------------------------------------------------------------------
+// References derived from the touched components (E3.2, REQ-idd-021)
+// ---------------------------------------------------------------------------
+
+const KNOWLEDGE = {
+  map: {
+    schema: "ospec-component-map/v2",
+    components: [
+      { id: "orders", summary: "s", evidence: ["src/orders/a.js:1"], paths: ["src/orders/**"], knowledge: { adrs: ["0002", "0007"], scenarios: ["fast"] } },
+      { id: "api", summary: "s", evidence: ["src/api/a.js:1"], paths: ["src/api/**"], knowledge: { adrs: ["0003"] } },
+    ],
+    boundaries: [],
+    dependencies: [],
+    divergences: [],
+  },
+  sources: {
+    adrs: new Map([
+      ["0002", { path: "docs/architecture/decisions/0002-x.md", status: "accepted", evidence: [] }],
+      ["0003", { path: "docs/architecture/decisions/0003-y.md", status: "accepted", evidence: [] }],
+    ]),
+    scenarios: new Set(["fast"]),
+    slots: new Map(),
+    terms: null,
+  },
+};
+
+test("[REQ-idd-021] touched components derive the ADR signal from their current references only", () => {
+  const derivation = deriveSignals({
+    intent: { kind: "feature", summary: "s", acceptance: "a" },
+    declaration: { paths: ["src/orders/place-order.js"] },
+    patterns: patternsFor(),
+    knowledge: KNOWLEDGE,
+  });
+  assert.deepStrictEqual(derivation.signals.find((s) => s.id === "adr-or-quality-attribute"), {
+    id: "adr-or-quality-attribute",
+    reason: "component orders: ADR 0002 and quality scenario fast",
+    source: "declaration",
+  });
+  assert.deepStrictEqual(derivation.references, [
+    { kind: "adr", id: "0002" },
+    { kind: "scenario", id: "fast" },
+  ]);
+});
+
+test("[REQ-idd-021] the diff derives the signal too, and declared references come first", () => {
+  const fromDiff = deriveSignals({
+    intent: { kind: "feature", summary: "s", acceptance: "a" },
+    diff: { paths: ["src/api/routes.js"] },
+    patterns: patternsFor(),
+    knowledge: KNOWLEDGE,
+  });
+  assert.deepStrictEqual(fromDiff.signals.find((s) => s.id === "adr-or-quality-attribute"), {
+    id: "adr-or-quality-attribute",
+    reason: "component api: ADR 0003",
+    source: "diff",
+  });
+
+  const both = deriveSignals({
+    intent: { kind: "feature", summary: "s", acceptance: "a" },
+    declaration: { adrs: ["0003"] },
+    diff: { paths: ["src/orders/a.js", "src/api/a.js"] },
+    patterns: patternsFor(),
+    knowledge: KNOWLEDGE,
+  });
+  assert.strictEqual(both.signals.find((s) => s.id === "adr-or-quality-attribute").reason, "declared ADR 0003");
+  assert.deepStrictEqual(both.references, [
+    { kind: "adr", id: "0002" },
+    { kind: "adr", id: "0003" },
+    { kind: "scenario", id: "fast" },
+  ]);
+});
+
+test("[REQ-idd-021] a component whose references are all stale or absent derives no signal", () => {
+  const derivation = deriveSignals({
+    intent: { kind: "feature", summary: "s", acceptance: "a" },
+    declaration: { paths: ["src/orders/a.js"] },
+    patterns: patternsFor(),
+    knowledge: { ...KNOWLEDGE, sources: { ...KNOWLEDGE.sources, adrs: new Map(), scenarios: new Set() } },
   });
   assert.ok(!derivation.signals.some((s) => s.id === "adr-or-quality-attribute"));
   assert.deepStrictEqual(derivation.references, []);
