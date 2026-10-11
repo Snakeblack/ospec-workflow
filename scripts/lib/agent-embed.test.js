@@ -131,6 +131,8 @@ for (const [target, profile] of Object.entries(PROFILES)) {
         assert.match(content, /acceptance_criteria/);
         assert.match(content, /findings: \[\]/);
         assert.match(content, /read-only|Read\/search only/);
+        assert.doesNotMatch(content, /installed ospec skills, not this project\)` \(installed ospec skills/);
+        assert.doesNotMatch(content, /``_/);
         const sections = new Set([...content.matchAll(/^### «([^»]+)»/gm)].map((m) => m[1]));
         for (const [, id] of content.matchAll(/«([^»\n]+)»/g)) assert.ok(sections.has(id), `missing ${id}`);
       }
