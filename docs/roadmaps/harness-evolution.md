@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.123.0, 2026-10-11.
+> **Versión de referencia:** v2.124.0, 2026-10-11.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -146,8 +146,8 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
 | `done` | **E2.4** | `decision-records-model` (ADR, TSR y DC con plantilla y lint de avisos) | feature |
-| `next-eligible` | **E2.5** | `brownfield-architecture-recovery` | feature |
-| `pending` | **E2.6** | `dogfood-ospec-foundation` | dogfooding |
+| `done` | **E2.5** | `brownfield-architecture-recovery` (mapa `ospec-component-map/v1` y ADR `inferred` con evidencia `ruta:línea`) | feature |
+| `next-eligible` | **E2.6** | `dogfood-ospec-foundation` | dogfooding |
 | `pending` | **E3.1** | `change-decisions-and-adr-impact` | feature |
 | `pending` | **E3.2** | `knowledge-by-reference` | feature |
 | `pending` | **E3.3** | `fitness-functions-in-check` | feature |
@@ -159,7 +159,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E4.4** | `execution-resource-experiment` (experimento previo a cualquier routing adaptativo) | medición |
 | `pending` | **E5.x** | Plataforma por demanda | según ítem |
 
-**▶ SIGUIENTE:** E2.5 `brownfield-architecture-recovery`. E2.4 `decision-records-model` queda hecho: el contrato `ospec-decision-record/v1` distingue con fixtures un ADR válido, un ADR tecnológico (aviso) y una decisión de desarrollo clasificada como ADR. E2.3 `foundation-discovery-rounds` queda hecho: la skill `foundation` cumple los seis escenarios de aceptación y `cncf-landscape` viaja en la instalación por defecto. E2.2 `decision-gap-engine` queda hecho: `ospec foundation next` elige la ronda y `ospec foundation record` persiste la respuesta. E2.1 `knowledge-map-contract` queda hecho: un proyecto guarda el mapa en `docs/architecture/knowledge-map.yaml`. La auditoría del 2026-10-09 (v2.118.0) corrigió defectos de coordinación de IDD (gates antes del trabajo, apertura del gate ADR, Strict TDD en refactors), añadió el criterio de tests por riesgo y adelantó parte de E2.3. E1.20 (OSP-020) quedó cerrado con IDD; su publicación está pendiente de elegir versión. E1.19 `idd-review-context` quedó hecho en v2.117.13, E1.16 (OSP-017) en v2.117.5, E1.17 (OSP-001/002/003) en v2.117.9, E1.21 (guía de checks IDD) en v2.117.10 y E1.18 (frescura de evidencia) en v2.117.11. Los ítems se ejecutan con IDD.
+**▶ SIGUIENTE:** E2.6 `dogfood-ospec-foundation`. E2.5 `brownfield-architecture-recovery` queda hecho: en un repositorio de ejemplo, el mapa de componentes y un ADR `inferred` validan contra el código con evidencia `ruta:línea`, y una evidencia que no resuelve rechaza el registro. E2.4 `decision-records-model` queda hecho: el contrato `ospec-decision-record/v1` distingue con fixtures un ADR válido, un ADR tecnológico (aviso) y una decisión de desarrollo clasificada como ADR. E2.3 `foundation-discovery-rounds` queda hecho: la skill `foundation` cumple los seis escenarios de aceptación y `cncf-landscape` viaja en la instalación por defecto. E2.2 `decision-gap-engine` queda hecho: `ospec foundation next` elige la ronda y `ospec foundation record` persiste la respuesta. E2.1 `knowledge-map-contract` queda hecho: un proyecto guarda el mapa en `docs/architecture/knowledge-map.yaml`. La auditoría del 2026-10-09 (v2.118.0) corrigió defectos de coordinación de IDD (gates antes del trabajo, apertura del gate ADR, Strict TDD en refactors), añadió el criterio de tests por riesgo y adelantó parte de E2.3. E1.20 (OSP-020) quedó cerrado con IDD; su publicación está pendiente de elegir versión. E1.19 `idd-review-context` quedó hecho en v2.117.13, E1.16 (OSP-017) en v2.117.5, E1.17 (OSP-001/002/003) en v2.117.9, E1.21 (guía de checks IDD) en v2.117.10 y E1.18 (frescura de evidencia) en v2.117.11. Los ítems se ejecutan con IDD.
 
 El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) conserva su resultado histórico `continue`. Los hallazgos posteriores y sus límites están en el [análisis OSP de permisos y evidencia](../analysis/2026-10-08-osp-permisos-y-evidencia.md). E1.11 quedó hecho en v2.117.16, E1.12 en v2.117.17 y E1.14 en v2.117.18. E1.13 y E1.15 quedan hechos: el pre-commit sigue el modo activo y el sucesor de review IDD no pide aprobación. El plugin SDD del marketplace permanece en E5.8, por demanda.
 
@@ -584,6 +584,7 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
 
 - **Alcance:** al adoptar un repositorio existente (hoy `sdd-baseline`), inferir componentes, límites y dependencias a partir del código y la documentación; proponer **ADRs inferidos** (`status: inferred`) y pistas de atributos de calidad que el usuario confirma o corrige; registrar las divergencias sin sobrescribir.
 - **Hecho cuando:** en un repositorio de ejemplo se obtiene un mapa de componentes y ADRs inferidos con evidencia `ruta:línea`.
+- **Hecho:** la ruta brownfield de la skill `foundation` (no `sdd-baseline`) escribe `docs/architecture/component-map.yaml` (`ospec-component-map/v1`: componentes, límites, dependencias y divergencias, cada uno con evidencia) y propone ADR `status: inferred` con `evidence`. Confirmado o corregido pasa a `accepted` y conserva la evidencia; rechazado no se escribe y queda como divergencia con `rejected_adr`. Las pistas de calidad son ranuras `assumed` del mapa de conocimiento con fuente `repository`. Con una raíz, una referencia que no existe o pasa del final del fichero rechaza el registro. Sin comando `ospec` nuevo: librería y fixtures sobre `schemas/foundation/component-map/fixtures/sample-repo/`. Hecho con IDD (`idd/archive/2026-10-11-brownfield-architecture-recovery/`).
 
 ### E2.6 — `dogfood-ospec-foundation`
 
@@ -725,6 +726,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-11: E2.5 `brownfield-architecture-recovery` hecho con IDD y publicado en v2.124.0. La foundation recupera el mapa de componentes `ospec-component-map/v1` y ADR `inferred` con evidencia `ruta:línea`, y una evidencia que no resuelve rechaza el registro. E2.6 pasa a `next-eligible`.
 - 2026-10-11: E1.13 `idd-openspec-asymmetries` y E1.15 `idd-review-successor-policy` hechos con IDD y publicados en v2.123.0. El pre-commit sigue el modo activo y avisa si la otra fuente contradice. El sucesor de review IDD no pide aprobación; SDD sigue exigiéndola.
 - 2026-10-10: E2.4 `decision-records-model` hecho con IDD. ADR, TSR y DC tienen plantilla y lint de avisos. E2.5 pasa a `next-eligible`.
 - 2026-10-10: E2.3 `foundation-discovery-rounds` hecho con IDD. La skill `foundation` cumple los seis escenarios y `cncf-landscape` entra en la instalación por defecto. E2.4 pasa a `next-eligible`.
