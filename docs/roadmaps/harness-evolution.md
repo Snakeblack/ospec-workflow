@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.122.0, 2026-10-10.
+> **Versión de referencia:** v2.123.0, 2026-10-11.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -725,7 +725,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
-- 2026-10-11: E1.13 `idd-openspec-asymmetries` y E1.15 `idd-review-successor-policy` hechos con IDD. El pre-commit sigue el modo activo y avisa si la otra fuente contradice. El sucesor de review IDD no pide aprobación; SDD sigue exigiéndola.
+- 2026-10-11: E1.13 `idd-openspec-asymmetries` y E1.15 `idd-review-successor-policy` hechos con IDD y publicados en v2.123.0. El pre-commit sigue el modo activo y avisa si la otra fuente contradice. El sucesor de review IDD no pide aprobación; SDD sigue exigiéndola.
 - 2026-10-10: E2.4 `decision-records-model` hecho con IDD. ADR, TSR y DC tienen plantilla y lint de avisos. E2.5 pasa a `next-eligible`.
 - 2026-10-10: E2.3 `foundation-discovery-rounds` hecho con IDD. La skill `foundation` cumple los seis escenarios y `cncf-landscape` entra en la instalación por defecto. E2.4 pasa a `next-eligible`.
 - 2026-10-10: E2.2 `decision-gap-engine` hecho con IDD. `ospec foundation next` elige la ronda y `ospec foundation record` persiste la respuesta. E2.3 pasa a `next-eligible`.

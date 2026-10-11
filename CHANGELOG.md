@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.123.0] - 2026-10-11
+
+### Fixed
+- **Pre-commit y Strict TDD (E1.13)**: el hook sigue el modo activo. Si existe `idd/config.yaml` y `mode` no es `sdd`, solo `strict_tdd` activa la heurística; si la clave falta, el commit de producción no exige un test. Si no hay ese archivo, o `mode` es `sdd`, solo `testing.tdd_mode: strict` la activa. Cuando la otra fuente existe y dice lo contrario, el hook no cambia de criterio y `ospec doctor` avisa. Hecho con IDD (`idd/archive/2026-10-11-stage-1-leftovers/`).
+- **Sucesor de review IDD (E1.15)**: `ospec review start` abre el siguiente review sin una aprobación aparte. Sigue exigiendo que el código revisado haya cambiado, un máximo de tres reviews y una sola corrección. Un check no abre otro review. `createSuccessor` de SDD sigue exigiendo la referencia de aprobación.
+
+### Changed
+- **`.ospec/`**: sigue siendo datos derivados de sesión. `setup:git-hooks` y la instalación de Codex en un repositorio añaden `.ospec/` a `.gitignore` si falta, y no siguen el enlace si `.gitignore` es un symlink. El doctor avisa solo cuando la carpeta existe y git no la ignora.
+- **Roadmap**: E1.13 y E1.15 pasan a hecho. E2.5 `brownfield-architecture-recovery` sigue siendo el siguiente.
+
+**Verificación directa**: `node scripts/check.js` (3493 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.122.0] - 2026-10-10
 
 ### Added
