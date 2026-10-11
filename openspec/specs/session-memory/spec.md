@@ -118,3 +118,19 @@ The Engram addendum (rules) MUST be host-neutral and MUST be present exactly onc
 - GIVEN the three documents
 - WHEN scanned for claims of native/built-in Engram integration
 - THEN none is present
+
+### Requirement: Knowledge Loop With Provenance {#REQ-session-memory-011}
+
+When memory tools are available, the architecture and change decisions SHOULD be kept in memory with their provenance, and a new change SHOULD recall the related ones. The IDD protocol saves the `records` of `ospec close` (REQ-idd-024), the SDD orchestrator saves each change decision (`decisions/dc-NNN.md`) of an archived change under `knowledge/dc/{change}/{NNN}`, and foundation saves each ADR under `knowledge/adr/{NNNN}` and each technology record under `knowledge/tsr/{id}`, each with its title, a short summary, its repo-relative source path, its change when it has one and its date. Saving the same topic again MUST update the entry. A change MAY recall once at its start (IDD before listing its open facts, SDD when a new change starts) with the words of the request and the ids of the ADRs and components it touches. Each recalled decision MUST be contrasted with its source path before use and cited with the result (`current`, `stale` or `conflict`) in the change's decisions; when the disk contradicts it or the path is gone, the disk wins, the conflict is reported and the entry is saved again from the disk or marked obsolete. Recall MUST NOT settle an open fact, a gate or a phase, and an absent or failing memory MUST leave every flow unchanged.
+
+#### Scenario: A new change cites a prior decision checked against the disk
+
+- GIVEN memory holds `knowledge/adr/0006` with the source `docs/architecture/decisions/0006-memoria-sin-autoridad.md`
+- WHEN a new change that touches that boundary recalls it and the file still says so
+- THEN the change cites it as `current` with that path, and the file, not the memory, is what the change follows
+
+#### Scenario: Memory contradicts the disk
+
+- GIVEN a recalled decision whose source path no longer exists
+- WHEN the change contrasts it
+- THEN it is cited as `conflict`, the user is told, and the memory entry is saved again from the disk or marked obsolete

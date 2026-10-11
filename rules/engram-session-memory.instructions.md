@@ -31,6 +31,12 @@ Engram is optional, disposable and non-authoritative cross-session working memor
 - Never save secrets, credentials, tokens, artifact bodies, diffs, prompts or tool payloads.
 - After the archive and the delivery the project asks for, save the roadmap hand-off once under `topic_key` `roadmap/next-change`, as `skills/_shared/gate-archive-quality.md` describes. It is a pointer like the others: the next item comes from the roadmap on disk.
 
+## Knowledge Loop (decisions with provenance)
+
+- After the archive, save each change decision of the archived change (`openspec/changes/archive/{date}-{change}/decisions/dc-NNN.md`) with `topic_key` `knowledge/dc/{change}/{NNN}` and `capture_prompt: false`. Use the decision title as `title`; put a one-line summary, `source: <repo-relative path>`, `change: {change}` and the archive date inside `content`. Saving the same topic again updates the entry.
+- When a new change starts (`/sdd-new`, `/sdd-ff`), the orchestrator MAY run one `mem_search` with the words of the intent and the ids of the ADRs and components it touches. Contrast each hit with the source path it names before passing it to a phase as context, labelled `prior decision (memory): <title> -> <path>: current | stale | conflict`, and asks `sdd-design` to cite the ones it relies on in its decisions. A hit whose path is gone or that the disk contradicts is a conflict: report it, the disk wins, and save the entry again from the disk or mark it obsolete.
+- Recall never settles an open question, a gate or a phase, and never replaces reading the artifacts. IDD and foundation save the same `knowledge/*` topics through their own protocol.
+
 ## Recall Protocol (hint only)
 
 - On `/sdd-continue` or after context compaction, first resolve the next phase from `state.yaml` and the phase artifacts. Only then MAY the orchestrator run `mem_search` for `sdd/{change}/` as a hint.

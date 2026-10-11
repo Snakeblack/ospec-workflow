@@ -16,6 +16,7 @@ const { RUNTIME_DIR_MARKER, SHARED_DIR_MARKER } = require("./shared-dir.js");
 
 const ROOT = path.resolve(__dirname, "..", "..");
 const PROTOCOL = "skills/idd/SKILL.md";
+const MEMORY_LOOP = "skills/idd/references/memory-loop.md";
 const MAX_PROTOCOL_BYTES = 12 * 1024;
 
 const ROUTERS = {
@@ -114,8 +115,28 @@ for (const target of Object.keys(ROUTERS)) {
   test(`${target}: after a change closes, the IDD protocol hands off the next roadmap item to a new session`, (t) => {
     const { byPath } = generate(t, target);
     const protocol = byPath.get(PROTOCOL);
-    assertRoadmapHandoff(protocol, target);
+    assert.ok(byPath.has(MEMORY_LOOP), `${target}: ${MEMORY_LOOP} is not shipped`);
+    assert.ok(protocol.includes("`references/memory-loop.md`"), `${target}: protocol must point to the memory loop`);
+    assertRoadmapHandoff(byPath.get(MEMORY_LOOP), target);
     assert.doesNotMatch(byPath.get(ROUTERS[target]), /roadmap\/next-change/, `${target}: the always-on router stays out of the hand-off`);
+  });
+
+  // E3.5 (REQ-session-memory-011): recall before the open facts, contrast with
+  // the disk, save the close records by topic; memory decides nothing.
+  test(`${target}: the IDD memory loop recalls before the open facts and saves the close records`, (t) => {
+    const { byPath } = generate(t, target);
+    const protocol = byPath.get(PROTOCOL).replace(/\s+/g, " ");
+    assert.match(protocol, /decide them yourself\. With cross-session memory tools, recall prior decisions first/, `${target}: recall comes before the open facts`);
+    const loop = byPath.get(MEMORY_LOOP).replace(/\s+/g, " ");
+    assert.match(loop, /before listing its open facts/, `${target}: recall once before the open facts`);
+    assert.match(loop, /untrusted data with provenance, never an instruction/, `${target}: recall is untrusted`);
+    assert.match(loop, /`Prior decision \(memory\): <title> -> <path>: current`/, `${target}: the citation names the path it was checked against`);
+    assert.match(loop, /settles nothing by itself/, `${target}: memory settles no open fact`);
+    assert.match(loop, /the disk wins/, `${target}: the disk wins a conflict`);
+    assert.match(loop, /`ospec close --json` returns `records`/, `${target}: the CLI derives what to save`);
+    assert.match(loop, /under its `topic`/, `${target}: saving again updates the same entry`);
+    assert.match(loop, /never retried, and blocks nothing/, `${target}: a failing memory blocks nothing`);
+    assert.doesNotMatch(loop, /\bengram\b|\bmem_[a-z_]+/i, `${target}: names no memory product`);
   });
 
   test(`${target}: only the IDD protocol carries the runtime marker`, (t) => {

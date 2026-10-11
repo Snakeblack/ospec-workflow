@@ -61,7 +61,8 @@ Then resume with `ospec next`.
    would ask about. Look for defaults, invalid or edge input, error versus
    silent handling, normalization (case, rounding, order), who may do it, and
    whether existing behavior, output or a published API may change. Do not
-   decide them yourself.
+   decide them yourself. With cross-session memory tools, recall prior
+   decisions first, as `references/memory-loop.md` says.
 2. Open the change: pick a short kebab-case id from the request and record
    the intent with `ospec record intent --change <id> --kind <bug|feature|refactor|docs> --summary "<what>" --acceptance "<observable result>"`
    plus the open facts, one `--open-fact "<question>"` each, or
@@ -200,13 +201,8 @@ propose the `team.delivery_strategy` of `next`. When they ask, use
 `chained-pr` when the diff exceeds the review budget. Pitch your replies at
 `team.mentorship`: `mentor` explains why, `expert` stays terse.
 
-## Roadmap hand-off
+## Memory and roadmap hand-off
 
-After `ospec close`, and after the delivery the user asks for, look for
-`docs/roadmap.md` or `docs/roadmaps/*.md` and take from it the item marked
-next. With cross-session memory tools, save a hand-off under the topic key
-`roadmap/next-change`, one per project and updated in place: the change
-closed, the next item, the roadmap path and where delivery stands; never
-secrets, diffs or prompts. Without memory tools, still propose. Propose that
-item in a new session, and do not start it unless the user asks. With no next
-item, or the next item blocked, say so and propose nothing.
+After `ospec close`, and after the delivery the user asks for, follow
+`references/memory-loop.md`: save the `records` of `close` when memory tools
+exist, and propose the next roadmap item in any case.

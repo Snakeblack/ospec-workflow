@@ -2,7 +2,8 @@
 
 // E1.4 (c) ospec close: settle the living document, refuse while anything is
 // pending and archive the change transactionally (openspec/specs/idd/spec.md,
-// REQ-idd-004, REQ-idd-009, REQ-idd-017).
+// REQ-idd-004, REQ-idd-009, REQ-idd-017), and derive the knowledge records a
+// cross-session memory may keep (REQ-idd-024).
 
 const test = require("node:test");
 const assert = require("node:assert");
@@ -11,7 +12,7 @@ const os = require("node:os");
 const path = require("node:path");
 
 const { EVIDENCE_MARKERS, validateState } = require("./idd-contract.js");
-const { archiveChange, archiveName, closeChange, livingDocStatus, renderEvidence } = require("./idd-close.js");
+const { archiveChange, archiveName, closeChange, knowledgeRecords, livingDocStatus, renderEvidence } = require("./idd-close.js");
 const { IddRecordError, recordIntent, recordSignal } = require("./idd-record.js");
 const { serializeState } = require("./idd-store.js");
 
@@ -165,4 +166,70 @@ test("only a closed change is archived", async (t) => {
   const open = satisfyChecks(openTypo());
   writeChange(root, open);
   await assert.rejects(() => archiveChange(root, open), (error) => error.code === "change-open");
+});
+
+// E3.5 knowledge records (REQ-idd-024).
+
+const DESTINATION = "idd/archive/2026-10-05-add-paging";
+
+function decisionsDoc(lines) {
+  return DOC.replace("- Round up.", lines.join("\n"));
+}
+
+test("each decision of change.md is a record with its provenance and stable topic", () => {
+  const livingDoc = decisionsDoc([
+    "- **Pages round up:** a partial page counts as a page.",
+    "  The last page may hold one item.",
+    "",
+    "* Empty lists have zero pages. Not one.",
+    "- A plain decision whose first sentence is far too long to be a title, because it keeps going well beyond eighty characters",
+  ]);
+  const state = { change: "add-paging", closed_at: AT };
+  const records = knowledgeRecords({ state, livingDoc, destination: DESTINATION });
+  assert.deepStrictEqual(records[0], {
+    kind: "dc",
+    topic: "knowledge/dc/add-paging/1",
+    title: "Pages round up",
+    summary: "**Pages round up:** a partial page counts as a page. The last page may hold one item.",
+    source: `${DESTINATION}/change.md`,
+    change: "add-paging",
+    date: "2026-10-05",
+  });
+  assert.strictEqual(records[1].title, "Empty lists have zero pages.");
+  assert.strictEqual(records[1].topic, "knowledge/dc/add-paging/2");
+  assert.strictEqual(records[2].title.length, 80);
+  assert.ok(records[2].title.endsWith("…"));
+  assert.strictEqual(records.length, 3);
+});
+
+test("impacts other than none and the new ADRs they attach are records; nothing else is", () => {
+  const state = {
+    change: "async-events",
+    closed_at: AT,
+    impacts: [
+      { kind: "adr", id: "0002", impact: "none", reason: "No state change." },
+      { kind: "scenario", id: "offline-operation", impact: "conforms", reason: "Works offline." },
+      { kind: "adr", id: "0004", impact: null },
+      { kind: "adr", id: "0003", impact: "amends", reason: "Events cross modules.", record: "docs/architecture/decisions/0012-async-events.md" },
+    ],
+  };
+  const adrTitles = new Map([["docs/architecture/decisions/0012-async-events.md", "0012. Async events between modules"]]);
+  const records = knowledgeRecords({ state, livingDoc: null, destination: "idd/archive/2026-10-05-async-events", adrTitles });
+  assert.deepStrictEqual(
+    records.map(({ kind, topic, title, source }) => ({ kind, topic, title, source })),
+    [
+      { kind: "impact", topic: "knowledge/impact/async-events/scenario-offline-operation", title: "conforms quality scenario offline-operation", source: "idd/archive/2026-10-05-async-events/state.yaml" },
+      { kind: "impact", topic: "knowledge/impact/async-events/adr-0003", title: "amends ADR 0003", source: "idd/archive/2026-10-05-async-events/state.yaml" },
+      { kind: "adr", topic: "knowledge/adr/0012", title: "0012. Async events between modules", source: "docs/architecture/decisions/0012-async-events.md" },
+    ],
+  );
+  assert.strictEqual(records[2].summary, "amends ADR 0003: Events cross modules.");
+  const untitled = knowledgeRecords({ state, livingDoc: null, destination: "x" });
+  assert.strictEqual(untitled[2].title, "0012");
+});
+
+test("a change without decisions or impacts has no records", () => {
+  const state = { change: "fix-typo", closed_at: AT };
+  assert.deepStrictEqual(knowledgeRecords({ state, livingDoc: DOC.replace("- Round up.", ""), destination: DESTINATION }), []);
+  assert.deepStrictEqual(knowledgeRecords({ state, livingDoc: null, destination: DESTINATION }), []);
 });

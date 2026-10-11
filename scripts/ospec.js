@@ -33,7 +33,7 @@ const {
   settleTreeBound,
 } = require("./lib/idd-check.js");
 const { classifyContractPaths } = require("./lib/idd-contracts.js");
-const { archiveChange, closeChange, livingDocStatus, renderEvidence } = require("./lib/idd-close.js");
+const { archiveChange, closeChange, knowledgeRecords, livingDocStatus, renderEvidence } = require("./lib/idd-close.js");
 const { CONFIG_FILE, IddConfigError, parseIddConfig } = require("./lib/idd-config.js");
 const { ARCHIVE_ROOT, DECISIONS_ROOT, LIVING_DOC_FILE, STATE_FILE, isIntentAmbiguous } = require("./lib/idd-contract.js");
 const { runCommand } = require("./lib/idd-exec.js");
@@ -553,8 +553,21 @@ async function close(root, values) {
     }
     if (await fsp.stat(changeDir(root, state.change)).then(() => true, () => false)) writeEvidenceSection(root, state);
     const archive = await archiveChange(root, state);
-    return { change: state.change, status: state.status, closed_at: state.closed_at, archive };
+    return { change: state.change, status: state.status, closed_at: state.closed_at, archive, records: readKnowledgeRecords(root, state, archive.destination) };
   });
+}
+
+// The knowledge records of REQ-idd-024, read from the archived change and the
+// new ADRs it attached; a missing ADR keeps its id as the title.
+function readKnowledgeRecords(root, state, destination) {
+  const livingDoc = readText(path.join(root, ...destination.split("/"), LIVING_DOC_FILE));
+  const adrTitles = new Map();
+  for (const { record } of state.impacts || []) {
+    if (!record) continue;
+    const heading = /^# +(.+?)\s*$/m.exec(readText(path.join(root, ...record.split("/"))) || "");
+    if (heading) adrTitles.set(record, heading[1]);
+  }
+  return knowledgeRecords({ state, livingDoc, destination, adrTitles });
 }
 
 // --- trust review on the bounded review lineage (REQ-idd-016) --------------
@@ -890,7 +903,9 @@ function describeReview(result) {
 function describeClose(result) {
   const { archive } = result;
   const how = archive.already_complete ? "already archived in" : "closed and archived in";
-  return `${result.change} ${how} ${archive.destination} (${archive.files} files, ${archive.inventory_sha256})`;
+  const line = `${result.change} ${how} ${archive.destination} (${archive.files} files, ${archive.inventory_sha256})`;
+  const records = result.records?.length || 0;
+  return records ? `${line}\n${records} knowledge record(s) to keep in cross-session memory (see --json)` : line;
 }
 
 async function foundation(root, positionals, values) {
