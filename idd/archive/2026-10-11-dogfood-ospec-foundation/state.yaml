@@ -1,0 +1,111 @@
+{
+  "schema": "idd-state/v1",
+  "change": "dogfood-ospec-foundation",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "Aplicar la foundation (E2.3 y E2.5) a ospec: brief, contexto de equipo, atributos de calidad, mapa de componentes y unos 10 ADR de arquitectura; reclasificar docs/adr/ como decisiones de change archivadas con un índice",
+    "acceptance": "docs/architecture/decisions/ contiene solo ADR de arquitectura y cada uno pasa el lint de E2.4 sin errores ni avisos, comprobado por un test de node scripts/check.js; docs/adr/ tiene un índice que los clasifica como decisiones de change archivadas"
+  },
+  "facts": {
+    "open": [
+      "Forma de los ADR lintables: Markdown NNNN-titulo.md que el lint lee (parser de secciones en decision-records.js) o JSON del contrato junto a un Markdown humano",
+      "docs/adr/: dejar los 277 ficheros donde están con un índice (sdd-archive sigue escribiendo ahí hasta E3.1) o moverlos a otra carpeta",
+      "Pasar el lint: un aviso (technology-in-decision, missing-driver) hace fallar el test o solo un error",
+      "Perfil del mapa de conocimiento de ospec y forma del equipo",
+      "Lista de ADR y escenarios de calidad que el usuario confirma (status accepted) frente a los que quedan inferred",
+      "Idioma de la prosa de los ADR y documentos de producto"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "scripts/lib/decision-records.js"
+    ],
+    "work_units": 2,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "todas las recomendadas: parser Markdown en decision-records.js; docs/adr in situ con índice README; el test falla con errores y avisos; perfil public-library, un mantenedor con agentes; los 11 ADR y 5 escenarios confirmados como accepted; prosa en español",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-11T13:27:34.069Z",
+      "detail": {
+        "tree": "sha256:d00dbda8c0ac8defc59707fd8cf42a6981fccd4989d75dae2a2fb49d14ab64d5",
+        "runs": [
+          "run-2"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-11T13:27:36.804Z"
+    }
+  ],
+  "base": "05e0b6312f61c8765e6bcbeae613ac0b77e43c12",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:74d7598ce29a9f5459e13ebc905a16bf076836c1324f1fb7cdb6f9dc1a838f38",
+      "tree": "sha256:38b222f1ee48779fa8d8f719573aa0c7772587cb9098729d148e2780b9145319",
+      "recorded_at": "2026-10-11T13:26:45.908Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:01d77d22e88d8d9283ee160e983eac526c3706dfcb91d5993754401d01f8d803",
+      "tree": "sha256:d00dbda8c0ac8defc59707fd8cf42a6981fccd4989d75dae2a2fb49d14ab64d5",
+      "recorded_at": "2026-10-11T13:27:34.069Z"
+    }
+  ],
+  "closed_at": "2026-10-11T13:27:36.804Z"
+}

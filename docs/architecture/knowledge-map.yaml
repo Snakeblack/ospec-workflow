@@ -1,0 +1,181 @@
+{
+  "schema": "ospec-knowledge-map/v1",
+  "profile": "public-library",
+  "slots": [
+    {
+      "id": "business.problem",
+      "dimension": "business",
+      "state": "confirmed",
+      "source": { "kind": "document", "ref": "docs/product/brief.md" },
+      "decisions": ["system-boundaries"]
+    },
+    {
+      "id": "business.goals",
+      "dimension": "business",
+      "state": "confirmed",
+      "source": { "kind": "document", "ref": "docs/roadmaps/harness-evolution.md" },
+      "decisions": ["test-strategy"]
+    },
+    {
+      "id": "functional.actors",
+      "dimension": "functional",
+      "state": "confirmed",
+      "source": { "kind": "document", "ref": "docs/product/brief.md" },
+      "decisions": ["system-boundaries"]
+    },
+    {
+      "id": "functional.capabilities",
+      "dimension": "functional",
+      "state": "confirmed",
+      "source": { "kind": "repository", "ref": "scripts/ospec.js:86" },
+      "decisions": ["system-boundaries"]
+    },
+    {
+      "id": "functional.exclusions",
+      "dimension": "functional",
+      "state": "confirmed",
+      "source": { "kind": "document", "ref": "docs/product/brief.md" },
+      "decisions": ["system-boundaries"]
+    },
+    {
+      "id": "team.shape",
+      "dimension": "team",
+      "state": "confirmed",
+      "source": { "kind": "user", "ref": "Respuesta del usuario al gate de E2.6, 2026-10-11: un mantenedor con agentes" },
+      "decisions": ["deployment-topology", "technology-choice"]
+    },
+    {
+      "id": "team.production-owner",
+      "dimension": "team",
+      "state": "n/a",
+      "reason": "ospec no opera ningún servicio: se instala y se ejecuta en la máquina de quien lo usa.",
+      "decisions": ["operability"]
+    },
+    {
+      "id": "quality.drivers",
+      "dimension": "quality",
+      "state": "confirmed",
+      "source": { "kind": "user", "ref": "Respuesta del usuario al gate de E2.6, 2026-10-11: los cinco escenarios propuestos" },
+      "decisions": ["system-boundaries", "deployment-topology"]
+    },
+    {
+      "id": "architecture.boundaries",
+      "dimension": "architecture",
+      "state": "confirmed",
+      "source": { "kind": "document", "ref": "docs/architecture/component-map.yaml" },
+      "decisions": ["system-boundaries", "integration-style"]
+    },
+    {
+      "id": "architecture.data",
+      "dimension": "architecture",
+      "state": "confirmed",
+      "source": { "kind": "repository", "ref": "scripts/lib/idd-store.js:4" },
+      "decisions": ["data-ownership"]
+    },
+    {
+      "id": "architecture.integration",
+      "dimension": "architecture",
+      "state": "confirmed",
+      "source": { "kind": "repository", "ref": "hooks/hooks.json:2" },
+      "decisions": ["integration-style", "contract-evolution"]
+    },
+    {
+      "id": "architecture.deployment",
+      "dimension": "architecture",
+      "state": "confirmed",
+      "source": { "kind": "repository", "ref": "scripts/configure/cli.js:3" },
+      "decisions": ["deployment-topology"]
+    },
+    {
+      "id": "architecture.trust",
+      "dimension": "architecture",
+      "state": "confirmed",
+      "source": { "kind": "repository", "ref": "scripts/hooks/pre-tool-use.js:45" },
+      "decisions": ["trust-boundaries"]
+    },
+    {
+      "id": "technology.stack",
+      "dimension": "technology",
+      "state": "confirmed",
+      "source": { "kind": "repository", "ref": "package.json:14" },
+      "decisions": ["technology-choice"]
+    },
+    {
+      "id": "technology.licenses",
+      "dimension": "technology",
+      "state": "confirmed",
+      "source": { "kind": "repository", "ref": "package.json:6" },
+      "decisions": ["technology-choice"]
+    },
+    {
+      "id": "operation.observability",
+      "dimension": "operation",
+      "state": "n/a",
+      "reason": "Sin servicio que observar; la evidencia de cada cambio vive en su state.yaml.",
+      "decisions": ["operability"]
+    },
+    {
+      "id": "operation.backup",
+      "dimension": "operation",
+      "state": "n/a",
+      "reason": "El estado de cada proyecto vive en su propio repositorio y lo protege su control de versiones.",
+      "decisions": ["data-ownership", "operability"]
+    },
+    {
+      "id": "delivery.environments",
+      "dimension": "delivery",
+      "state": "confirmed",
+      "source": { "kind": "document", "ref": "AGENTS.md" },
+      "decisions": ["delivery-target", "deployment-topology"]
+    },
+    {
+      "id": "delivery.versioning",
+      "dimension": "delivery",
+      "state": "confirmed",
+      "source": { "kind": "document", "ref": "AGENTS.md" },
+      "decisions": ["contract-evolution", "delivery-target"]
+    }
+  ],
+  "quality_scenarios": [
+    {
+      "id": "deterministic-resume",
+      "origin": "Un agente en una sesión nueva, sin la conversación anterior",
+      "stimulus": "Retoma un cambio a medias",
+      "environment": "Tras /clear, una compactación o un cambio de host",
+      "artifact": "El CLI ospec y el estado del cambio en disco",
+      "response": "El CLI devuelve el mismo siguiente paso y las mismas obligaciones pendientes que antes de la interrupción"
+    },
+    {
+      "id": "target-parity",
+      "origin": "El mantenedor",
+      "stimulus": "Cambia una skill, un agente o un hook en la fuente canónica",
+      "environment": "Desarrollo, antes de publicar",
+      "artifact": "El generador multi-target",
+      "response": "Cada target se regenera desde esa fuente y el árbol generado coincide con su fixture golden, o el test falla"
+    },
+    {
+      "id": "guard-fail-closed",
+      "origin": "Un agente o un comando que el agente lanza",
+      "stimulus": "Intenta una operación destructiva o commitear un secreto",
+      "environment": "Operación normal o con el índice de git ilegible",
+      "artifact": "Los hooks de seguridad",
+      "response": "La operación queda bloqueada; si el guard no puede decidir, bloquea en lugar de permitir"
+    },
+    {
+      "id": "offline-operation",
+      "origin": "El usuario",
+      "stimulus": "Trabaja sin red o con la memoria entre sesiones caída",
+      "environment": "Máquina local",
+      "artifact": "El CLI, los hooks y las skills",
+      "response": "Cada cambio avanza y cierra con el estado en disco; la falta de memoria solo quita contexto"
+    },
+    {
+      "id": "contract-compatibility",
+      "origin": "Un proyecto que ya usa ospec",
+      "stimulus": "Actualiza a una versión nueva del plugin",
+      "environment": "Con estado escrito por la versión anterior",
+      "artifact": "Los contratos de máquina versionados por esquema",
+      "response": "La versión nueva lee el estado anterior o lo rechaza con un error que nombra el esquema; nunca lo reinterpreta en silencio"
+    }
+  ]
+}
