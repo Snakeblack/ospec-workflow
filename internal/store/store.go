@@ -556,7 +556,7 @@ var errLockContended = errors.New("lock contended")
 // LOCK_STALE_MS) — keep both sides numerically identical; TestLockStaleAgeMatchesJSConstant
 // cross-checks this at test time.
 const (
-	lockRetryAttempts = 100
+	lockRetryAttempts = 320
 	lockRetryDelay    = 15 * time.Millisecond
 	staleLockAge      = 5 * time.Second
 )
