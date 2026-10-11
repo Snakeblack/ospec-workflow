@@ -175,3 +175,14 @@ security paths of each service), as for checks.
 tree as it is. Branches, commits and pull requests are the user's decision.
 When they ask, use `work-unit-commits` to split commits, `branch-pr` to open the
 PR, and `chained-pr` when the diff exceeds the review budget.
+
+## Roadmap hand-off
+
+After `ospec close`, and after the delivery the user asks for, look for
+`docs/roadmap.md` or `docs/roadmaps/*.md` and take from it the item marked
+next. With cross-session memory tools, save a hand-off under the topic key
+`roadmap/next-change`, one per project and updated in place: the change
+closed, the next item, the roadmap path and where delivery stands; never
+secrets, diffs or prompts. Without memory tools, still propose. Propose that
+item in a new session, and do not start it unless the user asks. With no next
+item, or the next item blocked, say so and propose nothing.

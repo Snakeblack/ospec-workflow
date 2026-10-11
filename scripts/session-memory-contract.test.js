@@ -86,6 +86,7 @@ test("addendum pins trust boundary, pointer convention, state-first recall and f
     /first resolve the next phase from `state\.yaml`/i,
     /never retry/i,
     /never pass a bare path as a field value/i,
+    /`roadmap\/next-change`/,
   ];
   for (const re of landmarks) assert.match(text, re, `addendum missing landmark ${re}`);
 });

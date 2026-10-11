@@ -29,6 +29,7 @@ Engram is optional, disposable and non-authoritative cross-session working memor
 - Use `title: "SDD {change} {phase} ({status})"`.
 - Put these lines inside the multi-line `content` field: the `executive_summary`, one line listing repo-relative artifact paths, and `canonical: openspec/changes/{change}/state.yaml`. Paths appear only inside `content`; never pass a bare path as a field value.
 - Never save secrets, credentials, tokens, artifact bodies, diffs, prompts or tool payloads.
+- After the archive and the delivery the project asks for, save the roadmap hand-off once under `topic_key` `roadmap/next-change`, as `skills/_shared/gate-archive-quality.md` describes. It is a pointer like the others: the next item comes from the roadmap on disk.
 
 ## Recall Protocol (hint only)
 

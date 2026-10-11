@@ -1,0 +1,113 @@
+{
+  "schema": "idd-state/v1",
+  "change": "roadmap-handoff",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "feature",
+    "summary": "Al cerrar un change en un proyecto con roadmap, el agente guarda un traspaso en la memoria entre sesiones y propone continuar el siguiente ítem del roadmap en una sesión nueva; vale para todo proyecto que use ospec",
+    "acceptance": "La regla del router generada para cada target indica, tras ospec close o el archive SDD y la entrega que pida el proyecto, leer el roadmap en disco, guardar el traspaso si hay herramientas de memoria y proponer el siguiente ítem en una sesión nueva sin empezarlo; un test de contrato lo fija en todos los targets"
+  },
+  "facts": {
+    "open": [
+      "Dónde vive la instrucción: regla del router (todos los modos y targets) más el addendum de memoria del orquestador SDD, o en la skill idd y sdd-archive",
+      "Qué cuenta como roadmap: docs/roadmap.md y docs/roadmaps/*.md, o cualquier fichero roadmap* del repositorio",
+      "Momento: tras el cierre y la entrega que pida el proyecto (commit, PR, release), o justo tras el cierre",
+      "Sin herramientas de memoria: proponer igual sin guardar, o no proponer",
+      "Qué guarda el traspaso y con qué clave: change cerrado, siguiente ítem, ruta del roadmap y estado de entrega, upsert por proyecto",
+      "Roadmap sin ítem siguiente o con el siguiente bloqueado: decirlo y no proponer, o proponer igualmente",
+      "Elegir el siguiente ítem lo hace el agente leyendo el roadmap, o el CLI (ospec close devuelve la ruta del roadmap)"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "rules/ospec-router.instructions.md",
+      "skills/idd/SKILL.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "todas las recomendadas: regla del router más una línea en el addendum de memoria del orquestador; docs/roadmap.md y docs/roadmaps/*.md; al final, tras cierre y entrega; sin memoria se propone igual; traspaso con change cerrado, siguiente ítem, ruta del roadmap y estado de entrega en roadmap/next-change upsert, texto genérico sin nombrar Engram; sin siguiente ítem o bloqueado se dice y no se propone; el agente elige leyendo el roadmap",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-11T16:06:30.675Z",
+      "detail": {
+        "tree": "sha256:4709f71b8e3bbddcc3113dde0b23cadf760859b01d67f4e040072b8c754a6445",
+        "runs": [
+          "run-2"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-11T16:06:32.595Z"
+    }
+  ],
+  "base": "0407e64a287312b751594a18665e97e23c8ebea8",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:5400da318c749a75c1bdf47729a22f53c47a21f726295cc1ea5043dc6778cf30",
+      "tree": "sha256:c5ea3e2e583594244a3e0e0a4993ce8745ba20b221c00652a54e36b4e1ac2efd",
+      "recorded_at": "2026-10-11T15:39:48.283Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f5ba22bcfa69ee2647c308dcd4dcfa8249cdfcbbb3c3dd14351bdbcc22153f7b",
+      "tree": "sha256:4709f71b8e3bbddcc3113dde0b23cadf760859b01d67f4e040072b8c754a6445",
+      "recorded_at": "2026-10-11T16:06:30.675Z"
+    }
+  ],
+  "closed_at": "2026-10-11T16:06:32.595Z"
+}

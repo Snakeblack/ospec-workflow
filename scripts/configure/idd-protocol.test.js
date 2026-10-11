@@ -31,6 +31,23 @@ const ROUTERS = {
 const IDD_ENTRY = { claude: "skill `ospec-workflow:idd`" };
 const FOUNDATION_ENTRY = { claude: "skill `ospec-workflow:foundation`" };
 
+// The roadmap hand-off after a change closes, shared by IDD and the SDD archive.
+function assertRoadmapHandoff(source, label) {
+  const text = source.replace(/\s+/g, " ");
+  assert.ok(text.includes("`docs/roadmap.md`") && text.includes("`docs/roadmaps/*.md`"), `${label}: roadmap locations`);
+  assert.match(text, /after the delivery the user asks for/, `${label}: hand-off comes after delivery`);
+  assert.match(text, /`roadmap\/next-change`/, `${label}: hand-off memory key`);
+  assert.match(text, /Without memory tools, still propose/, `${label}: memory is optional`);
+  assert.match(text, /in a new session/, `${label}: the next item belongs to a new session`);
+  assert.match(text, /do not start it/, `${label}: proposing is not starting`);
+  assert.match(text, /no next item[^.]*say so/, `${label}: no proposal without a next item`);
+  assert.doesNotMatch(text, /\bengram\b/i, `${label}: names no memory product`);
+}
+
+test("the SDD archive hands off the next roadmap item after the runtime receipt", () => {
+  assertRoadmapHandoff(fs.readFileSync(path.join(ROOT, "skills/_shared/gate-archive-quality.md"), "utf8"), "gate-archive-quality");
+});
+
 function generate(t, target) {
   const out = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-idd-"));
   t.after(() => fs.rmSync(out, { recursive: true, force: true }));
@@ -92,6 +109,13 @@ for (const target of Object.keys(ROUTERS)) {
     );
     assert.match(router, /\/sdd-\*/, `${target}: SDD stays reachable on request`);
     assert.match(router, /not installed[^.]*`--with-sdd`/, `${target}: the router says how to install SDD when it is missing`);
+  });
+
+  test(`${target}: after a change closes, the IDD protocol hands off the next roadmap item to a new session`, (t) => {
+    const { byPath } = generate(t, target);
+    const protocol = byPath.get(PROTOCOL);
+    assertRoadmapHandoff(protocol, target);
+    assert.doesNotMatch(byPath.get(ROUTERS[target]), /roadmap\/next-change/, `${target}: the always-on router stays out of the hand-off`);
   });
 
   test(`${target}: only the IDD protocol carries the runtime marker`, (t) => {
