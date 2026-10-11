@@ -11,7 +11,9 @@ An ADR cites driver ids and keeps product names out of its decision. A TSR
 implements one or more ADRs and names a dated source. A DC is a development
 decision. Foundation still writes the technology record as a section of
 `docs/architecture/technical-baseline.md`; this requirement does not move
-that output. Dogfood of this repository's ADRs stays in E2.6.
+that output. An ADR recovered from an existing repository is `inferred` and
+cites `path:line` evidence (REQ-decision-records-006). Dogfood of this
+repository's ADRs stays in E2.6.
 
 ## Requirements
 
@@ -102,3 +104,20 @@ when both apply.
 - WHEN each is linted
 - THEN the first warning MUST be `missing-adr` and the second `missing-dated-source`
 - AND both records MUST stay valid
+
+### Requirement: An Inferred ADR Cites Evidence That Resolves {#REQ-decision-records-006}
+
+Only an ADR MAY have `status` `inferred`. An inferred ADR MUST cite at least
+one `path:line` reference in `evidence`; without it the record MUST be
+rejected. When the user confirms or corrects it, it becomes `accepted` and
+MAY keep its evidence. A rejected inferred ADR is not written; the component
+map records it as a divergence. When the caller passes `root`, every
+reference MUST resolve as REQ-component-map-002 requires, or the record MUST
+be rejected with rule `evidence`; this is an error, never a warning.
+
+#### Scenario: Evidence past the end of a file rejects the record
+
+- GIVEN an ADR whose evidence names a line past the end of an existing file
+- WHEN it is linted with the repository as root
+- THEN it MUST be rejected with rule `evidence`
+- AND it MUST NOT produce a warning

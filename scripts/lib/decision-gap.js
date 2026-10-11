@@ -14,6 +14,7 @@ const path = require("node:path");
 const { loadCatalog, validateKnowledgeMap } = require("./knowledge-map.js");
 // The decision-record contract ships with the same runtime as this engine.
 require("./decision-records.js");
+require("./component-map.js");
 const { writeFileAtomic } = require("./atomic-write.js");
 
 const MAP_RELATIVE = "docs/architecture/knowledge-map.yaml";

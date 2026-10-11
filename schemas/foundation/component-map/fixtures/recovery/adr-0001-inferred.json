@@ -1,0 +1,22 @@
+{
+  "schema": "ospec-decision-record/v1",
+  "kind": "adr",
+  "id": "0001",
+  "title": "A single store component owns order data",
+  "status": "inferred",
+  "date": "2026-10-11",
+  "evidence": ["app/store.py:3", "app/store.py:8", "app/store.py:14", "README.md:8"],
+  "context_and_drivers": "Every write to orders goes through the store module, and the README names it the single owner.",
+  "drivers": [
+    { "kind": "assumption", "id": "single-writer" }
+  ],
+  "options": [
+    "One component owns the order data and every writer calls it.",
+    "Each component writes the order data it needs directly."
+  ],
+  "decision": "One component owns the order data; the others call it to read or write.",
+  "consequences": "A second writer needs this ADR revisited. The store becomes the place to add consistency rules.",
+  "fitness_function": "A dependency rule rejects a database import outside the store component.",
+  "review_trigger": "Another component needs to write orders without the store.",
+  "stack": ["SQLite", "Python"]
+}

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.124.0] - 2026-10-11
+
+### Added
+- **Recuperación de arquitectura brownfield (E2.5)**: en un proyecto con código, la skill `foundation` deduce la arquitectura antes de preguntar. Escribe `docs/architecture/component-map.yaml` con el contrato `ospec-component-map/v1`, que recoge componentes, límites, dependencias y divergencias con la documentación. Cada entrada cita evidencia `ruta:línea`. Una divergencia apunta al texto documentado y lo deja como está. Los ADR que el código ya encarna se proponen con `status: inferred` y su `evidence`. Si el usuario los confirma o corrige, pasan a `accepted` y conservan la evidencia. Si los rechaza, no se escriben y quedan como divergencia con `rejected_adr`. Las pistas de calidad se guardan como ranuras `assumed` del mapa de conocimiento con fuente `repository`. Hecho con IDD (`idd/archive/2026-10-11-brownfield-architecture-recovery/`).
+- **Evidencia que no resuelve**: `validateComponentMap` y `lintDecisionRecord` reciben opcionalmente la raíz del repositorio. Con ella, rechazan con la regla `evidence` una referencia a un fichero que no existe, a una línea más allá del final, a una ruta fuera del repositorio o a una ruta no relativa. Es un error y no un aviso. Los fixtures usan un repositorio de ejemplo en `schemas/foundation/component-map/fixtures/sample-repo/`. No hay comando `ospec` nuevo.
+
+### Changed
+- **Registros de decisión**: el ADR de `ospec-decision-record/v1` acepta `status: inferred`, que exige `evidence`. Es un cambio aditivo: solo un ADR puede estar inferido, y los demás registros no cambian.
+- **Roadmap**: E2.5 `brownfield-architecture-recovery` pasa a hecho. E2.6 `dogfood-ospec-foundation` queda como siguiente y es el último ítem de la Etapa 2.
+
+**Verificación directa**: `node scripts/check.js` (3506 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.123.0] - 2026-10-11
 
 ### Fixed
