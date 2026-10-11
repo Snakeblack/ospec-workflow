@@ -44,13 +44,17 @@ for (const fixture of readJsonDir(FIXTURES_DIR)) {
         workUnits: input.work_units,
         nonObviousDecision: input.non_obvious_decision,
         operations: input.operations,
+        adrs: input.architecture?.adrs,
+        scenarios: input.architecture?.quality,
       },
       patterns: patternsFor(),
     });
     assert.deepStrictEqual(derivation.signals.map((s) => s.id).sort(), expected.signals);
+    // record intent opens ambiguous-intent and record impact opens
+    // adr-amend-or-contradict; no derivation does.
     assert.deepStrictEqual(
       derivation.gates.map((g) => g.id).sort(),
-      expected.gates.filter((g) => g !== "ambiguous-intent"),
+      expected.gates.filter((g) => !["ambiguous-intent", "adr-amend-or-contradict"].includes(g)),
     );
     for (const signal of derivation.signals) {
       assert.strictEqual(signal.source, "declaration");
@@ -240,10 +244,10 @@ test("destructive statements are read only from persistent-data files", () => {
 test("no signal is derived while the intent is ambiguous", () => {
   const derivation = deriveSignals({
     intent: null,
-    declaration: { paths: ["src/api/a.js"], operations: ["drop-table"] },
+    declaration: { paths: ["src/api/a.js"], operations: ["drop-table"], adrs: ["0004"] },
     patterns: patternsFor(),
   });
-  assert.deepStrictEqual(derivation, { signals: [], gates: [], floor: null, floor_source: null });
+  assert.deepStrictEqual(derivation, { signals: [], gates: [], references: [], floor: null, floor_source: null });
 });
 
 test("signals follow the catalog order whatever the input order", () => {
@@ -354,4 +358,58 @@ test("REQ-idd-012 names every operation, stack, config key, exclusion and K1 flo
   for (const name of named) {
     assert.ok(section.includes(`\`${name}\``), `REQ-idd-012 must name ${name}`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Declared architecture references (E3.1, REQ-idd-020)
+// ---------------------------------------------------------------------------
+
+test("declared ADRs and quality scenarios activate the ADR signal with a reason naming them", () => {
+  const derivation = deriveSignals({
+    intent: { kind: "feature", summary: "s", acceptance: "a" },
+    declaration: { adrs: ["0004", "0002", "0004"], scenarios: ["deterministic-resume"] },
+    patterns: patternsFor(),
+  });
+  const signal = derivation.signals.find((s) => s.id === "adr-or-quality-attribute");
+  assert.deepStrictEqual(signal, {
+    id: "adr-or-quality-attribute",
+    reason: "declared ADR 0002, 0004 and quality scenario deterministic-resume",
+    source: "declaration",
+  });
+  assert.deepStrictEqual(derivation.references, [
+    { kind: "adr", id: "0002" },
+    { kind: "adr", id: "0004" },
+    { kind: "scenario", id: "deterministic-resume" },
+  ]);
+  assert.deepStrictEqual(derivation.gates, []);
+});
+
+test("paths alone never activate the ADR signal: its derivation from components is E3.2", () => {
+  const derivation = deriveSignals({
+    intent: { kind: "feature", summary: "s", acceptance: "a" },
+    declaration: { paths: ["docs/architecture/decisions/0002-x.md", "src/api/orders.js"] },
+    diff: { paths: ["src/orders/place-order.js"] },
+    patterns: patternsFor(),
+  });
+  assert.ok(!derivation.signals.some((s) => s.id === "adr-or-quality-attribute"));
+  assert.deepStrictEqual(derivation.references, []);
+});
+
+test("applyDerivation records the declared references with the signal and its obligation", () => {
+  const derivation = deriveSignals({
+    intent: { kind: "feature", summary: "s", acceptance: "a" },
+    declaration: { adrs: ["0002"] },
+    patterns: patternsFor(),
+  });
+  const first = applyDerivation(openChange(), derivation);
+  assert.strictEqual(first.changed, true);
+  assert.deepStrictEqual(first.added.signals, ["adr-or-quality-attribute"]);
+  assert.deepStrictEqual(first.state.impacts, [{ kind: "adr", id: "0002", impact: null }]);
+  assert.ok(first.state.obligations.some((o) => o.id === "adr-impact-declaration" && o.status === "pending"));
+
+  const widened = applyDerivation(first.state, deriveSignals({ intent: { kind: "feature" }, declaration: { scenarios: ["target-parity"] }, patterns: patternsFor() }));
+  assert.strictEqual(widened.changed, true);
+  assert.deepStrictEqual(widened.added.signals, []);
+  assert.deepStrictEqual(widened.state.impacts.map((entry) => entry.id), ["0002", "target-parity"]);
+  assert.strictEqual(applyDerivation(widened.state, derivation).changed, false);
 });

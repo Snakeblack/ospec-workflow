@@ -10,7 +10,7 @@
 // and a test with every check passing. No filesystem access: idd-exec.js runs
 // the commands, idd-store.js persists.
 
-const { GATES, OBLIGATIONS, RUN_EVIDENCE, isIntentAmbiguous } = require("./idd-contract.js");
+const { DECISIONS_ROOT, GATED_IMPACTS, GATES, OBLIGATIONS, RECORDED_IMPACTS, RUN_EVIDENCE, isIntentAmbiguous } = require("./idd-contract.js");
 const { GATE_QUESTIONS, WORK_ORDER } = require("./idd-next.js");
 const { configureChecksStep } = require("./idd-checks-config.js");
 const { IddRecordError } = require("./idd-record.js");
@@ -21,6 +21,7 @@ const PAIR_OBLIGATIONS = Object.freeze(["repro-test", "tdd-red-green"]);
 const PAIR_MOMENT = Object.freeze({ "repro-test": "the fix", "tdd-red-green": "the code" });
 const MIGRATION = "migration-compat-and-test";
 const CONTRACT = "contract-spec-and-test";
+const IMPACT = "adr-impact-declaration";
 // Obligations `ospec run` proves, and the run purpose it records for each.
 const RUN_OBLIGATIONS = Object.freeze({
   "repro-test": "repro-test",
@@ -183,6 +184,62 @@ function settleContract(state, { tree, checkEvidence, documents, tests, recorded
   return { state: next, evidence: id, reason: null };
 }
 
+// Why the declared impacts do not settle yet, or null (E3.1). `records` maps
+// each new ADR path to what the CLI read: whether it exists, its lint errors,
+// its id and the ADR ids it cites.
+function impactReason(state, records) {
+  const label = (entry) => (entry.kind === "adr" ? `ADR ${entry.id}` : `scenario ${entry.id}`);
+  const gate = state.gates.find((entry) => entry.id === "adr-amend-or-contradict");
+  for (const entry of state.impacts || []) {
+    const flag = entry.kind === "adr" ? "--adr" : "--quality";
+    if (entry.impact == null) {
+      return `declare the impact on ${label(entry)}: ospec record impact --change ${state.change} ${flag} ${entry.id} --impact <none|conforms|amends|supersedes|contradicts> --reason <why>`;
+    }
+    if (GATED_IMPACTS.includes(entry.impact) && gate?.status !== "resolved") {
+      return `${label(entry)} ${entry.impact}: the user answers adr-amend-or-contradict first`;
+    }
+    if (entry.kind !== "adr" || !RECORDED_IMPACTS.includes(entry.impact)) continue;
+    if (!entry.record) {
+      return `${label(entry)} ${entry.impact}: write the new ADR under ${DECISIONS_ROOT}/ and attach it with ospec record impact --change ${state.change} --adr ${entry.id} --record <path>`;
+    }
+    const read = records[entry.record] || { exists: false };
+    if (!read.exists) return `${entry.record} does not exist`;
+    if (read.errors.length > 0) return `${entry.record} fails the decision-record lint: ${read.errors[0]}`;
+    if (read.id === entry.id) return `${entry.record} rewrites ${label(entry)}: an accepted ADR is never rewritten, write a new one`;
+    if (!read.cites.includes(entry.id)) return `${entry.record} must cite the ${label(entry)} it ${entry.impact === "amends" ? "amends" : "supersedes"}`;
+  }
+  return null;
+}
+
+/**
+ * During a check: the impact declaration holds when every declared reference
+ * has its impact, the user answered any amendment, supersession or
+ * contradiction, and each ADR amended or superseded has a new ADR that exists,
+ * passes the decision-record lint and cites it (E3.1, REQ-idd-005).
+ */
+function settleImpacts(state, { records = {}, recordedAt }) {
+  requireOpen(state);
+  const next = structuredClone(state);
+  const target = activeObligation(next, IMPACT);
+  if (!target) return { state: next, evidence: null, reason: null };
+  const reason = (next.impacts || []).length === 0 ? "declare the ADRs or quality scenarios the change touches with ospec signals --adr <id> or --quality <id>" : impactReason(next, records);
+  if (reason) {
+    reopen(target);
+    return { state: next, evidence: null, reason };
+  }
+  const refs = next.impacts.map((entry) => `${entry.kind}:${entry.id} ${entry.impact}`);
+  const recorded = next.impacts.filter((entry) => entry.record).map((entry) => entry.record);
+  const current = next.evidence.find((entry) => entry.id === target.evidence.at(-1));
+  if (target.status === "satisfied" && JSON.stringify(current?.detail) === JSON.stringify({ refs, records: recorded })) {
+    return { state: next, evidence: current.id, reason: null };
+  }
+  const id = nextEvidenceId(next);
+  next.evidence.push({ id, kind: IMPACT, obligation: IMPACT, recorded_at: recordedAt, detail: { refs, records: recorded } });
+  target.status = "satisfied";
+  target.evidence = [id];
+  return { state: next, evidence: id, reason: null };
+}
+
 function pairReason(state, obligationId) {
   const runs = (state.runs || []).filter((run) => run.purpose === obligationId);
   const moment = PAIR_MOMENT[obligationId];
@@ -207,6 +264,7 @@ function checksReason({ checks, results, treeChanged, candidateCommand }) {
 const DEFAULT_REASONS = Object.freeze({
   [MIGRATION]: `no passing migration test on the current tree: run it with ospec run --obligation ${MIGRATION} --plan <compatibility or rollback>`,
   [CONTRACT]: "needs a contract document and a test in the diff, with every check passing: run ospec check",
+  [IMPACT]: "needs the declared impact on every ADR or quality scenario the change touches: ospec record impact, then ospec check",
 });
 
 // living-doc is satisfied by ospec close itself (REQ-idd-004): a current
@@ -243,6 +301,7 @@ module.exports = {
   recordRuns,
   settleChecks,
   settleContract,
+  settleImpacts,
   settleMigration,
   settlePair,
   settleTreeBound,

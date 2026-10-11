@@ -1,7 +1,7 @@
 {
   "schema": "ospec-component-map/v1",
   "components": [
-    { "id": "cli", "summary": "Punto de entrada ospec: parsea la orden y delega en el motor IDD, la foundation y el doctor.", "evidence": ["scripts/ospec.js:86", "scripts/ospec.js:559"] },
+    { "id": "cli", "summary": "Punto de entrada ospec: parsea la orden y delega en el motor IDD, la foundation y el doctor.", "evidence": ["scripts/ospec.js:91", "scripts/ospec.js:611"] },
     { "id": "idd-engine", "summary": "Deriva señales y obligaciones de un cambio, registra la evidencia observada y lo cierra.", "evidence": ["scripts/lib/idd-signals.js:4", "scripts/lib/idd-close.js:4"] },
     { "id": "change-state", "summary": "Posee el estado de cada cambio en disco, idd/<change>/state.yaml en IDD y openspec/changes/<change>/state.yaml en SDD: escritura atómica, bajo lock y validada.", "evidence": ["scripts/lib/idd-store.js:4", "scripts/lib/ospec-state.js:233"] },
     { "id": "foundation", "summary": "Mapa de conocimiento, motor de rondas, registros de decisión y mapa de componentes.", "evidence": ["scripts/lib/decision-gap.js:9", "scripts/lib/decision-records.js:3"] },
@@ -26,9 +26,9 @@
     }
   ],
   "dependencies": [
-    { "from": "cli", "to": "idd-engine", "evidence": ["scripts/ospec.js:31", "scripts/ospec.js:50"] },
-    { "from": "cli", "to": "change-state", "evidence": ["scripts/ospec.js:51", "scripts/ospec.js:52"] },
-    { "from": "cli", "to": "foundation", "evidence": ["scripts/ospec.js:48"] },
+    { "from": "cli", "to": "idd-engine", "evidence": ["scripts/ospec.js:32", "scripts/ospec.js:51"] },
+    { "from": "cli", "to": "change-state", "evidence": ["scripts/ospec.js:52", "scripts/ospec.js:53"] },
+    { "from": "cli", "to": "foundation", "evidence": ["scripts/ospec.js:49"] },
     { "from": "foundation", "to": "schemas", "evidence": ["scripts/lib/decision-gap.js:9", "scripts/lib/decision-records.js:8"] },
     { "from": "generator", "to": "skills", "evidence": ["scripts/lib/target-transform.js:217"] },
     { "from": "hooks", "to": "change-state", "evidence": ["scripts/hooks/pre-tool-use.js:16"] }

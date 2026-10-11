@@ -15,11 +15,12 @@ const {
   recordRuns,
   settleChecks,
   settleContract,
+  settleImpacts,
   settleMigration,
   settlePair,
   settleTreeBound,
 } = require("./idd-check.js");
-const { IddRecordError, recordIntent, recordSignal } = require("./idd-record.js");
+const { IddRecordError, recordGate, recordImpact, recordIntent, recordReferences, recordSignal } = require("./idd-record.js");
 
 const TREE_A = `sha256:${"a".repeat(64)}`;
 const TREE_B = `sha256:${"b".repeat(64)}`;
@@ -247,4 +248,88 @@ test("the repro reason says what the next run must show", () => {
   const red = recordRuns(openBug(), [reproRun()]).state;
   const verdict = checkVerdict(red, { checks: [] });
   assert.match(verdict.missing[0].reason, /run the same command again after the fix/);
+});
+
+// ---------------------------------------------------------------------------
+// adr-impact-declaration settles at check (E3.1, REQ-idd-020)
+// ---------------------------------------------------------------------------
+
+const NEW_ADR = "docs/architecture/decisions/0012-modulos-por-eventos.md";
+const GOOD_RECORD = Object.freeze({ exists: true, errors: [], id: "0012", cites: ["0002", "0012"] });
+
+function declaring(refs = [{ kind: "adr", id: "0002" }]) {
+  let { state } = recordSignal(openBug(), { id: "adr-or-quality-attribute", reason: "declared ADR 0002", source: "declaration" });
+  ({ state } = recordReferences(state, refs));
+  return state;
+}
+
+function impactOf(state) {
+  return state.obligations.find((entry) => entry.id === "adr-impact-declaration");
+}
+
+test("a conforming declaration settles at check with the references it covers", () => {
+  const state = recordImpact(declaring(), { kind: "adr", id: "0002", impact: "conforms", reason: "keeps direct calls" }).state;
+  const settled = settleImpacts(state, { records: {}, recordedAt: AT });
+  assert.strictEqual(settled.reason, null);
+  assert.strictEqual(impactOf(settled.state).status, "satisfied");
+  const evidence = settled.state.evidence.find((entry) => entry.id === settled.evidence);
+  assert.deepStrictEqual(evidence.detail, { refs: ["adr:0002 conforms"], records: [] });
+  assert.deepStrictEqual(validateState(settled.state), { ok: true, errors: [] });
+
+  // A second check on the same declaration keeps the evidence it has.
+  const again = settleImpacts(settled.state, { records: {}, recordedAt: AT });
+  assert.strictEqual(again.evidence, settled.evidence);
+  assert.strictEqual(again.state.evidence.length, settled.state.evidence.length);
+});
+
+test("an undeclared impact or an unanswered gate keeps the declaration pending with its reason", () => {
+  const undeclared = settleImpacts(declaring(), { records: {}, recordedAt: AT });
+  assert.strictEqual(impactOf(undeclared.state).status, "pending");
+  assert.match(undeclared.reason, /declare the impact on ADR 0002: ospec record impact --change fix-pagination --adr 0002/);
+
+  const amended = recordImpact(declaring(), { kind: "adr", id: "0002", impact: "amends", reason: "events" }).state;
+  const waiting = settleImpacts(amended, { records: {}, recordedAt: AT });
+  assert.match(waiting.reason, /ADR 0002 amends: the user answers adr-amend-or-contradict first/);
+});
+
+test("an amendment needs its new ADR to exist, pass the lint, be new and cite the amended ADR", () => {
+  let state = recordImpact(declaring(), { kind: "adr", id: "0002", impact: "amends", reason: "events" }).state;
+  state = recordGate(state, { id: "adr-amend-or-contradict", action: "resolve", answer: "amend it", source: "user" }).state;
+  assert.match(settleImpacts(state, { records: {}, recordedAt: AT }).reason, /write the new ADR under docs\/architecture\/decisions\/ and attach it/);
+
+  state = recordImpact(state, { kind: "adr", id: "0002", record: NEW_ADR }).state;
+  const cases = [
+    [{ exists: false }, /0012-modulos-por-eventos\.md does not exist/],
+    [{ ...GOOD_RECORD, errors: ["/date: missing required property \"date\""] }, /fails the decision-record lint: \/date/],
+    [{ ...GOOD_RECORD, id: "0002" }, /rewrites ADR 0002: an accepted ADR is never rewritten/],
+    [{ ...GOOD_RECORD, cites: ["0012"] }, /must cite the ADR 0002 it amends/],
+  ];
+  for (const [read, reason] of cases) {
+    const settled = settleImpacts(state, { records: { [NEW_ADR]: read }, recordedAt: AT });
+    assert.match(settled.reason, reason);
+    assert.strictEqual(impactOf(settled.state).status, "pending");
+  }
+  const settled = settleImpacts(state, { records: { [NEW_ADR]: GOOD_RECORD }, recordedAt: AT });
+  assert.strictEqual(settled.reason, null);
+  assert.deepStrictEqual(settled.state.evidence.at(-1).detail, { refs: ["adr:0002 amends"], records: [NEW_ADR] });
+
+  // The new ADR breaking later reopens the declaration.
+  const broken = settleImpacts(settled.state, { records: { [NEW_ADR]: { exists: false } }, recordedAt: AT });
+  assert.strictEqual(impactOf(broken.state).status, "pending");
+});
+
+test("a contradiction or a scenario amendment needs only the user's answer", () => {
+  let state = declaring([{ kind: "adr", id: "0002" }, { kind: "scenario", id: "deterministic-resume" }]);
+  state = recordImpact(state, { kind: "adr", id: "0002", impact: "contradicts", reason: "a shortcut" }).state;
+  state = recordImpact(state, { kind: "scenario", id: "deterministic-resume", impact: "amends", reason: "replays" }).state;
+  state = recordGate(state, { id: "adr-amend-or-contradict", action: "resolve", answer: "accept both", source: "user" }).state;
+  const settled = settleImpacts(state, { records: {}, recordedAt: AT });
+  assert.strictEqual(settled.reason, null);
+  assert.deepStrictEqual(settled.state.evidence.at(-1).detail.refs, ["adr:0002 contradicts", "scenario:deterministic-resume amends"]);
+});
+
+test("a change without the ADR signal settles nothing", () => {
+  const settled = settleImpacts(openBug(), { records: {}, recordedAt: AT });
+  assert.deepStrictEqual([settled.evidence, settled.reason], [null, null]);
+  assert.deepStrictEqual(settled.state, openBug());
 });

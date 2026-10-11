@@ -28,6 +28,7 @@ Un arreglo de una línea y una migración de esquema no necesitan la misma cerem
 | `persistent-data` | El cambio toca migraciones, SQL o esquemas de ORM | `migration-compat-and-test`: un test de migración con plan de compatibilidad o de vuelta atrás |
 | `security-boundary` | El cambio toca autenticación, seguridad, permisos, secretos o credenciales | `trust-review`: una revisión de confianza acotada y de solo lectura |
 | `multi-unit-or-decision` | Varias unidades de trabajo o una decisión de diseño registrada | `living-doc`: `idd/<cambio>/change.md` mantiene al día el plan y las decisiones |
+| `adr-or-quality-attribute` | `ospec signals --adr <id>` o `--quality <id>` declara los ADR o escenarios de calidad que toca el cambio | `adr-impact-declaration`: `none`, `conforms`, `amends`, `supersedes` o `contradicts` para cada uno; los tres últimos se detienen en `adr-amend-or-contradict`, y una enmienda trae un ADR nuevo que pasa el lint |
 
 Los patrones se adaptan al stack detectado (Node, JVM, .NET, Python, Go) y se amplían en `impact:` de `idd/config.yaml`. Los cuatro gates son `ambiguous-intent` (aún no se puede enunciar la aceptación), `open-facts` (comportamientos que ni la petición ni el código fijan, preguntados todos juntos antes de editar), `irreversible-operation` y `adr-amend-or-contradict`. Cada gate abierto se pregunta antes del trabajo que decide.
 

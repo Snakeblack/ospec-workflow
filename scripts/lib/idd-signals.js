@@ -10,7 +10,7 @@
 const { classifyChange } = require("./change-classification.js");
 const { SIGNALS, isIntentAmbiguous } = require("./idd-contract.js");
 const { IMPACT_SIGNALS, matchImpact, normalizePath } = require("./idd-impact.js");
-const { IddRecordError, recordGate, recordPlan, recordSignal } = require("./idd-record.js");
+const { IddRecordError, recordGate, recordPlan, recordReferences, recordSignal } = require("./idd-record.js");
 
 // K1 hard-floor evidence key → IDD signal. mechanical_no_behavior has no
 // signal: a mechanical change only lowers the floor.
@@ -94,6 +94,28 @@ function destructiveStatement(diff, patterns) {
   return null;
 }
 
+// The ADRs and quality scenarios the declaration names (E3.1). Only a
+// declaration activates adr-or-quality-attribute: deriving it from the
+// touched components belongs to E3.2.
+function declaredReferences(declaration) {
+  const refs = [];
+  for (const [kind, ids] of [
+    ["adr", declaration.adrs],
+    ["scenario", declaration.scenarios],
+  ]) {
+    for (const id of [...new Set(ids || [])].sort()) refs.push({ kind, id });
+  }
+  return refs;
+}
+
+function referencesReason(refs) {
+  const named = (kind, label) => {
+    const ids = refs.filter((ref) => ref.kind === kind).map((ref) => ref.id);
+    return ids.length ? [`${label} ${ids.join(", ")}`] : [];
+  };
+  return `declared ${[...named("adr", "ADR"), ...named("scenario", "quality scenario")].join(" and ")}`;
+}
+
 function floorOf(intent, signalIds) {
   const impact = {};
   for (const [key, signal] of Object.entries(FLOOR_SIGNALS)) {
@@ -107,13 +129,14 @@ function floorOf(intent, signalIds) {
  * @param {{
  *   intent: {kind: string} | null,   null while the intent is ambiguous
  *   strictTdd?: boolean,
- *   declaration?: {paths?: string[], workUnits?: number, nonObviousDecision?: boolean, operations?: string[]},
+ *   declaration?: {paths?: string[], workUnits?: number, nonObviousDecision?: boolean, operations?: string[],
+ *                  adrs?: string[], scenarios?: string[]},
  *   diff?: {paths?: string[], addedLines?: Record<string, string[]>},
  *   patterns: object,                resolvePatterns() of idd-impact.js
  * }} input
  */
 function deriveSignals({ intent, strictTdd = false, declaration = {}, diff = {}, patterns }) {
-  if (!intent) return { signals: [], gates: [], floor: null, floor_source: null };
+  if (!intent) return { signals: [], gates: [], references: [], floor: null, floor_source: null };
 
   const found = new Map();
   const add = (id, reason, source) => {
@@ -139,6 +162,8 @@ function deriveSignals({ intent, strictTdd = false, declaration = {}, diff = {},
       if (hits.has(signal)) add(signal, impactReason(signal, hits.get(signal), patterns), source);
     }
   }
+  const references = declaredReferences(declaration);
+  if (references.length > 0) add("adr-or-quality-attribute", referencesReason(references), "declaration");
 
   const gates = [];
   const operation = (declaration.operations || []).find((op) => IRREVERSIBLE_OPERATIONS.includes(op));
@@ -147,12 +172,13 @@ function deriveSignals({ intent, strictTdd = false, declaration = {}, diff = {},
 
   const signals = [...found.values()].sort((a, b) => SIGNAL_ORDER.indexOf(a.id) - SIGNAL_ORDER.indexOf(b.id));
   const risk = floorOf(intent, new Set(found.keys()));
-  return { signals, gates, floor: risk.floor, floor_source: risk.floor_source };
+  return { signals, gates, references, floor: risk.floor, floor_source: risk.floor_source };
 }
 
 // Records what a derivation adds to the stored state, plus the declared plan
-// when there is one (E1.11). Signals and gates already recorded stay as they
-// are, and a signal the derivation misses is never dropped (REQ-idd-006).
+// when there is one (E1.11) and the declared architecture references (E3.1).
+// Signals and gates already recorded stay as they are, and a signal the
+// derivation misses is never dropped (REQ-idd-006).
 function applyDerivation(state, derivation, { plan = null } = {}) {
   if (state.status === "closed") throw new IddRecordError("change-closed", `change ${state.change} is closed`);
   if (isIntentAmbiguous(state)) {
@@ -176,7 +202,9 @@ function applyDerivation(state, derivation, { plan = null } = {}) {
     if (result.changed) added.gates.push(gate.id);
     current = result.state;
   }
-  return { state: current, changed: planChanged || added.signals.length + added.gates.length > 0, added };
+  const references = recordReferences(current, derivation.references || []);
+  current = references.state;
+  return { state: current, changed: planChanged || references.changed || added.signals.length + added.gates.length > 0, added };
 }
 
 module.exports = {

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.127.0] - 2026-10-11
+
+### Added
+- **Impacto arquitectónico declarado (E3.1)**: `ospec signals --adr <id> --quality <id>` declara los ADR de `docs/architecture/decisions/` y los escenarios de calidad del mapa de conocimiento que toca un cambio, y activa la señal `adr-or-quality-attribute` con su obligación `adr-impact-declaration`. El CLI rechaza una referencia que no existe en disco. `ospec record impact` declara `none`, `conforms`, `amends`, `supersedes` o `contradicts` por referencia; los tres últimos abren el gate `adr-amend-or-contradict` sin que el agente lo pida. `ospec check` da la obligación por cumplida cuando el usuario ha contestado el gate y cada ADR que enmienda o sustituye a otro existe, pasa el lint de registros de decisión y cita el ADR que cambia. El estado `idd-state/v1` gana el campo opcional `impacts` (REQ-idd-020). Hecho con IDD (`idd/archive/2026-10-11-change-decisions-and-adr-impact/`).
+- **Sugerencia de ADR**: `ospec next` añade `suggestions` con `adr-promotion` cuando el cambio toca un contrato público, datos persistentes o una frontera de seguridad y no declara ningún ADR. Nunca bloquea ni añade obligaciones.
+- **Fixture de referencia `architecture-amendment`**: mensajería asíncrona entre módulos que enmienda el ADR de integración y se detiene en el gate.
+
+### Changed
+- **El archivo SDD deja de promover decisiones a `docs/adr/`**: `sdd-design` escribe sus decisiones significativas como `decisions/dc-NNN.md`, que viajan archivadas con el change. `sdd-archive` emite siempre `adr_promotions: []`, y `archive-plan` v1 rechaza un plan con promociones con `invalid-schema` y un error que nombra el contrato. Una transacción preparada antes de esta versión aún termina su commit. `docs/adr/` queda como índice final de 277 decisiones, y se cierra la divergencia `archive-promotes-development-decisions` del mapa de componentes.
+- **Skills `idd` y `foundation`**: al declarar el plan, el agente lee los ADR que gobiernan el código y los declara con su impacto. Una decisión de desarrollo se queda en el documento vivo y nunca se convierte en ADR.
+- **Roadmap**: E3.1 `change-decisions-and-adr-impact` pasa a hecho. E3.2 `knowledge-by-reference` queda como siguiente. La señal solo sale de la declaración: derivarla de los componentes es de E3.2. La comprobación de promoción no usa K6d, que exige nueve dimensiones y un candidato congelado que IDD no produce.
+
+**Verificación directa**: `node scripts/check.js` (3552 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.126.0] - 2026-10-11
 
 ### Added

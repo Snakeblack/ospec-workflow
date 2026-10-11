@@ -11,9 +11,11 @@ const os = require("node:os");
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 
-const { CHANGE_ROOT } = require("./idd-contract.js");
+const { CHANGE_ROOT, DECISIONS_ROOT } = require("./idd-contract.js");
 const { CONFIG_FILE, parseIddConfig } = require("./idd-config.js");
 const { candidateCheckCommand } = require("./idd-checks-config.js");
+const { MAP_RELATIVE } = require("./decision-gap.js");
+const { lintDecisionRecord, parseAdrMarkdown } = require("./decision-records.js");
 const { resolveContractPatterns } = require("./idd-contracts.js");
 const { detectStacks, normalizePath, publishedPaths, resolvePatterns } = require("./idd-impact.js");
 
@@ -61,6 +63,69 @@ function readIddConfig(root) {
     if (error.code !== "ENOENT") throw error;
     return "";
   }
+}
+
+function readOptional(file) {
+  try {
+    return fs.readFileSync(file, "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+/**
+ * The architecture references a change can declare (E3.1): the ADRs under
+ * docs/architecture/decisions/ by id, and the quality scenario ids of the
+ * knowledge map. A project without them has none.
+ */
+function readArchitecture(root) {
+  const dir = path.join(root, ...DECISIONS_ROOT.split("/"));
+  const names = fs.existsSync(dir) ? fs.readdirSync(dir).filter((name) => name.endsWith(".md")).sort() : [];
+  const adrs = new Map();
+  for (const name of names) {
+    const record = parseAdrMarkdown(fs.readFileSync(path.join(dir, name), "utf8"));
+    if (record.id && !adrs.has(record.id)) adrs.set(record.id, { path: `${DECISIONS_ROOT}/${name}`, status: record.status ?? null });
+  }
+  const scenarios = new Set();
+  const raw = readOptional(path.join(root, ...MAP_RELATIVE.split("/")));
+  if (raw != null) {
+    let map;
+    try {
+      map = JSON.parse(raw);
+    } catch (error) {
+      throw new IddWorkspaceError("knowledge-map-unreadable", `${MAP_RELATIVE} is not JSON text (valid YAML 1.2): ${error.message}`);
+    }
+    for (const scenario of map?.quality_scenarios || []) {
+      if (typeof scenario?.id === "string") scenarios.add(scenario.id);
+    }
+  }
+  return { adrs, scenarios };
+}
+
+/**
+ * What the CLI reads of each new ADR a declared impact names (E3.1): whether
+ * it exists, its decision-record lint errors (evidence resolved against the
+ * project), its id and every ADR id its text cites.
+ */
+function readDecisionRecords(root, files) {
+  const records = {};
+  for (const file of files) {
+    const text = readOptional(path.join(root, ...file.split("/")));
+    if (text == null) {
+      records[file] = { exists: false };
+      continue;
+    }
+    const record = parseAdrMarkdown(text);
+    const lint = lintDecisionRecord(record, { root });
+    records[file] = {
+      exists: true,
+      errors: lint.errors.map((error) => `${error.path || "/"}: ${error.message}`),
+      id: record.id ?? null,
+      cites: [...new Set([...text.matchAll(/(?<![0-9])([0-9]{4})(?![0-9])/g)].map((match) => match[1]))],
+    };
+  }
+  return records;
 }
 
 function git(root, args, { env } = {}) {
@@ -259,7 +324,9 @@ module.exports = {
   EMPTY_TREE,
   IddWorkspaceError,
   commitTree,
+  readArchitecture,
   readCheckTreeFingerprint,
+  readDecisionRecords,
   readGitDiff,
   readHead,
   readProjectContext,

@@ -4,7 +4,7 @@
 // `ospec next` and `ospec status` (REQ-idd-011). The same inputs yield the same
 // output, whatever order the state's signals were recorded in.
 
-const { CHANGE_ROOT, GATES, LIVING_DOC_FILE, OBLIGATIONS } = require("./idd-contract.js");
+const { CHANGE_ROOT, DECISIONS_ROOT, GATES, LIVING_DOC_FILE, OBLIGATIONS } = require("./idd-contract.js");
 const { configureChecksStep } = require("./idd-checks-config.js");
 
 // Order in which pending obligations are worked: evidence produced while
@@ -43,7 +43,27 @@ const HOW = Object.freeze({
     `ospec review start --change ${change}, dispatch review-trust on the returned paths, then ospec review record --change ${change} --result '<findings json>'`,
   "migration-compat-and-test": (change) =>
     `ospec run --change ${change} --obligation migration-compat-and-test --command "<migration test>" --plan "<compatibility or rollback>"`,
+  "adr-impact-declaration": (change) =>
+    `ospec record impact --change ${change} (--adr <id> | --quality <id>) --impact <none|conforms|amends|supersedes|contradicts> --reason "<why>" [--record <new ADR>], then ospec check --change ${change}`,
 });
+
+// Signals that mark an architecture boundary: a change that crosses one and
+// declares no ADR may be making an architecture decision (E3.1).
+const BOUNDARY_SIGNALS = Object.freeze(["public-contract", "persistent-data", "security-boundary"]);
+
+// The promotion check (E3.1): a suggestion, never a gate. It asks the agent to
+// weigh an ADR when the change crosses a boundary without declaring one; a
+// development decision stays in the living document.
+function adrSuggestion(state) {
+  if (state.status !== "open" || state.signals.some((signal) => signal.id === "adr-or-quality-attribute")) return null;
+  const boundary = state.signals.find((signal) => BOUNDARY_SIGNALS.includes(signal.id));
+  if (!boundary) return null;
+  return {
+    id: "adr-promotion",
+    reason: boundary.reason,
+    how: `if the change takes an architecture decision, propose an ADR under ${DECISIONS_ROOT}/ to the user and declare the ADRs it touches with ospec signals --change ${state.change} --adr <id>; a development decision stays in ${CHANGE_ROOT}/${state.change}/${LIVING_DOC_FILE}`,
+  };
+}
 
 // The plan is declared once `ospec signals` recorded it, or once the change
 // has evidence of its own: a signal the diff derived or a run the CLI observed
@@ -103,7 +123,7 @@ function nextForChange(state, { checks, candidateCommand } = {}) {
     nextStep = { action: "close" };
   }
 
-  return {
+  const result = {
     change: state.change,
     status: state.status,
     intent: state.intent,
@@ -112,6 +132,9 @@ function nextForChange(state, { checks, candidateCommand } = {}) {
     next_step: nextStep,
     knowledge_refs: livingDoc ? [`${CHANGE_ROOT}/${state.change}/${LIVING_DOC_FILE}`] : [],
   };
+  const suggestion = adrSuggestion(state);
+  if (suggestion) result.suggestions = [suggestion];
+  return result;
 }
 
 function nextForProject(states, { change, ...context } = {}) {

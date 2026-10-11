@@ -1,0 +1,295 @@
+{
+  "schema": "idd-state/v1",
+  "change": "change-decisions-and-adr-impact",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "feature",
+    "summary": "E3.1: IDD declara el impacto arquitectónico de un cambio y propone ADR con gate; el cierre SDD deja de promover decisiones de desarrollo a docs/adr/",
+    "acceptance": "Un cambio en una librería interna no genera ningún ADR; un cambio que introduce mensajería asíncrona entre módulos propone una enmienda al ADR de integración y se detiene en el gate; el archivo SDD emite adr_promotions vacío"
+  },
+  "facts": {
+    "open": [
+      "¿Se entrega todo en un change con dos unidades (IDD y archivo SDD) o se divide en dos changes/PR?",
+      "¿Cómo se activa la señal adr-or-quality-attribute: derivada de las rutas tocadas mediante el mapa de componentes y los ADR que lo referencian, declarada por el agente, o ambas?",
+      "¿El vocabulario de la declaración incluye 'sustituye' (la spec solo tiene none|conforms|amends|contradicts) y sustituir abre el gate igual que enmendar y contradecir?",
+      "¿Quién redacta el ADR nuevo o enmendado al aprobar el gate: el agente lo escribe en docs/architecture/decisions/ y el CLI solo valida con el lint de registros de decisión, o el CLI lo genera?",
+      "¿Qué pasa con las decisiones ADR de SDD en curso (openspec/changes/*/decisions/adr-*.md): se quedan como registro del change sin promover y se mantiene el campo adr_promotions[] en el plan, siempre vacío?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "agents/sdd-orchestrator.agent.md",
+      "docs/adr/README.md",
+      "docs/architecture/component-map.yaml",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/specs/archive-plan-contract/spec.md",
+      "openspec/specs/archive-transaction-runtime/spec.md",
+      "openspec/specs/idd/spec.md",
+      "openspec/specs/skills/spec.md",
+      "scripts/archive-transaction-run.test.js",
+      "scripts/configure/idd-protocol.test.js",
+      "scripts/fixtures/idd/adr-amendment.json",
+      "scripts/lib/archive-plan.js",
+      "scripts/lib/archive-plan.test.js",
+      "scripts/lib/archive-transaction.js",
+      "scripts/lib/archive-transaction.test.js",
+      "scripts/lib/idd-check.js",
+      "scripts/lib/idd-check.test.js",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-contract.test.js",
+      "scripts/lib/idd-next.js",
+      "scripts/lib/idd-next.test.js",
+      "scripts/lib/idd-record.js",
+      "scripts/lib/idd-record.test.js",
+      "scripts/lib/idd-signals.js",
+      "scripts/lib/idd-signals.test.js",
+      "scripts/lib/idd-workspace.js",
+      "scripts/lib/idd-workspace.test.js",
+      "scripts/mentor-adr-contract.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js",
+      "skills/foundation/SKILL.md",
+      "skills/idd/SKILL.md",
+      "skills/sdd-archive/SKILL.md",
+      "skills/sdd-design/SKILL.md"
+    ],
+    "work_units": 2,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: touches scripts/lib/archive-plan.js and 3 more (matches scripts/lib/archive-*.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "declared ADR 0003, 0004, 0005, 0009, 0011 and quality scenario contract-compatibility",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "the declaration, the gate and the settle rules are computed by the CLI with tests; the skill only says when to call them"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "adr-or-quality-attribute is one more impact signal with its obligation; a change that declares no architecture reference owes nothing new"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "adr-impact-declaration settles only in ospec check, from the declared references, the user's answer to the gate and the lint the CLI runs on the new ADR"
+    },
+    {
+      "kind": "adr",
+      "id": "0009",
+      "impact": "conforms",
+      "reason": "idd-state/v1 gains the optional impacts field, as plan and retracted did; archive-plan v1 with promotions is rejected with an error naming the contract, and a transaction staged before E3.1 still commits through its read branch"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "the SDD archive and design change only inside the SDD tree; IDD reads no SDD state"
+    },
+    {
+      "kind": "scenario",
+      "id": "contract-compatibility",
+      "impact": "conforms",
+      "reason": "states written before E3.1 stay valid and a plan from before E3.1 fails closed naming archive-plan v1 instead of being reinterpreted"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "todas las recomendadas: (1) señal declarada en E3.1 con --adr/--quality, derivación por rutas en E3.2; (2) declaración + validaciones del CLI + gate cuentan como evidencia, conforma ADR-0005; (3) añadir supersedes, amends/supersedes/contradicts abren el gate solos; (4) sin K6d: enmienda/sustitución/contradicción por el gate adr-amend-or-contradict, ADR nuevo como sugerencia no bloqueante en next cuando hay señal de frontera sin ADR declarado; (5) el agente redacta en docs/architecture/decisions/, el CLI pasa el lint, nunca se reescribe un ADR accepted; (6) Decisions en texto libre como DC sin promoción; (7) sdd-archive deja de promover, adr_promotions siempre vacío y el runtime rechaza entradas, sdd-design guarda dc locales, promoción solo en IDD; (8) un change con dos unidades, PR encadenados si pasa de 400 líneas",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-11T17:14:47.411Z",
+      "detail": {
+        "run": "run-1",
+        "tree": "sha256:a3bc6a1392552cc6cc31084b50565f2a140e115e9738b50ba8ba01eb794de226",
+        "plan": "Compatibilidad: idd-state/v1 gana el campo opcional impacts y los estados anteriores siguen siendo válidos; archive-plan v1 conserva adr_promotions y solo acepta la lista vacía, un plan con promociones se rechaza con invalid-schema nombrando archive-plan v1 y deja el origen intacto, y una transacción preparada antes de E3.1 termina su commit por la rama de lectura. Rollback: revertir el commit; ningún dato persistente se reescribe."
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-11T17:15:13.852Z",
+      "detail": {
+        "run": "run-2",
+        "tree": "sha256:327cec37f628c05c4d20f13fb3ab56107790efa37253259d8fb3f2eeb91f5e3f",
+        "plan": "Compatibilidad: idd-state/v1 gana el campo opcional impacts y los estados anteriores siguen siendo válidos; archive-plan v1 conserva adr_promotions y solo acepta la lista vacía, un plan con promociones se rechaza con invalid-schema nombrando archive-plan v1 y deja el origen intacto, y una transacción preparada antes de E3.1 termina su commit por la rama de lectura. Rollback: revertir el commit; ningún dato persistente se reescribe."
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-11T17:15:30.977Z",
+      "detail": {
+        "tree": "sha256:b882fc7c1f6e1df1d217389ad29ef078df03ec01b52f7319075ebd28e07540d4",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-11T17:15:30.977Z",
+      "detail": {
+        "tree": "sha256:b882fc7c1f6e1df1d217389ad29ef078df03ec01b52f7319075ebd28e07540d4",
+        "check": "ev-3",
+        "documents": [
+          "openspec/specs/archive-plan-contract/spec.md",
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/skills/spec.md"
+        ],
+        "tests": [
+          "scripts/archive-transaction-run.test.js",
+          "scripts/lib/archive-plan.test.js",
+          "scripts/lib/archive-transaction.test.js",
+          "scripts/lib/idd-check.test.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-signals.test.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/mentor-adr-contract.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-11T17:15:30.977Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0009 conforms",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms"
+        ],
+        "records": []
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-11T17:15:35.289Z"
+    }
+  ],
+  "base": "878bf7f96b72dec96d4a748b40f93b94c4375099",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/archive-plan.test.js scripts/lib/archive-transaction.test.js scripts/archive-transaction-run.test.js scripts/lib/idd-contract.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6d3e00151150007ce53347fcfbdd60fcb85fc56b7f0e5ff802b1db75736cc2f4",
+      "tree": "sha256:a3bc6a1392552cc6cc31084b50565f2a140e115e9738b50ba8ba01eb794de226",
+      "recorded_at": "2026-10-11T17:14:47.411Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/archive-plan.test.js scripts/lib/archive-transaction.test.js scripts/archive-transaction-run.test.js scripts/lib/idd-contract.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8f4502a5fac648f450b1d0af73cc34e355174c70319ac9a2968cad6710f4ac94",
+      "tree": "sha256:327cec37f628c05c4d20f13fb3ab56107790efa37253259d8fb3f2eeb91f5e3f",
+      "recorded_at": "2026-10-11T17:15:13.852Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2781cdc758640643ed0a19123a4d26522e87acb138001cad43ed3df88897d028",
+      "tree": "sha256:b882fc7c1f6e1df1d217389ad29ef078df03ec01b52f7319075ebd28e07540d4",
+      "recorded_at": "2026-10-11T17:15:30.977Z"
+    }
+  ],
+  "closed_at": "2026-10-11T17:15:35.289Z"
+}

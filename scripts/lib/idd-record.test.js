@@ -13,7 +13,9 @@ const {
   IddRecordError,
   recordEvidence,
   recordGate,
+  recordImpact,
   recordIntent,
+  recordReferences,
   recordSignal,
   recordWithdraw,
 } = require("./idd-record.js");
@@ -212,15 +214,11 @@ test("a signal adds its catalog obligation once, however often it is recorded", 
   assert.deepStrictEqual(again.state, first.state);
 });
 
-test("a signal needs a reason and a known source, and must be in the catalog and available", () => {
+test("a signal needs a reason and a known source, and must be in the catalog", () => {
   const state = opened();
   assertCode(() => recordSignal(state, { id: "bug-fix", source: "declaration" }), "reason-required");
   assertCode(() => recordSignal(state, { id: "bug-fix", reason: "r", source: "guess" }), "invalid-source");
   assertCode(() => recordSignal(state, { id: "size-large", reason: "r", source: "diff" }), "unknown-signal");
-  assertCode(
-    () => recordSignal(state, { id: "adr-or-quality-attribute", reason: "r", source: "diff" }),
-    "signal-unavailable",
-  );
 });
 
 test("no signal is recorded while the intent is ambiguous", () => {
@@ -480,4 +478,109 @@ test("retract is refused for confirmed, diff, satisfied, unknown and non-path si
   satisfied.evidence.push({ id: "ev-1", kind: "living-doc-current", obligation: "living-doc", recorded_at: "t" });
   assertCode(() => recordRetract(satisfied, { id: "multi-unit-or-decision", reason: "r" }), "obligation-satisfied");
   assertCode(() => recordRetract({ ...state, status: "closed" }, { id: "multi-unit-or-decision", reason: "r" }), "change-closed");
+});
+
+// ---------------------------------------------------------------------------
+// record impact: declared architecture references (E3.1, REQ-idd-020)
+// ---------------------------------------------------------------------------
+
+const ADR_0002 = Object.freeze({ kind: "adr", id: "0002" });
+const RECORD = "docs/architecture/decisions/0012-modulos-por-eventos.md";
+
+function withReferences(refs = [ADR_0002]) {
+  const state = recordSignal(opened(), { id: "adr-or-quality-attribute", reason: "declared ADR 0002", source: "declaration" }).state;
+  return recordReferences(state, refs).state;
+}
+
+test("declared references are recorded once, without an impact", () => {
+  const state = withReferences([ADR_0002, { kind: "scenario", id: "deterministic-resume" }]);
+  assertValid(state);
+  assert.deepStrictEqual(state.impacts, [
+    { kind: "adr", id: "0002", impact: null },
+    { kind: "scenario", id: "deterministic-resume", impact: null },
+  ]);
+  const again = recordReferences(state, [ADR_0002]);
+  assert.strictEqual(again.changed, false);
+  assert.strictEqual(again.state, state);
+});
+
+test("a new reference reopens a satisfied impact declaration", () => {
+  let state = withReferences();
+  state = recordImpact(state, { ...ADR_0002, impact: "conforms", reason: "keeps direct calls" }).state;
+  state = recordEvidence(state, { id: "ev-1", kind: "adr-impact-declaration", obligation: "adr-impact-declaration", recordedAt: "t", detail: { refs: ["adr:0002 conforms"], records: [] } }).state;
+  const reopened = recordReferences(state, [{ kind: "adr", id: "0004" }]).state;
+  const obligation = reopened.obligations.find((entry) => entry.id === "adr-impact-declaration");
+  assert.deepStrictEqual([obligation.status, obligation.evidence], ["pending", []]);
+  assertValid(reopened);
+});
+
+test("an impact needs a declared reference, a known value and a reason", () => {
+  const state = withReferences();
+  assertCode(() => recordImpact(state, { kind: "adr", id: "0009", impact: "conforms", reason: "r" }), "reference-not-declared");
+  assertCode(() => recordImpact(state, { ...ADR_0002, impact: "improves", reason: "r" }), "invalid-impact");
+  assertCode(() => recordImpact(state, { ...ADR_0002, impact: "conforms" }), "reason-required");
+  assertCode(() => recordImpact(state, { kind: "module", id: "x", impact: "none", reason: "r" }), "invalid-reference");
+  assertCode(() => recordImpact(state, { ...ADR_0002 }), "impact-required");
+});
+
+test("none and conforms open no gate, and an impact is declared once", () => {
+  const first = recordImpact(withReferences(), { ...ADR_0002, impact: "conforms", reason: "keeps direct calls" });
+  assert.strictEqual(first.changed, true);
+  assert.deepStrictEqual(first.state.gates, []);
+  assert.deepStrictEqual(first.state.impacts, [{ kind: "adr", id: "0002", impact: "conforms", reason: "keeps direct calls" }]);
+  assertValid(first.state);
+  assert.strictEqual(recordImpact(first.state, { ...ADR_0002, impact: "conforms", reason: "keeps direct calls" }).changed, false);
+  assertCode(() => recordImpact(first.state, { ...ADR_0002, impact: "amends", reason: "keeps direct calls" }), "impact-conflict");
+  assertCode(() => recordImpact(first.state, { ...ADR_0002, impact: "conforms", reason: "other" }), "impact-conflict");
+});
+
+test("amends, supersedes and contradicts open adr-amend-or-contradict naming the reference", () => {
+  for (const impact of ["amends", "supersedes", "contradicts"]) {
+    const { state } = recordImpact(withReferences(), { ...ADR_0002, impact, reason: "events between modules" });
+    assert.deepStrictEqual(state.gates, [{ id: "adr-amend-or-contradict", status: "open", reason: `ADR 0002 ${impact}: events between modules` }]);
+    assertValid(state);
+  }
+});
+
+test("a second gated impact adds its reason while the gate is open and is refused once it is resolved", () => {
+  let state = withReferences([ADR_0002, { kind: "scenario", id: "deterministic-resume" }]);
+  state = recordImpact(state, { ...ADR_0002, impact: "amends", reason: "events" }).state;
+  const both = recordImpact(state, { kind: "scenario", id: "deterministic-resume", impact: "contradicts", reason: "replays" }).state;
+  assert.strictEqual(both.gates[0].reason, "ADR 0002 amends: events; scenario deterministic-resume contradicts: replays");
+
+  const resolved = recordGate(state, { id: "adr-amend-or-contradict", action: "resolve", answer: "amend it", source: "user" }).state;
+  assertCode(() => recordImpact(resolved, { kind: "scenario", id: "deterministic-resume", impact: "amends", reason: "replays" }), "gate-resolved");
+  // A non-gated impact still goes through after the answer.
+  assert.strictEqual(recordImpact(resolved, { kind: "scenario", id: "deterministic-resume", impact: "none", reason: "untouched" }).changed, true);
+});
+
+test("the new ADR of an amendment is attached with the impact or later, once", () => {
+  const amended = recordImpact(withReferences(), { ...ADR_0002, impact: "amends", reason: "events" }).state;
+  const attached = recordImpact(amended, { ...ADR_0002, record: RECORD });
+  assert.strictEqual(attached.changed, true);
+  assert.strictEqual(attached.state.impacts[0].record, RECORD);
+  assertValid(attached.state);
+  assert.strictEqual(recordImpact(attached.state, { ...ADR_0002, record: RECORD }).changed, false);
+  assertCode(() => recordImpact(attached.state, { ...ADR_0002, record: "docs/architecture/decisions/0013-x.md" }), "impact-conflict");
+
+  const together = recordImpact(withReferences(), { ...ADR_0002, impact: "supersedes", reason: "events", record: `./${RECORD}` }).state;
+  assert.strictEqual(together.impacts[0].record, RECORD);
+});
+
+test("only an ADR amended or superseded names a new ADR, under the decisions folder", () => {
+  const state = withReferences([ADR_0002, { kind: "scenario", id: "deterministic-resume" }]);
+  assertCode(() => recordImpact(state, { ...ADR_0002, record: RECORD }), "impact-required");
+  assertCode(() => recordImpact(state, { ...ADR_0002, impact: "conforms", reason: "r", record: RECORD }), "invalid-record");
+  assertCode(() => recordImpact(state, { ...ADR_0002, impact: "contradicts", reason: "r", record: RECORD }), "invalid-record");
+  assertCode(() => recordImpact(state, { kind: "scenario", id: "deterministic-resume", impact: "amends", reason: "r", record: RECORD }), "invalid-record");
+  for (const record of ["docs/adr/0012-x.md", "docs/architecture/decisions/../../x.md", "docs/architecture/decisions/0012-x.txt", ""]) {
+    assertCode(() => recordImpact(state, { ...ADR_0002, impact: "amends", reason: "r", record }), "invalid-record");
+  }
+});
+
+test("no impact is declared on a closed change or while the intent is ambiguous", () => {
+  const ambiguous = recordIntent(null, { change: "improve-login", ambiguous: true, request: "Improve the login." }).state;
+  assertCode(() => recordImpact(ambiguous, { ...ADR_0002, impact: "none", reason: "r" }), "ambiguous-intent-open");
+  const closed = { ...withReferences(), status: "closed", closed_at: "t" };
+  assertCode(() => recordImpact(closed, { ...ADR_0002, impact: "none", reason: "r" }), "change-closed");
 });

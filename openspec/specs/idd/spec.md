@@ -85,10 +85,13 @@ withdrawn, `withdrawn_reason`), `gates` (each with `id`, `status` `open` or
 commit the change started from, or null outside git), `plan` (the plan
 `ospec signals` was declared, REQ-idd-012: `paths`, `work_units`, `decision`
 and `operations`), `retracted` (each declared signal retracted under
-REQ-idd-006, with its `id`, `reason`, `source` and `retract_reason`), `runs` (each
+REQ-idd-006, with its `id`, `reason`, `source` and `retract_reason`), `impacts`
+(each declared architecture reference of REQ-idd-020, with its `kind`, `adr` or
+`scenario`, its `id`, its `impact`, null until declared, the `reason` once
+declared and, for an ADR amended or superseded, the `record` that does it), `runs` (each
 CLI-observed execution of REQ-idd-014) and `reviews` (the trust review
 lineages of REQ-idd-016, oldest first), plus `closed_at` once the change is
-closed (REQ-idd-017). A state without `base`, `plan`, `retracted`, `runs`,
+closed (REQ-idd-017). A state without `base`, `plan`, `retracted`, `impacts`, `runs`,
 `reviews` or `facts` MUST stay valid, as the states written before they existed. While the
 `ambiguous-intent` gate is open, `intent.kind`, `intent.summary` and
 `intent.acceptance` MUST be null, `intent.request` MUST hold the original
@@ -141,8 +144,9 @@ as missing.
 Obligations MUST come only from this catalog. Each active signal adds its
 obligations, and each obligation is closed only by evidence of its kind. Every
 signal MUST carry a human-readable reason. `always` MUST be active for every
-change with a resolved intent. `adr-or-quality-attribute` MUST stay inactive
-until E3.1 delivers ADR impact declarations.
+change with a resolved intent. `adr-or-quality-attribute` MUST be active only
+when the change declares the ADRs or quality scenarios it touches
+(REQ-idd-020).
 
 | Signal | Obligation | Evidence |
 | --- | --- | --- |
@@ -169,8 +173,10 @@ until E3.1 delivers ADR impact declarations.
   migration test run on the current tree (REQ-idd-015).
 - `frozen-review`: an independent trust review with frozen findings and at most
   one bounded correction, approved for the current candidate (REQ-idd-016).
-- `adr-impact-declaration`: `none`, `conforms`, `amends` or `contradicts` per
-  touched ADR or quality attribute.
+- `adr-impact-declaration`: `none`, `conforms`, `amends`, `supersedes` or
+  `contradicts` per declared ADR or quality scenario, with the user's answer
+  to `adr-amend-or-contradict` for the last three and, for an ADR amended or
+  superseded, a new ADR that passes the decision-record lint (REQ-idd-020).
 
 #### Scenario: Obligations follow active signals only
 
@@ -178,10 +184,10 @@ until E3.1 delivers ADR impact declarations.
 - WHEN obligations are derived
 - THEN they MUST be exactly `checks-pass` and `repro-test`
 
-#### Scenario: Deferred signal stays inactive
+#### Scenario: Only a declaration activates the ADR signal
 
-- GIVEN a change before E3.1 that touches a component with an ADR
-- WHEN signals are derived
+- GIVEN a change that touches a component an ADR governs and declares no ADR
+- WHEN its signals are derived from its paths and its diff
 - THEN `adr-or-quality-attribute` MUST NOT be active
 
 ### Requirement: Recomputed Signals Never Drop Obligations Silently {#REQ-idd-006}
@@ -253,9 +259,10 @@ neither the request nor the code settles are open (REQ-idd-018),
 or contradicts an ADR, and `irreversible-operation` before a destructive or
 irreversible operation. No other question MAY block progress. A gate MUST be
 resolved only by an explicit user answer, recorded with its source. While
-`ambiguous-intent` is open, no signal MUST be derived. Until E3.1 derives ADR
-impact, no derivation opens `adr-amend-or-contradict`: the agent MUST open it
-with `record gate --open` and a reason naming the ADR before it asks.
+`ambiguous-intent` is open, no signal MUST be derived. A declared impact
+`amends`, `supersedes` or `contradicts` MUST open `adr-amend-or-contradict`
+with a reason naming the ADR or scenario (REQ-idd-020); the agent MAY also
+open it with `record gate --open` and a reason naming the ADR before it asks.
 
 #### Scenario: Ambiguous intent stops before signals
 
@@ -296,7 +303,8 @@ decision.
 
 `scripts/fixtures/idd/` MUST hold one fixture per reference change type
 (`typo`, `bug`, `internal-feature`, `public-api`, `migration`, `auth`) plus the
-gate cases `ambiguous-intent` and `destructive-migration`. Each fixture MUST
+gate cases `ambiguous-intent`, `destructive-migration` and
+`architecture-amendment`. Each fixture MUST
 declare its inputs and its expected signals, obligations, gates, whether a
 living document exists and its expected `next` step, and its expected
 obligations MUST equal the catalog derivation of its expected signals. The CLI items that follow (E1.2–E1.4) MUST
@@ -312,8 +320,8 @@ reproduce these expectations.
 ### Requirement: CLI Core Status Next And Record {#REQ-idd-011}
 
 The `ospec` CLI MUST expose `status`, `next` and `record`, each with a `--json`
-output. `record` MUST accept the types `intent`, `signal`, `gate`, `withdraw` and
-`retract` (REQ-idd-006), and MUST NOT accept evidence: evidence is recorded only by the CLI
+output. `record` MUST accept the types `intent`, `signal`, `gate`, `withdraw`,
+`retract` (REQ-idd-006) and `impact` (REQ-idd-020), and MUST NOT accept evidence: evidence is recorded only by the CLI
 commands that observe the execution it proves (REQ-idd-007). Every `record`
 MUST be idempotent: repeating it MUST leave `state.yaml` byte-identical, and
 rewriting a recorded fact with different content MUST be refused. Every write
@@ -333,6 +341,8 @@ from the diff and no run; else the first pending obligation in the order
 `migration-compat-and-test`, `adr-impact-declaration`, `trust-review`,
 `checks-pass`, `living-doc`; else `close`. The CLI MUST exit with 0 on
 success, 1 when the IDD contract refuses the request and 2 on a usage error.
+`next` MAY add `suggestions` that never block, such as the ADR promotion of
+REQ-idd-020.
 
 Before the pending `checks-pass` or `contract-spec-and-test` step, if no checks
 are declared, `next` MUST instead return `next_step.action: configure-checks`,
@@ -424,7 +434,8 @@ operation (`drop-table`, `drop-column`, `drop-schema`, `drop-database`,
 `truncate-table`, `delete-data`, `rewrite-history`) or for a destructive
 statement (drop of a table, schema, database or column, truncate, or a complete
 `DELETE` without `WHERE`) in a line the diff adds to a `persistent-data` file;
-comment lines MUST NOT count. No other derivation MAY open a gate. The
+comment lines MUST NOT count. No other derivation MAY open a gate. `--adr`
+and `--quality` declare the architecture references of REQ-idd-020. The
 path-driven signals and `bug-fix` MUST map one to one onto the K1 hard floors
 (`public_api`, `data_migration`, `auth_security`,
 `localized_reproducible_bug`), and the result MUST report the K1 floor they
@@ -903,3 +914,68 @@ The checks MUST cover at least:
 - WHEN `ospec doctor` runs
 - THEN `sdd-package` MUST be `error` naming `--with-sdd`
 - AND the exit code MUST be 1
+
+### Requirement: Architecture Impact Declaration {#REQ-idd-020}
+
+A change MUST declare the architecture it touches: `ospec signals --adr <id>`
+names an ADR under `docs/architecture/decisions/` by its four-digit id, and
+`--quality <id>` a quality scenario of `docs/architecture/knowledge-map.yaml`.
+Either MUST activate `adr-or-quality-attribute` with a reason naming them and
+record each reference in `impacts` without an impact; a reference that does
+not exist on disk MUST be refused, and a new reference MUST reopen a satisfied
+`adr-impact-declaration`. Only a declaration activates the signal: deriving it
+from the touched components belongs to E3.2.
+
+`ospec record impact --adr <id>|--quality <id> --impact <value> --reason <text>`
+MUST declare the impact on one declared reference: `none`, `conforms`,
+`amends`, `supersedes` or `contradicts`. An impact MUST be declared once; a
+different value or reason for it MUST be refused. `amends`, `supersedes` and
+`contradicts` MUST open `adr-amend-or-contradict`, or add their reason to it
+while it is open; once the gate is resolved, a new one MUST be refused. An ADR
+amended or superseded MUST name, with `--record <path>`, the new ADR under
+`docs/architecture/decisions/` that does it, in the same call or a later one;
+an accepted ADR is never rewritten.
+
+`ospec check` MUST satisfy `adr-impact-declaration` when every declared
+reference has its impact, the user answered `adr-amend-or-contradict` for
+every gated impact, and each new ADR exists, passes the decision-record lint
+with its evidence resolved in the project, is not the ADR it changes and cites
+that ADR's id. Otherwise the obligation MUST return to `pending` with the
+reason. A development decision MUST stay in the change's living document and
+MUST NOT become an ADR.
+
+`next` MUST add the non-blocking suggestion `adr-promotion` while the change has
+`public-contract`, `persistent-data` or `security-boundary` active and declares
+no ADR or quality scenario. It MUST NOT open a gate, add an obligation or
+write a file.
+
+#### Scenario: An internal library change proposes no ADR
+
+- GIVEN the `internal-feature` fixture, which touches no boundary and declares
+  no ADR
+- WHEN its signals are derived and `next` runs
+- THEN `adr-or-quality-attribute` MUST NOT be active and `next` MUST carry no
+  suggestion
+
+#### Scenario: Asynchronous messaging between modules amends the integration ADR
+
+- GIVEN a change that introduces asynchronous messaging between two modules
+  and declares `--adr 0002`, the ADR that fixes their synchronous integration
+- WHEN it records `--impact amends` with its reason
+- THEN `adr-amend-or-contradict` MUST be open with a reason naming ADR 0002
+- AND `adr-impact-declaration` MUST stay `pending` until the user answers and
+  a new ADR citing 0002 passes the lint
+
+#### Scenario: A conforming change settles at check
+
+- GIVEN a change that declares `--adr 0004` and records `--impact conforms`
+- WHEN `ospec check` runs
+- THEN `adr-impact-declaration` MUST be satisfied with no gate opened
+
+#### Scenario: A boundary without a declared ADR suggests one
+
+- GIVEN a change whose planned paths touch a public contract and that declares
+  no ADR
+- WHEN `next` runs
+- THEN it MUST carry the suggestion `adr-promotion` naming the contract
+- AND the next step MUST be the same as without the suggestion

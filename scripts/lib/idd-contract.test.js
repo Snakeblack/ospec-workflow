@@ -16,7 +16,7 @@ const SPEC_PATH = path.join(ROOT, "openspec", "specs", "idd", "spec.md");
 const FIXTURES_DIR = path.join(ROOT, "scripts", "fixtures", "idd");
 
 const REFERENCE_TYPES = ["typo", "bug", "internal-feature", "public-api", "migration", "auth"];
-const GATE_CASES = ["ambiguous-intent", "destructive-migration"];
+const GATE_CASES = ["ambiguous-intent", "destructive-migration", "architecture-amendment"];
 
 function readSpec() {
   return fs.readFileSync(SPEC_PATH, "utf8");
@@ -102,10 +102,32 @@ test("the spec names exactly the four gates", () => {
   }
 });
 
-test("the ADR signal is deferred to E3.1", () => {
-  const adr = contract.SIGNALS.find((s) => s.id === "adr-or-quality-attribute");
-  assert.strictEqual(adr.availableFrom, "E3.1");
-  assert.throws(() => contract.deriveObligations(["always", "adr-or-quality-attribute"]), /not available/);
+test("the ADR signal derives the impact declaration (E3.1)", () => {
+  assert.deepStrictEqual(contract.deriveObligations(["always", "adr-or-quality-attribute"]), ["adr-impact-declaration", "checks-pass"]);
+  assert.deepStrictEqual(contract.IMPACTS, ["none", "conforms", "amends", "supersedes", "contradicts"]);
+  const section = requirementSection(readSpec(), "REQ-idd-005");
+  for (const impact of contract.IMPACTS) {
+    assert.ok(section.includes(`\`${impact}\``), `REQ-idd-005 must name impact ${impact}`);
+  }
+});
+
+test("declared impacts are validated with the state", () => {
+  const impacts = (entries) => contract.validateState(validState({ impacts: entries }));
+  assert.ok(impacts([]).ok);
+  assert.ok(impacts([{ kind: "adr", id: "0004", impact: null }]).ok);
+  assert.ok(impacts([{ kind: "adr", id: "0004", impact: "amends", reason: "r", record: "docs/architecture/decisions/0012-x.md" }]).ok);
+  assert.ok(impacts([{ kind: "scenario", id: "deterministic-resume", impact: "conforms", reason: "r" }]).ok);
+  const rejected = [
+    [{ kind: "module", id: "x", impact: null }],
+    [{ kind: "adr", id: "0004", impact: "improves", reason: "r" }],
+    [{ kind: "adr", id: "0004", impact: "conforms" }],
+    [{ kind: "adr", id: "0004", impact: null, reason: "r" }],
+    [{ kind: "adr", id: "0004", impact: "conforms", reason: "r", record: "docs/architecture/decisions/0012-x.md" }],
+    [{ kind: "scenario", id: "s", impact: "amends", reason: "r", record: "docs/architecture/decisions/0012-x.md" }],
+    [{ kind: "adr", id: "0004", impact: null }, { kind: "adr", id: "0004", impact: null }],
+    [{ kind: "adr", id: "0004", impact: null, owner: "x" }],
+  ];
+  for (const entries of rejected) assert.strictEqual(impacts(entries).ok, false, JSON.stringify(entries));
 });
 
 test("state schema, layout and living-doc template named in the spec match the module", () => {
