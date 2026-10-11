@@ -26,7 +26,7 @@ disk.
 
 `ospec close --json` returns `records`, derived from the archived change with
 their provenance: one per decision of `change.md`, one per declared impact
-other than `none` and one per new ADR. Save each one under its `topic`, so
+that amends, supersedes or contradicts its reference, and one per new ADR. Save each one under its `topic`, so
 saving it again updates the same entry, with its `title` and a content that
 holds its `summary`, `source`, `change` and `date`. From the change, save only
 these records: never secrets, diffs, prompts or tool payloads.

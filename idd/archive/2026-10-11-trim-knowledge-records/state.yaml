@@ -1,0 +1,233 @@
+{
+  "schema": "idd-state/v1",
+  "change": "trim-knowledge-records",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "feature",
+    "summary": "ospec close deja de devolver como records los impactos conforms: solo los que se apartan de una referencia (amends, supersedes, contradicts) y los ADR nuevos, para no llenar la memoria de entradas sin valor",
+    "acceptance": "Un cambio que declara conforms y none sobre sus referencias no produce records de impacto; uno que declara amends con ADR nuevo produce el impacto y el ADR; las decisiones de change.md siguen siendo records"
+  },
+  "facts": {
+    "open": [
+      "¿Qué impactos siguen siendo records: los tres que abren el gate (amends, supersedes, contradicts, reutilizando GATED_IMPACTS) o solo los que adjuntan ADR?",
+      "¿Los conforms desaparecen de records o se resumen en un único record por cambio (p. ej. conforms ADR 0001, 0003…)?",
+      "¿Qué se hace con las 12 entradas conforms que E3.5 ya guardó en memoria: dejarlas, o marcarlas obsoletas con una actualización?",
+      "¿Versión patch (2.131.1) y un único PR?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-close.js",
+      "scripts/lib/idd-close.test.js",
+      "skills/idd/references/memory-loop.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components idd-engine, skills: ADR 0003, 0004, 0005, 0006, 0011 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "El filtro vive en knowledgeRecords de la CLI; memory-loop.md solo describe lo que devuelve close"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "Sin obligación, señal ni gate nuevos"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "El veredicto de close no cambia; solo se recorta la salida records"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "conforms",
+      "reason": "La CLI sigue sin leer ni escribir memoria; el cambio solo reduce lo que se propone guardar"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "Solo se toca la derivación de idd/archive; SDD no cambia"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "Los records siguen saliendo solo del archivo y cerrar de nuevo devuelve los mismos"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Sin memoria nada cambia"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "El filtro de impactos lo decide knowledgeRecords (scripts/lib/idd-close.js) con test en scripts/lib/idd-close.test.js; memory-loop.md cita ospec close --json y no recalcula nada",
+      "recorded_at": "2026-10-11T23:11:07.691Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "vamos con todas las recomendaciones",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-11T23:11:31.247Z",
+      "detail": {
+        "tree": "sha256:9f82fce16b701ce252b585e7f76f440e2df234d0c94ba278f0abcafd106a59d4",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-11T23:11:31.247Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 conforms",
+          "adr:0011 conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:9f82fce16b701ce252b585e7f76f440e2df234d0c94ba278f0abcafd106a59d4",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-11T23:11:34.697Z"
+    }
+  ],
+  "base": "ba69554b5eb476c777cfdcc5d0acbdf2f8047414",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:06797e25aae4b927d2767fc370207f0b5963b7b691f39bd82719882f6da05000",
+      "tree": "sha256:9f82fce16b701ce252b585e7f76f440e2df234d0c94ba278f0abcafd106a59d4",
+      "recorded_at": "2026-10-11T23:11:31.247Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e401f3ca30a0153f675adef6ee12481c397f3f4c7ddfb4911c6b0f71c84323e3",
+      "tree": "sha256:9f82fce16b701ce252b585e7f76f440e2df234d0c94ba278f0abcafd106a59d4",
+      "recorded_at": "2026-10-11T23:11:31.247Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3d63677688a06207a357aa324dd032eab64b8715106cc035bb4161be57aa5204",
+      "tree": "sha256:9f82fce16b701ce252b585e7f76f440e2df234d0c94ba278f0abcafd106a59d4",
+      "recorded_at": "2026-10-11T23:11:31.247Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f444ce7a8bd46b30abb90d1ec2965d9ed8daae7608f6fab40bdef2c3ea45bb4d",
+      "tree": "sha256:9f82fce16b701ce252b585e7f76f440e2df234d0c94ba278f0abcafd106a59d4",
+      "recorded_at": "2026-10-11T23:11:31.247Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:68de77949b21d42ae260f45daaa55cd52f5d7c4e671076449acf40c99a50c941",
+      "tree": "sha256:9f82fce16b701ce252b585e7f76f440e2df234d0c94ba278f0abcafd106a59d4",
+      "recorded_at": "2026-10-11T23:11:31.247Z"
+    }
+  ],
+  "closed_at": "2026-10-11T23:11:34.697Z"
+}

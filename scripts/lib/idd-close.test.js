@@ -202,7 +202,7 @@ test("each decision of change.md is a record with its provenance and stable topi
   assert.strictEqual(records.length, 3);
 });
 
-test("impacts other than none and the new ADRs they attach are records; nothing else is", () => {
+test("only impacts that depart from a reference and the new ADRs they attach are records", () => {
   const state = {
     change: "async-events",
     closed_at: AT,
@@ -211,6 +211,7 @@ test("impacts other than none and the new ADRs they attach are records; nothing 
       { kind: "scenario", id: "offline-operation", impact: "conforms", reason: "Works offline." },
       { kind: "adr", id: "0004", impact: null },
       { kind: "adr", id: "0003", impact: "amends", reason: "Events cross modules.", record: "docs/architecture/decisions/0012-async-events.md" },
+      { kind: "adr", id: "0005", impact: "contradicts", reason: "Closes without a check." },
     ],
   };
   const adrTitles = new Map([["docs/architecture/decisions/0012-async-events.md", "0012. Async events between modules"]]);
@@ -218,14 +219,14 @@ test("impacts other than none and the new ADRs they attach are records; nothing 
   assert.deepStrictEqual(
     records.map(({ kind, topic, title, source }) => ({ kind, topic, title, source })),
     [
-      { kind: "impact", topic: "knowledge/impact/async-events/scenario-offline-operation", title: "conforms quality scenario offline-operation", source: "idd/archive/2026-10-05-async-events/state.yaml" },
       { kind: "impact", topic: "knowledge/impact/async-events/adr-0003", title: "amends ADR 0003", source: "idd/archive/2026-10-05-async-events/state.yaml" },
       { kind: "adr", topic: "knowledge/adr/0012", title: "0012. Async events between modules", source: "docs/architecture/decisions/0012-async-events.md" },
+      { kind: "impact", topic: "knowledge/impact/async-events/adr-0005", title: "contradicts ADR 0005", source: "idd/archive/2026-10-05-async-events/state.yaml" },
     ],
   );
-  assert.strictEqual(records[2].summary, "amends ADR 0003: Events cross modules.");
+  assert.strictEqual(records[1].summary, "amends ADR 0003: Events cross modules.");
   const untitled = knowledgeRecords({ state, livingDoc: null, destination: "x" });
-  assert.strictEqual(untitled[2].title, "0012");
+  assert.strictEqual(untitled[1].title, "0012");
 });
 
 test("a change without decisions or impacts has no records", () => {

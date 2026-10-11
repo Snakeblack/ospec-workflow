@@ -1176,9 +1176,12 @@ and MUST NOT let an unreadable configuration change its next step.
 an agent MAY keep in a cross-session memory, derived from the archive alone.
 There MUST be one record per top-level bullet of the `Decisions` section of
 `change.md` (`kind: dc`, topic `knowledge/dc/<change>/<n>` numbered from 1),
-one per declared impact other than `none` (`kind: impact`, topic
+one per declared impact that departs from its reference, `amends`,
+`supersedes` or `contradicts` (`kind: impact`, topic
 `knowledge/impact/<change>/<kind>-<id>`) and one per new ADR an impact attaches
-with `--record` (`kind: adr`, topic `knowledge/adr/<NNNN>`). Each record MUST
+with `--record` (`kind: adr`, topic `knowledge/adr/<NNNN>`). An impact `none`
+or `conforms` MUST NOT be a record: the archived `state.yaml` keeps it. Each
+record MUST
 carry its `title` (the bold label of the bullet, else its first sentence, at
 most 80 characters), its `summary`, its provenance (`source`, the repository
 path it comes from, `change` and the close `date`) and its stable `topic`, so
@@ -1198,8 +1201,8 @@ records (ADR 0006).
 
 #### Scenario: Only impacts that say something are records
 
-- GIVEN a change that declares `none` on one ADR and `amends` on another with
-  a new ADR attached
+- GIVEN a change that declares `none` on one ADR, `conforms` on a quality
+  scenario and `amends` on another ADR with a new ADR attached
 - WHEN it closes
 - THEN `records` MUST hold the `amends` impact and the new ADR, and nothing
-  for the `none` impact
+  for the `none` or `conforms` impacts
