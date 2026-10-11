@@ -19,6 +19,8 @@ IDD (desarrollo guiado por impacto) es el flujo por defecto desde E1.6: el route
 
 Sin comandos en `checks:` de `idd/config.yaml`, no se obtiene la evidencia necesaria para cerrar. `ospec next` propone el paso `configure-checks`: la skill pide aprobar el comando candidato o indicar uno y espera antes de crear o editar el fichero, conservando sus claves. `ospec doctor` avisa si hay un cambio IDD abierto sin checks.
 
+El perfil de equipo (`team:` con `size` y `experience`) decide la estrategia de entrega, el umbral de review, Strict TDD y la mentoría sin volver a preguntar. Cada modo lo declara en su configuración: `idd/config.yaml` u `openspec/config.yaml`. `ospec team` muestra el perfil y sus defaults (REQ-idd-023).
+
 | Documento | Para qué sirve |
 | --- | --- |
 | [README.es.md](../README.es.md#idd-obligaciones-según-el-impacto-evidencia-de-ejecuciones-reales) | Señales, obligaciones, gates e inicio rápido. |

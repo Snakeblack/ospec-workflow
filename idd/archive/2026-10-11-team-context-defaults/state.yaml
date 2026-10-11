@@ -1,0 +1,599 @@
+{
+  "schema": "idd-state/v1",
+  "change": "team-context-defaults",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "feature",
+    "summary": "El perfil de equipo de la foundation sustituye a la escala solo|team|enterprise y decide los defaults de entrega, el umbral de review, Strict TDD y la mentoría",
+    "acceptance": "Dos proyectos con perfiles de equipo distintos obtienen del CLI defaults distintos de entrega, review, Strict TDD y mentoría sin que se pregunte de nuevo la escala ni el perfil"
+  },
+  "facts": {
+    "open": [
+      "Dónde vive el perfil de equipo: sección team: de idd/config.yaml o un objeto en el mapa de conocimiento",
+      "Forma del perfil: dimensiones size y experience, o un único enum",
+      "Qué decide el umbral de review en SDD (4R) y en IDD (trust-review)",
+      "Tabla de defaults por dimensión (entrega, review, Strict TDD, mentoría)",
+      "Precedencia frente a claves explícitas y comportamiento sin perfil",
+      "Cómo lo consume SDD: init guard sin pregunta de escala, lectura de scale: heredada y comando del CLI",
+      "Cómo llega la mentoría a IDD con el presupuesto de 12 KB de la skill idd",
+      "Si ospec declara su propio perfil (dogfood)",
+      "Versión y forma de entrega"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "agents/sdd-orchestrator.agent.md",
+      "docs/roadmaps/harness-evolution.md",
+      "idd/config.yaml",
+      "openspec/config.yaml",
+      "openspec/specs/agents/spec.md",
+      "openspec/specs/idd/spec.md",
+      "openspec/specs/skills/spec.md",
+      "scripts/eje-b-contract.test.js",
+      "scripts/lib/idd-config.js",
+      "scripts/lib/idd-config.test.js",
+      "scripts/lib/idd-next.js",
+      "scripts/lib/idd-next.test.js",
+      "scripts/lib/team-profile.js",
+      "scripts/lib/team-profile.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js",
+      "skills/foundation/SKILL.md",
+      "skills/idd/SKILL.md",
+      "skills/sdd-init/SKILL.md"
+    ],
+    "work_units": 4,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 4 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/lib/idd-config.js and 1 more (matches scripts/lib/idd-config.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, foundation, idd-engine, skills: ADR 0003, 0004, 0005, 0006, 0009, 0010, 0011 and quality scenario contract-compatibility, deterministic-resume, offline-operation",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La derivación de defaults vive en team-profile.js con tests y la exponen ospec team y ospec next; las skills SDD e IDD solo citan la orden del CLI"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "La ceremonia sigue saliendo de las señales; el perfil solo decide strict_tdd cuando la clave falta, que ya era una entrada de la derivación"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "El cierre sigue ligado a evidencia; el perfil no satisface ni retira obligaciones"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "conforms",
+      "reason": "team-profile.js no alcanza la detección de memoria"
+    },
+    {
+      "kind": "adr",
+      "id": "0009",
+      "impact": "conforms",
+      "reason": "No cambia ningún esquema versionado; team es una clave opcional de idd/config.yaml validada por el CLI"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas; el lector de openspec/config.yaml es propio"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "Cada modo guarda team en su configuración; ospec team resuelve por modo activo o --mode, IDD nunca lee openspec/ y sdd-init nunca escribe idd/config.yaml"
+    },
+    {
+      "kind": "scenario",
+      "id": "contract-compatibility",
+      "impact": "conforms",
+      "reason": "Sin perfil todo se comporta como antes; la scale: heredada se sigue leyendo"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "Los defaults son una función pura del perfil en disco"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "ospec team solo lee archivos locales"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "ospec team tiene tests en scripts/lib/team-profile.test.js y scripts/ospec.test.js (REQ-idd-023); sdd-init, el orquestador y la skill idd citan ospec team --mode sdd y el bloque team de ospec next en lugar de describir la tabla de defaults",
+      "recorded_at": "2026-10-11T20:56:39.166Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Todas las recomendadas: (1) team: en idd/config.yaml; (2) size solo|small|multi-team + experience junior|mixed|senior; (3) review: 4R en SDD (solo sin 4R, multi-team con trazabilidad required), IDD sin cambio; (4) entrega single-pr|ask-on-risk|auto-chain, Strict TDD false|true|true y junior fuerza true, mentoría por experience; (5) clave explícita gana, sin perfil = hoy; (6) ospec team --json, init guard sin escala, scale: heredada como fallback; (7) ospec next expone team.mentorship y una línea en la skill idd; (8) ospec declara solo/senior; (9) minor 2.130.0, un PR con size:exception",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-11T20:56:59.582Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 conforms",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:8760e902e851875881ff8968bd43fd00ec67d816d17c208b0d31e52eedd61185",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-11T20:58:04.151Z",
+      "detail": {
+        "tree": "sha256:5cdd90dba2a78e738008e42959b6c1c13e9c0c220ea57dd15fdd7844f0b9f996",
+        "runs": [
+          "run-9"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-11T20:58:04.151Z",
+      "detail": {
+        "tree": "sha256:5cdd90dba2a78e738008e42959b6c1c13e9c0c220ea57dd15fdd7844f0b9f996",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/agents/spec.md",
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/skills/spec.md"
+        ],
+        "tests": [
+          "scripts/eje-b-contract.test.js",
+          "scripts/lib/idd-config.test.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/team-profile.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-11T20:58:04.151Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 conforms",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:5cdd90dba2a78e738008e42959b6c1c13e9c0c220ea57dd15fdd7844f0b9f996",
+        "fitness": [
+          "run-10",
+          "run-11",
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-11T20:58:56.883Z",
+      "detail": {
+        "tree": "sha256:7bee8452bdf9e41205d0ad1b9e86b17e582466ed26f745d96c61fdd77356eec7",
+        "runs": [
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-11T20:58:56.883Z",
+      "detail": {
+        "tree": "sha256:7bee8452bdf9e41205d0ad1b9e86b17e582466ed26f745d96c61fdd77356eec7",
+        "check": "ev-5",
+        "documents": [
+          "openspec/specs/agents/spec.md",
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/skills/spec.md"
+        ],
+        "tests": [
+          "scripts/eje-b-contract.test.js",
+          "scripts/lib/idd-config.test.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/team-profile.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-11T20:58:56.883Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 conforms",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:7bee8452bdf9e41205d0ad1b9e86b17e582466ed26f745d96c61fdd77356eec7",
+        "fitness": [
+          "run-18",
+          "run-19",
+          "run-20",
+          "run-21",
+          "run-22",
+          "run-23",
+          "run-24"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-11T20:59:02.366Z"
+    }
+  ],
+  "base": "b56e97a0acf871271aef04c47d62f646fce279ae",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:feae7898304f1523d4e9ccc09d52d81c74cc0df0cb7a4ac8e453d61612d0a7e0",
+      "tree": "sha256:8760e902e851875881ff8968bd43fd00ec67d816d17c208b0d31e52eedd61185",
+      "recorded_at": "2026-10-11T20:56:59.582Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f59f9890bd850ce72c82e4ac4583004592b5573cfcbbe4c3080f0ee170870900",
+      "tree": "sha256:8760e902e851875881ff8968bd43fd00ec67d816d17c208b0d31e52eedd61185",
+      "recorded_at": "2026-10-11T20:56:59.582Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a44e859bb8653dc346ede3e89802c5dace2b578e02e5e3842f8b2f4738ae7e94",
+      "tree": "sha256:8760e902e851875881ff8968bd43fd00ec67d816d17c208b0d31e52eedd61185",
+      "recorded_at": "2026-10-11T20:56:59.582Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8379a954da1f0f58cec3b9e19426fff950cd4974839c6d8c9e43d61f18a17f02",
+      "tree": "sha256:8760e902e851875881ff8968bd43fd00ec67d816d17c208b0d31e52eedd61185",
+      "recorded_at": "2026-10-11T20:56:59.582Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9f48543d2c1f3c0597351069ba218e2d45fcbcaca8bbad4d2ffd443c18f80956",
+      "tree": "sha256:8760e902e851875881ff8968bd43fd00ec67d816d17c208b0d31e52eedd61185",
+      "recorded_at": "2026-10-11T20:56:59.582Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:8760e902e851875881ff8968bd43fd00ec67d816d17c208b0d31e52eedd61185",
+      "recorded_at": "2026-10-11T20:56:59.582Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0b0543490b7c307113549ba88413001598caac0222bf7c056fc5ebfab7a525ba",
+      "tree": "sha256:8760e902e851875881ff8968bd43fd00ec67d816d17c208b0d31e52eedd61185",
+      "recorded_at": "2026-10-11T20:56:59.582Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6bf2ed5e650019b87bdbe33c4cedbfdc76c5931ca8875386f6215e57f98f4c26",
+      "tree": "sha256:8760e902e851875881ff8968bd43fd00ec67d816d17c208b0d31e52eedd61185",
+      "recorded_at": "2026-10-11T20:56:59.582Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:852df16bb1861870ad51b0687628100813b62200406105c53cf9caaf1b9c865e",
+      "tree": "sha256:5cdd90dba2a78e738008e42959b6c1c13e9c0c220ea57dd15fdd7844f0b9f996",
+      "recorded_at": "2026-10-11T20:58:04.151Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:eff74da4293aeef2fbaf1420325c3b899302e8e99ca69c0a1c6dc87d16852411",
+      "tree": "sha256:5cdd90dba2a78e738008e42959b6c1c13e9c0c220ea57dd15fdd7844f0b9f996",
+      "recorded_at": "2026-10-11T20:58:04.151Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4c54680791528ec7dea4a9cf501a1a326c3662b7c227603c5fb4c41de61b966e",
+      "tree": "sha256:5cdd90dba2a78e738008e42959b6c1c13e9c0c220ea57dd15fdd7844f0b9f996",
+      "recorded_at": "2026-10-11T20:58:04.151Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ffa3b5f9c51a640b943c66ebef6d7e60f950641c7078b52da0390d91bec85666",
+      "tree": "sha256:5cdd90dba2a78e738008e42959b6c1c13e9c0c220ea57dd15fdd7844f0b9f996",
+      "recorded_at": "2026-10-11T20:58:04.151Z"
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:dd1b29045455d322c31def9851dec7a85a432d99ff93617841cfed5dfdcfaa06",
+      "tree": "sha256:5cdd90dba2a78e738008e42959b6c1c13e9c0c220ea57dd15fdd7844f0b9f996",
+      "recorded_at": "2026-10-11T20:58:04.151Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:5cdd90dba2a78e738008e42959b6c1c13e9c0c220ea57dd15fdd7844f0b9f996",
+      "recorded_at": "2026-10-11T20:58:04.151Z"
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:dce60bfff2f74694a91c4367c1fbe3f10af396cfbbe6dd423c7190830b651d55",
+      "tree": "sha256:5cdd90dba2a78e738008e42959b6c1c13e9c0c220ea57dd15fdd7844f0b9f996",
+      "recorded_at": "2026-10-11T20:58:04.151Z"
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6b00487e22cceefab494e62b08f5be3a69c41b3a33946e9e0d1289e6c542bb7e",
+      "tree": "sha256:5cdd90dba2a78e738008e42959b6c1c13e9c0c220ea57dd15fdd7844f0b9f996",
+      "recorded_at": "2026-10-11T20:58:04.151Z"
+    },
+    {
+      "id": "run-17",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0224218d9ac5a3a215e7f9ff23a38598fa417bde151d34bcaebc2f7e2a4b494f",
+      "tree": "sha256:7bee8452bdf9e41205d0ad1b9e86b17e582466ed26f745d96c61fdd77356eec7",
+      "recorded_at": "2026-10-11T20:58:56.883Z"
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:24fccc03c1e3288e035a50c706758bdfb5142ce0d3efe947fed27fd16d0bbc53",
+      "tree": "sha256:7bee8452bdf9e41205d0ad1b9e86b17e582466ed26f745d96c61fdd77356eec7",
+      "recorded_at": "2026-10-11T20:58:56.883Z"
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4417a8c74d48149a305bcfd937af9950bdf5ecb205c224d94350c616c10bde33",
+      "tree": "sha256:7bee8452bdf9e41205d0ad1b9e86b17e582466ed26f745d96c61fdd77356eec7",
+      "recorded_at": "2026-10-11T20:58:56.883Z"
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d76d1a228a258b04fcca4c5477e1772ffa25457f952fc145f32f5e6b02c069e4",
+      "tree": "sha256:7bee8452bdf9e41205d0ad1b9e86b17e582466ed26f745d96c61fdd77356eec7",
+      "recorded_at": "2026-10-11T20:58:56.883Z"
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:754a0e302b4f01d9f5340ed702148aec67205418837227f98c3a66922f8d599a",
+      "tree": "sha256:7bee8452bdf9e41205d0ad1b9e86b17e582466ed26f745d96c61fdd77356eec7",
+      "recorded_at": "2026-10-11T20:58:56.883Z"
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:7bee8452bdf9e41205d0ad1b9e86b17e582466ed26f745d96c61fdd77356eec7",
+      "recorded_at": "2026-10-11T20:58:56.883Z"
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8886f3180dcc0b64e94b04e46b765c55db7a3c9399203197399ce9678cdd8438",
+      "tree": "sha256:7bee8452bdf9e41205d0ad1b9e86b17e582466ed26f745d96c61fdd77356eec7",
+      "recorded_at": "2026-10-11T20:58:56.883Z"
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3c3762aa81721dc62b9729f7d13621056fba8db69feacc151a1196a86ccd4664",
+      "tree": "sha256:7bee8452bdf9e41205d0ad1b9e86b17e582466ed26f745d96c61fdd77356eec7",
+      "recorded_at": "2026-10-11T20:58:56.883Z"
+    }
+  ],
+  "closed_at": "2026-10-11T20:59:02.366Z"
+}

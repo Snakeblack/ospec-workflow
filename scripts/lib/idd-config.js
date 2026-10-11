@@ -9,10 +9,11 @@
 const { CHANGE_ROOT, MODES } = require("./idd-contract.js");
 const { validateContracts } = require("./idd-contracts.js");
 const { validateImpact } = require("./idd-impact.js");
+const { teamDefaults, validateTeam } = require("./team-profile.js");
 
 const CONFIG_FILE = `${CHANGE_ROOT}/config.yaml`;
-const CONFIG_KEYS = Object.freeze(["mode", "strict_tdd", "checks", "impact", "contracts"]);
-const SECTION_KEYS = new Set(["checks", "impact", "contracts"]);
+const CONFIG_KEYS = Object.freeze(["mode", "strict_tdd", "team", "checks", "impact", "contracts"]);
+const SECTION_KEYS = new Set(["team", "checks", "impact", "contracts"]);
 
 class IddConfigError extends Error {
   constructor(message) {
@@ -107,7 +108,17 @@ function parseIddConfig(text) {
 
   const mode = raw.mode ?? null;
   if (mode !== null && !MODES.includes(mode)) throw new IddConfigError(`mode must be ${MODES.join(" or ")}, got ${mode}`);
-  const strictTdd = "strict_tdd" in raw ? parseBoolean("strict_tdd", raw.strict_tdd) : false;
+  let team = null;
+  if (raw.team) {
+    try {
+      team = validateTeam(parseSection("team", raw.team.lines));
+    } catch (error) {
+      if (error instanceof IddConfigError) throw error;
+      throw new IddConfigError(error.message);
+    }
+  }
+  // An explicit strict_tdd wins; without it the team profile decides (REQ-idd-023).
+  const strictTdd = "strict_tdd" in raw ? parseBoolean("strict_tdd", raw.strict_tdd) : team ? teamDefaults(team).strict_tdd : false;
   const checks = raw.checks ? parseChecks(raw.checks.lines) : [];
   const impact = raw.impact ? validateImpact(parseSection("impact", raw.impact.lines)) : {};
   let contracts = {};
@@ -119,7 +130,7 @@ function parseIddConfig(text) {
       throw new IddConfigError(error.message);
     }
   }
-  return { mode, strictTdd, checks, impact, contracts };
+  return { mode, strictTdd, team, checks, impact, contracts };
 }
 
 module.exports = {

@@ -945,36 +945,36 @@ finding.
 
 ---
 
-## 16. Scale Presets (sdd-init)
+## 16. Team Profile (sdd-init)
 
-> Reconciled from PR #33 (B5) on 2026-07-03.
+> Reconciled from PR #33 (B5) on 2026-07-03; the scale presets became the team
+> profile of REQ-idd-023 in E3.4.
 
-### Requirement: Scale Preset Materialization at Init
+### Requirement: Team Profile Materialization at Init
 
 `sdd-init`, in `openspec` mode (Step 6b), MUST read a
-`scale: <solo|team|enterprise>` line from the `## Parameters` prompt block
-(the orchestrator asks the user once at first init; absent → default `team`,
-`sdd-init` asks nothing itself), persist `scale: {value}` into
-`openspec/config.yaml`, and materialize the corresponding preset. Presets only
-materialize other config blocks at init time — later manual edits to those
-blocks always take precedence over the preset. On re-init with an existing
-`scale:` key, the value MUST be preserved unchanged (same rule as the
-`baseline` block).
+`team: { size, experience }` line from the `## Parameters` prompt block (the
+orchestrator asks the user once at first init; `sdd-init` asks nothing
+itself), persist it as a top-level `team:` section of
+`openspec/config.yaml`, and MUST NOT write `idd/config.yaml` (ADR 0011). It
+MUST materialize the `defaults` that `ospec team --mode sdd --json` returns,
+never its own reading of the profile: `tdd_mode` into `testing.tdd_mode` when
+a runner exists, `traceability: { trailers: required }` when
+`review.traceability` is `required`, `mentorship: { mode }` when it is not
+`balanced`, and 4R out of the default route gates when
+`review.quality_review` is `false`. Later manual edits to those blocks always
+take precedence. Without `team` in the parameters it MUST write no profile
+and keep the previous defaults. On re-init an existing `team:` or legacy
+`scale:` key MUST be preserved unchanged (same rule as the `baseline` block).
 
-| Preset | Materialized behavior |
-|---|---|
-| `solo` | No extra blocks; routing prefers `lite` for trivial/small; clarify fires only on `residual_ambiguity`; 4R excluded from default route gates |
-| `team` (default) | Unchanged defaults; the Change Collision Gate applies whenever other active changes exist; traceability trailers stay advisory |
-| `enterprise` | Writes `strict_tdd: true` (when a runner exists), `traceability: { trailers: required }`, `mentorship: { mode: balanced }`; keeps 4R in the standard route gates; recommends declaring `quality_gates:` with `on_fail: halt` |
+#### Scenario: First init writes a solo profile
 
-#### Scenario: First init writes solo preset
-
-- GIVEN a first-time `sdd-init` run receives `scale: solo` in `## Parameters`
+- GIVEN a first-time `sdd-init` run receives `team: { size: solo, experience: senior }` in `## Parameters`
 - WHEN Step 6b runs
-- THEN `openspec/config.yaml` gets `scale: solo`
-- AND no extra `quality_gates`/`traceability`/`mentorship` blocks are written
+- THEN `openspec/config.yaml` gets `team:` with `size: solo` and `experience: senior`
+- AND `testing.tdd_mode: standard`, `mentorship: { mode: expert }` and no `traceability` block are written
 
-#### Scenario: Re-init preserves existing scale
+#### Scenario: Re-init preserves a legacy scale
 
 - GIVEN `openspec/config.yaml` already has `scale: enterprise`
 - WHEN `sdd-init` re-runs Step 6b

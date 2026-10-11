@@ -261,15 +261,21 @@ routing:
 # ---------------------------------------------------------------------------
 #
 # ---------------------------------------------------------------------------
-# scale: (OPTIONAL — one key; sdd-init writes it from the first-init question)
+# team: (OPTIONAL — sdd-init writes it from the first-init question)
 #
-# Project scale preset. Absence = `team`. Presets only materialize other config
-# blocks at init time — editing those blocks later always wins over the preset.
-#   solo        → lite-first, clarify only on residual_ambiguity, no 4R
-#   team        → current defaults + collision gate + advisory trailers
-#   enterprise  → strict TDD + 4R + traceability required + mentorship balanced
+# Team profile (REQ-idd-023). It replaces the old `scale:` key, which is still
+# read when `team:` is absent (solo → solo, team → small, enterprise →
+# multi-team). `ospec team --mode sdd` derives the defaults; sdd-init
+# materializes them at init, and editing those blocks later always wins.
+#   size: solo        → single-pr, no 4R, tdd_mode standard
+#   size: small       → ask-on-risk, 4R, tdd_mode focused
+#   size: multi-team  → auto-chain, 4R + traceability required, tdd_mode strict
+#   experience: junior | mixed | senior → mentorship mentor | balanced | expert
+#                                         (junior also sets tdd_mode strict)
 #
-# scale: team
+# team:
+#   size: small
+#   experience: mixed
 # ---------------------------------------------------------------------------
 #
 # ---------------------------------------------------------------------------

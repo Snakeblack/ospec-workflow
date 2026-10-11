@@ -345,3 +345,13 @@ test("[REQ-idd-022] next carries the fitness functions it is given without chang
   assert.deepStrictEqual(result.fitness, fitness);
   assert.deepStrictEqual(result.next_step, plain.next_step);
 });
+
+test("[REQ-idd-023] next carries the team profile it is given without changing the next step", () => {
+  const state = stateFromFixture(loadFixtures().find((f) => f.id === "bug"));
+  const plain = nextForChange(state);
+  assert.ok(!("team" in plain));
+  const team = { size: "solo", experience: "senior", source: "idd/config.yaml", delivery_strategy: "single-pr", mentorship: "expert" };
+  const result = nextForChange(state, { team });
+  assert.deepStrictEqual(result.team, team);
+  assert.deepStrictEqual(result.next_step, plain.next_step);
+});

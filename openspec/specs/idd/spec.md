@@ -509,7 +509,8 @@ changes, and IDD MUST NOT read its configuration from `openspec/`, whose
 `config.yaml` configures only the SDD mode. The file is optional; when it is
 absent every key takes its default. Its top-level keys MUST be only `mode`
 (`idd` or `sdd`, the project mode of REQ-idd-001; absent means none),
-`strict_tdd` (`true` or `false`, default `false`), `checks` (the checks
+`strict_tdd` (`true` or `false`; absent, the team profile decides it and,
+without a profile, `false`), `team` (the team profile of REQ-idd-023), `checks` (the checks
 `ospec check` runs, as `name: command` in declared order, REQ-idd-014; absent
 means none), `impact` (the impact section of REQ-idd-012) and `contracts`
 (where contract documents and their tests live, REQ-idd-015). An unknown or repeated key, a value outside its
@@ -1106,3 +1107,65 @@ refused.
 - THEN `fitness.manual` MUST list it and `adr-impact-declaration` MUST NOT wait
   for it
 - AND `ospec record fitness` MUST keep its evidence in `attestations`
+
+### Requirement: Team Profile Defaults {#REQ-idd-023}
+
+A project MAY declare its team profile, which replaces the SDD scale preset
+(`solo | team | enterprise`). Each mode keeps it in its own configuration
+(ADR 0011): IDD in the `team` section of `idd/config.yaml`, SDD in the
+top-level `team:` of `openspec/config.yaml`. The profile MUST hold `size`
+(`solo`, `small` or `multi-team`) and MAY hold `experience` (`junior`,
+`mixed` or `senior`); another key or value MUST be refused, with
+`config-invalid` in `idd/config.yaml` and `team-invalid` in
+`openspec/config.yaml`. The defaults MUST follow from the profile alone:
+
+| `size` | Delivery strategy | Quality review (SDD 4R) | Traceability | Strict TDD | SDD `tdd_mode` |
+| --- | --- | --- | --- | --- | --- |
+| `solo` | `single-pr` | off | `advisory` | `false` | `standard` |
+| `small` | `ask-on-risk` | on | `advisory` | `true` | `focused` |
+| `multi-team` | `auto-chain` | on | `required` | `true` | `strict` |
+
+Every delivery strategy keeps the 400-line review budget. `experience`
+decides mentorship (`junior` → `mentor`, `mixed` → `balanced`, `senior` →
+`expert`; absent → `balanced`), and `junior` MUST turn Strict TDD on
+(`tdd_mode: strict`) whatever the size. The IDD trust review MUST stay bound
+to `security-boundary` (REQ-idd-016) for every profile. An explicit key MUST
+win over the profile: `strict_tdd` in `idd/config.yaml`, and in SDD the blocks
+`sdd-init` materialized and the user later edited. Without a profile every
+default MUST stay as it was before this requirement.
+
+`ospec team [--mode <idd|sdd>] [--json]` MUST be read-only and MUST return
+the mode, the profile, its `source` and its `defaults`. Without `--mode` the
+mode is the active one: IDD when `idd/config.yaml` exists and its `mode` is
+not `sdd`, else SDD; `--mode` reads that mode's declaration whatever mode is
+active, and another value is a usage error. IDD MUST read only
+`idd/config.yaml`. SDD MUST read only `openspec/config.yaml`: its `team:`
+first, else a legacy `scale:` (`solo` → `solo`, `team` → `small`,
+`enterprise` → `multi-team`, with no experience), else no profile. `ospec
+next` MUST return `team` (the profile, its source, the delivery strategy and
+the mentorship) for an IDD change when `idd/config.yaml` declares a profile,
+and MUST NOT let an unreadable configuration change its next step.
+
+#### Scenario: Two teams get different defaults without a question
+
+- GIVEN one project whose `idd/config.yaml` declares `team: { size: solo,
+  experience: senior }` and another with `team: { size: multi-team,
+  experience: junior }`
+- WHEN `ospec team` and `ospec next` run in each
+- THEN the first MUST get `single-pr`, no Strict TDD and `expert`, and the
+  second `auto-chain`, `tdd-red-green` for a feature and `mentor`
+- AND neither MUST open a gate or ask for the scale
+
+#### Scenario: Each mode reads only its own profile
+
+- GIVEN `openspec/config.yaml` with `team: { size: small }` and an
+  `idd/config.yaml` without `team` and without `mode: sdd`
+- WHEN `ospec team` runs
+- THEN the profile MUST be absent and the defaults MUST be unchanged
+
+#### Scenario: A legacy scale still decides the SDD defaults
+
+- GIVEN `mode: sdd` and `openspec/config.yaml` with `scale: enterprise`
+- WHEN `ospec team` runs
+- THEN the profile MUST be `size: multi-team` with source
+  `openspec/config.yaml scale`

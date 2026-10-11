@@ -188,6 +188,9 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/idd-fitness.js",
   "scripts/lib/idd-fitness.test.js",
   "scripts/lib/memory-boundary.test.js",
+  // E3.4 team profile defaults (roadmap harness-evolution).
+  "scripts/lib/team-profile.js",
+  "scripts/lib/team-profile.test.js",
   // E1.13 pre-commit mode source and derived .ospec/ gitignore (roadmap harness-evolution).
   "scripts/lib/precommit-strict.js",
   "scripts/lib/precommit-strict.test.js",
@@ -553,6 +556,11 @@ test("K1 scope guard: fixed routing and phase validation remain byte-equivalent 
             /^(\s*- )Ask at most four questions per round, each with a recommended answer$/m,
             "$1Ask one blocking question at a time"
           )
+          // Sanctioned successor evolution (E3.4 team-context-defaults): the
+          // commented-out `team:` block replaces the commented-out `scale:` block.
+          // Both are strict no-ops; an uncommented block does not match.
+          .replace(/^# team: \(OPTIONAL.*?\n#   experience: mixed\n/ms, "<scale-or-team>\n")
+          .replace(/^# scale: \(OPTIONAL.*?\n# scale: team\n/ms, "<scale-or-team>\n")
           .replace(/\n{3,}/g, "\n\n");
       assert.equal(
         normalizeConfig(baseline.stdout),

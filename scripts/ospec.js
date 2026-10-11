@@ -10,6 +10,8 @@
 // takes obligation evidence: the CLI records it only from executions it
 // observes (REQ-idd-007). `doctor`
 // diagnoses the installation and the project without writing (REQ-idd-019).
+// `team` resolves the team profile of the active mode and the defaults it
+// decides (REQ-idd-023).
 //
 // Exit codes: 0 ok, 1 refused by the IDD contract (or doctor found an error),
 // 2 usage error.
@@ -32,7 +34,7 @@ const {
 } = require("./lib/idd-check.js");
 const { classifyContractPaths } = require("./lib/idd-contracts.js");
 const { archiveChange, closeChange, livingDocStatus, renderEvidence } = require("./lib/idd-close.js");
-const { IddConfigError } = require("./lib/idd-config.js");
+const { CONFIG_FILE, IddConfigError, parseIddConfig } = require("./lib/idd-config.js");
 const { ARCHIVE_ROOT, DECISIONS_ROOT, LIVING_DOC_FILE, STATE_FILE, isIntentAmbiguous } = require("./lib/idd-contract.js");
 const { runCommand } = require("./lib/idd-exec.js");
 const { fitnessPlan } = require("./lib/idd-fitness.js");
@@ -62,6 +64,7 @@ const { IddImpactError, matchImpact } = require("./lib/idd-impact.js");
 const { DecisionGapError, nextRound, recordAnswer } = require("./lib/decision-gap.js");
 const { DoctorUsageError, renderDoctor, runDoctor } = require("./lib/ospec-doctor.js");
 const { applyDerivation, deriveSignals } = require("./lib/idd-signals.js");
+const { TeamProfileError, resolveTeam } = require("./lib/team-profile.js");
 const { IddStoreError, changeDir, listChanges, mutateChange, readChange } = require("./lib/idd-store.js");
 const { withFileLock } = require("./lib/ospec-state.js");
 const {
@@ -104,6 +107,7 @@ const USAGE = `Usage:
   ospec review record|validate --change <id> --result <json>|@<file>
   ospec close --change <id>
   ospec doctor [--target <host>] [--json]
+  ospec team [--mode <idd|sdd>] [--json]
   ospec foundation next [--profile <id>] [--map <path>] [--json]
   ospec foundation record --slot <id> --state <confirmed|assumed|n/a|deferred>
                           [--source-kind <user|document|repository>] [--source-ref <text>]
@@ -152,6 +156,7 @@ const OPTIONS = {
   result: { type: "string" },
   root: { type: "string" },
   target: { type: "string" },
+  mode: { type: "string" },
   profile: { type: "string" },
   map: { type: "string" },
   slot: { type: "string" },
@@ -671,6 +676,47 @@ function changeKnowledge(root, state) {
   return { references: resolved.references, warnings: [...warnings, ...resolved.warnings], ...(view ? { fitness: view } : {}) };
 }
 
+function readText(file) {
+  try {
+    return fs.readFileSync(file, "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+// The team profile of the active mode, or of the --mode given, and its
+// defaults (REQ-idd-023): IDD reads idd/config.yaml, SDD reads
+// openspec/config.yaml (ADR 0011).
+function readTeam(root, mode = null) {
+  if (mode !== null && !["idd", "sdd"].includes(mode)) throw new UsageError(`team --mode must be idd or sdd, got ${mode}`);
+  const iddText = mode === "sdd" ? null : readText(path.join(root, CONFIG_FILE));
+  return resolveTeam({
+    idd: iddText == null ? null : parseIddConfig(iddText),
+    openspecText: mode === "idd" ? null : readText(path.join(root, "openspec", "config.yaml")),
+    mode,
+  });
+}
+
+// The team block of ospec next: only an IDD profile, and a configuration that
+// does not parse leaves it out, since the next step never depends on it.
+function nextTeam(root) {
+  let team;
+  try {
+    team = readTeam(root);
+  } catch (error) {
+    if (error instanceof IddConfigError || error instanceof TeamProfileError) return null;
+    throw error;
+  }
+  if (team.mode !== "idd" || !team.profile) return null;
+  return {
+    ...team.profile,
+    source: team.source,
+    delivery_strategy: team.defaults.delivery_strategy,
+    mentorship: team.defaults.mentorship,
+  };
+}
+
 async function run(command, positionals, values) {
   const root = values.root || process.cwd();
   if (command === "status") {
@@ -681,12 +727,14 @@ async function run(command, positionals, values) {
     try {
       const states = await listChanges(root);
       const next = nextForProject(states, { change: values.change });
+      if (!next.change) return next;
       const knowledge = changeKnowledge(root, states.find((state) => state.change === next.change));
+      const team = nextTeam(root);
       // Intent gates and change selection do not depend on configuration.
       if (next.next_step.action !== "satisfy-obligation" || !["checks-pass", "contract-spec-and-test"].includes(next.next_step.obligation)) {
-        return knowledge ? nextForProject(states, { change: values.change, knowledge }) : next;
+        return knowledge || team ? nextForProject(states, { change: values.change, knowledge, team }) : next;
       }
-      return nextForProject(states, { change: values.change, ...readProjectContext(root), knowledge });
+      return nextForProject(states, { change: values.change, ...readProjectContext(root), knowledge, team });
     } catch (error) {
       if (/^unknown change/.test(error.message)) throw new IddRecordError("unknown-change", error.message);
       throw error;
@@ -699,6 +747,7 @@ async function run(command, positionals, values) {
   if (command === "close") return close(root, values);
   if (command === "doctor") return runDoctor({ root, target: values.target ?? null });
   if (command === "foundation") return foundation(root, positionals, values);
+  if (command === "team") return readTeam(root, values.mode ?? null);
   if (command === "record") {
     const [type] = positionals;
     const reducer = reducerFor(type, values, root);
@@ -750,6 +799,7 @@ function describeNext(result) {
   lines.push(...describeFitness(result.fitness));
   for (const warning of result.warnings || []) lines.push(`warning: ${warning}`);
   for (const suggestion of result.suggestions || []) lines.push(`suggestion ${suggestion.id}: ${suggestion.reason}; ${suggestion.how}`);
+  if (result.team) lines.push(`team: ${result.team.size}; delivery ${result.team.delivery_strategy}; mentorship ${result.team.mentorship}`);
   return lines.join("\n");
 }
 
@@ -879,8 +929,22 @@ function describeFoundation(result) {
   return lines.join("\n");
 }
 
+function describeTeam(result) {
+  if (!result.profile) return `mode: ${result.mode}\nteam: no profile declared; defaults unchanged`;
+  const { profile, defaults } = result;
+  return [
+    `mode: ${result.mode}`,
+    `team: size ${profile.size}, experience ${profile.experience ?? "unset"} (${result.source})`,
+    `delivery: ${defaults.delivery_strategy} (review budget ${defaults.review.budget_lines} lines)`,
+    `review: quality review ${defaults.review.quality_review ? "on" : "off"}, traceability ${defaults.review.traceability}`,
+    `strict tdd: ${defaults.strict_tdd} (sdd tdd_mode ${defaults.tdd_mode})`,
+    `mentorship: ${defaults.mentorship}`,
+  ].join("\n");
+}
+
 function describe(command, result) {
   if (command === "next") return describeNext(result);
+  if (command === "team") return describeTeam(result);
   if (command === "foundation") return describeFoundation(result);
   if (command === "close") return describeClose(result);
   if (command === "doctor") return renderDoctor(result);
@@ -925,6 +989,7 @@ async function main(argv = process.argv.slice(2)) {
       error instanceof IddRecordError ||
       error instanceof IddStoreError ||
       error instanceof IddConfigError ||
+      error instanceof TeamProfileError ||
       error instanceof IddImpactError ||
       error instanceof IddWorkspaceError ||
       error instanceof DecisionGapError;
