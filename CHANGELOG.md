@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.131.1] - 2026-10-11
+
+### Changed
+- **Menos ruido en los registros de conocimiento**: `ospec close --json` ya no devuelve un registro por cada impacto `conforms`; solo los impactos que enmiendan, sustituyen o contradicen su referencia (`amends`, `supersedes`, `contradicts`) y los ADR nuevos, además de las decisiones de `change.md`. Los `none` y `conforms` se quedan en el `state.yaml` archivado (REQ-idd-024). En E3.5, 12 de los 19 registros eran `conforms` sin valor para la memoria. Hecho con IDD (`idd/archive/2026-10-11-trim-knowledge-records/`).
+
+**Verificación directa**: `node scripts/check.js` (3615 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.131.0] - 2026-10-11
 
 ### Added
