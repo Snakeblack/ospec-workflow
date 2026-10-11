@@ -33,6 +33,7 @@ const { archiveChange, closeChange, livingDocStatus, renderEvidence } = require(
 const { IddConfigError } = require("./lib/idd-config.js");
 const { ARCHIVE_ROOT, DECISIONS_ROOT, LIVING_DOC_FILE, STATE_FILE, isIntentAmbiguous } = require("./lib/idd-contract.js");
 const { runCommand } = require("./lib/idd-exec.js");
+const { resolveReferences } = require("./lib/idd-knowledge.js");
 const { nextForChange, nextForProject, statusOf } = require("./lib/idd-next.js");
 const { IddRecordError, recordGate, recordImpact, recordIntent, recordRetract, recordSignal, recordWithdraw } = require("./lib/idd-record.js");
 const {
@@ -59,6 +60,7 @@ const {
   readDecisionRecords,
   readGitDiff,
   readHead,
+  readKnowledgeSources,
   readProjectContext,
   readTreeFingerprint,
   snapshotTree,
@@ -236,7 +238,8 @@ function diffConfirmation(root, state, signalId) {
   if (state.status !== "open" || !state.signals.some((signal) => signal.id === signalId && signal.source === "declaration")) return null;
   const context = readProjectContext(root);
   const diff = readGitDiff(root, { base: diffBase({}, state) });
-  const { signals: derived } = deriveSignals({ intent: state.intent, diff, patterns: context.patterns });
+  const { map, sources } = readKnowledgeSources(root);
+  const { signals: derived } = deriveSignals({ intent: state.intent, diff, patterns: context.patterns, knowledge: { map, sources } });
   return derived.find((signal) => signal.id === signalId && signal.source === "diff")?.reason ?? null;
 }
 
@@ -272,6 +275,7 @@ async function signals(root, values) {
   };
   requireKnownReferences(root, refs);
   const context = readProjectContext(root);
+  const { map, sources, warnings } = readKnowledgeSources(root);
   const stored = values.diff || values.base ? await readChange(root, values.change) : null;
   const diff = values.diff || values.base ? readGitDiff(root, { base: diffBase(values, stored) }) : {};
   let derivation;
@@ -280,12 +284,14 @@ async function signals(root, values) {
     values.change,
     existing((current) => {
       const intent = current.intent && current.intent.kind ? current.intent : null;
-      derivation = deriveSignals({ intent, strictTdd: context.strictTdd, declaration, diff, patterns: context.patterns });
+      derivation = deriveSignals({ intent, strictTdd: context.strictTdd, declaration, diff, patterns: context.patterns, knowledge: { map, sources } });
       return applyDerivation(current, derivation, { plan: declaresPlan(values) ? declaration : null });
     }),
   );
   const { signals: derived, gates, floor } = derivation;
-  return { change: state.change, changed, added, signals: derived, gates, floor, next: nextForChange(state, context) };
+  const result = { change: state.change, changed, added, signals: derived, gates, floor, next: nextForChange(state, context) };
+  if (warnings.length) result.warnings = warnings;
+  return result;
 }
 
 // The change's own base keeps its committed work in the diff (REQ-idd-014).
@@ -320,6 +326,7 @@ async function check(root, values) {
 
   const context = readProjectContext(root);
   const diff = readGitDiff(root, { base: diffBase(values, current) });
+  const { map, sources, warnings } = readKnowledgeSources(root);
   const treeBefore = readTreeFingerprint(root);
   const checkTreeBefore = readCheckTreeFingerprint(root, context.checks);
   const checks = context.checks.map(({ name, command }) => ({ name, command, ...runCommand(command, { cwd: root }) }));
@@ -346,6 +353,7 @@ async function check(root, values) {
         strictTdd: context.strictTdd,
         diff,
         patterns: context.patterns,
+        knowledge: { map, sources },
       });
       const derived = applyDerivation(stored, derivation);
       added = derived.added;
@@ -369,7 +377,9 @@ async function check(root, values) {
     reasons,
     livingDoc: readLivingDoc(root, state),
   });
-  return { change: state.change, changed, added, checks, tree: checkTree, ...verdict, next: nextForChange(state, context) };
+  const result = { change: state.change, changed, added, checks, tree: checkTree, ...verdict, next: nextForChange(state, context) };
+  if (warnings.length) result.warnings = warnings;
+  return result;
 }
 
 // Runs one test command for an obligation `ospec run` proves and records the
@@ -584,6 +594,25 @@ async function review(root, positionals, values) {
   };
 }
 
+// The knowledge references of an open change (E3.2, REQ-idd-021): those of the
+// components its declared plan and its current diff touch, each with the
+// currency read from disk now. A diff that cannot be read narrows the paths to
+// the plan and says so.
+function changeKnowledge(root, state) {
+  if (!state || state.status !== "open" || isIntentAmbiguous(state)) return null;
+  const { map, sources, warnings } = readKnowledgeSources(root);
+  if (!map) return { references: [], warnings };
+  let diffPaths = [];
+  try {
+    diffPaths = readGitDiff(root, { base: diffBase({}, state) }).paths;
+  } catch (error) {
+    if (!(error instanceof IddWorkspaceError)) throw error;
+    warnings.push(`references use the declared plan only: ${error.message}`);
+  }
+  const resolved = resolveReferences({ map, paths: [...(state.plan?.paths || []), ...diffPaths], sources });
+  return { references: resolved.references, warnings: [...warnings, ...resolved.warnings] };
+}
+
 async function run(command, positionals, values) {
   const root = values.root || process.cwd();
   if (command === "status") {
@@ -594,9 +623,12 @@ async function run(command, positionals, values) {
     try {
       const states = await listChanges(root);
       const next = nextForProject(states, { change: values.change });
+      const knowledge = changeKnowledge(root, states.find((state) => state.change === next.change));
       // Intent gates and change selection do not depend on configuration.
-      if (next.next_step.action !== "satisfy-obligation" || !["checks-pass", "contract-spec-and-test"].includes(next.next_step.obligation)) return next;
-      return nextForProject(states, { change: values.change, ...readProjectContext(root) });
+      if (next.next_step.action !== "satisfy-obligation" || !["checks-pass", "contract-spec-and-test"].includes(next.next_step.obligation)) {
+        return knowledge ? nextForProject(states, { change: values.change, knowledge }) : next;
+      }
+      return nextForProject(states, { change: values.change, ...readProjectContext(root), knowledge });
     } catch (error) {
       if (/^unknown change/.test(error.message)) throw new IddRecordError("unknown-change", error.message);
       throw error;
@@ -654,6 +686,10 @@ function describeNext(result) {
     for (const entry of questions) lines.push(`  - ${entry}`);
   }
   if (result.knowledge_refs?.length) lines.push(`refs: ${result.knowledge_refs.join(", ")}`);
+  for (const ref of result.references || []) {
+    lines.push(`ref ${ref.kind} ${ref.id} ${ref.status} (${ref.components.join(", ")})${ref.path ? `: ${ref.path}` : ""}`);
+  }
+  for (const warning of result.warnings || []) lines.push(`warning: ${warning}`);
   for (const suggestion of result.suggestions || []) lines.push(`suggestion ${suggestion.id}: ${suggestion.reason}; ${suggestion.how}`);
   return lines.join("\n");
 }
@@ -666,6 +702,7 @@ function describeSignals(result) {
   else if (result.changed) lines.push("recorded the plan; every derived signal was already recorded");
   else lines.push("no change: the plan and every derived signal were already recorded");
   if (result.floor) lines.push(`floor: ${result.floor}`);
+  for (const warning of result.warnings || []) lines.push(`warning: ${warning}`);
   lines.push(describeNext(result.next));
   return lines.join("\n");
 }
@@ -692,6 +729,7 @@ function describeCheck(result) {
   for (const run of result.checks) lines.push(...describeRun(`check ${run.name}`, run));
   const added = [...result.added.signals, ...result.added.gates.map((g) => `gate:${g}`)];
   if (added.length) lines.push(`recorded from the diff: ${added.join(", ")}`);
+  for (const warning of result.warnings || []) lines.push(`warning: ${warning}`);
   lines.push(describeNext(result.next));
   return lines.join("\n");
 }

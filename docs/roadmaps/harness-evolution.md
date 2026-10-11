@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.127.0, 2026-10-11.
+> **Versión de referencia:** v2.128.0, 2026-10-11.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -149,8 +149,8 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E2.5** | `brownfield-architecture-recovery` (mapa `ospec-component-map/v1` y ADR `inferred` con evidencia `ruta:línea`) | feature |
 | `done` | **E2.6** | `dogfood-ospec-foundation` (11 ADR de arquitectura de ospec que pasan el lint; `docs/adr/` indexado como decisiones de change) | dogfooding |
 | `done` | **E3.1** | `change-decisions-and-adr-impact` (impacto declarado sobre ADR y escenarios con gate; el archivo SDD deja de promover a `docs/adr/`) | feature |
-| `next-eligible` | **E3.2** | `knowledge-by-reference` | feature |
-| `pending` | **E3.3** | `fitness-functions-in-check` | feature |
+| `done` | **E3.2** | `knowledge-by-reference` (`ospec-component-map/v2` con rutas y conocimiento por componente; `ospec next` entrega referencias con vigencia y la señal de ADR sale de los componentes tocados) | feature |
+| `next-eligible` | **E3.3** | `fitness-functions-in-check` | feature |
 | `pending` | **E3.4** | `team-context-defaults` | feature |
 | `pending` | **E3.5** | `knowledge-memory-loop` | feature |
 | `done` | **E4.1** | `bench-scenarios` (checkpoint `continue` con `idd-2` en v2.111.0) | medición |
@@ -610,6 +610,7 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
 
 - **Alcance:** un mapa componente → conocimiento alimenta dos cosas: las referencias que entrega `ospec next` (identificadores de ADR, escenarios de calidad, términos de glosario y restricciones del equipo de los componentes que toca el cambio) y la señal de ADR de E1.3. Nunca se pasan documentos completos. La vigencia de cada referencia es visible: actual, desactualizada o ausente. Absorbe el antiguo R2.2.
 - **Hecho cuando:** el cambio recibe solo las referencias pertinentes, y una referencia desactualizada produce un aviso en lugar de usarse como verdad.
+- **Hecho:** `ospec-component-map/v2` da a cada componente `paths` (globs) y `knowledge` (`adrs`, `scenarios`, `terms`, `constraints`); la v1 se sigue leyendo sin referencias (REQ-component-map-004). `ospec next` resuelve en cada llamada, desde el plan declarado y el diff, las referencias de los componentes tocados: solo ids, con `current`, `stale` o `absent` y un aviso por cada una no vigente (un ADR `superseded` o con evidencia que ya no resuelve, un slot `assumed`, un escenario o término que falta). `ospec signals` y `ospec check` activan `adr-or-quality-attribute` con los ADR y escenarios vigentes de esos componentes y los registran en `impacts`; lo desactualizado o ausente nunca entra (REQ-idd-021). Un mapa ilegible o inválido es un aviso y no bloquea. El mapa de componentes de ospec pasa a v2 con sus rutas y su conocimiento.
 
 ### E3.3 — `fitness-functions-in-check`
 
@@ -728,6 +729,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-11: E3.2 `knowledge-by-reference` hecho con IDD y publicado en v2.128.0. El mapa de componentes v2 da a cada componente sus rutas y el id del conocimiento que lo gobierna; `ospec next` entrega solo las referencias de los componentes tocados con su vigencia y avisa de las desactualizadas o ausentes, y la señal de ADR sale de esos componentes. E3.3 pasa a `next-eligible`.
 - 2026-10-11: E3.1 `change-decisions-and-adr-impact` hecho con IDD y publicado en v2.127.0. Un cambio declara los ADR y escenarios de calidad que toca y su impacto; enmendar, sustituir o contradecir se detiene en `adr-amend-or-contradict`, y el ADR nuevo pasa el lint. El archivo SDD deja de promover decisiones a `docs/adr/`. E3.2 pasa a `next-eligible`.
 - 2026-10-11: E2.6 `dogfood-ospec-foundation` hecho con IDD y publicado en v2.125.0; cierra la Etapa 2. ospec tiene su brief, technical baseline, mapa de conocimiento, mapa de componentes y 11 ADR de arquitectura que pasan el lint de E2.4; `docs/adr/` queda indexado como decisiones de change archivadas. E3.1 pasa a `next-eligible`.
 - 2026-10-11: E2.5 `brownfield-architecture-recovery` hecho con IDD y publicado en v2.124.0. La foundation recupera el mapa de componentes `ospec-component-map/v1` y ADR `inferred` con evidencia `ruta:línea`, y una evidencia que no resuelve rechaza el registro. E2.6 pasa a `next-eligible`.

@@ -11,6 +11,7 @@ const { classifyChange } = require("./change-classification.js");
 const { SIGNALS, isIntentAmbiguous } = require("./idd-contract.js");
 const { IMPACT_SIGNALS, matchImpact, normalizePath } = require("./idd-impact.js");
 const { IddRecordError, recordGate, recordPlan, recordReferences, recordSignal } = require("./idd-record.js");
+const { derivedReferences, resolveReferences } = require("./idd-knowledge.js");
 
 // K1 hard-floor evidence key → IDD signal. mechanical_no_behavior has no
 // signal: a mechanical change only lowers the floor.
@@ -94,9 +95,7 @@ function destructiveStatement(diff, patterns) {
   return null;
 }
 
-// The ADRs and quality scenarios the declaration names (E3.1). Only a
-// declaration activates adr-or-quality-attribute: deriving it from the
-// touched components belongs to E3.2.
+// The ADRs and quality scenarios the declaration names (E3.1).
 function declaredReferences(declaration) {
   const refs = [];
   for (const [kind, ids] of [
@@ -108,12 +107,27 @@ function declaredReferences(declaration) {
   return refs;
 }
 
-function referencesReason(refs) {
+// The current ADRs and quality scenarios of the components the paths touch
+// (E3.2, REQ-idd-021), with the components that give them.
+function mappedReferences(paths, knowledge) {
+  if (!knowledge?.map || !(paths || []).length) return { refs: [], components: [] };
+  const { references } = resolveReferences({ map: knowledge.map, paths, sources: knowledge.sources });
+  const refs = derivedReferences(references);
+  const derived = references.filter((ref) => refs.some((known) => known.kind === ref.kind && known.id === ref.id));
+  return { refs, components: [...new Set(derived.flatMap((ref) => ref.components))].sort() };
+}
+
+function referencesReason(refs, prefix = "declared") {
   const named = (kind, label) => {
     const ids = refs.filter((ref) => ref.kind === kind).map((ref) => ref.id);
     return ids.length ? [`${label} ${ids.join(", ")}`] : [];
   };
-  return `declared ${[...named("adr", "ADR"), ...named("scenario", "quality scenario")].join(" and ")}`;
+  return `${prefix} ${[...named("adr", "ADR"), ...named("scenario", "quality scenario")].join(" and ")}`;
+}
+
+function byReference(left, right) {
+  if (left.kind !== right.kind) return left.kind === "adr" ? -1 : 1;
+  return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
 }
 
 function floorOf(intent, signalIds) {
@@ -133,9 +147,10 @@ function floorOf(intent, signalIds) {
  *                  adrs?: string[], scenarios?: string[]},
  *   diff?: {paths?: string[], addedLines?: Record<string, string[]>},
  *   patterns: object,                resolvePatterns() of idd-impact.js
+ *   knowledge?: {map: object|null, sources: object},   readKnowledgeSources() of idd-workspace.js
  * }} input
  */
-function deriveSignals({ intent, strictTdd = false, declaration = {}, diff = {}, patterns }) {
+function deriveSignals({ intent, strictTdd = false, declaration = {}, diff = {}, patterns, knowledge = null }) {
   if (!intent) return { signals: [], gates: [], references: [], floor: null, floor_source: null };
 
   const found = new Map();
@@ -162,8 +177,24 @@ function deriveSignals({ intent, strictTdd = false, declaration = {}, diff = {},
       if (hits.has(signal)) add(signal, impactReason(signal, hits.get(signal), patterns), source);
     }
   }
-  const references = declaredReferences(declaration);
-  if (references.length > 0) add("adr-or-quality-attribute", referencesReason(references), "declaration");
+  // Declared references come first; then those of the components the plan
+  // and the diff touch (E3.2).
+  const declared = declaredReferences(declaration);
+  if (declared.length > 0) add("adr-or-quality-attribute", referencesReason(declared), "declaration");
+  const references = [...declared];
+  for (const [source, paths] of [
+    ["declaration", declaration.paths],
+    ["diff", diff.paths],
+  ]) {
+    const mapped = mappedReferences(paths, knowledge);
+    if (mapped.refs.length === 0) continue;
+    const label = mapped.components.length > 1 ? "components" : "component";
+    add("adr-or-quality-attribute", referencesReason(mapped.refs, `${label} ${mapped.components.join(", ")}:`), source);
+    for (const ref of mapped.refs) {
+      if (!references.some((known) => known.kind === ref.kind && known.id === ref.id)) references.push(ref);
+    }
+  }
+  references.sort(byReference);
 
   const gates = [];
   const operation = (declaration.operations || []).find((op) => IRREVERSIBLE_OPERATIONS.includes(op));
@@ -176,7 +207,8 @@ function deriveSignals({ intent, strictTdd = false, declaration = {}, diff = {},
 }
 
 // Records what a derivation adds to the stored state, plus the declared plan
-// when there is one (E1.11) and the declared architecture references (E3.1).
+// when there is one (E1.11) and the architecture references, declared (E3.1)
+// or derived from the touched components (E3.2).
 // Signals and gates already recorded stay as they are, and a signal the
 // derivation misses is never dropped (REQ-idd-006).
 function applyDerivation(state, derivation, { plan = null } = {}) {

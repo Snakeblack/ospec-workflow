@@ -20,6 +20,7 @@ const {
   readDecisionRecords,
   readGitDiff,
   readHead,
+  readKnowledgeSources,
   readProjectContext,
   readTreeFingerprint,
   snapshotTree,
@@ -245,6 +246,56 @@ test("readArchitecture finds ADRs by id and scenarios in the knowledge map, and 
 
   write(root, "docs/architecture/knowledge-map.yaml", "quality_scenarios:\n  - id: x\n");
   assert.throws(() => readArchitecture(root), (error) => error instanceof IddWorkspaceError && error.code === "knowledge-map-unreadable");
+});
+
+test("[REQ-idd-021] readKnowledgeSources reads the v2 map, ADR currency, scenarios, slots and glossary terms", (t) => {
+  const root = tempDir(t);
+  assert.deepStrictEqual(readKnowledgeSources(root), {
+    map: null,
+    sources: { adrs: new Map(), scenarios: new Set(), slots: new Map(), terms: null },
+    warnings: [],
+  });
+
+  const map = {
+    schema: "ospec-component-map/v2",
+    components: [{ id: "engine", summary: "s", evidence: ["src/engine.js:1"], paths: ["src/**"], knowledge: { adrs: ["0001"] } }],
+    boundaries: [],
+    dependencies: [],
+    divergences: [],
+  };
+  write(root, "src/engine.js", "module.exports = {};\n");
+  write(root, "docs/architecture/component-map.yaml", JSON.stringify(map));
+  write(root, "docs/architecture/decisions/0001-a.md", "# 0001. A\n\n- Status: accepted\n- Evidence: src/engine.js:1, src/engine.js:9\n");
+  write(root, "docs/architecture/decisions/0002-b.md", "# 0002. B\n\n- Status: superseded by 0003\n- Evidence: src/engine.js:1\n");
+  write(root, "docs/architecture/knowledge-map.yaml", JSON.stringify({ slots: [{ id: "team.shape", state: "confirmed" }], quality_scenarios: [{ id: "fast" }] }));
+  write(root, "docs/product/glossary.md", "# Glossary\n\n## Change\n");
+  const read = readKnowledgeSources(root);
+  assert.deepStrictEqual(read.map, map);
+  assert.deepStrictEqual(read.warnings, []);
+  assert.deepStrictEqual([...read.sources.adrs.keys()], ["0001", "0002"]);
+  assert.deepStrictEqual(read.sources.adrs.get("0001").evidence, ['"src/engine.js:9" is past the end of the file']);
+  assert.deepStrictEqual(read.sources.adrs.get("0002"), { path: "docs/architecture/decisions/0002-b.md", status: "superseded", evidence: [] });
+  assert.deepStrictEqual([...read.sources.scenarios], ["fast"]);
+  assert.deepStrictEqual([...read.sources.slots], [["team.shape", "confirmed"]]);
+  assert.deepStrictEqual([...read.sources.terms].sort(), ["change", "glossary"]);
+});
+
+test("[REQ-idd-021] an unreadable or invalid map is a warning with no map, never an error", (t) => {
+  const root = tempDir(t);
+  write(root, "docs/architecture/component-map.yaml", "components:\n  - id: x\n");
+  write(root, "docs/architecture/knowledge-map.yaml", "slots: []\n");
+  let read = readKnowledgeSources(root);
+  assert.strictEqual(read.map, null);
+  assert.strictEqual(read.warnings.length, 2);
+  assert.match(read.warnings[0], /component-map\.yaml is not JSON text/);
+  assert.match(read.warnings[1], /knowledge-map\.yaml is not JSON text/);
+
+  write(root, "docs/architecture/component-map.yaml", JSON.stringify({ schema: "ospec-component-map/v2", components: [] }));
+  write(root, "docs/architecture/knowledge-map.yaml", "{}");
+  read = readKnowledgeSources(root);
+  assert.strictEqual(read.map, null);
+  assert.deepStrictEqual(read.warnings.length, 1);
+  assert.match(read.warnings[0], /component-map\.yaml is not a valid component map: /);
 });
 
 test("readDecisionRecords reports a missing ADR, its lint errors and the ids it cites", (t) => {

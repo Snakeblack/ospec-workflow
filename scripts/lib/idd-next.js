@@ -1,8 +1,9 @@
 "use strict";
 
-// Pure, deterministic reads of idd-state/v1 and supplied check context for
-// `ospec next` and `ospec status` (REQ-idd-011). The same inputs yield the same
-// output, whatever order the state's signals were recorded in.
+// Pure, deterministic reads of idd-state/v1 and supplied check and knowledge
+// context for `ospec next` and `ospec status` (REQ-idd-011, REQ-idd-021). The
+// same inputs yield the same output, whatever order the state's signals were
+// recorded in.
 
 const { CHANGE_ROOT, DECISIONS_ROOT, GATES, LIVING_DOC_FILE, OBLIGATIONS } = require("./idd-contract.js");
 const { configureChecksStep } = require("./idd-checks-config.js");
@@ -95,7 +96,7 @@ function pendingDecision(state, gate) {
   return decision;
 }
 
-function nextForChange(state, { checks, candidateCommand } = {}) {
+function nextForChange(state, { checks, candidateCommand, knowledge } = {}) {
   const pending = state.obligations
     .filter((obligation) => obligation.status === "pending")
     .sort(byWorkOrder)
@@ -132,6 +133,13 @@ function nextForChange(state, { checks, candidateCommand } = {}) {
     next_step: nextStep,
     knowledge_refs: livingDoc ? [`${CHANGE_ROOT}/${state.change}/${LIVING_DOC_FILE}`] : [],
   };
+  // The ids of the knowledge of the touched components, with their currency,
+  // and a warning for each stale or absent one (E3.2, REQ-idd-021). The caller
+  // resolves them from disk; knowledge_refs keeps its meaning.
+  if (knowledge) {
+    result.references = knowledge.references;
+    result.warnings = knowledge.warnings;
+  }
   const suggestion = adrSuggestion(state);
   if (suggestion) result.suggestions = [suggestion];
   return result;

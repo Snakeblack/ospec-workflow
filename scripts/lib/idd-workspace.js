@@ -17,6 +17,9 @@ const { candidateCheckCommand } = require("./idd-checks-config.js");
 const { MAP_RELATIVE } = require("./decision-gap.js");
 const { lintDecisionRecord, parseAdrMarkdown } = require("./decision-records.js");
 const { resolveContractPatterns } = require("./idd-contracts.js");
+const { validateComponentMap } = require("./component-map.js");
+const { COMPONENT_MAP_RELATIVE, GLOSSARY_RELATIVE, parseGlossaryTerms } = require("./idd-knowledge.js");
+const { evidenceProblem } = require("./repository-evidence.js");
 const { detectStacks, normalizePath, publishedPaths, resolvePatterns } = require("./idd-impact.js");
 
 const MAX_UNTRACKED_BYTES = 1024 * 1024;
@@ -101,6 +104,63 @@ function readArchitecture(root) {
     }
   }
   return { adrs, scenarios };
+}
+
+// A JSON-text document of the project, or null when it is missing; a document
+// that does not parse adds a warning instead of stopping the caller (E3.2).
+function readJsonDocument(root, relative, warnings) {
+  const raw = readOptional(path.join(root, ...relative.split("/")));
+  if (raw == null) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    warnings.push(`${relative} is not JSON text (valid YAML 1.2): ${error.message}`);
+    return null;
+  }
+}
+
+/**
+ * The inputs of knowledge by reference (E3.2, REQ-idd-021): the component map
+ * when it is valid, each ADR with its status and the evidence that no longer
+ * resolves, the quality scenarios and slot states of the knowledge map and the
+ * glossary terms (null without a glossary). A broken map or knowledge map is a
+ * warning, never an error.
+ */
+function readKnowledgeSources(root) {
+  const warnings = [];
+  let map = readJsonDocument(root, COMPONENT_MAP_RELATIVE, warnings);
+  if (map != null) {
+    const result = validateComponentMap(map);
+    if (!result.valid) {
+      const first = result.errors.slice(0, 3).map((error) => `${error.path || "/"} ${error.message}`);
+      warnings.push(`${COMPONENT_MAP_RELATIVE} is not a valid component map: ${first.join("; ")}`);
+      map = null;
+    }
+  }
+
+  const adrs = new Map();
+  const dir = path.join(root, ...DECISIONS_ROOT.split("/"));
+  const names = fs.existsSync(dir) ? fs.readdirSync(dir).filter((name) => name.endsWith(".md")).sort() : [];
+  for (const name of names) {
+    const record = parseAdrMarkdown(fs.readFileSync(path.join(dir, name), "utf8"));
+    if (!record.id || adrs.has(record.id)) continue;
+    const evidence = (record.evidence || []).map((ref) => evidenceProblem(root, ref)).filter(Boolean);
+    adrs.set(record.id, { path: `${DECISIONS_ROOT}/${name}`, status: record.status ?? null, evidence });
+  }
+
+  const knowledge = readJsonDocument(root, MAP_RELATIVE, warnings);
+  const scenarios = new Set();
+  for (const scenario of knowledge?.quality_scenarios || []) {
+    if (typeof scenario?.id === "string") scenarios.add(scenario.id);
+  }
+  const slots = new Map();
+  for (const slot of knowledge?.slots || []) {
+    if (typeof slot?.id === "string" && typeof slot.state === "string" && !slots.has(slot.id)) slots.set(slot.id, slot.state);
+  }
+
+  const glossary = readOptional(path.join(root, ...GLOSSARY_RELATIVE.split("/")));
+  const terms = glossary == null ? null : parseGlossaryTerms(glossary);
+  return { map, sources: { adrs, scenarios, slots, terms }, warnings };
 }
 
 /**
@@ -329,6 +389,7 @@ module.exports = {
   readDecisionRecords,
   readGitDiff,
   readHead,
+  readKnowledgeSources,
   readProjectContext,
   readTreeFingerprint,
   snapshotTree,

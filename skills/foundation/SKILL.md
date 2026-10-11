@@ -83,11 +83,14 @@ When the project already has code, infer its architecture before asking and
 let the user confirm or correct it. Every claim cites `path:line` evidence
 that exists in the repository; a claim you cannot point at stays a question.
 
-- Write `docs/architecture/component-map.yaml` (`ospec-component-map/v1`):
+- Write `docs/architecture/component-map.yaml` (`ospec-component-map/v2`):
   components, boundaries, dependencies between components, and divergences
   where the code departs from the documentation, each with its evidence. A
   divergence names the documented text in `documented` and leaves it as
-  written.
+  written. Give each component the `paths` it owns as globs and, in
+  `knowledge`, the ids of the ADRs, quality scenarios, glossary terms and
+  constraint slots that govern it: IDD hands them to every change that
+  touches it.
 - Propose each structural decision the code already embodies as an ADR with
   `status: inferred` and its `evidence`. Ask the user about every one in the
   rounds: confirmed or corrected, it becomes `accepted` and keeps its

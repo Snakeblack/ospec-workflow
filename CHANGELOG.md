@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.128.0] - 2026-10-11
+
+### Added
+- **Conocimiento por referencia (E3.2)**: `ospec next` entrega, para un change abierto, `references` y `warnings`. Son las referencias de los componentes que tocan el plan declarado y el diff actual: ADR, escenarios de calidad, términos del glosario y slots del mapa de conocimiento como restricciones. Van solo por id, nunca como documentos, y cada una con su vigencia, que se lee del disco en cada llamada:
+  - `current`: vigente.
+  - `stale`: un ADR `superseded` o cuya evidencia `ruta:línea` ya no resuelve, o un slot `assumed`.
+  - `absent`: no existe; también un slot `unknown` o `deferred`.
+
+  Cada referencia no vigente produce un aviso. `knowledge_refs` no cambia (REQ-idd-021). Hecho con IDD (`idd/archive/2026-10-11-knowledge-by-reference/`).
+- **Señal de ADR derivada de los componentes**: `ospec signals` (desde el plan) y `ospec check` (desde el diff) activan `adr-or-quality-attribute` con los ADR y escenarios vigentes de los componentes tocados, con un motivo que los nombra, y los registran en `impacts` para declarar su impacto. Lo desactualizado o ausente nunca entra. `signals` y `check` muestran los avisos.
+- **`ospec-component-map/v2`** (`schemas/foundation/component-map/v2.schema.json`): cada componente puede nombrar sus `paths` (globs) y su `knowledge` (`adrs`, `scenarios`, `terms`, `constraints`). `validateComponentMap` ramifica por versión: un mapa v1 sigue validando y no da referencias, y una versión desconocida se rechaza con la regla `schema` (REQ-component-map-004).
+
+### Changed
+- **Un mapa roto no bloquea**: un mapa de componentes o de conocimiento que no se puede leer o no valida produce un aviso y ninguna referencia, sin detener `next`, `signals` ni `check`. Un proyecto sin mapa funciona igual, sin avisos.
+- **Skills `idd` y `foundation`**: con un mapa v2, el CLI añade los ADR y escenarios de los componentes tocados, y el agente declara solo los demás. Lee únicamente las referencias `current` y comunica cada aviso al usuario. La recuperación brownfield escribe el mapa v2 con rutas y conocimiento.
+- **Mapa de componentes de ospec en v2**: cada componente nombra sus rutas, ADR, escenarios y restricciones. Se actualiza la evidencia `ruta:línea` que las ediciones de `scripts/ospec.js` desplazaron.
+- **Roadmap**: E3.2 `knowledge-by-reference` pasa a hecho. E3.3 `fitness-functions-in-check` queda como siguiente.
+
+**Verificación directa**: `node scripts/check.js` (3568 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.127.0] - 2026-10-11
 
 ### Added

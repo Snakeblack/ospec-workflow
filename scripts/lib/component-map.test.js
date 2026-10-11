@@ -96,3 +96,31 @@ test("[REQ-component-map-003] the map is structural without a root and requires 
   assert.equal(result.valid, false);
   assert.ok(result.errors.some((error) => error.rule === "minItems"));
 });
+
+test("[REQ-component-map-004] a v2 map gives components paths and knowledge, and v1 still validates", () => {
+  const map = recovery("component-map-v2.json");
+  assert.deepEqual(validateComponentMap(map, { root: REPO }), { valid: true, errors: [] });
+  assert.deepEqual(validateComponentMap(recovery("component-map.json"), { root: REPO }), { valid: true, errors: [] });
+
+  const v1 = recovery("component-map.json");
+  v1.components[0].paths = ["app/api.py"];
+  assert.deepEqual(codes(validateComponentMap(v1)), ["additionalProperties /components/0/paths"]);
+});
+
+test("[REQ-component-map-004] v2 rejects absolute paths, malformed knowledge and an unknown version", () => {
+  const map = recovery("component-map-v2.json");
+  map.components[0].paths = ["/app/api.py"];
+  map.components[2].knowledge.adrs = ["12"];
+  map.components[3].knowledge.extra = ["x"];
+  assert.deepEqual(codes(validateComponentMap(map)), [
+    "pattern /components/0/paths/0",
+    "pattern /components/2/knowledge/adrs/0",
+    "additionalProperties /components/3/knowledge/extra",
+  ]);
+
+  const unknown = recovery("component-map-v2.json");
+  unknown.schema = "ospec-component-map/v3";
+  const result = validateComponentMap(unknown);
+  assert.equal(result.valid, false);
+  assert.deepEqual(codes(result), ["schema /schema"]);
+});

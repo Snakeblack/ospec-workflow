@@ -2,11 +2,13 @@
 
 // Component map recovered from a brownfield repository
 // (openspec/specs/component-map/spec.md, REQ-component-map-001 to
-// REQ-component-map-003). The schema decides shape; this module checks ids,
-// references between entries and, given a root, that every path:line exists.
-// The require puts the schema on the runtime graph.
+// REQ-component-map-004). The schema of the map's version decides shape; this
+// module checks ids, references between entries and, given a root, that every
+// path:line exists. v2 adds paths and knowledge to components; v1 is still
+// read (ADR-0009). The requires put the schemas on the runtime graph.
 
 require("../../schemas/foundation/component-map/v1.schema.json");
+require("../../schemas/foundation/component-map/v2.schema.json");
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -14,9 +16,10 @@ const { validateInstance } = require("./kernel-schema-validator.js");
 const { evidenceErrors } = require("./repository-evidence.js");
 
 const MAP_DIR = path.resolve(__dirname, "../../schemas/foundation/component-map");
+const VERSIONS = Object.freeze({ "ospec-component-map/v1": "v1", "ospec-component-map/v2": "v2" });
 
-function loadSchema() {
-  return JSON.parse(fs.readFileSync(path.join(MAP_DIR, "v1.schema.json"), "utf8"));
+function loadSchema(version = "v1") {
+  return JSON.parse(fs.readFileSync(path.join(MAP_DIR, `${version}.schema.json`), "utf8"));
 }
 
 function duplicateErrors(entries, list) {
@@ -71,7 +74,11 @@ function resolutionErrors(map, root) {
 }
 
 function validateComponentMap(map, options = {}) {
-  const structural = validateInstance(loadSchema(), map);
+  const version = VERSIONS[map?.schema];
+  if (!version) {
+    return { valid: false, errors: [{ path: "/schema", rule: "schema", message: `unknown component map contract ${JSON.stringify(map?.schema)}; expected ${Object.keys(VERSIONS).join(" or ")}` }] };
+  }
+  const structural = validateInstance(loadSchema(version), map);
   if (!structural.valid) return { valid: false, errors: structural.errors };
   const errors = semanticErrors(map);
   if (options.root !== undefined) errors.push(...resolutionErrors(map, options.root));
