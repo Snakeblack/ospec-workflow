@@ -117,3 +117,14 @@ This is re-runnable via the runtime journal: if the transaction halted after sta
 re-invoking the runtime (same plan identity) is the correct recovery path, not
 re-dispatching `sdd-archive`.
 
+## Roadmap Hand-off
+
+After the runtime success receipt, and after the delivery the user asks for,
+look for `docs/roadmap.md` or `docs/roadmaps/*.md` and take from it the item
+marked next. With cross-session memory tools, save a hand-off under the topic
+key `roadmap/next-change`, one per project and updated in place: the change
+archived, the next item, the roadmap path and where delivery stands. Without
+memory tools, still propose. Propose that item in a new session, and do not
+start it unless the user asks. With no next item, or the next item blocked,
+say so and propose nothing.
+
