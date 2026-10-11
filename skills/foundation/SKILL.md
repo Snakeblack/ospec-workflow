@@ -77,6 +77,25 @@ round. The documents are the state, never the conversation.
    slot that blocks the first slice is confirmed, assumed or deferred with an
    owner. The whole future need not be settled.
 
+## Brownfield recovery
+
+When the project already has code, infer its architecture before asking and
+let the user confirm or correct it. Every claim cites `path:line` evidence
+that exists in the repository; a claim you cannot point at stays a question.
+
+- Write `docs/architecture/component-map.yaml` (`ospec-component-map/v1`):
+  components, boundaries, dependencies between components, and divergences
+  where the code departs from the documentation, each with its evidence. A
+  divergence names the documented text in `documented` and leaves it as
+  written.
+- Propose each structural decision the code already embodies as an ADR with
+  `status: inferred` and its `evidence`. Ask the user about every one in the
+  rounds: confirmed or corrected, it becomes `accepted` and keeps its
+  evidence; rejected, it is not written and becomes a divergence with
+  `rejected_adr`.
+- Record quality hints (timeouts, retries, caches, audit trails) as `assumed`
+  slots with a `repository` source `path:line` and a review trigger.
+
 ## Acceptance scenarios
 
 Match one row and follow it. The notes in `assets/scenarios/` show the shape.
@@ -88,7 +107,7 @@ without approval.
 | CLI local without a service | Cover files, errors, compatibility, distribution and tests. | Load `cncf-landscape`. Treat Kubernetes as a requirement. |
 | Small SaaS | Compare the simple existing or managed operation with alternatives. Record unknown cost and competencies. | Invent an SLO or any numeric budget. |
 | Regulated or high-risk | Go deeper on data, permissions, traceability and recovery. | Confirm an obligation no competent source confirmed. Leave it a gap. |
-| Documented brownfield | Read the baseline and its evidence. Record divergences and propose a focused delta. Preserve prior content and the approval already in force. | Infer components or write an ADR with `status: inferred`. Overwrite prior text. |
+| Documented brownfield | Read the baseline and its evidence. Record divergences and propose a focused delta. Preserve prior content and the approval already in force. Recover what the baseline does not record (Brownfield recovery). | Accept an ADR with `status: inferred` without the user's answer. Overwrite prior text. |
 | Stale source or offline | Show the revision or date and what is unknown. Leave unknown only the decision that depends on the missing evidence. Use the existing `unknown` or `assumed` slot. | Stop the decisions that do not depend on that source. Add a stale state to the knowledge map. |
 | Small later change | Read the applicable sections and write only the delta. | Regenerate foundation. Run a general technology search. |
 
@@ -111,6 +130,7 @@ Read each file before writing and update it; never discard what the user wrote.
 | `docs/architecture/decisions/NNNN-<title>.md` | One ADR per structural decision |
 | `docs/roadmap.md` | The first slice as a walking skeleton, then milestones; deferred decisions with their last responsible moment |
 | `docs/architecture/knowledge-map.yaml` | The knowledge map and its open gaps |
+| `docs/architecture/component-map.yaml` | Brownfield only: the recovered components, boundaries, dependencies and divergences |
 
 Every ADR holds its context and drivers, at least two considered options, the
 decision, its consequences (including what gets harder), a fitness function or

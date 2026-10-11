@@ -1,0 +1,31 @@
+{
+  "schema": "ospec-component-map/v1",
+  "components": [
+    { "id": "api", "summary": "HTTP entry points for orders.", "evidence": ["app/api.py:5", "app/api.py:9"] },
+    { "id": "orders", "summary": "Prices an order, charges it and stores it.", "evidence": ["app/orders.py:5"] },
+    { "id": "store", "summary": "Owns the orders table in a local database.", "evidence": ["app/store.py:3", "app/store.py:6"] },
+    { "id": "payments-client", "summary": "Calls the external payments service.", "evidence": ["app/payments_client.py:4", "app/payments_client.py:7"] }
+  ],
+  "boundaries": [
+    {
+      "id": "external-payments",
+      "summary": "Charging leaves the process through one outbound HTTP call.",
+      "components": ["payments-client"],
+      "evidence": ["app/payments_client.py:10"]
+    }
+  ],
+  "dependencies": [
+    { "from": "api", "to": "orders", "evidence": ["app/api.py:1", "app/api.py:6"] },
+    { "from": "api", "to": "store", "evidence": ["app/api.py:2", "app/api.py:10"] },
+    { "from": "orders", "to": "payments-client", "evidence": ["app/orders.py:1", "app/orders.py:7"] },
+    { "from": "orders", "to": "store", "evidence": ["app/orders.py:2", "app/orders.py:8"] }
+  ],
+  "divergences": [
+    {
+      "id": "api-bypasses-orders",
+      "summary": "The README says the API goes only through the orders service; the API deletes through the store directly. The README is kept as written.",
+      "documented": "README.md:7",
+      "evidence": ["app/api.py:10"]
+    }
+  ]
+}

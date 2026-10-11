@@ -30,7 +30,7 @@ test("foundation skill locks the six acceptance scenarios and the approval rule"
     "Leave it a gap",
     "Documented brownfield",
     "Preserve prior content and the approval already in force",
-    "status: inferred",
+    "Accept an ADR with `status: inferred` without the user's answer",
     "Stale source or offline",
     "revision or date",
     "only the decision that depends on the missing evidence",
@@ -101,4 +101,20 @@ test("small later change note writes a delta and does not regenerate foundation"
   assert.match(text, /Foundation was not regenerated/);
   assert.match(text, /No general technology search was run/);
   assert.doesNotMatch(text, /cncf-landscape/);
+});
+
+test("[REQ-component-map-001] brownfield recovery cites evidence and lets the user confirm inferred ADRs", () => {
+  const text = read(SKILL).replace(/\s+/g, " ");
+  for (const rule of [
+    "## Brownfield recovery",
+    "`path:line` evidence",
+    "`docs/architecture/component-map.yaml` (`ospec-component-map/v1`)",
+    "leaves it as written",
+    "`status: inferred` and its `evidence`",
+    "it becomes `accepted` and keeps its evidence",
+    "becomes a divergence with `rejected_adr`",
+    "`assumed` slots with a `repository` source",
+  ]) {
+    assert.ok(text.includes(rule), `foundation skill is missing: ${rule}`);
+  }
 });

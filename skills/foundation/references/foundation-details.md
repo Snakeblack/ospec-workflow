@@ -22,8 +22,9 @@ Foundation captures agreed intent where there is not enough code to detect;
 ```markdown
 # NNNN. <Decision title>
 
-- Status: proposed | accepted | superseded by NNNN
+- Status: inferred | proposed | accepted | superseded by NNNN
 - Date: YYYY-MM-DD
+- Evidence: path:line, path:line   (required while inferred; kept once accepted)
 
 ## Context and drivers
 The forces at play and the quality scenarios or constraints this decision serves.

@@ -1,0 +1,121 @@
+{
+  "schema": "idd-state/v1",
+  "change": "brownfield-architecture-recovery",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "feature",
+    "summary": "E2.5: recuperar arquitectura de un repo existente: mapa de componentes, límites y dependencias, ADRs inferidos (status inferred) y pistas de calidad con evidencia ruta:línea, divergencias sin sobrescribir",
+    "acceptance": "En un repositorio de ejemplo se obtiene un mapa de componentes y ADRs inferidos con evidencia ruta:línea que el lint valida contra el repositorio"
+  },
+  "facts": {
+    "open": [
+      "¿Dónde vive la recuperación: en la ruta brownfield de la skill foundation (IDD) o en sdd-baseline (SDD)?",
+      "¿El ADR inferido amplía ospec-decision-record/v1 (status inferred + evidence obligatoria) o abre una v2?",
+      "¿Una evidencia ruta:línea que no resuelve (fichero ausente o línea fuera de rango) rechaza el registro o es un aviso?",
+      "¿Hace falta un comando ospec para validar la recuperación contra el repo, o basta la librería con fixtures como en E2.4?",
+      "¿Dónde se persiste el mapa de componentes y qué contrato usa (nuevo ospec-component-map/v1 o ranuras del knowledge map)?",
+      "¿Las pistas de calidad se guardan como ranuras assumed del knowledge map con fuente repository o en el mapa de componentes?",
+      "¿Qué pasa al confirmar, corregir o rechazar un ADR inferido: pasa a accepted, se edita, se borra o queda superseded?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/architecture/README.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/specs/agents/spec.md",
+      "openspec/specs/component-map/spec.md",
+      "openspec/specs/decision-records/spec.md",
+      "schemas/foundation/component-map/fixtures/sample-repo/README.md",
+      "schemas/foundation/component-map/v1.schema.json",
+      "schemas/foundation/decision-records/v1.schema.json",
+      "scripts/configure/real-repo.test.js",
+      "scripts/foundation-discovery-rounds.test.js",
+      "scripts/lib/component-map.js",
+      "scripts/lib/component-map.test.js",
+      "scripts/lib/decision-gap.js",
+      "scripts/lib/decision-records.js",
+      "scripts/lib/decision-records.test.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "scripts/lib/repository-evidence.js",
+      "scripts/lib/repository-evidence.test.js",
+      "skills/foundation/SKILL.md",
+      "skills/foundation/references/foundation-details.md"
+    ],
+    "work_units": 3,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 3 work units",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "las recomendadas: 1 skill foundation; 2 ampliar v1 con status inferred y evidence obligatoria; 3 evidencia que no resuelve rechaza; 4 solo librería y fixtures; 5 ospec-component-map/v1 en docs/architecture/component-map.yaml; 6 pistas de calidad como ranuras assumed del knowledge map con fuente repository; 7 confirmar/corregir -> accepted, rechazar -> no se escribe y queda como divergencia",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-11T12:55:41.913Z",
+      "detail": {
+        "tree": "sha256:3efbe5965e61e697231d2316e68d13f49cb5c5933204e70aebac13c7c6988ccb",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-11T12:55:44.299Z"
+    }
+  ],
+  "base": "05f7056fbe8730afbccc3293a2d5f7264704c3a4",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8d733c216bc5cbe199974ec408a1adbf908bd629b53803ee9d57c44da192719d",
+      "tree": "sha256:3efbe5965e61e697231d2316e68d13f49cb5c5933204e70aebac13c7c6988ccb",
+      "recorded_at": "2026-10-11T12:55:41.913Z"
+    }
+  ],
+  "closed_at": "2026-10-11T12:55:44.299Z"
+}

@@ -104,3 +104,39 @@ test("warning fixtures cover the three acceptance cases and the other lint warni
     "missing-dated-source",
   ]);
 });
+
+const SAMPLE_REPO = path.resolve(__dirname, "../../schemas/foundation/component-map/fixtures/sample-repo");
+
+function inferredAdr() {
+  const { parsed } = readFixture("fixtures/valid/adr.json");
+  return { ...parsed, status: "inferred", evidence: ["app/store.py:3"] };
+}
+
+test("[REQ-decision-records-006] an inferred ADR needs path:line evidence", () => {
+  assert.deepEqual(lintDecisionRecord(inferredAdr()), { valid: true, errors: [], warnings: [] });
+  for (const evidence of [undefined, []]) {
+    const record = inferredAdr();
+    if (evidence === undefined) delete record.evidence;
+    else record.evidence = evidence;
+    const result = lintDecisionRecord(record);
+    assert.equal(result.valid, false, String(evidence));
+    assert.deepEqual(result.warnings, []);
+  }
+  const malformed = { ...inferredAdr(), evidence: ["app/store.py"] };
+  assert.equal(lintDecisionRecord(malformed).valid, false);
+});
+
+test("[REQ-decision-records-006] with a root, evidence that does not resolve rejects the record", () => {
+  assert.equal(lintDecisionRecord(inferredAdr(), { root: SAMPLE_REPO }).valid, true);
+  const confirmed = { ...inferredAdr(), status: "accepted", evidence: ["app/store.py:400"] };
+  assert.equal(lintDecisionRecord(confirmed).valid, true);
+  const result = lintDecisionRecord(confirmed, { root: SAMPLE_REPO });
+  assert.equal(result.valid, false);
+  assert.deepEqual(result.errors.map((error) => `${error.rule} ${error.path}`), ["evidence /evidence/0"]);
+  assert.deepEqual(result.warnings, []);
+});
+
+test("[REQ-decision-records-006] only an ADR may be inferred", () => {
+  const { parsed } = readFixture("fixtures/valid/tsr.json");
+  assert.equal(lintDecisionRecord({ ...parsed, status: "inferred" }).valid, false);
+});

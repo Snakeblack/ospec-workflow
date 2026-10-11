@@ -14,6 +14,8 @@
     "driverId": { "type": "string", "pattern": "^[a-z][a-z0-9.-]{0,63}$" },
     "classification": { "enum": ["adr", "tsr", "dc"] },
     "status": { "enum": ["proposed", "accepted", "superseded"] },
+    "adrStatus": { "enum": ["inferred", "proposed", "accepted", "superseded"] },
+    "evidenceRef": { "type": "string", "pattern": "^[^:\\s][^:]*:[1-9][0-9]*$" },
     "driver": {
       "type": "object",
       "additionalProperties": false,
@@ -57,8 +59,12 @@
         "as": { "$ref": "#/$defs/classification" },
         "id": { "$ref": "#/$defs/recordId" },
         "title": { "$ref": "#/$defs/text" },
-        "status": { "$ref": "#/$defs/status" },
+        "status": { "$ref": "#/$defs/adrStatus" },
         "date": { "$ref": "#/$defs/date" },
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidenceRef" }
+        },
         "context_and_drivers": { "$ref": "#/$defs/text" },
         "drivers": {
           "type": "array",
@@ -77,6 +83,14 @@
           "type": "array",
           "items": { "$ref": "#/$defs/text" }
         }
+      },
+      "if": {
+        "required": ["status"],
+        "properties": { "status": { "const": "inferred" } }
+      },
+      "then": {
+        "required": ["evidence"],
+        "properties": { "evidence": { "minItems": 1 } }
       }
     },
     "tsr": {

@@ -174,6 +174,11 @@ const SUCCESSOR_K2_EXACT = new Set([
   // E2.4 decision-record lint (roadmap harness-evolution).
   "scripts/lib/decision-records.js",
   "scripts/lib/decision-records.test.js",
+  // E2.5 brownfield recovery: component map and repository evidence (roadmap harness-evolution).
+  "scripts/lib/component-map.js",
+  "scripts/lib/component-map.test.js",
+  "scripts/lib/repository-evidence.js",
+  "scripts/lib/repository-evidence.test.js",
   // E1.13 pre-commit mode source and derived .ospec/ gitignore (roadmap harness-evolution).
   "scripts/lib/precommit-strict.js",
   "scripts/lib/precommit-strict.test.js",
@@ -459,6 +464,8 @@ test("K1 scope guard: K2 successor paths are excluded from K1 inventory governan
   assert.equal(isSuccessorK2Path("scripts/lib/knowledge-map.test.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/decision-records.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/decision-records.test.js"), true);
+  assert.equal(isSuccessorK2Path("scripts/lib/component-map.js"), true);
+  assert.equal(isSuccessorK2Path("scripts/lib/repository-evidence.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/precommit-strict.js"), true);
   assert.equal(isSuccessorK2Path("scripts/lib/ospec-gitignore.js"), true);
   assert.equal(isAllowedK1Path("scripts/lib/idd-checks-config.js"), false);

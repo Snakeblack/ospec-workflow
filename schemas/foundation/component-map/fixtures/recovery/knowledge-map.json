@@ -1,0 +1,56 @@
+{
+  "schema": "ospec-knowledge-map/v1",
+  "profile": "prototype",
+  "slots": [
+    {
+      "id": "business.problem",
+      "dimension": "business",
+      "state": "assumed",
+      "source": { "kind": "document", "ref": "README.md:3" },
+      "review_trigger": "The user confirms or corrects the purpose.",
+      "decisions": ["system-boundaries"]
+    },
+    {
+      "id": "functional.actors",
+      "dimension": "functional",
+      "state": "assumed",
+      "source": { "kind": "repository", "ref": "app/api.py:5" },
+      "review_trigger": "The user names who calls the API.",
+      "decisions": ["system-boundaries"]
+    },
+    {
+      "id": "functional.capabilities",
+      "dimension": "functional",
+      "state": "assumed",
+      "source": { "kind": "repository", "ref": "app/api.py:9" },
+      "review_trigger": "The user confirms create and delete are the whole scope.",
+      "decisions": ["system-boundaries"]
+    },
+    {
+      "id": "quality.drivers",
+      "dimension": "quality",
+      "state": "assumed",
+      "source": { "kind": "repository", "ref": "app/payments_client.py:10" },
+      "review_trigger": "The user confirms that a slow payments service must not hang an order.",
+      "decisions": ["system-boundaries", "deployment-topology"]
+    },
+    {
+      "id": "architecture.boundaries",
+      "dimension": "architecture",
+      "state": "assumed",
+      "source": { "kind": "repository", "ref": "app/payments_client.py:4" },
+      "review_trigger": "The user confirms the payments service is the only external boundary.",
+      "decisions": ["system-boundaries", "integration-style"]
+    }
+  ],
+  "quality_scenarios": [
+    {
+      "id": "payments-timeout",
+      "origin": "Payments service",
+      "stimulus": "Does not answer",
+      "environment": "Normal operation",
+      "artifact": "orders",
+      "response": "The order fails instead of waiting indefinitely"
+    }
+  ]
+}

@@ -1,8 +1,8 @@
 "use strict";
 
 // Decision-record lint (openspec/specs/decision-records/spec.md,
-// REQ-decision-records-001 to REQ-decision-records-005). The schema decides
-// shape. A warning does not reject the record. This require puts the schema
+// REQ-decision-records-001 to REQ-decision-records-006). The schema decides
+// shape. A warning does not reject the record; unresolved evidence does. This require puts the schema
 // on the runtime graph so an installed CLI can read it from disk.
 
 require("../../schemas/foundation/decision-records/v1.schema.json");
@@ -10,6 +10,7 @@ require("../../schemas/foundation/decision-records/v1.schema.json");
 const fs = require("node:fs");
 const path = require("node:path");
 const { validateInstance } = require("./kernel-schema-validator.js");
+const { evidenceErrors } = require("./repository-evidence.js");
 
 const RECORD_DIR = path.resolve(__dirname, "../../schemas/foundation/decision-records");
 const DATE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
@@ -58,6 +59,11 @@ function warning(code, message) {
 function lintDecisionRecord(record, options = {}) {
   const structural = structuralResult(record);
   if (!structural.valid) return { valid: false, errors: structural.errors, warnings: [] };
+  // With a repository root, every path:line must exist there (REQ-decision-records-006).
+  if (options.root !== undefined) {
+    const unresolved = evidenceErrors(options.root, record.evidence, "/evidence");
+    if (unresolved.length > 0) return { valid: false, errors: unresolved, warnings: [] };
+  }
   const warnings = [];
   const classifiedAs = record.as || record.kind;
   if (record.kind === "dc" && classifiedAs === "adr") {
