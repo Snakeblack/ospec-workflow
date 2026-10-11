@@ -335,7 +335,7 @@ node scripts/configure/cli.js --target opencode        --out dist/opencode
 ```
 
 La transform es pura y testeada bajo Strict TDD; el CLI es la capa de IO con un gate de
-validación por target (golden fixtures, `claude plugin validate` para `claude` y validadores Node para GitHub Copilot y opencode). La selección de
+validación por target (golden fixtures, `claude plugin validate --strict` para `claude` cuando ese CLI está instalado, y validadores Node para GitHub Copilot y opencode). Validate Harness no ejecuta el CLI de Claude. La selección de
 modelo se abstrae en tiers (`models.yaml`). Cada árbol generado es **autocontenido**: el generador
 sigue los `require` desde los hooks e incluye su runtime (`scripts/hooks/` + sus dependencias de
 `scripts/lib/`), sin tests ni el propio generador. Consulta [model-routing.md](docs/model-routing.md)
