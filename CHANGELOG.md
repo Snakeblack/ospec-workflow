@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.122.0] - 2026-10-10
+
+### Added
+- **Registros de decisión (E2.4)**: el contrato `ospec-decision-record/v1` define tres registros. Un ADR cita al menos un id de escenario de calidad, restricción o supuesto, compara al menos dos opciones y deja la tecnología fuera de la decisión. Un TSR implementa uno o más ADR y trae alternativas y una fuente con fecha. Una DC es una decisión de desarrollo del cambio. El lint avisa, y el registro sigue siendo válido, cuando la decisión nombra un producto de la lista que acompaña al documento (`technology-in-decision`), cuando una DC se clasifica como ADR (`misclassified-development-decision`), cuando un ADR no cita un driver (`missing-driver`) o cuando un TSR no cita un ADR o no trae una fuente fechada (`missing-adr`, `missing-dated-source`). La lista de productos va en el registro o como argumento del lint. Los fixtures son JSON de ese modelo. Hecho con IDD (`idd/archive/2026-10-10-decision-records-model/`).
+
+### Changed
+- **Foundation**: la plantilla del ADR pide el id del driver, la del TSR pide el ADR que implementa y la fuente fechada, y la decisión de desarrollo queda en el documento vivo del cambio. El registro tecnológico sigue escribiéndose en la sección del technical baseline.
+- **Roadmap**: E2.4 `decision-records-model` pasa a hecho y E2.5 `brownfield-architecture-recovery` queda como siguiente.
+
+**Verificación directa**: `node scripts/check.js` (3473 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.121.1] - 2026-10-11
 
 ### Fixed

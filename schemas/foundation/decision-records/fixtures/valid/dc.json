@@ -1,0 +1,6 @@
+{
+  "schema": "ospec-decision-record/v1",
+  "kind": "dc",
+  "title": "Keep offset pagination for this change",
+  "decision": "The list endpoint stays offset-based. A cursor can wait for a second consumer."
+}

@@ -114,10 +114,13 @@ Read each file before writing and update it; never discard what the user wrote.
 
 Every ADR holds its context and drivers, at least two considered options, the
 decision, its consequences (including what gets harder), a fitness function or
-check that would detect a violation, and a review trigger. Its decision names
+check that would detect a violation, and a review trigger. Cite at least one
+driver id: a quality scenario, a constraint or an assumption. Its decision names
 no product or library: technology choices go to the technology record, each
-implementing an ADR and justified by team context, maturity, license and
-cost. Never rewrite an accepted ADR: supersede it with a new one.
+implementing an ADR and justified by team context, maturity, license, cost and
+a dated source. Never rewrite an accepted ADR: supersede it with a new one.
+A development decision stays in the change's living document; do not file it
+as an ADR.
 
 The test strategy names what each layer protects: unit tests for domain
 rules, validation and transformations; integration or contract tests for

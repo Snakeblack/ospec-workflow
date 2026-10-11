@@ -1662,7 +1662,7 @@ The skill reads text and Markdown sources directly. For binary documents it call
 
 ### Requirement: foundation Records Architecture For IDD
 
-Foundation records structural decisions as ADRs under `docs/architecture/decisions/` (context and drivers, at least two options, decision without product names, consequences, fitness function, review trigger) and quality drivers as scenarios with a measure only when the user gives one. It proposes `idd/config.yaml` (`checks`, `strict_tdd`, `impact`, `contracts.documents`) and writes it only after the user's explicit approval, preserving existing keys; it never writes application code, manifests or scaffolds.
+Foundation records structural decisions as ADRs under `docs/architecture/decisions/` (context and drivers with at least one cited driver id — a quality scenario, a constraint or an assumption — at least two options, decision without product names, consequences, fitness function, review trigger) and quality drivers as scenarios with a measure only when the user gives one. A development decision stays in the change's living document. It proposes `idd/config.yaml` (`checks`, `strict_tdd`, `impact`, `contracts.documents`) and writes it only after the user's explicit approval, preserving existing keys; it never writes application code, manifests or scaffolds.
 
 #### Scenario: The first change derives the obligations foundation planned
 - GIVEN foundation recorded `impact.public_contract` for the planned API paths with the user's approval

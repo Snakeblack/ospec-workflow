@@ -1,0 +1,120 @@
+{
+  "schema": "idd-state/v1",
+  "change": "decision-records-model",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "feature",
+    "summary": "Tres registros de decisión (ADR, TSR y DC), cada uno con plantilla y lint.",
+    "acceptance": "Los fixtures distinguen un ADR válido, un ADR tecnológico (aviso) y una decisión de desarrollo mal clasificada como ADR."
+  },
+  "facts": {
+    "open": [
+      "¿Contra qué lista compara el lint los nombres de productos o librerías de la sección Decision: una lista que acompaña al documento, las dependencias de los manifiestos del proyecto, o los nombres ya escritos en el registro tecnológico?",
+      "¿Cómo reconoce el lint una decisión de desarrollo mal clasificada como ADR?",
+      "¿Esa decisión de desarrollo mal clasificada es un aviso, como el ADR tecnológico, o un fallo que rechaza el registro?",
+      "¿Qué cuenta como referenciar un driver: que la sección Context and drivers no esté vacía, o que cite un identificador de escenario de calidad, restricción o supuesto?",
+      "¿Este ítem mueve el registro tecnológico que foundation escribe hoy en technical-baseline.md a docs/architecture/technology/, o solo añade plantillas, lint y fixtures sin cambiar esa salida?",
+      "Además de los tres fixtures de ADR, ¿el lint de este ítem avisa también cuando un TSR no cita un ADR o no trae una fuente fechada?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/architecture/README.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/specs/agents/spec.md",
+      "openspec/specs/decision-records/spec.md",
+      "schemas/foundation/decision-records/fixtures/valid/adr.json",
+      "schemas/foundation/decision-records/fixtures/valid/dc.json",
+      "schemas/foundation/decision-records/fixtures/valid/tsr.json",
+      "schemas/foundation/decision-records/fixtures/warnings/adr-missing-driver.json",
+      "schemas/foundation/decision-records/fixtures/warnings/misclassified-dc.json",
+      "schemas/foundation/decision-records/fixtures/warnings/technological-adr.json",
+      "schemas/foundation/decision-records/fixtures/warnings/tsr-missing-adr.json",
+      "schemas/foundation/decision-records/fixtures/warnings/tsr-missing-date.json",
+      "schemas/foundation/decision-records/v1.schema.json",
+      "scripts/configure/real-repo.test.js",
+      "scripts/lib/decision-gap.js",
+      "scripts/lib/decision-records.js",
+      "scripts/lib/decision-records.test.js",
+      "scripts/lib/k1-scope-guard.test.js",
+      "skills/foundation/SKILL.md",
+      "skills/foundation/references/foundation-details.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Una lista que acompaña al documento (el fixture o el argumento del lint). El registro declara tipo dc pero se valida como ADR. Eso es un aviso: el registro sigue siendo válido. Referenciar un driver es citar un identificador de escenario de calidad, restricción o supuesto. Este ítem no mueve la salida de foundation: solo plantillas, lint y fixtures, y el technical baseline sigue llevando la sección de tecnología. Un TSR sin ADR citado o sin fuente fechada es un aviso.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-10T20:39:36.739Z",
+      "detail": {
+        "tree": "sha256:e8b32f91512eff975bad6bdb0814735545930f5aa34181eff7c9386a726d616d",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-10T20:40:00.110Z"
+    }
+  ],
+  "base": "3fea9a7c255e9c64a5e03cfbef2dbf6fd77bb956",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d42ef16af3ce5184245c295f4c26c85a84c9db8ebcbb12ee2be4565d22960426",
+      "tree": "sha256:e8b32f91512eff975bad6bdb0814735545930f5aa34181eff7c9386a726d616d",
+      "recorded_at": "2026-10-10T20:39:36.739Z"
+    }
+  ],
+  "closed_at": "2026-10-10T20:40:00.110Z"
+}

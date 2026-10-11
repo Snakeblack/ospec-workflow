@@ -1000,8 +1000,10 @@ test("real repo: every target ships the ospec CLI and it runs from the generated
     assert.deepStrictEqual(JSON.parse(output).next_step, { action: "open-change" });
     for (const rel of [
       "scripts/lib/decision-gap.js",
+      "scripts/lib/decision-records.js",
       "schemas/foundation/knowledge-map/catalog.json",
       "schemas/foundation/knowledge-map/v1.schema.json",
+      "schemas/foundation/decision-records/v1.schema.json",
     ]) {
       assert.ok(result.files.some((file) => file.path === rel), `${target} dropped ${rel}`);
     }
