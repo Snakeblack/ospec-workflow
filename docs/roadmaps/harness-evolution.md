@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.126.0, 2026-10-11.
+> **Versión de referencia:** v2.127.0, 2026-10-11.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -728,7 +728,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
-- 2026-10-11: E3.1 `change-decisions-and-adr-impact` hecho con IDD. Un cambio declara los ADR y escenarios de calidad que toca y su impacto; enmendar, sustituir o contradecir se detiene en `adr-amend-or-contradict`, y el ADR nuevo pasa el lint. El archivo SDD deja de promover decisiones a `docs/adr/`. E3.2 pasa a `next-eligible`.
+- 2026-10-11: E3.1 `change-decisions-and-adr-impact` hecho con IDD y publicado en v2.127.0. Un cambio declara los ADR y escenarios de calidad que toca y su impacto; enmendar, sustituir o contradecir se detiene en `adr-amend-or-contradict`, y el ADR nuevo pasa el lint. El archivo SDD deja de promover decisiones a `docs/adr/`. E3.2 pasa a `next-eligible`.
 - 2026-10-11: E2.6 `dogfood-ospec-foundation` hecho con IDD y publicado en v2.125.0; cierra la Etapa 2. ospec tiene su brief, technical baseline, mapa de conocimiento, mapa de componentes y 11 ADR de arquitectura que pasan el lint de E2.4; `docs/adr/` queda indexado como decisiones de change archivadas. E3.1 pasa a `next-eligible`.
 - 2026-10-11: E2.5 `brownfield-architecture-recovery` hecho con IDD y publicado en v2.124.0. La foundation recupera el mapa de componentes `ospec-component-map/v1` y ADR `inferred` con evidencia `ruta:línea`, y una evidencia que no resuelve rechaza el registro. E2.6 pasa a `next-eligible`.
 - 2026-10-11: E1.13 `idd-openspec-asymmetries` y E1.15 `idd-review-successor-policy` hechos con IDD y publicados en v2.123.0. El pre-commit sigue el modo activo y avisa si la otra fuente contradice. El sucesor de review IDD no pide aprobación; SDD sigue exigiéndola.
