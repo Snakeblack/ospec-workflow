@@ -134,8 +134,8 @@ test("B5.2 · sdd-init writes the profile to openspec/config.yaml and materializ
 
 test("B5.3 · config documents the team key and the legacy scale mapping", async () => {
   const content = await readFile(CONFIG_PATH);
-  assert.match(content, /# team:\n#   size: small\n#   experience: mixed/, "must carry the commented team example");
-  assert.match(content, /enterprise →\s*\n?#?\s*multi-team/, "must document the legacy scale mapping");
+  assert.match(content, /# team:\r?\n#   size: small\r?\n#   experience: mixed/, "must carry the commented team example");
+  assert.match(content, /enterprise →\s*#?\s*multi-team/, "must document the legacy scale mapping");
 });
 
 // ---------------------------------------------------------------------------

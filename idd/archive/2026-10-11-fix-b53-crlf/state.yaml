@@ -1,0 +1,109 @@
+{
+  "schema": "idd-state/v1",
+  "change": "fix-b53-crlf",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El test B5.3 de eje-b-contract falla en Windows porque busca saltos de línea LF en openspec/config.yaml, que el checkout de Windows tiene con CRLF",
+    "acceptance": "B5.3 pasa con openspec/config.yaml en LF y en CRLF"
+  },
+  "facts": {
+    "basis": "Solo cambia la expresión del test; el comportamiento esperado es el mismo en ambos finales de línea, como ya hace k1-scope-guard al normalizar CRLF"
+  },
+  "plan": {
+    "paths": [
+      "scripts/eje-b-contract.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-11T21:14:08.155Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-11T21:14:32.111Z",
+      "detail": {
+        "tree": "sha256:e8a33a2e2404b2427d233853f7c83b65e8f0f7c1f1338b8662509155d3a1e2c9",
+        "runs": [
+          "run-3"
+        ]
+      }
+    }
+  ],
+  "base": "11f62dbc1db22a6d9efdc3fb1adfe084a3eeb46d",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --require /tmp/claude-1000/-home-sn4ke-dev-repositorios-activos-ospec-workflow/0b2f2989-f960-40fb-a849-812e49960c8c/scratchpad/crlf-checkout.js --test scripts/eje-b-contract.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:98aabad973b31a0ef129c4d3bc40f6471541d7981865ebedb8419bb5ec4b2f43",
+      "tree": "sha256:82d5f5258764ab54777ba52991f96aa2584b920902fb96d7ba7375ce4df50fd6",
+      "recorded_at": "2026-10-11T21:14:02.641Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --require /tmp/claude-1000/-home-sn4ke-dev-repositorios-activos-ospec-workflow/0b2f2989-f960-40fb-a849-812e49960c8c/scratchpad/crlf-checkout.js --test scripts/eje-b-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a1ebdf3c0c8333b2eacbd542d098455bf42c9736417d51896b5e18caf5f7f87d",
+      "tree": "sha256:3737f77c4433e78d3dd16e8796878dbd223f85b0c5396cad15f3826bd4b9b083",
+      "recorded_at": "2026-10-11T21:14:08.155Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:905a09e34b6c2bbda2d4a9384bd50ae9e15d653c6d8e8bf944e7ba0603a54891",
+      "tree": "sha256:e8a33a2e2404b2427d233853f7c83b65e8f0f7c1f1338b8662509155d3a1e2c9",
+      "recorded_at": "2026-10-11T21:14:32.111Z"
+    }
+  ],
+  "closed_at": "2026-10-11T21:14:32.178Z"
+}
