@@ -603,6 +603,35 @@ test("a trust review without blockers satisfies trust-review until the reviewed 
   const successor = review(root, "start");
   assert.strictEqual(successor.json.review.generation, 2);
   assert.strictEqual(stateOf(root, "rotate-tokens").reviews.length, 2);
+  assert.strictEqual(successor.json.review.request.reviewer, "review-trust");
+});
+
+test("an IDD successor needs no approval, and an unchanged or exhausted review is refused", (t) => {
+  const root = openRotation(t);
+  review(root, "start");
+  review(root, "record", "--result", JSON.stringify({ findings: [] }));
+  const same = review(root, "start");
+  assert.strictEqual(same.code, 1);
+  assert.strictEqual(same.json.error.code, "review-current");
+  assert.strictEqual(stateOf(root, "rotate-tokens").reviews.length, 1);
+
+  for (let generation = 2; generation <= 3; generation += 1) {
+    writeFile(root, "src/auth/tokens.js", `module.exports = { ttl: ${generation} };\n`);
+    ospec(root, "check", "--change", "rotate-tokens", "--json");
+    const started = review(root, "start");
+    assert.strictEqual(started.code, 0, started.stderr);
+    assert.strictEqual(started.json.review.generation, generation);
+    review(root, "record", "--result", JSON.stringify({ findings: [] }));
+  }
+  writeFile(root, "src/auth/tokens.js", "module.exports = { ttl: 4 };\n");
+  const stale = ospec(root, "check", "--change", "rotate-tokens", "--json");
+  assert.strictEqual(stale.code, 0, stale.stderr);
+  const exhausted = review(root, "start");
+  assert.strictEqual(exhausted.code, 1);
+  assert.strictEqual(exhausted.json.error.code, "review-limit");
+  assert.strictEqual(stateOf(root, "rotate-tokens").reviews.length, 3);
+  ospec(root, "check", "--change", "rotate-tokens", "--json");
+  assert.strictEqual(stateOf(root, "rotate-tokens").reviews.length, 3, "check does not open another review");
 });
 
 test("a blocker gets one bounded correction validated against its frozen id", (t) => {

@@ -824,8 +824,9 @@ The checks MUST cover at least:
   `state.yaml.bak`, `error` for an unreadable state, `info` with
   `ospec next --change <id>` for an open change), `sdd-change` for every change
   in `openspec/changes/` (`info` with `/sdd-continue <name>`),
-  `strict-tdd-hook` (`warn` when `idd/config.yaml` sets `strict_tdd` and the
-  installed pre-commit hook reads Strict TDD only from `openspec/config.yaml`),
+  `strict-tdd-hook` (`warn` when the installed pre-commit hook's active mode
+  and the other Strict TDD source disagree: IDD follows `strict_tdd`, and
+  `mode: sdd` or a missing `idd/config.yaml` follows `testing.tdd_mode`),
   `session-dir` (`warn` when `.ospec/` exists and git does not ignore it) and
   `hook-guards` (`warn` naming every `DISABLE_*` guard set to `true`).
 - `claude`: `plugin` (`error` when an installation's directory or manifest is

@@ -18,6 +18,7 @@ const { DEFAULT_MODE, STATE_FILE, resolveMode, validateState } = require("./idd-
 const { CONFIG_FILE, CONFIG_KEYS, IddConfigError, parseIddConfig } = require("./idd-config.js");
 const { statusOf } = require("./idd-next.js");
 const { candidateCheckCommand, configureChecksStep } = require("./idd-checks-config.js");
+const { readPrecommitStrict } = require("./precommit-strict.js");
 const { TARGETS: ENGRAM_TARGETS, isConfigured, isUnknown, detectEngram, parseJsonc } = require("./engram-detect.js");
 const { binaryCandidates, hostBinarySuffix } = require("../hooks/ospec-hooks-launch.js");
 const hosts = require("./ospec-doctor-hosts.js");
@@ -484,21 +485,28 @@ function gitHookText(root, name) {
   return readText(path.join(root, ".git", "hooks", name)) || "";
 }
 
-function strictTddCheck(root, config, add) {
-  if (!config?.strictTdd) return;
-  if (!gitHookText(root, "pre-commit").includes("pre-commit-hook.js")) {
-    add({ id: "strict-tdd-hook", status: "ok", detail: "no ospec pre-commit hook installed" });
+function strictTddCheck(root, add) {
+  const decision = readPrecommitStrict(root);
+  const hookInstalled = gitHookText(root, "pre-commit").includes("pre-commit-hook.js");
+  if (!hookInstalled) {
+    if (decision.activeStrict) {
+      add({ id: "strict-tdd-hook", status: "ok", detail: "no ospec pre-commit hook installed" });
+    }
     return;
   }
-  const openspec = readText(path.join(root, "openspec", "config.yaml")) || "";
-  add(/tdd_mode\s*:\s*["']?strict\b/i.test(openspec)
-    ? { id: "strict-tdd-hook", status: "ok" }
-    : {
-        id: "strict-tdd-hook",
-        status: "warn",
-        cause: "idd/config.yaml sets strict_tdd, but the pre-commit hook reads Strict TDD only from openspec/config.yaml, so commits are not checked for it",
-        action: "Declare `testing.tdd_mode: strict` in openspec/config.yaml too, or rely on the tdd-red-green obligation of `ospec check`.",
-      });
+  if (!decision.activeStrict && !decision.contradiction) return;
+  if (decision.contradiction) {
+    const followed = decision.active === "idd" ? "`strict_tdd` in idd/config.yaml" : "`testing.tdd_mode` in openspec/config.yaml";
+    const other = decision.active === "idd" ? "`testing.tdd_mode` in openspec/config.yaml" : "`strict_tdd` in idd/config.yaml";
+    add({
+      id: "strict-tdd-hook",
+      status: "warn",
+      cause: `the pre-commit hook follows ${followed} and the other source, ${other}, says the opposite`,
+      action: "Make the two declarations agree, or set `mode: sdd` when OpenSpec should decide the hook and leave `mode` unset when IDD should.",
+    });
+    return;
+  }
+  add({ id: "strict-tdd-hook", status: "ok" });
 }
 
 function sessionDirCheck(root, spawn, add) {
@@ -625,7 +633,7 @@ async function runDoctor({
       action: `Continue with \`/sdd-continue ${change.name}\`.`,
     });
   }
-  strictTddCheck(root, config, project);
+  strictTddCheck(root, project);
   sessionDirCheck(root, spawn, project);
   hookGuardCheck(env, project);
   hosts.codexRepoCheck(root, others, project);

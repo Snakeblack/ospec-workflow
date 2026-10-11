@@ -20,6 +20,7 @@ const {
 } = require("./install-engine.js");
 const { parseSddFlag, previousInstallHasSdd, resolveWithSdd } = require("./sdd-package.js");
 const { DRY_RUN_ROW, PHASE_BUILD, PHASE_FILES, packagesRow, reportBuildFailure, reporterFor, restartHint } = require("./install-output.js");
+const { ensureOspecGitignore } = require("../lib/ospec-gitignore.js");
 
 const PHASE_REPAIR = "Reparar config.toml";
 const PHASE_MCP = "Registrar servidores MCP";
@@ -1355,8 +1356,10 @@ function install(argv, deps = {}) {
         writeRouterBlock(agentDestFile, router, { fs: writeFs, replaceWhole: ownedAgentsMd });
       }
       if (isRepoInstall) {
-        installRepoSkills(outDir, path.dirname(codexRoot), writeFs, fsImpl);
-        installRepoRuntime(outDir, path.dirname(codexRoot), writeFs);
+        const repoRoot = path.dirname(codexRoot);
+        installRepoSkills(outDir, repoRoot, writeFs, fsImpl);
+        installRepoRuntime(outDir, repoRoot, writeFs);
+        ensureOspecGitignore(repoRoot, writeFs);
       }
       if (!isRepoInstall) {
         const runtimeDir = path.join(codexRoot, "ospec-workflow");

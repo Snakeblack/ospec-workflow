@@ -224,20 +224,38 @@ test("an SDD change in flight is resumable and warns when SDD is not installed",
   assert.equal(result.exit_code, 0);
 });
 
-test("the IDD/openspec asymmetries are reported as warnings", async (t) => {
+test("an IDD strict project without openspec no longer warns about the hook", async (t) => {
   const env = setup(t);
   write(path.join(env.root, "idd", "config.yaml"), "strict_tdd: true\n");
   write(path.join(env.root, ".git", "hooks", "pre-commit"), '#!/bin/sh\nnode "$(git rev-parse --show-toplevel)/scripts/hooks/pre-commit-hook.js"\n');
   fs.mkdirSync(path.join(env.root, ".ospec", "session"), { recursive: true });
   const result = await doctor(env, { spawn: makeSpawn({ ignored: false }) });
-  const tdd = find(result, "project", "strict-tdd-hook");
-  assert.equal(tdd.status, "warn");
-  assertActionable(tdd);
+  assert.equal(find(result, "project", "strict-tdd-hook").status, "ok");
   const session = find(result, "project", "session-dir");
   assert.equal(session.status, "warn");
   assertActionable(session);
   assert.match(session.action, /\.gitignore/);
   assert.equal(result.exit_code, 0);
+});
+
+test("the doctor warns when the inactive Strict TDD source contradicts the active mode", async (t) => {
+  const iddWins = setup(t);
+  write(path.join(iddWins.root, "idd", "config.yaml"), "strict_tdd: false\n");
+  write(path.join(iddWins.root, "openspec", "config.yaml"), "testing:\n  tdd_mode: strict\n");
+  write(path.join(iddWins.root, ".git", "hooks", "pre-commit"), "node scripts/hooks/pre-commit-hook.js\n");
+  const idd = find(await doctor(iddWins), "project", "strict-tdd-hook");
+  assert.equal(idd.status, "warn");
+  assert.match(idd.cause, /strict_tdd/);
+  assert.match(idd.cause, /testing.tdd_mode/);
+  assertActionable(idd);
+
+  const sddWins = setup(t);
+  write(path.join(sddWins.root, "idd", "config.yaml"), "mode: sdd\nstrict_tdd: true\n");
+  write(path.join(sddWins.root, "openspec", "config.yaml"), "testing:\n  tdd_mode: focused\n");
+  write(path.join(sddWins.root, ".git", "hooks", "pre-commit"), "node scripts/hooks/pre-commit-hook.js\n");
+  const sdd = find(await doctor(sddWins), "project", "strict-tdd-hook");
+  assert.equal(sdd.status, "warn");
+  assert.match(sdd.cause, /testing.tdd_mode/);
 });
 
 test("strict TDD declared in both places and an ignored .ospec/ are fine", async (t) => {

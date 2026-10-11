@@ -3,10 +3,20 @@
 const assert = require("node:assert/strict");
 const child_process = require("node:child_process");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 
 const { runPreCommit } = require("./pre-commit-hook.js");
+
+function mockOpenspec(t, content) {
+  const openspec = (file) => String(file).replaceAll("\\", "/").endsWith("openspec/config.yaml");
+  t.mock.method(fs, "existsSync", (file) => openspec(file));
+  t.mock.method(fs, "readFileSync", (file) => {
+    if (openspec(file)) return content;
+    throw new Error(`unexpected read ${file}`);
+  });
+}
 
 test("check.js does not inherit the commit git context", (t) => {
   t.mock.method(process, "exit", () => {});
@@ -134,9 +144,8 @@ test("allows commit when strict_tdd is inactive, even if no tests staged", (t) =
     return { status: 0, stdout: "" };
   });
 
-  // config.yaml has testing.tdd_mode: standard and legacy strict_tdd: true (which is ignored)
-  t.mock.method(fs, "existsSync", (p) => p.endsWith("config.yaml"));
-  t.mock.method(fs, "readFileSync", () => "testing:\n  tdd_mode: standard\nstrict_tdd: true\n");
+  // openspec has testing.tdd_mode: standard and a legacy strict_tdd flag, which the hook ignores
+  mockOpenspec(t, "testing:\n  tdd_mode: standard\nstrict_tdd: true\n");
 
   runPreCommit();
   assert.equal(exitCode, 0);
@@ -160,8 +169,7 @@ test("allows commit when strict_tdd is active and no production files are staged
   });
 
   // config.yaml has testing.tdd_mode: strict
-  t.mock.method(fs, "existsSync", (p) => p.endsWith("config.yaml"));
-  t.mock.method(fs, "readFileSync", () => "testing:\n  tdd_mode: strict\n");
+  mockOpenspec(t, "testing:\n  tdd_mode: strict\n");
 
   runPreCommit();
   assert.equal(exitCode, 0);
@@ -184,8 +192,7 @@ test("blocks commit when strict_tdd is active and production files have no tests
     return { status: 0, stdout: "" };
   });
 
-  t.mock.method(fs, "existsSync", (p) => p.endsWith("config.yaml"));
-  t.mock.method(fs, "readFileSync", () => "testing:\n  tdd_mode: strict\n");
+  mockOpenspec(t, "testing:\n  tdd_mode: strict\n");
 
   runPreCommit();
   assert.equal(exitCode, 1);
@@ -208,8 +215,7 @@ test("allows commit when strict_tdd is active and production files are staged al
     return { status: 0, stdout: "" };
   });
 
-  t.mock.method(fs, "existsSync", (p) => p.endsWith("config.yaml"));
-  t.mock.method(fs, "readFileSync", () => "testing:\n  tdd_mode: strict\n");
+  mockOpenspec(t, "testing:\n  tdd_mode: strict\n");
 
   runPreCommit();
   assert.equal(exitCode, 0);
@@ -232,8 +238,7 @@ test("allows commit when strict_tdd is active and production files are staged al
     return { status: 0, stdout: "" };
   });
 
-  t.mock.method(fs, "existsSync", (p) => p.endsWith("config.yaml"));
-  t.mock.method(fs, "readFileSync", () => "testing:\n  tdd_mode: strict\n");
+  mockOpenspec(t, "testing:\n  tdd_mode: strict\n");
 
   runPreCommit();
   assert.equal(exitCode, 0);
@@ -532,6 +537,87 @@ test("blocks commit when git diff fails in AgentShield secret scanning [REQ-agen
   assert.equal(exitCode, 1);
 });
 
+test("IDD strict_tdd without openspec blocks a production commit that has no test", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-precommit-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(root, "idd"));
+  fs.writeFileSync(path.join(root, "idd", "config.yaml"), "strict_tdd: true\n");
+
+  let exitCode = null;
+  t.mock.method(process, "exit", (code) => {
+    exitCode = code;
+  });
+  t.mock.method(child_process, "spawnSync", (cmd, args) => {
+    if (cmd === "node" && args[0] === "scripts/check.js") return { status: 0, stdout: "", stderr: "" };
+    if (cmd === "git" && args.includes("diff")) return { status: 0, stdout: "internal/hooks/sessionstart.go\n" };
+    return { status: 0, stdout: "" };
+  });
+
+  const previous = process.env.DISABLE_AGENT_SHIELD;
+  process.env.DISABLE_AGENT_SHIELD = "true";
+  try {
+    runPreCommit({ repoRoot: root });
+  } finally {
+    if (previous === undefined) delete process.env.DISABLE_AGENT_SHIELD;
+    else process.env.DISABLE_AGENT_SHIELD = previous;
+  }
+  assert.equal(exitCode, 1);
+});
+
+function productionCommit(t, root) {
+  let exitCode = null;
+  t.mock.method(process, "exit", (code) => {
+    exitCode = code;
+  });
+  t.mock.method(child_process, "spawnSync", (cmd, args) => {
+    if (cmd === "node" && args[0] === "scripts/check.js") return { status: 0, stdout: "", stderr: "" };
+    if (cmd === "git" && args.includes("diff")) return { status: 0, stdout: "internal/hooks/sessionstart.go\n" };
+    return { status: 0, stdout: "" };
+  });
+  const previous = process.env.DISABLE_AGENT_SHIELD;
+  process.env.DISABLE_AGENT_SHIELD = "true";
+  try {
+    runPreCommit({ repoRoot: root });
+  } finally {
+    if (previous === undefined) delete process.env.DISABLE_AGENT_SHIELD;
+    else process.env.DISABLE_AGENT_SHIELD = previous;
+  }
+  return exitCode;
+}
+
+function tempRepo(t) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-precommit-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  return root;
+}
+
+test("IDD with strict_tdd false does not block even when openspec says strict", (t) => {
+  const root = tempRepo(t);
+  fs.mkdirSync(path.join(root, "idd"));
+  fs.mkdirSync(path.join(root, "openspec"));
+  fs.writeFileSync(path.join(root, "idd", "config.yaml"), "strict_tdd: false\n");
+  fs.writeFileSync(path.join(root, "openspec", "config.yaml"), "testing:\n  tdd_mode: strict\n");
+  assert.equal(productionCommit(t, root), 0);
+});
+
+test("mode sdd follows openspec even when strict_tdd is true", (t) => {
+  const root = tempRepo(t);
+  fs.mkdirSync(path.join(root, "idd"));
+  fs.mkdirSync(path.join(root, "openspec"));
+  fs.writeFileSync(path.join(root, "idd", "config.yaml"), "mode: sdd\nstrict_tdd: true\n");
+  fs.writeFileSync(path.join(root, "openspec", "config.yaml"), "testing:\n  tdd_mode: focused\n");
+  assert.equal(productionCommit(t, root), 0);
+});
+
+test("mode sdd with tdd_mode strict blocks a production commit without a test", (t) => {
+  const root = tempRepo(t);
+  fs.mkdirSync(path.join(root, "idd"));
+  fs.mkdirSync(path.join(root, "openspec"));
+  fs.writeFileSync(path.join(root, "idd", "config.yaml"), "mode: sdd\nstrict_tdd: false\n");
+  fs.writeFileSync(path.join(root, "openspec", "config.yaml"), "testing:\n  tdd_mode: strict\n");
+  assert.equal(productionCommit(t, root), 1);
+});
+
 test("blocks commit when git diff fails in Strict TDD verification [REQ-agent-shield-security-001]", (t) => {
   let exitCode = null;
   t.mock.method(process, "exit", (code) => {
@@ -555,8 +641,7 @@ test("blocks commit when git diff fails in Strict TDD verification [REQ-agent-sh
     return { status: 0, stdout: "" };
   });
 
-  t.mock.method(fs, "existsSync", (p) => p.endsWith("config.yaml"));
-  t.mock.method(fs, "readFileSync", () => "testing:\n  tdd_mode: strict\n");
+  mockOpenspec(t, "testing:\n  tdd_mode: strict\n");
 
   runPreCommit();
   assert.equal(exitCode, 1);

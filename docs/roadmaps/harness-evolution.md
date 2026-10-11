@@ -130,9 +130,9 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.10** | `vscode-dry-run` (`setup:vscode --dry-run` ya no toca `dist/vscode`, y el árbol se publica preparado o no se publica, en v2.117.1) | bugfix |
 | `done` | **E1.11** | `idd-protocol-hygiene` (`next` pide declarar el plan, `record retract` corrige un plan sobredeclarado y el protocolo conserva codificación, en v2.117.16) | bugfix |
 | `done` | **E1.12** | `session-hook-idd` (`Stop` y `PreCompact` ven los cambios IDD abiertos y escriben su siguiente paso, con paridad JS/Go, en v2.117.17) | bugfix |
-| `pending` | **E1.13** | `idd-openspec-asymmetries` (follow-up del checkpoint de la Etapa 1) | bugfix |
+| `done` | **E1.13** | `idd-openspec-asymmetries` (el pre-commit sigue el modo activo; el doctor avisa si la otra fuente contradice; `.ospec/` queda como derivado e ignorado al instalar) | bugfix |
 | `done` | **E1.14** | `codex-repo-runtime` (`install:codex -- <repo>` lleva el protocolo IDD, sus revisores y un runtime propio relativo, en v2.117.18) | bugfix |
-| `pending` | **E1.15** | `idd-review-successor-policy` (coherencia de autoridades; decisión humana pendiente) | contrato |
+| `done` | **E1.15** | `idd-review-successor-policy` (el sucesor IDD no pide aprobación; SDD sigue exigiéndola) | contrato |
 | `done` | **E1.16** | `hook-neutral-permissions` (OSP-017; sin objeción, el hook no decide y el host aplica sus permisos, en v2.117.5) | bugfix |
 | `done` | **E1.17** | `hook-boundary-reliability` (OSP-001/002/003; secretos y launcher, v2.117.9) | bugfix |
 | `done` | **E1.18** | `idd-evidence-integrity` (OSP-018; evidencia ligada a checks efectivos, en v2.117.11) | bugfix |
@@ -161,7 +161,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 
 **▶ SIGUIENTE:** E2.5 `brownfield-architecture-recovery`. E2.4 `decision-records-model` queda hecho: el contrato `ospec-decision-record/v1` distingue con fixtures un ADR válido, un ADR tecnológico (aviso) y una decisión de desarrollo clasificada como ADR. E2.3 `foundation-discovery-rounds` queda hecho: la skill `foundation` cumple los seis escenarios de aceptación y `cncf-landscape` viaja en la instalación por defecto. E2.2 `decision-gap-engine` queda hecho: `ospec foundation next` elige la ronda y `ospec foundation record` persiste la respuesta. E2.1 `knowledge-map-contract` queda hecho: un proyecto guarda el mapa en `docs/architecture/knowledge-map.yaml`. La auditoría del 2026-10-09 (v2.118.0) corrigió defectos de coordinación de IDD (gates antes del trabajo, apertura del gate ADR, Strict TDD en refactors), añadió el criterio de tests por riesgo y adelantó parte de E2.3. E1.20 (OSP-020) quedó cerrado con IDD; su publicación está pendiente de elegir versión. E1.19 `idd-review-context` quedó hecho en v2.117.13, E1.16 (OSP-017) en v2.117.5, E1.17 (OSP-001/002/003) en v2.117.9, E1.21 (guía de checks IDD) en v2.117.10 y E1.18 (frescura de evidencia) en v2.117.11. Los ítems se ejecutan con IDD.
 
-El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) conserva su resultado histórico `continue`. Los hallazgos posteriores y sus límites están en el [análisis OSP de permisos y evidencia](../analysis/2026-10-08-osp-permisos-y-evidencia.md). E1.11 quedó hecho en v2.117.16, E1.12 en v2.117.17 y E1.14 en v2.117.18; E1.13 y E1.15 siguen pendientes; el plugin SDD del marketplace permanece en E5.8, por demanda.
+El [checkpoint de cierre de la Etapa 1](../analysis/2026-10-08-checkpoint-etapa-1.md) conserva su resultado histórico `continue`. Los hallazgos posteriores y sus límites están en el [análisis OSP de permisos y evidencia](../analysis/2026-10-08-osp-permisos-y-evidencia.md). E1.11 quedó hecho en v2.117.16, E1.12 en v2.117.17 y E1.14 en v2.117.18. E1.13 y E1.15 quedan hechos: el pre-commit sigue el modo activo y el sucesor de review IDD no pide aprobación. El plugin SDD del marketplace permanece en E5.8, por demanda.
 
 **Prioridades OSP aceptadas para la siguiente sesión:**
 
@@ -420,6 +420,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Evidencia adicional (auditoría 2026-10-08):** con producción staged sin tests, el pre-commit del consumidor devuelve 0 con solo `idd.strict_tdd: true` y 1 con `openspec.tdd_mode: strict`.
 - **Alcance:** decidir y aplicar una sola fuente de Strict TDD para el pre-commit según el modo resuelto del proyecto, incluida la precedencia cuando ambas configuraciones existen, y si `.ospec/` se queda, se mueve o se documenta como derivado. Conservar la heurística de archivos staged y la detección de secretos; el guard no demuestra red/green ni sustituye a `ospec run`.
 - **Hecho cuando:** un proyecto IDD con `strict_tdd: true` y sin `openspec/` recibe del pre-commit la misma comprobación que un proyecto SDD con `tdd_mode: strict`, y el doctor deja de avisar. La matriz IDD/SDD × strict/standard × con/sin tests y los casos de configuraciones coexistentes prueban la fuente elegida y la ausencia de regresiones.
+- **Hecho:** el modo activo manda. IDD (`idd/config.yaml` presente y `mode` distinto de `sdd`) usa solo `strict_tdd`; si la clave falta, el hook no exige tests. Sin ese archivo, o con `mode: sdd`, el hook usa solo `testing.tdd_mode: strict`. Si la otra fuente existe y dice lo contrario, el doctor avisa y el hook no cambia. `.ospec/` sigue siendo datos derivados de sesión; `setup:git-hooks` y la instalación de Codex en un repositorio añaden `.ospec/` a `.gitignore` si falta, y el doctor avisa solo cuando la carpeta existe y git no la ignora.
 - **Alternativa y coste:** documentar la asimetría deja sin aplicar una garantía declarada; resolver la configuración con el mecanismo existente evita un guard o una clasificación nuevos.
 
 ### E1.14 — `codex-repo-runtime`
@@ -437,7 +438,8 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Garantía que protege:** review independiente acotado y aprobaciones solo desde respuestas explícitas (principio 8); ningún retry reinicia un linaje agotado.
 - **Alcance:** elegir explícitamente entre aprobación de sucesores y una excepción IDD autorizada, y alinear instrucciones, spec, CLI y pruebas con esa decisión. La aceptación de este ítem no elige ninguna alternativa. Reutilizar las APIs de linaje; conservar predecesor terminal, identidad del candidato, hallazgos y rutas congelados, presupuesto dentro de cada linaje y lectura de estados históricos.
 - **Hecho cuando:** tras la decisión humana, pruebas independientes del CLI cubren sucesor permitido y rechazado según la política, candidato sin cambios, reconciliación pendiente, agotamiento y compatibilidad de estados; retry, check y close no restauran intentos ni vuelven a lanzar reviewers de descubrimiento.
-- **Alternativas y coste:** no cambiar conserva la contradicción; exigir aprobación añade intervención pero coincide con `AGENTS.md`; autorizar la excepción reduce intervención pero exige justificar su equivalencia. No se crea un sistema de aprobación ni nuevos agentes. Hasta la decisión, rige la instrucción aplicable de `AGENTS.md`.
+- **Alternativas y coste:** no cambiar conserva la contradicción; exigir aprobación añade intervención pero coincide con `AGENTS.md`; autorizar la excepción reduce intervención pero exige justificar su equivalencia. No se crea un sistema de aprobación ni nuevos agentes.
+- **Decisión:** excepción IDD. `ospec review start` abre el sucesor sin una aprobación aparte. Sigue exigiendo código distinto, un máximo de tres reviews y una sola corrección; un retry, un check o un close no restauran intentos ni lanzan otro revisor de descubrimiento. `createSuccessor` de SDD sigue exigiendo la referencia de aprobación. `AGENTS.md` separa las dos reglas.
 
 ### E1.16 — `hook-neutral-permissions` (OSP-017)
 
@@ -723,6 +725,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-11: E1.13 `idd-openspec-asymmetries` y E1.15 `idd-review-successor-policy` hechos con IDD. El pre-commit sigue el modo activo y avisa si la otra fuente contradice. El sucesor de review IDD no pide aprobación; SDD sigue exigiéndola.
 - 2026-10-10: E2.4 `decision-records-model` hecho con IDD. ADR, TSR y DC tienen plantilla y lint de avisos. E2.5 pasa a `next-eligible`.
 - 2026-10-10: E2.3 `foundation-discovery-rounds` hecho con IDD. La skill `foundation` cumple los seis escenarios y `cncf-landscape` entra en la instalación por defecto. E2.4 pasa a `next-eligible`.
 - 2026-10-10: E2.2 `decision-gap-engine` hecho con IDD. `ospec foundation next` elige la ronda y `ospec foundation record` persiste la respuesta. E2.3 pasa a `next-eligible`.

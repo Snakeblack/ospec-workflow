@@ -200,14 +200,14 @@ El remediation fast path MUST NOT eliminar la recuperación normal del progreso 
 
 `REQ-VL-K3-007`
 
-Durante apply, verify y hooks:
+Durante apply y verify:
 
 ```yaml
 testing:
   tdd_mode: standard | focused | strict
 ```
 
-MUST ser la única autoridad runtime del modo TDD.
+MUST ser la única autoridad runtime del modo TDD de SDD. El pre-commit es la excepción de modo: con `idd/config.yaml` presente y `mode` distinto de `sdd` usa solo `strict_tdd`; sin ese archivo, o con `mode: sdd`, usa solo `testing.tdd_mode: strict`.
 
 ### Scenario: team with explicit standard
 
@@ -231,8 +231,9 @@ testing:
   tdd_mode: strict
 ```
 
-* WHEN apply, verify o pre-commit evalúan Strict TDD.
-* THEN todos MUST resolver Strict usando la misma autoridad.
+* WHEN apply o verify evalúan Strict TDD.
+* THEN ambos MUST resolver Strict usando `testing.tdd_mode`.
+* AND el pre-commit MUST usar la autoridad de su modo, no esta misma autoridad cuando el proyecto está en IDD.
 
 ### Legacy migration
 
@@ -346,9 +347,10 @@ Toda operación de lineage (`startVerifyLineage`, `evaluateRecheck`, `getLineage
 
 ### Scenario: complete elimination of legacy strict_tdd parsing
 
-* GIVEN cualquier evaluación de modo TDD en `resolveTddMode()`, `pre-commit-hook.js`, `sdd-apply`, `sdd-verify` o `strict-tdd.md`.
-* WHEN se resuelve el modo TDD.
+* GIVEN cualquier evaluación de modo TDD en `resolveTddMode()`, `sdd-apply`, `sdd-verify` o `strict-tdd.md`.
+* WHEN se resuelve el modo TDD de SDD.
 * THEN el runtime MUST NOT consultar `config.strict_tdd`, `config.strictTdd` ni regexes de `strict_tdd: true`.
+* AND `pre-commit-hook.js` MUST consultar `strict_tdd` solo cuando el modo activo del pre-commit es IDD.
 * AND `scale: team` MUST NOT activar modo Focused si `testing.tdd_mode: standard`.
 
 ---

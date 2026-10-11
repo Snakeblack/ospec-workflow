@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { classifySensitiveFile, scanContentForSecrets, MAX_SCAN_SIZE_BYTES } = require("./lib/secret-scan.js");
 const { getStagedContent, getStagedBlobSize } = require("./lib/staged-validator.js");
-const { resolveTddMode } = require("../lib/tdd-mode.js");
+const { readPrecommitStrict } = require("../lib/precommit-strict.js");
 
 const GIT_HOOK_CONTEXT_VARS = [
   "GIT_DIR",
@@ -185,20 +185,11 @@ function runPreCommit(options = {}) {
     console.warn(`\nOSPEC-PRECOMMIT [Warning]: No se pudo ejecutar el validador check.js por una falla externa: ${err.message}. Continuando validación...`);
   }
 
-  // 4. Verificación de Strict TDD
+  // 4. Verificación de Strict TDD. IDD lee strict_tdd; SDD, o un repo sin
+  // idd/config.yaml, lee testing.tdd_mode. La otra fuente no cambia el hook.
   let strictTdd = false;
   try {
-    const configPath = path.join(repoRoot, "openspec", "config.yaml");
-    if (fs.existsSync(configPath)) {
-      const configContent = fs.readFileSync(configPath, "utf8");
-      const tddModeMatch = configContent.match(/tdd_mode\s*:\s*(\w+)/i);
-      const dummyConfig = {
-        testing: tddModeMatch ? { tdd_mode: tddModeMatch[1] } : undefined,
-      };
-      if (resolveTddMode(dummyConfig) === "strict") {
-        strictTdd = true;
-      }
-    }
+    strictTdd = readPrecommitStrict(repoRoot).activeStrict;
   } catch (err) {
     // Ignorar errores al leer configuración, por defecto false
   }
