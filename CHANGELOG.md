@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.131.0] - 2026-10-11
+
+### Added
+- **Registros de conocimiento al cerrar (E3.5)**: `ospec close --json` devuelve `records`, derivados solo del cambio archivado: uno por decisión de `change.md` (`knowledge/dc/<change>/<n>`), uno por impacto declarado distinto de `none` (`knowledge/impact/<change>/<kind>-<id>`) y uno por ADR nuevo adjuntado con `--record` (`knowledge/adr/<NNNN>`). Cada uno lleva título, resumen, ruta de origen, change, fecha y un tema estable para actualizar la misma entrada de memoria; cerrar de nuevo devuelve los mismos (REQ-idd-024). La CLI no lee ni escribe memoria (ADR 0006). Hecho con IDD (`idd/archive/2026-10-11-knowledge-memory-loop/`).
+- **Bucle de memoria de la skill `idd`**: `skills/idd/references/memory-loop.md`, cargado bajo demanda. Con herramientas de memoria entre sesiones, el agente recupera las decisiones previas una vez antes de listar los open facts, abre la ruta de cada resultado y lo cita en Decisions como `current`, `stale` o `conflict`; si el disco lo contradice, gana el disco y la entrada se vuelve a guardar o se marca obsoleta. Al cerrar guarda los `records` por tema. Sin memoria, nada cambia (REQ-session-memory-011).
+
+### Changed
+- **Addendum de memoria del orquestador SDD**: guarda cada `decisions/dc-NNN.md` del cambio archivado bajo `knowledge/dc/{change}/{NNN}` con su procedencia, y al empezar un cambio (`/sdd-new`, `/sdd-ff`) puede recuperar las decisiones relacionadas, contrastarlas con el disco y pasarlas a las fases etiquetadas.
+- **Foundation**: con memoria, guarda cada ADR (`knowledge/adr/NNNN`) y cada registro tecnológico (`knowledge/tsr/<choice>`) que escribe, con su ruta y fecha; antes de la primera ronda puede recuperar decisiones previas y usar solo lo que el disco confirma.
+- **Skill `idd`**: el traspaso del roadmap pasa a `references/memory-loop.md`; `SKILL.md` queda en 11 642 bytes.
+- **Roadmap**: E3.5 `knowledge-memory-loop` pasa a hecho y cierra la Etapa 3; lo siguiente es su checkpoint de cierre.
+
+**Verificación directa**: `node scripts/check.js` (3615 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.130.0] - 2026-10-11
 
 ### Added
