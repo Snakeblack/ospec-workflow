@@ -35,4 +35,5 @@ Immediately after a change is closed (the `sdd-archive` phase in SDD mode, or th
 - The generalist and each selected specialist run at most once. After findings freeze, use only the read-only `review-correction` validator for the frozen unresolved IDs; never relaunch a discovery reviewer.
 - Unrelated late observations are non-blocking follow-ups. Three failed targeted validations, including zero-delta attempts, exhaust the lineage.
 - Unknown mutation outcomes require exact reconciliation before any further action. Verify, delivery, and archive are read-only identity checks.
-- A new review requires an explicitly approved successor linked to a terminal predecessor. Retries and gates never reset attempts, budget, paths, findings, or reviewer executions.
+- A new SDD review requires an explicitly approved successor linked to a terminal predecessor. `createSuccessor` keeps that approval reference. Retries and gates never reset attempts, budget, paths, findings, or reviewer executions.
+- An IDD trust successor does not ask for a separate approval. `ospec review start` opens it only when the reviewed code changed, at most three times per change, with one bounded correction on each review. A retry, a check or a close does not restore attempts or launch another discovery reviewer.

@@ -45,6 +45,8 @@ El siguiente diagrama detalla cómo interactúan los comandos de usuario, el orq
 
 ## No fuente de verdad
 
+`.ospec/` es datos derivados de sesión: resúmenes, costes, mediciones y caché. No se versiona. `npm run setup:git-hooks` y la instalación de Codex en un repositorio añaden `.ospec/` a `.gitignore` si falta. `ospec doctor` avisa solo cuando la carpeta existe y git no la ignora.
+
 `.ospec/cache` y `.ospec/session` nunca sustituyen a OpenSpec. `.atl/` es residuo legacy ignorado; no es estado activo del registro ni del runtime.
 
 ## Backend de artefactos (adapter)

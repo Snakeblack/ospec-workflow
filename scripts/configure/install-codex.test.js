@@ -2090,6 +2090,7 @@ test("repo install writes the router block into the repository AGENTS.md and the
 
   assert.equal(installRouter(t, [destRepo, "--no-validate"]), 0);
   assert.equal(fs.readFileSync(path.join(destRepo, "AGENTS.md"), "utf8"), `# Project rules\n\n${ROUTER_BLOCK}`);
+  assert.equal(fs.readFileSync(path.join(destRepo, ".gitignore"), "utf8"), ".ospec/\n");
   assert.equal(fs.readFileSync(path.join(destRepo, ".agents", "skills", "sdd-orchestrator", "SKILL.md"), "utf8"), "# SDD Orchestrator\n");
 
   const legacyRepo = makeTempDir(t, "codex-router-legacy-");

@@ -3,6 +3,8 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
+const { ensureOspecGitignore } = require("./lib/ospec-gitignore.js");
+
 function installHook(hooksDir, hookName, scriptRelPath) {
   const hookPath = path.join(hooksDir, hookName);
   const hookCommand = `\nnode "$(git rev-parse --show-toplevel)/${scriptRelPath}"`;
@@ -41,8 +43,7 @@ function installHook(hooksDir, hookName, scriptRelPath) {
   }
 }
 
-function setup() {
-  const repoRoot = path.resolve(__dirname, "..");
+function setup(repoRoot = path.resolve(__dirname, "..")) {
   const gitDir = path.join(repoRoot, ".git");
 
   if (!fs.existsSync(gitDir)) {
@@ -60,8 +61,16 @@ function setup() {
 
   // 2. Commit-msg hook: blocks AI/model attribution in commit messages
   installHook(hooksDir, "commit-msg", "scripts/hooks/commit-msg-hook.js");
+
+  // .ospec/ is derived session data. Ignore it when the repository does not already.
+  ensureOspecGitignore(repoRoot);
 }
 
 if (require.main === module) {
   setup();
 }
+
+module.exports = {
+  setup,
+  installHook,
+};

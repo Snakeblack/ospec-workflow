@@ -87,17 +87,26 @@ El hook pre-commit MUST asegurar la validez semántica y sintáctica del arnés 
 ---
 
 ### Requirement: Validación de Strict TDD (Paridad de Código/Pruebas)
-Si la configuración local de OpenSpec tiene activo el modo `strict_tdd: true`:
-- El hook pre-commit MUST verificar qué archivos están staged en Git (preparados para commit).
+El hook pre-commit MUST activar la heurística de Strict TDD según el modo del proyecto:
+- Si existe `idd/config.yaml` y su `mode` no es `sdd`, MUST usar solo `strict_tdd`. Una clave ausente MUST dejar la heurística inactiva. `testing.tdd_mode` MUST NOT activarla ni apagarla.
+- Si no existe `idd/config.yaml`, o `mode` es `sdd`, MUST usar solo `testing.tdd_mode: strict` de `openspec/config.yaml`. `strict_tdd` MUST NOT activarla ni apagarla.
+- Con la heurística activa, el hook MUST verificar qué archivos están staged en Git.
 - Si un archivo de código de producción (por ejemplo, en `internal/**/*.go` o `scripts/hooks/*.js`) está staged, MUST verificar que al menos un archivo de pruebas correspondiente (`*_test.go` o `*.test.js`) o el archivo `tasks.md` del cambio activo también se encuentre staged.
 - Si no se encuentra un archivo de prueba o tarea staged junto al código de producción, el commit MUST ser bloqueado.
+- La heurística MUST NOT demostrar el ciclo rojo/verde ni sustituir a `ospec run`.
 
 #### Scenario: Commit bloqueado por falta de tests (Strict TDD)
-- GIVEN un proyecto con `strict_tdd: true`
+- GIVEN un proyecto IDD con `strict_tdd: true` y sin `openspec/config.yaml`, o un proyecto sin `idd/config.yaml` con `testing.tdd_mode: strict`
 - AND el desarrollador modifica `internal/hooks/sessionstart.go` y lo prepara para commit (`git add`)
 - AND no se ha añadido a stage ningún archivo `*_test.go` ni `tasks.md`
 - WHEN se ejecuta `git commit`
 - THEN el hook pre-commit MUST cancelar el commit e indicar que se está violando la regla de Strict TDD por falta de pruebas asociadas.
+
+#### Scenario: El modo activo ignora la fuente contraria
+- GIVEN `idd/config.yaml` con `strict_tdd: false` y `openspec/config.yaml` con `testing.tdd_mode: strict`
+- WHEN se prepara código de producción sin un test
+- THEN el hook MUST permitir el commit
+- AND `ospec doctor` MUST avisar que las dos fuentes se contradicen.
 
 ---
 

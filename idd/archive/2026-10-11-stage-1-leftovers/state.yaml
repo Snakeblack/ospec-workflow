@@ -1,0 +1,393 @@
+{
+  "schema": "idd-state/v1",
+  "change": "stage-1-leftovers",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El pre-commit de Strict TDD sigue el modo activo y avisa si la otra fuente contradice; el sucesor de review IDD no pide aprobación.",
+    "acceptance": "Un proyecto IDD con strict_tdd true y sin openspec bloquea el commit de producción sin test igual que uno SDD con tdd_mode strict. Si el modo es IDD, strict_tdd false no bloquea aunque openspec diga strict, y el doctor avisa. Sin idd/config.yaml o con mode sdd, solo cuenta tdd_mode. La instalación en un repositorio añade .ospec/ a .gitignore si falta. Un sucesor IDD no pide aprobación; el código sin cambios y el cuarto review se rechazan. createSuccessor de SDD sigue exigiendo aprobación."
+  },
+  "facts": {
+    "basis": "El usuario eligió modo activo con aviso del doctor si la otra fuente contradice, .ospec/ se queda y la instalación lo ignora, y el sucesor IDD no pide aprobación."
+  },
+  "plan": {
+    "paths": [
+      "AGENTS.md",
+      "docs/harness-runtime.md",
+      "docs/roadmaps/harness-evolution.md",
+      "idd/stage-1-leftovers/change.md",
+      "openspec/specs/git-precommit-hook/spec.md",
+      "openspec/specs/idd/spec.md",
+      "openspec/specs/verify-lineage/spec.md",
+      "scripts/configure/install-codex.js",
+      "scripts/configure/install-codex.test.js",
+      "scripts/hooks/pre-commit-hook.js",
+      "scripts/hooks/pre-commit-hook.test.js",
+      "scripts/lib/idd-review.test.js",
+      "scripts/lib/ospec-doctor.js",
+      "scripts/lib/ospec-doctor.test.js",
+      "scripts/lib/ospec-gitignore.js",
+      "scripts/lib/ospec-gitignore.test.js",
+      "scripts/lib/precommit-strict.js",
+      "scripts/lib/precommit-strict.test.js",
+      "scripts/ospec.test.js",
+      "scripts/setup-git-hooks.js"
+    ],
+    "work_units": 2,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/pre-commit-hook.js and 1 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-11T08:29:33.721Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-11T08:44:00.001Z",
+      "detail": {
+        "lineage_id": "sha256:10b3a27b42cfa9eaa81babdbd54d1c4276c97c0d4812d95aafc2510f517836c9",
+        "candidate_id": "sha256:1f8c7331b0d50dc77bdfeae29af212bede5f559f73a595a00b69019b9c0a0737",
+        "candidate_tree": "e064a48d72b688d015b0f4a19365a3a0944ada0a",
+        "findings_digest": "sha256:6ff2f2370883cee17871738bde06b4d51f5f1be72fda41f2b6cc9d0c4eb26324"
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-11T08:45:32.029Z",
+      "detail": {
+        "tree": "sha256:64df23ed15f934fb1ed4e1a50b7a26fe4b6b21d863721b8ba1edf2afda6cfca1",
+        "runs": [
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-11T08:45:40.864Z"
+    }
+  ],
+  "base": "f83db4a16660d9618a9239d72d17059034247bfe",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern 'IDD strict_tdd without openspec' scripts/hooks/pre-commit-hook.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:d35e69b23792f1539dcf88fe52e0dccf51adebb2e71fb8ec956f59320bd8f779",
+      "tree": "sha256:549f90f9155c42fd8674573183a183af1682b42e3d89505546e2de12bf0c5504",
+      "recorded_at": "2026-10-11T08:23:54.894Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern 'IDD strict_tdd without openspec' scripts/hooks/pre-commit-hook.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:631e68e1b51426d7f1007823d7a2040a4ce64ea53eb8e91d316632d9dbeaf503",
+      "tree": "sha256:d09f63d407b952a64add473a5118ce5b5b513c227e2952b91b626238f5f261ad",
+      "recorded_at": "2026-10-11T08:29:33.721Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:978824f13cb45d8d49c633f1d462ee894ed405d670a4f709a28c5da70683f99e",
+      "tree": "sha256:48aac7b5224152a309c487402d7ffeab60ef1659dbf02b1307c4cd5c5630b54f",
+      "recorded_at": "2026-10-11T08:44:22.738Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b47b81cd8a659634087d89f1785e6ad819201b19b3c15afcf3130ec987e4b7c5",
+      "tree": "sha256:64df23ed15f934fb1ed4e1a50b7a26fe4b6b21d863721b8ba1edf2afda6cfca1",
+      "recorded_at": "2026-10-11T08:45:32.029Z"
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:10b3a27b42cfa9eaa81babdbd54d1c4276c97c0d4812d95aafc2510f517836c9",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 6,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "ef18d6da0649954d9ca5e257a11038fc04712a25",
+          "candidate_tree": "624472766d15d7cf41e433b6d4f60915ecdbe4ce",
+          "paths": [
+            "AGENTS.md",
+            "docs/harness-runtime.md",
+            "docs/roadmaps/harness-evolution.md",
+            "openspec/specs/git-precommit-hook/spec.md",
+            "openspec/specs/idd/spec.md",
+            "openspec/specs/verify-lineage/spec.md",
+            "package-lock.json",
+            "scripts/configure/install-codex.js",
+            "scripts/configure/install-codex.test.js",
+            "scripts/hooks/pre-commit-hook.js",
+            "scripts/hooks/pre-commit-hook.test.js",
+            "scripts/lib/idd-review.test.js",
+            "scripts/lib/ospec-doctor.js",
+            "scripts/lib/ospec-doctor.test.js",
+            "scripts/lib/ospec-gitignore.js",
+            "scripts/lib/ospec-gitignore.test.js",
+            "scripts/lib/precommit-strict.js",
+            "scripts/lib/precommit-strict.test.js",
+            "scripts/ospec.test.js",
+            "scripts/setup-git-hooks.js"
+          ],
+          "diff_hash": "sha256:428b552e81ddf6ef6a364829726abb3e76f7d77b4a43dc5c06147c39faf46b16",
+          "paths_digest": "sha256:21c28940365c3303764bc1ed48ab57805d0ea4510573decee22aad3e83ae1a4f",
+          "authored_lines": 453,
+          "original_changed_lines": 517
+        },
+        "candidate_id": "sha256:73047c046a83ca286f4570f49de9b6e9cf36bc818cfc5628f3132b57f128e53c",
+        "paths": [
+          "AGENTS.md",
+          "docs/harness-runtime.md",
+          "docs/roadmaps/harness-evolution.md",
+          "openspec/specs/git-precommit-hook/spec.md",
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/verify-lineage/spec.md",
+          "package-lock.json",
+          "scripts/configure/install-codex.js",
+          "scripts/configure/install-codex.test.js",
+          "scripts/hooks/pre-commit-hook.js",
+          "scripts/hooks/pre-commit-hook.test.js",
+          "scripts/lib/idd-review.test.js",
+          "scripts/lib/ospec-doctor.js",
+          "scripts/lib/ospec-doctor.test.js",
+          "scripts/lib/ospec-gitignore.js",
+          "scripts/lib/ospec-gitignore.test.js",
+          "scripts/lib/precommit-strict.js",
+          "scripts/lib/precommit-strict.test.js",
+          "scripts/ospec.test.js",
+          "scripts/setup-git-hooks.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "624472766d15d7cf41e433b6d4f60915ecdbe4ce",
+        "original_changed_lines": 517,
+        "authored_lines": 453
+      },
+      "current_candidate_id": "sha256:1f8c7331b0d50dc77bdfeae29af212bede5f559f73a595a00b69019b9c0a0737",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "ef18d6da0649954d9ca5e257a11038fc04712a25",
+        "candidate_tree": "e064a48d72b688d015b0f4a19365a3a0944ada0a",
+        "paths": [
+          "AGENTS.md",
+          "docs/harness-runtime.md",
+          "docs/roadmaps/harness-evolution.md",
+          "openspec/specs/git-precommit-hook/spec.md",
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/verify-lineage/spec.md",
+          "package-lock.json",
+          "scripts/configure/install-codex.js",
+          "scripts/configure/install-codex.test.js",
+          "scripts/hooks/pre-commit-hook.js",
+          "scripts/hooks/pre-commit-hook.test.js",
+          "scripts/lib/idd-review.test.js",
+          "scripts/lib/ospec-doctor.js",
+          "scripts/lib/ospec-doctor.test.js",
+          "scripts/lib/ospec-gitignore.js",
+          "scripts/lib/ospec-gitignore.test.js",
+          "scripts/lib/precommit-strict.js",
+          "scripts/lib/precommit-strict.test.js",
+          "scripts/ospec.test.js",
+          "scripts/setup-git-hooks.js"
+        ],
+        "diff_hash": "sha256:7d546d0647a8f36712eb59c0a3d47ce799bd94b6de44038320b3e5947a562d9a",
+        "paths_digest": "sha256:21c28940365c3303764bc1ed48ab57805d0ea4510573decee22aad3e83ae1a4f",
+        "authored_lines": 453,
+        "original_changed_lines": 517
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "stage-1-leftovers:lens-start:1:0",
+          "result_digest": "sha256:8f9214677643f7d57acffbca154e8e1ae553c2173e40220f3c03d92564843724",
+          "result": {
+            "findings": [
+              {
+                "severity": "CRITICAL",
+                "summary": "ensureOspecGitignore (scripts/lib/ospec-gitignore.js:19-25) escribe repoRoot/.gitignore con existsSync, readFileSync y writeFileSync, que siguen el enlace, sin lstat ni assertManagedPathSafe. Lo llaman la instalación de Codex en un repositorio (scripts/configure/install-codex.js, tras preflightRepoInstall, que no incluye .gitignore) y scripts/setup-git-hooks.js. El mismo instalador rechaza un symlink en AGENTS.md, skills y runtime (assertManagedPathSafe, install-codex.js:885-895). Si .gitignore es un enlace, resuelto o colgado, y el destino no tiene ya una línea exacta .ospec, .ospec/, .ospec/**, /.ospec, /.ospec/ o /.ospec/**, esa escritura crea o reescribe el fichero apuntado (texto previo más una línea .ospec/, o solo esa línea si el enlace estaba colgado). El rollback de la transacción restaura el enlace y no deshace el fichero externo. Traza leída en el código; no ejecutada.",
+                "acceptance_criteria": "Si .gitignore del repositorio destino es un enlace simbólico, la instalación de Codex en ese repositorio y setup:git-hooks no crean ni modifican el fichero apuntado. Si .gitignore es un fichero regular que aún no ignora .ospec/, ambas vías añaden una sola línea .ospec/ y una segunda ejecución no vuelve a cambiar el fichero."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "stage-1-leftovers:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-28492cd44c275115",
+          "owner": "trust",
+          "severity": "CRITICAL",
+          "summary": "ensureOspecGitignore (scripts/lib/ospec-gitignore.js:19-25) escribe repoRoot/.gitignore con existsSync, readFileSync y writeFileSync, que siguen el enlace, sin lstat ni assertManagedPathSafe. Lo llaman la instalación de Codex en un repositorio (scripts/configure/install-codex.js, tras preflightRepoInstall, que no incluye .gitignore) y scripts/setup-git-hooks.js. El mismo instalador rechaza un symlink en AGENTS.md, skills y runtime (assertManagedPathSafe, install-codex.js:885-895). Si .gitignore es un enlace, resuelto o colgado, y el destino no tiene ya una línea exacta .ospec, .ospec/, .ospec/**, /.ospec, /.ospec/ o /.ospec/**, esa escritura crea o reescribe el fichero apuntado (texto previo más una línea .ospec/, o solo esa línea si el enlace estaba colgado). El rollback de la transacción restaura el enlace y no deshace el fichero externo. Traza leída en el código; no ejecutada.",
+          "acceptance_criteria": "Si .gitignore del repositorio destino es un enlace simbólico, la instalación de Codex en ese repositorio y setup:git-hooks no crean ni modifican el fichero apuntado. Si .gitignore es un fichero regular que aún no ignora .ospec/, ambas vías añaden una sola línea .ospec/ y una segunda ejecución no vuelve a cambiar el fichero.",
+          "blocking": true,
+          "resolution": "resolved"
+        }
+      ],
+      "findings_digest": "sha256:6ff2f2370883cee17871738bde06b4d51f5f1be72fda41f2b6cc9d0c4eb26324",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 65,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [
+        {
+          "attempt": 1,
+          "request_id": "stage-1-leftovers:correction-start:1:3",
+          "finding_ids": [
+            "F-28492cd44c275115"
+          ],
+          "paths": [
+            "scripts/lib/ospec-gitignore.js",
+            "scripts/lib/ospec-gitignore.test.js"
+          ],
+          "base_candidate_id": "sha256:73047c046a83ca286f4570f49de9b6e9cf36bc818cfc5628f3132b57f128e53c",
+          "forecast_lines": 65,
+          "record_request_id": "stage-1-leftovers:correction-record:1:4",
+          "actual_changed_lines": 65,
+          "corrected_candidate_id": "sha256:1f8c7331b0d50dc77bdfeae29af212bede5f559f73a595a00b69019b9c0a0737",
+          "status": "passed"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "stage-1-leftovers:validation:1:5",
+          "request_digest": "sha256:6871791a3ea47d6a46ccc74c1aa8d089413b5cbacde555bb42b57f8797e0e123",
+          "outcomes": [
+            {
+              "id": "F-28492cd44c275115",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "node --test scripts/lib/ospec-gitignore.test.js exited 0; three tests passed: ensureOspecGitignore appends .ospec/ once and keeps an existing ignore; a symlink gitignore is not followed (including a dangling symlink and setup() on a symlinked gitignore); setup adds .ospec/ to a repository gitignore. No impacted passed-slice regression was supplied."
+            ]
+          },
+          "follow_up_count": 0,
+          "result": "passed"
+        }
+      ],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "all-frozen-findings-resolved"
+    }
+  ],
+  "closed_at": "2026-10-11T08:45:40.864Z"
+}

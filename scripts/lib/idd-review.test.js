@@ -163,6 +163,18 @@ test("a successor needs a changed candidate and at most three reviews run per ch
   valid(state);
 });
 
+test("a reconciliation-required lineage is not replaced by a successor", () => {
+  let state = startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true }).state;
+  state = recordTrustFindings(state, { result: { findings: [] }, recordedAt: AT }).state;
+  const lineage = currentReview(state);
+  lineage.status = "reconciliation-required";
+  const again = startTrustReview(state, { candidate: candidate("e".repeat(40), "e".repeat(40)), reviewedChanged: true });
+  assert.strictEqual(again.changed, false);
+  assert.strictEqual(again.state.reviews.length, 1);
+  assert.strictEqual(currentReview(again.state).lineage_id, lineage.lineage_id);
+  assert.strictEqual(currentReview(again.state).status, "reconciliation-required");
+});
+
 test("a fresh approved review stays satisfied", () => {
   let state = startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true }).state;
   state = recordTrustFindings(state, { result: { findings: [] }, recordedAt: AT }).state;
