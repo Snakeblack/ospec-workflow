@@ -15,12 +15,12 @@ An `archive-plan.json` document MUST declare `schema_version: 1` and MUST includ
 | `change` | Change name string matching the active change folder |
 | `source_fingerprint` | SHA-256 identity of the origin change folder inventory |
 | `spec_writes[]` | Each entry: `domain`, `source_delta`, `target`, `target_before_sha256`, `content_sha256` |
-| `adr_promotions[]` | Each entry: `source`, `target`, `content_sha256` (empty array when none) |
+| `adr_promotions[]` | MUST be an empty array: since E3.1 the archive promotes no change decision to `docs/adr/` |
 | `archive_inventory[]` | Relative paths that MUST exist under the origin change folder |
 | `accepted_warnings[]` | Explicitly accepted verify warnings (empty when none) |
 | `rollback.strategy` | MUST be `"staging-rename"` for schema v1 |
 
-The validator MUST treat unknown `schema_version` values as invalid. It MUST NOT parse or judge Markdown semantics of spec/ADR content — only bytes and references.
+The validator MUST treat unknown `schema_version` values as invalid. It MUST NOT parse or judge Markdown semantics of spec content — only bytes and references. A plan whose `adr_promotions` has an entry MUST be rejected with `invalid-schema` and an error naming `archive-plan v1`; the runtime still commits the promotions of a transaction staged before E3.1.
 
 #### Scenario: Valid minimal plan parses
 
@@ -28,6 +28,13 @@ The validator MUST treat unknown `schema_version` values as invalid. It MUST NOT
 - WHEN the plan validator runs
 - THEN validation succeeds
 - AND no I/O beyond reading the plan bytes is required of the pure validator
+
+#### Scenario: A plan that promotes an ADR is rejected
+
+- GIVEN a schema v1 plan with an `adr_promotions` entry targeting `docs/adr/`
+- WHEN the plan validator runs
+- THEN validation fails with `invalid-schema` and an error naming `archive-plan v1`
+- AND the archive transaction leaves the origin change folder intact
 
 #### Scenario: Unknown schema version rejected
 

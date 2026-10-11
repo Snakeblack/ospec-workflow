@@ -33,12 +33,5 @@
     { "from": "generator", "to": "skills", "evidence": ["scripts/lib/target-transform.js:217"] },
     { "from": "hooks", "to": "change-state", "evidence": ["scripts/hooks/pre-tool-use.js:16"] }
   ],
-  "divergences": [
-    {
-      "id": "archive-promotes-development-decisions",
-      "summary": "La foundation dice que una decisión de desarrollo se queda en el documento vivo del cambio; el archivo SDD aún la promueve a docs/adr/. E3.1 lo corrige; el texto de la skill se conserva.",
-      "documented": "skills/foundation/SKILL.md:142",
-      "evidence": ["scripts/lib/archive-plan.js:213"]
-    }
-  ]
+  "divergences": []
 }

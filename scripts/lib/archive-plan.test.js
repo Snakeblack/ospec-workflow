@@ -143,7 +143,6 @@ test("validatePlanAgainstSnapshot: corrupted prepared spec with undefined token 
     targets: { "openspec/specs/routing/spec.md": null },
     preparedContent: { [contentKey]: prepared },
     preparedTexts: { [contentKey]: prepText },
-    adrSources: {},
   };
   const result = validatePlanAgainstSnapshot(plan, snapshot);
   assert.equal(result.valid, false);
@@ -175,7 +174,6 @@ test("validatePlanAgainstSnapshot: corrupted prepared spec with [object Object] 
     targets: { "openspec/specs/routing/spec.md": null },
     preparedContent: { [contentKey]: prepared },
     preparedTexts: { [contentKey]: prepText },
-    adrSources: {},
   };
   const result = validatePlanAgainstSnapshot(plan, snapshot);
   assert.equal(result.valid, false);
@@ -210,7 +208,6 @@ test("validatePlanAgainstSnapshot: dropped requirement ID without REMOVED declar
     targetTexts: { "openspec/specs/routing/spec.md": targetText },
     preparedContent: { [contentKey]: prepSha },
     preparedTexts: { [contentKey]: prepText },
-    adrSources: {},
   };
   const result = validatePlanAgainstSnapshot(plan, snapshot);
   assert.equal(result.valid, false);
@@ -245,7 +242,6 @@ test("validatePlanAgainstSnapshot: removed requirement ID declared in REMOVED se
     targetTexts: { "openspec/specs/routing/spec.md": targetText },
     preparedContent: { [contentKey]: prepSha },
     preparedTexts: { [contentKey]: prepText },
-    adrSources: {},
   };
   const result = validatePlanAgainstSnapshot(plan, snapshot);
   assert.equal(result.valid, true);
@@ -303,7 +299,6 @@ test("validatePlanAgainstSnapshot: wrong content_sha256 → hash-mismatch", () =
     preparedContent: {
       [contentKey]: sha256Hex(Buffer.from("prepared-B")),
     },
-    adrSources: {},
   };
   const result = validatePlanAgainstSnapshot(plan, snapshot);
   assert.equal(result.valid, false);
@@ -335,7 +330,6 @@ test("validatePlanAgainstSnapshot: stale target_before_sha256 → hash-mismatch"
       "openspec/specs/routing/spec.md": sha256Hex(Buffer.from("actual-live")),
     },
     preparedContent: { [contentKey]: prepared },
-    adrSources: {},
   };
   const result = validatePlanAgainstSnapshot(plan, snapshot);
   assert.equal(result.valid, false);
@@ -363,7 +357,6 @@ test("validatePlanAgainstSnapshot: missing prepared path → missing-reference",
     ],
     targets: { "openspec/specs/routing/spec.md": null },
     preparedContent: {},
-    adrSources: {},
   };
   const result = validatePlanAgainstSnapshot(plan, snapshot);
   assert.equal(result.valid, false);
@@ -384,7 +377,6 @@ test("validatePlanAgainstSnapshot: inventory/fingerprint drift → inventory-mis
     ],
     targets: {},
     preparedContent: {},
-    adrSources: {},
   };
   const result = validatePlanAgainstSnapshot(plan, snapshot);
   assert.equal(result.valid, false);
@@ -417,13 +409,6 @@ test("validatePlanAgainstSnapshot: matching snapshot succeeds", () => {
         content_sha256: prepared,
       },
     ],
-    adr_promotions: [
-      {
-        source: "decisions/adr-001.md",
-        target: "docs/adr/adr-001-archive.md",
-        content_sha256: sha256Hex(Buffer.from("adr-bytes")),
-      },
-    ],
   });
   const snapshot = {
     changeName: "hybrid-archive-transaction-runtime",
@@ -431,9 +416,6 @@ test("validatePlanAgainstSnapshot: matching snapshot succeeds", () => {
     originInventory,
     targets: { "openspec/specs/routing/spec.md": before },
     preparedContent: { "specs/routing/spec.md": prepared },
-    adrSources: {
-      "decisions/adr-001.md": sha256Hex(Buffer.from("adr-bytes")),
-    },
   };
   const result = validatePlanAgainstSnapshot(plan, snapshot);
   assert.equal(result.valid, true);
@@ -466,7 +448,6 @@ test("validatePlanAgainstSnapshot: lite inventory requires independent verify ev
     originInventory,
     targets: {},
     preparedContent: {},
-    adrSources: {},
   });
 
       assert.equal(result.valid, false);
@@ -500,7 +481,6 @@ test("validatePlanAgainstSnapshot: lite inventory requires independent verify ev
         originInventory,
         targets: {},
         preparedContent: {},
-        adrSources: {},
       });
 
       assert.equal(result.valid, false);
@@ -536,7 +516,6 @@ test("validatePlanAgainstSnapshot: lite inventory requires independent verify ev
         originInventory,
         targets: {},
         preparedContent: {},
-        adrSources: {},
       });
 
       assert.equal(result.valid, true);
@@ -550,7 +529,6 @@ test("validatePlanAgainstSnapshot: lite inventory requires independent verify ev
     { spec_writes: [{ domain: "r", source_delta: "../x", target: "openspec/specs/r/spec.md", content_sha256: digest }] },
     { spec_writes: [{ domain: "r", source_delta: "s.md", target: "/etc/passwd", content_sha256: digest }] },
     { spec_writes: [{ domain: "..", source_delta: "s.md", target: "openspec/specs/r/spec.md", content_sha256: digest }] },
-    { adr_promotions: [{ source: "a.md", target: "docs/../evil.md", content_sha256: digest }] },
     { archive_inventory: ["C:/Windows/System32/config"] },
   ];
   for (const overrides of bad) {
@@ -561,4 +539,18 @@ test("validatePlanAgainstSnapshot: lite inventory requires independent verify ev
   assert.equal(isSafeChangeName("demo-change"), true);
   assert.equal(isSafeChangeName("../evil"), false);
   assert.equal(isSafeChangeName("/tmp/x"), false);
+});
+
+test("validatePlanShape: since E3.1 a plan promotes no ADR to docs/adr/", () => {
+  const digest = sha256Hex(Buffer.from("adr-bytes"));
+  const legacy = validatePlanShape(
+    minimalPlan({ adr_promotions: [{ source: "decisions/adr-001.md", target: "docs/adr/adr-001-x.md", content_sha256: digest }] }),
+    { changeName: "hybrid-archive-transaction-runtime" },
+  );
+  assert.equal(legacy.valid, false);
+  assert.deepEqual(legacy.codes, ["invalid-schema"]);
+  assert.match(JSON.stringify(legacy.errors), /archive-plan v1: adr_promotions must be empty/);
+  const missing = validatePlanShape(minimalPlan({ adr_promotions: undefined }), { changeName: "hybrid-archive-transaction-runtime" });
+  assert.equal(missing.valid, false);
+  assert.equal(validatePlanShape(minimalPlan(), { changeName: "hybrid-archive-transaction-runtime" }).valid, true);
 });

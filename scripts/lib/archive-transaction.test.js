@@ -312,7 +312,10 @@ async function writeTree(root, files) {
   }
 }
 
-async function buildWorkspace(t, changeName = "demo-change") {
+// `legacyAdr` builds a plan written before E3.1, which still promotes an ADR
+// to docs/adr/; since E3.1 a plan carries no promotion and the change keeps
+// its decisions under decisions/.
+async function buildWorkspace(t, { changeName = "demo-change", legacyAdr = false } = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "ospec-archive-tx-"));
   t.after(async () => {
     await fs.rm(root, { recursive: true, force: true });
@@ -339,7 +342,7 @@ baseline_fingerprints:
     [`${originRel}/proposal.md`]: proposal,
     [`${originRel}/state.yaml`]: stateYaml,
     [`${originRel}/specs/routing/spec.md`]: preparedSpec,
-    [`${originRel}/decisions/adr-001.md`]: adr,
+    [`${originRel}/decisions/${legacyAdr ? "adr" : "dc"}-001.md`]: adr,
     "openspec/specs/routing/spec.md": liveTarget,
     "docs/adr/.gitkeep": "",
   });
@@ -363,13 +366,15 @@ baseline_fingerprints:
         content_sha256: sha256(Buffer.from(preparedSpec)),
       },
     ],
-    adr_promotions: [
-      {
-        source: "decisions/adr-001.md",
-        target: "docs/adr/adr-001-demo.md",
-        content_sha256: sha256(Buffer.from(adr)),
-      },
-    ],
+    adr_promotions: legacyAdr
+      ? [
+          {
+            source: "decisions/adr-001.md",
+            target: "docs/adr/adr-001-demo.md",
+            content_sha256: sha256(Buffer.from(adr)),
+          },
+        ]
+      : [],
     archive_inventory: inventory.map((e) => e.path),
     accepted_warnings: [],
     rollback: { strategy: "staging-rename" },
@@ -690,19 +695,32 @@ test("FS: full match commits then deletes origin", async (t) => {
     ),
     "# Routing merged\n",
   );
-  assert.equal(
-    await fs.readFile(path.join(ctx.root, "docs", "adr", "adr-001-demo.md"), "utf8"),
-    "# ADR-001\n",
-  );
+  // E3.1: the change decision travels with the archive and is never promoted.
+  assert.equal(await fs.readFile(path.join(dest, "decisions", "dc-001.md"), "utf8"), "# ADR-001\n");
+  assert.deepStrictEqual(await fs.readdir(path.join(ctx.root, "docs", "adr")), [".gitkeep"]);
 });
 
-test("FS: post-staging resume continues to success", async (t) => {
-  const ctx = await buildWorkspace(t);
+test("FS: preflight rejects a plan that still promotes ADRs and leaves origin intact (E3.1)", async (t) => {
+  const ctx = await buildWorkspace(t, { legacyAdr: true });
+  const receipt = await runArchiveTransaction({
+    workspace: ctx.root,
+    changeName: ctx.changeName,
+    planPath: ctx.planPath,
+    now: new Date("2026-07-26T12:00:00Z"),
+  });
+  assert.equal(receipt.outcome, "failed");
+  assert.equal(receipt.failure_reason, "gate-not-satisfied");
+  assert.deepStrictEqual(receipt.rejection_codes, ["invalid-schema"]);
+  assert.ok(await fs.stat(ctx.originDir));
+  assert.deepStrictEqual(await fs.readdir(path.join(ctx.root, "docs", "adr")), [".gitkeep"]);
+});
+
+// Stages a pre-E3.1 plan by hand, as a transaction interrupted before the
+// upgrade left it, and seeds its journal at `state`.
+async function stageLegacy(ctx, state) {
   const txDir = path.join(ctx.root, ".ospec", "archive-tx", ctx.changeName);
   const stagingRoot = path.join(txDir, "staging");
   const stagingArchive = path.join(stagingRoot, "archive");
-
-  // Perform staging manually and seed journal at `staged`
   const originInv = await computeInventory(ctx.originDir);
   await fs.mkdir(stagingArchive, { recursive: true });
   for (const entry of originInv) {
@@ -728,13 +746,18 @@ test("FS: post-staging resume continues to success", async (t) => {
   await fs.writeFile(
     path.join(txDir, "journal.json"),
     JSON.stringify({
-      state: "staged",
+      state,
       plan_sha256: digestBytes(planBytes),
       destination: "openspec/changes/archive/2026-07-26-demo-change",
       origin_inventory: originInv,
       created_by_tx: [],
     }),
   );
+}
+
+test("FS: a plan staged before E3.1 resumes to success and still commits its ADR", async (t) => {
+  const ctx = await buildWorkspace(t, { legacyAdr: true });
+  await stageLegacy(ctx, "staged");
 
   const resumed = await runArchiveTransaction({
     workspace: ctx.root,
@@ -744,6 +767,10 @@ test("FS: post-staging resume continues to success", async (t) => {
   });
   assert.equal(resumed.outcome, "resumed-success");
   assert.equal(resumed.origin_deleted, true);
+  assert.equal(
+    await fs.readFile(path.join(ctx.root, "docs", "adr", "adr-001-demo.md"), "utf8"),
+    "# ADR-001\n",
+  );
 
   const second = await runArchiveTransaction({
     workspace: ctx.root,
@@ -1184,7 +1211,9 @@ test("FS: mid-commit failure is rollback-restorable (first write + overwrite)", 
   await assert.rejects(fs.stat(aDest), { code: "ENOENT" });
 
   // B: fail after spec overwrite — retain .bak; rollback restores baseline.
-  const b = await buildWorkspace(t);
+  // Only a plan staged before E3.1 still writes after the spec: its ADR.
+  const b = await buildWorkspace(t, { legacyAdr: true });
+  await stageLegacy(b, "compared");
   const bSpec = path.join(b.root, "openspec", "specs", "routing", "spec.md");
   const bOrig = await fs.readFile(bSpec, "utf8");
   let specOk = false;

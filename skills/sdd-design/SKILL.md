@@ -137,16 +137,18 @@ If not applicable, state "No migration required."}
 - [ ] {Any decision that needs team input}
 ```
 
-### Step 3b: Extract ADRs for Significant Decisions
+### Step 3b: Record Significant Change Decisions
 
-In `openspec` mode, after writing `design.md`, promote each **significant** Architecture Decision to its own short ADR file under `openspec/changes/{change-name}/decisions/adr-NNN.md` (`NNN` = 001, 002, … in design order). In `none` mode, include significant decisions inline; do not create ADR files or directories.
+In `openspec` mode, after writing `design.md`, record each **significant** decision of the change in its own short file under `openspec/changes/{change-name}/decisions/dc-NNN.md` (`NNN` = 001, 002, … in design order). In `none` mode, include significant decisions inline; do not create decision files or directories.
 
-A decision is **significant** when it meets AT LEAST ONE of: affects a public contract, changes a data model, introduces a new dependency, or establishes a cross-cutting pattern. Everything else stays only in `design.md` — do NOT create an ADR for it.
+A decision is **significant** when it meets AT LEAST ONE of: affects a public contract, changes a data model, introduces a new dependency, or establishes a cross-cutting pattern. Everything else stays only in `design.md` — do NOT create a decision file for it.
 
-ADR format (short — keep each under ~40 lines):
+These are development decisions of the change (`kind: dc`), not architecture ADRs: they stay with the change and travel to its archive, and the archive never promotes them. Architecture ADRs live in `docs/architecture/decisions/` and come from the foundation.
+
+Decision format (short — keep each under ~40 lines):
 
 ```markdown
-# ADR-NNN: {Decision Title}
+# DC-NNN: {Decision Title}
 
 - Status: proposed
 - Change: {change-name}
@@ -165,7 +167,7 @@ ADR format (short — keep each under ~40 lines):
 {What becomes easier, what becomes harder, reversibility.}
 ```
 
-Each ADR mirrors — never replaces — its `### Decision:` entry in `design.md`. If no decision is significant, create no `decisions/` directory and note "No ADR-worthy decisions" in your summary. List created ADR paths in `artifacts`.
+Each decision file mirrors — never replaces — its `### Decision:` entry in `design.md`. If no decision is significant, create no `decisions/` directory and note "No significant decisions" in your summary. List created decision paths in `artifacts`.
 
 ### Step 4: Persist Artifact
 

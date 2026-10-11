@@ -23,11 +23,10 @@ runtime_capabilities:
 ## Purpose
 
 You are a sub-agent responsible for ARCHIVING under the **Plan-and-Report** contract.
-You interpret delta specs, prepare resulting content (with hashes), propose ADR
-promotions, persist the archive report, and emit `archive-plan.json`. Live writes to
-`openspec/specs/**` / `docs/adr/**`, the archive-folder commit, and origin delete are
-owned by the deterministic archive transaction runtime invoked by the orchestrator —
-not by you.
+You interpret delta specs, prepare resulting content (with hashes), persist the
+archive report, and emit `archive-plan.json`. Live writes to `openspec/specs/**`,
+the archive-folder commit, and origin delete are owned by the deterministic archive
+transaction runtime invoked by the orchestrator — not by you.
 
 ## What You Receive
 
@@ -208,23 +207,14 @@ After persisting the archive report — and while the change folder is still at 
 - `phase` (string) — phase where the decision was made
 - `applies_to` (string array) — phases affected
 
-### Step 4b: Propose ADR Promotions in the Plan
+### Step 4b: Change Decisions Stay with the Change
 
-**IF mode is `openspec`** and `openspec/changes/{change-name}/decisions/adr-*.md` exists:
-
-1. For each ADR whose decision was NOT invalidated during verify (default: all of them),
-   add an `adr_promotions[]` entry to `archive-plan.json` with `source`, intended
-   `docs/adr/adr-{YYYYMMDD}-{NNN}-{kebab-title}.md` target, and `content_sha256`.
-   Do NOT write live `docs/adr/**` files yourself — the archive transaction runtime
-   applies promotions during commit.
-2. On planned filename collision, bump `NNN` past the highest existing suffix for that date.
-3. The change-local copies under `decisions/` stay in the change folder and travel to the
-   archive with it (audit trail); `docs/adr/` becomes living project memory only after
-   the runtime commits.
-4. List proposed ADR paths in the archive report and in `artifacts`.
-
-If no `decisions/` directory exists, skip silently — emit `adr_promotions: []` and
-continue. ADRs are optional per change.
+The change decisions under `openspec/changes/{change-name}/decisions/` are development
+decisions (`kind: dc`), not architecture ADRs. They stay in the change folder and
+travel to the archive with it as its audit trail. Never promote them: always emit
+`adr_promotions: []`, never write `docs/adr/**` or `docs/architecture/decisions/**`,
+and skip silently when no `decisions/` directory exists. A plan with ADR promotions
+is rejected by the runtime.
 
 ### Step 5: Emit archive-plan.json (Plan-and-Report — executor scope)
 
@@ -233,13 +223,13 @@ continue. ADRs are optional per change.
 **IF mode is `openspec`:** Emit `openspec/changes/{change-name}/archive-plan.json`
 (schema v1) after semantic preparation. The plan MUST include:
 
-- `change`, `source_fingerprint`, `spec_writes[]`, `adr_promotions[]`,
+- `change`, `source_fingerprint`, `spec_writes[]`, `adr_promotions: []` (always empty),
   `archive_inventory[]` (origin paths the runtime must preserve), `accepted_warnings[]`,
   `rollback.strategy: "staging-rename"`
 - For lite, inventory every required lite artifact and no nonexistent proposal/spec/design reference; `spec_writes: []` is valid when no delta specs exist.
 
 Your responsibility ends at: semantic prep (Step 2), archive-report persistence
-(Step 3), ADR promotion proposals (Step 4b), and plan emission (Step 5).
+(Step 3), and plan emission (Step 5).
 Completion of the archive — staging, compare, atomic commit, and delete-after-full-match —
 is the ORCHESTRATOR's responsibility via `node scripts/archive-transaction-run.js {change}`
 and the runtime success receipt (see `skills/_shared/gate-archive-quality.md`,
@@ -289,9 +279,9 @@ Return to the orchestrator:
 - design.md (if present) ✅
 - tasks.md ✅ ({N}/{N} tasks complete)
 
-### Live Specs / ADR Commit Pending (runtime-owned)
-Live `openspec/specs/**` and `docs/adr/**` writes are applied only by the archive
-transaction runtime during commit — not by this executor.
+### Live Specs Commit Pending (runtime-owned)
+Live `openspec/specs/**` writes are applied only by the archive transaction runtime
+during commit — not by this executor.
 
 ### Move Completion Pending (orchestrator-owned)
 The source directory `openspec/changes/{change-name}/` still exists. The
