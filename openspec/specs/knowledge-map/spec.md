@@ -5,7 +5,8 @@
 The foundation knowledge map records what a project knows before architecture
 decisions are taken. A project stores it at `docs/architecture/knowledge-map.yaml`.
 The contract below is the document model: JSON Schema
-`schemas/foundation/knowledge-map/v1.schema.json` (`ospec-knowledge-map/v1`)
+`schemas/foundation/knowledge-map/v1.schema.json` (`ospec-knowledge-map/v1`),
+its successor `v2.schema.json` (`ospec-knowledge-map/v2`, REQ-knowledge-map-005)
 and the slot catalog `schemas/foundation/knowledge-map/catalog.json`.
 Fixtures are JSON documents of that same model. This requirement does not
 select questions or write the file; that engine is E2.2.
@@ -14,7 +15,8 @@ select questions or write the file; that engine is E2.2.
 
 ### Requirement: Slot States Distinguish Unknown From Not Applicable {#REQ-knowledge-map-001}
 
-A knowledge map MUST declare `schema` as `ospec-knowledge-map/v1` and a
+A knowledge map MUST declare `schema` as `ospec-knowledge-map/v1` or
+`ospec-knowledge-map/v2` (REQ-knowledge-map-005) and a
 `profile` of `prototype`, `internal-tool`, `product`, `regulated`,
 `public-library` or `embedded`. Each slot MUST name its id, dimension and
 one state: `unknown`, `confirmed`, `assumed`, `n/a` or `deferred`.
@@ -85,3 +87,20 @@ measure MUST be accepted.
 - GIVEN a scenario that states a measure and no `measure_source`
 - WHEN the map is validated
 - THEN the map MUST be rejected
+
+### Requirement: Quality Scenarios Declare Their Fitness {#REQ-knowledge-map-005}
+
+`ospec-knowledge-map/v2` MUST be v1 plus an optional `fitness` on each quality
+scenario: `checks`, a non-empty list of commands that check the scenario
+(REQ-idd-022), and `description`, the fitness function in prose. A `fitness`
+MUST hold `checks` or `description`. A v1 map MUST stay valid and MUST NOT
+carry `fitness`; a map of any other `schema` MUST be rejected with the rule
+`schema`. Every other rule of the map applies to both versions.
+
+#### Scenario: A latency scenario declares its benchmark
+
+- GIVEN a v2 scenario whose `fitness.checks` is `["npm run bench:p95"]`
+- WHEN the map is validated
+- THEN it MUST be accepted
+- AND the same scenario in a v1 map, or a `fitness` with neither field, MUST
+  be rejected

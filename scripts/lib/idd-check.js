@@ -13,6 +13,7 @@
 const { DECISIONS_ROOT, GATED_IMPACTS, GATES, OBLIGATIONS, RECORDED_IMPACTS, RUN_EVIDENCE, isIntentAmbiguous } = require("./idd-contract.js");
 const { GATE_QUESTIONS, WORK_ORDER } = require("./idd-next.js");
 const { configureChecksStep } = require("./idd-checks-config.js");
+const { fitnessReason } = require("./idd-fitness.js");
 const { IddRecordError } = require("./idd-record.js");
 const { trustReason } = require("./idd-review.js");
 
@@ -211,30 +212,45 @@ function impactReason(state, records) {
   return null;
 }
 
+// Why this check's fitness runs do not hold on `tree`, or null (E3.3).
+function fitnessRunsReason(runs, tree) {
+  const failed = fitnessReason(runs);
+  if (failed) return failed;
+  if (runs.some((run) => run.tree !== tree)) return "the tree changed while the fitness checks ran: run ospec check again";
+  return null;
+}
+
 /**
  * During a check: the impact declaration holds when every declared reference
  * has its impact, the user answered any amendment, supersession or
- * contradiction, and each ADR amended or superseded has a new ADR that exists,
- * passes the decision-record lint and cites it (E3.1, REQ-idd-005).
+ * contradiction, each ADR amended or superseded has a new ADR that exists,
+ * passes the decision-record lint and cites it (E3.1, REQ-idd-005), and every
+ * fitness run of this check passed on `fitness.tree` (E3.3, REQ-idd-022).
  */
-function settleImpacts(state, { records = {}, recordedAt }) {
+function settleImpacts(state, { records = {}, fitness = null, recordedAt }) {
   requireOpen(state);
   const next = structuredClone(state);
   const target = activeObligation(next, IMPACT);
   if (!target) return { state: next, evidence: null, reason: null };
-  const reason = (next.impacts || []).length === 0 ? "declare the ADRs or quality scenarios the change touches with ospec signals --adr <id> or --quality <id>" : impactReason(next, records);
+  const runIds = fitness?.runIds || [];
+  const runs = (next.runs || []).filter((run) => runIds.includes(run.id));
+  const reason =
+    (next.impacts || []).length === 0
+      ? "declare the ADRs or quality scenarios the change touches with ospec signals --adr <id> or --quality <id>"
+      : fitnessRunsReason(runs, fitness?.tree) || impactReason(next, records);
   if (reason) {
     reopen(target);
     return { state: next, evidence: null, reason };
   }
   const refs = next.impacts.map((entry) => `${entry.kind}:${entry.id} ${entry.impact}`);
   const recorded = next.impacts.filter((entry) => entry.record).map((entry) => entry.record);
+  const detail = { refs, records: recorded, ...(runIds.length > 0 ? { tree: fitness.tree, fitness: [...runIds] } : {}) };
   const current = next.evidence.find((entry) => entry.id === target.evidence.at(-1));
-  if (target.status === "satisfied" && JSON.stringify(current?.detail) === JSON.stringify({ refs, records: recorded })) {
+  if (target.status === "satisfied" && JSON.stringify(current?.detail) === JSON.stringify(detail)) {
     return { state: next, evidence: current.id, reason: null };
   }
   const id = nextEvidenceId(next);
-  next.evidence.push({ id, kind: IMPACT, obligation: IMPACT, recorded_at: recordedAt, detail: { refs, records: recorded } });
+  next.evidence.push({ id, kind: IMPACT, obligation: IMPACT, recorded_at: recordedAt, detail });
   target.status = "satisfied";
   target.evidence = [id];
   return { state: next, evidence: id, reason: null };

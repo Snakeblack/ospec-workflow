@@ -1,0 +1,395 @@
+{
+  "schema": "idd-state/v1",
+  "change": "fitness-functions-in-check",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "feature",
+    "summary": "E3.3: los ADR y los escenarios de calidad declaran comprobaciones ejecutables (fitness functions) que ospec check ejecuta como evidencia; las no ejecutables quedan como checklist con evidencia manual",
+    "acceptance": "Un cambio que toca un componente gobernado por un ADR cuya fitness function ejecutable falla no puede cerrarse, y el motivo de ospec check y de ospec close cita el id del ADR"
+  },
+  "facts": {
+    "open": [
+      "Forma de la comprobación ejecutable: orden de shell arbitraria con veredicto por código de salida, o regla de dependencias integrada que el CLI evalúa leyendo imports",
+      "Sintaxis de la declaración en el ADR dentro de la sección Fitness function",
+      "Dónde declaran los escenarios de calidad su comprobación: knowledge-map v2, campo aditivo en v1, o heredada de los ADR que los citan como driver",
+      "Qué fitness functions corre un cambio: solo las de sus referencias en impacts o todas las de todos los ADR; y si se exime un ADR que el cambio amends/supersedes/contradicts con el gate resuelto",
+      "Desde qué versión se lee la comprobación: la base del cambio (no puede debilitarla) o el árbol de trabajo",
+      "Qué obligación lleva el veredicto: adr-impact-declaration ampliada, una obligación nueva, o checks-pass",
+      "Comprobaciones no ejecutables: checklist que bloquea el cierre (confirmado por el agente o por el usuario) o checklist visible que no bloquea",
+      "Dogfooding: convertir ya las fitness functions de los ADR de ospec a comprobaciones ejecutables y añadir una regla de frontera real, o solo el mecanismo con fixtures"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/architecture/decisions/0001-generacion-multi-target-desde-una-fuente.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/specs/decision-records/spec.md",
+      "openspec/specs/idd/spec.md",
+      "openspec/specs/knowledge-map/spec.md",
+      "schemas/foundation/knowledge-map/v2.schema.json",
+      "scripts/lib/decision-records.js",
+      "scripts/lib/decision-records.test.js",
+      "scripts/lib/idd-check.js",
+      "scripts/lib/idd-check.test.js",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-contract.test.js",
+      "scripts/lib/idd-fitness.js",
+      "scripts/lib/idd-fitness.test.js",
+      "scripts/lib/idd-next.js",
+      "scripts/lib/idd-next.test.js",
+      "scripts/lib/idd-record.js",
+      "scripts/lib/idd-record.test.js",
+      "scripts/lib/idd-workspace.js",
+      "scripts/lib/idd-workspace.test.js",
+      "scripts/lib/knowledge-map.js",
+      "scripts/lib/knowledge-map.test.js",
+      "scripts/lib/memory-boundary.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js",
+      "skills/foundation/SKILL.md",
+      "skills/foundation/references/foundation-details.md",
+      "skills/idd/SKILL.md"
+    ],
+    "work_units": 3,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 3 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, foundation, idd-engine, schemas, skills: ADR 0003, 0004, 0005, 0006, 0009, 0010, 0011 and quality scenario contract-compatibility, deterministic-resume, offline-operation",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La selección de fitness functions, su ejecución y el veredicto los decide el CLI con tests (idd-fitness.js, idd-check.js); la skill solo dice cuándo llamar a ospec check y ospec record fitness"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "Solo corren las fitness functions de las referencias del cambio (componentes tocados o declaradas); un cambio que no toca un ADR no ejecuta las suyas"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "Una comprobación ejecutable se satisface solo con su run observado; la evidencia manual de una fitness function en prosa queda en attestations y nunca satisface una obligación ni bloquea"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "conforms",
+      "reason": "No se toca la memoria; el cambio añade la comprobación ejecutable de 0006 (ningún módulo del motor IDD alcanza engram-detect.js)"
+    },
+    {
+      "kind": "adr",
+      "id": "0009",
+      "impact": "conforms",
+      "reason": "ospec-knowledge-map/v2 es un esquema nuevo; v1 se sigue leyendo y una versión desconocida se rechaza; idd-state/v1 crece con un campo opcional como en E3.1"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Ninguna dependencia nueva: las comprobaciones son órdenes del propio proyecto que el CLI ejecuta con la biblioteca estándar"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "conforms",
+      "reason": "Todo el estado nuevo (runs fitness, attestations) vive en idd/<change>/state.yaml; SDD no cambia"
+    },
+    {
+      "kind": "scenario",
+      "id": "contract-compatibility",
+      "impact": "conforms",
+      "reason": "Mapas v1, ADR sin líneas Check y estados sin attestations siguen siendo válidos"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "Las fitness functions se leen de la base del cambio, que no se mueve; la misma base da las mismas comprobaciones en cualquier sesión"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Las comprobaciones se ejecutan en local sin red"
+    },
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "Las skills se editan en la fuente canónica y los targets se regeneran desde ella"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "Las skills cambiadas se generan igual para cada target desde la fuente"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "skills/idd/SKILL.md describe solo cuándo llamar a ospec check y ospec record fitness; la selección y el veredicto viven en scripts/lib/idd-fitness.js y scripts/lib/idd-check.js con sus tests",
+      "recorded_at": "2026-10-11T19:44:25.009Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "si, las recomendadas: (1) orden de shell con veredicto por código de salida; (2) líneas '- Check: `<orden>`' en la sección Fitness function; (3) ospec-knowledge-map/v2 con campo fitness opcional por escenario, v1 se sigue leyendo; (4) solo las referencias current de impacts, exento el ADR amends/supersedes/contradicts con gate resuelto; (5) se lee de la base del cambio; (6) se amplía adr-impact-declaration y el motivo cita el ADR; (7) las no ejecutables son checklist visible con ospec record fitness --evidence, no bloquean (conforme a ADR 0005); (8) convertir a Check: los ADR 0001,0002,0004,0005,0007,0008,0009,0010,0011, regla de frontera real para 0006, 0003 en prosa, impacto conforms",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-11T19:44:02.884Z",
+      "detail": {
+        "tree": "sha256:392a191b75c27bd734273473d441d42e8d1bce98fce7cd36b7c7e8b6d74796ea",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-11T19:44:02.884Z",
+      "detail": {
+        "tree": "sha256:392a191b75c27bd734273473d441d42e8d1bce98fce7cd36b7c7e8b6d74796ea",
+        "check": "ev-1",
+        "documents": [
+          "openspec/specs/decision-records/spec.md",
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/knowledge-map/spec.md",
+          "schemas/foundation/knowledge-map/v2.schema.json"
+        ],
+        "tests": [
+          "scripts/configure/real-repo.test.js",
+          "scripts/lib/decision-records.test.js",
+          "scripts/lib/idd-check.test.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-fitness.test.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/knowledge-map.test.js",
+          "scripts/lib/memory-boundary.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-11T19:45:03.718Z",
+      "detail": {
+        "tree": "sha256:392a191b75c27bd734273473d441d42e8d1bce98fce7cd36b7c7e8b6d74796ea",
+        "runs": [
+          "run-2"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-11T19:45:03.718Z",
+      "detail": {
+        "tree": "sha256:392a191b75c27bd734273473d441d42e8d1bce98fce7cd36b7c7e8b6d74796ea",
+        "check": "ev-3",
+        "documents": [
+          "openspec/specs/decision-records/spec.md",
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/knowledge-map/spec.md",
+          "schemas/foundation/knowledge-map/v2.schema.json"
+        ],
+        "tests": [
+          "scripts/configure/real-repo.test.js",
+          "scripts/lib/decision-records.test.js",
+          "scripts/lib/idd-check.test.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-fitness.test.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/knowledge-map.test.js",
+          "scripts/lib/memory-boundary.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-11T19:45:03.718Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0006 conforms",
+          "adr:0009 conforms",
+          "adr:0010 conforms",
+          "adr:0011 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms",
+          "adr:0001 conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": []
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-11T19:45:33.678Z",
+      "detail": {
+        "tree": "sha256:0abef2585d3f697da2ac5712d4ed4bd246d0673cca229bb561827a14741135cf",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-11T19:45:33.678Z",
+      "detail": {
+        "tree": "sha256:0abef2585d3f697da2ac5712d4ed4bd246d0673cca229bb561827a14741135cf",
+        "check": "ev-6",
+        "documents": [
+          "openspec/specs/decision-records/spec.md",
+          "openspec/specs/idd/spec.md",
+          "openspec/specs/knowledge-map/spec.md",
+          "schemas/foundation/knowledge-map/v2.schema.json"
+        ],
+        "tests": [
+          "scripts/configure/real-repo.test.js",
+          "scripts/lib/decision-records.test.js",
+          "scripts/lib/idd-check.test.js",
+          "scripts/lib/idd-contract.test.js",
+          "scripts/lib/idd-fitness.test.js",
+          "scripts/lib/idd-next.test.js",
+          "scripts/lib/idd-record.test.js",
+          "scripts/lib/idd-workspace.test.js",
+          "scripts/lib/k1-scope-guard.test.js",
+          "scripts/lib/knowledge-map.test.js",
+          "scripts/lib/memory-boundary.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-11T19:45:35.647Z"
+    }
+  ],
+  "base": "6e2b75243501f0448a2e0dac6c85a289e4fd5ebe",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:df4ddbd8008bdb1c8a030d62b40794d2652be3e0fb9a5bc2263888945df81a31",
+      "tree": "sha256:392a191b75c27bd734273473d441d42e8d1bce98fce7cd36b7c7e8b6d74796ea",
+      "recorded_at": "2026-10-11T19:44:02.884Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6a799f328b0146b7dd42d1bd7127415633d6723958579bdd215c095c9003df55",
+      "tree": "sha256:392a191b75c27bd734273473d441d42e8d1bce98fce7cd36b7c7e8b6d74796ea",
+      "recorded_at": "2026-10-11T19:45:03.718Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7e4319b1d79fcac5dab58ef1e9a53041f9a1f69cbd221bfa3c8b836fa8394284",
+      "tree": "sha256:0abef2585d3f697da2ac5712d4ed4bd246d0673cca229bb561827a14741135cf",
+      "recorded_at": "2026-10-11T19:45:33.678Z"
+    }
+  ],
+  "closed_at": "2026-10-11T19:45:35.647Z"
+}

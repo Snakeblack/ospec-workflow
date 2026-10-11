@@ -20,6 +20,7 @@ Una orden destructiva o un secreto se bloquean aunque el índice esté corrupto.
 
 ## Fitness function
 `staged-validator.integration.test.js` bloquea el commit con un blob ilegible; `pre-tool-use.test.js` fija las órdenes denegadas.
+- Check: `node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js`
 
 ## Review trigger
 Un host que deje de ejecutar los hooks o que no permita denegar una acción.

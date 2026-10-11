@@ -42,6 +42,7 @@ What gets easier, what gets harder, what is now forbidden.
 
 ## Fitness function
 The check (test, rule, measurement or review item) that detects a violation.
+- Check: `<command that exits non-zero on a violation>`
 
 ## Review trigger
 The fact that would reopen this decision.
@@ -49,7 +50,12 @@ The fact that would reopen this decision.
 
 Keep these headings and items as written: the decision-record lint parses
 this shape (`parseAdrMarkdown`). Only a backticked driver id counts as a
-driver.
+driver. Each `- Check:` line of the Fitness function is a command `ospec
+check` runs for every IDD change that touches the ADR; a violation blocks the
+close and names the ADR. Write one when a command can detect the violation (a
+dependency rule, a test, a budget) and drop the line when only a person can,
+so the prose becomes a manual checklist item. Use the project's own tools;
+ospec adds none.
 
 ## Technology record template
 

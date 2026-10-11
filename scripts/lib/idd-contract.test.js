@@ -130,6 +130,43 @@ test("declared impacts are validated with the state", () => {
   for (const entries of rejected) assert.strictEqual(impacts(entries).ok, false, JSON.stringify(entries));
 });
 
+test("[REQ-idd-022] attestations name a declared reference once, with their evidence", () => {
+  const declared = [{ kind: "adr", id: "0003", impact: "conforms", reason: "r" }];
+  const attest = (entries) => contract.validateState(validState({ impacts: declared, attestations: entries }));
+  const entry = { kind: "adr", id: "0003", evidence: "skills/idd/SKILL.md:17", recorded_at: "2026-10-11T00:00:00.000Z" };
+  assert.ok(attest([]).ok);
+  assert.ok(attest([entry]).ok);
+  const rejected = [
+    [{ ...entry, id: "0004" }],
+    [{ ...entry, evidence: " " }],
+    [{ ...entry, by: "agent" }],
+    [entry, entry],
+    "not a list",
+  ];
+  for (const entries of rejected) assert.strictEqual(attest(entries).ok, false, JSON.stringify(entries));
+});
+
+test("[REQ-idd-022] impact evidence with fitness names passing fitness runs on its tree", () => {
+  const tree = `sha256:${"a".repeat(64)}`;
+  const run = (id, exit, purpose = "fitness") => ({ id, purpose, ref: "adr:0006", command: "node --test b.test.js", exit_code: exit, output_sha256: tree, tree, recorded_at: "t" });
+  const withEvidence = (runs, detail) =>
+    contract.validateState(
+      validState({
+        signals: [{ id: "adr-or-quality-attribute", reason: "ADR 0006", source: "declaration" }],
+        obligations: [{ id: "adr-impact-declaration", signal: "adr-or-quality-attribute", status: "satisfied", evidence: ["ev-1"] }],
+        impacts: [{ kind: "adr", id: "0006", impact: "conforms", reason: "r" }],
+        runs,
+        evidence: [{ id: "ev-1", kind: "adr-impact-declaration", obligation: "adr-impact-declaration", recorded_at: "t", detail: { refs: ["adr:0006 conforms"], records: [], ...detail } }],
+      }),
+    );
+  assert.ok(withEvidence([], {}).ok);
+  assert.ok(withEvidence([run("run-1", 0)], { tree, fitness: ["run-1"] }).ok);
+  assert.strictEqual(withEvidence([run("run-1", 1)], { tree, fitness: ["run-1"] }).ok, false);
+  assert.strictEqual(withEvidence([run("run-1", 0, "checks")], { tree, fitness: ["run-1"] }).ok, false);
+  assert.strictEqual(withEvidence([run("run-1", 0)], { tree: `sha256:${"b".repeat(64)}`, fitness: ["run-1"] }).ok, false);
+  assert.strictEqual(withEvidence([run("run-1", 0)], { tree, fitness: [] }).ok, false);
+});
+
 test("state schema, layout and living-doc template named in the spec match the module", () => {
   const spec = readSpec();
   assert.ok(requirementSection(spec, "REQ-idd-003").includes(`\`${contract.STATE_SCHEMA}\``));

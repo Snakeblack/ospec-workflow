@@ -1,0 +1,137 @@
+{
+  "schema": "idd-state/v1",
+  "change": "trim-idd-skill-budget",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "Acortar la guía de fitness functions de la skill idd para que el protocolo generado quepa en 12 KB también con CRLF en Windows",
+    "acceptance": "idd-protocol.test.js pasa en todos los targets y la skill idd sigue explicando fitness.checks, fitness.manual y ospec record fitness"
+  },
+  "facts": {
+    "basis": "Solo se reescribe el párrafo añadido en E3.3; el presupuesto y el contenido exigido los fija idd-protocol.test.js"
+  },
+  "plan": {
+    "paths": [
+      "skills/idd/SKILL.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component skills: ADR 0003, 0006 and quality scenario offline-operation",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "El párrafo sigue citando ospec check y ospec record fitness y no reescribe ninguna regla"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "conforms",
+      "reason": "La skill no toca la memoria"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Solo cambia texto de la skill"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "skills/idd/SKILL.md:107 nombra ospec check y ospec record fitness; ninguna regla de cálculo se describe en prosa",
+      "recorded_at": "2026-10-11T19:55:53.953Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-11T19:56:13.774Z",
+      "detail": {
+        "tree": "sha256:bf54b76f9d3c1136665350c6798f5d86668236996248c24527929cd75dbd2682",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-11T19:56:13.774Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0006 conforms",
+          "scenario:offline-operation conforms"
+        ],
+        "records": [],
+        "tree": "sha256:bf54b76f9d3c1136665350c6798f5d86668236996248c24527929cd75dbd2682",
+        "fitness": [
+          "run-2"
+        ]
+      }
+    }
+  ],
+  "base": "de7cfbdfd7c18660d5b3e4ea7f4da22a966a4d34",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b540885bcad72cba988051a5b406935fd690f031f0a1844a2c890df73b5df1cc",
+      "tree": "sha256:bf54b76f9d3c1136665350c6798f5d86668236996248c24527929cd75dbd2682",
+      "recorded_at": "2026-10-11T19:56:13.774Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0d2f96c0e1bd8bd07b44bb66d68bed9bf5270563cb181b6107c4fa0f3a4ae314",
+      "tree": "sha256:bf54b76f9d3c1136665350c6798f5d86668236996248c24527929cd75dbd2682",
+      "recorded_at": "2026-10-11T19:56:13.774Z"
+    }
+  ],
+  "closed_at": "2026-10-11T19:56:17.512Z"
+}

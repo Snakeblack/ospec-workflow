@@ -20,6 +20,7 @@ Un estado viejo se lee o se rechaza con un error que nombra el esquema. Cambiar 
 
 ## Fitness function
 Los tests de cada contrato validan sus fixtures contra el esquema; los reducers ramifican por la versión del predecesor.
+- Check: `node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js`
 
 ## Review trigger
 Una versión vieja sin usuarios que justifique retirar su rama de lectura.

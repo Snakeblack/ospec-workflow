@@ -11,6 +11,7 @@ const assert = require("node:assert");
 const { validateState } = require("./idd-contract.js");
 const {
   IddRecordError,
+  recordAttestation,
   recordEvidence,
   recordGate,
   recordImpact,
@@ -583,4 +584,29 @@ test("no impact is declared on a closed change or while the intent is ambiguous"
   assertCode(() => recordImpact(ambiguous, { ...ADR_0002, impact: "none", reason: "r" }), "ambiguous-intent-open");
   const closed = { ...withReferences(), status: "closed", closed_at: "t" };
   assertCode(() => recordImpact(closed, { ...ADR_0002, impact: "none", reason: "r" }), "change-closed");
+});
+
+// ---------------------------------------------------------------------------
+// record fitness: manual evidence of a fitness function (E3.3, REQ-idd-022)
+// ---------------------------------------------------------------------------
+
+test("[REQ-idd-022] a manual fitness item keeps its evidence once", () => {
+  const input = { ...ADR_0002, evidence: "skills/idd/SKILL.md:17 cites ospec next", recordedAt: "2026-10-11T00:00:00.000Z", manual: true };
+  const first = recordAttestation(withReferences(), input);
+  assert.strictEqual(first.changed, true);
+  assert.deepStrictEqual(first.state.attestations, [{ kind: "adr", id: "0002", evidence: input.evidence, recorded_at: input.recordedAt }]);
+  assertValid(first.state);
+  assert.strictEqual(first.state.obligations.find((entry) => entry.id === "adr-impact-declaration").status, "pending");
+  const again = recordAttestation(first.state, { ...input, recordedAt: "later" });
+  assert.strictEqual(again.changed, false);
+  assertCode(() => recordAttestation(first.state, { ...input, evidence: "something else" }), "attestation-conflict");
+});
+
+test("[REQ-idd-022] fitness evidence needs a manual item, a reference and text", () => {
+  const state = withReferences();
+  const input = { ...ADR_0002, evidence: "e", recordedAt: "t", manual: true };
+  assertCode(() => recordAttestation(state, { ...input, manual: false }), "not-manual-fitness");
+  assertCode(() => recordAttestation(state, { ...input, evidence: " " }), "evidence-required");
+  assertCode(() => recordAttestation(state, { ...input, kind: "module" }), "invalid-reference");
+  assertCode(() => recordAttestation({ ...state, status: "closed" }, input), "change-closed");
 });

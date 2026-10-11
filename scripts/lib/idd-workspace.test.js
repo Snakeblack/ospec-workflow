@@ -18,6 +18,7 @@ const {
   readArchitecture,
   readCheckTreeFingerprint,
   readDecisionRecords,
+  readFitnessSources,
   readGitDiff,
   readHead,
   readKnowledgeSources,
@@ -307,4 +308,54 @@ test("readDecisionRecords reports a missing ADR, its lint errors and the ids it 
   assert.strictEqual(read.id, "0003");
   assert.deepStrictEqual(read.cites, ["0003", "0002", "0001"]);
   assert.ok(read.errors.some((error) => /missing required property "status"/.test(error)), read.errors.join("\n"));
+});
+
+function adrText(id, status, fitness) {
+  return `# ${id}. Decisión\n\n- Status: ${status}\n- Date: 2026-10-11\n\n## Context and drivers\nX.\n\n## Fitness function\n${fitness}\n\n## Review trigger\nY.\n`;
+}
+
+test("[REQ-idd-022] readFitnessSources reads ADR checks and v2 scenario fitness from the base, not the working tree", (t) => {
+  const root = gitRepo(t);
+  write(root, "docs/architecture/decisions/0006-memoria.md", adrText("0006", "accepted", "Nada importa la memoria.\n- Check: `node --test boundary.test.js`"));
+  write(root, "docs/architecture/decisions/0003-cli.md", adrText("0003", "accepted", "Se rechaza en revisión."));
+  write(root, "docs/architecture/decisions/old/0009-x.md", adrText("0009", "accepted", "- Check: `false`"));
+  write(root, "docs/architecture/knowledge-map.yaml", JSON.stringify({
+    schema: "ospec-knowledge-map/v2",
+    quality_scenarios: [
+      { id: "latency", fitness: { description: "p95", checks: ["npm run bench"] } },
+      { id: "audit", fitness: { description: "Un auditor lo lee." } },
+      { id: "plain" },
+    ],
+  }));
+  commitAll(root, "base");
+  const base = git(root, "rev-parse", "HEAD").trim();
+
+  // The working tree weakens the check and adds an ADR; the base still rules.
+  write(root, "docs/architecture/decisions/0006-memoria.md", adrText("0006", "accepted", "Nada importa la memoria."));
+  write(root, "docs/architecture/decisions/0012-nuevo.md", adrText("0012", "accepted", "- Check: `npm test`"));
+
+  const { sources, warnings } = readFitnessSources(root, base);
+  assert.deepStrictEqual(warnings, []);
+  assert.deepStrictEqual([...sources.adrs], [
+    ["0003", { path: "docs/architecture/decisions/0003-cli.md", status: "accepted", checks: [], fitness: "Se rechaza en revisión." }],
+    ["0006", { path: "docs/architecture/decisions/0006-memoria.md", status: "accepted", checks: ["node --test boundary.test.js"], fitness: "Nada importa la memoria. - Check: `node --test boundary.test.js`" }],
+  ]);
+  assert.deepStrictEqual([...sources.scenarios], [
+    ["latency", { path: "docs/architecture/knowledge-map.yaml", checks: ["npm run bench"], description: "p95" }],
+    ["audit", { path: "docs/architecture/knowledge-map.yaml", checks: [], description: "Un auditor lo lee." }],
+  ]);
+});
+
+test("[REQ-idd-022] a v1 map has no scenario fitness, and an unreadable base or map is a warning", (t) => {
+  const root = gitRepo(t);
+  write(root, "docs/architecture/knowledge-map.yaml", JSON.stringify({ schema: "ospec-knowledge-map/v1", quality_scenarios: [{ id: "latency", fitness: { checks: ["x"] } }] }));
+  commitAll(root, "v1");
+  const v1 = readFitnessSources(root, "HEAD");
+  assert.deepStrictEqual([v1.sources.scenarios.size, v1.warnings], [0, []]);
+
+  write(root, "docs/architecture/knowledge-map.yaml", "quality_scenarios:\n  - id: x\n");
+  commitAll(root, "yaml");
+  assert.match(readFitnessSources(root, "HEAD").warnings[0], /knowledge-map\.yaml at the base is not JSON text/);
+  assert.match(readFitnessSources(root, "0000000000000000000000000000000000000000").warnings[0], /cannot be read/);
+  assert.match(readFitnessSources(root, null).warnings[0], /no base commit/);
 });

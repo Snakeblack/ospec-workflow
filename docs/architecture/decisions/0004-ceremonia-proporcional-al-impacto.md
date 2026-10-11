@@ -20,6 +20,7 @@ Un cambio de documentación cierra con los checks; uno de contrato exige especif
 
 ## Fitness function
 `scripts/lib/idd-signals.test.js` fija qué señal produce cada ruta y que el diff recalcula las señales en `ospec check`.
+- Check: `node --test scripts/lib/idd-signals.test.js`
 
 ## Review trigger
 Un tipo de riesgo recurrente que ninguna señal de ruta ni de diff pueda detectar.

@@ -5,8 +5,10 @@
 // status, next and record over idd/<change-id>/state.yaml, plus signals, which
 // derives impact signals from the declaration and the diff (REQ-idd-012), and
 // check and run, which execute the declared checks and test commands and
-// record what they observed (REQ-idd-014). `record` never takes evidence: the
-// CLI records it only from executions it observes (REQ-idd-007). `doctor`
+// record what they observed (REQ-idd-014), the fitness checks of the ADRs and
+// quality scenarios the change touches included (REQ-idd-022). `record` never
+// takes obligation evidence: the CLI records it only from executions it
+// observes (REQ-idd-007). `doctor`
 // diagnoses the installation and the project without writing (REQ-idd-019).
 //
 // Exit codes: 0 ok, 1 refused by the IDD contract (or doctor found an error),
@@ -33,9 +35,19 @@ const { archiveChange, closeChange, livingDocStatus, renderEvidence } = require(
 const { IddConfigError } = require("./lib/idd-config.js");
 const { ARCHIVE_ROOT, DECISIONS_ROOT, LIVING_DOC_FILE, STATE_FILE, isIntentAmbiguous } = require("./lib/idd-contract.js");
 const { runCommand } = require("./lib/idd-exec.js");
+const { fitnessPlan } = require("./lib/idd-fitness.js");
 const { resolveReferences } = require("./lib/idd-knowledge.js");
 const { nextForChange, nextForProject, statusOf } = require("./lib/idd-next.js");
-const { IddRecordError, recordGate, recordImpact, recordIntent, recordRetract, recordSignal, recordWithdraw } = require("./lib/idd-record.js");
+const {
+  IddRecordError,
+  recordAttestation,
+  recordGate,
+  recordImpact,
+  recordIntent,
+  recordRetract,
+  recordSignal,
+  recordWithdraw,
+} = require("./lib/idd-record.js");
 const {
   buildCandidate,
   candidateDiffHash,
@@ -58,6 +70,7 @@ const {
   readArchitecture,
   readCheckTreeFingerprint,
   readDecisionRecords,
+  readFitnessSources,
   readGitDiff,
   readHead,
   readKnowledgeSources,
@@ -81,6 +94,7 @@ const USAGE = `Usage:
   ospec record retract --change <id> --signal <id> --reason <text>
   ospec record impact --change <id> (--adr <id> | --quality <id>)
                       [--impact <none|conforms|amends|supersedes|contradicts> --reason <text>] [--record <new ADR>]
+  ospec record fitness --change <id> (--adr <id> | --quality <id>) --evidence <text>
   ospec signals --change <id> [--path <file>]... [--work-units <n>] [--decision]
                 [--operation <op>]... [--adr <id>]... [--quality <id>]... [--diff] [--base <ref>]
   ospec check --change <id> [--base <ref>]
@@ -129,6 +143,7 @@ const OPTIONS = {
   quality: { type: "string", multiple: true },
   impact: { type: "string" },
   record: { type: "string" },
+  evidence: { type: "string" },
   diff: { type: "boolean" },
   base: { type: "string" },
   command: { type: "string" },
@@ -196,8 +211,18 @@ function reducerFor(type, values, root) {
       if (values.impact === undefined && values.record === undefined) throw new UsageError("record impact needs --impact <value>, or --record to attach the new ADR");
       return existing((state) => recordImpact(state, { ...refs[0], impact: values.impact, reason: values.reason, record: values.record }));
     }
+    case "fitness": {
+      const refs = declaredReferences(values);
+      if (refs.length !== 1) throw new UsageError("record fitness needs exactly one --adr <id> or --quality <id>");
+      if (values.evidence === undefined) throw new UsageError("record fitness needs --evidence <text>");
+      return existing((state) => {
+        const { manual } = changeFitness(root, state);
+        const isManual = manual.some((item) => item.kind === refs[0].kind && item.id === refs[0].id);
+        return recordAttestation(state, { ...refs[0], evidence: values.evidence, recordedAt: new Date().toISOString(), manual: isManual });
+      });
+    }
     default:
-      throw new UsageError(`unknown record type: ${type ?? "(none)"}; expected intent, signal, gate, withdraw, retract or impact`);
+      throw new UsageError(`unknown record type: ${type ?? "(none)"}; expected intent, signal, gate, withdraw, retract, impact or fitness`);
   }
 }
 
@@ -310,6 +335,28 @@ function changedFrom(stored, state) {
   return JSON.stringify(stored) !== JSON.stringify(state);
 }
 
+// The fitness functions of a change (E3.3, REQ-idd-022): those of the
+// references in its impacts, read from its base, while adr-impact-declaration
+// is active. `checks` run in ospec check; `manual` items never block.
+function changeFitness(root, state) {
+  const active = state.obligations.some((entry) => entry.id === "adr-impact-declaration" && entry.status !== "withdrawn");
+  if (!active || (state.impacts || []).length === 0) return { checks: [], manual: [], warnings: [] };
+  const { sources, warnings } = readFitnessSources(root, diffBase({}, state));
+  return { ...fitnessPlan(state, sources), warnings };
+}
+
+function fitnessView({ checks, manual }, runs = null) {
+  if (checks.length === 0 && manual.length === 0) return null;
+  return {
+    checks: checks.map(({ kind, id, path: file, command }, index) => {
+      const entry = { kind, id, path: file, command };
+      if (runs) Object.assign(entry, { exit_code: runs[index].exit_code, output_tail: runs[index].output_tail });
+      return entry;
+    }),
+    manual,
+  };
+}
+
 function runRecord(purpose, command, result, tree, recordedAt, extra = {}) {
   return { purpose, ...extra, command, exit_code: result.exit_code, output_sha256: result.output_sha256, tree, recorded_at: recordedAt };
 }
@@ -327,9 +374,14 @@ async function check(root, values) {
   const context = readProjectContext(root);
   const diff = readGitDiff(root, { base: diffBase(values, current) });
   const { map, sources, warnings } = readKnowledgeSources(root);
+  // The fitness checks follow the references this check's diff derives.
+  const preview = applyDerivation(current, deriveSignals({ intent: current.intent, strictTdd: context.strictTdd, diff, patterns: context.patterns, knowledge: { map, sources } })).state;
+  const fitness = changeFitness(root, preview);
+  warnings.push(...fitness.warnings);
   const treeBefore = readTreeFingerprint(root);
   const checkTreeBefore = readCheckTreeFingerprint(root, context.checks);
   const checks = context.checks.map(({ name, command }) => ({ name, command, ...runCommand(command, { cwd: root }) }));
+  const fitnessRuns = fitness.checks.map(({ kind, id, command }) => ({ ref: `${kind}:${id}`, command, ...runCommand(command, { cwd: root }) }));
   const tree = readTreeFingerprint(root);
   const checkTree = readCheckTreeFingerprint(root);
   const recordedAt = new Date().toISOString();
@@ -359,11 +411,12 @@ async function check(root, values) {
       added = derived.added;
       const runs = checks.map((result) => runRecord("checks", result.command, result, checkTreeBefore, recordedAt, { name: result.name }));
       const recorded = recordRuns(derived.state, runs);
-      const settled = settleChecks(recorded.state, { tree: checkTree, runIds: recorded.ids, recordedAt });
+      const fitnessRecorded = recordRuns(recorded.state, fitnessRuns.map((result) => runRecord("fitness", result.command, result, checkTreeBefore, recordedAt, { ref: result.ref })));
+      const settled = settleChecks(fitnessRecorded.state, { tree: checkTree, runIds: recorded.ids, recordedAt });
       const bound = settleTreeBound(settled.state, { tree });
       const contract = settleContract(bound, { tree: checkTree, checkEvidence: settled.evidence, ...contractPaths, recordedAt });
       if (contract.reason) reasons["contract-spec-and-test"] = contract.reason;
-      const impacts = settleImpacts(contract.state, { records, recordedAt });
+      const impacts = settleImpacts(contract.state, { records, fitness: { tree: checkTree, runIds: fitnessRecorded.ids }, recordedAt });
       if (impacts.reason) reasons["adr-impact-declaration"] = impacts.reason;
       const fresh = settleReviewFreshness(impacts.state, { reviewedChanged });
       return { state: fresh, changed: changedFrom(stored, fresh) };
@@ -378,6 +431,8 @@ async function check(root, values) {
     livingDoc: readLivingDoc(root, state),
   });
   const result = { change: state.change, changed, added, checks, tree: checkTree, ...verdict, next: nextForChange(state, context) };
+  const view = fitnessView(fitness, fitnessRuns);
+  if (view) result.fitness = view;
   if (warnings.length) result.warnings = warnings;
   return result;
 }
@@ -601,7 +656,10 @@ async function review(root, positionals, values) {
 function changeKnowledge(root, state) {
   if (!state || state.status !== "open" || isIntentAmbiguous(state)) return null;
   const { map, sources, warnings } = readKnowledgeSources(root);
-  if (!map) return { references: [], warnings };
+  const fitness = changeFitness(root, state);
+  const view = fitnessView(fitness);
+  warnings.push(...fitness.warnings);
+  if (!map) return { references: [], warnings, ...(view ? { fitness: view } : {}) };
   let diffPaths = [];
   try {
     diffPaths = readGitDiff(root, { base: diffBase({}, state) }).paths;
@@ -610,7 +668,7 @@ function changeKnowledge(root, state) {
     warnings.push(`references use the declared plan only: ${error.message}`);
   }
   const resolved = resolveReferences({ map, paths: [...(state.plan?.paths || []), ...diffPaths], sources });
-  return { references: resolved.references, warnings: [...warnings, ...resolved.warnings] };
+  return { references: resolved.references, warnings: [...warnings, ...resolved.warnings], ...(view ? { fitness: view } : {}) };
 }
 
 async function run(command, positionals, values) {
@@ -689,9 +747,29 @@ function describeNext(result) {
   for (const ref of result.references || []) {
     lines.push(`ref ${ref.kind} ${ref.id} ${ref.status} (${ref.components.join(", ")})${ref.path ? `: ${ref.path}` : ""}`);
   }
+  lines.push(...describeFitness(result.fitness));
   for (const warning of result.warnings || []) lines.push(`warning: ${warning}`);
   for (const suggestion of result.suggestions || []) lines.push(`suggestion ${suggestion.id}: ${suggestion.reason}; ${suggestion.how}`);
   return lines.join("\n");
+}
+
+const FITNESS_LABELS = Object.freeze({ adr: "ADR", scenario: "quality scenario" });
+
+// The fitness functions of the change (REQ-idd-022): each check, with its exit
+// code once ospec check ran it, and each manual item with its evidence.
+function describeFitness(fitness) {
+  if (!fitness) return [];
+  const lines = [];
+  for (const check of fitness.checks) {
+    const label = `fitness ${FITNESS_LABELS[check.kind]} ${check.id} \`${check.command}\``;
+    if (check.exit_code === undefined) lines.push(`${label}: runs in ospec check`);
+    else lines.push(...describeRun(label, check));
+  }
+  for (const item of fitness.manual) {
+    const evidence = item.evidence ? `evidence: ${item.evidence}` : `no evidence recorded (ospec record fitness --${item.kind === "adr" ? "adr" : "quality"} ${item.id} --evidence <text>)`;
+    lines.push(`manual fitness ${FITNESS_LABELS[item.kind]} ${item.id}: ${item.fitness} (${evidence})`);
+  }
+  return lines;
 }
 
 function describeSignals(result) {
@@ -727,6 +805,7 @@ function describeRun(label, run) {
 function describeCheck(result) {
   const lines = describeVerdict(result);
   for (const run of result.checks) lines.push(...describeRun(`check ${run.name}`, run));
+  lines.push(...describeFitness(result.fitness));
   const added = [...result.added.signals, ...result.added.gates.map((g) => `gate:${g}`)];
   if (added.length) lines.push(`recorded from the diff: ${added.join(", ")}`);
   for (const warning of result.warnings || []) lines.push(`warning: ${warning}`);

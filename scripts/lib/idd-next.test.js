@@ -332,3 +332,16 @@ test("[REQ-idd-021] next carries the knowledge references and warnings it is giv
   assert.deepStrictEqual(result.knowledge_refs, plain.knowledge_refs);
   assert.deepStrictEqual(result.next_step, plain.next_step);
 });
+
+test("[REQ-idd-022] next carries the fitness functions it is given without changing the next step", () => {
+  const state = stateFromFixture(loadFixtures().find((f) => f.id === "bug"));
+  const plain = nextForChange(state, { knowledge: { references: [], warnings: [] } });
+  assert.ok(!("fitness" in plain));
+  const fitness = {
+    checks: [{ kind: "adr", id: "0006", path: "docs/architecture/decisions/0006-x.md", command: "node --test b.test.js" }],
+    manual: [{ kind: "adr", id: "0003", path: "docs/architecture/decisions/0003-x.md", fitness: "Reviewed.", evidence: null }],
+  };
+  const result = nextForChange(state, { knowledge: { references: [], warnings: [], fitness } });
+  assert.deepStrictEqual(result.fitness, fitness);
+  assert.deepStrictEqual(result.next_step, plain.next_step);
+});

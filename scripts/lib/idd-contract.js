@@ -32,6 +32,7 @@ const STATE_FIELDS = Object.freeze([
   "signals",
   "retracted",
   "impacts",
+  "attestations",
   "obligations",
   "gates",
   "evidence",
@@ -45,9 +46,10 @@ const INTENT_KINDS = Object.freeze(["bug", "feature", "refactor", "docs"]);
 const SIGNAL_SOURCES = Object.freeze(["declaration", "diff"]);
 const OBLIGATION_STATUSES = Object.freeze(["pending", "satisfied", "withdrawn"]);
 const GATE_STATUSES = Object.freeze(["open", "resolved"]);
-// What a CLI-observed run was for (REQ-idd-014): the declared checks, or the
-// test command of a red → green pair.
-const RUN_PURPOSES = Object.freeze(["checks", "repro-test", "tdd-red-green", "migration-test"]);
+// What a CLI-observed run was for (REQ-idd-014): the declared checks, the test
+// command of a red → green pair, or a fitness check of an ADR or quality
+// scenario the change touches (REQ-idd-022).
+const RUN_PURPOSES = Object.freeze(["checks", "repro-test", "tdd-red-green", "migration-test", "fitness"]);
 // Evidence kinds proven by CLI-observed runs, and the run purpose behind each.
 const RUN_EVIDENCE = Object.freeze({
   "check-run": "checks",
@@ -149,6 +151,7 @@ function validateState(state) {
   if ("reviews" in state && !Array.isArray(state.reviews)) fail("reviews must be a list");
   if ("retracted" in state && !Array.isArray(state.retracted)) fail("retracted must be a list");
   if ("impacts" in state && !Array.isArray(state.impacts)) fail("impacts must be a list");
+  if ("attestations" in state && !Array.isArray(state.attestations)) fail("attestations must be a list");
   if (state.closed_at != null && (state.status !== "closed" || typeof state.closed_at !== "string")) {
     fail("closed_at is the close time of a closed change");
   }
@@ -175,6 +178,7 @@ function validateState(state) {
   validateFacts(state, fail);
   validatePlan(state.plan, fail);
   validateImpacts(state.impacts, fail);
+  validateAttestations(state, fail);
 
   for (const signal of state.signals) {
     if (!SIGNAL_BY_ID.has(signal.id)) fail(`unknown signal: ${signal.id}`);
@@ -214,9 +218,7 @@ function validateState(state) {
   for (const entry of state.evidence) {
     if (entry.kind === "contract-spec-and-test") validateContractEvidence(entry, evidenceById, fail);
     if (entry.kind === "frozen-review") validateReviewEvidence(entry, reviews, fail);
-    if (entry.kind === "adr-impact-declaration" && !(Array.isArray(entry.detail?.refs) && entry.detail.refs.length > 0)) {
-      fail(`evidence ${entry.id} must name the declared references it settles`);
-    }
+    if (entry.kind === "adr-impact-declaration") validateImpactEvidence(entry, runs, runIndex, fail);
   }
 
   for (const obligation of state.obligations) {
@@ -408,6 +410,42 @@ function validateImpacts(impacts, fail) {
     if (entry.record !== undefined && (!isText(entry.record) || entry.kind !== "adr" || !RECORDED_IMPACTS.includes(entry.impact))) {
       fail(`${label}: only an ADR amended or superseded names its new record`);
     }
+  }
+}
+
+// adr-impact-declaration names the references it settles and, when the change
+// had executable fitness functions, the passing fitness runs on its tree.
+function validateImpactEvidence(entry, runs, runIndex, fail) {
+  const detail = entry.detail || {};
+  if (!(Array.isArray(detail.refs) && detail.refs.length > 0)) fail(`evidence ${entry.id} must name the declared references it settles`);
+  if (detail.fitness === undefined) return;
+  const ids = Array.isArray(detail.fitness) ? detail.fitness : [];
+  const passing = (id) => {
+    const run = runIndex.has(id) ? runs[runIndex.get(id)] : null;
+    return run && run.purpose === "fitness" && run.exit_code === 0 && run.tree === detail.tree;
+  };
+  if (ids.length === 0 || !SHA256.test(detail.tree || "") || !ids.every(passing)) {
+    fail(`evidence ${entry.id} must name passing fitness runs on its tree`);
+  }
+}
+
+// The manual evidence of a fitness function no command checks (REQ-idd-022):
+// one entry per declared reference, kept for the record, never an obligation's
+// evidence. States recorded before E3.3 have none and stay valid.
+function validateAttestations(state, fail) {
+  const isText = (value) => typeof value === "string" && value.trim() !== "";
+  const declared = new Set((state.impacts || []).map((entry) => `${entry?.kind}:${entry?.id}`));
+  const seen = new Set();
+  for (const entry of state.attestations || []) {
+    const key = `${entry?.kind}:${entry?.id}`;
+    const keys = entry && typeof entry === "object" ? Object.keys(entry) : [];
+    if (!REFERENCE_KINDS.includes(entry?.kind) || !isText(entry.id) || !isText(entry.evidence) || !isText(entry.recorded_at) || keys.length !== 4) {
+      fail("an attestation needs a kind (adr or scenario), an id, its evidence and recorded_at");
+      continue;
+    }
+    if (!declared.has(key)) fail(`attestation ${key} names no declared reference`);
+    if (seen.has(key)) fail(`attestation ${key} is recorded twice`);
+    seen.add(key);
   }
 }
 

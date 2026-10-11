@@ -150,3 +150,20 @@ A missing part MUST stay absent, so that the schema rejects the record.
 - WHEN it is parsed and linted
 - THEN it MUST be rejected
 - AND it MUST NOT produce a warning
+
+### Requirement: Executable Checks Of A Fitness Function {#REQ-decision-records-008}
+
+Each line `- Check: \`<command>\`` of a Markdown ADR's `Fitness function`
+section MUST be one executable check of that ADR (REQ-idd-022), in order; a
+line of that form in any other section MUST NOT. The prose of the section
+stays the `fitness_function` of the record, and a section without a `Check:`
+line is a fitness function to check by hand. Check lines MUST NOT change the
+lint of the record.
+
+#### Scenario: A boundary rule becomes a check
+
+- GIVEN an ADR whose `Fitness function` says that the domain never imports an
+  adapter and adds `- Check: \`npm run lint:deps\``
+- WHEN its checks are read
+- THEN they MUST be `["npm run lint:deps"]`
+- AND the record MUST lint as before

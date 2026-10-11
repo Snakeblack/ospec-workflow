@@ -104,6 +104,10 @@ when requested. `ospec doctor` warns about open IDD changes without checks.
      Once the user approves an amendment or supersession, write the new ADR
      with the foundation template (never rewrite an accepted one) and attach
      it with `--record <path>`; `ospec check` lints it.
+     `ospec check` also runs their fitness checks from the change's base; a
+     failure names the ADR: fix the code, never the check. `fitness.manual`
+     items never block: verify each, then
+     `ospec record fitness --change <id> --adr <id> --evidence "<what you verified>"`.
    - `trust-review`: `ospec review start`, hand the returned request to the
      read-only `review-trust` reviewer, and pass its findings JSON unchanged to
      `ospec review record --result @<file>`. Fix what it blocks on, run

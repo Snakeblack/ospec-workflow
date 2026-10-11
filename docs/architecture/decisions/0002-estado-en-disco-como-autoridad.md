@@ -20,6 +20,7 @@ Reanudar es leer el disco. La conversación y la memoria pueden perderse sin per
 
 ## Fitness function
 Los tests de `idd-store` comprueban la escritura atómica y el rechazo de un estado inválido; la skill IDD prohíbe escribir `state.yaml` y el CLI es el único escritor.
+- Check: `node --test scripts/lib/idd-store.test.js`
 
 ## Review trigger
 Un uso que necesite compartir el estado de un cambio entre máquinas sin pasar por el control de versiones.

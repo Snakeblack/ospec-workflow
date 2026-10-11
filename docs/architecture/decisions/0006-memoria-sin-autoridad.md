@@ -20,6 +20,7 @@ ospec funciona igual sin memoria. Un recuerdo que contradice el disco pierde. In
 
 ## Fitness function
 Ninguna orden del CLI lee la memoria para decidir; la regla del router y la de memoria lo declaran y se revisa en cada cambio que las toque.
+- Check: `node --test scripts/lib/memory-boundary.test.js`
 
 ## Review trigger
 Una necesidad que solo la memoria pueda satisfacer y que el disco no pueda guardar.

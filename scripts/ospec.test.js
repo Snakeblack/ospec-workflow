@@ -1124,3 +1124,94 @@ test("[REQ-idd-021] a broken component map warns and gives no references, and no
   const bare = ospec(root, "next", "--change", "order-events", "--json");
   assert.deepStrictEqual([bare.json.references, bare.json.warnings], [[], []]);
 });
+
+// ---------------------------------------------------------------------------
+// E3.3: fitness functions in check (REQ-idd-022)
+// ---------------------------------------------------------------------------
+
+const BOUNDARY = [
+  "const fs = require('fs');",
+  "if (fs.readFileSync('src/core.js', 'utf8').includes('./adapter')) { console.error('core imports the adapter'); process.exit(1); }",
+].join("\n");
+
+function fitnessProject(t) {
+  const { root, git } = architectureProject(t);
+  writeFile(root, "boundary.js", `${BOUNDARY}\n`);
+  writeFile(root, "src/core.js", "module.exports = 1;\n");
+  writeFile(root, "src/pages.txt", "2");
+  const boundaryAdr = adrText("0006", "El núcleo no conoce los adaptadores").replace(
+    "Un test de integración entre módulos.",
+    "El núcleo no importa ningún adaptador.\n- Check: `node boundary.js`",
+  );
+  writeFile(root, "docs/architecture/decisions/0006-nucleo-sin-adaptadores.md", boundaryAdr);
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "boundary ADR");
+  ospec(root, ...OPEN_EVENTS);
+  ospec(root, "signals", "--change", "order-events", "--path", "src/core.js", "--adr", "0006", "--adr", "0002");
+  ospec(root, "record", "impact", "--change", "order-events", "--adr", "0006", "--impact", "conforms", "--reason", "core stays pure");
+  ospec(root, "record", "impact", "--change", "order-events", "--adr", "0002", "--impact", "conforms", "--reason", "keeps sync calls");
+  return { root, git, boundaryAdr };
+}
+
+test("[REQ-idd-022] a boundary violation declared in an ADR blocks the close and names the ADR", (t) => {
+  const { root } = fitnessProject(t);
+  writeFile(root, "src/core.js", "module.exports = require('./adapter');\n");
+
+  const checked = ospec(root, "check", "--change", "order-events", "--json");
+  assert.strictEqual(checked.code, 0, checked.stderr);
+  const missing = checked.json.missing.find((entry) => entry.obligation === "adr-impact-declaration");
+  assert.strictEqual(missing.reason, "ADR 0006: fitness check `node boundary.js` failed with exit code 1");
+  assert.deepStrictEqual(
+    checked.json.fitness.checks.map(({ kind, id, command, exit_code }) => ({ kind, id, command, exit_code })),
+    [{ kind: "adr", id: "0006", command: "node boundary.js", exit_code: 1 }],
+  );
+  const run = stateOf(root, "order-events").runs.find((entry) => entry.purpose === "fitness");
+  assert.deepStrictEqual([run.ref, run.command, run.exit_code], ["adr:0006", "node boundary.js", 1]);
+
+  const text = ospec(root, "check", "--change", "order-events");
+  assert.match(text.stdout, /missing adr-impact-declaration: ADR 0006: fitness check `node boundary.js` failed with exit code 1/);
+  assert.match(text.stdout, /core imports the adapter/);
+
+  const close = ospec(root, "close", "--change", "order-events", "--json");
+  assert.strictEqual(close.code, 1);
+  assert.match(JSON.stringify(close.json.error), /adr-impact-declaration/);
+
+  writeFile(root, "src/core.js", "module.exports = 2;\n");
+  const fixed = ospec(root, "check", "--change", "order-events", "--json");
+  assert.ok(!fixed.json.missing.some((entry) => entry.obligation === "adr-impact-declaration"), JSON.stringify(fixed.json.missing));
+  const state = stateOf(root, "order-events");
+  const evidence = state.evidence.find((entry) => entry.id === state.obligations.find((entry) => entry.id === "adr-impact-declaration").evidence[0]);
+  assert.strictEqual(evidence.detail.fitness.length, 1);
+});
+
+test("[REQ-idd-022] the change cannot weaken the check its base declares", (t) => {
+  const { root, boundaryAdr } = fitnessProject(t);
+  writeFile(root, "src/core.js", "module.exports = require('./adapter');\n");
+  writeFile(root, "docs/architecture/decisions/0006-nucleo-sin-adaptadores.md", boundaryAdr.replace("\n- Check: `node boundary.js`", ""));
+  const checked = ospec(root, "check", "--change", "order-events", "--json");
+  assert.match(checked.json.missing.find((entry) => entry.obligation === "adr-impact-declaration").reason, /^ADR 0006: fitness check `node boundary.js` failed/);
+});
+
+test("[REQ-idd-022] a prose fitness function is a checklist item that keeps its evidence and never blocks", (t) => {
+  const { root } = fitnessProject(t);
+  const next = ospec(root, "next", "--change", "order-events", "--json");
+  assert.deepStrictEqual(next.json.fitness.manual, [
+    { kind: "adr", id: "0002", path: "docs/architecture/decisions/0002-integracion-sincrona.md", fitness: "Un test de integración entre módulos.", evidence: null },
+  ]);
+  assert.deepStrictEqual(next.json.fitness.checks.map((check) => check.command), ["node boundary.js"]);
+  assert.match(ospec(root, "next", "--change", "order-events").stdout, /manual fitness ADR 0002: Un test de integración entre módulos\. \(no evidence recorded/);
+
+  const checked = ospec(root, "check", "--change", "order-events", "--json");
+  assert.ok(!checked.json.missing.some((entry) => entry.obligation === "adr-impact-declaration"), JSON.stringify(checked.json.missing));
+
+  const refused = ospec(root, "record", "fitness", "--change", "order-events", "--adr", "0006", "--evidence", "ran it", "--json");
+  assert.strictEqual(refused.json.error.code, "not-manual-fitness");
+  assert.strictEqual(ospec(root, "record", "fitness", "--change", "order-events", "--adr", "0002", "--json").code, 2);
+
+  const recorded = ospec(root, "record", "fitness", "--change", "order-events", "--adr", "0002", "--evidence", "verify.js:1 covers the integration", "--json");
+  assert.strictEqual(recorded.code, 0, recorded.stderr);
+  assert.deepStrictEqual(stateOf(root, "order-events").attestations.map(({ kind, id, evidence }) => ({ kind, id, evidence })), [
+    { kind: "adr", id: "0002", evidence: "verify.js:1 covers the integration" },
+  ]);
+  assert.strictEqual(ospec(root, "next", "--change", "order-events", "--json").json.fitness.manual[0].evidence, "verify.js:1 covers the integration");
+});

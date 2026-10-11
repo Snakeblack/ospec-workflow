@@ -20,6 +20,8 @@ Instalar no necesita red ni un gestor de paquetes. Un validador de esquemas o un
 
 ## Fitness function
 El manifiesto del runtime interpretado no declara dependencias; la paridad entre el binario y el respaldo la comprueba `scripts/hooks/parity-contract.test.js`.
+- Check: `node -e "process.exit(Object.keys(require('./package.json').dependencies || {}).length)"`
+- Check: `node --test scripts/hooks/parity-contract.test.js`
 
 ## Review trigger
 Una capacidad que exija una dependencia del runtime interpretado sin alternativa razonable en la biblioteca estándar.
