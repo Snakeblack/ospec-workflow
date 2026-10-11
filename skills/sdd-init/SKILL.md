@@ -41,8 +41,8 @@ Run this phase when the orchestrator/user asks to initialize SDD in a project. Y
 | `mode=openspec` | Create/update openspec bootstrap files only. |
 | `mode=none` | Return detected context only; write no SDD artifacts except the skill registry cache if required. |
 | `testing.tdd_mode` marker/config found | Preserve explicitly configured TDD mode in `testing.tdd_mode`. |
-| no marker/config but `scale` specified | Resolve `testing.tdd_mode`: `solo` → `standard`, `team` → `focused`, `enterprise` → `strict`. |
-| no marker/config and no scale | Default `testing.tdd_mode: focused` if test runner exists; otherwise `standard`. |
+| no marker/config but `team` specified | Resolve `testing.tdd_mode` from the profile: `solo` → `standard`, `small` → `focused`, `multi-team` → `strict`; `experience: junior` → `strict`. |
+| no marker/config and no team | Default `testing.tdd_mode: focused` if test runner exists; otherwise `standard`. |
 | existing code detected AND `openspec/specs/` empty AND no `baseline` block | Activate brownfield branch: write `baseline` block, return `next_recommended: sdd-baseline`. |
 | `baseline` block already present (any status) | Preserve it unchanged; if `status` is `pending` or `partial`, return `next_recommended: sdd-baseline`. |
 | `baseline.status: done` | Brownfield branch does not activate; fall back to standard `next_recommended` logic. |
@@ -84,15 +84,16 @@ After resolving a valid base path, scan its immediate children (depth-1 only, no
 
 1. Inspect project files (`package.json`, `go.mod`, `pyproject.toml`, CI, lint/test config) and summarize stack/conventions.
 2. Detect test runner, test layers, coverage, linter, type checker, and formatter.
-3. Resolve test runner availability and initialize `testing.tdd_mode` in `openspec/config.yaml` based on scale preset (`solo` → `standard`, `team` → `focused`, `enterprise` → `strict`).
+3. Resolve test runner availability and initialize `testing.tdd_mode` in `openspec/config.yaml` from the team profile (step 6b).
 4. Initialize persistence for the resolved mode.
 5. Build `.ospec/cache/skill-registry.cache.json` using the skill-registry scan rules.
 6. Persist testing capabilities and project context.
-6b. **Scale preset** (openspec mode only): read the `scale: <solo|team|enterprise>` line from the `## Parameters` prompt block (the orchestrator asks the user once at first init; absent → default `team`, ask nothing yourself). Write `scale: {value}` into `openspec/config.yaml` and materialize its preset:
-   - `solo`: keep everything advisory — no extra blocks; routing prefers `lite` for trivial/small; clarify fires only on `residual_ambiguity`; 4R stays out of default route gates.
-   - `team` (default): current defaults unchanged; the Change Collision Gate applies (it is always-on when other active changes exist); traceability trailers stay advisory.
-   - `enterprise`: write `testing: { tdd_mode: strict }` (when a runner exists), `traceability: { trailers: required }`, and `mentorship: { mode: balanced }`; keep 4R in the standard route gates; recommend declaring `quality_gates:` with `on_fail: halt`.
-   On re-init with an existing `scale:` key, preserve it unchanged (same rule as the `baseline` block).
+6b. **Team profile** (openspec mode only): read the `team: { size, experience }` line from the `## Parameters` prompt block (the orchestrator asks the user once at first init; ask nothing yourself). Write it as a top-level `team:` section (`size:` and `experience:`) into `openspec/config.yaml`; never write `idd/config.yaml` (ADR 0011). Then run `node <pluginInstallRoot>/scripts/ospec.js team --mode sdd --json --root <projectRoot>` and materialize its `defaults`, never your own reading of the profile:
+   - `tdd_mode` → `testing: { tdd_mode }` (when a runner exists);
+   - `review.traceability: required` → `traceability: { trailers: required }`;
+   - `mentorship` other than `balanced` → `mentorship: { mode }`;
+   - `review.quality_review: false` → keep 4R out of default route gates and prefer `lite` for trivial/small; `true` keeps 4R in the standard route gates.
+   Without `team` in the parameters, write no profile and keep today's defaults. On re-init, preserve an existing `team:` or legacy `scale:` key and every block the user edited (same rule as the `baseline` block).
 7. **Brownfield branch** (openspec mode only): if existing application code is detected outside `openspec/`, `docs/`, and dotfiles AND `openspec/specs/` is empty AND `openspec/config.yaml` has no `baseline` block, write the `baseline` block with `status: pending`, empty `domains_pending`, `domains_done`, `stale_domains`, and `last_checked: ""`. On re-init, if a `baseline` block already exists, preserve it unchanged.
 8. Return the structured initialization envelope.
 

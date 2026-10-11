@@ -2341,44 +2341,44 @@ boundary already established for Reply Language Forwarding.
 
 ---
 
-### Requirement: SDD Init Guard Project Scale Preset
+### Requirement: SDD Init Guard Team Profile
 
 Step 3 of the SDD Init Guard (Section titled "SDD Init Guard (MANDATORY)" in
-`agents/sdd-orchestrator.agent.md`) gains a preset question that MUST run
-before `sdd-init` is dispatched for a project with no existing
-`openspec/config.yaml`. When no config is found and the user explicitly
-invoked an SDD workflow command or clearly asked to start persisted SDD work,
-the orchestrator MUST first ask the **project scale** exactly once via
-`AskUserQuestion` (or the target-specific equivalent), offering three options:
+`agents/sdd-orchestrator.agent.md`) MUST ask the **team profile** before
+`sdd-init` is dispatched for a project with no existing
+`openspec/config.yaml`, and MUST NOT ask the project scale it replaces
+(REQ-idd-023). When no config is found and the user explicitly invoked an SDD
+workflow command or clearly asked to start persisted SDD work, the
+orchestrator MUST ask once via `AskUserQuestion` (or the target-specific
+equivalent) the profile's `size` (`solo`, `small` recommended, `multi-team`)
+and `experience` (`junior`, `mixed` recommended, `senior`), delegate to
+`sdd-init` with `team: { size: {answer}, experience: {answer} }` in the
+sub-agent's `## Parameters` launch-prompt block (the same injection pattern
+used for `target_dir`, Section 10), then proceed with the originally
+requested command. This question is asked only when `openspec/config.yaml`
+does not yet exist; it MUST NOT re-fire on subsequent commands once config
+exists.
 
-- `solo` — minimal process: lite-first, no 4R by default; trade-off is less
-  safety net, fully reversible via config.
-- `team` (recommended default) — current defaults plus the change-collision
-  gate and advisory trailers; reversible by editing `config.yaml`.
-- `enterprise` — strict TDD, 4R, required traceability, and `mentorship:
-  balanced`; trade-off is more per-change friction in exchange for maximum
-  auditability.
+The orchestrator MUST resolve the profile once per session with
+`ospec team --mode sdd --json`. With a profile, the delivery strategy MUST be
+its `defaults.delivery_strategy`, asked of no one, and an absent
+`mentorship:` block MUST resolve to its `defaults.mentorship`. Without a
+profile, both keep their previous behavior.
 
-After the user answers, the orchestrator MUST delegate to `sdd-init` with
-`scale: {answer}` included in the sub-agent's `## Parameters` launch-prompt
-block (the same injection pattern used for `target_dir`, Section 10), then
-proceed with the originally requested command. This question is asked only
-when `openspec/config.yaml` does not yet exist; it MUST NOT re-fire on
-subsequent commands once config exists.
-
-#### Scenario: No config yet — scale question fires once before sdd-init
+#### Scenario: No config yet — team profile question fires once before sdd-init
 
 - GIVEN `openspec/config.yaml` does not exist
 - AND the user explicitly invokes an SDD workflow command
 - WHEN the orchestrator's Init Guard evaluates Step 3
-- THEN it asks the project-scale question via `AskUserQuestion` with the `solo` / `team` / `enterprise` options before delegating to `sdd-init`
-- AND it passes `scale: {answer}` in `sdd-init`'s `## Parameters` block
+- THEN it asks the team profile via `AskUserQuestion` before delegating to `sdd-init`, and never the project scale
+- AND it passes `team: { size, experience }` in `sdd-init`'s `## Parameters` block
 
-#### Scenario: Config already exists — no scale question, Init Guard proceeds normally
+#### Scenario: Config already exists — no question, defaults from the profile
 
-- GIVEN `openspec/config.yaml` already exists with project context and testing capabilities
-- WHEN the orchestrator's Init Guard evaluates Step 2
-- THEN it proceeds normally without asking the project-scale question, unchanged from the pre-existing baseline
+- GIVEN `openspec/config.yaml` already exists with `team: { size: multi-team }`
+- WHEN the first `/sdd-new` of a session runs
+- THEN the orchestrator asks neither the team profile nor the delivery strategy
+- AND it uses `auto-chain` from `ospec team --mode sdd`
 
 ---
 

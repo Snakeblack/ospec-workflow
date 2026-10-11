@@ -32,7 +32,7 @@ versionado con el repo: sin DB, sin servicios, sin build.
 
 ## Cómo evaluarlo en tu repo (30 min)
 
-1. `/sdd-init` — detecta stack y pregunta la escala (`solo`/`team`/`enterprise`).
+1. `/sdd-init` — detecta stack y pregunta el perfil de equipo (`size`: `solo`/`small`/`multi-team`; `experience`: `junior`/`mixed`/`senior`); `ospec team --mode sdd` muestra los defaults que decide.
 2. `/sdd-lite <algo trivial>` — mira el ciclo mínimo y sus artefactos.
 3. Abre `openspec/changes/archive/` de este mismo repo: cada feature del harness
    se construyó con el harness; ese es el argumento de auditoría real.

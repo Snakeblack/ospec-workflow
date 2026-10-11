@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-10-11
-- Evidence: scripts/lib/idd-signals.js:4, idd/config.yaml:15
+- Evidence: scripts/lib/idd-signals.js:4, idd/config.yaml:21
 
 ## Context and drivers
 Un flujo con todas las fases para cada cambio agota el contexto y la paciencia; uno sin control deja pasar cambios de riesgo. El riesgo real está en lo que el cambio toca, no en lo que el modelo declara. Drivers: `constraint:context-budget` y `constraint:untrusted-model-output`.

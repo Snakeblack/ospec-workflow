@@ -149,7 +149,7 @@ Before executing ANY explicit persisted SDD command (`/sdd-new`, `/sdd-ff`, `/sd
 
 1. Check for `openspec/config.yaml` with project context and testing capabilities.
 2. If found, init was done; proceed normally.
-3. If not found and the user explicitly invoked an SDD workflow command or clearly asked to start persisted SDD work, first ask the **project scale** once via `AskUserQuestion` — options `solo` ("mínima burocracia: lite por defecto, sin 4R; trade-off: menos red de seguridad, todo reversible por config"), `team` (recommended: "defaults actuales + gate de colisión + trailers advisory; reversible editando config.yaml") and `enterprise` ("strict TDD + 4R + trazabilidad required + mentorship balanced; trade-off: más fricción por change, máxima auditabilidad") — then run `sdd-init` delegating to the `sdd-init` sub-agent with `scale: {answer}` in its `## Parameters` block, and proceed with the requested command.
+3. If not found and the user explicitly invoked an SDD workflow command or clearly asked to start persisted SDD work, ask the **team profile** once via `AskUserQuestion`: `size` (`solo`, `small` recommended, `multi-team`) and `experience` (`junior`, `mixed` recommended, `senior`). It replaces the old project scale; the CLI derives every default from it (REQ-idd-023). Then run `sdd-init` delegating to the `sdd-init` sub-agent with `team: { size: {answer}, experience: {answer} }` in its `## Parameters` block, and proceed with the requested command. Never ask the project scale.
 4. If not found and the user is only asking a vague natural-language question or exploratory guidance, do NOT create `openspec/` silently. Explain that initialization will write SDD artifacts, use `vscode/askQuestions` to ask whether to proceed, and stop until the answer is available.
 
 This ensures:
@@ -269,7 +269,7 @@ Always use `openspec` for SDD changes. Pass `artifact_store.mode: openspec` and 
 
 ### Delivery Strategy
 
-On the first `/sdd-new`, `/sdd-ff`, `/sdd-continue`, or `/sdd-lite` (or an equivalent natural-language request) in a session, use `vscode/askQuestions` once to select and cache delivery strategy.
+On the first `/sdd-new`, `/sdd-ff`, `/sdd-continue`, or `/sdd-lite` (or an equivalent natural-language request) in a session, run `node <pluginInstallRoot>/scripts/ospec.js team --mode sdd --json --root <projectRoot>` once and cache it. When it returns a profile, use its `defaults.delivery_strategy` without asking; otherwise use `vscode/askQuestions` once to select and cache delivery strategy.
 
 Available strategies:
 
@@ -428,7 +428,7 @@ The orchestrator's own replies and all `vscode/askQuestions` prompts MUST also u
 
 `openspec/config.yaml` MAY declare an optional `mentorship:` block (`mode: mentor | balanced | expert`, default `balanced`; optional `focus:` list). Resolve it ONCE per session (with the strict-TDD read) and cache it.
 
-Inject one line into EVERY phase sub-agent launch prompt, next to `Reply language`: `Mentorship mode: {mode}` (append `— focus: {list}` when declared). Absent block → `balanced`; do not ask the user. Per-mode prose semantics are defined normatively in `_shared/sdd-phase-common.md` § F (`mentor`: "Por qué así" + 1 teachable concept; `balanced`: rationale only on architectural decisions and gates; `expert`: minimal summaries). The mode affects ONLY user-facing prose. It MUST NOT change persisted OpenSpec artifacts, code, identifiers, or file paths — same boundary as Reply Language Forwarding.
+Inject one line into EVERY phase sub-agent launch prompt, next to `Reply language`: `Mentorship mode: {mode}` (append `— focus: {list}` when declared). Absent block → the cached team profile's `defaults.mentorship`, else `balanced`; do not ask the user. Per-mode prose semantics are defined normatively in `_shared/sdd-phase-common.md` § F (`mentor`: "Por qué así" + 1 teachable concept; `balanced`: rationale only on architectural decisions and gates; `expert`: minimal summaries). The mode affects ONLY user-facing prose. It MUST NOT change persisted OpenSpec artifacts, code, identifiers, or file paths — same boundary as Reply Language Forwarding.
 
 #### Apply-Progress Continuity (MANDATORY)
 

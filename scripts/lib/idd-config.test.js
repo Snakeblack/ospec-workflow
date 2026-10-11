@@ -12,7 +12,7 @@ const { CONFIG_FILE, CONFIG_KEYS, IddConfigError, parseIddConfig } = require("./
 
 test("the configuration lives under idd/, outside openspec/", () => {
   assert.strictEqual(CONFIG_FILE, "idd/config.yaml");
-  assert.deepStrictEqual(CONFIG_KEYS, ["mode", "strict_tdd", "checks", "impact", "contracts"]);
+  assert.deepStrictEqual(CONFIG_KEYS, ["mode", "strict_tdd", "team", "checks", "impact", "contracts"]);
 });
 
 test("checks are named commands kept in their declared order", () => {
@@ -30,7 +30,7 @@ test("checks are named commands kept in their declared order", () => {
 });
 
 test("an absent or empty configuration yields the defaults", () => {
-  const defaults = { mode: null, strictTdd: false, checks: [], impact: {}, contracts: {} };
+  const defaults = { mode: null, strictTdd: false, team: null, checks: [], impact: {}, contracts: {} };
   assert.deepStrictEqual(parseIddConfig(""), defaults);
   assert.deepStrictEqual(parseIddConfig("# only a comment\n\n"), defaults);
 });
@@ -55,6 +55,7 @@ test("mode, strict_tdd and the impact section are read", () => {
   assert.deepStrictEqual(config, {
     mode: "idd",
     strictTdd: true,
+    team: null,
     checks: [],
     impact: {
       stack: ["node", "go"],
@@ -84,6 +85,26 @@ test("unknown keys and invalid values are refused with config-invalid", () => {
   refused("strict_tdd: true\nstrict_tdd: false\n", /duplicate idd config key: strict_tdd/);
   refused("  stray: 1\n", /unreadable idd config line/);
   refused("impact:\n  - src/**\n", /unreadable impact line/);
+});
+
+test("the team section declares the profile and decides strict_tdd unless it is explicit", () => {
+  assert.deepStrictEqual(parseIddConfig("team:\n  size: small   # three people\n  experience: senior\n").team, { size: "small", experience: "senior" });
+  assert.deepStrictEqual(parseIddConfig("team:\n  size: solo\n").team, { size: "solo", experience: null });
+  assert.strictEqual(parseIddConfig("team:\n  size: solo\n").strictTdd, false);
+  assert.strictEqual(parseIddConfig("team:\n  size: small\n").strictTdd, true);
+  assert.strictEqual(parseIddConfig("team:\n  size: solo\n  experience: junior\n").strictTdd, true);
+  assert.strictEqual(parseIddConfig("strict_tdd: false\nteam:\n  size: multi-team\n").strictTdd, false);
+  assert.strictEqual(parseIddConfig("strict_tdd: true\nteam:\n  size: solo\n").strictTdd, true);
+  const refused = (text, pattern) =>
+    assert.throws(
+      () => parseIddConfig(text),
+      (error) => error instanceof IddConfigError && error.code === "config-invalid" && pattern.test(error.message),
+    );
+  refused("team:\n  size: enterprise\n", /team.size must be solo, small, multi-team, got enterprise/);
+  refused("team:\n  experience: senior\n", /team.size must be/);
+  refused("team:\n  size: solo\n  experience: expert\n", /team.experience must be junior, mixed, senior/);
+  refused("team:\n  size: solo\n  scale: team\n", /unknown team key: scale/);
+  refused("team: solo\n", /team must be a section/);
 });
 
 test("the contracts section lists documents and tests", () => {

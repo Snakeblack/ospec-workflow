@@ -1,6 +1,12 @@
 # IDD configuration of this project (openspec/specs/idd/spec.md, REQ-idd-013).
 # openspec/ holds only SDD configuration and state; IDD reads this file.
 
+# Team profile (REQ-idd-023): one maintainer with agents, per docs/product/brief.md.
+# It decides delivery, review, Strict TDD and mentorship (`ospec team`).
+team:
+  size: solo
+  experience: senior
+
 # The checks `ospec check` runs, in order (REQ-idd-014).
 checks:
   test: node scripts/check.js

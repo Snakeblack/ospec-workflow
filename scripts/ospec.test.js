@@ -1215,3 +1215,55 @@ test("[REQ-idd-022] a prose fitness function is a checklist item that keeps its 
   ]);
   assert.strictEqual(ospec(root, "next", "--change", "order-events", "--json").json.fitness.manual[0].evidence, "verify.js:1 covers the integration");
 });
+
+test("[REQ-idd-023] two projects with different teams get different defaults without a question", (t) => {
+  const small = tempRoot(t);
+  const multi = tempRoot(t);
+  fs.mkdirSync(path.join(small, "idd"));
+  fs.mkdirSync(path.join(multi, "idd"));
+  fs.writeFileSync(path.join(small, "idd", "config.yaml"), "team:\n  size: solo\n  experience: senior\n");
+  fs.writeFileSync(path.join(multi, "idd", "config.yaml"), "team:\n  size: multi-team\n  experience: junior\n");
+  const one = ospec(small, "team", "--json").json;
+  const other = ospec(multi, "team", "--json").json;
+  assert.deepStrictEqual([one.mode, one.source, one.defaults.delivery_strategy, one.defaults.strict_tdd, one.defaults.mentorship], ["idd", "idd/config.yaml", "single-pr", false, "expert"]);
+  assert.deepStrictEqual([other.defaults.delivery_strategy, other.defaults.strict_tdd, other.defaults.mentorship], ["auto-chain", true, "mentor"]);
+  assert.notDeepStrictEqual(one.defaults.review, other.defaults.review);
+
+  // next hands the profile to every IDD change, and strict_tdd follows it.
+  for (const root of [small, multi]) ospec(root, ...OPEN_BUG.map((arg) => (arg === "bug" ? "feature" : arg)));
+  ospec(small, "signals", "--change", "fix-pagination", "--path", "src/lib/paginate.js");
+  ospec(multi, "signals", "--change", "fix-pagination", "--path", "src/lib/paginate.js");
+  const nextSmall = ospec(small, "next", "--change", "fix-pagination", "--json").json;
+  const nextMulti = ospec(multi, "next", "--change", "fix-pagination", "--json").json;
+  assert.deepStrictEqual(nextSmall.team, { size: "solo", experience: "senior", source: "idd/config.yaml", delivery_strategy: "single-pr", mentorship: "expert" });
+  assert.strictEqual(nextMulti.team.delivery_strategy, "auto-chain");
+  assert.ok(!nextSmall.pending_obligations.some((o) => o.id === "tdd-red-green"));
+  assert.ok(nextMulti.pending_obligations.some((o) => o.id === "tdd-red-green"));
+  assert.strictEqual(nextSmall.pending_decision, null);
+  assert.match(ospec(small, "next", "--change", "fix-pagination").stdout, /team: solo; delivery single-pr; mentorship expert/);
+});
+
+test("[REQ-idd-023] team follows the active mode and refuses an invalid profile", (t) => {
+  const root = tempRoot(t);
+  const none = ospec(root, "team", "--json");
+  assert.deepStrictEqual(none.json, { ok: true, command: "team", mode: "sdd", profile: null, source: null, defaults: null });
+  assert.match(ospec(root, "team").stdout, /no profile declared; defaults unchanged/);
+  fs.mkdirSync(path.join(root, "openspec"));
+  fs.writeFileSync(path.join(root, "openspec", "config.yaml"), "schema: spec-driven\nscale: team\n");
+  assert.deepStrictEqual(ospec(root, "team", "--json").json.profile, { size: "small", experience: null });
+  fs.mkdirSync(path.join(root, "idd"));
+  fs.writeFileSync(path.join(root, "idd", "config.yaml"), "checks:\n  test: npm test\n");
+  assert.deepStrictEqual(ospec(root, "team", "--json").json.profile, null);
+  // SDD reads its own declaration even while IDD is the active mode.
+  const sdd = ospec(root, "team", "--mode", "sdd", "--json").json;
+  assert.deepStrictEqual([sdd.mode, sdd.source, sdd.profile.size], ["sdd", "openspec/config.yaml scale", "small"]);
+  assert.strictEqual(ospec(root, "team", "--mode", "both", "--json").code, 2);
+  fs.writeFileSync(path.join(root, "idd", "config.yaml"), "team:\n  size: everyone\n");
+  assert.strictEqual(ospec(root, "team", "--mode", "sdd", "--json").json.ok, true);
+  const refused = ospec(root, "team", "--json");
+  assert.strictEqual(refused.code, 1);
+  assert.strictEqual(refused.json.error.code, "config-invalid");
+  fs.writeFileSync(path.join(root, "idd", "config.yaml"), "mode: sdd\n");
+  fs.writeFileSync(path.join(root, "openspec", "config.yaml"), "team:\n  size: everyone\n");
+  assert.strictEqual(ospec(root, "team", "--json").json.error.code, "team-invalid");
+});

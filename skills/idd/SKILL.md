@@ -52,8 +52,7 @@ checks:
 Read any existing configuration first and preserve its other keys and
 checks. Do not infer consent from a manifest, lockfile or passing test.
 The CLI only suggests this edit; it never creates the configuration.
-Then resume with `ospec next --change <id> --json` and run the declared checks
-when requested. `ospec doctor` warns about open IDD changes without checks.
+Then resume with `ospec next`.
 
 ## Rules
 
@@ -195,9 +194,11 @@ security paths of each service), as for checks.
 ## Delivery
 
 `ospec close` archives the change under `idd/archive/` and leaves the working
-tree as it is. Branches, commits and pull requests are the user's decision.
-When they ask, use `work-unit-commits` to split commits, `branch-pr` to open the
-PR, and `chained-pr` when the diff exceeds the review budget.
+tree as it is. Branches, commits and pull requests are the user's decision;
+propose the `team.delivery_strategy` of `next`. When they ask, use
+`work-unit-commits` to split commits, `branch-pr` to open the PR, and
+`chained-pr` when the diff exceeds the review budget. Pitch your replies at
+`team.mentorship`: `mentor` explains why, `expert` stays terse.
 
 ## Roadmap hand-off
 

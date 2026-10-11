@@ -96,7 +96,7 @@ function pendingDecision(state, gate) {
   return decision;
 }
 
-function nextForChange(state, { checks, candidateCommand, knowledge } = {}) {
+function nextForChange(state, { checks, candidateCommand, knowledge, team } = {}) {
   const pending = state.obligations
     .filter((obligation) => obligation.status === "pending")
     .sort(byWorkOrder)
@@ -144,6 +144,8 @@ function nextForChange(state, { checks, candidateCommand, knowledge } = {}) {
   }
   const suggestion = adrSuggestion(state);
   if (suggestion) result.suggestions = [suggestion];
+  // The delivery and mentorship the team profile decides (E3.4, REQ-idd-023).
+  if (team) result.team = team;
   return result;
 }
 

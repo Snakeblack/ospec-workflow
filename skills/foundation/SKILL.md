@@ -164,7 +164,10 @@ explicit approval, preserving its other keys:
 
 - `checks:` the commands that prove a change (tests, lint, typecheck), which
   run once the scaffold exists;
-- `strict_tdd:` from the testing bar the user chose;
+- `team:` the team profile from the team round (`size: solo | small |
+  multi-team`, `experience: junior | mixed | senior`): `ospec team` derives
+  delivery, review, Strict TDD and mentorship from it, so add `strict_tdd:`
+  only when the user's testing bar departs from that default;
 - `impact:` the paths of public contracts, persistent data and security
   boundaries in the chosen layout, plus `stack:` when services keep their
   manifests below the root;
@@ -175,8 +178,8 @@ An IDD change declares the ADRs of `docs/architecture/decisions/` and the
 quality scenarios it touches (`ospec signals --adr <id> --quality <id>`) and
 its impact on each, so a later change that amends, supersedes or contradicts
 an ADR stops for the user at the `adr-amend-or-contradict` gate. When the
-project uses SDD, also update `openspec/config.yaml` as
-`references/foundation-details.md` describes.
+project uses SDD, also update `openspec/config.yaml`, its own `team:`
+included, as `references/foundation-details.md` describes.
 
 ## Source documents
 

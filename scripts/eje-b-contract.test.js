@@ -110,31 +110,32 @@ test("B3.5 · config documents the traceability policy (advisory default, requir
 });
 
 // ---------------------------------------------------------------------------
-// B5 — scale presets
+// B5 — team profile (replaces the scale presets, REQ-idd-023)
 // ---------------------------------------------------------------------------
 
-test("B5.1 · orchestrator asks the scale question once at first init with team recommended", async () => {
+test("B5.1 · orchestrator asks the team profile once at first init and never the scale", async () => {
   const content = await readFile(ORCHESTRATOR_AGENT_PATH);
-  assert.match(content, /project scale/i, "init guard must ask project scale");
-  for (const preset of ["`solo`", "`team`", "`enterprise`"]) {
-    assert.ok(content.includes(preset), `scale options must include ${preset}`);
+  assert.match(content, /\*\*team profile\*\*/i, "init guard must ask the team profile");
+  for (const value of ["`solo`", "`small`", "`multi-team`", "`junior`", "`mixed`", "`senior`"]) {
+    assert.ok(content.includes(value), `team profile options must include ${value}`);
   }
-  assert.match(content, /`scale: \{answer\}`/, "must forward scale in the Parameters block");
+  assert.match(content, /`team: \{ size: \{answer\}, experience: \{answer\} \}`/, "must forward the profile in the Parameters block");
+  assert.match(content, /Never ask the project scale/, "the scale question is gone");
+  assert.match(content, /ospec\.js team --mode sdd --json/, "delivery strategy comes from ospec team");
 });
 
-test("B5.2 · sdd-init materializes the preset and preserves an existing scale key", async () => {
+test("B5.2 · sdd-init writes the profile to openspec/config.yaml and materializes the CLI defaults", async () => {
   const content = await readFile(INIT_SKILL_PATH);
-  assert.match(content, /Scale preset/i, "must carry the scale preset step");
-  for (const preset of ["`solo`", "`team`", "`enterprise`"]) {
-    assert.ok(content.includes(preset), `init must define preset ${preset}`);
-  }
-  assert.match(content, /preserve it unchanged/i, "re-init must preserve existing scale");
+  assert.match(content, /\*\*Team profile\*\*/, "must carry the team profile step");
+  assert.match(content, /never write `idd\/config\.yaml` \(ADR 0011\)/, "must keep SDD out of the IDD configuration");
+  assert.match(content, /ospec\.js team --mode sdd --json/, "must take the defaults from the CLI");
+  assert.match(content, /preserve an existing `team:` or legacy `scale:` key/i, "re-init must preserve the profile");
 });
 
-test("B5.3 · config documents the scale key with the 3 presets", async () => {
+test("B5.3 · config documents the team key and the legacy scale mapping", async () => {
   const content = await readFile(CONFIG_PATH);
-  assert.match(content, /# scale: team/, "must carry the commented scale example");
-  assert.match(content, /enterprise\s+→ strict TDD/, "must document the enterprise preset");
+  assert.match(content, /# team:\r?\n#   size: small\r?\n#   experience: mixed/, "must carry the commented team example");
+  assert.match(content, /enterprise →\s*#?\s*multi-team/, "must document the legacy scale mapping");
 });
 
 // ---------------------------------------------------------------------------
