@@ -360,7 +360,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // keep both sides numerically identical; the coherence test in
 // ospec-state.test.js and the Go-side TestLockStaleAgeMatchesJSConstant
 // cross-check this.
-const LOCK_RETRY_ATTEMPTS = 320;
+const LOCK_RETRY_ATTEMPTS = 200;
 const LOCK_RETRY_DELAY_MS = 15;
 const LOCK_STALE_MS = 5000;
 const LOCK_RM_RETRY_ATTEMPTS = 3;

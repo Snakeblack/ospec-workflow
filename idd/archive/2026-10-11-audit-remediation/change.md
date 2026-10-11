@@ -18,7 +18,7 @@ Acceptance: Publicar no mueve la rama release hasta que el Validate Harness de e
 - El gate de publicación usa el run de la rama por defecto en un release, y la rama elegida en `workflow_dispatch`. Un run del tag no decide. Así `df4840fc` habría seguido, porque `main` acabó en verde, y `6b54f458` se habría parado, porque `main` acabó en rojo.
 - Un `*.pem` no se clasifica por el nombre. Solo una cabecera `BEGIN … PRIVATE KEY` pide confirmación; un certificado no.
 - Descargar y luego invocar un shell pide confirmación. El tubo directo a un shell sigue siendo una denegación.
-- El margen del lock llega hasta 320 intentos porque 320 × 15 ms cabe en los 5 s de `LOCK_STALE_MS` y del timeout de SessionStart. No se alarga ese presupuesto.
+- El margen del lock queda en 200 intentos de 15 ms (3 s). 320 llegaba a los 5 s y el lock fresco se reclamaba como huérfano, así que el fallo cerrado dejaba de serlo.
 - No se cambia el filtro de atribución de commits, no se añade el brazo gentle-ai y no se activa el ruleset «Main protect»: sus reglas no exigen checks y el job de Windows sigue pudiendo fallar por carga.
 
 ## Evidence

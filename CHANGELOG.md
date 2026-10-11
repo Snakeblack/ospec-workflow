@@ -13,9 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Publicación del marketplace**: el workflow espera a que Validate Harness termine en verde para el mismo SHA en la rama que se publica. Un release mira `main` y un `workflow_dispatch` mira la rama elegida. Los runs del tag no cuentan, y empujar un tag ya no lanza otra matriz. Si no hay un `success`, o el run acaba en `failure`, `timed_out` o `startup_failure`, la rama `release` no se mueve.
 - **Hook PreToolUse**: `grep`, `sed`, `awk`, `base64`, `xxd` y `cp` sobre un secreto piden confirmación. Un `*.key` se niega por el nombre. Una cabecera de clave privada en una lectura, Write o Edit pide confirmación; un certificado no. `rm -r -f /` y `git push` con un refspec `+` se niegan. Descargar un fichero y luego invocar un shell pide confirmación. El tubo directo a un shell sigue negándose. JS y Go quedan en paridad.
 - **Rótulo de los revisores**: al incrustar una referencia que no viaja en la build, el texto ya no repite el rótulo ni rompe las comillas.
-- **Margen en Windows**: el lock reintenta 320 veces cada 15 ms, dentro de los 5 s del hook, y el test de PowerShell espera 60 s.
+- **Margen en Windows**: el lock reintenta 200 veces cada 15 ms (3 s), por debajo de los 5 s en los que un lock se considera huérfano, y el test de PowerShell espera 60 s.
 
-**Verificación directa**: `node scripts/check.js` en verde. Hecho con IDD (`idd/archive/2026-10-11-audit-remediation/`).
+**Verificación directa**: `node scripts/check.js` (3474 tests pasando, 0 fallos y 3 omitidos). Hecho con IDD (`idd/archive/2026-10-11-audit-remediation/`).
 
 ## [2.121.0] - 2026-10-10
 
