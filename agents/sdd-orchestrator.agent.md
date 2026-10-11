@@ -381,11 +381,11 @@ Each phase has explicit read/write rules:
 | `sdd-propose` | exploration (optional) | `proposal` or `proposal-lite` |
 | `sdd-spec` | proposal (required) | `spec` |
 | `sdd-clarify` | proposal + change-local `specs/**/spec.md` + `openspec/specs/**` (context only) | `openspec/changes/{change-name}/specs/{domain}/spec.md` (`## Clarifications` append + normative edits) |
-| `sdd-design` | proposal + change-local specs (when present) | `design` + `decisions/adr-NNN.md` (significant decisions only) |
+| `sdd-design` | proposal + change-local specs (when present) | `design` + `decisions/dc-NNN.md` (significant change decisions only) |
 | `sdd-tasks` | spec + design (required) or `proposal-lite` in lite mode | `tasks` |
 | `sdd-apply` | tasks + spec + design + **apply-progress (if exists)**, or `proposal-lite` in lite mode | `apply-progress` |
 | `sdd-verify` | spec + tasks + **apply-progress**, or `proposal-lite` + tasks in lite mode | `verify-report` |
-| `sdd-archive` | all artifacts | `archive-report` + `archive-plan.json` (ADR promotions listed in plan; live `docs/adr/*` committed by runtime receipt) |
+| `sdd-archive` | all artifacts | `archive-report` + `archive-plan.json` (`adr_promotions: []`; change decisions stay in the archived change) |
 
 For phases with required dependencies, sub-agents read directly from OpenSpec artifact paths. The orchestrator passes artifact file paths, not full content.
 For persisted continuation, treat `openspec/changes/{change-name}/state.yaml` plus phase artifacts as the canonical state. Never infer current phase from conversation history when these files exist.

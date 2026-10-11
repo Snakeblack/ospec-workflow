@@ -188,40 +188,17 @@ function validatePlanShape(plan, options) {
     }
   }
 
+  // E3.1: the archive no longer promotes change decisions to docs/adr/; they
+  // stay with the archived change. A v1 plan keeps the field, always empty.
   if (!Array.isArray(plan.adr_promotions)) {
     pushCode(codes, errors, "invalid-schema", "adr_promotions must be an array");
-  } else {
-    for (let i = 0; i < plan.adr_promotions.length; i++) {
-      const entry = plan.adr_promotions[i];
-      if (!isPlainObject(entry)) {
-        pushCode(codes, errors, "invalid-schema", `adr_promotions[${i}] must be object`);
-        continue;
-      }
-      for (const field of ["source", "target", "content_sha256"]) {
-        if (typeof entry[field] !== "string" || entry[field].length === 0) {
-          pushCode(
-            codes,
-            errors,
-            "invalid-schema",
-            `adr_promotions[${i}].${field} required`,
-          );
-        }
-      }
-      if (entry.source && hasTraversalOrAbsolute(entry.source)) {
-        pushCode(codes, errors, "invalid-schema", `adr_promotions[${i}].source unsafe`);
-      }
-      if (entry.target && !isRelativeUnder(entry.target, "docs/adr")) {
-        pushCode(codes, errors, "invalid-schema", `adr_promotions[${i}].target unsafe`);
-      }
-      if (entry.content_sha256 != null && !isSha256Digest(entry.content_sha256)) {
-        pushCode(
-          codes,
-          errors,
-          "invalid-schema",
-          `adr_promotions[${i}].content_sha256 invalid`,
-        );
-      }
-    }
+  } else if (plan.adr_promotions.length > 0) {
+    pushCode(
+      codes,
+      errors,
+      "invalid-schema",
+      "archive-plan v1: adr_promotions must be empty; the archive no longer promotes change decisions to docs/adr/",
+    );
   }
 
   if (!Array.isArray(plan.archive_inventory)) {
@@ -383,8 +360,6 @@ function validatePlanAgainstSnapshot(plan, snapshot) {
   const targetTexts = isPlainObject(snapshot.targetTexts)
     ? snapshot.targetTexts
     : {};
-  const adrSources = isPlainObject(snapshot.adrSources) ? snapshot.adrSources : {};
-
   const specWrites = Array.isArray(plan.spec_writes) ? plan.spec_writes : [];
   for (let i = 0; i < specWrites.length; i++) {
     const entry = specWrites[i];
@@ -470,28 +445,6 @@ function validatePlanAgainstSnapshot(plan, snapshot) {
           `target_before_sha256 mismatch for ${entry.target}`,
         );
       }
-    }
-  }
-
-  const adrPromotions = Array.isArray(plan.adr_promotions) ? plan.adr_promotions : [];
-  for (let i = 0; i < adrPromotions.length; i++) {
-    const entry = adrPromotions[i];
-    if (!isPlainObject(entry)) continue;
-    const srcHash = adrSources[entry.source];
-    if (srcHash == null) {
-      pushCode(
-        codes,
-        errors,
-        "missing-reference",
-        `ADR source missing for ${entry.source}`,
-      );
-    } else if (normalizeDigest(srcHash) !== normalizeDigest(entry.content_sha256)) {
-      pushCode(
-        codes,
-        errors,
-        "hash-mismatch",
-        `ADR content_sha256 mismatch for ${entry.source}`,
-      );
     }
   }
 

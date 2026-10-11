@@ -2,9 +2,9 @@
 
 Estos registros **no son ADR de arquitectura**. Son decisiones de desarrollo (`kind: dc` en `ospec-decision-record/v1`) que el archivo SDD promovió aquí al cerrar cada change. E2.6 los reclasifica así y los deja donde están, sin editarlos: el texto de cada uno es el que se escribió al cerrar su change, aunque su título diga «ADR».
 
-Los ADR de arquitectura vigentes de ospec están en [`../architecture/decisions/`](../architecture/decisions/). Hasta E3.1 el archivo SDD sigue escribiendo aquí; un registro posterior a este índice puede no aparecer en él.
+Los ADR de arquitectura vigentes de ospec están en [`../architecture/decisions/`](../architecture/decisions/). Desde E3.1 el archivo SDD ya no escribe aquí: las decisiones de un change se quedan en su carpeta archivada, así que este índice está completo y no crece.
 
-Índice a 2026-10-11: 277 decisiones.
+Índice final: 277 decisiones.
 
 | Fecha | Decisión | Registro |
 | --- | --- | --- |

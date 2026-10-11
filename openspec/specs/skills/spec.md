@@ -628,58 +628,57 @@ En modo federado, la documentación técnica del coordinador (`docs/architecture
 
 ---
 
-## 11. ADR Integration in the SDD Flow
+## 11. Change Decisions in the SDD Flow
 
-> Reconciled from PR #32 (A5) on 2026-07-03.
+> Reconciled from PR #32 (A5) on 2026-07-03; since E3.1 the archive promotes no
+> change decision to `docs/adr/`.
 
-### Requirement: sdd-design ADR Extraction
+### Requirement: sdd-design Change Decisions
 
-The `sdd-design` skill MUST, after writing `design.md` (Step 3b), promote each
-**significant** Architecture Decision to a standalone ADR file at
-`openspec/changes/{change-name}/decisions/adr-NNN.md` (`NNN` = 001, 002, … in
+The `sdd-design` skill MUST, after writing `design.md` (Step 3b), record each
+**significant** decision of the change in a standalone file at
+`openspec/changes/{change-name}/decisions/dc-NNN.md` (`NNN` = 001, 002, … in
 design order). A decision is significant when it meets AT LEAST ONE of: affects
 a public contract, changes a data model, introduces a new dependency, or
 establishes a cross-cutting pattern. Non-significant decisions stay only in
-`design.md`; no ADR is created for them.
+`design.md`. These files are development decisions (`kind: dc`), not
+architecture ADRs.
 
-#### Scenario: Significant decision promoted to ADR
+(Previously: the files were change-local ADRs, `decisions/adr-NNN.md`, which
+the archive promoted to `docs/adr/`.)
+
+#### Scenario: Significant decision recorded with the change
 
 - GIVEN `design.md` documents a decision that introduces a new external dependency
 - WHEN `sdd-design` completes Step 3b
-- THEN `openspec/changes/{change-name}/decisions/adr-001.md` is created mirroring the design's `### Decision:` entry
-- AND the ADR path appears in the phase's `artifacts` list
+- THEN `openspec/changes/{change-name}/decisions/dc-001.md` is created mirroring the design's `### Decision:` entry
+- AND the decision path appears in the phase's `artifacts` list
 
-#### Scenario: No significant decision — no ADR directory
+#### Scenario: No significant decision — no decisions directory
 
 - GIVEN none of the design's decisions meet the significance bar
 - WHEN `sdd-design` completes Step 3b
 - THEN no `decisions/` directory is created
-- AND the return summary notes "No ADR-worthy decisions"
+- AND the return summary notes "No significant decisions"
 
-### Requirement: sdd-archive ADR Promotion
+### Requirement: sdd-archive Keeps Change Decisions with the Change
 
-The `sdd-archive` skill MUST, after persisting the archive report and writing
-resolved decisions to memory, include every ADR from
-`openspec/changes/{change-name}/decisions/adr-*.md` whose decision was NOT
-invalidated during verify as an `adr_promotions[]` entry in `archive-plan.json`
-(source path, intended `docs/adr/adr-{YYYYMMDD}-{NNN}-{kebab-title}.md` target,
-`content_sha256`). On planned filename collision, the plan MUST bump `NNN` past the
-highest existing suffix for that date. The skill MUST NOT write live `docs/adr/**`
-files itself; the archive transaction runtime applies promotions during commit.
-Change-local `decisions/` copies stay in the change folder and travel unchanged into
-the archived folder as the audit trail; `docs/adr/` remains the living project memory
-once the runtime commits.
+The `sdd-archive` skill MUST emit `adr_promotions: []` in `archive-plan.json` and
+MUST NOT write `docs/adr/**` or `docs/architecture/decisions/**`. Change-local
+`decisions/` files stay in the change folder and travel unchanged into the
+archived folder as its audit trail. Architecture ADRs come from the foundation
+and from the IDD impact declaration (`openspec/specs/idd/spec.md`,
+REQ-idd-020), never from the archive.
 
-(Previously: `sdd-archive` copied ADRs into `docs/adr/` during Step 4b before the
-folder move.)
+(Previously: `sdd-archive` listed each change-local ADR as an `adr_promotions[]`
+entry and the archive runtime copied it to `docs/adr/`.)
 
-#### Scenario: ADR listed in plan for runtime promotion
+#### Scenario: Change decisions travel with the archive
 
-- GIVEN a change folder contains `decisions/adr-001.md` with `Status: proposed`
+- GIVEN a change folder contains `decisions/dc-001.md`
 - WHEN `sdd-archive` emits `archive-plan.json`
-- THEN `adr_promotions` includes that ADR with target under `docs/adr/` and
-  `content_sha256`
-- AND the skill has not yet created the live `docs/adr/` file
+- THEN `adr_promotions` is an empty array
+- AND `decisions/dc-001.md` is listed in `archive_inventory` and no `docs/adr/` file is planned
 
 #### Scenario: No decisions directory — empty promotions
 

@@ -51,7 +51,7 @@ baseline_fingerprints:
   routing: "${sha256(Buffer.from(liveTarget))}"
 `,
     [`${originRel}/specs/routing/spec.md`]: preparedSpec,
-    [`${originRel}/decisions/adr-001.md`]: adr,
+    [`${originRel}/decisions/dc-001.md`]: adr,
     "openspec/specs/routing/spec.md": liveTarget,
     "docs/adr/.gitkeep": "",
   });
@@ -73,13 +73,7 @@ baseline_fingerprints:
         content_sha256: sha256(Buffer.from(preparedSpec)),
       },
     ],
-    adr_promotions: [
-      {
-        source: "decisions/adr-001.md",
-        target: "docs/adr/adr-001-demo.md",
-        content_sha256: sha256(Buffer.from(adr)),
-      },
-    ],
+    adr_promotions: [],
     archive_inventory: inventory.map((e) => e.path),
     accepted_warnings: [],
     rollback: { strategy: "staging-rename" },
@@ -160,11 +154,6 @@ test("CLI: resumed-success exits 0 with receipt from mid-flight journal", async 
   await fs.cp(
     path.join(ctx.originDir, "specs", "routing", "spec.md"),
     path.join(stagingRoot, "specs", "routing", "spec.md"),
-  );
-  await fs.mkdir(path.join(stagingRoot, "adr"), { recursive: true });
-  await fs.cp(
-    path.join(ctx.originDir, "decisions", "adr-001.md"),
-    path.join(stagingRoot, "adr", "adr-001-demo.md"),
   );
 
   const planBytes = await fs.readFile(ctx.planPath);

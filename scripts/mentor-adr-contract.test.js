@@ -68,25 +68,27 @@ test("A4.4 · openspec/config.yaml documents the optional mentorship block as a 
 // A5 — ADRs wired into the flow
 // ---------------------------------------------------------------------------
 
-test("A5.1 · sdd-design extracts significant decisions to change-local ADRs with the 4-criteria significance rule", async () => {
+test("A5.1 · sdd-design records significant decisions as change-local dc files with the 4-criteria significance rule", async () => {
   const content = await readFile(DESIGN_SKILL_PATH);
-  assert.ok(content.includes("Step 3b: Extract ADRs"), "must contain the ADR extraction step");
-  assert.match(content, /decisions\/adr-NNN\.md/, "must target changes/{name}/decisions/adr-NNN.md");
+  assert.ok(content.includes("Step 3b: Record Significant Change Decisions"), "must contain the decision recording step");
+  assert.match(content, /decisions\/dc-NNN\.md/, "must target changes/{name}/decisions/dc-NNN.md");
+  assert.doesNotMatch(content, /decisions\/adr-NNN\.md/, "change decisions are not ADRs (E3.1)");
+  assert.match(content, /never promotes them/, "change decisions are never promoted");
   for (const criterion of ["public contract", "data model", "new dependency", "cross-cutting pattern"]) {
     assert.ok(content.includes(criterion), `significance rule must list: ${criterion}`);
   }
-  assert.match(content, /## Context[\s\S]*## Decision[\s\S]*## Alternatives[\s\S]*## Consequences/, "ADR template must carry the 4 sections");
+  assert.match(content, /## Context[\s\S]*## Decision[\s\S]*## Alternatives[\s\S]*## Consequences/, "decision template must carry the 4 sections");
 });
 
-test("A5.2 · sdd-archive proposes ADRs in archive-plan.json before plan emission and keeps change-local copies", async () => {
+test("A5.2 · sdd-archive keeps change decisions with the change and promotes none (E3.1)", async () => {
   const content = await readFile(ARCHIVE_SKILL_PATH);
-  const promoteIdx = content.indexOf("Step 4b: Propose ADR Promotions");
+  const keepIdx = content.indexOf("Step 4b: Change Decisions Stay with the Change");
   const planIdx = content.indexOf("Step 5: Emit archive-plan.json");
-  assert.ok(promoteIdx !== -1, "must contain the ADR promotion proposal step");
-  assert.ok(planIdx !== -1 && promoteIdx < planIdx, "ADR proposals must happen before plan emission");
-  assert.match(content, /docs\/adr\/adr-\{YYYYMMDD\}-\{NNN\}/, "must define the docs/adr naming scheme");
-  assert.match(content, /adr_promotions/, "must list ADRs in adr_promotions for the runtime");
-  assert.match(content, /MUST NOT write live `docs\/adr\/\*\*`|Do NOT write live `docs\/adr\/\*\*`/, "must not write live docs/adr itself");
+  assert.ok(keepIdx !== -1, "must contain the change-decision step");
+  assert.ok(planIdx !== -1 && keepIdx < planIdx, "the decision step must come before plan emission");
+  assert.match(content, /always emit\s+`adr_promotions: \[\]`/, "the plan always carries an empty adr_promotions");
+  assert.match(content, /never write `docs\/adr\/\*\*`/, "must never write docs/adr");
+  assert.doesNotMatch(content, /docs\/adr\/adr-\{YYYYMMDD\}/, "no docs/adr naming scheme is left");
   assert.match(content, /skip silently/i, "missing decisions/ must be a silent no-op");
 });
 
@@ -98,9 +100,9 @@ test("A5.3 · sdd-archive Step 5 scopes the executor to Plan-and-Report (never d
   assert.doesNotMatch(content, /then delete the source folder/i, "must NOT instruct the executor to delete the source folder itself");
 });
 
-test("A5.4 · orchestrator Reads/Writes table registers ADR artifacts for design and archive", async () => {
+test("A5.4 · orchestrator Reads/Writes table registers decision artifacts for design and archive", async () => {
   const content = await readFile(ORCHESTRATOR_AGENT_PATH);
-  assert.match(content, /`sdd-design`[^\n]*decisions\/adr-NNN\.md/, "design row must list decisions/adr-NNN.md");
+  assert.match(content, /`sdd-design`[^\n]*decisions\/dc-NNN\.md/, "design row must list decisions/dc-NNN.md");
   assert.match(content, /`sdd-archive`[^\n]*archive-plan\.json/, "archive row must list archive-plan.json");
 });
 
@@ -114,7 +116,7 @@ function tmpOut(t) {
   return dir;
 }
 
-test("G.1 · generated claude target carries Mentorship Mode Forwarding and the ADR steps", (t) => {
+test("G.1 · generated claude target carries Mentorship Mode Forwarding and the change-decision steps", (t) => {
   const { runConfigure } = require("./configure/cli.js");
   const out = tmpOut(t);
   const result = runConfigure({ sourceDir: ROOT_DIR, target: "claude", outDir: out, validate: false, withSdd: true });
@@ -125,11 +127,11 @@ test("G.1 · generated claude target carries Mentorship Mode Forwarding and the 
 
   const design = result.files.find((f) => f.path === "skills/sdd-design/SKILL.md");
   assert.ok(design, "claude target must emit skills/sdd-design/SKILL.md");
-  assert.match(design.content, /Step 3b: Extract ADRs/);
+  assert.match(design.content, /Step 3b: Record Significant Change Decisions/);
 
   const archive = result.files.find((f) => f.path === "skills/sdd-archive/SKILL.md");
   assert.ok(archive, "claude target must emit skills/sdd-archive/SKILL.md");
-  assert.match(archive.content, /Step 4b: Propose ADR Promotions/);
+  assert.match(archive.content, /Step 4b: Change Decisions Stay with the Change/);
 });
 
 test("G.2 · generated vscode target carries the mentorship semantics in sdd-phase-common", (t) => {

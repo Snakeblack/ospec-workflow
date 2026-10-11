@@ -552,7 +552,6 @@ async function buildSnapshot(workspace, changeName, plan, fsx) {
   const targetTexts = {};
   const preparedContent = {};
   const preparedTexts = {};
-  const adrSources = {};
   let route = "";
 
   try {
@@ -585,16 +584,6 @@ async function buildSnapshot(workspace, changeName, plan, fsx) {
     }
   }
 
-  for (const adr of plan.adr_promotions || []) {
-    const srcAbs = path.join(origin, ...adr.source.split("/"));
-    try {
-      const buf = await fsx.readFile(srcAbs);
-      adrSources[adr.source] = digestBytes(buf);
-    } catch (err) {
-      if (err.code !== "ENOENT") throw err;
-    }
-  }
-
   return {
     changeName,
     sourceFingerprint,
@@ -603,7 +592,6 @@ async function buildSnapshot(workspace, changeName, plan, fsx) {
     targetTexts,
     preparedContent,
     preparedTexts,
-    adrSources,
     route,
   };
 }
@@ -622,18 +610,10 @@ async function copyInventoryToStaging(origin, stagingArchive, inventory, fsx) {
 async function stagePreparedWrites(workspace, changeName, plan, stagingRoot, fsx) {
   const origin = originPath(workspace, changeName);
   const specsStaging = path.join(stagingRoot, "specs");
-  const adrStaging = path.join(stagingRoot, "adr");
 
   for (const sw of plan.spec_writes || []) {
     const src = path.join(origin, ...sw.source_delta.split("/"));
     const dest = path.join(specsStaging, sw.domain, "spec.md");
-    await fsx.mkdir(path.dirname(dest), { recursive: true });
-    await fsx.cp(src, dest);
-  }
-  for (const adr of plan.adr_promotions || []) {
-    const src = path.join(origin, ...adr.source.split("/"));
-    const destName = path.posix.basename(adr.target);
-    const dest = path.join(adrStaging, destName);
     await fsx.mkdir(path.dirname(dest), { recursive: true });
     await fsx.cp(src, dest);
   }
@@ -996,6 +976,8 @@ async function runArchiveTransaction(opts) {
         await persistCommitting();
       }
 
+      // Read branch for transactions staged before E3.1 (ADR-0009): their
+      // plan still promotes ADRs. A plan validated since then has none.
       for (const adr of plan.adr_promotions || []) {
         if (created.includes(adr.target)) continue;
         const destName = path.posix.basename(adr.target);
