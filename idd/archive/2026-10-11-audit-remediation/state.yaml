@@ -1,0 +1,393 @@
+{
+  "schema": "idd-state/v1",
+  "change": "audit-remediation",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El marketplace espera el Validate Harness de la rama, y el hook cubre las lecturas y comandos que hoy pasan sin decisión.",
+    "acceptance": "Publicar no mueve la rama release hasta que el Validate Harness de esa rama y ese SHA haya terminado en success sin failure, timed_out ni startup_failure; los runs del tag no cuentan y el workflow ya no se dispara en tags. grep, sed, awk, base64, xxd y cp sobre .env piden confirmación; una cabecera de clave privada en cat, Write o Edit pide confirmación; un .key por nombre se niega; rm -r -f / y git push origin +main se niegan; curl -o y luego bash pide confirmación. Los cuatro review por defecto no duplican el rótulo de skills. El timeout de PowerShell del test de hooks es 60 s y el lock espera 320 intentos de 15 ms, igual en Go, dentro de los 5 s. El README dice que claude plugin validate --strict es el e2e cuando hay CLI. El CHANGELOG avisa que 2.117.16–18 no tienen tag."
+  },
+  "facts": {
+    "basis": "El usuario pidió remediar lo que la revisión dejó asentado: el gate mira el run de la rama y no el duplicado del tag; el margen del lock no puede pasar de 5 s; no se clasifica todo *.pem; no se cambia la política de atribución ni se activa el ruleset Main protect."
+  },
+  "plan": {
+    "paths": [
+      ".github/workflows/publish-marketplace.yml",
+      ".github/workflows/validate-harness.yml",
+      "CHANGELOG.md",
+      "README.es.md",
+      "README.md",
+      "internal/hooks/pretooluse.go",
+      "internal/hooks/secretscan.go",
+      "internal/hooks/secretscan_test.go",
+      "internal/hooks/shellfileaccess.go",
+      "internal/hooks/shellfileaccess_test.go",
+      "internal/rules/rules.json",
+      "internal/store/store.go",
+      "openspec/specs/hooks/spec.md",
+      "scripts/ci/wait-for-validate-harness.js",
+      "scripts/ci/wait-for-validate-harness.test.js",
+      "scripts/configure/codex-hook-shell.test.js",
+      "scripts/hooks/lib/secret-scan.js",
+      "scripts/hooks/lib/secret-scan.test.js",
+      "scripts/hooks/lib/shell-file-access.js",
+      "scripts/hooks/lib/shell-file-access.test.js",
+      "scripts/hooks/parity-contract.test.js",
+      "scripts/hooks/pre-tool-use.js",
+      "scripts/hooks/pre-tool-use.test.js",
+      "scripts/lib/agent-embed.js",
+      "scripts/lib/agent-embed.test.js",
+      "scripts/lib/ospec-state.js"
+    ],
+    "work_units": 4,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 4 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: touches scripts/lib/ospec-state.js (matches scripts/lib/ospec-state.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches internal/hooks/secretscan.go and 8 more (matches **/*secret*)",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-10T23:51:27.325Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-10T23:52:03.183Z",
+      "detail": {
+        "run": "run-3",
+        "tree": "sha256:63ae35157c007a09bbc52561962d50e39c57a3d4f7fe7e3e30b806afacccddbf",
+        "plan": "El JSONL no cambia de forma. Solo suben los reintentos del lock de 100 a 320, dentro de los 5 s que ya persiste el presupuesto. Una línea escrita antes se lee igual. Para volver atrás se restauran LOCK_RETRY_ATTEMPTS y lockRetryAttempts a 100; no hay datos que migrar."
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-11T00:04:39.400Z",
+      "detail": {
+        "lineage_id": "sha256:ce9ced272f3c9ebbe7d6089d560747a29447cf3c892254bd4fd57035481be724",
+        "candidate_id": "sha256:b18484e9446998f9de09bce0962f85dc4e8d10d98b5320a5d4ae6a526ebea4d7",
+        "candidate_tree": "a7c43fcdefc6f32cdef46c5e233cfd5cec4e64db",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f"
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-11T00:05:09.815Z",
+      "detail": {
+        "tree": "sha256:0aa04c16bbcd3f25c1eabd6941bce291db5ab5628af7ffbc890b400d2fbe916b",
+        "runs": [
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-11T00:05:58.175Z"
+    }
+  ],
+  "base": "3fea9a7c255e9c64a5e03cfbef2dbf6fd77bb956",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/ci/wait-for-validate-harness.test.js scripts/hooks/lib/shell-file-access.test.js scripts/hooks/lib/secret-scan.test.js scripts/hooks/pre-tool-use.test.js scripts/lib/agent-embed.test.js; node_status=$?; go test ./internal/hooks/ ./internal/rules/ -count=1 -run \"TestLiteralReadOperands|TestClassifySensitiveFile_Deny|TestClassifySensitiveFile_Nil|TestScanContent_PrivateKey|TestEvaluate_Deny|TestEvaluate_Ask|TestPreToolUse_DenyCorpus|TestPreToolUse_AskCorpus|TestPreToolUse_PrivateKey\"; go_status=$?; test \"$node_status\" -eq 0 && test \"$go_status\" -eq 0",
+      "exit_code": 1,
+      "output_sha256": "sha256:e86f1c3a40976c7516c1eceaa42c9796b1bde2fb9cf89cb0270f27cae0b68cd2",
+      "tree": "sha256:6ff80ce7cf62a8229e4701bc725ac2d6ce9f47209d9ff8f267ffbb2070dd6482",
+      "recorded_at": "2026-10-10T23:43:02.398Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/ci/wait-for-validate-harness.test.js scripts/hooks/lib/shell-file-access.test.js scripts/hooks/lib/secret-scan.test.js scripts/hooks/pre-tool-use.test.js scripts/lib/agent-embed.test.js; node_status=$?; go test ./internal/hooks/ ./internal/rules/ -count=1 -run \"TestLiteralReadOperands|TestClassifySensitiveFile_Deny|TestClassifySensitiveFile_Nil|TestScanContent_PrivateKey|TestEvaluate_Deny|TestEvaluate_Ask|TestPreToolUse_DenyCorpus|TestPreToolUse_AskCorpus|TestPreToolUse_PrivateKey\"; go_status=$?; test \"$node_status\" -eq 0 && test \"$go_status\" -eq 0",
+      "exit_code": 0,
+      "output_sha256": "sha256:ae06e0d9cf177f4096e000f5b11d53581cd7da93a40ebff605eb3033460fe4f7",
+      "tree": "sha256:0fb0997a0675bf318d5f0938cf7c65e8527bf8bced474950aba5be553915423d",
+      "recorded_at": "2026-10-10T23:51:27.325Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern \"appendRuntimeEvent\" scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0d73bf4fd3b965969af88747cc2467f92ec1adeee1e4e57dc1c1b6c25176a3e2",
+      "tree": "sha256:63ae35157c007a09bbc52561962d50e39c57a3d4f7fe7e3e30b806afacccddbf",
+      "recorded_at": "2026-10-10T23:52:03.183Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f379d4c2682dee38435764cdf33cdb916163d407ca6ee4f9ea333b75762dfb87",
+      "tree": "sha256:0aa04c16bbcd3f25c1eabd6941bce291db5ab5628af7ffbc890b400d2fbe916b",
+      "recorded_at": "2026-10-11T00:05:09.815Z"
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:ce9ced272f3c9ebbe7d6089d560747a29447cf3c892254bd4fd57035481be724",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "8e0ca84395a7eee19266e685c03168cc02314057",
+          "candidate_tree": "a7c43fcdefc6f32cdef46c5e233cfd5cec4e64db",
+          "paths": [
+            ".github/workflows/publish-marketplace.yml",
+            ".github/workflows/validate-harness.yml",
+            "CHANGELOG.md",
+            "README.es.md",
+            "README.md",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_test.go",
+            "internal/hooks/secretscan.go",
+            "internal/hooks/secretscan_test.go",
+            "internal/hooks/shellfileaccess.go",
+            "internal/hooks/shellfileaccess_test.go",
+            "internal/rules/rules.json",
+            "internal/rules/rules_test.go",
+            "internal/store/store.go",
+            "openspec/specs/hooks/spec.md",
+            "scripts/ci/wait-for-validate-harness.js",
+            "scripts/ci/wait-for-validate-harness.test.js",
+            "scripts/configure/codex-hook-shell.test.js",
+            "scripts/hooks/lib/secret-scan.js",
+            "scripts/hooks/lib/secret-scan.test.js",
+            "scripts/hooks/lib/shell-file-access.js",
+            "scripts/hooks/lib/shell-file-access.test.js",
+            "scripts/hooks/parity-contract.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js",
+            "scripts/lib/agent-embed.js",
+            "scripts/lib/agent-embed.test.js",
+            "scripts/lib/ospec-state.js"
+          ],
+          "diff_hash": "sha256:f273492838bbefc98b7ec8656f8ee6de5201c82060bcf479eba4354ddd26868f",
+          "paths_digest": "sha256:fe1c0af75e0983a2ac89e3d140891682faa4173d7a01b4db0dda885f737eda18",
+          "authored_lines": 428,
+          "original_changed_lines": 463
+        },
+        "candidate_id": "sha256:b18484e9446998f9de09bce0962f85dc4e8d10d98b5320a5d4ae6a526ebea4d7",
+        "paths": [
+          ".github/workflows/publish-marketplace.yml",
+          ".github/workflows/validate-harness.yml",
+          "CHANGELOG.md",
+          "README.es.md",
+          "README.md",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/secretscan.go",
+          "internal/hooks/secretscan_test.go",
+          "internal/hooks/shellfileaccess.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "internal/rules/rules.json",
+          "internal/rules/rules_test.go",
+          "internal/store/store.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/ci/wait-for-validate-harness.js",
+          "scripts/ci/wait-for-validate-harness.test.js",
+          "scripts/configure/codex-hook-shell.test.js",
+          "scripts/hooks/lib/secret-scan.js",
+          "scripts/hooks/lib/secret-scan.test.js",
+          "scripts/hooks/lib/shell-file-access.js",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/parity-contract.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/agent-embed.js",
+          "scripts/lib/agent-embed.test.js",
+          "scripts/lib/ospec-state.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "a7c43fcdefc6f32cdef46c5e233cfd5cec4e64db",
+        "original_changed_lines": 463,
+        "authored_lines": 428
+      },
+      "current_candidate_id": "sha256:b18484e9446998f9de09bce0962f85dc4e8d10d98b5320a5d4ae6a526ebea4d7",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "8e0ca84395a7eee19266e685c03168cc02314057",
+        "candidate_tree": "a7c43fcdefc6f32cdef46c5e233cfd5cec4e64db",
+        "paths": [
+          ".github/workflows/publish-marketplace.yml",
+          ".github/workflows/validate-harness.yml",
+          "CHANGELOG.md",
+          "README.es.md",
+          "README.md",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/secretscan.go",
+          "internal/hooks/secretscan_test.go",
+          "internal/hooks/shellfileaccess.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "internal/rules/rules.json",
+          "internal/rules/rules_test.go",
+          "internal/store/store.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/ci/wait-for-validate-harness.js",
+          "scripts/ci/wait-for-validate-harness.test.js",
+          "scripts/configure/codex-hook-shell.test.js",
+          "scripts/hooks/lib/secret-scan.js",
+          "scripts/hooks/lib/secret-scan.test.js",
+          "scripts/hooks/lib/shell-file-access.js",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/parity-contract.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/agent-embed.js",
+          "scripts/lib/agent-embed.test.js",
+          "scripts/lib/ospec-state.js"
+        ],
+        "diff_hash": "sha256:f273492838bbefc98b7ec8656f8ee6de5201c82060bcf479eba4354ddd26868f",
+        "paths_digest": "sha256:fe1c0af75e0983a2ac89e3d140891682faa4173d7a01b4db0dda885f737eda18",
+        "authored_lines": 428,
+        "original_changed_lines": 463
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "audit-remediation:lens-start:1:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "audit-remediation:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-10-11T00:05:58.175Z"
+}
