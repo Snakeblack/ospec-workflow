@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.121.1] - 2026-10-11
+
+### Fixed
+- **Publicación del marketplace**: el workflow espera a que Validate Harness termine en verde para el mismo SHA en la rama que se publica. Un release mira `main` y un `workflow_dispatch` mira la rama elegida. Los runs del tag no cuentan, y empujar un tag ya no lanza otra matriz. Si no hay un `success`, o el run acaba en `failure`, `timed_out` o `startup_failure`, la rama `release` no se mueve.
+- **Hook PreToolUse**: `grep`, `sed`, `awk`, `base64`, `xxd` y `cp` sobre un secreto piden confirmación. Un `*.key` se niega por el nombre. Una cabecera de clave privada en una lectura, Write o Edit pide confirmación; un certificado no. `rm -r -f /` y `git push` con un refspec `+` se niegan. Descargar un fichero y luego invocar un shell pide confirmación. El tubo directo a un shell sigue negándose. JS y Go quedan en paridad.
+- **Rótulo de los revisores**: al incrustar una referencia que no viaja en la build, el texto ya no repite el rótulo ni rompe las comillas.
+- **Margen en Windows**: el lock reintenta 320 veces cada 15 ms, dentro de los 5 s del hook, y el test de PowerShell espera 60 s.
+
+**Verificación directa**: `node scripts/check.js` en verde. Hecho con IDD (`idd/archive/2026-10-11-audit-remediation/`).
+
 ## [2.121.0] - 2026-10-10
 
 ### Added
@@ -81,6 +91,8 @@ Auditoría del harness: defectos de coordinación de IDD, Foundation con criteri
 
 ## [2.117.18] - 2026-10-09
 
+Esta versión no tiene tag ni GitHub Release. El cambio quedó incluido en [2.118.0].
+
 ### Fixed
 - **Codex por repositorio sigue IDD (E1.14)**: `install:codex -- <repo>` no instalaba el runtime de `ospec` ni el protocolo IDD, así que el repositorio solo podía seguir IDD con una instalación global de Codex. Ahora escribe en `<repo>/.agents/skills/` las skills `idd`, `review-trust` y `review-correction` (y `sdd-orchestrator` con `--with-sdd`) con sus `_shared`, y copia el runtime en `<repo>/.codex/ospec-workflow/`. Las skills lo nombran con una ruta relativa a la raíz del repositorio, así que los ficheros versionados funcionan en cualquier clon.
 - **Instalación segura y convergente**: todos los destinos pasan las comprobaciones de rutas gestionadas antes de escribir, una reinstalación poda los ficheros del runtime que la build ya no tiene y `--dry-run` no escribe nada.
@@ -92,6 +104,8 @@ Auditoría del harness: defectos de coordinación de IDD, Foundation con criteri
 **Verificación directa**: `node scripts/check.js` (3430 tests pasando, 0 fallos y 4 omitidos), con las omisiones debidas a que el entorno no permite crear enlaces simbólicos, incluida la generación y validación de los siete targets. Reproducción rojo→verde registrada por IDD, con una instalación real en un repositorio sin instalación global que ejecuta `ospec next` desde la skill `idd`.
 
 ## [2.117.17] - 2026-10-09
+
+Esta versión no tiene tag ni GitHub Release. El cambio quedó incluido en [2.118.0].
 
 ### Fixed
 - **Los hooks de sesión ven los cambios IDD (E1.12)**: `Stop` y `PreCompact` solo buscaban el cambio activo en `openspec/changes/`, así que con un cambio IDD abierto `.ospec/session/latest.md` decía «Active change: None» y la sesión siguiente no lo retomaba. Ahora leen los cambios abiertos de `idd/`, sin escribir ni bloquear su state, y escriben el siguiente paso que da `ospec next`. Con un único cambio abierto, `latest.md` lo nombra con fase `idd`; con varios, SDD incluidos, los lista sin elegir ninguno, cada uno con su paso. Sin cambios IDD la salida no cambia.
@@ -105,6 +119,8 @@ Auditoría del harness: defectos de coordinación de IDD, Foundation con criteri
 **Verificación directa**: `node scripts/check.js` (3426 tests pasando, 0 fallos y 4 omitidos), con las omisiones debidas a que el entorno no permite crear enlaces simbólicos, incluida la generación y validación de los siete targets; `go test ./internal/hooks/ ./internal/iddsession/` en verde. Reproducción rojo→verde registrada por IDD en Node y Go.
 
 ## [2.117.16] - 2026-10-09
+
+Esta versión no tiene tag ni GitHub Release. El cambio quedó incluido en [2.118.0].
 
 ### Fixed
 - **`ospec next` pide declarar el plan (E1.11)**: `ospec signals` guarda el plan declarado en el state (`plan`: rutas, unidades de trabajo, decisión y operaciones; las declaraciones posteriores lo amplían). Mientras un cambio no tenga plan, señales del diff ni ejecuciones, `next` devuelve `declare-plan` después de los gates de intención y `open-facts` y antes de cualquier obligación.
