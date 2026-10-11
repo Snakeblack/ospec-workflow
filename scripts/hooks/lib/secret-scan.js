@@ -25,6 +25,7 @@ const KNOWN_TOKEN_PATTERNS = [
   { id: "aws-access-key", regex: /AKIA[A-Z0-9]{16}/ },
   { id: "slack-token", regex: /xox[baprs]-[0-9a-zA-Z]{10,48}/ },
   { id: "jwt", regex: /eyJ[a-zA-Z0-9-_]+\.eyJ[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+/ },
+  { id: "private-key-header", regex: /-----BEGIN (?:RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KEY-----/ },
 ];
 
 /**
@@ -57,7 +58,7 @@ function classifySensitiveFile(filePath) {
     filename.startsWith("id_") &&
     (ext === "" || ext === ".key" || ext === ".pem" ||
       filename === "id_rsa" || filename === "id_ecdsa" || filename === "id_ed25519");
-  if (isSshKey) return { action: "deny", kind: "private-key" };
+  if (isSshKey || ext === ".key") return { action: "deny", kind: "private-key" };
 
   if (filename === "config" && String(filePath).includes(path.join(".git", "config"))) {
     return { action: "deny", kind: "git-config" };

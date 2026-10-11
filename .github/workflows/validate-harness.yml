@@ -2,6 +2,11 @@ name: Validate Harness
 
 on:
   push:
+    # Tag pushes are not a second matrix. publish-marketplace.yml waits for the
+    # branch run of the same SHA; a tag run only duplicated Windows and could
+    # fail after main had already passed.
+    branches:
+      - "**"
   pull_request:
 
 # Least privilege: the harness only reads the checkout, never writes to the repo.

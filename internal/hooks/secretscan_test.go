@@ -24,6 +24,7 @@ func TestClassifySensitiveFile_Deny(t *testing.T) {
 		{filepath.Join("home", ".ssh", "id_ed25519"), "private-key"},
 		{filepath.Join("home", ".ssh", "id_deploy.pem"), "private-key"},
 		{filepath.Join("home", ".ssh", "id_deploy.key"), "private-key"},
+		{filepath.Join("repo", "server.key"), "private-key"},
 		{filepath.Join("repo", ".git", "config"), "git-config"},
 		{filepath.Join("home", ".npmrc"), "npmrc"},
 	}
@@ -62,6 +63,8 @@ func TestClassifySensitiveFile_Nil(t *testing.T) {
 		filepath.Join("repo", "id_card.md"),
 		filepath.Join("repo", "environment.ts"),
 		filepath.Join("repo", "nginx", "config"),
+		filepath.Join("repo", "server.pem"),
+		filepath.Join("repo", "public.pem"),
 	} {
 		if got := classifySensitiveFile(p); got != nil {
 			t.Errorf("classifySensitiveFile(%q) = %+v, want nil", p, got)
@@ -136,6 +139,27 @@ func TestScanContent_FalsePositivesDoNotFire(t *testing.T) {
 		if matched, patternID := scanContentForSecrets(content); matched {
 			t.Errorf("scanContentForSecrets(%q) = (true, %q), want no match", content, patternID)
 		}
+	}
+}
+
+func privateKeyHeader(label string) string {
+	return "-----BEGIN " + label + "PRIVATE KEY-----"
+}
+
+func TestScanContent_PrivateKeyHeader(t *testing.T) {
+	for _, content := range []string{
+		privateKeyHeader("") + "\nabc\n-----END PRIVATE KEY-----",
+		privateKeyHeader("RSA "),
+		privateKeyHeader("OPENSSH "),
+		privateKeyHeader("EC "),
+	} {
+		matched, patternID := scanContentForSecrets(content)
+		if !matched || patternID != "private-key-header" {
+			t.Errorf("scanContentForSecrets(%q) = (%v, %q), want private-key-header", content, matched, patternID)
+		}
+	}
+	if matched, patternID := scanContentForSecrets("-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----"); matched {
+		t.Errorf("certificate matched as %q", patternID)
 	}
 }
 

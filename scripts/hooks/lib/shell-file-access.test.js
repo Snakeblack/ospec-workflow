@@ -18,5 +18,11 @@ test('literal read operands keep quotes, separators and option values distinct',
     [`cat "$FILE"`, []],
     [`echo ok # ; cat .env`, []],
     [`cat '.env`, []],
+    ['grep API_KEY .env', ['API_KEY', '.env']],
+    ['sed -n 1p .env', ['1p', '.env']],
+    ["awk '{print}' .env", ['{print}', '.env']],
+    ['base64 .env', ['.env']],
+    ['xxd .env', ['.env']],
+    ['cp .env /tmp/out.env', ['.env', '/tmp/out.env']],
   ]) assert.deepEqual(extractShellReadPaths(command), expected, command);
 });

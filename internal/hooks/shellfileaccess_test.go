@@ -23,6 +23,12 @@ func TestLiteralReadOperands(t *testing.T) {
 		{`cat "$FILE"`, nil},
 		{`echo ok # ; cat .env`, nil},
 		{`cat '.env`, nil},
+		{"grep API_KEY .env", []string{"API_KEY", ".env"}},
+		{"sed -n 1p .env", []string{"1p", ".env"}},
+		{"awk '{print}' .env", []string{"{print}", ".env"}},
+		{"base64 .env", []string{".env"}},
+		{"xxd .env", []string{".env"}},
+		{"cp .env /tmp/out.env", []string{".env", "/tmp/out.env"}},
 	} {
 		if got := extractShellReadPaths(tc.command); !reflect.DeepEqual(got, tc.paths) {
 			t.Errorf("%s: got %v, want %v", tc.command, got, tc.paths)

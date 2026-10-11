@@ -123,7 +123,7 @@ func extractShellReadPaths(command string) []string {
 			if len(parts) > 0 {
 				name = strings.ToLower(parts[len(parts)-1])
 			}
-			reader = tok.literal && strings.Contains("|cat|head|tail|less|more|type|get-content|gc|", "|"+name+"|")
+			reader = tok.literal && strings.Contains("|cat|head|tail|less|more|type|get-content|gc|grep|sed|awk|base64|xxd|cp|", "|"+name+"|")
 			readerName = name
 			first = false
 		} else if reader {

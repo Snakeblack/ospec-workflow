@@ -14,6 +14,7 @@ const { parse } = require("./frontmatter.js");
 // A path-like token ending in `.md` or `/`. Resolution decides whether it is
 // an ospec file; artifacts (`tasks.md`) and project paths stay untouched.
 const PATH_TOKEN = /(?<![A-Za-z0-9_./{}*-])((?:\.{1,2}\/)*[A-Za-z0-9_{}*.-]+(?:\/[A-Za-z0-9_{}*.-]+)*(?:\.md|\/))(?![A-Za-z0-9_/-])/g;
+const CODE_SPAN = /`([^`\n]+)`/g;
 const MD_LINK = /\[([^\]\n]*)\]\(([^)\s]+)\)/g;
 const SHARED_DIR = "skills/_shared/";
 // Phase skills open with a blockquote telling an orchestrator that loaded the
@@ -129,13 +130,26 @@ function rewrite(text, fromPath, ctx, ids) {
     if (otherSkill) return `the ospec \`${otherSkill[1]}\` skill`;
     return `\`${resolved.slice("skills/".length)}\` (installed ospec skills, not this project)`;
   };
-  return String(text)
-    .replace(MD_LINK, (whole, _text, href) => label(href) ?? whole)
-    .replace(/`([^`\n]+)`/g, (whole, inner) => (isSingleToken(inner) ? label(inner) ?? whole : whole))
-    .replace(PATH_TOKEN, (whole, token) => label(token) ?? whole);
+  const held = [];
+  const hold = (value) => {
+    const marker = `\u0000L${held.length}\u0000`;
+    held.push(value);
+    return marker;
+  };
+  MD_LINK.lastIndex = 0;
+  let current = String(text).replace(MD_LINK, (whole, _text, href) => hold(label(href) ?? whole));
+  CODE_SPAN.lastIndex = 0;
+  current = current.replace(CODE_SPAN, (whole, inner) => (isSingleToken(inner) ? hold(label(inner) ?? whole) : whole));
+  PATH_TOKEN.lastIndex = 0;
+  current = current.replace(PATH_TOKEN, (whole, token) => label(token) ?? whole);
+  return held.reduceRight(
+    (textOut, value, index) => textOut.replace(`\u0000L${index}\u0000`, () => value),
+    current,
+  );
 }
 
 function isSingleToken(value) {
+  PATH_TOKEN.lastIndex = 0;
   const match = value.match(PATH_TOKEN);
   return match !== null && match.length === 1 && match[0] === value;
 }
