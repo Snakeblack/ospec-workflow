@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.125.0] - 2026-10-11
+
+### Added
+- **ADR en Markdown lintables (E2.6)**: `parseAdrMarkdown` lee el ADR de la plantilla de la foundation (`# NNNN. título`, `Status`, `Date`, `Evidence` y sus secciones) y lo convierte en el registro `ospec-decision-record/v1` que valida el lint. `superseded by NNNN` se lee como `superseded`. Solo cuenta como driver un id entre comillas invertidas (`scenario:`, `constraint:` o `assumption:`). Si falta una sección, el esquema rechaza el registro (REQ-decision-records-007).
+- **Arquitectura de ospec (E2.6)**: la foundation aplicada a este repositorio deja `docs/product/brief.md` con el contexto de equipo, `docs/architecture/technical-baseline.md`, `knowledge-map.yaml` (perfil `public-library` y cinco escenarios de calidad sin medida), `component-map.yaml` y 11 ADR de arquitectura en `docs/architecture/decisions/`. `scripts/lib/architecture-decisions.test.js` falla si un ADR tiene un error o un aviso del lint, o si cita un driver que no existe. Hecho con IDD (`idd/archive/2026-10-11-dogfood-ospec-foundation/`).
+
+### Changed
+- **`docs/adr/`**: sus 277 registros se reclasifican como decisiones de change archivadas, no como ADR de arquitectura. Se quedan donde están, sin editar, y `docs/adr/README.md` los indexa. El archivo SDD sigue escribiendo en esa carpeta hasta E3.1.
+- **Roadmap**: E2.6 `dogfood-ospec-foundation` pasa a hecho y con él se cierra la Etapa 2. E3.1 `change-decisions-and-adr-impact` queda como siguiente.
+
+**Verificación directa**: `node scripts/check.js` (3514 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.124.0] - 2026-10-11
 
 ### Added
