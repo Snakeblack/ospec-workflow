@@ -703,6 +703,39 @@ test("a documentation change closes without review and is archived by date", (t)
   assert.match(ospec(root, "close", "--change", "fix-readme").stdout, /already archived in idd\/archive\//);
 });
 
+// E3.5 knowledge records (REQ-idd-024): close derives them from the archive.
+test("close returns the decisions of the archived change as knowledge records", (t) => {
+  const { root } = project(t);
+  ospec(root, ...OPEN_DOCS);
+  assert.strictEqual(ospec(root, "signals", "--change", "fix-readme", "--path", "docs/security/token-rotation.md", "--decision").code, 0);
+  writeFile(root, "src/pages.txt", "2");
+  writeFile(root, "docs/security/token-rotation.md", "Rotate tokens hourly.\n");
+  const doc = path.join(root, "idd", "fix-readme", "change.md");
+  const decided = fs
+    .readFileSync(doc, "utf8")
+    .replace("## Plan\n", "## Plan\n\n1. Document the rotation.\n")
+    .replace("## Decisions\n", "## Decisions\n\n- **Hourly rotation:** tokens rotate every hour.\n");
+  fs.writeFileSync(doc, decided);
+  assert.strictEqual(ospec(root, "check", "--change", "fix-readme", "--json").json.verdict, "ready");
+
+  const closed = ospec(root, "close", "--change", "fix-readme", "--json");
+  assert.strictEqual(closed.code, 0, closed.stderr);
+  const day = closed.json.closed_at.slice(0, 10);
+  assert.deepStrictEqual(closed.json.records, [
+    {
+      kind: "dc",
+      topic: "knowledge/dc/fix-readme/1",
+      title: "Hourly rotation",
+      summary: "**Hourly rotation:** tokens rotate every hour.",
+      source: `idd/archive/${day}-fix-readme/change.md`,
+      change: "fix-readme",
+      date: day,
+    },
+  ]);
+  assert.deepStrictEqual(ospec(root, "close", "--change", "fix-readme", "--json").json.records, closed.json.records, "closing again derives the same records");
+  assert.match(ospec(root, "close", "--change", "fix-readme").stdout, /1 knowledge record\(s\) to keep in cross-session memory/);
+});
+
 test("close is refused with a pending obligation or a tree changed after the last check", (t) => {
   const { root } = project(t);
   ospec(root, ...OPEN_DOCS);

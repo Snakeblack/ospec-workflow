@@ -7,6 +7,8 @@
 // idd/archive/<date>-<id>/ transactionally: the inventory digest of O6A must
 // match on both sides, a failed rename falls back to copy, compare and remove,
 // and running close again finishes an interrupted move. Delivery stays outside.
+// Close also derives from the archived change the knowledge records an agent
+// may keep in cross-session memory (REQ-idd-024); it never reads that memory.
 
 const fsp = require("node:fs/promises");
 const path = require("node:path");
@@ -16,7 +18,9 @@ const {
   ARCHIVE_ROOT,
   CHANGE_ROOT,
   EVIDENCE_MARKERS,
+  LIVING_DOC_FILE,
   LIVING_DOC_SECTIONS,
+  STATE_FILE,
   canClose,
   isIntentAmbiguous,
 } = require("./idd-contract.js");
@@ -170,10 +174,81 @@ async function archiveChange(root, state) {
   return receipt(moved, false);
 }
 
+// --- knowledge records (REQ-idd-024) ----------------------------------------
+
+const TITLE_LENGTH = 80;
+
+/** The top-level bullets of the Decisions section, each with its continuation lines joined. */
+function decisionBullets(text) {
+  const decisions = typeof text === "string" ? sectionsOf(text).find((section) => section.heading === "Decisions") : null;
+  const bullets = [];
+  for (const line of decisions?.body || []) {
+    if (/^[-*] /.test(line)) bullets.push(line.slice(2));
+    else if (bullets.length > 0 && line.trim() !== "") bullets[bullets.length - 1] += ` ${line.trim()}`;
+  }
+  return bullets.map((bullet) => bullet.replace(/\s+/g, " ").trim()).filter(Boolean);
+}
+
+// A bold label names the decision; without one, its first sentence does.
+function decisionTitle(bullet) {
+  const label = /^\*\*(.+?)\*\*/.exec(bullet);
+  const title = label ? label[1].replace(/[\s:.]+$/, "") : bullet.split(/(?<=\.)\s/)[0];
+  return title.length > TITLE_LENGTH ? `${title.slice(0, TITLE_LENGTH - 1).trimEnd()}…` : title;
+}
+
+function adrId(record) {
+  const name = record.split("/").at(-1).replace(/\.md$/, "");
+  return /^\d{4}/.exec(name)?.[0] || name;
+}
+
+/**
+ * The knowledge records of a closed change, derived from the disk with their
+ * provenance: one per decision of change.md, one per declared impact other
+ * than none and one per new ADR. Each names the stable topic under which a
+ * memory keeps it, so saving it again updates the same entry.
+ *
+ * @param {{state: object, livingDoc: string|null, destination: string, adrTitles?: Map<string, string>}} input
+ */
+function knowledgeRecords({ state, livingDoc, destination, adrTitles = new Map() }) {
+  const base = { change: state.change, date: state.closed_at.slice(0, 10) };
+  const records = decisionBullets(livingDoc).map((bullet, index) => ({
+    kind: "dc",
+    topic: `knowledge/dc/${state.change}/${index + 1}`,
+    title: decisionTitle(bullet),
+    summary: bullet,
+    source: `${destination}/${LIVING_DOC_FILE}`,
+    ...base,
+  }));
+  for (const entry of state.impacts || []) {
+    if (!entry.impact || entry.impact === "none") continue;
+    const label = entry.kind === "adr" ? "ADR" : "quality scenario";
+    records.push({
+      kind: "impact",
+      topic: `knowledge/impact/${state.change}/${entry.kind}-${entry.id}`,
+      title: `${entry.impact} ${label} ${entry.id}`,
+      summary: entry.reason,
+      source: `${destination}/${STATE_FILE}`,
+      ...base,
+    });
+    if (entry.record) {
+      records.push({
+        kind: "adr",
+        topic: `knowledge/adr/${adrId(entry.record)}`,
+        title: adrTitles.get(entry.record) || adrId(entry.record),
+        summary: `${entry.impact} ADR ${entry.id}: ${entry.reason}`,
+        source: entry.record,
+        ...base,
+      });
+    }
+  }
+  return records;
+}
+
 module.exports = {
   archiveChange,
   archiveName,
   closeChange,
+  knowledgeRecords,
   livingDocStatus,
   renderEvidence,
 };

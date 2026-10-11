@@ -149,7 +149,9 @@ no product or library: technology choices go to the technology record, each
 implementing an ADR and justified by team context, maturity, license, cost and
 a dated source. Never rewrite an accepted ADR: supersede it with a new one.
 A development decision stays in the change's living document; do not file it
-as an ADR.
+as an ADR. With cross-session memory tools, keep each ADR and technology
+record you write in memory as `references/foundation-details.md` (Memory)
+describes; the files stay the authority.
 
 The test strategy names what each layer protects: unit tests for domain
 rules, validation and transformations; integration or contract tests for

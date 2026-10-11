@@ -87,6 +87,11 @@ test("addendum pins trust boundary, pointer convention, state-first recall and f
     /never retry/i,
     /never pass a bare path as a field value/i,
     /`roadmap\/next-change`/,
+    // E3.5 (REQ-session-memory-011): decisions with provenance, recall checked against the disk.
+    /`knowledge\/dc\/\{change\}\/\{NNN\}`/,
+    /prior decision \(memory\): <title> -> <path>: current \| stale \| conflict/,
+    /the disk wins/,
+    /Recall never settles an open question, a gate or a phase/,
   ];
   for (const re of landmarks) assert.match(text, re, `addendum missing landmark ${re}`);
 });

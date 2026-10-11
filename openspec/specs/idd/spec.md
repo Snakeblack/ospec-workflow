@@ -1169,3 +1169,37 @@ and MUST NOT let an unreadable configuration change its next step.
 - WHEN `ospec team` runs
 - THEN the profile MUST be `size: multi-team` with source
   `openspec/config.yaml scale`
+
+### Requirement: Knowledge Records At Close {#REQ-idd-024}
+
+`ospec close` MUST return `records`: the knowledge of the closed change that
+an agent MAY keep in a cross-session memory, derived from the archive alone.
+There MUST be one record per top-level bullet of the `Decisions` section of
+`change.md` (`kind: dc`, topic `knowledge/dc/<change>/<n>` numbered from 1),
+one per declared impact other than `none` (`kind: impact`, topic
+`knowledge/impact/<change>/<kind>-<id>`) and one per new ADR an impact attaches
+with `--record` (`kind: adr`, topic `knowledge/adr/<NNNN>`). Each record MUST
+carry its `title` (the bold label of the bullet, else its first sentence, at
+most 80 characters), its `summary`, its provenance (`source`, the repository
+path it comes from, `change` and the close `date`) and its stable `topic`, so
+saving it again updates the same memory entry. Closing an archived change
+again MUST return the same records. The CLI MUST NOT read, write or require a
+memory, and a change MUST close the same whether or not an agent keeps its
+records (ADR 0006).
+
+#### Scenario: A decision of the change becomes a record
+
+- GIVEN a change whose `change.md` decides `- **Hourly rotation:** tokens
+  rotate every hour.`
+- WHEN `ospec close --json` archives it
+- THEN `records` MUST hold one `dc` record with the topic
+  `knowledge/dc/<change>/1`, the title `Hourly rotation` and the source
+  `idd/archive/<YYYY-MM-DD>-<change>/change.md`
+
+#### Scenario: Only impacts that say something are records
+
+- GIVEN a change that declares `none` on one ADR and `amends` on another with
+  a new ADR attached
+- WHEN it closes
+- THEN `records` MUST hold the `amends` impact and the new ADR, and nothing
+  for the `none` impact
