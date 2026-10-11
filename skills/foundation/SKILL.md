@@ -56,13 +56,16 @@ round. The documents are the state, never the conversation.
    `openspec/config.yaml` and the sources the user supplies. Mark each fact
    with its source.
 2. Keep the knowledge map at `docs/architecture/knowledge-map.yaml`
-   (`ospec-knowledge-map/v1`). Each slot (business, functional, team, quality,
+   (`ospec-knowledge-map/v1`, or `v2` once a quality scenario declares its
+   `fitness`). Each slot (business, functional, team, quality,
    architecture, technology, operation, delivery) is `unknown`, `confirmed`
    (with its source), `assumed` (with its source and what would change it),
    `n/a` (with why it does not apply) or `deferred` (with an owner), and names
    the decisions it feeds. `unknown` is not `n/a`. A quality scenario states
    origin, stimulus, environment, artifact and response; add a measure only
-   when the user gives one, and record who gave it.
+   when the user gives one, and record who gave it. In v2 its `fitness` holds
+   the `checks` commands that verify it (a benchmark, a budget) or a
+   `description` for a check by hand.
 3. Take the round from `ospec foundation next`. When the map does not exist
    yet, pass `--profile` and write the returned `template` to
    `docs/architecture/knowledge-map.yaml` before recording: `next` does not
@@ -137,7 +140,10 @@ Read each file before writing and update it; never discard what the user wrote.
 
 Every ADR holds its context and drivers, at least two considered options, the
 decision, its consequences (including what gets harder), a fitness function or
-check that would detect a violation, and a review trigger. Cite at least one
+check that would detect a violation, and a review trigger. When a command can
+detect the violation, add it as a `- Check:` line of the fitness function:
+`ospec check` runs it for every IDD change that touches the ADR and refuses
+the close while it fails. Cite at least one
 driver id: a quality scenario, a constraint or an assumption. Its decision names
 no product or library: technology choices go to the technology record, each
 implementing an ADR and justified by team context, maturity, license, cost and

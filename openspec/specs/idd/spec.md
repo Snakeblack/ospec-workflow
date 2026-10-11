@@ -88,11 +88,14 @@ and `operations`), `retracted` (each declared signal retracted under
 REQ-idd-006, with its `id`, `reason`, `source` and `retract_reason`), `impacts`
 (each declared architecture reference of REQ-idd-020, with its `kind`, `adr` or
 `scenario`, its `id`, its `impact`, null until declared, the `reason` once
-declared and, for an ADR amended or superseded, the `record` that does it), `runs` (each
+declared and, for an ADR amended or superseded, the `record` that does it),
+`attestations` (the manual evidence of a fitness function no command checks,
+REQ-idd-022: one per declared reference, with its `kind`, `id`, `evidence` and
+`recorded_at`), `runs` (each
 CLI-observed execution of REQ-idd-014) and `reviews` (the trust review
 lineages of REQ-idd-016, oldest first), plus `closed_at` once the change is
-closed (REQ-idd-017). A state without `base`, `plan`, `retracted`, `impacts`, `runs`,
-`reviews` or `facts` MUST stay valid, as the states written before they existed. While the
+closed (REQ-idd-017). A state without `base`, `plan`, `retracted`, `impacts`,
+`attestations`, `runs`, `reviews` or `facts` MUST stay valid, as the states written before they existed. While the
 `ambiguous-intent` gate is open, `intent.kind`, `intent.summary` and
 `intent.acceptance` MUST be null, `intent.request` MUST hold the original
 request, and `signals` and `obligations` MUST be empty. `state.yaml` MUST be
@@ -176,7 +179,9 @@ when the change declares the ADRs or quality scenarios it touches
 - `adr-impact-declaration`: `none`, `conforms`, `amends`, `supersedes` or
   `contradicts` per declared ADR or quality scenario, with the user's answer
   to `adr-amend-or-contradict` for the last three and, for an ADR amended or
-  superseded, a new ADR that passes the decision-record lint (REQ-idd-020).
+  superseded, a new ADR that passes the decision-record lint (REQ-idd-020),
+  plus every executable fitness function of those references passing on the
+  current tree (REQ-idd-022).
 
 #### Scenario: Obligations follow active signals only
 
@@ -343,7 +348,8 @@ from the diff and no run; else the first pending obligation in the order
 success, 1 when the IDD contract refuses the request and 2 on a usage error.
 `next` MAY add `suggestions` that never block, such as the ADR promotion of
 REQ-idd-020. For an open change, `next` MUST also return the `references` and
-`warnings` of REQ-idd-021; `knowledge_refs` keeps naming the living document.
+`warnings` of REQ-idd-021 and the `fitness` of REQ-idd-022; `knowledge_refs`
+keeps naming the living document.
 
 Before the pending `checks-pass` or `contract-spec-and-test` step, if no checks
 are declared, `next` MUST instead return `next_step.action: configure-checks`,
@@ -552,8 +558,10 @@ record each execution as a run. `ospec run` MUST run one test command for
 `migration-compat-and-test` (REQ-idd-015), and record it as a run; it MUST
 refuse any other obligation, an obligation the change does not have and an
 ambiguous intent. A run MUST hold `id`, `purpose` (`checks`, `repro-test`,
-`tdd-red-green` or `migration-test`), `command`, `exit_code`, `output_sha256`,
-`tree`, `recorded_at` and, for a check, its `name`. `tree` MUST digest the
+`tdd-red-green`, `migration-test` or `fitness`), `command`, `exit_code`,
+`output_sha256`, `tree`, `recorded_at` and, for a check, its `name`, and for a
+fitness check of REQ-idd-022, the `ref` (`adr:<id>` or `scenario:<id>`) it
+checks. `tree` MUST digest the
 working tree the run executed on: `HEAD`, the binary diff of tracked files
 against it and the content of untracked files, never the change state under
 `idd/`. A check run MUST also bind the effective verifier list from
@@ -1038,3 +1046,63 @@ references; it MUST NOT stop them.
 - GIVEN a component map that is not JSON text
 - WHEN `signals`, `check` and `next` run
 - THEN each MUST succeed with a warning naming the map and no references
+
+### Requirement: Fitness Functions In Check {#REQ-idd-022}
+
+The fitness function of an ADR or a quality scenario MAY declare executable
+checks: each `- Check: \`<command>\`` line of an ADR's `Fitness function`
+section (REQ-decision-records-008) and each entry of `fitness.checks` of a
+quality scenario in `ospec-knowledge-map/v2` (REQ-knowledge-map-005). A
+fitness function without one is a manual item: the ADR's `Fitness function`
+prose or the scenario's `fitness.description`.
+
+A change MUST hold only the fitness functions of the references in its
+`impacts` (REQ-idd-020, REQ-idd-021), read from the change's base commit and
+never from the working tree, so the change cannot weaken or remove the check
+that guards it. A reference the base does not hold, a superseded ADR, a
+scenario without `fitness`, and a reference the change `amends`, `supersedes`
+or `contradicts` once the user resolved `adr-amend-or-contradict` MUST bring
+none.
+
+While `adr-impact-declaration` is active, `ospec check` MUST run every
+executable check after the declared checks, in `impacts` order, through the
+shell in the project root, and record each as a run with purpose `fitness` and
+the `ref` it checks. `adr-impact-declaration` MUST then be satisfied only when,
+besides REQ-idd-020, every fitness run of that check passed on the current
+tree, and its evidence MUST name those runs and the tree. A failing run MUST
+return it to `pending` with a reason that names the ADR or scenario, the
+command and the exit code, so `ospec close` is refused with it. A base that
+cannot be read MUST be a warning and run no fitness check.
+
+A manual item MUST NOT block the close (ADR-0005: only observed evidence
+satisfies an obligation). `next` and `check` MUST list it in `fitness.manual`
+with its reference, its text and its recorded evidence, if any, and list the
+executable checks in `fitness.checks`. `ospec record fitness --change <id>
+--adr <id>|--quality <id> --evidence <text>` MUST record the manual evidence
+of a manual item of the change in `attestations`, once; a different evidence
+for it, or a reference that is not a manual item of the change, MUST be
+refused.
+
+#### Scenario: A boundary violation declared in an ADR blocks the close
+
+- GIVEN ADR 0006 whose `Fitness function` declares
+  `- Check: \`node --test boundary.test.js\`` at the change's base
+- AND a change that touches its component and records `--impact conforms`
+- WHEN the change imports across that boundary and `ospec check` runs
+- THEN the fitness run MUST fail and `adr-impact-declaration` MUST stay
+  `pending` with a reason naming ADR 0006
+- AND `ospec close` MUST be refused naming that obligation
+
+#### Scenario: The change cannot weaken its own check
+
+- GIVEN that ADR at the base
+- WHEN the change deletes the `Check:` line in its working tree
+- THEN `ospec check` MUST still run the check of the base
+
+#### Scenario: A prose fitness function is a checklist item
+
+- GIVEN an ADR whose `Fitness function` has no `Check:` line
+- WHEN `ospec check` runs
+- THEN `fitness.manual` MUST list it and `adr-impact-declaration` MUST NOT wait
+  for it
+- AND `ospec record fitness` MUST keep its evidence in `attestations`

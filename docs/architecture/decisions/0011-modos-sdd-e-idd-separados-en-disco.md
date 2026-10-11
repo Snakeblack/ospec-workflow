@@ -19,6 +19,7 @@ Un proyecto puede usar un modo sin la carpeta del otro. Las herramientas que mir
 
 ## Fitness function
 Los tests de `idd-store` y de `ospec-state` validan cada uno solo las rutas de su modo.
+- Check: `node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js`
 
 ## Review trigger
 Usuarios que necesiten mover un cambio en curso de un modo al otro.

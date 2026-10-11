@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
-const { lintDecisionRecord, parseAdrMarkdown } = require("./decision-records.js");
+const { lintDecisionRecord, parseAdrMarkdown, parseFitnessChecks } = require("./decision-records.js");
 
 const ROOT = path.resolve(__dirname, "../../schemas/foundation/decision-records");
 const VALID = ["adr.json", "tsr.json", "dc.json"];
@@ -193,4 +193,24 @@ test("[REQ-decision-records-007] a driver cited twice counts once and prose is n
   const record = parseAdrMarkdown(text);
   assert.deepEqual(record.drivers, [{ kind: "scenario", id: "latency-under-load" }]);
   assert.deepEqual(record.stack, []);
+});
+
+test("[REQ-decision-records-008] Check lines of the Fitness function section are its executable checks", () => {
+  const text = readMarkdown("0001-one-deployable-unit.md").replace(
+    "A dependency rule rejects a domain import of an adapter.",
+    "A dependency rule rejects a domain import of an adapter.\n- Check: `node --test test/boundaries.test.js`\n* check: `npm run lint:deps`\n- Check: ``",
+  );
+  assert.deepEqual(parseFitnessChecks(text), ["node --test test/boundaries.test.js", "npm run lint:deps"]);
+  const record = parseAdrMarkdown(text);
+  assert.equal(lintDecisionRecord(record).valid, true);
+  assert.match(record.fitness_function, /^A dependency rule rejects a domain import of an adapter\./);
+});
+
+test("[REQ-decision-records-008] a Check line outside the Fitness function section is not a check", () => {
+  const text = readMarkdown("0001-one-deployable-unit.md").replace(
+    "A second unit needs a new ADR.",
+    "A second unit needs a new ADR.\n- Check: `npm test`",
+  );
+  assert.deepEqual(parseFitnessChecks(text), []);
+  assert.deepEqual(parseFitnessChecks(readMarkdown("0001-one-deployable-unit.md")), []);
 });

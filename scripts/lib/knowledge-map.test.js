@@ -100,3 +100,36 @@ test("[REQ-knowledge-map-002] invalid fixtures fail for the reason they name", (
     );
   }
 });
+
+function withFitness(schema, fitness) {
+  const { parsed } = readFixture("fixtures/valid/regulated.json");
+  parsed.schema = schema;
+  parsed.quality_scenarios[0].fitness = fitness;
+  return parsed;
+}
+
+test("[REQ-knowledge-map-005] a v2 quality scenario declares its fitness checks and description", () => {
+  assert.equal(loadSchema("v2").properties.schema.const, "ospec-knowledge-map/v2");
+  const full = withFitness("ospec-knowledge-map/v2", { description: "p95 under 200 ms", checks: ["npm run bench:p95"] });
+  assert.deepEqual(validateKnowledgeMap(full), { valid: true, errors: [] });
+  assert.equal(validateKnowledgeMap(withFitness("ospec-knowledge-map/v2", { description: "reviewed by hand" })).valid, true);
+  const { parsed: plain } = readFixture("fixtures/valid/regulated.json");
+  assert.equal(validateKnowledgeMap({ ...plain, schema: "ospec-knowledge-map/v2" }).valid, true);
+});
+
+test("[REQ-knowledge-map-005] an empty fitness, an empty check list or fitness in v1 is rejected", () => {
+  for (const [schema, fitness] of [
+    ["ospec-knowledge-map/v2", {}],
+    ["ospec-knowledge-map/v2", { checks: [] }],
+    ["ospec-knowledge-map/v2", { checks: [""] }],
+    ["ospec-knowledge-map/v1", { checks: ["npm test"] }],
+  ]) {
+    assert.equal(validateKnowledgeMap(withFitness(schema, fitness)).valid, false, `${schema} ${JSON.stringify(fitness)}`);
+  }
+});
+
+test("[REQ-knowledge-map-005] an unknown map version is rejected by the schema rule", () => {
+  const result = validateKnowledgeMap(withFitness("ospec-knowledge-map/v9", { checks: ["npm test"] }));
+  assert.equal(result.valid, false);
+  assert.deepEqual(result.errors.map((error) => error.rule), ["schema"]);
+});

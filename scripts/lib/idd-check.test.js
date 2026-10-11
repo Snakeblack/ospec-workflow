@@ -333,3 +333,48 @@ test("a change without the ADR signal settles nothing", () => {
   assert.deepStrictEqual([settled.evidence, settled.reason], [null, null]);
   assert.deepStrictEqual(settled.state, openBug());
 });
+
+// ---------------------------------------------------------------------------
+// Fitness runs settle with the impact declaration (E3.3, REQ-idd-022)
+// ---------------------------------------------------------------------------
+
+function fitnessRun(overrides = {}) {
+  return { purpose: "fitness", ref: "adr:0002", command: "node --test boundary.test.js", exit_code: 0, output_sha256: DIGEST, tree: TREE_A, recorded_at: AT, ...overrides };
+}
+
+function conforming() {
+  return recordImpact(declaring(), { kind: "adr", id: "0002", impact: "conforms", reason: "keeps direct calls" }).state;
+}
+
+test("[REQ-idd-022] passing fitness runs settle the declaration and are named in its evidence", () => {
+  const { state, ids } = recordRuns(conforming(), [fitnessRun(), fitnessRun({ command: "npm run lint:deps" })]);
+  const settled = settleImpacts(state, { records: {}, fitness: { tree: TREE_A, runIds: ids }, recordedAt: AT });
+  assert.strictEqual(settled.reason, null);
+  assert.strictEqual(impactOf(settled.state).status, "satisfied");
+  assert.deepStrictEqual(settled.state.evidence.at(-1).detail, { refs: ["adr:0002 conforms"], records: [], tree: TREE_A, fitness: ["run-1", "run-2"] });
+  assert.deepStrictEqual(validateState(settled.state), { ok: true, errors: [] });
+});
+
+test("[REQ-idd-022] a failing fitness run reopens the declaration with a reason naming its ADR", () => {
+  const first = recordRuns(conforming(), [fitnessRun()]);
+  const settled = settleImpacts(first.state, { records: {}, fitness: { tree: TREE_A, runIds: first.ids }, recordedAt: AT });
+  assert.strictEqual(impactOf(settled.state).status, "satisfied");
+
+  const second = recordRuns(settled.state, [fitnessRun({ tree: TREE_B, exit_code: 1 })]);
+  const failed = settleImpacts(second.state, { records: {}, fitness: { tree: TREE_B, runIds: second.ids }, recordedAt: AT });
+  assert.strictEqual(failed.evidence, null);
+  assert.strictEqual(impactOf(failed.state).status, "pending");
+  assert.strictEqual(failed.reason, "ADR 0002: fitness check `node --test boundary.test.js` failed with exit code 1");
+  assert.match(checkVerdict(failed.state, { checks: [], reasons: { "adr-impact-declaration": failed.reason } }).missing.find((entry) => entry.obligation === "adr-impact-declaration").reason, /^ADR 0002: fitness check/);
+});
+
+test("[REQ-idd-022] a fitness failure is reported before an undeclared impact, and a moving tree does not settle", () => {
+  const { state, ids } = recordRuns(declaring(), [fitnessRun({ exit_code: 3 })]);
+  assert.match(settleImpacts(state, { records: {}, fitness: { tree: TREE_A, runIds: ids }, recordedAt: AT }).reason, /^ADR 0002: fitness check .* exit code 3$/);
+  const moved = recordRuns(conforming(), [fitnessRun()]);
+  assert.match(settleImpacts(moved.state, { records: {}, fitness: { tree: TREE_B, runIds: moved.ids }, recordedAt: AT }).reason, /the tree changed while the fitness checks ran/);
+});
+
+test("[REQ-idd-022] fitness runs are a run purpose", () => {
+  assert.ok(RUN_PURPOSES.includes("fitness"));
+});

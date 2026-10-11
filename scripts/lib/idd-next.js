@@ -139,6 +139,8 @@ function nextForChange(state, { checks, candidateCommand, knowledge } = {}) {
   if (knowledge) {
     result.references = knowledge.references;
     result.warnings = knowledge.warnings;
+    // The fitness functions of the change's references (E3.3, REQ-idd-022).
+    if (knowledge.fitness) result.fitness = knowledge.fitness;
   }
   const suggestion = adrSuggestion(state);
   if (suggestion) result.suggestions = [suggestion];

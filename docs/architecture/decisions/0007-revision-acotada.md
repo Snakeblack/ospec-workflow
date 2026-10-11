@@ -20,6 +20,7 @@ Una revisión siempre termina. Una observación tardía no relacionada es un seg
 
 ## Fitness function
 El reducer de `review-lineage.js` y sus tests rechazan una transición que relance un revisor de descubrimiento o restaure intentos.
+- Check: `node --test scripts/review-lineage.test.js`
 
 ## Review trigger
 Defectos graves que escapan de forma recurrente porque el presupuesto se agotó.

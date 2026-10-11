@@ -184,6 +184,10 @@ const SUCCESSOR_K2_EXACT = new Set([
   // E3.2 knowledge by reference from the component map (roadmap harness-evolution).
   "scripts/lib/idd-knowledge.js",
   "scripts/lib/idd-knowledge.test.js",
+  // E3.3 fitness functions in check, and ADR-0006's memory boundary (roadmap harness-evolution).
+  "scripts/lib/idd-fitness.js",
+  "scripts/lib/idd-fitness.test.js",
+  "scripts/lib/memory-boundary.test.js",
   // E1.13 pre-commit mode source and derived .ospec/ gitignore (roadmap harness-evolution).
   "scripts/lib/precommit-strict.js",
   "scripts/lib/precommit-strict.test.js",

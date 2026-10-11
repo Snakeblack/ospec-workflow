@@ -4,7 +4,7 @@
     {
       "id": "cli",
       "summary": "Punto de entrada ospec: parsea la orden y delega en el motor IDD, la foundation y el doctor.",
-      "evidence": ["scripts/ospec.js:93", "scripts/ospec.js:643"],
+      "evidence": ["scripts/ospec.js:107", "scripts/ospec.js:701"],
       "paths": ["scripts/ospec.js"],
       "knowledge": { "adrs": ["0003", "0010"], "scenarios": ["deterministic-resume", "offline-operation"], "constraints": ["functional.capabilities", "technology.stack"] }
     },
@@ -53,7 +53,7 @@
     {
       "id": "skills",
       "summary": "Prosa que guía al agente y delega cada algoritmo en el CLI.",
-      "evidence": ["skills/idd/SKILL.md:17", "skills/foundation/SKILL.md:80"],
+      "evidence": ["skills/idd/SKILL.md:17", "skills/foundation/SKILL.md:83"],
       "paths": ["skills/**"],
       "knowledge": { "adrs": ["0003", "0006"], "scenarios": ["offline-operation"] }
     },
@@ -80,9 +80,9 @@
     }
   ],
   "dependencies": [
-    { "from": "cli", "to": "idd-engine", "evidence": ["scripts/ospec.js:32", "scripts/ospec.js:52"] },
-    { "from": "cli", "to": "change-state", "evidence": ["scripts/ospec.js:53", "scripts/ospec.js:54"] },
-    { "from": "cli", "to": "foundation", "evidence": ["scripts/ospec.js:50"] },
+    { "from": "cli", "to": "idd-engine", "evidence": ["scripts/ospec.js:34", "scripts/ospec.js:64"] },
+    { "from": "cli", "to": "change-state", "evidence": ["scripts/ospec.js:65", "scripts/ospec.js:66"] },
+    { "from": "cli", "to": "foundation", "evidence": ["scripts/ospec.js:62"] },
     { "from": "foundation", "to": "schemas", "evidence": ["scripts/lib/decision-gap.js:9", "scripts/lib/decision-records.js:8"] },
     { "from": "generator", "to": "skills", "evidence": ["scripts/lib/target-transform.js:217"] },
     { "from": "hooks", "to": "change-state", "evidence": ["scripts/hooks/pre-tool-use.js:16"] }

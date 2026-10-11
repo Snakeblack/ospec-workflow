@@ -162,8 +162,29 @@ function parseAdrMarkdown(text, options = {}) {
   return record;
 }
 
+// The executable checks of a Markdown ADR (REQ-decision-records-008): each
+// `- Check: `<command>`` line of its Fitness function section, in order. A
+// section without one is a fitness function to check by hand.
+const CHECK_LINE = /^\s*[-*]\s+Check:\s*`(.+)`\s*$/i;
+
+function parseFitnessChecks(text) {
+  const checks = [];
+  let inFitness = false;
+  for (const line of String(text).split(/\r?\n/)) {
+    const section = /^##\s+(.+?)\s*$/.exec(line);
+    if (section) {
+      inFitness = section[1].toLowerCase() === "fitness function";
+      continue;
+    }
+    const check = inFitness ? CHECK_LINE.exec(line) : null;
+    if (check && check[1].trim() !== "") checks.push(check[1].trim());
+  }
+  return checks;
+}
+
 module.exports = {
   lintDecisionRecord,
   parseAdrMarkdown,
+  parseFitnessChecks,
   loadSchema,
 };

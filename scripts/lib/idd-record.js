@@ -414,6 +414,29 @@ function recordImpact(state, { kind, id, impact, reason, record } = {}) {
   return { state: next, changed: true };
 }
 
+// Records the manual evidence of a fitness function no command checks (E3.3,
+// REQ-idd-022). `manual` says whether the reference is a manual item of the
+// change, as the CLI read it from the base. The evidence is kept for the
+// record and never satisfies an obligation (ADR-0005).
+function recordAttestation(state, { kind, id, evidence, recordedAt, manual } = {}) {
+  requireOpen(state);
+  if (isIntentAmbiguous(state)) refuse("ambiguous-intent-open", "no fitness evidence is recorded while the intent is ambiguous");
+  if (!REFERENCE_KINDS.includes(kind) || typeof id !== "string" || id === "") {
+    refuse("invalid-reference", "record fitness needs --adr <id> or --quality <id>");
+  }
+  const label = referenceLabel({ kind, id });
+  requireText(evidence, "evidence-required", `the fitness evidence of ${label} needs --evidence <text>`);
+  if (!manual) refuse("not-manual-fitness", `${label} has no manual fitness function in change ${state.change}: only one without an executable check takes manual evidence`);
+  const existing = (state.attestations || []).find((item) => item.kind === kind && item.id === id);
+  if (existing) {
+    if (existing.evidence === evidence) return unchanged(state);
+    refuse("attestation-conflict", `${label} already has its fitness evidence: ${existing.evidence}`);
+  }
+  const next = structuredClone(state);
+  next.attestations = [...(next.attestations || []), { kind, id, evidence, recorded_at: recordedAt }];
+  return { state: next, changed: true };
+}
+
 // Library-only until E1.4 wires it to the commands that produce evidence
 // (REQ-idd-007): the CLI never lets the model assert evidence.
 function recordEvidence(state, { id, kind, obligation: obligationId, recordedAt, detail } = {}) {
@@ -444,6 +467,7 @@ function recordEvidence(state, { id, kind, obligation: obligationId, recordedAt,
 
 module.exports = {
   IddRecordError,
+  recordAttestation,
   recordEvidence,
   recordGate,
   recordImpact,

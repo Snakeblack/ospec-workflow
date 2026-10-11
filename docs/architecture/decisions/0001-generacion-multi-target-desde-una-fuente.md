@@ -20,6 +20,7 @@ Un cambio de prosa o de hook llega a todos los targets en la misma publicación.
 
 ## Fitness function
 `scripts/configure/cli.test.js` compara el árbol generado de cada target con su golden comprometido; cualquier diferencia no regenerada falla el check.
+- Check: `node --test scripts/configure/cli.test.js`
 
 ## Review trigger
 Un host nuevo cuyas capacidades no se puedan expresar como transformación de la fuente común.

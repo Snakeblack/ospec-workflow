@@ -20,6 +20,7 @@ Una obligación se satisface solo con evidencia que el CLI registra al observar 
 
 ## Fitness function
 `scripts/lib/idd-close.test.js` comprueba que `ospec close` se niega con una obligación pendiente o un gate abierto.
+- Check: `node --test scripts/lib/idd-close.test.js`
 
 ## Review trigger
 Una obligación cuya evidencia no pueda producirse en la máquina del usuario.

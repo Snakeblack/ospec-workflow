@@ -15,7 +15,7 @@ const { CHANGE_ROOT, DECISIONS_ROOT } = require("./idd-contract.js");
 const { CONFIG_FILE, parseIddConfig } = require("./idd-config.js");
 const { candidateCheckCommand } = require("./idd-checks-config.js");
 const { MAP_RELATIVE } = require("./decision-gap.js");
-const { lintDecisionRecord, parseAdrMarkdown } = require("./decision-records.js");
+const { lintDecisionRecord, parseAdrMarkdown, parseFitnessChecks } = require("./decision-records.js");
 const { resolveContractPatterns } = require("./idd-contracts.js");
 const { validateComponentMap } = require("./component-map.js");
 const { COMPONENT_MAP_RELATIVE, GLOSSARY_RELATIVE, parseGlossaryTerms } = require("./idd-knowledge.js");
@@ -366,6 +366,62 @@ function treeBlobs(root, tree) {
   return blobs;
 }
 
+/**
+ * The fitness functions at a change's base commit (E3.3, REQ-idd-022), never
+ * the working tree, so the change cannot weaken them: each ADR directly under
+ * docs/architecture/decisions/ with its status, its `Check:` commands and its
+ * Fitness function prose, and each quality scenario of a v2 knowledge map that
+ * declares `fitness`. A base that cannot be read, or a knowledge map that does
+ * not parse, is a warning; a v1 map declares none.
+ */
+function readFitnessSources(root, base) {
+  const adrs = new Map();
+  const scenarios = new Map();
+  const warnings = [];
+  const result = { sources: { adrs, scenarios }, warnings };
+  if (!base || base.startsWith("-")) {
+    warnings.push("no fitness check runs: the change has no base commit to read them from");
+    return result;
+  }
+  let entries;
+  try {
+    git(root, ["rev-parse", "--verify", "--quiet", `${base}^{commit}`]);
+    entries = nulList(git(root, ["ls-tree", "-r", "-z", base, "--", DECISIONS_ROOT, MAP_RELATIVE]));
+  } catch {
+    warnings.push(`no fitness check runs: the change's base ${base} cannot be read`);
+    return result;
+  }
+  const blobs = new Map();
+  for (const entry of entries) {
+    const match = /^\d+ blob ([0-9a-f]+)\t(.*)$/s.exec(entry);
+    if (match) blobs.set(normalizePath(match[2]), match[1]);
+  }
+  const blob = (id) => git(root, ["cat-file", "blob", id]);
+  const decisions = [...blobs.keys()].filter((file) => file.startsWith(`${DECISIONS_ROOT}/`) && file.endsWith(".md") && !file.slice(DECISIONS_ROOT.length + 1).includes("/"));
+  for (const file of decisions.sort()) {
+    const text = blob(blobs.get(file));
+    const record = parseAdrMarkdown(text);
+    if (!record.id || adrs.has(record.id)) continue;
+    adrs.set(record.id, { path: file, status: record.status ?? null, checks: parseFitnessChecks(text), fitness: record.fitness_function ?? null });
+  }
+  if (!blobs.has(MAP_RELATIVE)) return result;
+  let map;
+  try {
+    map = JSON.parse(blob(blobs.get(MAP_RELATIVE)));
+  } catch (error) {
+    warnings.push(`no quality scenario fitness: ${MAP_RELATIVE} at the base is not JSON text (valid YAML 1.2): ${error.message}`);
+    return result;
+  }
+  if (map?.schema !== "ospec-knowledge-map/v2") return result;
+  for (const scenario of map.quality_scenarios || []) {
+    if (typeof scenario?.id !== "string" || !scenario.fitness || scenarios.has(scenario.id)) continue;
+    const checks = Array.isArray(scenario.fitness.checks) ? scenario.fitness.checks.filter((command) => typeof command === "string" && command.trim() !== "") : [];
+    const description = typeof scenario.fitness.description === "string" && scenario.fitness.description.trim() !== "" ? scenario.fitness.description : null;
+    scenarios.set(scenario.id, { path: MAP_RELATIVE, checks, description });
+  }
+  return result;
+}
+
 /** Changed paths between two trees with their added and deleted line counts. */
 function treeNumstat(root, from, to) {
   const fields = nulList(git(root, ["diff-tree", "-r", "--no-renames", "--numstat", "-z", from, to]));
@@ -387,6 +443,7 @@ module.exports = {
   readArchitecture,
   readCheckTreeFingerprint,
   readDecisionRecords,
+  readFitnessSources,
   readGitDiff,
   readHead,
   readKnowledgeSources,
