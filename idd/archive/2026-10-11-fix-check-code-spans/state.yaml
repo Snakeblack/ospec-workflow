@@ -1,0 +1,71 @@
+{
+  "schema": "idd-state/v1",
+  "change": "fix-check-code-spans",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "Corregir los spans de código Markdown con backticks escapados que introdujo E3.3 en specs, CHANGELOG y roadmap",
+    "acceptance": "Ningún documento de E3.3 contiene un span con barra invertida antes de un backtick; cada línea Check: se muestra como un único span de código"
+  },
+  "facts": {
+    "basis": "Solo cambia la sintaxis Markdown de los spans; el texto y los requisitos no cambian"
+  },
+  "plan": {
+    "paths": [
+      "CHANGELOG.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/specs/decision-records/spec.md",
+      "openspec/specs/idd/spec.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-11T20:12:47.009Z",
+      "detail": {
+        "tree": "sha256:61b95902fa2e090abcc30e84911f83b2899298b83abccc769126034619dcb08a",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "18509cc454e10150cb66dae1edd392e51b8ade5c",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ea8f0d45065415d9e84e75e301bff0bf0b9dce84789105ad3efe26d0afceb348",
+      "tree": "sha256:61b95902fa2e090abcc30e84911f83b2899298b83abccc769126034619dcb08a",
+      "recorded_at": "2026-10-11T20:12:47.009Z"
+    }
+  ],
+  "closed_at": "2026-10-11T20:12:56.231Z"
+}

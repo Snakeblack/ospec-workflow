@@ -1050,7 +1050,7 @@ references; it MUST NOT stop them.
 ### Requirement: Fitness Functions In Check {#REQ-idd-022}
 
 The fitness function of an ADR or a quality scenario MAY declare executable
-checks: each `- Check: \`<command>\`` line of an ADR's `Fitness function`
+checks: each `` - Check: `<command>` `` line of an ADR's `Fitness function`
 section (REQ-decision-records-008) and each entry of `fitness.checks` of a
 quality scenario in `ospec-knowledge-map/v2` (REQ-knowledge-map-005). A
 fitness function without one is a manual item: the ADR's `Fitness function`
@@ -1086,7 +1086,7 @@ refused.
 #### Scenario: A boundary violation declared in an ADR blocks the close
 
 - GIVEN ADR 0006 whose `Fitness function` declares
-  `- Check: \`node --test boundary.test.js\`` at the change's base
+  `` - Check: `node --test boundary.test.js` `` at the change's base
 - AND a change that touches its component and records `--impact conforms`
 - WHEN the change imports across that boundary and `ospec check` runs
 - THEN the fitness run MUST fail and `adr-impact-declaration` MUST stay
