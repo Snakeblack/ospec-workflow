@@ -10,7 +10,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const { nextForChange, nextForProject, statusOf } = require("./idd-next.js");
-const { recordEvidence, recordGate, recordIntent, recordPlan, recordSignal } = require("./idd-record.js");
+const { recordEvidence, recordGate, recordImpact, recordIntent, recordPlan, recordReferences, recordSignal } = require("./idd-record.js");
 
 const FIXTURES_DIR = path.join(__dirname, "..", "fixtures", "idd");
 const NO_OPEN_FACTS = Object.freeze({ noOpenFacts: true, basis: "The request fixes every behavior." });
@@ -48,6 +48,17 @@ function stateFromFixture(fixture, signalOrder = (ids) => ids) {
   for (const id of signalOrder(expected.signals.filter((s) => s !== "always"))) {
     state = recordSignal(state, { id, reason: `fixture ${fixture.id}`, source: "declaration" }).state;
   }
+  // Declared architecture references and their impacts (E3.1): a gated impact
+  // opens adr-amend-or-contradict itself.
+  const architecture = input.architecture;
+  if (architecture) {
+    const refs = [...architecture.adrs.map((id) => ({ kind: "adr", id })), ...architecture.quality.map((id) => ({ kind: "scenario", id }))];
+    state = recordReferences(state, refs).state;
+    for (const entry of architecture.impacts) {
+      const ref = entry.adr ? { kind: "adr", id: entry.adr } : { kind: "scenario", id: entry.quality };
+      state = recordImpact(state, { ...ref, impact: entry.impact, reason: entry.reason }).state;
+    }
+  }
   for (const id of expected.gates.filter((g) => g !== "ambiguous-intent")) {
     state = recordGate(state, { id, action: "open", reason: `fixture ${fixture.id}` }).state;
   }
@@ -75,6 +86,8 @@ for (const fixture of loadFixtures()) {
       result.knowledge_refs,
       expected.living_doc ? [`idd/${fixture.id}/change.md`] : [],
     );
+    // The ADR promotion check suggests, and never blocks (REQ-idd-020).
+    assert.deepStrictEqual((result.suggestions || []).map((s) => s.id), expected.suggestions || []);
 
     const reversed = stateFromFixture(fixture, (ids) => [...ids].reverse());
     assert.strictEqual(JSON.stringify(nextForChange(reversed)), JSON.stringify(nextForChange(state)));
@@ -261,4 +274,44 @@ test("next asks to declare the plan after the intent gates and before any obliga
   const ambiguous = recordIntent(null, { change: "vague", ambiguous: true, request: "Improve it" }).state;
   assert.strictEqual(nextForChange(ambiguous).next_step.gate, "ambiguous-intent");
   assert.deepStrictEqual(nextForChange({ ...unplanned, status: "closed" }).next_step, { action: "none" });
+});
+
+// ---------------------------------------------------------------------------
+// The ADR impact declaration and the promotion suggestion (E3.1, REQ-idd-020)
+// ---------------------------------------------------------------------------
+
+test("next says how to declare an impact on the declared references", () => {
+  let state = planned({ change: "evented", kind: "feature", summary: "s", acceptance: "a", ...NO_OPEN_FACTS });
+  state = recordSignal(state, { id: "adr-or-quality-attribute", reason: "declared ADR 0002", source: "declaration" }).state;
+  state = recordReferences(state, [{ kind: "adr", id: "0002" }]).state;
+  const result = nextForChange(state);
+  assert.deepStrictEqual(result.next_step, {
+    action: "satisfy-obligation",
+    obligation: "adr-impact-declaration",
+    evidence: "adr-impact-declaration",
+    how: 'ospec record impact --change evented (--adr <id> | --quality <id>) --impact <none|conforms|amends|supersedes|contradicts> --reason "<why>" [--record <new ADR>], then ospec check --change evented',
+  });
+  assert.strictEqual(result.suggestions, undefined);
+});
+
+test("a boundary without a declared ADR suggests one and changes nothing else", () => {
+  let state = planned({ change: "orders-api", kind: "feature", summary: "s", acceptance: "a", ...NO_OPEN_FACTS });
+  state = recordSignal(state, { id: "public-contract", reason: "public contract: touches src/api/orders.js (matches **/api/**)", source: "declaration" }).state;
+  const result = nextForChange(state);
+  assert.deepStrictEqual(result.suggestions, [
+    {
+      id: "adr-promotion",
+      reason: "public contract: touches src/api/orders.js (matches **/api/**)",
+      how: "if the change takes an architecture decision, propose an ADR under docs/architecture/decisions/ to the user and declare the ADRs it touches with ospec signals --change orders-api --adr <id>; a development decision stays in idd/orders-api/change.md",
+    },
+  ]);
+  assert.deepStrictEqual(result.pending_decision, null);
+  assert.deepStrictEqual([result.next_step.action, result.next_step.obligation], ["satisfy-obligation", "contract-spec-and-test"]);
+  assert.ok(!result.pending_obligations.some((entry) => entry.id === "adr-impact-declaration"));
+
+  // Declaring the ADR it touches replaces the suggestion with the obligation.
+  const declared = recordSignal(state, { id: "adr-or-quality-attribute", reason: "declared ADR 0002", source: "declaration" }).state;
+  assert.strictEqual(nextForChange(declared).suggestions, undefined);
+  // A closed change suggests nothing.
+  assert.strictEqual(nextForChange({ ...state, status: "closed" }).suggestions, undefined);
 });

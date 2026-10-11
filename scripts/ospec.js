@@ -23,6 +23,7 @@ const {
   recordRuns,
   settleChecks,
   settleContract,
+  settleImpacts,
   settleMigration,
   settlePair,
   settleTreeBound,
@@ -30,10 +31,10 @@ const {
 const { classifyContractPaths } = require("./lib/idd-contracts.js");
 const { archiveChange, closeChange, livingDocStatus, renderEvidence } = require("./lib/idd-close.js");
 const { IddConfigError } = require("./lib/idd-config.js");
-const { ARCHIVE_ROOT, LIVING_DOC_FILE, STATE_FILE, isIntentAmbiguous } = require("./lib/idd-contract.js");
+const { ARCHIVE_ROOT, DECISIONS_ROOT, LIVING_DOC_FILE, STATE_FILE, isIntentAmbiguous } = require("./lib/idd-contract.js");
 const { runCommand } = require("./lib/idd-exec.js");
 const { nextForChange, nextForProject, statusOf } = require("./lib/idd-next.js");
-const { IddRecordError, recordGate, recordIntent, recordRetract, recordSignal, recordWithdraw } = require("./lib/idd-record.js");
+const { IddRecordError, recordGate, recordImpact, recordIntent, recordRetract, recordSignal, recordWithdraw } = require("./lib/idd-record.js");
 const {
   buildCandidate,
   candidateDiffHash,
@@ -53,7 +54,9 @@ const { withFileLock } = require("./lib/ospec-state.js");
 const {
   IddWorkspaceError,
   commitTree,
+  readArchitecture,
   readCheckTreeFingerprint,
+  readDecisionRecords,
   readGitDiff,
   readHead,
   readProjectContext,
@@ -74,8 +77,10 @@ const USAGE = `Usage:
   ospec record gate --change <id> --gate <id> (--open [--reason <text>] | --resolve --answer <text> --source <text>)
   ospec record withdraw --change <id> --obligation <id> --reason <text>
   ospec record retract --change <id> --signal <id> --reason <text>
+  ospec record impact --change <id> (--adr <id> | --quality <id>)
+                      [--impact <none|conforms|amends|supersedes|contradicts> --reason <text>] [--record <new ADR>]
   ospec signals --change <id> [--path <file>]... [--work-units <n>] [--decision]
-                [--operation <op>]... [--diff] [--base <ref>]
+                [--operation <op>]... [--adr <id>]... [--quality <id>]... [--diff] [--base <ref>]
   ospec check --change <id> [--base <ref>]
   ospec run --change <id> --obligation <repro-test|tdd-red-green|migration-compat-and-test> --command <cmd>
             [--unit <name>] [--plan <compatibility or rollback plan>]
@@ -118,6 +123,10 @@ const OPTIONS = {
   "work-units": { type: "string" },
   decision: { type: "boolean" },
   operation: { type: "string", multiple: true },
+  adr: { type: "string", multiple: true },
+  quality: { type: "string", multiple: true },
+  impact: { type: "string" },
+  record: { type: "string" },
   diff: { type: "boolean" },
   base: { type: "string" },
   command: { type: "string" },
@@ -179,8 +188,44 @@ function reducerFor(type, values, root) {
     case "retract":
       if (!values.signal) throw new UsageError("record retract needs --signal <id>");
       return existing((state) => recordRetract(state, { id: values.signal, reason: values.reason, confirmedBy: diffConfirmation(root, state, values.signal) }));
+    case "impact": {
+      const refs = declaredReferences(values);
+      if (refs.length !== 1) throw new UsageError("record impact needs exactly one --adr <id> or --quality <id>");
+      if (values.impact === undefined && values.record === undefined) throw new UsageError("record impact needs --impact <value>, or --record to attach the new ADR");
+      return existing((state) => recordImpact(state, { ...refs[0], impact: values.impact, reason: values.reason, record: values.record }));
+    }
     default:
-      throw new UsageError(`unknown record type: ${type ?? "(none)"}; expected intent, signal, gate, withdraw or retract`);
+      throw new UsageError(`unknown record type: ${type ?? "(none)"}; expected intent, signal, gate, withdraw, retract or impact`);
+  }
+}
+
+// An ADR is named by its four-digit id, with or without the ADR- prefix
+// (E3.1); a quality scenario by its id in the knowledge map.
+function adrId(raw) {
+  const id = String(raw).trim().replace(/^adr-?/i, "");
+  if (!/^[0-9]{4}$/.test(id)) throw new UsageError(`--adr takes a four-digit ADR id such as 0004, got ${JSON.stringify(raw)}`);
+  return id;
+}
+
+function declaredReferences(values) {
+  return [
+    ...(values.adr || []).map((id) => ({ kind: "adr", id: adrId(id) })),
+    ...(values.quality || []).map((id) => ({ kind: "scenario", id: String(id).trim() })),
+  ];
+}
+
+// Every declared reference must exist on disk: an ADR under
+// docs/architecture/decisions/, a scenario in the knowledge map.
+function requireKnownReferences(root, refs) {
+  if (refs.length === 0) return;
+  const { adrs, scenarios } = readArchitecture(root);
+  for (const ref of refs) {
+    if (ref.kind === "adr" && !adrs.has(ref.id)) {
+      throw new IddRecordError("unknown-reference", `ADR ${ref.id} is not under ${DECISIONS_ROOT}/`);
+    }
+    if (ref.kind === "scenario" && !scenarios.has(ref.id)) {
+      throw new IddRecordError("unknown-reference", `quality scenario ${ref.id} is not in the knowledge map`);
+    }
   }
 }
 
@@ -216,12 +261,16 @@ function declaresPlan(values) {
 
 async function signals(root, values) {
   if (!values.change) throw new UsageError("signals needs --change <id>");
+  const refs = declaredReferences(values);
   const declaration = {
     paths: values.path || [],
     workUnits: parseWorkUnits(values["work-units"]),
     nonObviousDecision: values.decision === true,
     operations: values.operation || [],
+    adrs: refs.filter((ref) => ref.kind === "adr").map((ref) => ref.id),
+    scenarios: refs.filter((ref) => ref.kind === "scenario").map((ref) => ref.id),
   };
+  requireKnownReferences(root, refs);
   const context = readProjectContext(root);
   const stored = values.diff || values.base ? await readChange(root, values.change) : null;
   const diff = values.diff || values.base ? readGitDiff(root, { base: diffBase(values, stored) }) : {};
@@ -278,6 +327,7 @@ async function check(root, values) {
   const checkTree = readCheckTreeFingerprint(root);
   const recordedAt = new Date().toISOString();
   const contractPaths = classifyContractPaths(diff.paths, context.contractPatterns);
+  const records = readDecisionRecords(root, (current.impacts || []).filter((entry) => entry.record).map((entry) => entry.record));
   const reasons = {};
   const reviewed = currentReview(current);
   let reviewedChanged = false;
@@ -305,7 +355,9 @@ async function check(root, values) {
       const bound = settleTreeBound(settled.state, { tree });
       const contract = settleContract(bound, { tree: checkTree, checkEvidence: settled.evidence, ...contractPaths, recordedAt });
       if (contract.reason) reasons["contract-spec-and-test"] = contract.reason;
-      const fresh = settleReviewFreshness(contract.state, { reviewedChanged });
+      const impacts = settleImpacts(contract.state, { records, recordedAt });
+      if (impacts.reason) reasons["adr-impact-declaration"] = impacts.reason;
+      const fresh = settleReviewFreshness(impacts.state, { reviewedChanged });
       return { state: fresh, changed: changedFrom(stored, fresh) };
     }),
   );
@@ -602,6 +654,7 @@ function describeNext(result) {
     for (const entry of questions) lines.push(`  - ${entry}`);
   }
   if (result.knowledge_refs?.length) lines.push(`refs: ${result.knowledge_refs.join(", ")}`);
+  for (const suggestion of result.suggestions || []) lines.push(`suggestion ${suggestion.id}: ${suggestion.reason}; ${suggestion.how}`);
   return lines.join("\n");
 }
 

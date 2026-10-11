@@ -162,8 +162,10 @@ explicit approval, preserving its other keys:
 - `contracts.documents:` where contract documents (OpenAPI, proto, schemas)
   live.
 
-IDD reads `docs/architecture/decisions/` at its `adr-amend-or-contradict`
-gate, so a later change that departs from an ADR stops for the user. When the
+An IDD change declares the ADRs of `docs/architecture/decisions/` and the
+quality scenarios it touches (`ospec signals --adr <id> --quality <id>`) and
+its impact on each, so a later change that amends, supersedes or contradicts
+an ADR stops for the user at the `adr-amend-or-contradict` gate. When the
 project uses SDD, also update `openspec/config.yaml` as
 `references/foundation-details.md` describes.
 

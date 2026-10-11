@@ -915,3 +915,118 @@ test("record retract withdraws a declared work-unit signal, which the diff never
   assert.strictEqual(retracted.json.next.next_step.obligation, "checks-pass");
   assert.match(ospec(root, "record", "retract", "--change", "split-pages", "--signal", "multi-unit-or-decision", "--reason", "one unit after all").stdout, /no change: retract already recorded/);
 });
+
+// ---------------------------------------------------------------------------
+// E3.1: declared architecture impact (REQ-idd-020)
+// ---------------------------------------------------------------------------
+
+function adrText(id, title, { context = "Los módulos se integran. Driver: `scenario:module-integration`.", decision = "Los módulos se llaman de forma síncrona." } = {}) {
+  return [
+    `# ${id}. ${title}`,
+    "",
+    "- Status: accepted",
+    "- Date: 2026-10-11",
+    "- Evidence: verify.js:1",
+    "",
+    "## Context and drivers",
+    context,
+    "",
+    "## Options considered",
+    "1. Llamadas directas: simple.",
+    "2. Eventos: desacopla.",
+    "",
+    "## Decision",
+    decision,
+    "",
+    "## Consequences",
+    "Un fallo de un módulo llega al otro.",
+    "",
+    "## Fitness function",
+    "Un test de integración entre módulos.",
+    "",
+    "## Review trigger",
+    "Un segundo consumidor del mismo hecho.",
+    "",
+  ].join("\n");
+}
+
+function architectureProject(t) {
+  const { root, git } = project(t);
+  writeFile(root, "src/pages.txt", "2");
+  writeFile(root, "docs/architecture/decisions/0002-integracion-sincrona.md", adrText("0002", "Los módulos se integran de forma síncrona"));
+  writeFile(root, "docs/architecture/knowledge-map.yaml", JSON.stringify({ schema: "ospec-knowledge-map/v1", profile: "saas", slots: [], quality_scenarios: [{ id: "module-integration" }] }));
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "architecture");
+  return { root, git };
+}
+
+const OPEN_EVENTS = ["record", "intent", "--change", "order-events", "--kind", "feature", "--summary", "Billing consumes order-placed.", "--acceptance", "Orders no longer calls billing.", "--no-open-facts", "--basis", "The request fixes every behavior.", "--json"];
+
+test("signals --adr and --quality declare existing references only", (t) => {
+  const { root } = architectureProject(t);
+  ospec(root, ...OPEN_EVENTS);
+  const unknownAdr = ospec(root, "signals", "--change", "order-events", "--path", "src/orders.js", "--adr", "0099", "--json");
+  assert.strictEqual(unknownAdr.code, 1);
+  assert.deepStrictEqual(unknownAdr.json.error, { code: "unknown-reference", message: "ADR 0099 is not under docs/architecture/decisions/" });
+  const unknownScenario = ospec(root, "signals", "--change", "order-events", "--quality", "fast-boot", "--json");
+  assert.strictEqual(unknownScenario.json.error.code, "unknown-reference");
+  const badId = ospec(root, "signals", "--change", "order-events", "--adr", "integration", "--json");
+  assert.strictEqual(badId.code, 2);
+  assert.strictEqual(stateOf(root, "order-events").impacts, undefined, "a refused declaration records nothing");
+
+  const declared = ospec(root, "signals", "--change", "order-events", "--path", "src/orders.js", "--adr", "ADR-0002", "--quality", "module-integration", "--json");
+  assert.strictEqual(declared.code, 0, declared.stderr);
+  assert.deepStrictEqual(declared.json.added.signals, ["adr-or-quality-attribute"]);
+  assert.deepStrictEqual(stateOf(root, "order-events").impacts, [
+    { kind: "adr", id: "0002", impact: null },
+    { kind: "scenario", id: "module-integration", impact: null },
+  ]);
+  assert.strictEqual(declared.json.next.next_step.obligation, "adr-impact-declaration");
+});
+
+test("an amendment stops at the gate and settles once its new ADR passes the lint and cites the old one", (t) => {
+  const { root } = architectureProject(t);
+  ospec(root, ...OPEN_EVENTS);
+  ospec(root, "signals", "--change", "order-events", "--path", "src/orders.js", "--adr", "0002");
+
+  const usage = ospec(root, "record", "impact", "--change", "order-events", "--adr", "0002", "--quality", "module-integration", "--impact", "none", "--reason", "r", "--json");
+  assert.strictEqual(usage.code, 2);
+
+  const amended = ospec(root, "record", "impact", "--change", "order-events", "--adr", "0002", "--impact", "amends", "--reason", "billing consumes order-placed asynchronously", "--json");
+  assert.strictEqual(amended.code, 0, amended.stderr);
+  assert.deepStrictEqual(amended.json.next.next_step, { action: "resolve-gate", gate: "adr-amend-or-contradict" });
+  assert.strictEqual(amended.json.next.pending_decision.reason, "ADR 0002 amends: billing consumes order-placed asynchronously");
+
+  ospec(root, "record", "gate", "--change", "order-events", "--gate", "adr-amend-or-contradict", "--resolve", "--answer", "amend 0002 with events", "--source", "user");
+  const withoutRecord = ospec(root, "check", "--change", "order-events", "--json");
+  const missing = withoutRecord.json.missing.find((entry) => entry.obligation === "adr-impact-declaration");
+  assert.match(missing.reason, /write the new ADR under docs\/architecture\/decisions\/ and attach it/);
+
+  const record = "docs/architecture/decisions/0003-eventos-entre-modulos.md";
+  writeFile(root, record, adrText("0003", "Los módulos se integran por eventos", { decision: "Los módulos publican hechos y se suscriben a ellos; enmienda 0002." }));
+  const attached = ospec(root, "record", "impact", "--change", "order-events", "--adr", "0002", "--record", record, "--json");
+  assert.strictEqual(attached.code, 0, attached.stderr);
+
+  const settled = ospec(root, "check", "--change", "order-events", "--json");
+  assert.strictEqual(settled.code, 0, settled.stderr);
+  assert.ok(!settled.json.missing.some((entry) => entry.obligation === "adr-impact-declaration"), JSON.stringify(settled.json.missing));
+  const state = stateOf(root, "order-events");
+  assert.strictEqual(state.obligations.find((entry) => entry.id === "adr-impact-declaration").status, "satisfied");
+  assert.deepStrictEqual(state.evidence.find((entry) => entry.kind === "adr-impact-declaration").detail, { refs: ["adr:0002 amends"], records: [record] });
+
+  // A new ADR that no longer passes the lint reopens the declaration.
+  writeFile(root, record, "# 0003. Los módulos se integran por eventos\n\nEnmienda 0002.\n");
+  const broken = ospec(root, "check", "--change", "order-events", "--json");
+  assert.match(broken.json.missing.find((entry) => entry.obligation === "adr-impact-declaration").reason, /fails the decision-record lint/);
+});
+
+test("next suggests an ADR for a boundary without a declared one, without blocking", (t) => {
+  const { root } = architectureProject(t);
+  ospec(root, ...OPEN_EVENTS);
+  const planned = ospec(root, "signals", "--change", "order-events", "--path", "src/api/orders.js");
+  assert.strictEqual(planned.code, 0, planned.stderr);
+  assert.match(planned.stdout, /suggestion adr-promotion: public contract: touches src\/api\/orders\.js/);
+  const next = ospec(root, "next", "--change", "order-events", "--json");
+  assert.deepStrictEqual(next.json.suggestions.map((entry) => entry.id), ["adr-promotion"]);
+  assert.strictEqual(next.json.next_step.obligation, "contract-spec-and-test");
+});

@@ -15,7 +15,9 @@ const {
   EMPTY_TREE,
   IddWorkspaceError,
   commitTree,
+  readArchitecture,
   readCheckTreeFingerprint,
+  readDecisionRecords,
   readGitDiff,
   readHead,
   readProjectContext,
@@ -224,4 +226,34 @@ test("a snapshot tree holds tracked and untracked files without touching the ind
     { path: "src/new.js", added: 1, deleted: 0 },
   ]);
   assert.strictEqual(snapshotTree(root), tree, "the same working tree gives the same tree");
+});
+
+// ---------------------------------------------------------------------------
+// Architecture references and new ADRs (E3.1, REQ-idd-020)
+// ---------------------------------------------------------------------------
+
+test("readArchitecture finds ADRs by id and scenarios in the knowledge map, and none without them", (t) => {
+  const root = tempDir(t);
+  assert.deepStrictEqual(readArchitecture(root), { adrs: new Map(), scenarios: new Set() });
+
+  write(root, "docs/architecture/decisions/0002-sync.md", "# 0002. Integración síncrona\n\n- Status: accepted\n");
+  write(root, "docs/architecture/decisions/README.md", "# Decisiones\n");
+  write(root, "docs/architecture/knowledge-map.yaml", JSON.stringify({ quality_scenarios: [{ id: "deterministic-resume" }, { name: "sin id" }] }));
+  const { adrs, scenarios } = readArchitecture(root);
+  assert.deepStrictEqual([...adrs], [["0002", { path: "docs/architecture/decisions/0002-sync.md", status: "accepted" }]]);
+  assert.deepStrictEqual([...scenarios], ["deterministic-resume"]);
+
+  write(root, "docs/architecture/knowledge-map.yaml", "quality_scenarios:\n  - id: x\n");
+  assert.throws(() => readArchitecture(root), (error) => error instanceof IddWorkspaceError && error.code === "knowledge-map-unreadable");
+});
+
+test("readDecisionRecords reports a missing ADR, its lint errors and the ids it cites", (t) => {
+  const root = tempDir(t);
+  write(root, "docs/architecture/decisions/0003-eventos.md", "# 0003. Eventos\n\nEnmienda 0002; ver ADR-0001.\n");
+  const records = readDecisionRecords(root, ["docs/architecture/decisions/0003-eventos.md", "docs/architecture/decisions/0004-x.md"]);
+  assert.deepStrictEqual(records["docs/architecture/decisions/0004-x.md"], { exists: false });
+  const read = records["docs/architecture/decisions/0003-eventos.md"];
+  assert.strictEqual(read.id, "0003");
+  assert.deepStrictEqual(read.cites, ["0003", "0002", "0001"]);
+  assert.ok(read.errors.some((error) => /missing required property "status"/.test(error)), read.errors.join("\n"));
 });

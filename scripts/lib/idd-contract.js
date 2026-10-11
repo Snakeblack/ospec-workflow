@@ -31,6 +31,7 @@ const STATE_FIELDS = Object.freeze([
   "plan",
   "signals",
   "retracted",
+  "impacts",
   "obligations",
   "gates",
   "evidence",
@@ -66,7 +67,7 @@ const SIGNALS = Object.freeze(
     { id: "public-contract", obligation: "contract-spec-and-test" },
     { id: "persistent-data", obligation: "migration-compat-and-test" },
     { id: "security-boundary", obligation: "trust-review" },
-    { id: "adr-or-quality-attribute", obligation: "adr-impact-declaration", availableFrom: "E3.1" },
+    { id: "adr-or-quality-attribute", obligation: "adr-impact-declaration" },
   ].map(Object.freeze),
 );
 
@@ -86,6 +87,16 @@ const OBLIGATIONS = Object.freeze(
 const EVIDENCE_KINDS = Object.freeze(OBLIGATIONS.map((obligation) => obligation.evidence));
 
 const GATES = Object.freeze(["ambiguous-intent", "open-facts", "adr-amend-or-contradict", "irreversible-operation"]);
+
+// Architecture references a change declares (E3.1): accepted ADRs under
+// DECISIONS_ROOT and quality scenarios of the knowledge map. Each gets one
+// impact; the gated impacts open adr-amend-or-contradict, and an ADR amended
+// or superseded needs the new ADR that does it (REQ-idd-005, REQ-idd-008).
+const DECISIONS_ROOT = "docs/architecture/decisions";
+const REFERENCE_KINDS = Object.freeze(["adr", "scenario"]);
+const IMPACTS = Object.freeze(["none", "conforms", "amends", "supersedes", "contradicts"]);
+const GATED_IMPACTS = Object.freeze(["amends", "supersedes", "contradicts"]);
+const RECORDED_IMPACTS = Object.freeze(["amends", "supersedes"]);
 
 // Signals a declaration of planned paths or work units can overstate, so a
 // declared one may be retracted while the diff does not confirm it (E1.11).
@@ -109,7 +120,6 @@ function deriveObligations(signalIds) {
   for (const id of signalIds) {
     const signal = SIGNAL_BY_ID.get(id);
     if (!signal) throw new Error(`unknown signal: ${id}`);
-    if (signal.availableFrom) throw new Error(`signal ${id} is not available until ${signal.availableFrom}`);
     obligations.add(signal.obligation);
   }
   return [...obligations].sort();
@@ -138,6 +148,7 @@ function validateState(state) {
   if ("runs" in state && !Array.isArray(state.runs)) fail("runs must be a list");
   if ("reviews" in state && !Array.isArray(state.reviews)) fail("reviews must be a list");
   if ("retracted" in state && !Array.isArray(state.retracted)) fail("retracted must be a list");
+  if ("impacts" in state && !Array.isArray(state.impacts)) fail("impacts must be a list");
   if (state.closed_at != null && (state.status !== "closed" || typeof state.closed_at !== "string")) {
     fail("closed_at is the close time of a closed change");
   }
@@ -163,6 +174,7 @@ function validateState(state) {
   if (intent.request != null && typeof intent.request !== "string") fail("intent.request must be text");
   validateFacts(state, fail);
   validatePlan(state.plan, fail);
+  validateImpacts(state.impacts, fail);
 
   for (const signal of state.signals) {
     if (!SIGNAL_BY_ID.has(signal.id)) fail(`unknown signal: ${signal.id}`);
@@ -202,6 +214,9 @@ function validateState(state) {
   for (const entry of state.evidence) {
     if (entry.kind === "contract-spec-and-test") validateContractEvidence(entry, evidenceById, fail);
     if (entry.kind === "frozen-review") validateReviewEvidence(entry, reviews, fail);
+    if (entry.kind === "adr-impact-declaration" && !(Array.isArray(entry.detail?.refs) && entry.detail.refs.length > 0)) {
+      fail(`evidence ${entry.id} must name the declared references it settles`);
+    }
   }
 
   for (const obligation of state.obligations) {
@@ -366,6 +381,36 @@ function validatePlan(plan, fail) {
   if (!valid) fail("plan must hold its paths, work_units (at least 1), decision and operations");
 }
 
+// The declared architecture references (E3.1): an ADR or quality scenario,
+// its impact once declared with the reason, and the new ADR that amends or
+// supersedes an ADR. States recorded before E3.1 have none and stay valid.
+function validateImpacts(impacts, fail) {
+  if (impacts === undefined) return;
+  const isText = (value) => typeof value === "string" && value.trim() !== "";
+  const seen = new Set();
+  for (const entry of impacts) {
+    const label = `impact ${entry?.kind}:${entry?.id}`;
+    if (entry == null || !REFERENCE_KINDS.includes(entry.kind) || !isText(entry.id)) {
+      fail("an impact needs a kind (adr or scenario) and an id");
+      continue;
+    }
+    if (seen.has(`${entry.kind}:${entry.id}`)) fail(`${label} is declared twice`);
+    seen.add(`${entry.kind}:${entry.id}`);
+    for (const key of Object.keys(entry)) {
+      if (!["kind", "id", "impact", "reason", "record"].includes(key)) fail(`${label} has unknown field ${key}`);
+    }
+    if (entry.impact === null) {
+      if (entry.reason !== undefined || entry.record !== undefined) fail(`${label} has a reason or record before its impact`);
+      continue;
+    }
+    if (!IMPACTS.includes(entry.impact)) fail(`${label} must be one of ${IMPACTS.join(", ")}`);
+    if (!isText(entry.reason)) fail(`${label} needs the reason for its impact`);
+    if (entry.record !== undefined && (!isText(entry.record) || entry.kind !== "adr" || !RECORDED_IMPACTS.includes(entry.impact))) {
+      fail(`${label}: only an ADR amended or superseded names its new record`);
+    }
+  }
+}
+
 function isIntentAmbiguous(state) {
   return state.gates.some((gate) => gate.id === "ambiguous-intent" && gate.status === "open");
 }
@@ -392,17 +437,22 @@ module.exports = {
   CHANGE_ID_PATTERN,
   CHANGE_ROOT,
   CHANGE_STATUSES,
+  DECISIONS_ROOT,
   DEFAULT_MODE,
   EVIDENCE_KINDS,
   EVIDENCE_MARKERS,
+  GATED_IMPACTS,
   GATES,
   GATE_STATUSES,
+  IMPACTS,
   INTENT_KINDS,
   LIVING_DOC_FILE,
   LIVING_DOC_SECTIONS,
   MODES,
   OBLIGATIONS,
   OBLIGATION_STATUSES,
+  RECORDED_IMPACTS,
+  REFERENCE_KINDS,
   RUN_EVIDENCE,
   RETRACTABLE_SIGNALS,
   RUN_PURPOSES,

@@ -1,0 +1,30 @@
+{
+  "id": "architecture-amendment",
+  "description": "Asynchronous messaging between two modules departs from the ADR that fixes their synchronous integration: the impact declaration plus the adr-amend-or-contradict gate.",
+  "input": {
+    "request": "Publish an order-placed event so billing reacts asynchronously instead of being called by orders.",
+    "intent": {
+      "kind": "feature",
+      "summary": "Orders publishes order-placed on an in-process queue and billing subscribes to it.",
+      "acceptance": "Placing an order no longer calls billing directly; billing invoices the order after consuming order-placed.",
+      "ambiguous": false
+    },
+    "project": { "mode": "idd", "strict_tdd": false, "checks": ["npm test"] },
+    "paths": ["src/orders/place-order.js", "src/billing/order-placed-subscriber.js", "src/shared/queue.js"],
+    "work_units": 1,
+    "non_obvious_decision": false,
+    "operations": [],
+    "architecture": {
+      "adrs": ["0002"],
+      "quality": [],
+      "impacts": [{ "adr": "0002", "impact": "amends", "reason": "modules integrate through asynchronous events instead of direct calls" }]
+    }
+  },
+  "expected": {
+    "signals": ["adr-or-quality-attribute", "always"],
+    "obligations": ["adr-impact-declaration", "checks-pass"],
+    "gates": ["adr-amend-or-contradict"],
+    "living_doc": false,
+    "next": { "action": "resolve-gate", "gate": "adr-amend-or-contradict", "pending_decision": "adr-amend-or-contradict" }
+  }
+}

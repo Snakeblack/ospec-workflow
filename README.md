@@ -42,6 +42,7 @@ A one-line fix and a schema migration do not need the same ceremony. IDD has no 
 | `persistent-data` | The change touches migrations, SQL or ORM schemas | `migration-compat-and-test`: a migration test with a compatibility or rollback plan |
 | `security-boundary` | The change touches auth, security, permissions, secrets or credentials | `trust-review`: a bounded read-only trust review |
 | `multi-unit-or-decision` | Several work units or a recorded design decision | `living-doc`: `idd/<change>/change.md` keeps the plan and decisions current |
+| `adr-or-quality-attribute` | `ospec signals --adr <id>` or `--quality <id>` declares the ADRs or quality scenarios the change touches | `adr-impact-declaration`: `none`, `conforms`, `amends`, `supersedes` or `contradicts` for each; the last three stop at `adr-amend-or-contradict`, and an amendment brings a new ADR that passes the lint |
 
 The patterns adapt to the detected stack (Node, JVM, .NET, Python, Go) and extend under `impact:` in `idd/config.yaml`. The four gates are `ambiguous-intent` (no acceptance can be stated yet), `open-facts` (behaviors that neither the request nor the code settle, asked all at once before editing), `irreversible-operation` and `adr-amend-or-contradict`. Every open gate is asked before the work it decides.
 

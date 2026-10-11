@@ -9,9 +9,14 @@
 
 const {
   CHANGE_ID_PATTERN,
+  DECISIONS_ROOT,
+  GATED_IMPACTS,
   GATES,
+  IMPACTS,
   INTENT_KINDS,
   OBLIGATIONS,
+  RECORDED_IMPACTS,
+  REFERENCE_KINDS,
   RETRACTABLE_SIGNALS,
   SIGNALS,
   SIGNAL_SOURCES,
@@ -188,7 +193,6 @@ function recordSignal(state, { id, reason, source } = {}) {
   if (isIntentAmbiguous(state)) refuse("ambiguous-intent-open", "no signal is derived while the intent is ambiguous");
   const signal = SIGNAL_BY_ID.get(id);
   if (!signal) refuse("unknown-signal", `unknown signal: ${id}`);
-  if (signal.availableFrom) refuse("signal-unavailable", `signal ${id} is not available until ${signal.availableFrom}`);
   requireText(reason, "reason-required", `signal ${id} needs a reason`);
   if (!SIGNAL_SOURCES.includes(source)) refuse("invalid-source", `signal source must be one of ${SIGNAL_SOURCES.join(", ")}`);
 
@@ -318,6 +322,98 @@ function recordRetract(state, { id, reason, confirmedBy = null } = {}) {
   return { state: next, changed: true };
 }
 
+function referenceLabel({ kind, id }) {
+  return kind === "adr" ? `ADR ${id}` : `scenario ${id}`;
+}
+
+// Records the architecture references `ospec signals` was told the change
+// touches (E3.1), each still without its impact. A reference already recorded
+// keeps its impact; a new one reopens a settled declaration, which no longer
+// covers every reference.
+function recordReferences(state, refs = []) {
+  requireOpen(state);
+  const missing = refs.filter((ref) => !(state.impacts || []).some((entry) => entry.kind === ref.kind && entry.id === ref.id));
+  if (missing.length === 0) return unchanged(state);
+  const next = structuredClone(state);
+  next.impacts = [...(next.impacts || []), ...missing.map(({ kind, id }) => ({ kind, id, impact: null }))];
+  const declaration = next.obligations.find((entry) => entry.id === "adr-impact-declaration");
+  if (declaration?.status === "satisfied") {
+    declaration.status = "pending";
+    declaration.evidence = [];
+  }
+  return { state: next, changed: true };
+}
+
+function requireRecordPath(record) {
+  requireText(record, "invalid-record", "--record needs the path of the new ADR");
+  const file = normalizePath(record);
+  if (!file.startsWith(`${DECISIONS_ROOT}/`) || !file.endsWith(".md") || file.split("/").includes("..")) {
+    refuse("invalid-record", `the new ADR must be a .md file under ${DECISIONS_ROOT}/, got ${record}`);
+  }
+  return file;
+}
+
+// An amendment, a supersession or a contradiction is the user's decision
+// (REQ-idd-008): it opens adr-amend-or-contradict, or adds its reason while
+// the gate is still open. Once the user answered, a new one is refused, so
+// no departure from an ADR passes without being asked.
+function openImpactGate(next, reason) {
+  const gate = next.gates.find((entry) => entry.id === "adr-amend-or-contradict");
+  if (!gate) next.gates.push({ id: "adr-amend-or-contradict", status: "open", reason });
+  else if (gate.status === "open") gate.reason = gate.reason ? `${gate.reason}; ${reason}` : reason;
+  else refuse("gate-resolved", `adr-amend-or-contradict is already resolved (${gate.answer}); declare every amendment before the user answers`);
+}
+
+/**
+ * Declares the impact of a change on one declared architecture reference
+ * (E3.1, REQ-idd-005): none, conforms, amends, supersedes or contradicts, with
+ * its reason. An impact is declared once; afterwards only the new ADR that
+ * amends or supersedes an ADR can be attached with `record`.
+ */
+function recordImpact(state, { kind, id, impact, reason, record } = {}) {
+  requireOpen(state);
+  if (isIntentAmbiguous(state)) refuse("ambiguous-intent-open", "no impact is declared while the intent is ambiguous");
+  if (!REFERENCE_KINDS.includes(kind) || typeof id !== "string" || id === "") {
+    refuse("invalid-reference", "record impact needs --adr <id> or --quality <id>");
+  }
+  const label = referenceLabel({ kind, id });
+  const entry = (state.impacts || []).find((item) => item.kind === kind && item.id === id);
+  if (!entry) {
+    refuse("reference-not-declared", `${label} is not declared: run ospec signals --change ${state.change} --${kind === "adr" ? "adr" : "quality"} ${id}`);
+  }
+  const file = record == null ? undefined : requireRecordPath(record);
+  const canRecord = (value) => kind === "adr" && RECORDED_IMPACTS.includes(value);
+
+  if (impact == null) {
+    if (file === undefined) refuse("impact-required", "record impact needs --impact <value>, or --record to attach the new ADR");
+    if (entry.impact == null) refuse("impact-required", `declare the impact of ${label} before attaching its new ADR`);
+  } else {
+    if (!IMPACTS.includes(impact)) refuse("invalid-impact", `impact must be one of ${IMPACTS.join(", ")}, got ${impact}`);
+    requireText(reason, "reason-required", `the impact on ${label} needs a reason`);
+    if (entry.impact != null && (entry.impact !== impact || entry.reason !== reason)) {
+      refuse("impact-conflict", `${label} is already declared as ${entry.impact}: ${entry.reason}`);
+    }
+  }
+  const value = impact ?? entry.impact;
+  if (file !== undefined && !canRecord(value)) {
+    refuse("invalid-record", `only an ADR amended or superseded names its new ADR; ${label} is ${value}`);
+  }
+  if (file !== undefined && entry.record !== undefined && entry.record !== file) {
+    refuse("impact-conflict", `${label} already names its new ADR ${entry.record}`);
+  }
+  if (entry.impact != null && (file === undefined || entry.record === file)) return unchanged(state);
+
+  const next = structuredClone(state);
+  const target = next.impacts.find((item) => item.kind === kind && item.id === id);
+  if (target.impact == null) {
+    target.impact = impact;
+    target.reason = reason;
+    if (GATED_IMPACTS.includes(impact)) openImpactGate(next, `${label} ${impact}: ${reason}`);
+  }
+  if (file !== undefined) target.record = file;
+  return { state: next, changed: true };
+}
+
 // Library-only until E1.4 wires it to the commands that produce evidence
 // (REQ-idd-007): the CLI never lets the model assert evidence.
 function recordEvidence(state, { id, kind, obligation: obligationId, recordedAt, detail } = {}) {
@@ -350,8 +446,10 @@ module.exports = {
   IddRecordError,
   recordEvidence,
   recordGate,
+  recordImpact,
   recordIntent,
   recordPlan,
+  recordReferences,
   recordRetract,
   recordSignal,
   recordWithdraw,

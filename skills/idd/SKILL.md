@@ -77,8 +77,11 @@ when requested. `ospec doctor` warns about open IDD changes without checks.
 4. Declare the plan before editing: `ospec signals --change <id> --path <file>...`
    with every file you expect to touch; add `--work-units <n>` when the work
    splits into several units, `--decision` when it records a design decision,
-   and `--operation <op>` for a destructive or irreversible operation. `next`
-   returns `declare-plan` until you do. If the plan overstated a signal, retract
+   and `--operation <op>` for a destructive or irreversible operation. Read
+   the ADRs under `docs/architecture/decisions/` that govern that code, and
+   add `--adr <id>` for each one and `--quality <id>` for each quality
+   scenario of `docs/architecture/knowledge-map.yaml` the change bears on.
+   `next` returns `declare-plan` until you do. If the plan overstated a signal, retract
    it with `ospec record retract --change <id> --signal <id> --reason "<why>"`;
    the CLI refuses while the diff confirms it.
 5. Loop: `ospec next --change <id> --json`, do what `next_step` says, repeat.
@@ -92,6 +95,12 @@ when requested. `ospec doctor` warns about open IDD changes without checks.
    - `contract-spec-and-test`: update the contract document and its test.
    - `migration-compat-and-test`: run the migration test with
      `--plan "<compatibility or rollback plan>"`.
+   - `adr-impact-declaration`: for each declared ADR or scenario,
+     `ospec record impact --change <id> --adr <id> --impact <none|conforms|amends|supersedes|contradicts> --reason "<why>"`.
+     Amending, superseding or contradicting opens `adr-amend-or-contradict`.
+     Once the user approves an amendment or supersession, write the new ADR
+     with the foundation template (never rewrite an accepted one) and attach
+     it with `--record <path>`; `ospec check` lints it.
    - `trust-review`: `ospec review start`, hand the returned request to the
      read-only `review-trust` reviewer, and pass its findings JSON unchanged to
      `ospec review record --result @<file>`. Fix what it blocks on, run
@@ -101,6 +110,10 @@ when requested. `ospec doctor` warns about open IDD changes without checks.
    - `checks-pass`: `ospec check` runs every declared check on the current
      tree.
    - `living-doc`: keep the Plan and Decisions of `idd/<id>/change.md` current.
+     A development decision stays there; it is never an ADR.
+
+   A `suggestions` entry `adr-promotion` never blocks: when the change takes
+   an architecture decision at a boundary, propose an ADR to the user.
 6. `ospec check` recomputes the signals from the real diff. New obligations can
    appear: work them like the rest. One leaves `pending` only through evidence,
    or through `ospec record withdraw --reason` when no active signal derives it.
@@ -148,12 +161,11 @@ answer:
   statement in the diff opens it. Before any other destructive or
   irreversible step (deleting data, rewriting published history), open it
   yourself: `ospec record gate --change <id> --gate irreversible-operation --open --reason "<operation>"`.
-- `adr-amend-or-contradict`: no command detects it, so check it yourself
-  before declaring the plan. Read the architecture decisions that govern the
-  code you will touch (`docs/architecture/decisions/` unless the project keeps
-  them elsewhere). If the change amends or contradicts one, open the gate with
-  `ospec record gate --change <id> --gate adr-amend-or-contradict --open --reason "<ADR>: <how the change departs from it>"`
-  and ask. A change that conforms opens nothing.
+- `adr-amend-or-contradict`: an impact `amends`, `supersedes` or
+  `contradicts` opens it. Declare every one before asking, since the gate is
+  answered once. For a departure no declared reference covers, open it with
+  `ospec record gate --change <id> --gate adr-amend-or-contradict --open --reason "<ADR>: <how the change departs from it>"`.
+  A change that conforms opens nothing.
 
 Resolve each one with `ospec record gate --change <id> --gate <id> --resolve --answer "<their words>" --source user`.
 Only an explicit answer from the user resolves a gate. Outside these gates
