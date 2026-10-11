@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.126.0] - 2026-10-11
+
+### Added
+- **Traspaso del roadmap al cerrar un change**: tras `ospec close` (skill `idd`) o tras el recibo del runtime de archivo SDD (`skills/_shared/gate-archive-quality.md`), y después de la entrega que pida el usuario, el agente busca `docs/roadmap.md` o `docs/roadmaps/*.md` y toma el ítem marcado como siguiente. Si hay herramientas de memoria entre sesiones, guarda un traspaso bajo la clave `roadmap/next-change`, uno por proyecto: el change cerrado, el siguiente ítem, la ruta del roadmap y el estado de la entrega. Sin memoria, propone igual. Siempre propone continuar en una sesión nueva y no empieza el ítem salvo que el usuario lo pida. Sin siguiente ítem, o con el siguiente bloqueado, lo dice y no propone nada. Hecho con IDD (`idd/archive/2026-10-11-roadmap-handoff/`).
+
+### Changed
+- **Addendum de memoria del orquestador SDD**: guarda ese traspaso una vez, después del archivo y de la entrega. El router siempre cargado no cambia: el traspaso vive solo en lo que se carga bajo demanda, sin coste de contexto fijo.
+
+**Verificación directa**: `node scripts/check.js` (3521 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.125.0] - 2026-10-11
 
 ### Added
