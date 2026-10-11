@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
-const { lintDecisionRecord } = require("./decision-records.js");
+const { lintDecisionRecord, parseAdrMarkdown } = require("./decision-records.js");
 
 const ROOT = path.resolve(__dirname, "../../schemas/foundation/decision-records");
 const VALID = ["adr.json", "tsr.json", "dc.json"];
@@ -139,4 +139,58 @@ test("[REQ-decision-records-006] with a root, evidence that does not resolve rej
 test("[REQ-decision-records-006] only an ADR may be inferred", () => {
   const { parsed } = readFixture("fixtures/valid/tsr.json");
   assert.equal(lintDecisionRecord({ ...parsed, status: "inferred" }).valid, false);
+});
+
+function readMarkdown(name) {
+  return fs.readFileSync(path.join(ROOT, "fixtures/markdown", name), "utf8");
+}
+
+test("[REQ-decision-records-007] a Markdown ADR parses into its record and lints quietly", () => {
+  const record = parseAdrMarkdown(readMarkdown("0001-one-deployable-unit.md"), { stack: ["PostgreSQL"] });
+  assert.equal(record.schema, "ospec-decision-record/v1");
+  assert.equal(record.kind, "adr");
+  assert.equal(record.id, "0001");
+  assert.equal(record.title, "One deployable unit owns its data");
+  assert.equal(record.status, "accepted");
+  assert.equal(record.date, "2026-10-10");
+  assert.deepEqual(record.evidence, [
+    "schemas/foundation/decision-records/v1.schema.json:1",
+    "schemas/foundation/decision-records/v1.schema.json:4",
+  ]);
+  assert.deepEqual(record.drivers, [
+    { kind: "scenario", id: "latency-under-load" },
+    { kind: "constraint", id: "one-team" },
+  ]);
+  assert.deepEqual(record.options, [
+    "One deployable unit: one write path and one failure domain.",
+    "PostgreSQL per service: rejected here; a product name belongs in the technology record.",
+  ]);
+  assert.equal(record.decision, "One deployable unit owns its data and its write path.");
+  assert.equal(record.review_trigger, "A second team needs to deploy on its own cadence.");
+  assert.deepEqual(record.stack, ["PostgreSQL"]);
+  const root = path.resolve(__dirname, "../..");
+  assert.deepEqual(lintDecisionRecord(record, { root }), { valid: true, errors: [], warnings: [] });
+});
+
+test("[REQ-decision-records-007] a missing section rejects the Markdown ADR", () => {
+  const result = lintDecisionRecord(parseAdrMarkdown(readMarkdown("0002-missing-decision.md")));
+  assert.equal(result.valid, false);
+  assert.deepEqual(result.warnings, []);
+});
+
+test("[REQ-decision-records-007] superseded by NNNN reads as superseded and the stack argument applies", () => {
+  const text = readMarkdown("0001-one-deployable-unit.md").replace("- Status: accepted", "- Status: superseded by 0007");
+  const record = parseAdrMarkdown(text, { stack: ["write path"] });
+  assert.equal(record.status, "superseded");
+  const result = lintDecisionRecord(record);
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.warnings.map((entry) => entry.code), ["technology-in-decision"]);
+});
+
+test("[REQ-decision-records-007] a driver cited twice counts once and prose is not a driver", () => {
+  const text = readMarkdown("0001-one-deployable-unit.md")
+    .replace("`constraint:one-team`", "`scenario:latency-under-load` and the latency scenario");
+  const record = parseAdrMarkdown(text);
+  assert.deepEqual(record.drivers, [{ kind: "scenario", id: "latency-under-load" }]);
+  assert.deepEqual(record.stack, []);
 });

@@ -1,0 +1,44 @@
+{
+  "schema": "ospec-component-map/v1",
+  "components": [
+    { "id": "cli", "summary": "Punto de entrada ospec: parsea la orden y delega en el motor IDD, la foundation y el doctor.", "evidence": ["scripts/ospec.js:86", "scripts/ospec.js:559"] },
+    { "id": "idd-engine", "summary": "Deriva señales y obligaciones de un cambio, registra la evidencia observada y lo cierra.", "evidence": ["scripts/lib/idd-signals.js:4", "scripts/lib/idd-close.js:4"] },
+    { "id": "change-state", "summary": "Posee el estado de cada cambio en disco, idd/<change>/state.yaml en IDD y openspec/changes/<change>/state.yaml en SDD: escritura atómica, bajo lock y validada.", "evidence": ["scripts/lib/idd-store.js:4", "scripts/lib/ospec-state.js:233"] },
+    { "id": "foundation", "summary": "Mapa de conocimiento, motor de rondas, registros de decisión y mapa de componentes.", "evidence": ["scripts/lib/decision-gap.js:9", "scripts/lib/decision-records.js:3"] },
+    { "id": "review-lineage", "summary": "Autoridad ejecutable de la revisión acotada del modo SDD: identidad, presupuesto e intentos.", "evidence": ["scripts/lib/review-lineage.js:14", "skills/_shared/gate-4r-review.md:5"] },
+    { "id": "generator", "summary": "Genera cada target desde la fuente canónica con una transformación pura.", "evidence": ["scripts/configure/cli.js:3", "scripts/lib/target-transform.js:9"] },
+    { "id": "hooks", "summary": "Guards del host: deniegan operaciones destructivas y validan el commit.", "evidence": ["scripts/hooks/pre-tool-use.js:45", "hooks/hooks.json:10"] },
+    { "id": "skills", "summary": "Prosa que guía al agente y delega cada algoritmo en el CLI.", "evidence": ["skills/idd/SKILL.md:17", "skills/foundation/SKILL.md:80"] },
+    { "id": "schemas", "summary": "Contratos de máquina versionados por esquema.", "evidence": ["schemas/foundation/knowledge-map/v1.schema.json:9", "schemas/foundation/decision-records/v1.schema.json:4"] }
+  ],
+  "boundaries": [
+    {
+      "id": "host-agent",
+      "summary": "El agente del host solo llega al estado a través del CLI y de los hooks; nunca escribe state.yaml.",
+      "components": ["cli", "hooks"],
+      "evidence": ["skills/idd/SKILL.md:21", "hooks/hooks.json:2"]
+    },
+    {
+      "id": "distribution",
+      "summary": "Lo que se instala en un proyecto sale del generador; la fuente canónica no se copia a mano.",
+      "components": ["generator"],
+      "evidence": ["scripts/configure/cli.js:3", "scripts/configure/cli.test.js:213"]
+    }
+  ],
+  "dependencies": [
+    { "from": "cli", "to": "idd-engine", "evidence": ["scripts/ospec.js:31", "scripts/ospec.js:50"] },
+    { "from": "cli", "to": "change-state", "evidence": ["scripts/ospec.js:51", "scripts/ospec.js:52"] },
+    { "from": "cli", "to": "foundation", "evidence": ["scripts/ospec.js:48"] },
+    { "from": "foundation", "to": "schemas", "evidence": ["scripts/lib/decision-gap.js:9", "scripts/lib/decision-records.js:8"] },
+    { "from": "generator", "to": "skills", "evidence": ["scripts/lib/target-transform.js:217"] },
+    { "from": "hooks", "to": "change-state", "evidence": ["scripts/hooks/pre-tool-use.js:16"] }
+  ],
+  "divergences": [
+    {
+      "id": "archive-promotes-development-decisions",
+      "summary": "La foundation dice que una decisión de desarrollo se queda en el documento vivo del cambio; el archivo SDD aún la promueve a docs/adr/. E3.1 lo corrige; el texto de la skill se conserva.",
+      "documented": "skills/foundation/SKILL.md:142",
+      "evidence": ["scripts/lib/archive-plan.js:213"]
+    }
+  ]
+}

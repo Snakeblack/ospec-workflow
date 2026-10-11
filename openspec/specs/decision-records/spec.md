@@ -12,8 +12,9 @@ implements one or more ADRs and names a dated source. A DC is a development
 decision. Foundation still writes the technology record as a section of
 `docs/architecture/technical-baseline.md`; this requirement does not move
 that output. An ADR recovered from an existing repository is `inferred` and
-cites `path:line` evidence (REQ-decision-records-006). Dogfood of this
-repository's ADRs stays in E2.6.
+cites `path:line` evidence (REQ-decision-records-006). A Markdown ADR in the
+foundation template parses into the same record (REQ-decision-records-007);
+this repository's ADRs in `docs/architecture/decisions/` lint that way.
 
 ## Requirements
 
@@ -120,4 +121,32 @@ be rejected with rule `evidence`; this is an error, never a warning.
 - GIVEN an ADR whose evidence names a line past the end of an existing file
 - WHEN it is linted with the repository as root
 - THEN it MUST be rejected with rule `evidence`
+- AND it MUST NOT produce a warning
+
+### Requirement: A Markdown ADR Lints As Its Record {#REQ-decision-records-007}
+
+`parseAdrMarkdown` MUST read the ADR template of
+`skills/foundation/references/foundation-details.md`: the `# NNNN. <title>`
+heading gives `id` and `title`; the `Status`, `Date` and `Evidence` items give
+`status`, `date` and the comma-separated `evidence`; `superseded by NNNN`
+MUST read as `superseded`. The sections `Context and drivers`, `Options
+considered`, `Decision`, `Consequences`, `Fitness function` and `Review
+trigger` MUST give their fields, each numbered option one entry. Each
+backticked `scenario:<id>`, `constraint:<id>` or `assumption:<id>` in the
+context MUST become one driver, once, in order of appearance; prose without
+that form MUST NOT. `stack` MUST come from the caller and be empty without it.
+A missing part MUST stay absent, so that the schema rejects the record.
+
+#### Scenario: The template parses into a quiet record
+
+- GIVEN a Markdown ADR in the template with two cited drivers
+- WHEN it is parsed and linted with the repository as root
+- THEN it MUST be valid with no warnings
+- AND its drivers MUST be the two cited ids
+
+#### Scenario: A missing section rejects the ADR
+
+- GIVEN a Markdown ADR without its `Decision` section
+- WHEN it is parsed and linted
+- THEN it MUST be rejected
 - AND it MUST NOT produce a warning

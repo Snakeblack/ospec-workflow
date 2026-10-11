@@ -8,8 +8,9 @@ El [`README.md`](../README.md) de la raíz presenta el harness y el inicio rápi
 | --- | --- |
 | [roadmaps/harness-evolution.md](roadmaps/harness-evolution.md) | **Roadmap único**: dirección, prioridad, estado y criterios de cierre. |
 | [analysis/](analysis/) | Evidencia fechada. La auditoría vigente es la del [2026-10-03](analysis/2026-10-03-auditoria-harness-y-gentle-ai.md). |
-| [architecture/](architecture/README.md) | Arquitectura vigente de ospec. La generará E2.6; mientras tanto, enlaza a la referencia técnica actual. |
-| [adr/](adr/) | Decisiones tomadas en changes archivados. E2.6 las reclasifica. |
+| [product/](product/brief.md) | Brief de ospec: problema, usuarios, objetivos y contexto de equipo. |
+| [architecture/](architecture/README.md) | Arquitectura vigente de ospec: technical baseline, mapas de conocimiento y componentes, y los ADR de arquitectura. |
+| [adr/](adr/README.md) | Decisiones de change archivadas (no son ADR de arquitectura), con su índice. |
 | [roadmaps/archive/](roadmaps/archive/) | Roadmap y arquitectura del programa K1–K12. Historia, nunca estado vigente. |
 
 ## IDD, el flujo por defecto

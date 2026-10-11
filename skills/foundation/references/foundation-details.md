@@ -47,6 +47,10 @@ The check (test, rule, measurement or review item) that detects a violation.
 The fact that would reopen this decision.
 ```
 
+Keep these headings and items as written: the decision-record lint parses
+this shape (`parseAdrMarkdown`). Only a backticked driver id counts as a
+driver.
+
 ## Technology record template
 
 Foundation still writes this content in the **Technology record** section of

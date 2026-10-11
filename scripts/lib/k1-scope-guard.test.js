@@ -179,6 +179,8 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/component-map.test.js",
   "scripts/lib/repository-evidence.js",
   "scripts/lib/repository-evidence.test.js",
+  // E2.6 dogfood: this repository's ADRs lint (roadmap harness-evolution).
+  "scripts/lib/architecture-decisions.test.js",
   // E1.13 pre-commit mode source and derived .ospec/ gitignore (roadmap harness-evolution).
   "scripts/lib/precommit-strict.js",
   "scripts/lib/precommit-strict.test.js",
