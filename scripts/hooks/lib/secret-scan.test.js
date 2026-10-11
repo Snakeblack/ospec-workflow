@@ -62,10 +62,32 @@ test("classifySensitiveFile: secrets.json y credentials → ask secrets-file", (
   }
 });
 
+test("classifySensitiveFile: cualquier .key es clave privada; un .pem suelto no", () => {
+  assert.deepEqual(classifySensitiveFile(path.join("repo", "server.key")), { action: "deny", kind: "private-key" });
+  assert.equal(classifySensitiveFile(path.join("repo", "server.pem")), null);
+  assert.equal(classifySensitiveFile(path.join("repo", "public.pem")), null);
+});
+
 test("classifySensitiveFile: archivos comunes → null", () => {
   for (const name of ["index.js", "README.md", "config.yaml", "id_card.md", "environment.ts"]) {
     assert.equal(classifySensitiveFile(path.join("repo", name)), null, name);
   }
+});
+
+test("scanContentForSecrets: una cabecera de clave privada pide revisión; un certificado no", () => {
+  const header = (label = "") => `-----BEGIN ${label}PRIVATE KEY-----`;
+  for (const content of [
+    `${header()}\nabc\n-----END PRIVATE KEY-----`,
+    header("RSA "),
+    header("OPENSSH "),
+    header("EC "),
+  ]) {
+    assert.deepEqual(scanContentForSecrets(content), { matched: true, patternId: "private-key-header" }, content);
+  }
+  assert.deepEqual(
+    scanContentForSecrets("-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----"),
+    { matched: false, patternId: null },
+  );
 });
 
 test("classifySensitiveFile: config fuera de .git no es git-config", () => {

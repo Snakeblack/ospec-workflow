@@ -217,6 +217,37 @@ func extractPaths(v interface{}) []string {
 	return paths
 }
 
+var declaredPathKeys = map[string]bool{
+	"file_path": true, "path": true, "target_file": true, "notebook_path": true,
+}
+
+var contentKeys = map[string]bool{
+	"content": true, "contents": true, "new_string": true, "new_str": true, "old_string": true, "text": true,
+}
+
+func collectKeyedStrings(value interface{}, keys map[string]bool) []string {
+	var found []string
+	var walk func(interface{})
+	walk = func(current interface{}) {
+		switch typed := current.(type) {
+		case map[string]interface{}:
+			for key, child := range typed {
+				if text, ok := child.(string); ok && keys[key] {
+					found = append(found, text)
+					continue
+				}
+				walk(child)
+			}
+		case []interface{}:
+			for _, child := range typed {
+				walk(child)
+			}
+		}
+	}
+	walk(value)
+	return found
+}
+
 var codeExtensions = map[string]bool{
 	".js": true, ".go": true, ".json": true, ".yaml": true, ".yml": true,
 	".md": true, ".ts": true, ".py": true, ".txt": true, ".rs": true,
@@ -401,6 +432,11 @@ func (h *preToolUseHandler) run(input *preToolUseInput, stdin []byte) ([]byte, i
 		_ = json.Unmarshal(stdin, &rawInput)
 
 		paths := extractPaths(rawInput.ToolInput)
+		for _, declared := range collectKeyedStrings(rawInput.ToolInput, declaredPathKeys) {
+			if absolute, err := filepath.Abs(declared); err == nil {
+				paths = append(paths, absolute)
+			}
+		}
 		for _, cmd := range cmds {
 			for _, file := range extractShellReadPaths(cmd) {
 				if absolute, err := filepath.Abs(file); err == nil {
@@ -421,6 +457,11 @@ func (h *preToolUseHandler) run(input *preToolUseInput, stdin []byte) ([]byte, i
 
 			// Escaneo de contenido (tokens conocidos + credenciales genéricas)
 			if matched, _ := scanFileForSecrets(filePath); matched {
+				return makeDecision("ask", "Advertencia de seguridad: El contenido de este archivo parece contener credenciales o tokens. ¿Está seguro de permitir su lectura?"), 0
+			}
+		}
+		for _, body := range collectKeyedStrings(rawInput.ToolInput, contentKeys) {
+			if matched, _ := scanContentForSecrets(body); matched {
 				return makeDecision("ask", "Advertencia de seguridad: El contenido de este archivo parece contener credenciales o tokens. ¿Está seguro de permitir su lectura?"), 0
 			}
 		}

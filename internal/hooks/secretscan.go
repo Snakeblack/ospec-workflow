@@ -29,6 +29,7 @@ var knownTokenPatterns = []knownTokenPattern{
 	{"aws-access-key", regexp.MustCompile(`AKIA[A-Z0-9]{16}`)},
 	{"slack-token", regexp.MustCompile(`xox[baprs]-[0-9a-zA-Z]{10,48}`)},
 	{"jwt", regexp.MustCompile(`eyJ[a-zA-Z0-9-_]+\.eyJ[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+`)},
+	{"private-key-header", regexp.MustCompile(`-----BEGIN (?:RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KEY-----`)},
 }
 
 // genericCredentialRegex detecta asignaciones genéricas de credencial:
@@ -61,7 +62,7 @@ func classifySensitiveFile(filePath string) *sensitiveFileClass {
 	isSSHKey := strings.HasPrefix(filename, "id_") &&
 		(ext == "" || ext == ".key" || ext == ".pem" ||
 			filename == "id_rsa" || filename == "id_ecdsa" || filename == "id_ed25519")
-	if isSSHKey {
+	if isSSHKey || ext == ".key" {
 		return &sensitiveFileClass{action: "deny", kind: "private-key"}
 	}
 

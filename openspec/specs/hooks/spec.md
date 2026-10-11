@@ -802,8 +802,8 @@ Evaluation MUST proceed in this order; the first match wins:
 
 **Step 2 — AGENT SHIELD SECURITY (Protección contra Fuga de Secretos).**
 Si el agente intenta leer un archivo (herramientas como `view_file` o lectura de URLs/recursos) y el archivo solicitado es sensible:
-- Si es una clave privada SSH (`id_rsa`, `id_ecdsa`, `id_ed25519`), `.git/config` o `.npmrc`, retornar `deny` con la razón: *"Acceso denegado: El archivo es una clave privada o configuración sensible del sistema y no puede ser leído por el agente."*
-- Si es `.env`, `.env.*`, `secrets.json`, `credentials` o archivos que contienen secretos detectados heurísticamente (como contraseñas fuertes o tokens de API usando expresiones regulares) en archivos de texto de tamaño inferior a 1MB, retornar `ask` con la razón: *"Advertencia de seguridad: Se detectó un posible archivo de entorno o secreto. ¿Está seguro de permitir su lectura?"*
+- Si es una clave privada SSH (`id_rsa`, `id_ecdsa`, `id_ed25519`), cualquier archivo `*.key`, `.git/config` o `.npmrc`, retornar `deny` con la razón: *"Acceso denegado: El archivo es una clave privada o configuración sensible del sistema y no puede ser leído por el agente."*
+- Si es `.env`, `.env.*`, `secrets.json`, `credentials`, una cabecera `BEGIN … PRIVATE KEY` en el contenido leído o escrito, o archivos que contienen secretos detectados heurísticamente (como contraseñas fuertes o tokens de API usando expresiones regulares) en archivos de texto de tamaño inferior a 1MB, retornar `ask` con la razón: *"Advertencia de seguridad: Se detectó un posible archivo de entorno o secreto. ¿Está seguro de permitir su lectura?"* Un `*.pem` que solo contiene un certificado no dispara esta regla.
 
 **Step 3 — TOKEN BUDGET ADVISOR (Lectura Pesada).**
 Si la herramienta lee archivos (como `view_file` o lectura de recurso) y el archivo tiene un tamaño de caracteres estimado superior a **200,000 caracteres** (equivalente heurístico a 50,000 tokens): el hook MUST retornar `ask` advirtiendo sobre el costo de lectura del archivo y requiriendo confirmación.
@@ -816,8 +816,8 @@ Si algún comando coincide con una regla de denegación: retornar `deny` con la 
 
 | Pattern intent | Example |
 |---|---|
-| Recursive forced deletion of filesystem root | `rm -rf / --no-preserve-root`, `sudo rm -fr /` |
-| Force-push git history | `git push --force`, `git push -f` |
+| Recursive forced deletion of filesystem root | `rm -rf / --no-preserve-root`, `sudo rm -fr /`, `rm -r -f /` |
+| Force-push git history | `git push --force`, `git push -f`, `git push origin +main` |
 | Pipe download to shell | `curl ... \| bash`, `wget ... \| sudo sh` |
 | Pipe download to PowerShell eval | `iwr ... \| iex`, `Invoke-RestMethod ... \| Invoke-Expression` |
 | Drive-root recursive forced deletion (Windows) | `Remove-Item C:\\ -Recurse -Force` |
@@ -871,12 +871,13 @@ Si algún comando coincide con una regla de consulta: retornar `ask` con la raz�
 | Hard git reset | `git reset --hard HEAD~1` |
 | Git clean (forced) | `git clean -fd` |
 | Docker Compose teardown | `docker compose down`, `docker-compose down --volumes` |
-| Recursive forced deletion (non-root) | `rm -rf ./dist` |
+| Recursive forced deletion (non-root) | `rm -rf ./dist`, `rm -r -f ./dist` |
 | Recursive permission/ownership change | `chmod -R 777 ./data`, `chown --recursive user:group .` |
 | PowerShell recursive forced removal (non-drive-root) | `Remove-Item ./dist -Recurse -Force` |
 | Recursive dir deletion (Windows cmd) | `rmdir /s build` |
 | Force-push with lease | `git push --force-with-lease` |
 | Machine restart or shutdown | `shutdown -h now`, `reboot`, `Restart-Computer` |
+| Download a file and then run a shell | `curl -o /tmp/i.sh && bash /tmp/i.sh`, `wget -O /tmp/i.sh && sh /tmp/i.sh` |
 
 **Step 7 — NO DECISION.** Ningún paso objeta: no escribir nada en stdout y salir con 0 (§3.1). En los pasos anteriores, «returns `allow`» significa que ese paso no objeta y la evaluación continúa.
 
