@@ -18,6 +18,7 @@ const {
   ARCHIVE_ROOT,
   CHANGE_ROOT,
   EVIDENCE_MARKERS,
+  GATED_IMPACTS,
   LIVING_DOC_FILE,
   LIVING_DOC_SECTIONS,
   STATE_FILE,
@@ -203,8 +204,9 @@ function adrId(record) {
 
 /**
  * The knowledge records of a closed change, derived from the disk with their
- * provenance: one per decision of change.md, one per declared impact other
- * than none and one per new ADR. Each names the stable topic under which a
+ * provenance: one per decision of change.md, one per declared impact that
+ * departs from its reference (amends, supersedes or contradicts) and one per
+ * new ADR. An impact that conforms stays in state.yaml only. Each names the stable topic under which a
  * memory keeps it, so saving it again updates the same entry.
  *
  * @param {{state: object, livingDoc: string|null, destination: string, adrTitles?: Map<string, string>}} input
@@ -220,7 +222,7 @@ function knowledgeRecords({ state, livingDoc, destination, adrTitles = new Map()
     ...base,
   }));
   for (const entry of state.impacts || []) {
-    if (!entry.impact || entry.impact === "none") continue;
+    if (!GATED_IMPACTS.includes(entry.impact)) continue;
     const label = entry.kind === "adr" ? "ADR" : "quality scenario";
     records.push({
       kind: "impact",
