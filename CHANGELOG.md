@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.129.0] - 2026-10-11
+
+### Added
+- **Fitness functions en `ospec check` (E3.3)**: mientras `adr-impact-declaration` está activa, `ospec check` ejecuta, después de los checks declarados, las comprobaciones de los ADR y escenarios de calidad de `impacts`. Cada ejecución queda como run `fitness` con su `ref`. Una que falla devuelve la obligación a `pending` con un motivo que cita el ADR o el escenario, la orden y el código de salida, por ejemplo `ADR 0006: fitness check \`node --test …\` failed with exit code 1`, y `ospec close` se niega (REQ-idd-022). Hecho con IDD (`idd/archive/2026-10-11-fitness-functions-in-check/`).
+  - Se leen de la base del cambio, nunca del árbol de trabajo: el cambio no puede borrar ni debilitar la comprobación que lo vigila.
+  - Quedan exentos un ADR `superseded` y uno que el cambio enmienda, sustituye o contradice con `adr-amend-or-contradict` resuelto.
+- **Comprobaciones en el ADR**: cada línea `- Check: \`<orden>\`` de la sección `Fitness function` es una comprobación ejecutable; la prosa sigue siendo la fitness function y el lint no cambia (REQ-decision-records-008).
+- **`ospec-knowledge-map/v2`** (`schemas/foundation/knowledge-map/v2.schema.json`): cada escenario de calidad puede declarar `fitness` con `checks` o `description`. Un mapa v1 sigue validando y una versión desconocida se rechaza con la regla `schema` (REQ-knowledge-map-005).
+- **`ospec record fitness --change <id> (--adr <id> | --quality <id>) --evidence <text>`**: guarda en `attestations` la evidencia manual de una fitness function sin comprobación. Una fitness function así es un checklist visible en `fitness.manual` de `next` y `check` que no bloquea el cierre, porque solo la evidencia observada satisface una obligación (ADR 0005).
+
+### Changed
+- **Estado IDD**: `idd-state/v1` admite el propósito de run `fitness` y el campo opcional `attestations`; los estados anteriores siguen siendo válidos.
+- **Skills `idd` y `foundation`**: la plantilla del ADR añade la línea `- Check:`. La skill `idd` explica que un fallo se corrige en el código, nunca en la comprobación, y cómo registrar la evidencia manual.
+- **Dogfooding**: los ADR 0001, 0002, 0004, 0005, 0007, 0008, 0009, 0010 y 0011 de ospec declaran sus comprobaciones. ADR 0006 gana una regla de frontera real (`scripts/lib/memory-boundary.test.js`: ningún módulo del motor IDD alcanza la detección de memoria) y 0003 queda en prosa. Se actualiza la evidencia `ruta:línea` que las ediciones desplazaron.
+- **Roadmap**: E3.3 `fitness-functions-in-check` pasa a hecho. E3.4 `team-context-defaults` queda como siguiente.
+
+**Verificación directa**: `node scripts/check.js` (3593 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.128.0] - 2026-10-11
 
 ### Added
