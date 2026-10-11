@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.130.0] - 2026-10-11
+
+### Added
+- **Perfil de equipo (E3.4)**: el perfil `team:` describe al equipo con `size` (`solo`, `small` o `multi-team`) y, opcional, `experience` (`junior`, `mixed` o `senior`), y sustituye a la escala `solo | team | enterprise`. Los defaults salen solo del perfil (REQ-idd-023). Hecho con IDD (`idd/archive/2026-10-11-team-context-defaults/`).
+  - Entrega: `single-pr`, `ask-on-risk` o `auto-chain`, siempre con el presupuesto de 400 líneas.
+  - Review: el 4R de SDD queda fuera con `solo`, y `multi-team` exige trazabilidad `required`. El `trust-review` de IDD sigue ligado a `security-boundary`.
+  - Strict TDD: `false`, `true` y `true` según el tamaño (`tdd_mode` `standard`, `focused` y `strict` en SDD); `junior` lo activa siempre.
+  - Mentoría: `mentor`, `balanced` o `expert` según la experiencia; sin experiencia, `balanced`.
+- **`ospec team [--mode idd|sdd] [--json]`**: de solo lectura, devuelve el modo, el perfil, su origen y sus defaults. Cada modo lee solo su configuración (ADR 0011): IDD, `idd/config.yaml`; SDD, `openspec/config.yaml`, donde la `scale:` antigua se sigue leyendo como respaldo (`team` → `small`, `enterprise` → `multi-team`).
+- **`team` en `ospec next`**: un change IDD recibe el perfil con su estrategia de entrega y su mentoría. Una configuración ilegible no cambia el siguiente paso.
+
+### Changed
+- **`idd/config.yaml`**: acepta la sección `team`. Si falta `strict_tdd`, lo decide el perfil; una clave explícita sigue ganando, y sin perfil todo se comporta como antes (REQ-idd-013).
+- **SDD**: el init guard pregunta una vez el perfil de equipo en lugar de la escala. `sdd-init` lo escribe en `openspec/config.yaml` y materializa los defaults que da `ospec team --mode sdd`. El orquestador toma de ellos la estrategia de entrega y la mentoría sin preguntar.
+- **Skills `foundation` e `idd`**: la foundation propone `team:` al entregar la configuración IDD; la skill `idd` propone la entrega y ajusta la prosa a la mentoría de `team`.
+- **Dogfooding**: ospec declara `team: { size: solo, experience: senior }`. Se actualiza la evidencia `ruta:línea` que las ediciones desplazaron.
+- **Roadmap**: E3.4 `team-context-defaults` pasa a hecho. E3.5 `knowledge-memory-loop` queda como siguiente.
+
+**Verificación directa**: `node scripts/check.js` (3604 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.129.0] - 2026-10-11
 
 ### Added
