@@ -1,6 +1,20 @@
 # Análisis Comparativo: `ospec-workflow` vs. Otros Arneses de Agentes de IA
 
-> **Histórico (v2.14.2).** Las puntuaciones de este documento están desactualizadas. La comparación vigente con gentle-ai está en la [auditoría del 2026-10-03](analysis/2026-10-03-auditoria-harness-y-gentle-ai.md#7-comparación-con-gentle-ai-punto-5).
+> **Histórico (v2.14.2).** Las puntuaciones de este documento están desactualizadas. La comparación vigente con gentle-ai está en la [auditoría del 2026-10-03](analysis/2026-10-03-auditoria-harness-y-gentle-ai.md#7-comparación-con-gentle-ai-punto-5) y, medida con agentes reales, en el [banco de E4.2](analysis/2026-10-12-bench-gentle-ai.md).
+
+**Medición vigente (banco de E4.2, 2026-10-12).** Seis escenarios, con Claude Code 2.1.296, Sonnet 5.5, la misma persona simulada y una repetición por escenario:
+
+| | gentle-ai 4.1.1 (ODD y RDD) | ospec-workflow 2.132.1 (IDD) |
+| --- | ---: | ---: |
+| Escenarios completos | 6/6 | 6/6 |
+| Checks ocultos en verde | 41/43 | 43/43 |
+| Defectos escapados | 2 | 0 |
+| Tokens | 6,16 M | 2,69 M |
+| Coste | $3,43 | $1,71 |
+| Hechos obtenidos del usuario | 6 de 25 | 24 de 25 |
+| Mutation score medio | 85,7 % | 78,5 % |
+
+Método, exclusiones y límites en el [informe](analysis/2026-10-12-bench-gentle-ai.md).
 
 Este documento presenta un análisis comparativo del arnés actual (**ospec-workflow v2.14.2**) frente a tres arneses de desarrollo asistido por IA de referencia en el ecosistema de código abierto:
 1. **[Gentle AI](https://github.com/Gentleman-Programming/gentle-ai)** de Gentleman Programming (código base de origen).

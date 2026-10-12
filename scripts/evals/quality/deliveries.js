@@ -1,7 +1,8 @@
 "use strict";
 
 // What an agent delivered in a bench workspace: the change it left on top of
-// the `setup` commit (HEAD), split into workflow artifacts and the product
+// the `setup` commit, committed or not (the ospec arms never commit; gentle-ai
+// commits every task), split into workflow artifacts and the product
 // (source, tests, types, docs). Pure helpers plus the git reads; nothing here
 // modifies a workspace.
 
@@ -12,7 +13,9 @@ const { spawnSync } = require("node:child_process");
 const CATEGORIES = Object.freeze(["source", "test", "types", "docs", "other"]);
 
 // Workflow state and artifacts of either mode, never product.
-const WORKFLOW = /^(\.ospec|openspec|idd|\.claude|\.agents|\.codex|\.cursor|\.opencode)\//;
+// Workflow state of ospec (SDD, IDD) and gentle-ai (odd/ feature documents,
+// .atl/ skill registry), and host directories.
+const WORKFLOW = /^(\.ospec|openspec|idd|odd|\.atl|\.claude|\.agents|\.codex|\.cursor|\.opencode)\//;
 const TEST = /(^|\/)(test|tests|__tests__)\/|\.(test|spec)\.[cm]?[jt]sx?$/;
 const TYPES = /\.d\.[cm]?ts$/;
 const DOCS = /\.(md|mdx|txt|rst)$|(^|\/)(CHANGELOG|LICENSE)[^/]*$/i;
@@ -111,20 +114,28 @@ function locateWorkspace(benchRoot, record, scenario) {
   throw new Error(`no workspace for ${record}/${scenario} under ${benchRoot}`);
 }
 
+// The commit the bench made after setup; the change starts there.
+function setupCommit(workspace) {
+  const commit = git(workspace, ["rev-list", "-n", "1", "--grep=^setup$", "HEAD"]).trim();
+  if (!commit) throw new Error(`no setup commit in ${workspace}`);
+  return commit;
+}
+
 // Untracked files are added with intent-to-add so the diff shows them; the
 // index is restored afterwards.
 function readDelivery(workspace) {
+  const base = setupCommit(workspace);
   const untracked = git(workspace, ["ls-files", "--others", "--exclude-standard"]).split(/\r?\n/).filter(Boolean);
   if (untracked.length > 0) git(workspace, ["add", "--intent-to-add", "--", ...untracked]);
   try {
-    const numstat = git(workspace, ["diff", "HEAD", "--numstat"]);
+    const numstat = git(workspace, ["diff", base, "--numstat"]);
     const files = numstat
       .split(/\r?\n/)
       .filter(Boolean)
       .map((line) => line.split("\t").slice(2).join("\t"));
     const product = files.filter((file) => classifyPath(file) !== "workflow");
-    const diff = product.length ? git(workspace, ["diff", "HEAD", "--", ...product]) : "";
-    const zeroContext = product.length ? git(workspace, ["diff", "HEAD", "-U0", "--", ...product]) : "";
+    const diff = product.length ? git(workspace, ["diff", base, "--", ...product]) : "";
+    const zeroContext = product.length ? git(workspace, ["diff", base, "-U0", "--", ...product]) : "";
     return { numstat, files, product, diff, zeroContext };
   } finally {
     if (untracked.length > 0) git(workspace, ["reset", "-q", "--", ...untracked]);

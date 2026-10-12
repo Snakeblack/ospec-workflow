@@ -1,0 +1,50 @@
+diff --git a/README.md b/README.md
+index 2ca530f..ac68ca5 100644
+--- a/README.md
++++ b/README.md
+@@ -4,3 +4,6 @@ Catálogo de productos de la tienda. `listProducts(page)` alimenta el listado
+ paginado de la web (`GET /products?page=N`) con `paginate(items, page, pageSize)`.
+ 
+ Pruebas: `npm test`.
++
++`paginate` calcula `totalPages` como `ceil(items.length / pageSize)` (una lista
++vacía tiene 0 páginas) y lanza `RangeError` si `pageSize` no es un entero positivo.
+diff --git a/src/paginate.js b/src/paginate.js
+index ed94097..cf51dd1 100644
+--- a/src/paginate.js
++++ b/src/paginate.js
+@@ -5,10 +5,14 @@
+  * @param {Array} items
+  * @param {number} page 1-based page number
+  * @param {number} [pageSize=10]
++ * @throws {RangeError} if `pageSize` is not a positive integer
+  * @returns {{ page: number, pageSize: number, totalPages: number, items: Array }}
+  */
+ function paginate(items, page, pageSize = 10) {
+-  const totalPages = Math.floor(items.length / pageSize) + 1;
++  if (!Number.isInteger(pageSize) || pageSize < 1) {
++    throw new RangeError("pageSize must be a positive integer");
++  }
++  const totalPages = Math.ceil(items.length / pageSize);
+   const start = (page - 1) * pageSize;
+   return { page, pageSize, totalPages, items: items.slice(start, start + pageSize) };
+ }
+diff --git a/test/paginate.js b/test/paginate.js
+index 6989bee..0c21a3c 100644
+--- a/test/paginate.js
++++ b/test/paginate.js
+@@ -21,3 +21,14 @@ test("partial last page", () => {
+ test("catalog lists ten products per page", () => {
+   assert.equal(listProducts(2).items[0].id, 11);
+ });
++
++test("exact multiple of page size has no trailing empty page", () => {
++  const twenty = items.slice(0, 20);
++  assert.equal(paginate(twenty, 1, 10).totalPages, 2);
++});
++
++test("invalid page size throws", () => {
++  for (const size of [0, -1, 1.5, NaN]) {
++    assert.throws(() => paginate(items, 1, size), RangeError);
++  }
++});

@@ -1,0 +1,80 @@
+diff --git a/README.md b/README.md
+index dbf6558..355125e 100644
+--- a/README.md
++++ b/README.md
+@@ -11,4 +11,8 @@ Cada acceso a datos de pacientes queda registrado en la auditoría
+ | `doctor` | Leer historias y la agenda |
+ | `reception` | Leer la agenda |
+ 
++`exportAppointmentsCsv(date, actor)` (`doctor` y `reception`) devuelve las citas
++de un día en CSV (`time,patient,reason`, ordenadas por hora). No incluye
++diagnósticos y la exportación queda auditada como `export-appointments`.
++
+ Pruebas: `npm test`.
+diff --git a/src/clinic.js b/src/clinic.js
+index e4eb220..80fcd50 100644
+--- a/src/clinic.js
++++ b/src/clinic.js
+@@ -32,7 +32,24 @@ function createClinic({ patients = [], appointments = [], audit = createAuditLog
+     return result;
+   }
+ 
+-  return { getPatient, appointmentsOn, audit };
++  function csvField(value) {
++    const text = String(value);
++    return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
++  }
++
++  // Exports patient names, so it is audited as its own action. Diagnoses are never included.
++  function exportAppointmentsCsv(date, actor) {
++    requireRole(actor, ["doctor", "reception"]);
++    const day = appointments.filter((item) => item.date === date).sort((a, b) => a.time.localeCompare(b.time));
++    const rows = day.map((item) => {
++      const patient = patients.find((candidate) => candidate.id === item.patientId);
++      return [item.time, patient ? patient.name : "", item.reason].map(csvField).join(",");
++    });
++    audit.record({ action: "export-appointments", actorId: actor.id, date, count: day.length });
++    return ["time,patient,reason", ...rows].join("\n") + "\n";
++  }
++
++  return { getPatient, appointmentsOn, exportAppointmentsCsv, audit };
+ }
+ 
+ module.exports = { createClinic, AccessDeniedError };
+diff --git a/test/clinic.js b/test/clinic.js
+index 6da846c..42f0e11 100644
+--- a/test/clinic.js
++++ b/test/clinic.js
+@@ -31,3 +31,32 @@ test("appointments of a day are listed and audited", () => {
+   assert.deepEqual(clinic.appointmentsOn("2026-10-06", reception).map((item) => item.id), ["a1"]);
+   assert.equal(clinic.audit.entries()[0].count, 1);
+ });
++
++test("reception exports a day's appointments as CSV sorted by time and the export is audited", () => {
++  const clinic = createClinic({
++    patients: [...patients, { id: "p2", nationalId: "87654321X", name: 'Ana "Nina", Ruiz', birthDate: "1990-01-01", diagnosis: "Asma" }],
++    appointments: [
++      { id: "a3", patientId: "p2", date: "2026-10-06", time: "08:15", reason: "Revisión, anual" },
++      ...appointments,
++    ],
++  });
++  assert.equal(
++    clinic.exportAppointmentsCsv("2026-10-06", reception),
++    'time,patient,reason\n08:15,"Ana ""Nina"", Ruiz","Revisión, anual"\n09:30,Luis Gómez,Control\n',
++  );
++  const entry = clinic.audit.entries()[0];
++  assert.deepEqual([entry.action, entry.actorId, entry.date, entry.count], ["export-appointments", "r1", "2026-10-06", 2]);
++});
++
++test("export without appointments yields only the header and does not expose diagnoses", () => {
++  const clinic = createClinic({ patients, appointments });
++  assert.equal(clinic.exportAppointmentsCsv("2030-01-01", doctor), "time,patient,reason\n");
++  assert.ok(!clinic.exportAppointmentsCsv("2026-10-06", doctor).includes("Hipertensión"));
++});
++
++test("export requires an authorized role", () => {
++  const clinic = createClinic({ patients, appointments });
++  assert.throws(() => clinic.exportAppointmentsCsv("2026-10-06", { id: "x1", role: "nurse" }), AccessDeniedError);
++  assert.throws(() => clinic.exportAppointmentsCsv("2026-10-06"), AccessDeniedError);
++  assert.equal(clinic.audit.entries().length, 0);
++});

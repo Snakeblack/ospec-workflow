@@ -1,0 +1,579 @@
+{
+  "baseline": "gentle-ai-1",
+  "candidate": "idd-3",
+  "scenarios": {
+    "cli-local": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-1/cli-local.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 25,
+            "test": 28,
+            "types": 0,
+            "docs": 2,
+            "other": 0
+          },
+          "removed": {
+            "source": 5,
+            "test": 0,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 1.12,
+          "suite_passes": true,
+          "suite_tests": 6
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 13,
+          "total": 13,
+          "killed": 10,
+          "survived": [
+            {
+              "file": "src/cli.js",
+              "line": 16,
+              "operator": "relational",
+              "text": "if (args.length <= 2 || args[args.length - 2] !== \"--priority\") return null;"
+            },
+            {
+              "file": "src/cli.js",
+              "line": 16,
+              "operator": "logical",
+              "text": "if (args.length < 2 && args[args.length - 2] !== \"--priority\") return null;"
+            },
+            {
+              "file": "src/cli.js",
+              "line": 16,
+              "operator": "literal",
+              "text": "if (args.length < 3 || args[args.length - 2] !== \"--priority\") return null;"
+            }
+          ],
+          "score": 76.9
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-3/cli-local.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 29,
+            "test": 31,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "removed": {
+            "source": 5,
+            "test": 2,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 1.07,
+          "suite_passes": true,
+          "suite_tests": 6
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 15,
+          "total": 15,
+          "killed": 13,
+          "survived": [
+            {
+              "file": "src/cli.js",
+              "line": 12,
+              "operator": "arithmetic",
+              "text": "return index === +1 ? PRIORITIES.indexOf(DEFAULT_PRIORITY) : index;"
+            },
+            {
+              "file": "src/cli.js",
+              "line": 12,
+              "operator": "literal",
+              "text": "return index === -2 ? PRIORITIES.indexOf(DEFAULT_PRIORITY) : index;"
+            }
+          ],
+          "score": 86.7
+        }
+      }
+    },
+    "saas-small": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-1/saas-small.diff",
+        "metrics": {
+          "files": {
+            "source": 2,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 32,
+            "test": 36,
+            "types": 0,
+            "docs": 3,
+            "other": 0
+          },
+          "removed": {
+            "source": 7,
+            "test": 0,
+            "types": 0,
+            "docs": 2,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 1.13,
+          "suite_passes": true,
+          "suite_tests": 6
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 19,
+          "total": 19,
+          "killed": 18,
+          "survived": [
+            {
+              "file": "src/app.js",
+              "line": 29,
+              "operator": "logical",
+              "text": "if (shareMatch || method === \"POST\") {"
+            }
+          ],
+          "score": 94.7
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-3/saas-small.diff",
+        "metrics": {
+          "files": {
+            "source": 2,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 25,
+            "test": 45,
+            "types": 0,
+            "docs": 3,
+            "other": 0
+          },
+          "removed": {
+            "source": 7,
+            "test": 0,
+            "types": 0,
+            "docs": 2,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 1.8,
+          "suite_passes": true,
+          "suite_tests": 7
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 24,
+          "total": 24,
+          "killed": 23,
+          "survived": [
+            {
+              "file": "src/app.js",
+              "line": 31,
+              "operator": "logical",
+              "text": "if (shareMatch || method === \"POST\") {"
+            }
+          ],
+          "score": 95.8
+        }
+      }
+    },
+    "regulated": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-1/regulated.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 18,
+            "test": 29,
+            "types": 0,
+            "docs": 4,
+            "other": 0
+          },
+          "removed": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 1.61,
+          "suite_passes": true,
+          "suite_tests": 6
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 3,
+          "total": 3,
+          "killed": 3,
+          "survived": [],
+          "score": 100
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-3/regulated.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 19,
+            "test": 39,
+            "types": 0,
+            "docs": 5,
+            "other": 0
+          },
+          "removed": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 2.05,
+          "suite_passes": true,
+          "suite_tests": 6
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 4,
+          "total": 4,
+          "killed": 3,
+          "survived": [
+            {
+              "file": "src/clinic.js",
+              "line": 38,
+              "operator": "arithmetic",
+              "text": "if (/^[=+\\+@\\t\\r]/.test(text)) text = `'${text}`;"
+            }
+          ],
+          "score": 75
+        }
+      }
+    },
+    "brownfield": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-1/brownfield.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 20,
+            "test": 61,
+            "types": 0,
+            "docs": 9,
+            "other": 0
+          },
+          "removed": {
+            "source": 4,
+            "test": 0,
+            "types": 0,
+            "docs": 3,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 3.05,
+          "suite_passes": true,
+          "suite_tests": 6
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 13,
+          "total": 13,
+          "killed": 12,
+          "survived": [
+            {
+              "file": "src/invoice.js",
+              "line": 41,
+              "operator": "relational",
+              "text": "var envio = subtotal - descuento > UMBRAL_ENVIO_GRATIS ? 0 : ENVIO;"
+            }
+          ],
+          "score": 92.3
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-3/brownfield.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 24,
+            "test": 45,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 4,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 1.88,
+          "suite_passes": true,
+          "suite_tests": 5
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 15,
+          "total": 15,
+          "killed": 14,
+          "survived": [
+            {
+              "file": "src/invoice.js",
+              "line": 42,
+              "operator": "relational",
+              "text": "var envio = subtotal - descuento > UMBRAL_ENVIO_GRATIS ? 0 : ENVIO;"
+            }
+          ],
+          "score": 93.3
+        }
+      }
+    },
+    "public-library": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-1/public-library.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 1,
+            "docs": 2,
+            "other": 0
+          },
+          "added": {
+            "source": 7,
+            "test": 19,
+            "types": 8,
+            "docs": 12,
+            "other": 0
+          },
+          "removed": {
+            "source": 5,
+            "test": 0,
+            "types": 3,
+            "docs": 3,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 2.71,
+          "suite_passes": true,
+          "suite_tests": 6
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 4,
+          "total": 4,
+          "killed": 4,
+          "survived": [],
+          "score": 100
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-3/public-library.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 1,
+            "docs": 2,
+            "other": 0
+          },
+          "added": {
+            "source": 10,
+            "test": 16,
+            "types": 6,
+            "docs": 11,
+            "other": 0
+          },
+          "removed": {
+            "source": 6,
+            "test": 0,
+            "types": 3,
+            "docs": 3,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 1.6,
+          "suite_passes": true,
+          "suite_tests": 5
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 5,
+          "total": 5,
+          "killed": 5,
+          "survived": [],
+          "score": 100
+        }
+      }
+    },
+    "bugfix": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-1/bugfix.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 5,
+            "test": 11,
+            "types": 0,
+            "docs": 3,
+            "other": 0
+          },
+          "removed": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 2.2,
+          "suite_passes": true,
+          "suite_tests": 5
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 4,
+          "total": 4,
+          "killed": 2,
+          "survived": [
+            {
+              "file": "src/paginate.js",
+              "line": 12,
+              "operator": "relational",
+              "text": "if (!Number.isInteger(pageSize) || pageSize <= 1) {"
+            },
+            {
+              "file": "src/paginate.js",
+              "line": 12,
+              "operator": "literal",
+              "text": "if (!Number.isInteger(pageSize) || pageSize < 2) {"
+            }
+          ],
+          "score": 50
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-3/bugfix.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 5,
+            "test": 31,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 2,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 6.2,
+          "suite_passes": true,
+          "suite_tests": 8
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 5,
+          "total": 5,
+          "killed": 1,
+          "survived": [
+            {
+              "file": "src/paginate.js",
+              "line": 12,
+              "operator": "relational",
+              "text": "if (!(pageSize > 1)) throw new RangeError(`pageSize must be >= 1, got ${pageSize}`);"
+            },
+            {
+              "file": "src/paginate.js",
+              "line": 12,
+              "operator": "literal",
+              "text": "if (!(pageSize >= 2)) throw new RangeError(`pageSize must be >= 1, got ${pageSize}`);"
+            },
+            {
+              "file": "src/paginate.js",
+              "line": 14,
+              "operator": "relational",
+              "text": "page = page > 1 ? Math.floor(page) : 1;"
+            },
+            {
+              "file": "src/paginate.js",
+              "line": 14,
+              "operator": "literal",
+              "text": "page = page >= 2 ? Math.floor(page) : 1;"
+            }
+          ],
+          "score": 20
+        }
+      }
+    }
+  }
+}
