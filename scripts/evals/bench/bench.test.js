@@ -204,6 +204,8 @@ test("setup-gentle-ai installs into the gentle-ai home and explains the login", 
 test("run --arm gentle-ai identifies the gentle-ai install as the plugin and builds no ospec plugin", async () => {
   const dir = tempDir();
   const home = path.join(dir, "home");
+  fs.mkdirSync(home);
+  fs.writeFileSync(path.join(home, ".claude.json"), JSON.stringify({ mcpServers: { engram: { command: "engram" } } }));
   const common = ["run", "--arm", "gentle-ai", "--record", "g1", "--config-dir", dir, "--gentle-ai-home", home, "--records-dir", dir, "--runs-dir", dir, "--workspaces-dir", dir, "--scenario", "bugfix"];
 
   const notInstalled = deps(dir, { identifyGentleAi: () => { throw new Error(`no gentle-ai install in ${home}`); } });
@@ -223,6 +225,7 @@ test("run --arm gentle-ai identifies the gentle-ai install as the plugin and bui
   assert.equal(await main(common, d), 0);
   assert.equal(hostOptions.pluginDir, null);
   assert.equal(hostOptions.gentleAi.home, home);
+  assert.deepEqual(JSON.parse(hostOptions.gentleAi.mcpConfig), { mcpServers: { engram: { command: "engram" } } });
   assert.equal(typeof hostOptions.gentleAi.startEngram, "function");
   assert.equal(hostOptions.configDir, dir, "the persona keeps the bench configuration");
   const record = JSON.parse(fs.readFileSync(path.join(dir, "g1.json"), "utf8"));

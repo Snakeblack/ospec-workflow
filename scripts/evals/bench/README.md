@@ -76,8 +76,11 @@ HOME="$HOME/.ospec-bench/gentle-ai" claude
 node scripts/evals/bench/bench.js run --arm gentle-ai --record gentle-ai-1 --repetitions 1
 ```
 
-Each gentle-ai workspace gets an empty Engram (data under `.git/bench-engram`,
-its own port) that the bench stops when the run ends, so no scenario sees
+The agent loads exactly the MCP servers gentle-ai registered (its Engram), with
+`--strict-mcp-config`, so the account's claude.ai connectors stay out as in the
+other arms. Each gentle-ai workspace gets an empty Engram (data under
+`.git/bench-engram`, its own port) that the bench stops when the run ends or is
+interrupted, so no scenario sees
 another's memory and none reaches the user's Engram. The persona keeps the
 bench configuration directory for every arm.
 

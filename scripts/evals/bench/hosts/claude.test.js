@@ -168,12 +168,13 @@ test("the gentle-ai agent runs from its HOME with its MCP server and an Engram p
     const port = String(40000 + started.length);
     return { env: { ENGRAM_DATA_DIR: path.join(workspaceRoot, ".git", "bench-engram"), ENGRAM_PORT: port }, stop: () => stopped.push(workspaceRoot) };
   };
+  const mcpConfig = JSON.stringify({ mcpServers: { engram: { type: "stdio", command: "engram", args: ["mcp"] } } });
   const host = createClaudeHost({
     executable: process.execPath,
     prefixArgs: [fakeClaude(dir)],
     configDir: path.join(dir, "config"),
     pluginDir: null,
-    gentleAi: { home, startEngram },
+    gentleAi: { home, startEngram, mcpConfig },
     model: "m",
     personaModel: "p",
     personaDir: dir,
@@ -187,7 +188,10 @@ test("the gentle-ai agent runs from its HOME with its MCP server and an Engram p
   assert.equal(first.home, home);
   assert.equal(first.config, null, "gentle-ai's MCP registry lives in $HOME/.claude.json, which CLAUDE_CONFIG_DIR would hide");
   assert.equal(first.engramPort, "40001");
-  for (const flag of ["--plugin-dir", "--strict-mcp-config"]) assert.ok(!first.args.includes(flag), flag);
+  assert.ok(!first.args.includes("--plugin-dir"));
+  assert.ok(first.args.includes("--strict-mcp-config"), "never the account's claude.ai connectors");
+  assert.equal(first.args.at(-1), mcpConfig, "only the MCP servers gentle-ai registered, last because the flag takes several values");
+  assert.equal(first.args.at(-2), "--mcp-config");
   assert.equal(started.length, 1, "one Engram for the workspace, reused by later turns");
   assert.deepEqual(started[0], { engramHome: home, workspaceRoot: workspace });
 
@@ -197,4 +201,10 @@ test("the gentle-ai agent runs from its HOME with its MCP server and an Engram p
   host.release(workspace);
   host.release(workspace);
   assert.deepEqual(stopped, [workspace], "released once");
+
+  const other = path.join(dir, "ws2");
+  fs.mkdirSync(other);
+  await host.turn({ cwd: other, prompt: "x", sessionId: null, transcriptPath: path.join(dir, "t3.jsonl") });
+  host.releaseAll();
+  assert.deepEqual(stopped, [workspace, other], "an interrupted bench stops every Engram it started");
 });

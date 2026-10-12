@@ -7,7 +7,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 
-const { INSTALL_ARGS, identifyGentleAi, installGentleAi, startEngram } = require("./gentle-ai.js");
+const { INSTALL_ARGS, identifyGentleAi, installGentleAi, mcpConfig, startEngram } = require("./gentle-ai.js");
 
 function tempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "bench-gentle-"));
@@ -29,7 +29,7 @@ function fakeSpawnSync(calls) {
       fs.mkdirSync(path.join(claude, "skills", "go-testing"), { recursive: true });
       fs.writeFileSync(path.join(claude, "CLAUDE.md"), "orchestrator");
       fs.writeFileSync(path.join(claude, "skills", "go-testing", "SKILL.md"), "skill");
-      fs.writeFileSync(path.join(env.HOME, ".claude.json"), "{}");
+      fs.writeFileSync(path.join(env.HOME, ".claude.json"), JSON.stringify({ mcpServers: { engram: { type: "stdio", command: path.join(env.HOME, "bin", "engram"), args: ["mcp", "--tools=agent"] } }, numStartups: 1 }));
     }
     if (args[0] === "version") return { status: 0, stdout: path.basename(executable) === "engram" ? "engram 3.4.0\n" : "gentle-ai 4.1.1\n" };
     return { status: 0, stdout: "" };
@@ -81,7 +81,24 @@ test("the identity covers both binaries and the assets a run reads, not Claude C
   const edited = identifyGentleAi({ home, spawnSyncImpl }).digest;
   assert.notEqual(edited, first.digest, "an edited skill is another install");
   fs.writeFileSync(path.join(home, "bin", "engram"), "engram v2");
-  assert.notEqual(identifyGentleAi({ home, spawnSyncImpl }).digest, edited, "another engram is another install");
+  const otherEngram = identifyGentleAi({ home, spawnSyncImpl }).digest;
+  assert.notEqual(otherEngram, edited, "another engram is another install");
+  const registry = JSON.parse(fs.readFileSync(path.join(home, ".claude.json"), "utf8"));
+  fs.writeFileSync(path.join(home, ".claude.json"), JSON.stringify({ ...registry, numStartups: 9 }));
+  assert.equal(identifyGentleAi({ home, spawnSyncImpl }).digest, otherEngram, "Claude Code's own counters are not the install");
+  registry.mcpServers.context7 = { type: "stdio", command: "npx" };
+  fs.writeFileSync(path.join(home, ".claude.json"), JSON.stringify(registry));
+  assert.notEqual(identifyGentleAi({ home, spawnSyncImpl }).digest, otherEngram, "another MCP server is another install");
+});
+
+test("mcpConfig hands the agent exactly the MCP servers gentle-ai registered", () => {
+  const home = tempDir();
+  assert.throws(() => mcpConfig(home), /no MCP server/);
+  fs.writeFileSync(path.join(home, ".claude.json"), JSON.stringify({ mcpServers: {}, oauthAccount: { emailAddress: "x" } }));
+  assert.throws(() => mcpConfig(home), /no MCP server/);
+  const engram = { type: "stdio", command: "/h/bin/engram", args: ["mcp", "--tools=agent"], env: {} };
+  fs.writeFileSync(path.join(home, ".claude.json"), JSON.stringify({ mcpServers: { engram }, oauthAccount: { emailAddress: "x" } }));
+  assert.deepEqual(JSON.parse(mcpConfig(home)), { mcpServers: { engram } }, "nothing else of the file, such as the account");
 });
 
 // A stand-in for `engram serve`: answers /health on ENGRAM_PORT and writes the

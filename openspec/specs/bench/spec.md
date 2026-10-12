@@ -47,13 +47,15 @@ package (`--with-sdd`, REQ-generator-025) for every arm, so both arms keep the
 plugin content of the runs measured before E1.6 (d2). The `gentle-ai` arm
 MUST instead run the agent with `HOME` set to the bench's gentle-ai home,
 where gentle-ai was installed once (`bench.js setup-gentle-ai`), without the
-ospec plugin and with gentle-ai's Engram MCP server, because gentle-ai writes
-only to `$HOME/.claude` and `$HOME/.claude.json`. That install MUST be Claude
+ospec plugin and with exactly the MCP servers gentle-ai registered in
+`$HOME/.claude.json` (its Engram), passed with `--strict-mcp-config` so the
+account's claude.ai connectors never load, because gentle-ai writes only to
+`$HOME/.claude` and `$HOME/.claude.json`. That install MUST be Claude
 Code only, with the `persona`, `engram`, and `skills` components, the
 `ecosystem-only` preset, and the `neutral` persona, with telemetry and
 self-update off, and its binaries copied into the home. Each workspace MUST get
 an empty Engram of its own (data under `.git/`, its own port) that the bench
-stops when the run ends. The persona MUST run in the bench configuration
+stops when the run ends, or when the bench is interrupted. The persona MUST run in the bench configuration
 directory for every arm. Variables of
 the calling session that alter the host (nested-session markers, hook switches,
 an API key) MUST NOT be inherited. The arm's project setup MUST run before the
@@ -76,7 +78,8 @@ the same command resumes it after the reset.
 - GIVEN the `gentle-ai` arm
 - WHEN an agent turn starts
 - THEN `HOME` MUST be the bench's gentle-ai home, `CLAUDE_CONFIG_DIR` MUST NOT
-  be set, and the turn MUST NOT pass `--plugin-dir` or `--strict-mcp-config`
+  be set, and the turn MUST pass `--strict-mcp-config` with only the MCP
+  servers of `$HOME/.claude.json` and MUST NOT pass `--plugin-dir`
 - AND `ENGRAM_DATA_DIR` and `ENGRAM_PORT` MUST belong to that workspace alone
 - AND the persona MUST still run with the bench's `CLAUDE_CONFIG_DIR`
 
@@ -135,7 +138,7 @@ decision-changing questions, interventions, host errors, the hidden check
 results, and the escaped defects (failed checks). A bench record MUST bind its
 runs to the arm, host and version, model, effort, plugin version and digest
 (for the `gentle-ai` arm, the gentle-ai and Engram versions and a digest of
-both binaries and the installed assets a run reads),
+both binaries, its MCP servers, and the installed assets a run reads),
 persona model, corpus digest, and harness digest (the bench code itself), and MUST keep the SHA-256 of every
 transcript. A record MUST declare how many repetitions it runs per scenario,
 and each run MUST carry its repetition number; the repetition count is part of

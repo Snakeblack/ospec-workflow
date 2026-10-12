@@ -17,7 +17,7 @@ const { armFor } = require("./arms.js");
 const { evaluateCheckpoint, loadMargins, renderCheckpoint } = require("./checkpoint.js");
 const { DEFAULT_LIMITS, runScenario: defaultRunScenario } = require("./driver.js");
 const { buildPlugin: defaultBuildPlugin, createClaudeHost, resolveClaudeExecutable } = require("./hosts/claude.js");
-const { identifyGentleAi: defaultIdentifyGentleAi, installGentleAi: defaultInstallGentleAi, startEngram } = require("./hosts/gentle-ai.js");
+const { identifyGentleAi: defaultIdentifyGentleAi, installGentleAi: defaultInstallGentleAi, mcpConfig, startEngram } = require("./hosts/gentle-ai.js");
 const { assertSameIdentity, createRecord, renderReport, upsertRun, validateRecord } = require("./record.js");
 const { harnessDigest, loadScenarios, scenariosDigest } = require("./scenarios.js");
 
@@ -148,7 +148,7 @@ async function runCommand(args, deps) {
       stderr.write(`${error.message}. Install it with \`bench.js setup-gentle-ai --gentle-ai-bin <file> --gentle-ai-home ${home}\` and log in once with \`HOME="${home}" claude\`, then run again.\n`);
       return 2;
     }
-    gentleAi = { home, startEngram };
+    gentleAi = { home, startEngram, mcpConfig: mcpConfig(home) };
   } else {
     plugin = deps.buildPlugin({ repoRoot: REPO_ROOT, outDir: path.join(recordWorkspaces, "plugin-build") });
   }
@@ -195,41 +195,53 @@ async function runCommand(args, deps) {
     record = createRecord({ ...identity, recorded_at: deps.now().toISOString() });
   }
 
-  // Repetition by repetition, so an interrupted run already covers every
-  // scenario once before it repeats any.
-  for (let repetition = 1; repetition <= repetitions; repetition += 1) {
-    for (const scenario of selected) {
-      const label = repetitions > 1 ? `${scenario.id} #${repetition}` : scenario.id;
-      const existing = record.runs.find((run) => run.scenario_id === scenario.id && run.repetition === repetition);
-      if (existing && existing.status === "complete" && !args.force) {
-        stdout.write(`${label}: already complete in ${opts.record}, skipped\n`);
-        continue;
+  // An interrupted bench stops what the host started (gentle-ai's Engram).
+  const interrupt = (signal) => {
+    if (host.releaseAll) host.releaseAll();
+    process.exit(signal === "SIGINT" ? 130 : 143);
+  };
+  process.once("SIGINT", interrupt);
+  process.once("SIGTERM", interrupt);
+  try {
+    // Repetition by repetition, so an interrupted run already covers every
+    // scenario once before it repeats any.
+    for (let repetition = 1; repetition <= repetitions; repetition += 1) {
+      for (const scenario of selected) {
+        const label = repetitions > 1 ? `${scenario.id} #${repetition}` : scenario.id;
+        const existing = record.runs.find((run) => run.scenario_id === scenario.id && run.repetition === repetition);
+        if (existing && existing.status === "complete" && !args.force) {
+          stdout.write(`${label}: already complete in ${opts.record}, skipped\n`);
+          continue;
+        }
+        const slot = repetitions > 1 ? path.join(scenario.id, `r${repetition}`) : scenario.id;
+        const workspaceRoot = path.join(recordWorkspaces, slot);
+        stdout.write(`${label}: running in ${workspaceRoot}\n`);
+        const run = await deps.runScenario({
+          scenario,
+          arm,
+          host,
+          workspaceRoot,
+          runDir: path.join(opts.runsDir, opts.record, slot),
+          limits,
+        });
+        if (run.reason === "host-quota") {
+          // Nothing usable: every later turn would fail the same way. Keep the
+          // record as it was so the same command resumes after the reset.
+          const last = [...run.conversation].reverse().find((entry) => entry.role === "agent");
+          stderr.write(`${label}: the host's usage quota is exhausted (${last ? last.text : "no message"}). Stopped without recording it; run the same command again after the reset.\n`);
+          return EXIT_HOST_QUOTA;
+        }
+        record = upsertRun(record, { scenario_id: run.scenario_id, repetition, ...run });
+        writeRecord(opts.recordsDir, record);
+        stdout.write(`${label}: ${run.status}${run.reason ? ` (${run.reason})` : ""}, ${run.metrics.tokens_total} tokens, ${run.escaped_defects} escaped\n`);
       }
-      const slot = repetitions > 1 ? path.join(scenario.id, `r${repetition}`) : scenario.id;
-      const workspaceRoot = path.join(recordWorkspaces, slot);
-      stdout.write(`${label}: running in ${workspaceRoot}\n`);
-      const run = await deps.runScenario({
-        scenario,
-        arm,
-        host,
-        workspaceRoot,
-        runDir: path.join(opts.runsDir, opts.record, slot),
-        limits,
-      });
-      if (run.reason === "host-quota") {
-        // Nothing usable: every later turn would fail the same way. Keep the
-        // record as it was so the same command resumes after the reset.
-        const last = [...run.conversation].reverse().find((entry) => entry.role === "agent");
-        stderr.write(`${label}: the host's usage quota is exhausted (${last ? last.text : "no message"}). Stopped without recording it; run the same command again after the reset.\n`);
-        return EXIT_HOST_QUOTA;
-      }
-      record = upsertRun(record, { scenario_id: run.scenario_id, repetition, ...run });
-      writeRecord(opts.recordsDir, record);
-      stdout.write(`${label}: ${run.status}${run.reason ? ` (${run.reason})` : ""}, ${run.metrics.tokens_total} tokens, ${run.escaped_defects} escaped\n`);
     }
+    stdout.write(renderReport(record));
+    return 0;
+  } finally {
+    process.removeListener("SIGINT", interrupt);
+    process.removeListener("SIGTERM", interrupt);
   }
-  stdout.write(renderReport(record));
-  return 0;
 }
 
 async function main(argv, deps = {}) {

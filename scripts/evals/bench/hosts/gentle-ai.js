@@ -12,7 +12,8 @@
 // the neutral persona; RDD at its default (on); telemetry and self-update off.
 // GGA (a global binary) and Context7 (a network MCP server) stay out. Both
 // binaries are copied into <home>/bin, so the MCP server, the hooks, and the
-// identity use the same files.
+// identity use the same files. The agent gets exactly the MCP servers the
+// install registered (`mcpConfig`), never the account's claude.ai connectors.
 
 const crypto = require("node:crypto");
 const fs = require("node:fs");
@@ -81,7 +82,23 @@ function hashPath(hash, root, relative) {
   hash.update("\n");
 }
 
-/** Version and digest of the install in `home`: both binaries and the assets a run reads. */
+/**
+ * The MCP servers gentle-ai registered in $HOME/.claude.json, as the value of
+ * `--mcp-config`. Passed with `--strict-mcp-config`, they are the only ones the
+ * agent loads: without it Claude Code adds the account's claude.ai connectors.
+ */
+function mcpConfig(home) {
+  let servers;
+  try {
+    servers = JSON.parse(fs.readFileSync(path.join(home, ".claude.json"), "utf8")).mcpServers;
+  } catch {
+    servers = null;
+  }
+  if (!servers || Object.keys(servers).length === 0) throw new Error(`no MCP server registered in ${path.join(home, ".claude.json")}`);
+  return JSON.stringify({ mcpServers: servers });
+}
+
+/** Version and digest of the install in `home`: both binaries, its MCP servers, and the assets a run reads. */
 function identifyGentleAi({ home, baseEnv = process.env, spawnSyncImpl = spawnSync }) {
   if (!fs.existsSync(path.join(home, ".claude", "CLAUDE.md")) || !fs.existsSync(gentleAiBin(home))) {
     throw new Error(`no gentle-ai install in ${home}`);
@@ -90,6 +107,7 @@ function identifyGentleAi({ home, baseEnv = process.env, spawnSyncImpl = spawnSy
   const version = (executable) => run(spawnSyncImpl, executable, ["version"], env).replace(/^\S+\s+/, "");
   const hash = crypto.createHash("sha256");
   hashPath(hash, home, "bin");
+  hash.update(`mcp\0${mcpConfig(home)}\n`);
   for (const asset of ASSET_PATHS) hashPath(hash, path.join(home, ".claude"), asset);
   return { version: `${version(gentleAiBin(home))} (engram ${version(engramBin(home))})`, digest: hash.digest("hex") };
 }
@@ -140,4 +158,4 @@ async function startEngram({ home, workspaceRoot, baseEnv = process.env, spawnIm
   return { env: { ENGRAM_DATA_DIR: dataDir, ENGRAM_PORT: String(port) }, stop: () => { child.kill(); } };
 }
 
-module.exports = { ASSET_PATHS, INSTALL_ARGS, QUIET_ENV, homeEnv, identifyGentleAi, installGentleAi, startEngram };
+module.exports = { ASSET_PATHS, INSTALL_ARGS, QUIET_ENV, homeEnv, identifyGentleAi, installGentleAi, mcpConfig, startEngram };
