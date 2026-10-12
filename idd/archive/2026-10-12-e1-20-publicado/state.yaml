@@ -1,0 +1,68 @@
+{
+  "schema": "idd-state/v1",
+  "change": "e1-20-publicado",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "El roadmap deja de decir que E1.20 está pendiente de publicar: salió en v2.117.14",
+    "acceptance": "Las cuatro menciones de E1.20 en docs/roadmaps/harness-evolution.md citan v2.117.14 y ninguna dice publicación pendiente; ospec check pasa"
+  },
+  "facts": {
+    "basis": "El CHANGELOG publica E1.20 en [2.117.14] (commit 2b3e32bf); solo cambia el texto del roadmap"
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-12T00:57:27.377Z",
+      "detail": {
+        "tree": "sha256:36a6e0ce5020261d2abc1acb58c1a8b2952b12d0109383ec90e1fe44a3e4f894",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "69bd32be0536537264fece16ce04682014a824f9",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bc9af707e06a523e773f45d0dbd769e8d7cddc96e1d69e2447e7813c55fd69aa",
+      "tree": "sha256:36a6e0ce5020261d2abc1acb58c1a8b2952b12d0109383ec90e1fe44a3e4f894",
+      "recorded_at": "2026-10-12T00:57:27.377Z"
+    }
+  ],
+  "closed_at": "2026-10-12T00:57:29.392Z"
+}
