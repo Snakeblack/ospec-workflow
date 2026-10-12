@@ -208,3 +208,15 @@ test("the gentle-ai agent runs from its HOME with its MCP server and an Engram p
   host.releaseAll();
   assert.deepEqual(stopped, [workspace, other], "an interrupted bench stops every Engram it started");
 });
+
+test("releaseAll stops the turn in flight", async () => {
+  const dir = tempDir();
+  const script = path.join(dir, "hang.js");
+  fs.writeFileSync(script, "setInterval(() => {}, 1000);");
+  const host = createClaudeHost({ executable: process.execPath, prefixArgs: [script], configDir: dir, pluginDir: dir, model: "m", personaModel: "p", personaDir: dir });
+  const pending = host.turn({ cwd: dir, prompt: "x", sessionId: null, transcriptPath: path.join(dir, "t.jsonl") });
+  await new Promise((resolve) => { setTimeout(resolve, 200); });
+  host.releaseAll();
+  const turn = await pending;
+  assert.equal(turn.is_error, true, "the killed turn ends instead of hanging the bench");
+});

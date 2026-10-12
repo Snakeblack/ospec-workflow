@@ -55,6 +55,10 @@ function changedPaths(output) {
 }
 
 const ODD_DIR = "odd";
+// gentle-ai regenerates its skill registry in .atl/ at every session start: it
+// is its local runtime state (gentle-ai's own .gitignore helper excludes it),
+// not part of the delivery.
+const RUNTIME_DIRS = Object.freeze([ODD_DIR, ".atl"]);
 const UNCHECKED_TASK = /^\s*[-*] \[ \]/m;
 
 function hasPendingOddTask(root) {
@@ -67,13 +71,13 @@ function hasPendingOddTask(root) {
 // ODD writes odd/tasks/<feature>.md only for substantial work, closes every
 // task with a commit, and records that commit in the document afterwards, so
 // the document may stay uncommitted. A gentle-ai change is finished with at
-// least one commit after setup, nothing uncommitted outside odd/, and no
-// unchecked task in any feature document (user decision, 2026-10-12).
+// least one commit after setup, nothing uncommitted outside odd/ (and .atl/),
+// and no unchecked task in any feature document (user decision, 2026-10-12).
 function hasOddDelivery(root, base) {
   const commits = git(root, ["rev-list", "--count", `${base}..HEAD`]);
   if (commits === null || Number(commits.trim()) < 1) return false;
   const status = git(root, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]);
-  if (status === null || changedPaths(status).some((file) => !file.startsWith(`${ODD_DIR}/`))) return false;
+  if (status === null || changedPaths(status).some((file) => !RUNTIME_DIRS.some((dir) => file.startsWith(`${dir}/`)))) return false;
   return !hasPendingOddTask(root);
 }
 

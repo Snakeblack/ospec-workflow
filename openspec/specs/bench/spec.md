@@ -55,7 +55,7 @@ Code only, with the `persona`, `engram`, and `skills` components, the
 `ecosystem-only` preset, and the `neutral` persona, with telemetry and
 self-update off, and its binaries copied into the home. Each workspace MUST get
 an empty Engram of its own (data under `.git/`, its own port) that the bench
-stops when the run ends, or when the bench is interrupted. The persona MUST run in the bench configuration
+stops when the run ends; an interrupted bench MUST also stop the turns in flight. The persona MUST run in the bench configuration
 directory for every arm. Variables of
 the calling session that alter the host (nested-session markers, hook switches,
 an API key) MUST NOT be inherited. The arm's project setup MUST run before the
@@ -227,9 +227,10 @@ does not load in the bench's isolated configuration, and finish when
 `ospec close` has archived a change under `idd/archive/`. The `gentle-ai` arm
 MUST need no project setup, MUST request the change with the brief alone,
 because ODD runs on every request, and MUST finish when there is at least one
-commit after setup, nothing is uncommitted outside `odd/`, and no
+commit after setup, nothing is uncommitted outside `odd/` and `.atl/`, and no
 `odd/tasks/*.md` has an unchecked task: ODD writes that document only for
-substantial work and records each commit in it after committing.
+substantial work and records each commit in it after committing, and `.atl/`
+is the skill registry gentle-ai regenerates at every session start.
 
 #### Scenario: IDD arm finishes at the closed change
 
@@ -244,5 +245,5 @@ substantial work and records each commit in it after committing.
 - WHEN the change is requested
 - THEN the prompt MUST be the brief itself
 - AND the run MUST be complete only once there is at least one commit after
-  setup, nothing uncommitted outside `odd/`, and no unchecked task in any
-  `odd/tasks/*.md`
+  setup, nothing uncommitted outside `odd/` and `.atl/`, and no unchecked task
+  in any `odd/tasks/*.md`

@@ -86,10 +86,11 @@ function personaArgs({ model, system }) {
   ];
 }
 
-function runProcess({ executable, args, cwd, env, input, stdoutPath, timeoutMs }) {
+function runProcess({ executable, args, cwd, env, input, stdoutPath, timeoutMs, children = null }) {
   return new Promise((resolve) => {
     const started = Date.now();
     const child = spawn(executable, args, { cwd, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+    if (children) children.add(child);
     const chunks = [];
     let stderr = "";
     let timedOut = false;
@@ -105,6 +106,7 @@ function runProcess({ executable, args, cwd, env, input, stdoutPath, timeoutMs }
     }, timeoutMs);
     const finish = (code, error) => {
       clearTimeout(timer);
+      if (children) children.delete(child);
       const done = () => resolve({
         code,
         error,
@@ -165,6 +167,7 @@ function createClaudeHost({
   const env = benchEnv(baseEnv, configDir);
   const agentEnv = gentleAi ? gentleAiEnv(baseEnv, gentleAi.home) : env;
   const engrams = new Map();
+  const children = new Set();
 
   // gentle-ai gets an empty Engram per workspace, started on its first turn.
   async function workspaceEnv(cwd) {
@@ -183,6 +186,7 @@ function createClaudeHost({
       input: prompt,
       stdoutPath: transcriptPath,
       timeoutMs: turnTimeoutMs,
+      children,
     });
     const summary = summarizeTurn(fs.readFileSync(transcriptPath));
     const failure = run.timedOut ? "timeout" : run.error ? run.error.message : run.code !== 0 ? `exit ${run.code}: ${run.stderr.trim()}` : null;
@@ -201,6 +205,7 @@ function createClaudeHost({
       env,
       input: buildPersonaPrompt(message),
       timeoutMs: PERSONA_TIMEOUT_MS,
+      children,
     });
     const summary = summarizeTurn(run.stdout || "");
     let output;
@@ -239,8 +244,9 @@ function createClaudeHost({
     engram.stop();
   }
 
-  /** Ends what the host keeps for every workspace, when the bench is interrupted. */
+  /** Ends the turns in flight and what the host keeps for every workspace, when the bench is interrupted. */
   function releaseAll() {
+    for (const child of children) child.kill();
     for (const cwd of [...engrams.keys()]) release(cwd);
   }
 

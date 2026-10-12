@@ -79,6 +79,18 @@ test("a feature document may stay uncommitted but every task must be checked", (
   assert.equal(hasOddDelivery(root, base), false, "an open task in any feature document");
 });
 
+test("gentle-ai's skill registry in .atl/ is runtime state, not pending work", () => {
+  const { root, base } = workspace();
+  write(root, ".atl/skill-registry.md", "# Skill Registry");
+  write(root, "index.js", "module.exports = 2;\n");
+  commit(root, "fix: dos");
+  write(root, ".atl/skill-registry.md", "# Skill Registry, refreshed");
+  write(root, ".atl/.skill-registry.cache.json", "{}");
+  assert.equal(hasOddDelivery(root, base), true);
+  write(root, ".atlas/notes.md", "");
+  assert.equal(hasOddDelivery(root, base), false, "only the .atl/ directory itself");
+});
+
 test("a renamed file outside odd/ is pending work", () => {
   const { root, base } = workspace();
   write(root, "index.js", "module.exports = 2;\n");
