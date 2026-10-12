@@ -1,5 +1,5 @@
 {
-  "schema": "ospec-knowledge-map/v1",
+  "schema": "ospec-knowledge-map/v2",
   "profile": "public-library",
   "slots": [
     {
@@ -143,7 +143,10 @@
       "stimulus": "Retoma un cambio a medias",
       "environment": "Tras /clear, una compactación o un cambio de host",
       "artifact": "El CLI ospec y el estado del cambio en disco",
-      "response": "El CLI devuelve el mismo siguiente paso y las mismas obligaciones pendientes que antes de la interrupción"
+      "response": "El CLI devuelve el mismo siguiente paso y las mismas obligaciones pendientes que antes de la interrupción",
+      "fitness": {
+        "checks": ["node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js"]
+      }
     },
     {
       "id": "target-parity",
@@ -151,7 +154,10 @@
       "stimulus": "Cambia una skill, un agente o un hook en la fuente canónica",
       "environment": "Desarrollo, antes de publicar",
       "artifact": "El generador multi-target",
-      "response": "Cada target se regenera desde esa fuente y el árbol generado coincide con su fixture golden, o el test falla"
+      "response": "Cada target se regenera desde esa fuente y el árbol generado coincide con su fixture golden, o el test falla",
+      "fitness": {
+        "checks": ["node --test scripts/configure/cli.test.js"]
+      }
     },
     {
       "id": "guard-fail-closed",
@@ -159,7 +165,10 @@
       "stimulus": "Intenta una operación destructiva o commitear un secreto",
       "environment": "Operación normal o con el índice de git ilegible",
       "artifact": "Los hooks de seguridad",
-      "response": "La operación queda bloqueada; si el guard no puede decidir, bloquea en lugar de permitir"
+      "response": "La operación queda bloqueada; si el guard no puede decidir, bloquea en lugar de permitir",
+      "fitness": {
+        "checks": ["node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js"]
+      }
     },
     {
       "id": "offline-operation",
@@ -167,7 +176,10 @@
       "stimulus": "Trabaja sin red o con la memoria entre sesiones caída",
       "environment": "Máquina local",
       "artifact": "El CLI, los hooks y las skills",
-      "response": "Cada cambio avanza y cierra con el estado en disco; la falta de memoria solo quita contexto"
+      "response": "Cada cambio avanza y cierra con el estado en disco; la falta de memoria solo quita contexto",
+      "fitness": {
+        "description": "Sin red y sin memoria entre sesiones, comprobar que el cambio no añade llamadas de red al CLI, los hooks ni las skills del flujo IDD, y que next, check y close dan el mismo resultado; la frontera de memoria la ejecuta ADR 0006"
+      }
     },
     {
       "id": "contract-compatibility",
@@ -175,7 +187,10 @@
       "stimulus": "Actualiza a una versión nueva del plugin",
       "environment": "Con estado escrito por la versión anterior",
       "artifact": "Los contratos de máquina versionados por esquema",
-      "response": "La versión nueva lee el estado anterior o lo rechaza con un error que nombra el esquema; nunca lo reinterpreta en silencio"
+      "response": "La versión nueva lee el estado anterior o lo rechaza con un error que nombra el esquema; nunca lo reinterpreta en silencio",
+      "fitness": {
+        "checks": ["node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js"]
+      }
     }
   ]
 }

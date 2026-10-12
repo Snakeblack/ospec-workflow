@@ -78,3 +78,16 @@ test("the knowledge map and the component map of ospec validate", () => {
   assert.deepEqual(validateKnowledgeMap(knowledge), { valid: true, errors: [] });
   assert.deepEqual(validateComponentMap(readJson("component-map.yaml"), { root: ROOT }), { valid: true, errors: [] });
 });
+
+test("every quality scenario of ospec declares its fitness, and each check names test files that exist", () => {
+  const knowledge = readJson("knowledge-map.yaml");
+  assert.equal(knowledge.schema, "ospec-knowledge-map/v2");
+  for (const scenario of knowledge.quality_scenarios) {
+    assert.ok(scenario.fitness, `${scenario.id} declares no fitness`);
+    for (const command of scenario.fitness.checks || []) {
+      const files = command.split(/\s+/).filter((word) => word.endsWith(".js"));
+      assert.ok(files.length > 0, `${scenario.id}: \`${command}\` names no test file`);
+      for (const file of files) assert.ok(fs.existsSync(path.join(ROOT, file)), `${scenario.id}: ${file}`);
+    }
+  }
+});
