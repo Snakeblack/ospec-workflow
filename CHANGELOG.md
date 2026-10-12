@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.131.3] - 2026-10-12
+
+### Changed
+- **Fitness de los escenarios de calidad de ospec (E3.6)**: `docs/architecture/knowledge-map.yaml` pasa a `ospec-knowledge-map/v2` y cada escenario declara su `fitness`. `deterministic-resume` ejecuta `idd-next.test.js` e `idd-store.test.js`, `target-parity` el test de los fixtures golden (`scripts/configure/cli.test.js`), `guard-fail-closed` los tests de ADR 0008 y `contract-compatibility` los de ADR 0009; `offline-operation` queda como checklist manual, porque ningún test prueba la parte sin red. Un cambio que declara uno de los cuatro ve su comprobación como run `fitness` en `ospec check`. `architecture-decisions.test.js` fija que el mapa es v2, que cada escenario declara `fitness` y que cada check nombra ficheros que existen. Hecho con IDD (`idd/archive/2026-10-12-quality-scenario-fitness/`).
+
+**Verificación directa**: `node scripts/check.js` (3616 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.131.2] - 2026-10-11
 
 ### Changed

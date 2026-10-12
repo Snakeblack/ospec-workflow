@@ -4,7 +4,7 @@ Arquitectura **vigente** de ospec, generada con la foundation de ospec aplicada 
 
 - [`technical-baseline.md`](technical-baseline.md): contexto y fronteras, componentes y datos, integraciones, escenarios de calidad, restricciones, estrategia de test y registro tecnológico.
 - [`decisions/`](decisions/): los ADR de arquitectura, uno por decisión estructural. Solo contiene ADR de arquitectura; `scripts/lib/architecture-decisions.test.js` comprueba que cada uno pasa el lint sin avisos.
-- [`knowledge-map.yaml`](knowledge-map.yaml): el mapa de conocimiento (`ospec-knowledge-map/v1`, perfil `public-library`) con los cinco escenarios de calidad.
+- [`knowledge-map.yaml`](knowledge-map.yaml): el mapa de conocimiento (`ospec-knowledge-map/v2`, perfil `public-library`) con los cinco escenarios de calidad y su `fitness`: cuatro con la comprobación que `ospec check` ejecuta y `offline-operation` como checklist manual.
 - [`component-map.yaml`](component-map.yaml): componentes con sus rutas y el conocimiento que los gobierna (ADR, escenarios, términos, restricciones), fronteras, dependencias y divergencias con evidencia `ruta:línea` (`ospec-component-map/v2`). IDD entrega a cada change las referencias de los componentes que toca.
 - El brief de producto, con el contexto de equipo, está en [`../product/brief.md`](../product/brief.md).
 

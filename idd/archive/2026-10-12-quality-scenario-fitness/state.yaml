@@ -1,0 +1,165 @@
+{
+  "schema": "idd-state/v1",
+  "change": "quality-scenario-fitness",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "feature",
+    "summary": "El mapa de conocimiento de ospec pasa a ospec-knowledge-map/v2 y cada escenario de calidad declara su fitness: checks donde hay una comprobación ejecutable y description como checklist donde no (E3.6)",
+    "acceptance": "Un cambio que declara un escenario con comprobación la ve ejecutarse en ospec check como run fitness, y los escenarios sin ella aparecen como checklist en next y check"
+  },
+  "facts": {
+    "open": [
+      "¿Qué comprobación ejecutable declara cada escenario (deterministic-resume, target-parity, guard-fail-closed, contract-compatibility)?",
+      "¿offline-operation declara una comprobación (la frontera de memoria) o queda como checklist manual porque ningún test prueba la parte sin red?",
+      "¿Se añade un test que fije que el mapa de ospec es v2 y que cada check de escenario nombra ficheros de test existentes?",
+      "¿Cómo se demuestra el criterio si el propio cambio lee el fitness desde su base (todavía v1)?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/architecture/README.md",
+      "docs/architecture/knowledge-map.yaml",
+      "docs/roadmaps/harness-evolution.md",
+      "scripts/lib/architecture-decisions.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "declared ADR 0009 and quality scenario contract-compatibility, deterministic-resume, guard-fail-closed, offline-operation, target-parity",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0009",
+      "impact": "conforms",
+      "reason": "El mapa sube a ospec-knowledge-map/v2 declarando el esquema; v1 se sigue leyendo y el validador nombra el esquema"
+    },
+    {
+      "kind": "scenario",
+      "id": "contract-compatibility",
+      "impact": "conforms",
+      "reason": "El escenario gana la comprobación que ya lo prueba; su respuesta no cambia"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "El escenario gana la comprobación que ya lo prueba; su respuesta no cambia"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "El escenario gana la comprobación que ya lo prueba; su respuesta no cambia"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "El escenario gana un checklist manual; su respuesta no cambia y el cambio no añade red ni memoria"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "El escenario gana la comprobación que ya lo prueba; su respuesta no cambia"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Instrucción del usuario para esta sesión desatendida: «si hay que elegir en algún momento, elige los recomendados». Recomendados aplicados: (1) deterministic-resume: node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js; target-parity: node --test scripts/configure/cli.test.js (fixtures golden); guard-fail-closed: los tests de ADR 0008; contract-compatibility: los tests de ADR 0009 (knowledge-map, component-map, decision-records). (2) offline-operation queda como checklist (description): ningún test prueba la parte sin red y la frontera de memoria ya la ejecuta ADR 0006. (3) Sí, en scripts/lib/architecture-decisions.test.js. (4) Tras commitear, una corrida de demostración en un clon temporal declara un escenario con checks y offline-operation, y se cita en Decisions.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-12T01:35:17.663Z",
+      "detail": {
+        "tree": "sha256:bd2314265a97c2e610acf120292984c8079ace58c2b3055a252555a0d2c338ce",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-12T01:35:17.663Z",
+      "detail": {
+        "refs": [
+          "adr:0009 conforms",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume conforms",
+          "scenario:guard-fail-closed conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:bd2314265a97c2e610acf120292984c8079ace58c2b3055a252555a0d2c338ce",
+        "fitness": [
+          "run-2"
+        ]
+      }
+    }
+  ],
+  "base": "95b9d0b0ac77697ed1c2803d2dd9ac05f1ce7542",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5d20af70a7e3ecb9ecd59afc3cc7f305590bda38428f3b8101a0db67084988ab",
+      "tree": "sha256:bd2314265a97c2e610acf120292984c8079ace58c2b3055a252555a0d2c338ce",
+      "recorded_at": "2026-10-12T01:35:17.663Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:728a56c185e484f5468cfe32f0f01be481f1a54371ae1626d15b825c27345adf",
+      "tree": "sha256:bd2314265a97c2e610acf120292984c8079ace58c2b3055a252555a0d2c338ce",
+      "recorded_at": "2026-10-12T01:35:17.663Z"
+    }
+  ],
+  "closed_at": "2026-10-12T01:35:20.741Z"
+}
