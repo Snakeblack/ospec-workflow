@@ -1,0 +1,196 @@
+{
+  "schema": "idd-state/v1",
+  "change": "engram-update-notice",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "feature",
+    "summary": "El paso Engram de los instaladores avisa cuando hay una versión de engram más nueva que la instalada, sin descargar ni actualizar nada",
+    "acceptance": "Con engram 3.3.2 instalado y 3.4.0 publicada, npm run setup:<target> imprime en la fase Engram una línea con ambas versiones y el comando para actualizar; sin red, con la versión al día o desactivado, el instalador termina igual que hoy"
+  },
+  "facts": {
+    "open": [
+      "¿De dónde sale la última versión: la API de releases de GitHub (la misma que usa engram), brew outdated u otra fuente?",
+      "¿Qué timeout tiene la consulta y qué se muestra si falla (sin red, rate limit, respuesta ilegible): nada, o una nota solo con --verbose?",
+      "¿Qué comando de actualización se sugiere: según dónde está el binario (Homebrew, go install, otro) o siempre el enlace a la release?",
+      "¿Cómo se desactiva: ENGRAM_NO_UPDATE_CHECK de upstream, --no-engram, un flag nuevo o varios?",
+      "¿Se muestra algo cuando engram está al día o la instalada es más nueva que la publicada?",
+      "¿Aparece en los siete targets y también en ospec doctor, o solo en los instaladores?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/plugin-installation.es.md",
+      "docs/plugin-installation.md",
+      "openspec/specs/install/spec.md",
+      "scripts/configure/engram-setup.js",
+      "scripts/configure/engram-setup.test.js",
+      "scripts/configure/install-claude.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component generator: ADR 0001, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "none",
+      "reason": "No cambia la fuente canónica ni la generación: el aviso vive en el paso Engram del instalador, que no forma parte del árbol generado"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "No añade dependencias: la consulta usa fetch de la biblioteca estándar de Node en un proceso hijo; solo lee metadatos de la release y nunca descarga ni instala nada"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "La única llamada de red nueva está en el paso Engram de los instaladores, acotada a 3 s y en silencio si falla (probado sin red con unshare -n); el CLI ospec, los hooks y las skills del flujo IDD no hacen ninguna llamada nueva y ospec doctor sigue sin red"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "El aviso es el mismo para los siete instaladores a través de runEngramStep; ningún árbol generado ni golden cambia"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Sin red (unshare -rn) el paso Engram no imprime aviso y la consulta falla al instante con solo la nota de --verbose; el diff no toca scripts/ospec.js, scripts/lib, hooks ni skills, así que next, check y close no hacen llamadas de red nuevas",
+      "recorded_at": "2026-10-12T18:28:01.606Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Fuente: API releases/latest de GitHub (Gentleman-Programming/engram), timeout 3 s; si falla no se imprime nada, salvo una nota con --verbose. Comando: según la ruta del binario (Homebrew: brew upgrade engram; GOPATH/bin: go install github.com/Gentleman-Programming/engram/cmd/engram@latest; si no, el enlace a la release). Desactivar: ENGRAM_NO_UPDATE_CHECK y --no-engram, sin flags nuevos. Alcance: los siete instaladores, silencio cuando está al día o la instalada es más nueva; ospec doctor sin red.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-12T18:27:46.739Z",
+      "detail": {
+        "tree": "sha256:8cd239704b1b98fd6b90d1e326155439f4b1f214da2ecbf0399d909020b664fb",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-12T18:27:46.739Z",
+      "detail": {
+        "refs": [
+          "adr:0001 none",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:8cd239704b1b98fd6b90d1e326155439f4b1f214da2ecbf0399d909020b664fb",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5"
+        ]
+      }
+    }
+  ],
+  "base": "9e310fc1cd4fc5434618fa3fa4ae5247f70caa62",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:14588f8d0ff767b5706b873d5ed25e25800e77a9586d99b8538795bc979f09ac",
+      "tree": "sha256:8cd239704b1b98fd6b90d1e326155439f4b1f214da2ecbf0399d909020b664fb",
+      "recorded_at": "2026-10-12T18:27:46.739Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8cef39d36871b20c6a256c21a55b4330460500f1a9ccfdf181173dc735c390eb",
+      "tree": "sha256:8cd239704b1b98fd6b90d1e326155439f4b1f214da2ecbf0399d909020b664fb",
+      "recorded_at": "2026-10-12T18:27:46.739Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:8cd239704b1b98fd6b90d1e326155439f4b1f214da2ecbf0399d909020b664fb",
+      "recorded_at": "2026-10-12T18:27:46.739Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5f3ecd2ad1affa8bc6806bc6862c01341ac0ade65ced42d53b17d450077a7b1c",
+      "tree": "sha256:8cd239704b1b98fd6b90d1e326155439f4b1f214da2ecbf0399d909020b664fb",
+      "recorded_at": "2026-10-12T18:27:46.739Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4d115d8b5704354db5cf2546e693a9fa1a497e1507a88bc56c090ac8b57a4d1a",
+      "tree": "sha256:8cd239704b1b98fd6b90d1e326155439f4b1f214da2ecbf0399d909020b664fb",
+      "recorded_at": "2026-10-12T18:27:46.739Z"
+    }
+  ],
+  "closed_at": "2026-10-12T18:28:01.673Z"
+}

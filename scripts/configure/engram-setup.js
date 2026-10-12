@@ -8,7 +8,8 @@
 // what is installed for the target host, (2) plans the registration action and
 // (3) runs it — by default whenever the engram binary is on PATH; `--no-engram`
 // turns the step off. Without the binary it only prints install guidance: it never
-// downloads Engram.
+// downloads Engram. With it, a read-only check names a newer upstream release and
+// how to upgrade (REQ-install-043); it never upgrades anything.
 //
 // Each host needs the `mem_*` MCP server plus a piece that delivers the memory
 // protocol. For hosts with an upstream `engram setup <agent>` (idempotent, adds
@@ -76,6 +77,17 @@ const SHELL_LAUNCHERS = new Set(["bash", "bash.exe", "sh", "sh.exe"]);
 const FORK_PROBE_SCRIPT = "for i in 1 2 3; do dirname /a/b; date +%s; jq -n 1; curl --version; done >/dev/null";
 const FORK_PROBE_TIMEOUT_MS = 5000;
 const FORK_PROBE_BUDGET_MS = 1500;
+// The update notice asks the same endpoint engram's own check uses and honors its
+// opt-out variable. A child node process does the request so the step stays
+// synchronous; the spawn timeout bounds it.
+const ENGRAM_REPO = "Gentleman-Programming/engram";
+const UPDATE_CHECK_VAR = "ENGRAM_NO_UPDATE_CHECK";
+const UPDATE_CHECK_TIMEOUT_MS = 3000;
+const LATEST_RELEASE_SCRIPT = `fetch("https://api.github.com/repos/${ENGRAM_REPO}/releases/latest", { headers: { accept: "application/vnd.github+json", "user-agent": "ospec-workflow" } })
+  .then((res) => (res.ok ? res.json() : Promise.reject(new Error("HTTP " + res.status))))
+  .then((release) => process.stdout.write(String(release.tag_name || "")))
+  .catch((error) => { process.stderr.write(String(error.message || error)); process.exitCode = 1; });`;
+const RELEASE_VERSION_RE = /^v?(\d+)\.(\d+)\.(\d+)(-[\w.]+)?(?:\+[\w.]+)?$/;
 
 // Pure. Returns the mutating actions, or [] when there is nothing safe to do: step
 // disabled, no engram binary, already configured, or any piece we could not read
@@ -347,6 +359,70 @@ function windowsBashHooksStep({ fs: fsImpl, homedir, stdout, stderr }) {
   for (const file of found.hooks) patchHookFile(fsImpl, file, stdout, stderr);
 }
 
+// --- update notice -----------------------------------------------------------
+
+// [major, minor, patch, prerelease] or null; `go install` builds report "dev".
+function parseRelease(version) {
+  const match = RELEASE_VERSION_RE.exec(String(version || "").trim());
+  return match ? [Number(match[1]), Number(match[2]), Number(match[3]), match[4] || ""] : null;
+}
+
+// A prerelease of the same version is older than the release itself.
+function isNewer(latest, installed) {
+  for (let index = 0; index < 3; index += 1) {
+    if (latest[index] !== installed[index]) return latest[index] > installed[index];
+  }
+  return installed[3] !== "" && latest[3] === "";
+}
+
+// The binary the PATH resolves, followed through its symlinks (Homebrew links
+// bin/engram into its Cellar). null when it cannot be found.
+function resolveBinary(bin, { fs: fsImpl, env }) {
+  for (const dir of String(env.PATH || "").split(path.delimiter).filter(Boolean)) {
+    const file = path.join(dir, bin);
+    if (probeExists(fsImpl, file) !== "registered") continue;
+    try {
+      return { dir, real: typeof fsImpl.realpathSync === "function" ? fsImpl.realpathSync(file) : file };
+    } catch {
+      return { dir, real: file };
+    }
+  }
+  return null;
+}
+
+// How to upgrade depends on how engram was installed; the release page otherwise.
+function upgradeHint(binary, latest, tag, { fs: fsImpl, env, homedir }) {
+  const found = resolveBinary(binary.bin, { fs: fsImpl, env });
+  if (found && /[\\/]Cellar[\\/]engram[\\/]/.test(found.real)) return "`brew upgrade engram`";
+  const goBins = [env.GOBIN, ...String(env.GOPATH || path.join(homedir(), "go")).split(path.delimiter).filter(Boolean).map((dir) => path.join(dir, "bin"))];
+  if (found && goBins.some((dir) => dir && path.resolve(dir) === path.resolve(found.dir))) {
+    const major = latest[0] >= 2 ? `/v${latest[0]}` : "";
+    return `\`go install github.com/${ENGRAM_REPO}${major}/cmd/engram@latest\``;
+  }
+  return `https://github.com/${ENGRAM_REPO}/releases/tag/${tag}`;
+}
+
+// Read-only and fail-open: prints one line when a newer release exists, nothing
+// when engram is up to date or newer, and a --verbose note when the check fails.
+function updateNoticeStep({ binary, spawn, fs: fsImpl, env, homedir, stdout, detail }) {
+  if (!binary.found || String(env[UPDATE_CHECK_VAR] || "").trim()) return;
+  const installed = parseRelease(binary.version);
+  if (!installed) return;
+  const result = safeSpawn(spawn, process.execPath, ["-e", LATEST_RELEASE_SCRIPT], UPDATE_CHECK_TIMEOUT_MS);
+  const tag = String(result.stdout || "").trim();
+  const latest = parseRelease(tag);
+  if (result.error || result.status !== 0 || !latest) {
+    const reason = result.error ? result.error.code || result.error.message
+      : result.status !== 0 ? String(result.stderr || "").trim().split("\n")[0] || `exit ${result.status}`
+        : "respuesta ilegible";
+    detail.write(`  - No se pudo comprobar si hay una versión nueva de engram (${reason}).\n`);
+    return;
+  }
+  if (!isNewer(latest, installed)) return;
+  const hint = upgradeHint(binary, latest, tag, { fs: fsImpl, env, homedir });
+  stdout.write(`  - engram ${binary.version} instalado, ${tag.replace(/^v/, "")} disponible: actualiza con ${hint}.\n`);
+}
+
 // --- step entry point --------------------------------------------------------
 
 function runEngramStep({
@@ -362,6 +438,7 @@ function runEngramStep({
   now = Date.now,
   stdout = process.stdout,
   stderr = process.stderr,
+  detail = { write() { return true; } },
   timeoutMs = DEFAULT_TIMEOUT_MS,
 } = {}) {
   try {
@@ -369,6 +446,7 @@ function runEngramStep({
     const enabled = !(Array.isArray(argv) && argv.includes("--no-engram"));
     const probe = () => detectEngram({ target, spawn, hostBin: hostBin || claudeBin, fs: fsImpl, homedir, env, platform, timeoutMs, includeDoctor: false });
     const detection = probe();
+    if (enabled) updateNoticeStep({ binary: detection.binary, spawn, fs: fsImpl, env, homedir, stdout, detail });
 
     const plan = planEngramActions(detection, { enabled, homedir });
     let configured = isConfigured(detection);
@@ -451,7 +529,7 @@ function withEngramStep(target, install, { eligible = () => true, hostBin = () =
     if (exitCode === 0 && runStep) {
       reporter.begin(ENGRAM_PHASE);
       try {
-        deps.engramStep({ target, argv: raw, hostBin: hostBin(deps), stdout: reporter.out, stderr: reporter.err });
+        deps.engramStep({ target, argv: raw, hostBin: hostBin(deps), stdout: reporter.out, stderr: reporter.err, detail: reporter.detail });
       } catch (error) {
         reporter.err.write(`aviso: paso Engram omitido (${error.message}); se continúa.\n`);
       }

@@ -748,3 +748,88 @@ test("every target installer wires engram-setup and the CLI entry injects the re
     if (target !== "claude") assert.match(source, new RegExp(`withEngramStep\\("${target}"`), `${name} wraps its main`);
   }
 });
+
+// --- update notice (REQ-install-043) ---------------------------------------------
+
+const LATEST = `${process.execPath} -e`;
+const BREW_BIN = home("brew", "bin");
+const BREW_REAL = home("brew", "Cellar", "engram", "3.3.2", "bin", "engram");
+
+function engramAt(version) {
+  return { "engram version": ok(`engram ${version}\n`) };
+}
+
+// fs where `engram` sits in `dir`, resolving through its symlink to `real`.
+function binaryFs(dir, real) {
+  const files = makeFs({ [path.join(dir, "engram")]: "" });
+  files.realpathSync = (file) => (path.resolve(file) === path.resolve(dir, "engram") ? real || file : file);
+  return files;
+}
+
+// The fixture leaves Cursor unconfigured, so its setup warning lands on stderr;
+// the notice itself never writes there.
+function notice({ version = "3.3.2", latest = ok("v3.4.0"), dir = BREW_BIN, real = dir === BREW_BIN ? BREW_REAL : null, env = {}, argv = [] } = {}) {
+  const spawn = makeSpawn({ ...engramAt(version), [LATEST]: latest });
+  const detail = writer();
+  const out = run({ target: "cursor", spawn, fs: binaryFs(dir, real), env: { PATH: dir, ...env }, argv, detail });
+  return { ...out, detail: detail.value, asked: spawn.calls.some((call) => call.startsWith(`${LATEST} `)) };
+}
+
+test("update notice: a newer release names both versions and the Homebrew upgrade", () => {
+  const { stdout, stderr } = notice();
+  assert.match(stdout, /engram 3\.3\.2 instalado, 3\.4\.0 disponible: actualiza con `brew upgrade engram`\./);
+  assert.doesNotMatch(stderr, /disponible|versión nueva/);
+});
+
+test("update notice: a go install binary gets the go install path of the latest major", () => {
+  const gopath = home("gopath");
+  const { stdout } = notice({ dir: path.join(gopath, "bin"), env: { GOPATH: gopath } });
+  assert.match(stdout, /actualiza con `go install github\.com\/Gentleman-Programming\/engram\/v3\/cmd\/engram@latest`\./);
+  const gobin = home("gobin");
+  assert.match(notice({ dir: gobin, env: { GOBIN: gobin } }).stdout, /engram\/v3\/cmd\/engram@latest/);
+});
+
+test("update notice: any other install points to the release page", () => {
+  const { stdout } = notice({ dir: home("bin"),  });
+  assert.match(stdout, /actualiza con https:\/\/github\.com\/Gentleman-Programming\/engram\/releases\/tag\/v3\.4\.0\./);
+});
+
+test("update notice: silent when engram is up to date, newer, or the release is a prerelease of it", () => {
+  for (const [version, tag] of [["3.4.0", "v3.4.0"], ["3.5.0", "v3.4.0"], ["3.4.0", "v3.4.0-rc.1"], ["4.0.0", "v3.9.9"]]) {
+    const { stdout, detail } = notice({ version, latest: ok(tag) });
+    assert.doesNotMatch(stdout, /disponible/, `${version} vs ${tag}`);
+    assert.equal(detail, "");
+  }
+  assert.match(notice({ version: "3.4.0-rc.1", latest: ok("v3.4.0") }).stdout, /engram 3\.4\.0-rc\.1 instalado, 3\.4\.0 disponible/);
+});
+
+test("update notice: a failed check prints nothing but a --verbose note and never warns", () => {
+  for (const [latest, reason] of [[errored("ETIMEDOUT"), /ETIMEDOUT/], [{ status: 1, stdout: "", stderr: "HTTP 403\n" }, /HTTP 403/], [ok("<html>"), /respuesta ilegible/]]) {
+    const { stdout, stderr, detail } = notice({ latest });
+    assert.doesNotMatch(stdout, /disponible/);
+    assert.doesNotMatch(stderr, /disponible|versión nueva/);
+    assert.match(detail, /No se pudo comprobar si hay una versión nueva de engram/);
+    assert.match(detail, reason);
+  }
+});
+
+test("update notice: ENGRAM_NO_UPDATE_CHECK, --no-engram, a dev build or no binary skip the request", () => {
+  assert.equal(notice({ env: { ENGRAM_NO_UPDATE_CHECK: "1" } }).asked, false);
+  assert.equal(notice({ argv: ["--no-engram"] }).asked, false);
+  assert.equal(notice({ version: "dev" }).asked, false);
+  const spawn = makeSpawn({ ...NO_ENGRAM, [LATEST]: ok("v3.4.0") });
+  run({ target: "cursor", spawn });
+  assert.equal(spawn.calls.some((call) => call.startsWith(`${LATEST} `)), false);
+  assert.equal(notice().asked, true);
+});
+
+test("update notice: the installer wrapper shows the failure note only with --verbose", () => {
+  const spawn = makeSpawn({ ...engramAt("3.3.2"), [LATEST]: errored("ETIMEDOUT") });
+  const step = (options) => runEngramStep({ ...options, spawn, homedir, platform: "linux", env: { PATH: BREW_BIN }, fs: binaryFs(BREW_BIN, BREW_REAL) });
+  for (const [argv, shown] of [[[], false], [["--verbose"], true]]) {
+    const stdout = writer();
+    const main = withEngramStep("cursor", () => 0);
+    assert.equal(main(argv, { engramStep: step, stdout, stderr: writer() }), 0);
+    assert.equal(/No se pudo comprobar/.test(stdout.value), shown, `argv ${JSON.stringify(argv)}`);
+  }
+});
