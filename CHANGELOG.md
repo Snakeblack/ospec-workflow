@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.132.1] - 2026-10-12
+
+### Fixed
+- **Aviso de engram con Homebrew 7**: el aviso de versión nueva sugería `brew upgrade engram`, que falla con Homebrew 7: el tap `gentleman-programming/tap` también tiene un cask antiguo llamado `engram`, y brew lo carga para resolver el nombre y lo rechaza mientras el tap no tenga confianza. Ahora sugiere `brew upgrade --formula gentleman-programming/tap/engram`. homebrew-core no tiene engram, así que el tap es la única fuente con brew. Hecho con IDD (`idd/archive/2026-10-12-engram-brew-upgrade-hint/`).
+- **URLs canónicas de la web de documentación**: `web-doc/astro.config.mjs` apunta `site` y `og:image` a `https://ospec-workflow.mretamozo.com`, donde Vercel sirve el sitio. Antes, la URL canónica, `og:url`, `og:image` y el sitemap apuntaban a GitHub Pages, que da 404 (PR #319).
+
+**Verificación directa**: `node scripts/check.js` (3624 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.132.0] - 2026-10-12
 
 ### Added
