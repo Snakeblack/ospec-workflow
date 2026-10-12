@@ -391,9 +391,11 @@ function resolveBinary(bin, { fs: fsImpl, env }) {
 }
 
 // How to upgrade depends on how engram was installed; the release page otherwise.
+// The tap also carries a legacy `engram` cask: Homebrew 7 loads it for a bare name
+// and refuses it while the tap is untrusted, so the formula is named in full.
 function upgradeHint(binary, latest, tag, { fs: fsImpl, env, homedir }) {
   const found = resolveBinary(binary.bin, { fs: fsImpl, env });
-  if (found && /[\\/]Cellar[\\/]engram[\\/]/.test(found.real)) return "`brew upgrade engram`";
+  if (found && /[\\/]Cellar[\\/]engram[\\/]/.test(found.real)) return "`brew upgrade --formula gentleman-programming/tap/engram`";
   const goBins = [env.GOBIN, ...String(env.GOPATH || path.join(homedir(), "go")).split(path.delimiter).filter(Boolean).map((dir) => path.join(dir, "bin"))];
   if (found && goBins.some((dir) => dir && path.resolve(dir) === path.resolve(found.dir))) {
     const major = latest[0] >= 2 ? `/v${latest[0]}` : "";

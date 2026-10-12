@@ -1,0 +1,214 @@
+{
+  "schema": "idd-state/v1",
+  "change": "engram-brew-upgrade-hint",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El aviso de versión nueva de engram sugiere para Homebrew un comando que falla con Homebrew 7",
+    "acceptance": "Con engram instalado con Homebrew y una versión más nueva publicada, el aviso sugiere brew upgrade --formula gentleman-programming/tap/engram"
+  },
+  "facts": {
+    "basis": "El usuario eligió la opción 1 (nombre completo con --formula); homebrew-core no tiene engram (API 404) y el recibo de instalación nombra gentleman-programming/tap, así que el nombre completo vale para toda instalación con brew; el resto del aviso no cambia"
+  },
+  "plan": {
+    "paths": [
+      "docs/plugin-installation.es.md",
+      "docs/plugin-installation.md",
+      "openspec/specs/install/spec.md",
+      "scripts/configure/engram-setup.js",
+      "scripts/configure/engram-setup.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component generator: ADR 0001, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "none",
+      "reason": "Solo cambia el texto del aviso en el paso Engram del instalador; la generación y los árboles generados no cambian"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "none",
+      "reason": "No añade dependencias ni llamadas: solo cambia el comando que se sugiere"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "No cambia ninguna llamada de red; la consulta y su comportamiento sin red siguen igual"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "El aviso sigue siendo el mismo para los siete instaladores mediante runEngramStep; ningún golden cambia"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-12T19:02:01.550Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-12T19:02:33.196Z",
+      "detail": {
+        "tree": "sha256:7e30f37784dff4f5dbadc1c72d286b8318f7085fd5f68a1d08d7396a60f06313",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-12T19:02:33.196Z",
+      "detail": {
+        "refs": [
+          "adr:0001 none",
+          "adr:0010 none",
+          "scenario:offline-operation none",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:7e30f37784dff4f5dbadc1c72d286b8318f7085fd5f68a1d08d7396a60f06313",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7"
+        ]
+      }
+    }
+  ],
+  "base": "2b027c3b5c691d8974ddc6cdf7681bec91cbcb77",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"Homebrew upgrade\" scripts/configure/engram-setup.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:987ef5d2bf3542a639db6e097401f04ace7c61b4c0b4847365b87e7cabd2f668",
+      "tree": "sha256:4ef12f8c1886dc5f16184a0040777a42b32cebb00641c0515f381bed5bc2421c",
+      "recorded_at": "2026-10-12T19:01:52.034Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"Homebrew upgrade\" scripts/configure/engram-setup.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:225f58edcdf476568d3fc230d0e5e6e58447f7cbf951334deb783e7422c6457a",
+      "tree": "sha256:9a2a2959f0e975775ce935d61750e1d2e22ece49ff5e02318b546ee7b4d64036",
+      "recorded_at": "2026-10-12T19:02:01.550Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f925259d3c6ca89a238bb552dc0a4a2654650bef8b4ce665dd38a27d7caff0df",
+      "tree": "sha256:7e30f37784dff4f5dbadc1c72d286b8318f7085fd5f68a1d08d7396a60f06313",
+      "recorded_at": "2026-10-12T19:02:33.196Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ee9fa9af31f771b0c0b9a76932416265aee196b4992498af228c838034f35d80",
+      "tree": "sha256:7e30f37784dff4f5dbadc1c72d286b8318f7085fd5f68a1d08d7396a60f06313",
+      "recorded_at": "2026-10-12T19:02:33.196Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:7e30f37784dff4f5dbadc1c72d286b8318f7085fd5f68a1d08d7396a60f06313",
+      "recorded_at": "2026-10-12T19:02:33.196Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:40ab6ddf7ad17548d8073243b7fc0449b78ee2a0bfb2f21624d337ea20fd9117",
+      "tree": "sha256:7e30f37784dff4f5dbadc1c72d286b8318f7085fd5f68a1d08d7396a60f06313",
+      "recorded_at": "2026-10-12T19:02:33.196Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:714e626f823741c94adb1a3caa602e67c2bfdcb493ffb59cac78e3ae8ead9c85",
+      "tree": "sha256:7e30f37784dff4f5dbadc1c72d286b8318f7085fd5f68a1d08d7396a60f06313",
+      "recorded_at": "2026-10-12T19:02:33.196Z"
+    }
+  ],
+  "closed_at": "2026-10-12T19:02:36.940Z"
+}

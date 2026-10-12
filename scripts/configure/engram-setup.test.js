@@ -775,9 +775,11 @@ function notice({ version = "3.3.2", latest = ok("v3.4.0"), dir = BREW_BIN, real
   return { ...out, detail: detail.value, asked: spawn.calls.some((call) => call.startsWith(`${LATEST} `)) };
 }
 
+// Homebrew 7 also loads the tap's legacy `engram` cask for a bare name and refuses
+// it while untrusted, so the hint names the formula in full.
 test("update notice: a newer release names both versions and the Homebrew upgrade", () => {
   const { stdout, stderr } = notice();
-  assert.match(stdout, /engram 3\.3\.2 instalado, 3\.4\.0 disponible: actualiza con `brew upgrade engram`\./);
+  assert.match(stdout, /engram 3\.3\.2 instalado, 3\.4\.0 disponible: actualiza con `brew upgrade --formula gentleman-programming\/tap\/engram`\./);
   assert.doesNotMatch(stderr, /disponible|versión nueva/);
 });
 
