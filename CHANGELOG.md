@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.132.0] - 2026-10-12
+
+### Added
+- **Aviso de versión nueva de engram**: el paso Engram de los siete instaladores pregunta a GitHub por la última release de engram (límite de 3 s) y, si es más nueva que la instalada, lo dice en una línea con las dos versiones y cómo actualizar: `brew upgrade engram` para una instalación de Homebrew, `go install github.com/Gentleman-Programming/engram/v<major>/cmd/engram@latest` para una de `GOBIN` o `GOPATH/bin`, o la página de la release. Nunca actualiza engram. No muestra nada si está al día o si la consulta falla (sin red, límite de peticiones); `--verbose` enseña el fallo. `ENGRAM_NO_UPDATE_CHECK`, la variable que ya respeta engram, y `--no-engram` lo desactivan. Un binario de `go install` sin versión (`dev`) no recibe aviso, y `ospec doctor` sigue sin red. Nuevo requisito REQ-install-043. Hecho con IDD (`idd/archive/2026-10-12-engram-update-notice/`).
+
+**Verificación directa**: `node scripts/check.js` (3624 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.131.4] - 2026-10-12
 
 ### Fixed
