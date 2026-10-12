@@ -194,12 +194,17 @@ async function runScenario({
 
   const setupReason = setup && setup.reason === "host-quota" ? "host-quota" : "setup-incomplete";
   const skipReason = setup && setup.status !== "complete" ? setupReason : modifiedSeed.length > 0 ? "setup-modified-seed" : null;
-  const change = skipReason
-    ? { ...emptyConversation(), reason: skipReason }
-    : await converse({
-      host, persona: { scenario, goal: arm.goal }, prompt: arm.changePrompt(scenario), cwd: workspaceRoot, runDir, label: "change",
-      maxTurns: bounds.maxAgentTurns, maxCostUsd: bounds.maxCostUsd, isDone: () => arm.isComplete(workspaceRoot),
-    });
+  let change;
+  try {
+    change = skipReason
+      ? { ...emptyConversation(), reason: skipReason }
+      : await converse({
+        host, persona: { scenario, goal: arm.goal }, prompt: arm.changePrompt(scenario), cwd: workspaceRoot, runDir, label: "change",
+        maxTurns: bounds.maxAgentTurns, maxCostUsd: bounds.maxCostUsd, isDone: () => arm.isComplete(workspaceRoot, base),
+      });
+  } finally {
+    if (host.release) host.release(workspaceRoot);
+  }
 
   git(workspaceRoot, ["add", "-A"]);
   const changedFiles = fileList(git(workspaceRoot, ["diff", "--cached", "--name-only", base]));

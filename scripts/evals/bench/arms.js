@@ -3,10 +3,12 @@
 // Bench arms: the mode under measurement. Each arm says how a project is set
 // up once (outside the measurement), how the change is requested, and how the
 // driver knows the change is finished. The persona receives `goal` so it asks
-// the agent to carry the change through to that point.
+// the agent to carry the change through to that point. `isComplete` also
+// receives the commit the change starts from (after setup).
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { spawnSync } = require("node:child_process");
 
 const { CONFIG_FILE, parseIddConfig } = require("../../lib/idd-config.js");
 
@@ -30,6 +32,53 @@ function isIddMode(root) {
   } catch {
     return false;
   }
+}
+
+function git(root, args) {
+  const result = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+  return result.status === 0 ? result.stdout : null;
+}
+
+// Paths `git status -z` reports; a rename or copy adds its source path.
+function changedPaths(output) {
+  const entries = output.split("\0").filter(Boolean);
+  const paths = [];
+  for (let i = 0; i < entries.length; i += 1) {
+    const entry = entries[i];
+    paths.push(entry.slice(3));
+    if (/^[RC]/.test(entry)) {
+      i += 1;
+      paths.push(entries[i]);
+    }
+  }
+  return paths;
+}
+
+const ODD_DIR = "odd";
+// gentle-ai regenerates its skill registry in .atl/ at every session start: it
+// is its local runtime state (gentle-ai's own .gitignore helper excludes it),
+// not part of the delivery.
+const RUNTIME_DIRS = Object.freeze([ODD_DIR, ".atl"]);
+const UNCHECKED_TASK = /^\s*[-*] \[ \]/m;
+
+function hasPendingOddTask(root) {
+  const tasksDir = path.join(root, ODD_DIR, "tasks");
+  if (!fs.existsSync(tasksDir)) return false;
+  return fs.readdirSync(tasksDir).filter((name) => name.endsWith(".md"))
+    .some((name) => UNCHECKED_TASK.test(fs.readFileSync(path.join(tasksDir, name), "utf8")));
+}
+
+// ODD writes odd/tasks/<feature>.md only for substantial work, closes every
+// task with a commit, and records that commit in the document afterwards, so
+// the document may stay uncommitted. A gentle-ai change is finished with at
+// least one commit after setup, nothing uncommitted outside odd/ (and .atl/),
+// and no unchecked task in any feature document (user decision, 2026-10-12).
+function hasOddDelivery(root, base) {
+  const commits = git(root, ["rev-list", "--count", `${base}..HEAD`]);
+  if (commits === null || Number(commits.trim()) < 1) return false;
+  const status = git(root, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]);
+  if (status === null || changedPaths(status).some((file) => !RUNTIME_DIRS.some((dir) => file.startsWith(`${dir}/`)))) return false;
+  return !hasPendingOddTask(root);
 }
 
 // Every seed tests with `npm test`, the command sdd-init records for the sdd
@@ -60,6 +109,19 @@ const ARMS = Object.freeze({
     changePrompt: (scenario) => `/ospec-workflow:idd ${scenario.brief}`,
     isComplete: hasClosedIddChange,
   }),
+  // gentle-ai is installed once in the bench's gentle-ai HOME (bench.js
+  // setup-gentle-ai), so a project needs no setup. ODD runs on every request,
+  // so the change is the brief itself.
+  "gentle-ai": Object.freeze({
+    id: "gentle-ai",
+    available: true,
+    goal: "implementado, con el trabajo en commits y, si creó un documento en odd/tasks/, con todas sus tareas marcadas",
+    setupGoal: "ninguno: el proyecto no necesita preparación",
+    setupPrompts: Object.freeze([]),
+    isSetupDone: () => true,
+    changePrompt: (scenario) => scenario.brief,
+    isComplete: hasOddDelivery,
+  }),
 });
 
 function armFor(id) {
@@ -69,4 +131,4 @@ function armFor(id) {
   return arm;
 }
 
-module.exports = { ARMS, armFor, hasArchivedChange, hasClosedIddChange };
+module.exports = { ARMS, armFor, hasArchivedChange, hasClosedIddChange, hasOddDelivery };

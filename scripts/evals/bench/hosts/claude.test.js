@@ -23,12 +23,12 @@ function fakeClaude(dir, { exitCode = 0 } = {}) {
       const args = process.argv.slice(2);
       const result = {
         type: "result", subtype: "success", is_error: false, session_id: "s-" + (args.includes("--resume") ? "resumed" : "new"),
-        result: JSON.stringify({ args, input, config: process.env.CLAUDE_CONFIG_DIR, nested: process.env.CLAUDECODE || null }),
+        result: JSON.stringify({ args, input, config: process.env.CLAUDE_CONFIG_DIR || null, nested: process.env.CLAUDECODE || null, home: process.env.HOME, engramPort: process.env.ENGRAM_PORT || null }),
         duration_ms: 5, num_turns: 1, total_cost_usd: 0.01,
         modelUsage: { m: { inputTokens: 1, outputTokens: 2, cacheReadInputTokens: 3, cacheCreationInputTokens: 4 } },
       };
       if (args.includes("--json-schema")) {
-        result.structured_output = { kind: "question", answer: "Media.", facts_disclosed: ["F1"], deviates_from_recommendation: false };
+        result.structured_output = { kind: "question", answer: JSON.stringify({ config: process.env.CLAUDE_CONFIG_DIR || null, home: process.env.HOME }), facts_disclosed: ["F1"], deviates_from_recommendation: false };
         process.stdout.write(JSON.stringify(result));
       } else {
         process.stdout.write(JSON.stringify({ type: "system", subtype: "init", session_id: result.session_id }) + "\\n" + JSON.stringify(result) + "\\n");
@@ -156,4 +156,67 @@ test("the bench builds the plugin with the SDD package, so both arms keep the pl
   assert.equal(calls.length, 1);
   assert.ok(calls[0].includes("--with-sdd"), "the build must install SDD: the sdd arm needs it and idd-2 ran with it");
   assert.equal(built.version, "9.9.9");
+});
+
+test("the gentle-ai agent runs from its HOME with its MCP server and an Engram per workspace; the persona keeps the bench configuration", async () => {
+  const dir = tempDir();
+  const home = path.join(dir, "gentle-home");
+  const started = [];
+  const stopped = [];
+  const startEngram = async ({ home: engramHome, workspaceRoot }) => {
+    started.push({ engramHome, workspaceRoot });
+    const port = String(40000 + started.length);
+    return { env: { ENGRAM_DATA_DIR: path.join(workspaceRoot, ".git", "bench-engram"), ENGRAM_PORT: port }, stop: () => stopped.push(workspaceRoot) };
+  };
+  const mcpConfig = JSON.stringify({ mcpServers: { engram: { type: "stdio", command: "engram", args: ["mcp"] } } });
+  const host = createClaudeHost({
+    executable: process.execPath,
+    prefixArgs: [fakeClaude(dir)],
+    configDir: path.join(dir, "config"),
+    pluginDir: null,
+    gentleAi: { home, startEngram, mcpConfig },
+    model: "m",
+    personaModel: "p",
+    personaDir: dir,
+    baseEnv: { ...process.env, CLAUDE_CONFIG_DIR: "/user/claude", HOME: "/home/user" },
+  });
+  const workspace = path.join(dir, "ws");
+  fs.mkdirSync(workspace);
+  const first = JSON.parse((await host.turn({ cwd: workspace, prompt: "Quiero prioridades.", sessionId: null, transcriptPath: path.join(dir, "t1.jsonl") })).final_text);
+  await host.turn({ cwd: workspace, prompt: "Media.", sessionId: "s-new", transcriptPath: path.join(dir, "t2.jsonl") });
+
+  assert.equal(first.home, home);
+  assert.equal(first.config, null, "gentle-ai's MCP registry lives in $HOME/.claude.json, which CLAUDE_CONFIG_DIR would hide");
+  assert.equal(first.engramPort, "40001");
+  assert.ok(!first.args.includes("--plugin-dir"));
+  assert.ok(first.args.includes("--strict-mcp-config"), "never the account's claude.ai connectors");
+  assert.equal(first.args.at(-1), mcpConfig, "only the MCP servers gentle-ai registered, last because the flag takes several values");
+  assert.equal(first.args.at(-2), "--mcp-config");
+  assert.equal(started.length, 1, "one Engram for the workspace, reused by later turns");
+  assert.deepEqual(started[0], { engramHome: home, workspaceRoot: workspace });
+
+  const { reply } = await host.persona({ scenario: { brief: "b", facts: [{ id: "F1", text: "media" }] }, goal: "g", message: "¿Prioridad?" });
+  assert.deepEqual(JSON.parse(reply.answer), { config: path.join(dir, "config"), home: "/home/user" }, "the persona is the same for every arm");
+
+  host.release(workspace);
+  host.release(workspace);
+  assert.deepEqual(stopped, [workspace], "released once");
+
+  const other = path.join(dir, "ws2");
+  fs.mkdirSync(other);
+  await host.turn({ cwd: other, prompt: "x", sessionId: null, transcriptPath: path.join(dir, "t3.jsonl") });
+  host.releaseAll();
+  assert.deepEqual(stopped, [workspace, other], "an interrupted bench stops every Engram it started");
+});
+
+test("releaseAll stops the turn in flight", async () => {
+  const dir = tempDir();
+  const script = path.join(dir, "hang.js");
+  fs.writeFileSync(script, "setInterval(() => {}, 1000);");
+  const host = createClaudeHost({ executable: process.execPath, prefixArgs: [script], configDir: dir, pluginDir: dir, model: "m", personaModel: "p", personaDir: dir });
+  const pending = host.turn({ cwd: dir, prompt: "x", sessionId: null, transcriptPath: path.join(dir, "t.jsonl") });
+  await new Promise((resolve) => { setTimeout(resolve, 200); });
+  host.releaseAll();
+  const turn = await pending;
+  assert.equal(turn.is_error, true, "the killed turn ends instead of hanging the bench");
 });

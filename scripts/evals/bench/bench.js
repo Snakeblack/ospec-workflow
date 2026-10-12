@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 "use strict";
 
-// E4.1 bench CLI.
+// Bench CLI (E4.1, E4.2).
 //   node scripts/evals/bench/bench.js list
+//   node scripts/evals/bench/bench.js setup-gentle-ai --gentle-ai-bin <file> [--engram-bin <file>] [--gentle-ai-home <dir>]
 //   node scripts/evals/bench/bench.js run --arm sdd --record <id> [--scenario <id>]... [--force]
 //   node scripts/evals/bench/bench.js report --record <id>
 //   node scripts/evals/bench/bench.js checkpoint --baseline <id> --candidate <id>
@@ -16,6 +17,7 @@ const { armFor } = require("./arms.js");
 const { evaluateCheckpoint, loadMargins, renderCheckpoint } = require("./checkpoint.js");
 const { DEFAULT_LIMITS, runScenario: defaultRunScenario } = require("./driver.js");
 const { buildPlugin: defaultBuildPlugin, createClaudeHost, resolveClaudeExecutable } = require("./hosts/claude.js");
+const { identifyGentleAi: defaultIdentifyGentleAi, installGentleAi: defaultInstallGentleAi, mcpConfig, startEngram } = require("./hosts/gentle-ai.js");
 const { assertSameIdentity, createRecord, renderReport, upsertRun, validateRecord } = require("./record.js");
 const { harnessDigest, loadScenarios, scenariosDigest } = require("./scenarios.js");
 
@@ -27,6 +29,7 @@ const DEFAULTS = Object.freeze({
   runsDir: path.join(REPO_ROOT, "scripts", "evals", ".runs", "bench"),
   workspacesDir: path.join(os.tmpdir(), "ospec-bench"),
   configDir: path.join(os.homedir(), ".ospec-bench", "claude"),
+  gentleAiHome: path.join(os.homedir(), ".ospec-bench", "gentle-ai"),
 });
 const OPTIONS = Object.freeze({
   "--arm": ["arm", String],
@@ -45,6 +48,9 @@ const OPTIONS = Object.freeze({
   "--max-turns": ["maxAgentTurns", Number],
   "--max-cost": ["maxCostUsd", Number],
   "--repetitions": ["repetitions", Number],
+  "--gentle-ai-home": ["gentleAiHome", String],
+  "--gentle-ai-bin": ["gentleAiBin", String],
+  "--engram-bin": ["engramBin", String],
 });
 const EXIT_HOST_QUOTA = 3;
 
@@ -85,6 +91,28 @@ function writeRecord(recordsDir, record) {
   fs.renameSync(temp, target);
 }
 
+function findOnPath(name, env = process.env) {
+  for (const dir of (env.PATH || "").split(path.delimiter).filter(Boolean)) {
+    const candidate = path.join(dir, name);
+    if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return candidate;
+  }
+  return null;
+}
+
+function setupGentleAiCommand(args, deps) {
+  const { stdout, stderr } = deps;
+  const home = path.resolve(args.gentleAiHome || DEFAULTS.gentleAiHome);
+  const engram = args.engramBin || findOnPath("engram");
+  if (!args.gentleAiBin || !engram) {
+    stderr.write("setup-gentle-ai needs --gentle-ai-bin (a gentle-ai build) and an engram binary (--engram-bin, or engram on PATH)\n");
+    return 2;
+  }
+  deps.installGentleAi({ gentleAi: path.resolve(args.gentleAiBin), engram: path.resolve(engram), home });
+  const { version, digest } = deps.identifyGentleAi({ home });
+  stdout.write(`gentle-ai ${version} installed in ${home} (${digest.slice(0, 12)}). Log in once with HOME set to it (\`HOME="${home}" claude\`), then run --arm gentle-ai.\n`);
+  return 0;
+}
+
 async function runCommand(args, deps) {
   const { stdout, stderr } = deps;
   const opts = { ...DEFAULTS, ...Object.fromEntries(Object.entries(args).filter(([, value]) => value !== undefined)) };
@@ -108,13 +136,29 @@ async function runCommand(args, deps) {
 
   const executable = deps.resolveExecutable(opts.claudeBin);
   const recordWorkspaces = path.join(opts.workspacesDir, opts.record);
-  const plugin = deps.buildPlugin({ repoRoot: REPO_ROOT, outDir: path.join(recordWorkspaces, "plugin-build") });
+  // gentle-ai replaces the ospec plugin: its install in the gentle-ai HOME is
+  // what the record identifies as the plugin.
+  let plugin;
+  let gentleAi = null;
+  if (arm.id === "gentle-ai") {
+    const home = path.resolve(opts.gentleAiHome);
+    try {
+      plugin = { pluginDir: null, ...deps.identifyGentleAi({ home }) };
+    } catch (error) {
+      stderr.write(`${error.message}. Install it with \`bench.js setup-gentle-ai --gentle-ai-bin <file> --gentle-ai-home ${home}\` and log in once with \`HOME="${home}" claude\`, then run again.\n`);
+      return 2;
+    }
+    gentleAi = { home, startEngram, mcpConfig: mcpConfig(home) };
+  } else {
+    plugin = deps.buildPlugin({ repoRoot: REPO_ROOT, outDir: path.join(recordWorkspaces, "plugin-build") });
+  }
   const personaDir = path.join(recordWorkspaces, "persona");
   fs.mkdirSync(personaDir, { recursive: true });
   const host = deps.createHost({
     executable,
     configDir: opts.configDir,
     pluginDir: plugin.pluginDir,
+    gentleAi,
     model: opts.model,
     effort: opts.effort || null,
     personaModel: opts.personaModel,
@@ -151,41 +195,53 @@ async function runCommand(args, deps) {
     record = createRecord({ ...identity, recorded_at: deps.now().toISOString() });
   }
 
-  // Repetition by repetition, so an interrupted run already covers every
-  // scenario once before it repeats any.
-  for (let repetition = 1; repetition <= repetitions; repetition += 1) {
-    for (const scenario of selected) {
-      const label = repetitions > 1 ? `${scenario.id} #${repetition}` : scenario.id;
-      const existing = record.runs.find((run) => run.scenario_id === scenario.id && run.repetition === repetition);
-      if (existing && existing.status === "complete" && !args.force) {
-        stdout.write(`${label}: already complete in ${opts.record}, skipped\n`);
-        continue;
+  // An interrupted bench stops what the host started (gentle-ai's Engram).
+  const interrupt = (signal) => {
+    if (host.releaseAll) host.releaseAll();
+    process.exit(signal === "SIGINT" ? 130 : 143);
+  };
+  process.once("SIGINT", interrupt);
+  process.once("SIGTERM", interrupt);
+  try {
+    // Repetition by repetition, so an interrupted run already covers every
+    // scenario once before it repeats any.
+    for (let repetition = 1; repetition <= repetitions; repetition += 1) {
+      for (const scenario of selected) {
+        const label = repetitions > 1 ? `${scenario.id} #${repetition}` : scenario.id;
+        const existing = record.runs.find((run) => run.scenario_id === scenario.id && run.repetition === repetition);
+        if (existing && existing.status === "complete" && !args.force) {
+          stdout.write(`${label}: already complete in ${opts.record}, skipped\n`);
+          continue;
+        }
+        const slot = repetitions > 1 ? path.join(scenario.id, `r${repetition}`) : scenario.id;
+        const workspaceRoot = path.join(recordWorkspaces, slot);
+        stdout.write(`${label}: running in ${workspaceRoot}\n`);
+        const run = await deps.runScenario({
+          scenario,
+          arm,
+          host,
+          workspaceRoot,
+          runDir: path.join(opts.runsDir, opts.record, slot),
+          limits,
+        });
+        if (run.reason === "host-quota") {
+          // Nothing usable: every later turn would fail the same way. Keep the
+          // record as it was so the same command resumes after the reset.
+          const last = [...run.conversation].reverse().find((entry) => entry.role === "agent");
+          stderr.write(`${label}: the host's usage quota is exhausted (${last ? last.text : "no message"}). Stopped without recording it; run the same command again after the reset.\n`);
+          return EXIT_HOST_QUOTA;
+        }
+        record = upsertRun(record, { scenario_id: run.scenario_id, repetition, ...run });
+        writeRecord(opts.recordsDir, record);
+        stdout.write(`${label}: ${run.status}${run.reason ? ` (${run.reason})` : ""}, ${run.metrics.tokens_total} tokens, ${run.escaped_defects} escaped\n`);
       }
-      const slot = repetitions > 1 ? path.join(scenario.id, `r${repetition}`) : scenario.id;
-      const workspaceRoot = path.join(recordWorkspaces, slot);
-      stdout.write(`${label}: running in ${workspaceRoot}\n`);
-      const run = await deps.runScenario({
-        scenario,
-        arm,
-        host,
-        workspaceRoot,
-        runDir: path.join(opts.runsDir, opts.record, slot),
-        limits,
-      });
-      if (run.reason === "host-quota") {
-        // Nothing usable: every later turn would fail the same way. Keep the
-        // record as it was so the same command resumes after the reset.
-        const last = [...run.conversation].reverse().find((entry) => entry.role === "agent");
-        stderr.write(`${label}: the host's usage quota is exhausted (${last ? last.text : "no message"}). Stopped without recording it; run the same command again after the reset.\n`);
-        return EXIT_HOST_QUOTA;
-      }
-      record = upsertRun(record, { scenario_id: run.scenario_id, repetition, ...run });
-      writeRecord(opts.recordsDir, record);
-      stdout.write(`${label}: ${run.status}${run.reason ? ` (${run.reason})` : ""}, ${run.metrics.tokens_total} tokens, ${run.escaped_defects} escaped\n`);
     }
+    stdout.write(renderReport(record));
+    return 0;
+  } finally {
+    process.removeListener("SIGINT", interrupt);
+    process.removeListener("SIGTERM", interrupt);
   }
-  stdout.write(renderReport(record));
-  return 0;
 }
 
 async function main(argv, deps = {}) {
@@ -195,6 +251,8 @@ async function main(argv, deps = {}) {
     now: () => new Date(),
     resolveExecutable: (bin) => resolveClaudeExecutable(bin || undefined),
     buildPlugin: defaultBuildPlugin,
+    identifyGentleAi: defaultIdentifyGentleAi,
+    installGentleAi: defaultInstallGentleAi,
     createHost: createClaudeHost,
     runScenario: defaultRunScenario,
     ...deps,
@@ -210,6 +268,7 @@ async function main(argv, deps = {}) {
       io.stdout.write(`digest ${scenariosDigest(corpus)}\n`);
       return 0;
     }
+    if (args.command === "setup-gentle-ai") return setupGentleAiCommand(args, io);
     if (args.command === "run") return await runCommand(args, io);
     if (args.command === "report") {
       io.stdout.write(renderReport(readRecord(recordsDir, args.record)));
@@ -226,7 +285,7 @@ async function main(argv, deps = {}) {
       io.stdout.write(renderCheckpoint(result));
       return result.decision === "continue" ? 0 : 1;
     }
-    io.stderr.write("usage: bench.js list | run --arm <arm> --record <id> [--repetitions <n>] | report --record <id> | checkpoint --baseline <id> --candidate <id>\n");
+    io.stderr.write("usage: bench.js list | setup-gentle-ai --gentle-ai-bin <file> [--engram-bin <file>] [--gentle-ai-home <dir>] | run --arm <arm> --record <id> [--repetitions <n>] | report --record <id> | checkpoint --baseline <id> --candidate <id>\n");
     return 2;
   } catch (error) {
     io.stderr.write(`${error.message}\n`);

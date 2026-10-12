@@ -1,7 +1,8 @@
-# Bench (E4.1)
+# Bench (E4.1, E4.2)
 
-Measures a workflow mode with real agents on six fixed scenarios, so E1.6 can
-decide with predeclared numbers whether IDD becomes the default entry.
+Measures a workflow mode with real agents on six fixed scenarios, so E1.6 could
+decide with predeclared numbers whether IDD becomes the default entry (E4.1),
+and so IDD can be compared with gentle-ai (E4.2).
 Contract: `openspec/specs/bench/spec.md` (REQ-bench-001 to 006). Measurement
 tooling only: it grants no authority and never runs a model in `npm test`.
 
@@ -13,14 +14,14 @@ tooling only: it grants no authority and never runs a model in `npm test`.
 | `__fixtures__/reference/<id>/` | A correct delivery per scenario; `checks.test.js` proves every check passes on it and acceptance fails on the seed |
 | `scenarios.js` | Loads and validates the corpus, digests it, materializes a seed |
 | `checks.js`, `check-runner.js`, `check-kit.js` | Run each hidden check in its own process against the delivered workspace |
-| `arms.js` | `sdd` (init, `sdd-new`, archived change) and `idd` (agent writes `idd/config.yaml` with `mode: idd` and `npm test`, `/ospec-workflow:idd`, change closed under `idd/archive/`) |
+| `arms.js` | `sdd` (init, `sdd-new`, archived change), `idd` (agent writes `idd/config.yaml` with `mode: idd` and `npm test`, `/ospec-workflow:idd`, change closed under `idd/archive/`) and `gentle-ai` (no setup, the brief as is, a commit after setup with nothing uncommitted outside `odd/` and `.atl/`, its skill registry, and every `odd/tasks/*.md` task checked) |
 | `persona.js` | The simulated user: brief, facts, and goal; classifies each agent message and answers |
 | `driver.js` | Seed → git → setup (unmeasured; the persona only knows the setup goal, and a setup that edits the seed voids the run) → change conversation → hidden checks |
-| `hosts/claude.js` | Headless `claude -p` turns and persona calls in a dedicated config directory, with the plugin built from the checkout |
+| `hosts/claude.js` | Headless `claude -p` turns and persona calls in a dedicated config directory, with the plugin built from the checkout; for `gentle-ai`, agent turns in gentle-ai's own HOME |
+| `hosts/gentle-ai.js` | Installs gentle-ai into its bench HOME, identifies that install, and starts an empty Engram per workspace |
 | `transcript.js` | Usage, cost, and session from a `stream-json` transcript (`modelUsage` includes subagents) |
 | `record.js` | The versioned record of one arm and its Markdown report |
 | `checkpoint.js`, `margins.json` | Predeclared margins, the declared harness exception, and the continue/revise decision |
-| `harness-exception.test.js`, `__fixtures__/harness-baseline/` | Verifies the harness exception against copies of the baseline's harness files |
 | `stats.js` | Per-scenario 95% t interval (the task is the statistical unit) |
 | `bench.js` | CLI |
 
@@ -59,7 +60,31 @@ node scripts/evals/bench/bench.js report --record sdd-baseline-3
 node scripts/evals/bench/bench.js checkpoint --baseline sdd-baseline-3 --candidate idd-1
 ```
 
-`run` builds the plugin from the checkout, materializes each scenario under
+The `gentle-ai` arm runs gentle-ai from a HOME of its own, because gentle-ai
+writes only to `$HOME/.claude` and registers its Engram MCP server in
+`$HOME/.claude.json`, which Claude Code does not read under `CLAUDE_CONFIG_DIR`.
+Build gentle-ai from a release tag and install it there once (it copies both
+binaries into `<home>/bin`, installs Claude Code only with the `persona`,
+`engram`, and `skills` components, the `ecosystem-only` skills, and the
+`neutral` persona, and turns telemetry off), then log in in that HOME:
+
+```sh
+git -C <gentle-ai clone> archive v4.1.1 | tar -x -C <src>
+(cd <src> && go build -ldflags "-s -w -X main.version=4.1.1" -o <dir>/gentle-ai ./cmd/gentle-ai)
+node scripts/evals/bench/bench.js setup-gentle-ai --gentle-ai-bin <dir>/gentle-ai --engram-bin "$(command -v engram)"
+HOME="$HOME/.ospec-bench/gentle-ai" claude
+node scripts/evals/bench/bench.js run --arm gentle-ai --record gentle-ai-1 --repetitions 1
+```
+
+The agent loads exactly the MCP servers gentle-ai registered (its Engram), with
+`--strict-mcp-config`, so the account's claude.ai connectors stay out as in the
+other arms. Each gentle-ai workspace gets an empty Engram (data under
+`.git/bench-engram`, its own port) that the bench stops when the run ends or is
+interrupted, so no scenario sees
+another's memory and none reaches the user's Engram. The persona keeps the
+bench configuration directory for every arm.
+
+`run` builds the plugin from the checkout (the gentle-ai arm records its install instead), materializes each scenario under
 the system temp directory (`ospec-bench/<record>/<scenario>[/r<n>]`), writes the
 record to `records/<record>.json` after every run, and keeps transcripts
 under `scripts/evals/.runs/bench/` (gitignored). `--repetitions <n>` runs every
@@ -90,26 +115,23 @@ persona `claude-sonnet-5-5`, 30 agent turns and $25 per scenario
 
 ## Checkpoint
 
-`margins.json` (`bench-margins-4`, the thresholds of `bench-margins-3` plus the
-harness exception) is declared before any comparison: both
-arms run every scenario `repetitions: 1` time (the subscription quota does not
-allow more; with one run per scenario the comparison is exploratory); summed over the per-scenario
-means, the candidate may not escape more defects than the baseline
-(`max_mean_delta: 0`) and must spend at most 90% of its tokens
-(`max_total_ratio: 0.9`). Fixed in code: incomparable records (including
+`margins.json` (`bench-margins-6`, E4.2) is declared before any comparison:
+`gentle-ai` is the baseline and `idd` the candidate; both arms run every
+scenario `repetitions: 1` time (with one run per scenario the comparison is
+exploratory); summed over the per-scenario means, the candidate may not escape
+more defects than the baseline (`max_mean_delta: 0`) or spend more tokens
+(`max_total_ratio: 1`). Its verdict blocks nothing. Fixed in code: incomparable records (including
 another repetition count), incomplete or missing runs, and any hidden check the
 baseline passes in every repetition and the candidate fails in any force
 `revise`. A new campaign that needs other margins declares a new version first.
 
-Records of different harnesses are not comparable. The one exception is the
-`harness_exception` of the margins: `sdd-baseline-3` ran before the `idd` arm
-existed, and enabling it changed `arms.js` and `checkpoint.js`. The checkpoint
-accepts exactly that baseline → candidate digest pair and prints it.
-`harness-exception.test.js` proves the declaration: today's harness has the
-candidate digest; restoring the two files from `__fixtures__/harness-baseline/`
-rebuilds the baseline digest, so nothing else changed; and the `sdd` arm behaves
-as it did. Any later change to the harness fails that test until the exception
-is declared again, or the baseline is rerun.
+Records of different harnesses are not comparable unless the margins declare a
+`harness_exception` (one baseline digest, the candidate digests accepted against
+it, the files that differ, and why), and a test then verifies it against
+committed copies of those files. `bench-margins-6` declares none: `gentle-ai-1`
+and `idd-3` run with the same harness. The E4.1 checkpoint (`bench-margins-5`,
+`sdd-baseline-3` against `idd-2`, with its exception and
+`harness-exception.test.js`) is reproducible from v2.132.1 or earlier.
 
 ## Limits
 
