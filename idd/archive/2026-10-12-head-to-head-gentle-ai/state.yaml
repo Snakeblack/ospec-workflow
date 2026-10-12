@@ -1,0 +1,148 @@
+{
+  "schema": "idd-state/v1",
+  "change": "head-to-head-gentle-ai",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "feature",
+    "summary": "Añadir al banco de E4.1 un brazo gentle-ai (ODD y RDD) con el mismo host y modelo, correr los seis escenarios y publicar la comparación con SDD e IDD",
+    "acceptance": "Existe un informe publicado que compara gentle-ai con IDD y SDD en los seis escenarios, con numeradores, denominadores y exclusiones, reproducible desde records versionados"
+  },
+  "facts": {
+    "open": [
+      "¿Qué configuración de gentle-ai se mide: versión (tag v4.1.1 o main), preset, persona y alcance de instalación?",
+      "¿Corre el brazo gentle-ai con engram (memoria vacía y aislada) aunque los brazos SDD e IDD corrieron sin MCP ni memoria?",
+      "¿Cuándo da el driver por terminado un cambio de gentle-ai, que no archiva nada?",
+      "¿Se reutilizan sdd-baseline-3 e idd-2 o se vuelve a correr IDD (y SDD) con la versión actual del plugin y de Claude Code?",
+      "¿Qué modelo y cuántas repeticiones por escenario?",
+      "¿La comparación tiene márgenes declarados que dan un veredicto o es descriptiva?",
+      "¿Qué tope de coste por corrida y en total?",
+      "¿Dónde se publica la tabla y qué significa 'en cada tren de releases'?",
+      "¿Entra la comparación de calidad de scripts/evals/quality (métricas del diff, mutation testing, revisión a ciegas)?",
+      "¿Cómo se entrega: PRs encadenados (brazo en el harness, luego corridas e informe) o uno solo?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/analysis/2026-10-12-bench-gentle-ai.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/specs/bench/spec.md",
+      "scripts/evals/bench/README.md",
+      "scripts/evals/bench/arms.js",
+      "scripts/evals/bench/arms.test.js",
+      "scripts/evals/bench/bench.js",
+      "scripts/evals/bench/bench.test.js",
+      "scripts/evals/bench/checkpoint.js",
+      "scripts/evals/bench/checkpoint.test.js",
+      "scripts/evals/bench/driver.js",
+      "scripts/evals/bench/driver.test.js",
+      "scripts/evals/bench/harness-exception.test.js",
+      "scripts/evals/bench/hosts/claude.js",
+      "scripts/evals/bench/hosts/claude.test.js",
+      "scripts/evals/bench/hosts/gentle-ai.js",
+      "scripts/evals/bench/hosts/gentle-ai.test.js",
+      "scripts/evals/bench/margins.json",
+      "scripts/evals/bench/record.js",
+      "scripts/evals/bench/record.test.js",
+      "scripts/evals/bench/records/gentle-ai-1.json",
+      "scripts/evals/bench/records/idd-3.json"
+    ],
+    "work_units": 2,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "todas las recomendadas: (1) gentle-ai tag v4.1.1 compilado desde el clon con digest en el record, preset ecosystem-only, persona neutra, alcance global en HOME aislado; (2) engram con almacén vacío y aislado solo en el brazo gentle-ai; (3) terminado = odd/tasks/*.md con todas las tareas [x], al menos un commit nuevo y árbol limpio; (4) re-correr IDD con el plugin actual y Claude Code 2.1.296 junto a gentle-ai, sdd-baseline-3 como referencia histórica; (5) Sonnet 5.5, 1 repetición; (6) márgenes declarados antes de correr con veredicto no bloqueante: IDD no escapa más defectos que gentle-ai y gasta ≤ 1,0× sus tokens; (7) maxCostUsd 25 por corrida, tope total ~60 USD; (8) informe en docs/analysis, fila del roadmap con columna gentle-ai y tabla en docs/, repetir en cada checkpoint de etapa; (9) calidad: métricas del diff y mutation testing, sin revisión a ciegas; (10) PRs encadenados: (a) brazo en el harness con tests y márgenes, (b) corridas, informe y roadmap",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-12T19:44:47.610Z",
+      "detail": {
+        "tree": "sha256:0cda99d0a4e0fe3a9116d6bd30be8c4dd991c8c2488217e769f7d293ecefdf6e",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-12T21:14:58.091Z",
+      "detail": {
+        "tree": "sha256:e87feb31e2b56752440e7e5af92c2cb217c16b20871c98bf65d3f3da2cd61d40",
+        "runs": [
+          "run-2"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-12T21:15:02.432Z"
+    }
+  ],
+  "base": "3c1beba3323ff879f7f232af0ba3e70da0753106",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:18ce1e7bec51081dbb239aeacfbc841d0aea6b30870c7299cd2f43908e803836",
+      "tree": "sha256:0cda99d0a4e0fe3a9116d6bd30be8c4dd991c8c2488217e769f7d293ecefdf6e",
+      "recorded_at": "2026-10-12T19:44:47.610Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:802434012a9439e8d4817a71b27250cb53552f97480f878bb08adbf2ee05e848",
+      "tree": "sha256:e87feb31e2b56752440e7e5af92c2cb217c16b20871c98bf65d3f3da2cd61d40",
+      "recorded_at": "2026-10-12T21:14:58.091Z"
+    }
+  ],
+  "closed_at": "2026-10-12T21:15:02.432Z"
+}

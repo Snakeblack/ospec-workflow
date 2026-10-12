@@ -1,0 +1,91 @@
+diff --git a/README.md b/README.md
+index dbf6558..562d5bc 100644
+--- a/README.md
++++ b/README.md
+@@ -12,3 +12,8 @@ Cada acceso a datos de pacientes queda registrado en la auditoría
+ | `reception` | Leer la agenda |
+ 
+ Pruebas: `npm test`.
++
++`exportAppointmentsCsv(date, actor)` devuelve las citas de un día como CSV
++(`hora,paciente,motivo`, ordenadas por hora, separadas por CRLF, sin salto
++final). Pueden usarla `doctor` y `reception`; cada exportación se audita con
++el actor y el número de filas.
+diff --git a/src/clinic.js b/src/clinic.js
+index e4eb220..49429c1 100644
+--- a/src/clinic.js
++++ b/src/clinic.js
+@@ -32,7 +32,25 @@ function createClinic({ patients = [], appointments = [], audit = createAuditLog
+     return result;
+   }
+ 
+-  return { getPatient, appointmentsOn, audit };
++  // Quotes per RFC 4180 and prefixes formula triggers so spreadsheets show text.
++  function csvField(value) {
++    let text = String(value ?? "");
++    if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
++    return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
++  }
++
++  function exportAppointmentsCsv(date, actor) {
++    requireRole(actor, ["doctor", "reception"]);
++    const day = appointments.filter((item) => item.date === date).sort((a, b) => a.time.localeCompare(b.time));
++    const rows = day.map((item) => {
++      const patient = patients.find((entry) => entry.id === item.patientId);
++      return [item.time, patient ? patient.name : "", item.reason].map(csvField).join(",");
++    });
++    audit.record({ action: "export-appointments-csv", actorId: actor.id, date, count: rows.length });
++    return ["hora,paciente,motivo", ...rows].join("\r\n");
++  }
++
++  return { getPatient, appointmentsOn, exportAppointmentsCsv, audit };
+ }
+ 
+ module.exports = { createClinic, AccessDeniedError };
+diff --git a/test/clinic.js b/test/clinic.js
+index 6da846c..911aed5 100644
+--- a/test/clinic.js
++++ b/test/clinic.js
+@@ -31,3 +31,42 @@ test("appointments of a day are listed and audited", () => {
+   assert.deepEqual(clinic.appointmentsOn("2026-10-06", reception).map((item) => item.id), ["a1"]);
+   assert.equal(clinic.audit.entries()[0].count, 1);
+ });
++
++test("exportAppointmentsCsv lists the day sorted by time with CSV escaping", () => {
++  const clinic = createClinic({
++    patients: [
++      { id: "p1", name: "Pérez, Ana" },
++      { id: "p2", name: "Luis Gómez" },
++    ],
++    appointments: [
++      { id: "a1", patientId: "p2", date: "2026-10-06", time: "11:00", reason: "Revisión \"anual\"" },
++      { id: "a2", patientId: "p1", date: "2026-10-06", time: "09:30", reason: "Control" },
++      { id: "a3", patientId: "p1", date: "2026-10-07", time: "08:00", reason: "Otro día" },
++    ],
++  });
++  assert.equal(
++    clinic.exportAppointmentsCsv("2026-10-06", reception),
++    'hora,paciente,motivo\r\n09:30,"Pérez, Ana",Control\r\n11:00,Luis Gómez,"Revisión ""anual"""',
++  );
++});
++
++test("exportAppointmentsCsv: empty day, unknown patient and formula neutralisation", () => {
++  const clinic = createClinic({
++    patients,
++    appointments: [{ id: "a1", patientId: "zz", date: "2026-10-06", time: "09:00", reason: "=1+1" }],
++  });
++  assert.equal(clinic.exportAppointmentsCsv("2026-10-09", doctor), "hora,paciente,motivo");
++  assert.equal(clinic.exportAppointmentsCsv("2026-10-06", doctor), "hora,paciente,motivo\r\n09:00,,'=1+1");
++});
++
++test("exportAppointmentsCsv is role-checked and audited with the row count", () => {
++  const clinic = createClinic({ patients, appointments });
++  assert.throws(() => clinic.exportAppointmentsCsv("2026-10-06", { id: "x", role: "nurse" }), AccessDeniedError);
++  assert.throws(() => clinic.exportAppointmentsCsv("2026-10-06"), AccessDeniedError);
++  assert.equal(clinic.audit.entries().length, 0);
++  clinic.exportAppointmentsCsv("2026-10-06", reception);
++  assert.deepEqual(
++    clinic.audit.entries().map(({ action, actorId, date, count }) => ({ action, actorId, date, count })),
++    [{ action: "export-appointments-csv", actorId: "r1", date: "2026-10-06", count: 1 }],
++  );
++});
