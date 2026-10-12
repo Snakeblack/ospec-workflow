@@ -225,7 +225,9 @@ function addedLinesByFile(patch) {
 
 function readUntracked(root, file) {
   const full = path.join(root, file);
-  const stat = fs.statSync(full);
+  const stat = fs.lstatSync(full);
+  // A symlink is its target, as git stores it; it is never followed.
+  if (stat.isSymbolicLink()) return [fs.readlinkSync(full)];
   if (!stat.isFile() || stat.size > MAX_UNTRACKED_BYTES) return [];
   const content = fs.readFileSync(full, "utf8");
   if (content.includes("\0")) return [];
@@ -313,8 +315,11 @@ function readTreeFingerprint(root) {
     .map(normalizePath)
     .sort();
   for (const file of untracked) {
-    const content = fs.readFileSync(path.join(root, file));
-    hash.update(`\0untracked\0${file}\0${crypto.createHash("sha256").update(content).digest("hex")}`);
+    const full = path.join(root, file);
+    const link = fs.lstatSync(full).isSymbolicLink();
+    const content = link ? fs.readlinkSync(full) : fs.readFileSync(full);
+    const kind = link ? "untracked-symlink" : "untracked";
+    hash.update(`\0${kind}\0${file}\0${crypto.createHash("sha256").update(content).digest("hex")}`);
   }
   return `sha256:${hash.digest("hex")}`;
 }

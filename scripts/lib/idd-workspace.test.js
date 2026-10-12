@@ -126,6 +126,36 @@ test("the diff holds modified, deleted and untracked paths with their added line
   assert.ok(!("src/legacy/fax.js" in diff.addedLines));
 });
 
+test("an untracked symlink is its target, never followed, in the diff and the tree fingerprint", (t) => {
+  const root = gitRepo(t);
+  const outside = tempDir(t);
+  write(outside, "secret.txt", "outside the repository\n");
+  write(root, "src/app.js", "module.exports = 1;\n");
+  commitAll(root, "base");
+  try {
+    fs.symlinkSync("missing/target", path.join(root, "broken"));
+    fs.symlinkSync(outside, path.join(root, "linkdir"), "dir");
+    fs.symlinkSync(path.join(outside, "secret.txt"), path.join(root, "linkfile"), "file");
+  } catch (error) {
+    t.skip(`symlink unavailable: ${error.message}`);
+    return;
+  }
+
+  const diff = readGitDiff(root);
+  assert.deepStrictEqual(diff.paths, ["broken", "linkdir", "linkfile"]);
+  for (const link of diff.paths) {
+    assert.deepStrictEqual(diff.addedLines[link], [fs.readlinkSync(path.join(root, link))], link);
+  }
+  assert.notDeepStrictEqual(diff.addedLines.linkfile, ["outside the repository"], "the target's content is not read");
+
+  const before = readTreeFingerprint(root);
+  write(outside, "secret.txt", "changed outside\n");
+  assert.strictEqual(readTreeFingerprint(root), before, "the target's content is not read");
+  fs.rmSync(path.join(root, "broken"));
+  fs.symlinkSync("other/target", path.join(root, "broken"));
+  assert.notStrictEqual(readTreeFingerprint(root), before, "a new link target changes it");
+});
+
 test("the diff against a base includes committed work on the branch", (t) => {
   const root = gitRepo(t);
   write(root, "README.md", "x\n");

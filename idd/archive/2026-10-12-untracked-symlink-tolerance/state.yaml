@@ -1,0 +1,229 @@
+{
+  "schema": "idd-state/v1",
+  "change": "untracked-symlink-tolerance",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "readGitDiff y readTreeFingerprint fallan (ENOENT/EISDIR) con un enlace simbólico sin trackear roto o que apunta a un directorio, y siguen enlaces válidos fuera del repo",
+    "acceptance": "ospec signals/next/check/run funcionan con enlaces simbólicos sin trackear (rotos, a directorio o a fichero) sin leer el destino, y la huella del árbol cambia cuando cambia el destino del enlace"
+  },
+  "facts": {
+    "open": [
+      "¿Qué líneas añadidas aporta un enlace sin trackear: ninguna, o su destino como única línea (lo que git diff muestra para un enlace trackeado)?",
+      "¿Arreglo también readTreeFingerprint (ospec run/check), que falla igual con ENOENT o EISDIR, en este mismo cambio?",
+      "¿Dejo de seguir los enlaces válidos a ficheros (hoy se lee su contenido, aunque esté fuera del repo) y uso su destino, como hace git?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "scripts/lib/idd-workspace.js",
+      "scripts/lib/idd-workspace.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component idd-engine: ADR 0003, 0004, 0005, 0011 and quality scenario deterministic-resume",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La lectura del diff y de la huella sigue en el CLI, con su test en scripts/lib/idd-workspace.test.js"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "Las señales siguen derivándose del diff real; un enlace sin trackear aporta su destino como línea añadida, igual que git diff con un enlace trackeado"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "La huella del árbol que liga la evidencia sigue igual para ficheros normales y ahora incluye el destino de cada enlace, así que cambiar un enlace invalida la evidencia y no se lee nada fuera del repo"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "No toca los árboles idd/ ni openspec/ ni su separación"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "La huella depende solo del árbol del repo (destino del enlace, no contenido externo), así que la reanudación da el mismo resultado; además ospec ya no falla con enlaces rotos"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "1) Su destino como única línea, igual que git diff. 2) Sí, arreglar también readTreeFingerprint en este cambio. 3) No seguir enlaces válidos: usar su destino, como hace git.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-12T10:31:04.385Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-12T10:31:56.997Z",
+      "detail": {
+        "tree": "sha256:bf9039675d42b92eba8c2550755033c20d330af101ed263eed9101bbf207424e",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-12T10:31:56.997Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms"
+        ],
+        "records": [],
+        "tree": "sha256:bf9039675d42b92eba8c2550755033c20d330af101ed263eed9101bbf207424e",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7"
+        ]
+      }
+    }
+  ],
+  "base": "e9d925fe12e0a8d15073242b53b7d7a956543a3e",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"untracked symlink\" scripts/lib/idd-workspace.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:016b1a92b929a0c9bfc8b07bc0382d249093cbd77a28f5f5a4e8c33e30481d07",
+      "tree": "sha256:def1366fb2420ca64db68f4efd253cba04801c0c4bb1c70247dc36d9ee12a19a",
+      "recorded_at": "2026-10-12T10:30:34.756Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"untracked symlink\" scripts/lib/idd-workspace.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:aa865aa7958f6c0ccd4d77d6e9189a51d68cd46e5532e5bf3050f74f1d6d68f8",
+      "tree": "sha256:27dd4450540acfd411ef7fe15b567f8921e2a2d3be8f50afde40d4a55b58dbc8",
+      "recorded_at": "2026-10-12T10:31:04.385Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:18628cede44be54895eaae34f3a654db809d91cd61e90a39b562db91e84a98ea",
+      "tree": "sha256:bf9039675d42b92eba8c2550755033c20d330af101ed263eed9101bbf207424e",
+      "recorded_at": "2026-10-12T10:31:56.997Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:aeba3edb1fdcf3cc937736626b30f109ba367d829c6daf6be24dacd940ffb9c5",
+      "tree": "sha256:bf9039675d42b92eba8c2550755033c20d330af101ed263eed9101bbf207424e",
+      "recorded_at": "2026-10-12T10:31:56.997Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5739fab966be1ef98656593dab57b6cc651869ee335d7d4ffe871dd57cf40112",
+      "tree": "sha256:bf9039675d42b92eba8c2550755033c20d330af101ed263eed9101bbf207424e",
+      "recorded_at": "2026-10-12T10:31:56.997Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2674854c8a1b80c64c4d26025912170b73f7ac849fd5fd7292a18366cf1d291c",
+      "tree": "sha256:bf9039675d42b92eba8c2550755033c20d330af101ed263eed9101bbf207424e",
+      "recorded_at": "2026-10-12T10:31:56.997Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ef9b3aec7a133b854f14d6de734176681cc92b61f074406e36e11f5b7fbd2929",
+      "tree": "sha256:bf9039675d42b92eba8c2550755033c20d330af101ed263eed9101bbf207424e",
+      "recorded_at": "2026-10-12T10:31:56.997Z"
+    }
+  ],
+  "closed_at": "2026-10-12T10:32:03.295Z"
+}
