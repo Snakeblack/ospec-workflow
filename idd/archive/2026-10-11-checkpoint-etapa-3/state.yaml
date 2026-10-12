@@ -1,0 +1,83 @@
+{
+  "schema": "idd-state/v1",
+  "change": "checkpoint-etapa-3",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "Checkpoint de cierre de la Etapa 3: medir con números cada fila de Objetivos medibles que mueven las Etapas 2 y 3 y dar veredicto continue|revise",
+    "acceptance": "Un informe fechado en docs/analysis y el roadmap registran el checkpoint con cifras medidas en v2.131.1, el veredicto y los follow-ups; ospec check pasa"
+  },
+  "facts": {
+    "open": [
+      "Alcance: la Etapa 2 cerró sin checkpoint. ¿Este cubre las Etapas 2 y 3 juntas o solo la 3?",
+      "Veredicto: router más protocolo IDD mide 15,0-15,3 KB frente al objetivo de 16 KB (8,6-9,0 KB al cierre de E1) y 17,3-17,6 KB al cargar memory-loop.md; la skill idd queda a 617 B de su techo de 12 KiB. ¿continue con salvedad o revise antes de la Etapa 4?",
+      "ADRs desde los cambios: los 7 cambios con señal de ADR declararon 63 impactos, todos conforms o none, y ningún ADR nuevo; el caso de enmienda solo lo prueba el fixture architecture-amendment. ¿Se da por cumplido con salvedad?",
+      "Formato: ¿informe docs/analysis/2026-10-12-checkpoint-etapa-3.md más una columna nueva en la tabla de objetivos, como en la Etapa 1?",
+      "Follow-ups: presupuesto de contexto del protocolo IDD y escenarios de calidad de ospec sin fitness (mapa en v1). ¿Pasan a ítems del roadmap, a cuál, o se quedan como follow-ups?",
+      "Publicación: ¿release patch como en la Etapa 1, y lo siguiente E4.2 head-to-head-gentle-ai?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/analysis/2026-10-12-checkpoint-etapa-3.md",
+      "docs/roadmaps/harness-evolution.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Alcance: E2+E3 juntas, informe docs/analysis/2026-10-12-checkpoint-etapa-3.md, columna nueva en la tabla, release patch y lo siguiente E4.2. Veredicto: continue con salvedad del margen de contexto. ADRs: cumplido con salvedad (la enmienda solo la prueba el fixture). Follow-ups: el presupuesto de contexto se absorbe en E4.3 context-budget-ratchet y los escenarios de calidad sin fitness pasan a un ítem E3.6 pending que no bloquea E4.2. (El conteo correcto de impactos es 62, no 63.)",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-11T23:56:57.258Z",
+      "detail": {
+        "tree": "sha256:d538f6eba5eeec77e729a83323c70ef97b941c46b29f542d29ecbe6d33e7745f",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "2abc34e25fa882ea64e08c455a5a2af2e03b13c0",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d02b475b34cf818aea254f5b7ff38513764ffe2556c7608924b9a1e76517afd1",
+      "tree": "sha256:d538f6eba5eeec77e729a83323c70ef97b941c46b29f542d29ecbe6d33e7745f",
+      "recorded_at": "2026-10-11T23:56:57.258Z"
+    }
+  ],
+  "closed_at": "2026-10-11T23:56:59.808Z"
+}

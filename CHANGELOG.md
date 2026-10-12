@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.131.2] - 2026-10-11
+
+### Changed
+- **Checkpoint de cierre de la Etapa 3: `continue`** ([informe](docs/analysis/2026-10-11-checkpoint-etapa-3.md)): medido en v2.131.1, cubre también la Etapa 2, que cerró sin checkpoint. Conocimiento en foundation: mapa por perfil (6 perfiles, 20 ranuras) con huecos explícitos; el de ospec, 16 ranuras `confirmed` y 3 `n/a`. ADR de arquitectura: 11, sin avisos de lint y 10 con fitness ejecutable; los cambios declararon 62 impactos. Obligaciones: 8 de 8 solo con evidencia del CLI. Cambio trivial: 0 documentos. Preguntas: un lote por cambio en los 49 cambios IDD posteriores al checkpoint de la Etapa 1. Skills por defecto: 33. La tabla «Objetivos medibles» del roadmap gana la columna «Cierre E3 (v2.131.1)». Salvedades registradas: router más protocolo IDD mide 15,0–15,3 KB frente al objetivo de 16 KB (17,3–17,6 KB con `memory-loop.md`, y la skill `idd` a 617 B de su techo de 12 KiB), y ningún cambio real ha enmendado aún un ADR (solo lo prueba el fixture `architecture-amendment`).
+- **Roadmap**: E4.3 `context-budget-ratchet` absorbe el techo de router más protocolo IDD, y entra E3.6 `quality-scenario-fitness` (`pending`, en paralelo): los 5 escenarios de calidad de ospec no declaran `fitness` porque su mapa sigue en v1. Lo siguiente es E4.2 `head-to-head-gentle-ai`. Hecho con IDD (`idd/archive/2026-10-11-checkpoint-etapa-3/`).
+
+**Verificación directa**: `node scripts/check.js` (3615 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.131.1] - 2026-10-11
 
 ### Changed
