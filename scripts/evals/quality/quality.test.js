@@ -7,7 +7,12 @@
 const test = require("node:test");
 const assert = require("node:assert");
 
-const { addedLines, classifyPath, metricsFromNumstat, scrubDiff } = require("./deliveries.js");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const { spawnSync } = require("node:child_process");
+
+const { addedLines, classifyPath, metricsFromNumstat, readDelivery, scrubDiff } = require("./deliveries.js");
 const { generateMutants, maskLiterals, sampleEvenly } = require("./mutation.js");
 const { aggregateJudgments, buildJudgePrompt, JUDGE_CRITERIA } = require("./judge.js");
 
@@ -16,6 +21,9 @@ test("paths are classified as workflow, test, types, docs or source", () => {
   assert.strictEqual(classifyPath("openspec/changes/archive/x/spec.md"), "workflow");
   assert.strictEqual(classifyPath("idd/archive/2026-10-07-x/state.yaml"), "workflow");
   assert.strictEqual(classifyPath(".claude/settings.json"), "workflow");
+  assert.strictEqual(classifyPath("odd/tasks/prioridades.md"), "workflow", "gentle-ai's feature document");
+  assert.strictEqual(classifyPath(".atl/skill-registry.md"), "workflow", "gentle-ai's skill registry");
+  assert.notStrictEqual(classifyPath("src/odd.js"), "workflow");
   assert.strictEqual(classifyPath("test/invoice.test.js"), "test");
   assert.strictEqual(classifyPath("src/__tests__/a.js"), "test");
   assert.strictEqual(classifyPath("src/paginate.spec.ts"), "test");
@@ -138,4 +146,26 @@ test("judgments in both orders are mapped back to the arms and averaged", () => 
     { order: ["candidate", "baseline"], verdict: { scores: scores(4, 4), preferred: "tie" } },
   ]);
   assert.strictEqual(tie.preferred, "tie");
+});
+
+test("the delivery is everything after the setup commit, committed or not", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "quality-delivery-"));
+  const git = (...args) => assert.strictEqual(spawnSync("git", args, { cwd: root, encoding: "utf8" }).status, 0, args.join(" "));
+  git("init", "-q", "-b", "main");
+  git("config", "user.name", "bench");
+  git("config", "user.email", "bench@example.invalid");
+  git("config", "commit.gpgsign", "false");
+  fs.writeFileSync(path.join(root, "a.js"), "module.exports = 1;\n");
+  git("add", "-A");
+  git("commit", "-q", "-m", "base");
+  git("commit", "-q", "--allow-empty", "-m", "setup");
+  git("checkout", "-q", "-b", "feat/x");
+  fs.writeFileSync(path.join(root, "a.js"), "module.exports = 2;\n");
+  git("commit", "-q", "-am", "feat: two");
+  fs.writeFileSync(path.join(root, "b.js"), "module.exports = 3;\n");
+  fs.mkdirSync(path.join(root, "odd", "tasks"), { recursive: true });
+  fs.writeFileSync(path.join(root, "odd", "tasks", "x.md"), "- [x] T1\n");
+  const delivery = readDelivery(root);
+  assert.deepStrictEqual(delivery.product.sort(), ["a.js", "b.js"], "the committed edit and the new file; odd/ is workflow");
+  assert.match(delivery.diff, /\+module\.exports = 2;/);
 });

@@ -13,7 +13,8 @@ harness, so it never changes `harness_digest`.
 | Mutation score | One mutant per operator, literal or `throw` on each production line the agent added (equality, relational, logical, arithmetic, boolean, integer literal, `throw` → `void`), up to 60 per delivery, run against the delivered suite in a copy of the workspace | No |
 | Blind pairwise review | The request, the facts agreed with the user and both scrubbed product diffs, named A and B; scores 1–5 for correctness, readability, design, tests and scope, and the preferred delivery. Each pair runs twice with the order swapped; a preference that flips with the order is reported as `inconsistent` | Yes |
 
-Workflow artifacts (`.ospec/`, `openspec/`, `idd/` and host directories) are
+Workflow artifacts (`.ospec/`, `openspec/`, `idd/`, gentle-ai's `odd/` and
+`.atl/`, and host directories) are
 counted but never judged. The blind diff replaces workflow words (`openspec`,
 `ospec`, `sdd`, `idd`) with `[process]`.
 
