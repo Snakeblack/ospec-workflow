@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.131.4] - 2026-10-12
+
+### Fixed
+- **Enlaces simbólicos sin trackear**: `ospec signals`, `next`, `run` y `check` ya no fallan con `ENOENT` ante un enlace roto ni con `EISDIR` ante uno que apunta a un directorio. `readGitDiff` y `readTreeFingerprint` (`scripts/lib/idd-workspace.js`) no siguen el enlace: cuenta como su destino, igual que lo guarda git. En el diff, el destino es su única línea añadida, como en `git diff` con un enlace trackeado, y la huella del árbol cambia cuando cambia el destino. Ya no se lee el contenido de un fichero de fuera del repositorio a través de un enlace. La huella de los ficheros normales no cambia, así que la evidencia registrada sigue siendo válida. Hecho con IDD (`idd/archive/2026-10-12-untracked-symlink-tolerance/`).
+
+**Verificación directa**: `node scripts/check.js` (3617 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.131.3] - 2026-10-12
 
 ### Changed
