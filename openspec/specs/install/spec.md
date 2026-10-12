@@ -1203,6 +1203,22 @@ Engram counts as configured for a host only when BOTH its `engram` MCP server (t
 - WHEN `setup:claude` runs
 - THEN `engram setup claude-code` runs and the output confirms the configuration, or a warning names the manual fix when it is still incomplete
 
+### Requirement: Installers Report a Newer Engram Release {#REQ-install-043}
+
+When the Engram step is enabled and `engram version` reports a release version, every global target installer MUST ask the GitHub API for the latest Engram release (`repos/Gentleman-Programming/engram/releases/latest`) with a three-second bound. When that release is newer than the installed version, it MUST print one line with both versions and an upgrade route: `brew upgrade engram` when the binary resolves into a Homebrew Cellar, `go install github.com/Gentleman-Programming/engram[/v<major>]/cmd/engram@latest` when it sits in `GOBIN` or `GOPATH/bin`, and the release page otherwise. It MUST print nothing when Engram is up to date or newer. A failed, timed-out or unreadable check MUST print nothing except a note under `--verbose`, and MUST NOT warn or change the exit code. The check MUST NOT run with `--no-engram`, with a non-empty `ENGRAM_NO_UPDATE_CHECK`, without the binary, or for a build without a release version (`dev`). The installers MUST NOT download, install or upgrade Engram, and `ospec doctor` MUST NOT make this request.
+
+#### Scenario: Newer release available
+
+- GIVEN Engram 3.3.2 installed with Homebrew and 3.4.0 as the latest release
+- WHEN `npm run setup:<target>` runs
+- THEN the Engram phase prints one line naming 3.3.2, 3.4.0 and `brew upgrade engram`, and nothing is upgraded
+
+#### Scenario: Offline
+
+- GIVEN no network
+- WHEN `npm run setup:<target>` runs
+- THEN the Engram phase prints no update line, `--verbose` adds a note naming the failure, and the exit code is unchanged
+
 ### Requirement: Windows Prompt-Capture Safe Mode Is Decided by Measurement {#REQ-install-031}
 
 On Windows, after Engram is configured for Claude Code, `setup:claude` MUST decide the upstream hook's Git Bash safe mode with a bounded fork probe instead of leaving prompt capture silently disabled. When the probe succeeds within its budget, it MUST merge `ENGRAM_CLAUDE_WINDOWS_BASH_SAFE_MODE=0` into the `env` block of `~/.claude/settings.json`, preserving every other setting. When the probe is slow, fails or Git Bash is not found, it MUST keep the safe mode and print how to override it. It MUST NOT overwrite a value the user already set (in settings or the environment), MUST NOT rewrite an unparseable settings file, and MUST NOT run on other targets or platforms.

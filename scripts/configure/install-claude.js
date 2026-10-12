@@ -192,7 +192,7 @@ function main(rawArgv = process.argv.slice(2), deps = {}) {
       if (!engramStepImpl) return;
       reporter.begin(ENGRAM_PHASE);
       try {
-        engramStepImpl({ target: "claude", argv: rawArgv, hostBin: bin, stdout: reporter.out, stderr });
+        engramStepImpl({ target: "claude", argv: rawArgv, hostBin: bin, stdout: reporter.out, stderr, detail: reporter.detail });
       } catch (error) {
         stderr.write(`aviso: paso Engram omitido (${error.message}); se continúa.\n`);
       }
