@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.133.0] - 2026-10-12
+
+### Added
+- **Brazo `gentle-ai` en el banco de escenarios (E4.2)**:
+  - `bench.js setup-gentle-ai` instala una build de gentle-ai en un HOME propio del banco: solo Claude Code, con `persona`, `engram` y `skills`, la persona `neutral` y sin GGA, Context7, telemetría ni autoactualización.
+  - `run --arm gentle-ai` ejecuta el agente con ese HOME y solo con el MCP de engram que registró la instalación (`--strict-mcp-config`). La persona simulada sigue en la configuración del banco.
+  - Cada workspace tiene un engram vacío propio, con datos en `.git/` y puerto propio. El banco lo para al terminar o al interrumpirse, y nunca toca el engram del usuario.
+  - Un cambio de gentle-ai termina con un commit tras el setup, nada sin commitear fuera de `odd/` y `.atl/`, y todas las tareas de `odd/tasks/*.md` marcadas.
+  - Márgenes `bench-margins-6`: gentle-ai como línea base e IDD como candidato, con veredicto no bloqueante.
+  - Requisitos REQ-bench-002, 004, 005 y 006.
+- **Comparación IDD frente a gentle-ai**, publicada en `docs/analysis/2026-10-12-bench-gentle-ai.md`. Seis escenarios, con Claude Code 2.1.296, Sonnet 5.5 y una repetición; records `gentle-ai-1` (gentle-ai 4.1.1) e `idd-3` (ospec 2.132.1):
+
+  | | gentle-ai | IDD |
+  | --- | --- | --- |
+  | Escenarios completos | 6/6 | 6/6 |
+  | Defectos escapados | 2 | 0 |
+  | Tokens | 6,16 M | 2,69 M (ratio 0,437) |
+  | Coste | $3,43 | $1,71 |
+
+  El checkpoint da `continue`. La tabla está también en `docs/comparacion-arneses.md` y en el roadmap.
+
+### Changed
+- **Calidad de las entregas** (`scripts/evals/quality/`): el diff se mide desde el commit `setup` del banco, así que cuenta lo que gentle-ai commitea, y `odd/` y `.atl/` cuentan como artefactos del flujo. Con los brazos de ospec el resultado no cambia.
+
+### Removed
+- **`harness-exception.test.js` y sus fixtures**: verificaban la excepción de huella de `bench-margins-5`, que deja de valer al cambiar el harness. El checkpoint de E4.1 (`sdd-baseline-3` frente a `idd-2`) se reproduce desde v2.132.1.
+
+Hecho con IDD (`idd/archive/2026-10-12-head-to-head-gentle-ai/`).
+
+**Verificación directa**: `node scripts/check.js` (3638 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.132.1] - 2026-10-12
 
 ### Fixed
