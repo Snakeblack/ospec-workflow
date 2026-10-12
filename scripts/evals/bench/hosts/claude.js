@@ -5,6 +5,10 @@
 // (CLAUDE_CONFIG_DIR) so the user's CLAUDE.md, installed plugins, MCP servers,
 // and memory never reach the run. The persona runs on the same binary and
 // configuration, with no tools, and answers through structured output.
+// The gentle-ai arm (E4.2) runs the agent from gentle-ai's own HOME instead,
+// without the plugin and with its Engram MCP server (hosts/gentle-ai.js); the
+// persona still runs in the bench configuration, so it is the same for every
+// arm.
 
 const crypto = require("node:crypto");
 const fs = require("node:fs");
@@ -12,6 +16,7 @@ const path = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
 
 const { resolveClaudeBin } = require("../../../configure/cli.js");
+const { homeEnv } = require("./gentle-ai.js");
 const { listFiles } = require("../scenarios.js");
 const { PERSONA_SCHEMA, buildPersonaPrompt, buildPersonaSystemPrompt, normalizePersonaReply } = require("../persona.js");
 const { emptyUsage, summarizeTurn } = require("../transcript.js");
@@ -39,11 +44,18 @@ function resolveClaudeExecutable(bin = resolveClaudeBin()) {
   return native;
 }
 
+const inheritedEnv = (baseEnv) => Object.fromEntries(Object.entries(baseEnv).filter(([key]) => !STRIPPED_ENV.some((pattern) => pattern.test(key))));
+
 function benchEnv(baseEnv, configDir) {
-  const env = Object.fromEntries(Object.entries(baseEnv).filter(([key]) => !STRIPPED_ENV.some((pattern) => pattern.test(key))));
-  return { ...env, CLAUDE_CONFIG_DIR: configDir, CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1" };
+  return { ...inheritedEnv(baseEnv), CLAUDE_CONFIG_DIR: configDir, CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1" };
 }
 
+function gentleAiEnv(baseEnv, home) {
+  return { ...homeEnv(inheritedEnv(baseEnv), home), CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1" };
+}
+
+// Without a plugin directory the agent runs gentle-ai from its HOME, which
+// brings its own Engram MCP server; the ospec arms run with no MCP server.
 function turnArgs({ model, effort, pluginDir, sessionId }) {
   return [
     "-p",
@@ -52,8 +64,7 @@ function turnArgs({ model, effort, pluginDir, sessionId }) {
     "--model", model,
     ...(effort ? ["--effort", effort] : []),
     "--permission-mode", "bypassPermissions",
-    "--strict-mcp-config",
-    "--plugin-dir", pluginDir,
+    ...(pluginDir ? ["--strict-mcp-config", "--plugin-dir", pluginDir] : []),
     ...(sessionId ? ["--resume", sessionId] : []),
   ];
 }
@@ -143,18 +154,28 @@ function createClaudeHost({
   effort = null,
   personaModel,
   personaDir,
+  gentleAi = null,
   baseEnv = process.env,
   turnTimeoutMs = DEFAULT_TURN_TIMEOUT_MS,
 }) {
   const env = benchEnv(baseEnv, configDir);
+  const agentEnv = gentleAi ? gentleAiEnv(baseEnv, gentleAi.home) : env;
+  const engrams = new Map();
+
+  // gentle-ai gets an empty Engram per workspace, started on its first turn.
+  async function workspaceEnv(cwd) {
+    if (!gentleAi) return agentEnv;
+    if (!engrams.has(cwd)) engrams.set(cwd, await gentleAi.startEngram({ home: gentleAi.home, workspaceRoot: cwd, baseEnv: inheritedEnv(baseEnv) }));
+    return { ...agentEnv, ...engrams.get(cwd).env };
+  }
 
   async function turn({ cwd, prompt, sessionId, transcriptPath }) {
     fs.mkdirSync(path.dirname(transcriptPath), { recursive: true });
     const run = await runProcess({
       executable,
-      args: [...prefixArgs, ...turnArgs({ model, effort, pluginDir, sessionId })],
+      args: [...prefixArgs, ...turnArgs({ model, effort, pluginDir: gentleAi ? null : pluginDir, sessionId })],
       cwd,
-      env,
+      env: await workspaceEnv(cwd),
       input: prompt,
       stdoutPath: transcriptPath,
       timeoutMs: turnTimeoutMs,
@@ -202,11 +223,19 @@ function createClaudeHost({
   }
 
   function version() {
-    const result = spawnSync(executable, [...prefixArgs, "--version"], { env, encoding: "utf8" });
+    const result = spawnSync(executable, [...prefixArgs, "--version"], { env: agentEnv, encoding: "utf8" });
     return (result.stdout || "").trim();
   }
 
-  return { name: "claude-code", turn, persona, version };
+  /** Ends what the host keeps for a workspace (gentle-ai's Engram). */
+  function release(cwd) {
+    const engram = engrams.get(cwd);
+    if (!engram) return;
+    engrams.delete(cwd);
+    engram.stop();
+  }
+
+  return { name: "claude-code", turn, persona, version, release };
 }
 
-module.exports = { benchEnv, buildPlugin, createClaudeHost, hashTree, resolveClaudeExecutable, turnArgs };
+module.exports = { benchEnv, buildPlugin, createClaudeHost, gentleAiEnv, hashTree, resolveClaudeExecutable, turnArgs };

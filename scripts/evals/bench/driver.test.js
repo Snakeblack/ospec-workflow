@@ -254,3 +254,42 @@ test("the idd arm's setup is done only with a readable config in IDD mode", () =
   assert.equal(ARMS.idd.available, true);
   assert.throws(() => armFor("odd"), /unknown arm/);
 });
+
+test("the gentle-ai arm requests the brief with no setup, ends at a committed delivery, and releases the workspace", async () => {
+  const { spawnSync } = require("node:child_process");
+  const commitAll = (cwd) => {
+    spawnSync("git", ["add", "-A"], { cwd });
+    spawnSync("git", ["commit", "-q", "-m", "feat: prioridades"], { cwd });
+  };
+  const host = fakeHost({
+    texts: ["He cambiado index.js. ¿Lo commiteo?", "Hecho: commit en la rama."],
+    effects: [writeCode, (cwd) => {
+      commitAll(cwd);
+      fs.mkdirSync(path.join(cwd, "odd", "tasks"), { recursive: true });
+      fs.writeFileSync(path.join(cwd, "odd", "tasks", "prioridades.md"), "## Tasks\n\n- [x] T1 S1 — commit: abc\n");
+    }],
+    replies: [{ kind: "approval", answer: "Sí.", facts_disclosed: [], deviates_from_recommendation: false, unknown_facts: [] }],
+  });
+  const released = [];
+  host.release = (cwd) => released.push(cwd);
+  const paths = dirs();
+  const run = await runScenario({ scenario: seedRepo(), arm: armFor("gentle-ai"), host, ...paths, checks: () => [] });
+
+  assert.equal(run.setup, null, "no setup turns");
+  assert.equal(run.status, "complete");
+  assert.equal(host.calls.turns[0].prompt, "Quiero prioridades.");
+  assert.equal(run.metrics.agent_turns, 2, "an uncommitted edit does not finish the change");
+  assert.deepEqual(run.changed_files, ["index.js", "odd/tasks/prioridades.md"]);
+  assert.deepEqual(released, [paths.workspaceRoot]);
+});
+
+test("the host releases the workspace even when a turn throws", async () => {
+  const released = [];
+  const host = {
+    async turn() { throw new Error("engram did not answer"); },
+    release: (cwd) => released.push(cwd),
+  };
+  const paths = dirs();
+  await assert.rejects(runScenario({ scenario: seedRepo(), arm: armFor("gentle-ai"), host, ...paths, checks: () => [] }), /engram/);
+  assert.deepEqual(released, [paths.workspaceRoot]);
+});

@@ -180,7 +180,7 @@ function renderReport(record) {
     `# Bench record \`${record.record_id}\` (arm \`${record.arm}\`)`,
     "",
     `- Host: ${record.host.name} ${record.host.cli_version}, model \`${record.host.model}\`${record.host.effort ? `, effort ${record.host.effort}` : ""}`,
-    `- Plugin: ospec-workflow ${record.host.plugin_version} (\`${record.host.plugin_digest.slice(0, 12)}\`)`,
+    `- Plugin: ${record.arm === "gentle-ai" ? "gentle-ai" : "ospec-workflow"} ${record.host.plugin_version} (\`${record.host.plugin_digest.slice(0, 12)}\`)`,
     `- Persona: \`${record.persona.model}\``,
     `- Scenarios digest: \`${record.scenarios_digest.slice(0, 12)}\` · harness: \`${record.harness_digest.slice(0, 12)}\``,
     `- Recorded at: ${record.recorded_at}${record.repetitions > 1 ? ` · ${record.repetitions} repetitions per scenario` : ""}`,

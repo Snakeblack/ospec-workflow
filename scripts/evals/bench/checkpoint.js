@@ -1,8 +1,9 @@
 "use strict";
 
-// E4.1 checkpoint: compares a candidate arm (IDD) with the baseline arm (the
-// SDD mode) over the same scenarios and decides whether E1.6 may change the
-// default (`continue`) or must `revise` first.
+// Bench checkpoint: compares a candidate arm with the baseline arm the margins
+// name over the same scenarios and decides `continue` or `revise`. E4.1
+// compared IDD with the SDD mode before E1.6; E4.2 compares IDD with gentle-ai,
+// and its verdict blocks nothing.
 //
 // The margins file is declared before any comparison and digested into the
 // result. Fixed in code, not choosable, are the conditions that make the
@@ -249,7 +250,7 @@ function renderHarnessException(exception) {
 
 function renderCheckpoint(result) {
   const lines = [
-    `# Checkpoint E4.1: ${result.decision}`,
+    `# Bench checkpoint: ${result.decision}`,
     "",
     `- Baseline: \`${result.baseline_record}\` · Candidate: \`${result.candidate_record}\``,
     `- Margins: \`${result.margins_version}\`${result.margins_digest ? ` (\`${result.margins_digest.slice(0, 12)}\`)` : ""} · ${result.repetitions} repetitions per scenario; figures are per-scenario means`,

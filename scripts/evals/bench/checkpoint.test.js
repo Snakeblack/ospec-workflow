@@ -62,14 +62,16 @@ const reps = (scenarioId, specs) => specs.map(([tokens, failing = []], index) =>
 
 test("the committed margins load and carry a digest", () => {
   const { margins: loaded, digest } = loadMargins(MARGINS_PATH);
-  assert.equal(loaded.baseline_arm, "sdd");
+  // E4.2 (user decisions, 2026-10-12): IDD against gentle-ai, both run with
+  // the same harness, one repetition; IDD may not escape more defects nor
+  // spend more tokens.
+  assert.equal(loaded.baseline_arm, "gentle-ai");
   assert.equal(loaded.candidate_arm, "idd");
-  assert.equal(loaded.margins_version, "bench-margins-5");
+  assert.equal(loaded.margins_version, "bench-margins-6");
   assert.equal(loaded.repetitions, 1);
-  assert.equal(loaded.escaped_defects.max_mean_delta, 0, "same thresholds as bench-margins-3");
-  assert.equal(loaded.tokens.max_total_ratio, 0.9, "same thresholds as bench-margins-3");
-  assert.deepEqual(loaded.harness_exception.changed_files, ["arms.js", "checkpoint.js", "hosts/claude.js"]);
-  assert.equal(loaded.harness_exception.candidate_digests.length, 2, "the idd-1/idd-2 harness and the current one");
+  assert.equal(loaded.escaped_defects.max_mean_delta, 0);
+  assert.equal(loaded.tokens.max_total_ratio, 1);
+  assert.equal(loaded.harness_exception, null);
   assert.match(digest, /^[a-f0-9]{64}$/);
 });
 

@@ -183,3 +183,51 @@ test("an exhausted host quota stops the whole run without recording the interrup
   assert.equal(await main(common, resumed), 0);
   assert.deepEqual(resumed.calls.runs, ["bugfix"]);
 });
+
+test("setup-gentle-ai installs into the gentle-ai home and explains the login", async () => {
+  const dir = tempDir();
+  const installs = [];
+  const d = deps(dir, {
+    installGentleAi: (options) => installs.push(options),
+    identifyGentleAi: () => ({ version: "4.1.1 (engram 3.4.0)", digest: "c".repeat(64) }),
+  });
+  const home = path.join(dir, "home");
+  assert.equal(await main(["setup-gentle-ai", "--gentle-ai-bin", "ga", "--engram-bin", "eg", "--gentle-ai-home", home], d), 0);
+  assert.deepEqual(installs, [{ gentleAi: path.resolve("ga"), engram: path.resolve("eg"), home }]);
+  assert.match(d.stdout.text, /HOME=".*home" claude/);
+
+  const missing = deps(dir);
+  assert.equal(await main(["setup-gentle-ai", "--gentle-ai-home", home], missing), 2);
+  assert.match(missing.stderr.text, /--gentle-ai-bin/);
+});
+
+test("run --arm gentle-ai identifies the gentle-ai install as the plugin and builds no ospec plugin", async () => {
+  const dir = tempDir();
+  const home = path.join(dir, "home");
+  const common = ["run", "--arm", "gentle-ai", "--record", "g1", "--config-dir", dir, "--gentle-ai-home", home, "--records-dir", dir, "--runs-dir", dir, "--workspaces-dir", dir, "--scenario", "bugfix"];
+
+  const notInstalled = deps(dir, { identifyGentleAi: () => { throw new Error(`no gentle-ai install in ${home}`); } });
+  assert.equal(await main(common, notInstalled), 2);
+  assert.match(notInstalled.stderr.text, /setup-gentle-ai/);
+  assert.deepEqual(notInstalled.calls.runs, [], "nothing runs");
+
+  let hostOptions = null;
+  const d = deps(dir, {
+    buildPlugin: () => { throw new Error("the gentle-ai arm must not build the ospec plugin"); },
+    identifyGentleAi: ({ home: seen }) => ({ version: `4.1.1 (engram 3.4.0) at ${seen}`, digest: "c".repeat(64) }),
+    createHost: (options) => {
+      hostOptions = options;
+      return { name: "claude-code", version: () => "2.1.296 (Claude Code)" };
+    },
+  });
+  assert.equal(await main(common, d), 0);
+  assert.equal(hostOptions.pluginDir, null);
+  assert.equal(hostOptions.gentleAi.home, home);
+  assert.equal(typeof hostOptions.gentleAi.startEngram, "function");
+  assert.equal(hostOptions.configDir, dir, "the persona keeps the bench configuration");
+  const record = JSON.parse(fs.readFileSync(path.join(dir, "g1.json"), "utf8"));
+  assert.equal(record.arm, "gentle-ai");
+  assert.equal(record.host.plugin_version, `4.1.1 (engram 3.4.0) at ${home}`);
+  assert.equal(record.host.plugin_digest, "c".repeat(64));
+  assert.match(d.stdout.text, /Plugin: gentle-ai 4\.1\.1/);
+});

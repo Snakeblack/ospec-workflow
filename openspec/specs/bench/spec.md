@@ -4,7 +4,7 @@
 
 The bench (E4.1) measures a workflow mode with real agents on fixed scenarios,
 so the decision to make IDD the default entry (E1.6) rests on numbers declared
-before the run. It lives in `scripts/evals/bench/`. It is measurement tooling:
+before the run. E4.2 uses it to compare IDD with gentle-ai. It lives in `scripts/evals/bench/`. It is measurement tooling:
 it grants no authority, changes no default, and never runs a model inside
 `npm test`.
 
@@ -44,7 +44,17 @@ MUST use a dedicated configuration directory (`CLAUDE_CONFIG_DIR`) so the
 user's instructions, installed plugins, MCP servers, and memory do not reach
 the run, and MUST load the plugin built from the current checkout with the SDD
 package (`--with-sdd`, REQ-generator-025) for every arm, so both arms keep the
-plugin content of the runs measured before E1.6 (d2). Variables of
+plugin content of the runs measured before E1.6 (d2). The `gentle-ai` arm
+MUST instead run the agent with `HOME` set to the bench's gentle-ai home,
+where gentle-ai was installed once (`bench.js setup-gentle-ai`), without the
+ospec plugin and with gentle-ai's Engram MCP server, because gentle-ai writes
+only to `$HOME/.claude` and `$HOME/.claude.json`. That install MUST be Claude
+Code only, with the `persona`, `engram`, and `skills` components, the
+`ecosystem-only` preset, and the `neutral` persona, with telemetry and
+self-update off, and its binaries copied into the home. Each workspace MUST get
+an empty Engram of its own (data under `.git/`, its own port) that the bench
+stops when the run ends. The persona MUST run in the bench configuration
+directory for every arm. Variables of
 the calling session that alter the host (nested-session markers, hook switches,
 an API key) MUST NOT be inherited. The arm's project setup MUST run before the
 measured change and MUST NOT count toward its metrics. During setup the
@@ -60,6 +70,15 @@ delivery. When a host turn reports an exhausted usage quota (HTTP 429), the run
 MUST stop at once without retrying, and `bench.js run` MUST end the whole
 campaign with a distinct exit code without recording the interrupted run, so
 the same command resumes it after the reset.
+
+#### Scenario: gentle-ai stays in its own home
+
+- GIVEN the `gentle-ai` arm
+- WHEN an agent turn starts
+- THEN `HOME` MUST be the bench's gentle-ai home, `CLAUDE_CONFIG_DIR` MUST NOT
+  be set, and the turn MUST NOT pass `--plugin-dir` or `--strict-mcp-config`
+- AND `ENGRAM_DATA_DIR` and `ENGRAM_PORT` MUST belong to that workspace alone
+- AND the persona MUST still run with the bench's `CLAUDE_CONFIG_DIR`
 
 #### Scenario: Missing bench login
 
@@ -114,7 +133,9 @@ A run MUST record tokens (input, output, cache reads, and cache writes of every
 model, subagents included), cost, wall-clock duration, agent turns, questions,
 decision-changing questions, interventions, host errors, the hidden check
 results, and the escaped defects (failed checks). A bench record MUST bind its
-runs to the arm, host and version, model, effort, plugin version and digest,
+runs to the arm, host and version, model, effort, plugin version and digest
+(for the `gentle-ai` arm, the gentle-ai and Engram versions and a digest of
+both binaries and the installed assets a run reads),
 persona model, corpus digest, and harness digest (the bench code itself), and MUST keep the SHA-256 of every
 transcript. A record MUST declare how many repetitions it runs per scenario,
 and each run MUST carry its repetition number; the repetition count is part of
@@ -159,10 +180,13 @@ candidate digests accepted against it (distinct, the current harness last), the
 harness files allowed to differ, and a reason. The checkpoint MUST accept a
 different harness only for a baseline with that digest and a candidate with one
 of those digests, in that direction, and MUST report the pair it applied in its
-result. A test MUST verify the exception: the current harness digest MUST equal
-the last candidate digest, restoring the declared files from committed copies
-MUST rebuild the baseline digest and every earlier candidate digest, and the
-baseline arm MUST behave as it did.
+result. When the margins declare one, a test MUST verify it: the current
+harness digest MUST equal the last candidate digest, restoring the declared
+files from committed copies MUST rebuild the baseline digest and every earlier
+candidate digest, and the baseline arm MUST behave as it did. The E4.2 margins
+(`bench-margins-6`: `gentle-ai` as baseline, `idd` as candidate, one
+repetition, `max_mean_delta` 0, `max_total_ratio` 1) declare none, because
+both arms run with the same harness; their verdict blocks nothing.
 
 #### Scenario: Improvement in totals does not hide a regression
 
@@ -197,7 +221,12 @@ up by asking the agent to write `idd/config.yaml` with `mode: idd` and the
 `npm test` check, and that setup MUST be done only when the file parses in IDD
 mode. It MUST request the change with `/ospec-workflow:idd`, because the router
 does not load in the bench's isolated configuration, and finish when
-`ospec close` has archived a change under `idd/archive/`.
+`ospec close` has archived a change under `idd/archive/`. The `gentle-ai` arm
+MUST need no project setup, MUST request the change with the brief alone,
+because ODD runs on every request, and MUST finish when there is at least one
+commit after setup, nothing is uncommitted outside `odd/`, and no
+`odd/tasks/*.md` has an unchecked task: ODD writes that document only for
+substantial work and records each commit in it after committing.
 
 #### Scenario: IDD arm finishes at the closed change
 
@@ -205,3 +234,12 @@ does not load in the bench's isolated configuration, and finish when
 - WHEN the change is requested
 - THEN the prompt MUST be `/ospec-workflow:idd <brief>`
 - AND the run MUST be complete only once `idd/archive/` holds a directory
+
+#### Scenario: gentle-ai arm finishes at a committed delivery
+
+- GIVEN the `gentle-ai` arm, which needs no project setup
+- WHEN the change is requested
+- THEN the prompt MUST be the brief itself
+- AND the run MUST be complete only once there is at least one commit after
+  setup, nothing uncommitted outside `odd/`, and no unchecked task in any
+  `odd/tasks/*.md`
