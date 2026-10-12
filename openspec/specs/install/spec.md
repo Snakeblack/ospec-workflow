@@ -1205,13 +1205,13 @@ Engram counts as configured for a host only when BOTH its `engram` MCP server (t
 
 ### Requirement: Installers Report a Newer Engram Release {#REQ-install-043}
 
-When the Engram step is enabled and `engram version` reports a release version, every global target installer MUST ask the GitHub API for the latest Engram release (`repos/Gentleman-Programming/engram/releases/latest`) with a three-second bound. When that release is newer than the installed version, it MUST print one line with both versions and an upgrade route: `brew upgrade engram` when the binary resolves into a Homebrew Cellar, `go install github.com/Gentleman-Programming/engram[/v<major>]/cmd/engram@latest` when it sits in `GOBIN` or `GOPATH/bin`, and the release page otherwise. It MUST print nothing when Engram is up to date or newer. A failed, timed-out or unreadable check MUST print nothing except a note under `--verbose`, and MUST NOT warn or change the exit code. The check MUST NOT run with `--no-engram`, with a non-empty `ENGRAM_NO_UPDATE_CHECK`, without the binary, or for a build without a release version (`dev`). The installers MUST NOT download, install or upgrade Engram, and `ospec doctor` MUST NOT make this request.
+When the Engram step is enabled and `engram version` reports a release version, every global target installer MUST ask the GitHub API for the latest Engram release (`repos/Gentleman-Programming/engram/releases/latest`) with a three-second bound. When that release is newer than the installed version, it MUST print one line with both versions and an upgrade route: `brew upgrade --formula gentleman-programming/tap/engram` when the binary resolves into a Homebrew Cellar (the tap also holds a legacy `engram` cask that Homebrew 7 refuses to load from an untrusted tap), `go install github.com/Gentleman-Programming/engram[/v<major>]/cmd/engram@latest` when it sits in `GOBIN` or `GOPATH/bin`, and the release page otherwise. It MUST print nothing when Engram is up to date or newer. A failed, timed-out or unreadable check MUST print nothing except a note under `--verbose`, and MUST NOT warn or change the exit code. The check MUST NOT run with `--no-engram`, with a non-empty `ENGRAM_NO_UPDATE_CHECK`, without the binary, or for a build without a release version (`dev`). The installers MUST NOT download, install or upgrade Engram, and `ospec doctor` MUST NOT make this request.
 
 #### Scenario: Newer release available
 
 - GIVEN Engram 3.3.2 installed with Homebrew and 3.4.0 as the latest release
 - WHEN `npm run setup:<target>` runs
-- THEN the Engram phase prints one line naming 3.3.2, 3.4.0 and `brew upgrade engram`, and nothing is upgraded
+- THEN the Engram phase prints one line naming 3.3.2, 3.4.0 and `brew upgrade --formula gentleman-programming/tap/engram`, and nothing is upgraded
 
 #### Scenario: Offline
 
