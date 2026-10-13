@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lista de tareas</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 36rem; margin: 2rem auto; padding: 0 1rem; }
+  #nueva-tarea { width: 100%; font-size: 1.1rem; padding: .5rem; box-sizing: border-box; }
+  #lista { list-style: none; padding: 0; }
+  #lista li { display: flex; align-items: center; gap: .5rem; padding: .4rem 0; border-bottom: 1px solid #ddd; }
+  #lista li.completada .titulo { text-decoration: line-through; color: #777; }
+  #lista li .titulo { flex: 1; overflow-wrap: anywhere; }
+  #lista li .edicion { flex: 1; font-size: 1rem; }
+  nav a { margin-right: .75rem; }
+  nav a[aria-current="page"] { font-weight: bold; }
+</style>
+</head>
+<body>
+<h1>Tareas</h1>
+<label for="nueva-tarea">Nueva tarea</label>
+<input id="nueva-tarea" type="text" autocomplete="off" placeholder="¿Qué hay que hacer?">
+<ul id="lista"></ul>
+<p id="contador" aria-live="polite"></p>
+<nav aria-label="Filtros">
+  <a id="filtro-todas" href="#/">Todas</a>
+  <a id="filtro-pendientes" href="#/pendientes">Pendientes</a>
+  <a id="filtro-completadas" href="#/completadas">Completadas</a>
+</nav>
+<script>
+"use strict";
+const CLAVE = "tareas.v1";
+const MAXIMO = 200;
+const FILTROS = { "#/": "todas", "": "todas", "#/pendientes": "pendientes", "#/completadas": "completadas" };
+
+function cargar() {
+  try {
+    const datos = JSON.parse(localStorage.getItem(CLAVE));
+    if (!Array.isArray(datos)) return [];
+    return datos.filter((t) => t && typeof t.titulo === "string" && typeof t.completada === "boolean" && typeof t.id === "number");
+  } catch {
+    return [];
+  }
+}
+
+let tareas = cargar();
+let siguiente = tareas.reduce((max, t) => Math.max(max, t.id), 0) + 1;
+
+function guardar() {
+  localStorage.setItem(CLAVE, JSON.stringify(tareas));
+}
+
+function filtro() {
+  return FILTROS[location.hash] || "todas";
+}
+
+function titulosPendientes(excepto) {
+  return new Set(tareas.filter((t) => !t.completada && t !== excepto).map((t) => t.titulo.toLowerCase()));
+}
+
+function anadir(texto) {
+  const titulo = texto.trim();
+  if (titulo === "" || titulo.length > MAXIMO) return false;
+  if (titulosPendientes().has(titulo.toLowerCase())) return false;
+  tareas.push({ id: siguiente++, titulo, completada: false });
+  guardar();
+  return true;
+}
+
+function contador() {
+  const pendientes = tareas.filter((t) => !t.completada).length;
+  if (pendientes === 0) return "Sin tareas pendientes";
+  return pendientes === 1 ? "1 tarea pendiente" : `${pendientes} tareas pendientes`;
+}
+
+function terminarEdicion(tarea, campo, guardarCambio) {
+  if (campo.dataset.cerrado) return;
+  campo.dataset.cerrado = "1";
+  if (guardarCambio) {
+    const titulo = campo.value.trim();
+    if (titulo === "") tareas = tareas.filter((t) => t !== tarea);
+    else if (titulo.length <= MAXIMO) tarea.titulo = titulo;
+    guardar();
+  }
+  pintar();
+}
+
+function editar(tarea, li, tituloEl) {
+  const campo = document.createElement("input");
+  campo.className = "edicion";
+  campo.type = "text";
+  campo.value = tarea.titulo;
+  campo.setAttribute("aria-label", `Editar ${tarea.titulo}`);
+  campo.addEventListener("keydown", (evento) => {
+    if (evento.key === "Enter") terminarEdicion(tarea, campo, true);
+    else if (evento.key === "Escape") terminarEdicion(tarea, campo, false);
+  });
+  campo.addEventListener("blur", () => terminarEdicion(tarea, campo, true));
+  li.replaceChild(campo, tituloEl);
+  campo.focus();
+  campo.select();
+}
+
+function pintar() {
+  const lista = document.getElementById("lista");
+  lista.replaceChildren();
+  const actual = filtro();
+  for (const tarea of tareas) {
+    if (actual === "pendientes" && tarea.completada) continue;
+    if (actual === "completadas" && !tarea.completada) continue;
+    const li = document.createElement("li");
+    li.classList.toggle("completada", tarea.completada);
+    const casilla = document.createElement("input");
+    casilla.type = "checkbox";
+    casilla.className = "completar";
+    casilla.checked = tarea.completada;
+    casilla.setAttribute("aria-label", `Completar ${tarea.titulo}`);
+    casilla.addEventListener("change", () => {
+      tarea.completada = casilla.checked;
+      guardar();
+      pintar();
+    });
+    const tituloEl = document.createElement("span");
+    tituloEl.className = "titulo";
+    tituloEl.textContent = tarea.titulo;
+    tituloEl.addEventListener("dblclick", () => editar(tarea, li, tituloEl));
+    const borrar = document.createElement("button");
+    borrar.type = "button";
+    borrar.className = "borrar";
+    borrar.textContent = "×";
+    borrar.setAttribute("aria-label", `Borrar ${tarea.titulo}`);
+    borrar.addEventListener("click", () => {
+      tareas = tareas.filter((t) => t !== tarea);
+      guardar();
+      pintar();
+    });
+    li.append(casilla, tituloEl, borrar);
+    lista.append(li);
+  }
+  document.getElementById("contador").textContent = contador();
+  for (const enlace of document.querySelectorAll("nav a")) {
+    if (FILTROS[enlace.getAttribute("href")] === actual) enlace.setAttribute("aria-current", "page");
+    else enlace.removeAttribute("aria-current");
+  }
+}
+
+document.getElementById("nueva-tarea").addEventListener("keydown", (evento) => {
+  if (evento.key !== "Enter") return;
+  const campo = evento.target;
+  if (anadir(campo.value)) campo.value = "";
+  pintar();
+});
+window.addEventListener("hashchange", pintar);
+pintar();
+</script>
+</body>
+</html>

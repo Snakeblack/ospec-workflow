@@ -2,13 +2,16 @@
 
 // Helpers handed to every hidden check. A check runs in its own Node process
 // (check-runner.js) against the delivered workspace, so module state never
-// leaks between checks.
+// leaks between checks. A browser check opens pages of the served workspace in
+// a headless Chromium of its own (browser.js).
 
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
+
+const { launchBrowser } = require("./browser.js");
 
 // RFC 4180: quoted fields may hold commas, line breaks, and doubled quotes.
 function parseCsv(text) {
@@ -33,8 +36,9 @@ function parseCsv(text) {
   return rows;
 }
 
-function createKit(root) {
+function createKit(root, { launch = launchBrowser } = {}) {
   const temps = [];
+  let browser = null;
   return {
     root,
     assert,
@@ -66,7 +70,13 @@ function createKit(root) {
     writeJson(file, value) {
       fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
     },
-    cleanup() {
+    /** A new page in this check's browser, which serves the workspace; open() loads index.html. */
+    async page() {
+      if (!browser) browser = await launch({ root });
+      return browser.newPage();
+    },
+    async cleanup() {
+      if (browser) await browser.close();
       for (const dir of temps) fs.rmSync(dir, { recursive: true, force: true });
     },
   };

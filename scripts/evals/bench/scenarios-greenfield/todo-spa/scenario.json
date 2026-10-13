@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "id": "todo-spa",
+  "profile": "greenfield",
+  "title": "Lista de tareas en una sola página",
+  "brief": "Quiero una lista de tareas en una sola página web: un único `index.html` en la raíz, con su CSS y su JavaScript dentro, sin dependencias ni paso de build. Se pueden añadir tareas, marcarlas como completadas, editarlas, borrarlas y filtrar entre todas, pendientes y completadas; hay un contador de pendientes, y la lista sobrevive a recargar la página. El README tiene los ids y las clases que necesito para automatizar pruebas sobre la página.",
+  "facts": [
+    { "id": "F1", "text": "El título se guarda sin los espacios del principio y del final. Un título vacío o solo con espacios no crea tarea. El máximo son 200 caracteres después de recortar: con 200 se crea y con 201 no se crea (no se trunca)." },
+    { "id": "F2", "text": "No se crea una tarea cuyo título, recortado, coincide sin distinguir mayúsculas de minúsculas con el de una tarea pendiente. Si la que coincide está completada, sí se crea." },
+    { "id": "F3", "text": "La lista se guarda en localStorage con la clave `tareas.v1` y se recupera al recargar. Si lo guardado bajo esa clave no se puede leer (no es JSON o no tiene la forma que guarda la app), la app arranca con la lista vacía, sin errores, y sigue funcionando." },
+    { "id": "F4", "text": "El contador cuenta las pendientes en español: «Sin tareas pendientes» con 0, «1 tarea pendiente» con 1 y «N tareas pendientes» con más, por ejemplo «3 tareas pendientes»." },
+    { "id": "F5", "text": "El filtro activo vive en la URL: `#/` o sin hash muestra todas, `#/pendientes` solo las pendientes y `#/completadas` solo las completadas. Abrir o recargar la página con uno de esos hashes ya aplica el filtro, y cada enlace de filtro pone su hash." },
+    { "id": "F6", "text": "En edición, Enter guarda el título recortado; Escape cancela y deja el título como estaba; guardar un título vacío borra la tarea." },
+    { "id": "F7", "text": "Las tareas nuevas van al final de la lista. Completar o descompletar una tarea no cambia su posición." },
+    { "id": "F8", "text": "El título se muestra siempre como texto: un título como `<img src=x onerror=alert(1)>` aparece tal cual y no crea elementos ni ejecuta nada." },
+    { "id": "F9", "text": "Cada control tiene un nombre accesible: el campo de nueva tarea, y la casilla y el botón de borrar de cada tarea, cuyos nombres incluyen el título de su tarea (por ejemplo «Completar Comprar pan» y «Borrar Comprar pan»)." }
+  ]
+}

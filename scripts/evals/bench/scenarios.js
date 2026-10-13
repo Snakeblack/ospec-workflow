@@ -4,6 +4,10 @@
 // request (brief), the facts only the simulated user knows, and hidden checks
 // that judge the delivered workspace. Only `repo/` ever reaches the agent.
 //
+// Two corpora: `default`, the six profiles of E4.1 and E4.2, and `greenfield`
+// (E4.5), a project built from an almost empty repository. They live in
+// separate directories, so adding one never changes the other's digest.
+//
 // Measurement tooling only: it grants no authority and promotes nothing.
 
 const fs = require("node:fs");
@@ -14,6 +18,10 @@ const { sha256Fingerprint } = require("../../lib/canonical-json.js");
 const SCENARIOS_DIR = path.join(__dirname, "scenarios");
 const SCENARIO_SCHEMA_VERSION = 1;
 const PROFILES = Object.freeze(["cli-local", "saas-small", "regulated", "brownfield", "public-library", "bugfix"]);
+const CORPORA = Object.freeze({
+  default: Object.freeze({ dir: SCENARIOS_DIR, profiles: PROFILES }),
+  greenfield: Object.freeze({ dir: path.join(__dirname, "scenarios-greenfield"), profiles: Object.freeze(["greenfield"]) }),
+});
 const CHECK_KINDS = Object.freeze(["acceptance", "fact", "regression"]);
 const SCENARIO_KEYS = Object.freeze(["schema_version", "id", "profile", "title", "brief", "facts"]);
 const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -52,7 +60,7 @@ function validateChecks(checks, facts, where) {
 }
 
 /** Loads and validates one scenario directory. */
-function loadScenario(dir) {
+function loadScenario(dir, profiles = PROFILES) {
   const where = path.basename(dir);
   let scenario;
   try {
@@ -65,7 +73,7 @@ function loadScenario(dir) {
   }
   if (scenario.schema_version !== SCENARIO_SCHEMA_VERSION) throw new BenchScenarioError(`${where}: schema_version must be ${SCENARIO_SCHEMA_VERSION}`);
   if (!ID_PATTERN.test(scenario.id || "") || scenario.id !== where) throw new BenchScenarioError(`${where}: id must be kebab-case and match its directory`);
-  if (!PROFILES.includes(scenario.profile)) throw new BenchScenarioError(`${where}: profile must be one of ${PROFILES.join(", ")}`);
+  if (!profiles.includes(scenario.profile)) throw new BenchScenarioError(`${where}: profile must be one of ${profiles.join(", ")}`);
   if (!isNonEmptyString(scenario.title) || !isNonEmptyString(scenario.brief)) throw new BenchScenarioError(`${where}: title and brief must be non-empty`);
   if (!Array.isArray(scenario.facts) || scenario.facts.length === 0
     || !scenario.facts.every((fact) => isPlainObject(fact) && hasExactKeys(fact, ["id", "text"]) && /^F\d+$/.test(fact.id) && isNonEmptyString(fact.text))
@@ -95,14 +103,21 @@ function loadScenario(dir) {
   });
 }
 
-/** Loads the corpus: every profile covered, in PROFILES order, then by id. */
-function loadScenarios(root = SCENARIOS_DIR) {
+/** Loads a corpus: every profile covered, in profile order, then by id. */
+function loadScenarios(root = SCENARIOS_DIR, profiles = PROFILES) {
   const scenarios = fs.readdirSync(root, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
-    .map((entry) => loadScenario(path.join(root, entry.name)));
-  const missing = PROFILES.filter((profile) => !scenarios.some((scenario) => scenario.profile === profile));
+    .map((entry) => loadScenario(path.join(root, entry.name), profiles));
+  const missing = profiles.filter((profile) => !scenarios.some((scenario) => scenario.profile === profile));
   if (missing.length > 0) throw new BenchScenarioError(`corpus has missing profiles: ${missing.join(", ")}`);
-  return scenarios.sort((a, b) => PROFILES.indexOf(a.profile) - PROFILES.indexOf(b.profile) || a.id.localeCompare(b.id));
+  return scenarios.sort((a, b) => profiles.indexOf(a.profile) - profiles.indexOf(b.profile) || a.id.localeCompare(b.id));
+}
+
+/** Loads a corpus by name (`default` or `greenfield`). */
+function loadCorpus(name = "default") {
+  const corpus = CORPORA[name];
+  if (!corpus) throw new BenchScenarioError(`unknown corpus ${name}; known corpora: ${Object.keys(CORPORA).join(", ")}`, "UNKNOWN_BENCH_CORPUS");
+  return loadScenarios(corpus.dir, corpus.profiles);
 }
 
 function listFiles(dir, base = dir) {
@@ -135,7 +150,7 @@ function scenariosDigest(scenarios) {
  */
 function harnessDigest(dir = __dirname) {
   const files = listFiles(dir).filter((file) => file.endsWith(".js") && !file.endsWith(".test.js")
-    && !/^(scenarios|__fixtures__|records)\//.test(file));
+    && !/^(scenarios|scenarios-greenfield|__fixtures__|records)\//.test(file));
   const content = files.map((file) => [file, fs.readFileSync(path.join(dir, file), "utf8").replace(/\r\n/g, "\n")]);
   return sha256Fingerprint("ospec-bench-harness-v1", content).replace(/^sha256:/, "");
 }
@@ -153,10 +168,12 @@ function materializeRepo(scenario, dest) {
 module.exports = {
   BenchScenarioError,
   CHECK_KINDS,
+  CORPORA,
   PROFILES,
   SCENARIOS_DIR,
   harnessDigest,
   listFiles,
+  loadCorpus,
   loadScenario,
   loadScenarios,
   materializeRepo,

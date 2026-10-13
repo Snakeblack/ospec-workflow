@@ -1,6 +1,6 @@
 "use strict";
 
-// gentle-ai for the bench (E4.2): installs it into a HOME of its own,
+// gentle-ai for the bench (E4.2, E4.5): installs it into a HOME of its own,
 // identifies that install, and gives every scenario an empty Engram.
 //
 // gentle-ai always writes to $HOME/.claude and registers Engram's MCP server
@@ -28,11 +28,15 @@ const INSTALL_ARGS = Object.freeze([
   "--preset", "ecosystem-only",
   "--persona", "neutral",
 ]);
+// The same selection for the Antigravity CLI (E4.5).
+const AGY_INSTALL_ARGS = Object.freeze(INSTALL_ARGS.map((arg) => (arg === "claude-code" ? "antigravity" : arg)));
 // Variables that keep gentle-ai from phoning home or replacing its binary.
 const QUIET_ENV = Object.freeze({ DO_NOT_TRACK: "1", GENTLE_AI_NO_SELF_UPDATE: "1" });
 // What the install writes and a run reads. Claude Code's own state (sessions,
 // projects, credentials) changes between runs and stays out of the identity.
 const ASSET_PATHS = Object.freeze(["CLAUDE.md", "settings.json", "output-styles", "skills", "agents", "plugins/cache"]);
+// What the agy install writes and a run reads, relative to the HOME.
+const AGY_ASSET_PATHS = Object.freeze([".gemini/GEMINI.md", ".gemini/config/skills", ".gemini/config/plugins", ".gemini/config/mcp_config.json"]);
 const ENGRAM_START_TIMEOUT_MS = 10000;
 
 const binDir = (home) => path.join(home, "bin");
@@ -68,6 +72,34 @@ function installGentleAi({ gentleAi, engram, home, baseEnv = process.env, spawnS
   const env = { ...homeEnv(baseEnv, home), GENTLE_AI_ENGRAM_BIN: engramBin(home) };
   run(spawnSyncImpl, gentleAiBin(home), INSTALL_ARGS, env);
   run(spawnSyncImpl, gentleAiBin(home), ["telemetry", "disable"], env);
+}
+
+/**
+ * Installs gentle-ai for the Antigravity CLI into `home` with the same
+ * selection (user decision, 2026-10-13). gentle-ai 4.1.1 does not reach agy
+ * 1.3.3 on its own, so three environment steps place its unchanged output
+ * where agy reads it: agy starts once (it writes `.gemini/config/.migrated`),
+ * an empty `antigravity-cli/mcp_config.json` exists before the install (its
+ * verification requires the file, which its Engram step never writes, and a
+ * failed verification rolls back GEMINI.md), `agy plugin install` registers
+ * the Engram plugin gentle-ai generates, and its skills are copied to
+ * `.gemini/config/skills`.
+ */
+function installGentleAiAgy({ gentleAi, engram, agy, home, baseEnv = process.env, spawnSyncImpl = spawnSync }) {
+  fs.mkdirSync(binDir(home), { recursive: true });
+  fs.copyFileSync(gentleAi, gentleAiBin(home));
+  fs.copyFileSync(engram, engramBin(home));
+  fs.chmodSync(gentleAiBin(home), 0o755);
+  fs.chmodSync(engramBin(home), 0o755);
+  const env = { ...homeEnv(baseEnv, home), GENTLE_AI_ENGRAM_BIN: engramBin(home) };
+  const variant = path.join(home, ".gemini", "antigravity-cli");
+  run(spawnSyncImpl, agy, ["models"], env);
+  fs.mkdirSync(variant, { recursive: true });
+  if (!fs.existsSync(path.join(variant, "mcp_config.json"))) fs.writeFileSync(path.join(variant, "mcp_config.json"), "{}\n");
+  run(spawnSyncImpl, gentleAiBin(home), AGY_INSTALL_ARGS, env);
+  run(spawnSyncImpl, gentleAiBin(home), ["telemetry", "disable"], env);
+  run(spawnSyncImpl, agy, ["plugin", "install", path.join(variant, "plugins", "gentle-ai-engram")], env);
+  fs.cpSync(path.join(variant, "skills"), path.join(home, ".gemini", "config", "skills"), { recursive: true });
 }
 
 function hashPath(hash, root, relative) {
@@ -109,6 +141,19 @@ function identifyGentleAi({ home, baseEnv = process.env, spawnSyncImpl = spawnSy
   hashPath(hash, home, "bin");
   hash.update(`mcp\0${mcpConfig(home)}\n`);
   for (const asset of ASSET_PATHS) hashPath(hash, path.join(home, ".claude"), asset);
+  return { version: `${version(gentleAiBin(home))} (engram ${version(engramBin(home))})`, digest: hash.digest("hex") };
+}
+
+/** Version and digest of the agy install in `home`: both binaries and the assets agy reads. */
+function identifyGentleAiAgy({ home, baseEnv = process.env, spawnSyncImpl = spawnSync }) {
+  if (!fs.existsSync(path.join(home, ".gemini", "GEMINI.md")) || !fs.existsSync(gentleAiBin(home))) {
+    throw new Error(`no gentle-ai install for agy in ${home}`);
+  }
+  const env = homeEnv(baseEnv, home);
+  const version = (executable) => run(spawnSyncImpl, executable, ["version"], env).replace(/^\S+\s+/, "");
+  const hash = crypto.createHash("sha256");
+  hashPath(hash, home, "bin");
+  for (const asset of AGY_ASSET_PATHS) hashPath(hash, home, asset);
   return { version: `${version(gentleAiBin(home))} (engram ${version(engramBin(home))})`, digest: hash.digest("hex") };
 }
 
@@ -158,4 +203,17 @@ async function startEngram({ home, workspaceRoot, baseEnv = process.env, spawnIm
   return { env: { ENGRAM_DATA_DIR: dataDir, ENGRAM_PORT: String(port) }, stop: () => { child.kill(); } };
 }
 
-module.exports = { ASSET_PATHS, INSTALL_ARGS, QUIET_ENV, homeEnv, identifyGentleAi, installGentleAi, mcpConfig, startEngram };
+module.exports = {
+  AGY_ASSET_PATHS,
+  AGY_INSTALL_ARGS,
+  ASSET_PATHS,
+  INSTALL_ARGS,
+  QUIET_ENV,
+  homeEnv,
+  identifyGentleAi,
+  identifyGentleAiAgy,
+  installGentleAi,
+  installGentleAiAgy,
+  mcpConfig,
+  startEngram,
+};

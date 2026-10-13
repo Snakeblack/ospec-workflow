@@ -7,7 +7,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 
-const { INSTALL_ARGS, identifyGentleAi, installGentleAi, mcpConfig, startEngram } = require("./gentle-ai.js");
+const { AGY_INSTALL_ARGS, INSTALL_ARGS, identifyGentleAi, identifyGentleAiAgy, installGentleAi, installGentleAiAgy, mcpConfig, startEngram } = require("./gentle-ai.js");
 
 function tempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "bench-gentle-"));
@@ -140,4 +140,70 @@ test("each workspace gets an empty Engram of its own under .git, on its own port
   for (const engram of engrams) engram.stop();
   await new Promise((resolve) => { setTimeout(resolve, 200); });
   await assert.rejects(fetch(`http://127.0.0.1:${engrams[0].env.ENGRAM_PORT}/health`));
+});
+
+// A stand-in for agy and gentle-ai 4.1.1 on agy: `agy models` writes the
+// migrated marker; the install fails its verification without
+// antigravity-cli/mcp_config.json, and otherwise writes GEMINI.md, its skills
+// and its Engram plugin where agy 1.3.3 does not read them.
+function fakeAgySpawnSync(calls) {
+  return (executable, args, { env }) => {
+    const name = path.basename(executable);
+    calls.push({ name, args, env });
+    const gemini = path.join(env.HOME, ".gemini");
+    const variant = path.join(gemini, "antigravity-cli");
+    if (name === "agy" && args[0] === "models") {
+      fs.mkdirSync(path.join(gemini, "config"), { recursive: true });
+      fs.writeFileSync(path.join(gemini, "config", ".migrated"), "");
+    }
+    if (name === "gentle-ai" && args[0] === "install") {
+      if (!fs.existsSync(path.join(variant, "mcp_config.json"))) return { status: 1, stderr: "post-apply verification failed" };
+      fs.writeFileSync(path.join(gemini, "GEMINI.md"), "orchestrator");
+      fs.mkdirSync(path.join(variant, "skills", "go-testing"), { recursive: true });
+      fs.writeFileSync(path.join(variant, "skills", "go-testing", "SKILL.md"), "skill");
+      fs.mkdirSync(path.join(variant, "plugins", "gentle-ai-engram"), { recursive: true });
+      fs.writeFileSync(path.join(variant, "plugins", "gentle-ai-engram", "plugin.json"), "{}");
+    }
+    if (name === "agy" && args[0] === "plugin") {
+      fs.mkdirSync(path.join(gemini, "config", "plugins", "gentle-ai-engram"), { recursive: true });
+      fs.writeFileSync(path.join(gemini, "config", "plugins", "gentle-ai-engram", "plugin.json"), fs.readFileSync(path.join(args[2], "plugin.json")));
+    }
+    if (args[0] === "version") return { status: 0, stdout: name === "engram" ? "engram 3.4.0\n" : "gentle-ai 4.1.1\n" };
+    return { status: 0, stdout: "" };
+  };
+}
+
+test("the agy install keeps the selection and places gentle-ai's unchanged output where agy reads it", () => {
+  const dir = tempDir();
+  const home = path.join(dir, "home");
+  const calls = [];
+  installGentleAiAgy({ ...binaries(dir), agy: "/usr/bin/agy", home, baseEnv: { PATH: "/usr/bin", HOME: "/home/user" }, spawnSyncImpl: fakeAgySpawnSync(calls) });
+
+  assert.deepEqual(AGY_INSTALL_ARGS, ["install", "--agent", "antigravity", "--component", "persona,engram,skills", "--preset", "ecosystem-only", "--persona", "neutral"]);
+  assert.deepEqual(calls.map((call) => [call.name, ...call.args]), [
+    ["agy", "models"],
+    ["gentle-ai", ...AGY_INSTALL_ARGS],
+    ["gentle-ai", "telemetry", "disable"],
+    ["agy", "plugin", "install", path.join(home, ".gemini", "antigravity-cli", "plugins", "gentle-ai-engram")],
+  ]);
+  for (const call of calls) assert.equal(call.env.HOME, home, "never the user's HOME");
+  assert.equal(fs.readFileSync(path.join(home, ".gemini", "antigravity-cli", "mcp_config.json"), "utf8"), "{}\n");
+  assert.equal(fs.readFileSync(path.join(home, ".gemini", "config", "skills", "go-testing", "SKILL.md"), "utf8"), "skill");
+  assert.ok(fs.existsSync(path.join(home, ".gemini", "config", "plugins", "gentle-ai-engram", "plugin.json")));
+});
+
+test("the agy identity covers both binaries and what agy reads, not its conversations", () => {
+  const dir = tempDir();
+  const home = path.join(dir, "home");
+  const spawnSyncImpl = fakeAgySpawnSync([]);
+  assert.throws(() => identifyGentleAiAgy({ home, spawnSyncImpl }), /no gentle-ai install for agy/);
+  installGentleAiAgy({ ...binaries(dir), agy: "/usr/bin/agy", home, spawnSyncImpl });
+
+  const first = identifyGentleAiAgy({ home, spawnSyncImpl });
+  assert.equal(first.version, "4.1.1 (engram 3.4.0)");
+  fs.mkdirSync(path.join(home, ".gemini", "antigravity-cli", "conversations"), { recursive: true });
+  fs.writeFileSync(path.join(home, ".gemini", "antigravity-cli", "conversations", "c.pb"), "x");
+  assert.equal(identifyGentleAiAgy({ home, spawnSyncImpl }).digest, first.digest, "conversations are not the install");
+  fs.writeFileSync(path.join(home, ".gemini", "GEMINI.md"), "edited");
+  assert.notEqual(identifyGentleAiAgy({ home, spawnSyncImpl }).digest, first.digest, "an edited orchestrator is another install");
 });
