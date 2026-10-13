@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Test inestable del banco**: el test del directorio opaco fallaba cuando el sufijo aleatorio de `mkdtemp` formaba «a5» o «r1». Ahora comprueba que el nombre es solo ese sufijo.
 - Hecho con IDD (`idd/archive/2026-10-13-attribution-context/`).
 
-**Verificación directa**: `ospec check` (`node scripts/check.js`) con todos los checks en verde, e instalación de Cursor probada en un HOME temporal con una copia de un `hooks.json` real con hooks de Orca.
+**Verificación directa**: `node scripts/check.js` (3695 tests pasando, 0 fallos y 3 omitidos). Instalación de Cursor probada en un HOME temporal con una copia de un `hooks.json` real con hooks de Orca.
 
 ## [2.135.0] - 2026-10-13
 
