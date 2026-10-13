@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.136.1] - 2026-10-13
+
+### Fixed
+- **Cursor carga el protocolo de Engram como regla global**: `setup:cursor` escribe `~/.cursor/rules/engram-memory-protocol.mdc` con `alwaysApply: true` y el cuerpo de `~/.cursor/engram-memory-protocol.md`. Cursor la lista en `/rule`. El instalador ya no pide pegar el protocolo en User Rules. Un protocolo vacío o ilegible avisa y no escribe la regla; `--no-engram` tampoco. La detección sigue usando el markdown. REQ-install-044.
+- **Test de la huella en Node 24**: `fs.rmSync` sobre un symlink colgante vuelve sin error y no lo borra, y el test fallaba con `EEXIST` al crear el destino nuevo. El test usa `fs.unlinkSync`.
+- Hecho con IDD (`idd/archive/2026-10-13-cursor-engram-rule/`, `idd/archive/2026-10-13-dangling-symlink-rm/`).
+
+**Verificación directa**: `node scripts/check.js` (3697 tests pasando, 0 fallos y 3 omitidos). `npm run setup:cursor` dejó `~/.cursor/rules/engram-memory-protocol.mdc` con `alwaysApply: true`.
+
 ## [2.136.0] - 2026-10-13
 
 ### Changed

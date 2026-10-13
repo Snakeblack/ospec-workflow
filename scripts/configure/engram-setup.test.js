@@ -499,9 +499,56 @@ test("run: Copilot CLI never overwrites an unparseable mcp-config.json", () => {
   assert.equal(files.writes.length, 0);
 });
 
-test("run: Cursor reminds the one-time User Rules paste once configured", () => {
-  const files = makeFs({ [home(".cursor", "mcp.json")]: "{\"mcpServers\":{\"engram\":{}}}", [home(".cursor", "engram-memory-protocol.md")]: "x" });
-  assert.match(run({ target: "cursor", spawn: makeSpawn(ENGRAM), fs: files }).stdout, /User Rules/);
+test("run: Cursor projects the protocol into an alwaysApply global rule", () => {
+  const protocol = "## Engram Persistent Memory — Protocol\n\nSave with mem_save.\n";
+  const files = makeFs({
+    [home(".cursor", "mcp.json")]: "{\"mcpServers\":{\"engram\":{}}}",
+    [home(".cursor", "engram-memory-protocol.md")]: protocol,
+  });
+  const rulePath = path.resolve(home(".cursor", "rules", "engram-memory-protocol.mdc"));
+  const { stdout, stderr } = run({ target: "cursor", spawn: makeSpawn(ENGRAM), fs: files });
+  const rule = files.store.get(rulePath);
+  assert.equal(stderr, "");
+  assert.doesNotMatch(stdout, /User Rules/);
+  assert.equal(
+    rule,
+    "---\ndescription: \"Engram persistent memory: when to save, search and close a session.\"\nalwaysApply: true\n---\n\n" + protocol,
+  );
+
+  const again = run({ target: "cursor", spawn: makeSpawn(ENGRAM), fs: files });
+  assert.equal(again.stderr, "");
+  assert.equal(files.store.get(rulePath), rule);
+  assert.deepEqual(files.writes.filter((file) => file === rulePath), [rulePath]);
+});
+
+test("run: Cursor does not project an empty or unreadable protocol", () => {
+  const empty = makeFs({
+    [home(".cursor", "mcp.json")]: "{\"mcpServers\":{\"engram\":{}}}",
+    [home(".cursor", "engram-memory-protocol.md")]: "  \n",
+  });
+  const emptyRun = run({ target: "cursor", spawn: makeSpawn(ENGRAM), fs: empty });
+  assert.equal(empty.store.has(path.resolve(home(".cursor", "rules", "engram-memory-protocol.mdc"))), false);
+  assert.match(emptyRun.stderr, /vacío/);
+  assert.doesNotMatch(emptyRun.stdout, /User Rules/);
+
+  const denied = new Error("EACCES");
+  denied.code = "EACCES";
+  const files = makeFs({
+    [home(".cursor", "mcp.json")]: "{\"mcpServers\":{\"engram\":{}}}",
+    [home(".cursor", "engram-memory-protocol.md")]: denied,
+  });
+  const failed = run({ target: "cursor", spawn: makeSpawn(ENGRAM), fs: files });
+  assert.equal(files.store.has(path.resolve(home(".cursor", "rules", "engram-memory-protocol.mdc"))), false);
+  assert.match(failed.stderr, /no se pudo leer/);
+});
+
+test("run: --no-engram does not project the Cursor rule", () => {
+  const files = makeFs({
+    [home(".cursor", "mcp.json")]: "{\"mcpServers\":{\"engram\":{}}}",
+    [home(".cursor", "engram-memory-protocol.md")]: "protocol\n",
+  });
+  run({ target: "cursor", argv: ["--no-engram"], spawn: makeSpawn(ENGRAM), fs: files });
+  assert.equal(files.store.has(path.resolve(home(".cursor", "rules", "engram-memory-protocol.mdc"))), false);
 });
 
 // --- Windows safe mode of the upstream Claude hook --------------------------------

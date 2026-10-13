@@ -1212,6 +1212,29 @@ Engram counts as configured for a host only when BOTH its `engram` MCP server (t
 - WHEN `setup:claude` runs
 - THEN `engram setup claude-code` runs and the output confirms the configuration, or a warning names the manual fix when it is still incomplete
 
+### Requirement: Cursor Loads the Engram Protocol as a Global Rule {#REQ-install-044}
+
+When the Engram step is enabled and `~/.cursor/engram-memory-protocol.md` exists and its content is not empty, `setup:cursor` MUST write `~/.cursor/rules/engram-memory-protocol.mdc` with a one-line `description`, `alwaysApply: true`, and that file's body. Cursor loads a valid rule from `~/.cursor/rules`. The step MUST NOT ask the user to paste the protocol into User Rules. Detection of the Cursor protocol piece remains the markdown file (REQ-install-028). An empty or unreadable protocol MUST NOT write the rule and MUST warn without failing the install. `--no-engram` MUST NOT write the rule. A later run whose body already matches MUST NOT rewrite the file.
+
+#### Scenario: Protocol projected
+
+- GIVEN the Engram MCP server is registered and `~/.cursor/engram-memory-protocol.md` has a body
+- WHEN the Engram step of `setup:cursor` runs
+- THEN `~/.cursor/rules/engram-memory-protocol.mdc` carries `alwaysApply: true` and that body
+- AND the output does not ask to paste the protocol into User Rules
+
+#### Scenario: Empty or unreadable protocol
+
+- GIVEN the protocol file is empty, whitespace, or unreadable
+- WHEN the Engram step of `setup:cursor` runs
+- THEN no rule file is written, a warning is printed, and the install is not failed
+
+#### Scenario: Opt-out skips the rule
+
+- GIVEN `--no-engram` and a protocol file with a body
+- WHEN the Engram step of `setup:cursor` runs
+- THEN `~/.cursor/rules/engram-memory-protocol.mdc` is not written
+
 ### Requirement: Installers Report a Newer Engram Release {#REQ-install-043}
 
 When the Engram step is enabled and `engram version` reports a release version, every global target installer MUST ask the GitHub API for the latest Engram release (`repos/Gentleman-Programming/engram/releases/latest`) with a three-second bound. When that release is newer than the installed version, it MUST print one line with both versions and an upgrade route: `brew upgrade --formula gentleman-programming/tap/engram` when the binary resolves into a Homebrew Cellar (the tap also holds a legacy `engram` cask that Homebrew 7 refuses to load from an untrusted tap), `go install github.com/Gentleman-Programming/engram[/v<major>]/cmd/engram@latest` when it sits in `GOBIN` or `GOPATH/bin`, and the release page otherwise. It MUST print nothing when Engram is up to date or newer. A failed, timed-out or unreadable check MUST print nothing except a note under `--verbose`, and MUST NOT warn or change the exit code. The check MUST NOT run with `--no-engram`, with a non-empty `ENGRAM_NO_UPDATE_CHECK`, without the binary, or for a build without a release version (`dev`). The installers MUST NOT download, install or upgrade Engram, and `ospec doctor` MUST NOT make this request.

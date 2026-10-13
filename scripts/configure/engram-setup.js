@@ -19,6 +19,7 @@
 //   antigravity -> antigravity-cli  ~/.gemini/config/mcp_config.json + GEMINI.md block
 //   opencode    -> opencode         opencode.json(c) `mcp.engram` + plugins/engram.ts
 //   cursor      -> cursor           ~/.cursor/mcp.json + engram-memory-protocol.md
+//                                  projected to rules/engram-memory-protocol.mdc
 //   vscode      -> vscode-copilot   <User>/mcp.json `servers.engram` + prompts file
 // Copilot CLI (`github-copilot`, ~/.copilot) has no upstream setup, so the fallback
 // action merges a stdio `engram mcp` entry into ~/.copilot/mcp-config.json; the
@@ -117,6 +118,52 @@ function missingPieces(spec, detection) {
     detection.protocol !== "registered" && detection.protocol !== NOT_APPLICABLE ? spec.protocol : null,
     detection.mcp !== "registered" ? "servidor MCP" : null,
   ].filter(Boolean);
+}
+
+const CURSOR_RULE_DESCRIPTION = "Engram persistent memory: when to save, search and close a session.";
+
+// Cursor loads ~/.cursor/rules/*.mdc when the frontmatter is valid. Upstream
+// `engram setup cursor` only writes the protocol markdown, which /rule ignores.
+// Project that body into an always-apply global rule. Fail-open, like the rest
+// of this step: a missing file is the unconfigured case; empty or unreadable
+// content warns and skips the write.
+function cursorMemoryRule(body) {
+  return `---\ndescription: "${CURSOR_RULE_DESCRIPTION}"\nalwaysApply: true\n---\n\n${body}`;
+}
+
+function projectCursorMemoryRule({ fs: fsImpl, homedir, stdout, stderr }) {
+  const cursor = path.join(homedir(), ".cursor");
+  const source = path.join(cursor, "engram-memory-protocol.md");
+  const dest = path.join(cursor, "rules", "engram-memory-protocol.mdc");
+  let body;
+  try {
+    const raw = fsImpl.readFileSync(source);
+    body = Buffer.isBuffer(raw) ? raw.toString("utf8") : String(raw);
+  } catch (error) {
+    if (error && error.code === "ENOENT") return;
+    stderr.write(`aviso: no se pudo leer ${source} (${error && error.message}); no se escribe la regla de Cursor.\n`);
+    return;
+  }
+  if (!String(body).trim()) {
+    stderr.write(`aviso: ${source} está vacío; no se escribe la regla de Cursor.\n`);
+    return;
+  }
+  const rule = cursorMemoryRule(body);
+  try {
+    let current = null;
+    try {
+      const existing = fsImpl.readFileSync(dest);
+      current = Buffer.isBuffer(existing) ? existing.toString("utf8") : String(existing);
+    } catch (error) {
+      if (!error || error.code !== "ENOENT") throw error;
+    }
+    if (current === rule) return;
+    if (typeof fsImpl.mkdirSync === "function") fsImpl.mkdirSync(path.dirname(dest), { recursive: true });
+    fsImpl.writeFileSync(dest, rule);
+    stdout.write(`  - Regla de Engram escrita en ${dest} (Always Apply, global).\n`);
+  } catch (error) {
+    stderr.write(`aviso: no se pudo escribir la regla de Cursor en ${dest} (${error && error.message}); se continúa.\n`);
+  }
 }
 
 function manualFix(spec) {
@@ -479,8 +526,8 @@ function runEngramStep({
       }
     }
 
-    if (configured && target === "cursor") {
-      stdout.write("  - Cursor ignora los ficheros de reglas globales: pega una vez ~/.cursor/engram-memory-protocol.md en Settings > Rules > User Rules.\n");
+    if (enabled && target === "cursor") {
+      projectCursorMemoryRule({ fs: fsImpl, homedir, stdout, stderr });
     }
     if (enabled && configured && target === "claude" && platform === "win32") {
       windowsSafeModeStep({ spawn, fs: fsImpl, homedir, env, now, stdout, stderr, timeoutMs });

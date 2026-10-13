@@ -1,0 +1,244 @@
+{
+  "schema": "idd-state/v1",
+  "change": "dangling-symlink-rm",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El test de la huella sustituye un symlink colgante con unlink, porque rmSync en Node 24 lo deja puesto",
+    "acceptance": "El test an untracked symlink is its target pasa y sigue comprobando que un destino nuevo cambia la huella del árbol."
+  },
+  "facts": {
+    "basis": "El usuario pidió arreglar ese test en un cambio aparte. En Node 24.5.0 fs.rmSync sobre un symlink colgante vuelve sin error y no lo borra; fs.unlinkSync sí lo borra. La aserción de la huella se queda. El rmSync de producción en idd-workspace.js borra un directorio temporal, no un symlink colgante."
+  },
+  "plan": {
+    "paths": [
+      "scripts/lib/idd-workspace.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component idd-engine: ADR 0003, 0004, 0005, 0011 and quality scenario deterministic-resume",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "none",
+      "reason": "El cambio solo sustituye rmSync por unlinkSync en un test. No mueve ninguna decisión de proceso al CLI ni a la prosa."
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "No añade ni quita una señal de impacto. La obligación de test ya venía de ser un bug."
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "none",
+      "reason": "El cierre sigue exigiendo la ejecución observada. El test rojo y el verde los registra ospec run."
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "No toca el árbol de IDD ni el de SDD. El test vive en scripts/lib."
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "none",
+      "reason": "No cambia next, el estado ni la reanudación. Solo cómo el test borra un symlink."
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "No hay orden nueva de ospec. El test de la huella sigue en scripts/lib/idd-workspace.test.js y lo ejecuta el check del proyecto.",
+      "recorded_at": "2026-10-13T19:08:02.686Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-13T19:07:25.036Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-13T19:08:52.171Z",
+      "detail": {
+        "tree": "sha256:f6e134be368f7970cf31c802997929a22274a02dd6cfeed30f4397fe3e6c8bac",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-13T19:08:52.171Z",
+      "detail": {
+        "refs": [
+          "adr:0003 none",
+          "adr:0004 none",
+          "adr:0005 none",
+          "adr:0011 none",
+          "scenario:deterministic-resume none"
+        ],
+        "records": [],
+        "tree": "sha256:f6e134be368f7970cf31c802997929a22274a02dd6cfeed30f4397fe3e6c8bac",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-13T19:09:09.663Z"
+    }
+  ],
+  "base": "355d7371f209fc5f8f62dfcb0a885d7dd1579dcc",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern \"an untracked symlink is its target\" scripts/lib/idd-workspace.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:c936f9b635c93fd259ef70f31b06c53b69de5da536c772f70791da85082a4539",
+      "tree": "sha256:0e21dc28f77d5fc9757bc6518879abfc417e5275c813aae58e713906fe2ee30d",
+      "recorded_at": "2026-10-13T19:07:00.565Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern \"an untracked symlink is its target\" scripts/lib/idd-workspace.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:34667ab33c4c5243b1fff15e665ae67f04ab0db6b2a96c09fb709c4797f6d8c4",
+      "tree": "sha256:c3f2a43e7b0bb185bff24a51783b3df36e9978ae38ad64612fae6efc8482d33d",
+      "recorded_at": "2026-10-13T19:07:25.036Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f8c9b12c3cd5758cab9b7d3d00d4d01b111119f102f1b986b47fb5353e3191a5",
+      "tree": "sha256:f6e134be368f7970cf31c802997929a22274a02dd6cfeed30f4397fe3e6c8bac",
+      "recorded_at": "2026-10-13T19:08:52.171Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:994bdc7d17a6c14ef914cd24ce768c39332722a93613baded0ae0a857f2e6588",
+      "tree": "sha256:f6e134be368f7970cf31c802997929a22274a02dd6cfeed30f4397fe3e6c8bac",
+      "recorded_at": "2026-10-13T19:08:52.171Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:df8792336bd34943b57dc87aef73144f17e39c08b62895606de8ed65fe7b32a8",
+      "tree": "sha256:f6e134be368f7970cf31c802997929a22274a02dd6cfeed30f4397fe3e6c8bac",
+      "recorded_at": "2026-10-13T19:08:52.171Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:db569cfd0f272a352fa6c4b7de5a0bcdb930ae6bd87b46ca62c2c4fe4c8ab7b0",
+      "tree": "sha256:f6e134be368f7970cf31c802997929a22274a02dd6cfeed30f4397fe3e6c8bac",
+      "recorded_at": "2026-10-13T19:08:52.171Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0461e2493684814304b7125d537ab94322d1901e0392f41adc5f909f138a2cc8",
+      "tree": "sha256:f6e134be368f7970cf31c802997929a22274a02dd6cfeed30f4397fe3e6c8bac",
+      "recorded_at": "2026-10-13T19:08:52.171Z"
+    }
+  ],
+  "closed_at": "2026-10-13T19:09:09.663Z"
+}

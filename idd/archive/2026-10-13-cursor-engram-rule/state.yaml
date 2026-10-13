@@ -1,0 +1,502 @@
+{
+  "schema": "idd-state/v1",
+  "change": "cursor-engram-rule",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "setup:cursor proyecta el protocolo de Engram a una regla global alwaysApply y deja de pedir pegarlo a mano",
+    "acceptance": "Con Engram configurado, el paso escribe ~/.cursor/rules/engram-memory-protocol.mdc con description corta, alwaysApply true y el cuerpo del protocolo, no imprime el aviso de User Rules, y la documentación describe esa regla."
+  },
+  "facts": {
+    "basis": "El usuario confirmó en /rule que Cursor carga ~/.cursor/rules/*.mdc válidos (ospec-router y no-model-attribution, alwaysApply true) y pidió la misma forma para Engram, global, quitando el pegado manual. El texto sigue saliendo de ~/.cursor/engram-memory-protocol.md, que REQ-install-028 usa como pieza de detección y se conserva. La regla es una proyección fail-open de ese fichero. Si el protocolo está vacío o no se puede leer, no se escribe la regla y se avisa, sin cambiar el código de salida del instalador."
+  },
+  "plan": {
+    "paths": [
+      "README.es.md",
+      "README.md",
+      "docs/plugin-installation.es.md",
+      "docs/plugin-installation.md",
+      "openspec/specs/install/spec.md",
+      "scripts/configure/engram-setup.js",
+      "scripts/configure/engram-setup.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component generator: ADR 0001, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "La regla no entra en el árbol generado. El paso de instalación copia el protocolo que ya escribe engram setup, así que la fuente canónica y los fixtures golden no cambian."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "La proyección solo lee y escribe un fichero local con la biblioteca estándar. No añade dependencias ni descargas."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "La proyección no abre red. Si el protocolo no está, no se escribe la regla y el instalador sigue."
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "No cambia una skill, un agente ni un hook de la fuente canónica. Cursor recibe el protocolo con su mecanismo nativo, una regla .mdc, sin tocar el generador."
+    },
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "none",
+      "reason": "scripts/lib/idd-workspace.test.js entra en el diff por el cambio cerrado dangling-symlink-rm. Este cambio no mueve decisiones de proceso."
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "El test del symlink no añade señales de impacto a la regla de Engram."
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "none",
+      "reason": "El cierre de este cambio sigue apoyado en ospec run y ospec check. El test no cambia esa regla."
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "No se mezcla el estado SDD con el de IDD. El test vive en scripts/lib."
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "none",
+      "reason": "next y el estado no cambian. El archivo extra es el arreglo del symlink, ya cerrado aparte."
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "projectCursorMemoryRule en scripts/configure/engram-setup.js solo usa fs y path. No hay fetch ni spawn nuevos. El aviso de actualización de Engram no se ha tocado.",
+      "recorded_at": "2026-10-13T18:49:29.798Z"
+    },
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "No hay orden nueva de ospec. El test del symlink queda en scripts/lib/idd-workspace.test.js, cubierto por el check del proyecto.",
+      "recorded_at": "2026-10-13T19:11:06.428Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-13T18:47:09.773Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-13T18:50:22.405Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:13bd1b3f79d475084627037970f2ea968dc17a7e1a00a990f08b43702e1014b7",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-13T19:10:07.391Z",
+      "detail": {
+        "tree": "sha256:879f6b4b2517a4ab2e74750233b1836646fb59124d65833a968dea5f652e40dd",
+        "runs": [
+          "run-8"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-13T19:12:08.153Z",
+      "detail": {
+        "tree": "sha256:879f6b4b2517a4ab2e74750233b1836646fb59124d65833a968dea5f652e40dd",
+        "runs": [
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-13T19:12:08.153Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms",
+          "adr:0003 none",
+          "adr:0004 none",
+          "adr:0005 none",
+          "adr:0011 none",
+          "scenario:deterministic-resume none"
+        ],
+        "records": [],
+        "tree": "sha256:879f6b4b2517a4ab2e74750233b1836646fb59124d65833a968dea5f652e40dd",
+        "fitness": [
+          "run-18",
+          "run-19",
+          "run-20",
+          "run-21",
+          "run-22",
+          "run-23",
+          "run-24",
+          "run-25"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-13T19:12:15.010Z"
+    }
+  ],
+  "base": "355d7371f209fc5f8f62dfcb0a885d7dd1579dcc",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern \"Cursor projects the protocol|Cursor does not project|does not project the Cursor rule\" scripts/configure/engram-setup.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:4699b107d05979c1cb967810d7c13abccec86a6836325a76b2d9d45389271480",
+      "tree": "sha256:7ae4885acc09f1b05b9d9157980cf53425f6e3543972540542c5881fbb50ae9e",
+      "recorded_at": "2026-10-13T18:44:54.388Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern \"Cursor projects the protocol|Cursor does not project|does not project the Cursor rule\" scripts/configure/engram-setup.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3dc29c29abbd287e9726686b4577a8e9bab1c133fe4d8fb1446b20a071925e6",
+      "tree": "sha256:d21bc53f4957685be866ec63e909dd309f37f964b2fbbb24cf7d14c894d65f0f",
+      "recorded_at": "2026-10-13T18:47:09.773Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:e5d753c850e567109f46502e540a7b433f64ddbe5916c525fcc02eded3670c15",
+      "tree": "sha256:13bd1b3f79d475084627037970f2ea968dc17a7e1a00a990f08b43702e1014b7",
+      "recorded_at": "2026-10-13T18:50:22.405Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6ceed3d42a95e7f4837a40dc33898acb8748f038abf7e9848fec8c8139ca3d2e",
+      "tree": "sha256:13bd1b3f79d475084627037970f2ea968dc17a7e1a00a990f08b43702e1014b7",
+      "recorded_at": "2026-10-13T18:50:22.405Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:13bd1b3f79d475084627037970f2ea968dc17a7e1a00a990f08b43702e1014b7",
+      "recorded_at": "2026-10-13T18:50:22.405Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cab936f8a516a30706f99dc0d8ba046a40d6ae144d2ede969a1a5fd4402f8b8a",
+      "tree": "sha256:13bd1b3f79d475084627037970f2ea968dc17a7e1a00a990f08b43702e1014b7",
+      "recorded_at": "2026-10-13T18:50:22.405Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5a943621712cbb47e9c833851a55a17624684ac5a24aeba93b10fc00aa87b6a8",
+      "tree": "sha256:13bd1b3f79d475084627037970f2ea968dc17a7e1a00a990f08b43702e1014b7",
+      "recorded_at": "2026-10-13T18:50:22.405Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c2d9151b81ee1463decbb7f399b9727f6f968ebe3ee325949f7acb2319986de1",
+      "tree": "sha256:879f6b4b2517a4ab2e74750233b1836646fb59124d65833a968dea5f652e40dd",
+      "recorded_at": "2026-10-13T19:10:07.391Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bc4d71b35e546379fb265049ceb441da86c26c0923ce0b8b1ed0ee73208ef027",
+      "tree": "sha256:879f6b4b2517a4ab2e74750233b1836646fb59124d65833a968dea5f652e40dd",
+      "recorded_at": "2026-10-13T19:10:07.391Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:879f6b4b2517a4ab2e74750233b1836646fb59124d65833a968dea5f652e40dd",
+      "recorded_at": "2026-10-13T19:10:07.391Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:de9464b858714636c83c13f89bb3c4dc5822e6de8f3f1d63035b2f2982bca47f",
+      "tree": "sha256:879f6b4b2517a4ab2e74750233b1836646fb59124d65833a968dea5f652e40dd",
+      "recorded_at": "2026-10-13T19:10:07.391Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0eefd55b660ceafb60afee8f4f7603e5db902004c46d757d01703a8813986d74",
+      "tree": "sha256:879f6b4b2517a4ab2e74750233b1836646fb59124d65833a968dea5f652e40dd",
+      "recorded_at": "2026-10-13T19:10:07.391Z"
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:261101b998be1f9efa7e9845b6a1276b8c6f3189600b13ff8dd043720cfe2c21",
+      "tree": "sha256:879f6b4b2517a4ab2e74750233b1836646fb59124d65833a968dea5f652e40dd",
+      "recorded_at": "2026-10-13T19:10:07.391Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2b2d9c7441c57373877a06dd5d1c908e7245267d14fe218539bbcdb8ff1a4e8a",
+      "tree": "sha256:879f6b4b2517a4ab2e74750233b1836646fb59124d65833a968dea5f652e40dd",
+      "recorded_at": "2026-10-13T19:10:07.391Z"
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fbaee2acea51824492edaade2af122f649bcc231b2bafdd6aaffe1b85cc33259",
+      "tree": "sha256:879f6b4b2517a4ab2e74750233b1836646fb59124d65833a968dea5f652e40dd",
+      "recorded_at": "2026-10-13T19:10:07.391Z"
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:421eac64128cd759cc08fe1476b9f1396d73ce8c6482f62051d107f6259bfd71",
+      "tree": "sha256:879f6b4b2517a4ab2e74750233b1836646fb59124d65833a968dea5f652e40dd",
+      "recorded_at": "2026-10-13T19:10:07.391Z"
+    },
+    {
+      "id": "run-17",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d9bf72bc0ae256a4f51adfb6f721c7d81cb9ebe8279d5ba1f39e865886bcc59b",
+      "tree": "sha256:879f6b4b2517a4ab2e74750233b1836646fb59124d65833a968dea5f652e40dd",
+      "recorded_at": "2026-10-13T19:12:08.153Z"
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9aa99d5a1840352cdf38fa62e0762d3b0d3cc85edbeebf0ab796fe3d71a29c35",
+      "tree": "sha256:879f6b4b2517a4ab2e74750233b1836646fb59124d65833a968dea5f652e40dd",
+      "recorded_at": "2026-10-13T19:12:08.153Z"
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:879f6b4b2517a4ab2e74750233b1836646fb59124d65833a968dea5f652e40dd",
+      "recorded_at": "2026-10-13T19:12:08.153Z"
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:235100aad26398f53171b555aeb50bc0756ba8bfefd0abfc659948566ff84d4d",
+      "tree": "sha256:879f6b4b2517a4ab2e74750233b1836646fb59124d65833a968dea5f652e40dd",
+      "recorded_at": "2026-10-13T19:12:08.153Z"
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8a02296f44e4ee463a323e3624aac9569215af834954405107d74e1867fc7fc9",
+      "tree": "sha256:879f6b4b2517a4ab2e74750233b1836646fb59124d65833a968dea5f652e40dd",
+      "recorded_at": "2026-10-13T19:12:08.153Z"
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:378a93e5811f5bae97b10b8626f8381eb35d00a4464a60d1cab0f6a9dcec396d",
+      "tree": "sha256:879f6b4b2517a4ab2e74750233b1836646fb59124d65833a968dea5f652e40dd",
+      "recorded_at": "2026-10-13T19:12:08.153Z"
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c55b13d0428c755dee6786f83b179a2d341c5e0a25f912f9b82d6e61c7637290",
+      "tree": "sha256:879f6b4b2517a4ab2e74750233b1836646fb59124d65833a968dea5f652e40dd",
+      "recorded_at": "2026-10-13T19:12:08.153Z"
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7124553bd10a967d19df97002397aeaa73ed053f74c810c78ecc4d6fcd2aaa71",
+      "tree": "sha256:879f6b4b2517a4ab2e74750233b1836646fb59124d65833a968dea5f652e40dd",
+      "recorded_at": "2026-10-13T19:12:08.153Z"
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2289812c797ea695f7b425b1fdecfff12a19c76c6e5a4780cce91e98621d1c4a",
+      "tree": "sha256:879f6b4b2517a4ab2e74750233b1836646fb59124d65833a968dea5f652e40dd",
+      "recorded_at": "2026-10-13T19:12:08.153Z"
+    }
+  ],
+  "closed_at": "2026-10-13T19:12:15.010Z"
+}
