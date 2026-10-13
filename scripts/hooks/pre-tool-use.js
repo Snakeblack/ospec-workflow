@@ -22,13 +22,17 @@ const {
 const { extractShellReadPaths } = require("./lib/shell-file-access.js");
 
 /**
- * Regex that matches forbidden AI/model attribution.
- * Must stay in sync with rules/no-model-attribution.instructions.md.
- * Vendor names are anchored at word boundaries so ordinary words that merely
+ * Regex that matches forbidden AI/model attribution: a `*-by:` trailer that
+ * names an AI or coding tool, a "generated with/by <tool>" phrase (English or
+ * Spanish, the tool within three words), or 🤖. Naming an agent is not
+ * attribution, so `fix(claude): …` or a human Co-Authored-By pass.
+ * Must stay in sync with commit-msg-hook.js, internal/hooks/pretooluse.go and
+ * rules/no-model-attribution.instructions.md.
+ * Tool names are anchored at word boundaries so ordinary words that merely
  * contain one (coherente/cohere, bombardeo/bard, llaman/llama) never fire.
  */
 const FORBIDDEN_ATTRIBUTION_RE =
-  /\b(?:co-authored-by|generated (?:with|by)|claude|anthropic|opus|sonnet|haiku|fable|gpt|chatgpt|openai|codex|copilot|gemini|bard|llama|mistral|cohere)\b|🤖/i;
+  /^[ \t]*[\w-]+-by:.*\b(?:claude|anthropic|opus|sonnet|haiku|fable|gpt|chatgpt|openai|codex|copilot|gemini|bard|llama|mistral|cohere|antigravity|agy|cursor|windsurf|kiro|opencode|qwen|deepseek|grok|devin|aider|cline|junie|amp)\b|\b(?:generated|written|created|made|built|authored|assisted|powered|produced|generad[oa]s?|escrit[oa]s?|cread[oa]s?|hech[oa]s?|asistid[oa]s?|producid[oa]s?)\s+(?:with|by|using|con|por)\W+(?:\w+\W+){0,3}?(?:claude|anthropic|opus|sonnet|haiku|fable|gpt|chatgpt|openai|codex|copilot|gemini|bard|llama|mistral|cohere|antigravity|agy|cursor|windsurf|kiro|opencode|qwen|deepseek|grok|devin|aider|cline|junie|amp)\b|🤖/im;
 
 /** Matches `git commit` commands — used to scope Step 5c (spec drift advisory). */
 const GIT_COMMIT_RE = /\bgit\s+commit\b/i;
@@ -538,21 +542,31 @@ async function main() {
 }
 
 /**
- * Extracts the commit message from a `git commit -m "..."` command string
- * and checks it for forbidden AI/model attribution.
+ * The commands whose text arguments carry a commit message or a pull
+ * request: `git commit -m/--message` and `gh pr create|edit -t/--title/-b/--body`.
+ */
+const ATTRIBUTION_TEXT_COMMANDS = [
+  { command: /\bgit\s+commit\b/i, args: /(?:-m|--message)(?:=|\s+)(?:"([^"]*)"|'([^']*)'|([^\s;|&]+))/gi },
+  { command: /\bgh\s+pr\s+(?:create|edit)\b/i, args: /(?:-t|--title|-b|--body)(?:=|\s+)(?:"([^"]*)"|'([^']*)'|([^\s;|&]+))/gi },
+];
+
+/**
+ * Extracts the message of a `git commit` or the title and body of a
+ * `gh pr create|edit` command string and checks them for forbidden AI/model
+ * attribution.
  * Returns a denial reason string if attribution is found, or null if clean.
  */
 function checkCommitAttribution(command) {
-  if (!/\bgit\s+commit\b/i.test(command)) {
+  const target = ATTRIBUTION_TEXT_COMMANDS.find((entry) => entry.command.test(command));
+  if (!target) {
     return null;
   }
 
-  // Extract all -m / --message arguments (may appear multiple times for multi-paragraph messages)
-  const messageMatches = command.matchAll(/(?:-m|--message)\s+(?:"([^"]*)"|'([^']*)'|([^\s;|&]+))/gi);
-  for (const match of messageMatches) {
-    const msg = match[1] ?? match[2] ?? match[3] ?? "";
-    if (FORBIDDEN_ATTRIBUTION_RE.test(msg)) {
-      return `Commit bloqueado: el mensaje contiene atribución AI/modelo prohibida. Elimina líneas como 'Co-Authored-By', nombres de modelo (Claude, GPT, Gemini, etc.) y usa Conventional Commits sin atribución. Consulta rules/no-model-attribution.instructions.md.`;
+  // An argument may appear several times (one -m per paragraph).
+  for (const match of command.matchAll(target.args)) {
+    const text = match[1] ?? match[2] ?? match[3] ?? "";
+    if (FORBIDDEN_ATTRIBUTION_RE.test(text)) {
+      return `Bloqueado: el commit o la PR atribuye el trabajo a una IA o herramienta (trailer *-by: que la nombra, «generated with/by …» o 🤖). Nombrar un agente sí está permitido: quita solo la atribución. Consulta rules/no-model-attribution.instructions.md.`;
     }
   }
 

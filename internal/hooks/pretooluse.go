@@ -19,39 +19,53 @@ import (
 // gitCommitPatternRE matches "git commit" in any command string.
 var gitCommitPatternRE = regexp.MustCompile(`(?i)\bgit\s+commit\b`)
 
-// forbiddenAttributionRE matches forbidden AI/model attribution. Must stay
-// byte-for-byte equivalent to FORBIDDEN_ATTRIBUTION_RE in
+// forbiddenAttributionRE matches forbidden AI/model attribution: a `*-by:`
+// trailer that names an AI or coding tool, a "generated with/by <tool>" phrase
+// (English or Spanish, the tool within three words), or 🤖. Naming an agent is
+// not attribution, so `fix(claude): …` or a human Co-Authored-By pass. Must
+// stay byte-for-byte equivalent to FORBIDDEN_ATTRIBUTION_RE in
 // scripts/hooks/pre-tool-use.js (and rules/no-model-attribution.instructions.md).
-// Vendor names are anchored at word boundaries so ordinary words that merely
+// Tool names are anchored at word boundaries so ordinary words that merely
 // contain one (coherente/cohere, bombardeo/bard, llaman/llama) never fire.
 var forbiddenAttributionRE = regexp.MustCompile(
-	`(?i)\b(?:co-authored-by|generated (?:with|by)|claude|anthropic|opus|sonnet|haiku|fable|gpt|chatgpt|openai|codex|copilot|gemini|bard|llama|mistral|cohere)\b|🤖`,
+	`(?im)^[ \t]*[\w-]+-by:.*\b(?:claude|anthropic|opus|sonnet|haiku|fable|gpt|chatgpt|openai|codex|copilot|gemini|bard|llama|mistral|cohere|antigravity|agy|cursor|windsurf|kiro|opencode|qwen|deepseek|grok|devin|aider|cline|junie|amp)\b|\b(?:generated|written|created|made|built|authored|assisted|powered|produced|generad[oa]s?|escrit[oa]s?|cread[oa]s?|hech[oa]s?|asistid[oa]s?|producid[oa]s?)\s+(?:with|by|using|con|por)\W+(?:\w+\W+){0,3}?(?:claude|anthropic|opus|sonnet|haiku|fable|gpt|chatgpt|openai|codex|copilot|gemini|bard|llama|mistral|cohere|antigravity|agy|cursor|windsurf|kiro|opencode|qwen|deepseek|grok|devin|aider|cline|junie|amp)\b|🤖`,
 )
 
-// commitMessageArgRE extracts -m/--message argument values (quoted or bare),
-// mirroring the JS matchAll pattern in checkCommitAttribution.
-var commitMessageArgRE = regexp.MustCompile(`(?:-m|--message)\s+(?:"([^"]*)"|'([^']*)'|([^\s;|&]+))`)
+// attributionTextCommand pairs a command whose text arguments carry a commit
+// message or a pull request with the pattern that extracts those arguments
+// (quoted or bare), mirroring ATTRIBUTION_TEXT_COMMANDS in pre-tool-use.js.
+type attributionTextCommand struct {
+	command *regexp.Regexp
+	args    *regexp.Regexp
+}
+
+var attributionTextCommands = []attributionTextCommand{
+	{gitCommitPatternRE, regexp.MustCompile(`(?i)(?:-m|--message)(?:=|\s+)(?:"([^"]*)"|'([^']*)'|([^\s;|&]+))`)},
+	{regexp.MustCompile(`(?i)\bgh\s+pr\s+(?:create|edit)\b`), regexp.MustCompile(`(?i)(?:-t|--title|-b|--body)(?:=|\s+)(?:"([^"]*)"|'([^']*)'|([^\s;|&]+))`)},
+}
 
 // checkCommitAttribution ports checkCommitAttribution from
-// scripts/hooks/pre-tool-use.js: extracts the commit message(s) from a
-// `git commit -m/--message "..."` command and denies when forbidden
-// AI/model attribution is present. Returns "" when clean or not a commit.
+// scripts/hooks/pre-tool-use.js: extracts the message of a `git commit` or the
+// title and body of a `gh pr create|edit` command and denies when forbidden
+// AI/model attribution is present. Returns "" when clean or not such a command.
 func checkCommitAttribution(command string) string {
-	if !gitCommitPatternRE.MatchString(command) {
+	for _, target := range attributionTextCommands {
+		if !target.command.MatchString(command) {
+			continue
+		}
+		for _, m := range target.args.FindAllStringSubmatch(command, -1) {
+			text := m[1]
+			if text == "" {
+				text = m[2]
+			}
+			if text == "" {
+				text = m[3]
+			}
+			if forbiddenAttributionRE.MatchString(text) {
+				return "Bloqueado: el commit o la PR atribuye el trabajo a una IA o herramienta (trailer *-by: que la nombra, «generated with/by …» o 🤖). Nombrar un agente sí está permitido: quita solo la atribución. Consulta rules/no-model-attribution.instructions.md."
+			}
+		}
 		return ""
-	}
-	matches := commitMessageArgRE.FindAllStringSubmatch(command, -1)
-	for _, m := range matches {
-		msg := m[1]
-		if msg == "" {
-			msg = m[2]
-		}
-		if msg == "" {
-			msg = m[3]
-		}
-		if forbiddenAttributionRE.MatchString(msg) {
-			return "Commit bloqueado: el mensaje contiene atribución AI/modelo prohibida. Elimina líneas como 'Co-Authored-By', nombres de modelo (Claude, GPT, Gemini, etc.) y usa Conventional Commits sin atribución. Consulta rules/no-model-attribution.instructions.md."
-		}
 	}
 	return ""
 }

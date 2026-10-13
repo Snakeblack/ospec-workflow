@@ -264,16 +264,20 @@ function validateInstalledHooks(root, errors, fsImpl = fs) {
     .replace(/"/g, '\\"')
     .replace(/\$/g, "\\$")
     .replace(/`/g, "\\`");
+  // The installed file is shared: other tools add their own hooks, which the
+  // merge keeps. Only the ospec entries (the merge's own ownership test) are
+  // checked against the mapped events and the installed root.
   for (const [eventName, actions] of Object.entries(parsed.hooks)) {
-    if (eventName === "SubagentStop" || eventName === "subagentStop") {
-      addError(errors, `${rel} must not include SubagentStop`);
-    }
-    if (!ALLOWED_HOOK_EVENTS.has(eventName)) {
-      addError(errors, `${rel} has unmapped event: ${eventName}`);
-    }
     if (!Array.isArray(actions)) {
       addError(errors, `${rel} event ${eventName} must map to an array`);
       continue;
+    }
+    const owned = actions.some((action) => typeof action?.command === "string" && action.command.includes("ospec-hooks"));
+    if (owned && (eventName === "SubagentStop" || eventName === "subagentStop")) {
+      addError(errors, `${rel} must not include SubagentStop`);
+    }
+    if (owned && !ALLOWED_HOOK_EVENTS.has(eventName)) {
+      addError(errors, `${rel} has unmapped event: ${eventName}`);
     }
     for (const [index, action] of actions.entries()) {
       const prefix = `${rel} event ${eventName}[${index}]`;
@@ -283,6 +287,8 @@ function validateInstalledHooks(root, errors, fsImpl = fs) {
       }
       if (typeof action.command !== "string") {
         addError(errors, `${prefix} command must be a string`);
+      } else if (!action.command.includes("ospec-hooks")) {
+        continue;
       } else if (action.command.includes("__OSPEC_CURSOR_ROOT__")) {
         addError(errors, `${prefix} contains an unresolved __OSPEC_CURSOR_ROOT__ placeholder`);
       } else if (!action.command.includes(`"${rootPrefix}`)) {

@@ -364,7 +364,10 @@ test("each run works in its own opaque directory and its judged workspace moves 
     assert.equal(path.basename(workspaceRoot), "bugfix");
     const opaque = path.dirname(workspaceRoot);
     assert.equal(path.dirname(opaque), workspaces);
-    assert.doesNotMatch(path.basename(opaque), /a5|idd|bugfix|r\d/, "the directory names neither the record, the arm, the scenario nor the repetition");
+    // mkdtemp's six random characters may spell "a5" or "r1" by chance: the
+    // name must be those characters alone, with no record, arm, scenario or
+    // repetition around them.
+    assert.match(path.basename(opaque), /^[A-Za-z0-9]{6}$/, "the directory names neither the record, the arm, the scenario nor the repetition");
     assert.ok(!fs.existsSync(opaque), "nothing of a judged run stays in the workspaces directory");
   }
   assert.equal(fs.readFileSync(path.join(runs, "a5", "bugfix", "r1", "workspace", "index.html"), "utf8"), "<p>1</p>");

@@ -239,6 +239,28 @@ test("validateInstalled rejects a hook command rooted outside the installed Curs
   assert.ok(validateInstalled(root).errors.some((error) => /outside|installed Cursor root/i.test(error)));
 });
 
+test("validateInstalled accepts hooks of other tools next to the ospec ones", (t) => {
+  const root = tmpRoot(t);
+  const { cursorRootPosix } = installedTree(root);
+  const ospec = (arg) => ({ command: `node "${cursorRootPosix}/scripts/hooks/ospec-hooks-launch.js" ${arg}` });
+  const orca = { command: "/bin/sh -c '/home/user/.orca/agent-hooks/cursor-hook.sh'", timeout: 10 };
+  write(
+    root,
+    "hooks.json",
+    JSON.stringify({
+      version: 1,
+      hooks: {
+        beforeSubmitPrompt: [orca, ospec("session-start")],
+        stop: [orca, ospec("stop")],
+        postToolUse: [orca],
+        afterAgentResponse: [orca],
+        subagentStop: [orca],
+      },
+    }),
+  );
+  assert.deepEqual(validateInstalled(root).errors, []);
+});
+
 test("validateInstalled rejects a missing or non-regular host binary", (t) => {
   const missingRoot = tmpRoot(t);
   const { binary } = installedTree(missingRoot);
@@ -328,9 +350,10 @@ test("validateInstalled reports malformed hook JSON and invalid hook shapes", (t
     JSON.stringify({
       version: 2,
       hooks: {
-        SubagentStop: [{ command: 42 }],
-        futureEvent: "not-an-array",
-        stop: [null, { command: "node ./relative.js stop" }],
+        SubagentStop: [{ command: "node ./scripts/hooks/ospec-hooks-launch.js subagent-stop" }],
+        futureEvent: [{ command: "node ./scripts/hooks/ospec-hooks-launch.js future" }],
+        notAnArray: "not-an-array",
+        stop: [null, { command: 42 }, { command: "node ./scripts/hooks/ospec-hooks-launch.js stop" }],
       },
     }),
   );

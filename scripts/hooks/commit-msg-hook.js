@@ -3,13 +3,17 @@
 const fs = require("node:fs");
 
 /**
- * Regex that matches any forbidden AI/model attribution in a commit message.
- * Mirrors the pattern from rules/no-model-attribution.instructions.md.
- * Vendor names are anchored at word boundaries so ordinary words that merely
+ * Regex that matches any forbidden AI/model attribution in a commit message:
+ * a `*-by:` trailer that names an AI or coding tool, a "generated with/by
+ * <tool>" phrase (English or Spanish, the tool within three words), or 🤖.
+ * Naming an agent is not attribution, so `fix(claude): …` or a human
+ * Co-Authored-By pass. Mirrors FORBIDDEN_ATTRIBUTION_RE in pre-tool-use.js and
+ * rules/no-model-attribution.instructions.md.
+ * Tool names are anchored at word boundaries so ordinary words that merely
  * contain one (coherente/cohere, bombardeo/bard, llaman/llama) never fire.
  */
 const FORBIDDEN_ATTRIBUTION_RE =
-  /\b(?:co-authored-by|generated (?:with|by)|claude|anthropic|opus|sonnet|haiku|fable|gpt|chatgpt|openai|codex|copilot|gemini|bard|llama|mistral|cohere)\b|🤖/i;
+  /^[ \t]*[\w-]+-by:.*\b(?:claude|anthropic|opus|sonnet|haiku|fable|gpt|chatgpt|openai|codex|copilot|gemini|bard|llama|mistral|cohere|antigravity|agy|cursor|windsurf|kiro|opencode|qwen|deepseek|grok|devin|aider|cline|junie|amp)\b|\b(?:generated|written|created|made|built|authored|assisted|powered|produced|generad[oa]s?|escrit[oa]s?|cread[oa]s?|hech[oa]s?|asistid[oa]s?|producid[oa]s?)\s+(?:with|by|using|con|por)\W+(?:\w+\W+){0,3}?(?:claude|anthropic|opus|sonnet|haiku|fable|gpt|chatgpt|openai|codex|copilot|gemini|bard|llama|mistral|cohere|antigravity|agy|cursor|windsurf|kiro|opencode|qwen|deepseek|grok|devin|aider|cline|junie|amp)\b|🤖/im;
 
 /**
  * Scans a commit message for forbidden AI/model attribution patterns.
@@ -130,8 +134,8 @@ function runCommitMsg(msgFilePath) {
     console.error("OSPEC-COMMIT-MSG ERROR: Atribución AI/modelo detectada en el mensaje de commit.");
     console.error(`  Línea ofensiva: "${offendingLine}"`);
     console.error("");
-    console.error("Regla: Nunca añadir 'Co-Authored-By', nombres de modelo, ni créditos a");
-    console.error("herramientas AI en commits. Usa Conventional Commits sin atribución.");
+    console.error("Regla: un commit puede nombrar un agente, pero no atribuirle el trabajo:");
+    console.error("nada de trailers *-by: con una IA, «generated with/by …» ni 🤖.");
     console.error("");
     console.error("Solución:");
     console.error("  1. Edita el mensaje eliminando las líneas de atribución AI.");
