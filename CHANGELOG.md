@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.135.0] - 2026-10-13
+
+### Added
+- **IDD solo dentro de un proyecto (E4.8 `non-git-workspace`)**: el router mandaba por IDD cualquier cambio de código, también los arreglos del sistema fuera de un repositorio, y la CLI no podía cerrarlos (caso real `monitor-pbp-toggle` en `~/idd/`).
+  - El router define un proyecto como un work tree git cuyo toplevel no es `$HOME` ni `/`. Fuera de uno, un arreglo del sistema o un script suelto se hacen directos, sin la skill `idd` ni la CLI. Una petición de construir o cambiar un proyecto ahí carga la skill para montar antes su repositorio, y si no está claro cuál de las dos es, se pregunta una vez.
+  - Nueva referencia bajo demanda `skills/idd/references/repository.md`: pregunta dónde vive el proyecto (`git init -b main` aquí o en una carpeta nueva), no hace un `git init` dentro de otro repositorio sin preguntar, solo hace el commit base de código existente tras revisar el `.gitignore` y con aprobación, y usa `main` solo en repositorios nuevos.
+  - `ospec record intent` y `ospec next` se detienen fuera de git antes de crear nada en `idd/`, con `not-a-git-repo`, o `git-not-found` si git no está instalado. El error lleva un `how` con el siguiente paso, también en la salida de texto. `ospec status` sigue listando los cambios del disco.
+
+### Fixed
+- **Repositorio sin commits**: `ospec check` fallaba con `unknown-base: HEAD` en un repositorio recién creado, justo el camino que recomienda el router. Un cambio abierto antes del primer commit compara ahora su diff con el árbol vacío y llega hasta `close`.
+
+### Changed
+- *Always-on* sube unos 340 B por target (3625–3957 B, por debajo de 4096) y los techos del fixture de contexto se actualizan. Specs REQ-idd-011, REQ-idd-014 y REQ-generator-024 actualizadas.
+- Roadmap: E4.8 hecho y entra E4.11 `workspace-root-resolution` (la raíz del cambio desde un subdirectorio, con monorepos y varios paquetes). Lo siguiente es E4.9 `bench-arm-symmetry`. Hecho con IDD (`idd/archive/2026-10-13-non-git-workspace/`).
+
+**Verificación directa**: `node scripts/check.js` (3692 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.134.2] - 2026-10-13
 
 ### Fixed
