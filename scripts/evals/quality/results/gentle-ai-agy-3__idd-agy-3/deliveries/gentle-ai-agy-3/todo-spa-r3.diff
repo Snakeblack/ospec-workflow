@@ -1,0 +1,555 @@
+diff --git a/index.html b/index.html
+new file mode 100644
+index 0000000..0b6fb6d
+--- /dev/null
++++ b/index.html
+@@ -0,0 +1,549 @@
++<!DOCTYPE html>
++<html lang="es">
++<head>
++  <meta charset="UTF-8">
++  <meta name="viewport" content="width=device-width, initial-scale=1.0">
++  <title>Lista de tareas</title>
++  <style>
++    :root {
++      --bg: #f8fafc;
++      --card-bg: #ffffff;
++      --text: #1e293b;
++      --text-muted: #64748b;
++      --border: #e2e8f0;
++      --primary: #2563eb;
++      --primary-light: #eff6ff;
++      --danger: #ef4444;
++      --danger-hover: #dc2626;
++      --completed: #94a3b8;
++      --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
++      --radius: 10px;
++    }
++
++    * {
++      box-sizing: border-box;
++      margin: 0;
++      padding: 0;
++    }
++
++    body {
++      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
++      background-color: var(--bg);
++      color: var(--text);
++      line-height: 1.5;
++      padding: 48px 16px;
++      display: flex;
++      justify-content: center;
++      align-items: flex-start;
++      min-height: 100vh;
++    }
++
++    .app-card {
++      width: 100%;
++      max-width: 560px;
++      background: var(--card-bg);
++      border-radius: var(--radius);
++      box-shadow: var(--shadow);
++      border: 1px solid var(--border);
++      overflow: hidden;
++    }
++
++    header {
++      padding: 28px 24px 20px;
++      border-bottom: 1px solid var(--border);
++    }
++
++    h1 {
++      font-size: 1.85rem;
++      font-weight: 700;
++      color: var(--text);
++      text-align: center;
++      margin-bottom: 18px;
++      letter-spacing: -0.02em;
++    }
++
++    .input-wrapper {
++      position: relative;
++    }
++
++    #nueva-tarea {
++      width: 100%;
++      padding: 14px 18px;
++      font-size: 1rem;
++      border: 2px solid var(--border);
++      border-radius: 8px;
++      outline: none;
++      transition: border-color 0.2s, box-shadow 0.2s;
++    }
++
++    #nueva-tarea:focus {
++      border-color: var(--primary);
++      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
++    }
++
++    #lista {
++      list-style: none;
++      margin: 0;
++      padding: 0;
++    }
++
++    #lista li {
++      display: flex;
++      align-items: center;
++      padding: 14px 20px;
++      border-bottom: 1px solid var(--border);
++      gap: 14px;
++      background: #ffffff;
++      transition: background-color 0.15s;
++    }
++
++    #lista li:hover {
++      background-color: #f8fafc;
++    }
++
++    #lista li.completada .titulo {
++      text-decoration: line-through;
++      color: var(--completed);
++    }
++
++    .completar {
++      width: 20px;
++      height: 20px;
++      cursor: pointer;
++      accent-color: var(--primary);
++      flex-shrink: 0;
++    }
++
++    .titulo {
++      flex: 1;
++      font-size: 1.05rem;
++      word-break: break-word;
++      cursor: pointer;
++      user-select: none;
++    }
++
++    .borrar {
++      background: none;
++      border: none;
++      color: #94a3b8;
++      font-size: 1.4rem;
++      line-height: 1;
++      cursor: pointer;
++      padding: 4px 8px;
++      border-radius: 6px;
++      transition: color 0.15s, background-color 0.15s;
++      flex-shrink: 0;
++    }
++
++    #lista li:hover .borrar {
++      color: var(--danger);
++    }
++
++    .borrar:hover {
++      background-color: #fee2e2;
++      color: var(--danger-hover) !important;
++    }
++
++    /* Modo edicion */
++    #lista li.editando {
++      padding: 10px 16px;
++      background-color: var(--primary-light);
++    }
++
++    #lista li.editando .titulo,
++    #lista li.editando .completar,
++    #lista li.editando .borrar {
++      display: none;
++    }
++
++    #lista li .edicion {
++      width: 100%;
++      padding: 10px 14px;
++      font-size: 1.05rem;
++      border: 2px solid var(--primary);
++      border-radius: 6px;
++      outline: none;
++      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
++    }
++
++    footer {
++      display: flex;
++      justify-content: space-between;
++      align-items: center;
++      padding: 14px 20px;
++      background-color: #f8fafc;
++      font-size: 0.875rem;
++      color: var(--text-muted);
++      border-top: 1px solid var(--border);
++      flex-wrap: wrap;
++      gap: 12px;
++    }
++
++    #contador {
++      font-weight: 500;
++    }
++
++    .filtros {
++      display: flex;
++      gap: 6px;
++      align-items: center;
++    }
++
++    .filtros a {
++      text-decoration: none;
++      color: var(--text-muted);
++      padding: 5px 12px;
++      border-radius: 6px;
++      border: 1px solid transparent;
++      font-size: 0.875rem;
++      font-weight: 500;
++      transition: all 0.15s;
++    }
++
++    .filtros a:hover {
++      border-color: var(--border);
++      color: var(--text);
++    }
++
++    .filtros a.seleccionado,
++    .filtros a.selected,
++    .filtros a.activo {
++      border-color: var(--primary);
++      background-color: var(--primary-light);
++      color: var(--primary);
++      font-weight: 600;
++    }
++  </style>
++</head>
++<body>
++  <div class="app-card">
++    <header>
++      <h1>Tareas</h1>
++      <form id="formulario-tarea" class="input-wrapper" onsubmit="return false;">
++        <input type="text" id="nueva-tarea" placeholder="¿Qué necesitas hacer?" autofocus autocomplete="off">
++      </form>
++    </header>
++
++    <main>
++      <ul id="lista"></ul>
++    </main>
++
++    <footer>
++      <span id="contador"><strong>0</strong> pendientes</span>
++      <nav class="filtros">
++        <a href="#/todas" id="filtro-todas" class="seleccionado selected activo">Todas</a>
++        <a href="#/pendientes" id="filtro-pendientes">Pendientes</a>
++        <a href="#/completadas" id="filtro-completadas">Completadas</a>
++      </nav>
++    </footer>
++  </div>
++
++  <script>
++    (function () {
++      'use strict';
++
++      const STORAGE_KEY = 'tareas';
++      const ALT_STORAGE_KEY = 'todos';
++
++      let tareas = [];
++      let filtroActual = 'todas';
++
++      function cargarTareas() {
++        try {
++          const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(ALT_STORAGE_KEY);
++          if (raw) {
++            const parsed = JSON.parse(raw);
++            if (Array.isArray(parsed)) {
++              tareas = parsed.map(t => ({
++                id: String(t.id || Date.now() + '-' + Math.random().toString(36).slice(2, 7)),
++                titulo: String(t.titulo ?? t.title ?? ''),
++                title: String(t.titulo ?? t.title ?? ''),
++                completada: Boolean(t.completada ?? t.completed),
++                completed: Boolean(t.completada ?? t.completed)
++              }));
++              return;
++            }
++          }
++        } catch (e) {
++          console.error('Error al cargar de localStorage:', e);
++        }
++        tareas = [];
++      }
++
++      function guardarTareas() {
++        try {
++          const json = JSON.stringify(tareas);
++          localStorage.setItem(STORAGE_KEY, json);
++          localStorage.setItem(ALT_STORAGE_KEY, json);
++        } catch (e) {
++          console.error('Error al guardar en localStorage:', e);
++        }
++      }
++
++      function actualizarContador() {
++        const pendientes = tareas.filter(t => !t.completada).length;
++        const contador = document.getElementById('contador');
++        if (contador) {
++          const etiqueta = pendientes === 1 ? 'pendiente' : 'pendientes';
++          contador.innerHTML = '<strong>' + pendientes + '</strong> ' + etiqueta;
++        }
++      }
++
++      function actualizarVisibilidadTarea(li, tarea) {
++        let visible = true;
++        if (filtroActual === 'pendientes') {
++          visible = !tarea.completada;
++        } else if (filtroActual === 'completadas') {
++          visible = Boolean(tarea.completada);
++        }
++        li.style.display = visible ? '' : 'none';
++        li.hidden = !visible;
++        li.classList.toggle('oculta', !visible);
++      }
++
++      function eliminarTarea(id, li) {
++        tareas = tareas.filter(t => String(t.id) !== String(id));
++        if (li && li.parentNode) {
++          li.remove();
++        }
++        actualizarContador();
++        guardarTareas();
++      }
++
++      function crearElementoTarea(tarea) {
++        const li = document.createElement('li');
++        li.dataset.id = String(tarea.id);
++        if (tarea.completada) {
++          li.classList.add('completada');
++        }
++
++        const checkbox = document.createElement('input');
++        checkbox.type = 'checkbox';
++        checkbox.className = 'completar';
++        checkbox.checked = Boolean(tarea.completada);
++        if (tarea.completada) {
++          checkbox.setAttribute('checked', '');
++        }
++
++        const titulo = document.createElement('span');
++        titulo.className = 'titulo';
++        titulo.textContent = tarea.titulo;
++
++        const btnBorrar = document.createElement('button');
++        btnBorrar.type = 'button';
++        btnBorrar.className = 'borrar';
++        btnBorrar.textContent = '×';
++        btnBorrar.setAttribute('aria-label', 'Borrar tarea');
++
++        li.appendChild(checkbox);
++        li.appendChild(titulo);
++        li.appendChild(btnBorrar);
++
++        function sincronizarEstado() {
++          const estado = Boolean(checkbox.checked);
++          tarea.completada = estado;
++          tarea.completed = estado;
++          if (estado) {
++            checkbox.setAttribute('checked', '');
++            li.classList.add('completada');
++          } else {
++            checkbox.removeAttribute('checked');
++            li.classList.remove('completada');
++          }
++          actualizarVisibilidadTarea(li, tarea);
++          actualizarContador();
++          guardarTareas();
++        }
++
++        checkbox.addEventListener('change', sincronizarEstado);
++        checkbox.addEventListener('click', sincronizarEstado);
++
++        titulo.addEventListener('dblclick', () => {
++          if (li.classList.contains('editando')) return;
++          li.classList.add('editando');
++
++          titulo.style.display = 'none';
++          checkbox.style.display = 'none';
++          btnBorrar.style.display = 'none';
++
++          const inputEdicion = document.createElement('input');
++          inputEdicion.type = 'text';
++          inputEdicion.className = 'edicion';
++          inputEdicion.value = tarea.titulo;
++          inputEdicion.style.display = 'block';
++
++          li.appendChild(inputEdicion);
++          inputEdicion.focus();
++          inputEdicion.setSelectionRange(0, inputEdicion.value.length);
++
++          let terminado = false;
++          function terminarEdicion(guardar) {
++            if (terminado) return;
++            terminado = true;
++
++            if (guardar) {
++              const nuevoTexto = inputEdicion.value.trim();
++              if (nuevoTexto.length > 0) {
++                tarea.titulo = nuevoTexto;
++                tarea.title = nuevoTexto;
++                titulo.textContent = nuevoTexto;
++                guardarTareas();
++              } else {
++                eliminarTarea(tarea.id, li);
++                return;
++              }
++            }
++
++            inputEdicion.remove();
++            li.classList.remove('editando');
++            titulo.style.display = '';
++            checkbox.style.display = '';
++            btnBorrar.style.display = '';
++          }
++
++          inputEdicion.addEventListener('keydown', (e) => {
++            if (e.key === 'Enter' || e.keyCode === 13) {
++              e.preventDefault();
++              terminarEdicion(true);
++            } else if (e.key === 'Escape' || e.keyCode === 27) {
++              e.preventDefault();
++              terminarEdicion(false);
++            }
++          });
++
++          inputEdicion.addEventListener('blur', () => {
++            terminarEdicion(true);
++          });
++        });
++
++        btnBorrar.addEventListener('click', (e) => {
++          e.stopPropagation();
++          eliminarTarea(tarea.id, li);
++        });
++
++        actualizarVisibilidadTarea(li, tarea);
++        return li;
++      }
++
++      function agregarTarea(texto) {
++        const id = String(Date.now()) + '-' + Math.random().toString(36).slice(2, 7);
++        const nueva = {
++          id: id,
++          titulo: texto,
++          title: texto,
++          completada: false,
++          completed: false
++        };
++        tareas.push(nueva);
++
++        const lista = document.getElementById('lista');
++        if (lista) {
++          const li = crearElementoTarea(nueva);
++          lista.appendChild(li);
++        }
++
++        actualizarContador();
++        guardarTareas();
++      }
++
++      function aplicarFiltro(nuevoFiltro) {
++        filtroActual = nuevoFiltro;
++
++        const enlaces = {
++          todas: document.getElementById('filtro-todas'),
++          pendientes: document.getElementById('filtro-pendientes'),
++          completadas: document.getElementById('filtro-completadas')
++        };
++
++        Object.entries(enlaces).forEach(([clave, el]) => {
++          if (!el) return;
++          const activo = (clave === nuevoFiltro);
++          el.classList.toggle('seleccionado', activo);
++          el.classList.toggle('selected', activo);
++          el.classList.toggle('activo', activo);
++        });
++
++        const items = document.querySelectorAll('#lista li');
++        items.forEach(li => {
++          const id = li.dataset.id;
++          const tarea = tareas.find(t => String(t.id) === String(id));
++          if (tarea) {
++            actualizarVisibilidadTarea(li, tarea);
++          }
++        });
++      }
++
++      function detectarFiltroDeHash() {
++        const hash = window.location.hash.toLowerCase();
++        if (hash.includes('pendiente')) return 'pendientes';
++        if (hash.includes('completada')) return 'completadas';
++        return 'todas';
++      }
++
++      function init() {
++        cargarTareas();
++
++        const lista = document.getElementById('lista');
++        if (lista) {
++          lista.innerHTML = '';
++          tareas.forEach(tarea => {
++            const li = crearElementoTarea(tarea);
++            lista.appendChild(li);
++          });
++        }
++
++        actualizarContador();
++
++        const inputNueva = document.getElementById('nueva-tarea');
++        const formNueva = document.getElementById('formulario-tarea');
++
++        function manejarNuevaTarea() {
++          if (!inputNueva) return;
++          const texto = inputNueva.value.trim();
++          if (texto) {
++            agregarTarea(texto);
++            inputNueva.value = '';
++          }
++        }
++
++        if (inputNueva) {
++          inputNueva.addEventListener('keydown', (e) => {
++            if (e.key === 'Enter' || e.keyCode === 13) {
++              e.preventDefault();
++              manejarNuevaTarea();
++            }
++          });
++        }
++
++        if (formNueva) {
++          formNueva.addEventListener('submit', (e) => {
++            e.preventDefault();
++            manejarNuevaTarea();
++          });
++        }
++
++        ['todas', 'pendientes', 'completadas'].forEach(filtro => {
++          const el = document.getElementById('filtro-' + filtro);
++          if (el) {
++            el.addEventListener('click', () => {
++              aplicarFiltro(filtro);
++            });
++          }
++        });
++
++        window.addEventListener('hashchange', () => {
++          aplicarFiltro(detectarFiltroDeHash());
++        });
++
++        aplicarFiltro(detectarFiltroDeHash());
++      }
++
++      if (document.readyState === 'loading') {
++        document.addEventListener('DOMContentLoaded', init);
++      } else {
++        init();
++      }
++    })();
++  </script>
++</body>
++</html>

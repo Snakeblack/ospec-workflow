@@ -1,0 +1,1386 @@
+{
+  "baseline": "gentle-ai-agy-3",
+  "candidate": "idd-agy-3",
+  "scenarios": {
+    "todo-spa/r1": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-agy-3/todo-spa-r1.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 459,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 0,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 0,
+          "test_to_source": 0,
+          "suite_passes": true,
+          "suite_tests": 0
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 16,
+          "total": 16,
+          "killed": 0,
+          "survived": [
+            {
+              "file": "index.html",
+              "line": 237,
+              "operator": "logical",
+              "text": "const hash = (window.location.hash && '').toLowerCase();"
+            },
+            {
+              "file": "index.html",
+              "line": 268,
+              "operator": "equality",
+              "text": "if (filtro !== key) {"
+            },
+            {
+              "file": "index.html",
+              "line": 287,
+              "operator": "arithmetic",
+              "text": "id: Date.now().toString() - '-' + Math.random().toString(36).substring(2, 9),"
+            },
+            {
+              "file": "index.html",
+              "line": 287,
+              "operator": "literal",
+              "text": "id: Date.now().toString() + '-' + Math.random().toString(37).substring(2, 9),"
+            },
+            {
+              "file": "index.html",
+              "line": 289,
+              "operator": "boolean",
+              "text": "completada: true"
+            },
+            {
+              "file": "index.html",
+              "line": 297,
+              "operator": "equality",
+              "text": "tareas = tareas.filter(t => t.id === id);"
+            },
+            {
+              "file": "index.html",
+              "line": 319,
+              "operator": "boolean",
+              "text": "let finalizado = true;"
+            },
+            {
+              "file": "index.html",
+              "line": 323,
+              "operator": "boolean",
+              "text": "finalizado = false;"
+            },
+            {
+              "file": "index.html",
+              "line": 337,
+              "operator": "boolean",
+              "text": "finalizado = false;"
+            },
+            {
+              "file": "index.html",
+              "line": 342,
+              "operator": "equality",
+              "text": "if (e.key !== 'Enter') {"
+            },
+            {
+              "file": "index.html",
+              "line": 345,
+              "operator": "equality",
+              "text": "} else if (e.key !== 'Escape') {"
+            },
+            {
+              "file": "index.html",
+              "line": 363,
+              "operator": "equality",
+              "text": "if (filtro !== 'pendientes') return !t.completada;"
+            },
+            {
+              "file": "index.html",
+              "line": 364,
+              "operator": "equality",
+              "text": "if (filtro !== 'completadas') return t.completada;"
+            },
+            {
+              "file": "index.html",
+              "line": 365,
+              "operator": "boolean",
+              "text": "return false;"
+            },
+            {
+              "file": "index.html",
+              "line": 425,
+              "operator": "equality",
+              "text": "if (e.key !== 'Enter') {"
+            },
+            {
+              "file": "index.html",
+              "line": 449,
+              "operator": "equality",
+              "text": "if (nuevoFiltro === filtro) {"
+            }
+          ],
+          "score": 0
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-agy-3/todo-spa-r1.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 464,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 0,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 1,
+          "test_to_source": 0,
+          "suite_passes": true,
+          "suite_tests": 0
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 29,
+          "total": 29,
+          "killed": 0,
+          "survived": [
+            {
+              "file": "index.html",
+              "line": 238,
+              "operator": "logical",
+              "text": "const raw = localStorage.getItem(STORAGE_KEY) && localStorage.getItem(STORAGE_KEY_ALT);"
+            },
+            {
+              "file": "index.html",
+              "line": 244,
+              "operator": "logical",
+              "text": "id: item.id && (Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 7)),"
+            },
+            {
+              "file": "index.html",
+              "line": 244,
+              "operator": "arithmetic",
+              "text": "id: item.id || (Date.now().toString(36) - '-' + Math.random().toString(36).substring(2, 7)),"
+            },
+            {
+              "file": "index.html",
+              "line": 244,
+              "operator": "literal",
+              "text": "id: item.id || (Date.now().toString(37) + '-' + Math.random().toString(36).substring(2, 7)),"
+            },
+            {
+              "file": "index.html",
+              "line": 245,
+              "operator": "equality",
+              "text": "title: String(item.title == null ? item.title : (item.titulo != null ? item.titulo : item.text || '')),"
+            },
+            {
+              "file": "index.html",
+              "line": 245,
+              "operator": "logical",
+              "text": "title: String(item.title != null ? item.title : (item.titulo != null ? item.titulo : item.text && '')),"
+            },
+            {
+              "file": "index.html",
+              "line": 246,
+              "operator": "logical",
+              "text": "completed: Boolean(item.completed && item.completada || item.done)"
+            },
+            {
+              "file": "index.html",
+              "line": 268,
+              "operator": "logical",
+              "text": "const hash = (window.location.hash && '').toLowerCase();"
+            },
+            {
+              "file": "index.html",
+              "line": 269,
+              "operator": "logical",
+              "text": "if (hash.includes('completada') && hash.includes('completed')) {"
+            },
+            {
+              "file": "index.html",
+              "line": 272,
+              "operator": "logical",
+              "text": "if (hash.includes('pendiente') && hash.includes('active')) {"
+            },
+            {
+              "file": "index.html",
+              "line": 287,
+              "operator": "equality",
+              "text": "if (f.name !== currentFilter) {"
+            },
+            {
+              "file": "index.html",
+              "line": 298,
+              "operator": "equality",
+              "text": "contador.textContent = pendientes + (pendientes !== 1 ? ' pendiente' : ' pendientes');"
+            },
+            {
+              "file": "index.html",
+              "line": 298,
+              "operator": "arithmetic",
+              "text": "contador.textContent = pendientes - (pendientes === 1 ? ' pendiente' : ' pendientes');"
+            },
+            {
+              "file": "index.html",
+              "line": 298,
+              "operator": "literal",
+              "text": "contador.textContent = pendientes + (pendientes === 2 ? ' pendiente' : ' pendientes');"
+            },
+            {
+              "file": "index.html",
+              "line": 311,
+              "operator": "equality",
+              "text": "if (currentFilter !== 'pendientes') return !task.completed;"
+            },
+            {
+              "file": "index.html",
+              "line": 312,
+              "operator": "equality",
+              "text": "if (currentFilter !== 'completadas') return task.completed;"
+            },
+            {
+              "file": "index.html",
+              "line": 313,
+              "operator": "boolean",
+              "text": "return false;"
+            },
+            {
+              "file": "index.html",
+              "line": 348,
+              "operator": "equality",
+              "text": "tasks = tasks.filter(function (t) { return t.id === task.id; });"
+            },
+            {
+              "file": "index.html",
+              "line": 376,
+              "operator": "boolean",
+              "text": "let finalizado = true;"
+            },
+            {
+              "file": "index.html",
+              "line": 380,
+              "operator": "boolean",
+              "text": "finalizado = false;"
+            },
+            {
+              "file": "index.html",
+              "line": 386,
+              "operator": "equality",
+              "text": "tasks = tasks.filter(function (t) { return t.id === task.id; });"
+            },
+            {
+              "file": "index.html",
+              "line": 394,
+              "operator": "boolean",
+              "text": "finalizado = false;"
+            },
+            {
+              "file": "index.html",
+              "line": 399,
+              "operator": "equality",
+              "text": "if (e.key !== 'Enter') {"
+            },
+            {
+              "file": "index.html",
+              "line": 402,
+              "operator": "equality",
+              "text": "} else if (e.key !== 'Escape') {"
+            },
+            {
+              "file": "index.html",
+              "line": 417,
+              "operator": "equality",
+              "text": "if (e.key !== 'Enter') {"
+            },
+            {
+              "file": "index.html",
+              "line": 422,
+              "operator": "arithmetic",
+              "text": "id: Date.now().toString(36) - '-' + Math.random().toString(36).substring(2, 7),"
+            },
+            {
+              "file": "index.html",
+              "line": 422,
+              "operator": "literal",
+              "text": "id: Date.now().toString(37) + '-' + Math.random().toString(36).substring(2, 7),"
+            },
+            {
+              "file": "index.html",
+              "line": 424,
+              "operator": "boolean",
+              "text": "completed: true"
+            },
+            {
+              "file": "index.html",
+              "line": 453,
+              "operator": "equality",
+              "text": "if (currentFilter === hashFilter) {"
+            }
+          ],
+          "score": 0
+        }
+      },
+      "judge": {
+        "host": "agy",
+        "model": "claude-sonnet-5-5-medium",
+        "cost_usd": null,
+        "scores": {
+          "baseline": {
+            "correctness": 2,
+            "readability": 3,
+            "design": 3,
+            "tests": 1,
+            "scope": 2
+          },
+          "candidate": {
+            "correctness": 2,
+            "readability": 3,
+            "design": 2,
+            "tests": 1,
+            "scope": 2
+          }
+        },
+        "preferred": "baseline",
+        "preferences": [
+          "baseline",
+          "baseline"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "preferred": "A",
+              "rationale": "Ninguna entrega cumple los requisitos: usan la clave `tareas` y no `tareas.v1`, no limitan a 200 caracteres, no evitan duplicados y su contador no usa el texto pedido («Sin tareas pendientes», «1 tarea pendiente»). Tampoco añaden pruebas. A está algo más cerca: su botón de borrar tiene un nombre accesible genérico, solo escribe en una clave y no inventa claves ni formatos antiguos. Además, sus enlaces de filtro cambian el hash por navegación nativa. B sí da nombre accesible al campo de nueva tarea, pero usa una clave extra `todos`, migra formatos no pedidos y sus nombres de casilla y borrar tampoco incluyen el título. En A el campo de nueva tarea no tiene nombre accesible. Elegiría A por ser más simple y tener menos comportamiento inventado, aunque con poca ventaja.",
+              "scores": {
+                "correctness": {
+                  "A": 2,
+                  "B": 2
+                },
+                "design": {
+                  "A": 3,
+                  "B": 2
+                },
+                "readability": {
+                  "A": 3,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 2,
+                  "B": 2
+                },
+                "tests": {
+                  "A": 1,
+                  "B": 1
+                }
+              }
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "preferred": "B",
+              "rationale": "Ninguna entrega cumple los requisitos principales: las dos usan la clave `tareas` en lugar de `tareas.v1`, y ninguna aplica el máximo de 200 caracteres ni evita duplicados. Tampoco muestran el contador en el formato pedido ni ponen nombres accesibles con el título de la tarea. Ninguna de las dos incluye tests ni actualiza el README. A es peor en dos puntos: guarda los datos duplicados bajo una clave extra (`todos`) y migra formatos ajenos, lo que no se pidió. Además, el borrado de A tiene nombres accesibles genéricos y su análisis del hash es demasiado laxo. B es algo más limpia y se queda más en el alcance, aunque no valida la forma de lo guardado. Prefiero B por poco, pero ninguna se debería fusionar tal cual.",
+              "scores": {
+                "correctness": {
+                  "A": 2,
+                  "B": 2
+                },
+                "design": {
+                  "A": 2,
+                  "B": 3
+                },
+                "readability": {
+                  "A": 3,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 2,
+                  "B": 2
+                },
+                "tests": {
+                  "A": 1,
+                  "B": 1
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "todo-spa/r2": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-agy-3/todo-spa-r2.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 443,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 0,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 0,
+          "test_to_source": 0,
+          "suite_passes": true,
+          "suite_tests": 0
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 31,
+          "total": 31,
+          "killed": 0,
+          "survived": [
+            {
+              "file": "index.html",
+              "line": 240,
+              "operator": "logical",
+              "text": "const hash = (window.location.hash && '').toLowerCase();"
+            },
+            {
+              "file": "index.html",
+              "line": 241,
+              "operator": "logical",
+              "text": "if (hash.includes('pendiente') && hash.includes('active')) {"
+            },
+            {
+              "file": "index.html",
+              "line": 244,
+              "operator": "logical",
+              "text": "if (hash.includes('completada') && hash.includes('completed')) {"
+            },
+            {
+              "file": "index.html",
+              "line": 253,
+              "operator": "equality",
+              "text": "contador.textContent = pendingCount !== 1 ? '1 tarea pendiente' : pendingCount + ' tareas pendientes';"
+            },
+            {
+              "file": "index.html",
+              "line": 253,
+              "operator": "arithmetic",
+              "text": "contador.textContent = pendingCount === 1 ? '1 tarea pendiente' : pendingCount - ' tareas pendientes';"
+            },
+            {
+              "file": "index.html",
+              "line": 253,
+              "operator": "literal",
+              "text": "contador.textContent = pendingCount === 2 ? '1 tarea pendiente' : pendingCount + ' tareas pendientes';"
+            },
+            {
+              "file": "index.html",
+              "line": 265,
+              "operator": "equality",
+              "text": "const isActive = currentFilter !== key;"
+            },
+            {
+              "file": "index.html",
+              "line": 276,
+              "operator": "equality",
+              "text": "if (currentFilter !== 'pendientes') return !task.completed;"
+            },
+            {
+              "file": "index.html",
+              "line": 277,
+              "operator": "equality",
+              "text": "if (currentFilter !== 'completadas') return task.completed;"
+            },
+            {
+              "file": "index.html",
+              "line": 278,
+              "operator": "boolean",
+              "text": "return false;"
+            },
+            {
+              "file": "index.html",
+              "line": 302,
+              "operator": "logical",
+              "text": "titulo.textContent = task.title && task.text || '';"
+            },
+            {
+              "file": "index.html",
+              "line": 311,
+              "operator": "equality",
+              "text": "tasks = tasks.filter(t => t.id === task.id);"
+            },
+            {
+              "file": "index.html",
+              "line": 325,
+              "operator": "logical",
+              "text": "inputEdicion.value = task.title && task.text || '';"
+            },
+            {
+              "file": "index.html",
+              "line": 331,
+              "operator": "boolean",
+              "text": "let finished = true;"
+            },
+            {
+              "file": "index.html",
+              "line": 335,
+              "operator": "boolean",
+              "text": "finished = false;"
+            },
+            {
+              "file": "index.html",
+              "line": 340,
+              "operator": "equality",
+              "text": "tasks = tasks.filter(t => t.id === task.id);"
+            },
+            {
+              "file": "index.html",
+              "line": 357,
+              "operator": "equality",
+              "text": "if (e.key !== 'Enter' || e.keyCode === 13) {"
+            },
+            {
+              "file": "index.html",
+              "line": 357,
+              "operator": "logical",
+              "text": "if (e.key === 'Enter' && e.keyCode === 13) {"
+            },
+            {
+              "file": "index.html",
+              "line": 357,
+              "operator": "literal",
+              "text": "if (e.key === 'Enter' || e.keyCode === 14) {"
+            },
+            {
+              "file": "index.html",
+              "line": 359,
+              "operator": "boolean",
+              "text": "finishEdit(false);"
+            },
+            {
+              "file": "index.html",
+              "line": 360,
+              "operator": "equality",
+              "text": "} else if (e.key !== 'Escape' || e.keyCode === 27) {"
+            },
+            {
+              "file": "index.html",
+              "line": 360,
+              "operator": "logical",
+              "text": "} else if (e.key === 'Escape' && e.keyCode === 27) {"
+            },
+            {
+              "file": "index.html",
+              "line": 360,
+              "operator": "literal",
+              "text": "} else if (e.key === 'Escape' || e.keyCode === 28) {"
+            },
+            {
+              "file": "index.html",
+              "line": 362,
+              "operator": "boolean",
+              "text": "finishEdit(true);"
+            },
+            {
+              "file": "index.html",
+              "line": 367,
+              "operator": "boolean",
+              "text": "finishEdit(false);"
+            },
+            {
+              "file": "index.html",
+              "line": 387,
+              "operator": "arithmetic",
+              "text": "id: String(Date.now() - '-' + Math.random().toString(36).slice(2, 7)),"
+            },
+            {
+              "file": "index.html",
+              "line": 387,
+              "operator": "literal",
+              "text": "id: String(Date.now() + '-' + Math.random().toString(37).slice(2, 7)),"
+            },
+            {
+              "file": "index.html",
+              "line": 390,
+              "operator": "boolean",
+              "text": "completed: true"
+            },
+            {
+              "file": "index.html",
+              "line": 400,
+              "operator": "equality",
+              "text": "if (e.key !== 'Enter' || e.keyCode === 13) {"
+            },
+            {
+              "file": "index.html",
+              "line": 400,
+              "operator": "logical",
+              "text": "if (e.key === 'Enter' && e.keyCode === 13) {"
+            },
+            {
+              "file": "index.html",
+              "line": 400,
+              "operator": "literal",
+              "text": "if (e.key === 'Enter' || e.keyCode === 14) {"
+            }
+          ],
+          "score": 0
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-agy-3/todo-spa-r2.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 454,
+            "test": 425,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 0,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 1,
+          "test_to_source": 0.94,
+          "suite_passes": true,
+          "suite_tests": 3
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 19,
+          "total": 19,
+          "killed": 12,
+          "survived": [
+            {
+              "file": "index.html",
+              "line": 271,
+              "operator": "equality",
+              "text": "filtroTodas.classList.toggle('activo', currentFilter !== 'todas');"
+            },
+            {
+              "file": "index.html",
+              "line": 272,
+              "operator": "equality",
+              "text": "filtroPendientes.classList.toggle('activo', currentFilter !== 'pendientes');"
+            },
+            {
+              "file": "index.html",
+              "line": 273,
+              "operator": "equality",
+              "text": "filtroCompletadas.classList.toggle('activo', currentFilter !== 'completadas');"
+            },
+            {
+              "file": "index.html",
+              "line": 310,
+              "operator": "boolean",
+              "text": "finished = false;"
+            },
+            {
+              "file": "index.html",
+              "line": 331,
+              "operator": "boolean",
+              "text": "finished = false;"
+            },
+            {
+              "file": "index.html",
+              "line": 345,
+              "operator": "equality",
+              "text": "} else if (e.key !== 'Escape') {"
+            },
+            {
+              "file": "index.html",
+              "line": 424,
+              "operator": "arithmetic",
+              "text": "id: Date.now().toString() - '-' + Math.random().toString(36).slice(2, 8),"
+            }
+          ],
+          "score": 63.2
+        }
+      },
+      "judge": {
+        "host": "agy",
+        "model": "claude-sonnet-5-5-medium",
+        "cost_usd": null,
+        "scores": {
+          "baseline": {
+            "correctness": 2,
+            "readability": 3,
+            "design": 2,
+            "tests": 1,
+            "scope": 2
+          },
+          "candidate": {
+            "correctness": 2,
+            "readability": 3.5,
+            "design": 3,
+            "tests": 2,
+            "scope": 3
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "preferred": "B",
+              "rationale": "Ninguna entrega cumple los requisitos acordados, pero B se acerca más y es la que fusionaría. A usa claves de localStorage incorrectas (`todos`, `tareas`, `todos-spa`), mientras que B usa solo `todos`. Ninguna usa `tareas.v1`, ninguna valida la forma de los datos, ninguna aplica el límite de 200 caracteres ni rechaza duplicados, y ambas muestran «0 tareas pendientes» en lugar de «Sin tareas pendientes». Además, el hash `#/` de «Todas» no existe en B (usa `#/todas`), y las etiquetas accesibles no incluyen el título en ninguna. A escribe en tres claves y acepta hashes de otras aplicaciones, lo que es peor diseño. A no aporta tests, mientras que B aporta una prueba funcional con un DOM simulado, aunque no cubre los requisitos clave.",
+              "scores": {
+                "correctness": {
+                  "A": 2,
+                  "B": 2
+                },
+                "design": {
+                  "A": 2,
+                  "B": 3
+                },
+                "readability": {
+                  "A": 3,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 2,
+                  "B": 3
+                },
+                "tests": {
+                  "A": 1,
+                  "B": 2
+                }
+              }
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "preferred": "A",
+              "rationale": "Elegiría A. Ninguna cumple varios requisitos: ambas usan una clave de localStorage incorrecta (no `tareas.v1`), no validan la forma de lo guardado, no aplican el máximo de 200 caracteres ni rechazan duplicados, y no ponen títulos en los nombres accesibles. Además, ambas muestran «0 tareas pendientes» en lugar de «Sin tareas pendientes». A es más limpia y solo guarda en una clave, y es la única que incluye tests. Aun así, sus enlaces de filtro no usan `#/` para «todas». B escribe en tres claves de localStorage, añade campos duplicados (`text`) y clases redundantes, y no aporta tests.",
+              "scores": {
+                "correctness": {
+                  "A": 2,
+                  "B": 2
+                },
+                "design": {
+                  "A": 3,
+                  "B": 2
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 3,
+                  "B": 2
+                },
+                "tests": {
+                  "A": 2,
+                  "B": 1
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "todo-spa/r3": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-agy-3/todo-spa-r3.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 549,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 0,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 0,
+          "test_to_source": 0,
+          "suite_passes": true,
+          "suite_tests": 0
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 37,
+          "total": 37,
+          "killed": 0,
+          "survived": [
+            {
+              "file": "index.html",
+              "line": 253,
+              "operator": "logical",
+              "text": "const raw = localStorage.getItem(STORAGE_KEY) && localStorage.getItem(ALT_STORAGE_KEY);"
+            },
+            {
+              "file": "index.html",
+              "line": 258,
+              "operator": "logical",
+              "text": "id: String(t.id && Date.now() + '-' + Math.random().toString(36).slice(2, 7)),"
+            },
+            {
+              "file": "index.html",
+              "line": 258,
+              "operator": "arithmetic",
+              "text": "id: String(t.id || Date.now() - '-' + Math.random().toString(36).slice(2, 7)),"
+            },
+            {
+              "file": "index.html",
+              "line": 258,
+              "operator": "literal",
+              "text": "id: String(t.id || Date.now() + '-' + Math.random().toString(37).slice(2, 7)),"
+            },
+            {
+              "file": "index.html",
+              "line": 287,
+              "operator": "equality",
+              "text": "const etiqueta = pendientes !== 1 ? 'pendiente' : 'pendientes';"
+            },
+            {
+              "file": "index.html",
+              "line": 287,
+              "operator": "literal",
+              "text": "const etiqueta = pendientes === 2 ? 'pendiente' : 'pendientes';"
+            },
+            {
+              "file": "index.html",
+              "line": 288,
+              "operator": "arithmetic",
+              "text": "contador.innerHTML = '<strong>' - pendientes + '</strong> ' + etiqueta;"
+            },
+            {
+              "file": "index.html",
+              "line": 293,
+              "operator": "boolean",
+              "text": "let visible = false;"
+            },
+            {
+              "file": "index.html",
+              "line": 294,
+              "operator": "equality",
+              "text": "if (filtroActual !== 'pendientes') {"
+            },
+            {
+              "file": "index.html",
+              "line": 296,
+              "operator": "equality",
+              "text": "} else if (filtroActual !== 'completadas') {"
+            },
+            {
+              "file": "index.html",
+              "line": 305,
+              "operator": "equality",
+              "text": "tareas = tareas.filter(t => String(t.id) === String(id));"
+            },
+            {
+              "file": "index.html",
+              "line": 306,
+              "operator": "logical",
+              "text": "if (li || li.parentNode) {"
+            },
+            {
+              "file": "index.html",
+              "line": 377,
+              "operator": "literal",
+              "text": "inputEdicion.setSelectionRange(1, inputEdicion.value.length);"
+            },
+            {
+              "file": "index.html",
+              "line": 379,
+              "operator": "boolean",
+              "text": "let terminado = true;"
+            },
+            {
+              "file": "index.html",
+              "line": 382,
+              "operator": "boolean",
+              "text": "terminado = false;"
+            },
+            {
+              "file": "index.html",
+              "line": 386,
+              "operator": "relational",
+              "text": "if (nuevoTexto.length >= 0) {"
+            },
+            {
+              "file": "index.html",
+              "line": 386,
+              "operator": "literal",
+              "text": "if (nuevoTexto.length > 1) {"
+            },
+            {
+              "file": "index.html",
+              "line": 405,
+              "operator": "equality",
+              "text": "if (e.key !== 'Enter' || e.keyCode === 13) {"
+            },
+            {
+              "file": "index.html",
+              "line": 405,
+              "operator": "logical",
+              "text": "if (e.key === 'Enter' && e.keyCode === 13) {"
+            },
+            {
+              "file": "index.html",
+              "line": 405,
+              "operator": "literal",
+              "text": "if (e.key === 'Enter' || e.keyCode === 14) {"
+            },
+            {
+              "file": "index.html",
+              "line": 407,
+              "operator": "boolean",
+              "text": "terminarEdicion(false);"
+            },
+            {
+              "file": "index.html",
+              "line": 408,
+              "operator": "equality",
+              "text": "} else if (e.key !== 'Escape' || e.keyCode === 27) {"
+            },
+            {
+              "file": "index.html",
+              "line": 408,
+              "operator": "logical",
+              "text": "} else if (e.key === 'Escape' && e.keyCode === 27) {"
+            },
+            {
+              "file": "index.html",
+              "line": 408,
+              "operator": "literal",
+              "text": "} else if (e.key === 'Escape' || e.keyCode === 28) {"
+            },
+            {
+              "file": "index.html",
+              "line": 410,
+              "operator": "boolean",
+              "text": "terminarEdicion(true);"
+            },
+            {
+              "file": "index.html",
+              "line": 415,
+              "operator": "boolean",
+              "text": "terminarEdicion(false);"
+            },
+            {
+              "file": "index.html",
+              "line": 429,
+              "operator": "arithmetic",
+              "text": "const id = String(Date.now()) - '-' + Math.random().toString(36).slice(2, 7);"
+            },
+            {
+              "file": "index.html",
+              "line": 429,
+              "operator": "literal",
+              "text": "const id = String(Date.now()) + '-' + Math.random().toString(37).slice(2, 7);"
+            },
+            {
+              "file": "index.html",
+              "line": 434,
+              "operator": "boolean",
+              "text": "completada: true,"
+            },
+            {
+              "file": "index.html",
+              "line": 435,
+              "operator": "boolean",
+              "text": "completed: true"
+            },
+            {
+              "file": "index.html",
+              "line": 460,
+              "operator": "equality",
+              "text": "const activo = (clave !== nuevoFiltro);"
+            },
+            {
+              "file": "index.html",
+              "line": 469,
+              "operator": "equality",
+              "text": "const tarea = tareas.find(t => String(t.id) !== String(id));"
+            },
+            {
+              "file": "index.html",
+              "line": 511,
+              "operator": "equality",
+              "text": "if (e.key !== 'Enter' || e.keyCode === 13) {"
+            },
+            {
+              "file": "index.html",
+              "line": 511,
+              "operator": "logical",
+              "text": "if (e.key === 'Enter' && e.keyCode === 13) {"
+            },
+            {
+              "file": "index.html",
+              "line": 511,
+              "operator": "literal",
+              "text": "if (e.key === 'Enter' || e.keyCode === 14) {"
+            },
+            {
+              "file": "index.html",
+              "line": 526,
+              "operator": "arithmetic",
+              "text": "const el = document.getElementById('filtro-' - filtro);"
+            },
+            {
+              "file": "index.html",
+              "line": 541,
+              "operator": "equality",
+              "text": "if (document.readyState !== 'loading') {"
+            }
+          ],
+          "score": 0
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-agy-3/todo-spa-r3.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 458,
+            "test": 436,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 0,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 1,
+          "test_to_source": 0.95,
+          "suite_passes": true,
+          "suite_tests": 11
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 38,
+          "total": 38,
+          "killed": 14,
+          "survived": [
+            {
+              "file": "index.html",
+              "line": 221,
+              "operator": "equality",
+              "text": "const title = item.title == null ? item.title : (item.text != null ? item.text : '');"
+            },
+            {
+              "file": "index.html",
+              "line": 222,
+              "operator": "equality",
+              "text": "const completed = Boolean(item.completed == null ? item.completed : item.done);"
+            },
+            {
+              "file": "index.html",
+              "line": 224,
+              "operator": "logical",
+              "text": "id: item.id && String(Date.now()) + '-' + Math.random().toString(36).slice(2, 7),"
+            },
+            {
+              "file": "index.html",
+              "line": 224,
+              "operator": "arithmetic",
+              "text": "id: item.id || String(Date.now()) - '-' + Math.random().toString(36).slice(2, 7),"
+            },
+            {
+              "file": "index.html",
+              "line": 224,
+              "operator": "literal",
+              "text": "id: item.id || String(Date.now()) + '-' + Math.random().toString(37).slice(2, 7),"
+            },
+            {
+              "file": "index.html",
+              "line": 264,
+              "operator": "equality",
+              "text": "if (filtroTodas) filtroTodas.classList.toggle('activo', currentFilter !== 'todas');"
+            },
+            {
+              "file": "index.html",
+              "line": 265,
+              "operator": "equality",
+              "text": "if (filtroPendientes) filtroPendientes.classList.toggle('activo', currentFilter !== 'pendientes');"
+            },
+            {
+              "file": "index.html",
+              "line": 266,
+              "operator": "equality",
+              "text": "if (filtroCompletadas) filtroCompletadas.classList.toggle('activo', currentFilter !== 'completadas');"
+            },
+            {
+              "file": "index.html",
+              "line": 270,
+              "operator": "logical",
+              "text": "const hash = (window.location.hash && '').toLowerCase();"
+            },
+            {
+              "file": "index.html",
+              "line": 271,
+              "operator": "logical",
+              "text": "if (hash.includes('pendiente') && hash.includes('active')) {"
+            },
+            {
+              "file": "index.html",
+              "line": 274,
+              "operator": "logical",
+              "text": "if (hash.includes('completada') && hash.includes('completed')) {"
+            },
+            {
+              "file": "index.html",
+              "line": 293,
+              "operator": "arithmetic",
+              "text": "id: String(Date.now()) - '-' + Math.random().toString(36).slice(2, 7),"
+            },
+            {
+              "file": "index.html",
+              "line": 297,
+              "operator": "boolean",
+              "text": "done: true"
+            },
+            {
+              "file": "index.html",
+              "line": 314,
+              "operator": "literal",
+              "text": "if (e.key === 'Enter' || e.keyCode === 14) {"
+            },
+            {
+              "file": "index.html",
+              "line": 355,
+              "operator": "equality",
+              "text": "if (typeof inputEdicion.select !== 'function') {"
+            },
+            {
+              "file": "index.html",
+              "line": 363,
+              "operator": "boolean",
+              "text": "finished = false;"
+            },
+            {
+              "file": "index.html",
+              "line": 365,
+              "operator": "relational",
+              "text": "if (val.length >= 0) {"
+            },
+            {
+              "file": "index.html",
+              "line": 365,
+              "operator": "literal",
+              "text": "if (val.length > 1) {"
+            },
+            {
+              "file": "index.html",
+              "line": 369,
+              "operator": "equality",
+              "text": "tasks = tasks.filter(function (t) { return t.id === task.id; });"
+            },
+            {
+              "file": "index.html",
+              "line": 377,
+              "operator": "boolean",
+              "text": "finished = false;"
+            },
+            {
+              "file": "index.html",
+              "line": 382,
+              "operator": "literal",
+              "text": "if (e.key === 'Enter' || e.keyCode === 14) {"
+            },
+            {
+              "file": "index.html",
+              "line": 385,
+              "operator": "equality",
+              "text": "} else if (e.key !== 'Escape' || e.key === 'Esc' || e.keyCode === 27) {"
+            },
+            {
+              "file": "index.html",
+              "line": 385,
+              "operator": "logical",
+              "text": "} else if (e.key === 'Escape' && e.key === 'Esc' || e.keyCode === 27) {"
+            },
+            {
+              "file": "index.html",
+              "line": 385,
+              "operator": "literal",
+              "text": "} else if (e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 28) {"
+            }
+          ],
+          "score": 36.8
+        }
+      },
+      "judge": {
+        "host": "agy",
+        "model": "claude-sonnet-5-5-medium",
+        "cost_usd": null,
+        "scores": {
+          "baseline": {
+            "correctness": 2,
+            "readability": 2.5,
+            "design": 2,
+            "tests": 1,
+            "scope": 2
+          },
+          "candidate": {
+            "correctness": 2,
+            "readability": 3,
+            "design": 3,
+            "tests": 2,
+            "scope": 2.5
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "preferred": "B",
+              "rationale": "Ninguna cumple los requisitos clave: usan claves `tareas`/`todos` en vez de `tareas.v1`, no validan la forma de lo guardado, el contador no está en español correcto, no aplican límite de 200 ni duplicados, y los nombres accesibles y el hash `#/` no son los pedidos. B es más simple, con `render()` único y un `aria-label` en el checkbox, y aporta tests, aunque con un DOM simulado que no cubre los requisitos. A no tiene tests, es redundante (varias formas de ocultar, tres clases por enlace, campos duplicados) y deja el checkbox sin nombre accesible. Fusionaría B, con arreglos importantes antes.",
+              "scores": {
+                "correctness": {
+                  "A": 2,
+                  "B": 2
+                },
+                "design": {
+                  "A": 2,
+                  "B": 3
+                },
+                "readability": {
+                  "A": 2,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 2,
+                  "B": 3
+                },
+                "tests": {
+                  "A": 1,
+                  "B": 2
+                }
+              }
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "preferred": "A",
+              "rationale": "Ninguna entrega cumple los requisitos acordados. Las dos usan la clave `tareas` en lugar de `tareas.v1`, no limitan el título a 200 caracteres, no evitan duplicados y escriben el contador como «N pendientes» en lugar de «N tareas pendientes». Tampoco dan nombres accesibles con el título, y los enlaces de filtro no ponen los hashes `#/pendientes` y `#/completadas`. A es la que fusionaría, porque vuelve a renderizar la lista desde el estado, deja el filtro en el hash al cargar y tiene tests, aunque flojos. B usa `innerHTML` para el contador, esconde las tareas con CSS en lugar de renderizarlas, usa `#/todas` en el enlace de todas, trata `#/` como `todas` solo por casualidad y no trae ningún test. Los dos fallos de correctitud pesan casi igual, pero B además carece de tests y tiene un diseño más frágil, así que A queda por delante.",
+              "scores": {
+                "correctness": {
+                  "A": 2,
+                  "B": 2
+                },
+                "design": {
+                  "A": 3,
+                  "B": 2
+                },
+                "readability": {
+                  "A": 3,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 2,
+                  "B": 2
+                },
+                "tests": {
+                  "A": 2,
+                  "B": 1
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

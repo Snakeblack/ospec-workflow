@@ -1,0 +1,906 @@
+diff --git a/index.html b/index.html
+new file mode 100644
+index 0000000..c8edc3e
+--- /dev/null
++++ b/index.html
+@@ -0,0 +1,458 @@
++<!DOCTYPE html>
++<html lang="es">
++<head>
++  <meta charset="UTF-8">
++  <meta name="viewport" content="width=device-width, initial-scale=1.0">
++  <title>Lista de Tareas</title>
++  <style>
++    :root {
++      --bg: #f3f4f6;
++      --card-bg: #ffffff;
++      --text: #1f2937;
++      --text-muted: #6b7280;
++      --border: #e5e7eb;
++      --primary: #3b82f6;
++      --primary-hover: #2563eb;
++      --danger: #ef4444;
++      --danger-hover: #dc2626;
++      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
++      --font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
++    }
++
++    * {
++      box-sizing: border-box;
++      margin: 0;
++      padding: 0;
++    }
++
++    body {
++      background-color: var(--bg);
++      color: var(--text);
++      font-family: var(--font-family);
++      line-height: 1.5;
++      padding: 40px 16px;
++      display: flex;
++      justify-content: center;
++    }
++
++    .app-container {
++      width: 100%;
++      max-width: 550px;
++      background: var(--card-bg);
++      border-radius: 8px;
++      box-shadow: var(--shadow);
++      overflow: hidden;
++    }
++
++    header {
++      padding: 24px 24px 16px;
++      border-bottom: 1px solid var(--border);
++    }
++
++    header h1 {
++      font-size: 28px;
++      font-weight: 700;
++      text-align: center;
++      margin-bottom: 20px;
++      color: var(--text);
++    }
++
++    .input-wrapper {
++      position: relative;
++    }
++
++    #nueva-tarea {
++      width: 100%;
++      padding: 12px 16px;
++      font-size: 16px;
++      border: 1px solid var(--border);
++      border-radius: 6px;
++      outline: none;
++      transition: border-color 0.2s, box-shadow 0.2s;
++    }
++
++    #nueva-tarea:focus {
++      border-color: var(--primary);
++      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
++    }
++
++    #lista {
++      list-style: none;
++      margin: 0;
++      padding: 0;
++    }
++
++    #lista li {
++      display: flex;
++      align-items: center;
++      padding: 12px 16px;
++      border-bottom: 1px solid var(--border);
++      gap: 12px;
++      transition: background-color 0.15s;
++    }
++
++    #lista li:hover {
++      background-color: #f9fafb;
++    }
++
++    #lista li.completada .titulo {
++      text-decoration: line-through;
++      color: var(--text-muted);
++    }
++
++    #lista li .completar {
++      width: 20px;
++      height: 20px;
++      cursor: pointer;
++      accent-color: var(--primary);
++    }
++
++    #lista li .titulo {
++      flex: 1;
++      font-size: 16px;
++      word-break: break-word;
++      cursor: pointer;
++      user-select: none;
++    }
++
++    #lista li .edicion {
++      flex: 1;
++      font-size: 16px;
++      padding: 6px 10px;
++      border: 1px solid var(--primary);
++      border-radius: 4px;
++      outline: none;
++      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
++    }
++
++    #lista li .borrar {
++      background: none;
++      border: none;
++      color: var(--text-muted);
++      font-size: 20px;
++      cursor: pointer;
++      padding: 2px 8px;
++      border-radius: 4px;
++      line-height: 1;
++      opacity: 0.6;
++      transition: opacity 0.2s, color 0.2s, background-color 0.2s;
++    }
++
++    #lista li .borrar:hover {
++      opacity: 1;
++      color: var(--danger);
++      background-color: rgba(239, 68, 68, 0.1);
++    }
++
++    footer {
++      display: flex;
++      justify-content: space-between;
++      align-items: center;
++      padding: 12px 16px;
++      background: #f9fafb;
++      border-top: 1px solid var(--border);
++      font-size: 14px;
++      color: var(--text-muted);
++      flex-wrap: wrap;
++      gap: 10px;
++    }
++
++    .filtros {
++      display: flex;
++      gap: 8px;
++    }
++
++    .filtros a {
++      text-decoration: none;
++      color: var(--text-muted);
++      padding: 4px 10px;
++      border-radius: 4px;
++      border: 1px solid transparent;
++      transition: all 0.2s;
++    }
++
++    .filtros a:hover {
++      border-color: var(--border);
++      color: var(--text);
++    }
++
++    .filtros a.activo {
++      border-color: var(--primary);
++      color: var(--primary);
++      font-weight: 500;
++    }
++  </style>
++</head>
++<body>
++  <main class="app-container">
++    <header>
++      <h1>Lista de tareas</h1>
++      <form id="formulario-nueva-tarea" onsubmit="event.preventDefault();">
++        <div class="input-wrapper">
++          <input type="text" id="nueva-tarea" placeholder="¿Qué hay que hacer?" autofocus autocomplete="off">
++        </div>
++      </form>
++    </header>
++
++    <ul id="lista"></ul>
++
++    <footer>
++      <span id="contador">0 pendientes</span>
++      <nav class="filtros">
++        <a href="#todas" id="filtro-todas" class="activo">Todas</a>
++        <a href="#pendientes" id="filtro-pendientes">Pendientes</a>
++        <a href="#completadas" id="filtro-completadas">Completadas</a>
++      </nav>
++    </footer>
++  </main>
++
++  <script>
++    (function () {
++      const STORAGE_KEYS = ['tareas', 'todos'];
++
++      function loadTasks() {
++        for (const key of STORAGE_KEYS) {
++          try {
++            const raw = localStorage.getItem(key);
++            if (raw) {
++              const parsed = JSON.parse(raw);
++              if (Array.isArray(parsed)) {
++                return parsed.map(function (item) {
++                  const title = item.title != null ? item.title : (item.text != null ? item.text : '');
++                  const completed = Boolean(item.completed != null ? item.completed : item.done);
++                  return {
++                    id: item.id || String(Date.now()) + '-' + Math.random().toString(36).slice(2, 7),
++                    title: String(title),
++                    text: String(title),
++                    completed: completed,
++                    done: completed
++                  };
++                });
++              }
++            }
++          } catch (_) {}
++        }
++        return [];
++      }
++
++      function saveTasks(tasksToSave) {
++        try {
++          const serialized = JSON.stringify(tasksToSave);
++          for (const key of STORAGE_KEYS) {
++            localStorage.setItem(key, serialized);
++          }
++        } catch (_) {}
++      }
++
++      let tasks = loadTasks();
++      let currentFilter = 'todas';
++
++      const inputNuevaTarea = document.getElementById('nueva-tarea');
++      const formNuevaTarea = document.getElementById('formulario-nueva-tarea');
++      const listaEl = document.getElementById('lista');
++      const contadorEl = document.getElementById('contador');
++      const filtroTodas = document.getElementById('filtro-todas');
++      const filtroPendientes = document.getElementById('filtro-pendientes');
++      const filtroCompletadas = document.getElementById('filtro-completadas');
++
++      function updateCounter() {
++        const pendingCount = tasks.filter(function (t) { return !t.completed; }).length;
++        contadorEl.textContent = pendingCount + (pendingCount === 1 ? ' pendiente' : ' pendientes');
++      }
++
++      function updateFilterLinks() {
++        if (filtroTodas) filtroTodas.classList.toggle('activo', currentFilter === 'todas');
++        if (filtroPendientes) filtroPendientes.classList.toggle('activo', currentFilter === 'pendientes');
++        if (filtroCompletadas) filtroCompletadas.classList.toggle('activo', currentFilter === 'completadas');
++      }
++
++      function resolveFilterFromHash() {
++        const hash = (window.location.hash || '').toLowerCase();
++        if (hash.includes('pendiente') || hash.includes('active')) {
++          return 'pendientes';
++        }
++        if (hash.includes('completada') || hash.includes('completed')) {
++          return 'completadas';
++        }
++        return 'todas';
++      }
++
++      function setFilter(filter) {
++        currentFilter = filter;
++        updateFilterLinks();
++        render();
++      }
++
++      function addTask() {
++        if (!inputNuevaTarea) return;
++        const text = inputNuevaTarea.value.trim();
++        if (!text) return;
++        inputNuevaTarea.value = '';
++
++        const newTask = {
++          id: String(Date.now()) + '-' + Math.random().toString(36).slice(2, 7),
++          title: text,
++          text: text,
++          completed: false,
++          done: false
++        };
++
++        tasks.push(newTask);
++        saveTasks(tasks);
++        render();
++      }
++
++      if (formNuevaTarea) {
++        formNuevaTarea.addEventListener('submit', function (e) {
++          e.preventDefault();
++          addTask();
++        });
++      }
++
++      if (inputNuevaTarea) {
++        inputNuevaTarea.addEventListener('keydown', function (e) {
++          if (e.key === 'Enter' || e.keyCode === 13) {
++            e.preventDefault();
++            addTask();
++          }
++        });
++      }
++
++      if (filtroTodas) {
++        filtroTodas.addEventListener('click', function () {
++          setFilter('todas');
++        });
++      }
++
++      if (filtroPendientes) {
++        filtroPendientes.addEventListener('click', function () {
++          setFilter('pendientes');
++        });
++      }
++
++      if (filtroCompletadas) {
++        filtroCompletadas.addEventListener('click', function () {
++          setFilter('completadas');
++        });
++      }
++
++      window.addEventListener('hashchange', function () {
++        setFilter(resolveFilterFromHash());
++      });
++
++      function startEditing(li, task, tituloSpan) {
++        if (li.querySelector('.edicion')) return;
++
++        tituloSpan.style.display = 'none';
++
++        const inputEdicion = document.createElement('input');
++        inputEdicion.type = 'text';
++        inputEdicion.className = 'edicion';
++        inputEdicion.value = task.title;
++
++        li.insertBefore(inputEdicion, tituloSpan);
++        inputEdicion.focus();
++        if (typeof inputEdicion.select === 'function') {
++          inputEdicion.select();
++        }
++
++        let finished = false;
++
++        function commit() {
++          if (finished) return;
++          finished = true;
++          const val = inputEdicion.value.trim();
++          if (val.length > 0) {
++            task.title = val;
++            task.text = val;
++          } else {
++            tasks = tasks.filter(function (t) { return t.id !== task.id; });
++          }
++          saveTasks(tasks);
++          render();
++        }
++
++        function cancel() {
++          if (finished) return;
++          finished = true;
++          render();
++        }
++
++        inputEdicion.addEventListener('keydown', function (e) {
++          if (e.key === 'Enter' || e.keyCode === 13) {
++            e.preventDefault();
++            commit();
++          } else if (e.key === 'Escape' || e.key === 'Esc' || e.keyCode === 27) {
++            e.preventDefault();
++            cancel();
++          }
++        });
++
++        inputEdicion.addEventListener('blur', function () {
++          commit();
++        });
++      }
++
++      function render() {
++        updateCounter();
++        updateFilterLinks();
++
++        if (!listaEl) return;
++        listaEl.innerHTML = '';
++
++        const visibleTasks = tasks.filter(function (task) {
++          if (currentFilter === 'pendientes') return !task.completed;
++          if (currentFilter === 'completadas') return task.completed;
++          return true;
++        });
++
++        visibleTasks.forEach(function (task) {
++          const li = document.createElement('li');
++          if (task.completed) {
++            li.classList.add('completada');
++          }
++          li.dataset.id = task.id;
++
++          const checkbox = document.createElement('input');
++          checkbox.type = 'checkbox';
++          checkbox.className = 'completar';
++          checkbox.checked = task.completed;
++          checkbox.setAttribute('aria-label', 'Marcar tarea como completada');
++          checkbox.addEventListener('change', function () {
++            task.completed = checkbox.checked;
++            task.done = checkbox.checked;
++            saveTasks(tasks);
++            render();
++          });
++
++          const titulo = document.createElement('span');
++          titulo.className = 'titulo';
++          titulo.textContent = task.title;
++          titulo.addEventListener('dblclick', function () {
++            startEditing(li, task, titulo);
++          });
++
++          const btnBorrar = document.createElement('button');
++          btnBorrar.type = 'button';
++          btnBorrar.className = 'borrar';
++          btnBorrar.textContent = '×';
++          btnBorrar.setAttribute('aria-label', 'Borrar tarea');
++          btnBorrar.addEventListener('click', function () {
++            tasks = tasks.filter(function (t) { return t.id !== task.id; });
++            saveTasks(tasks);
++            render();
++          });
++
++          li.appendChild(checkbox);
++          li.appendChild(titulo);
++          li.appendChild(btnBorrar);
++          listaEl.appendChild(li);
++        });
++      }
++
++      currentFilter = resolveFilterFromHash();
++      render();
++    })();
++  </script>
++</body>
++</html>
+diff --git a/test/todo.test.js b/test/todo.test.js
+new file mode 100644
+index 0000000..f245e77
+--- /dev/null
++++ b/test/todo.test.js
+@@ -0,0 +1,436 @@
++const { test, describe, beforeEach } = require('node:test');
++const assert = require('node:assert');
++const fs = require('node:fs');
++const path = require('node:path');
++const vm = require('node:vm');
++
++const htmlPath = path.resolve(__dirname, '../index.html');
++
++describe('Contrato e integridad de index.html', () => {
++  test('index.html existe en la raíz del repositorio', () => {
++    assert.strictEqual(fs.existsSync(htmlPath), true, 'index.html debe existir en la raíz');
++  });
++
++  test('CSS y JavaScript están integrados sin dependencias externas', () => {
++    const content = fs.readFileSync(htmlPath, 'utf8');
++    assert.match(content, /<style>[\s\S]*<\/style>/i, 'Debe contener estilos CSS embebidos');
++    assert.match(content, /<script>[\s\S]*<\/script>/i, 'Debe contener JavaScript embebido');
++    assert.doesNotMatch(content, /<link[^>]+rel=["']stylesheet["']/i, 'No debe tener CSS externo');
++    assert.doesNotMatch(content, /<script[^>]+src=/i, 'No debe tener scripts externos');
++  });
++
++  test('contiene todos los selectores del contrato de aceptación', () => {
++    const content = fs.readFileSync(htmlPath, 'utf8');
++    assert.ok(content.includes('id="nueva-tarea"'), 'Debe incluir #nueva-tarea');
++    assert.ok(content.includes('id="lista"'), 'Debe incluir #lista');
++    assert.ok(content.includes('id="contador"'), 'Debe incluir #contador');
++    assert.ok(content.includes('id="filtro-todas"'), 'Debe incluir #filtro-todas');
++    assert.ok(content.includes('id="filtro-pendientes"'), 'Debe incluir #filtro-pendientes');
++    assert.ok(content.includes('id="filtro-completadas"'), 'Debe incluir #filtro-completadas');
++    assert.ok(content.includes('completar'), 'Debe incluir la clase completar');
++    assert.ok(content.includes('titulo'), 'Debe incluir la clase titulo');
++    assert.ok(content.includes('edicion'), 'Debe incluir la clase edicion');
++    assert.ok(content.includes('borrar'), 'Debe incluir la clase borrar');
++  });
++});
++
++// Helper para emular el DOM mínimo y ejecutar el script de index.html
++function createDOMEnvironment(initialStorage = {}) {
++  const store = { ...initialStorage };
++  const storage = {
++    getItem: (key) => (key in store ? store[key] : null),
++    setItem: (key, val) => { store[key] = String(val); },
++    removeItem: (key) => { delete store[key]; },
++    clear: () => { Object.keys(store).forEach((k) => delete store[k]); },
++    _store: store
++  };
++
++  class MockElement {
++    constructor(tagName) {
++      this.tagName = tagName.toUpperCase();
++      this.children = [];
++      this.parentNode = null;
++      const classSet = new Set();
++      this.classList = {
++        add: (cls) => classSet.add(cls),
++        remove: (cls) => classSet.delete(cls),
++        has: (cls) => classSet.has(cls),
++        toggle: (cls, force) => {
++          if (force === undefined) {
++            if (classSet.has(cls)) classSet.delete(cls);
++            else classSet.add(cls);
++          } else if (force) {
++            classSet.add(cls);
++          } else {
++            classSet.delete(cls);
++          }
++        }
++      };
++      this.attributes = {};
++      this.dataset = {};
++      this.listeners = {};
++      this.style = {};
++      this.value = '';
++      this.checked = false;
++      this.textContent = '';
++      this.id = '';
++      this.className = '';
++      this.type = '';
++    }
++
++    setAttribute(k, v) { this.attributes[k] = v; }
++    getAttribute(k) { return this.attributes[k]; }
++
++    addEventListener(event, fn) {
++      if (!this.listeners[event]) this.listeners[event] = [];
++      this.listeners[event].push(fn);
++    }
++
++    dispatchEvent(event) {
++      const fns = this.listeners[event.type] || [];
++      for (const fn of fns) fn.call(this, event);
++    }
++
++    appendChild(child) {
++      child.parentNode = this;
++      this.children.push(child);
++      return child;
++    }
++
++    insertBefore(child, referenceNode) {
++      child.parentNode = this;
++      const idx = this.children.indexOf(referenceNode);
++      if (idx !== -1) {
++        this.children.splice(idx, 0, child);
++      } else {
++        this.children.push(child);
++      }
++      return child;
++    }
++
++    removeChild(child) {
++      const idx = this.children.indexOf(child);
++      if (idx !== -1) {
++        this.children.splice(idx, 1);
++        child.parentNode = null;
++      }
++      return child;
++    }
++
++    querySelector(selector) {
++      return this.querySelectorAll(selector)[0] || null;
++    }
++
++    querySelectorAll(selector) {
++      const results = [];
++      const match = (el) => {
++        if (selector.startsWith('.') && (el.className.split(/\s+/).includes(selector.slice(1)) || el.classList.has(selector.slice(1)))) {
++          return true;
++        }
++        if (selector.startsWith('#') && el.id === selector.slice(1)) {
++          return true;
++        }
++        if (selector.toLowerCase() === el.tagName.toLowerCase()) {
++          return true;
++        }
++        return false;
++      };
++
++      const traverse = (node) => {
++        for (const child of node.children) {
++          if (match(child)) results.push(child);
++          traverse(child);
++        }
++      };
++      traverse(this);
++      return results;
++    }
++
++    get innerHTML() {
++      return '';
++    }
++
++    set innerHTML(val) {
++      if (val === '') {
++        this.children = [];
++      }
++    }
++
++    click() {
++      this.dispatchEvent({ type: 'click' });
++    }
++
++    focus() {}
++    select() {}
++  }
++
++  const elementsById = {};
++  const root = new MockElement('body');
++
++  function register(id, tag = 'div') {
++    const el = new MockElement(tag);
++    el.id = id;
++    elementsById[id] = el;
++    root.appendChild(el);
++    return el;
++  }
++
++  const inputNueva = register('nueva-tarea', 'input');
++  const formNueva = register('formulario-nueva-tarea', 'form');
++  formNueva.appendChild(inputNueva);
++  const lista = register('lista', 'ul');
++  const contador = register('contador', 'span');
++  const filtroTodas = register('filtro-todas', 'a');
++  const filtroPendientes = register('filtro-pendientes', 'a');
++  const filtroCompletadas = register('filtro-completadas', 'a');
++
++  const windowListeners = {};
++  const windowObj = {
++    location: { hash: '' },
++    addEventListener: (ev, fn) => {
++      if (!windowListeners[ev]) windowListeners[ev] = [];
++      windowListeners[ev].push(fn);
++    },
++    dispatchEvent: (ev) => {
++      (windowListeners[ev.type] || []).forEach(fn => fn(ev));
++    }
++  };
++
++  const documentObj = {
++    getElementById: (id) => elementsById[id] || null,
++    createElement: (tag) => new MockElement(tag),
++    querySelector: (sel) => root.querySelector(sel),
++    querySelectorAll: (sel) => root.querySelectorAll(sel)
++  };
++
++  return {
++    storage,
++    window: windowObj,
++    document: documentObj,
++    elements: {
++      inputNueva,
++      formNueva,
++      lista,
++      contador,
++      filtroTodas,
++      filtroPendientes,
++      filtroCompletadas
++    }
++  };
++}
++
++function runScriptInEnv(env) {
++  const content = fs.readFileSync(htmlPath, 'utf8');
++  const scriptMatch = content.match(/<script>([\s\S]*?)<\/script>/i);
++  assert.ok(scriptMatch, 'Debe haber un bloque <script>');
++  const code = scriptMatch[1];
++
++  const sandbox = {
++    window: env.window,
++    document: env.document,
++    localStorage: env.storage,
++    console: console,
++    Date: Date,
++    Math: Math,
++    String: String,
++    Boolean: Boolean,
++    Array: Array,
++    JSON: JSON
++  };
++
++  vm.createContext(sandbox);
++  vm.runInContext(code, sandbox);
++}
++
++describe('Comportamiento interactivo de la lista de tareas', () => {
++  test('añadir tareas mediante Enter en #nueva-tarea actualiza lista y contador', () => {
++    const env = createDOMEnvironment();
++    runScriptInEnv(env);
++
++    const { inputNueva, lista, contador } = env.elements;
++    assert.strictEqual(lista.children.length, 0);
++    assert.strictEqual(contador.textContent, '0 pendientes');
++
++    // Escribir y dar Enter
++    inputNueva.value = 'Comprar leche';
++    inputNueva.dispatchEvent({ type: 'keydown', key: 'Enter', preventDefault: () => {} });
++
++    assert.strictEqual(lista.children.length, 1);
++    assert.strictEqual(inputNueva.value, '');
++    assert.strictEqual(contador.textContent, '1 pendiente');
++
++    const li = lista.children[0];
++    const titulo = li.querySelector('.titulo');
++    const checkbox = li.querySelector('.completar');
++    const borrar = li.querySelector('.borrar');
++
++    assert.ok(titulo, 'Debe existir .titulo');
++    assert.strictEqual(titulo.textContent, 'Comprar leche');
++    assert.ok(checkbox, 'Debe existir .completar');
++    assert.strictEqual(checkbox.checked, false);
++    assert.ok(borrar, 'Debe existir .borrar');
++
++    // Añadir segunda tarea
++    inputNueva.value = 'Aprender TDD';
++    inputNueva.dispatchEvent({ type: 'keydown', key: 'Enter', preventDefault: () => {} });
++
++    assert.strictEqual(lista.children.length, 2);
++    assert.strictEqual(contador.textContent, '2 pendientes');
++  });
++
++  test('no añade tareas vacías o solo con espacios', () => {
++    const env = createDOMEnvironment();
++    runScriptInEnv(env);
++    const { inputNueva, lista, contador } = env.elements;
++
++    inputNueva.value = '   ';
++    inputNueva.dispatchEvent({ type: 'keydown', key: 'Enter', preventDefault: () => {} });
++
++    assert.strictEqual(lista.children.length, 0);
++    assert.strictEqual(contador.textContent, '0 pendientes');
++  });
++
++  test('marcar tarea como completada actualiza el estado y el contador', () => {
++    const env = createDOMEnvironment();
++    runScriptInEnv(env);
++    const { inputNueva, lista, contador } = env.elements;
++
++    inputNueva.value = 'Tarea 1';
++    inputNueva.dispatchEvent({ type: 'keydown', key: 'Enter', preventDefault: () => {} });
++
++    const li = lista.children[0];
++    const checkbox = li.querySelector('.completar');
++
++    checkbox.checked = true;
++    checkbox.dispatchEvent({ type: 'change' });
++
++    assert.strictEqual(contador.textContent, '0 pendientes');
++    const updatedLi = lista.children[0];
++    assert.ok(updatedLi.classList.has('completada'));
++
++    // Desmarcar
++    const updatedCheckbox = updatedLi.querySelector('.completar');
++    updatedCheckbox.checked = false;
++    updatedCheckbox.dispatchEvent({ type: 'change' });
++
++    assert.strictEqual(contador.textContent, '1 pendiente');
++  });
++
++  test('edición de tareas: doble clic en .titulo muestra .edicion y Enter guarda los cambios', () => {
++    const env = createDOMEnvironment();
++    runScriptInEnv(env);
++    const { inputNueva, lista } = env.elements;
++
++    inputNueva.value = 'Texto original';
++    inputNueva.dispatchEvent({ type: 'keydown', key: 'Enter', preventDefault: () => {} });
++
++    const li = lista.children[0];
++    const titulo = li.querySelector('.titulo');
++    assert.strictEqual(li.querySelector('.edicion'), null, 'Antes de doble clic no debe haber .edicion');
++
++    // Doble clic para iniciar edición
++    titulo.dispatchEvent({ type: 'dblclick' });
++
++    const edicion = li.querySelector('.edicion');
++    assert.ok(edicion, 'Debe aparecer un input .edicion');
++    assert.strictEqual(edicion.value, 'Texto original');
++
++    // Modificar valor y dar Enter
++    edicion.value = 'Texto editado';
++    edicion.dispatchEvent({ type: 'keydown', key: 'Enter', preventDefault: () => {} });
++
++    const updatedLi = lista.children[0];
++    assert.strictEqual(updatedLi.querySelector('.edicion'), null, 'Tras guardar se oculta .edicion');
++    assert.strictEqual(updatedLi.querySelector('.titulo').textContent, 'Texto editado');
++  });
++
++  test('edición de tareas: Escape cancela la edición sin modificar el título', () => {
++    const env = createDOMEnvironment();
++    runScriptInEnv(env);
++    const { inputNueva, lista } = env.elements;
++
++    inputNueva.value = 'Inmutable';
++    inputNueva.dispatchEvent({ type: 'keydown', key: 'Enter', preventDefault: () => {} });
++
++    const li = lista.children[0];
++    const titulo = li.querySelector('.titulo');
++    titulo.dispatchEvent({ type: 'dblclick' });
++
++    const edicion = li.querySelector('.edicion');
++    edicion.value = 'Cambio cancelado';
++    edicion.dispatchEvent({ type: 'keydown', key: 'Escape', preventDefault: () => {} });
++
++    const updatedLi = lista.children[0];
++    assert.strictEqual(updatedLi.querySelector('.titulo').textContent, 'Inmutable');
++  });
++
++  test('borrar tarea elimina el elemento de la lista y actualiza el contador', () => {
++    const env = createDOMEnvironment();
++    runScriptInEnv(env);
++    const { inputNueva, lista, contador } = env.elements;
++
++    inputNueva.value = 'Por borrar';
++    inputNueva.dispatchEvent({ type: 'keydown', key: 'Enter', preventDefault: () => {} });
++    assert.strictEqual(lista.children.length, 1);
++    assert.strictEqual(contador.textContent, '1 pendiente');
++
++    const borrarBtn = lista.children[0].querySelector('.borrar');
++    borrarBtn.dispatchEvent({ type: 'click' });
++
++    assert.strictEqual(lista.children.length, 0);
++    assert.strictEqual(contador.textContent, '0 pendientes');
++  });
++
++  test('filtros: todas, pendientes y completadas', () => {
++    const env = createDOMEnvironment();
++    runScriptInEnv(env);
++    const { inputNueva, lista, filtroTodas, filtroPendientes, filtroCompletadas } = env.elements;
++
++    // Crear dos tareas
++    inputNueva.value = 'Pendiente 1';
++    inputNueva.dispatchEvent({ type: 'keydown', key: 'Enter', preventDefault: () => {} });
++    inputNueva.value = 'Completada 1';
++    inputNueva.dispatchEvent({ type: 'keydown', key: 'Enter', preventDefault: () => {} });
++
++    // Completar la segunda
++    const checkbox2 = lista.children[1].querySelector('.completar');
++    checkbox2.checked = true;
++    checkbox2.dispatchEvent({ type: 'change' });
++
++    assert.strictEqual(lista.children.length, 2);
++
++    // Filtrar pendientes
++    filtroPendientes.dispatchEvent({ type: 'click' });
++    assert.strictEqual(lista.children.length, 1);
++    assert.strictEqual(lista.children[0].querySelector('.titulo').textContent, 'Pendiente 1');
++
++    // Filtrar completadas
++    filtroCompletadas.dispatchEvent({ type: 'click' });
++    assert.strictEqual(lista.children.length, 1);
++    assert.strictEqual(lista.children[0].querySelector('.titulo').textContent, 'Completada 1');
++
++    // Volver a todas
++    filtroTodas.dispatchEvent({ type: 'click' });
++    assert.strictEqual(lista.children.length, 2);
++  });
++
++  test('la lista sobrevive a recargar la página (persistencia en localStorage)', () => {
++    const env1 = createDOMEnvironment();
++    runScriptInEnv(env1);
++
++    env1.elements.inputNueva.value = 'Tarea persistente';
++    env1.elements.inputNueva.dispatchEvent({ type: 'keydown', key: 'Enter', preventDefault: () => {} });
++
++    // Verificar que se guardó en localStorage
++    const saved = env1.storage.getItem('tareas');
++    assert.ok(saved, 'Debe haber datos en localStorage');
++
++    // Simular nueva carga de página con el mismo storage
++    const env2 = createDOMEnvironment(env1.storage._store);
++    runScriptInEnv(env2);
++
++    assert.strictEqual(env2.elements.lista.children.length, 1);
++    assert.strictEqual(env2.elements.lista.children[0].querySelector('.titulo').textContent, 'Tarea persistente');
++    assert.strictEqual(env2.elements.contador.textContent, '1 pendiente');
++  });
++});

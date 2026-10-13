@@ -1,0 +1,470 @@
+diff --git a/index.html b/index.html
+new file mode 100644
+index 0000000..4d21bab
+--- /dev/null
++++ b/index.html
+@@ -0,0 +1,464 @@
++<!DOCTYPE html>
++<html lang="es">
++<head>
++  <meta charset="UTF-8">
++  <meta name="viewport" content="width=device-width, initial-scale=1.0">
++  <title>Lista de tareas</title>
++  <style>
++    :root {
++      --bg: #f5f5f5;
++      --card-bg: #ffffff;
++      --text: #4d4d4d;
++      --text-light: #777777;
++      --border: #e6e6e6;
++      --primary: #b83f45;
++      --primary-light: rgba(184, 63, 69, 0.2);
++      --completed: #999999;
++      --shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.1), 0 25px 50px 0 rgba(0, 0, 0, 0.1);
++    }
++
++    * {
++      box-sizing: border-box;
++      margin: 0;
++      padding: 0;
++    }
++
++    body {
++      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
++      line-height: 1.4;
++      background-color: var(--bg);
++      color: var(--text);
++      min-width: 230px;
++      max-width: 550px;
++      margin: 40px auto;
++      padding: 0 16px;
++      -webkit-font-smoothing: antialiased;
++      -moz-osx-font-smoothing: grayscale;
++    }
++
++    h1 {
++      font-size: 60px;
++      font-weight: 200;
++      text-align: center;
++      color: var(--primary);
++      margin-bottom: 20px;
++      letter-spacing: -1px;
++    }
++
++    .todoapp {
++      background: var(--card-bg);
++      box-shadow: var(--shadow);
++      border-radius: 4px;
++      overflow: hidden;
++    }
++
++    .header {
++      border-bottom: 1px solid var(--border);
++    }
++
++    #nueva-tarea {
++      width: 100%;
++      padding: 16px;
++      font-size: 20px;
++      font-weight: 300;
++      border: none;
++      background: rgba(0, 0, 0, 0.003);
++      outline: none;
++      box-shadow: inset 0 -2px 1px rgba(0, 0, 0, 0.03);
++      color: inherit;
++    }
++
++    #nueva-tarea::placeholder {
++      font-style: italic;
++      color: #bbb;
++    }
++
++    #lista {
++      list-style: none;
++    }
++
++    #lista li {
++      display: flex;
++      align-items: center;
++      font-size: 18px;
++      border-bottom: 1px solid var(--border);
++      padding: 12px 16px;
++      position: relative;
++    }
++
++    #lista li:last-child {
++      border-bottom: none;
++    }
++
++    #lista li.completada .titulo {
++      color: var(--completed);
++      text-decoration: line-through;
++    }
++
++    .completar {
++      width: 22px;
++      height: 22px;
++      margin-right: 14px;
++      cursor: pointer;
++      accent-color: var(--primary);
++      flex-shrink: 0;
++    }
++
++    .titulo {
++      flex: 1;
++      word-break: break-word;
++      line-height: 1.3;
++      user-select: none;
++      cursor: pointer;
++    }
++
++    .borrar {
++      display: inline-block;
++      width: 30px;
++      height: 30px;
++      margin-left: 10px;
++      font-size: 22px;
++      color: #cc9a9a;
++      background: none;
++      border: none;
++      cursor: pointer;
++      line-height: 1;
++      border-radius: 50%;
++      transition: color 0.2s, background 0.2s;
++      flex-shrink: 0;
++    }
++
++    .borrar:hover,
++    .borrar:focus {
++      color: var(--primary);
++      background-color: var(--primary-light);
++      outline: none;
++    }
++
++    #lista li.editando {
++      padding: 0;
++    }
++
++    #lista li.editando .completar,
++    #lista li.editando .titulo,
++    #lista li.editando .borrar {
++      display: none !important;
++    }
++
++    .edicion {
++      width: 100%;
++      padding: 14px 16px;
++      font-size: 18px;
++      line-height: 1.3;
++      border: 1px solid #999;
++      box-shadow: inset 0 -1px 5px 0 rgba(0, 0, 0, 0.2);
++      outline: none;
++      box-sizing: border-box;
++      color: inherit;
++    }
++
++    .footer {
++      display: flex;
++      justify-content: space-between;
++      align-items: center;
++      padding: 12px 16px;
++      font-size: 14px;
++      color: var(--text-light);
++      border-top: 1px solid var(--border);
++      flex-wrap: wrap;
++      gap: 10px;
++    }
++
++    #contador {
++      font-weight: 400;
++    }
++
++    .filtros {
++      display: flex;
++      list-style: none;
++      gap: 6px;
++    }
++
++    .filtros a {
++      color: inherit;
++      text-decoration: none;
++      padding: 4px 8px;
++      border: 1px solid transparent;
++      border-radius: 3px;
++      transition: border-color 0.2s;
++    }
++
++    .filtros a:hover {
++      border-color: var(--primary-light);
++    }
++
++    .filtros a.selected,
++    .filtros a.activo {
++      border-color: var(--primary);
++      font-weight: 600;
++    }
++  </style>
++</head>
++<body>
++  <h1>tareas</h1>
++  <main class="todoapp">
++    <header class="header">
++      <input type="text" id="nueva-tarea" placeholder="¿Qué hay que hacer?" autofocus aria-label="Nueva tarea">
++    </header>
++    <ul id="lista" aria-label="Lista de tareas"></ul>
++    <footer class="footer">
++      <span id="contador">0 pendientes</span>
++      <nav class="filtros" aria-label="Filtros de tareas">
++        <a href="#/" id="filtro-todas" class="selected activo">Todas</a>
++        <a href="#/pendientes" id="filtro-pendientes">Pendientes</a>
++        <a href="#/completadas" id="filtro-completadas">Completadas</a>
++      </nav>
++    </footer>
++  </main>
++
++  <script>
++    (function () {
++      'use strict';
++
++      const STORAGE_KEY = 'tareas';
++      const STORAGE_KEY_ALT = 'todos';
++
++      let tasks = loadTasks();
++      let currentFilter = getFilterFromHash();
++
++      const inputNueva = document.getElementById('nueva-tarea');
++      const lista = document.getElementById('lista');
++      const contador = document.getElementById('contador');
++      const filtroTodas = document.getElementById('filtro-todas');
++      const filtroPendientes = document.getElementById('filtro-pendientes');
++      const filtroCompletadas = document.getElementById('filtro-completadas');
++
++      function loadTasks() {
++        try {
++          const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(STORAGE_KEY_ALT);
++          if (raw) {
++            const parsed = JSON.parse(raw);
++            if (Array.isArray(parsed)) {
++              return parsed.map(function (item) {
++                return {
++                  id: item.id || (Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 7)),
++                  title: String(item.title != null ? item.title : (item.titulo != null ? item.titulo : item.text || '')),
++                  completed: Boolean(item.completed || item.completada || item.done)
++                };
++              });
++            }
++          }
++        } catch (e) {
++          console.error('Error al cargar tareas de localStorage:', e);
++        }
++        return [];
++      }
++
++      function saveTasks() {
++        try {
++          const json = JSON.stringify(tasks);
++          localStorage.setItem(STORAGE_KEY, json);
++          localStorage.setItem(STORAGE_KEY_ALT, json);
++        } catch (e) {
++          console.error('Error al guardar tareas en localStorage:', e);
++        }
++      }
++
++      function getFilterFromHash() {
++        const hash = (window.location.hash || '').toLowerCase();
++        if (hash.includes('completada') || hash.includes('completed')) {
++          return 'completadas';
++        }
++        if (hash.includes('pendiente') || hash.includes('active')) {
++          return 'pendientes';
++        }
++        return 'todas';
++      }
++
++      function updateFiltersUI() {
++        const filters = [
++          { el: filtroTodas, name: 'todas' },
++          { el: filtroPendientes, name: 'pendientes' },
++          { el: filtroCompletadas, name: 'completadas' }
++        ];
++
++        filters.forEach(function (f) {
++          if (!f.el) return;
++          if (f.name === currentFilter) {
++            f.el.classList.add('selected', 'activo');
++          } else {
++            f.el.classList.remove('selected', 'activo');
++          }
++        });
++      }
++
++      function updateContador() {
++        if (!contador) return;
++        const pendientes = tasks.filter(function (t) { return !t.completed; }).length;
++        contador.textContent = pendientes + (pendientes === 1 ? ' pendiente' : ' pendientes');
++      }
++
++      function setFilter(filter) {
++        currentFilter = filter;
++        updateFiltersUI();
++        render();
++      }
++
++      function render() {
++        lista.innerHTML = '';
++
++        const visibleTasks = tasks.filter(function (task) {
++          if (currentFilter === 'pendientes') return !task.completed;
++          if (currentFilter === 'completadas') return task.completed;
++          return true;
++        });
++
++        visibleTasks.forEach(function (task) {
++          const li = document.createElement('li');
++          li.dataset.id = task.id;
++          if (task.completed) {
++            li.classList.add('completada');
++          }
++
++          const checkbox = document.createElement('input');
++          checkbox.type = 'checkbox';
++          checkbox.className = 'completar';
++          checkbox.checked = Boolean(task.completed);
++          checkbox.setAttribute('aria-label', 'Marcar tarea como completada');
++          checkbox.addEventListener('change', function () {
++            task.completed = checkbox.checked;
++            saveTasks();
++            render();
++          });
++
++          const titulo = document.createElement('span');
++          titulo.className = 'titulo';
++          titulo.textContent = task.title;
++          titulo.addEventListener('dblclick', function (e) {
++            e.preventDefault();
++            iniciarEdicion(li, task);
++          });
++
++          const btnBorrar = document.createElement('button');
++          btnBorrar.type = 'button';
++          btnBorrar.className = 'borrar';
++          btnBorrar.textContent = '×';
++          btnBorrar.setAttribute('aria-label', 'Borrar tarea');
++          btnBorrar.addEventListener('click', function () {
++            tasks = tasks.filter(function (t) { return t.id !== task.id; });
++            saveTasks();
++            render();
++          });
++
++          li.appendChild(checkbox);
++          li.appendChild(titulo);
++          li.appendChild(btnBorrar);
++
++          lista.appendChild(li);
++        });
++
++        updateContador();
++        updateFiltersUI();
++      }
++
++      function iniciarEdicion(li, task) {
++        if (li.querySelector('.edicion')) return;
++
++        li.classList.add('editando');
++
++        const inputEdicion = document.createElement('input');
++        inputEdicion.type = 'text';
++        inputEdicion.className = 'edicion';
++        inputEdicion.value = task.title;
++        inputEdicion.setAttribute('aria-label', 'Editar título de tarea');
++        li.appendChild(inputEdicion);
++
++        let finalizado = false;
++
++        function guardarEdicion() {
++          if (finalizado) return;
++          finalizado = true;
++          const nuevoTitulo = inputEdicion.value.trim();
++          if (nuevoTitulo) {
++            task.title = nuevoTitulo;
++            saveTasks();
++          } else {
++            tasks = tasks.filter(function (t) { return t.id !== task.id; });
++            saveTasks();
++          }
++          render();
++        }
++
++        function cancelarEdicion() {
++          if (finalizado) return;
++          finalizado = true;
++          render();
++        }
++
++        inputEdicion.addEventListener('keydown', function (e) {
++          if (e.key === 'Enter') {
++            e.preventDefault();
++            guardarEdicion();
++          } else if (e.key === 'Escape') {
++            e.preventDefault();
++            cancelarEdicion();
++          }
++        });
++
++        inputEdicion.addEventListener('blur', function () {
++          guardarEdicion();
++        });
++
++        inputEdicion.focus();
++        inputEdicion.select();
++      }
++
++      inputNueva.addEventListener('keydown', function (e) {
++        if (e.key === 'Enter') {
++          e.preventDefault();
++          const titulo = inputNueva.value.trim();
++          if (titulo) {
++            tasks.push({
++              id: Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 7),
++              title: titulo,
++              completed: false
++            });
++            saveTasks();
++            inputNueva.value = '';
++            render();
++          }
++        }
++      });
++
++      filtroTodas.addEventListener('click', function (e) {
++        e.preventDefault();
++        window.location.hash = '#/';
++        setFilter('todas');
++      });
++
++      filtroPendientes.addEventListener('click', function (e) {
++        e.preventDefault();
++        window.location.hash = '#/pendientes';
++        setFilter('pendientes');
++      });
++
++      filtroCompletadas.addEventListener('click', function (e) {
++        e.preventDefault();
++        window.location.hash = '#/completadas';
++        setFilter('completadas');
++      });
++
++      window.addEventListener('hashchange', function () {
++        const hashFilter = getFilterFromHash();
++        if (currentFilter !== hashFilter) {
++          currentFilter = hashFilter;
++          updateFiltersUI();
++          render();
++        }
++      });
++
++      render();
++    })();
++  </script>
++</body>
++</html>
