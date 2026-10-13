@@ -125,7 +125,7 @@ test("isolatedEnv passes only what a process needs, never the calling session's 
 
 const toolStep = (index, name, parameters, state = "DONE") => JSON.stringify({ event: "step_update", step_update: { step_index: index, state, step_type: "tool", tool_name: name, tool_info: { name, parameters } } });
 
-test("findEscapes flags tool steps that name a hidden path the sandbox never mounts, and nothing of the run's own or above it", () => {
+test("findEscapes flags tool steps that name a hidden path the sandbox never mounts, and nothing of the run's own or above it", { skip: process.platform === "win32" ? "agy runs only under bubblewrap, on Linux; its paths are POSIX" : false }, () => {
   const cwd = "/tmp/ospec-bench/k3x9qa/todo-spa";
   const options = { cwd, allowed: [path.dirname(cwd), "/tmp/ospec-bench/idd-agy-2/agy-ospec-home"], forbidden: ["/tmp/ospec-bench", "/home/u/repo"] };
   const allowed = [

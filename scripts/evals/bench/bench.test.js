@@ -352,7 +352,7 @@ function deliveringRun(calls, reasons = []) {
   };
 }
 
-test("each run works in its own opaque directory and its judged workspace moves to the runs directory", async () => {
+test("each run works in its own opaque directory and its judged workspace moves to the runs directory", { skip: process.platform === "win32" ? "agy runs only under bubblewrap, on Linux" : false }, async () => {
   const dir = tempDir();
   const workspaces = path.join(dir, "ws");
   const runs = path.join(dir, "runs");

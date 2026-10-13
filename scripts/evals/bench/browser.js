@@ -74,10 +74,13 @@ function delay(ms) {
 async function waitForFile(file, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (fs.existsSync(file)) {
-      const lines = fs.readFileSync(file, "utf8").split("\n").filter(Boolean);
-      if (lines.length >= 2) return lines;
+    let lines = [];
+    try {
+      lines = fs.readFileSync(file, "utf8").split("\n").filter(Boolean);
+    } catch {
+      // not written yet, or still held by the browser (EBUSY on Windows)
     }
+    if (lines.length >= 2) return lines;
     await delay(50);
   }
   throw new Error("the browser did not open its DevTools port");
@@ -253,6 +256,7 @@ async function launchBrowser({ root, executable = findBrowser() }) {
     `--user-data-dir=${profile}`,
     "about:blank",
   ], { stdio: "ignore", windowsHide: true });
+  const exited = new Promise((resolve) => { child.once("exit", resolve); });
   let connection = null;
   const close = async () => {
     if (connection) {
@@ -263,10 +267,12 @@ async function launchBrowser({ root, executable = findBrowser() }) {
       }
       connection.close();
     }
-    child.kill();
+    // The profile is removed only once the browser has exited: until then it
+    // keeps writing there (ENOTEMPTY on macOS, EBUSY on Windows).
+    if (child.exitCode === null && child.signalCode === null) child.kill();
+    await Promise.race([exited, delay(5000)]);
     await served.close();
-    await delay(100);
-    fs.rmSync(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   };
   try {
     const [port, browserPath] = await waitForFile(path.join(profile, "DevToolsActivePort"), LAUNCH_TIMEOUT_MS);

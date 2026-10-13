@@ -1,0 +1,80 @@
+{
+  "schema": "idd-state/v1",
+  "change": "bench-ci-portability",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "feature",
+    "summary": "Los checks de navegador del banco funcionan en macOS y Windows, y los tests del host agy (solo Linux, bajo bubblewrap) se saltan en Windows",
+    "acceptance": "La CI de la PR #325 pasa en ubuntu, macos y windows: checks-greenfield.test.js no falla por EBUSY ni ENOTEMPTY y los tests de rutas POSIX de agy se saltan en Windows"
+  },
+  "facts": {
+    "basis": "Los logs de CI de la PR #325 (run 38379747708) nombran los tres fallos y su causa: lectura de DevToolsActivePort bloqueada (EBUSY), borrado del perfil antes de que Chrome salga (ENOTEMPTY) y rutas POSIX en tests de un host que exige bwrap"
+  },
+  "plan": {
+    "paths": [
+      "scripts/evals/bench/bench.test.js",
+      "scripts/evals/bench/browser.js",
+      "scripts/evals/bench/hosts/agy.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-13T10:08:44.988Z",
+      "detail": {
+        "tree": "sha256:85ec7c96cd261cf081b68c71d590a9261441c48c2c7a90833e71993e497ccb48",
+        "runs": [
+          "run-2"
+        ]
+      }
+    }
+  ],
+  "base": "d96a5f3b46668fef26c0f72f63af740d1ab0f8ce",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:3acfb03d5e918e8318a7523f2882023b58567f03e9f2961245b749310e8a26d2",
+      "tree": "sha256:85ec7c96cd261cf081b68c71d590a9261441c48c2c7a90833e71993e497ccb48",
+      "recorded_at": "2026-10-13T10:07:14.511Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6a772036f26033c598f2eff6db0975286144bc83ca4e99f052678770bf18115e",
+      "tree": "sha256:85ec7c96cd261cf081b68c71d590a9261441c48c2c7a90833e71993e497ccb48",
+      "recorded_at": "2026-10-13T10:08:44.988Z"
+    }
+  ],
+  "closed_at": "2026-10-13T10:08:51.920Z"
+}
