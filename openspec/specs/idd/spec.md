@@ -359,6 +359,31 @@ and explicit user approval. This prerequisite MUST NOT override an open gate,
 earlier obligations, change selection or a closed change.
 It MUST NOT write configuration, execute a candidate or satisfy evidence.
 
+A change opens only inside a project, a git work tree (E4.8). Outside one,
+`record intent` and `next` MUST be refused with `not-a-git-repo`, or with
+`git-not-found` when git is not installed, before writing anything under
+`idd/`, and the error MUST carry a `how` that names direct work for a system
+fix and `git init -b main` for a project; the text output MUST print it. The
+other `record` types act on an existing change and `status` MUST keep listing
+the changes on disk. A change opened before the first commit records a null
+`base`, and its diff MUST be taken against the empty tree.
+
+#### Scenario: Outside a git work tree no change opens
+
+- GIVEN a directory outside any git work tree
+- WHEN `record intent` or `next` runs
+- THEN it MUST exit with 1 and the code `not-a-git-repo`, with a `how` naming
+  direct work and `git init -b main`
+- AND nothing MUST be created under `idd/`
+- AND without git on `PATH` the code MUST be `git-not-found`
+
+#### Scenario: A repository without commits takes a change to close
+
+- GIVEN a repository just created with `git init -b main` and a declared check
+- WHEN a change is opened, checked and closed before any commit
+- THEN its `base` MUST be null, `check` MUST answer `ready` and `close` MUST
+  succeed
+
 #### Scenario: Next asks for the plan before any obligation
 
 - GIVEN an open change with a resolved intent and no open facts
@@ -597,7 +622,8 @@ a passing run is recorded.
 each with the reason it is not met, else `needs-decision` while a gate is open,
 else `ready`. While the intent is ambiguous it MUST answer `needs-decision`
 without running anything. A completed check MUST exit with 0 whatever its
-answer; outside a git work tree it MUST be refused with `not-a-git-repo`.
+answer; outside a git work tree it MUST be refused with `not-a-git-repo`
+(`git-not-found` without git).
 
 With no declared checks, `check` MUST keep `checks-pass` pending, answer
 `missing` with a reason naming `checks:` in `idd/config.yaml` and explicit

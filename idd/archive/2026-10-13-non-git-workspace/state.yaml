@@ -1,0 +1,475 @@
+{
+  "schema": "idd-state/v1",
+  "change": "non-git-workspace",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "feature",
+    "summary": "IDD solo dentro de un proyecto: un work tree git cuyo toplevel no es $HOME ni /. Fuera, el router manda trabajo directo; pedir un proyecto sin git lleva a montar el repositorio (git init -b main aquí o en <nombre>/, commit base con aprobación para código existente). La CLI se detiene en record intent y next fuera de git (not-a-git-repo, git-not-found).",
+    "acceptance": "El router de los 7 targets dice que fuera de un proyecto se trabaja directo y que pedir un proyecto lleva a montar el repositorio; en un directorio sin git, record intent y next terminan con not-a-git-repo y el siguiente paso sin crear nada en idd/; sin git instalado, git-not-found; un git init -b main sin commits llega hasta close; dentro de un repositorio nada cambia; el always-on sigue por debajo de 4096 bytes."
+  },
+  "facts": {
+    "open": [
+      "¿La CLI también rechaza un work tree cuyo toplevel es $HOME o /, o esa regla queda solo en el router?",
+      "Fuera de git, ¿next se niega siempre (aunque haya cambios abiertos en idd/) y status sigue funcionando para inspeccionarlos?",
+      "¿Solo record intent y next se detienen fuera de git, y el resto (record gate/signal/…, signals, foundation, team, doctor) queda igual?",
+      "¿El error JSON de not-a-git-repo y git-not-found añade un campo how con el siguiente paso (y el texto lo imprime)?",
+      "¿El detalle del montaje del repositorio va en una referencia bajo demanda (skills/idd/references/repository.md) con una línea en la skill y un router compacto, en vez de en el router?",
+      "¿Se suben los techos always_on_bytes del fixture de contexto en lo que crezca el router, sin pasar de 4096?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/specs/generator/spec.md",
+      "openspec/specs/idd/spec.md",
+      "rules/ospec-router.instructions.md",
+      "scripts/configure/idd-protocol.test.js",
+      "scripts/fixtures/context-baseline.json",
+      "scripts/lib/idd-workspace.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js",
+      "skills/idd/SKILL.md",
+      "skills/idd/references/repository.md"
+    ],
+    "work_units": 2,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, generator, idd-engine, skills: ADR 0001, 0003, 0004, 0005, 0006, 0010, 0011 and quality scenario deterministic-resume, offline-operation, target-parity",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "Se edita la fuente (rules/, skills/, scripts/) y los 7 targets salen del generador; idd-protocol.test.js lo comprueba en cada build."
+    },
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "Lo que tiene respuesta exacta lo calcula el CLI (requireWorkTree: not-a-git-repo, git-not-found, base vacía); la skill y el router solo dicen cuándo llamarlo. La regla del toplevel $HOME o / queda en el router porque decide si se entra en ospec, por decisión del usuario (open fact 1)."
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "No cambia la derivación de señales ni de obligaciones."
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "check y close siguen exigiendo evidencia observada; un cambio sin commits la obtiene con el diff contra el árbol vacío, sin atajos."
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "No toca la memoria entre sesiones."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Solo biblioteca estándar y el git que el CLI ya exigía; git-not-found detecta su ausencia por ENOENT."
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "Solo toca el árbol idd/ y no crea nada fuera de un proyecto."
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "Dentro de un repositorio, next sigue siendo función del estado en disco; fuera, se niega siempre igual y status sigue listando los cambios."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Sin red: git rev-parse local."
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "Router, skill y referencia iguales en los 7 targets, probado por target en idd-protocol.test.js."
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "si acepto: (1) la regla de $HOME y / solo en el router; (2) next se niega siempre fuera de git y status sigue funcionando; (3) solo record intent y next se detienen, además de check y close; (4) el error lleva un campo how, también en texto; (5) router compacto + una línea en la skill + skills/idd/references/repository.md bajo demanda; (6) se suben los techos always_on_bytes del fixture sin pasar de 4096.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-13T16:58:42.874Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 conforms",
+          "adr:0006 none",
+          "adr:0010 conforms",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:625af756d946f4b2ce967f644413a1f68be64b00c6efd98b43e8fb27b3ab24a9",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-13T17:00:04.731Z",
+      "detail": {
+        "tree": "sha256:5d76cca7968e9c3e842a0a9d0e3966a4656b581b75416570763f561d3563f099",
+        "runs": [
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-13T17:00:04.731Z",
+      "detail": {
+        "tree": "sha256:5d76cca7968e9c3e842a0a9d0e3966a4656b581b75416570763f561d3563f099",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/generator/spec.md",
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/idd-protocol.test.js",
+          "scripts/configure/install-codex.test.js",
+          "scripts/configure/real-repo.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-13T17:00:04.731Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 conforms",
+          "adr:0006 none",
+          "adr:0010 conforms",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:5d76cca7968e9c3e842a0a9d0e3966a4656b581b75416570763f561d3563f099",
+        "fitness": [
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17",
+          "run-18",
+          "run-19",
+          "run-20"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-13T17:00:16.063Z"
+    }
+  ],
+  "base": "4fd215f46ea2d0b5f8135fad9d0e4f191898f21b",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:90c5cb8b3a28ce847ca265aad3584db9bf1e20ed8bc38a5750f49e1bf7e64d08",
+      "tree": "sha256:625af756d946f4b2ce967f644413a1f68be64b00c6efd98b43e8fb27b3ab24a9",
+      "recorded_at": "2026-10-13T16:58:42.874Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4a47df504c03f735e70713f402ea6d24570ca996198de07dd52c8063500d9610",
+      "tree": "sha256:625af756d946f4b2ce967f644413a1f68be64b00c6efd98b43e8fb27b3ab24a9",
+      "recorded_at": "2026-10-13T16:58:42.874Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:184bb4a7fe7c26cd07193ad21b6293bb0b5a8526fd016394a169eed55fbcc5cd",
+      "tree": "sha256:625af756d946f4b2ce967f644413a1f68be64b00c6efd98b43e8fb27b3ab24a9",
+      "recorded_at": "2026-10-13T16:58:42.874Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:476a1cddb2d2c369aa70077417d2e14146435ca021a5c7b8a926356d02047d0e",
+      "tree": "sha256:625af756d946f4b2ce967f644413a1f68be64b00c6efd98b43e8fb27b3ab24a9",
+      "recorded_at": "2026-10-13T16:58:42.874Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:008d46164c6e9c2fa5209d9fe75b646d7b59cd5e76caac5473b2dfc674600a40",
+      "tree": "sha256:625af756d946f4b2ce967f644413a1f68be64b00c6efd98b43e8fb27b3ab24a9",
+      "recorded_at": "2026-10-13T16:58:42.874Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:625af756d946f4b2ce967f644413a1f68be64b00c6efd98b43e8fb27b3ab24a9",
+      "recorded_at": "2026-10-13T16:58:42.874Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:32a00bdf80e2b1da4664de2394b65da9361a47aec4455fddb0a0641272bf997e",
+      "tree": "sha256:625af756d946f4b2ce967f644413a1f68be64b00c6efd98b43e8fb27b3ab24a9",
+      "recorded_at": "2026-10-13T16:58:42.874Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9f6c87786529171bfa58845ecc3a03c7277ad9fd97d0a152596f6d88262b0ab0",
+      "tree": "sha256:625af756d946f4b2ce967f644413a1f68be64b00c6efd98b43e8fb27b3ab24a9",
+      "recorded_at": "2026-10-13T16:58:42.874Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d90f72d8626777b6234a945f0b53c7221a7ae8c803cde26e5200e3e1fa945707",
+      "tree": "sha256:625af756d946f4b2ce967f644413a1f68be64b00c6efd98b43e8fb27b3ab24a9",
+      "recorded_at": "2026-10-13T16:58:42.874Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:465f01b6c378f69c43b7880ade900be5e83ae81913bb8b66fbdb9b5350e50877",
+      "tree": "sha256:625af756d946f4b2ce967f644413a1f68be64b00c6efd98b43e8fb27b3ab24a9",
+      "recorded_at": "2026-10-13T16:58:42.874Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c0cab13c8b23bf4db1068be6a912eb7fd801824bec87c2a9d0dc08f09acb3316",
+      "tree": "sha256:5d76cca7968e9c3e842a0a9d0e3966a4656b581b75416570763f561d3563f099",
+      "recorded_at": "2026-10-13T17:00:04.731Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fcd26f16021aac5f800e541465ca0c678c95cfa99de3ef044125e5fac3791c76",
+      "tree": "sha256:5d76cca7968e9c3e842a0a9d0e3966a4656b581b75416570763f561d3563f099",
+      "recorded_at": "2026-10-13T17:00:04.731Z"
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:dbf66cb1f3de58163b274886645e1260bba798105c2d7017da6c3de677c7dd01",
+      "tree": "sha256:5d76cca7968e9c3e842a0a9d0e3966a4656b581b75416570763f561d3563f099",
+      "recorded_at": "2026-10-13T17:00:04.731Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bd4670c234a8148307401cbbf089586f13e364a2937c496869a3c96d74262ccc",
+      "tree": "sha256:5d76cca7968e9c3e842a0a9d0e3966a4656b581b75416570763f561d3563f099",
+      "recorded_at": "2026-10-13T17:00:04.731Z"
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e2d0c3de4faf18d49a0be697cdca06a0b872ad2679a441dab621ac1e4e8a6743",
+      "tree": "sha256:5d76cca7968e9c3e842a0a9d0e3966a4656b581b75416570763f561d3563f099",
+      "recorded_at": "2026-10-13T17:00:04.731Z"
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:5d76cca7968e9c3e842a0a9d0e3966a4656b581b75416570763f561d3563f099",
+      "recorded_at": "2026-10-13T17:00:04.731Z"
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d40393de5a7b325b68b054baf0080a7e3ae9219f0857acedfcb47bc4f975d814",
+      "tree": "sha256:5d76cca7968e9c3e842a0a9d0e3966a4656b581b75416570763f561d3563f099",
+      "recorded_at": "2026-10-13T17:00:04.731Z"
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6525b4a6f4a44a1dc93badfdfe66d7b1618324ae53820160f1871de1283b4592",
+      "tree": "sha256:5d76cca7968e9c3e842a0a9d0e3966a4656b581b75416570763f561d3563f099",
+      "recorded_at": "2026-10-13T17:00:04.731Z"
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e0899ef6d3f6394f8c7efedffe879596ab07188882adadeb2ab2538642c1c2fe",
+      "tree": "sha256:5d76cca7968e9c3e842a0a9d0e3966a4656b581b75416570763f561d3563f099",
+      "recorded_at": "2026-10-13T17:00:04.731Z"
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f8dca66539cec6a3a85e1a532eaf8df41529da8fdf6791afcb548f1b2240b443",
+      "tree": "sha256:5d76cca7968e9c3e842a0a9d0e3966a4656b581b75416570763f561d3563f099",
+      "recorded_at": "2026-10-13T17:00:04.731Z"
+    }
+  ],
+  "closed_at": "2026-10-13T17:00:16.063Z"
+}

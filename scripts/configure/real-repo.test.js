@@ -994,6 +994,8 @@ test("real repo: every target ships the ospec CLI and it runs from the generated
     }
     if (target !== "claude") continue;
     const project = tmpOut(t);
+    // A change opens only inside a git work tree (E4.8).
+    execFileSync("git", ["-C", project, "init", "-q", "-b", "main"]);
     const output = execFileSync(process.execPath, [path.join(out, "scripts", "ospec.js"), "next", "--json", "--root", project], {
       encoding: "utf8",
     });

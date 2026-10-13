@@ -17,6 +17,7 @@ const { RUNTIME_DIR_MARKER, SHARED_DIR_MARKER } = require("./shared-dir.js");
 const ROOT = path.resolve(__dirname, "..", "..");
 const PROTOCOL = "skills/idd/SKILL.md";
 const MEMORY_LOOP = "skills/idd/references/memory-loop.md";
+const REPOSITORY = "skills/idd/references/repository.md";
 const MAX_PROTOCOL_BYTES = 12 * 1024;
 
 const ROUTERS = {
@@ -110,6 +111,38 @@ for (const target of Object.keys(ROUTERS)) {
     );
     assert.match(router, /\/sdd-\*/, `${target}: SDD stays reachable on request`);
     assert.match(router, /not installed[^.]*`--with-sdd`/, `${target}: the router says how to install SDD when it is missing`);
+  });
+
+  // E4.8 non-git-workspace: IDD runs only inside a project; a system fix is
+  // done directly, and a project request outside git sets up its repository.
+  test(`${target}: the router keeps IDD inside a project and sets up the repository of a new one`, (t) => {
+    const { byPath } = generate(t, target);
+    const router = byPath.get(ROUTERS[target]).replace(/\s+/g, " ");
+    assert.match(router, /a git work tree whose top level is neither `\$HOME` nor `\/`/, `${target}: router defines a project`);
+    assert.match(router, /Outside one, [^.]*directly, loading nothing of ospec/, `${target}: outside a project the work is direct`);
+    assert.ok(
+      router.includes(`build or change a project there loads the ${IDD_ENTRY[target] || "skill `idd`"} to set up its repository first`),
+      `${target}: a project request outside git sets up its repository`,
+    );
+    assert.match(router, /when unsure which it is, ask once/, `${target}: one question when the intent is unclear`);
+
+    const protocol = byPath.get(PROTOCOL).replace(/\s+/g, " ");
+    assert.match(protocol, /`not-a-git-repo`[^.]*`references\/repository\.md`/, `${target}: protocol points to the repository setup`);
+    const setup = byPath.get(REPOSITORY);
+    assert.ok(setup, `${target}: ${REPOSITORY} is not shipped`);
+    const text = setup.replace(/\s+/g, " ");
+    for (const rule of [
+      /`git init -b main` in the current directory/,
+      /create `<name>\/` and run `git init -b main` inside it/,
+      /Never run `git init` inside another repository's work tree without asking/,
+      /baseline commit/,
+      /`\.gitignore`/,
+      /Commit only after the user approves/,
+      /never rename an existing branch/,
+      /`git-not-found`/,
+    ]) {
+      assert.match(text, rule, `${target}: repository setup must say ${rule}`);
+    }
   });
 
   test(`${target}: after a change closes, the IDD protocol hands off the next roadmap item to a new session`, (t) => {

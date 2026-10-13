@@ -17,6 +17,8 @@ El [`README.md`](../README.md) de la raíz presenta el harness y el inicio rápi
 
 IDD (desarrollo guiado por impacto) es el flujo por defecto desde E1.6: el router manda cada cambio de código a la skill `idd`, que lo lleva con el CLI `ospec` (`node scripts/ospec.js`) hasta que `ospec close` lo archiva en `idd/archive/`. Las señales de impacto del cambio deciden sus obligaciones, y solo la evidencia de ejecuciones que observa el CLI las satisface.
 
+IDD solo trabaja dentro de un proyecto: un work tree git cuyo toplevel no es `$HOME` ni `/`. Fuera de uno, un arreglo del sistema o un script suelto se hacen directos. Una petición de proyecto monta antes su repositorio (`git init -b main`, aquí o en una carpeta nueva, y un commit base aprobado si ya hay código), y `ospec record intent` y `ospec next` se detienen con `not-a-git-repo` o `git-not-found` y el siguiente paso (E4.8).
+
 Sin comandos en `checks:` de `idd/config.yaml`, no se obtiene la evidencia necesaria para cerrar. `ospec next` propone el paso `configure-checks`: la skill pide aprobar el comando candidato o indicar uno y espera antes de crear o editar el fichero, conservando sus claves. `ospec doctor` avisa si hay un cambio IDD abierto sin checks.
 
 El perfil de equipo (`team:` con `size` y `experience`) decide la estrategia de entrega, el umbral de review, Strict TDD y la mentoría sin volver a preguntar. Cada modo lo declara en su configuración: `idd/config.yaml` u `openspec/config.yaml`. `ospec team` muestra el perfil y sus defaults (REQ-idd-023).

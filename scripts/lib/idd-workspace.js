@@ -26,10 +26,11 @@ const MAX_UNTRACKED_BYTES = 1024 * 1024;
 const GIT_MAX_BUFFER = 64 * 1024 * 1024;
 
 class IddWorkspaceError extends Error {
-  constructor(code, message) {
+  constructor(code, message, how) {
     super(message);
     this.name = "IddWorkspaceError";
     this.code = code;
+    if (how) this.how = how;
   }
 }
 
@@ -239,19 +240,17 @@ function readUntracked(root, file) {
  * untracked), relative to `root`, with the lines each one adds.
  */
 function readGitDiff(root, { base = "HEAD" } = {}) {
-  try {
-    git(root, ["rev-parse", "--is-inside-work-tree"]);
-  } catch {
-    throw new IddWorkspaceError("not-a-git-repo", `${root} is not inside a git work tree`);
-  }
+  requireWorkTree(root);
   // A leading dash would turn the base into a git option.
   if (typeof base !== "string" || base === "" || base.startsWith("-")) {
     throw new IddWorkspaceError("unknown-base", `unknown diff base: ${JSON.stringify(base)}`);
   }
-  try {
-    git(root, ["rev-parse", "--verify", "--quiet", `${base}^{commit}`]);
-  } catch {
-    throw new IddWorkspaceError("unknown-base", `unknown diff base: ${base}`);
+  if (base !== EMPTY_TREE) {
+    try {
+      git(root, ["rev-parse", "--verify", "--quiet", `${base}^{commit}`]);
+    } catch {
+      throw new IddWorkspaceError("unknown-base", `unknown diff base: ${base}`);
+    }
   }
 
   const tracked = nulList(git(root, ["diff", "--relative", "--no-renames", "--name-only", "-z", base, "--"]));
@@ -269,11 +268,20 @@ function readGitDiff(root, { base = "HEAD" } = {}) {
   return { paths, addedLines };
 }
 
+// What to do when there is no project to work in (E4.8): IDD needs a git work
+// tree, and the router sends a system fix or a loose script to direct work.
+const NO_REPO_HOW =
+  "IDD works only inside a project, a git work tree. For a system fix or a loose script, work directly without IDD. " +
+  "To build or change a project, set up its repository first: git init -b main here or in a new project folder, " +
+  "and with existing code commit a baseline once the user approves it; then open the change again.";
+const NO_GIT_HOW = "git is not installed or not on PATH. For a system fix, work directly without IDD; to build a project, install git first.";
+
 function requireWorkTree(root) {
   try {
     git(root, ["rev-parse", "--is-inside-work-tree"]);
-  } catch {
-    throw new IddWorkspaceError("not-a-git-repo", `${root} is not inside a git work tree`);
+  } catch (error) {
+    if (error.code === "ENOENT") throw new IddWorkspaceError("git-not-found", "git is not installed or not on PATH", NO_GIT_HOW);
+    throw new IddWorkspaceError("not-a-git-repo", `${root} is not inside a git work tree`, NO_REPO_HOW);
   }
 }
 
@@ -454,6 +462,7 @@ module.exports = {
   readKnowledgeSources,
   readProjectContext,
   readTreeFingerprint,
+  requireWorkTree,
   snapshotTree,
   treeBlobs,
   treeNumstat,
