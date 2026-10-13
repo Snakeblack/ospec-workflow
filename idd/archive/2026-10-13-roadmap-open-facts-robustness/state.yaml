@@ -1,0 +1,78 @@
+{
+  "schema": "idd-state/v1",
+  "change": "roadmap-open-facts-robustness",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "El roadmap añade E4.6 open-facts-robustness, con las mejoras de IDD que salen del análisis de E4.5, como siguiente ítem por delante de E4.3",
+    "acceptance": "docs/roadmaps/harness-evolution.md tiene la fila E4.6 pendiente, su sección con problema, alcance y criterio de hecho, el grafo de dependencias con E4.5 ─ E4.6 ─ E4.3 y el ▶ SIGUIENTE apuntando a E4.6"
+  },
+  "facts": {
+    "basis": "El usuario aprobó el 2026-10-13 añadir las mejoras del análisis de E4.5 como siguiente ítem por delante de E4.3; el contenido es el análisis ya presentado, y lo que decide cada mejora queda como hechos abiertos del propio ítem"
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-13T10:39:48.855Z",
+      "detail": {
+        "tree": "sha256:ad6d82d0af6b4c4c6051788e08f43f30d858d69ed6c00323def9ecf7552d4ad9",
+        "runs": [
+          "run-2"
+        ]
+      }
+    }
+  ],
+  "base": "17426b18e311dd2370ed55d17121370bf76afd2c",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:1c98305fb5c87eef7373c18b3f12480320f1fe81ed8bc5ec5a8dd536b40ef93d",
+      "tree": "sha256:ad6d82d0af6b4c4c6051788e08f43f30d858d69ed6c00323def9ecf7552d4ad9",
+      "recorded_at": "2026-10-13T10:39:04.781Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:22fd3954218f109c8fb527f2332893cd0f163c7cac75ee6f68aabaa42ee7b184",
+      "tree": "sha256:ad6d82d0af6b4c4c6051788e08f43f30d858d69ed6c00323def9ecf7552d4ad9",
+      "recorded_at": "2026-10-13T10:39:48.855Z"
+    }
+  ],
+  "closed_at": "2026-10-13T10:40:30.917Z"
+}
