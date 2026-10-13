@@ -151,7 +151,8 @@ test("an untracked symlink is its target, never followed, in the diff and the tr
   const before = readTreeFingerprint(root);
   write(outside, "secret.txt", "changed outside\n");
   assert.strictEqual(readTreeFingerprint(root), before, "the target's content is not read");
-  fs.rmSync(path.join(root, "broken"));
+  // Node 24: fs.rmSync on a dangling symlink returns success and leaves the link.
+  fs.unlinkSync(path.join(root, "broken"));
   fs.symlinkSync("other/target", path.join(root, "broken"));
   assert.notStrictEqual(readTreeFingerprint(root), before, "a new link target changes it");
 });
