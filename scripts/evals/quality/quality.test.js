@@ -12,8 +12,9 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const { addedLines, classifyPath, metricsFromNumstat, readDelivery, scrubDiff } = require("./deliveries.js");
-const { generateMutants, maskLiterals, sampleEvenly } = require("./mutation.js");
+const { addedLines, classifyPath, locateWorkspace, metricsFromNumstat, readDelivery, scrubDiff } = require("./deliveries.js");
+const { copyWorkspace, generateMutants, inlineScriptLines, maskLiterals, sampleEvenly } = require("./mutation.js");
+const { evaluateQuality } = require("./quality.js");
 const { aggregateJudgments, buildJudgePrompt, JUDGE_CRITERIA } = require("./judge.js");
 
 test("paths are classified as workflow, test, types, docs or source", () => {
@@ -33,6 +34,9 @@ test("paths are classified as workflow, test, types, docs or source", () => {
   assert.strictEqual(classifyPath("CHANGELOG.md"), "docs");
   assert.strictEqual(classifyPath("src/invoice.js"), "source");
   assert.strictEqual(classifyPath("bin\\tasks.js"), "source");
+  assert.strictEqual(classifyPath("node_modules/jsdom/lib/api.js"), "workflow", "installed dependencies are not product");
+  assert.strictEqual(classifyPath("package-lock.json"), "workflow");
+  assert.strictEqual(classifyPath("index.html"), "source");
 });
 
 test("numstat becomes per-category file and line counts, without workflow artifacts", () => {
@@ -168,4 +172,85 @@ test("the delivery is everything after the setup commit, committed or not", () =
   const delivery = readDelivery(root);
   assert.deepStrictEqual(delivery.product.sort(), ["a.js", "b.js"], "the committed edit and the new file; odd/ is workflow");
   assert.match(delivery.diff, /\+module\.exports = 2;/);
+});
+
+test("only the code of inline JavaScript blocks of an HTML file is mutated", () => {
+  const html = [
+    "<!doctype html>", // 1
+    "<style>", // 2
+    "  li > span { color: red; }", // 3
+    "</style>", // 4
+    "<script>", // 5
+    "const MAXIMO = 200;", // 6
+    "if (titulo.length > MAXIMO) return false;", // 7
+    "</script>", // 8
+    "<script src=\"vendor.js\"></script>", // 9
+    "<script type=\"application/json\">", // 10
+    "{ \"a\": 1 }", // 11
+    "</script>", // 12
+    "<script type=\"module\">", // 13
+    "export const x = 1 + 2;", // 14
+    "</script>", // 15
+    "<p>a < b</p>", // 16
+  ].join("\n");
+  assert.deepStrictEqual([...inlineScriptLines(html)], [6, 7, 14]);
+});
+
+test("the mutation copy links the delivered node_modules instead of copying it", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "quality-copy-"));
+  fs.mkdirSync(path.join(root, "node_modules", "jsdom"), { recursive: true });
+  fs.writeFileSync(path.join(root, "node_modules", "jsdom", "index.js"), "module.exports = 1;\n");
+  fs.writeFileSync(path.join(root, "index.html"), "<p></p>");
+  const copy = copyWorkspace(root);
+  try {
+    assert.ok(fs.lstatSync(path.join(copy, "node_modules")).isSymbolicLink());
+    assert.ok(fs.existsSync(path.join(copy, "node_modules", "jsdom", "index.js")));
+    assert.ok(fs.existsSync(path.join(copy, "index.html")));
+  } finally {
+    fs.rmSync(copy, { recursive: true, force: true });
+  }
+});
+
+test("a repetition's workspace is found under r<n>, and a one-run record under the scenario", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "quality-locate-"));
+  fs.mkdirSync(path.join(root, "one", "todo-spa", ".git"), { recursive: true });
+  fs.mkdirSync(path.join(root, "three", "todo-spa", "r2", ".git"), { recursive: true });
+  assert.strictEqual(locateWorkspace(root, "one", "todo-spa"), path.join(root, "one", "todo-spa"));
+  assert.strictEqual(locateWorkspace(root, "three", "todo-spa", 2), path.join(root, "three", "todo-spa", "r2"));
+  assert.throws(() => locateWorkspace(root, "three", "todo-spa", 3), /repetition 3/);
+  fs.mkdirSync(path.join(root, "archived", "todo-spa", "r1", "workspace", ".git"), { recursive: true });
+  assert.strictEqual(locateWorkspace(root, "archived", "todo-spa", 1), path.join(root, "archived", "todo-spa", "r1", "workspace"), "the bench archives a judged workspace next to its transcripts");
+});
+
+const delivery = (score, { passes = true } = {}) => ({ mutation: { suite_passes: passes, score: passes ? score : null } });
+const pair = (baseline, candidate, preferred) => ({ baseline, candidate, ...(preferred ? { judge: { preferred } } : {}) });
+const criterion = { max_mutation_score_deficit: 5, max_consistent_baseline_preferences: 1 };
+
+test("the quality criterion continues within its margins and reports each arm's interval", () => {
+  const verdict = evaluateQuality({ scenarios: {
+    "todo-spa/r1": pair(delivery(80), delivery(78), "baseline"),
+    "todo-spa/r2": pair(delivery(70), delivery(75), "inconsistent"),
+    "todo-spa/r3": pair(delivery(90), delivery(80), "candidate"),
+  } }, criterion);
+  assert.strictEqual(verdict.decision, "continue", verdict.reasons.join("; "));
+  assert.strictEqual(verdict.mutation.baseline.mean, 80);
+  assert.strictEqual(verdict.mutation.candidate.mean, 77.666667);
+  assert.ok(Array.isArray(verdict.mutation.candidate.ci95));
+  assert.strictEqual(verdict.baseline_preferences, 1);
+});
+
+test("the quality criterion revises on a mutation deficit, a consistent baseline preference, or an unjudged pair", () => {
+  const deficit = evaluateQuality({ scenarios: { a: pair(delivery(90), delivery(84), "tie") } }, criterion);
+  assert.strictEqual(deficit.decision, "revise");
+  assert.match(deficit.reasons.join(), /trails the baseline's by 6 points/);
+  const failing = evaluateQuality({ scenarios: { a: pair(delivery(10), delivery(null, { passes: false }), "tie") } }, criterion);
+  assert.strictEqual(failing.mutation.candidate.mean, 0, "a failing suite protects nothing");
+  assert.strictEqual(failing.decision, "revise");
+  const preferred = evaluateQuality({ scenarios: {
+    a: pair(delivery(80), delivery(80), "baseline"),
+    b: pair(delivery(80), delivery(80), "baseline"),
+  } }, criterion);
+  assert.match(preferred.reasons.join(), /in 2 pairs/);
+  const unjudged = evaluateQuality({ scenarios: { a: pair(delivery(80), delivery(80)) } }, criterion);
+  assert.match(unjudged.reasons.join(), /1 of 1 pairs are not judged/);
 });
