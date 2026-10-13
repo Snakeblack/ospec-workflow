@@ -1,0 +1,78 @@
+{
+  "schema": "idd-state/v1",
+  "change": "bench-browser-process-group",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "feature",
+    "summary": "El cierre del navegador del banco termina todo su grupo de procesos y un fallo al borrar el perfil temporal no cambia el veredicto de un check",
+    "acceptance": "checks-greenfield.test.js pasa en ubuntu, macos y windows en la CI de la PR #325 sin errores ENOTEMPTY"
+  },
+  "facts": {
+    "basis": "El log de CI del run 38381361854 muestra ENOTEMPTY en /tmp/bench-browser-*/Default en Ubuntu: procesos auxiliares de Chrome siguen escribiendo tras salir el principal; el perfil es temporal y no forma parte de ningún check"
+  },
+  "plan": {
+    "paths": [
+      "scripts/evals/bench/browser.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-13T10:21:07.259Z",
+      "detail": {
+        "tree": "sha256:1eb1dede4922685d541f28f6b8af6714b88fe689ea0ff3503fc78dda408a7814",
+        "runs": [
+          "run-2"
+        ]
+      }
+    }
+  ],
+  "base": "7e4d8ba68a5e6a7c41a95a42044f8c2ee4a76efd",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:7cb8d18246ad05f4c23fedf2740fc9c45206b5ee42735b5f20f7dfc686e9bc79",
+      "tree": "sha256:1eb1dede4922685d541f28f6b8af6714b88fe689ea0ff3503fc78dda408a7814",
+      "recorded_at": "2026-10-13T10:20:24.334Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a931773df62aa6ad740e85d5eb265680912280f8626e88dff86f25a2129a6112",
+      "tree": "sha256:1eb1dede4922685d541f28f6b8af6714b88fe689ea0ff3503fc78dda408a7814",
+      "recorded_at": "2026-10-13T10:21:07.259Z"
+    }
+  ],
+  "closed_at": "2026-10-13T10:23:13.727Z"
+}

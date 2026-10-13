@@ -255,7 +255,7 @@ async function launchBrowser({ root, executable = findBrowser() }) {
     "--remote-debugging-port=0",
     `--user-data-dir=${profile}`,
     "about:blank",
-  ], { stdio: "ignore", windowsHide: true });
+  ], { stdio: "ignore", windowsHide: true, detached: process.platform !== "win32" });
   const exited = new Promise((resolve) => { child.once("exit", resolve); });
   let connection = null;
   const close = async () => {
@@ -267,12 +267,25 @@ async function launchBrowser({ root, executable = findBrowser() }) {
       }
       connection.close();
     }
-    // The profile is removed only once the browser has exited: until then it
-    // keeps writing there (ENOTEMPTY on macOS, EBUSY on Windows).
-    if (child.exitCode === null && child.signalCode === null) child.kill();
+    // The browser and its helper processes (renderers, crash handler) keep
+    // writing to the profile until they exit, so the whole process group goes
+    // on POSIX, and the profile is removed once the browser has exited.
+    if (child.exitCode === null && child.signalCode === null) {
+      try {
+        if (process.platform === "win32") child.kill();
+        else process.kill(-child.pid, "SIGKILL");
+      } catch {
+        // already gone
+      }
+    }
     await Promise.race([exited, delay(5000)]);
     await served.close();
-    fs.rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    try {
+      fs.rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    } catch {
+      // A profile a late helper still writes to stays in the temp directory;
+      // it never changes a check's verdict.
+    }
   };
   try {
     const [port, browserPath] = await waitForFile(path.join(profile, "DevToolsActivePort"), LAUNCH_TIMEOUT_MS);
