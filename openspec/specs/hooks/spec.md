@@ -1339,11 +1339,27 @@ JSON from stdin.
 
 Given a commit message,
 When the hook runs,
-Then it MUST scan every line against `FORBIDDEN_ATTRIBUTION_RE` (co-authored-by,
-"generated with/by", the 🤖 emoji, and known AI/model vendor or product names) and, on
-a match, MUST print the offending line and remediation guidance to stderr and exit
-non-zero — unless `DISABLE_OSPEC_ATTRIBUTION_CHECK=true` is set, in which case it MUST
-exit 0 without scanning.
+Then it MUST scan every line against `FORBIDDEN_ATTRIBUTION_RE` and, on a match, MUST
+print the offending line and remediation guidance to stderr and exit non-zero — unless
+`DISABLE_OSPEC_ATTRIBUTION_CHECK=true` is set, in which case it MUST exit 0 without
+scanning.
+
+`FORBIDDEN_ATTRIBUTION_RE` (case-insensitive, identical in `commit-msg-hook.js`,
+`pre-tool-use.js` and the Go hook) matches attribution, not mentions: a `*-by:` trailer
+whose value names a known AI model, vendor or coding tool; a
+`generated|written|created|made|built|authored|assisted|powered|produced` (or Spanish
+`generado|escrito|creado|hecho|asistido|producido`, any gender and number) +
+`with|by|using|con|por` phrase with such a name within the next three words; or the 🤖
+emoji. Tool names sit at word boundaries.
+
+- GIVEN `fix(claude): …`, `feat(antigravity): …` or `Co-Authored-By: <a person>` WHEN
+  the hook runs THEN it MUST NOT reject the message.
+- GIVEN `Co-Authored-By: Claude <noreply@anthropic.com>`, `Generated with Gemini CLI`,
+  `Generado con Codex` or a 🤖 line WHEN the hook runs THEN it MUST reject the message.
+
+The PreToolUse DENY applies the same pattern to the `-m`/`--message` arguments of a
+`git commit` command and to the `-t`/`--title`/`-b`/`--body` arguments of a
+`gh pr create|edit` command.
 
 ### 6a.2 Traceability trailer validation (B3)
 

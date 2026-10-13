@@ -55,9 +55,9 @@ third-party runtime dependencies.
 - Use conventional-commit style prefixes (`feat:`, `fix:`, `docs:`, `chore:`,
   `refactor:`) — the history already follows this.
 - **No model/tool attribution.** Commit messages and pull requests (title, body,
-  comments) MUST NOT credit an AI model or coding tool: no `Co-Authored-By:` model
-  trailers, no "Generated with/by", no 🤖 footer, and no mention of Claude, Claude
-  Code, Anthropic, GPT, OpenAI, Codex, Copilot, Gemini, or any other model/vendor.
+  comments) MUST NOT credit an AI model or coding tool: no `*-by:` trailer naming
+  one, no "Generated with/by <tool>" line, no 🤖 footer. Naming the agent a change
+  is about is fine (`fix(claude): …`), and so is a human `Co-Authored-By:`.
   This applies to human and AI contributors alike — see
   `rules/no-model-attribution.instructions.md`.
 - Bump the version in `package.json`, `openspec/config.yaml`, `.plugin.json`

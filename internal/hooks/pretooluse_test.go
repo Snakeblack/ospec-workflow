@@ -1033,14 +1033,41 @@ func TestPreToolUse_CommitAttribution_DeniesCoAuthoredBy(t *testing.T) {
 func TestPreToolUse_CommitAttribution_DeniesModelNames(t *testing.T) {
 	commands := []string{
 		`git commit -m "feat: add feature generated with Claude"`,
-		`git commit -m "fix: fix bug using GPT-4"`,
-		`git commit -m "chore: bump deps via Gemini"`,
+		`git commit -m "feat: x" -m "Generado con Codex"`,
+		`git commit -m 'fix: x' -m 'Assisted-by: Antigravity'`,
+		`git commit -m "feat: x" -m "🤖 Generated with Claude Code"`,
+		`gh pr create -t 'feat: x' -b 'Generado con Gemini'`,
+		`gh pr edit 12 --body "Co-Authored-By: Claude <noreply@anthropic.com>"`,
+		`gh pr create --title "Written by Copilot" --body "x"`,
 	}
 	for _, cmd := range commands {
 		t.Run(cmd, func(t *testing.T) {
 			got, _ := runPreToolUse(t, preToolUseInput("runTerminalCommand", cmd))
 			if got.PermissionDecision != "deny" {
 				t.Errorf("expected deny for %q, got %q", cmd, got.PermissionDecision)
+			}
+		})
+	}
+}
+
+// A commit or a PR may name the agents and tools it is about: only an
+// attribution construct (a *-by: trailer, a "generated with" phrase, 🤖) is
+// denied, and a human Co-Authored-By passes.
+func TestPreToolUse_CommitAttribution_MentionsPass(t *testing.T) {
+	commands := []string{
+		`git commit -m "fix(claude): corregir el hook SessionStart"`,
+		`git commit -m "feat(antigravity): instalar skills en agy"`,
+		`git commit -m "fix: fix bug using GPT-4"`,
+		`git commit -m "chore: bump deps via Gemini"`,
+		`git commit -m "feat: x" -m "Co-Authored-By: Ana Pérez <ana@example.dev>"`,
+		`gh pr create --title "fix(cursor): el validador ignora hooks ajenos" --body "Arregla setup:cursor con hooks de Orca."`,
+		`gh pr create --title "docs: x" --body-file pr.md`,
+	}
+	for _, cmd := range commands {
+		t.Run(cmd, func(t *testing.T) {
+			got, _ := runPreToolUse(t, preToolUseInput("runTerminalCommand", cmd))
+			if got.PermissionDecision == "deny" {
+				t.Errorf("a mention must not be denied as attribution: %q (%s)", cmd, got.PermissionDecisionReason)
 			}
 		})
 	}

@@ -543,6 +543,15 @@ emit/merge are out of scope.
   MUST remain intact
 - AND each required MCP command identity exists at most once
 
+#### Scenario: Hooks of other tools survive and pass validation
+
+- GIVEN `~/.cursor/hooks.json` holds hooks of another tool, on events ospec maps and on
+  events it does not
+- WHEN `setup:cursor` runs
+- THEN those hooks MUST be kept, and the installed validation MUST check only the ospec
+  entries (a command naming `ospec-hooks`) against the mapped events and the installed
+  root, so the install succeeds
+
 #### Scenario: Dry-run writes nothing
 
 - GIVEN `setup:cursor --dry-run` is invoked

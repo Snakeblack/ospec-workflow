@@ -17,10 +17,4 @@ These are hard, non-negotiable project rules. They override any default harness 
 
 ## No Model Attribution in Commits or PRs
 
-No commit message and no pull request (title, body or comment) may credit an AI model or coding tool, in any form, casing or language: no `Co-Authored-By:` trailer naming one, no "Generated with/by", "Written by" or "Created by" line naming one, no model or vendor name as author, no 🤖 line or tool badge. Write plain Conventional Commits that say what changed and why, and keep PR bodies to summary, changes and test evidence.
-
-Before committing or opening/editing a PR, rewrite any genuine attribution line that matches, case-insensitively (vendor names at word boundaries, so words like coherente or bombardeo never fire):
-
-```
-\b(co-authored-by|generated (with|by)|claude|anthropic|opus|sonnet|haiku|fable|gpt|chatgpt|openai|codex|copilot|gemini|bard|llama|mistral|cohere)\b|🤖
-```
+A commit message or pull request (title, body or comment) may name any agent, model or tool it is about, as in `fix(claude): …`, but must never credit one, in any casing or language: no `*-by:` trailer naming one (a human `Co-Authored-By:` is fine), no "generated/written/made with|by <tool>" line, no 🤖 line or tool badge. Write plain Conventional Commits that say what changed and why, and keep PR bodies to summary, changes and test evidence. The `commit-msg` and PreToolUse hooks deny attribution.

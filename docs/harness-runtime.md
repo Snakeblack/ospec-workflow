@@ -117,11 +117,11 @@ Protege estrictamente contra la inserción de atribución AI/modelo en commits y
 
 | Capa | Cuándo actúa | Qué bloquea |
 | --- | --- | --- |
-| **PreToolUse DENY** (`pre-tool-use.js`) | Antes de que el agente ejecute `git commit -m "..."` | Escanea el argumento `-m`/`--message` del comando; deniega si contiene patrones prohibidos |
+| **PreToolUse DENY** (`pre-tool-use.js`) | Antes de que el agente ejecute `git commit -m "..."` o `gh pr create\|edit` | Escanea `-m`/`--message` del commit y `-t`/`--title`/`-b`/`--body` de la PR; deniega si contienen atribución |
 | **Git `commit-msg` Hook** (`commit-msg-hook.js`) | Después de que el usuario/IDE componga el mensaje | Lee el archivo temporal de mensaje de Git; rechaza el commit si contiene atribución |
 | **Rules file** (`rules/no-model-attribution.instructions.md`) | Carga del contexto del agente | Instruye al modelo para que nunca genere atribución; primera barrera pasiva |
 
-**Patrones prohibidos** (case-insensitive): `co-authored-by`, `generated with|by`, `🤖`, nombres de modelos y vendors (`claude`, `anthropic`, `opus`, `sonnet`, `haiku`, `fable`, `gpt`, `chatgpt`, `openai`, `codex`, `copilot`, `gemini`, `bard`, `llama`, `mistral`, `cohere`).
+**Qué es atribución** (case-insensitive): un trailer `*-by:` cuyo valor nombra una IA o herramienta (un `Co-Authored-By:` humano pasa); una frase `generated|written|created|made|built|authored|assisted|powered|produced` o `generado|escrito|creado|hecho|asistido|producido` + `with|by|using|con|por` con el nombre de la herramienta en las tres palabras siguientes; o `🤖`. Nombrar un agente no es atribución: `fix(claude): …` o «soporte de Antigravity» pasan. Herramientas reconocidas: `claude`, `anthropic`, `opus`, `sonnet`, `haiku`, `fable`, `gpt`, `chatgpt`, `openai`, `codex`, `copilot`, `gemini`, `bard`, `llama`, `mistral`, `cohere`, `antigravity`, `agy`, `cursor`, `windsurf`, `kiro`, `opencode`, `qwen`, `deepseek`, `grok`, `devin`, `aider`, `cline`, `junie`, `amp`.
 
 **Instalación**: `npm run setup:git-hooks` instala tanto el `pre-commit` como el `commit-msg` hook. El PreToolUse DENY está integrado en el hook `PreToolUse` del arnés y no requiere instalación adicional.
 
