@@ -1,0 +1,111 @@
+{
+  "schema": "idd-state/v1",
+  "change": "bench-browser-launch-timeout",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El reintento de 20 s no basta: en Windows (PR #328) el primer lote de 4 Chromium agotó los dos intentos bajo la carga de la suite en paralelo; LAUNCH_TIMEOUT_MS pasa a 60 s manteniendo el reintento",
+    "acceptance": "startBrowser espera por defecto hasta 60 s a que el navegador abra su puerto antes de reintentar; un test lo fija; Validate Harness pasa en ubuntu, macOS y Windows en la PR y en main"
+  },
+  "facts": {
+    "basis": "Respuesta explícita del usuario en esta sesión: «Límite de 60 s + reintento», con el diagnóstico y el reintento ya entregados en bench-browser-cold-start"
+  },
+  "plan": {
+    "paths": [
+      "CHANGELOG.md",
+      "scripts/evals/bench/browser.js",
+      "scripts/evals/bench/browser.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-13T15:35:33.854Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-13T15:37:09.233Z",
+      "detail": {
+        "tree": "sha256:cefdabae1488c9c92ae2582d2d8a7d7f978f9d318c69bca3b7db8f8adf750462",
+        "runs": [
+          "run-3"
+        ]
+      }
+    }
+  ],
+  "base": "c8fa61cc9c33a7e4a4c7ac8e121c497e80e509ca",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/evals/bench/browser.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:bf346a0be7e5987bf309d57ba9b6f2eb5960e9d63957803a6163cac3d0b224b7",
+      "tree": "sha256:b097aea9a544a145040d4c90ebd12c96b8e0b652392708a3a410cceb1205abeb",
+      "recorded_at": "2026-10-13T15:35:16.213Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/evals/bench/browser.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4c9fedee30a15b84bf61c6107aaffe0cbccf1bfed11e0f441d8337e2190e2743",
+      "tree": "sha256:ac4db53c00a91601fa3953dd8df695b32c6c17eb0cb5aca59af7b21b0f2b0a43",
+      "recorded_at": "2026-10-13T15:35:33.854Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1b61972c4c0f6b781edc8ed698a1ffa12985218e62117061ffc5af8db4a1954b",
+      "tree": "sha256:cefdabae1488c9c92ae2582d2d8a7d7f978f9d318c69bca3b7db8f8adf750462",
+      "recorded_at": "2026-10-13T15:37:09.233Z"
+    }
+  ],
+  "closed_at": "2026-10-13T15:37:14.130Z"
+}

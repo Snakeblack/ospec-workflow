@@ -1,0 +1,121 @@
+{
+  "schema": "idd-state/v1",
+  "change": "bench-browser-cold-start",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "launchBrowser no aguanta el arranque en frío de Chromium en CI: los 4 primeros checks de todo-spa fallan con «the browser did not open its DevTools port» y bloquean publish-marketplace desde v2.134.0",
+    "acceptance": "Un arranque que agota su tiempo o en el que el navegador sale antes de abrir el puerto se reintenta con un perfil nuevo; si vuelve a fallar, el error dice si salió (con su código y el final de su stderr) o si se agotó el tiempo; un test de reproducción con un navegador falso lo prueba; Validate Harness pasa en main y publish-marketplace publica v2.134.2"
+  },
+  "facts": {
+    "open": [
+      "Robustez del arranque: ¿un reintento con perfil nuevo manteniendo los 20 s, subir el límite (p. ej. a 45 s) sin reintento, o ambos (un reintento y 30 s)?",
+      "Diagnóstico: ¿se captura el final del stderr del navegador (hoy stdio va a ignore) y el código de salida para incluirlos en el error, o basta con distinguir «salió» de «se agotó el tiempo»?",
+      "Alcance: ¿el arreglo va en browser.js (lo usan el banco real y los tests) o solo en el test (un arranque de calentamiento antes del lote en paralelo)?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "scripts/evals/bench/browser.js",
+      "scripts/evals/bench/browser.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Un reintento con perfil nuevo, manteniendo 20 s. El error final incluye el final del stderr del navegador y su código de salida, y distingue salida temprana de tiempo agotado. El arreglo va en browser.js.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-13T15:07:08.257Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-13T15:08:36.696Z",
+      "detail": {
+        "tree": "sha256:e80a70195db8474769fa9a64b9db7d1fd400035a3e17a0dcfc340b188f2e73d2",
+        "runs": [
+          "run-3"
+        ]
+      }
+    }
+  ],
+  "base": "a275f29e66f6b1389afc2634741cc69bd623ad12",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/evals/bench/browser.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:c7e5848734aeccfb5c456d31054e6791073832d08091f88fd50ffbc7c615e41a",
+      "tree": "sha256:c3aeb50237d0b04743c2e7ab192fe538e1f629510631ee7d81af88a97ba45536",
+      "recorded_at": "2026-10-13T15:06:13.528Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/evals/bench/browser.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:719762b0a4321c7092ae2c7d454520ba5dfb2c8a96dad495f94504d9b1ed6358",
+      "tree": "sha256:202c1a8028f9731340bb1645eca09c027ae0fe3b7a8a3dbc1404a26e077c2529",
+      "recorded_at": "2026-10-13T15:07:08.257Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:19f47866a3731a61f18a2b2109364d44449c5b271d31d703d64e4a6e079f5746",
+      "tree": "sha256:e80a70195db8474769fa9a64b9db7d1fd400035a3e17a0dcfc340b188f2e73d2",
+      "recorded_at": "2026-10-13T15:08:36.696Z"
+    }
+  ],
+  "closed_at": "2026-10-13T15:08:39.251Z"
+}
