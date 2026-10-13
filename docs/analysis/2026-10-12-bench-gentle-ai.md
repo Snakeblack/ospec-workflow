@@ -3,6 +3,8 @@
 Fecha: 2026-10-12 · Records: [`gentle-ai-1`](../../scripts/evals/bench/records/gentle-ai-1.json) e [`idd-3`](../../scripts/evals/bench/records/idd-3.json) · Harness: `c1048611f6e0` (el mismo en los dos) · Corpus: `dde01d7028a9` · Márgenes: `bench-margins-6`.
 Host: Claude Code 2.1.296 headless, modelo `claude-sonnet-5-5`, persona `claude-sonnet-5-5`, **una repetición** por escenario y brazo.
 
+> **Revisado el 2026-10-13 (OSP-025).** De esta comparación solo se sostiene que IDD no es inferior en los checks de aceptación y de regresión y que gasta menos tokens. La diferencia de escapados, 2 frente a 0, está en dos checks de hechos ocultos, no es significativa con una repetición y tiene factores de confusión. Ver la [sección 7](#7-revisión-del-2026-10-13-osp-025). El texto original se conserva.
+
 | Brazo | Producto | Huella |
 | --- | --- | --- |
 | `gentle-ai` | gentle-ai 4.1.1, compilado desde el tag `v4.1.1`, con engram 3.4.0: ODD con RDD activo (su valor por defecto) | `be60a758f7a5` |
@@ -56,7 +58,7 @@ Los seis escenarios terminan completos en los dos brazos. Ninguno usa subagentes
 ## 3. Checkpoint: `continue`
 
 - **Tokens:** IDD gasta **0,437 veces** lo que gasta gentle-ai (2,69 M frente a 6,16 M), con un margen ≤ 1. Por escenario, el ratio va de 0,35 (`brownfield`) a 0,62 (`bugfix`). El coste baja a la mitad: $1,71 frente a $3,43.
-- **Escapados y regresiones:** IDD escapa 0 defectos frente a 2 de gentle-ai. Ningún check que gentle-ai pase falla en IDD, así que no hay veto.
+- **Escapados y regresiones:** IDD escapa 0 defectos frente a 2 de gentle-ai. Ningún check que gentle-ai pase falla en IDD, así que no hay veto. Los dos escapados son checks de hechos ocultos; en aceptación y regresión los brazos empatan, y la diferencia no es significativa (sección 7).
 - **De dónde sale la diferencia de tokens:**
   - En los dos brazos, las lecturas de caché son el 89–90 % de los tokens.
   - gentle-ai hace 107 turnos de modelo, con 57,5 k tokens de media por turno. IDD hace 76, con 35,4 k.
@@ -104,3 +106,23 @@ Calculada sin modelo sobre el diff de producto (código, tests, tipos y document
 
   Los dos defectos se corrigieron en el harness antes de las corridas registradas.
 - **El checkpoint de E4.1** (`bench-margins-5`, `sdd-baseline-3` frente a `idd-2`) se reproduce desde v2.132.1: este cambio de harness retira su excepción de huella.
+
+## 7. Revisión del 2026-10-13 (OSP-025)
+
+Una auditoría externa (OSP-025) revisó esta comparación, y sus afirmaciones se comprobaron contra los records. El checkpoint `bench-margins-6` y los records no cambian: `continue` sigue siendo lo que dan los márgenes declarados. Lo que cambia es lo que se puede concluir.
+
+| Tipo de check | gentle-ai | IDD |
+| --- | --- | --- |
+| Aceptación | 6/6 | 6/6 |
+| Regresión | 11/11 | 11/11 |
+| Hechos ocultos | 24/26 | 26/26 |
+
+- **Significación:** 2 fallos frente a 0 sobre 26 hechos por brazo da p≈0,49 (Fisher bilateral). Con una repetición, no distingue los brazos.
+- **Qué mide la diferencia:** un check de hechos ocultos solo se pasa sabiendo algo que el brief no dice, y el gate `open-facts` de IDD existe para preguntarlo. Los dos escapados son defectos reales, porque la entrega no hace lo que el usuario quería, pero miden un solo tipo de defecto: el que se evita preguntando.
+- **Factores de confusión:**
+  - **Corpus no reservado.** `idd-1`, `idd-2`, `idd-3` y `gentle-ai-1` comparten corpus (`dde01d7028a9`). IDD se ajustó sobre él desde el 2026-10-07, y gentle-ai lo vio por primera vez.
+  - **Turno de commit.** Solo a gentle-ai le pide la persona el commit en un turno aparte (sección 4), que vuelve a cargar su contexto. Los records no guardan tokens por turno, así que no está medido. Como cota: aunque ese turno fuera el 30 % de los tokens de gentle-ai, el ratio pasaría de 0,437 a ~0,62 (2,69 M frente a 4,31 M), e IDD seguiría gastando menos.
+  - **Engram.** Solo se carga en el brazo de gentle-ai (sección 1). Forma parte de su instalación, pero su peso en contexto no se midió aparte.
+  - **Router.** El brazo IDD con Claude corre sin el router de ospec (`scripts/evals/bench/arms.js`) y entra al protocolo por la skill `idd`. En una instalación real, router más protocolo IDD miden 15,0–15,3 KB ([checkpoint de la Etapa 3](2026-10-11-checkpoint-etapa-3.md)), frente al `CLAUDE.md` de 82 KB de gentle-ai. El ahorro es estructural, pero puede ser menor que el medido aquí.
+- **Conclusión revisada:** IDD no es inferior en aceptación ni en regresión y gasta menos tokens en los seis escenarios. La ventaja en hechos ocultos es exploratoria.
+- **Seguimiento:** E4.9 `bench-arm-symmetry` pide el commit en el brief a los dos brazos, reporta engram aparte, carga el router y desglosa los checks por tipo. E4.6 valida en un escenario reservado.

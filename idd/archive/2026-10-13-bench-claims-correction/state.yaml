@@ -1,0 +1,92 @@
+{
+  "schema": "idd-state/v1",
+  "change": "bench-claims-correction",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "Corregir la comparación publicada de E4.2 (OSP-025): desglose por tipo de check, significación y factores de confusión",
+    "acceptance": "La comparación de arneses, el informe de E4.2 y la fila de escenarios del roadmap ya no dan la cifra de escapados de E4.2 sin su desglose (acceptance 6/6 y regression 11/11 en ambos brazos, fact 24/26 frente a 26/26), la significación (p≈0,49, una repetición) y los factores de confusión (corpus no reservado, turno de commit solo en gentle-ai, engram solo en gentle-ai, router de IDD sin cargar); records y checkpoint bench-margins-6 intactos"
+  },
+  "facts": {
+    "open": [
+      "Alcance: además de comparacion-arneses.md y el informe, ¿se corrigen la fila «Escenarios comparados» del roadmap y la frase de E4.6 «0 frente a 2 escapados venía de preguntar»? El historial y el CHANGELOG quedan como registro histórico.",
+      "Informe de E4.2: ¿se reescriben las secciones afectadas (§3 y §6) o se añade una sección fechada de revisión (OSP-025) dejando el texto original y una nota arriba?",
+      "Turno de commit: los records no guardan tokens por turno. ¿Se da la cuenta de sensibilidad del auditor (si fuera el 30 % de los tokens de gentle-ai, el ratio pasaría de 0,44 a ~0,62) o solo se declara como no medido?",
+      "Router de IDD sin cargar: ¿se mide ahora cuánto contexto fijo cargó de verdad el brazo IDD en E4.2 (para dar una cifra) o se declara cualitativamente y la cifra queda para E4.9?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/analysis/2026-10-12-bench-gentle-ai.md",
+      "docs/comparacion-arneses.md",
+      "docs/roadmaps/harness-evolution.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Alcance: también la fila «Escenarios comparados» del roadmap y matizar la frase de E4.6; historial y CHANGELOG intactos. Informe: nota arriba y sección nueva de revisión (OSP-025), dejando el texto original y corrigiendo la bala del §3. Commit: declararlo no medido con la cuenta de sensibilidad (30 % → ratio ~0,62). Router: cualitativo, con los 15,0–15,3 KB de router más protocolo IDD medidos en la Etapa 3; la cifra exacta queda para E4.9.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-13T14:30:21.161Z",
+      "detail": {
+        "tree": "sha256:9e666fb41d2f282b881ba1694e0745a60501a0a839e3fe4ed12abf1be7467f00",
+        "runs": [
+          "run-2"
+        ]
+      }
+    }
+  ],
+  "base": "a21bd7ca3adaddfbb284b880a9ed0e04d88d9872",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:5963db83933fe399ec8fe34539afdade455ff4494508af4c89b2f430cf6a3338",
+      "tree": "sha256:9e666fb41d2f282b881ba1694e0745a60501a0a839e3fe4ed12abf1be7467f00",
+      "recorded_at": "2026-10-13T14:29:40.298Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:646f2dca79780dcd762b5568af0e4b73c43840045518fc03bad36a8e29f9d014",
+      "tree": "sha256:9e666fb41d2f282b881ba1694e0745a60501a0a839e3fe4ed12abf1be7467f00",
+      "recorded_at": "2026-10-13T14:30:21.161Z"
+    }
+  ],
+  "closed_at": "2026-10-13T14:30:27.396Z"
+}

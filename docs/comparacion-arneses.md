@@ -8,11 +8,15 @@
 | --- | ---: | ---: |
 | Escenarios completos | 6/6 | 6/6 |
 | Checks ocultos en verde | 41/43 | 43/43 |
-| Defectos escapados | 2 | 0 |
+| — de aceptación | 6/6 | 6/6 |
+| — de regresión | 11/11 | 11/11 |
+| — de hechos ocultos (defectos escapados) | 24/26 (2) | 26/26 (0) |
 | Tokens | 6,16 M | 2,69 M |
 | Coste | $3,43 | $1,71 |
 | Hechos obtenidos del usuario | 6 de 25 | 24 de 25 |
 | Mutation score medio | 85,7 % | 78,5 % |
+
+Lo que sostiene la medición es que IDD no es inferior en los checks de aceptación ni en los de regresión y gasta menos de la mitad de tokens en los seis escenarios. Los dos escapados de gentle-ai son hechos que solo se conocen preguntando, y en eso IDD está diseñado para ganar: su gate `open-facts` pregunta antes de editar. Con una repetición, 2 frente a 0 no es significativo (Fisher bilateral, p≈0,49). La muestra es exploratoria y tiene factores de confusión: IDD se ajustó sobre este mismo corpus, solo a gentle-ai se le pidió el commit en un turno aparte, engram solo se cargó en su brazo y el brazo IDD corrió sin el router. El ahorro de tokens tiene una causa estructural, el `CLAUDE.md` de 82 KB que gentle-ai carga siempre, y aguanta esos factores. Detalle en la [revisión del informe](analysis/2026-10-12-bench-gentle-ai.md#7-revisión-del-2026-10-13-osp-025).
 
 Método, exclusiones y límites en el [informe](analysis/2026-10-12-bench-gentle-ai.md).
 
