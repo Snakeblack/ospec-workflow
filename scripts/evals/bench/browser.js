@@ -14,6 +14,7 @@ const { spawn } = require("node:child_process");
 
 const LAUNCH_TIMEOUT_MS = 20000;
 const LOAD_TIMEOUT_MS = 15000;
+const STDERR_TAIL_CHARS = 2048;
 const CANDIDATES = Object.freeze({
   linux: ["chromium", "chromium-browser", "google-chrome", "google-chrome-stable"],
   darwin: ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/Applications/Chromium.app/Contents/MacOS/Chromium"],
@@ -71,7 +72,8 @@ function delay(ms) {
   return new Promise((resolve) => { setTimeout(resolve, ms); });
 }
 
-async function waitForFile(file, timeoutMs) {
+/** The two lines of DevToolsActivePort, or an error once `child` exits or time runs out. */
+async function waitForPort(file, timeoutMs, child) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     let lines = [];
@@ -81,9 +83,12 @@ async function waitForFile(file, timeoutMs) {
       // not written yet, or still held by the browser (EBUSY on Windows)
     }
     if (lines.length >= 2) return lines;
+    if (child.exitCode !== null || child.signalCode !== null) {
+      throw new Error(`the browser exited with ${child.exitCode !== null ? `code ${child.exitCode}` : `signal ${child.signalCode}`} before opening its DevTools port`);
+    }
     await delay(50);
   }
-  throw new Error("the browser did not open its DevTools port");
+  throw new Error(`the browser did not open its DevTools port within ${timeoutMs} ms`);
 }
 
 /** One DevTools connection: commands by id and events by name, per session. */
@@ -237,36 +242,41 @@ function createPage(connection, sessionId, baseUrl) {
   };
 }
 
+const BROWSER_FLAGS = Object.freeze([
+  "--headless=new",
+  "--no-sandbox",
+  "--disable-gpu",
+  "--no-first-run",
+  "--no-default-browser-check",
+  "--disable-extensions",
+  "--remote-debugging-port=0",
+]);
+
 /**
- * Launches a headless browser on a fresh profile and serves `root`. Returns
- * { newPage(), close() }; close() also removes the profile.
+ * Starts one browser process on a fresh profile and waits for the DevTools
+ * port it opens. A start that exits or times out is tried once more: on a
+ * cold CI runner the first starts outlasted the timeout and the next ones
+ * took seconds (E4.7). Returns { port, browserPath, stop() }; stop() ends the
+ * process and removes the profile. The error of a second failure names how
+ * the browser failed and ends with its stderr.
  */
-async function launchBrowser({ root, executable = findBrowser() }) {
-  if (!executable) throw new Error("no Chromium-family browser found (set BENCH_CHROMIUM)");
+async function startBrowser(options) {
+  try {
+    return await startOnce(options);
+  } catch {
+    return startOnce(options);
+  }
+}
+
+async function startOnce({ executable, timeoutMs = LAUNCH_TIMEOUT_MS, spawnProcess = spawn }) {
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), "bench-browser-"));
-  const served = await serveDirectory(root);
-  const child = spawn(executable, [
-    "--headless=new",
-    "--no-sandbox",
-    "--disable-gpu",
-    "--no-first-run",
-    "--no-default-browser-check",
-    "--disable-extensions",
-    "--remote-debugging-port=0",
-    `--user-data-dir=${profile}`,
-    "about:blank",
-  ], { stdio: "ignore", windowsHide: true, detached: process.platform !== "win32" });
+  const child = spawnProcess(executable, [...BROWSER_FLAGS, `--user-data-dir=${profile}`, "about:blank"],
+    { stdio: ["ignore", "ignore", "pipe"], windowsHide: true, detached: process.platform !== "win32" });
+  let stderr = "";
+  child.stderr.on("data", (chunk) => { stderr = (stderr + chunk).slice(-STDERR_TAIL_CHARS); });
+  const stderrClosed = new Promise((resolve) => { child.stderr.once("close", resolve); });
   const exited = new Promise((resolve) => { child.once("exit", resolve); });
-  let connection = null;
-  const close = async () => {
-    if (connection) {
-      try {
-        await Promise.race([connection.send("Browser.close"), delay(2000)]);
-      } catch {
-        // already gone
-      }
-      connection.close();
-    }
+  const stop = async () => {
     // The browser and its helper processes (renderers, crash handler) keep
     // writing to the profile until they exit, so the whole process group goes
     // on POSIX, and the profile is removed once the browser has exited.
@@ -279,7 +289,6 @@ async function launchBrowser({ root, executable = findBrowser() }) {
       }
     }
     await Promise.race([exited, delay(5000)]);
-    await served.close();
     try {
       fs.rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
     } catch {
@@ -288,8 +297,42 @@ async function launchBrowser({ root, executable = findBrowser() }) {
     }
   };
   try {
-    const [port, browserPath] = await waitForFile(path.join(profile, "DevToolsActivePort"), LAUNCH_TIMEOUT_MS);
-    connection = await connect(`ws://127.0.0.1:${port}${browserPath}`);
+    const [port, browserPath] = await waitForPort(path.join(profile, "DevToolsActivePort"), timeoutMs, child);
+    return { port, browserPath, stop };
+  } catch (error) {
+    await stop();
+    // "exit" can come before the last stderr chunk; a helper that keeps the
+    // pipe open (Windows) only delays the error by a second.
+    await Promise.race([stderrClosed, delay(1000)]);
+    const output = stderr.trim();
+    throw new Error(output ? `${error.message}; stderr: ${output}` : error.message);
+  }
+}
+
+/**
+ * Launches a headless browser on a fresh profile and serves `root`. Returns
+ * { newPage(), close() }; close() also removes the profile.
+ */
+async function launchBrowser({ root, executable = findBrowser() }) {
+  if (!executable) throw new Error("no Chromium-family browser found (set BENCH_CHROMIUM)");
+  const served = await serveDirectory(root);
+  let started = null;
+  let connection = null;
+  const close = async () => {
+    if (connection) {
+      try {
+        await Promise.race([connection.send("Browser.close"), delay(2000)]);
+      } catch {
+        // already gone
+      }
+      connection.close();
+    }
+    if (started) await started.stop();
+    await served.close();
+  };
+  try {
+    started = await startBrowser({ executable });
+    connection = await connect(`ws://127.0.0.1:${started.port}${started.browserPath}`);
   } catch (error) {
     await close();
     throw error;
@@ -306,4 +349,4 @@ async function launchBrowser({ root, executable = findBrowser() }) {
   };
 }
 
-module.exports = { findBrowser, launchBrowser, serveDirectory };
+module.exports = { findBrowser, launchBrowser, serveDirectory, startBrowser };

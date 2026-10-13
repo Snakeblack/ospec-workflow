@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.134.2] - 2026-10-13
+
+### Fixed
+- **Arranque en frío del navegador del banco**: en CI, los cuatro primeros checks de `todo-spa`, que arrancan Chromium a la vez, agotaban los 20 s con «the browser did not open its DevTools port», mientras que los siguientes arrancaban en segundos. Validate Harness fallaba en `main` y bloqueaba `publish-marketplace` desde v2.134.0, así que v2.134.0 y v2.134.1 no llegaron al marketplace.
+  - `startBrowser` (`scripts/evals/bench/browser.js`) reintenta una vez, con un perfil nuevo, el arranque que agota el tiempo o en el que el navegador sale antes de abrir el puerto.
+  - Si falla también el reintento, el error dice si el navegador salió (con su código o señal) o si se agotó el tiempo, y termina con el final de su stderr, que antes se descartaba.
+  - Tres tests con un navegador falso lo reproducen: arranque en frío, caída y bloqueo. Hecho con IDD (`idd/archive/2026-10-13-bench-browser-cold-start/`).
+
+**Verificación directa**: `node scripts/check.js` (3680 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.134.1] - 2026-10-13
 
 ### Changed
