@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.134.1] - 2026-10-13
+
+### Changed
+- **Corrección de la comparación con gentle-ai (E4.7, OSP-025)**: una auditoría externa, comprobada contra los records, mostró que el titular «2 frente a 0 escapados» de E4.2 no se sostenía.
+  - `docs/comparacion-arneses.md` desglosa los checks por tipo: aceptación 6/6 y regresión 11/11 en los dos brazos, y hechos ocultos 24/26 frente a 26/26. Lo que se sostiene es que IDD no es inferior en aceptación ni en regresión y gasta menos de la mitad de tokens.
+  - El informe de E4.2 conserva su texto con una nota arriba y gana una sección de revisión. Recoge la significación (Fisher bilateral p≈0,49 con una repetición) y los factores de confusión: corpus no reservado, turno de commit solo en gentle-ai (ratio de ~0,62 aunque fuera el 30 % de sus tokens), engram solo en su brazo y router de IDD sin cargar (15,0–15,3 KB en una instalación real frente a 82 KB).
+  - El roadmap corrige la fila «Escenarios comparados» y entran E4.7–E4.10: IDD fuera de git, simetría del banco, E4.6 ampliado con un escenario reservado y la sugerencia de foundation en greenfield. Lo siguiente es E4.8 `non-git-workspace`.
+  - Records y checkpoint `bench-margins-6` sin cambios. Hecho con IDD (`idd/archive/2026-10-13-bench-claims-correction/`).
+
+**Verificación directa**: `node scripts/check.js` (3677 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.134.0] - 2026-10-13
 
 ### Added
