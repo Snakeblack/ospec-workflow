@@ -12,7 +12,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 
-const LAUNCH_TIMEOUT_MS = 20000;
+const LAUNCH_TIMEOUT_MS = 60000;
 const LOAD_TIMEOUT_MS = 15000;
 const STDERR_TAIL_CHARS = 2048;
 const CANDIDATES = Object.freeze({
@@ -254,9 +254,10 @@ const BROWSER_FLAGS = Object.freeze([
 
 /**
  * Starts one browser process on a fresh profile and waits for the DevTools
- * port it opens. A start that exits or times out is tried once more: on a
- * cold CI runner the first starts outlasted the timeout and the next ones
- * took seconds (E4.7). Returns { port, browserPath, stop() }; stop() ends the
+ * port it opens. A start that exits or times out is tried once more: on a CI
+ * runner busy with the rest of the suite, the first starts of todo-spa ran
+ * past 20 s, twice on Windows, and the later ones took seconds. Returns
+ * { port, browserPath, stop() }; stop() ends the
  * process and removes the profile. The error of a second failure names how
  * the browser failed and ends with its stderr.
  */
@@ -349,4 +350,4 @@ async function launchBrowser({ root, executable = findBrowser() }) {
   };
 }
 
-module.exports = { findBrowser, launchBrowser, serveDirectory, startBrowser };
+module.exports = { LAUNCH_TIMEOUT_MS, findBrowser, launchBrowser, serveDirectory, startBrowser };

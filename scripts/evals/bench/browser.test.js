@@ -8,7 +8,7 @@ const path = require("node:path");
 
 const { spawn } = require("node:child_process");
 
-const { findBrowser, serveDirectory, startBrowser } = require("./browser.js");
+const { LAUNCH_TIMEOUT_MS, findBrowser, serveDirectory, startBrowser } = require("./browser.js");
 
 // A stand-in for a Chromium start: `cold` hangs on its first start and opens
 // its port on the next, as a first start on a cold CI runner did (E4.7);
@@ -95,4 +95,10 @@ test("startBrowser reports the timeout and stderr of a browser that never opens 
     /the browser did not open its DevTools port within 500 ms; stderr: start 2/,
   );
   assert.equal(fake.starts(), 2);
+});
+
+test("a start waits up to 60 s before its retry, because a loaded CI runner outlasts 20 s twice", () => {
+  // PR #328, Windows: under the rest of the suite, the first four starts of
+  // todo-spa ran out of 20 s on both tries, and the next ones took seconds.
+  assert.ok(LAUNCH_TIMEOUT_MS >= 60000, `LAUNCH_TIMEOUT_MS is ${LAUNCH_TIMEOUT_MS}`);
 });
