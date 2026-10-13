@@ -16,6 +16,8 @@
 
 Método, exclusiones y límites en el [informe](analysis/2026-10-12-bench-gentle-ai.md).
 
+**Proyecto desde cero con Gemini (banco de E4.5, 2026-10-13).** En `todo-spa`, con el Antigravity CLI, Gemini 3.8 Flash y tres repeticiones, ningún brazo pregunta y los dos escapan los mismos seis hechos: IDD 6,67 defectos de media y 1,92 M tokens, gentle-ai 6,33 y 2,28 M. IDD entrega tests en dos de tres repeticiones (mutation score medio 33,3 %) y gentle-ai en ninguna (0 %). Detalle en el [informe](analysis/2026-10-13-bench-greenfield.md).
+
 Este documento presenta un análisis comparativo del arnés actual (**ospec-workflow v2.14.2**) frente a tres arneses de desarrollo asistido por IA de referencia en el ecosistema de código abierto:
 1. **[Gentle AI](https://github.com/Gentleman-Programming/gentle-ai)** de Gentleman Programming (código base de origen).
 2. **[ECC (Everything Claude Code)](https://github.com/affaan-m/ECC)** de affaan-m (optimizador de rendimiento, memoria y tokens).

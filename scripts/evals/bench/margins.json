@@ -1,15 +1,19 @@
 {
-  "schema_version": 4,
-  "margins_version": "bench-margins-6",
-  "declared_at": "2026-10-12",
+  "schema_version": 5,
+  "margins_version": "bench-margins-7",
+  "declared_at": "2026-10-13",
   "baseline_arm": "gentle-ai",
   "candidate_arm": "idd",
-  "repetitions": 1,
+  "repetitions": 3,
   "escaped_defects": {
     "max_mean_delta": 0
   },
   "tokens": {
     "max_total_ratio": 1
+  },
+  "quality": {
+    "max_mutation_score_deficit": 5,
+    "max_consistent_baseline_preferences": 1
   },
   "harness_exception": null
 }

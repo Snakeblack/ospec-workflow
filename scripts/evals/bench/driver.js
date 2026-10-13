@@ -7,11 +7,16 @@
 //    every turn that ends without the change being finished) until the arm
 //    says the change is done, or a turn or cost limit stops it;
 // 4. judge the delivered workspace with the scenario's hidden checks.
+// A host that reports no cost (agy) caps tokens instead (`maxTokens`); a limit
+// left undefined does not apply.
 // Host errors resume the session without the persona; two in a row stop it.
 // An exhausted usage quota stops at once (`host-quota`): the caller ends the
 // whole bench run there, because every later turn would fail the same way.
 // Only a change that was actually requested is judged; a voided setup leaves
 // the seed, which is not the arm's delivery.
+// A turn whose tools reached outside the run's own directory (`escapes`, from
+// the agy host) voids the run (`workspace-escape`): it is neither judged nor
+// counted, because the agent may have read another run's delivery.
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -80,7 +85,7 @@ function emptyConversation() {
   };
 }
 
-async function converse({ host, persona, prompt, cwd, runDir, label, maxTurns, maxCostUsd, isDone }) {
+async function converse({ host, persona, prompt, cwd, runDir, label, maxTurns, maxCostUsd, maxTokens, isDone }) {
   const state = emptyConversation();
   let sessionId = null;
   let message = prompt;
@@ -99,6 +104,11 @@ async function converse({ host, persona, prompt, cwd, runDir, label, maxTurns, m
     state.transcripts.push({ label, turn: state.agent_turns, sha256: turn.sha256 });
     state.conversation.push({ role: "agent", text: clip(turn.final_text), ...(turn.is_error ? { error: turn.error } : {}) });
 
+    if (turn.escapes && turn.escapes.length > 0) {
+      state.reason = "workspace-escape";
+      state.escapes = turn.escapes.map((escape) => ({ label, turn: state.agent_turns, ...escape }));
+      return state;
+    }
     if (isDone()) {
       state.status = "complete";
       return state;
@@ -112,8 +122,12 @@ async function converse({ host, persona, prompt, cwd, runDir, label, maxTurns, m
       state.reason = label === "setup" ? "setup-incomplete" : "max-agent-turns";
       return state;
     }
-    if (state.cost_usd >= maxCostUsd) {
+    if (maxCostUsd != null && state.cost_usd >= maxCostUsd) {
       state.reason = "max-cost";
+      return state;
+    }
+    if (maxTokens != null && tokenTotal(state.usage) >= maxTokens) {
+      state.reason = "max-tokens";
       return state;
     }
     if (turn.is_error) {
@@ -172,7 +186,7 @@ async function runScenario({
   for (const [index, prompt] of arm.setupPrompts.entries()) {
     setup = await converse({
       host, persona: setupPersona, prompt, cwd: workspaceRoot, runDir, label: index === 0 ? "setup" : `setup${index + 1}`,
-      maxTurns: bounds.maxSetupTurns, maxCostUsd: bounds.maxCostUsd, isDone: () => arm.isSetupDone(workspaceRoot),
+      maxTurns: bounds.maxSetupTurns, maxCostUsd: bounds.maxCostUsd, maxTokens: bounds.maxTokens, isDone: () => arm.isSetupDone(workspaceRoot),
     });
     if (setup.status !== "complete") break;
   }
@@ -192,15 +206,15 @@ async function runScenario({
   const modifiedSeed = fileList(setupChanged).filter((file) => seedFiles.has(file));
   if (setupSummary) setupSummary.modified_seed = modifiedSeed;
 
-  const setupReason = setup && setup.reason === "host-quota" ? "host-quota" : "setup-incomplete";
+  const setupReason = setup && ["host-quota", "workspace-escape"].includes(setup.reason) ? setup.reason : "setup-incomplete";
   const skipReason = setup && setup.status !== "complete" ? setupReason : modifiedSeed.length > 0 ? "setup-modified-seed" : null;
   let change;
   try {
     change = skipReason
-      ? { ...emptyConversation(), reason: skipReason }
+      ? { ...emptyConversation(), reason: skipReason, ...(setup && setup.escapes ? { escapes: setup.escapes } : {}) }
       : await converse({
         host, persona: { scenario, goal: arm.goal }, prompt: arm.changePrompt(scenario), cwd: workspaceRoot, runDir, label: "change",
-        maxTurns: bounds.maxAgentTurns, maxCostUsd: bounds.maxCostUsd, isDone: () => arm.isComplete(workspaceRoot, base),
+        maxTurns: bounds.maxAgentTurns, maxCostUsd: bounds.maxCostUsd, maxTokens: bounds.maxTokens, isDone: () => arm.isComplete(workspaceRoot, base),
       });
   } finally {
     if (host.release) host.release(workspaceRoot);
@@ -208,7 +222,7 @@ async function runScenario({
 
   git(workspaceRoot, ["add", "-A"]);
   const changedFiles = fileList(git(workspaceRoot, ["diff", "--cached", "--name-only", base]));
-  const judged = !skipReason && change.reason !== "host-quota";
+  const judged = !skipReason && !["host-quota", "workspace-escape"].includes(change.reason);
   const results = judged ? checks(scenario, workspaceRoot) : [];
 
   return {
@@ -237,6 +251,7 @@ async function runScenario({
     changed_files: changedFiles,
     conversation: change.conversation,
     transcripts: [...(setup ? setup.transcripts : []), ...change.transcripts],
+    ...(change.escapes ? { escapes: change.escapes } : {}),
   };
 }
 

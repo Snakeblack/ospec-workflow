@@ -21,9 +21,15 @@ function hasArchivedChange(root) {
   return hasDirectoryIn(path.join(root, "openspec", "changes", "archive"));
 }
 
-// `ospec close` moves a finished IDD change to idd/archive/<date>-<id>/.
-function hasClosedIddChange(root) {
-  return hasDirectoryIn(path.join(root, "idd", "archive"));
+// `ospec close` moves a finished IDD change to idd/archive/<date>-<id>/. Only an
+// entry the base commit lacks counts: where the router is loaded (agy), a
+// change the agent opened and closed during setup is not the requested one.
+function hasClosedIddChange(root, base) {
+  const dir = path.join(root, "idd", "archive");
+  if (!hasDirectoryIn(dir)) return false;
+  const before = base ? git(root, ["ls-tree", "-d", "--name-only", `${base}:idd/archive`]) : null;
+  const existing = new Set((before || "").split("\n").filter(Boolean));
+  return fs.readdirSync(dir, { withFileTypes: true }).some((entry) => entry.isDirectory() && !existing.has(entry.name));
 }
 
 function isIddMode(root) {
@@ -124,11 +130,16 @@ const ARMS = Object.freeze({
   }),
 });
 
-function armFor(id) {
+// On agy (E4.5) ospec is installed for antigravity without SDD, and its router
+// is loaded, so the IDD arm receives the brief as is, like gentle-ai (user
+// decision, 2026-10-13).
+function armFor(id, { host = "claude" } = {}) {
   const arm = ARMS[id];
   if (!arm) throw new Error(`unknown arm ${id}; known arms: ${Object.keys(ARMS).join(", ")}`);
   if (!arm.available) throw new Error(`arm ${id} is not available yet: ${arm.unavailable_reason}`);
-  return arm;
+  if (host !== "agy") return arm;
+  if (id === "sdd") throw new Error("arm sdd is not available on agy: the bench installs ospec for antigravity without SDD");
+  return id === "idd" ? Object.freeze({ ...arm, changePrompt: (scenario) => scenario.brief }) : arm;
 }
 
 module.exports = { ARMS, armFor, hasArchivedChange, hasClosedIddChange, hasOddDelivery };

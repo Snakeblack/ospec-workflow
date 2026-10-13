@@ -144,6 +144,17 @@ test("the cost limit stops a run", async () => {
   assert.equal(run.metrics.agent_turns, 2);
 });
 
+test("the token cap stops a run on a host that reports no cost, and an undefined cost cap does not apply", async () => {
+  const host = fakeHost({ texts: ["init", "uno", "dos", "tres"], effects: [initConfig] });
+  const run = await runScenario({
+    scenario: seedRepo(), arm: armFor("sdd"), host, ...dirs(), limits: { maxAgentTurns: 30, maxCostUsd: null, maxTokens: 80 }, checks: () => [],
+  });
+  assert.equal(run.status, "incomplete");
+  assert.equal(run.reason, "max-tokens");
+  assert.equal(run.metrics.agent_turns, 2, "40 tokens per turn reach 80 on the second");
+  assert.equal(run.metrics.tokens_total, 80);
+});
+
 test("host errors resume without the persona and two in a row stop the run", async () => {
   const host = fakeHost({ texts: ["init", "", "", ""], effects: [initConfig], errors: [undefined, "error_during_execution", "error_during_execution"] });
   const run = await runScenario({ scenario: seedRepo(), arm: armFor("sdd"), host, ...dirs(), checks: () => [] });
@@ -190,6 +201,35 @@ test("an exhausted host quota stops the run at once, without retrying or judging
   const setupRun = await runScenario({ scenario: seedRepo(), arm: armFor("sdd"), host: setupHost, ...dirs(), checks: () => [] });
   assert.equal(setupRun.reason, "host-quota");
   assert.equal(setupHost.calls.turns.length, 1);
+});
+
+test("a turn that escapes the workspace voids the run at once, even when it finished the change, without judging it", async () => {
+  const escapeOn = (host, index) => {
+    const original = host.turn;
+    let calls = 0;
+    host.turn = async (args) => {
+      const turn = await original(args);
+      calls += 1;
+      return calls === index ? { ...turn, escapes: [{ step: 4, tool: "run_command", paths: ["/tmp/ospec-bench/other"] }] } : { ...turn, escapes: [] };
+    };
+  };
+  const host = fakeHost({ texts: ["init", "Hecho y archivado.", "no debería llegar"], effects: [initConfig, archive] });
+  escapeOn(host, 2);
+  let judged = false;
+  const run = await runScenario({ scenario: seedRepo(), arm: armFor("sdd"), host, ...dirs(), checks: () => { judged = true; return []; } });
+  assert.equal(run.status, "incomplete");
+  assert.equal(run.reason, "workspace-escape");
+  assert.deepEqual(run.escapes, [{ label: "change", turn: 1, step: 4, tool: "run_command", paths: ["/tmp/ospec-bench/other"] }]);
+  assert.equal(host.calls.persona.length, 0);
+  assert.equal(judged, false);
+
+  const setupHost = fakeHost({ texts: ["init", "no debería llegar"], effects: [initConfig] });
+  escapeOn(setupHost, 1);
+  const setupRun = await runScenario({ scenario: seedRepo(), arm: armFor("sdd"), host: setupHost, ...dirs(), checks: () => { judged = true; return []; } });
+  assert.equal(setupRun.reason, "workspace-escape");
+  assert.equal(setupRun.escapes[0].label, "setup");
+  assert.equal(setupHost.calls.turns.length, 1, "the change is never requested");
+  assert.equal(judged, false);
 });
 
 test("the setup persona never sees the change request, its facts, or its goal", async () => {

@@ -10,6 +10,7 @@ const {
   PROFILES,
   BenchScenarioError,
   harnessDigest,
+  loadCorpus,
   loadScenario,
   loadScenarios,
   materializeRepo,
@@ -106,6 +107,8 @@ test("the harness digest covers the bench code but not scenarios, fixtures, reco
   fs.writeFileSync(path.join(root, "hosts", "claude.js"), "b\n");
   const before = harnessDigest(root);
   fs.writeFileSync(path.join(root, "scenarios", "x", "checks.js"), "c\n");
+  fs.mkdirSync(path.join(root, "scenarios-greenfield", "y"), { recursive: true });
+  fs.writeFileSync(path.join(root, "scenarios-greenfield", "y", "checks.js"), "e\n");
   fs.writeFileSync(path.join(root, "driver.test.js"), "d\n");
   assert.equal(harnessDigest(root), before);
   fs.writeFileSync(path.join(root, "hosts", "claude.js"), "b2\n");
@@ -121,4 +124,15 @@ test("materializeRepo copies the seed repository only", () => {
   assert.equal(fs.readFileSync(path.join(dest, "src", "a.js"), "utf8"), "module.exports = 1;\n");
   assert.ok(!fs.existsSync(path.join(dest, "checks.js")));
   assert.ok(!fs.existsSync(path.join(dest, "scenario.json")));
+});
+
+test("the greenfield corpus is apart from the default one and does not change its digest", () => {
+  const [todo, ...rest] = loadCorpus("greenfield");
+  assert.deepEqual(rest, []);
+  assert.equal(todo.id, "todo-spa");
+  assert.equal(todo.profile, "greenfield");
+  assert.equal(todo.facts.length, 9);
+  assert.deepEqual(loadCorpus().map((scenario) => scenario.id), loadScenarios().map((scenario) => scenario.id));
+  assert.ok(!loadCorpus().some((scenario) => scenario.profile === "greenfield"));
+  assert.throws(() => loadCorpus("nope"), /unknown corpus nope/);
 });

@@ -9,7 +9,7 @@ const path = require("node:path");
 const { MARGINS_PATH, evaluateCheckpoint, loadMargins, renderCheckpoint, validateMargins } = require("./checkpoint.js");
 
 const margins = {
-  schema_version: 4,
+  schema_version: 5,
   margins_version: "test-margins",
   declared_at: "2026-10-06",
   baseline_arm: "sdd",
@@ -17,6 +17,7 @@ const margins = {
   repetitions: 1,
   escaped_defects: { max_mean_delta: 0 },
   tokens: { max_total_ratio: 0.9 },
+  quality: null,
   harness_exception: null,
 };
 const exception = {
@@ -62,15 +63,17 @@ const reps = (scenarioId, specs) => specs.map(([tokens, failing = []], index) =>
 
 test("the committed margins load and carry a digest", () => {
   const { margins: loaded, digest } = loadMargins(MARGINS_PATH);
-  // E4.2 (user decisions, 2026-10-12): IDD against gentle-ai, both run with
-  // the same harness, one repetition; IDD may not escape more defects nor
-  // spend more tokens.
+  // E4.5 (user decisions, 2026-10-13): IDD against gentle-ai on agy, three
+  // repetitions; IDD may not escape more defects nor spend more tokens, its
+  // mean mutation score may trail by at most 5 points, and the blind review
+  // may prefer gentle-ai consistently in at most one pair.
   assert.equal(loaded.baseline_arm, "gentle-ai");
   assert.equal(loaded.candidate_arm, "idd");
-  assert.equal(loaded.margins_version, "bench-margins-6");
-  assert.equal(loaded.repetitions, 1);
+  assert.equal(loaded.margins_version, "bench-margins-7");
+  assert.equal(loaded.repetitions, 3);
   assert.equal(loaded.escaped_defects.max_mean_delta, 0);
   assert.equal(loaded.tokens.max_total_ratio, 1);
+  assert.deepEqual(loaded.quality, { max_mutation_score_deficit: 5, max_consistent_baseline_preferences: 1 });
   assert.equal(loaded.harness_exception, null);
   assert.match(digest, /^[a-f0-9]{64}$/);
 });
@@ -81,6 +84,11 @@ test("validateMargins rejects unknown or missing margins", () => {
   assert.throws(() => validateMargins({ ...margins, repetitions: 0 }), /repetitions/);
   assert.throws(() => validateMargins({ ...margins, tokens: { max_total_ratio: 0 } }), /max_total_ratio/);
   assert.throws(() => validateMargins({ ...margins, escaped_defects: { max_mean_delta: -1 } }), /max_mean_delta/);
+  const quality = { max_mutation_score_deficit: 5, max_consistent_baseline_preferences: 1 };
+  assert.deepEqual(validateMargins({ ...margins, quality }).quality, quality);
+  assert.throws(() => validateMargins({ ...margins, quality: { ...quality, extra: 1 } }), /quality must be null/);
+  assert.throws(() => validateMargins({ ...margins, quality: { ...quality, max_mutation_score_deficit: -1 } }), /max_mutation_score_deficit/);
+  assert.throws(() => validateMargins({ ...margins, quality: { ...quality, max_consistent_baseline_preferences: 0.5 } }), /max_consistent_baseline_preferences/);
   assert.equal(validateMargins({ ...margins, harness_exception: exception }).harness_exception, exception);
   assert.throws(() => validateMargins({ ...margins, harness_exception: { ...exception, extra: 1 } }), /harness_exception/);
   assert.throws(() => validateMargins({ ...margins, harness_exception: { ...exception, baseline_digest: "f" } }), /baseline_digest/);

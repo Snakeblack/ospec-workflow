@@ -1,0 +1,261 @@
+{
+  "schema": "idd-state/v1",
+  "change": "greenfield-head-to-head",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "feature",
+    "summary": "E4.5: el banco gana el host agy (Antigravity CLI) con Gemini 3.8 Flash, un brazo gentle-ai instalado para agy, y un corpus greenfield con el escenario todo-spa (lista de tareas en un único index.html, comprobada con Chromium headless por CDP); se ejecuta IDD frente a gentle-ai con 3 repeticiones y se publica el informe",
+    "acceptance": "bench.js run --host agy --corpus greenfield --arm idd|gentle-ai --repetitions 3 produce dos records completos de todo-spa en agy con gemini-3.8-flash-high, los checks ocultos juzgan cada entrega en Chromium headless, el checkpoint con márgenes nuevos da su veredicto y el informe queda publicado en docs/analysis"
+  },
+  "facts": {
+    "open": [
+      "¿El escenario todo-spa va en un corpus aparte (scenarios-greenfield, sin tocar el digest de los 6 escenarios de E4.1/E4.2) o se añade al corpus actual con un perfil nuevo?",
+      "¿Qué contiene la semilla greenfield: solo README con el contrato del DOM, o además un package.json mínimo con test = node --test y sin dependencias, para que IDD tenga un check que ejecutar?",
+      "¿Cómo se pide el cambio al brazo IDD en agy: el brief tal cual (el router de ospec está cargado en agy, como gentle-ai que recibe el brief tal cual) o invocando la skill idd explícitamente como en E4.1/E4.2?",
+      "agy no da coste en dólares: ¿qué límite sustituye a max-cost por escenario (por ejemplo un tope de tokens) y se mantienen 30 turnos de agente?",
+      "¿Con qué variante de Claude Sonnet 5.5 en agy contesta la persona (low, medium o high)?",
+      "¿Qué márgenes declara bench-margins-7: mismos criterios que E4.2 (IDD no escapa más defectos de media ni gasta más tokens que gentle-ai) con 3 repeticiones, u otros?",
+      "¿Se mide también la calidad (mutation score) de las entregas, o solo defectos escapados, tokens y preguntas?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/analysis/2026-10-13-bench-greenfield.md",
+      "docs/comparacion-arneses.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/specs/bench/spec.md",
+      "scripts/evals/bench/README.md",
+      "scripts/evals/bench/__fixtures__/reference-greenfield/todo-spa/index.html",
+      "scripts/evals/bench/bench.js",
+      "scripts/evals/bench/bench.test.js",
+      "scripts/evals/bench/browser.js",
+      "scripts/evals/bench/browser.test.js",
+      "scripts/evals/bench/check-kit.js",
+      "scripts/evals/bench/checkpoint.js",
+      "scripts/evals/bench/checks.test.js",
+      "scripts/evals/bench/driver.js",
+      "scripts/evals/bench/driver.test.js",
+      "scripts/evals/bench/hosts/agy.js",
+      "scripts/evals/bench/hosts/agy.test.js",
+      "scripts/evals/bench/hosts/gentle-ai.js",
+      "scripts/evals/bench/hosts/gentle-ai.test.js",
+      "scripts/evals/bench/margins.json",
+      "scripts/evals/bench/record.js",
+      "scripts/evals/bench/scenarios-greenfield/todo-spa/checks.js",
+      "scripts/evals/bench/scenarios-greenfield/todo-spa/repo/README.md",
+      "scripts/evals/bench/scenarios-greenfield/todo-spa/repo/package.json",
+      "scripts/evals/bench/scenarios-greenfield/todo-spa/scenario.json",
+      "scripts/evals/bench/scenarios.js",
+      "scripts/evals/bench/scenarios.test.js",
+      "scripts/evals/quality/README.md",
+      "scripts/evals/quality/judge.js",
+      "scripts/evals/quality/mutation.js",
+      "scripts/evals/quality/quality.js",
+      "scripts/evals/quality/quality.test.js"
+    ],
+    "work_units": 4,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 4 work units",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "todos los recomendados: (1) corpus aparte scenarios-greenfield con --corpus; (2) semilla con README (encargo y contrato del DOM por ids) y package.json mínimo con test = node --test sin dependencias; (3) brazo IDD recibe el brief tal cual; (4) 30 turnos y tope de 30 M tokens por ejecución en lugar de max-cost; (5) persona claude-sonnet-5-5-medium en agy; (6) bench-margins-7 con los criterios de E4.2 y 3 repeticiones (baseline gentle-ai, candidato idd, media de escapados ≤, tokens ≤ 1,0×); (7) sin mutation score",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-12T22:55:29.546Z",
+      "detail": {
+        "tree": "sha256:f029f86fe9a56991d74abedf0a6471c71fb8cea17e5fc1eb2da52d0bda319c68",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-12T22:58:14.978Z",
+      "detail": {
+        "tree": "sha256:9e4fcf8f1734606d519dfefabdccdd9935949f2cb62bf57ee13027ad5b98ea96",
+        "runs": [
+          "run-2"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-12T22:58:40.148Z",
+      "detail": {
+        "tree": "sha256:9e4fcf8f1734606d519dfefabdccdd9935949f2cb62bf57ee13027ad5b98ea96",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-12T23:45:12.644Z",
+      "detail": {
+        "tree": "sha256:ade846d765e3da4500c39912c23d9b955c44c28c72bee365f1f019189835b31e",
+        "runs": [
+          "run-8"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-13T09:50:10.203Z",
+      "detail": {
+        "tree": "sha256:d8940447558c3efc133be662e72be981eb366699c6eced9555daaea0f610cb67",
+        "runs": [
+          "run-9"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-13T09:50:30.099Z"
+    }
+  ],
+  "base": "80cf4bac5557baa5129ef5e3bd867ef11aeab05f",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b1e0f11aa66b270558a91ecc73623da31f6724bfa542d969e69c7a2db94d9d8d",
+      "tree": "sha256:f029f86fe9a56991d74abedf0a6471c71fb8cea17e5fc1eb2da52d0bda319c68",
+      "recorded_at": "2026-10-12T22:55:29.546Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f18313642219ed7320f2baab0edd862841210e4e8f5dfebdf77290d2100c66aa",
+      "tree": "sha256:9e4fcf8f1734606d519dfefabdccdd9935949f2cb62bf57ee13027ad5b98ea96",
+      "recorded_at": "2026-10-12T22:58:14.978Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:28cb48169f3b42ad6f8549836868b9235ee2bc5fc6e2cd97af271dcb60035bf4",
+      "tree": "sha256:9e4fcf8f1734606d519dfefabdccdd9935949f2cb62bf57ee13027ad5b98ea96",
+      "recorded_at": "2026-10-12T22:58:40.148Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:1b9be53d938a6532d53fbd476b2a7540468b5427aff530df7fcd7817241b7264",
+      "tree": "sha256:ade846d765e3da4500c39912c23d9b955c44c28c72bee365f1f019189835b31e",
+      "recorded_at": "2026-10-12T23:42:47.169Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:e9f7e086d6fc4285676fbfb8809d460d2444d3f3e3087dee2558fc673a0f270a",
+      "tree": "sha256:ade846d765e3da4500c39912c23d9b955c44c28c72bee365f1f019189835b31e",
+      "recorded_at": "2026-10-12T23:43:11.345Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:c964768024067260a3a29f757b320990f3755df3cfafe9a245ab25b097cd8eb3",
+      "tree": "sha256:ade846d765e3da4500c39912c23d9b955c44c28c72bee365f1f019189835b31e",
+      "recorded_at": "2026-10-12T23:44:00.327Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:fb2fbafe5313103fdb466a61ee9ac272ef0d4d13570eabaf257d679fd4966782",
+      "tree": "sha256:ade846d765e3da4500c39912c23d9b955c44c28c72bee365f1f019189835b31e",
+      "recorded_at": "2026-10-12T23:44:23.356Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1c95af972688f9a17b9a3e0dcc6184ae2c88cc82e30a48d8f557fc72144a249d",
+      "tree": "sha256:ade846d765e3da4500c39912c23d9b955c44c28c72bee365f1f019189835b31e",
+      "recorded_at": "2026-10-12T23:45:12.644Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:88615d1da9cda79c0d094ef89dc847e4af4de29bbec571936cfa695e90be826e",
+      "tree": "sha256:d8940447558c3efc133be662e72be981eb366699c6eced9555daaea0f610cb67",
+      "recorded_at": "2026-10-13T09:50:10.203Z"
+    }
+  ],
+  "closed_at": "2026-10-13T09:50:30.099Z"
+}

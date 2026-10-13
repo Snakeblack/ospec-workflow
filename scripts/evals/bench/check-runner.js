@@ -12,7 +12,7 @@ async function main([checksPath, root, checkId]) {
   try {
     await check.run(kit);
   } finally {
-    kit.cleanup();
+    await kit.cleanup();
   }
 }
 

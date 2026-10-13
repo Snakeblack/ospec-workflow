@@ -7,7 +7,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const { armFor, hasOddDelivery } = require("./arms.js");
+const { armFor, hasClosedIddChange, hasOddDelivery } = require("./arms.js");
 
 function git(cwd, args) {
   const result = spawnSync("git", args, { cwd, encoding: "utf8" });
@@ -97,4 +97,27 @@ test("a renamed file outside odd/ is pending work", () => {
   commit(root, "feat: dos");
   git(root, ["mv", "index.js", "main.js"]);
   assert.equal(hasOddDelivery(root, base), false);
+});
+
+test("on agy the idd arm receives the brief as is and the sdd arm is not available", () => {
+  const arm = armFor("idd", { host: "agy" });
+  assert.equal(arm.changePrompt({ brief: "Quiero prioridades." }), "Quiero prioridades.");
+  assert.deepEqual(arm.setupPrompts, armFor("idd").setupPrompts);
+  assert.match(armFor("idd").changePrompt({ brief: "Quiero prioridades." }), /^\/ospec-workflow:idd /);
+  assert.equal(armFor("gentle-ai", { host: "agy" }), armFor("gentle-ai"));
+  assert.throws(() => armFor("sdd", { host: "agy" }), /not available on agy/);
+});
+
+test("only an IDD change archived after setup closes the requested change", () => {
+  const { root } = workspace();
+  write(root, "idd/archive/2026-10-13-setup-config/change.md", "# setup\n");
+  commit(root, "setup with an archived change");
+  const base = git(root, ["rev-parse", "HEAD"]);
+  assert.equal(hasClosedIddChange(root, base), false, "the change closed during setup is not the requested one");
+  write(root, "idd/archive/2026-10-13-todo-spa/change.md", "# todo\n");
+  assert.equal(hasClosedIddChange(root, base), true);
+  const fresh = workspace();
+  assert.equal(hasClosedIddChange(fresh.root, fresh.base), false);
+  write(fresh.root, "idd/archive/2026-10-13-x/change.md", "# x\n");
+  assert.equal(hasClosedIddChange(fresh.root, fresh.base), true);
 });

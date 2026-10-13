@@ -16,6 +16,9 @@ const CATEGORIES = Object.freeze(["source", "test", "types", "docs", "other"]);
 // Workflow state of ospec (SDD, IDD) and gentle-ai (odd/ feature documents,
 // .atl/ skill registry), and host directories.
 const WORKFLOW = /^(\.ospec|openspec|idd|odd|\.atl|\.claude|\.agents|\.codex|\.cursor|\.opencode)\//;
+// Installed dependencies and their lockfiles (an agent may add jsdom for its
+// tests) are not product either; they are counted with the workflow files.
+const DEPENDENCIES = /(^|\/)node_modules\/|(^|\/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml)$/;
 const TEST = /(^|\/)(test|tests|__tests__)\/|\.(test|spec)\.[cm]?[jt]sx?$/;
 const TYPES = /\.d\.[cm]?ts$/;
 const DOCS = /\.(md|mdx|txt|rst)$|(^|\/)(CHANGELOG|LICENSE)[^/]*$/i;
@@ -26,7 +29,7 @@ function normalize(file) {
 
 function classifyPath(file) {
   const normalized = normalize(file);
-  if (WORKFLOW.test(normalized)) return "workflow";
+  if (WORKFLOW.test(normalized) || DEPENDENCIES.test(normalized)) return "workflow";
   if (TEST.test(normalized)) return "test";
   if (TYPES.test(normalized)) return "types";
   if (DOCS.test(normalized)) return "docs";
@@ -106,12 +109,17 @@ function git(cwd, args) {
   return result.stdout;
 }
 
-// A scenario's workspace, `<root>/<record>/<scenario>` or its first repetition.
-function locateWorkspace(benchRoot, record, scenario) {
-  for (const candidate of [path.join(benchRoot, record, scenario), path.join(benchRoot, record, scenario, "r1")]) {
+// A scenario's workspace for one repetition: `<root>/<record>/<scenario>/r<n>`,
+// or `<root>/<record>/<scenario>` when the record ran it once, either as the
+// workspace itself or, as the bench archives it, its `workspace/` directory.
+function locateWorkspace(benchRoot, record, scenario, repetition = 1) {
+  const slots = [path.join(benchRoot, record, scenario, `r${repetition}`)];
+  if (repetition === 1) slots.unshift(path.join(benchRoot, record, scenario));
+  const candidates = slots.flatMap((slot) => [path.join(slot, "workspace"), slot]);
+  for (const candidate of candidates) {
     if (fs.existsSync(path.join(candidate, ".git"))) return candidate;
   }
-  throw new Error(`no workspace for ${record}/${scenario} under ${benchRoot}`);
+  throw new Error(`no workspace for ${record}/${scenario} repetition ${repetition} under ${benchRoot}`);
 }
 
 // The commit the bench made after setup; the change starts there.

@@ -21,6 +21,10 @@
 // the current harness with those files restored), and the result reports the
 // pair it applied.
 //
+// The margins may also declare a quality criterion (E4.5): the comparison of
+// the deliveries' mutation scores and blind review that scripts/evals/quality
+// evaluates, since a record holds neither. The checkpoint only validates it.
+//
 // Measurement tooling only: it grants no authority and promotes nothing.
 
 const fs = require("node:fs");
@@ -30,8 +34,9 @@ const { sha256Fingerprint } = require("../../lib/canonical-json.js");
 const { taskInterval } = require("./stats.js");
 
 const MARGINS_PATH = path.join(__dirname, "margins.json");
-const MARGINS_SCHEMA_VERSION = 4;
-const MARGINS_KEYS = Object.freeze(["schema_version", "margins_version", "declared_at", "baseline_arm", "candidate_arm", "repetitions", "escaped_defects", "tokens", "harness_exception"]);
+const MARGINS_SCHEMA_VERSION = 5;
+const MARGINS_KEYS = Object.freeze(["schema_version", "margins_version", "declared_at", "baseline_arm", "candidate_arm", "repetitions", "escaped_defects", "tokens", "quality", "harness_exception"]);
+const QUALITY_KEYS = Object.freeze(["max_mutation_score_deficit", "max_consistent_baseline_preferences"]);
 const EXCEPTION_KEYS = Object.freeze(["baseline_digest", "candidate_digests", "changed_files", "reason"]);
 const DIGEST_PATTERN = /^[a-f0-9]{64}$/;
 const IDENTITY_FIELDS = Object.freeze([["scenarios_digest"], ["harness_digest"], ["host", "name"], ["host", "model"], ["host", "effort"], ["persona", "model"]]);
@@ -67,8 +72,18 @@ function validateMargins(margins) {
   if (!isPlainObject(margins.tokens) || !hasExactKeys(margins.tokens, ["max_total_ratio"]) || typeof ratio !== "number" || !(ratio > 0)) {
     fail("tokens.max_total_ratio must be a positive number");
   }
+  validateQuality(margins.quality, fail);
   validateHarnessException(margins.harness_exception, fail);
   return margins;
+}
+
+function validateQuality(quality, fail) {
+  if (quality === null) return;
+  if (!isPlainObject(quality) || !hasExactKeys(quality, QUALITY_KEYS)) fail(`quality must be null or declare exactly ${QUALITY_KEYS.join(", ")}`);
+  if (typeof quality.max_mutation_score_deficit !== "number" || !(quality.max_mutation_score_deficit >= 0)) fail("quality.max_mutation_score_deficit must be a non-negative number of points");
+  if (!Number.isInteger(quality.max_consistent_baseline_preferences) || quality.max_consistent_baseline_preferences < 0) {
+    fail("quality.max_consistent_baseline_preferences must be a non-negative integer");
+  }
 }
 
 function validateHarnessException(exception, fail) {

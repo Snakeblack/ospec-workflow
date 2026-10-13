@@ -4,7 +4,8 @@
 // throw on a line the agent added to production code, and the delivered test
 // suite runs against it in a copy of the workspace. A mutant the suite fails on
 // is killed; one it passes survives. The mutation score says how well the
-// agent's tests protect the agent's code.
+// agent's tests protect the agent's code. In an HTML file only the code of its
+// inline scripts is mutated (E4.5): never its markup or its CSS.
 
 const fs = require("node:fs");
 const os = require("node:os");
@@ -112,6 +113,31 @@ function generateMutants(file, line, text) {
   return mutants;
 }
 
+// Script types that hold JavaScript; any other type (JSON, templates) is data.
+const JS_TYPE = /^\s*(?:module|(?:text|application)\/(?:java|ecma)script)\s*$/i;
+
+/**
+ * Line numbers (1-based) of the code inside the inline `<script>` blocks of an
+ * HTML file: the lines strictly between an opening tag without `src` and its
+ * closing tag. The tag lines themselves are left out.
+ */
+function inlineScriptLines(text) {
+  const inside = new Set();
+  let open = false;
+  String(text).split("\n").forEach((line, index) => {
+    if (open) {
+      if (/<\/script\s*>/i.test(line)) open = false;
+      else inside.add(index + 1);
+      return;
+    }
+    const tag = /<script\b([^>]*)>/i.exec(line);
+    if (!tag || /\bsrc\s*=/i.test(tag[1]) || /<\/script\s*>/i.test(line.slice(tag.index))) return;
+    const type = /\btype\s*=\s*["']?([^"'\s>]+)/i.exec(tag[1]);
+    open = !type || JS_TYPE.test(type[1]);
+  });
+  return inside;
+}
+
 /** At most `limit` items, evenly spread and always including both ends. */
 function sampleEvenly(items, limit) {
   if (items.length <= limit) return [...items];
@@ -122,12 +148,16 @@ function sampleEvenly(items, limit) {
 
 // --- running -----------------------------------------------------------------
 
+// The copy links the delivered node_modules instead of copying it, so a suite
+// that needs the agent's development dependencies (jsdom) still runs.
 function copyWorkspace(workspace) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-mutation-"));
   fs.cpSync(workspace, dir, {
     recursive: true,
     filter: (source) => !/[\\/](\.git|node_modules)$/.test(source),
   });
+  const modules = path.join(workspace, "node_modules");
+  if (fs.existsSync(modules)) fs.symlinkSync(modules, path.join(dir, "node_modules"), "junction");
   return dir;
 }
 
@@ -181,4 +211,4 @@ function runMutation({ workspace, added, sourceFiles, command, limit = 60, timeo
   }
 }
 
-module.exports = { generateMutants, maskLiterals, runMutation, sampleEvenly };
+module.exports = { copyWorkspace, generateMutants, inlineScriptLines, maskLiterals, runMutation, sampleEvenly };

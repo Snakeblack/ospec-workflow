@@ -1,0 +1,659 @@
+{
+  "schema_version": 2,
+  "record_id": "idd-agy-3",
+  "arm": "idd",
+  "recorded_at": "2026-10-13T00:19:08.043Z",
+  "host": {
+    "name": "agy",
+    "cli_version": "1.3.3",
+    "model": "gemini-3.8-flash-high",
+    "effort": null,
+    "plugin_version": "2.133.0",
+    "plugin_digest": "cff87083a69bdb2cf07ae25e19237f753c3aed97c03a34443f0ee5d9b077c189"
+  },
+  "persona": {
+    "model": "claude-sonnet-5-5-medium"
+  },
+  "scenarios_digest": "5e3492d751d91ca0bb944413b272ecf205deade01c47f5bb6d14dc97518e88ef",
+  "harness_digest": "ec2585d2ae9095fad3a8c481347878b9b5cef95d4de5edefe54f9b349785b379",
+  "limits": {
+    "maxAgentTurns": 30,
+    "maxSetupTurns": 6,
+    "maxCostUsd": null,
+    "maxTokens": 30000000
+  },
+  "repetitions": 3,
+  "runs": [
+    {
+      "scenario_id": "todo-spa",
+      "repetition": 1,
+      "profile": "greenfield",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 31053,
+          "output": 881,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "duration_ms": 10428,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 188996,
+          "output": 45963,
+          "cache_read": 2141719,
+          "cache_creation": 0
+        },
+        "tokens_total": 2376678,
+        "cost_usd": 0,
+        "duration_ms": 362672,
+        "agent_turns": 1,
+        "model_turns": 1,
+        "subagents": 0,
+        "questions": 0,
+        "decision_changing_questions": 0,
+        "interventions": 0,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "single-file",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "add-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "complete-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "delete-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "title-trimmed",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "empty-title-rejected",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "title-max-200",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',\n+   'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab'\n  ]\n"
+        },
+        {
+          "id": "pending-duplicate-rejected",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'Comprar pan',\n+   'comprar PAN'\n  ]\n"
+        },
+        {
+          "id": "completed-duplicate-allowed",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "persists-reload",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": false,
+          "error": "stored under tareas.v1"
+        },
+        {
+          "id": "corrupt-storage-empty",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": false,
+          "error": "stored 42\n+ actual - expected\n\n+ [\n+   'Comprar pan'\n+ ]\n- []\n"
+        },
+        {
+          "id": "counter-wording",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ '0 pendientes'\n- 'Sin tareas pendientes'\n"
+        },
+        {
+          "id": "filter-from-url",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": true
+        },
+        {
+          "id": "filter-links-hash",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": true
+        },
+        {
+          "id": "edit-enter-saves-trimmed",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "edit-escape-cancels",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "edit-empty-deletes",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "stable-order",
+          "kind": "fact",
+          "fact": "F7",
+          "pass": true
+        },
+        {
+          "id": "title-as-text",
+          "kind": "fact",
+          "fact": "F8",
+          "pass": true
+        },
+        {
+          "id": "accessible-names",
+          "kind": "fact",
+          "fact": "F9",
+          "pass": false,
+          "error": "checkbox 0: Marcar tarea como completada"
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 6,
+      "facts_disclosed": [],
+      "changed_files": [
+        "idd/archive/2026-10-13-todo-spa/state.yaml",
+        "index.html"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Se ha creado la lista de tareas en un único archivo [index.html](file:///tmp/ospec-bench/XZV8Yn/todo-spa/index.html) en la raíz del proyecto, sin dependencias ni paso de compilación.\n\n### Características implementadas según el contrato de [README.md](file:///tmp/ospec-bench/XZV8Yn/todo-spa/README.md)\n\n- **Añadir tareas**: Campo [`#nueva-tarea`](file:///tmp/ospec-bench/XZV8Yn/todo-spa/index.html#L190) que añade la tarea al pulsar `Enter`.\n- **Lista de tareas**: Contenedor [`#lista`](file:///tmp/ospec-bench/XZV8Yn/todo-spa/index.html#L192) donde cada elemento es un elemento `li`.\n- **Completar**: Casilla con la clase [`.completar`](file:///tmp/ospec-bench/XZV8Yn/todo-spa/index.html#L90) (`input type=\"checkbox\"`) que conmuta el estado completado y actualiza el contador.\n- **Editar**: Doble clic sobre el elemento con la clase [`.titulo`](file:///tmp/ospec-bench/XZV8Yn/todo-spa/index.html#L99) muestra el campo de texto con la clase [`.edicion`](file:///tmp/ospec-bench/XZV8Yn/todo-spa/index.html#L137) dentro del `li`; se guarda con `Enter` o desenfoque (`blur`), y se cancela con `Escape`.\n- **Borrar**: Botón con la clase [`.borrar`](file:///tmp/ospec-bench/XZV8Yn/todo-spa/index.html#L108) que elimina la tarea.\n- **Contador de pendientes**: Elemento [`#contador`](file:///tmp/ospec-bench/XZV8Yn/todo-spa/index.html#L194) que refleja el número de tareas activas (`N pendientes` / `1 pendiente`).\n- **Filtros**: Enlaces de filtro [`#filtro-todas`](file:///tmp/ospec-bench/XZV8Yn/todo-spa/i…"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "6cfecc25cecc4d154411b8a2e63c5bb5bbf1d130e9a0310c604462b7add1a889"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "a37e1815560fb806d91d50666e9fdba5341787979249d28da3eafe47b4c77567"
+        }
+      ]
+    },
+    {
+      "scenario_id": "todo-spa",
+      "repetition": 2,
+      "profile": "greenfield",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 31142,
+          "output": 988,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "duration_ms": 10060,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 162032,
+          "output": 37618,
+          "cache_read": 1595126,
+          "cache_creation": 0
+        },
+        "tokens_total": 1794776,
+        "cost_usd": 0,
+        "duration_ms": 292059,
+        "agent_turns": 1,
+        "model_turns": 1,
+        "subagents": 0,
+        "questions": 0,
+        "decision_changing_questions": 0,
+        "interventions": 0,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "single-file",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "add-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "complete-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "delete-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "title-trimmed",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "empty-title-rejected",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "title-max-200",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',\n+   'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab'\n  ]\n"
+        },
+        {
+          "id": "pending-duplicate-rejected",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'Comprar pan',\n+   'comprar PAN'\n  ]\n"
+        },
+        {
+          "id": "completed-duplicate-allowed",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "persists-reload",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": false,
+          "error": "stored under tareas.v1"
+        },
+        {
+          "id": "corrupt-storage-empty",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": false,
+          "error": "stored 42\n+ actual - expected\n\n+ [\n+   'Comprar pan'\n+ ]\n- []\n"
+        },
+        {
+          "id": "counter-wording",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ '0 tareas pendientes'\n- 'Sin tareas pendientes'\n"
+        },
+        {
+          "id": "filter-from-url",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": true
+        },
+        {
+          "id": "filter-links-hash",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": false,
+          "error": "The expression evaluated to a falsy value:\n\n  kit.assert.ok([\"\", \"#/\"].includes(await page.evaluate(() => location.hash)))\n"
+        },
+        {
+          "id": "edit-enter-saves-trimmed",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "edit-escape-cancels",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "edit-empty-deletes",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "stable-order",
+          "kind": "fact",
+          "fact": "F7",
+          "pass": true
+        },
+        {
+          "id": "title-as-text",
+          "kind": "fact",
+          "fact": "F8",
+          "pass": true
+        },
+        {
+          "id": "accessible-names",
+          "kind": "fact",
+          "fact": "F9",
+          "pass": false,
+          "error": "checkbox 0: Marcar tarea como completada"
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 7,
+      "facts_disclosed": [],
+      "changed_files": [
+        "idd/archive/2026-10-13-todo-spa/state.yaml",
+        "index.html",
+        "test/index.test.js"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Se ha creado la aplicación de lista de tareas en un único archivo [index.html](file:///tmp/ospec-bench/KPexyq/todo-spa/index.html) en la raíz, cumpliendo todos los requisitos y el contrato de selectores especificado en [README.md](file:///tmp/ospec-bench/KPexyq/todo-spa/README.md).\n\n### Características implementadas\n\n- **Estructura autónoma sin build ni dependencias**: Todo el código HTML, estilos CSS y lógica JavaScript residen dentro de [index.html](file:///tmp/ospec-bench/KPexyq/todo-spa/index.html).\n- **Añadir tareas**: Campo `#nueva-tarea` que agrega la tarea al pulsar `Enter`.\n- **Marcar completadas**: Casilla `#lista li .completar` (`input type=\"checkbox\"`) que alterna el estado completado y actualiza el estilo y contador.\n- **Edición en línea**: Doble clic sobre `#lista li .titulo` abre el campo `#lista li .edicion`. Al pulsar `Enter` o perder el foco (`blur`) guarda los cambios; si el texto queda vacío elimina la tarea; `Escape` cancela la edición.\n- **Borrado**: Botón `#lista li .borrar` que elimina la tarea de la lista.\n- **Filtros**: Enlaces `#filtro-todas`, `#filtro-pendientes` y `#filtro-completadas` para alternar la visualización por estado (mediante clic directo o navegación por `hash`).\n- **Contador de pendientes**: Elemento `#contador` que refleja el número de tareas activas.\n- **Persistencia**: Sincronización automática de las tareas en `localStorage`.\n\n### Verificación\n\nSe agregaron pruebas automatizadas en [test/index.test.js](file:///tmp/ospec-bench/KPex…"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "9ce9631573bbffbecffdc080a3d9a431e50920f767f196a59087367e15f38c51"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "8e53b9ede38c038fda8fe1c978710d2f403a0bc79dd85cdf85199d5a0eebf8cd"
+        }
+      ]
+    },
+    {
+      "scenario_id": "todo-spa",
+      "repetition": 3,
+      "profile": "greenfield",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 38823,
+          "output": 1309,
+          "cache_read": 44673,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "duration_ms": 18353,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 193575,
+          "output": 33946,
+          "cache_read": 1366798,
+          "cache_creation": 0
+        },
+        "tokens_total": 1594319,
+        "cost_usd": 0,
+        "duration_ms": 327085,
+        "agent_turns": 1,
+        "model_turns": 1,
+        "subagents": 0,
+        "questions": 0,
+        "decision_changing_questions": 0,
+        "interventions": 0,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "single-file",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "add-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "complete-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "delete-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "title-trimmed",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "empty-title-rejected",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "title-max-200",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',\n+   'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab'\n  ]\n"
+        },
+        {
+          "id": "pending-duplicate-rejected",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'Comprar pan',\n+   'comprar PAN'\n  ]\n"
+        },
+        {
+          "id": "completed-duplicate-allowed",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "persists-reload",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": false,
+          "error": "stored under tareas.v1"
+        },
+        {
+          "id": "corrupt-storage-empty",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": false,
+          "error": "stored 42\n+ actual - expected\n\n+ [\n+   'Comprar pan'\n+ ]\n- []\n"
+        },
+        {
+          "id": "counter-wording",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ '0 pendientes'\n- 'Sin tareas pendientes'\n"
+        },
+        {
+          "id": "filter-from-url",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": true
+        },
+        {
+          "id": "filter-links-hash",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ '#completadas'\n- '#/completadas'\n"
+        },
+        {
+          "id": "edit-enter-saves-trimmed",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "edit-escape-cancels",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "edit-empty-deletes",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "stable-order",
+          "kind": "fact",
+          "fact": "F7",
+          "pass": true
+        },
+        {
+          "id": "title-as-text",
+          "kind": "fact",
+          "fact": "F8",
+          "pass": true
+        },
+        {
+          "id": "accessible-names",
+          "kind": "fact",
+          "fact": "F9",
+          "pass": false,
+          "error": "checkbox 0: Marcar tarea como completada"
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 7,
+      "facts_disclosed": [],
+      "changed_files": [
+        "idd/archive/2026-10-13-lista-tareas/state.yaml",
+        "index.html",
+        "test/todo.test.js"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Se ha implementado la aplicación en un único archivo [index.html](file:///tmp/ospec-bench/wskDUH/todo-spa/index.html) ubicado en la raíz del proyecto, con su CSS y JavaScript integrados, sin dependencias externas ni paso de build.\n\n### Funcionalidades y contrato implementado\n\n- **Añadir tareas**: Input [`#nueva-tarea`](file:///tmp/ospec-bench/wskDUH/todo-spa/index.html#L190); al pulsar Enter agrega la tarea a [`#lista`](file:///tmp/ospec-bench/wskDUH/todo-spa/index.html#L196).\n- **Marcar completadas**: Casilla de verificación [`.completar`](file:///tmp/ospec-bench/wskDUH/todo-spa/index.html#L380) dentro de cada `li`.\n- **Editar tareas**: Doble clic sobre el texto [`.titulo`](file:///tmp/ospec-bench/wskDUH/todo-spa/index.html#L391) crea el campo de texto [`.edicion`](file:///tmp/ospec-bench/wskDUH/todo-spa/index.html#L324). Guardado con Enter o pérdida de foco (`blur`), o cancelación con Escape.\n- **Borrar tareas**: Botón [`.borrar`](file:///tmp/ospec-bench/wskDUH/todo-spa/index.html#L398) dentro de cada `li`.\n- **Filtros**: Enlaces [`#filtro-todas`](file:///tmp/ospec-bench/wskDUH/todo-spa/index.html#L201), [`#filtro-pendientes`](file:///tmp/ospec-bench/wskDUH/todo-spa/index.html#L202) y [`#filtro-completadas`](file:///tmp/ospec-bench/wskDUH/todo-spa/index.html#L203) que filtran las tareas visibles.\n- **Contador**: Elemento [`#contador`](file:///tmp/ospec-bench/wskDUH/todo-spa/index.html#L199) que refleja en todo momento la cantidad de tareas pendientes.\n- **Persistencia**: Si…"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "24da38df64597bc5930ab4315886fa4053cdab55d052ac065d28562651109a91"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "90c547e68d24bbdc081df630ecd22fc2dccbca1be571dbff7a8ff1461142e45b"
+        }
+      ]
+    }
+  ]
+}

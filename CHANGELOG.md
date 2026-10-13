@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.134.0] - 2026-10-13
+
+### Added
+- **Host `agy` (Antigravity CLI) en el banco de escenarios (E4.5)**:
+  - `bench.js run --host agy` ejecuta el agente y la persona en `agy` con el prompt por stdin (stream-json). Cada workspace usa una copia limpia del HOME plantilla del brazo.
+  - Opciones `--host`, `--corpus` y `--max-tokens`, porque `agy` no da coste en dólares. `setup-gentle-ai --host agy` instala gentle-ai 4.1.1 para antigravity con tres ajustes de entorno que no tocan su contenido.
+  - Aislamiento:
+    - cada ejecución corre en un directorio opaco propio, que se archiva en `scripts/evals/.runs/bench/` al juzgarse;
+    - un cerrojo por directorio de workspaces;
+    - cada proceso de `agy` va en bubblewrap, con su espacio de PIDs, `/tmp`, `HOME` y los directorios del banco ocultos, y el entorno en lista blanca;
+    - una ejecución que nombra una ruta del banco se anula (`workspace-escape`) y se repite.
+- **Corpus `greenfield`** con el escenario `todo-spa`: una lista de tareas en un único `index.html`, con nueve hechos ocultos. Sus 21 checks ocultos corren en Chromium headless por CDP, sin dependencias (`browser.js`), e incluye una entrega de referencia.
+- **Calidad para entregas `.html` y repeticiones**:
+  - `quality.js` muta las líneas de los `<script>` en línea y reutiliza `node_modules`.
+  - Empareja repetición con repetición y acepta `judge --host agy`.
+  - `margins.json` (`bench-margins-7`, esquema 5) declara un criterio de calidad: déficit máximo de mutation score y preferencias consistentes del juez ciego.
+- **Comparación IDD frente a gentle-ai en un proyecto desde cero**, publicada en `docs/analysis/2026-10-13-bench-greenfield.md`. Records `gentle-ai-agy-3` e `idd-agy-3`, con `agy` 1.3.3, Gemini 3.8 Flash y tres repeticiones:
+
+  | | gentle-ai | IDD |
+  | --- | --- | --- |
+  | Ejecuciones completas | 3/3 | 3/3 |
+  | Defectos escapados (media) | 6,33 | 6,67 |
+  | Tokens (media) | 2,28 M | 1,92 M (ratio 0,845) |
+  | Mutation score medio | 0 % | 33,3 % |
+
+  El checkpoint da `revise` por escapados y la calidad da `continue`. Con Gemini ningún brazo pregunta.
+
+### Changed
+- La raíz por defecto de `quality.js` pasa a `scripts/evals/.runs/bench`. Los records anteriores a E4.5 necesitan `--bench-root`.
+
+Hecho con IDD (`idd/archive/2026-10-13-greenfield-head-to-head/`).
+
+**Verificación directa**: `node scripts/check.js` (3677 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.133.0] - 2026-10-12
 
 ### Added
