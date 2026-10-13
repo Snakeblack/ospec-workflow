@@ -14,6 +14,10 @@ default). It is the whole protocol: there are no phases, no proposal and no spec
 first. Questions, explanations and read-only work need no change and do not
 use it.
 
+Outside a git work tree `ospec` opens no change (`not-a-git-repo`,
+`git-not-found`): set up the repository first, as `references/repository.md`
+says.
+
 ## The CLI decides
 
 `ospec` below means `node "{{ospec-cli}}"`, run from the project root. Add

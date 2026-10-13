@@ -972,6 +972,15 @@ Every target MUST ship the IDD protocol as the `skills/idd/SKILL.md` skill, at m
 
 The router (REQ-generator-022) MUST send code changes that are not SDD requests to the protocol by default, the IDD default of REQ-idd-001, naming it through the `{{idd-entry}}` placeholder, which the generator replaces in `rules/**` with `profile.idd.entry` (the skill `ospec-workflow:idd` on Claude) or, by default, the skill `idd`. Questions and read-only work stay direct, and a change is made directly only when the user explicitly asks for it without IDD; the router never offers that. With `mode: sdd` in `idd/config.yaml`, IDD is off: code changes are made directly and SDD runs only on request, as before E1.6. SDD stays reachable through `/sdd-*` or an explicit request, and SDD changes in flight finish in SDD.
 
+IDD runs only inside a project (E4.8): the router MUST define it as a git work tree whose top level is neither `$HOME` nor `/`, send a system fix or a loose script outside one to direct work without loading anything of ospec, send a request to build or change a project there to the IDD entry to set up its repository first, and ask once when it cannot tell which one it is. The protocol MUST name the refusal codes `not-a-git-repo` and `git-not-found` and point to `skills/idd/references/repository.md`, shipped on demand, which asks the user where the project lives (`git init -b main` here or in a new `<name>/`), never runs `git init` inside another repository's work tree without asking, makes a baseline commit of existing code only after reviewing the `.gitignore` and the user's approval, uses `main` only in a repository it creates and never renames an existing branch.
+
+#### Scenario: IDD stays inside a project
+
+- GIVEN the same builds
+- WHEN the router, the protocol and `skills/idd/references/repository.md` are read
+- THEN the router defines a project as a git work tree whose top level is neither `$HOME` nor `/`, sends work outside one to direct work, and sends a project request there to the IDD entry to set up its repository
+- AND the repository reference names `git init -b main`, the question about a nested repository, the approved baseline commit and `git-not-found`
+
 #### Scenario: The protocol names the installed CLI
 
 - GIVEN a build generated for each of the 7 targets

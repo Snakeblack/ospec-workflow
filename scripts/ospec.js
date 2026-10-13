@@ -68,6 +68,7 @@ const { TeamProfileError, resolveTeam } = require("./lib/team-profile.js");
 const { IddStoreError, changeDir, listChanges, mutateChange, readChange } = require("./lib/idd-store.js");
 const { withFileLock } = require("./lib/ospec-state.js");
 const {
+  EMPTY_TREE,
   IddWorkspaceError,
   commitTree,
   readArchitecture,
@@ -79,6 +80,7 @@ const {
   readKnowledgeSources,
   readProjectContext,
   readTreeFingerprint,
+  requireWorkTree,
   snapshotTree,
   treeBlobs,
   treeNumstat,
@@ -325,8 +327,12 @@ async function signals(root, values) {
 }
 
 // The change's own base keeps its committed work in the diff (REQ-idd-014).
+// A change opened before the first commit (base null) diffs against the empty
+// tree, so commits made during the change stay in its diff.
 function diffBase(values, state) {
-  return values.base || state?.base || "HEAD";
+  if (values.base) return values.base;
+  if (state?.base === null) return EMPTY_TREE;
+  return state?.base || "HEAD";
 }
 
 async function openChange(root, changeId) {
@@ -737,6 +743,7 @@ async function run(command, positionals, values) {
     return statusOf(values.change ? states.filter((s) => s.change === values.change) : states);
   }
   if (command === "next") {
+    requireWorkTree(root);
     try {
       const states = await listChanges(root);
       const next = nextForProject(states, { change: values.change });
@@ -763,6 +770,9 @@ async function run(command, positionals, values) {
   if (command === "team") return readTeam(root, values.mode ?? null);
   if (command === "record") {
     const [type] = positionals;
+    // A change opens only inside a project (E4.8); the other records act on
+    // a change that already exists.
+    if (type === "intent") requireWorkTree(root);
     const reducer = reducerFor(type, values, root);
     if (!values.change) throw new UsageError(`record ${type} needs --change <id>`);
     const { state, changed } = await mutateChange(root, values.change, reducer);
@@ -1011,9 +1021,10 @@ async function main(argv = process.argv.slice(2)) {
     if (!known) throw error;
     const code = usage ? "usage" : error.code;
     if (wantsJson) {
-      process.stdout.write(`${JSON.stringify({ ok: false, command, error: { code, message: error.message } }, null, 2)}\n`);
+      const how = error.how ? { how: error.how } : {};
+      process.stdout.write(`${JSON.stringify({ ok: false, command, error: { code, message: error.message, ...how } }, null, 2)}\n`);
     } else {
-      process.stderr.write(`ospec: ${error.message} (${code})\n${usage ? USAGE : ""}`);
+      process.stderr.write(`ospec: ${error.message} (${code})\n${error.how ? `${error.how}\n` : ""}${usage ? USAGE : ""}`);
     }
     return usage ? 2 : 1;
   }

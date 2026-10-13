@@ -2,7 +2,7 @@
   "schema": "ospec-context-baseline/v1",
   "targets": {
     "claude": {
-      "always_on_bytes": 3335,
+      "always_on_bytes": 3688,
       "orchestrator_bytes": 0,
       "skills_installed": 33,
       "skills_listed": 27,
@@ -10,14 +10,14 @@
       "agent_read_bytes": {
         "review-change": 4757,
         "review-correction": 5197,
-        "review-efficiency": 14596,
-        "review-evolution": 14802,
-        "review-runtime": 14664,
-        "review-trust": 14569
+        "review-efficiency": 14551,
+        "review-evolution": 14757,
+        "review-runtime": 14619,
+        "review-trust": 14524
       }
     },
     "vscode": {
-      "always_on_bytes": 3609,
+      "always_on_bytes": 3947,
       "orchestrator_bytes": 0,
       "skills_installed": 33,
       "skills_listed": 27,
@@ -25,14 +25,14 @@
       "agent_read_bytes": {
         "review-change": 4785,
         "review-correction": 5225,
-        "review-efficiency": 14626,
-        "review-evolution": 14832,
-        "review-runtime": 14694,
-        "review-trust": 14599
+        "review-efficiency": 14581,
+        "review-evolution": 14787,
+        "review-runtime": 14649,
+        "review-trust": 14554
       }
     },
     "github-copilot": {
-      "always_on_bytes": 3609,
+      "always_on_bytes": 3947,
       "orchestrator_bytes": 0,
       "skills_installed": 33,
       "skills_listed": 27,
@@ -40,14 +40,14 @@
       "agent_read_bytes": {
         "review-change": 4771,
         "review-correction": 5211,
-        "review-efficiency": 14612,
-        "review-evolution": 14818,
-        "review-runtime": 14680,
-        "review-trust": 14585
+        "review-efficiency": 14567,
+        "review-evolution": 14773,
+        "review-runtime": 14635,
+        "review-trust": 14540
       }
     },
     "opencode": {
-      "always_on_bytes": 3287,
+      "always_on_bytes": 3625,
       "orchestrator_bytes": 0,
       "skills_installed": 33,
       "skills_listed": 27,
@@ -55,14 +55,14 @@
       "agent_read_bytes": {
         "review-change": 4783,
         "review-correction": 5227,
-        "review-efficiency": 14626,
-        "review-evolution": 14832,
-        "review-runtime": 14694,
-        "review-trust": 14599
+        "review-efficiency": 14581,
+        "review-evolution": 14787,
+        "review-runtime": 14649,
+        "review-trust": 14554
       }
     },
     "codex": {
-      "always_on_bytes": 3290,
+      "always_on_bytes": 3628,
       "orchestrator_bytes": 0,
       "skills_installed": 33,
       "skills_listed": 27,
@@ -70,14 +70,14 @@
       "agent_read_bytes": {
         "review-change": 4878,
         "review-correction": 5316,
-        "review-efficiency": 14715,
-        "review-evolution": 14921,
-        "review-runtime": 14783,
-        "review-trust": 14688
+        "review-efficiency": 14670,
+        "review-evolution": 14876,
+        "review-runtime": 14738,
+        "review-trust": 14643
       }
     },
     "cursor": {
-      "always_on_bytes": 3617,
+      "always_on_bytes": 3955,
       "orchestrator_bytes": 0,
       "skills_installed": 33,
       "skills_listed": 27,
@@ -85,14 +85,14 @@
       "agent_read_bytes": {
         "review-change": 4725,
         "review-correction": 5172,
-        "review-efficiency": 14571,
-        "review-evolution": 14777,
-        "review-runtime": 14639,
-        "review-trust": 14544
+        "review-efficiency": 14526,
+        "review-evolution": 14732,
+        "review-runtime": 14594,
+        "review-trust": 14499
       }
     },
     "antigravity": {
-      "always_on_bytes": 3619,
+      "always_on_bytes": 3957,
       "orchestrator_bytes": 0,
       "skills_installed": 33,
       "skills_listed": 27,
@@ -100,10 +100,10 @@
       "agent_read_bytes": {
         "review-change": 4761,
         "review-correction": 5199,
-        "review-efficiency": 14610,
-        "review-evolution": 14816,
-        "review-runtime": 14678,
-        "review-trust": 14583
+        "review-efficiency": 14565,
+        "review-evolution": 14771,
+        "review-runtime": 14633,
+        "review-trust": 14538
       }
     }
   }

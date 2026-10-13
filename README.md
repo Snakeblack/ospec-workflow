@@ -57,7 +57,7 @@ A new project, or a request to define a system's architecture, starts with the `
 ## Quick Start in 3 Steps
 
 ### 1. Nothing to copy: the installer adds a small router
-Every installer adds a small router to the instructions your host loads on every request ([`rules/ospec-router.instructions.md`](rules/ospec-router.instructions.md)). It sends code changes through IDD by default, keeps questions and read-only work direct, and enters SDD **only** when you run a `/sdd-*` command or ask for spec-driven work. Claude Code and Codex get it as a marked block in `~/.claude/CLAUDE.md` and `AGENTS.md`, next to your own text; pass `--no-router` to leave it out or remove it.
+Every installer adds a small router to the instructions your host loads on every request ([`rules/ospec-router.instructions.md`](rules/ospec-router.instructions.md)). It sends code changes through IDD by default, keeps questions and read-only work direct, keeps IDD inside a project (a git work tree whose top level is neither `$HOME` nor `/`, so a system fix elsewhere is done directly and a new project first gets `git init -b main`), and enters SDD **only** when you run a `/sdd-*` command or ask for spec-driven work. Claude Code and Codex get it as a marked block in `~/.claude/CLAUDE.md` and `AGENTS.md`, next to your own text; pass `--no-router` to leave it out or remove it.
 
 ### 2. Install the Plugin in Your Tool
 Choose your target and run its automatic configurator:

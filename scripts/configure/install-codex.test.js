@@ -2208,6 +2208,8 @@ test("a repository install carries the IDD protocol and a relative runtime that 
 
   // The command the skill names, run from the repository root as the skill says.
   const [, cli] = /node "([^"]+)"/.exec(protocol);
+  // A change opens only inside a git work tree (E4.8).
+  spawnSync("git", ["-C", destRepo, "init", "-q", "-b", "main"]);
   const next = spawnSync(process.execPath, [cli, "next", "--json"], { cwd: destRepo, encoding: "utf8", env: { ...process.env, HOME: home, USERPROFILE: home } });
   assert.equal(next.status, 0, next.stderr);
   assert.deepEqual(JSON.parse(next.stdout).next_step, { action: "open-change" });

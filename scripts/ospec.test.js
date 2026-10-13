@@ -9,21 +9,34 @@ const assert = require("node:assert");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { spawnSync } = require("node:child_process");
+const { execFileSync, spawnSync } = require("node:child_process");
 
 const CLI = path.join(__dirname, "ospec.js");
 
-function tempRoot(t) {
+// A directory outside any git work tree.
+function plainRoot(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-cli-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   return root;
 }
 
-function ospec(root, ...args) {
-  const result = spawnSync(process.execPath, [CLI, ...args, "--root", root], { encoding: "utf8" });
+// A project: a git work tree with no commits yet, since a change opens only
+// inside one (E4.8).
+function tempRoot(t) {
+  const root = plainRoot(t);
+  execFileSync("git", ["-C", root, "init", "-q", "-b", "main"]);
+  return root;
+}
+
+function ospecWith(env, root, ...args) {
+  const result = spawnSync(process.execPath, [CLI, ...args, "--root", root], { encoding: "utf8", env });
   let json = null;
   if (args.includes("--json")) json = JSON.parse(result.stdout);
   return { code: result.status, stdout: result.stdout, stderr: result.stderr, json };
+}
+
+function ospec(root, ...args) {
+  return ospecWith(process.env, root, ...args);
 }
 
 const OPEN_BUG = [
@@ -172,7 +185,6 @@ test("evidence cannot be recorded from the CLI and usage errors exit 2", (t) => 
 // E1.3 impact-signals: `ospec signals` derives and records signals and gates
 // from the declaration and the diff (REQ-idd-012).
 
-const { execFileSync } = require("node:child_process");
 
 function gitInit(root) {
   const git = (...args) => execFileSync("git", ["-C", root, ...args], { encoding: "utf8" });
@@ -274,6 +286,7 @@ test("signals refuses an ambiguous intent, an unknown change and bad input", (t)
   ospec(root, ...OPEN_BUG);
   assert.strictEqual(ospec(root, "signals", "--change", "fix-pagination", "--work-units", "two", "--json").code, 2);
 
+  fs.rmSync(path.join(root, ".git"), { recursive: true, force: true });
   const noGit = ospec(root, "signals", "--change", "fix-pagination", "--diff", "--json");
   assert.strictEqual(noGit.code, 1);
   assert.strictEqual(noGit.json.error.code, "not-a-git-repo");
@@ -498,10 +511,75 @@ test("check stops at an ambiguous intent without running anything, and needs git
 
   const plain = tempRoot(t);
   ospec(plain, ...OPEN_DOCS);
+  fs.rmSync(path.join(plain, ".git"), { recursive: true, force: true });
   const noGit = ospec(plain, "check", "--change", "fix-readme", "--json");
   assert.strictEqual(noGit.code, 1);
   assert.strictEqual(noGit.json.error.code, "not-a-git-repo");
   assert.strictEqual(ospec(plain, "check", "--json").code, 2, "check needs --change");
+});
+
+// E4.8 non-git-workspace: a change opens only inside a git work tree, and the
+// CLI says so before any gate or work, with the step to take.
+
+test("outside a git work tree record intent and next stop with the next step and create nothing", (t) => {
+  const plain = plainRoot(t);
+  const intent = ospec(plain, ...OPEN_BUG);
+  assert.strictEqual(intent.code, 1);
+  assert.strictEqual(intent.json.error.code, "not-a-git-repo");
+  assert.match(intent.json.error.how, /work directly/);
+  assert.match(intent.json.error.how, /git init -b main/);
+  assert.ok(!fs.existsSync(path.join(plain, "idd")), "nothing is created under idd/");
+
+  for (const args of [["next"], ["next", "--change", "fix-pagination"]]) {
+    const next = ospec(plain, ...args, "--json");
+    assert.strictEqual(next.code, 1);
+    assert.strictEqual(next.json.error.code, "not-a-git-repo");
+    assert.strictEqual(next.json.error.how, intent.json.error.how);
+  }
+
+  const text = ospec(plain, ...OPEN_BUG.filter((arg) => arg !== "--json"));
+  assert.strictEqual(text.code, 1);
+  assert.match(text.stderr, /\(not-a-git-repo\)\n.*git init -b main/);
+});
+
+test("a change left open outside git cannot continue, and status still lists it", (t) => {
+  const root = tempRoot(t);
+  ospec(root, ...OPEN_BUG);
+  fs.rmSync(path.join(root, ".git"), { recursive: true, force: true });
+
+  const next = ospec(root, "next", "--change", "fix-pagination", "--json");
+  assert.strictEqual(next.json.error.code, "not-a-git-repo");
+  const status = ospec(root, "status", "--json");
+  assert.strictEqual(status.code, 0, status.stderr);
+  assert.deepStrictEqual(status.json.changes.map((c) => c.change), ["fix-pagination"]);
+});
+
+test("without git on PATH a change does not open: git-not-found", (t) => {
+  const root = plainRoot(t);
+  const env = { ...process.env, PATH: plainRoot(t) };
+  for (const args of [OPEN_BUG, ["next", "--json"]]) {
+    const result = ospecWith(env, root, ...args);
+    assert.strictEqual(result.code, 1);
+    assert.strictEqual(result.json.error.code, "git-not-found");
+    assert.match(result.json.error.how, /install git/);
+  }
+  assert.ok(!fs.existsSync(path.join(root, "idd")));
+});
+
+test("a repository created with git init -b main and no commit takes a change to close", (t) => {
+  const root = tempRoot(t);
+  writeFile(root, "idd/config.yaml", "checks:\n  test: node verify.js\n");
+  writeFile(root, "verify.js", "console.log('ok');\n");
+  const intent = ospec(root, ...OPEN_DOCS, "--json");
+  assert.strictEqual(intent.code, 0, intent.stderr);
+  assert.strictEqual(stateOf(root, "fix-readme").base, null, "no commit to start from");
+  assert.strictEqual(ospec(root, "next", "--change", "fix-readme", "--json").code, 0);
+
+  const check = ospec(root, "check", "--change", "fix-readme", "--json");
+  assert.strictEqual(check.code, 0, check.stderr);
+  assert.strictEqual(check.json.verdict, "ready", JSON.stringify(check.json.missing));
+  const close = ospec(root, "close", "--change", "fix-readme", "--json");
+  assert.strictEqual(close.code, 0, close.stdout);
 });
 
 // E1.4 (b1): contract and migration evidence (REQ-idd-015).
