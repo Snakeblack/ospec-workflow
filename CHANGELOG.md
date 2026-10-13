@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.136.0] - 2026-10-13
+
+### Changed
+- **Atribución por contexto, no por menciones**: la regla y los hooks bloqueaban cualquier aparición de un nombre de agente o modelo, así que un commit como `fix(<target>): …` o una PR sobre un target del arnés no se podían escribir. Ahora solo se bloquea la atribución: un trailer `*-by:` cuyo valor nombra una IA o herramienta, una frase `generated|written|created|made|built|authored|assisted|powered|produced` o `generado|escrito|creado|hecho|asistido|producido` + `with|by|using|con|por` con la herramienta en las tres palabras siguientes, o 🤖. Un `Co-Authored-By:` de una persona pasa.
+  - El patrón es idéntico en `commit-msg-hook.js`, `pre-tool-use.js` y el hook Go, y la lista de herramientas suma `antigravity`, `agy`, `cursor`, `windsurf`, `kiro`, `opencode`, `qwen`, `deepseek`, `grok`, `devin`, `aider`, `cline`, `junie` y `amp`.
+  - El DENY de PreToolUse revisa también `-t/--title/-b/--body` de `gh pr create|edit`.
+  - La regla *always-on* `no-model-attribution` baja de 1542 a 1258 B: explica qué es atribuir y deja el patrón a los hooks. Spec de hooks §6a.1 actualizada.
+
+### Fixed
+- **`setup:cursor` abortaba con hooks de otras herramientas**: si `~/.cursor/hooks.json` tenía hooks de otra aplicación (caso real: Orca), la validación de la instalación exigía que todos apuntaran a ospec y deshacía la instalación. Ahora valida solo las entradas de ospec, con el mismo criterio que el merge, y conserva las ajenas. Escenario nuevo en REQ-install-004.
+- **Test inestable del banco**: el test del directorio opaco fallaba cuando el sufijo aleatorio de `mkdtemp` formaba «a5» o «r1». Ahora comprueba que el nombre es solo ese sufijo.
+- Hecho con IDD (`idd/archive/2026-10-13-attribution-context/`).
+
+**Verificación directa**: `ospec check` (`node scripts/check.js`) con todos los checks en verde, e instalación de Cursor probada en un HOME temporal con una copia de un `hooks.json` real con hooks de Orca.
+
 ## [2.135.0] - 2026-10-13
 
 ### Added
