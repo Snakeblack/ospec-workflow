@@ -238,6 +238,7 @@ test("run --arm gentle-ai identifies the gentle-ai install as the plugin and bui
 function agyDeps(dir, overrides = {}) {
   const seen = { host: null, ospecHomes: [] };
   const d = deps(dir, {
+    engramMcpBytes: () => 42,
     resolveExecutable: () => { throw new Error("agy runs need no claude executable"); },
     buildPlugin: () => { throw new Error("agy runs build no Claude plugin"); },
     createHost: () => { throw new Error("agy runs create no Claude host"); },
@@ -266,12 +267,54 @@ test("run --host agy installs ospec for antigravity as the template, with the ag
   assert.equal(seen.host.executable, "/usr/bin/agy");
   assert.equal(seen.host.model, "gemini-3.8-flash-high");
   assert.equal(seen.host.personaModel, "claude-sonnet-5-5-medium");
+  assert.equal(seen.host.personaInvoke, null);
   assert.equal(seen.host.gentleAi, null);
   const record = JSON.parse(fs.readFileSync(path.join(dir, "a1.json"), "utf8"));
   assert.deepEqual(record.host, { name: "agy", cli_version: "1.3.3", model: "gemini-3.8-flash-high", effort: null, plugin_version: "2.134.0", plugin_digest: "d".repeat(64) });
   assert.equal(record.persona.model, "claude-sonnet-5-5-medium");
   assert.equal(record.limits.maxTokens, 30000000);
   assert.equal(record.limits.maxCostUsd, null);
+});
+
+test("a grok persona on agy is invoked through the Cursor CLI", async () => {
+  const dir = tempDir();
+  const { d, seen } = agyDeps(dir);
+  const args = ["run", "--host", "agy", "--arm", "idd", "--record", "a2", "--persona-model", "grok-4.7-high", "--records-dir", dir, "--runs-dir", dir, "--workspaces-dir", dir, "--scenario", "bugfix"];
+  assert.equal(await main(args, d), 0, d.stderr.text);
+  assert.equal(typeof seen.host.personaInvoke, "function");
+  assert.equal(seen.host.personaModel, "grok-4.7-high");
+  const record = JSON.parse(fs.readFileSync(path.join(dir, "a2.json"), "utf8"));
+  assert.equal(record.persona.model, "grok-4.7-high");
+});
+
+test("run --arm idd builds the plugin without SDD and writes the router only into the agent config", async () => {
+  const dir = tempDir();
+  const config = path.join(dir, "config");
+  const routerDir = path.join(dir, "plugin", "global-instructions");
+  fs.mkdirSync(routerDir, { recursive: true });
+  fs.mkdirSync(config);
+  fs.writeFileSync(path.join(routerDir, "CLAUDE.md"), "# ospec-workflow\n\nrouter\n");
+  fs.writeFileSync(path.join(config, "session"), "login");
+  let withSdd = null;
+  let hostOptions = null;
+  const d = deps(dir, {
+    buildPlugin: ({ withSdd: flag }) => {
+      withSdd = flag;
+      return { pluginDir: path.join(dir, "plugin"), version: "2.136.0", digest: "a".repeat(64) };
+    },
+    createHost: (options) => {
+      hostOptions = options;
+      return { name: "claude-code", version: () => "2.1.286" };
+    },
+  });
+  const code = await main(["run", "--arm", "idd", "--record", "i1", "--config-dir", config, "--records-dir", dir, "--runs-dir", dir, "--workspaces-dir", dir, "--scenario", "bugfix"], d);
+  assert.equal(code, 0, d.stderr.text);
+  assert.equal(withSdd, false);
+  const agentConfig = path.join(dir, "i1", "agent-config");
+  assert.equal(hostOptions.agentConfigDir, agentConfig);
+  assert.match(fs.readFileSync(path.join(agentConfig, "CLAUDE.md"), "utf8"), /ospec-workflow:router:begin/);
+  assert.equal(fs.existsSync(path.join(config, "CLAUDE.md")), false, "the persona configuration stays without the router");
+  assert.equal(fs.readFileSync(path.join(agentConfig, "session"), "utf8"), "login");
 });
 
 test("run --host agy --arm gentle-ai uses the agy install as the template and starts its Engram per workspace", async () => {
@@ -288,6 +331,7 @@ test("run --host agy --arm gentle-ai uses the agy install as the template and st
   assert.equal(typeof seen.host.gentleAi.homeEnv, "function");
   const record = JSON.parse(fs.readFileSync(path.join(dir, "g2.json"), "utf8"));
   assert.equal(record.host.plugin_version, `4.1.1 at ${home}`);
+  assert.equal(record.host.engram_mcp_bytes, 42);
 
   const missing = agyDeps(dir, { identifyGentleAiAgy: () => { throw new Error(`no gentle-ai install for agy in ${home}`); } }).d;
   assert.equal(await main([...args.slice(0, 6), "g3", ...args.slice(7)], missing), 2);

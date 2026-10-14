@@ -7,7 +7,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const { armFor, hasClosedIddChange, hasOddDelivery } = require("./arms.js");
+const { armFor, hasClosedIddChange, hasIddDelivery, hasOddDelivery } = require("./arms.js");
 
 function git(cwd, args) {
   const result = spawnSync("git", args, { cwd, encoding: "utf8" });
@@ -99,13 +99,22 @@ test("a renamed file outside odd/ is pending work", () => {
   assert.equal(hasOddDelivery(root, base), false);
 });
 
-test("on agy the idd arm receives the brief as is and the sdd arm is not available", () => {
-  const arm = armFor("idd", { host: "agy" });
-  assert.equal(arm.changePrompt({ brief: "Quiero prioridades." }), "Quiero prioridades.");
-  assert.deepEqual(arm.setupPrompts, armFor("idd").setupPrompts);
-  assert.match(armFor("idd").changePrompt({ brief: "Quiero prioridades." }), /^\/ospec-workflow:idd /);
+test("the idd arm receives the brief on every host, and sdd is not available on agy", () => {
+  const brief = { brief: "Quiero prioridades." };
+  assert.equal(armFor("idd").changePrompt(brief), "Quiero prioridades.");
+  assert.equal(armFor("idd", { host: "agy" }).changePrompt(brief), "Quiero prioridades.");
   assert.equal(armFor("gentle-ai", { host: "agy" }), armFor("gentle-ai"));
   assert.throws(() => armFor("sdd", { host: "agy" }), /not available on agy/);
+});
+
+test("an IDD delivery needs the new archive committed and a clean tree", () => {
+  const { root, base } = workspace();
+  write(root, "idd/archive/2026-10-13-prioridades/change.md", "# prioridades\n");
+  assert.equal(hasIddDelivery(root, base), false, "an uncommitted archive is not a delivery");
+  commit(root, "feat: prioridades");
+  assert.equal(hasIddDelivery(root, base), true);
+  write(root, "index.js", "module.exports = 2;\n");
+  assert.equal(hasIddDelivery(root, base), false, "an uncommitted edit is still pending work");
 });
 
 test("only an IDD change archived after setup closes the requested change", () => {

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.137.0] - 2026-10-14
+
+### Added
+- **Banco simétrico (E4.9 `bench-arm-symmetry`)**: los seis briefs piden el commit a los dos brazos. IDD termina cuando el archivo nuevo está en `HEAD`, hay al menos un commit tras el setup y el árbol está limpio. En Claude el brazo IDD construye el plugin sin SDD y el router entra solo en la copia de configuración del agente. Una persona cuyo modelo empieza por `grok-` se pregunta por el CLI de Cursor, en un directorio vacío. El informe desglosa acceptance, regression y fact, y publica aparte el tamaño en bytes del MCP de Engram.
+- **Línea base `idd-4` frente a `gentle-ai-2`** en agy 1.3.4, con una repetición y márgenes `bench-margins-8` declarados antes de correr. Acceptance 6/6 frente a 5/6, regression 11/11 en los dos, hechos 23/26 frente a 18/26, escapados 3 frente a 9. IDD gasta 2,29 veces los tokens, así que el checkpoint da `revise` solo por tokens. Engram MCP: 181 bytes. Informe en `docs/analysis/2026-10-14-bench-arm-symmetry.md`. Lo siguiente es E4.6 `open-facts-robustness`. Hecho con IDD (`idd/archive/2026-10-14-bench-arm-symmetry/`).
+
+**Verificación directa**: `node scripts/check.js` (3710 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.136.1] - 2026-10-13
 
 ### Fixed

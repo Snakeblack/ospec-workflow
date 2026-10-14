@@ -173,6 +173,18 @@ function summarizeRecord(record) {
 const thousands = (value) => `${Math.round(value / 1000).toLocaleString("en-US")} k`;
 const minutes = (ms) => `${(ms / 60000).toFixed(1)} min`;
 const usd = (value) => `$${value.toFixed(2)}`;
+const CHECK_KINDS = Object.freeze(["acceptance", "regression", "fact"]);
+
+function kindCell(run, kind) {
+  if (!isJudged(run)) return "not judged";
+  const group = run.checks.filter((check) => check.kind === kind);
+  return `${group.filter((check) => check.pass).length}/${group.length}`;
+}
+
+function kindTotal(runs, kind) {
+  const group = runs.flatMap((run) => run.checks.filter((check) => check.kind === kind));
+  return `${group.filter((check) => check.pass).length}/${group.length}`;
+}
 
 function renderReport(record) {
   const summary = summarizeRecord(record);
@@ -181,25 +193,29 @@ function renderReport(record) {
     "",
     `- Host: ${record.host.name} ${record.host.cli_version}, model \`${record.host.model}\`${record.host.effort ? `, effort ${record.host.effort}` : ""}`,
     `- Plugin: ${record.arm === "gentle-ai" ? "gentle-ai" : "ospec-workflow"} ${record.host.plugin_version} (\`${record.host.plugin_digest.slice(0, 12)}\`)`,
+    ...(typeof record.host.engram_mcp_bytes === "number"
+      ? [`- Engram MCP: ${record.host.engram_mcp_bytes} bytes, reported apart and not subtracted from token totals`]
+      : []),
     `- Persona: \`${record.persona.model}\``,
     `- Scenarios digest: \`${record.scenarios_digest.slice(0, 12)}\` · harness: \`${record.harness_digest.slice(0, 12)}\``,
     `- Recorded at: ${record.recorded_at}${record.repetitions > 1 ? ` · ${record.repetitions} repetitions per scenario` : ""}`,
     "",
-    "| Scenario | Status | Tokens | Cost | Duration | Turns | Questions (decisive) | Interventions | Checks | Escaped |",
-    "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+    "| Scenario | Status | Tokens | Cost | Duration | Turns | Questions (decisive) | Interventions | Acceptance | Regression | Fact | Escaped |",
+    "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
   ];
   for (const run of record.runs) {
     const failed = run.checks.filter((check) => !check.pass).map((check) => (check.fact ? `${check.id} (${check.fact})` : check.id));
     const status = run.status === "complete" ? "complete" : `incomplete: ${run.reason}`;
     const label = record.repetitions > 1 ? `${run.scenario_id} #${run.repetition}` : run.scenario_id;
     const judged = isJudged(run);
-    const checks = judged ? `${run.checks.length - failed.length}/${run.checks.length}` : "not judged";
+    const kinds = CHECK_KINDS.map((kind) => kindCell(run, kind)).join(" | ");
     const escaped = judged ? (failed.length ? failed.join(", ") : "none") : "—";
-    lines.push(`| ${label} | ${status} | ${thousands(run.metrics.tokens_total)} | ${usd(run.metrics.cost_usd)} | ${minutes(run.metrics.duration_ms)} | ${run.metrics.agent_turns} | ${run.metrics.questions} (${run.metrics.decision_changing_questions}) | ${run.metrics.interventions} | ${checks} | ${escaped} |`);
+    lines.push(`| ${label} | ${status} | ${thousands(run.metrics.tokens_total)} | ${usd(run.metrics.cost_usd)} | ${minutes(run.metrics.duration_ms)} | ${run.metrics.agent_turns} | ${run.metrics.questions} (${run.metrics.decision_changing_questions}) | ${run.metrics.interventions} | ${kinds} | ${escaped} |`);
   }
   const { totals } = summary;
+  const kindTotals = CHECK_KINDS.map((kind) => kindTotal(record.runs, kind)).join(" | ");
   lines.push(
-    `| **Total** | ${summary.complete}/${summary.scenarios} complete | ${thousands(totals.tokens_total)} | ${usd(totals.cost_usd)} | ${minutes(totals.duration_ms)} | | ${totals.questions} (${totals.decision_changing_questions}) | ${totals.interventions} | ${totals.checks_passed}/${totals.checks_total} | ${totals.escaped_defects} |`,
+    `| **Total** | ${summary.complete}/${summary.scenarios} complete | ${thousands(totals.tokens_total)} | ${usd(totals.cost_usd)} | ${minutes(totals.duration_ms)} | | ${totals.questions} (${totals.decision_changing_questions}) | ${totals.interventions} | ${kindTotals} | ${totals.escaped_defects} |`,
     "",
     "Tokens add input, output, cache reads, and cache writes of every model in the run, subagents included. Setup turns (project initialization) and the simulated user are not counted. Escaped defects are the hidden checks the delivered workspace fails; the fact in parentheses is the one the user would have given if asked. A run that never reached the change (voided setup, exhausted host quota) is not judged.",
     "",

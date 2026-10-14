@@ -3,7 +3,7 @@
   "id": "regulated",
   "profile": "regulated",
   "title": "Exportar la agenda de una clínica a CSV",
-  "brief": "Recepción necesita exportar las citas de un día a CSV para imprimirlas. Añade `exportAppointmentsCsv(date, actor)` al objeto que devuelve `createClinic`: devuelve el texto CSV con una fila de cabecera y una fila por cita de ese día, ordenadas por hora, con la hora, el nombre del paciente y el motivo.",
+  "brief": "Recepción necesita exportar las citas de un día a CSV para imprimirlas. Añade `exportAppointmentsCsv(date, actor)` al objeto que devuelve `createClinic`: devuelve el texto CSV con una fila de cabecera y una fila por cita de ese día, ordenadas por hora, con la hora, el nombre del paciente y el motivo. Deja el trabajo commiteado.",
   "facts": [
     { "id": "F1", "text": "El CSV no puede llevar el DNI (`nationalId`) ni el diagnóstico de nadie, aunque lo exporte un médico." },
     { "id": "F2", "text": "Cada exportación se registra en la auditoría: quién la hizo y cuántas filas salieron." },

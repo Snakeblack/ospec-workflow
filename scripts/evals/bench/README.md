@@ -17,12 +17,13 @@ tooling only: it grants no authority and never runs a model in `npm test`.
 | `scenarios.js` | Loads and validates the corpus, digests it, materializes a seed |
 | `checks.js`, `check-runner.js`, `check-kit.js` | Run each hidden check in its own process against the delivered workspace |
 | `browser.js` | A headless Chromium-family browser over the DevTools protocol, with Node's own WebSocket: serves the workspace on 127.0.0.1 and gives each check a fresh profile (`BENCH_CHROMIUM` names the browser) |
-| `arms.js` | `sdd` (init, `sdd-new`, archived change), `idd` (agent writes `idd/config.yaml` with `mode: idd` and `npm test`, `/ospec-workflow:idd`, change closed under `idd/archive/`) and `gentle-ai` (no setup, the brief as is, a commit after setup with nothing uncommitted outside `odd/` and `.atl/`, its skill registry, and every `odd/tasks/*.md` task checked) |
+| `arms.js` | `sdd` (init, `sdd-new`, archived change), `idd` (agent writes `idd/config.yaml` with `mode: idd` and `npm test`, the brief as is because the router is loaded, finished when the new `idd/archive/` entry is committed and the tree is clean) and `gentle-ai` (no setup, the brief as is, a commit after setup with nothing uncommitted outside `odd/` and `.atl/`, its skill registry, and every `odd/tasks/*.md` task checked) |
 | `persona.js` | The simulated user: brief, facts, and goal; classifies each agent message and answers |
 | `driver.js` | Seed → git → setup (unmeasured; the persona only knows the setup goal, and a setup that edits the seed voids the run) → change conversation → hidden checks |
 | `hosts/claude.js` | Headless `claude -p` turns and persona calls in a dedicated config directory, with the plugin built from the checkout; for `gentle-ai`, agent turns in gentle-ai's own HOME |
 | `hosts/gentle-ai.js` | Installs gentle-ai into its bench HOME (for Claude Code or for agy), identifies that install, and starts an empty Engram per workspace |
-| `hosts/agy.js` | Headless `agy --print` turns and persona calls (prompts on stdin as stream-json), each workspace in a fresh copy of the arm's template HOME; installs ospec for antigravity as the IDD template |
+| `hosts/agy.js` | Headless `agy --print` turns and persona calls (prompts on stdin as stream-json), each workspace in a fresh copy of the arm's template HOME; installs ospec for antigravity as the IDD template. A persona model whose id starts with `grok-` is asked through `hosts/cursor-persona.js` instead |
+| `hosts/cursor-persona.js` | Cursor CLI persona (`agent --print --mode ask`) in an empty directory, for a Grok persona agy cannot serve |
 | `transcript.js` | Usage, cost, and session from a `stream-json` transcript (`modelUsage` includes subagents) |
 | `record.js` | The versioned record of one arm and its Markdown report |
 | `checkpoint.js`, `margins.json` | Predeclared margins, the declared harness exception, and the continue/revise decision |
@@ -173,16 +174,14 @@ PATH or in its usual place).
 
 ## Checkpoint
 
-`margins.json` (`bench-margins-7`, E4.5) is declared before any comparison:
+`margins.json` (`bench-margins-8`, E4.9) is declared before any comparison:
 `gentle-ai` is the baseline and `idd` the candidate; both arms run every
-scenario `repetitions: 3` times; summed over the per-scenario means, the
-candidate may not escape more defects than the baseline (`max_mean_delta: 0`)
-or spend more tokens (`max_total_ratio: 1`). Its `quality` criterion is
-evaluated by [`../quality/`](../quality/README.md) (`report`): the candidate's
-mean mutation score may trail the baseline's by at most 5 points, and the blind
-review may prefer the baseline in both orders in at most one pair. Its verdict
-blocks nothing. The E4.2 checkpoint (`bench-margins-6`, one repetition, no
-quality criterion) is reproducible from v2.133.0. Fixed in code: incomparable records (including
+scenario once; summed over the per-scenario means, the candidate may not escape
+more defects than the baseline (`max_mean_delta: 0`) or spend more tokens
+(`max_total_ratio: 1`). It declares no quality criterion. Its verdict blocks
+nothing. The E4.5 checkpoint (`bench-margins-7`, three repetitions and a quality
+criterion) is reproducible from v2.134.0. The E4.2 checkpoint (`bench-margins-6`,
+one repetition, no quality criterion) is reproducible from v2.133.0. Fixed in code: incomparable records (including
 another repetition count), incomplete or missing runs, and any hidden check the
 baseline passes in every repetition and the candidate fails in any force
 `revise`. A new campaign that needs other margins declares a new version first.
@@ -190,7 +189,7 @@ baseline passes in every repetition and the candidate fails in any force
 Records of different harnesses are not comparable unless the margins declare a
 `harness_exception` (one baseline digest, the candidate digests accepted against
 it, the files that differ, and why), and a test then verifies it against
-committed copies of those files. `bench-margins-7` declares none: both arms run
+committed copies of those files. `bench-margins-8` declares none: both arms run
 with the same harness. The E4.1 checkpoint (`bench-margins-5`,
 `sdd-baseline-3` against `idd-2`, with its exception and
 `harness-exception.test.js`) is reproducible from v2.132.1 or earlier.

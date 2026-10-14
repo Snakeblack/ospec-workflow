@@ -3,7 +3,7 @@
   "id": "brownfield",
   "profile": "brownfield",
   "title": "Códigos de descuento en una facturación heredada sin pruebas",
-  "brief": "Contabilidad quiere aplicar los códigos de descuento que ya están en `src/discounts.js`. `calcInvoice(order)` tiene que aceptar `order.discountCode` (por ejemplo `VERANO10`) y la factura tiene que incluir el importe descontado en un campo nuevo, `descuento`.",
+  "brief": "Contabilidad quiere aplicar los códigos de descuento que ya están en `src/discounts.js`. `calcInvoice(order)` tiene que aceptar `order.discountCode` (por ejemplo `VERANO10`) y la factura tiene que incluir el importe descontado en un campo nuevo, `descuento`. Deja el trabajo commiteado.",
   "facts": [
     { "id": "F1", "text": "El descuento se aplica a la base imponible, antes del IVA: el IVA se calcula sobre el importe ya descontado." },
     { "id": "F2", "text": "El envío nunca se descuenta, y el umbral de envío gratis (50) se mira con el importe ya descontado." },

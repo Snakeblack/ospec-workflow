@@ -1,0 +1,842 @@
+{
+  "schema_version": 2,
+  "record_id": "idd-4",
+  "arm": "idd",
+  "recorded_at": "2026-10-13T22:38:53.166Z",
+  "host": {
+    "name": "agy",
+    "cli_version": "1.3.4",
+    "model": "gemini-3.8-flash-high",
+    "effort": null,
+    "plugin_version": "2.136.0",
+    "plugin_digest": "28e39afe6500001f18cd385610092d1b60bfbe54578439dbb7e86ac513971895"
+  },
+  "persona": {
+    "model": "grok-4.7-high"
+  },
+  "scenarios_digest": "3eed3740a0d60661b6724c7884225f575189723fb75b334d8c7377bfe93ad8b4",
+  "harness_digest": "09837661d64bb7aab7f793aebc0fa10ce590006e9f047c1f181ec34bdf30bf24",
+  "limits": {
+    "maxAgentTurns": 30,
+    "maxSetupTurns": 6,
+    "maxCostUsd": null,
+    "maxTokens": 30000000
+  },
+  "repetitions": 1,
+  "runs": [
+    {
+      "scenario_id": "cli-local",
+      "repetition": 1,
+      "profile": "cli-local",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 42947,
+          "output": 2389,
+          "cache_read": 65600,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "duration_ms": 33327,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 218413,
+          "output": 26597,
+          "cache_read": 2380522,
+          "cache_creation": 0
+        },
+        "tokens_total": 2625532,
+        "cost_usd": 0,
+        "duration_ms": 301985,
+        "agent_turns": 1,
+        "model_turns": 1,
+        "subagents": 0,
+        "questions": 0,
+        "decision_changing_questions": 0,
+        "interventions": 0,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "priority-order",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "default-media",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "invalid-priority",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "legacy-file",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "stable-ties",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": true
+        },
+        {
+          "id": "line-prefix",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": true
+        },
+        {
+          "id": "done-still-works",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 0,
+      "facts_disclosed": [],
+      "changed_files": [
+        "README.md",
+        "idd/archive/2026-10-13-task-priority/state.yaml",
+        "src/cli.js",
+        "test/cli.js"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Se ha implementado el soporte de prioridades en el CLI y los cambios han quedado confirmados en el repositorio:\n\n### Cambios realizados\n\n- **[`src/cli.js`](file:///tmp/ospec-bench/sce6IZ/cli-local/src/cli.js)**:\n  - `tasks add` reconoce el argumento opcional `--priority <alta|media|baja>` al final (por ejemplo: `tasks add Comprar pan --priority alta`). Si no se especifica, asigna la prioridad por defecto `media`. Si se pasa una prioridad no válida o falta el argumento, muestra el uso y sale con código `2`.\n  - `tasks list` ordena las tareas mostrando primero las de prioridad más alta (`alta` > `media` > `baja`), preservando el orden de inserción entre tareas de igual prioridad.\n- **[`test/cli.js`](file:///tmp/ospec-bench/sce6IZ/cli-local/test/cli.js)**:\n  - Pruebas que validan la adición con `--priority`, el orden descendente por prioridad en `tasks list` y el manejo de errores de sintaxis o valores no válidos.\n- **[`README.md`](file:///tmp/ospec-bench/sce6IZ/cli-local/README.md)**:\n  - Documentación del uso del modificador `--priority alta` en los ejemplos.\n"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "a1d29338af0fea3d7036fc27c1d14fb4f5c049fc8f5339535a7b106d367a3e0b"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "2bee9459519956080f8585de58cd892a502cd38c1e45154f70c47e64ba715122"
+        }
+      ]
+    },
+    {
+      "scenario_id": "saas-small",
+      "repetition": 1,
+      "profile": "saas-small",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 60358,
+          "output": 2489,
+          "cache_read": 37788,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "duration_ms": 37374,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 275360,
+          "output": 35849,
+          "cache_read": 4961508,
+          "cache_creation": 0
+        },
+        "tokens_total": 5272717,
+        "cost_usd": 0,
+        "duration_ms": 461335,
+        "agent_turns": 2,
+        "model_turns": 2,
+        "subagents": 0,
+        "questions": 1,
+        "decision_changing_questions": 1,
+        "interventions": 1,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "share-visible",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "owner-only-share",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "no-cross-tenant-share",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "read-only-share",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "idempotent-share",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": true
+        },
+        {
+          "id": "tenant-isolation",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 0,
+      "facts_disclosed": [
+        "F1",
+        "F2",
+        "F3",
+        "F4"
+      ],
+      "changed_files": [
+        "README.md",
+        "idd/archive/2026-10-13-share-notes/state.yaml",
+        "src/app.js",
+        "src/repo.js",
+        "test/app.js"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Antes de modificar el código, he registrado el cambio `share-notes` en IDD y es necesario aclarar los siguientes aspectos de comportamiento que ni la petición ni el código resuelven:\n\n1. **¿Quién puede compartir la nota?** ¿Solo el propietario de la nota, o cualquier usuario que tenga acceso a ella? (Propuesta: solo el propietario).\n2. **¿Se puede compartir con usuarios de otra organización?** ¿O compartir con alguien de otro tenant debe fallar para garantizar el aislamiento multi-tenant? (Propuesta: nunca entre organizaciones; falla sin conceder acceso).\n3. **¿Qué permisos recibe el compañero?** ¿Tiene únicamente acceso de lectura (`GET`), o también puede editar (`PUT`) y borrar (`DELETE`)? (Propuesta: solo lectura; no puede editar ni borrar).\n4. **¿Qué ocurre si se comparte dos veces con la misma persona?** ¿Debe responder error o ser una operación idempotente sin duplicar la nota en su lista? (Propuesta: idempotente, no es error y la nota aparece una sola vez).\n\nPor favor, indícame tus decisiones sobre estos puntos para continuar.\n"
+        },
+        {
+          "role": "user",
+          "kind": "question",
+          "text": "Solo el propietario de una nota puede compartirla. Nunca se comparte entre organizaciones: compartir con alguien de otra organización falla y no le da ningún acceso. Compartir da solo lectura: quien recibe la nota no puede editarla ni borrarla. Compartir dos veces con la misma persona no es un error, y la nota no aparece duplicada en su lista.",
+          "facts_disclosed": [
+            "F1",
+            "F2",
+            "F3",
+            "F4"
+          ],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "Se ha implementado la funcionalidad para compartir notas entre compañeros de la misma organización y el cambio ha quedado registrado y commiteado en el repositorio.\n\n### Resumen de cambios\n\n1. **Repositorio de notas ([`repo.js`](file:///tmp/ospec-bench/53sopE/saas-small/src/repo.js))**:\n   - Se añade la propiedad `sharedWith` al modelo de nota.\n   - Se implementa el método `share(id, userId)` de forma idempotente (evita duplicados).\n\n2. **Endpoint y permisos ([`app.js`](file:///tmp/ospec-bench/53sopE/saas-small/src/app.js))**:\n   - `POST /notes/:id/share`: Permite al propietario de la nota compartirla con un usuario (`userId`) perteneciente a su misma organización. Valida que el usuario destino exista en su organización (`findUser`); en caso contrario o si pertenece a otra organización, se rechaza la petición.\n   - `GET /notes`: Lista tanto las notas de las cuales el usuario es propietario como aquellas que han sido compartidas con él dentro de su organización.\n   - `GET /notes/:id`: Permite el acceso de lectura al propietario y a los usuarios con los que se ha compartido la nota.\n   - `PUT /notes/:id` y `DELETE /notes/:id`: Restringidos exclusivamente al propietario (los compañeros con acceso compartido reciben 403 `forbidden`).\n\n3. **Documentación y pruebas**:\n   - Se actualizó la tabla de rutas en [`README.md`](file:///tmp/ospec-bench/53sopE/saas-small/README.md).\n   - Se añadieron casos de prueba en [`test/app.js`](file:///tmp/ospec-bench/53sopE/saas-small/test/app.js) pa…"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "19fde4406eaa50be05c253551d39a83a3a7f448178a7daebd36ccbf979b583bc"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "8f4052ed1b719ba6c4005f6d9600df5aec6df0a2fcead034bc99b530e692cc9a"
+        },
+        {
+          "label": "change",
+          "turn": 2,
+          "sha256": "4c479a1b8ea5e8fd7d87de26e4dc9a19c74c50f38bc58009c9c28324f50075ce"
+        }
+      ]
+    },
+    {
+      "scenario_id": "regulated",
+      "repetition": 1,
+      "profile": "regulated",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 44561,
+          "output": 2115,
+          "cache_read": 73840,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "duration_ms": 27169,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 375126,
+          "output": 28680,
+          "cache_read": 5351560,
+          "cache_creation": 0
+        },
+        "tokens_total": 5755366,
+        "cost_usd": 0,
+        "duration_ms": 389298,
+        "agent_turns": 2,
+        "model_turns": 2,
+        "subagents": 0,
+        "questions": 1,
+        "decision_changing_questions": 1,
+        "interventions": 1,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "export-day-sorted",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "no-national-id-or-diagnosis",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "export-audited",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "export-roles",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "csv-escaping",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": true
+        },
+        {
+          "id": "patient-reads-still-audited",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 0,
+      "facts_disclosed": [
+        "F2",
+        "F3",
+        "F4"
+      ],
+      "changed_files": [
+        "README.md",
+        "idd/archive/2026-10-13-export-appointments-csv/state.yaml",
+        "src/clinic.js",
+        "test/clinic.js"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "He abierto el cambio `export-appointments-csv` en IDD. Antes de modificar el código, es necesario aclarar estos aspectos de comportamiento que ni la petición ni el código existente resuelven:\n\n1. **Roles y permisos:** El archivo [README.md](file:///tmp/ospec-bench/enCiMp/regulated/README.md) indica que `reception` solo lee la agenda y no las historias clínicas, pero el CSV incluye el nombre del paciente. ¿Pueden exportar tanto `reception` como `doctor`, o solo uno de ellos? ¿Qué error deben recibir otros roles?\n2. **Auditoría:** Dado que se trata de datos de salud (RGPD art. 9), ¿debe cada exportación registrar un evento propio en la auditoría ([src/audit.js](file:///tmp/ospec-bench/enCiMp/regulated/src/audit.js)) indicando el actor, la fecha y el número de filas/citas exportadas?\n3. **Formato exacto del CSV:**\n   - ¿Qué cabeceras exactas debe llevar? (Propongo `hora,paciente,motivo`).\n   - ¿Separador de líneas LF (`\\n`) o CRLF (`\\r\\n`), y con salto final o sin él?\n   - Si no hay citas para la fecha dada, ¿se devuelve únicamente la fila de cabecera?\n4. **Escapado y delimitación:**\n   - ¿Cómo se deben tratar los valores con comas o comillas (según RFC 4180)?\n   - ¿Se deben neutralizar valores que comiencen por caracteres de fórmula (`=`, `+`, `-`, `@`) para evitar inyección en hojas de cálculo?\n5. **Paciente inexistente:** Si el `patientId` de una cita no existe en la lista de pacientes, ¿se deja el nombre en blanco o se lanza un error?\n"
+        },
+        {
+          "role": "user",
+          "kind": "question",
+          "text": "Pueden exportar recepción (reception) y médicos (doctor); cualquier otro rol recibe AccessDeniedError. Cada exportación se registra en la auditoría: quién la hizo y cuántas filas salieron. Hay nombres y motivos con comas y comillas (por ejemplo Pérez, Ana o Revisión \"anual\") y el CSV tiene que abrirse bien en una hoja de cálculo. Del resto no tengo preferencia; sigue tu recomendación.",
+          "facts_disclosed": [
+            "F2",
+            "F3",
+            "F4"
+          ],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "Se ha añadido la función `exportAppointmentsCsv(date, actor)` al objeto devuelto por `createClinic` y se ha cerrado el cambio bajo IDD y commiteado en el repositorio.\n\n### Resumen de cambios\n\n1. **Implementación de `exportAppointmentsCsv(date, actor)`** ([src/clinic.js](file:///tmp/ospec-bench/enCiMp/regulated/src/clinic.js)):\n   - **Control de acceso**: Permite la ejecución a los roles `reception` y `doctor`. Cualquier otro rol (o ausencia de actor) lanza [`AccessDeniedError`](file:///tmp/ospec-bench/enCiMp/regulated/src/clinic.js#L5-L10).\n   - **Formato CSV y ordenación**: Filtra las citas de la fecha especificada, las ordena ascendentemente por hora (`time`), y genera la cabecera `hora,paciente,motivo` seguida de las filas separadas por CRLF (`\\r\\n`).\n   - **Tratamiento de datos y escapado (RFC 4180)**: Asocia el `patientId` de cada cita con su nombre en `patients` sin exponer en ningún caso datos sensibles (DNI ni diagnósticos). Los campos con comas, saltos de línea o comillas dobles se entrecomillan escapando comillas internas, y se neutralizan prefijos de fórmulas de hoja de cálculo (`=`, `+`, `-`, `@`, tabulaciones).\n   - **Auditoría**: Registra el evento en `audit` con la acción `export-appointments-csv`, el `actorId`, la `date` y el número de citas exportadas (`count`).\n\n2. **Pruebas añadidas** ([test/clinic.js](file:///tmp/ospec-bench/enCiMp/regulated/test/clinic.js)):\n   - Verificación de exportación ordenada por hora con escapado de comas y comillas.\n   - Casos de…"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "8b60b5ff0c606549b8a6ae4460c7c75c35a7f225747d69fbe9f8a7454fcfcdc6"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "1bc83e754d5b6de0f4c3c2e112c8b87c8065713509c10e80c3be47aefa385a1b"
+        },
+        {
+          "label": "change",
+          "turn": 2,
+          "sha256": "ba13fed9811d58b5e8119da922324f0d55e12a8e7cb6c94b86e64279249a3d3f"
+        }
+      ]
+    },
+    {
+      "scenario_id": "brownfield",
+      "repetition": 1,
+      "profile": "brownfield",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 42922,
+          "output": 2109,
+          "cache_read": 66172,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "duration_ms": 25096,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 268524,
+          "output": 48938,
+          "cache_read": 4356067,
+          "cache_creation": 0
+        },
+        "tokens_total": 4673529,
+        "cost_usd": 0,
+        "duration_ms": 450075,
+        "agent_turns": 2,
+        "model_turns": 2,
+        "subagents": 0,
+        "questions": 1,
+        "decision_changing_questions": 1,
+        "interventions": 1,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "discount-applied",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "discount-before-vat",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "shipping-after-discount",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "case-insensitive-code",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "unknown-code-throws",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": true
+        },
+        {
+          "id": "history-unchanged",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 0,
+      "facts_disclosed": [
+        "F1",
+        "F2",
+        "F3",
+        "F4",
+        "F5"
+      ],
+      "changed_files": [
+        "idd/archive/2026-10-13-apply-discounts/state.yaml",
+        "src/invoice.js",
+        "test/invoice.test.js"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Para proceder con el cambio y resolver la puerta de hechos abiertos (`open-facts`) en IDD antes de modificar el código, por favor indícame tus decisiones sobre los siguientes puntos para [`calcInvoice`](file:///tmp/ospec-bench/E0oY3b/brownfield/src/invoice.js#L11) y [`src/discounts.js`](file:///tmp/ospec-bench/E0oY3b/brownfield/src/discounts.js):\n\n1. **Cálculo del descuento e impacto en IVA y total**:\n   - *(Recomendado)* Calcular el descuento como porcentaje sobre el `subtotal` antes de impuestos (`r2(subtotal * porcentaje / 100)`) y restarlo al calcular `total = r2(subtotal - descuento + iva + envio)`, manteniendo el `iva` calculado por cada línea sin alteración.\n   - ¿O debe prorratearse entre las líneas reduciendo la base imponible del IVA?\n\n2. **Código de descuento no válido o desconocido**:\n   - *(Recomendado)* Ignorarlo y aplicar `descuento: 0`.\n   - ¿O debe lanzar un error (`throw Error`)?\n\n3. **Valor por defecto del campo `descuento`**:\n   - *(Recomendado)* Devolver siempre `descuento: 0` si la orden no especifica `discountCode` o no hay descuento aplicable.\n   - ¿O debe omitirse la propiedad?\n\n4. **Umbral de envío gratuito (`UMBRAL_ENVIO_GRATIS = 50`)**:\n   - *(Recomendado)* Evaluarlo sobre el `subtotal` bruto (antes de aplicar el descuento), manteniendo `subtotal >= UMBRAL_ENVIO_GRATIS`.\n   - ¿O sobre el subtotal neto tras descuento (`subtotal - descuento`)?\n\n5. **Sensibilidad a mayúsculas/minúsculas**:\n   - *(Recomendado)* Normalizar a mayúsculas (`order.discountC…"
+        },
+        {
+          "role": "user",
+          "kind": "question",
+          "text": "El descuento se aplica a la base imponible, antes del IVA: el IVA se calcula sobre el importe ya descontado. Un código que no existe es un error: la factura no se calcula y se lanza una excepción. Las facturas sin código tienen que salir exactamente igual que hoy, céntimo a céntimo, incluido el redondeo por línea: contabilidad las compara con el histórico. El envío nunca se descuenta, y el umbral de envío gratis (50) se mira con el importe ya descontado. Los clientes escriben el código como quieren: verano10 vale lo mismo que VERANO10.",
+          "facts_disclosed": [
+            "F1",
+            "F4",
+            "F5",
+            "F2",
+            "F3"
+          ],
+          "deviates_from_recommendation": true
+        },
+        {
+          "role": "agent",
+          "text": "Se ha completado la integración de los códigos de descuento en [`calcInvoice`](file:///tmp/ospec-bench/E0oY3b/brownfield/src/invoice.js#L14) y el trabajo ha quedado commiteado.\n\n### Resumen de cambios\n\n1. **Aplicación de códigos de descuento en [`src/invoice.js`](file:///tmp/ospec-bench/E0oY3b/brownfield/src/invoice.js)**:\n   - Se importan los códigos desde [`src/discounts.js`](file:///tmp/ospec-bench/E0oY3b/brownfield/src/discounts.js#L2).\n   - Se procesa `order.discountCode` de forma insensible a mayúsculas/minúsculas y espacios (ej. `verano10` equivale a `VERANO10`).\n   - Se lanza una excepción si se especifica un código no reconocido.\n   - El descuento se aplica a la base imponible de cada línea antes del cálculo de IVA (`ivaLinea`), preservando el redondeo por línea y garantizando que las facturas sin código coincidan céntimo a céntimo con el histórico.\n   - La factura devuelta incluye el nuevo campo `descuento` (`0` si no se aplica ninguno).\n   - El umbral de envío gratis (50 €) se evalúa sobre el importe ya descontado (`subtotal - descuento`).\n\n2. **Pruebas unitarias en [`test/invoice.test.js`](file:///tmp/ospec-bench/E0oY3b/brownfield/test/invoice.test.js)**:\n   - Cobertura de facturas históricas sin código (redondeo por línea, envío estándar y recogida).\n   - Códigos válidos (`VERANO10`, `BIENVENIDA5`) con IVA general y reducido.\n   - Insensibilidad a mayúsculas y espacios.\n   - Evaluación del umbral de envío gratis con importe tras descuento.\n   - Excepciones en cód…"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "f62c270767edf513a9804b70c50c1da560e009a8a5a92d5399c8aaef9b2a9cae"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "c8ab9651ecb8e85ee0c73f6bbdb9f545007b18a0deba21a44912f5fdcd8e2ce7"
+        },
+        {
+          "label": "change",
+          "turn": 2,
+          "sha256": "68a92c29ae47ed79a029f027b50d15d7d673ba7fdae91cb3578e4eda575cb375"
+        }
+      ]
+    },
+    {
+      "scenario_id": "public-library",
+      "repetition": 1,
+      "profile": "public-library",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 42315,
+          "output": 1714,
+          "cache_read": 65063,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "duration_ms": 26068,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 215172,
+          "output": 17907,
+          "cache_read": 2893043,
+          "cache_creation": 0
+        },
+        "tokens_total": 3126122,
+        "cost_usd": 0,
+        "duration_ms": 228821,
+        "agent_turns": 1,
+        "model_turns": 1,
+        "subagents": 0,
+        "questions": 0,
+        "decision_changing_questions": 0,
+        "interventions": 0,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "parse-days",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "format-unchanged-by-default",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n\n'1d 1h' !== '25h'\n"
+        },
+        {
+          "id": "format-days-option",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "types-updated",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": false,
+          "error": "The input did not match the regular expression /format\\s*\\(\\s*ms\\s*:\\s*number\\s*,/. Input:\n\n'/** Parses a compact duration such as \"2d4h\", \"1h30m\" or \"2m 5s\" into milliseconds. */\\n' +\n  'export function parse(text: string): number;\\n' +\n  '\\n' +\n  '/** Formats milliseconds as \"1d 2h\" or \"1h 30m\". */\\n' +\n  'export function format(ms: number): string;\\n'\n"
+        },
+        {
+          "id": "changelog-updated",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "existing-behavior",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 2,
+      "facts_disclosed": [],
+      "changed_files": [
+        "CHANGELOG.md",
+        "README.md",
+        "idd/archive/2026-10-13-add-days/state.yaml",
+        "index.d.ts",
+        "index.js",
+        "test/duration.js"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Se ha añadido el soporte para días (`d`) a `tiny-duration` y el trabajo ha quedado commiteado.\n\n### Cambios realizados\n\n- [index.js](file:///tmp/ospec-bench/GymUfz/public-library/index.js):\n  - Añadida la unidad `d` (`86400000` ms) a `UNITS` como la mayor unidad.\n  - Actualizada la expresión regular `PATTERN` a `/(\\d+)(ms|d|h|m|s)/g`.\n  - Actualizados los comentarios JSDoc de [`parse`](file:///tmp/ospec-bench/GymUfz/public-library/index.js#L11-L24) y [`format`](file:///tmp/ospec-bench/GymUfz/public-library/index.js#L31-L44).\n- [index.d.ts](file:///tmp/ospec-bench/GymUfz/public-library/index.d.ts): Actualizada la documentación de tipos con ejemplos de días.\n- [test/duration.js](file:///tmp/ospec-bench/GymUfz/public-library/test/duration.js): Añadidas pruebas unitarias para `parse('2d4h')`, `parse('1d 2h')`, `format(93600000)` (`1d 2h`), `format(187200000)` (`2d 4h`) y duraciones combinadas completas.\n- [README.md](file:///tmp/ospec-bench/GymUfz/public-library/README.md) y [CHANGELOG.md](file:///tmp/ospec-bench/GymUfz/public-library/CHANGELOG.md): Documentado el soporte de partes de días (`d`).\n\n### Verificación y commit\n\n- Todas las pruebas pasan satisfactoriamente (`node --test`).\n- El ciclo de cambio se ha cerrado y archivado mediante IDD (`ospec close`).\n- Confirmado en el commit `53406bb`: `feat: añade soporte de días en parse y format`.\n"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "47eabedec9651aaf01f8ffe8517a7c5677967c056667521ce03f97f1e5f301b6"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "2263e4d19e762dd9517a796f93e0e8c547ec0a8eb7cd022c39fe4d7251cab770"
+        }
+      ]
+    },
+    {
+      "scenario_id": "bugfix",
+      "repetition": 1,
+      "profile": "bugfix",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 50093,
+          "output": 1416,
+          "cache_read": 14484,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "duration_ms": 21427,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 201204,
+          "output": 35346,
+          "cache_read": 2955560,
+          "cache_creation": 0
+        },
+        "tokens_total": 3192110,
+        "cost_usd": 0,
+        "duration_ms": 454812,
+        "agent_turns": 1,
+        "model_turns": 1,
+        "subagents": 0,
+        "questions": 0,
+        "decision_changing_questions": 0,
+        "interventions": 0,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "exact-multiple",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "page-below-one",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "beyond-last-page",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "empty-list",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "invalid-page-size",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": false,
+          "error": "Missing expected exception (RangeError)."
+        },
+        {
+          "id": "existing-pages",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 1,
+      "facts_disclosed": [],
+      "changed_files": [
+        "idd/archive/2026-10-13-fix-paginate/state.yaml",
+        "src/paginate.js",
+        "test/paginate.js"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Se ha corregido el comportamiento en [`paginate`](file:///tmp/ospec-bench/4pp9cW/bugfix/src/paginate.js#L10-L15) dentro de [src/paginate.js](file:///tmp/ospec-bench/4pp9cW/bugfix/src/paginate.js):\n\n### Cambios realizados\n1. **Cálculo de `totalPages`**: Se sustituyó `Math.floor(items.length / pageSize) + 1` por `Math.ceil(items.length / pageSize)`. Con esto, si hay 20 elementos y páginas de 10, el resultado son 2 páginas en vez de 3.\n2. **Normalización de página**: Se aplicó `Math.max(1, page)` para asegurar que páginas menores o iguales a 0 no produzcan índices negativos en `slice` y se ajusten a la primera página válida (página 1).\n3. **Pruebas añadidas**: Se añadieron tests de regresión en [test/paginate.js](file:///tmp/ospec-bench/4pp9cW/bugfix/test/paginate.js) para validar múltiplos exactos de tamaño de página y el manejo de `page = 0`.\n4. **Verificación y commit**: Se completó el ciclo IDD y los cambios quedaron confirmados en git mediante el commit `b3b8b02`.\n"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "4f509c5851bf8a25036c68a8653a1b810706e09bbd1d5b84142a6d94090473a9"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "1e7513e9ccf2addf2703be2dcf38d0aa06f8dde2c0b88fa0c2f23b6b24ce7b68"
+        }
+      ]
+    }
+  ]
+}

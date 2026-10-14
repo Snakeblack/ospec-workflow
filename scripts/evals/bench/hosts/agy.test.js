@@ -329,6 +329,30 @@ test("the persona answers through structured output from a fresh, rule-free HOME
   assert.ok(seen.prompt.includes("¿Qué longitud máxima?"));
 });
 
+test("a cursor persona replaces the agy persona call", async () => {
+  const dir = tempDir();
+  const seen = [];
+  const host = createAgyHost({
+    executable: path.join(dir, "missing"),
+    template: template(dir),
+    model: "gemini-3.8-flash-high",
+    personaModel: "grok-4.7-high",
+    personaDir: dir,
+    personaInvoke: async (input) => {
+      seen.push(input.message);
+      return {
+        usage: { input: 1, output: 1, cache_read: 0, cache_creation: 0 },
+        reply: { kind: "question", answer: "El título tiene como máximo 200 caracteres.", facts_disclosed: ["F1"], deviates_from_recommendation: false, unknown_facts: [] },
+      };
+    },
+  });
+  const { reply, error } = await host.persona({ scenario, goal: "terminado", message: "¿cuál es el límite?" });
+  assert.equal(error, null);
+  assert.deepEqual(seen, ["¿cuál es el límite?"]);
+  assert.equal(reply.kind, "question");
+  assert.deepEqual(reply.facts_disclosed, ["F1"]);
+});
+
 test("a persona that cannot answer falls back to asking the agent to continue", async () => {
   const dir = tempDir();
   const broken = path.join(dir, "broken.js");
