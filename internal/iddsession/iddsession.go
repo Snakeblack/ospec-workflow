@@ -57,7 +57,9 @@ var evidenceKinds = map[string]string{
 
 // how is HOW of idd-next.js: the command that records each obligation's evidence.
 var how = map[string]func(change string) string{
-	"checks-pass": func(c string) string { return "ospec check --change " + c },
+	"checks-pass": func(c string) string {
+		return "ospec check --change " + c + "; a run that reports tests 0 is not evidence"
+	},
 	"repro-test": func(c string) string {
 		return "ospec run --change " + c + ` --obligation repro-test --command "<test>": once failing before the fix, again passing after it`
 	},
