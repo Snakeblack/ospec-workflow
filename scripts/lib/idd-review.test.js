@@ -25,7 +25,13 @@ const {
 const AT = "2026-10-05T08:00:00.000Z";
 
 function openAuth() {
-  let { state } = recordIntent(null, { change: "rotate-tokens", kind: "feature", summary: "Rotate tokens.", acceptance: "Old tokens expire.", noOpenFacts: true, basis: "The request fixes every behavior." });
+  let { state } = recordIntent(null, {
+    change: "rotate-tokens",
+    kind: "feature",
+    summary: "Rotate tokens.",
+    acceptance: "Old tokens expire.",
+    coverage: require("./idd-facts.js").citedCoverage(),
+  });
   ({ state } = recordSignal(state, { id: "security-boundary", reason: "touches src/auth/tokens.js", source: "diff" }));
   return state;
 }

@@ -150,6 +150,9 @@ const SUCCESSOR_K2_EXACT = new Set([
   "scripts/lib/idd-next.test.js",
   "scripts/lib/idd-record.js",
   "scripts/lib/idd-record.test.js",
+  // E4.6 feature category coverage (roadmap harness-evolution).
+  "scripts/lib/idd-facts.js",
+  "scripts/lib/idd-facts.test.js",
   "scripts/lib/idd-store.js",
   "scripts/lib/idd-store.test.js",
   // E1.3 impact signals from the declaration and the diff (roadmap harness-evolution).

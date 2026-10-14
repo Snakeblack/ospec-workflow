@@ -27,6 +27,7 @@ function loadFixtures() {
 // expected signals in the given order.
 function stateFromFixture(fixture, signalOrder = (ids) => ids) {
   const { input, expected } = fixture;
+  const feature = !input.intent.ambiguous && input.intent.kind === "feature";
   const intent = input.intent.ambiguous
     ? { change: fixture.id, ambiguous: true, request: input.request }
     : {
@@ -34,7 +35,7 @@ function stateFromFixture(fixture, signalOrder = (ids) => ids) {
         kind: input.intent.kind,
         summary: input.intent.summary,
         acceptance: input.intent.acceptance,
-        ...NO_OPEN_FACTS,
+        ...(feature ? { coverage: require("./idd-facts.js").citedCoverage() } : NO_OPEN_FACTS),
       };
   let state = recordIntent(null, intent).state;
   if (!input.intent.ambiguous) {
@@ -122,7 +123,7 @@ test("an ambiguous intent blocks on its gate with the original request", () => {
 
 test("open facts are asked before any obligation, as one batch of questions", () => {
   const questions = ["Is the threshold checked after the discount?", "Is an unknown code an error?"];
-  let state = planned({ change: "discount-codes", kind: "feature", summary: "s", acceptance: "a", openFacts: questions });
+  let state = planned({ change: "discount-codes", kind: "bug", summary: "s", acceptance: "a", openFacts: questions });
   const result = nextForChange(state);
   assert.deepStrictEqual(result.next_step, { action: "resolve-gate", gate: "open-facts" });
   assert.strictEqual(result.pending_decision.gate, "open-facts");
@@ -136,7 +137,7 @@ test("open facts are asked before any obligation, as one batch of questions", ()
 });
 
 test("a decision gate comes before the plan and the obligations it decides", () => {
-  let state = recordIntent(null, { change: "cache-sums", kind: "feature", summary: "s", acceptance: "a", ...NO_OPEN_FACTS }).state;
+  let state = recordIntent(null, { change: "cache-sums", kind: "bug", summary: "s", acceptance: "a", ...NO_OPEN_FACTS }).state;
   state = recordGate(state, { id: "adr-amend-or-contradict", action: "open", reason: "ADR-0003 forbids external caches" }).state;
   assert.deepStrictEqual(nextForChange(state).next_step, { action: "resolve-gate", gate: "adr-amend-or-contradict" });
 
@@ -186,7 +187,7 @@ test("missing checks are a prerequisite for check evidence, preserving reproduct
 
   const ambiguous = recordIntent(null, { change: "vague", ambiguous: true, request: "Improve it" }).state;
   assert.strictEqual(nextForChange(ambiguous, context).next_step.gate, "ambiguous-intent");
-  const facts = recordIntent(null, { change: "facts", kind: "feature", summary: "s", acceptance: "a", openFacts: ["Which behavior?"] }).state;
+  const facts = recordIntent(null, { change: "facts", kind: "bug", summary: "s", acceptance: "a", openFacts: ["Which behavior?"] }).state;
   assert.strictEqual(nextForChange(facts, context).next_step.gate, "open-facts");
   assert.deepStrictEqual(nextForProject([state, facts], context).next_step.action, "choose-change");
 });
@@ -269,7 +270,7 @@ test("next asks to declare the plan after the intent gates and before any obliga
   const withRun = { ...opened, runs: [{ id: "run-1" }] };
   assert.strictEqual(nextForChange(withRun).next_step.obligation, "checks-pass");
 
-  const facts = recordIntent(null, { change: "facts", kind: "feature", summary: "s", acceptance: "a", openFacts: ["Which?"] }).state;
+  const facts = recordIntent(null, { change: "facts", kind: "bug", summary: "s", acceptance: "a", openFacts: ["Which?"] }).state;
   assert.deepStrictEqual(nextForChange(facts).next_step, { action: "resolve-gate", gate: "open-facts" });
   const ambiguous = recordIntent(null, { change: "vague", ambiguous: true, request: "Improve it" }).state;
   assert.strictEqual(nextForChange(ambiguous).next_step.gate, "ambiguous-intent");
@@ -281,7 +282,7 @@ test("next asks to declare the plan after the intent gates and before any obliga
 // ---------------------------------------------------------------------------
 
 test("next says how to declare an impact on the declared references", () => {
-  let state = planned({ change: "evented", kind: "feature", summary: "s", acceptance: "a", ...NO_OPEN_FACTS });
+  let state = planned({ change: "evented", kind: "feature", summary: "s", acceptance: "a", coverage: require("./idd-facts.js").citedCoverage() });
   state = recordSignal(state, { id: "adr-or-quality-attribute", reason: "declared ADR 0002", source: "declaration" }).state;
   state = recordReferences(state, [{ kind: "adr", id: "0002" }]).state;
   const result = nextForChange(state);
@@ -295,7 +296,7 @@ test("next says how to declare an impact on the declared references", () => {
 });
 
 test("a boundary without a declared ADR suggests one and changes nothing else", () => {
-  let state = planned({ change: "orders-api", kind: "feature", summary: "s", acceptance: "a", ...NO_OPEN_FACTS });
+  let state = planned({ change: "orders-api", kind: "feature", summary: "s", acceptance: "a", coverage: require("./idd-facts.js").citedCoverage() });
   state = recordSignal(state, { id: "public-contract", reason: "public contract: touches src/api/orders.js (matches **/api/**)", source: "declaration" }).state;
   const result = nextForChange(state);
   assert.deepStrictEqual(result.suggestions, [

@@ -24,6 +24,7 @@ const {
   canWithdraw,
   isIntentAmbiguous,
 } = require("./idd-contract.js");
+const { factsFromCoverage } = require("./idd-facts.js");
 const { normalizePath } = require("./idd-impact.js");
 
 const SIGNAL_BY_ID = new Map(SIGNALS.map((signal) => [signal.id, signal]));
@@ -38,8 +39,10 @@ class IddRecordError extends Error {
   }
 }
 
-function refuse(code, message) {
-  throw new IddRecordError(code, message);
+function refuse(code, message, how) {
+  const error = new IddRecordError(code, message);
+  if (how) error.how = how;
+  throw error;
 }
 
 function unchanged(state) {
@@ -61,8 +64,20 @@ function sameJson(left, right) {
 // A repeated intent without a facts declaration keeps the recorded one; one
 // with a declaration must match it.
 function sameFacts(state, input) {
+  if (input.kind === "feature") {
+    if (input.coverage == null) return true;
+    const built = factsFromCoverage(input.coverage);
+    return !built.error && sameJson(built.facts, state.facts);
+  }
   if (input.openFacts == null && input.noOpenFacts == null) return true;
   return sameJson(declaredFacts(input), state.facts);
+}
+
+function factsFor(input) {
+  if (input.kind !== "feature") return declaredFacts(input);
+  const built = factsFromCoverage(input.coverage);
+  if (built.error) refuse(built.error.code, built.error.message, built.error.how);
+  return built.facts;
 }
 
 function addSignal(state, { id, reason, source }) {
@@ -116,7 +131,8 @@ function declaredFacts(input) {
 
 function applyFacts(state, facts) {
   state.facts = facts;
-  if (facts.open) state.gates.push({ id: "open-facts", status: "open" });
+  const questions = facts.open || (facts.coverage || []).flatMap((entry) => (entry.question ? [entry.question] : []));
+  if (questions.length > 0) state.gates.push({ id: "open-facts", status: "open" });
 }
 
 function recordIntent(state, input = {}) {
@@ -141,7 +157,7 @@ function recordIntent(state, input = {}) {
     if (!input.answer || !input.source) {
       refuse("gate-answer-required", "resolving ambiguous-intent needs the user's answer and its source");
     }
-    const facts = declaredFacts(input);
+    const facts = factsFor(input);
     const next = structuredClone(state);
     next.intent = resolvedIntent({ ...input, request: state.intent.request });
     const gate = next.gates.find((entry) => entry.id === "ambiguous-intent");
@@ -180,7 +196,7 @@ function recordIntent(state, input = {}) {
     next.gates.push({ id: "ambiguous-intent", status: "open" });
   } else {
     validateResolvedIntent(input);
-    const facts = declaredFacts(input);
+    const facts = factsFor(input);
     next.intent = resolvedIntent(input);
     applyFacts(next, facts);
     addSignal(next, { id: "always", reason: ALWAYS_REASON, source: "declaration" });
@@ -465,8 +481,17 @@ function recordEvidence(state, { id, kind, obligation: obligationId, recordedAt,
   return { state: next, changed: true };
 }
 
+function recordAssumption(state, { text } = {}) {
+  requireOpen(state);
+  requireText(text, "assumption-required", "an assumption needs text");
+  const assumptions = state.assumptions || [];
+  if (assumptions.includes(text)) return unchanged(state);
+  return { state: { ...structuredClone(state), assumptions: [...assumptions, text] }, changed: true };
+}
+
 module.exports = {
   IddRecordError,
+  recordAssumption,
   recordAttestation,
   recordEvidence,
   recordGate,

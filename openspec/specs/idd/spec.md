@@ -75,7 +75,8 @@ artifacts there.
 `status` (`open` or `closed`), `intent` (`kind` in `bug`, `feature`,
 `refactor`, `docs`, plus `summary` and `acceptance`, and optionally the original
 `request`), `facts` (the open-facts declaration of REQ-idd-018: either `open`,
-the list of open questions, or `basis`, why none is open), `signals` (each with `id`, `reason` and `source`, `declaration` or
+the list of open questions, `basis`, why none is open, or `coverage` for a
+feature), `assumptions` (text recorded with `ospec record assumption`), `signals` (each with `id`, `reason` and `source`, `declaration` or
 `diff`), `obligations` (each with `id`, `signal`, `status` in `pending`,
 `satisfied`, `withdrawn`, the `evidence` ids that satisfy it and, when
 withdrawn, `withdrawn_reason`), `gates` (each with `id`, `status` `open` or
@@ -95,7 +96,7 @@ REQ-idd-022: one per declared reference, with its `kind`, `id`, `evidence` and
 CLI-observed execution of REQ-idd-014) and `reviews` (the trust review
 lineages of REQ-idd-016, oldest first), plus `closed_at` once the change is
 closed (REQ-idd-017). A state without `base`, `plan`, `retracted`, `impacts`,
-`attestations`, `runs`, `reviews` or `facts` MUST stay valid, as the states written before they existed. While the
+`attestations`, `runs`, `reviews`, `facts` or `assumptions` MUST stay valid, as the states written before they existed. While the
 `ambiguous-intent` gate is open, `intent.kind`, `intent.summary` and
 `intent.acceptance` MUST be null, `intent.request` MUST hold the original
 request, and `signals` and `obligations` MUST be empty. `state.yaml` MUST be
@@ -156,6 +157,7 @@ when the change declares the ADRs or quality scenarios it touches
 | `always` | `checks-pass` | `check-run` |
 | `strict-tdd` | `tdd-red-green` | `tdd-red-green` |
 | `bug-fix` | `repro-test` | `repro-run-pair` |
+| `untested-product` | `boundary-tests` | `tested-check` |
 | `multi-unit-or-decision` | `living-doc` | `living-doc-current` |
 | `public-contract` | `contract-spec-and-test` | `contract-spec-and-test` |
 | `persistent-data` | `migration-compat-and-test` | `migration-test` |
@@ -168,6 +170,8 @@ when the change declares the ADRs or quality scenarios it touches
   unit of work, both runs recorded by the CLI (REQ-idd-014).
 - `repro-run-pair`: the reproduction test failing before the fix and passing
   after it, both runs recorded by the CLI.
+- `tested-check`: a passing check run on the current tree that reports more
+  than zero tests, or whose diff touches a test when the output has no count.
 - `living-doc-current`: `change.md` holds the template sections and is current
   at close.
 - `contract-spec-and-test`: a contract document and a test, both touched by
@@ -294,7 +298,9 @@ open it with `record gate --open` and a reason naming the ADR before it asks.
 
 `ospec close` MUST succeed only when no obligation is `pending` and no gate is
 `open`. Closing MUST set `status: closed` and archive the change transactionally
-(REQ-idd-017).
+(REQ-idd-017). The result MUST include `assumptions`, the text recorded with
+`ospec record assumption`, or an empty list when none was recorded. Assumptions
+MUST NOT block close.
 Delivery (branch, PR and merge) MUST stay outside close and is the person's
 decision.
 
@@ -342,7 +348,7 @@ gate in the order `ambiguous-intent`, `open-facts`, `adr-amend-or-contradict`,
 before the work it decides (REQ-idd-008); else `declare-plan` (with `how`
 naming `ospec signals`) while the change has no recorded `plan`, no signal
 from the diff and no run; else the first pending obligation in the order
-`repro-test`, `tdd-red-green`, `contract-spec-and-test`,
+`repro-test`, `tdd-red-green`, `boundary-tests`, `contract-spec-and-test`,
 `migration-compat-and-test`, `adr-impact-declaration`, `trust-review`,
 `checks-pass`, `living-doc`; else `close`. The CLI MUST exit with 0 on
 success, 1 when the IDD contract refuses the request and 2 on a usage error.
@@ -466,7 +472,16 @@ operation (`drop-table`, `drop-column`, `drop-schema`, `drop-database`,
 `truncate-table`, `delete-data`, `rewrite-history`) or for a destructive
 statement (drop of a table, schema, database or column, truncate, or a complete
 `DELETE` without `WHERE`) in a line the diff adds to a `persistent-data` file;
-comment lines MUST NOT count. No other derivation MAY open a gate. `--adr`
+comment lines MUST NOT count. Added lines MUST also derive `persistent-data`
+when they use `localStorage`, `indexedDB` or a disk write (`writeFile`,
+`appendFile`, `createWriteStream`, `os.WriteFile`, `ioutil.WriteFile`,
+`File.WriteAllText`, `Deno.writeFile`), and `public-contract` when documentation
+states a selector contract (`getElementById`, `querySelector`, `` `#id` ``) or
+an HTTP method plus a path. A comment line, including `//`, `#`, `--`, `/* */`
+and `<!-- -->`, MUST NOT count. For an intent of kind `feature` or `bug`, a
+diff that changes product code and no test MUST derive `untested-product`.
+Product code is a source file; documentation, manifests and tests are not.
+No other derivation MAY open a gate. `--adr`
 and `--quality` declare the architecture references of REQ-idd-020. The
 path-driven signals and `bug-fix` MUST map one to one onto the K1 hard floors
 (`public_api`, `data_migration`, `auth_security`,
@@ -603,7 +618,12 @@ cannot start or ends by a signal MUST NOT count as passing.
 every declared check passed on that tree, the tree current when the checks
 finished. After each `check`, `checks-pass` MUST be satisfied exactly when that
 check recorded such evidence; otherwise it MUST return to `pending`, because
-older evidence proved an older tree. `repro-run-pair` and `tdd-red-green`
+older evidence proved an older tree. A run whose output reports zero tests
+(a `tests 0` summary, "could not find" test files, or "no tests ran") MUST NOT
+count as passing and MUST NOT satisfy `boundary-tests`. `boundary-tests` MUST
+be satisfied by a passing check on the current tree that reports more than
+zero tests, or, when the output has no test count, by a passing check whose
+diff touches a test. `repro-run-pair` and `tdd-red-green`
 evidence MUST name a failing run and a later passing run of the same purpose,
 command and unit on a different tree, and `ospec run` MUST record it when such
 a passing run is recorded.
@@ -810,7 +830,12 @@ silent handling, normalization and compatibility with existing behavior. The
 declaration MUST be either at least one question (`--open-fact`, repeatable)
 or `--no-open-facts` with the `--basis` that settles every behavior, never both
 and never neither; otherwise `record intent` MUST be refused with
-`facts-undeclared`. The declaration MUST be stored in `facts`, with repeated
+`facts-undeclared`. A `feature` MUST instead cover every category (`inputs`,
+`uniqueness`, `persistence`, `copy`, `url-state`, `accessibility`, `errors`)
+with a concrete `--open-fact` that names a value, limit or format, a `--cite`
+of `path:line` that exists in the tree, or a `--quote` of at least 12 characters
+taken from `--request`. A basis that cites nothing MUST be refused, and the
+refusal MUST include the command. The declaration MUST be stored in `facts`, with repeated
 questions recorded once. Open facts MUST open the `open-facts` gate, which only
 `record intent` opens, and which MUST be resolved only by the user's answer
 with its source. While it is open, `next` MUST return the questions as one

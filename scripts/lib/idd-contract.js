@@ -5,6 +5,8 @@
 // CLI (E1.2–E1.4) consumes; idd-contract.test.js keeps them in parity with the
 // spec. Pure data and validators: no filesystem access.
 
+const { CATEGORY_IDS } = require("./idd-facts.js");
+
 const MODES = Object.freeze(["idd", "sdd"]);
 // IDD is the default entry since E1.6 (REQ-idd-001).
 const DEFAULT_MODE = "idd";
@@ -39,6 +41,7 @@ const STATE_FIELDS = Object.freeze([
   "base",
   "runs",
   "reviews",
+  "assumptions",
   "closed_at",
 ]);
 const CHANGE_STATUSES = Object.freeze(["open", "closed"]);
@@ -53,6 +56,7 @@ const RUN_PURPOSES = Object.freeze(["checks", "repro-test", "tdd-red-green", "mi
 // Evidence kinds proven by CLI-observed runs, and the run purpose behind each.
 const RUN_EVIDENCE = Object.freeze({
   "check-run": "checks",
+  "tested-check": "checks",
   "repro-run-pair": "repro-test",
   "tdd-red-green": "tdd-red-green",
   "migration-test": "migration-test",
@@ -65,6 +69,7 @@ const SIGNALS = Object.freeze(
     { id: "always", obligation: "checks-pass" },
     { id: "strict-tdd", obligation: "tdd-red-green" },
     { id: "bug-fix", obligation: "repro-test" },
+    { id: "untested-product", obligation: "boundary-tests" },
     { id: "multi-unit-or-decision", obligation: "living-doc" },
     { id: "public-contract", obligation: "contract-spec-and-test" },
     { id: "persistent-data", obligation: "migration-compat-and-test" },
@@ -78,6 +83,7 @@ const OBLIGATIONS = Object.freeze(
     { id: "checks-pass", evidence: "check-run" },
     { id: "tdd-red-green", evidence: "tdd-red-green" },
     { id: "repro-test", evidence: "repro-run-pair" },
+    { id: "boundary-tests", evidence: "tested-check" },
     { id: "living-doc", evidence: "living-doc-current" },
     { id: "contract-spec-and-test", evidence: "contract-spec-and-test" },
     { id: "migration-compat-and-test", evidence: "migration-test" },
@@ -156,6 +162,11 @@ function validateState(state) {
     fail("closed_at is the close time of a closed change");
   }
   if (state.base != null && typeof state.base !== "string") fail("base must be a commit id");
+  if ("assumptions" in state) {
+    const assumptions = state.assumptions;
+    const text = (entry) => typeof entry === "string" && entry.trim() !== "";
+    if (!Array.isArray(assumptions) || !assumptions.every(text)) fail("assumptions must be a list of text");
+  }
   if (errors.length > 0) return { ok: false, errors };
 
   // While ambiguous-intent is open the intent stays unresolved, keeps the
@@ -278,6 +289,15 @@ function validateRunEvidence(entry, runs, runIndex, fail) {
   const purpose = RUN_EVIDENCE[entry.kind];
   const detail = entry.detail || {};
   const runOf = (id) => (runIndex.has(id) ? runs[runIndex.get(id)] : null);
+  if (entry.kind === "tested-check") {
+    const run = runOf(detail.run);
+    const counted = run && run.tests > 0;
+    const uncounted = run && run.tests == null && detail.has_test === true;
+    if (!run || run.purpose !== purpose || run.exit_code !== 0 || run.tree !== detail.tree || (!counted && !uncounted)) {
+      fail(`evidence ${entry.id} needs a passing check that executed at least one test, or a test in the diff when the output has no count`);
+    }
+    return undefined;
+  }
   if (entry.kind === "check-run") {
     const ids = Array.isArray(detail.runs) ? detail.runs : [];
     if (ids.length === 0 || !SHA256.test(detail.tree || "")) {
@@ -351,8 +371,12 @@ function validateFacts(state, fail) {
   }
   const isText = (value) => typeof value === "string" && value.trim() !== "";
   const keys = Object.keys(facts);
+  if (keys.length === 1 && keys[0] === "coverage") {
+    validateCoverage(facts.coverage, gate, fail);
+    return;
+  }
   if (keys.length !== 1 || !["open", "basis"].includes(keys[0])) {
-    fail("facts must hold either the open questions or the basis for none");
+    fail("facts must hold either the open questions, the basis for none, or feature coverage");
     return;
   }
   if (keys[0] === "open") {
@@ -364,6 +388,33 @@ function validateFacts(state, fail) {
     if (!isText(facts.basis)) fail("facts.basis must say why no fact is open");
     if (gate) fail("the open-facts gate needs open facts, not a basis");
   }
+}
+
+function validateCoverage(coverage, gate, fail) {
+  if (!Array.isArray(coverage) || coverage.length !== CATEGORY_IDS.length) {
+    fail("facts.coverage must cover every feature category");
+    return;
+  }
+  const seen = new Set();
+  let questions = 0;
+  for (const entry of coverage) {
+    if (entry == null || !CATEGORY_IDS.includes(entry.category) || seen.has(entry.category)) {
+      fail("facts.coverage must list each feature category once");
+      return;
+    }
+    seen.add(entry.category);
+    const question = typeof entry.question === "string" && entry.question.trim() !== "";
+    const cite = entry.cite;
+    const cited = (cite?.kind === "path" && typeof cite.path === "string" && Number.isInteger(cite.line) && cite.line >= 1)
+      || (cite?.kind === "request" && typeof cite.text === "string" && cite.text.trim() !== "");
+    if (question === cited) {
+      fail(`facts.coverage ${entry.category} needs a question or a cite`);
+      return;
+    }
+    if (question) questions += 1;
+  }
+  if (questions > 0 && !gate) fail("open facts need the open-facts gate");
+  if (questions === 0 && gate) fail("the open-facts gate needs open facts, not only citations");
 }
 
 // The declared plan (E1.11): what `ospec signals` was told the change touches.

@@ -1,0 +1,24 @@
+{
+  "id": "comment-does-not-fire",
+  "description": "A mention of localStorage, indexedDB or a selector inside a comment does not derive persistent-data or public-contract.",
+  "input": {
+    "intent": { "kind": "feature", "summary": "Keep the page.", "acceptance": "The page still loads." },
+    "project": { "strict_tdd": false, "stacks": [] },
+    "declaration": { "paths": ["index.html"], "work_units": 1, "non_obvious_decision": false, "operations": [] },
+    "diff": {
+      "paths": ["index.html", "README.md"],
+      "added_lines": {
+        "index.html": ["// localStorage.setItem('a', '1')", "/* indexedDB.open('db') */", "<!-- writeFile('a') -->"],
+        "README.md": ["<!-- getElementById('task') -->"]
+      }
+    }
+  },
+  "expected": {
+    "signals": [
+      { "id": "always", "source": "declaration" },
+      { "id": "untested-product", "source": "diff" }
+    ],
+    "gates": [],
+    "floor": "bounded"
+  }
+}

@@ -54,6 +54,41 @@ const DESTRUCTIVE_STATEMENTS = Object.freeze([
 ]);
 
 const COMMENT_LINE = /^\s*(--|#|\/\/)/;
+const PRODUCT_EXT = /\.(js|jsx|mjs|cjs|ts|tsx|py|go|java|kt|kts|cs|rb|php|rs|html|htm|css|vue|svelte)$/i;
+const MANIFESTS = new Set([
+  "package.json",
+  "package-lock.json",
+  "npm-shrinkwrap.json",
+  "go.mod",
+  "go.sum",
+  "pyproject.toml",
+  "requirements.txt",
+  "pipfile",
+  "setup.py",
+  "setup.cfg",
+  "cargo.toml",
+  "cargo.lock",
+  "pom.xml",
+  "build.gradle",
+  "build.gradle.kts",
+  "settings.gradle",
+  "composer.json",
+  "gemfile",
+  "gemfile.lock",
+]);
+const PERSISTENCE_PATTERNS = Object.freeze([
+  { label: "localStorage", pattern: /\blocalStorage\b/ },
+  { label: "indexedDB", pattern: /\bindexedDB\b/i },
+  { label: "writeFile", pattern: /\b(?:writeFileSync|writeFile|appendFileSync|appendFile|createWriteStream)\b/ },
+  { label: "os.WriteFile", pattern: /\bos\.WriteFile\b/ },
+  { label: "ioutil.WriteFile", pattern: /\bioutil\.WriteFile\b/ },
+  { label: "File.WriteAllText", pattern: /\bFile\.(?:WriteAllText|AppendAllText)\b/ },
+  { label: "Deno.writeFile", pattern: /\bDeno\.write(?:Text)?File\b/ },
+]);
+const CONTRACT_PATTERNS = Object.freeze([
+  { label: "selector", pattern: /\b(?:getElementById|querySelector(?:All)?)\b|data-testid|`#[A-Za-z][\w-]*`/ },
+  { label: "API", pattern: /\b(?:GET|POST|PUT|PATCH|DELETE)\s+\// },
+]);
 const NO_RED_TEST_KINDS = Object.freeze(["docs", "refactor"]);
 const ALWAYS_REASON = "every change with a resolved intent";
 const SIGNAL_ORDER = SIGNALS.map((signal) => signal.id);
@@ -73,6 +108,75 @@ function impactHits(paths, patterns) {
     }
   }
   return hits;
+}
+
+function baseName(file) {
+  return file.split("/").pop().toLowerCase();
+}
+
+function isDocumentation(file) {
+  return /^(?:docs\/|.+\/docs\/)/.test(file) || file === "docs" || /\.(md|mdx|rst|adoc)$/i.test(file);
+}
+
+function isTestPath(file) {
+  return (
+    /\.(?:test|spec)\.(?:js|jsx|mjs|cjs|ts|tsx)$/i.test(file) ||
+    /_test\.go$/i.test(file) ||
+    /(?:^|\/)test_[^/]*\.py$/i.test(file) ||
+    /Test\.java$/i.test(file) ||
+    /Tests\.cs$/i.test(file) ||
+    /(?:^|\/)(?:test|tests|__tests__)(?:\/|$)/i.test(file)
+  );
+}
+
+function classifyPath(file) {
+  const name = baseName(file);
+  if (isDocumentation(file)) return "docs";
+  if (MANIFESTS.has(name) || /\.(?:csproj|fsproj|vbproj|sln)$/i.test(name)) return "manifest";
+  if (isTestPath(file)) return "test";
+  if (PRODUCT_EXT.test(file)) return "product";
+  return "other";
+}
+
+function codePortion(line) {
+  if (COMMENT_LINE.test(line) || /^\s*\/\*/.test(line) || /^\s*<!--/.test(line)) return "";
+  return line.replace(/<!--.*?-->/g, "").replace(/\/\*.*?\*\//g, "").replace(/\/\/.*$/, "");
+}
+
+function firstContentHit(lines, patterns) {
+  for (const line of lines || []) {
+    const code = codePortion(line);
+    if (!code.trim()) continue;
+    const hit = patterns.find((entry) => entry.pattern.test(code));
+    if (hit) return hit.label;
+  }
+  return null;
+}
+
+function contentHits(addedLines) {
+  let persistent = null;
+  let contract = null;
+  for (const file of sortedPaths(Object.keys(addedLines || {}))) {
+    const lines = addedLines[file];
+    if (!persistent) {
+      const label = firstContentHit(lines, PERSISTENCE_PATTERNS);
+      if (label) persistent = { file, label };
+    }
+    if (!contract && isDocumentation(file)) {
+      const label = firstContentHit(lines, CONTRACT_PATTERNS);
+      if (label) contract = { file, label };
+    }
+  }
+  return { persistent, contract };
+}
+
+function untestedProduct(intent, diff) {
+  if (!["feature", "bug"].includes(intent.kind)) return null;
+  const paths = diff.paths || [];
+  const product = paths.filter((file) => classifyPath(file) === "product");
+  if (product.length === 0 || paths.some((file) => classifyPath(file) === "test")) return null;
+  const more = product.length > 1 ? ` and ${product.length - 1} more` : "";
+  return `product code without a test: touches ${product[0]}${more}`;
 }
 
 function impactReason(signal, { pattern, paths }, patterns) {
@@ -163,6 +267,11 @@ function deriveSignals({ intent, strictTdd = false, declaration = {}, diff = {},
   // refactor keeps behavior under the tests that already pass.
   if (strictTdd && !NO_RED_TEST_KINDS.includes(intent.kind)) add("strict-tdd", "the project declares strict_tdd", "declaration");
   if (intent.kind === "bug") add("bug-fix", "the intent is a bug fix", "declaration");
+  const untested = untestedProduct(intent, diff);
+  if (untested) add("untested-product", untested, "diff");
+  const content = contentHits(diff.addedLines);
+  if (content.persistent) add("persistent-data", `persistent data: ${content.persistent.file} adds ${content.persistent.label}`, "diff");
+  if (content.contract) add("public-contract", `public contract: ${content.contract.file} adds ${content.contract.label}`, "diff");
   if ((declaration.workUnits || 0) > 1) {
     add("multi-unit-or-decision", `declared ${declaration.workUnits} work units`, "declaration");
   } else if (declaration.nonObviousDecision) {
@@ -244,5 +353,6 @@ module.exports = {
   FLOOR_SIGNALS,
   IRREVERSIBLE_OPERATIONS,
   applyDerivation,
+  classifyPath,
   deriveSignals,
 };

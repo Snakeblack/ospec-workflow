@@ -11,6 +11,7 @@ const assert = require("node:assert");
 const { validateState } = require("./idd-contract.js");
 const {
   IddRecordError,
+  recordAssumption,
   recordAttestation,
   recordEvidence,
   recordGate,
@@ -123,8 +124,32 @@ test("a resolved intent must declare its open facts or why there are none", () =
   assertCode(() => recordIntent(null, { ...FEATURE, openFacts: [" "] }), "facts-undeclared");
 });
 
+test("a feature is refused until every category is covered", () => {
+  const { citedCoverage } = require("./idd-facts.js");
+  let thrown;
+  try {
+    recordIntent(null, { ...FEATURE, ...NO_OPEN_FACTS });
+  } catch (error) {
+    thrown = error;
+  }
+  assert.strictEqual(thrown.code, "facts-undeclared");
+  assert.match(thrown.how, /--open-fact inputs:/);
+  const covered = recordIntent(null, { ...FEATURE, coverage: citedCoverage() });
+  assertValid(covered.state);
+  assert.deepStrictEqual(covered.state.gates, []);
+  const asked = citedCoverage().map((entry, index) =>
+    index === 0 ? { category: "inputs", question: "¿el título admite más de 200 caracteres?" } : entry,
+  );
+  const open = recordIntent(null, { ...FEATURE, change: "other-codes", coverage: asked }).state;
+  assert.deepStrictEqual(
+    open.gates.map((gate) => gate.id),
+    ["open-facts"],
+  );
+  assert.strictEqual(recordAssumption(open, { text: "El título admite 200 caracteres." }).state.assumptions[0], "El título admite 200 caracteres.");
+});
+
 test("no open facts records the basis and opens no gate", () => {
-  const { state } = recordIntent(null, { ...FEATURE, ...NO_OPEN_FACTS });
+  const { state } = recordIntent(null, { ...FEATURE, kind: "bug", ...NO_OPEN_FACTS });
   assertValid(state);
   assert.deepStrictEqual(state.facts, { basis: "The request fixes every behavior." });
   assert.deepStrictEqual(state.gates, []);
@@ -132,14 +157,14 @@ test("no open facts records the basis and opens no gate", () => {
 
 test("open facts open the open-facts gate, which only the user's answer resolves", () => {
   const questions = ["Is the threshold checked after the discount?", "Is an unknown code an error?"];
-  const { state } = recordIntent(null, { ...FEATURE, openFacts: [...questions, questions[0]] });
+  const { state } = recordIntent(null, { ...FEATURE, kind: "bug", openFacts: [...questions, questions[0]] });
   assertValid(state);
   assert.deepStrictEqual(state.facts, { open: questions });
   assert.deepStrictEqual(state.gates, [{ id: "open-facts", status: "open" }]);
   assert.deepStrictEqual(state.obligations.map((o) => o.id), ["checks-pass"]);
 
-  assert.strictEqual(recordIntent(state, { ...FEATURE, openFacts: questions }).changed, false);
-  assertCode(() => recordIntent(state, { ...FEATURE, openFacts: ["Other?"] }), "intent-conflict");
+  assert.strictEqual(recordIntent(state, { ...FEATURE, kind: "bug", openFacts: questions }).changed, false);
+  assertCode(() => recordIntent(state, { ...FEATURE, kind: "bug", openFacts: ["Other?"] }), "intent-conflict");
   assertCode(() => recordGate(state, { id: "open-facts", action: "open" }), "gate-managed-by-intent");
   assertCode(() => recordGate(state, { id: "open-facts", action: "resolve" }), "gate-answer-required");
 
@@ -172,7 +197,7 @@ test("resolving an ambiguous intent also declares its open facts", () => {
 });
 
 test("the state validator checks the facts declaration", () => {
-  const { state } = recordIntent(null, { ...FEATURE, openFacts: ["Case?"] });
+  const { state } = recordIntent(null, { ...FEATURE, kind: "bug", openFacts: ["Case?"] });
   assert.strictEqual(validateState({ ...state, facts: { open: [] } }).ok, false);
   assert.strictEqual(validateState({ ...state, facts: { open: ["Case?"], basis: "both" } }).ok, false);
   assert.strictEqual(validateState({ ...state, facts: { basis: "" }, gates: [] }).ok, false);

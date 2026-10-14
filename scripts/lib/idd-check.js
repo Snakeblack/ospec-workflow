@@ -63,7 +63,10 @@ function settleChecks(state, { tree, runIds, recordedAt }) {
   const target = next.obligations.find((entry) => entry.id === "checks-pass");
   if (!target || target.status === "withdrawn") return { state: next, evidence: null };
   const runs = (next.runs || []).filter((run) => runIds.includes(run.id));
-  const passed = runIds.length > 0 && runs.length === runIds.length && runs.every((run) => run.exit_code === 0 && run.tree === tree);
+  const passed =
+    runIds.length > 0 &&
+    runs.length === runIds.length &&
+    runs.every((run) => run.exit_code === 0 && run.tree === tree && run.tests !== 0);
   if (!passed) {
     target.status = "pending";
     target.evidence = [];
@@ -76,6 +79,38 @@ function settleChecks(state, { tree, runIds, recordedAt }) {
     obligation: "checks-pass",
     recorded_at: recordedAt,
     detail: { tree, runs: [...runIds] },
+  });
+  target.status = "satisfied";
+  target.evidence = [id];
+  return { state: next, evidence: id };
+}
+
+/**
+ * boundary-tests holds once a passing check on `tree` reports more than zero
+ * tests. A recognized count of zero is not evidence (REQ-idd-014).
+ */
+function settleBoundary(state, { tree, runIds, recordedAt, hasTest = false }) {
+  requireOpen(state);
+  const next = structuredClone(state);
+  const target = next.obligations.find((entry) => entry.id === "boundary-tests");
+  if (!target || target.status === "withdrawn") return { state: next, evidence: null };
+  const proof = (next.runs || []).find(
+    (run) => runIds.includes(run.id) && run.exit_code === 0 && run.tree === tree && (run.tests > 0 || (run.tests == null && hasTest)),
+  );
+  if (!proof) {
+    target.status = "pending";
+    target.evidence = [];
+    return { state: next, evidence: null };
+  }
+  const id = nextEvidenceId(next);
+  const detail = { tree, run: proof.id };
+  if (!(proof.tests > 0)) detail.has_test = true;
+  next.evidence.push({
+    id,
+    kind: "tested-check",
+    obligation: "boundary-tests",
+    recorded_at: recordedAt,
+    detail,
   });
   target.status = "satisfied";
   target.evidence = [id];
@@ -270,6 +305,8 @@ function checksReason({ checks, results, treeChanged, candidateCommand }) {
   if (treeChanged) return "the tree changed while the checks ran: run ospec check again";
   const failed = (results || []).find((result) => result.exit_code !== 0);
   if (failed) return `check ${failed.name} failed with exit code ${failed.exit_code}`;
+  const empty = (results || []).find((result) => result.tests === 0);
+  if (empty) return `check ${empty.name} executed 0 tests, which is not evidence: ospec check --change <id> after the suite runs at least one test`;
   return "no passing run of every check on the current tree: run ospec check";
 }
 
@@ -281,6 +318,7 @@ const DEFAULT_REASONS = Object.freeze({
   [MIGRATION]: `no passing migration test on the current tree: run it with ospec run --obligation ${MIGRATION} --plan <compatibility or rollback>`,
   [CONTRACT]: "needs a contract document and a test in the diff, with every check passing: run ospec check",
   [IMPACT]: "needs the declared impact on every ADR or quality scenario the change touches: ospec record impact, then ospec check",
+  "boundary-tests": "needs a passing check that reports tests greater than 0: ospec check --change <id> after the diff adds a test",
 });
 
 // living-doc is satisfied by ospec close itself (REQ-idd-004): a current
@@ -315,6 +353,7 @@ module.exports = {
   RUN_OBLIGATIONS,
   checkVerdict,
   recordRuns,
+  settleBoundary,
   settleChecks,
   settleContract,
   settleImpacts,
