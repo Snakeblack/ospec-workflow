@@ -294,7 +294,13 @@ test("the K1 floor comes from the derived signals", () => {
 // ---------------------------------------------------------------------------
 
 function openChange(kind = "feature") {
-  return recordIntent(null, { change: "c", kind, summary: "s", acceptance: "a", noOpenFacts: true, basis: "The request fixes every behavior." }).state;
+  const input = { change: "c", kind, summary: "s", acceptance: "a", noOpenFacts: true, basis: "The request fixes every behavior." };
+  if (kind === "feature") {
+    input.coverage = require("./idd-facts.js").citedCoverage();
+    delete input.noOpenFacts;
+    delete input.basis;
+  }
+  return recordIntent(null, input).state;
 }
 
 test("applyDerivation records new signals and gates and is idempotent", () => {

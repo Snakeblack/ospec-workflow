@@ -13,6 +13,7 @@
   "expected": {
     "signals": [
       { "id": "always", "source": "declaration" },
+      { "id": "untested-product", "source": "diff", "reason": "product code without a test: touches src/api/orders.js" },
       { "id": "public-contract", "source": "diff", "reason": "public contract: touches src/api/orders.js (matches **/api/**)" }
     ],
     "gates": [],

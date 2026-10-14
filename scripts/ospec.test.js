@@ -56,6 +56,15 @@ const OPEN_BUG = [
   "--json",
 ];
 
+const FEATURE_COVER = [
+  "--request",
+  "The request fixes every behavior.",
+  ...["inputs", "uniqueness", "persistence", "copy", "url-state", "accessibility", "errors"].flatMap((id) => [
+    "--quote",
+    `${id}=The request fixes every behavior.`,
+  ]),
+];
+
 test("record intent opens the change, reports the next step and is idempotent", (t) => {
   const root = tempRoot(t);
   const first = ospec(root, ...OPEN_BUG);
@@ -115,7 +124,7 @@ test("signals, gates and refused withdrawals flow through record", (t) => {
 
 test("record intent needs the open-facts declaration, and open facts are asked first", (t) => {
   const root = tempRoot(t);
-  const base = ["record", "intent", "--change", "discount-codes", "--kind", "feature", "--summary", "Discount codes.", "--acceptance", "VERANO10 takes 10%."];
+  const base = ["record", "intent", "--change", "discount-codes", "--kind", "bug", "--summary", "Discount codes.", "--acceptance", "VERANO10 takes 10%."];
   const undeclared = ospec(root, ...base, "--json");
   assert.strictEqual(undeclared.code, 1);
   assert.strictEqual(undeclared.json.error.code, "facts-undeclared");
@@ -450,7 +459,7 @@ test("empty checks keep configuration and require a user command when no candida
 
 test("check recomputes the signals from the diff: touching a migration adds its obligation", (t) => {
   const { root } = project(t);
-  ospec(root, "record", "intent", "--change", "add-index", "--kind", "feature", "--summary", "Faster search.", "--acceptance", "Search under 50 ms.", "--no-open-facts", "--basis", "The request fixes every behavior.");
+  ospec(root, "record", "intent", "--change", "add-index", "--kind", "feature", "--summary", "Faster search.", "--acceptance", "Search under 50 ms.", ...FEATURE_COVER);
   writeFile(root, "src/pages.txt", "2");
   writeFile(root, "db/migrations/004_add_index.sql", "CREATE INDEX customers_name ON customers (name);\n");
 
@@ -586,12 +595,12 @@ test("a repository created with git init -b main and no commit takes a change to
 
 test("check satisfies the contract obligation once the diff touches a contract document and a test", (t) => {
   const { root } = project(t);
-  ospec(root, "record", "intent", "--change", "page-size", "--kind", "feature", "--summary", "Allow 50 per page.", "--acceptance", "size=50 works.", "--no-open-facts", "--basis", "The request fixes every behavior.");
+  ospec(root, "record", "intent", "--change", "page-size", "--kind", "feature", "--summary", "Allow 50 per page.", "--acceptance", "size=50 works.", ...FEATURE_COVER);
   writeFile(root, "src/pages.txt", "2");
   writeFile(root, "src/api/orders.js", "module.exports = { maxSize: 50 };\n");
 
   const codeOnly = ospec(root, "check", "--change", "page-size", "--json");
-  assert.deepStrictEqual(codeOnly.json.added.signals, ["public-contract"]);
+  assert.deepStrictEqual(codeOnly.json.added.signals, ["untested-product", "public-contract"]);
   const reason = (result) => result.json.missing.find((entry) => entry.obligation === "contract-spec-and-test")?.reason;
   assert.match(reason(codeOnly), /touches no contract document/);
 
@@ -608,7 +617,7 @@ test("check satisfies the contract obligation once the diff touches a contract d
 
 test("the project declares where its contract documents live", (t) => {
   const { root } = project(t, { checks: "checks:\n  test: node verify.js\ncontracts:\n  documents:\n    - specs/**\n" });
-  ospec(root, "record", "intent", "--change", "page-size", "--kind", "feature", "--summary", "Allow 50 per page.", "--acceptance", "size=50 works.", "--no-open-facts", "--basis", "The request fixes every behavior.");
+  ospec(root, "record", "intent", "--change", "page-size", "--kind", "feature", "--summary", "Allow 50 per page.", "--acceptance", "size=50 works.", ...FEATURE_COVER);
   writeFile(root, "src/pages.txt", "2");
   writeFile(root, "src/api/orders.js", "module.exports = { maxSize: 50 };\n");
   writeFile(root, "specs/orders.md", "size up to 50\n");
@@ -618,7 +627,7 @@ test("the project declares where its contract documents live", (t) => {
 
 test("a passing migration test with its plan satisfies the migration obligation until the tree changes", (t) => {
   const { root } = project(t);
-  ospec(root, "record", "intent", "--change", "add-index", "--kind", "feature", "--summary", "Faster search.", "--acceptance", "Search under 50 ms.", "--no-open-facts", "--basis", "The request fixes every behavior.");
+  ospec(root, "record", "intent", "--change", "add-index", "--kind", "feature", "--summary", "Faster search.", "--acceptance", "Search under 50 ms.", ...FEATURE_COVER);
   writeFile(root, "src/pages.txt", "2");
   writeFile(root, "db/migrations/004_add_index.sql", "CREATE INDEX customers_name ON customers (name);\n");
   ospec(root, "check", "--change", "add-index");
@@ -642,9 +651,10 @@ test("a passing migration test with its plan satisfies the migration obligation 
 
 function openRotation(t) {
   const { root } = project(t);
-  ospec(root, "record", "intent", "--change", "rotate-tokens", "--kind", "feature", "--summary", "Rotate tokens.", "--acceptance", "Old tokens expire.", "--no-open-facts", "--basis", "The request fixes every behavior.");
+  ospec(root, "record", "intent", "--change", "rotate-tokens", "--kind", "feature", "--summary", "Rotate tokens.", "--acceptance", "Old tokens expire.", ...FEATURE_COVER);
   writeFile(root, "src/pages.txt", "2");
   writeFile(root, "src/auth/tokens.js", "module.exports = { ttl: 3600 };\n");
+  writeFile(root, "src/auth/tokens.test.js", "test('ttl', () => {});\n");
   const checked = ospec(root, "check", "--change", "rotate-tokens", "--json");
   assert.deepStrictEqual(checked.json.added.signals, ["security-boundary"]);
   assert.match(checked.json.missing.find((entry) => entry.obligation === "trust-review").reason, /no trust review yet/);
@@ -663,7 +673,7 @@ test("a trust review without blockers satisfies trust-review until the reviewed 
     generation: 1,
     lens: "trust",
     reviewer: "review-trust",
-    paths: ["src/auth/tokens.js", "src/pages.txt"],
+    paths: ["src/auth/tokens.js", "src/auth/tokens.test.js", "src/pages.txt"],
   });
 
   const recorded = review(root, "record", "--result", JSON.stringify({ findings: [] }));
@@ -833,7 +843,7 @@ test("close is refused with a pending obligation or a tree changed after the las
 
 test("a change with a living document closes once its plan and decisions are written", (t) => {
   const { root } = project(t);
-  ospec(root, "record", "intent", "--change", "add-paging", "--kind", "feature", "--summary", "Page the list.", "--acceptance", "Two pages.", "--no-open-facts", "--basis", "The request fixes every behavior.");
+  ospec(root, "record", "intent", "--change", "add-paging", "--kind", "feature", "--summary", "Page the list.", "--acceptance", "Two pages.", ...FEATURE_COVER);
   ospec(root, "signals", "--change", "add-paging", "--work-units", "2");
   writeFile(root, "src/pages.txt", "2");
   const doc = path.join(root, "idd", "add-paging", "change.md");
@@ -925,7 +935,7 @@ test("next asks to declare the plan after the intent gates and until signals rec
     operations: [],
   });
 
-  const base = ["record", "intent", "--change", "discount-codes", "--kind", "feature", "--summary", "Discount codes.", "--acceptance", "VERANO10 takes 10%."];
+  const base = ["record", "intent", "--change", "discount-codes", "--kind", "bug", "--summary", "Discount codes.", "--acceptance", "VERANO10 takes 10%."];
   const facts = ospec(root, ...base, "--open-fact", "Does case matter?", "--json");
   assert.deepStrictEqual(facts.json.next.next_step, { action: "resolve-gate", gate: "open-facts" });
   const resolved = ospec(root, "record", "gate", "--change", "discount-codes", "--gate", "open-facts", "--resolve", "--answer", "No.", "--source", "user", "--json");
@@ -934,7 +944,7 @@ test("next asks to declare the plan after the intent gates and until signals rec
 
 test("record retract withdraws a declared signal the diff does not confirm and refuses one it confirms", (t) => {
   const { root } = project(t);
-  ospec(root, "record", "intent", "--change", "add-index", "--kind", "feature", "--summary", "Faster search.", "--acceptance", "Search under 50 ms.", "--no-open-facts", "--basis", "The request fixes every behavior.");
+  ospec(root, "record", "intent", "--change", "add-index", "--kind", "feature", "--summary", "Faster search.", "--acceptance", "Search under 50 ms.", ...FEATURE_COVER);
   ospec(root, "signals", "--change", "add-index", "--path", "src/api/search.js", "--path", "db/migrations/004_add_index.sql", "--path", "src/pages.txt");
   writeFile(root, "db/migrations/004_add_index.sql", "CREATE INDEX customers_name ON customers (name);\n");
   writeFile(root, "src/pages.txt", "2");
@@ -1071,7 +1081,7 @@ function architectureProject(t) {
   return { root, git };
 }
 
-const OPEN_EVENTS = ["record", "intent", "--change", "order-events", "--kind", "feature", "--summary", "Billing consumes order-placed.", "--acceptance", "Orders no longer calls billing.", "--no-open-facts", "--basis", "The request fixes every behavior.", "--json"];
+const OPEN_EVENTS = ["record", "intent", "--change", "order-events", "--kind", "feature", "--summary", "Billing consumes order-placed.", "--acceptance", "Orders no longer calls billing.", ...FEATURE_COVER, "--json"];
 
 test("signals --adr and --quality declare existing references only", (t) => {
   const { root } = architectureProject(t);
@@ -1341,7 +1351,9 @@ test("[REQ-idd-023] two projects with different teams get different defaults wit
   assert.notDeepStrictEqual(one.defaults.review, other.defaults.review);
 
   // next hands the profile to every IDD change, and strict_tdd follows it.
-  for (const root of [small, multi]) ospec(root, ...OPEN_BUG.map((arg) => (arg === "bug" ? "feature" : arg)));
+  for (const root of [small, multi]) {
+    ospec(root, "record", "intent", "--change", "fix-pagination", "--kind", "feature", "--summary", "Fix the last page.", "--acceptance", "Two full pages.", ...FEATURE_COVER, "--json");
+  }
   ospec(small, "signals", "--change", "fix-pagination", "--path", "src/lib/paginate.js");
   ospec(multi, "signals", "--change", "fix-pagination", "--path", "src/lib/paginate.js");
   const nextSmall = ospec(small, "next", "--change", "fix-pagination", "--json").json;

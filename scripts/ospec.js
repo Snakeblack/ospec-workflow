@@ -25,6 +25,7 @@ const {
   RUN_OBLIGATIONS,
   checkVerdict,
   recordRuns,
+  settleBoundary,
   settleChecks,
   settleContract,
   settleImpacts,
@@ -37,11 +38,13 @@ const { archiveChange, closeChange, knowledgeRecords, livingDocStatus, renderEvi
 const { CONFIG_FILE, IddConfigError, parseIddConfig } = require("./lib/idd-config.js");
 const { ARCHIVE_ROOT, DECISIONS_ROOT, LIVING_DOC_FILE, STATE_FILE, isIntentAmbiguous } = require("./lib/idd-contract.js");
 const { runCommand } = require("./lib/idd-exec.js");
+const { countTests, resolveFeatureCoverage } = require("./lib/idd-facts.js");
 const { fitnessPlan } = require("./lib/idd-fitness.js");
 const { resolveReferences } = require("./lib/idd-knowledge.js");
 const { nextForChange, nextForProject, statusOf } = require("./lib/idd-next.js");
 const {
   IddRecordError,
+  recordAssumption,
   recordAttestation,
   recordGate,
   recordImpact,
@@ -63,7 +66,7 @@ const {
 const { IddImpactError, matchImpact } = require("./lib/idd-impact.js");
 const { DecisionGapError, nextRound, recordAnswer } = require("./lib/decision-gap.js");
 const { DoctorUsageError, renderDoctor, runDoctor } = require("./lib/ospec-doctor.js");
-const { applyDerivation, deriveSignals } = require("./lib/idd-signals.js");
+const { applyDerivation, classifyPath, deriveSignals } = require("./lib/idd-signals.js");
 const { TeamProfileError, resolveTeam } = require("./lib/team-profile.js");
 const { IddStoreError, changeDir, listChanges, mutateChange, readChange } = require("./lib/idd-store.js");
 const { withFileLock } = require("./lib/ospec-state.js");
@@ -92,7 +95,10 @@ const USAGE = `Usage:
   ospec record intent --change <id> --kind <bug|feature|refactor|docs> --summary <text> --acceptance <text>
                       (--open-fact <question>... | --no-open-facts --basis <text>)
                       [--request <text>] [--answer <text> --source <text>]
+  ospec record intent --change <id> --kind feature --summary <text> --acceptance <text> --request <text>
+                      (--open-fact <category>:<question> | --cite <category>=<path:line> | --quote <category>=<fragment>)...
   ospec record intent --change <id> --ambiguous --request <text>
+  ospec record assumption --change <id> --text <text>
   ospec record signal --change <id> --signal <id> --reason <text> [--source declaration|diff]
   ospec record gate --change <id> --gate <id> (--open [--reason <text>] | --resolve --answer <text> --source <text>)
   ospec record withdraw --change <id> --obligation <id> --reason <text>
@@ -133,6 +139,9 @@ const OPTIONS = {
   "open-fact": { type: "string", multiple: true },
   "no-open-facts": { type: "boolean" },
   basis: { type: "string" },
+  cite: { type: "string", multiple: true },
+  quote: { type: "string", multiple: true },
+  text: { type: "string" },
   answer: { type: "string" },
   source: { type: "string" },
   signal: { type: "string" },
@@ -180,7 +189,11 @@ class UsageError extends Error {
 
 function reducerFor(type, values, root) {
   switch (type) {
-    case "intent":
+    case "intent": {
+      if (values.kind !== "feature" && (values.cite?.length || values.quote?.length)) {
+        throw new UsageError("--cite and --quote cover the categories of a feature");
+      }
+      const feature = values.kind === "feature";
       return (state) =>
         recordIntent(state, {
           base: state ? undefined : readHead(root),
@@ -190,12 +203,17 @@ function reducerFor(type, values, root) {
           acceptance: values.acceptance,
           request: values.request,
           ambiguous: values.ambiguous === true,
-          openFacts: values["open-fact"],
-          noOpenFacts: values["no-open-facts"],
-          basis: values.basis,
+          openFacts: feature ? undefined : values["open-fact"],
+          noOpenFacts: feature ? undefined : values["no-open-facts"],
+          basis: feature ? undefined : values.basis,
+          coverage: feature ? featureCoverage(root, values) : undefined,
           answer: values.answer,
           source: values.source,
         });
+    }
+    case "assumption":
+      if (!values.text) throw new UsageError("record assumption needs --text <text>");
+      return existing((state) => recordAssumption(state, { text: values.text }));
     case "signal":
       return existing((state) =>
         recordSignal(state, { id: values.signal, reason: values.reason, source: values.source || "declaration" }),
@@ -229,7 +247,7 @@ function reducerFor(type, values, root) {
       });
     }
     default:
-      throw new UsageError(`unknown record type: ${type ?? "(none)"}; expected intent, signal, gate, withdraw, retract, impact or fitness`);
+      throw new UsageError(`unknown record type: ${type ?? "(none)"}; expected intent, assumption, signal, gate, withdraw, retract, impact or fitness`);
   }
 }
 
@@ -368,8 +386,39 @@ function fitnessView({ checks, manual }, runs = null) {
   };
 }
 
+function readCiteFile(root, file) {
+  const full = path.resolve(root, file);
+  const relative = path.relative(root, full);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) return null;
+  try {
+    return fs.readFileSync(full, "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT" || error.code === "EISDIR") return null;
+    throw error;
+  }
+}
+
+function featureCoverage(root, values) {
+  const resolved = resolveFeatureCoverage({
+    openFacts: values["open-fact"] || [],
+    cites: values.cite || [],
+    quotes: values.quote || [],
+    request: values.request,
+    readFile: (file) => readCiteFile(root, file),
+  });
+  if (resolved.error) {
+    const error = new IddRecordError(resolved.error.code, resolved.error.message);
+    error.how = resolved.error.how;
+    throw error;
+  }
+  return resolved.coverage;
+}
+
 function runRecord(purpose, command, result, tree, recordedAt, extra = {}) {
-  return { purpose, ...extra, command, exit_code: result.exit_code, output_sha256: result.output_sha256, tree, recorded_at: recordedAt };
+  const record = { purpose, ...extra, command, exit_code: result.exit_code, output_sha256: result.output_sha256, tree, recorded_at: recordedAt };
+  const tests = countTests(result.output_tail);
+  if (tests != null) record.tests = tests;
+  return record;
 }
 
 // Runs every declared check on the working tree, recomputes the signals from
@@ -391,7 +440,12 @@ async function check(root, values) {
   warnings.push(...fitness.warnings);
   const treeBefore = readTreeFingerprint(root);
   const checkTreeBefore = readCheckTreeFingerprint(root, context.checks);
-  const checks = context.checks.map(({ name, command }) => ({ name, command, ...runCommand(command, { cwd: root }) }));
+  const checks = context.checks.map(({ name, command }) => {
+    const result = { name, command, ...runCommand(command, { cwd: root }) };
+    const tests = countTests(result.output_tail);
+    if (tests != null) result.tests = tests;
+    return result;
+  });
   const fitnessRuns = fitness.checks.map(({ kind, id, command }) => ({ ref: `${kind}:${id}`, command, ...runCommand(command, { cwd: root }) }));
   const tree = readTreeFingerprint(root);
   const checkTree = readCheckTreeFingerprint(root);
@@ -424,7 +478,9 @@ async function check(root, values) {
       const recorded = recordRuns(derived.state, runs);
       const fitnessRecorded = recordRuns(recorded.state, fitnessRuns.map((result) => runRecord("fitness", result.command, result, checkTreeBefore, recordedAt, { ref: result.ref })));
       const settled = settleChecks(fitnessRecorded.state, { tree: checkTree, runIds: recorded.ids, recordedAt });
-      const bound = settleTreeBound(settled.state, { tree });
+      const hasTest = diff.paths.some((file) => classifyPath(file) === "test");
+      const tested = settleBoundary(settled.state, { tree: checkTree, runIds: recorded.ids, recordedAt, hasTest });
+      const bound = settleTreeBound(tested.state, { tree });
       const contract = settleContract(bound, { tree: checkTree, checkEvidence: settled.evidence, ...contractPaths, recordedAt });
       if (contract.reason) reasons["contract-spec-and-test"] = contract.reason;
       const impacts = settleImpacts(contract.state, { records, fitness: { tree: checkTree, runIds: fitnessRecorded.ids }, recordedAt });
@@ -559,7 +615,14 @@ async function close(root, values) {
     }
     if (await fsp.stat(changeDir(root, state.change)).then(() => true, () => false)) writeEvidenceSection(root, state);
     const archive = await archiveChange(root, state);
-    return { change: state.change, status: state.status, closed_at: state.closed_at, archive, records: readKnowledgeRecords(root, state, archive.destination) };
+    return {
+      change: state.change,
+      status: state.status,
+      closed_at: state.closed_at,
+      archive,
+      assumptions: state.assumptions || [],
+      records: readKnowledgeRecords(root, state, archive.destination),
+    };
   });
 }
 
@@ -794,6 +857,7 @@ function describeNext(result) {
       break;
     case "satisfy-obligation":
       lines.push(`next: satisfy ${step.obligation} with ${step.evidence} evidence`);
+      if (step.how) lines.push(step.how);
       break;
     case "resolve-gate":
       lines.push(`next: resolve gate ${step.gate}`);
@@ -914,8 +978,11 @@ function describeClose(result) {
   const { archive } = result;
   const how = archive.already_complete ? "already archived in" : "closed and archived in";
   const line = `${result.change} ${how} ${archive.destination} (${archive.files} files, ${archive.inventory_sha256})`;
+  const assumptions = result.assumptions || [];
+  const listed = assumptions.length ? assumptions.map((item) => `- ${item}`).join("\n") : "none declared";
+  const body = `${line}\nassumptions:\n${listed}`;
   const records = result.records?.length || 0;
-  return records ? `${line}\n${records} knowledge record(s) to keep in cross-session memory (see --json)` : line;
+  return records ? `${body}\n${records} knowledge record(s) to keep in cross-session memory (see --json)` : body;
 }
 
 async function foundation(root, positionals, values) {

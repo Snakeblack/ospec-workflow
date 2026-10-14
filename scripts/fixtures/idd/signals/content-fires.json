@@ -1,0 +1,26 @@
+{
+  "id": "content-fires",
+  "description": "localStorage in code and a selector contract in documentation derive persistent-data and public-contract, and a test file means the product is not untested.",
+  "input": {
+    "intent": { "kind": "feature", "summary": "Store tasks.", "acceptance": "A task survives a reload." },
+    "project": { "strict_tdd": false, "stacks": [] },
+    "declaration": { "paths": ["index.html"], "work_units": 1, "non_obvious_decision": false, "operations": [] },
+    "diff": {
+      "paths": ["index.html", "README.md", "index.test.js"],
+      "added_lines": {
+        "index.html": ["localStorage.setItem('tasks', '[]')"],
+        "README.md": ["| `#nueva-tarea` | Campo de texto |"],
+        "index.test.js": ["test('keeps one task', () => {})"]
+      }
+    }
+  },
+  "expected": {
+    "signals": [
+      { "id": "always", "source": "declaration" },
+      { "id": "public-contract", "source": "diff", "reason": "public contract: README.md adds selector" },
+      { "id": "persistent-data", "source": "diff", "reason": "persistent data: index.html adds localStorage" }
+    ],
+    "gates": [],
+    "floor": "critical"
+  }
+}

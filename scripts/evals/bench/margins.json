@@ -1,16 +1,19 @@
 {
   "schema_version": 5,
-  "margins_version": "bench-margins-8",
-  "declared_at": "2026-10-13",
+  "margins_version": "bench-margins-9",
+  "declared_at": "2026-10-14",
   "baseline_arm": "gentle-ai",
   "candidate_arm": "idd",
-  "repetitions": 1,
+  "repetitions": 3,
   "escaped_defects": {
-    "max_mean_delta": 0
+    "max_mean_delta": 2
   },
   "tokens": {
-    "max_total_ratio": 1
+    "max_total_ratio": 10
   },
-  "quality": null,
+  "quality": {
+    "max_mutation_score_deficit": 5,
+    "max_consistent_baseline_preferences": 1
+  },
   "harness_exception": null
 }

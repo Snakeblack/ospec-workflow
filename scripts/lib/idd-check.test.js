@@ -13,6 +13,7 @@ const { RUN_PURPOSES, validateState } = require("./idd-contract.js");
 const {
   checkVerdict,
   recordRuns,
+  settleBoundary,
   settleChecks,
   settleContract,
   settleImpacts,
@@ -77,6 +78,25 @@ test("checks-pass is satisfied only when every declared check passed on the curr
     detail: { tree: TREE_A, runs: ["run-1", "run-2"] },
   });
   assert.ok(validateState(settled.state).ok, validateState(settled.state).errors.join("; "));
+});
+
+test("zero tests are not evidence and a positive count satisfies boundary-tests", () => {
+  const { recordSignal } = require("./idd-record.js");
+  const state = recordSignal(openBug(), { id: "untested-product", reason: "product code without a test: touches index.html", source: "diff" }).state;
+  const empty = recordRuns(state, [checkRun({ tests: 0 })]);
+  assert.strictEqual(obligation(settleChecks(empty.state, { tree: TREE_A, runIds: empty.ids, recordedAt: AT }).state, "checks-pass").status, "pending");
+  assert.strictEqual(obligation(settleBoundary(empty.state, { tree: TREE_A, runIds: empty.ids, recordedAt: AT }).state, "boundary-tests").status, "pending");
+  const ran = recordRuns(state, [checkRun({ tests: 2 })]);
+  const checked = settleChecks(ran.state, { tree: TREE_A, runIds: ran.ids, recordedAt: AT }).state;
+  const settled = settleBoundary(checked, { tree: TREE_A, runIds: ran.ids, recordedAt: AT }).state;
+  assert.strictEqual(obligation(settled, "checks-pass").status, "satisfied");
+  assert.strictEqual(obligation(settled, "boundary-tests").status, "satisfied");
+  const unknown = recordRuns(state, [checkRun()]);
+  assert.strictEqual(obligation(settleBoundary(unknown.state, { tree: TREE_A, runIds: unknown.ids, recordedAt: AT }).state, "boundary-tests").status, "pending");
+  const byFile = settleBoundary(unknown.state, { tree: TREE_A, runIds: unknown.ids, recordedAt: AT, hasTest: true }).state;
+  assert.strictEqual(obligation(byFile, "boundary-tests").status, "satisfied");
+  assert.ok(validateState(byFile).ok, validateState(byFile).errors.join("; "));
+  assert.ok(validateState(settled).ok, validateState(settled).errors.join("; "));
 });
 
 test("a failing check, a changed tree or no declared check leaves checks-pass pending", () => {

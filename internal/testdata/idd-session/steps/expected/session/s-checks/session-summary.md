@@ -13,4 +13,4 @@ refactor: Rename a helper.
 - None
 
 ## Next recommended action
-Satisfy `checks-pass` with check-run evidence: ospec check --change s-checks.
+Satisfy `checks-pass` with check-run evidence: ospec check --change s-checks; a run that reports tests 0 is not evidence.

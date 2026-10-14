@@ -14,6 +14,7 @@ const { configureChecksStep } = require("./idd-checks-config.js");
 const WORK_ORDER = Object.freeze([
   "repro-test",
   "tdd-red-green",
+  "boundary-tests",
   "contract-spec-and-test",
   "migration-compat-and-test",
   "adr-impact-declaration",
@@ -33,7 +34,9 @@ const EVIDENCE_BY_OBLIGATION = new Map(OBLIGATIONS.map((obligation) => [obligati
 
 // The ospec command that records each obligation's evidence (REQ-idd-014).
 const HOW = Object.freeze({
-  "checks-pass": (change) => `ospec check --change ${change}`,
+  "checks-pass": (change) => `ospec check --change ${change}; a run that reports tests 0 is not evidence`,
+  "boundary-tests": (change) =>
+    `ospec check --change ${change} after the diff adds a test for the product code; the output must report tests greater than 0`,
   "repro-test": (change) =>
     `ospec run --change ${change} --obligation repro-test --command "<test>": once failing before the fix, again passing after it`,
   "tdd-red-green": (change) =>
@@ -92,7 +95,10 @@ function pendingDecision(state, gate) {
   const reason = gate.id === "ambiguous-intent" ? state.intent.request : gate.reason;
   const decision = { gate: gate.id, question: GATE_QUESTIONS[gate.id] };
   if (reason) decision.reason = reason;
-  if (gate.id === "open-facts") decision.questions = state.facts.open;
+  if (gate.id === "open-facts") {
+    const facts = state.facts || {};
+    decision.questions = facts.open || (facts.coverage || []).flatMap((entry) => (entry.question ? [entry.question] : []));
+  }
   return decision;
 }
 

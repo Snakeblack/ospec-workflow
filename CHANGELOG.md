@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.138.0] - 2026-10-14
+
+### Added
+- **Gate `open-facts` por categorías (E4.6 `open-facts-robustness`)**: una feature debe cubrir siete categorías en `record intent` (`inputs`, `uniqueness`, `persistence`, `copy`, `url-state`, `accessibility`, `errors`). Cada una se cierra con una pregunta concreta que nombra un valor, un límite o un formato, con `--cite <categoría>=<ruta:línea>` de una línea que existe en el árbol, o con `--quote <categoría>=<fragmento>` de al menos 12 caracteres tomado de `--request`. Una base que no cita nada se rechaza, y el rechazo incluye el comando. Bug, refactor y documentación conservan la declaración anterior. Lógica en `scripts/lib/idd-facts.js`.
+- **`ospec record assumption`**: guarda lo que el agente decidió sin preguntar. `ospec close` lo lista en `assumptions` y no bloquea el cierre. Un estado sin `assumptions` sigue siendo válido.
+- **Señal `untested-product` y obligación `boundary-tests`**: una feature o un bug cuyo diff toca código de producto (un fuente, html incluido; no documentación, manifiestos ni tests) y ningún test la deriva. Se satisface con un check que pasa sobre el árbol actual e informa más de cero tests, o cuyo diff toca un test cuando la salida no trae recuento. Un check que informa 0 tests (`tests 0`, «could not find», «no tests ran») ya no cuenta como evidencia de `checks-pass`.
+- **Señales por contenido del diff**: `localStorage`, `indexedDB` y las escrituras a disco (`writeFile`, `appendFile`, `createWriteStream`, `os.WriteFile`, `ioutil.WriteFile`, `File.WriteAllText`, `Deno.writeFile`) activan `persistent-data`, y un contrato de selectores (`getElementById`, `querySelector`, `` `#id` ``) o de API (método HTTP más ruta) en documentación activa `public-contract`. Una línea de comentario (`//`, `#`, `--`, `/* */`, `<!-- -->`) no dispara ninguna. Fixtures `content-fires` y `comment-does-not-fire`.
+- **`ospec next` imprime el comando de la obligación pendiente**, y la skill `idd` solo apunta a esas órdenes.
+- **Escenario reservado `receta-spa`** en el corpus `greenfield` (una ficha de receta en un `index.html`, nueve hechos ocultos congelados en su `scenario.json`), con brief, checks y referencia. Digest `greenfield` `7ce1db3ed2ba`; el del corpus `default` no cambia (`3eed3740a0d6`).
+- **Banco E4.6**: records `idd-agy-4` y `gentle-ai-agy-4` (agy 1.3.5, `gemini-3.8-flash-high`, persona `grok-4.7-high`, tres repeticiones de `todo-spa` y `receta-spa`) y márgenes `bench-margins-9`. Checkpoint `continue`: escapados 14 frente a 8 de media, tokens 2,81 veces, acceptance 15/15 y regression 6/6 en los dos brazos. En `todo-spa` IDD escapa 2 de media frente a 6,33; en `receta-spa`, 6 frente a 7,67, y esa ventaja depende de una sola repetición.
+- **`docs/benchs/bench-idd-vs-gentle-ai.md`** (y `.es.md`): comparación de los cuatro bancos de IDD frente a gentle-ai con modelos, personas, resultados, quién gana y por qué, y sus límites. Enlazada desde `README.md` y `README.es.md`. Con Claude IDD gasta 0,44 veces los tokens de gentle-ai; con Gemini gasta más (2,29 veces en los seis escenarios, 7,3 en `todo-spa`) y, en las dos apps de E4.6, las ejecuciones que más gastaron dejaron menos defectos (correlación sobre seis ejecuciones, no una prueba).
+- Hecho con IDD (`idd/archive/2026-10-14-open-facts-robustness/`).
+
+### Pendiente
+- Repetir los seis escenarios con Claude frente a `idd-4`: las preguntas no pueden subir más de una por escenario ni los tokens más de un 20 %. Necesita sus propios márgenes antes de correr.
+
+**Verificación directa**: `node scripts/check.js` (3718 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.137.0] - 2026-10-14
 
 ### Added

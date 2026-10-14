@@ -10,9 +10,8 @@ metadata:
 ## When to Use
 
 Load this skill once, when the router sends a code change here (IDD is the
-default). It is the whole protocol: there are no phases, no proposal and no specs to write
-first. Questions, explanations and read-only work need no change and do not
-use it.
+default). It is the whole protocol — no phases, proposal or specs first.
+Questions, explanations and read-only work need no change and do not use it.
 
 Outside a git work tree `ospec` opens no change (`not-a-git-repo`,
 `git-not-found`): set up the repository first, as `references/repository.md`
@@ -71,7 +70,7 @@ Then resume with `ospec next`.
    the intent with `ospec record intent --change <id> --kind <bug|feature|refactor|docs> --summary "<what>" --acceptance "<observable result>"`
    plus the open facts, one `--open-fact "<question>"` each, or
    `--no-open-facts --basis "<what settles every behavior>"` when there are
-   none. Open facts open the `open-facts` gate: ask them all at once before
+   none. Features name `inputs`, `uniqueness`, `persistence`, `copy`, `url-state`, `accessibility` and `errors` with a question, an existing `path:line`, or a ≥12-char quote from the request; refusal prints the command. Assumptions: `ospec record assumption --text` (close lists them). Open `open-facts`: ask all at once before
    editing anything.
 3. If the request is materially ambiguous (no acceptance can be stated), record
    `ospec record intent --change <id> --ambiguous --request "<request>"`, ask
@@ -118,8 +117,8 @@ Then resume with `ospec next`.
      `ospec review correct`, hand its request to the read-only
      `review-correction` validator and pass its result to
      `ospec review validate --result @<file>`.
-   - `checks-pass`: `ospec check` runs every declared check on the current
-     tree.
+   - `checks-pass`: `ospec check` on the current tree; a `tests 0` summary is not
+     evidence.
    - `living-doc`: keep the Plan and Decisions of `idd/<id>/change.md` current.
      A development decision stays there; it is never an ADR.
 

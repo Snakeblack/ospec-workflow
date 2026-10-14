@@ -1,0 +1,9 @@
+{
+  "name": "ficha-de-receta",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ficha de receta en un único index.html",
+  "scripts": {
+    "test": "node --test"
+  }
+}

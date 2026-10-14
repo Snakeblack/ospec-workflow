@@ -13,6 +13,7 @@
   "expected": {
     "signals": [
       { "id": "always", "source": "declaration" },
+      { "id": "untested-product", "source": "diff", "reason": "product code without a test: touches src/orders/repository.js" },
       { "id": "persistent-data", "source": "diff", "reason": "persistent data: touches db/migrations/20261005_orders_customer_idx.sql (matches **/migrations/**)" }
     ],
     "gates": [],

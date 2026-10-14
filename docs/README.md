@@ -62,5 +62,5 @@ SDD se instala con `--with-sdd` y entra solo con un comando `/sdd-*` o una petic
 
 ## Histórico
 
-- [comparacion-arneses.md](comparacion-arneses.md): comparación de la v2.14.2, desactualizada. La vigente frente a gentle-ai está en la auditoría del 2026-10-03.
+- [comparacion-arneses.md](comparacion-arneses.md): comparación de la v2.14.2, desactualizada. La vigente frente a gentle-ai está en la auditoría del 2026-10-03 y, medida con agentes reales, en [bench-idd-vs-gentle-ai.es.md](benchs/bench-idd-vs-gentle-ai.es.md) ([English](benchs/bench-idd-vs-gentle-ai.md)).
 - [testing/](testing/): evidencia TDD de changes concretos.

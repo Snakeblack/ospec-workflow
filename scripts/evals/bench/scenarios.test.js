@@ -132,11 +132,19 @@ test("the six default briefs ask both arms to commit and todo-spa does not", () 
 });
 
 test("the greenfield corpus is apart from the default one and does not change its digest", () => {
-  const [todo, ...rest] = loadCorpus("greenfield");
-  assert.deepEqual(rest, []);
-  assert.equal(todo.id, "todo-spa");
-  assert.equal(todo.profile, "greenfield");
-  assert.equal(todo.facts.length, 9);
+  const greenfield = loadCorpus("greenfield");
+  assert.deepEqual(greenfield.map((scenario) => scenario.id), ["receta-spa", "todo-spa"]);
+  assert.ok(greenfield.every((scenario) => scenario.profile === "greenfield"));
+  for (const scenario of greenfield) {
+    assert.equal(scenario.facts.length, 9, scenario.id);
+    assert.ok(scenario.checks.some((check) => check.kind === "acceptance"), scenario.id);
+    assert.ok(scenario.checks.some((check) => check.id === "suite"), scenario.id);
+    for (const fact of scenario.facts) {
+      assert.ok(scenario.checks.some((check) => check.fact === fact.id), `${scenario.id} ${fact.id}`);
+    }
+  }
+  assert.equal(scenariosDigest(loadCorpus()), "3eed3740a0d60661b6724c7884225f575189723fb75b334d8c7377bfe93ad8b4");
+  assert.equal(scenariosDigest(greenfield), "7ce1db3ed2ba5500ec3d60506e5bfac9595afb49929e731089c03a4114224a62");
   assert.deepEqual(loadCorpus().map((scenario) => scenario.id), loadScenarios().map((scenario) => scenario.id));
   assert.ok(!loadCorpus().some((scenario) => scenario.profile === "greenfield"));
   assert.throws(() => loadCorpus("nope"), /unknown corpus nope/);

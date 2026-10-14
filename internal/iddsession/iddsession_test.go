@@ -49,7 +49,7 @@ func TestDescribeStepAsksOpenGatesFirst(t *testing.T) {
 		{"irreversible gate before a pending obligation", State{Change: "c", Plan: plan, Obligations: pending("migration-compat-and-test"), Gates: gates("irreversible-operation", "open")}, resolve("irreversible-operation")},
 		{"gates in gate order", State{Change: "c", Plan: plan, Obligations: pending("checks-pass"), Gates: gates("irreversible-operation", "open", "adr-amend-or-contradict", "open")}, resolve("adr-amend-or-contradict")},
 		{"gate before missing checks", State{Change: "c", Plan: plan, Obligations: pending("checks-pass"), Gates: gates("irreversible-operation", "open")}, resolve("irreversible-operation")},
-		{"a resolved gate lets the obligation through", State{Change: "c", Plan: plan, Obligations: pending("checks-pass"), Gates: gates("adr-amend-or-contradict", "resolved")}, "Satisfy `checks-pass` with check-run evidence: ospec check --change c."},
+		{"a resolved gate lets the obligation through", State{Change: "c", Plan: plan, Obligations: pending("checks-pass"), Gates: gates("adr-amend-or-contradict", "resolved")}, "Satisfy `checks-pass` with check-run evidence: ospec check --change c; a run that reports tests 0 is not evidence."},
 	}
 	for _, tc := range cases {
 		hasChecks := tc.name != "gate before missing checks"

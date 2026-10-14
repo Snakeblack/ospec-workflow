@@ -1,0 +1,1231 @@
+{
+  "schema_version": 2,
+  "record_id": "idd-agy-4",
+  "arm": "idd",
+  "recorded_at": "2026-10-14T10:11:02.816Z",
+  "host": {
+    "name": "agy",
+    "cli_version": "1.3.5",
+    "model": "gemini-3.8-flash-high",
+    "effort": null,
+    "plugin_version": "2.137.0",
+    "plugin_digest": "8852f1c301d70e27bfd811aa8ba5f87636a6cbfc21533a8ae1d24c0a08d89ff8"
+  },
+  "persona": {
+    "model": "grok-4.7-high"
+  },
+  "scenarios_digest": "7ce1db3ed2ba5500ec3d60506e5bfac9595afb49929e731089c03a4114224a62",
+  "harness_digest": "09837661d64bb7aab7f793aebc0fa10ce590006e9f047c1f181ec34bdf30bf24",
+  "limits": {
+    "maxAgentTurns": 30,
+    "maxSetupTurns": 6,
+    "maxCostUsd": null,
+    "maxTokens": 30000000
+  },
+  "repetitions": 3,
+  "runs": [
+    {
+      "scenario_id": "receta-spa",
+      "repetition": 1,
+      "profile": "greenfield",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 45169,
+          "output": 2087,
+          "cache_read": 74182,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "duration_ms": 31820,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 210680,
+          "output": 51682,
+          "cache_read": 2958130,
+          "cache_creation": 0
+        },
+        "tokens_total": 3220492,
+        "cost_usd": 0,
+        "duration_ms": 511565,
+        "agent_turns": 1,
+        "model_turns": 1,
+        "subagents": 0,
+        "questions": 0,
+        "decision_changing_questions": 0,
+        "interventions": 0,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "page",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "limits",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'Sal',\n    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',\n+   'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'\n  ]\n"
+        },
+        {
+          "id": "duplicate",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    {\n      cantidad: '100',\n      nombre: 'Harina',\n      unidad: 'g'\n    },\n+   {\n+     cantidad: '50',\n+     nombre: 'harina',\n+     unidad: 'ml'\n+   },\n+   {\n+     cantidad: '1',\n+     nombre: 'HARINA',\n+     unidad: 'ud'\n+   }\n  ]\n"
+        },
+        {
+          "id": "storage",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ '1 ración'\n- 'Para 4 raciones'\n"
+        },
+        {
+          "id": "wording",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ '1 ración'\n- 'Para 4 raciones'\n"
+        },
+        {
+          "id": "url",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ '1 ración'\n- 'Para 4 raciones'\n"
+        },
+        {
+          "id": "names",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n+   'Ingrediente'\n-   'Nombre del ingrediente'\n  ]\n"
+        },
+        {
+          "id": "save-error",
+          "kind": "fact",
+          "fact": "F7",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ ''\n- 'No se pudo guardar'\n"
+        },
+        {
+          "id": "order-scale",
+          "kind": "fact",
+          "fact": "F8",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n... Skipped lines\n\n  [\n    {\n      cantidad: '100',\n      nombre: 'Harina',\n      unidad: 'g'\n...\n    {\n+     cantidad: '0.1',\n-     cantidad: '0,1',\n      nombre: 'Azucar',\n      unidad: 'g'\n    }\n  ]\n"
+        },
+        {
+          "id": "text",
+          "kind": "fact",
+          "fact": "F9",
+          "pass": true
+        }
+      ],
+      "escaped_defects": 8,
+      "facts_disclosed": [],
+      "changed_files": [
+        "idd/archive/2026-10-14-ficha-receta/state.yaml",
+        "index.html",
+        "test/receta.test.js"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Se ha implementado la ficha de receta en una sola página web según los requisitos y el contrato de automatización especificado en [README.md](file:///tmp/ospec-bench/Vd30yE/receta-spa/README.md):\n\n### Cambios realizados\n\n1. **Página única ([index.html](file:///tmp/ospec-bench/Vd30yE/receta-spa/index.html))**:\n   - Archivo HTML autocontenido en la raíz del repositorio, con estilos en `<style>` y scripts en `<script>`, sin dependencias externas ni paso de compilación.\n   - **Gestión de raciones**: Campo `#raciones` y texto `#resumen`. Al cambiar el número de raciones, las cantidades de todos los ingredientes se recalculan proporcionalmente en tiempo real.\n   - **Añadir ingredientes**: Formulario con `#nombre`, `#cantidad`, `#unidad` (`g`, `ml`, `ud`) y botón `#anadir`. Incluye validación de entradas con mensajes en `#aviso`.\n   - **Lista de ingredientes**: Contenedor `#lista` con elementos `li` que exponen `.nombre`, `.cantidad`, `.unidad` y botón `.borrar` para eliminar ingredientes individuales.\n   - **Persistencia**: La receta (raciones e ingredientes) se guarda en `localStorage` y se restablece automáticamente al recargar la página.\n\n2. **Suite de pruebas ([test/receta.test.js](file:///tmp/ospec-bench/Vd30yE/receta-spa/test/receta.test.js))**:\n   - Pruebas con el ejecutor nativo de Node.js (`node --test`), verificando tanto el cumplimiento estático de los selectores como el comportamiento dinámico (adición, recálculo, borrado y persistencia tras recarga).\n"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "50bda4cb87212dcd88802c2f5b64fb1b9c060c18dc5205dbca8dc92331fb0f65"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "6e96eee02af122dd9d342df5f20a0091752629345bfebf86d61b5d217611d450"
+        }
+      ]
+    },
+    {
+      "scenario_id": "receta-spa",
+      "repetition": 2,
+      "profile": "greenfield",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 43405,
+          "output": 2463,
+          "cache_read": 56185,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "duration_ms": 34400,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 286902,
+          "output": 62153,
+          "cache_read": 5048261,
+          "cache_creation": 0
+        },
+        "tokens_total": 5397316,
+        "cost_usd": 0,
+        "duration_ms": 654233,
+        "agent_turns": 2,
+        "model_turns": 2,
+        "subagents": 0,
+        "questions": 0,
+        "decision_changing_questions": 0,
+        "interventions": 1,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "page",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "limits",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'Sal',\n    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',\n+   'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'\n  ]\n"
+        },
+        {
+          "id": "duplicate",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "storage",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "wording",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": true
+        },
+        {
+          "id": "url",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": true
+        },
+        {
+          "id": "names",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "save-error",
+          "kind": "fact",
+          "fact": "F7",
+          "pass": true
+        },
+        {
+          "id": "order-scale",
+          "kind": "fact",
+          "fact": "F8",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    {\n      cantidad: '25',\n      nombre: 'Harina',\n      unidad: 'g'\n    },\n    {\n+     cantidad: '0,25',\n+     nombre: 'Sal',\n+     unidad: 'g'\n+   },\n+   {\n      cantidad: '0,03',\n      nombre: 'Azucar',\n      unidad: 'g'\n    }\n  ]\n"
+        },
+        {
+          "id": "text",
+          "kind": "fact",
+          "fact": "F9",
+          "pass": true
+        }
+      ],
+      "escaped_defects": 2,
+      "facts_disclosed": [],
+      "changed_files": [
+        "idd/archive/2026-10-14-ficha-receta/state.yaml",
+        "index.html",
+        "test/migration.test.js",
+        "test/receta.test.js"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Se ha implementado la ficha de receta en un único archivo [index.html](file:///tmp/ospec-bench/e08O4J/receta-spa/index.html) sin dependencias ni paso de build, cumpliendo con el contrato especificado en [README.md](file:///tmp/ospec-bench/e08O4J/receta-spa/README.md).\n\n### Características implementadas\n\n- **Estructura y diseño autónomo**: Todo el marcado, estilos CSS y lógica JavaScript residen dentro de [index.html](file:///tmp/ospec-bench/e08O4J/receta-spa/index.html).\n- **Gestión de ingredientes**:\n  - Campos [`#nombre`](file:///tmp/ospec-bench/e08O4J/receta-spa/index.html#L182) (máximo 40 caracteres, sin duplicados ignorando mayúsculas/minúsculas y espacios), [`#cantidad`](file:///tmp/ospec-bench/e08O4J/receta-spa/index.html#L186) (número positivo con hasta 2 decimales, admite coma o punto) y desplegable [`#unidad`](file:///tmp/ospec-bench/e08O4J/receta-spa/index.html#L190) (`g`, `ml`, `ud`).\n  - Botón [`#anadir`](file:///tmp/ospec-bench/e08O4J/receta-spa/index.html#L197) para agregar a la lista [`#lista`](file:///tmp/ospec-bench/e08O4J/receta-spa/index.html#L200).\n  - Cada ingrediente en la lista incluye [`.nombre`](file:///tmp/ospec-bench/e08O4J/receta-spa/index.html#L248), [`.cantidad`](file:///tmp/ospec-bench/e08O4J/receta-spa/index.html#L252), [`.unidad`](file:///tmp/ospec-bench/e08O4J/receta-spa/index.html#L258) y el botón de borrado [`.borrar`](file:///tmp/ospec-bench/e08O4J/receta-spa/index.html#L267).\n- **Recálculo de raciones**:\n  - Control de raciones [`#racion…"
+        },
+        {
+          "role": "user",
+          "kind": "finished",
+          "text": "Sigue hasta dejar el cambio terminado del todo.",
+          "facts_disclosed": [],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "El cambio ha quedado completamente terminado y confirmado en el repositorio:\n\n- **Implementación**: Archivo [index.html](file:///tmp/ospec-bench/e08O4J/receta-spa/index.html) creado de forma autónoma con estilos y scripts embebidos.\n- **Pruebas y verificación**: Pruebas automatizadas en [test/receta.test.js](file:///tmp/ospec-bench/e08O4J/receta-spa/test/receta.test.js) y [test/migration.test.js](file:///tmp/ospec-bench/e08O4J/receta-spa/test/migration.test.js) pasando con 13/13 aserciones exitosas vía `npm test`.\n- **Protocolo IDD**: Cambio `ficha-receta` verificado, cerrado y archivado en [`idd/archive/2026-10-14-ficha-receta/`](file:///tmp/ospec-bench/e08O4J/receta-spa/idd/archive/2026-10-14-ficha-receta/).\n- **Commit**: Registrado como unidad de trabajo en `main` bajo el formato Conventional Commits en imperativo español: `feat: implementa la ficha de receta en una sola página`. El árbol de trabajo se encuentra limpio.\n"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "182a7a017043d7555960762a5a9e00cfc3c34c03072ed2ecab15decba7293c25"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "01a838a1065308035eb84978ceb16347053198fa1a3b2fcc82456a5c98dccc02"
+        },
+        {
+          "label": "change",
+          "turn": 2,
+          "sha256": "63c25c784d34fcd2f31070c5195c03da78c559212f0674c50816595ddb995865"
+        }
+      ]
+    },
+    {
+      "scenario_id": "receta-spa",
+      "repetition": 3,
+      "profile": "greenfield",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 47840,
+          "output": 2533,
+          "cache_read": 94801,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "duration_ms": 34280,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 190568,
+          "output": 51200,
+          "cache_read": 2021556,
+          "cache_creation": 0
+        },
+        "tokens_total": 2263324,
+        "cost_usd": 0,
+        "duration_ms": 496552,
+        "agent_turns": 1,
+        "model_turns": 1,
+        "subagents": 0,
+        "questions": 0,
+        "decision_changing_questions": 0,
+        "interventions": 0,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "page",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "limits",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'Sal',\n    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',\n+   'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'\n  ]\n"
+        },
+        {
+          "id": "duplicate",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    {\n      cantidad: '100',\n      nombre: 'Harina',\n      unidad: 'g'\n    },\n+   {\n+     cantidad: '50',\n+     nombre: 'harina',\n+     unidad: 'ml'\n+   },\n+   {\n+     cantidad: '1',\n+     nombre: 'HARINA',\n+     unidad: 'ud'\n+   }\n  ]\n"
+        },
+        {
+          "id": "storage",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ '1 ración'\n- 'Para 4 raciones'\n"
+        },
+        {
+          "id": "wording",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ '1 ración'\n- 'Para 4 raciones'\n"
+        },
+        {
+          "id": "url",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ '1 ración'\n- 'Para 4 raciones'\n"
+        },
+        {
+          "id": "names",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n+   'Nombre'\n-   'Nombre del ingrediente'\n  ]\n"
+        },
+        {
+          "id": "save-error",
+          "kind": "fact",
+          "fact": "F7",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ ''\n- 'No se pudo guardar'\n"
+        },
+        {
+          "id": "order-scale",
+          "kind": "fact",
+          "fact": "F8",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n... Skipped lines\n\n  [\n    {\n      cantidad: '100',\n      nombre: 'Harina',\n      unidad: 'g'\n...\n    {\n+     cantidad: '0.1',\n-     cantidad: '0,1',\n      nombre: 'Azucar',\n      unidad: 'g'\n    }\n  ]\n"
+        },
+        {
+          "id": "text",
+          "kind": "fact",
+          "fact": "F9",
+          "pass": true
+        }
+      ],
+      "escaped_defects": 8,
+      "facts_disclosed": [],
+      "changed_files": [
+        "idd/archive/2026-10-14-ficha-receta/state.yaml",
+        "index.html",
+        "test/receta.test.js"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Se ha implementado la ficha de receta en un único archivo [index.html](file:///tmp/ospec-bench/077ZVD/receta-spa/index.html) en la raíz del proyecto, con su CSS y JavaScript integrados, sin dependencias ni paso de build.\n\n### Funcionalidades implementadas\n\n1. **Gestión de ingredientes**:\n   - Campos `#nombre`, `#cantidad` y desplegable `#unidad` con opciones `g`, `ml` y `ud`.\n   - Botón `#anadir` para agregar ingredientes a la lista `#lista`.\n   - Botón `.borrar` en cada elemento de la lista para quitar ingredientes.\n2. **Cálculo dinámico de raciones**:\n   - Campo `#raciones` que actualiza el texto de `#resumen` y recalcula proporcionalmente las cantidades de cada ingrediente (`#lista li .cantidad`).\n3. **Persistencia**:\n   - Guarda el estado (raciones e ingredientes) en `localStorage` ante cualquier cambio y lo restaura automáticamente al recargar la página.\n4. **Validación y avisos**:\n   - Elemento `#aviso` que notifica campos requeridos o valores inválidos y permanece vacío cuando el estado es correcto.\n5. **Pruebas automatizadas**:\n   - La estructura cumple estrictamente el contrato de selectores especificado en el [README.md](file:///tmp/ospec-bench/077ZVD/receta-spa/README.md).\n   - Se incluye suite de pruebas en [test/receta.test.js](file:///tmp/ospec-bench/077ZVD/receta-spa/test/receta.test.js) ejecutable con `npm test`.\n"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "e6903ad0c27f803412d3a48360d3af50f7d3ae2d7dafb5b9a0e3eb751e4e54c3"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "2ad924b0c3d2c8716e561309f376c15d033f3bb977becd560163e44d976e1e87"
+        }
+      ]
+    },
+    {
+      "scenario_id": "todo-spa",
+      "repetition": 1,
+      "profile": "greenfield",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 44998,
+          "output": 2217,
+          "cache_read": 74193,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "duration_ms": 35171,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 825191,
+          "output": 144109,
+          "cache_read": 29976645,
+          "cache_creation": 0
+        },
+        "tokens_total": 30945945,
+        "cost_usd": 0,
+        "duration_ms": 2015689,
+        "agent_turns": 6,
+        "model_turns": 6,
+        "subagents": 0,
+        "questions": 0,
+        "decision_changing_questions": 0,
+        "interventions": 5,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "single-file",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "add-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "complete-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "delete-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "title-trimmed",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "empty-title-rejected",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "title-max-200",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "pending-duplicate-rejected",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "completed-duplicate-allowed",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "persists-reload",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "corrupt-storage-empty",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "counter-wording",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": true
+        },
+        {
+          "id": "filter-from-url",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": true
+        },
+        {
+          "id": "filter-links-hash",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": true
+        },
+        {
+          "id": "edit-enter-saves-trimmed",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "edit-escape-cancels",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "edit-empty-deletes",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "stable-order",
+          "kind": "fact",
+          "fact": "F7",
+          "pass": true
+        },
+        {
+          "id": "title-as-text",
+          "kind": "fact",
+          "fact": "F8",
+          "pass": true
+        },
+        {
+          "id": "accessible-names",
+          "kind": "fact",
+          "fact": "F9",
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 0,
+      "facts_disclosed": [
+        "F4"
+      ],
+      "changed_files": [
+        "idd/archive/2026-10-14-contador-formato/state.yaml",
+        "idd/archive/2026-10-14-robustez-contrato/state.yaml",
+        "idd/archive/2026-10-14-todo-spa/state.yaml",
+        "index.html",
+        "test/todo.test.js"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Se ha implementado la lista de tareas en un único archivo [index.html](file:///tmp/ospec-bench/sdNP3x/todo-spa/index.html) ubicado en la raíz del repositorio, con su CSS y su JavaScript embebidos, sin dependencias externas ni pasos de compilación.\n\n### Características implementadas según el contrato de [README.md](file:///tmp/ospec-bench/sdNP3x/todo-spa/README.md)\n\n- **Añadir tareas (`#nueva-tarea`)**: campo de texto que inserta nuevas tareas al pulsar `Enter`.\n- **Lista de tareas (`#lista`)**: contenedor donde cada tarea es un elemento `li`.\n- **Marcar como completada (`.completar`)**: casilla checkbox que conmuta el estado completado de la tarea y tacha su texto.\n- **Editar tarea (`.titulo` y `.edicion`)**: doble clic en el título muestra el campo de texto `.edicion` dentro del `li`; `Enter` guarda los cambios y `Escape` cancela la edición. Fuera de edición, `.edicion` no está presente en el DOM.\n- **Borrar tarea (`.borrar`)**: botón que elimina la tarea seleccionada.\n- **Contador (`#contador`)**: refleja dinámicamente el número de tareas pendientes (`X pendientes` o `1 pendiente`).\n- **Filtros (`#filtro-todas`, `#filtro-pendientes`, `#filtro-completadas`)**: enlaces que conmutan la visualización entre todas, pendientes o completadas.\n- **Persistencia**: almacenamiento automático en `localStorage` con lectura defensiva ante datos inexistentes o corruptos.\n- **Verificación**: la suite de pruebas automatizadas en [test/todo.test.js](file:///tmp/ospec-bench/sdNP3x/todo-spa/tes…"
+        },
+        {
+          "role": "user",
+          "kind": "finished",
+          "text": "El contador no es «X pendientes» ni «1 pendiente». Con 0 debe decir «Sin tareas pendientes», con 1 «1 tarea pendiente» y con más «N tareas pendientes», por ejemplo «3 tareas pendientes». Sigue hasta dejar el cambio terminado del todo.",
+          "facts_disclosed": [
+            "F4"
+          ],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "Se ha actualizado el formato del texto de `#contador` en [index.html](file:///tmp/ospec-bench/sdNP3x/todo-spa/index.html):\n\n- **0 tareas pendientes**: muestra exactamente `Sin tareas pendientes`.\n- **1 tarea pendiente**: muestra `1 tarea pendiente`.\n- **Más de 1 tarea pendiente**: muestra `N tareas pendientes` (por ejemplo, `3 tareas pendientes`).\n\n### Verificación\n\n1. Se añadió la prueba de reproducción correspondiente en [test/todo.test.js](file:///tmp/ospec-bench/sdNP3x/todo-spa/test/todo.test.js) y se ejecutó el ciclo red-green mediante `ospec run --obligation repro-test`.\n2. Se verificó la compatibilidad y suite completa con `ospec run --obligation migration-compat-and-test` y `ospec check` (los 12 tests de `npm test` pasan satisfactoriamente).\n3. El cambio `contador-formato` ha quedado cerrado y archivado en `idd/archive/2026-10-14-contador-formato`.\n"
+        },
+        {
+          "role": "user",
+          "kind": "stopped",
+          "text": "Sigue hasta dejar el cambio terminado del todo.",
+          "facts_disclosed": [],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "Esperando la finalización de las comprobaciones.\nEsperando a que completen los tests en segundo plano.\nEsperando a que termine la ejecución completa.\nEsperando a que completen los últimos tests.\nEsperando la validación completa de las comprobaciones.\nEsperando a que terminen los tests restantes.\nEsperando la confirmación final de las pruebas.\nEsperando la finalización de los últimos checks.\nEl cambio ha quedado completado en su totalidad y verificado contra todos los requisitos del contrato:\n\n### Resumen de características implementadas y verificadas\n\n1. **Página única e independiente**:\n   - Todo el CSS y JavaScript se encuentran embebidos dentro de [index.html](file:///tmp/ospec-bench/sdNP3x/todo-spa/index.html), sin dependencias externas ni paso de build.\n\n2. **Formato del contador (`#contador`)**:\n   - `0` pendientes: «Sin tareas pendientes».\n   - `1` pendiente: «1 tarea pendiente».\n   - `N` pendientes: «N tareas pendientes» (ej. «3 tareas pendientes»).\n\n3. **Interacciones y reglas de negocio**:\n   - **Añadir tareas (`#nueva-tarea`)**: agrega al pulsar `Enter`, recorta espacios en los extremos y rechaza entradas vacías. Respeta el límite de 200 caracteres y evita duplicados en tareas pendientes (insensible a mayúsculas/minúsculas).\n   - **Completar tareas (`.completar`)**: casilla que conmuta el estado completado y actualiza el contador.\n   - **Edición en línea (`.titulo` y `.edicion`)**: doble clic en el título abre el campo `.edicion` (ausente del DOM fuera de edición).…"
+        },
+        {
+          "role": "user",
+          "kind": "finished",
+          "text": "Sigue hasta dejar el cambio terminado del todo.",
+          "facts_disclosed": [],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "El cambio está completamente terminado y verificado:\n\n- **Aplicación completa en un único archivo**: [index.html](file:///tmp/ospec-bench/sdNP3x/todo-spa/index.html) en la raíz del repositorio, con estilos y lógica integrados, sin dependencias ni compilación.\n- **Funcionalidades según contrato**:\n  - Añadir tareas con `Enter` en `#nueva-tarea` (con límite de 200 caracteres y rechazo de duplicados en pendientes).\n  - Marcar como completada/pendiente en `#lista li .completar`.\n  - Edición con doble clic en `.titulo`, guardado con `Enter` o cancelación con `Escape` mediante `.edicion`.\n  - Borrado individual de tareas con `.borrar`.\n  - Contador dinámico en `#contador` («Sin tareas pendientes», «1 tarea pendiente», «N tareas pendientes»).\n  - Filtros sincronizados con la URL (`#/`, `#/pendientes`, `#/completadas`).\n  - Persistencia bajo la clave `tareas.v1` en `localStorage` con recuperación segura ante datos corruptos.\n  - Nombres accesibles en todos los controles con el título de cada tarea.\n- **Suite de pruebas**: [test/todo.test.js](file:///tmp/ospec-bench/sdNP3x/todo-spa/test/todo.test.js) con 16 pruebas automatizadas ejecutadas y superadas con `npm test`.\n- **Protocolo IDD**: ciclo completado y archivado en `idd/archive/`. Todos los ficheros listos y preparados en el árbol de trabajo.\n"
+        },
+        {
+          "role": "user",
+          "kind": "finished",
+          "text": "Sigue hasta dejar el cambio terminado del todo.",
+          "facts_disclosed": [],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "El cambio está terminado del todo.\n\n### Resumen de la entrega\n\n1. **Aplicación web (`index.html`)**:\n   - Todo el marcado, estilos CSS y lógica JavaScript están integrados en [index.html](file:///tmp/ospec-bench/sdNP3x/todo-spa/index.html) en la raíz, sin dependencias externas ni paso de compilación.\n   - **Alta y validaciones**: Añade tareas mediante `#nueva-tarea` al presionar `Enter`. Recorta espacios en los extremos, rechaza entradas vacías y títulos de más de 200 caracteres (sin truncar), y rechaza duplicados contra tareas pendientes (insensible a mayúsculas/minúsculas).\n   - **Edición y borrado**: Doble clic sobre `#lista li .titulo` activa `#lista li .edicion`. `Enter` guarda el texto recortado (o elimina la tarea si queda vacío) y `Escape` cancela sin modificar. El botón `#lista li .borrar` elimina la tarea correspondiente.\n   - **Contador `#contador`**: Formato en español exacto:\n     - 0 pendientes: `\"Sin tareas pendientes\"`\n     - 1 pendiente: `\"1 tarea pendiente\"`\n     - N pendientes: `\"<N> tareas pendientes\"`\n   - **Filtros e historial**: Enlaces `#filtro-todas`, `#filtro-pendientes` y `#filtro-completadas` sincronizados con el hash de la URL (`#/`, `#/pendientes`, `#/completadas`).\n   - **Persistencia**: Almacenamiento bajo la clave `tareas.v1` en `localStorage`, resistente a datos ausentes o corruptos.\n   - **Accesibilidad y seguridad**: `aria-label` en controles (`\"Nueva tarea\"`, `\"Completar <título>\"`, `\"Borrar <título>\"`), renderizado seguro contra inyeccion…"
+        },
+        {
+          "role": "user",
+          "kind": "finished",
+          "text": "Sigue hasta dejar el cambio terminado del todo.",
+          "facts_disclosed": [],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "El cambio ha quedado completamente terminado y registrado en el repositorio.\n\n### Estado final de la entrega\n\n- **Código fuente ([index.html](file:///tmp/ospec-bench/sdNP3x/todo-spa/index.html))**:\n  - Implementación autónoma en un único archivo en la raíz del repositorio, con CSS y JavaScript inline, sin dependencias externas ni compilación.\n  - `#nueva-tarea` añade tareas con `Enter` (recortando espacios, validando el límite estricto de 200 caracteres y evitando duplicados entre tareas pendientes).\n  - `#lista li .completar` conmuta el estado completado de cada tarea.\n  - Doble clic en `#lista li .titulo` activa el campo `#lista li .edicion`, guardando con `Enter` (elimina si queda vacío) o cancelando con `Escape`.\n  - `#lista li .borrar` elimina la tarea correspondiente.\n  - `#contador` formatea exactamente en español: `\"Sin tareas pendientes\"`, `\"1 tarea pendiente\"` y `\"<N> tareas pendientes\"`.\n  - Filtros `#filtro-todas`, `#filtro-pendientes` y `#filtro-completadas` vinculados al hash de la URL (`#/`, `#/pendientes`, `#/completadas`).\n  - Persistencia bajo la clave `tareas.v1` en `localStorage`, con tolerancia a datos corruptos o no parseables.\n  - Nombres accesibles (`aria-label`) en todos los controles interactivos y renderizado seguro de texto contra XSS.\n\n- **Suite de pruebas ([test/todo.test.js](file:///tmp/ospec-bench/sdNP3x/todo-spa/test/todo.test.js))**:\n  - 16 pruebas pasando exitosamente vía `npm test`.\n\n- **Control de versiones e IDD**:\n  - Cambios cerrados y …"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "2b0b4af198f10716530a8ad3fce9afc3870c218a006f89c6f92683417cb4af9c"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "314a443b95f3eb7c237376f834756c856a912dfa229c66f310dc4e5325ec2654"
+        },
+        {
+          "label": "change",
+          "turn": 2,
+          "sha256": "3376fe45094dd79536dd81c6b8f7c4b81e55e0745d2d8c6696e04f61ec29bde9"
+        },
+        {
+          "label": "change",
+          "turn": 3,
+          "sha256": "d1de59d4ac984a639e8417c73a58693c58ac53b6261f9a3ffcb99142472bc5cc"
+        },
+        {
+          "label": "change",
+          "turn": 4,
+          "sha256": "0c2fde06cbd172b70b539535032ac92460e2b6dbd44c02d0483a5185adc95ab8"
+        },
+        {
+          "label": "change",
+          "turn": 5,
+          "sha256": "39507676c620ea3af3beb8154f94e9ed2b9f18d3efddbd52d56b74b0eee083b8"
+        },
+        {
+          "label": "change",
+          "turn": 6,
+          "sha256": "263f92346b2b5e43402ada346b4a89610b6c04be957f3dddaf18434616dfb8ee"
+        }
+      ]
+    },
+    {
+      "scenario_id": "todo-spa",
+      "repetition": 2,
+      "profile": "greenfield",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 47210,
+          "output": 2082,
+          "cache_read": 94073,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "duration_ms": 53307,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 332918,
+          "output": 55425,
+          "cache_read": 8029669,
+          "cache_creation": 0
+        },
+        "tokens_total": 8418012,
+        "cost_usd": 0,
+        "duration_ms": 660978,
+        "agent_turns": 2,
+        "model_turns": 2,
+        "subagents": 0,
+        "questions": 0,
+        "decision_changing_questions": 0,
+        "interventions": 1,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "single-file",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "add-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "complete-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "delete-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "title-trimmed",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "empty-title-rejected",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "title-max-200",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "pending-duplicate-rejected",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "completed-duplicate-allowed",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "persists-reload",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "corrupt-storage-empty",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "counter-wording",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": true
+        },
+        {
+          "id": "filter-from-url",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": true
+        },
+        {
+          "id": "filter-links-hash",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": true
+        },
+        {
+          "id": "edit-enter-saves-trimmed",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "edit-escape-cancels",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "edit-empty-deletes",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "stable-order",
+          "kind": "fact",
+          "fact": "F7",
+          "pass": true
+        },
+        {
+          "id": "title-as-text",
+          "kind": "fact",
+          "fact": "F8",
+          "pass": true
+        },
+        {
+          "id": "accessible-names",
+          "kind": "fact",
+          "fact": "F9",
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 0,
+      "facts_disclosed": [],
+      "changed_files": [
+        "idd/archive/2026-10-14-todo-spa/state.yaml",
+        "index.html",
+        "test/todo.test.js"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Se ha implementado la lista de tareas completa en un único archivo autónomo en la raíz: [index.html](file:///tmp/ospec-bench/a980bX/todo-spa/index.html), cumpliendo con el contrato de pruebas automatizadas y los requerimientos solicitados:\n\n### Características implementadas\n- **Archivo único sin dependencias**: CSS y JavaScript completamente integrados en el documento HTML, sin llamadas a scripts ni estilos externos y sin necesidad de build.\n- **Añadir tareas**: Campo de texto `#nueva-tarea` con captura del evento `Enter`. Valida que el texto no esté vacío, recorta espacios en los extremos y limita la longitud a un máximo de 200 caracteres (rechazando longitudes mayores sin truncar).\n- **Unicidad**: Evita duplicados sin distinguir mayúsculas de minúsculas frente a tareas pendientes existentes.\n- **Completar y descompletar**: Casilla de verificación `.completar` (`input[type=\"checkbox\"]`) en cada `li` de `#lista`.\n- **Edición**: Doble clic sobre el elemento `.titulo` despliega el campo `.edicion` con foco y selección. `Enter` guarda el título recortado (o elimina la tarea si queda vacío), `Escape` cancela la edición y `blur` guarda los cambios.\n- **Borrado**: Botón `.borrar` que elimina la tarea seleccionada.\n- **Contador de pendientes**: Elemento `#contador` que refleja el recuento en español (*\"Sin tareas pendientes\"*, *\"1 tarea pendiente\"*, *\"N tareas pendientes\"*).\n- **Filtros por URL**: Enlaces `#filtro-todas` (`#/`), `#filtro-pendientes` (`#/pendientes`) y `#filtro-compl…"
+        },
+        {
+          "role": "user",
+          "kind": "finished",
+          "text": "Sigue hasta dejar el cambio terminado del todo: implementado, cerrado con ospec close y commiteado, con el árbol limpio.",
+          "facts_disclosed": [],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "El cambio ha quedado completamente terminado:\n\n1. **Implementación**: Lista de tareas autónoma creada en [index.html](file:///tmp/ospec-bench/a980bX/todo-spa/index.html) con CSS y JS embebidos, sin dependencias externas y cubriendo todos los selectores y comportamientos del contrato.\n2. **Pruebas**: Suite de pruebas ejecutada y validada con `npm test` en [test/todo.test.js](file:///tmp/ospec-bench/a980bX/todo-spa/test/todo.test.js).\n3. **Cierre IDD**: Proceso completado y archivado satisfactoriamente con `ospec close` en [idd/archive/2026-10-14-todo-spa/state.yaml](file:///tmp/ospec-bench/a980bX/todo-spa/idd/archive/2026-10-14-todo-spa/state.yaml).\n4. **Commit**: Confirmado en la rama `main` bajo el mensaje convencional `feat: implementar lista de tareas en un único index.html`.\n5. **Estado del árbol de trabajo**: Completamente limpio (`git status` sin cambios pendientes ni archivos sin seguimiento).\n"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "0e06c32d23261200a6230284300d0f0569dbbb0fea64496d4e3c2b1e4fa960f6"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "e97f415fe495c1b69f7277db10817bb4c40861cd4442f19133e603efe440cc26"
+        },
+        {
+          "label": "change",
+          "turn": 2,
+          "sha256": "497b19a3a5aa524b4ef8a2f8b8b944975e6d05ab277fefd89c99e3dab5cee700"
+        }
+      ]
+    },
+    {
+      "scenario_id": "todo-spa",
+      "repetition": 3,
+      "profile": "greenfield",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 45336,
+          "output": 2439,
+          "cache_read": 74681,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "duration_ms": 31163,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 474443,
+          "output": 40536,
+          "cache_read": 4405146,
+          "cache_creation": 0
+        },
+        "tokens_total": 4920125,
+        "cost_usd": 0,
+        "duration_ms": 478510,
+        "agent_turns": 2,
+        "model_turns": 2,
+        "subagents": 0,
+        "questions": 0,
+        "decision_changing_questions": 0,
+        "interventions": 1,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "single-file",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "add-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "complete-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "delete-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "title-trimmed",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "empty-title-rejected",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "title-max-200",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',\n+   'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab'\n  ]\n"
+        },
+        {
+          "id": "pending-duplicate-rejected",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'Comprar pan',\n+   'comprar PAN'\n  ]\n"
+        },
+        {
+          "id": "completed-duplicate-allowed",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "persists-reload",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": false,
+          "error": "stored under tareas.v1"
+        },
+        {
+          "id": "corrupt-storage-empty",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": false,
+          "error": "stored 42\n+ actual - expected\n\n+ [\n+   'Comprar pan'\n+ ]\n- []\n"
+        },
+        {
+          "id": "counter-wording",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ '0 pendientes'\n- 'Sin tareas pendientes'\n"
+        },
+        {
+          "id": "filter-from-url",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": true
+        },
+        {
+          "id": "filter-links-hash",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": true
+        },
+        {
+          "id": "edit-enter-saves-trimmed",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "edit-escape-cancels",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "edit-empty-deletes",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "stable-order",
+          "kind": "fact",
+          "fact": "F7",
+          "pass": true
+        },
+        {
+          "id": "title-as-text",
+          "kind": "fact",
+          "fact": "F8",
+          "pass": true
+        },
+        {
+          "id": "accessible-names",
+          "kind": "fact",
+          "fact": "F9",
+          "pass": false,
+          "error": "checkbox 0: Marcar como completada"
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 6,
+      "facts_disclosed": [],
+      "changed_files": [
+        "idd/archive/2026-10-14-lista-tareas/state.yaml",
+        "index.html",
+        "test/todo.test.js"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Se ha implementado la lista de tareas en un único archivo [index.html](file:///tmp/ospec-bench/oXnH7x/todo-spa/index.html) en la raíz del proyecto, cumpliendo con todos los requisitos y selectores definidos en el [README.md](file:///tmp/ospec-bench/oXnH7x/todo-spa/README.md).\n\n### Resumen de características implementadas\n\n1. **Estructura autocontenida sin dependencias ni build**:\n   - Todo el CSS y JavaScript se encuentra integrado dentro de [index.html](file:///tmp/ospec-bench/oXnH7x/todo-spa/index.html).\n2. **Añadir tareas**:\n   - Campo [`#nueva-tarea`](file:///tmp/ospec-bench/oXnH7x/todo-spa/index.html#L210-L216) que crea la tarea al pulsar `Enter` (descartando entradas vacías).\n3. **Completar tareas**:\n   - Casilla de verificación [`#lista li .completar`](file:///tmp/ospec-bench/oXnH7x/todo-spa/index.html#L309-L314) para marcar o desmarcar el estado completado de cada elemento.\n4. **Editar tareas**:\n   - Doble clic en [`#lista li .titulo`](file:///tmp/ospec-bench/oXnH7x/todo-spa/index.html#L315-L318) abre el campo de texto [`#lista li .edicion`](file:///tmp/ospec-bench/oXnH7x/todo-spa/index.html#L341-L346). Guarda los cambios con `Enter` o desenfoque (`blur`), y cancela con `Escape`.\n5. **Borrar tareas**:\n   - Botón [`#lista li .borrar`](file:///tmp/ospec-bench/oXnH7x/todo-spa/index.html#L319-L322) que elimina la tarea seleccionada.\n6. **Filtros**:\n   - Enlaces [`#filtro-todas`](file:///tmp/ospec-bench/oXnH7x/todo-spa/index.html#L225), [`#filtro-pendientes`](file:///tmp/o…"
+        },
+        {
+          "role": "user",
+          "kind": "finished",
+          "text": "Continúa hasta dejar el cambio terminado del todo.",
+          "facts_disclosed": [],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "El cambio ha quedado completamente terminado y confirmado en el repositorio:\n\n- **Código fuente**: [index.html](file:///tmp/ospec-bench/oXnH7x/todo-spa/index.html) con la SPA autocontenida (CSS, HTML y JS sin dependencias externas ni compilación).\n- **Pruebas automatizadas**: [test/todo.test.js](file:///tmp/ospec-bench/oXnH7x/todo-spa/test/todo.test.js) con cobertura completa de selectores y comportamientos requeridos en el [README.md](file:///tmp/ospec-bench/oXnH7x/todo-spa/README.md).\n- **Validación**: Todas las pruebas ejecutadas con `npm test` pasan satisfactoriamente.\n- **Protocolo IDD**: Cambio verificado y archivado en [idd/archive/2026-10-14-lista-tareas/state.yaml](file:///tmp/ospec-bench/oXnH7x/todo-spa/idd/archive/2026-10-14-lista-tareas/state.yaml).\n- **Commit**: Confirmado en la rama `main` con mensaje convencional en imperativo en español (`feat: implementa lista de tareas en una sola pagina con filtros y persistencia`), dejando el árbol de trabajo limpio.\n"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "7e7fc9b6ff53cf9ed162b7d646bca30ac53c5a71ab7ca26e1e847f6928c8cb14"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "d75d15166234946564d6c5d40dce3a87944462dc4307b1150183b5d048f76972"
+        },
+        {
+          "label": "change",
+          "turn": 2,
+          "sha256": "58e89d408eb02a9ddaa097b7c245a1b3bb2f7098e4ef5fda23b7fb32d62a16a1"
+        }
+      ]
+    }
+  ]
+}

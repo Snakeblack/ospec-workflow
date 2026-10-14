@@ -1,0 +1,1042 @@
+{
+  "schema_version": 2,
+  "record_id": "gentle-ai-agy-4",
+  "arm": "gentle-ai",
+  "recorded_at": "2026-10-14T11:49:01.894Z",
+  "host": {
+    "name": "agy",
+    "cli_version": "1.3.5",
+    "model": "gemini-3.8-flash-high",
+    "effort": null,
+    "plugin_version": "4.1.1 (engram 3.4.0)",
+    "plugin_digest": "ccda891ac140d3cbc0995ac41912f865da41bcc7c4574dfebf6913a0e6ca472e",
+    "engram_mcp_bytes": 181
+  },
+  "persona": {
+    "model": "grok-4.7-high"
+  },
+  "scenarios_digest": "7ce1db3ed2ba5500ec3d60506e5bfac9595afb49929e731089c03a4114224a62",
+  "harness_digest": "09837661d64bb7aab7f793aebc0fa10ce590006e9f047c1f181ec34bdf30bf24",
+  "limits": {
+    "maxAgentTurns": 30,
+    "maxSetupTurns": 6,
+    "maxCostUsd": null,
+    "maxTokens": 30000000
+  },
+  "repetitions": 3,
+  "runs": [
+    {
+      "scenario_id": "receta-spa",
+      "repetition": 1,
+      "profile": "greenfield",
+      "status": "complete",
+      "reason": null,
+      "setup": null,
+      "metrics": {
+        "usage": {
+          "input": 165665,
+          "output": 63799,
+          "cache_read": 1721613,
+          "cache_creation": 0
+        },
+        "tokens_total": 1951077,
+        "cost_usd": 0,
+        "duration_ms": 510918,
+        "agent_turns": 1,
+        "model_turns": 1,
+        "subagents": 0,
+        "questions": 0,
+        "decision_changing_questions": 0,
+        "interventions": 0,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "page",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "limits",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'Sal',\n    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',\n+   'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'\n  ]\n"
+        },
+        {
+          "id": "duplicate",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    {\n      cantidad: '100',\n      nombre: 'Harina',\n      unidad: 'g'\n    },\n+   {\n+     cantidad: '50',\n+     nombre: 'harina',\n+     unidad: 'ml'\n+   },\n+   {\n+     cantidad: '1',\n+     nombre: 'HARINA',\n+     unidad: 'ud'\n+   }\n  ]\n"
+        },
+        {
+          "id": "storage",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ '1 ración'\n- 'Para 4 raciones'\n"
+        },
+        {
+          "id": "wording",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ '1 ración'\n- 'Para 4 raciones'\n"
+        },
+        {
+          "id": "url",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ '1 ración'\n- 'Para 4 raciones'\n"
+        },
+        {
+          "id": "names",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n+   'Ingrediente'\n-   'Nombre del ingrediente'\n  ]\n"
+        },
+        {
+          "id": "save-error",
+          "kind": "fact",
+          "fact": "F7",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ ''\n- 'No se pudo guardar'\n"
+        },
+        {
+          "id": "order-scale",
+          "kind": "fact",
+          "fact": "F8",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n... Skipped lines\n\n  [\n    {\n      cantidad: '100',\n      nombre: 'Harina',\n      unidad: 'g'\n...\n    {\n+     cantidad: '0.1',\n-     cantidad: '0,1',\n      nombre: 'Azucar',\n      unidad: 'g'\n    }\n  ]\n"
+        },
+        {
+          "id": "text",
+          "kind": "fact",
+          "fact": "F9",
+          "pass": true
+        }
+      ],
+      "escaped_defects": 8,
+      "facts_disclosed": [],
+      "changed_files": [
+        "index.html",
+        "test/receta.test.js"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Quedó implementada la ficha de receta en un único archivo [index.html](file:///tmp/ospec-bench/mQ8SOu/receta-spa/index.html) autocontenido, cumpliendo con todos los requisitos y selectores definidos en [README.md](file:///tmp/ospec-bench/mQ8SOu/receta-spa/README.md):\n\n- **Sin dependencias ni build**: CSS y JavaScript van integrados directamente en el documento.\n- **Gestión de ingredientes**: alta con `#nombre`, `#cantidad` y `#unidad` (`g`, `ml`, `ud`), renderizado en `#lista` y eliminación reactiva mediante el botón `.borrar`.\n- **Escalado dinámico**: el campo `#raciones` y el texto `#resumen` sincronizan y recalculan proporcionalmente las cantidades en tiempo real.\n- **Validación y estado**: el contenedor `#aviso` gestiona mensajes ante valores ausentes o inválidos y se mantiene vacío cuando la operación es correcta.\n- **Persistencia**: el estado se almacena en `localStorage` y se restaura al recargar la página.\n- **Verificación**: se añadieron pruebas automatizadas con el runner nativo en [test/receta.test.js](file:///tmp/ospec-bench/mQ8SOu/receta-spa/test/receta.test.js), ejecutables mediante `npm test`.\n"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "0c39d706f4592fe43f9e1387067311897021ce225d221af38cab3826fc70a986"
+        }
+      ]
+    },
+    {
+      "scenario_id": "receta-spa",
+      "repetition": 2,
+      "profile": "greenfield",
+      "status": "complete",
+      "reason": null,
+      "setup": null,
+      "metrics": {
+        "usage": {
+          "input": 347287,
+          "output": 124414,
+          "cache_read": 7600048,
+          "cache_creation": 0
+        },
+        "tokens_total": 8071749,
+        "cost_usd": 0,
+        "duration_ms": 1075863,
+        "agent_turns": 3,
+        "model_turns": 3,
+        "subagents": 0,
+        "questions": 0,
+        "decision_changing_questions": 0,
+        "interventions": 2,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "page",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "limits",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'Sal',\n    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',\n+   'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'\n  ]\n"
+        },
+        {
+          "id": "duplicate",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    {\n      cantidad: '100',\n      nombre: 'Harina',\n      unidad: 'g'\n    },\n+   {\n+     cantidad: '50',\n+     nombre: 'harina',\n+     unidad: 'ml'\n+   },\n+   {\n+     cantidad: '1',\n+     nombre: 'HARINA',\n+     unidad: 'ud'\n+   }\n  ]\n"
+        },
+        {
+          "id": "storage",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ '4 raciones'\n- 'Para 4 raciones'\n"
+        },
+        {
+          "id": "wording",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ '4 raciones'\n- 'Para 4 raciones'\n"
+        },
+        {
+          "id": "url",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ '4 raciones'\n- 'Para 4 raciones'\n"
+        },
+        {
+          "id": "names",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n+   'NOMBRE'\n-   'Nombre del ingrediente'\n  ]\n"
+        },
+        {
+          "id": "save-error",
+          "kind": "fact",
+          "fact": "F7",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ ''\n- 'No se pudo guardar'\n"
+        },
+        {
+          "id": "order-scale",
+          "kind": "fact",
+          "fact": "F8",
+          "pass": true
+        },
+        {
+          "id": "text",
+          "kind": "fact",
+          "fact": "F9",
+          "pass": true
+        }
+      ],
+      "escaped_defects": 7,
+      "facts_disclosed": [
+        "F8"
+      ],
+      "changed_files": [
+        "index.html"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "He creado [index.html](file:///tmp/ospec-bench/QHsiNp/receta-spa/index.html) en la raíz del proyecto cumpliendo todos los requisitos:\n\n- **Autocontenido y sin dependencias**: CSS y JavaScript nativo dentro del propio archivo, sin paso de compilación.\n- **Gestión de ingredientes**: alta con nombre, cantidad y selector de unidad (`g`, `ml`, `ud`), listado dinámico y eliminación individual con el botón `.borrar`.\n- **Recálculo proporcional**: ajuste dinámico de las cantidades según el valor de `#raciones`, manteniendo el estado base por porción y actualizando `#resumen`.\n- **Persistencia**: almacenamiento automático en `localStorage` tras cada cambio (ingredientes y raciones), recuperando el estado al recargar la página.\n- **Contrato de pruebas**: selectores alineados con la especificación de [README.md](file:///tmp/ospec-bench/QHsiNp/receta-spa/README.md) (`#nombre`, `#cantidad`, `#unidad`, `#anadir`, `#raciones`, `#resumen`, `#lista`, `.nombre`, `.cantidad`, `.unidad`, `.borrar` y `#aviso`).\n"
+        },
+        {
+          "role": "user",
+          "kind": "finished",
+          "text": "La base no es por porción: la cantidad que se escribe es la de las 4 raciones base, no la de las raciones que se están viendo. Lo mostrado es esa cantidad por las raciones actuales, dividido entre 4, redondeado a dos decimales con el 5 hacia arriba. Volver a 4 raciones muestra la cantidad guardada, sin arrastrar un redondeo intermedio. Con base 4: 1 a 1 ración se ve 0,25; 0,1 a 1 ración se ve 0,03; 100 a 1 ración se ve 25. Sigue hasta dejar el cambio terminado del todo.",
+          "facts_disclosed": [
+            "F8"
+          ],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "Actualizado [index.html](file:///tmp/ospec-bench/QHsiNp/receta-spa/index.html) con el modelo de base fija a 4 raciones:\n\n- **Base fija de 4 raciones**: la cantidad introducida en `#cantidad` se almacena siempre como la correspondiente a 4 raciones, sin importar las raciones activas en pantalla.\n- **Fórmula y redondeo**: lo mostrado es `(cantidadBase * racionesActuales) / 4`, redondeado a dos decimales con criterio *half-up* (el 5 hacia arriba) y coma decimal:\n  - `1` a 1 ración se muestra `0,25`.\n  - `0,1` a 1 ración se muestra `0,03`.\n  - `100` a 1 ración se muestra `25`.\n- **Fidelidad al volver a 4**: al regresar a 4 raciones se recupera el valor original guardado en memoria y `localStorage`, sin arrastrar errores de redondeo intermedio.\n"
+        },
+        {
+          "role": "user",
+          "kind": "stopped",
+          "text": "Sigue hasta dejar el cambio terminado del todo: implementado, con el trabajo en commits y, si creaste un documento en odd/tasks/, con todas las tareas marcadas.",
+          "facts_disclosed": [],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "El trabajo ha quedado completado y confirmado en el repositorio:\n\n- **Implementación**: [index.html](file:///tmp/ospec-bench/QHsiNp/receta-spa/index.html) contiene la ficha de receta autocontenida con base fija de 4 raciones, recálculo `(cantidadBase * raciones) / 4`, redondeo *half-up* a dos decimales con coma, restauración de la cantidad base al volver a 4 raciones, y persistencia en `localStorage`.\n- **Compromiso en Git**: registrado el commit convencional `feat: implement single-page recipe card with live recalculation and persistence` dejando el árbol de trabajo limpio.\n"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "195ebcb94075944c50d4557178e6fcac5a288d79d3da05b9b90d0ec225d00914"
+        },
+        {
+          "label": "change",
+          "turn": 2,
+          "sha256": "ee5a7488438837d7aa008bc5fcf53e8c0ec6aab948a0ac1fbe72c2852ca90b67"
+        },
+        {
+          "label": "change",
+          "turn": 3,
+          "sha256": "e62e4460d0e6fa4a40b8747db1224c1056b9d97f73b206d3ba07ea6f32cdecc9"
+        }
+      ]
+    },
+    {
+      "scenario_id": "receta-spa",
+      "repetition": 3,
+      "profile": "greenfield",
+      "status": "complete",
+      "reason": null,
+      "setup": null,
+      "metrics": {
+        "usage": {
+          "input": 309666,
+          "output": 67793,
+          "cache_read": 3187165,
+          "cache_creation": 0
+        },
+        "tokens_total": 3564624,
+        "cost_usd": 0,
+        "duration_ms": 630822,
+        "agent_turns": 2,
+        "model_turns": 2,
+        "subagents": 0,
+        "questions": 0,
+        "decision_changing_questions": 0,
+        "interventions": 1,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "page",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "limits",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'Sal',\n    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',\n+   'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'\n  ]\n"
+        },
+        {
+          "id": "duplicate",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    {\n      cantidad: '100',\n      nombre: 'Harina',\n      unidad: 'g'\n    },\n+   {\n+     cantidad: '50',\n+     nombre: 'harina',\n+     unidad: 'ml'\n+   },\n+   {\n+     cantidad: '1',\n+     nombre: 'HARINA',\n+     unidad: 'ud'\n+   }\n  ]\n"
+        },
+        {
+          "id": "storage",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ '1 ración'\n- 'Para 4 raciones'\n"
+        },
+        {
+          "id": "wording",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ '1 ración'\n- 'Para 4 raciones'\n"
+        },
+        {
+          "id": "url",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ '1 ración'\n- 'Para 4 raciones'\n"
+        },
+        {
+          "id": "names",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n+   'Nombre'\n-   'Nombre del ingrediente'\n  ]\n"
+        },
+        {
+          "id": "save-error",
+          "kind": "fact",
+          "fact": "F7",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ ''\n- 'No se pudo guardar'\n"
+        },
+        {
+          "id": "order-scale",
+          "kind": "fact",
+          "fact": "F8",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n... Skipped lines\n\n  [\n    {\n      cantidad: '100',\n      nombre: 'Harina',\n      unidad: 'g'\n...\n    {\n+     cantidad: '0.1',\n-     cantidad: '0,1',\n      nombre: 'Azucar',\n      unidad: 'g'\n    }\n  ]\n"
+        },
+        {
+          "id": "text",
+          "kind": "fact",
+          "fact": "F9",
+          "pass": true
+        }
+      ],
+      "escaped_defects": 8,
+      "facts_disclosed": [],
+      "changed_files": [
+        "index.html"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "He creado el archivo [`index.html`](file:///tmp/ospec-bench/eHbrb5/receta-spa/index.html) en la raíz del proyecto, completamente autónomo, con el CSS y JavaScript embebidos y sin dependencias ni paso de compilación.\n\n### Qué se ha implementado:\n1. **Contrato de selectores**: Cumple exactamente con la tabla de `README.md` (`#nombre`, `#cantidad`, `#unidad`, `#anadir`, `#raciones`, `#resumen`, `#lista`, `#lista li .nombre`, `#lista li .cantidad`, `#lista li .unidad`, `#lista li .borrar` y `#aviso`).\n2. **Gestión y recálculo**:\n   - Soporte de unidades `g`, `ml` y `ud`.\n   - Recálculo proporcional de cantidades al modificar las raciones (tanto vía eventos `input`/`change` como asignación directa de `.value`).\n   - Eliminación individual de ingredientes.\n3. **Validación y avisos**: `#aviso` permanece vacío cuando el estado es normal y muestra mensajes descriptivos ante entradas inválidas.\n4. **Persistencia**: La receta completa y las raciones actuales se sincronizan en `localStorage` y se restauran al recargar la página.\n"
+        },
+        {
+          "role": "user",
+          "kind": "stopped",
+          "text": "Sigue hasta dejar el cambio terminado del todo.",
+          "facts_disclosed": [],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "El cambio ha quedado completamente terminado y confirmado en el repositorio:\n\n- **Código fuente**: [`index.html`](file:///tmp/ospec-bench/eHbrb5/receta-spa/index.html) autónomo en la raíz con HTML5, CSS y JavaScript integrados, sin dependencias ni paso de build.\n- **Contrato de pruebas**: Todos los selectores de [`README.md`](file:///tmp/ospec-bench/eHbrb5/receta-spa/README.md) implementados y validados (`#nombre`, `#cantidad`, `#unidad`, `#anadir`, `#raciones`, `#resumen`, `#lista`, `#lista li .nombre`, `#lista li .cantidad`, `#lista li .unidad`, `#lista li .borrar` y `#aviso`).\n- **Verificación**: Comprobado de extremo a extremo en Chromium headless (validación de campos, recálculo dinámico proporcional al cambiar raciones, borrado de ingredientes y persistencia en `localStorage` tras recarga).\n- **Control de versiones**: Confirmado con el commit convencional `feat: añadir ficha de receta interactiva en index.html` y el árbol de trabajo limpio.\n"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "b38c161ebc8d58dd1435d6a239ef046b2889d2acc5f8d2756db5fb6ee3aa1662"
+        },
+        {
+          "label": "change",
+          "turn": 2,
+          "sha256": "fe20d437cb13be541b116b2d01eb1023fb3d356c50f78e339a7983a530434bf8"
+        }
+      ]
+    },
+    {
+      "scenario_id": "todo-spa",
+      "repetition": 1,
+      "profile": "greenfield",
+      "status": "complete",
+      "reason": null,
+      "setup": null,
+      "metrics": {
+        "usage": {
+          "input": 181957,
+          "output": 56948,
+          "cache_read": 2418534,
+          "cache_creation": 0
+        },
+        "tokens_total": 2657439,
+        "cost_usd": 0,
+        "duration_ms": 528632,
+        "agent_turns": 1,
+        "model_turns": 1,
+        "subagents": 0,
+        "questions": 0,
+        "decision_changing_questions": 0,
+        "interventions": 0,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "single-file",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "add-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "complete-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "delete-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "title-trimmed",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "empty-title-rejected",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "title-max-200",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',\n+   'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab'\n  ]\n"
+        },
+        {
+          "id": "pending-duplicate-rejected",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'Comprar pan',\n+   'comprar PAN'\n  ]\n"
+        },
+        {
+          "id": "completed-duplicate-allowed",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "persists-reload",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": false,
+          "error": "stored under tareas.v1"
+        },
+        {
+          "id": "corrupt-storage-empty",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": false,
+          "error": "stored 42\n+ actual - expected\n\n+ [\n+   'Comprar pan'\n+ ]\n- []\n"
+        },
+        {
+          "id": "counter-wording",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ '0 tareas pendientes'\n- 'Sin tareas pendientes'\n"
+        },
+        {
+          "id": "filter-from-url",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": true
+        },
+        {
+          "id": "filter-links-hash",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": true
+        },
+        {
+          "id": "edit-enter-saves-trimmed",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "edit-escape-cancels",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "edit-empty-deletes",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "stable-order",
+          "kind": "fact",
+          "fact": "F7",
+          "pass": true
+        },
+        {
+          "id": "title-as-text",
+          "kind": "fact",
+          "fact": "F8",
+          "pass": true
+        },
+        {
+          "id": "accessible-names",
+          "kind": "fact",
+          "fact": "F9",
+          "pass": false,
+          "error": "checkbox 0: Marcar tarea como completada"
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 6,
+      "facts_disclosed": [],
+      "changed_files": [
+        "index.html"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "He implementado la lista de tareas en un único archivo [index.html](file:///tmp/ospec-bench/CtPWIL/todo-spa/index.html) en la raíz, cumpliendo estrictamente con el contrato de selectores del [README.md](file:///tmp/ospec-bench/CtPWIL/todo-spa/README.md):\n\n- **Añadir tareas**: Input `#nueva-tarea` que añade elementos al presionar Enter.\n- **Listado y estructura**: Contenedor `#lista` con cada tarea en un elemento `li`.\n- **Completar**: Casilla `.completar` (`input[type=\"checkbox\"]`).\n- **Edición**: Doble clic en `.titulo` despliega el campo `.edicion` (confirmación con Enter o pérdida de foco, cancelación con Escape).\n- **Borrado**: Botón `.borrar` dentro de cada elemento.\n- **Contador**: `#contador` actualizado dinámicamente con las tareas pendientes.\n- **Filtros**: Enlaces `#filtro-todas`, `#filtro-pendientes` y `#filtro-completadas`, gestionando la visibilidad en el DOM.\n- **Persistencia**: Sincronización en `localStorage` para sobrevivir a recargas de página.\n"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "60e5b82d5293b1c8730badf7f2f2a69fbd9d3a745fec23186373a6b30d5960a6"
+        }
+      ]
+    },
+    {
+      "scenario_id": "todo-spa",
+      "repetition": 2,
+      "profile": "greenfield",
+      "status": "complete",
+      "reason": null,
+      "setup": null,
+      "metrics": {
+        "usage": {
+          "input": 143060,
+          "output": 50051,
+          "cache_read": 1474364,
+          "cache_creation": 0
+        },
+        "tokens_total": 1667475,
+        "cost_usd": 0,
+        "duration_ms": 543886,
+        "agent_turns": 1,
+        "model_turns": 1,
+        "subagents": 0,
+        "questions": 0,
+        "decision_changing_questions": 0,
+        "interventions": 0,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "single-file",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "add-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "complete-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "delete-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "title-trimmed",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "empty-title-rejected",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "title-max-200",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',\n+   'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab'\n  ]\n"
+        },
+        {
+          "id": "pending-duplicate-rejected",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'Comprar pan',\n+   'comprar PAN'\n  ]\n"
+        },
+        {
+          "id": "completed-duplicate-allowed",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "persists-reload",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": false,
+          "error": "stored under tareas.v1"
+        },
+        {
+          "id": "corrupt-storage-empty",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": false,
+          "error": "stored 42\n+ actual - expected\n\n+ [\n+   'Comprar pan'\n+ ]\n- []\n"
+        },
+        {
+          "id": "counter-wording",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ '0 tareas pendientes'\n- 'Sin tareas pendientes'\n"
+        },
+        {
+          "id": "filter-from-url",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": true
+        },
+        {
+          "id": "filter-links-hash",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": false,
+          "error": "false == true"
+        },
+        {
+          "id": "edit-enter-saves-trimmed",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "edit-escape-cancels",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "edit-empty-deletes",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "stable-order",
+          "kind": "fact",
+          "fact": "F7",
+          "pass": true
+        },
+        {
+          "id": "title-as-text",
+          "kind": "fact",
+          "fact": "F8",
+          "pass": true
+        },
+        {
+          "id": "accessible-names",
+          "kind": "fact",
+          "fact": "F9",
+          "pass": false,
+          "error": "checkbox 0: "
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 7,
+      "facts_disclosed": [],
+      "changed_files": [
+        "index.html"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "He implementado la lista de tareas en un único archivo [index.html](file:///tmp/ospec-bench/06kCB6/todo-spa/index.html) autocontenido en la raíz del proyecto, con su CSS y JavaScript integrados sin dependencias externas ni paso de compilación.\n\n### Contrato implementado y verificado\n\n- **Añadir tareas**: `#nueva-tarea` captura la entrada y añade la tarea al presionar Enter.\n- **Lista y estructura**: `#lista` renderiza cada elemento como un `li`.\n- **Completar**: Cada tarea incluye `.completar` (`<input type=\"checkbox\">`) sincronizado con su estado visual.\n- **Edición en línea**: Doble clic sobre `.titulo` despliega el campo `.edicion`, confirmando con Enter o desenfoque (blur) y cancelando con Escape.\n- **Borrado**: Botón `.borrar` dentro de cada elemento.\n- **Contador**: `#contador` mantiene el conteo reactivo de tareas pendientes (`N tareas pendientes`).\n- **Filtros**: `#filtro-todas`, `#filtro-pendientes` y `#filtro-completadas` gestionan la visibilidad de las tareas y soportan navegación por hash (`#/todas`, `#/pendientes`, `#/completadas`).\n- **Persistencia**: Sincronización continua en `localStorage`.\n"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "78b75c36127a7c0044021ec63002a9b6f7c6af08b188ff32757dd757e480d262"
+        }
+      ]
+    },
+    {
+      "scenario_id": "todo-spa",
+      "repetition": 3,
+      "profile": "greenfield",
+      "status": "complete",
+      "reason": null,
+      "setup": null,
+      "metrics": {
+        "usage": {
+          "input": 148198,
+          "output": 52803,
+          "cache_read": 1541241,
+          "cache_creation": 0
+        },
+        "tokens_total": 1742242,
+        "cost_usd": 0,
+        "duration_ms": 464374,
+        "agent_turns": 1,
+        "model_turns": 1,
+        "subagents": 0,
+        "questions": 0,
+        "decision_changing_questions": 0,
+        "interventions": 0,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "single-file",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "add-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "complete-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "delete-task",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "title-trimmed",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "empty-title-rejected",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "title-max-200",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',\n+   'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab'\n  ]\n"
+        },
+        {
+          "id": "pending-duplicate-rejected",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": false,
+          "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'Comprar pan',\n+   'comprar PAN'\n  ]\n"
+        },
+        {
+          "id": "completed-duplicate-allowed",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "persists-reload",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": false,
+          "error": "stored under tareas.v1"
+        },
+        {
+          "id": "corrupt-storage-empty",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": false,
+          "error": "stored 42\n+ actual - expected\n\n+ [\n+   'Comprar pan'\n+ ]\n- []\n"
+        },
+        {
+          "id": "counter-wording",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ '0 pendientes'\n- 'Sin tareas pendientes'\n"
+        },
+        {
+          "id": "filter-from-url",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": true
+        },
+        {
+          "id": "filter-links-hash",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": true
+        },
+        {
+          "id": "edit-enter-saves-trimmed",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "edit-escape-cancels",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "edit-empty-deletes",
+          "kind": "fact",
+          "fact": "F6",
+          "pass": true
+        },
+        {
+          "id": "stable-order",
+          "kind": "fact",
+          "fact": "F7",
+          "pass": true
+        },
+        {
+          "id": "title-as-text",
+          "kind": "fact",
+          "fact": "F8",
+          "pass": true
+        },
+        {
+          "id": "accessible-names",
+          "kind": "fact",
+          "fact": "F9",
+          "pass": false,
+          "error": "checkbox 0: "
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 6,
+      "facts_disclosed": [],
+      "changed_files": [
+        "index.html"
+      ],
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "He implementado la aplicación en [index.html](file:///tmp/ospec-bench/W8Pwle/todo-spa/index.html) sin dependencias ni paso de compilación, cumpliendo con todos los selectores y comportamientos definidos en el contrato:\n\n- **Añadir tareas**: Campo `#nueva-tarea` que agrega elementos a `#lista` al pulsar `Enter`.\n- **Completar**: Casilla `#lista li .completar` que actualiza el estado y aplica el estilo tachado.\n- **Edición en línea**: Doble clic sobre `#lista li .titulo` activa el campo `#lista li .edicion`, guardando al pulsar `Enter` o perder el foco (`blur`), o cancelando con `Escape`.\n- **Eliminación**: Botón `#lista li .borrar`.\n- **Filtros**: Enlaces `#filtro-todas`, `#filtro-pendientes` y `#filtro-completadas` sincronizados con el hash de navegación.\n- **Contador**: Elemento `#contador` indicando las tareas pendientes en singular o plural.\n- **Persistencia**: Sincronización en `localStorage` ante cualquier cambio.\n"
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "f220a23ad83be293e0193b20a63a82ecb0a45391ac76d155ff6075148a8b15a1"
+        }
+      ]
+    }
+  ]
+}

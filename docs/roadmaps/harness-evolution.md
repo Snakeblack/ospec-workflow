@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.137.0, 2026-10-14.
+> **Versión de referencia:** v2.138.0, 2026-10-14.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -768,7 +768,7 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
   4. **Señales por contenido.** `localStorage`, IndexedDB o escrituras a disco activan `persistent-data`; un contrato de selectores o de API en la documentación activa `public-contract`. Se pueden retractar como las demás.
   5. **`next_step.how` autosuficiente,** con el comando exacto, para que el agente no lea el código de la CLI.
 - **Hechos abiertos del ítem:** la lista de categorías y si depende del stack; qué cuenta como cita válida; si los supuestos bloquean el cierre o solo se muestran; el umbral de código que exige tests; los patrones de contenido y su tasa de falsos positivos.
-- **Validación sin sobreajuste (OSP-025):** antes de tocar IDD se escribe y se congela un escenario greenfield nuevo y reservado, con su brief, sus hechos ocultos, sus checks y su digest registrado. No se ejecuta ni se consulta mientras se ajusta IDD. `todo-spa` sigue siendo el escenario de desarrollo.
+- **Validación sin sobreajuste (OSP-025):** antes de tocar IDD se escribe y se congela un escenario greenfield nuevo y reservado, con su brief, sus hechos ocultos, sus checks y su digest registrado. No se ejecuta ni se consulta mientras se ajusta IDD. `todo-spa` sigue siendo el escenario de desarrollo. Congelado el 2026-10-14 como `receta-spa`: digest greenfield `7ce1db3ed2ba5500ec3d60506e5bfac9595afb49929e731089c03a4114224a62` (el default sigue en `3eed3740a0d60661b6724c7884225f575189723fb75b334d8c7377bfe93ad8b4`). El ajuste de este cambio no lo consultó. Márgenes `bench-margins-9`, declarados antes del banco: tres repeticiones; el checkpoint agrega con techo +2 y 10× tokens y la calidad de E4.5; el cierre del ítem lo deciden la media de `todo-spa` (≤ 2) y que `receta-spa` quede por debajo de gentle-ai.
 - **Alternativa condicionada: rigor según el modelo.** E4.6 aplica el mismo rigor a todos los modelos. Solo si la repetición con Claude incumple los márgenes de fricción del criterio de hecho, se añade un campo `rigor` en `idd/config.yaml`, estricto por defecto, que el hook rellena en los hosts que exponen el modelo. Sin identificadores de proveedor en las reglas (restricción de E4.4).
 - **Depende de** E4.9: las comparaciones usan el banco simétrico. La línea base que existe es `idd-4` frente a `gentle-ai-2` en agy, no una repetición con Claude.
 - **Hecho cuando:** con tres repeticiones, márgenes declarados antes de correr y el desglose por tipo de check, `idd-agy-4` frente a `gentle-ai-agy-4` da:
@@ -777,6 +777,7 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
   - sin perder checks de acceptance ni de regression y sin bajar la calidad.
 
   Repetir E4.2 con Claude frente a `idd-4` (E4.9) no aumenta los mensajes con preguntas en más de uno por escenario ni los tokens en más de un 20 %.
+- **Progreso (v2.138.0):** hecho con IDD (`idd/archive/2026-10-14-open-facts-robustness/`) y medido en agy. [Comparación](../benchs/bench-idd-vs-gentle-ai.es.md). Corpus greenfield `7ce1db3ed2ba`, márgenes `bench-margins-9`, tres repeticiones. `idd-agy-4` frente a `gentle-ai-agy-4`: escapados 14 frente a 8 de media, acceptance 15/15 y regression 6/6 en los dos, tokens 2,81 veces, checkpoint `continue`. En `todo-spa` la media de IDD es 2 (gentle-ai, 6,33) y en `receta-spa`, 6 frente a 7,67, una ventaja que depende de una sola repetición. **Falta** la repetición con Claude frente a `idd-4`, con sus propios márgenes declarados antes de correr; por eso el ítem sigue `pending`.
 
 ### E4.10 — `greenfield-foundation-hint`
 
@@ -867,6 +868,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-14: E4.6 `open-facts-robustness` implementado con IDD y publicado en v2.138.0: `open-facts` por categorías con citas, supuestos al cerrar, `untested-product` y señales por contenido, y `receta-spa` congelado. En agy cumple el criterio de escapados (`todo-spa` 2, `receta-spa` 6 frente a 7,67); queda la repetición con Claude.
 - 2026-10-14: E4.9 `bench-arm-symmetry` hecho con IDD y publicado en v2.137.0. `idd-4` frente a `gentle-ai-2` en agy con Gemini 3.8 Flash y persona Grok 4.7: escapados 3 frente a 9, tokens 2,29×, checkpoint `bench-margins-8` en `revise` solo por tokens. Engram MCP, 181 bytes. Lo siguiente es E4.6.
 - 2026-10-13: E4.8 `non-git-workspace` hecho con IDD y publicado en v2.135.0, ampliado de `bugfix` a `feature` por decisión del usuario: IDD solo dentro de un proyecto git; fuera, trabajo directo, y una petición de proyecto monta antes su repositorio con `git init -b main`. La CLI se detiene en `record intent` y `next` con el siguiente paso y un repositorio sin commits llega a `close`. Entra E4.11 `workspace-root-resolution` al final de la cola. Lo siguiente es E4.9.
 - 2026-10-13: E4.7 `bench-claims-correction` hecho con IDD y publicado en v2.134.1. La comparación de arneses, el informe de E4.2 y la fila «Escenarios comparados» publican el desglose por tipo de check, la significación y los factores de confusión de OSP-025. Lo siguiente es E4.8.
