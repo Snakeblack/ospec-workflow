@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.136.1, 2026-10-13.
+> **Versión de referencia:** v2.137.0, 2026-10-14.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -160,7 +160,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E4.2** | `head-to-head-gentle-ai` (brazo `gentle-ai` en el banco y comparación `idd-3` frente a `gentle-ai-1`, checkpoint `continue`, en v2.133.0) | medición |
 | `done` | **E4.7** | `bench-claims-correction` (OSP-025: la comparación con gentle-ai se publica con el desglose por tipo de check, su significación y sus factores de confusión, en v2.134.1) | docs |
 | `done` | **E4.8** | `non-git-workspace` (IDD solo dentro de un proyecto git: fuera, el router manda trabajo directo y una petición de proyecto monta antes su repositorio; `record intent` y `next` se detienen con `not-a-git-repo` o `git-not-found` y el siguiente paso; un repositorio sin commits llega a `close`, en v2.135.0) | feature |
-| `done` | **E4.9** | `bench-arm-symmetry` (commit en los seis briefs, Engram aparte en bytes, router cargado e informes por tipo de check; `idd-4` frente a `gentle-ai-2` en agy, checkpoint `revise` por tokens) | medición |
+| `done` | **E4.9** | `bench-arm-symmetry` (commit en los seis briefs, Engram aparte en bytes, router cargado e informes por tipo de check; `idd-4` frente a `gentle-ai-2` en agy, checkpoint `revise` por tokens, en v2.137.0) | medición |
 | `pending` | **E4.6** | `open-facts-robustness` (las mejoras de IDD que salen de E4.5: que el gate `open-facts`, los tests y las señales no dependan de lo bueno que sea el modelo; validado también en un escenario reservado) | feature |
 | `pending` | **E4.10** | `greenfield-foundation-hint` (`ospec next` sugiere `foundation`, sin bloquear, en un proyecto sin código ni documentación de producto o arquitectura) | feature |
 | `pending` | **E4.3** | `context-budget-ratchet` (absorbe el techo de router más protocolo IDD del checkpoint de la Etapa 3) | medición |
@@ -751,7 +751,7 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
 - **Coste aceptado:** cambia el digest de los escenarios, así que los records nuevos no se comparan uno a uno con `idd-3` ni con `gentle-ai-1`.
 - **Hecho cuando:** existen líneas base nuevas, `idd-4` frente a `gentle-ai-2`, con una repetición, márgenes declarados antes de correr y el desglose por tipo de check. Son la referencia de fricción para E4.6.
 - **Decisiones del usuario (2026-10-13):** la frase de commit solo en los seis briefs; IDD termina con el archivo en `HEAD` y el árbol limpio; el peso de Engram es el tamaño en bytes del MCP, sin restarlo de los tokens; `bench-margins-8` con una repetición, delta 0 y ratio 1, sin calidad. Las corridas van en agy con `gemini-3.8-flash-high` y la persona `grok-4.7-high` por el CLI de Cursor, con tope de 30 M tokens y 30 turnos.
-- **Resultado:** [informe](../analysis/2026-10-14-bench-arm-symmetry.md). Corpus `3eed3740a0d6`. Acceptance 5/6 frente a 6/6, regression 11/11 en los dos, fact 18/26 frente a 23/26, escapados 9 frente a 3. IDD gasta 2,29 veces los tokens. El checkpoint `bench-margins-8` da `revise` solo por tokens. Engram MCP: 181 bytes. gentle-ai no necesita un turno de commit aparte. Pendiente de publicar.
+- **Resultado:** [informe](../analysis/2026-10-14-bench-arm-symmetry.md). Corpus `3eed3740a0d6`. Acceptance 5/6 frente a 6/6, regression 11/11 en los dos, fact 18/26 frente a 23/26, escapados 9 frente a 3. IDD gasta 2,29 veces los tokens. El checkpoint `bench-margins-8` da `revise` solo por tokens. Engram MCP: 181 bytes. gentle-ai no necesita un turno de commit aparte. Publicado en v2.137.0.
 
 ### E4.6 — `open-facts-robustness`
 
@@ -867,7 +867,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
-- 2026-10-14: E4.9 `bench-arm-symmetry` hecho con IDD, pendiente de publicar. `idd-4` frente a `gentle-ai-2` en agy con Gemini 3.8 Flash y persona Grok 4.7: escapados 3 frente a 9, tokens 2,29×, checkpoint `bench-margins-8` en `revise` solo por tokens. Engram MCP, 181 bytes. Lo siguiente es E4.6.
+- 2026-10-14: E4.9 `bench-arm-symmetry` hecho con IDD y publicado en v2.137.0. `idd-4` frente a `gentle-ai-2` en agy con Gemini 3.8 Flash y persona Grok 4.7: escapados 3 frente a 9, tokens 2,29×, checkpoint `bench-margins-8` en `revise` solo por tokens. Engram MCP, 181 bytes. Lo siguiente es E4.6.
 - 2026-10-13: E4.8 `non-git-workspace` hecho con IDD y publicado en v2.135.0, ampliado de `bugfix` a `feature` por decisión del usuario: IDD solo dentro de un proyecto git; fuera, trabajo directo, y una petición de proyecto monta antes su repositorio con `git init -b main`. La CLI se detiene en `record intent` y `next` con el siguiente paso y un repositorio sin commits llega a `close`. Entra E4.11 `workspace-root-resolution` al final de la cola. Lo siguiente es E4.9.
 - 2026-10-13: E4.7 `bench-claims-correction` hecho con IDD y publicado en v2.134.1. La comparación de arneses, el informe de E4.2 y la fila «Escenarios comparados» publican el desglose por tipo de check, la significación y los factores de confusión de OSP-025. Lo siguiente es E4.8.
 - 2026-10-13: entran E4.7 `bench-claims-correction`, E4.8 `non-git-workspace`, E4.9 `bench-arm-symmetry` y E4.10 `greenfield-foundation-hint`, y E4.6 se amplía. Origen: la auditoría externa OSP-025 sobre E4.2, comprobada contra los records (acceptance 6/6 y regression 11/11 en los dos brazos, diferencia solo en `fact`, mismo corpus en el que se ajustó IDD), los follow-ups de E4.5 y el cambio `monitor-pbp-toggle`, que no se puede cerrar fuera de git. Orden: E4.7, E4.8, E4.9, E4.6, E4.10 y E4.3 (decisiones del usuario).
