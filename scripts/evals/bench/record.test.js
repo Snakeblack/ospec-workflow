@@ -153,3 +153,16 @@ test("with repetitions the report adds per-scenario means, and unjudged runs say
   assert.match(report, /Mean per scenario/);
   assert.match(report, /\| cli-local \| 2\/2 \| 2 k \|/);
 });
+
+test("the report breaks checks down by kind and states the Engram MCP size apart from tokens", () => {
+  let record = createRecord({
+    ...identity,
+    recorded_at: "2026-10-13T10:00:00Z",
+    host: { ...identity.host, engram_mcp_bytes: 120 },
+  });
+  record = upsertRun(record, run("cli-local", "cli-local"));
+  const report = renderReport(record);
+  assert.match(report, /\| Acceptance \| Regression \| Fact \|/);
+  assert.match(report, /\| 1\/1 \| 0\/0 \| 0\/1 \|/);
+  assert.match(report, /Engram MCP: 120 bytes, reported apart and not subtracted from token totals/);
+});

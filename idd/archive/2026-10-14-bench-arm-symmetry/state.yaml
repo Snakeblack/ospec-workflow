@@ -1,0 +1,397 @@
+{
+  "schema": "idd-state/v1",
+  "change": "bench-arm-symmetry",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "feature",
+    "summary": "E4.9: el brief pide el commit a los dos brazos, el brazo IDD en Claude carga el router como en agy, el informe desglosa los checks por tipo y publica el peso de Engram aparte, y quedan las líneas base idd-4 y gentle-ai-2",
+    "acceptance": "Con una repetición en Claude, los records idd-4 y gentle-ai-2 existen, los márgenes están declarados antes de correr, el informe desglosa acceptance, regression y fact, y el peso de Engram queda aparte del total de tokens"
+  },
+  "facts": {
+    "open": [
+      "¿La frase de commit entra solo en los seis briefs de scenarios/ (línea base Claude idd-4 frente a gentle-ai-2), o también en el brief de todo-spa?",
+      "¿El brazo IDD termina solo cuando hay un directorio nuevo en idd/archive/ y, además, al menos un commit tras el setup con el árbol limpio, incluido ese archivo?",
+      "¿El peso de Engram que publica el informe es el tamaño en bytes del MCP que carga el brazo gentle-ai, medido en la instalación y sin restarlo de los tokens de la corrida?",
+      "¿bench-margins-8 se declara antes de correr con una repetición, gentle-ai como base, idd como candidato, max_mean_delta 0, max_total_ratio 1 y sin criterio de calidad, y se lanzan las 12 corridas con claude-sonnet-5-5 en agente y persona y un tope de 25 USD por corrida?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/analysis/2026-10-13-bench-arm-symmetry.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/specs/bench/spec.md",
+      "scripts/evals/bench/README.md",
+      "scripts/evals/bench/arms.js",
+      "scripts/evals/bench/arms.test.js",
+      "scripts/evals/bench/bench.js",
+      "scripts/evals/bench/bench.test.js",
+      "scripts/evals/bench/checkpoint.test.js",
+      "scripts/evals/bench/driver.test.js",
+      "scripts/evals/bench/hosts/agy.js",
+      "scripts/evals/bench/hosts/agy.test.js",
+      "scripts/evals/bench/hosts/claude.js",
+      "scripts/evals/bench/hosts/claude.test.js",
+      "scripts/evals/bench/hosts/cursor-persona.js",
+      "scripts/evals/bench/hosts/cursor-persona.test.js",
+      "scripts/evals/bench/hosts/gentle-ai.js",
+      "scripts/evals/bench/margins.json",
+      "scripts/evals/bench/record.js",
+      "scripts/evals/bench/record.test.js",
+      "scripts/evals/bench/scenarios/brownfield/scenario.json",
+      "scripts/evals/bench/scenarios/bugfix/scenario.json",
+      "scripts/evals/bench/scenarios/cli-local/scenario.json",
+      "scripts/evals/bench/scenarios/public-library/scenario.json",
+      "scripts/evals/bench/scenarios/regulated/scenario.json",
+      "scripts/evals/bench/scenarios/saas-small/scenario.json"
+    ],
+    "work_units": 2,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component idd-engine: ADR 0003, 0004, 0005, 0011 and quality scenario deterministic-resume",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "none",
+      "reason": "El único fichero del motor en el diff es el test de la huella: en Node 24 rmSync no borra un symlink colgante y el test usa unlinkSync, igual que en main. No cambia el motor IDD."
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "El único fichero del motor en el diff es el test de la huella: en Node 24 rmSync no borra un symlink colgante y el test usa unlinkSync, igual que en main. No cambia el motor IDD."
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "none",
+      "reason": "El único fichero del motor en el diff es el test de la huella: en Node 24 rmSync no borra un symlink colgante y el test usa unlinkSync, igual que en main. No cambia el motor IDD."
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "El único fichero del motor en el diff es el test de la huella: en Node 24 rmSync no borra un symlink colgante y el test usa unlinkSync, igual que en main. No cambia el motor IDD."
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "none",
+      "reason": "El único fichero del motor en el diff es el test de la huella: en Node 24 rmSync no borra un symlink colgante y el test usa unlinkSync, igual que en main. No cambia el motor IDD."
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "evidence": "El cambio no añade una skill que describa un cálculo sin citar el CLI. Las reglas nuevas viven en el banco, con tests, y el cierre del cambio medido sigue siendo ospec close.",
+      "recorded_at": "2026-10-13T22:38:33.209Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Solo los seis briefs de scenarios/; todo-spa se queda hasta E4.6. El brazo IDD termina con un directorio nuevo en idd/archive/ y el árbol limpio, con al menos un commit tras el setup que incluye ese archivo. El peso de Engram es el tamaño en bytes del MCP de la instalación, aparte, sin restarlo de los tokens. bench-margins-8: una repetición, gentle-ai como base, idd como candidato, max_mean_delta 0, max_total_ratio 1, sin criterio de calidad. Las 12 corridas van en agy con gemini-3.8-flash-high; la persona es grok-4.7-high por el CLI de Cursor, en un directorio vacío y sin herramientas. Tope de 30 millones de tokens y 30 turnos, porque agy no informa coste.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-13T22:32:53.759Z",
+      "detail": {
+        "tree": "sha256:23379f26d93512dd1fdb7211750b6e5edc064b03269c95e83bef319adad8d923",
+        "runs": [
+          "run-2"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-13T22:36:35.051Z",
+      "detail": {
+        "tree": "sha256:23379f26d93512dd1fdb7211750b6e5edc064b03269c95e83bef319adad8d923",
+        "runs": [
+          "run-7"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-13T22:36:35.051Z",
+      "detail": {
+        "refs": [
+          "adr:0003 none",
+          "adr:0004 none",
+          "adr:0005 none",
+          "adr:0011 none",
+          "scenario:deterministic-resume none"
+        ],
+        "records": [],
+        "tree": "sha256:23379f26d93512dd1fdb7211750b6e5edc064b03269c95e83bef319adad8d923",
+        "fitness": [
+          "run-8",
+          "run-9",
+          "run-10",
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-14T00:17:57.402Z",
+      "detail": {
+        "tree": "sha256:77c6a1636525b1a8340f6fcdda5c99e40be9f7e8a5a66403e914db025047d7ca",
+        "runs": [
+          "run-12"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-14T00:17:57.402Z",
+      "detail": {
+        "refs": [
+          "adr:0003 none",
+          "adr:0004 none",
+          "adr:0005 none",
+          "adr:0011 none",
+          "scenario:deterministic-resume none"
+        ],
+        "records": [],
+        "tree": "sha256:77c6a1636525b1a8340f6fcdda5c99e40be9f7e8a5a66403e914db025047d7ca",
+        "fitness": [
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-14T00:18:10.340Z"
+    }
+  ],
+  "base": "bc3e99aed8d02ff4f804f487cb041fa03ad3a62e",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:854c0c7af4763969a30a4d46dc1ca82089ed1d62e293f6f29034624babe0a43c",
+      "tree": "sha256:418609efce18442be8d83fbdf099ed60c1f966b4133fd3b414143d6922cc85b7",
+      "recorded_at": "2026-10-13T22:30:48.410Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f7b62eab6edda78dcb0014d529c177eec15ad6a103b59649f89bbed873b997b5",
+      "tree": "sha256:23379f26d93512dd1fdb7211750b6e5edc064b03269c95e83bef319adad8d923",
+      "recorded_at": "2026-10-13T22:32:53.759Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ebec6620baecb4de08128728b158cd51952811ef3e8518745dbd4a1f6efa25ef",
+      "tree": "sha256:23379f26d93512dd1fdb7211750b6e5edc064b03269c95e83bef319adad8d923",
+      "recorded_at": "2026-10-13T22:32:53.759Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:70acf7f35f5085387f40b189257c36549069419b3f1b1685c182c597b735005f",
+      "tree": "sha256:23379f26d93512dd1fdb7211750b6e5edc064b03269c95e83bef319adad8d923",
+      "recorded_at": "2026-10-13T22:32:53.759Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5172e102dc93ea687691d5c1d926efd1ac4df6d933bd654b50e8a58724d89926",
+      "tree": "sha256:23379f26d93512dd1fdb7211750b6e5edc064b03269c95e83bef319adad8d923",
+      "recorded_at": "2026-10-13T22:32:53.759Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ef2f29dfe3947179cf5966b5b00413ceb2549ca9a6111c921bcb2fa1e687bc3c",
+      "tree": "sha256:23379f26d93512dd1fdb7211750b6e5edc064b03269c95e83bef319adad8d923",
+      "recorded_at": "2026-10-13T22:32:53.759Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a42961394fc9e9923566624e3d93dd376a2d8127d4841c7340b36d2afcc1d0c0",
+      "tree": "sha256:23379f26d93512dd1fdb7211750b6e5edc064b03269c95e83bef319adad8d923",
+      "recorded_at": "2026-10-13T22:36:35.051Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:49e0085fd766b27742d6744e657051a18a65b305574cfa9a697d2aa205fe3ca7",
+      "tree": "sha256:23379f26d93512dd1fdb7211750b6e5edc064b03269c95e83bef319adad8d923",
+      "recorded_at": "2026-10-13T22:36:35.051Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:38dc89ccd7f794e0b596b220c169bb1bac4019dbee4629c982ce1f16771b6db8",
+      "tree": "sha256:23379f26d93512dd1fdb7211750b6e5edc064b03269c95e83bef319adad8d923",
+      "recorded_at": "2026-10-13T22:36:35.051Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6524925cbb4afc181ef542b504ce8fe0de94bf5cb468dee59d04e7f2a684f946",
+      "tree": "sha256:23379f26d93512dd1fdb7211750b6e5edc064b03269c95e83bef319adad8d923",
+      "recorded_at": "2026-10-13T22:36:35.051Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5651d3a63e973e38cfc12ece17113492d5870f337f7a7cabc005423a56f341dd",
+      "tree": "sha256:23379f26d93512dd1fdb7211750b6e5edc064b03269c95e83bef319adad8d923",
+      "recorded_at": "2026-10-13T22:36:35.051Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f3a5c1a969ec2e9a63e25757c33f27232bd80476753b40298ed0a430303c16f2",
+      "tree": "sha256:77c6a1636525b1a8340f6fcdda5c99e40be9f7e8a5a66403e914db025047d7ca",
+      "recorded_at": "2026-10-14T00:17:57.402Z"
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:850bf593dc806d4820e6605c76629c76afb8cb192b1a5a87b736b4b8cdb43a54",
+      "tree": "sha256:77c6a1636525b1a8340f6fcdda5c99e40be9f7e8a5a66403e914db025047d7ca",
+      "recorded_at": "2026-10-14T00:17:57.402Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:589678778f01bae41e7d7805e2d51e5eef94292565b85bd8eccf883b3f644e8e",
+      "tree": "sha256:77c6a1636525b1a8340f6fcdda5c99e40be9f7e8a5a66403e914db025047d7ca",
+      "recorded_at": "2026-10-14T00:17:57.402Z"
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f2e088f306ebd890f1672e9995fd0ac1e7ea2631b8fb546a0e709655b0591914",
+      "tree": "sha256:77c6a1636525b1a8340f6fcdda5c99e40be9f7e8a5a66403e914db025047d7ca",
+      "recorded_at": "2026-10-14T00:17:57.402Z"
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d514b96d134fcb048851b6a0ce92ffb3e9d00761df775f2d8a4849362b2c45ab",
+      "tree": "sha256:77c6a1636525b1a8340f6fcdda5c99e40be9f7e8a5a66403e914db025047d7ca",
+      "recorded_at": "2026-10-14T00:17:57.402Z"
+    }
+  ],
+  "closed_at": "2026-10-14T00:18:10.340Z"
+}

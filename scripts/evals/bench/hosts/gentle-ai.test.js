@@ -7,7 +7,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 
-const { AGY_INSTALL_ARGS, INSTALL_ARGS, identifyGentleAi, identifyGentleAiAgy, installGentleAi, installGentleAiAgy, mcpConfig, startEngram } = require("./gentle-ai.js");
+const { AGY_INSTALL_ARGS, INSTALL_ARGS, engramMcpBytes, identifyGentleAi, identifyGentleAiAgy, installGentleAi, installGentleAiAgy, mcpConfig, startEngram } = require("./gentle-ai.js");
 
 function tempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "bench-gentle-"));
@@ -190,6 +190,23 @@ test("the agy install keeps the selection and places gentle-ai's unchanged outpu
   assert.equal(fs.readFileSync(path.join(home, ".gemini", "antigravity-cli", "mcp_config.json"), "utf8"), "{}\n");
   assert.equal(fs.readFileSync(path.join(home, ".gemini", "config", "skills", "go-testing", "SKILL.md"), "utf8"), "skill");
   assert.ok(fs.existsSync(path.join(home, ".gemini", "config", "plugins", "gentle-ai-engram", "plugin.json")));
+});
+
+test("engramMcpBytes is the Engram MCP config, and on agy that is the plugin file when it has content", () => {
+  const dir = tempDir();
+  const home = path.join(dir, "home");
+  fs.mkdirSync(home);
+  fs.writeFileSync(path.join(home, ".claude.json"), JSON.stringify({ mcpServers: { engram: { command: "engram" } } }));
+  const claude = engramMcpBytes({ home, host: "claude" });
+  assert.equal(claude, Buffer.byteLength(mcpConfig(home)));
+  const root = path.join(home, ".gemini", "config", "mcp_config.json");
+  const plugin = path.join(home, ".gemini", "config", "plugins", "gentle-ai-engram", "mcp_config.json");
+  fs.mkdirSync(path.dirname(root), { recursive: true });
+  fs.writeFileSync(root, "");
+  assert.equal(engramMcpBytes({ home, host: "agy" }), 0);
+  fs.mkdirSync(path.dirname(plugin), { recursive: true });
+  fs.writeFileSync(plugin, "{\"mcpServers\":{\"engram\":{}}}\n");
+  assert.equal(engramMcpBytes({ home, host: "agy" }), Buffer.byteLength(fs.readFileSync(plugin)));
 });
 
 test("the agy identity covers both binaries and what agy reads, not its conversations", () => {

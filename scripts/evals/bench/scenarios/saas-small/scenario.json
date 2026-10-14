@@ -3,7 +3,7 @@
   "id": "saas-small",
   "profile": "saas-small",
   "title": "Compartir notas en un SaaS multi-organización",
-  "brief": "Quiero que un usuario pueda compartir una de sus notas con un compañero: `POST /notes/:id/share` con el cuerpo `{ \"userId\": \"u2\" }`. Desde ese momento, el compañero ve la nota en su `GET /notes` y puede abrirla con `GET /notes/:id`.",
+  "brief": "Quiero que un usuario pueda compartir una de sus notas con un compañero: `POST /notes/:id/share` con el cuerpo `{ \"userId\": \"u2\" }`. Desde ese momento, el compañero ve la nota en su `GET /notes` y puede abrirla con `GET /notes/:id`. Deja el trabajo commiteado.",
   "facts": [
     { "id": "F1", "text": "Solo el propietario de una nota puede compartirla." },
     { "id": "F2", "text": "Nunca se comparte entre organizaciones: compartir con alguien de otra organización falla y no le da ningún acceso." },

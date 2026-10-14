@@ -63,17 +63,16 @@ const reps = (scenarioId, specs) => specs.map(([tokens, failing = []], index) =>
 
 test("the committed margins load and carry a digest", () => {
   const { margins: loaded, digest } = loadMargins(MARGINS_PATH);
-  // E4.5 (user decisions, 2026-10-13): IDD against gentle-ai on agy, three
-  // repetitions; IDD may not escape more defects nor spend more tokens, its
-  // mean mutation score may trail by at most 5 points, and the blind review
-  // may prefer gentle-ai consistently in at most one pair.
+  // E4.9 (user decisions, 2026-10-13): one repetition, no quality criterion.
+  // IDD may not escape more defects nor spend more tokens than gentle-ai.
+  // E4.5's bench-margins-7 stays reproducible from v2.134.0.
   assert.equal(loaded.baseline_arm, "gentle-ai");
   assert.equal(loaded.candidate_arm, "idd");
-  assert.equal(loaded.margins_version, "bench-margins-7");
-  assert.equal(loaded.repetitions, 3);
+  assert.equal(loaded.margins_version, "bench-margins-8");
+  assert.equal(loaded.repetitions, 1);
   assert.equal(loaded.escaped_defects.max_mean_delta, 0);
   assert.equal(loaded.tokens.max_total_ratio, 1);
-  assert.deepEqual(loaded.quality, { max_mutation_score_deficit: 5, max_consistent_baseline_preferences: 1 });
+  assert.equal(loaded.quality, null);
   assert.equal(loaded.harness_exception, null);
   assert.match(digest, /^[a-f0-9]{64}$/);
 });

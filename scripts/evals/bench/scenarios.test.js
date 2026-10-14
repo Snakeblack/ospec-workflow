@@ -126,6 +126,11 @@ test("materializeRepo copies the seed repository only", () => {
   assert.ok(!fs.existsSync(path.join(dest, "scenario.json")));
 });
 
+test("the six default briefs ask both arms to commit and todo-spa does not", () => {
+  for (const scenario of loadCorpus()) assert.match(scenario.brief, /Deja el trabajo commiteado\.$/, scenario.id);
+  for (const scenario of loadCorpus("greenfield")) assert.doesNotMatch(scenario.brief, /commiteado/, scenario.id);
+});
+
 test("the greenfield corpus is apart from the default one and does not change its digest", () => {
   const [todo, ...rest] = loadCorpus("greenfield");
   assert.deepEqual(rest, []);

@@ -20,8 +20,10 @@ const { armFor } = require("./arms.js");
 const { evaluateCheckpoint, loadMargins, renderCheckpoint } = require("./checkpoint.js");
 const { DEFAULT_LIMITS, runScenario: defaultRunScenario } = require("./driver.js");
 const { buildOspecHome: defaultBuildOspecHome, createAgyHost } = require("./hosts/agy.js");
-const { buildPlugin: defaultBuildPlugin, createClaudeHost, resolveClaudeExecutable } = require("./hosts/claude.js");
+const { buildPlugin: defaultBuildPlugin, createClaudeHost, prepareAgentConfig, resolveClaudeExecutable } = require("./hosts/claude.js");
+const { askCursorPersona } = require("./hosts/cursor-persona.js");
 const {
+  engramMcpBytes: defaultEngramMcpBytes,
   homeEnv,
   identifyGentleAi: defaultIdentifyGentleAi,
   identifyGentleAiAgy: defaultIdentifyGentleAiAgy,
@@ -257,7 +259,11 @@ function prepareHost(opts, arm, recordWorkspaces, personaDir, deps) {
       expose: [agyBin, path.dirname(path.dirname(process.execPath))],
       bin: [path.dirname(process.execPath), path.dirname(agyBin)],
     };
-    const host = deps.createAgyHost({ executable, template, model: opts.model, personaModel: opts.personaModel, personaDir, gentleAi, forbidden, sandbox });
+    if (arm.id === "gentle-ai") plugin = { ...plugin, engramMcpBytes: deps.engramMcpBytes({ home: template, host: "agy" }) };
+    const personaInvoke = String(opts.personaModel || "").startsWith("grok-")
+      ? (input) => deps.askCursorPersona({ ...input, model: opts.personaModel })
+      : null;
+    const host = deps.createAgyHost({ executable, template, model: opts.model, personaModel: opts.personaModel, personaDir, gentleAi, forbidden, sandbox, personaInvoke });
     return { host, plugin };
   }
   if (!fs.existsSync(opts.configDir)) {
@@ -278,12 +284,23 @@ function prepareHost(opts, arm, recordWorkspaces, personaDir, deps) {
       return null;
     }
     gentleAi = { home, startEngram, mcpConfig: mcpConfig(home) };
+    plugin = { ...plugin, engramMcpBytes: deps.engramMcpBytes({ home, host: "claude" }) };
   } else {
-    plugin = deps.buildPlugin({ repoRoot: REPO_ROOT, outDir: path.join(recordWorkspaces, "plugin-build") });
+    plugin = deps.buildPlugin({ repoRoot: REPO_ROOT, outDir: path.join(recordWorkspaces, "plugin-build"), withSdd: arm.id === "sdd" });
+  }
+  let agentConfigDir = null;
+  if (arm.id === "idd") {
+    agentConfigDir = path.join(recordWorkspaces, "agent-config");
+    deps.prepareAgentConfig({
+      configDir: opts.configDir,
+      destDir: agentConfigDir,
+      routerSource: path.join(plugin.pluginDir, "global-instructions", "CLAUDE.md"),
+    });
   }
   const host = deps.createHost({
     executable,
     configDir: opts.configDir,
+    agentConfigDir,
     pluginDir: plugin.pluginDir,
     gentleAi,
     model: opts.model,
@@ -345,6 +362,7 @@ async function runLocked(args, opts, arm, corpus, selected, repetitions, limits,
       effort: opts.effort || null,
       plugin_version: plugin.version,
       plugin_digest: plugin.digest,
+      ...(typeof plugin.engramMcpBytes === "number" ? { engram_mcp_bytes: plugin.engramMcpBytes } : {}),
     },
     persona: { model: opts.personaModel },
     scenarios_digest: scenariosDigest(corpus),
@@ -444,6 +462,9 @@ async function main(argv, deps = {}) {
     installGentleAiAgy: defaultInstallGentleAiAgy,
     createHost: createClaudeHost,
     createAgyHost,
+    prepareAgentConfig,
+    askCursorPersona,
+    engramMcpBytes: defaultEngramMcpBytes,
     runScenario: defaultRunScenario,
     ...deps,
   };

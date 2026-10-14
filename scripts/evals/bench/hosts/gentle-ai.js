@@ -130,6 +130,18 @@ function mcpConfig(home) {
   return JSON.stringify({ mcpServers: servers });
 }
 
+/** Byte size of the Engram MCP config the arm loads. Not a token count. */
+function engramMcpBytes({ home, host = "claude" }) {
+  if (host === "agy") {
+    const plugin = path.join(home, ".gemini", "config", "plugins", "gentle-ai-engram", "mcp_config.json");
+    const root = path.join(home, ".gemini", "config", "mcp_config.json");
+    const file = fs.existsSync(plugin) && fs.statSync(plugin).size > 0 ? plugin : root;
+    if (!fs.existsSync(file)) throw new Error(`no MCP config in ${home}`);
+    return Buffer.byteLength(fs.readFileSync(file));
+  }
+  return Buffer.byteLength(mcpConfig(home));
+}
+
 /** Version and digest of the install in `home`: both binaries, its MCP servers, and the assets a run reads. */
 function identifyGentleAi({ home, baseEnv = process.env, spawnSyncImpl = spawnSync }) {
   if (!fs.existsSync(path.join(home, ".claude", "CLAUDE.md")) || !fs.existsSync(gentleAiBin(home))) {
@@ -210,6 +222,7 @@ module.exports = {
   INSTALL_ARGS,
   QUIET_ENV,
   homeEnv,
+  engramMcpBytes,
   identifyGentleAi,
   identifyGentleAiAgy,
   installGentleAi,

@@ -333,6 +333,7 @@ function createAgyHost({
   gentleAi = null,
   forbidden = [],
   sandbox = null,
+  personaInvoke = null,
   baseEnv = process.env,
   turnTimeoutMs = DEFAULT_TURN_TIMEOUT_MS,
 }) {
@@ -423,10 +424,13 @@ function createAgyHost({
   }
 
   async function persona({ scenario, goal, message }) {
+    const ask = personaInvoke
+      ? () => personaInvoke({ scenario, goal, message })
+      : () => askPersona(scenario, goal, message);
     let lastError = null;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
-        const { usage, reply } = await askPersona(scenario, goal, message);
+        const { usage, reply } = await ask();
         return { reply, usage, cost_usd: 0, error: null };
       } catch (error) {
         lastError = error;

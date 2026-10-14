@@ -56,9 +56,11 @@ A run MUST drive a real agent host headless in a workspace outside the
 repository, initialized as a git repository from the seed. The Claude Code host
 MUST use a dedicated configuration directory (`CLAUDE_CONFIG_DIR`) so the
 user's instructions, installed plugins, MCP servers, and memory do not reach
-the run, and MUST load the plugin built from the current checkout with the SDD
-package (`--with-sdd`, REQ-generator-025) for every arm, so both arms keep the
-plugin content of the runs measured before E1.6 (d2). The `gentle-ai` arm
+the run. The `sdd` arm MUST load the plugin built from the current checkout
+with the SDD package (`--with-sdd`). The `idd` arm MUST load that plugin
+without SDD, and its agent MUST run with a copy of the bench configuration
+that adds the router block from the plugin's `global-instructions/CLAUDE.md`;
+the persona MUST keep the bench configuration without that block. The `gentle-ai` arm
 MUST instead run the agent with `HOME` set to the bench's gentle-ai home,
 where gentle-ai was installed once (`bench.js setup-gentle-ai`), without the
 ospec plugin and with exactly the MCP servers gentle-ai registered in
@@ -69,7 +71,7 @@ Code only, with the `persona`, `engram`, and `skills` components, the
 `ecosystem-only` preset, and the `neutral` persona, with telemetry and
 self-update off, and its binaries copied into the home. Each workspace MUST get
 an empty Engram of its own (data under `.git/`, its own port) that the bench
-stops when the run ends; an interrupted bench MUST also stop the turns in flight. The persona MUST run in the bench configuration
+stops when the run ends; an interrupted bench MUST also stop the turns in flight. On Claude Code the persona MUST run in the bench configuration
 directory for every arm. Variables of
 the calling session that alter the host (nested-session markers, hook switches,
 an API key) MUST NOT be inherited. The arm's project setup MUST run before the
@@ -117,7 +119,10 @@ steps that place its unchanged output where agy reads it: an empty
 `.gemini/antigravity-cli/mcp_config.json` before the install, `agy plugin
 install` of the Engram plugin it generates, and its skills copied to
 `.gemini/config/skills`; each workspace MUST get an empty Engram of its own.
-The persona MUST run on agy from a fresh, rule-free `HOME` per call. The `sdd`
+The persona MUST run on agy from a fresh, rule-free `HOME` per call, except
+when its model id starts with `grok-`: then it MUST run through the Cursor CLI
+(`agent --print --mode ask`) in an empty directory, with the repository not
+set as its workspace. The `sdd`
 arm MUST NOT run on agy. Since agy reports no cost, a run on agy MUST stop as
 `incomplete` (`max-tokens`) at its token cap instead of a cost cap.
 
@@ -213,7 +218,10 @@ and each run MUST carry its repetition number; the repetition count is part of
 the identity. Resuming a record with a different identity MUST be refused. The
 report MUST be recomputable from the record without calling a model and, with
 more than one repetition, MUST add the mean of each scenario over its
-repetitions. A record of schema 1 (one run per scenario) MUST still be read as
+repetitions. It MUST break hidden checks down by kind (`acceptance`,
+`regression` and `fact`). A `gentle-ai` record MUST store the byte size of the
+Engram MCP config that arm loads, and the report MUST state that size apart
+from token totals, without subtracting it. A record of schema 1 (one run per scenario) MUST still be read as
 one repetition.
 
 #### Scenario: Resume with another plugin build
@@ -262,11 +270,12 @@ blind review may prefer the baseline in both orders. The checkpoint MUST only
 validate it; `scripts/evals/quality` MUST evaluate it over every delivery
 pair, counting a delivered suite that fails before any mutant as a score of 0,
 and MUST decide `revise` when either margin is exceeded or a pair is not
-judged. The E4.5 margins (`bench-margins-7`: `gentle-ai` as baseline, `idd` as
-candidate, three repetitions, `max_mean_delta` 0, `max_total_ratio` 1, and a
-quality criterion of 5 points and one pair) declare no harness exception,
-because both arms run with the same harness; their verdict blocks nothing. The
-E4.2 checkpoint (`bench-margins-6`) is reproducible from v2.133.0.
+judged. The E4.9 margins (`bench-margins-8`: `gentle-ai` as baseline, `idd` as
+candidate, one repetition, `max_mean_delta` 0, `max_total_ratio` 1, and no
+quality criterion) declare no harness exception, because both arms run with
+the same harness; their verdict blocks nothing. The E4.5 checkpoint
+(`bench-margins-7`) is reproducible from v2.134.0. The E4.2 checkpoint
+(`bench-margins-6`) is reproducible from v2.133.0.
 
 #### Scenario: Improvement in totals does not hide a regression
 
@@ -299,11 +308,12 @@ request the change with `/ospec-workflow:sdd-new`, and finish when a change is
 archived under `openspec/changes/archive/`. The `idd` arm MUST set the project
 up by asking the agent to write `idd/config.yaml` with `mode: idd` and the
 `npm test` check, and that setup MUST be done only when the file parses in IDD
-mode. On Claude Code it MUST request the change with `/ospec-workflow:idd`,
-because the router does not load in the bench's isolated configuration; on agy,
-where the router loads, it MUST request it with the brief alone, as the
-`gentle-ai` arm does. It MUST finish when `ospec close` has archived a change
-under `idd/archive/` that the setup commit did not hold. The `gentle-ai` arm
+mode. On every host it MUST request the change with the brief alone, because
+the router is loaded (on Claude Code, in the agent's configuration copy; on
+agy, in the antigravity install). It MUST finish only when `ospec close` has
+archived a change under `idd/archive/` that the setup commit did not hold, at
+least one commit exists after setup, the working tree is clean, and that new
+archive directory is recorded in `HEAD`. The `gentle-ai` arm
 MUST need no project setup, MUST request the change with the brief alone,
 because ODD runs on every request, and MUST finish when there is at least one
 commit after setup, nothing is uncommitted outside `odd/` and `.atl/`, and no
@@ -315,10 +325,10 @@ is the skill registry gentle-ai regenerates at every session start.
 
 - GIVEN the `idd` arm with its setup done
 - WHEN the change is requested
-- THEN the prompt MUST be `/ospec-workflow:idd <brief>` on Claude Code and the
-  brief itself on agy
+- THEN the prompt MUST be the brief itself
 - AND the run MUST be complete only once `idd/archive/` holds a directory the
-  setup commit did not hold
+  setup commit did not hold, that directory is in `HEAD`, at least one commit
+  exists after setup, and the working tree is clean
 
 #### Scenario: gentle-ai arm finishes at a committed delivery
 

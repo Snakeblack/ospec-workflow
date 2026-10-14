@@ -16,6 +16,7 @@ const path = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
 
 const { resolveClaudeBin } = require("../../../configure/cli.js");
+const { writeRouterBlock } = require("../../../configure/instruction-block.js");
 const { homeEnv } = require("./gentle-ai.js");
 const { listFiles } = require("../scenarios.js");
 const { PERSONA_SCHEMA, buildPersonaPrompt, buildPersonaSystemPrompt, normalizePersonaReply } = require("../persona.js");
@@ -136,14 +137,14 @@ function hashTree(dir) {
 }
 
 /** Builds the Claude plugin from `repoRoot` into `outDir` and identifies it. */
-// Both arms get the SDD package (E1.6 d2: it installs only on request), so the
-// plugin keeps the content sdd-baseline-3 and idd-2 ran with.
-function buildPlugin({ repoRoot, outDir, spawnSyncImpl = spawnSync }) {
+// The sdd arm keeps `--with-sdd`. The idd arm omits it, matching the agy
+// install (E4.9).
+function buildPlugin({ repoRoot, outDir, withSdd = true, spawnSyncImpl = spawnSync }) {
   const result = spawnSyncImpl(process.execPath, [
     path.join(repoRoot, "scripts", "configure", "claude-marketplace.js"),
     "--source", repoRoot,
     "--out", outDir,
-    "--with-sdd",
+    ...(withSdd ? ["--with-sdd"] : []),
   ], { cwd: repoRoot, encoding: "utf8" });
   if (result.status !== 0) throw new Error(`plugin build failed: ${result.stderr || result.stdout}`);
   const pluginDir = path.join(outDir, "plugins", "ospec-workflow");
@@ -151,10 +152,23 @@ function buildPlugin({ repoRoot, outDir, spawnSyncImpl = spawnSync }) {
   return { pluginDir, version: manifest.version, digest: hashTree(pluginDir) };
 }
 
+/**
+ * Copies the logged-in bench configuration and writes the plugin's router
+ * block into that copy. The persona keeps the original directory, so the
+ * router reaches only the agent.
+ */
+function prepareAgentConfig({ configDir, destDir, routerSource, fsImpl = fs }) {
+  fsImpl.rmSync(destDir, { recursive: true, force: true });
+  fsImpl.cpSync(configDir, destDir, { recursive: true });
+  writeRouterBlock(path.join(destDir, "CLAUDE.md"), fsImpl.readFileSync(routerSource, "utf8"), { fs: fsImpl });
+  return destDir;
+}
+
 function createClaudeHost({
   executable,
   prefixArgs = [],
   configDir,
+  agentConfigDir = null,
   pluginDir,
   model,
   effort = null,
@@ -165,7 +179,7 @@ function createClaudeHost({
   turnTimeoutMs = DEFAULT_TURN_TIMEOUT_MS,
 }) {
   const env = benchEnv(baseEnv, configDir);
-  const agentEnv = gentleAi ? gentleAiEnv(baseEnv, gentleAi.home) : env;
+  const agentEnv = gentleAi ? gentleAiEnv(baseEnv, gentleAi.home) : benchEnv(baseEnv, agentConfigDir || configDir);
   const engrams = new Map();
   const children = new Set();
 
@@ -253,4 +267,4 @@ function createClaudeHost({
   return { name: "claude-code", turn, persona, version, release, releaseAll };
 }
 
-module.exports = { benchEnv, buildPlugin, createClaudeHost, gentleAiEnv, hashTree, resolveClaudeExecutable, turnArgs };
+module.exports = { benchEnv, buildPlugin, createClaudeHost, gentleAiEnv, hashTree, prepareAgentConfig, resolveClaudeExecutable, turnArgs };

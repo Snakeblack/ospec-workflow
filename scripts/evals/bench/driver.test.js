@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { spawnSync } = require("node:child_process");
 
 const { ARMS, armFor } = require("./arms.js");
 const { runScenario } = require("./driver.js");
@@ -255,15 +256,26 @@ const writeIddConfig = (mode) => (cwd) => {
   fs.mkdirSync(path.join(cwd, "idd"), { recursive: true });
   fs.writeFileSync(path.join(cwd, "idd", "config.yaml"), `mode: ${mode}\nchecks:\n  test: npm test\n`);
 };
-const archiveIdd = (cwd) => fs.mkdirSync(path.join(cwd, "idd", "archive", "2026-10-07-prioridades"), { recursive: true });
+const writeArchive = (cwd) => {
+  const file = path.join(cwd, "idd", "archive", "2026-10-07-prioridades", "change.md");
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, "# prioridades\n");
+};
+const archiveIdd = (cwd) => {
+  writeArchive(cwd);
+  for (const args of [["add", "-A"], ["commit", "-q", "-m", "change"]]) {
+    const result = spawnSync("git", args, { cwd, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+  }
+};
 
-test("the idd arm writes idd/config.yaml, requests the change through the idd skill, and ends at idd/archive/", async () => {
+test("the idd arm writes idd/config.yaml, requests the brief, and ends when the archive is committed", async () => {
   const arm = armFor("idd");
-  assert.equal(arm.changePrompt(scenario), "/ospec-workflow:idd Quiero prioridades.");
+  assert.equal(arm.changePrompt(scenario), "Quiero prioridades.");
   assert.match(arm.setupPrompts[0], /idd\/config\.yaml/);
   assert.match(arm.setupPrompts[0], /mode: idd/);
   const host = fakeHost({
-    texts: ["Configuración creada.", "Cambio abierto.", "ospec close ha archivado el cambio."],
+    texts: ["Configuración creada.", "Cambio abierto.", "ospec close ha archivado el cambio y está commiteado."],
     effects: [writeIddConfig("idd"), writeCode, archiveIdd],
   });
   const run = await runScenario({ scenario: seedRepo(), arm, host, ...dirs(), checks: () => [{ id: "a", kind: "acceptance", fact: null, pass: true }] });
@@ -271,9 +283,9 @@ test("the idd arm writes idd/config.yaml, requests the change through the idd sk
   assert.equal(run.setup.status, "complete");
   assert.deepEqual(run.setup.modified_seed, []);
   assert.equal(host.calls.turns[0].prompt, arm.setupPrompts[0]);
-  assert.equal(host.calls.turns[1].prompt, "/ospec-workflow:idd Quiero prioridades.");
+  assert.equal(host.calls.turns[1].prompt, "Quiero prioridades.");
   assert.equal(run.metrics.agent_turns, 2);
-  assert.deepEqual(run.changed_files, ["index.js"], "git does not track the empty archive directory");
+  assert.deepEqual(run.changed_files, ["idd/archive/2026-10-07-prioridades/change.md", "index.js"]);
 });
 
 test("the idd arm's setup is done only with a readable config in IDD mode", () => {
@@ -289,8 +301,8 @@ test("the idd arm's setup is done only with a readable config in IDD mode", () =
   assert.equal(arm.isComplete(root), false);
   fs.mkdirSync(path.join(root, "idd", "archive"), { recursive: true });
   assert.equal(arm.isComplete(root), false, "an empty archive is not a closed change");
-  archiveIdd(root);
-  assert.equal(arm.isComplete(root), true);
+  writeArchive(root);
+  assert.equal(arm.isComplete(root), false, "an archive outside git is not a delivery");
   assert.equal(ARMS.idd.available, true);
   assert.throws(() => armFor("odd"), /unknown arm/);
 });

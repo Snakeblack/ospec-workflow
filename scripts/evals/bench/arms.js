@@ -32,6 +32,24 @@ function hasClosedIddChange(root, base) {
   return fs.readdirSync(dir, { withFileTypes: true }).some((entry) => entry.isDirectory() && !existing.has(entry.name));
 }
 
+function trackedArchiveNames(root, rev) {
+  const listed = git(root, ["ls-tree", "-d", "--name-only", `${rev}:idd/archive`]);
+  return new Set((listed || "").split("\n").filter(Boolean));
+}
+
+// IDD finishes when ospec close has archived a change the setup commit did not
+// hold and that archive is committed, with nothing left uncommitted (E4.9).
+function hasIddDelivery(root, base) {
+  if (!hasClosedIddChange(root, base)) return false;
+  const commits = git(root, ["rev-list", "--count", `${base}..HEAD`]);
+  if (commits === null || Number(commits.trim()) < 1) return false;
+  const status = git(root, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]);
+  if (status === null || changedPaths(status).length > 0) return false;
+  const before = trackedArchiveNames(root, base);
+  const now = trackedArchiveNames(root, "HEAD");
+  return [...now].some((name) => !before.has(name));
+}
+
 function isIddMode(root) {
   try {
     return parseIddConfig(fs.readFileSync(path.join(root, CONFIG_FILE), "utf8")).mode === "idd";
@@ -88,8 +106,9 @@ function hasOddDelivery(root, base) {
 }
 
 // Every seed tests with `npm test`, the command sdd-init records for the sdd
-// arm. The router is not loaded in the bench's isolated configuration, so the
-// change enters the protocol through its skill.
+// arm. The IDD arm loads the router (Claude: the plugin's router block in the
+// agent's own configuration; agy: the antigravity install), so the change is
+// the brief itself.
 const IDD_CONFIG = "mode: idd\nchecks:\n  test: npm test\n";
 
 const ARMS = Object.freeze({
@@ -106,14 +125,14 @@ const ARMS = Object.freeze({
   idd: Object.freeze({
     id: "idd",
     available: true,
-    goal: "implementado y cerrado con ospec close, que lo archiva en idd/archive/",
+    goal: "implementado, cerrado con ospec close (archivado en idd/archive/) y commiteado, con el árbol limpio",
     setupGoal: "el proyecto con idd/config.yaml en modo IDD, sin empezar ningún cambio ni tocar el código",
     setupPrompts: Object.freeze([
       `Crea el fichero ${CONFIG_FILE} con exactamente este contenido y no hagas nada más:\n\n\`\`\`yaml\n${IDD_CONFIG}\`\`\``,
     ]),
     isSetupDone: isIddMode,
-    changePrompt: (scenario) => `/ospec-workflow:idd ${scenario.brief}`,
-    isComplete: hasClosedIddChange,
+    changePrompt: (scenario) => scenario.brief,
+    isComplete: hasIddDelivery,
   }),
   // gentle-ai is installed once in the bench's gentle-ai HOME (bench.js
   // setup-gentle-ai), so a project needs no setup. ODD runs on every request,
@@ -130,16 +149,14 @@ const ARMS = Object.freeze({
   }),
 });
 
-// On agy (E4.5) ospec is installed for antigravity without SDD, and its router
-// is loaded, so the IDD arm receives the brief as is, like gentle-ai (user
-// decision, 2026-10-13).
+// On agy (E4.5) ospec is installed for antigravity without SDD. The sdd arm
+// needs that package, so it does not run there.
 function armFor(id, { host = "claude" } = {}) {
   const arm = ARMS[id];
   if (!arm) throw new Error(`unknown arm ${id}; known arms: ${Object.keys(ARMS).join(", ")}`);
   if (!arm.available) throw new Error(`arm ${id} is not available yet: ${arm.unavailable_reason}`);
-  if (host !== "agy") return arm;
-  if (id === "sdd") throw new Error("arm sdd is not available on agy: the bench installs ospec for antigravity without SDD");
-  return id === "idd" ? Object.freeze({ ...arm, changePrompt: (scenario) => scenario.brief }) : arm;
+  if (host === "agy" && id === "sdd") throw new Error("arm sdd is not available on agy: the bench installs ospec for antigravity without SDD");
+  return arm;
 }
 
-module.exports = { ARMS, armFor, hasArchivedChange, hasClosedIddChange, hasOddDelivery };
+module.exports = { ARMS, armFor, hasArchivedChange, hasClosedIddChange, hasIddDelivery, hasOddDelivery };
