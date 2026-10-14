@@ -63,16 +63,17 @@ const reps = (scenarioId, specs) => specs.map(([tokens, failing = []], index) =>
 
 test("the committed margins load and carry a digest", () => {
   const { margins: loaded, digest } = loadMargins(MARGINS_PATH);
-  // E4.9 (user decisions, 2026-10-13): one repetition, no quality criterion.
-  // IDD may not escape more defects nor spend more tokens than gentle-ai.
-  // E4.5's bench-margins-7 stays reproducible from v2.134.0.
+  // E4.6 (declared 2026-10-14, before idd-agy-4): three repetitions.
+  // The checkpoint's aggregate ceiling is +2 escaped defects and 10× tokens.
+  // The campaign's binding rules are per scenario and are judged in the report.
+  // E4.9's bench-margins-8 stays reproducible from v2.137.0.
   assert.equal(loaded.baseline_arm, "gentle-ai");
   assert.equal(loaded.candidate_arm, "idd");
-  assert.equal(loaded.margins_version, "bench-margins-8");
-  assert.equal(loaded.repetitions, 1);
-  assert.equal(loaded.escaped_defects.max_mean_delta, 0);
-  assert.equal(loaded.tokens.max_total_ratio, 1);
-  assert.equal(loaded.quality, null);
+  assert.equal(loaded.margins_version, "bench-margins-9");
+  assert.equal(loaded.repetitions, 3);
+  assert.equal(loaded.escaped_defects.max_mean_delta, 2);
+  assert.equal(loaded.tokens.max_total_ratio, 10);
+  assert.deepEqual(loaded.quality, { max_mutation_score_deficit: 5, max_consistent_baseline_preferences: 1 });
   assert.equal(loaded.harness_exception, null);
   assert.match(digest, /^[a-f0-9]{64}$/);
 });

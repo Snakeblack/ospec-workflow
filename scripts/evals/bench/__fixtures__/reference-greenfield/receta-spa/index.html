@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Receta</title>
+</head>
+<body>
+  <label for="nombre">Nombre del ingrediente</label>
+  <input id="nombre" type="text" autocomplete="off">
+  <label for="cantidad">Cantidad</label>
+  <input id="cantidad" type="text" inputmode="decimal" autocomplete="off">
+  <label for="unidad">Unidad</label>
+  <select id="unidad">
+    <option value="g">g</option>
+    <option value="ml">ml</option>
+    <option value="ud">ud</option>
+  </select>
+  <button type="button" id="anadir">Añadir ingrediente</button>
+  <label for="raciones">Raciones</label>
+  <input id="raciones" type="text" inputmode="numeric" autocomplete="off">
+  <p id="resumen"></p>
+  <ul id="lista"></ul>
+  <p id="aviso"></p>
+  <script>
+"use strict";
+
+const KEY = "cocina.v2";
+const UNITS = ["g", "ml", "ud"];
+const nombreInput = document.querySelector("#nombre");
+const cantidadInput = document.querySelector("#cantidad");
+const unidadSelect = document.querySelector("#unidad");
+const racionesInput = document.querySelector("#raciones");
+const resumen = document.querySelector("#resumen");
+const lista = document.querySelector("#lista");
+const aviso = document.querySelector("#aviso");
+let state = emptyState();
+
+function emptyState() {
+  return { raciones: 4, ingredientes: [] };
+}
+
+function numberToCents(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  const cents = Math.round(value * 100);
+  if (cents <= 0 || Math.abs(value * 100 - cents) > 1e-6) return null;
+  return cents;
+}
+
+function validState(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  if (!Number.isInteger(data.raciones) || data.raciones < 1 || data.raciones > 24) return null;
+  if (!Array.isArray(data.ingredientes)) return null;
+  const ingredientes = [];
+  for (const item of data.ingredientes) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+    if (typeof item.nombre !== "string" || item.nombre.length === 0 || item.nombre.length > 40 || item.nombre !== item.nombre.trim()) return null;
+    const cantidad = numberToCents(item.cantidad);
+    if (cantidad == null || !UNITS.includes(item.unidad)) return null;
+    ingredientes.push({ nombre: item.nombre, cantidad, unidad: item.unidad });
+  }
+  return { raciones: data.raciones, ingredientes };
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw == null) return emptyState();
+    return validState(JSON.parse(raw)) || emptyState();
+  } catch {
+    return emptyState();
+  }
+}
+
+function parseName(raw) {
+  const nombre = String(raw).trim();
+  if (!nombre || nombre.length > 40) return null;
+  return nombre;
+}
+
+function parseAmount(raw) {
+  const text = String(raw).trim().replace(",", ".");
+  if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(text)) return null;
+  const [whole, frac = ""] = text.split(".");
+  const cents = Number(whole) * 100 + Number((frac + "00").slice(0, 2));
+  return cents > 0 ? cents : null;
+}
+
+function sameName(left, right) {
+  return left.toLocaleLowerCase("es") === right.toLocaleLowerCase("es");
+}
+
+function hashServings() {
+  const match = /^#\/raciones\/([1-9]\d*)$/.exec(location.hash);
+  if (!match) return null;
+  const servings = Number(match[1]);
+  if (servings < 1 || servings > 24) return null;
+  return servings;
+}
+
+function formatCents(cents) {
+  const whole = Math.floor(Math.abs(cents) / 100);
+  const frac = Math.abs(cents) % 100;
+  if (frac === 0) return String(whole);
+  if (frac % 10 === 0) return `${whole},${frac / 10}`;
+  return `${whole},${String(frac).padStart(2, "0")}`;
+}
+
+function scaleCents(cents, servings) {
+  return Math.floor((cents * servings + 2) / 4);
+}
+
+function persist() {
+  const data = {
+    raciones: state.raciones,
+    ingredientes: state.ingredientes.map((item) => ({
+      nombre: item.nombre,
+      cantidad: item.cantidad / 100,
+      unidad: item.unidad,
+    })),
+  };
+  try {
+    localStorage.setItem(KEY, JSON.stringify(data));
+    aviso.textContent = "";
+  } catch {
+    aviso.textContent = "No se pudo guardar";
+  }
+}
+
+function render() {
+  resumen.textContent = state.raciones === 1 ? "Para 1 ración" : `Para ${state.raciones} raciones`;
+  racionesInput.value = String(state.raciones);
+  lista.replaceChildren();
+  state.ingredientes.forEach((item, index) => {
+    const li = document.createElement("li");
+    const nombre = document.createElement("span");
+    nombre.className = "nombre";
+    nombre.textContent = item.nombre;
+    const cantidad = document.createElement("span");
+    cantidad.className = "cantidad";
+    cantidad.textContent = formatCents(scaleCents(item.cantidad, state.raciones));
+    const unidad = document.createElement("span");
+    unidad.className = "unidad";
+    unidad.textContent = item.unidad;
+    const borrar = document.createElement("button");
+    borrar.type = "button";
+    borrar.className = "borrar";
+    borrar.textContent = `Quitar ${item.nombre}`;
+    borrar.addEventListener("click", () => {
+      state.ingredientes.splice(index, 1);
+      persist();
+      render();
+    });
+    li.append(nombre, cantidad, unidad, borrar);
+    lista.append(li);
+  });
+}
+
+function addIngredient() {
+  const nombre = parseName(nombreInput.value);
+  const cantidad = parseAmount(cantidadInput.value);
+  if (!nombre || cantidad == null || !UNITS.includes(unidadSelect.value)) return;
+  if (state.ingredientes.some((item) => sameName(item.nombre, nombre))) return;
+  state.ingredientes.push({ nombre, cantidad, unidad: unidadSelect.value });
+  nombreInput.value = "";
+  cantidadInput.value = "";
+  persist();
+  render();
+}
+
+function commitServings() {
+  const raw = racionesInput.value.trim();
+  if (!/^[1-9]\d*$/.test(raw)) {
+    render();
+    return;
+  }
+  const servings = Number(raw);
+  if (servings < 1 || servings > 24) {
+    render();
+    return;
+  }
+  state.raciones = servings;
+  const next = `#/raciones/${servings}`;
+  if (location.hash !== next) location.hash = next;
+  persist();
+  render();
+}
+
+document.querySelector("#anadir").addEventListener("click", addIngredient);
+racionesInput.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  racionesInput.blur();
+});
+racionesInput.addEventListener("change", commitServings);
+window.addEventListener("hashchange", () => {
+  const servings = hashServings();
+  if (servings == null) return;
+  state.raciones = servings;
+  persist();
+  render();
+});
+
+state = loadState();
+const opening = hashServings();
+if (opening != null) state.raciones = opening;
+render();
+persist();
+  </script>
+</body>
+</html>

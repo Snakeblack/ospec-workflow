@@ -273,7 +273,13 @@ and MUST decide `revise` when either margin is exceeded or a pair is not
 judged. The E4.9 margins (`bench-margins-8`: `gentle-ai` as baseline, `idd` as
 candidate, one repetition, `max_mean_delta` 0, `max_total_ratio` 1, and no
 quality criterion) declare no harness exception, because both arms run with
-the same harness; their verdict blocks nothing. The E4.5 checkpoint
+the same harness; their verdict blocks nothing. The E4.6 margins
+(`bench-margins-9`: the same arms, three repetitions, `max_mean_delta` 2,
+`max_total_ratio` 10, and the E4.5 quality criterion) are the aggregate ceiling
+of the greenfield campaign. Its report judges the binding escaped-defect rules:
+on `todo-spa` the candidate's mean is at most 2, and on the reserved scenario
+it is strictly below the baseline. Token growth on that campaign does not
+decide; the 10× ratio only stops a runaway. The E4.5 checkpoint
 (`bench-margins-7`) is reproducible from v2.134.0. The E4.2 checkpoint
 (`bench-margins-6`) is reproducible from v2.133.0.
 
