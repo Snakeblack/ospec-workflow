@@ -54,6 +54,18 @@ A new project, or a request to define a system's architecture, starts with the `
 
 ---
 
+## IDD vs gentle-ai: bench
+
+IDD is measured against gentle-ai (its ODD flow, installed with Engram) on fixed scenarios with real agents, on Claude Code (`claude-sonnet-5-5`) and on the Antigravity CLI (`gemini-3.8-flash-high`), with a simulated user and hidden checks. In short:
+
+- **Quality:** IDD escapes fewer defects in every bench with hidden facts but one, where it is level within noise (6.67 against 6.33), and loses no acceptance or regression check.
+- **Tokens:** with Claude and small tasks IDD spends 0.44× what gentle-ai spends; with Gemini it spends more (2.29× on the same six scenarios), and more still on the complex one-page apps, where the IDD runs that spent more left fewer defects (a correlation over six runs, not proof).
+- **Caveats:** one to three repetitions per scenario, and IDD versions that changed between benches. Read them before quoting a number.
+
+Full tables, models, personas, who wins and why: [docs/benchs/bench-idd-vs-gentle-ai.md](docs/benchs/bench-idd-vs-gentle-ai.md) ([Español](docs/benchs/bench-idd-vs-gentle-ai.es.md)).
+
+---
+
 ## Quick Start in 3 Steps
 
 ### 1. Nothing to copy: the installer adds a small router
@@ -400,6 +412,7 @@ Additional servers must be activated explicitly. See [mcp-policy.md](docs/mcp-po
 | [docs/model-routing.md](docs/model-routing.md) | Model tiers and format per target (`models.yaml`). |
 | [docs/mcp-policy.md](docs/mcp-policy.md) | MCP policy and server configuration. |
 | [docs/plugin-installation.md](docs/plugin-installation.md) | Installation, generation per target, trust and diagnostics. |
+| [docs/benchs/bench-idd-vs-gentle-ai.md](docs/benchs/bench-idd-vs-gentle-ai.md) | Bench of IDD against gentle-ai (ODD): models, personas, results and who wins. |
 
 Spanish versions of the main guides are listed in the language section at the top of this file.
 
