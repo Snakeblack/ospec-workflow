@@ -3,7 +3,7 @@ name: sdd-clarify
 description: "Reduce spec ambiguities before design. Trigger: orchestrator launches clarify after sdd-spec completes."
 disable-model-invocation: true
 user-invocable: false
-license: PolyForm-Noncommercial-1.0.0
+license: MIT AND Commons-Clause
 metadata:
   author: manuel-retamozo-garcia
   version: "1.0"

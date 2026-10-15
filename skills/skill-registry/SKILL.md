@@ -1,7 +1,7 @@
 ---
 name: skill-registry
 description: "Create or update the project skill registry. Trigger: update skills, skill registry, actualizar skills, or after skill changes."
-license: PolyForm-Noncommercial-1.0.0
+license: MIT AND Commons-Clause
 metadata:
   author: manuel-retamozo-garcia
   version: "1.0"

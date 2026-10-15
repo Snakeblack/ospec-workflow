@@ -3,7 +3,7 @@ name: sdd-apply
 description: "Implement SDD tasks from specs and design. Trigger: orchestrator launches apply for one or more change tasks."
 disable-model-invocation: true
 user-invocable: false
-license: PolyForm-Noncommercial-1.0.0
+license: MIT AND Commons-Clause
 metadata:
   author: manuel-retamozo-garcia
   version: "3.0"

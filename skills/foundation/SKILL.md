@@ -1,7 +1,7 @@
 ---
 name: foundation
 description: "Architecture foundation for a new project: discovers goals, constraints and quality drivers, then records product docs, ADRs and the IDD configuration. Trigger: new project, from scratch, define the architecture."
-license: PolyForm-Noncommercial-1.0.0
+license: MIT AND Commons-Clause
 metadata:
   author: manuel-retamozo-garcia
   version: "2.0"

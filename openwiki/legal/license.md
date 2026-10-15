@@ -1,9 +1,7 @@
 # Licencia
 
-`ospec-workflow` se publica bajo la [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0). El texto completo está en [`LICENSE`](https://github.com/Snakeblack/ospec-workflow/blob/main/LICENSE) en la raíz del repositorio.
+`ospec-workflow` se publica bajo la licencia MIT con la restricción [Commons Clause](https://commonsclause.com/). El texto completo está en [`LICENSE`](https://github.com/Snakeblack/ospec-workflow/blob/main/LICENSE) en la raíz del repositorio.
 
-Libre para uso personal, educativo y no comercial. El uso comercial requiere una licencia aparte del autor (contacto: [hello@mretamozo.com](mailto:hello@mretamozo.com)). Las versiones publicadas antes de este cambio se distribuyeron bajo MIT.
+Uso, modificación y redistribución libres, también para empresas. No está permitido venderlo ni ofrecer servicios de pago cuyo valor proviene sustancialmente del software (alojamiento, consultoría o soporte) sin permiso ([hello@mretamozo.com](mailto:hello@mretamozo.com)). Las versiones publicadas antes de este cambio se distribuyeron bajo MIT sin Commons Clause.
 
-Nadie puede vender el software ni obtener lucro de él sin permiso del titular del copyright, Manuel Michael Retamozo García.
-
-Identificador SPDX: `PolyForm-Noncommercial-1.0.0`.
+El titular del copyright y licenciante es Manuel Michael Retamozo García. En los manifiestos el campo `license` apunta a `LICENSE` (`SEE LICENSE IN LICENSE`), porque esta combinación no tiene un identificador SPDX estándar.

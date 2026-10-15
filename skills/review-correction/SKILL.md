@@ -3,7 +3,7 @@ name: review-correction
 description: "Read-only targeted correction validator for a bounded review lineage."
 disable-model-invocation: true
 user-invocable: false
-license: PolyForm-Noncommercial-1.0.0
+license: MIT AND Commons-Clause
 metadata:
   version: "1.1"
   delegate_only: true

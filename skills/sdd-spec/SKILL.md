@@ -3,7 +3,7 @@ name: sdd-spec
 description: "Write SDD delta specs with requirements and scenarios. Trigger: orchestrator launches spec work for a change."
 disable-model-invocation: true
 user-invocable: false
-license: PolyForm-Noncommercial-1.0.0
+license: MIT AND Commons-Clause
 metadata:
   author: manuel-retamozo-garcia
   version: "2.0"

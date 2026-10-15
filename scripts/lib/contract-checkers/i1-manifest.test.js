@@ -22,7 +22,7 @@ function writeSkill(root, name, runtimeCapabilitiesBlock) {
     "---",
     `name: ${name}`,
     `description: "fixture skill ${name}"`,
-    "license: PolyForm-Noncommercial-1.0.0",
+    "license: MIT AND Commons-Clause",
     "metadata:",
     "  author: fixture",
     '  version: "1.0"',

@@ -2,7 +2,7 @@
 
 ![ospec-banner.png](docs/banner-op/ospec-banner.png)
 
-[![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-blue.svg)](LICENSE)
+[![License: MIT + Commons Clause](https://img.shields.io/badge/License-MIT%20%2B%20Commons%20Clause-blue.svg)](LICENSE)
 
 > **🌐 English** · [Español](./README.es.md)
 
@@ -434,6 +434,8 @@ execution and trust surface.
 
 ## License
 
-This project is licensed under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0). See [LICENSE](LICENSE) for the full text.
+This project is licensed under the MIT License with the [Commons Clause](https://commonsclause.com/) restriction. See [LICENSE](LICENSE) for the full text.
 
-Libre para uso personal, educativo y no comercial. El uso comercial requiere una licencia aparte del autor (contacto: [hello@mretamozo.com](mailto:hello@mretamozo.com)). Las versiones publicadas antes de este cambio se distribuyeron bajo MIT.
+Free use, modification and redistribution, including by companies. Selling it or offering paid services whose value comes substantially from the software (hosting, consulting or support) is not allowed without permission ([hello@mretamozo.com](mailto:hello@mretamozo.com)). Versions published before this change were released under plain MIT.
+
+Uso, modificación y redistribución libres, también para empresas. No está permitido venderlo ni ofrecer servicios de pago cuyo valor proviene sustancialmente del software (alojamiento, consultoría o soporte) sin permiso ([hello@mretamozo.com](mailto:hello@mretamozo.com)). Las versiones publicadas antes de este cambio se distribuyeron bajo MIT sin Commons Clause.
