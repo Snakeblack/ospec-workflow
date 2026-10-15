@@ -32,10 +32,15 @@
 // forks keep the safe mode. A value the user already set is never overwritten.
 //
 // CreateProcess does not read a script shebang. Upstream hooks.json launches some
-// .sh files directly, so Windows opens them with the associated program. Once
-// Claude is configured, every bare .sh hook command in the installed engram@engram
-// plugin gets a `bash` prefix. A command that already starts with bash or sh is
-// left alone. The patch does not depend on the fork probe: without bash the
+// .sh files directly, so Windows opens them with the associated program. A bare
+// `bash` is no better: Claude runs hooks in PowerShell when it finds no Git Bash,
+// and there `bash` resolves to the WSL launcher, where the Windows engram binary
+// does not exist. Once Claude is configured, every .sh hook command and every
+// command led by a bare bash or sh in the installed engram@engram plugin is
+// rewritten to exec form (`command` = absolute bash.exe, `args` = the words), so
+// no shell sits in between. The launcher is the Git Bash the fork probe uses, or
+// else a bash.exe on PATH that is not the WSL launcher; with neither the hooks are
+// left alone. The patch does not depend on the probe's verdict: without bash the
 // script never starts, safe mode included.
 //
 // Semantics are deliberately the opposite of the installers' own steps (which abort
@@ -71,8 +76,12 @@ const ENGRAM_PHASE = "Memoria Engram";
 const SETUP_TIMEOUT_MS = 120000;
 const SAFE_MODE_VAR = "ENGRAM_CLAUDE_WINDOWS_BASH_SAFE_MODE";
 const ENGRAM_PLUGIN_ID = "engram@engram";
-const BASH_LAUNCHER = "bash";
-const SHELL_LAUNCHERS = new Set(["bash", "bash.exe", "sh", "sh.exe"]);
+const BASH_NAMES = new Set(["bash", "bash.exe"]);
+const SH_NAMES = new Set(["sh", "sh.exe"]);
+const WSL_BASH_RE = /[\\/](?:system32|sysnative|windowsapps)[\\/]bash\.exe$/i;
+// A double-quoted or plain word; `${NAME}` placeholders are the only expansion a
+// command may hold to be rewritten, since exec form runs no shell.
+const HOOK_WORD_RE = /\s*(?:"((?:[^"\\$`]|\$\{\w+\})*)"|((?:[^\s"'\\$`|&;<>()]|\$\{\w+\})+))/y;
 // The upstream hook's full path forks dirname, date, jq and curl on every prompt.
 // Three rounds must finish well under the time a user would notice on submit.
 const FORK_PROBE_SCRIPT = "for i in 1 2 3; do dirname /a/b; date +%s; jq -n 1; curl --version; done >/dev/null";
@@ -263,7 +272,7 @@ function findGitBash({ spawn, fs: fsImpl, env, timeoutMs }) {
   return candidates.find((candidate) => probeExists(fsImpl, candidate) === "registered") || null;
 }
 
-function windowsSafeModeStep({ spawn, fs: fsImpl, homedir, env, now, stdout, stderr, timeoutMs }) {
+function windowsSafeModeStep({ bash, spawn, fs: fsImpl, homedir, env, now, stdout, stderr }) {
   const settingsFile = path.join(homedir(), ".claude", "settings.json");
   const settings = readJsonObject(fsImpl, settingsFile);
   if (!settings.ok) {
@@ -278,7 +287,6 @@ function windowsSafeModeStep({ spawn, fs: fsImpl, homedir, env, now, stdout, std
     return;
   }
 
-  const bash = findGitBash({ spawn, fs: fsImpl, env, timeoutMs });
   if (!bash) {
     stdout.write("  - Se mantiene el modo seguro de Windows: no se encontró Git Bash, así que la captura de prompts y los recordatorios de guardado siguen desactivados.\n");
     return;
@@ -307,7 +315,7 @@ function windowsSafeModeStep({ spawn, fs: fsImpl, homedir, env, now, stdout, std
   );
 }
 
-// --- Windows: launch upstream .sh hooks with bash -----------------------------
+// --- Windows: launch upstream .sh hooks with an absolute bash -----------------
 
 function commandBasename(executable) {
   const normalized = String(executable).replace(/\\/g, "/");
@@ -315,33 +323,65 @@ function commandBasename(executable) {
   return (slash === -1 ? normalized : normalized.slice(slash + 1)).toLowerCase();
 }
 
-function leadingExecutable(command) {
-  const trimmed = command.trim();
-  if (trimmed.startsWith("\"")) {
-    const end = trimmed.indexOf("\"", 1);
-    return end === -1 ? trimmed.slice(1) : trimmed.slice(1, end);
+function forwardSlashes(file) {
+  return String(file).replace(/\\/g, "/");
+}
+
+function pathBash({ fs: fsImpl, env }) {
+  for (const dir of String(env.PATH || env.Path || "").split(path.delimiter).filter(Boolean)) {
+    const file = path.join(dir, "bash.exe");
+    if (probeExists(fsImpl, file) === "registered") return file;
   }
-  const space = trimmed.search(/\s/);
-  return space === -1 ? trimmed : trimmed.slice(0, space);
+  return null;
 }
 
-function bareShellScript(command) {
-  if (typeof command !== "string" || command.trim() === "") return false;
-  const base = commandBasename(leadingExecutable(command));
-  if (SHELL_LAUNCHERS.has(base)) return false;
-  return base.endsWith(".sh");
+// { bash, sh } as absolute paths (sh is null without a sibling sh.exe), or
+// { reason } when no bash is safe to launch the hooks with.
+function hookLauncher({ gitBash, fs: fsImpl, env }) {
+  const bash = gitBash || pathBash({ fs: fsImpl, env });
+  if (!bash) return { reason: "no se encontró Git Bash ni un bash.exe en el PATH" };
+  if (!gitBash && WSL_BASH_RE.test(bash)) return { reason: `no se encontró Git Bash y el bash del PATH (${bash}) es el lanzador de WSL` };
+  const sh = bash.replace(/bash\.exe$/i, "sh.exe");
+  const hasSh = sh !== bash && probeExists(fsImpl, sh) === "registered";
+  return { bash: forwardSlashes(bash), sh: hasSh ? forwardSlashes(sh) : null };
 }
 
-function prefixBareShellCommands(node) {
-  if (Array.isArray(node)) return node.reduce((count, item) => count + prefixBareShellCommands(item), 0);
+// The words of a shell-form command, or null when it uses any shell syntax.
+function hookWords(command) {
+  const text = command.trimEnd();
+  const words = [];
+  HOOK_WORD_RE.lastIndex = 0;
+  while (HOOK_WORD_RE.lastIndex < text.length) {
+    const match = HOOK_WORD_RE.exec(text);
+    if (!match) return null;
+    words.push(match[1] ?? match[2]);
+  }
+  return words;
+}
+
+function execLaunch(command, launcher) {
+  if (typeof command !== "string") return null;
+  const words = hookWords(command);
+  if (!words || words.length === 0) return null;
+  const [first, ...rest] = words;
+  const name = first.toLowerCase();
+  if (BASH_NAMES.has(name)) return rest.length ? { command: launcher.bash, args: rest } : null;
+  if (SH_NAMES.has(name)) return rest.length && launcher.sh ? { command: launcher.sh, args: rest } : null;
+  return commandBasename(first).endsWith(".sh") ? { command: launcher.bash, args: words } : null;
+}
+
+function launchShellHooks(node, launcher) {
+  if (Array.isArray(node)) return node.reduce((count, item) => count + launchShellHooks(item, launcher), 0);
   if (!node || typeof node !== "object") return 0;
   let count = 0;
-  if (bareShellScript(node.command)) {
-    node.command = `${BASH_LAUNCHER} ${node.command}`;
+  const exec = Object.hasOwn(node, "args") ? null : execLaunch(node.command, launcher);
+  if (exec) {
+    node.command = exec.command;
+    node.args = exec.args;
     count += 1;
   }
   for (const value of Object.values(node)) {
-    if (value && typeof value === "object") count += prefixBareShellCommands(value);
+    if (value && typeof value === "object") count += launchShellHooks(value, launcher);
   }
   return count;
 }
@@ -367,7 +407,7 @@ function engramHookFiles(fsImpl, homedir) {
   return { ok: true, file: registry, hooks };
 }
 
-function patchHookFile(fsImpl, file, stdout, stderr) {
+function patchHookFile(fsImpl, file, launcher, stdout, stderr) {
   const presence = probeExists(fsImpl, file);
   if (presence !== "registered") {
     stderr.write(`aviso: no está ${file}; los hooks .sh de Engram se dejan como están.\n`);
@@ -378,9 +418,9 @@ function patchHookFile(fsImpl, file, stdout, stderr) {
     stderr.write(`aviso: no se puede leer ${file} (${doc.reason}); los hooks .sh de Engram se dejan como están.\n`);
     return;
   }
-  const changed = prefixBareShellCommands(doc.value);
+  const changed = launchShellHooks(doc.value, launcher);
   if (changed === 0) {
-    stdout.write(`  - Los hooks .sh de Engram ya arrancan con bash (${file}).\n`);
+    stdout.write(`  - Los hooks .sh de Engram no necesitan cambios (${file}).\n`);
     return;
   }
   try {
@@ -389,10 +429,10 @@ function patchHookFile(fsImpl, file, stdout, stderr) {
     stderr.write(`aviso: no se puede escribir ${file} (${error.code || error.message}); los hooks .sh de Engram se dejan como están.\n`);
     return;
   }
-  stdout.write(`  - Hooks .sh de Engram: ${changed} comando(s) ahora arrancan con bash (${file}).\n`);
+  stdout.write(`  - Hooks .sh de Engram: ${changed} comando(s) ahora arrancan con ${launcher.bash} (${file}).\n`);
 }
 
-function windowsBashHooksStep({ fs: fsImpl, homedir, stdout, stderr }) {
+function windowsBashHooksStep({ launcher, fs: fsImpl, homedir, stdout, stderr }) {
   const found = engramHookFiles(fsImpl, homedir);
   if (!found.ok) {
     const reason = found.missing ? "no existe" : found.reason;
@@ -403,7 +443,14 @@ function windowsBashHooksStep({ fs: fsImpl, homedir, stdout, stderr }) {
     stdout.write("  - No hay una instalación engram@engram en el registro de plugins; no se parchean hooks .sh.\n");
     return;
   }
-  for (const file of found.hooks) patchHookFile(fsImpl, file, stdout, stderr);
+  if (!launcher.bash) {
+    stderr.write(
+      `aviso: ${launcher.reason}; los hooks .sh de Engram necesitan Git Bash en Windows y se dejan como están.\n` +
+        "  Instala Git for Windows (o define CLAUDE_CODE_GIT_BASH_PATH) y vuelve a ejecutar `npm run setup:claude`.\n",
+    );
+    return;
+  }
+  for (const file of found.hooks) patchHookFile(fsImpl, file, launcher, stdout, stderr);
 }
 
 // --- update notice -----------------------------------------------------------
@@ -530,8 +577,9 @@ function runEngramStep({
       projectCursorMemoryRule({ fs: fsImpl, homedir, stdout, stderr });
     }
     if (enabled && configured && target === "claude" && platform === "win32") {
-      windowsSafeModeStep({ spawn, fs: fsImpl, homedir, env, now, stdout, stderr, timeoutMs });
-      windowsBashHooksStep({ fs: fsImpl, homedir, stdout, stderr });
+      const gitBash = findGitBash({ spawn, fs: fsImpl, env, timeoutMs });
+      windowsSafeModeStep({ bash: gitBash, spawn, fs: fsImpl, homedir, env, now, stdout, stderr });
+      windowsBashHooksStep({ launcher: hookLauncher({ gitBash, fs: fsImpl, env }), fs: fsImpl, homedir, stdout, stderr });
     }
   } catch (error) {
     try {

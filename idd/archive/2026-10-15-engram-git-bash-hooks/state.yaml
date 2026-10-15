@@ -1,0 +1,574 @@
+{
+  "schema": "idd-state/v1",
+  "change": "engram-git-bash-hooks",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "En Windows, los hooks .sh de engram@engram arrancan con la ruta absoluta de Git Bash que encuentra findGitBash (la misma que usa la sonda de modo seguro), migrando también los comandos que ya empiezan con bash pelado; sin Git Bash no se antepone el bash de WSL",
+    "acceptance": "Con Git Bash en <git>/bin/bash.exe, cada hook .sh pelado y cada comando que empieza por bash pelado quedan con la ruta absoluta entrecomillada con barras normales, y una segunda ejecución no reescribe; sin Git Bash y con bash del PATH en System32 o WindowsApps no se escribe prefijo bash y se avisa"
+  },
+  "facts": {
+    "open": [
+      "Sin Git Bash pero con un bash del PATH que no es el lanzador de WSL (p. ej. MSYS2), ¿se mantiene el prefijo bash pelado actual o no se parchea nada?",
+      "Los comandos que empiezan con sh pelado, ¿se reescriben a Git Bash (bash.exe o el sh.exe hermano) o se dejan como están?",
+      "¿El chequeo opcional de ospec doctor (health de engram serve y hooks con bash pelado) entra en este cambio o queda como seguimiento?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "README.es.md",
+      "README.md",
+      "docs/adr/adr-20261015-001-engram-windows-hooks-exec-form.md",
+      "docs/plugin-installation.es.md",
+      "docs/plugin-installation.md",
+      "openspec/specs/install/spec.md",
+      "scripts/configure/engram-setup.js",
+      "scripts/configure/engram-setup.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component generator: ADR 0001, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches .claude-plugin/plugin.json and 1 more (matches .claude-plugin/**)",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "none",
+      "reason": "Solo cambia el paso de instalación de Engram que parchea el hooks.json del plugin upstream ya instalado; no toca la fuente canónica ni ningún árbol generado."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "La reescritura usa solo la biblioteca estándar de Node (fs, path) y no añade dependencias ni descargas."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Sin red: localiza bash por git --exec-path y el PATH, todo local y fail-open; sin bash utilizable avisa y no cambia nada."
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "none",
+      "reason": "Paso exclusivo de Claude en Windows sobre un plugin de terceros instalado; los targets generados y sus goldens no cambian."
+    },
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "none",
+      "reason": "La regla de reescritura de hooks vive en código con tests (engram-setup.js); no mueve ninguna decisión de proceso a la prosa de una skill."
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "conforms",
+      "reason": "Engram sigue opcional y fail-open: sin bash utilizable solo se avisa y el instalador no falla; la memoria no decide nada del cambio."
+    },
+    {
+      "kind": "adr",
+      "id": "0009",
+      "impact": "none",
+      "reason": "El hooks.json reescrito pertenece al plugin upstream y usa el formato de hooks de Claude Code (command + args); no toca ningún contrato versionado de ospec."
+    },
+    {
+      "kind": "scenario",
+      "id": "contract-compatibility",
+      "impact": "none",
+      "reason": "No cambia ningún contrato de máquina de ospec ni el estado que persiste; una reinstalación migra los hooks ya parcheados con bash pelado."
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "git diff de scripts/configure/engram-setup.js: las líneas añadidas no hacen llamadas de red (sin fetch, http ni spawn nuevos; findGitBash ya lanzaba git --exec-path) y solo leen el fichero de hooks y el PATH locales. El cambio no toca el CLI, los hooks de ospec ni las skills del flujo IDD.",
+      "recorded_at": "2026-10-15T22:41:43.860Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-9"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Launcher: forma exec (command = ruta absoluta de bash.exe, args = script y argumentos), no PowerShell: upstream no trae ports de session-start.sh y los demás scripts. Sin Git Bash: usar la ruta absoluta del bash.exe del PATH si no es el lanzador de WSL (System32 o WindowsApps); si es WSL o no hay bash, no parchear y avisar de que hace falta Git Bash. sh pelado: reescribir al sh.exe hermano si existe; si no, dejarlo. Chequeo de ospec doctor: seguimiento en otro cambio.",
+      "source": "user"
+    },
+    {
+      "id": "adr-amend-or-contradict",
+      "status": "resolved",
+      "reason": "adr-20261003-001: la viñeta de Claude/Windows prefija bash pelado a los .sh y deja intactos los que ya empiezan con bash o sh; el cambio los lanza en forma exec con la ruta absoluta de Git Bash (o del bash.exe del PATH que no sea WSL), migra los bash/sh pelados y no parchea si solo hay el bash de WSL. Se registraría un ADR nuevo que enmienda esa viñeta, sin reescribir el aceptado.",
+      "answer": "Sí, registrar el ADR nuevo que enmienda la viñeta (adr-20261015-001), sin reescribir el aceptado.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-15T22:36:12.780Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-15T22:39:02.860Z",
+      "detail": {
+        "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-15T22:39:02.860Z",
+      "detail": {
+        "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/install/spec.md",
+          "openspec/specs/skills/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/engram-setup.test.js",
+          "scripts/lib/contract-checkers/i1-manifest.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-15T22:40:14.757Z",
+      "detail": {
+        "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+        "runs": [
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-15T22:40:14.757Z",
+      "detail": {
+        "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+        "check": "ev-4",
+        "documents": [
+          "openspec/specs/install/spec.md",
+          "openspec/specs/skills/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/engram-setup.test.js",
+          "scripts/lib/contract-checkers/i1-manifest.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-15T22:41:29.756Z",
+      "detail": {
+        "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+        "runs": [
+          "run-19"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-15T22:41:29.756Z",
+      "detail": {
+        "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+        "check": "ev-6",
+        "documents": [
+          "openspec/specs/install/spec.md",
+          "openspec/specs/skills/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/engram-setup.test.js",
+          "scripts/lib/contract-checkers/i1-manifest.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-15T22:41:29.756Z",
+      "detail": {
+        "refs": [
+          "adr:0001 none",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity none",
+          "adr:0003 none",
+          "adr:0006 conforms",
+          "adr:0009 none",
+          "scenario:contract-compatibility none"
+        ],
+        "records": [],
+        "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+        "fitness": [
+          "run-20",
+          "run-21",
+          "run-22",
+          "run-23",
+          "run-24",
+          "run-25",
+          "run-26"
+        ]
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-15T22:41:49.572Z"
+    }
+  ],
+  "base": "5d7f49389096967689de48645ac476f79daadad5",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"windows bash hooks\" scripts/configure/engram-setup.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:cb602c7b988e9a106f371772579a4e85c09619caac409ecf302000f5a8f65f7e",
+      "tree": "sha256:c668ccf79004e67c6a0b564aa632c607de6bb5468b065c3e508119109c78eea0",
+      "recorded_at": "2026-10-15T22:34:37.197Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"windows bash hooks\" scripts/configure/engram-setup.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bf29ec52bfb1ff425b62bb97df499ae89209ea0ec2b82a92718a924fd4482362",
+      "tree": "sha256:9dc8de7b13b392535b6cb3ceef87e4dcc2b35af14eb25ddcad6070e7dfa43621",
+      "recorded_at": "2026-10-15T22:36:12.780Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9c3e1bd14d8f8e11d68a26c61cae6449cac56ec404ec555bd4f6c98c489a5c45",
+      "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+      "recorded_at": "2026-10-15T22:39:02.860Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:994fb8afb9c94a2c348fbb2dfc106ae55421b7b5f816eb66aaea14339735ea57",
+      "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+      "recorded_at": "2026-10-15T22:39:02.860Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+      "recorded_at": "2026-10-15T22:39:02.860Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d704e1f0c6e039e8e46942f17e206f0f7d66729e1dbf9c3116190af85c27df43",
+      "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+      "recorded_at": "2026-10-15T22:39:02.860Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b8e809c2a4d052ae1c5caf2443e5da80c179361d631974d42ecdec13bd661747",
+      "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+      "recorded_at": "2026-10-15T22:39:02.860Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:366018bf8b8d5bfc56ca8f13f46bf8d607e32b01d7850992d2fcdc1ee32134b0",
+      "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+      "recorded_at": "2026-10-15T22:39:02.860Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3726fb1037b6dc8684ccf3989cfc452e6f8718f7f310b65a644d31e1aa102796",
+      "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+      "recorded_at": "2026-10-15T22:39:02.860Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c8951c42fcb3afd8599bf05106be1fc672467c4bf307862d36ed76db9ca072f4",
+      "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+      "recorded_at": "2026-10-15T22:39:02.860Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:23480357dcc53aaf1e2d3759d668a350559e16325c194b702ec33d218c7d73be",
+      "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+      "recorded_at": "2026-10-15T22:40:14.757Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:80e988fb43537af08e1cdb538ae936030f40d2bca208b3c8ba9508ba80207f16",
+      "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+      "recorded_at": "2026-10-15T22:40:14.757Z"
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+      "recorded_at": "2026-10-15T22:40:14.757Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8db4a41ae412449f91a31e85e281d3af688f5e48184cc47d5852d80edfd992b5",
+      "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+      "recorded_at": "2026-10-15T22:40:14.757Z"
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:137c81950fa001e0fe60a0393ef235256815db0bba84c2e20e97452d2f6bf97e",
+      "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+      "recorded_at": "2026-10-15T22:40:14.757Z"
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f151bab96c7456e1b2aa635fa22ed9d445b386ffeed10ab1d57c4282726047bb",
+      "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+      "recorded_at": "2026-10-15T22:40:14.757Z"
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7e2d46298f5a798e5e0a9520dfe7e86c74bfdca8a2b0ec6d81355dd998b2d93d",
+      "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+      "recorded_at": "2026-10-15T22:40:14.757Z"
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ceacc62c39d00a25d937c03bd40bb5799b2ae1d5444b684a706513f6b891efb7",
+      "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+      "recorded_at": "2026-10-15T22:40:14.757Z"
+    },
+    {
+      "id": "run-19",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0b623199332f1bed3a2ac9abb67ecb09bc14a498ad0cb1887e489e2e0d6a58ba",
+      "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+      "recorded_at": "2026-10-15T22:41:29.756Z"
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cf478075777702bcbf9292b6e3a5ebadf3dcac39976edba3953d288dbb1a0d18",
+      "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+      "recorded_at": "2026-10-15T22:41:29.756Z"
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+      "recorded_at": "2026-10-15T22:41:29.756Z"
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b778de9e40946228b8b9e6fc2a93d1a71c8d08ea96386dab8d800ecd959d7c20",
+      "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+      "recorded_at": "2026-10-15T22:41:29.756Z"
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fbf873e8da98976f768aa8ff82e835494e623c10d9de0ea69b84c64716e956f3",
+      "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+      "recorded_at": "2026-10-15T22:41:29.756Z"
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3e8e7ee53734f7a06f932b6921f2e2b7ab293c6d9e8f59a64a55ab51048ce86d",
+      "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+      "recorded_at": "2026-10-15T22:41:29.756Z"
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bda1dfc751f8033557abf0505e892b1824d8e193441ca6a11cf3b6a011e24322",
+      "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+      "recorded_at": "2026-10-15T22:41:29.756Z"
+    },
+    {
+      "id": "run-26",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:22abac9d6ef9ba6082714304c079575dcdffddabc2daef928a736c8fce1e8872",
+      "tree": "sha256:c4d6462370b598ab8ea868c9c62e8b277b873c6fe2628a3a98c30283ab57a5ae",
+      "recorded_at": "2026-10-15T22:41:29.756Z"
+    }
+  ],
+  "closed_at": "2026-10-15T22:41:49.572Z"
+}
