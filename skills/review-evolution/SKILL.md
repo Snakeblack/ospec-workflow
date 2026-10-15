@@ -3,7 +3,7 @@ name: review-evolution
 description: "Evolution and maintainability review skill for the Quality Review Gate."
 disable-model-invocation: true
 user-invocable: false
-license: MIT
+license: PolyForm-Noncommercial-1.0.0
 metadata:
   author: manuel-retamozo-garcia
   version: "1.0"

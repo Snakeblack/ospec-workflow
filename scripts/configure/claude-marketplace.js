@@ -132,7 +132,7 @@ function buildClaudeMarketplace(options, deps = {}) {
         description: sourceManifest.description,
         source: `./plugins/${options.pluginName}`,
         repository: "https://github.com/snakeblack/ospec-workflow",
-        license: "MIT",
+        license: "PolyForm-Noncommercial-1.0.0",
         keywords: ["idd", "sdd", "openspec", "tdd", "agents", "workflow"],
         category: "development",
       },

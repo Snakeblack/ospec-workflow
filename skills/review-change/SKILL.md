@@ -3,7 +3,7 @@ name: review-change
 description: "Read-only residual router for the Quality Review Gate when deterministic classification is ambiguous."
 disable-model-invocation: true
 user-invocable: false
-license: MIT
+license: PolyForm-Noncommercial-1.0.0
 metadata:
   version: "2.0"
   delegate_only: true

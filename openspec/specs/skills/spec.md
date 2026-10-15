@@ -31,7 +31,7 @@ Identifying traits:
   `metadata.delegate_only: true`.
 - Body begins with an `ORCHESTRATOR GATE` blockquote instructing the orchestrator to
   stop and delegate instead of executing inline.
-- License is `MIT`.
+- License is `PolyForm-Noncommercial-1.0.0`.
 - These skills are **excluded** from the registry cache — the registry scanner skips
   any skill directory whose name starts with `sdd-`.
 
@@ -99,7 +99,7 @@ Every `SKILL.md` MUST open with a YAML frontmatter block delimited by `---`.
 |---|---|---|
 | `name` | string | Slug matching the directory name |
 | `description` | string | Single physical line, double-quoted, YAML-safe; MUST encode trigger words; <=160 chars SHOULD, <=250 chars MUST |
-| `license` | string | `MIT` for SDD phase skills; `Apache-2.0` for utility skills |
+| `license` | string | `PolyForm-Noncommercial-1.0.0` for SDD phase skills; `Apache-2.0` for utility skills |
 | `metadata.author` | string | `manuel-retamozo-garcia` |
 | `metadata.version` | string | Quoted semantic string (e.g., `"1.0"`, `"2.0"`) |
 

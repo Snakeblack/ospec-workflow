@@ -3,7 +3,7 @@ name: _shared
 description: "Shared SDD references for installed skills. Not invokable."
 disable-model-invocation: true
 user-invocable: false
-license: MIT
+license: PolyForm-Noncommercial-1.0.0
 metadata:
   author: manuel-retamozo-garcia
   version: "1.0"

@@ -3,7 +3,7 @@ name: sdd-baseline
 description: "Trigger: sdd baseline, brownfield baseline, seed specs, baseline.status pending or partial. Seed openspec/specs/ with baseline specs of existing behavior in resumable one-domain batches."
 disable-model-invocation: true
 user-invocable: false
-license: MIT
+license: PolyForm-Noncommercial-1.0.0
 metadata:
   author: manuel-retamozo-garcia
   version: "1.0"

@@ -2,6 +2,8 @@
 
 ![ospec-banner.png](docs/banner-op/ospec-banner.png)
 
+[![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-blue.svg)](LICENSE)
+
 > [🌐 English](./README.md) · **Español**
 
 > **Un cambio está hecho cuando la evidencia lo dice, no cuando lo dice el agente.** `ospec-workflow` es un arnés de desarrollo guiado por impacto (IDD, *impact-driven development*) para agentes de programación con IA. Cada cambio de código pasa por el CLI `ospec`: deriva las obligaciones del cambio a partir de lo que toca, registra evidencia solo de ejecuciones que observa y cierra el cambio cuando todas las obligaciones están satisfechas. El desarrollo guiado por especificación (SDD) con OpenSpec sigue disponible como modo opcional.
@@ -403,3 +405,9 @@ CI ejecuta el mismo gate en `.github/workflows/validate-harness.yml` con Node 22
 
 Antes de publicar cambios en el manifiesto, hooks, MCP o el generador, revisa expresamente la nueva
 superficie de ejecución y confianza.
+
+## Licencia
+
+Este proyecto se publica bajo la [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0). El texto completo está en [LICENSE](LICENSE).
+
+Libre para uso personal, educativo y no comercial. El uso comercial requiere una licencia aparte del autor (contacto: [hello@mretamozo.com](mailto:hello@mretamozo.com)). Las versiones publicadas antes de este cambio se distribuyeron bajo MIT.

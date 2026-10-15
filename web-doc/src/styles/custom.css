@@ -851,3 +851,14 @@ footer {
   transform: scale(0.98);
 }
 
+.ospec-license-footer {
+  margin-top: 1.5rem;
+  font-size: 0.85rem;
+  color: var(--sl-color-gray-3);
+  line-height: 1.5;
+}
+
+.ospec-license-footer a {
+  color: var(--sl-color-text-accent);
+}
+
