@@ -3,7 +3,7 @@ name: sdd-explore
 description: "Explore SDD ideas before committing to a change. Trigger: orchestrator launches exploration or requirement clarification."
 disable-model-invocation: true
 user-invocable: false
-license: PolyForm-Noncommercial-1.0.0
+license: MIT AND Commons-Clause
 metadata:
   author: manuel-retamozo-garcia
   version: "2.0"

@@ -3,7 +3,7 @@ name: sdd-archive
 description: "Archive a completed SDD change by syncing delta specs. Trigger: orchestrator launches archive after implementation and verification."
 disable-model-invocation: true
 user-invocable: false
-license: PolyForm-Noncommercial-1.0.0
+license: MIT AND Commons-Clause
 metadata:
   author: manuel-retamozo-garcia
   version: "2.0"

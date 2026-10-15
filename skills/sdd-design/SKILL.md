@@ -3,7 +3,7 @@ name: sdd-design
 description: "Create the SDD technical design and architecture approach. Trigger: orchestrator launches design for a change."
 disable-model-invocation: true
 user-invocable: false
-license: PolyForm-Noncommercial-1.0.0
+license: MIT AND Commons-Clause
 metadata:
   author: manuel-retamozo-garcia
   version: "2.0"

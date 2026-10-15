@@ -76,7 +76,7 @@ Explora los temas organizados de menor a mayor profundidad técnica:
 - [Federación Multi-Repositorio](workspace-federation/multi-repo.md) — Coordinar cambios que afectan a varios repositorios a la vez.
 
 ### 7. Licencia
-- [Licencia](legal/license.md) — PolyForm Noncommercial 1.0.0: uso personal, educativo y no comercial.
+- [Licencia](legal/license.md) — MIT con Commons Clause: uso, modificación y redistribución libres; no se puede vender el software ni servicios de pago sobre él sin permiso.
 
 ---
 

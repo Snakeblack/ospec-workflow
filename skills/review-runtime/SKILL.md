@@ -3,7 +3,7 @@ name: review-runtime
 description: "Runtime reliability review skill for the Quality Review Gate."
 disable-model-invocation: true
 user-invocable: false
-license: PolyForm-Noncommercial-1.0.0
+license: MIT AND Commons-Clause
 metadata:
   author: manuel-retamozo-garcia
   version: "1.0"

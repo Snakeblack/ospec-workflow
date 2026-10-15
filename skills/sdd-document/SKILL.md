@@ -3,7 +3,7 @@ name: sdd-document
 description: "Generate repository wiki pages mapping architecture, specs, and status. Trigger: orchestrator launches sdd-document."
 disable-model-invocation: true
 user-invocable: false
-license: PolyForm-Noncommercial-1.0.0
+license: MIT AND Commons-Clause
 metadata:
   author: manuel-retamozo-garcia
   version: "2.0"

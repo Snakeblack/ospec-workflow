@@ -3,7 +3,7 @@ name: sdd-reconcile
 description: "Trigger: sdd reconcile, spec drift, reconcile domain, fold changes into spec, /sdd-reconcile. Fold already-shipped, undocumented code changes back into a baseline domain's spec as a diff-window-scoped retroactive delta."
 disable-model-invocation: true
 user-invocable: false
-license: PolyForm-Noncommercial-1.0.0
+license: MIT AND Commons-Clause
 metadata:
   author: manuel-retamozo-garcia
   version: "1.0"
