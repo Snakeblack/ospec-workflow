@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.138.1] - 2026-10-15
+
+### Fixed
+- **Hooks de Engram en Windows sin WSL ([#334](https://github.com/Snakeblack/ospec-workflow/issues/334))**: `setup:claude` dejaba los hooks `.sh` de `engram@engram` con un `bash` sin ruta. Cuando Claude Code los lanza en PowerShell, ese `bash` es el lanzador de WSL, donde no existe el binario de Windows: `session-start.sh` no arrancaba `engram serve` y `mem_save` fallaba con `Claude host session lookup failed`. Ahora cada hook `.sh`, y cada uno que empieza por `bash` o `sh` sin ruta, pasa a forma exec: `command` es la ruta absoluta de Git Bash (la misma que usa la sonda del modo seguro) con barras normales y `args` lleva el script. No hay shell intermedio, así que funciona tanto en Git Bash como en PowerShell, y una reinstalación arregla los hooks ya parcheados. Sin Git Bash se usa el primer `bash.exe` del `PATH` salvo que sea el de WSL (`System32`, `Sysnative`, `WindowsApps`); en ese caso, o sin bash, no se toca nada y un aviso pide Git Bash. Un `sh` sin ruta va al `sh.exe` de Git Bash. REQ-install-042. Hecho con IDD (`idd/archive/2026-10-15-engram-git-bash-hooks/`).
+
+### Changed
+- **Licencia**: el proyecto pasa a MIT con la condición Commons Clause v1.0. Uso, modificación y redistribución libres; vender el software o servicios de pago cuyo valor viene sustancialmente de él requiere permiso del autor. Los manifiestos declaran `SEE LICENSE IN LICENSE`. Las versiones anteriores se publicaron bajo MIT.
+
+**Verificación directa**: `node scripts/check.js` (3722 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.138.0] - 2026-10-14
 
 ### Added
