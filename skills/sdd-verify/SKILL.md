@@ -3,7 +3,7 @@ name: sdd-verify
 description: "Trigger: SDD verification phase, verify change. Execute tests and prove implementation matches specs, design, and tasks."
 disable-model-invocation: true
 user-invocable: false
-license: MIT
+license: PolyForm-Noncommercial-1.0.0
 metadata:
   author: manuel-retamozo-garcia
   version: "3.0"

@@ -86,3 +86,7 @@ turn IDD off in a project, declare `mode: sdd` in `idd/config.yaml`.
   `developer.md`, `reviewer.md`.
 - The harness dogfoods itself: recent changes were built with IDD
   (`idd/archive/`), earlier ones with SDD (`openspec/changes/archive/`).
+
+## License
+
+[PolyForm Noncommercial 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0). Libre para uso personal, educativo y no comercial. El uso comercial requiere una licencia aparte del autor (contacto: [hello@mretamozo.com](mailto:hello@mretamozo.com)). Las versiones publicadas antes de este cambio se distribuyeron bajo MIT.

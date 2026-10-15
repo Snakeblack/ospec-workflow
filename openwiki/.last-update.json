@@ -36,6 +36,7 @@
     "state-management": "Estado y persistencia",
     "testing-quality": "Testing y calidad",
     "generator": "Generador multi-target",
-    "workspace-federation": "Federación multi-repo"
+    "workspace-federation": "Federación multi-repo",
+    "legal": "Licencia"
   }
 }

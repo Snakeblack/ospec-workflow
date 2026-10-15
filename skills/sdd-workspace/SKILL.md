@@ -3,7 +3,7 @@ name: sdd-workspace
 description: "Trigger: sdd workspace, federated, multi-repo, atlas, cross-repo impact, artifact_store.backend workspace-federated. Manage the federation atlas and surface cross-repo state."
 disable-model-invocation: true
 user-invocable: false
-license: MIT
+license: PolyForm-Noncommercial-1.0.0
 metadata:
   author: manuel-retamozo-garcia
   version: "1.0"

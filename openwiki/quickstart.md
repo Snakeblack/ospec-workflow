@@ -75,6 +75,9 @@ Explora los temas organizados de menor a mayor profundidad técnica:
 - [Generador Multi-Target](generator/multi-target-generator.md) — El motor que traduce el código a cada asistente de IA.
 - [Federación Multi-Repositorio](workspace-federation/multi-repo.md) — Coordinar cambios que afectan a varios repositorios a la vez.
 
+### 7. Licencia
+- [Licencia](legal/license.md) — PolyForm Noncommercial 1.0.0: uso personal, educativo y no comercial.
+
 ---
 
 ## Archivos Clave del Repositorio
