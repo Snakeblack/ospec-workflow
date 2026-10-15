@@ -651,9 +651,14 @@ function pluginRegistry(installPaths = [PLUGIN_ROOT]) {
   });
 }
 
-function bashHooksRun({ hooksText, platform = "win32", argv = [], registryText = pluginRegistry(), includeHooks = true, includeRegistry = true, extraFiles = {} } = {}) {
+const SH = path.resolve("/git/bin/sh.exe");
+const script = (name) => `\${CLAUDE_PLUGIN_ROOT}/scripts/${name}`;
+const execHook = (launcher, name) => ({ command: launcher, args: [script(name)] });
+
+function bashHooksRun({ hooksText, platform = "win32", argv = [], registryText = pluginRegistry(), includeHooks = true, includeRegistry = true, gitBash = true, sh = true, env = {}, extraFiles = {} } = {}) {
   const files = makeFs({
-    [BASH]: "",
+    ...(gitBash ? { [BASH]: "" } : {}),
+    ...(gitBash && sh ? { [SH]: "" } : {}),
     [home(".claude", "settings.json")]: "{}",
     ...(includeRegistry ? { [home(".claude", "plugins", "installed_plugins.json")]: registryText } : {}),
     ...(includeHooks ? { [HOOKS_FILE]: hooksText } : {}),
@@ -663,12 +668,12 @@ function bashHooksRun({ hooksText, platform = "win32", argv = [], registryText =
     ...ENGRAM,
     "claude plugin list": ok("  > engram@engram\n"),
     "claude mcp list": ok("engram: x\n"),
-    git: ok(`${path.resolve("/git/mingw64/libexec/git-core")}\n`),
+    ...(gitBash ? { git: ok(`${path.resolve("/git/mingw64/libexec/git-core")}\n`) } : {}),
     [BASH]: ok(),
   });
   let tick = 0;
   const now = () => (tick++ === 0 ? 1000 : 1200);
-  const out = run({ spawn, hostBin: CLAUDE, fs: files, platform, env: {}, now, argv });
+  const out = run({ spawn, hostBin: CLAUDE, fs: files, platform, env, now, argv });
   const raw = files.store.get(path.resolve(HOOKS_FILE));
   return { ...out, files, spawn, raw };
 }
@@ -677,25 +682,72 @@ function hookWrites(files) {
   return files.writes.filter((file) => file === path.resolve(HOOKS_FILE));
 }
 
-test("windows bash hooks: bare sh commands gain a bash launcher without a second rewrite", () => {
+function launched(hook) {
+  return { command: hook.command, args: hook.args };
+}
+
+test("windows bash hooks: shell scripts and bare bash/sh launch Git Bash in exec form without a second rewrite", () => {
   const original = `${JSON.stringify(engramHooksDocument(), null, 2)}\n`;
   const first = bashHooksRun({ hooksText: original });
   const doc = JSON.parse(first.raw);
-  assert.equal(doc.hooks.SessionStart[0].hooks[0].command, `bash ${quotedScript("session-start.sh")}`);
+  assert.deepEqual(launched(doc.hooks.SessionStart[0].hooks[0]), execHook(BASH, "session-start.sh"));
   assert.equal(doc.hooks.SessionStart[0].hooks[0].timeout, 10);
-  assert.equal(doc.hooks.SessionStart[0].hooks[1].command, `bash ${quotedScript("post-compaction.sh")}`);
-  assert.equal(doc.hooks.UserPromptSubmit[0].hooks[0].command, `bash ${quotedScript("user-prompt-submit.sh")}`);
-  assert.equal(doc.hooks.SubagentStop[0].hooks[0].command, `bash ${quotedScript("subagent-stop.sh")}`);
+  assert.deepEqual(launched(doc.hooks.SessionStart[0].hooks[1]), execHook(BASH, "post-compaction.sh"));
+  assert.deepEqual(launched(doc.hooks.UserPromptSubmit[0].hooks[0]), execHook(BASH, "user-prompt-submit.sh"));
+  assert.deepEqual(launched(doc.hooks.SubagentStop[0].hooks[0]), execHook(BASH, "subagent-stop.sh"));
   assert.equal(doc.hooks.SubagentStop[0].hooks[0].async, true);
-  assert.equal(doc.hooks.SessionEnd[0].hooks[0].command, `bash ${quotedScript("session-end.sh")}`);
-  assert.equal(doc.hooks.PreToolUse[0].hooks[0].command, "engram hook claude-pre-tool-use");
-  assert.equal(doc.hooks.Custom[0].hooks[0].command, `sh ${quotedScript("custom.sh")}`);
+  assert.deepEqual(launched(doc.hooks.SessionEnd[0].hooks[0]), execHook(BASH, "session-end.sh"));
+  assert.deepEqual(doc.hooks.PreToolUse[0].hooks[0], { type: "command", command: "engram hook claude-pre-tool-use", timeout: 5 });
+  assert.deepEqual(launched(doc.hooks.Custom[0].hooks[0]), execHook(SH, "custom.sh"));
   assert.ok(!first.spawn.calls.some((call) => call.startsWith("engram setup")));
   assert.equal(hookWrites(first.files).length, 1);
+  assert.match(first.stdout, new RegExp(`6 comando\\(s\\) ahora arrancan con ${BASH.replace(/[.\\]/g, "\\$&")}`));
 
   const second = bashHooksRun({ hooksText: first.raw });
   assert.equal(hookWrites(second.files).length, 0);
   assert.equal(second.raw, first.raw);
+});
+
+test("windows bash hooks: a bare sh without a Git sh.exe and a command with shell syntax are left alone", () => {
+  const piped = `${quotedScript("session-start.sh")} | tee log`;
+  const text = `${JSON.stringify({ hooks: { A: [{ hooks: [{ command: `sh ${quotedScript("custom.sh")}` }, { command: piped }, { command: quotedScript("x.sh"), args: [] }] }] } })}\n`;
+  const { raw } = bashHooksRun({ hooksText: text, sh: false });
+  const hooks = JSON.parse(raw).hooks.A[0].hooks;
+  assert.deepEqual(hooks[0], { command: `sh ${quotedScript("custom.sh")}` });
+  assert.deepEqual(hooks[1], { command: piped });
+  assert.deepEqual(hooks[2], { command: quotedScript("x.sh"), args: [] });
+});
+
+test("windows bash hooks: CLAUDE_CODE_GIT_BASH_PATH is written with forward slashes", () => {
+  const winBash = "C:\\Git\\bin\\bash.exe";
+  const text = `${JSON.stringify(engramHooksDocument())}\n`;
+  const { raw } = bashHooksRun({ hooksText: text, gitBash: false, env: { CLAUDE_CODE_GIT_BASH_PATH: winBash }, extraFiles: { [winBash]: "", "C:\\Git\\bin\\sh.exe": "" } });
+  const doc = JSON.parse(raw);
+  assert.deepEqual(launched(doc.hooks.SessionStart[0].hooks[0]), execHook("C:/Git/bin/bash.exe", "session-start.sh"));
+  assert.deepEqual(launched(doc.hooks.Custom[0].hooks[0]), execHook("C:/Git/bin/sh.exe", "custom.sh"));
+});
+
+test("windows bash hooks: without Git Bash, a bash on PATH that is not WSL is used by absolute path", () => {
+  const msys = path.resolve("/msys64/usr/bin");
+  const text = `${JSON.stringify(engramHooksDocument())}\n`;
+  const { raw } = bashHooksRun({ hooksText: text, gitBash: false, env: { PATH: msys }, extraFiles: { [path.join(msys, "bash.exe")]: "" } });
+  const doc = JSON.parse(raw);
+  assert.deepEqual(launched(doc.hooks.SessionStart[0].hooks[0]), execHook(path.join(msys, "bash.exe"), "session-start.sh"));
+  assert.deepEqual(doc.hooks.Custom[0].hooks[0].command, `sh ${quotedScript("custom.sh")}`);
+});
+
+test("windows bash hooks: without Git Bash, the WSL launcher or no bash leaves the hooks alone and warns", () => {
+  const text = `${JSON.stringify(engramHooksDocument())}\n`;
+  for (const dir of [path.resolve("/Windows/System32"), path.resolve("/Users/u/AppData/Local/Microsoft/WindowsApps")]) {
+    const wsl = bashHooksRun({ hooksText: text, gitBash: false, env: { PATH: dir }, extraFiles: { [path.join(dir, "bash.exe")]: "" } });
+    assert.equal(wsl.raw, text, dir);
+    assert.equal(hookWrites(wsl.files).length, 0);
+    assert.match(wsl.stderr, /lanzador de WSL/);
+    assert.match(wsl.stderr, /Git Bash/);
+  }
+  const none = bashHooksRun({ hooksText: text, gitBash: false });
+  assert.equal(none.raw, text);
+  assert.match(none.stderr, /no se encontró Git Bash/);
 });
 
 test("windows bash hooks: an unparseable hooks.json is left untouched", () => {
@@ -725,7 +777,7 @@ test("windows bash hooks: every registered install is patched", () => {
     extraFiles: { [otherHooks]: text },
   });
   const other = JSON.parse(files.store.get(path.resolve(otherHooks)));
-  assert.equal(other.hooks.UserPromptSubmit[0].hooks[0].command, `bash ${quotedScript("user-prompt-submit.sh")}`);
+  assert.deepEqual(launched(other.hooks.UserPromptSubmit[0].hooks[0]), execHook(BASH, "user-prompt-submit.sh"));
   assert.equal(files.writes.filter((file) => file === path.resolve(otherHooks)).length, 1);
 });
 

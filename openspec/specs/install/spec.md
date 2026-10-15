@@ -1267,15 +1267,23 @@ On Windows, after Engram is configured for Claude Code, `setup:claude` MUST deci
 - WHEN `setup:claude` runs
 - THEN no probe runs and the value is left unchanged
 
-### Requirement: Windows Engram Shell Hooks Launch With Bash {#REQ-install-042}
+### Requirement: Windows Engram Shell Hooks Launch With An Absolute Bash {#REQ-install-042}
 
-On Windows, once Engram is configured for Claude Code, `setup:claude` MUST prefix `bash` on every hook command in each installed `engram@engram` plugin whose executable is a `.sh` script and that does not already start with `bash` or `sh`. It MUST do this even when registration is skipped because Engram is already configured, and it MUST NOT wait on the fork probe of REQ-install-031: without the prefix Windows opens the script through its file association before the script can read the safe-mode variable. It MUST NOT double an existing launcher, MUST NOT change any other command or field, MUST NOT rewrite an unparseable `hooks.json` or an unparseable plugin registry, and MUST NOT create a missing hooks file. It MUST NOT do this on other targets, platforms, or with `--no-engram`. A missing registry or hooks file MUST be reported without failing the install. Re-running when every `.sh` command is already launched with bash MUST NOT rewrite the file.
+On Windows, once Engram is configured for Claude Code, `setup:claude` MUST rewrite to exec form every hook command in each installed `engram@engram` plugin that has no `args` and whose executable is a `.sh` script or a bare `bash`, `bash.exe`, `sh` or `sh.exe`: `command` becomes the absolute path of the launcher, written with forward slashes, and `args` holds the remaining words with their quotes removed. A bare `bash` command can resolve to the WSL launcher, where the Windows engram binary does not exist, and exec form does not depend on the shell Claude Code picks for hooks. The bash launcher MUST be the Git Bash used by the fork probe of REQ-install-031 (`CLAUDE_CODE_GIT_BASH_PATH`, or `<git>/bin/bash.exe` from `git --exec-path`). Without it, the first `bash.exe` on `PATH` MUST be used unless it lives in `System32`, `Sysnative` or `WindowsApps` (the WSL launcher). A bare `sh` MUST use the `sh.exe` next to that bash, and MUST stay unchanged when there is none. With no usable bash, the hooks MUST stay unchanged and a warning MUST say that the engram hooks need Git Bash. A command with shell syntax other than double quotes and `${NAME}` placeholders MUST stay unchanged.
 
-#### Scenario: Bare shell hooks
+The step MUST run even when registration is skipped because Engram is already configured, and it MUST NOT wait on the fork probe's verdict: without a launcher Windows opens the script through its file association before the script can read the safe-mode variable. It MUST NOT change any other command or field, MUST NOT rewrite an unparseable `hooks.json` or an unparseable plugin registry, and MUST NOT create a missing hooks file. It MUST NOT do this on other targets, platforms, or with `--no-engram`. A missing registry or hooks file MUST be reported without failing the install. Re-running when no command needs a change MUST NOT rewrite the file.
 
-- GIVEN Windows, Engram already configured for Claude Code, and an installed plugin whose hooks.json quotes `.sh` scripts without `bash`, plus one command that already uses `bash` and one that is not a shell script
+#### Scenario: Shell hooks with Git Bash
+
+- GIVEN Windows, Engram already configured for Claude Code, Git Bash and its `sh.exe` found, and an installed plugin whose hooks.json quotes `.sh` scripts without a launcher, plus one command led by a bare `bash`, one by a bare `sh` and one that is not a shell script
 - WHEN `setup:claude` runs twice
-- THEN each bare `.sh` command starts with `bash`, the other commands and fields are unchanged, and the second run does not rewrite the file
+- THEN each shell command has the absolute Git Bash (or its `sh.exe`) as `command` and the script as `args`, the other commands and fields are unchanged, and the second run does not rewrite the file
+
+#### Scenario: Only the WSL bash
+
+- GIVEN Windows, no Git Bash, and the first `bash.exe` on `PATH` in `System32`
+- WHEN `setup:claude` runs
+- THEN the hooks file is unchanged and a warning says that the engram hooks need Git Bash
 
 #### Scenario: Unparseable hooks file
 
