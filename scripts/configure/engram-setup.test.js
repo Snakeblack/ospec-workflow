@@ -653,7 +653,8 @@ function pluginRegistry(installPaths = [PLUGIN_ROOT]) {
 
 const SH = path.resolve("/git/bin/sh.exe");
 const script = (name) => `\${CLAUDE_PLUGIN_ROOT}/scripts/${name}`;
-const execHook = (launcher, name) => ({ command: launcher, args: [script(name)] });
+const forward = (file) => file.replace(/\\/g, "/");
+const execHook = (launcher, name) => ({ command: forward(launcher), args: [script(name)] });
 
 function bashHooksRun({ hooksText, platform = "win32", argv = [], registryText = pluginRegistry(), includeHooks = true, includeRegistry = true, gitBash = true, sh = true, env = {}, extraFiles = {} } = {}) {
   const files = makeFs({
@@ -701,7 +702,7 @@ test("windows bash hooks: shell scripts and bare bash/sh launch Git Bash in exec
   assert.deepEqual(launched(doc.hooks.Custom[0].hooks[0]), execHook(SH, "custom.sh"));
   assert.ok(!first.spawn.calls.some((call) => call.startsWith("engram setup")));
   assert.equal(hookWrites(first.files).length, 1);
-  assert.match(first.stdout, new RegExp(`6 comando\\(s\\) ahora arrancan con ${BASH.replace(/[.\\]/g, "\\$&")}`));
+  assert.match(first.stdout, new RegExp(`6 comando\\(s\\) ahora arrancan con ${forward(BASH).replace(/[.:]/g, "\\$&")}`));
 
   const second = bashHooksRun({ hooksText: first.raw });
   assert.equal(hookWrites(second.files).length, 0);
