@@ -150,3 +150,63 @@ test("pruneStaleFiles exhaustion diagnosis specifies target: antigravity", (t) =
   assert.match(errOutput, /Cierra Antigravity \(o el proceso que use esa ruta\)/);
 });
 
+// --- uvx prerequisite warning (foundation document conversion) -------------
+
+function uvxBox(t) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "antigravity-uvx-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const sourceDir = path.join(root, "source");
+  const destDir = path.join(root, "dest");
+  fs.mkdirSync(sourceDir, { recursive: true });
+  fs.mkdirSync(destDir, { recursive: true });
+  fs.writeFileSync(path.join(sourceDir, "package.json"), JSON.stringify({ name: "ospec-workflow", version: "1.0.0" }));
+  fs.writeFileSync(path.join(sourceDir, "hooks.json"), JSON.stringify({ hooks: {} }));
+  fs.writeFileSync(
+    path.join(sourceDir, ".mcp.json"),
+    JSON.stringify({ mcpServers: { markitdown: { command: "uvx", args: ["markitdown-mcp@0.0.1a7"] } } }),
+  );
+  return { sourceDir, destDir };
+}
+
+function installBox(sourceDir, destDir, overrides = {}) {
+  return main(["--dest", destDir], {
+    sourceDir,
+    outDir: sourceDir,
+    runConfigure: () => ({ exitCode: 0, validation: { errors: [] } }),
+    validateInstalled: () => ({ errors: [] }),
+    copyBinaryToTree: () => {},
+    syncTargetTree: () => ({ updated: [], unchanged: [], ownedFiles: [] }),
+    installHooksJson: () => {},
+    stdout: { write() {} },
+    ...overrides,
+  });
+}
+
+test("main warns when the source ships a uvx MCP server and the binary is missing", (t) => {
+  const { sourceDir, destDir } = uvxBox(t);
+  const stderr = [];
+  const exitCode = installBox(sourceDir, destDir, {
+    spawnSync: () => ({ error: new Error("ENOENT") }),
+    stderr: { write: (chunk) => stderr.push(chunk) },
+  });
+  assert.equal(exitCode, 0);
+  assert.match(stderr.join(""), /uvx/);
+  assert.match(stderr.join(""), /docs\.astral\.sh\/uv/);
+});
+
+test("main stays silent when uvx answers", (t) => {
+  const { sourceDir, destDir } = uvxBox(t);
+  const stderr = [];
+  const probes = [];
+  const exitCode = installBox(sourceDir, destDir, {
+    spawnSync(command, args) {
+      probes.push([command, ...args]);
+      return { status: 0 };
+    },
+    stderr: { write: (chunk) => stderr.push(chunk) },
+  });
+  assert.equal(exitCode, 0);
+  assert.deepEqual(probes, [["uvx", "--version"]]);
+  assert.doesNotMatch(stderr.join(""), /uvx/);
+});
+

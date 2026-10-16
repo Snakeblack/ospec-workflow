@@ -31,6 +31,7 @@ const { ENGRAM_PHASE, runEngramStep } = require("./engram-setup.js");
 const { removeRouterBlock, writeRouterBlock } = require("./instruction-block.js");
 const { parseSddFlag, previousInstallHasSdd, resolveWithSdd } = require("./sdd-package.js");
 const { PHASE_BUILD, createReporter, packagesRow, reportBuildFailure, splitVerbose } = require("./install-output.js");
+const { commandsFromSourceMcp, warnIfUvxMissing } = require("./mcp-prereqs.js");
 
 const PHASE_PLUGIN = "Registrar marketplace y plugin";
 const PHASE_ROUTER = "Escribir el router";
@@ -231,6 +232,7 @@ function main(rawArgv = process.argv.slice(2), deps = {}) {
       engram();
 
       reporter.next("Reinicia Claude Code o ejecuta /reload-plugins para aplicarlo.");
+      warnIfUvxMissing(commandsFromSourceMcp(cwd), { stderr, spawnSync: deps.spawnSync });
       return 0;
     } catch (error) {
       stderr.write(`error: falló la instalación del marketplace de Claude: ${error.message}\n`);

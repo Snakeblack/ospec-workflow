@@ -1,0 +1,399 @@
+{
+  "schema": "idd-state/v1",
+  "change": "markitdown-pin-a7-uv-warning",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "markitdown MCP roto en instalaciones nuevas: el pin markitdown-mcp@0.0.1a4 crashea con dependencias actuales y el setup no avisa cuando uvx falta en PATH",
+    "acceptance": "La configuracion MCP generada parte de markitdown-mcp@0.0.1a7 en todos los targets y cada instalador que registra servidores MCP avisa (sin fallar) cuando uvx no esta en PATH; los tests cubren aviso presente y ausente"
+  },
+  "facts": {
+    "open": [
+      "¿En que instaladores debe aparecer el aviso de uvx ausente: solo opencode global y codex, los cuatro setups globales que registran MCP (opencode, codex, copilot, cursor), o tambien las instalaciones locales (install:opencode / install:copilot)?",
+      "¿Debe el setup ademas precalentar el paquete en la cache de uv (descarga silenciosa de markitdown-mcp@0.0.1a7 y sus ~70 dependencias) o basta con el aviso?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      ".mcp.json",
+      "scripts/configure/install-antigravity.js",
+      "scripts/configure/install-antigravity.test.js",
+      "scripts/configure/install-claude.js",
+      "scripts/configure/install-claude.test.js",
+      "scripts/configure/install-codex.js",
+      "scripts/configure/install-codex.test.js",
+      "scripts/configure/install-cursor.js",
+      "scripts/configure/install-cursor.test.js",
+      "scripts/configure/install-global-copilot.js",
+      "scripts/configure/install-global-copilot.test.js",
+      "scripts/configure/install-global-opencode.js",
+      "scripts/configure/install-global-opencode.test.js",
+      "scripts/configure/install-vscode.js",
+      "scripts/configure/install-vscode.test.js",
+      "scripts/configure/mcp-prereqs.js",
+      "scripts/configure/mcp-prereqs.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component generator: ADR 0001, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/configure/install-antigravity.test.js adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "el pin canonico cambia una sola vez en .mcp.json y cada target lo hereda de la fuente unica; el aviso de uvx vive en un helper compartido, sin divergencia entre targets"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "instalar no descarga nada nuevo: el aviso solo prueba spawnSync de uvx en PATH y el prewarm se descarto; sin dependencias nuevas en el runtime"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "el aviso no usa red ni descarga paquetes; solo comprueba que uvx este en PATH, no bloquea el instalador y los tests son hermeticos sin uvx"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "los 7 instaladores avisan con el mismo helper y el pin a7 llega a todos los targets desde la fuente canonica; la suite completa pasa sin uvx en PATH"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "El cambio solo toca .mcp.json y scripts/configure/**: no añade red al CLI, los hooks ni las skills IDD. El aviso de uvx es un spawnSync local y no descarga nada. Verificado: la suite completa (3748 tests, incluidos los 3 de migracion) pasa con y sin uvx en PATH, y next, check y close se comportan igual.",
+      "recorded_at": "2026-10-16T15:07:24.319Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Aviso en todos los setups: opencode, codex, claude, copilot, cursor, vscode y antigravity. Sin prewarm: el setup solo avisa cuando uvx falta.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-16T14:36:39.821Z",
+      "detail": {
+        "red": "run-2",
+        "green": "run-3"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-16T15:02:07.660Z",
+      "detail": {
+        "tree": "sha256:0d2ae98935e0f19c86d5cf05034562984028b9e01bfda8f6f3bfdd981e8fb49e",
+        "runs": [
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-16T15:02:07.660Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:0d2ae98935e0f19c86d5cf05034562984028b9e01bfda8f6f3bfdd981e8fb49e",
+        "fitness": [
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-16T15:05:57.597Z",
+      "detail": {
+        "run": "run-9",
+        "tree": "sha256:1996d1726b073448cc1be4b7892be611f16d19cc87ae6135ace9101e6c9c791c",
+        "plan": "Compatibilidad a4->a7: reinstalar no pierde nada de usuario. OpenCode global y Cursor convergen solos porque el merge sustituye el servidor por nombre y conserva el resto. Codex preserva a proposito una entrada de usuario con otro comando (fail-closed): la migracion documentada es 'codex mcp remove markitdown' y reinstalar, cubierta por el test. Rollback: volver el pin a 0.0.1a4 en .mcp.json y reinstalar (en Codex hay que quitar antes la entrada a7, igual que en la migracion); el aviso de uvx no cambia y ninguna entrada de usuario se sobrescribe."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-16T15:07:06.607Z",
+      "detail": {
+        "tree": "sha256:ec6d6186dbdf7bcec26e26a0e075f07453496108c19540c4c1fba4436314eb6a",
+        "runs": [
+          "run-10"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-16T15:07:06.607Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:ec6d6186dbdf7bcec26e26a0e075f07453496108c19540c4c1fba4436314eb6a",
+        "fitness": [
+          "run-11",
+          "run-12",
+          "run-13",
+          "run-14"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-16T15:07:24.385Z"
+    }
+  ],
+  "base": "9e74cd807ff55cba931570c7767556217a2dcab1",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/configure/mcp-prereqs.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:e15b1e9d071928a5916776a7f6d4047dc0c07628052a9ce9f2b22a1145c2de2f",
+      "tree": "sha256:c0dc4373a47f3b0f60ca51ccabb43b07bd582b2d2fdfcce999392b1472a18893",
+      "recorded_at": "2026-10-16T14:35:03.608Z",
+      "tests": 1
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/configure/mcp-prereqs.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:bb67634346fa6f35303b3ddfe23330a1b19ccfe5dd720719c7332c046cc1a91e",
+      "tree": "sha256:c0dc4373a47f3b0f60ca51ccabb43b07bd582b2d2fdfcce999392b1472a18893",
+      "recorded_at": "2026-10-16T14:35:03.718Z",
+      "tests": 1
+    },
+    {
+      "id": "run-3",
+      "purpose": "repro-test",
+      "command": "node --test scripts/configure/mcp-prereqs.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fde2668c69d0a00e7f0e371921e914d63db0354b368f75238a99842cf4ef66af",
+      "tree": "sha256:4d24ab39402efc8bc6f051a84550685b35bec543f84803d6d35815b2fa88d047",
+      "recorded_at": "2026-10-16T14:36:39.821Z",
+      "tests": 6
+    },
+    {
+      "id": "run-4",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7780c312e9829bbba80b978b52597380a36c2573a74f20e719efbef0810ac005",
+      "tree": "sha256:0d2ae98935e0f19c86d5cf05034562984028b9e01bfda8f6f3bfdd981e8fb49e",
+      "recorded_at": "2026-10-16T15:02:07.660Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ea56302f6ef7d0b6f5302c757f55f489be20b33a1c85cccf0796227ded9cb672",
+      "tree": "sha256:0d2ae98935e0f19c86d5cf05034562984028b9e01bfda8f6f3bfdd981e8fb49e",
+      "recorded_at": "2026-10-16T15:02:07.660Z",
+      "tests": 46
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:0d2ae98935e0f19c86d5cf05034562984028b9e01bfda8f6f3bfdd981e8fb49e",
+      "recorded_at": "2026-10-16T15:02:07.660Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2f091321580c026db68ac35938a739b32a57722e85b86a953d9bd7b82aab0b08",
+      "tree": "sha256:0d2ae98935e0f19c86d5cf05034562984028b9e01bfda8f6f3bfdd981e8fb49e",
+      "recorded_at": "2026-10-16T15:02:07.660Z",
+      "tests": 12
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bf023f7709d11e86f582db117b0b9e66fb888ca8e9f60ed8a7346ddc19bb6592",
+      "tree": "sha256:0d2ae98935e0f19c86d5cf05034562984028b9e01bfda8f6f3bfdd981e8fb49e",
+      "recorded_at": "2026-10-16T15:02:07.660Z",
+      "tests": 46
+    },
+    {
+      "id": "run-9",
+      "purpose": "migration-test",
+      "command": "node --test tests/integration/mcp-pin-upgrade.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:33e1c7f514afb8270ee0acd0fca7e56b22d870c3334852777ce6f0eb069a7416",
+      "tree": "sha256:1996d1726b073448cc1be4b7892be611f16d19cc87ae6135ace9101e6c9c791c",
+      "recorded_at": "2026-10-16T15:05:57.597Z",
+      "tests": 3
+    },
+    {
+      "id": "run-10",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4048212dd780212558431995f03d7438abc3b0619d2af62a0956a9795523a7d7",
+      "tree": "sha256:ec6d6186dbdf7bcec26e26a0e075f07453496108c19540c4c1fba4436314eb6a",
+      "recorded_at": "2026-10-16T15:07:06.607Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:450fa3904f69af3a3cf0a1e3d959f82aa5618d85a03d9a8c41c3af9be926b01d",
+      "tree": "sha256:ec6d6186dbdf7bcec26e26a0e075f07453496108c19540c4c1fba4436314eb6a",
+      "recorded_at": "2026-10-16T15:07:06.607Z",
+      "tests": 46
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:ec6d6186dbdf7bcec26e26a0e075f07453496108c19540c4c1fba4436314eb6a",
+      "recorded_at": "2026-10-16T15:07:06.607Z"
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b51ff650ef5432bde773326548e4724355edb0974a10b539d3407a7f9540a238",
+      "tree": "sha256:ec6d6186dbdf7bcec26e26a0e075f07453496108c19540c4c1fba4436314eb6a",
+      "recorded_at": "2026-10-16T15:07:06.607Z",
+      "tests": 12
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:770e503f3d373f482812b782407fb4f5845618cbc451e81eb94fa8cf48d6966c",
+      "tree": "sha256:ec6d6186dbdf7bcec26e26a0e075f07453496108c19540c4c1fba4436314eb6a",
+      "recorded_at": "2026-10-16T15:07:06.607Z",
+      "tests": 46
+    }
+  ],
+  "closed_at": "2026-10-16T15:07:24.385Z"
+}

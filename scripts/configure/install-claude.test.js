@@ -178,3 +178,45 @@ test("--dry-run builds in a temporary directory and registers, installs and writ
   assert.equal(fs.existsSync(buildOut), false, "the temporary build is removed");
   assert.match(stdout.value, /simulación \(--dry-run\)/);
 });
+
+// --- uvx prerequisite warning (foundation document conversion) -------------
+
+function uvxCwd(t) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-claude-uvx-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.writeFileSync(
+    path.join(dir, ".mcp.json"),
+    JSON.stringify({ mcpServers: { markitdown: { command: "uvx", args: ["markitdown-mcp@0.0.1a7"] } } }),
+  );
+  return dir;
+}
+
+test("setup:claude warns when the source ships a uvx MCP server and the binary is missing", (t) => {
+  const { deps } = routerFixture(t);
+  const stderr = writer();
+  const exitCode = main([], deps({
+    cwd: uvxCwd(t),
+    stderr,
+    spawnSync: () => ({ error: new Error("ENOENT") }),
+  }));
+  assert.equal(exitCode, 0);
+  assert.match(stderr.value, /uvx/);
+  assert.match(stderr.value, /docs\.astral\.sh\/uv/);
+});
+
+test("setup:claude stays silent when uvx answers", (t) => {
+  const { deps } = routerFixture(t);
+  const stderr = writer();
+  const probes = [];
+  const exitCode = main([], deps({
+    cwd: uvxCwd(t),
+    stderr,
+    spawnSync(command, args) {
+      probes.push([command, ...args]);
+      return { status: 0 };
+    },
+  }));
+  assert.equal(exitCode, 0);
+  assert.deepEqual(probes, [["uvx", "--version"]]);
+  assert.doesNotMatch(stderr.value, /uvx/);
+});

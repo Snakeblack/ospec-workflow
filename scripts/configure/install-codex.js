@@ -20,6 +20,7 @@ const {
 } = require("./install-engine.js");
 const { parseSddFlag, previousInstallHasSdd, resolveWithSdd } = require("./sdd-package.js");
 const { DRY_RUN_ROW, PHASE_BUILD, PHASE_FILES, packagesRow, reportBuildFailure, reporterFor, restartHint } = require("./install-output.js");
+const { warnIfUvxMissing } = require("./mcp-prereqs.js");
 const { ensureOspecGitignore } = require("../lib/ospec-gitignore.js");
 
 const PHASE_REPAIR = "Reparar config.toml";
@@ -1307,6 +1308,7 @@ function install(argv, deps = {}) {
           return mcpExitCode;
         }
       }
+      warnIfUvxMissing(mcpDefinitions.map((server) => server.command), { stderr, spawnSync: deps.spawnSync });
     }
 
     reporter.begin(PHASE_FILES);

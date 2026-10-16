@@ -18,6 +18,7 @@ const { renderRuntimeDir, renderSharedDir, runtimeDirValue, sharedDirValue } = r
 const { safeParseJsonc, mutateFs } = require("./install-engine.js");
 const { parseSddFlag, previousInstallHasSdd, resolveWithSdd } = require("./sdd-package.js");
 const { packagesRow, reportBuildFailure, reporterFor } = require("./install-output.js");
+const { commandsFromSourceMcp, warnIfUvxMissing } = require("./mcp-prereqs.js");
 
 const PHASES = { build: "Generar y validar", register: "Registrar en VS Code" };
 
@@ -251,6 +252,7 @@ function install(argv = process.argv.slice(2), deps = {}) {
   }
   reporter.set("settings.json", states.join(" · "));
   reporter.next("Reinicia VS Code para cargar los cambios.");
+  warnIfUvxMissing(commandsFromSourceMcp(sourceDir, { fs: fsImpl }), { stderr, spawnSync: deps.spawnSync });
   return 0;
 }
 
