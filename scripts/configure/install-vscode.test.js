@@ -162,4 +162,59 @@ test("main preflight aborts before any writes when one settings file is corrupt"
   assert.equal(Object.keys(written).length, 0, "No files must be written if any settings file fails preflight");
 });
 
+// --- uvx prerequisite warning (foundation document conversion) -------------
+
+const UVX_MCP_CONFIG = JSON.stringify({
+  mcpServers: { markitdown: { command: "uvx", args: ["markitdown-mcp@0.0.1a7"] } },
+});
+
+function uvxMockFs() {
+  return {
+    // Same shape as the success-path fixture above, plus the shipped MCP config.
+    existsSync: (p) => (p.includes("User") && !p.includes("settings.json")) || p.endsWith(".mcp.json"),
+    readFileSync: (p) => (p.endsWith(".mcp.json") ? UVX_MCP_CONFIG : ""),
+    readdirSync: () => [],
+    writeFileSync: () => {},
+  };
+}
+
+function installDeps(overrides = {}) {
+  return {
+    fs: uvxMockFs(),
+    runConfigure: () => ({ exitCode: 0 }),
+    copyBinaryToTree: () => {},
+    homedir: () => "/home/user",
+    env: { APPDATA: "C:/fake" },
+    platform: "win32",
+    stdout: { write: () => {} },
+    ...overrides,
+  };
+}
+
+test("main warns when the shipped MCP config needs uvx and the binary is missing", () => {
+  const stderr = [];
+  const exitCode = main([], installDeps({
+    spawnSync: () => ({ error: new Error("ENOENT") }),
+    stderr: { write: (chunk) => stderr.push(chunk) },
+  }));
+  assert.equal(exitCode, 0);
+  assert.match(stderr.join(""), /uvx/);
+  assert.match(stderr.join(""), /docs\.astral\.sh\/uv/);
+});
+
+test("main stays silent when uvx answers", () => {
+  const stderr = [];
+  const probes = [];
+  const exitCode = main([], installDeps({
+    spawnSync(command, args) {
+      probes.push([command, ...args]);
+      return { status: 0 };
+    },
+    stderr: { write: (chunk) => stderr.push(chunk) },
+  }));
+  assert.equal(exitCode, 0);
+  assert.deepEqual(probes, [["uvx", "--version"]]);
+  assert.doesNotMatch(stderr.join(""), /uvx/);
+});
+
 

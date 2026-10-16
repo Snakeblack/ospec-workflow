@@ -347,6 +347,9 @@ test("main performs a real isolated generate-validate-install round-trip and con
   const deps = {
     fs: sandboxedFs(sandbox),
     homedir: () => homeDir,
+    // Deterministic uvx probe: the staged .mcp.json ships one, and the
+    // round-trip must not depend on the host toolchain.
+    spawnSync: () => ({ status: 0 }),
     stdout,
     stderr: { write(chunk) { stderrChunks.push(chunk); } },
   };
@@ -416,6 +419,70 @@ test("main returns 1 when installed-layout validation fails", (t) => {
     stderr: { write() {} },
   });
   assert.equal(code, 1);
+});
+
+test("main warns when the source ships a uvx MCP server and the binary is missing", (t) => {
+  const sandbox = makeTempDir(t, "cursor-uvx-warn-");
+  const sourceDir = path.join(sandbox, "source");
+  const outDir = path.join(sourceDir, "dist", "cursor");
+  fs.mkdirSync(outDir, { recursive: true });
+  write(outDir, "hooks.json", JSON.stringify({ version: 1, hooks: {} }));
+  fs.writeFileSync(
+    path.join(sourceDir, ".mcp.json"),
+    JSON.stringify({ mcpServers: { markitdown: { command: "uvx", args: ["markitdown-mcp@0.0.1a7"] } } }),
+  );
+  const stderr = [];
+
+  const code = main(["--source", sourceDir], {
+    homedir: () => path.join(sandbox, "home"),
+    runConfigure: () => ({ files: [], summary: [], exitCode: 0, validation: null }),
+    copyBinaryToTree() {},
+    syncTreeByContent: () => ({ updated: [], unchanged: [] }),
+    installHooksJson() {},
+    validateInstalled: () => ({ errors: [], warnings: [] }),
+    spawnSync: () => ({ error: new Error("ENOENT") }),
+    stdout: { write() {} },
+    stderr: { write: (chunk) => stderr.push(chunk) },
+  });
+
+  assert.equal(code, 0);
+  assert.match(stderr.join(""), /uvx/);
+  assert.match(stderr.join(""), /docs\.astral\.sh\/uv/);
+  const merged = JSON.parse(fs.readFileSync(path.join(sandbox, "home", ".cursor", "mcp.json"), "utf8"));
+  assert.ok(merged.mcpServers.markitdown, "the MCP config is still merged");
+});
+
+test("main stays silent when uvx answers", (t) => {
+  const sandbox = makeTempDir(t, "cursor-uvx-silent-");
+  const sourceDir = path.join(sandbox, "source");
+  const outDir = path.join(sourceDir, "dist", "cursor");
+  fs.mkdirSync(outDir, { recursive: true });
+  write(outDir, "hooks.json", JSON.stringify({ version: 1, hooks: {} }));
+  fs.writeFileSync(
+    path.join(sourceDir, ".mcp.json"),
+    JSON.stringify({ mcpServers: { markitdown: { command: "uvx", args: ["markitdown-mcp@0.0.1a7"] } } }),
+  );
+  const stderr = [];
+  const probes = [];
+
+  const code = main(["--source", sourceDir], {
+    homedir: () => path.join(sandbox, "home"),
+    runConfigure: () => ({ files: [], summary: [], exitCode: 0, validation: null }),
+    copyBinaryToTree() {},
+    syncTreeByContent: () => ({ updated: [], unchanged: [] }),
+    installHooksJson() {},
+    validateInstalled: () => ({ errors: [], warnings: [] }),
+    spawnSync(command, args) {
+      probes.push([command, ...args]);
+      return { status: 0 };
+    },
+    stdout: { write() {} },
+    stderr: { write: (chunk) => stderr.push(chunk) },
+  });
+
+  assert.equal(code, 0);
+  assert.deepEqual(probes, [["uvx", "--version"]]);
+  assert.doesNotMatch(stderr.join(""), /uvx/);
 });
 
 function rollbackTreeState(root) {

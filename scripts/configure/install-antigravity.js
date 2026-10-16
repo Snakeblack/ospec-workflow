@@ -24,6 +24,7 @@ const {
 } = require("./install-engine.js");
 const { parseSddFlag, previousInstallHasSdd, resolveWithSdd } = require("./sdd-package.js");
 const { DRY_RUN_ROW, PHASE_BUILD, PHASE_FILES, filesRow, packagesRow, reportAborted, reportBuildFailure, reporterFor, restartHint } = require("./install-output.js");
+const { commandsFromSourceMcp, warnIfUvxMissing } = require("./mcp-prereqs.js");
 
 function usage() {
   return "uso: install-antigravity [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>] [--dest <targetDir>] [--verbose]\n";
@@ -336,6 +337,7 @@ function install(argv = process.argv.slice(2), deps = {}) {
   if (exitCode === 0) {
     reporter.set("Ficheros", filesRow(counts));
     restartHint(reporter);
+    warnIfUvxMissing(commandsFromSourceMcp(sourceDir, { fs: deps.fs }), { stderr, spawnSync: deps.spawnSync });
   }
   return exitCode;
 }

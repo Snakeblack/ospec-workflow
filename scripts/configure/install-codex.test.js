@@ -1081,6 +1081,8 @@ test("main falls back to manual Codex commands when the CLI is unavailable", (t)
       return { exitCode: 0, validation: null };
     },
     findCodexBin: () => null,
+    // Deterministic probe: uvx present, so the manual fallback stays warning-free.
+    spawnSync: () => ({ status: 0 }),
   });
 
   assert.equal(exitCode, 0);
@@ -1089,6 +1091,89 @@ test("main falls back to manual Codex commands when the CLI is unavailable", (t)
   assert.ok(fs.existsSync(path.join(homeDir, ".codex", "AGENTS.md")));
   assert.ok(!fs.existsSync(path.join(homeDir, ".codex", "config.toml")));
   assert.match(stdout.join(""), /codex mcp add/i);
+});
+
+test("main warns when a shipped MCP server needs uvx and the binary is missing", (t) => {
+  const sourceDir = makeTempDir(t, "codex-uvx-warn-source-");
+  const homeDir = makeTempDir(t, "codex-uvx-warn-home-");
+  const stderr = [];
+
+  fs.writeFileSync(
+    path.join(sourceDir, ".mcp.json"),
+    JSON.stringify({
+      mcpServers: {
+        markitdown: { command: "uvx", args: ["markitdown-mcp@0.0.1a7"] },
+      },
+    }),
+  );
+
+  const exitCode = main([], {
+    cwd: sourceDir,
+    homedir: () => homeDir,
+    stdout: { write() {} },
+    stderr: { write: (chunk) => stderr.push(chunk) },
+    runConfigure({ outDir, validate }) {
+      assert.equal(validate, true);
+      writeGeneratedCodexTree(outDir);
+      return { exitCode: 0, validation: null };
+    },
+    findCodexBin: () => null,
+    spawnSync: () => ({ error: new Error("ENOENT") }),
+  });
+
+  assert.equal(exitCode, 0);
+  assert.match(stderr.join(""), /uvx/);
+  assert.match(stderr.join(""), /docs\.astral\.sh\/uv/);
+});
+
+test("main stays silent about uvx when the binary answers", (t) => {
+  const sourceDir = makeTempDir(t, "codex-uvx-silent-source-");
+  const homeDir = makeTempDir(t, "codex-uvx-silent-home-");
+  const stderr = [];
+  const probes = [];
+  const configuredMcps = [];
+
+  fs.writeFileSync(
+    path.join(sourceDir, ".mcp.json"),
+    JSON.stringify({
+      mcpServers: {
+        markitdown: { command: "uvx", args: ["markitdown-mcp@0.0.1a7"] },
+      },
+    }),
+  );
+
+  const exitCode = main([], {
+    cwd: sourceDir,
+    homedir: () => homeDir,
+    stdout: { write() {} },
+    stderr: { write: (chunk) => stderr.push(chunk) },
+    runConfigure({ outDir, validate }) {
+      assert.equal(validate, true);
+      writeGeneratedCodexTree(outDir);
+      return { exitCode: 0, validation: null };
+    },
+    findCodexBin: () => "codex",
+    runCodexCommand(bin, args) {
+      if (args.join(" ") === "mcp list --json") {
+        return { status: 0, stdout: JSON.stringify(configuredMcps), stderr: "" };
+      }
+      if (args.slice(0, 3).join(" ") === "mcp add markitdown") {
+        configuredMcps.push({
+          name: "markitdown",
+          transport: { type: "stdio", command: args[4], args: args.slice(5) },
+        });
+      }
+      return { status: 0, stdout: "", stderr: "" };
+    },
+    spawnSync(command, args) {
+      probes.push([command, ...args]);
+      return { status: 0 };
+    },
+  });
+
+  assert.equal(exitCode, 0);
+  assert.deepEqual(probes, [["uvx", "--version"]]);
+  assert.doesNotMatch(stderr.join(""), /uvx/);
 });
 
 test("main installs repo-local agents without changing an existing config or copying the plugin bundle", (t) => {
@@ -1611,6 +1696,7 @@ test("main global install is idempotent across the plugin channel and the agent 
         return { exitCode: 0, validation: null };
       },
       findCodexBin: () => "codex",
+      spawnSync: () => ({ status: 0 }),
       runCodexCommand(bin, args) {
         codexCalls.push([bin, ...args]);
         if (args.join(" ") === "mcp list --json") {
@@ -1730,6 +1816,7 @@ test("main compensates allowlisted MCP additions when later install stages fail"
       stdout: { write() {} },
       stderr: { write: (chunk) => stderr.push(chunk) },
       findCodexBin: () => "codex",
+      spawnSync: () => ({ status: 0 }),
       runConfigure({ outDir }) {
         writeGeneratedCodexTree(outDir);
         return { exitCode: 0, validation: null };

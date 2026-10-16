@@ -29,6 +29,7 @@ const {
 } = require("./install-engine.js");
 const { parseSddFlag, previousInstallHasSdd, resolveWithSdd } = require("./sdd-package.js");
 const { DRY_RUN_ROW, PHASE_BUILD, PHASE_FILES, filesRow, packagesRow, reportAborted, reportBuildFailure, reporterFor, restartHint } = require("./install-output.js");
+const { warnIfUvxMissing } = require("./mcp-prereqs.js");
 
 function usage() {
   return "uso: install-global-copilot [--dry-run] [--no-validate] [--with-extras] [--with-sdd|--no-sdd] [--source <sourceRepo>] [--dest <targetDir>] [--verbose]\n";
@@ -204,6 +205,7 @@ function install(argv = process.argv.slice(2), deps = {}) {
       journal,
     );
 
+    warnIfUvxMissing(generatedConfig.mcpServers, { stderr, spawnSync: deps.spawnSync });
     reporter.set("Ficheros", filesRow({ updated: syncResult.updated.length, unchanged: syncResult.unchanged.length, pruned: pruneResult.deleted.length }));
     restartHint(reporter);
     return 0;
