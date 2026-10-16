@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.138.1, 2026-10-15.
+> **Versión de referencia:** v2.138.2, 2026-10-16.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -144,6 +144,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.22** | `stale-hooks-binary` (los `setup:*` locales recompilan el hook Go si es anterior al código, en v2.117.7) | bugfix |
 | `done` | **E1.23** | `install-engram-no-doctor` (los siete `setup:*` omiten el diagnóstico global de Engram; `ospec doctor` lo conserva, en v2.117.8) | bugfix |
 | `done` | **E1.24** | `setup-flags-reliability` (`setup:claude --dry-run` simula de verdad y los flags de `setup:*` funcionan desde PowerShell) | bugfix |
+| `pending` | **E1.25** | `opencode-plugin-v2-api` (diagnóstico: en OpenCode v2 el plugin global `ospec.js` no carga — el runtime exige un export por defecto con `id` y `effect` o `setup` y el generador emite la forma v1; `session-start` y el hook `pre-tool-use` quedan sin correr. Analizar la API v2, decidir la compatibilidad y restaurar el bridge con paridad) | bugfix |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
@@ -868,6 +869,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-16: hallazgo: el plugin global de ospec para OpenCode (`~/.config/opencode/plugins/ospec.js`, generado por el target `opencode`) no carga en OpenCode v2.0.26. El runtime exige `export default` con `id` y `effect` o `setup` (la forma v1 era un export nombrado); el servidor lo apunta como `PluginModule.LoadError … SchemaError(Missing key at ["default"])` y el bridge pierde `session-start` y `pre-tool-use`. Entra E1.25 `opencode-plugin-v2-api` para diagnosticar la API v2 y decidir la compatibilidad antes de arreglarlo.
 - 2026-10-14: E4.6 `open-facts-robustness` implementado con IDD y publicado en v2.138.0: `open-facts` por categorías con citas, supuestos al cerrar, `untested-product` y señales por contenido, y `receta-spa` congelado. En agy cumple el criterio de escapados (`todo-spa` 2, `receta-spa` 6 frente a 7,67); queda la repetición con Claude.
 - 2026-10-14: E4.9 `bench-arm-symmetry` hecho con IDD y publicado en v2.137.0. `idd-4` frente a `gentle-ai-2` en agy con Gemini 3.8 Flash y persona Grok 4.7: escapados 3 frente a 9, tokens 2,29×, checkpoint `bench-margins-8` en `revise` solo por tokens. Engram MCP, 181 bytes. Lo siguiente es E4.6.
 - 2026-10-13: E4.8 `non-git-workspace` hecho con IDD y publicado en v2.135.0, ampliado de `bugfix` a `feature` por decisión del usuario: IDD solo dentro de un proyecto git; fuera, trabajo directo, y una petición de proyecto monta antes su repositorio con `git init -b main`. La CLI se detiene en `record intent` y `next` con el siguiente paso y un repositorio sin commits llega a `close`. Entra E4.11 `workspace-root-resolution` al final de la cola. Lo siguiente es E4.9.
