@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.138.2] - 2026-10-16
+
+### Fixed
+- **MarkItDown roto en instalaciones nuevas**: el pin canónico `markitdown-mcp@0.0.1a4` de `.mcp.json` ya no arrancaba con las dependencias actuales (`ImportError: eval_type_backport` desde pydantic), así que la conversión de documentos de la foundation fallaba. El pin pasa a `markitdown-mcp@0.0.1a7`, verificado extremo a extremo con URIs `file:`, `http:` y `data:`. Además, los siete instaladores que registran servidores MCP (opencode, codex, claude, copilot, cursor, vscode y antigravity) avisan por stderr, en español y sin fallar, cuando `uvx` no está en PATH, con el enlace de instalación de uv; el setup no descarga nada (sin prewarm). La migración `a4`→`a7` está cubierta por tests de integración: OpenCode global y Cursor convergen al reinstalar, y en Codex la entrada antigua se retira antes (`codex mcp remove markitdown`, documentado y probado). Hecho con IDD (`idd/archive/2026-10-16-markitdown-pin-a7-uv-warning/`).
+
+**Verificación directa**: `node scripts/check.js` (3745 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.138.1] - 2026-10-15
 
 ### Fixed
