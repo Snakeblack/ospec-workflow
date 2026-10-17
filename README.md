@@ -362,7 +362,7 @@ in `dist/<target>/` without touching the origin:
 | Target | Output |
 | --- | --- |
 | `vscode` | Canonical identity: VS Code loads the repository as-is, without generating `dist/`. |
-| `claude` | `.claude-plugin` tree: renames files, restructures manifest and hooks, substitutes tools (context-aware), rewrites command variables, incorporates `rules/` and emits the orchestrator as a **skill**. Gate: `claude plugin validate --strict` 0/0. |
+| `claude` | `.claude-plugin` tree: renames files, restructures manifest and hooks, substitutes tools (context-aware), rewrites command variables, incorporates `rules/` and emits the orchestrator as a **skill**. Gate: golden fixtures in CI; `claude plugin validate --strict` 0/0 locally when the Claude CLI is installed (not run by Validate Harness). |
 | `github-copilot` | `.github/` layout: agents to `.github/agents/*.agent.md` (`target: github-copilot`, `vscode/askQuestions`→`ask_user`), commands to `.github/prompts/*.prompt.md`, rules to `.github/instructions/*.instructions.md` (keeping the source `applyTo`; `agents/**` rules go into the orchestrator agent), hooks to `.github/hooks/hooks.json` (Copilot schema) and `.mcp.json` as-is. Validated by `scripts/configure/validate-github-copilot.js` inside the profile flow. |
 | `opencode` | `.opencode/` layout + `opencode.json`: agents to `.opencode/agents/*.md` (`mode: primary\|subagent`, `tools:` as a **map**, model `provider/model`), commands to `.opencode/commands/*.md` (keeps `agent:`, args `$1`/`$ARGUMENTS`), rules to `.opencode/instructions/*.md` referenced via `instructions` in `opencode.json`, MCP folded into `opencode.json` (`mcp` with `type: local\|remote`) and, since opencode has no shell hooks, the runtime is bridged with a JS plugin in `.opencode/plugins/ospec.js`. Validated by `scripts/configure/validate-opencode.js`. |
 | `codex` | `.codex-plugin/` layout + `.codex/agents/*.toml`, without `.mcp.json` in the bundle: the plugin and agents are installed separately; `setup:codex` registers missing global MCPs with valid IDs and deduplication by identity. The generator rejects `.codex/config.toml`, `.mcp.json` and `mcpServers` inside the payload. Validated by `scripts/configure/validate-codex.js`. |
@@ -375,7 +375,7 @@ node scripts/configure/cli.js --target opencode        --out dist/opencode
 ```
 
 The transform is pure and tested under Strict TDD; the CLI is the IO layer with a
-validation gate per target (golden fixtures, `claude plugin validate --strict` for `claude` when that CLI is installed, and Node validators for GitHub Copilot and opencode). Validate Harness does not run the Claude CLI. Model selection is abstracted into tiers (`models.yaml`). Each generated tree is **self-contained**: the generator
+validation gate per target (golden fixtures in CI, `claude plugin validate --strict` for `claude` locally when that CLI is installed, and Node validators for GitHub Copilot and opencode). Validate Harness does not run the Claude CLI. Model selection is abstracted into tiers (`models.yaml`). Each generated tree is **self-contained**: the generator
 follows `require`s from the hooks and includes their runtime (`scripts/hooks/` + their dependencies from
 `scripts/lib/`), without tests or the generator itself. See [model-routing.md](docs/model-routing.md)
 and the [installation guide](docs/plugin-installation.md).

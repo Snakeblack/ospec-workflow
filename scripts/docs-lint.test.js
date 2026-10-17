@@ -98,3 +98,41 @@ test("compact rules budget: no skill's compact_rules exceeds the hard cap", asyn
       offenders.map((o) => `${o.id}=${o.tokens}`).join(", ")
   );
 });
+
+// ---------------------------------------------------------------------------
+// E1.32 (OSP-008): the READMEs must not promise `claude plugin validate
+// --strict` as a CI gate unless a workflow really runs it. Until then every
+// mention in the target table and its paragraph carries the local qualifier
+// ("locally" / "localmente"), the honest state of Validate Harness.
+// ---------------------------------------------------------------------------
+
+const README_LOCAL_TERM = new Map([
+  ["README.md", "locally"],
+  ["README.es.md", "localmente"],
+]);
+
+function workflowRunsClaudeValidate() {
+  const dir = path.join(ROOT, ".github", "workflows");
+  for (const entry of fs.readdirSync(dir)) {
+    if (!/\.ya?ml$/.test(entry)) continue;
+    const lines = fs.readFileSync(path.join(dir, entry), "utf8").split(/\r?\n/);
+    if (lines.some((line) => !line.trimStart().startsWith("#") && line.includes("claude plugin validate"))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+test("READMEs present `claude plugin validate --strict` as a local check, not a CI gate", () => {
+  if (workflowRunsClaudeValidate()) return; // a workflow runs it for real: the gate promise holds
+  const problems = [];
+  for (const [file, term] of README_LOCAL_TERM) {
+    const lines = fs.readFileSync(path.join(ROOT, file), "utf8").split(/\r?\n/);
+    lines.forEach((line, index) => {
+      if (line.includes("claude plugin validate --strict") && !line.includes(term)) {
+        problems.push(`${file}:${index + 1} must say "${term}" or CI must run the validation`);
+      }
+    });
+  }
+  assert.deepEqual(problems, [], `unqualified claude validate gate:\n${problems.join("\n")}`);
+});
