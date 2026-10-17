@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.138.3, 2026-10-17.
+> **Versión de referencia:** v2.138.4, 2026-10-17.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -590,6 +590,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Alcance:** celda del gate con «locally/localmente» (o paso de CI que lo ejecute de verdad) y test de docs que impida la contradicción; `.plugin.json` en `SECURITY.md`; `sourceDir` del instalador resuelto desde el checkout o error accionable que mencione `--source`; tags que falten o marca de «no publicada» y comprobación de las cabeceras del CHANGELOG contra `git tag` en CI.
 - **Decisión pendiente (OSP-023):** crear los tags v2.117.16–18 o anotar en el CHANGELOG que esas versiones no se publicaron.
 - **Hecho cuando:** tabla y párrafo dicen lo mismo en EN y ES; `rg 'plugin/plugin.json' SECURITY.md` no devuelve nada; el instalador fuera del checkout funciona o falla con acción; cada versión del CHANGELOG tiene tag o marca de no publicada.
+- **Estado (2026-10-17):** OSP-008 (README EN/ES + test de docs), OSP-013 (`SECURITY.md`) y OSP-021 (`sourceDir` del CLI) corregidos en un PR XS; la entrada sigue abierta por OSP-023 (decisión pendiente) y OSP-028 (va con E4.3).
 
 ### E1.33 — `trust-review-attestation` (OSP-029, #351)
 

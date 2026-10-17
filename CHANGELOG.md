@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.138.4] - 2026-10-17
+
+### Fixed
+- **Honestidad del README y DX del instalador ([#346](https://github.com/Snakeblack/ospec-workflow/issues/346), [#347](https://github.com/Snakeblack/ospec-workflow/issues/347))**: el README (EN/ES) ya no presenta `claude plugin validate --strict` como gate de CI; la tabla de targets y el párrafo que la sigue dicen lo mismo (el gate en CI son las golden fixtures y la validación del CLI de Claude corre localmente cuando ese CLI está instalado; Validate Harness no lo ejecuta) y un test de docs exige el calificador local en cada mención salvo que un workflow ejecute la validación de verdad (E1.32, OSP-008). `SECURITY.md` cita el manifiesto real, `.plugin.json` (OSP-013). Y `scripts/configure/cli.js` ejecutado fuera del checkout ya no falla con «invalid SDD model policy»: sin `--source` resuelve el checkout que posee el script (`path.resolve(__dirname, "..", "..")`, con `--source` siempre prioritario), el spec del generador refleja el nuevo default y un test lanza el CLI desde un cwd temporal (OSP-021). Hecho con IDD (`idd/archive/2026-10-17-docs-dx-corrections/`).
+
+**Verificación directa**: `node scripts/check.js` (3767 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.138.3] - 2026-10-17
 
 ### Fixed
