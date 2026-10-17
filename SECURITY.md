@@ -16,13 +16,13 @@ run in a no-hooks / inspection-only mode.
 ## Supported versions
 
 Only the latest released `2.x` version receives fixes. The version tracks
-`.plugin/plugin.json`.
+`.plugin.json`.
 
 ## Reporting a vulnerability
 
 Do **not** open a public issue for security problems. Report privately via
 GitHub Security Advisories ("Report a vulnerability" on the repository's
-Security tab), or by email to the maintainer listed in `.plugin/plugin.json`.
+Security tab), or by email to the maintainer listed in `.plugin.json`.
 
 Please include:
 

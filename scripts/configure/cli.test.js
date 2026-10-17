@@ -5,6 +5,7 @@ const test = require("node:test");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { spawnSync } = require("node:child_process");
 
 const { loadTree, gatherRuntimeScripts, parseModels, runConfigure: runConfigureStrict, defaultRunValidator, resolveClaudeBin, isWindowsInteropPath, spawnCliSync, PROFILES } = require("./cli.js");
 const { transform } = require("../lib/target-transform.js");
@@ -823,4 +824,24 @@ test("REQ-install-039: an in-place publication prepares the destination after wr
   assert.equal(prepared.at(-1), path.resolve(out));
   assert.equal(fs.readFileSync(path.join(out, "PREPARED.md"), "utf8"), "prepared\n");
   assert.deepEqual(configureSiblings(parent, "vscode"), []);
+});
+
+// ---------------------------------------------------------------------------
+// E1.32 (OSP-021): the CLI entry resolves the source checkout from its own
+// location, so running it from outside the checkout works without --source.
+// ---------------------------------------------------------------------------
+
+test("E1.32 (OSP-021): the CLI runs from a cwd outside the checkout without --source", t => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "configure-cwd-"));
+  t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
+  const out = path.join(cwd, "out");
+
+  const result = spawnSync(process.execPath, [path.resolve(__dirname, "cli.js"), "--target", "vscode", "--no-validate", "--out", out], {
+    cwd,
+    encoding: "utf8",
+  });
+
+  assert.equal(result.status, 0, `expected a successful generation, got status ${result.status}: ${result.stderr}`);
+  assert.match(result.stdout, /configure --target vscode ->/);
+  assert.ok(fs.existsSync(path.join(out, "models.yaml")), "the source must be the checkout that owns the CLI");
 });
