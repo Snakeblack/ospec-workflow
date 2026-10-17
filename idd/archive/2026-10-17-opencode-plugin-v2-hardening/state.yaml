@@ -1,0 +1,490 @@
+{
+  "schema": "idd-state/v1",
+  "change": "opencode-plugin-v2-hardening",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Endurecer el bridge OpenCode v2 (E1.25/E1.26): proteger setup() cuando ctx.permission.hook no existe, omitir source en permissionRequest si faltan messageID/id e incluir file_path/target_file en resources, alinear spec/changelog/roadmap y pasar trust-review real.",
+    "acceptance": "setupOspecWorkflow no falla al cargar en runtimes sin ctx.permission; permissionRequest omite source cuando faltan messageID/id y extrae file_path/target_file; spec hooks-runtime, CHANGELOG 2.138.3 y roadmap reflejan E1.25+E1.26; trust-review real aprobado y suite verde."
+  },
+  "facts": {
+    "basis": "El usuario aprobó la Opción A; el esquema Permission.AssertInput de OpenCode v2.0.32 y las decisiones previas de E1.25/E1.26 fijan todo el comportamiento."
+  },
+  "plan": {
+    "paths": [
+      "CHANGELOG.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/specs/hooks-runtime/spec.md",
+      "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+      "scripts/configure/validate-opencode.js",
+      "scripts/configure/validate-opencode.test.js",
+      "scripts/lib/target-profiles/opencode-plugin.js",
+      "scripts/lib/target-profiles/opencode-plugin.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "declared ADR 0008",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "Endurecimiento y revisión de seguridad (trust-review) del bridge de permisos pre-tool-use de OpenCode v2 (E1.25/E1.26).",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "scripts/configure/validate-opencode.test.js escribe un stub de plugin en tmpOut",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches .claude-plugin/plugin.json and 1 more (matches .claude-plugin/**)",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "El plugin OpenCode v2 y su golden se generan desde la única fuente canónica scripts/lib/target-profiles/opencode-plugin.js."
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "El bridge mantiene fail-closed en pre-tool-use ante fallos del binario, deny y runtimes sin permission.assert."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "El plugin emitido usa únicamente builtins de Node y la API local del host sin dependencias externas."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "No añade llamadas de red; el bridge invoca el binario local ospec-hooks y la API local de permisos de OpenCode."
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "Restaura la paridad del guard (allow/ask/deny y session-start) en OpenCode v2 conservando compatibilidad con v1."
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Verificado en el diff: solo usa child_process/fs/url/path y ctx.permission/ctx.tool/ctx.event locales sin llamadas de red.",
+      "recorded_at": "2026-10-17T14:49:20.927Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-17T14:47:39.332Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-17T14:50:56.778Z",
+      "detail": {
+        "lineage_id": "sha256:8988c15fa3df81a532e80d41df037324bbad4e30af7f3013847c06948f4bd8f4",
+        "candidate_id": "sha256:9f835b310af7fb4fc7d16287141f3fc9bc4612026d76c94e5128954846219f89",
+        "candidate_tree": "9989bc04af09ab114bede925b4cab2c2915b79a4",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f"
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-17T14:50:57.123Z",
+      "detail": {
+        "run": "run-3",
+        "tree": "sha256:78e85d7cf2a270e4f7a6cd47828cf27917d5d5970f4c2efc472537d7d0bd5b65",
+        "plan": "Compatibilidad: el plugin emitido conserva el entrypoint v1 (server, OpenCode >= 1.18.29), protege setup() cuando ctx.permission.hook no existe, mantiene bloqueo duro fail-closed sin permission.assert y usa prompt nativo en v2 >= 2.0.29. Sin estado persistente ni migración de datos. Rollback: revertir el commit y reinstalar con npm run setup:opencode."
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-17T14:52:12.556Z",
+      "detail": {
+        "tree": "sha256:bd4cab3494eec31cf30459aba2129aab1a0871fc0da03d3520b86cec2b7c9f09",
+        "runs": [
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-17T14:52:12.556Z",
+      "detail": {
+        "tree": "sha256:bd4cab3494eec31cf30459aba2129aab1a0871fc0da03d3520b86cec2b7c9f09",
+        "check": "ev-4",
+        "documents": [
+          "openspec/specs/hooks-runtime/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/validate-opencode.test.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-17T14:52:12.556Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:bd4cab3494eec31cf30459aba2129aab1a0871fc0da03d3520b86cec2b7c9f09",
+        "fitness": [
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-17T14:52:12.830Z"
+    }
+  ],
+  "base": "d327d164f545e01d70693b8369cf28871e9eeb41",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/target-profiles/opencode-plugin.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:b2a87c142462a335e59c5192a6add963028e533c8c18771f58f1b1f1061a8107",
+      "tree": "sha256:535b1a3a2b4b751076f1ef9aff824b42d0e112d43e50b9b20678a394f9b93ea7",
+      "recorded_at": "2026-10-17T14:46:59.107Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/target-profiles/opencode-plugin.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:25c8925a2ab42410eb073fbcc639770064bf23f0baee2fe26ec00173134c3608",
+      "tree": "sha256:bd360bd37747c427a968307fa48d5ce0c9d490d1b09fb568eedcd87480db9015",
+      "recorded_at": "2026-10-17T14:47:39.332Z",
+      "tests": 16
+    },
+    {
+      "id": "run-3",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/target-profiles/opencode-plugin.test.js scripts/configure/validate-opencode.test.js scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:83ae55ce1dfa25ef0ea694dd20d0e23f0f72302100bd4c2e5991155b93570bfe",
+      "tree": "sha256:78e85d7cf2a270e4f7a6cd47828cf27917d5d5970f4c2efc472537d7d0bd5b65",
+      "recorded_at": "2026-10-17T14:50:57.123Z",
+      "tests": 78
+    },
+    {
+      "id": "run-4",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e6bc1e3ec685c8441180b42f9017cadd5fbb27cf475842c5fd6c293ff159b882",
+      "tree": "sha256:bd4cab3494eec31cf30459aba2129aab1a0871fc0da03d3520b86cec2b7c9f09",
+      "recorded_at": "2026-10-17T14:52:12.556Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:98eff63e035905d2d07db7d1a8dafbfb67794805543fb25fafdcd404764d441f",
+      "tree": "sha256:bd4cab3494eec31cf30459aba2129aab1a0871fc0da03d3520b86cec2b7c9f09",
+      "recorded_at": "2026-10-17T14:52:12.556Z",
+      "tests": 46
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:08296a3b5298ce6ad33981eb800e2fe39ee3f2807895c531316cb802ce07ac22",
+      "tree": "sha256:bd4cab3494eec31cf30459aba2129aab1a0871fc0da03d3520b86cec2b7c9f09",
+      "recorded_at": "2026-10-17T14:52:12.556Z",
+      "tests": 71
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:bd4cab3494eec31cf30459aba2129aab1a0871fc0da03d3520b86cec2b7c9f09",
+      "recorded_at": "2026-10-17T14:52:12.556Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1906b4ec9afff843d0a79e2d4c3f81c9e88e90eccfd5a86442c5b96523354d2e",
+      "tree": "sha256:bd4cab3494eec31cf30459aba2129aab1a0871fc0da03d3520b86cec2b7c9f09",
+      "recorded_at": "2026-10-17T14:52:12.556Z",
+      "tests": 12
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:abf54c0eb0c01b704032577985a3bdbd47a87d862c01ce819989c8f5dd361882",
+      "tree": "sha256:bd4cab3494eec31cf30459aba2129aab1a0871fc0da03d3520b86cec2b7c9f09",
+      "recorded_at": "2026-10-17T14:52:12.556Z",
+      "tests": 46
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:8988c15fa3df81a532e80d41df037324bbad4e30af7f3013847c06948f4bd8f4",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "c0a45ef8139ccb40885d838ab36c86795679b820",
+          "candidate_tree": "9989bc04af09ab114bede925b4cab2c2915b79a4",
+          "paths": [
+            ".claude-plugin/plugin.json",
+            ".plugin.json",
+            "CHANGELOG.md",
+            "docs/roadmaps/harness-evolution.md",
+            "openspec/config.yaml",
+            "openspec/specs/hooks-runtime/spec.md",
+            "package.json",
+            "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+            "scripts/configure/validate-opencode.js",
+            "scripts/configure/validate-opencode.test.js",
+            "scripts/lib/target-profiles/opencode-plugin.js",
+            "scripts/lib/target-profiles/opencode-plugin.test.js"
+          ],
+          "diff_hash": "sha256:4e11e18ee4beeaa2e919aacd2903c292deb0ec6ffb68ac63f0478716100f612f",
+          "paths_digest": "sha256:bae37a21a5c905847a38e641dc10cb99e90d7bab81d501ffdf69ae2e9d11f82a",
+          "authored_lines": 821,
+          "original_changed_lines": 931
+        },
+        "candidate_id": "sha256:9f835b310af7fb4fc7d16287141f3fc9bc4612026d76c94e5128954846219f89",
+        "paths": [
+          ".claude-plugin/plugin.json",
+          ".plugin.json",
+          "CHANGELOG.md",
+          "docs/roadmaps/harness-evolution.md",
+          "openspec/config.yaml",
+          "openspec/specs/hooks-runtime/spec.md",
+          "package.json",
+          "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+          "scripts/configure/validate-opencode.js",
+          "scripts/configure/validate-opencode.test.js",
+          "scripts/lib/target-profiles/opencode-plugin.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "9989bc04af09ab114bede925b4cab2c2915b79a4",
+        "original_changed_lines": 931,
+        "authored_lines": 821
+      },
+      "current_candidate_id": "sha256:9f835b310af7fb4fc7d16287141f3fc9bc4612026d76c94e5128954846219f89",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "c0a45ef8139ccb40885d838ab36c86795679b820",
+        "candidate_tree": "9989bc04af09ab114bede925b4cab2c2915b79a4",
+        "paths": [
+          ".claude-plugin/plugin.json",
+          ".plugin.json",
+          "CHANGELOG.md",
+          "docs/roadmaps/harness-evolution.md",
+          "openspec/config.yaml",
+          "openspec/specs/hooks-runtime/spec.md",
+          "package.json",
+          "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+          "scripts/configure/validate-opencode.js",
+          "scripts/configure/validate-opencode.test.js",
+          "scripts/lib/target-profiles/opencode-plugin.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js"
+        ],
+        "diff_hash": "sha256:4e11e18ee4beeaa2e919aacd2903c292deb0ec6ffb68ac63f0478716100f612f",
+        "paths_digest": "sha256:bae37a21a5c905847a38e641dc10cb99e90d7bab81d501ffdf69ae2e9d11f82a",
+        "authored_lines": 821,
+        "original_changed_lines": 931
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "opencode-plugin-v2-hardening:lens-start:1:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "opencode-plugin-v2-hardening:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-10-17T14:52:12.830Z"
+}

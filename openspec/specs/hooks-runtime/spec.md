@@ -223,22 +223,61 @@ approval decision `opencode-coupling-O1-002` (Option A: spawnSync).
 The generated plugin MUST:
 
 1. For `session.created` events: call `spawnSync` with the binary and subcommand
-   `session-start`, pass `{"cwd": directory}` as UTF-8 JSON to stdin, parse stdout
-   as JSON. Any failure MUST be swallowed; session-start is best-effort.
+   `session-start`, pass `{"cwd": directory, "plugin_root": <bundle root>}` as UTF-8
+   JSON to stdin, parse stdout as JSON. Any failure MUST be swallowed; session-start
+   is best-effort.
 2. For `tool.execute.before` events: call `spawnSync` with subcommand `pre-tool-use`,
    pass `{"tool_name": input.tool, "tool_input": output.args || {}}` as UTF-8 JSON
    to stdin, parse stdout JSON.
 3. Apply the decision from `hookSpecificOutput.permissionDecision`:
    - Empty stdout (no decision, hooks spec §3.1) or `"allow"` → return (pass through).
-   - `"deny"` or `"ask"` → throw `Error(permissionDecisionReason)`. (opencode has no
-     native "ask" surface; both deny and ask collapse to a hard block.)
-4. If spawnSync fails (binary absent, non-zero exit, unparseable stdout): treat as
-   `"allow"` (fail-open, MUST NOT block the tool call).
+   - `"deny"` → throw `Error(permissionDecisionReason)`.
+   - `"ask"` → when the runtime exposes `ctx.permission.assert` (OpenCode >= 2.0.29),
+     become opencode's native permission prompt and MUST NOT throw: register a
+     `permission.evaluate` hook (when `ctx.permission.hook` is available) that
+     escalates the plugin's own action (`ospec`) back to `ask` — the host's base
+     policy resolves every action to allow, so the escalation is what makes the prompt
+     appear — carrying the guard's reason as the prompt message, and call
+     `ctx.permission.assert` with the guarded tool plus the concrete input detail
+     (`command`, `filePath`, `file_path`, `path`, `target_file`) as resources, and
+     `source: { type: "tool", messageID, id }` only when both `messageID` and `id` are
+     non-empty strings. An approval lets the call proceed; a rejection fails it with
+     the guard's reason. An "always" choice MUST NOT silence the guard: every call is
+     asked again (v1 parity). On v1, or on a v2 runtime without the permission API,
+     `"ask"` MUST throw `Error(permissionDecisionReason)` like deny (hard block,
+     fail-closed, ADR 0008).
+4. If spawnSync fails (binary absent, non-zero exit, unparseable stdout) during
+   `tool.execute.before`: throw (fail-closed, ADR 0008 — MUST block the tool call).
 
-**Binary path resolution**: The plugin MUST resolve the binary using the following priority order:
-1. `{plugin_dir}/../../release/dist/ospec-hooks` (`.exe` suffix on Windows) — the known dist path produced by the CI build step.
-2. `ospec-hooks` on `$PATH` — fallback for developer environments that have the binary installed globally.
-The binary is NOT committed to the repo; it is built and archived under `release/dist/` by CI.
+The plugin module MUST default-export `{ id: "ospec", server: <v1 entrypoint>,
+setup: <v2 entrypoint> }` so one artifact loads on OpenCode 1.x (>= 1.18.29, object
+entrypoint) and OpenCode 2.x (setup function).
+
+(Previously: `"ask"` collapsed to the same hard block as deny — "opencode has no
+native ask UI" — a pre-tool-use spawn failure left the tool call unblocked
+(fail-open), and the module exported the v1 `server` entrypoint only, which
+OpenCode v2 refuses to load.)
+
+**Binary and bundle-root path resolution**: The plugin MUST resolve the binary using the following priority order:
+1. `{plugin_dir}/../release/dist/ospec-hooks` (`.exe` suffix on Windows) — the global OpenCode layout (`~/.config/opencode/plugins` beside `release/`).
+2. `{plugin_dir}/../../release/dist/ospec-hooks` (`.exe` suffix on Windows) — the project-local `.opencode/plugins` layout produced by the CI build step.
+3. `ospec-hooks` on `$PATH` — fallback for developer environments that have the binary installed globally.
+The bundle root (`plugin_root`) passed to `session-start` MUST follow the same global-then-project priority (`{plugin_dir}/..` when it carries `skills/`, else `{plugin_dir}/../..`, falling back to `{plugin_dir}/..`). The binary is NOT committed to the repo; it is built and archived under `release/dist/` by CI.
+
+#### Scenario: opencode asks natively for an ask-level command
+
+- GIVEN the plugin is loaded on OpenCode >= 2.0.29 with `ctx.permission.assert` and the binary is reachable
+- WHEN `tool.execute.before` fires for `npm install` (matches ASK rule)
+- THEN the plugin MUST NOT throw
+- AND MUST escalate action `ospec` back to `ask` through the `permission.evaluate` hook
+- AND MUST call `ctx.permission.assert` with the guarded tool and the input detail, showing the guard's reason
+- AND the tool call MUST proceed on approval and fail with the guard's reason on rejection
+
+#### Scenario: opencode blocks an ask-level command without the permission API
+
+- GIVEN the plugin is loaded on OpenCode v1 or a v2 runtime without `ctx.permission.assert`
+- WHEN `tool.execute.before` fires for `npm install` (matches ASK rule)
+- THEN it MUST throw an `Error` (ASK collapses to a hard block; fail-closed)
 
 #### Scenario: opencode blocks a deny-level command
 
@@ -246,13 +285,7 @@ The binary is NOT committed to the repo; it is built and archived under `release
 - WHEN `tool.execute.before` fires for `rm -rf /` (matches DENY rule)
 - THEN the plugin MUST spawnSync `ospec-hooks pre-tool-use` with the tool payload
 - AND parse `permissionDecision: "deny"` from stdout
-- AND throw an `Error` containing `permissionDecisionReason`
-
-#### Scenario: opencode blocks an ask-level command
-
-- GIVEN `tool.execute.before` fires for `npm install` (matches ASK rule)
-- WHEN the plugin evaluates the binary stdout
-- THEN it MUST throw an `Error` (ASK collapses to block; opencode has no "ask" UI)
+- AND throw an `Error` containing `permissionDecisionReason`, with no permission prompt
 
 #### Scenario: session-start failure is non-fatal
 
@@ -261,12 +294,12 @@ The binary is NOT committed to the repo; it is built and archived under `release
 - THEN it MUST swallow the error
 - AND the session MUST start normally
 
-#### Scenario: pre-tool-use spawn failure allows the call (fail-open)
+#### Scenario: pre-tool-use spawn failure blocks the call (fail-closed)
 
 - GIVEN the binary cannot be found at `tool.execute.before` time
 - WHEN spawnSync fails with ENOENT or equivalent
-- THEN the plugin MUST NOT throw
-- AND MUST allow the tool call to proceed
+- THEN the plugin MUST throw
+- AND MUST NOT let the tool call proceed
 
 ---
 

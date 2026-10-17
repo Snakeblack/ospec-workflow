@@ -1,0 +1,376 @@
+{
+  "schema": "idd-state/v1",
+  "change": "opencode-plugin-v2-api",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El plugin generado para OpenCode (target opencode) solo exporta la forma v1 y no carga en OpenCode v2, que exige un default export con id y setup/effect; el bridge pierde session-start y pre-tool-use (roadmap E1.25).",
+    "acceptance": "En OpenCode v2 el plugin generado carga sin failed to load plugin y su id aparece activo; session-start y pre-tool-use se ejecutan con la semantica del bridge v1; el generador emite la forma acordada y el validador la exige."
+  },
+  "facts": {
+    "open": [
+      "Compatibilidad: forma dual export default { id, server, setup } que conserva OpenCode v1 >=1.18.29, o solo v2 export default { id, setup } sin v1?",
+      "Identidad: que id debe declarar el plugin? (propuesta: ospec-workflow)"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+      "scripts/configure/validate-opencode.js",
+      "scripts/configure/validate-opencode.test.js",
+      "scripts/lib/target-profiles/opencode-plugin.js",
+      "scripts/lib/target-profiles/opencode-plugin.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component generator: ADR 0001, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/configure/validate-opencode.test.js adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "El shim se emite solo desde la fuente canónica del target opencode (scripts/lib/target-profiles/opencode-plugin.js); el golden de cli.test.js se regenera a la par que la transformación, sin editar a mano ningún árbol generado."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "El shim sigue usando solo la biblioteca estándar de Node (child_process, fs, url, path) y el binario ospec-hooks del layout gestionado; no añade dependencias npm ni descargas."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "La generación y los tests del cambio corren sin red (node --test y validador local); nada del shim descarga en instalación."
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "El bridge de opencode recupera la paridad v2 con el resto de targets y el validador del target exige la forma emitida, de modo que la degradación no puede pasar por omisión."
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Verificado: el shim emitido solo llama por spawnSync al binario ospec-hooks local y usa builtins de Node; los tests del cambio (node --test) y la generacion/validacion de los 7 targets corren sin red. El cambio no añade llamadas de red al CLI, los hooks ni las skills del flujo IDD.",
+      "recorded_at": "2026-10-16T16:25:45.128Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Compatibilidad: forma dual v1>=1.18.29 + v2 (server + setup). Id: ospec (previsto renombrar de ospec-workflow a ospec mas adelante). Defecto del CLI global por schemas ausentes: cambio IDD aparte tras cerrar E1.25.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-16T16:22:37.917Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-16T16:24:28.245Z",
+      "detail": {
+        "tree": "sha256:4da27f203a4910d41045626417b7807efed205347e15506bb980961ed6e24d66",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-16T16:24:28.245Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:4da27f203a4910d41045626417b7807efed205347e15506bb980961ed6e24d66",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-16T16:25:33.889Z",
+      "detail": {
+        "run": "run-8",
+        "tree": "sha256:01b22a7d900bd8bd4fe61bebe9c01359fef5dee18421e3e27ad01d0079894e0c",
+        "plan": "Compatibilidad: el default export conserva server (OpenCode 1.x >= 1.18.29) y añade setup (v2), de modo que la misma instalacion carga en ambas lineas; el artefacto es sin estado, sin migracion de datos, y el rollback consiste en reinstalar la version previa con la forma v1. Suelo declarado: OpenCode 1.x < 1.18.29 pierde el bridge al no soportar entrypoints objeto."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-16T16:26:49.182Z",
+      "detail": {
+        "tree": "sha256:4f5b7f0f81a2fa7518fe246c6e7bc4077f39d5ab6af3356bc8b3a3bf3af86352",
+        "runs": [
+          "run-9"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-16T16:26:49.182Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:4f5b7f0f81a2fa7518fe246c6e7bc4077f39d5ab6af3356bc8b3a3bf3af86352",
+        "fitness": [
+          "run-10",
+          "run-11",
+          "run-12",
+          "run-13"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-16T16:26:49.252Z"
+    }
+  ],
+  "base": "d327d164f545e01d70693b8369cf28871e9eeb41",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/target-profiles/opencode-plugin.test.js scripts/configure/validate-opencode.test.js scripts/configure/cli.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:59943553fc3f6a34bc1c83e9d7d98aa485126c253b5f0100d6938e0641192344",
+      "tree": "sha256:6570404fbef8e4b1ad2e5a6606ee958ec4f5702ebb5a6cd701a05f150f4079d7",
+      "recorded_at": "2026-10-16T16:21:52.445Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/target-profiles/opencode-plugin.test.js scripts/configure/validate-opencode.test.js scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:337dc76dda155bc1eb6c0813927d7ad74d1b4016b3aac2923b0ae623e7c973f3",
+      "tree": "sha256:ac89f787687aa881844e423fc93ccff50e4ef76ddbde307c090ff9f54003fa71",
+      "recorded_at": "2026-10-16T16:22:37.917Z",
+      "tests": 64
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0ad569894f23f29151deaeb62bcc2d79d801bd719cad7d87dfaa79459aec1966",
+      "tree": "sha256:4da27f203a4910d41045626417b7807efed205347e15506bb980961ed6e24d66",
+      "recorded_at": "2026-10-16T16:24:28.245Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7acfb296370382ac002e18f3dfd689762d719a0a784982ae36abb34d213bafc8",
+      "tree": "sha256:4da27f203a4910d41045626417b7807efed205347e15506bb980961ed6e24d66",
+      "recorded_at": "2026-10-16T16:24:28.245Z",
+      "tests": 46
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:4da27f203a4910d41045626417b7807efed205347e15506bb980961ed6e24d66",
+      "recorded_at": "2026-10-16T16:24:28.245Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:743b02a108e5578385c9fe4cc51cd4cd8d90ae77d93508e0173d6ecc0cdaf02d",
+      "tree": "sha256:4da27f203a4910d41045626417b7807efed205347e15506bb980961ed6e24d66",
+      "recorded_at": "2026-10-16T16:24:28.245Z",
+      "tests": 12
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ff610aa1b81f6d5204ff916ccc72bfab522a72742796f59fdb8cd5df361356f7",
+      "tree": "sha256:4da27f203a4910d41045626417b7807efed205347e15506bb980961ed6e24d66",
+      "recorded_at": "2026-10-16T16:24:28.245Z",
+      "tests": 46
+    },
+    {
+      "id": "run-8",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/target-profiles/opencode-plugin.test.js scripts/configure/validate-opencode.test.js scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:52d184131f8661f7adf23c5dfe8232fd1d72994dfc8fd70ab3ef0b96cba68235",
+      "tree": "sha256:01b22a7d900bd8bd4fe61bebe9c01359fef5dee18421e3e27ad01d0079894e0c",
+      "recorded_at": "2026-10-16T16:25:33.889Z",
+      "tests": 65
+    },
+    {
+      "id": "run-9",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:04ba1040938b01ef5b089609039770f189c71706d0da7604a67ae266a9088d2b",
+      "tree": "sha256:4f5b7f0f81a2fa7518fe246c6e7bc4077f39d5ab6af3356bc8b3a3bf3af86352",
+      "recorded_at": "2026-10-16T16:26:49.182Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:940476833e9326d7af0f91c4b64224b6c4f49cff2df5c607db8be2c793a8d0f6",
+      "tree": "sha256:4f5b7f0f81a2fa7518fe246c6e7bc4077f39d5ab6af3356bc8b3a3bf3af86352",
+      "recorded_at": "2026-10-16T16:26:49.182Z",
+      "tests": 46
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:4f5b7f0f81a2fa7518fe246c6e7bc4077f39d5ab6af3356bc8b3a3bf3af86352",
+      "recorded_at": "2026-10-16T16:26:49.182Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d7fe0dd3b38186d915a66ef80290f418bce85954bd485df717c4297447acdf21",
+      "tree": "sha256:4f5b7f0f81a2fa7518fe246c6e7bc4077f39d5ab6af3356bc8b3a3bf3af86352",
+      "recorded_at": "2026-10-16T16:26:49.182Z",
+      "tests": 12
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:eb240b036f5791a22db3451ee35345e44a7f8091a0ef8e261c7a550126b6c328",
+      "tree": "sha256:4f5b7f0f81a2fa7518fe246c6e7bc4077f39d5ab6af3356bc8b3a3bf3af86352",
+      "recorded_at": "2026-10-16T16:26:49.182Z",
+      "tests": 46
+    }
+  ],
+  "closed_at": "2026-10-16T16:26:49.252Z"
+}
