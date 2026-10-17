@@ -293,6 +293,43 @@ function validatePlugin(root, errors) {
   if (!text.includes("session-start")) {
     addError(errors, `${rel} must bridge the session-start subcommand`);
   }
+  // session-start resolves skills/ from plugin_root; without it the binary
+  // falls back to the plugin host's process cwd (the opencode server's) and
+  // fails with "no SKILL.md files found in required skills root".
+  if (!text.includes("plugin_root")) {
+    addError(errors, `${rel} must pass plugin_root so session-start resolves the bundle skills/`);
+  }
+  // Both hooks must spawn the binary with cwd at the session workspace so
+  // relative paths and the git collaboration guard see the right repository.
+  if (!text.includes("cwd: directory")) {
+    addError(errors, `${rel} must spawn the hooks with cwd at the session workspace`);
+  }
+  // OpenCode >= 2.0.29 exposes ctx.permission.assert: the guard's ask verdict
+  // must become the host's permission prompt, not a hard block.
+  if (!text.includes("permission.assert")) {
+    addError(errors, `${rel} must bridge the guard's ask verdict to ctx.permission.assert`);
+  }
+  // The host's base policy allows every action, so the plugin escalates its own
+  // action back to ask through the permission evaluate hook.
+  if (!text.includes('permission.hook("evaluate"')) {
+    addError(errors, `${rel} must escalate the ospec action to ask in the permission evaluate hook`);
+  }
+  // OpenCode v2 loads a plugin only from a default definition with an id and a
+  // setup/effect function; without it the load fails with a
+  // PluginModule.LoadError/SchemaError(Missing key at ["default"]) at startup.
+  if (!/export\s+default\s*\{/.test(text)) {
+    addError(errors, `${rel} must default-export a v2 plugin definition (id plus setup or effect)`);
+  } else {
+    if (!/\bid\s*:/.test(text)) {
+      addError(errors, `${rel} must declare an id in the default plugin definition`);
+    }
+    if (!/\bserver\s*:/.test(text)) {
+      addError(errors, `${rel} must keep the v1 server: entrypoint in the default plugin definition`);
+    }
+    if (!/\b(?:setup|effect)\s*:/.test(text)) {
+      addError(errors, `${rel} must declare setup: or effect: in the default plugin definition`);
+    }
+  }
 }
 
 // Each phase agent's "Skills to load before work" section names skills/<...>.md

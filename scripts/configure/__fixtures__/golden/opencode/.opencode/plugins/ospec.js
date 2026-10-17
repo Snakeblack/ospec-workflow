@@ -25,52 +25,182 @@ export function resolveBinary({ here: pluginDir = here, extension = EXE, exists 
   return "ospec-hooks" + extension;
 }
 
+export function resolvePluginRoot({ here: pluginDir = here, exists = existsSync } = {}) {
+  // The bundle root whose skills/ feed the session-start skill registry,
+  // mirroring resolveBinary's global-then-project priority:
+  //   - global install: {plugin_dir}/.. keeps skills/ beside plugins/ and release/
+  //   - project install: {plugin_dir}/../.. keeps skills/ at the project root
+  const globalRoot = resolve(join(pluginDir, ".."));
+  if (exists(join(globalRoot, "skills"))) {
+    return globalRoot;
+  }
+  const localRoot = resolve(join(pluginDir, "..", ".."));
+  if (exists(join(localRoot, "skills"))) {
+    return localRoot;
+  }
+  // No bundle skills/ found: keep the global root so the binary reports an
+  // absolute, actionable skills path instead of resolving against its cwd.
+  return globalRoot;
+}
+
+function runHook(subcommand, payload, { cwd } = {}) {
+  const options = {
+    input: JSON.stringify(payload),
+    encoding: "utf8",
+    shell: false,
+  };
+  // Pin the child to the session workspace: the binary resolves relative bundle
+  // paths and the git collaboration guard against its process cwd, which for a
+  // global plugin host is the opencode server's, not the workspace.
+  if (cwd) {
+    options.cwd = cwd;
+  }
+  return spawnSync(resolveBinary(), [subcommand], options);
+}
+
+function hookVerdict(toolName, toolInput, directory) {
+  const result = runHook(
+    "pre-tool-use",
+    { tool_name: toolName, tool_input: toolInput || {} },
+    { cwd: directory },
+  );
+  if (result.error) {
+    throw new Error("[ospec-workflow] pre-tool-use hook failed: " + result.error.message);
+  }
+  if (result.status !== 0) {
+    throw new Error("[ospec-workflow] pre-tool-use hook failed with status " + result.status);
+  }
+  let verdict = null;
+  try {
+    const parsed = JSON.parse(result.stdout || "{}");
+    verdict = parsed && parsed.hookSpecificOutput;
+  } catch (err) {
+    throw new Error("[ospec-workflow] pre-tool-use invalid output: " + err.message);
+  }
+  return verdict;
+}
+
+// v1, and any runtime without the native permission API, can only allow
+// (return) or block (throw): deny, ask and unknown verdicts collapse to a
+// hard block (fail closed).
+function blockOrAllow(verdict) {
+  if (!verdict || verdict.permissionDecision === "allow") {
+    return;
+  }
+  throw new Error(verdict.permissionDecisionReason || "Blocked by ospec-workflow safety policy");
+}
+
+// OpenCode >= 2.0.29 exposes ctx.permission.assert: an ask verdict becomes the
+// host's own permission prompt instead of a hard block.
+function nativeAsk(ctx) {
+  return Boolean(ctx && ctx.permission && typeof ctx.permission.assert === "function");
+}
+
+// The permission request carries the guarded tool plus the concrete detail the
+// input exposes (command, path) so the prompt shows what is being confirmed;
+// metadata.reason surfaces the guard's advisory through the evaluate hook.
+function permissionRequest(event, verdict) {
+  const input = (event && event.input) || {};
+  const detail = [input.command, input.filePath, input.file_path, input.path, input.target_file].find(
+    (value) => typeof value === "string" && value,
+  );
+  const request = {
+    sessionID: event && event.sessionID,
+    action: "ospec",
+    resources: [event && event.tool, detail].filter((value) => typeof value === "string" && value),
+    metadata: { reason: (verdict && verdict.permissionDecisionReason) || "" },
+  };
+  if (
+    event &&
+    typeof event.messageID === "string" &&
+    event.messageID &&
+    typeof event.id === "string" &&
+    event.id
+  ) {
+    request.source = { type: "tool", messageID: event.messageID, id: event.id };
+  }
+  if (event && event.agent) {
+    request.agent = event.agent;
+  }
+  return request;
+}
+
+function sessionStart(directory) {
+  try {
+    // plugin_root tells the binary where the bundle's skills/ live; without it
+    // the binary resolves skills/ against the opencode server's cwd.
+    runHook(
+      "session-start",
+      { cwd: directory, plugin_root: resolvePluginRoot() },
+      { cwd: directory },
+    );
+  } catch {
+    // session-start is best-effort; never block a session on cache build.
+  }
+}
+
+// v1 entrypoint: OpenCode 1.x (>= 1.18.29) calls server() with the plugin
+// context and consumes the returned hooks object.
 export const OspecWorkflowPlugin = async ({ directory }) => {
   return {
     event: async ({ event }) => {
       if (event && event.type === "session.created") {
-        try {
-          const bin = resolveBinary();
-          spawnSync(bin, ["session-start"], {
-            input: JSON.stringify({ cwd: directory }),
-            encoding: "utf8",
-            shell: false,
-          });
-        } catch {
-          // session-start is best-effort; never block a session on cache build.
-        }
+        sessionStart(directory);
       }
     },
     "tool.execute.before": async (input, output) => {
-      const bin = resolveBinary();
-      const result = spawnSync(bin, ["pre-tool-use"], {
-        input: JSON.stringify({
-          tool_name: input && input.tool,
-          tool_input: (output && output.args) || {},
-        }),
-        encoding: "utf8",
-        shell: false,
-      });
-      if (result.error) {
-        throw new Error("[ospec-workflow] pre-tool-use hook failed: " + result.error.message);
-      }
-      if (result.status !== 0) {
-        throw new Error("[ospec-workflow] pre-tool-use hook failed with status " + result.status);
-      }
-      let verdict = null;
-      try {
-        const parsed = JSON.parse(result.stdout || "{}");
-        verdict = parsed && parsed.hookSpecificOutput;
-      } catch (err) {
-        throw new Error("[ospec-workflow] pre-tool-use invalid output: " + err.message);
-      }
-      if (!verdict) {
-        return;
-      }
-      // opencode plugins can only allow (return) or block (throw) — no native ask.
-      if (verdict.permissionDecision === "deny" || verdict.permissionDecision === "ask") {
-        throw new Error(verdict.permissionDecisionReason || "Blocked by ospec-workflow safety policy");
-      }
+      blockOrAllow(hookVerdict(input && input.tool, output && output.args, directory));
     },
   };
+};
+
+// v2 entrypoint: OpenCode 2.x calls setup(ctx); hooks and subscriptions are
+// registered through the context and disposed when the plugin unloads.
+async function setupOspecWorkflow(ctx) {
+  const directory = ctx.location.directory;
+  // The host's base policy allows every action, so asserting the ospec action
+  // would resolve allow without a prompt; the evaluate hook escalates our own
+  // action back to ask and publishes the guard's advisory as the prompt
+  // message. "always" cannot silence the guard: it confirms every time.
+  if (ctx.permission && typeof ctx.permission.hook === "function") {
+    await ctx.permission.hook("evaluate", (evaluation) => {
+      if (!evaluation || evaluation.action !== "ospec") {
+        return;
+      }
+      evaluation.effect = "ask";
+      const reason = evaluation.metadata && evaluation.metadata.reason;
+      if (reason) {
+        evaluation.message = reason;
+      }
+    });
+  }
+  await ctx.tool.hook("execute.before", async (event) => {
+    const verdict = hookVerdict(event && event.tool, event && event.input, directory);
+    // deny stays a hard block; ask becomes the host's native prompt when the
+    // runtime exposes ctx.permission.assert (OpenCode >= 2.0.29).
+    if (verdict && verdict.permissionDecision === "ask" && nativeAsk(ctx)) {
+      await ctx.permission.assert(permissionRequest(event, verdict));
+      return;
+    }
+    blockOrAllow(verdict);
+  });
+  const controller = new AbortController();
+  void (async () => {
+    try {
+      for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
+        if (event && event.type === "session.created") {
+          sessionStart(directory);
+        }
+      }
+    } catch {
+      // The subscription ends when the plugin unloads (abort) or the stream fails.
+    }
+  })();
+  return () => controller.abort();
+}
+
+export default {
+  id: "ospec",
+  server: OspecWorkflowPlugin,
+  setup: setupOspecWorkflow,
 };

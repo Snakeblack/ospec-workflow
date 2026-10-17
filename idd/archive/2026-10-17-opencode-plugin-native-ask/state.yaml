@@ -1,0 +1,550 @@
+{
+  "schema": "idd-state/v1",
+  "change": "opencode-plugin-native-ask",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "no, no debemos hacer parches y obviamente hay que solucionar el problema de raiz; lo haremos en la siguiente sesion (E1.26: ask nativo via permission.assert)",
+    "kind": "bug",
+    "summary": "El bridge del shim opencode colapsa el veredicto ask del guard a bloqueo duro: el agente no puede ejecutar operaciones que el guard solo quiere confirmar (p. ej. un commit con arbol sucio o en la rama por defecto). En OpenCode v2 (>= 2.0.29) el bridge debe pedir permiso nativo con ctx.permission.assert (hook permission.evaluate que escala la accion propia a ask y publica el aviso del guard como message) manteniendo deny como throw; en v1 y en runtimes sin assert se conserva el bloqueo duro.",
+    "acceptance": "En OpenCode v2 con el plugin reemitido, un commit del agente con arbol sucio muestra el prompt nativo de permiso con el aviso del guard; al aprobar (once) el commit se ejecuta y al rechazar la llamada falla con el motivo. Un veredicto deny (p. ej. un push forzado) sigue bloqueando sin prompt, y en v1 o runtimes sin permission.assert un ask sigue bloqueando en duro. El validador exige el contrato emitido, con tests que fallan sin el arreglo, y el golden se regenera."
+  },
+  "facts": {
+    "open": [
+      "En una runtime OpenCode v2 anterior a 2.0.29 (sin ctx.permission.assert), que debe hacer el bridge ante un ask del guard: mantener el bloqueo duro de hoy (fail-closed, ADR 0008) o degradar a permitir con aviso?",
+      "El hook evaluate re-escalara la accion ospec a ask en cada operacion (la politica base del host resuelve allow), asi que la opcion 'permitir siempre' del prompt no silenciara el guard: se pregunta cada vez (paridad v1). Se acepta esa semantica o el plugin debe recordar las aprobaciones 'always' de la sesion?",
+      "Que resources deben viajar al assert y al prompt: solo la herramienta (p. ej. bash) o herramienta mas detalle del input (p. ej. el comando)?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+      "scripts/configure/validate-opencode.js",
+      "scripts/configure/validate-opencode.test.js",
+      "scripts/lib/target-profiles/opencode-plugin.js",
+      "scripts/lib/target-profiles/opencode-plugin.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "declared ADR 0008",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches .claude-plugin/plugin.json and 1 more (matches .claude-plugin/**)",
+      "source": "diff"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/configure/validate-opencode.test.js adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "El generador sigue produciendo multi-target desde una única fuente; E1.26 solo cambia el contenido del hook del plugin opencode, no su pipeline de generación."
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "El ask nativo reemplaza al throw solo cuando la API permission.assert existe (>=2.0.29); entornos sin ella conservan el bloqueo duro fail-closed."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "El plugin sigue autocontenido: usa únicamente la API del host (permission.assert) sin dependencias nuevas ni ficheros externos."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "El cambio no añade llamadas de red: solo llama a APIs locales del runtime de opencode."
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "La paridad se mantiene: v1 conserva throw, v2 usa ask nativo; ambos ejecutan la misma política del guard."
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Verificado por inspección del diff E1.26: los cambios (generador opencode-plugin.js, validador validate-opencode.js, tests y golden) solo añaden llamadas a la API local del host (permission.assert / permission.hook). No hay fetch, http ni red. Los comandos next/check/close se ejecutaron en esta sesión sin red y dieron resultado determinista.",
+      "recorded_at": "2026-10-17T00:14:44.073Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-10"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-9"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "1) Runtimes sin permission.assert: mantener bloqueo duro (fail-closed, ADR 0008). 2) Semantica de 'permitir siempre': preguntar cada vez (paridad v1); el guard no recuerda 'always'. 3) Resources: herramienta + detalle del input cuando exista.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-17T00:14:36.864Z",
+      "detail": {
+        "red": "run-2",
+        "green": "run-3"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-17T00:15:46.440Z",
+      "detail": {
+        "tree": "sha256:acf3e67bfd6b162c3db3766fe7c9a88d8da3011fbb4efd8125fdfb1d893ba9fb",
+        "runs": [
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-17T00:15:46.440Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:acf3e67bfd6b162c3db3766fe7c9a88d8da3011fbb4efd8125fdfb1d893ba9fb",
+        "fitness": [
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-17T00:16:50.020Z",
+      "detail": {
+        "tree": "sha256:acf3e67bfd6b162c3db3766fe7c9a88d8da3011fbb4efd8125fdfb1d893ba9fb",
+        "runs": [
+          "run-10"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-17T00:16:50.020Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:acf3e67bfd6b162c3db3766fe7c9a88d8da3011fbb4efd8125fdfb1d893ba9fb",
+        "fitness": [
+          "run-11",
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-17T00:18:59.627Z",
+      "detail": {
+        "run": "run-16",
+        "tree": "sha256:ad56b02c0fa4080c242e6d6fe576498c7f5180f406c7bbc93821667b08ed761f",
+        "plan": "Compatibilidad: v1 (>=1.18.29) y v2 anteriores a 2.0.29 conservan el bloqueo duro ante ask (fail-closed, ADR 0008); v2 >=2.0.29 usa el prompt nativo permission.assert con paridad de semantica v1 (se pregunta cada vez). El artefacto no tiene estado persistente ni migracion de datos. Rollback: revertir el commit del generador y reemitir el plugin con npm run setup:opencode."
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-17T00:20:02.921Z",
+      "detail": {
+        "tree": "sha256:8e96f285808be42064b8a7a1f5d63bb2417c204a282f0e82877ba1e922ef8567",
+        "runs": [
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-17T00:20:02.921Z",
+      "detail": {
+        "tree": "sha256:8e96f285808be42064b8a7a1f5d63bb2417c204a282f0e82877ba1e922ef8567",
+        "check": "ev-7",
+        "documents": [
+          "openspec/specs/hooks-runtime/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/validate-opencode.test.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-17T00:20:02.921Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:8e96f285808be42064b8a7a1f5d63bb2417c204a282f0e82877ba1e922ef8567",
+        "fitness": [
+          "run-18",
+          "run-19",
+          "run-20",
+          "run-21",
+          "run-22"
+        ]
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-17T00:20:19.318Z"
+    }
+  ],
+  "base": "d327d164f545e01d70693b8369cf28871e9eeb41",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/target-profiles/opencode-plugin.test.js scripts/configure/validate-opencode.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:896969d59057915097cc72524603e30cb9b1f3b7ebb559f508a56d3b920efcf5",
+      "tree": "sha256:689c0dd9dd2b0bcb5fae95bf5f6086f71ef6d9e917865b7607ed8cefbbc03863",
+      "recorded_at": "2026-10-17T00:13:13.283Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/target-profiles/opencode-plugin.test.js scripts/configure/validate-opencode.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:ff9d2e18373d962c5e745fc9f0596b74e03d9cd82fc04791bacb372235151e5f",
+      "tree": "sha256:689c0dd9dd2b0bcb5fae95bf5f6086f71ef6d9e917865b7607ed8cefbbc03863",
+      "recorded_at": "2026-10-17T00:13:21.400Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/target-profiles/opencode-plugin.test.js scripts/configure/validate-opencode.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:de6260076be2b4f2d7b5620748d0880a61342abd9ba8caeac796213e49ea03f1",
+      "tree": "sha256:f5f576cc13a06731e9182ed0da6c7522c9898c18f18a0d34d94b0f3e50e0e2a8",
+      "recorded_at": "2026-10-17T00:14:36.864Z",
+      "tests": 30
+    },
+    {
+      "id": "run-4",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ac1fc9fe17b3e4c0f2dc5e9d6f16251d3a962428603fdbd929dc40d85421c2ee",
+      "tree": "sha256:acf3e67bfd6b162c3db3766fe7c9a88d8da3011fbb4efd8125fdfb1d893ba9fb",
+      "recorded_at": "2026-10-17T00:15:46.440Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c1c12b84938e67e8b46dd90144a3abb7ad686165cec8b16a8fb6f10a58cce542",
+      "tree": "sha256:acf3e67bfd6b162c3db3766fe7c9a88d8da3011fbb4efd8125fdfb1d893ba9fb",
+      "recorded_at": "2026-10-17T00:15:46.440Z",
+      "tests": 46
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b4f1424e1fd44c070daf5718b204e2329c1a0bc62b4a7b604b1e7c9fa66ec805",
+      "tree": "sha256:acf3e67bfd6b162c3db3766fe7c9a88d8da3011fbb4efd8125fdfb1d893ba9fb",
+      "recorded_at": "2026-10-17T00:15:46.440Z",
+      "tests": 71
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:acf3e67bfd6b162c3db3766fe7c9a88d8da3011fbb4efd8125fdfb1d893ba9fb",
+      "recorded_at": "2026-10-17T00:15:46.440Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:45f3b224facfd77dc902baeac6076697c941af03dcce57ca5f4fdbae60bbacec",
+      "tree": "sha256:acf3e67bfd6b162c3db3766fe7c9a88d8da3011fbb4efd8125fdfb1d893ba9fb",
+      "recorded_at": "2026-10-17T00:15:46.440Z",
+      "tests": 12
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ea45b0a4e74b85ec47635e6736cd7a85ac8f2d95b208db06565888167cb843a0",
+      "tree": "sha256:acf3e67bfd6b162c3db3766fe7c9a88d8da3011fbb4efd8125fdfb1d893ba9fb",
+      "recorded_at": "2026-10-17T00:15:46.440Z",
+      "tests": 46
+    },
+    {
+      "id": "run-10",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:197996985745d9be44d55491ff5b3a799c40196586e5a9681db066e52d6b9a48",
+      "tree": "sha256:acf3e67bfd6b162c3db3766fe7c9a88d8da3011fbb4efd8125fdfb1d893ba9fb",
+      "recorded_at": "2026-10-17T00:16:50.020Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:595f6a2a77b966f902caf2b467191835d9f27d8e27d3ad22b2a8e31070745eee",
+      "tree": "sha256:acf3e67bfd6b162c3db3766fe7c9a88d8da3011fbb4efd8125fdfb1d893ba9fb",
+      "recorded_at": "2026-10-17T00:16:50.020Z",
+      "tests": 46
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b2a0b6063c237d14162cb9629bcbfc38b7af7c88249d973a408a66e0c9281db0",
+      "tree": "sha256:acf3e67bfd6b162c3db3766fe7c9a88d8da3011fbb4efd8125fdfb1d893ba9fb",
+      "recorded_at": "2026-10-17T00:16:50.020Z",
+      "tests": 71
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:acf3e67bfd6b162c3db3766fe7c9a88d8da3011fbb4efd8125fdfb1d893ba9fb",
+      "recorded_at": "2026-10-17T00:16:50.020Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2c8d29c99bbecd9197192d337977e15bdca7b54998820e527bca0eb261fb0acb",
+      "tree": "sha256:acf3e67bfd6b162c3db3766fe7c9a88d8da3011fbb4efd8125fdfb1d893ba9fb",
+      "recorded_at": "2026-10-17T00:16:50.020Z",
+      "tests": 12
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:608ffe309f6ac1844e0761d5f5ace6d3421710badbd37b93832b3466eef3c626",
+      "tree": "sha256:acf3e67bfd6b162c3db3766fe7c9a88d8da3011fbb4efd8125fdfb1d893ba9fb",
+      "recorded_at": "2026-10-17T00:16:50.020Z",
+      "tests": 46
+    },
+    {
+      "id": "run-16",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/target-profiles/opencode-plugin.test.js scripts/configure/validate-opencode.test.js scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b660f57f464bd1924b9f0066a56f332f9ec1b49bd1eba8cbb50629e01f9e0fe9",
+      "tree": "sha256:ad56b02c0fa4080c242e6d6fe576498c7f5180f406c7bbc93821667b08ed761f",
+      "recorded_at": "2026-10-17T00:18:59.627Z",
+      "tests": 76
+    },
+    {
+      "id": "run-17",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b39c984e2987f795a2b44d70d1f8b762d3b024f78b8a844b9e46887809c68bf8",
+      "tree": "sha256:8e96f285808be42064b8a7a1f5d63bb2417c204a282f0e82877ba1e922ef8567",
+      "recorded_at": "2026-10-17T00:20:02.921Z"
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b8b06caa5e886fd71fdf4d131d51a24f0a67a10d8aab02635b35c52e23ebb385",
+      "tree": "sha256:8e96f285808be42064b8a7a1f5d63bb2417c204a282f0e82877ba1e922ef8567",
+      "recorded_at": "2026-10-17T00:20:02.921Z",
+      "tests": 46
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cabafe97d232d195e26521090623c04b490151dbdc037651d61bdab67fafc49c",
+      "tree": "sha256:8e96f285808be42064b8a7a1f5d63bb2417c204a282f0e82877ba1e922ef8567",
+      "recorded_at": "2026-10-17T00:20:02.921Z",
+      "tests": 71
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:8e96f285808be42064b8a7a1f5d63bb2417c204a282f0e82877ba1e922ef8567",
+      "recorded_at": "2026-10-17T00:20:02.921Z"
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c90653e23fd6540c1e87ab6c756aade11d059f34a2beddb8e730804e5d6ad5be",
+      "tree": "sha256:8e96f285808be42064b8a7a1f5d63bb2417c204a282f0e82877ba1e922ef8567",
+      "recorded_at": "2026-10-17T00:20:02.921Z",
+      "tests": 12
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ce00326a3a11c2f335c9dc8b941be9c373837b47fa675fced4b6164f32845ed8",
+      "tree": "sha256:8e96f285808be42064b8a7a1f5d63bb2417c204a282f0e82877ba1e922ef8567",
+      "recorded_at": "2026-10-17T00:20:02.921Z",
+      "tests": 46
+    }
+  ],
+  "closed_at": "2026-10-17T00:20:19.318Z"
+}

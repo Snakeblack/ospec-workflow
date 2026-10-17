@@ -1,0 +1,409 @@
+{
+  "schema": "idd-state/v1",
+  "change": "opencode-plugin-v2-live-bridge",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El shim opencode emitido no ejecuta el bridge en la instalación real: llama al binario sin plugin_root y sin el cwd de la sesión, así que session-start falla (no SKILL.md files found en la raíz de skills) y el guard de git queda fail-open; continuación del cambio E1.25 opencode-plugin-v2-api.",
+    "acceptance": "En la instalación global real de OpenCode v2, session-start regenera el registro de skills desde la raíz del bundle (plugin_root) con el cwd de la sesión, y pre-tool-use aplica deny/ask con el estado real del repositorio; el generador emite plugin_root y el cwd de sesión y el validador los exige, con tests que fallan sin el arreglo."
+  },
+  "facts": {
+    "basis": "Reutiliza las respuestas del gate open-facts de E1.25 (forma dual, id ospec) ya verificadas en vivo; el arreglo vive en el generador y su validador y no introduce preguntas de comportamiento nuevas."
+  },
+  "plan": {
+    "paths": [
+      "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+      "scripts/configure/validate-opencode.js",
+      "scripts/configure/validate-opencode.test.js",
+      "scripts/lib/target-profiles/opencode-plugin.js",
+      "scripts/lib/target-profiles/opencode-plugin.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/configure/validate-opencode.test.js adds writeFile",
+      "source": "diff"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "declared ADR 0001, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "El cambio modifica el generador del shim opencode que implementa la política deny/ask de pre-tool-use (frontera de seguridad del bridge): la verificación en vivo demostró que un shim roto deja el guard fail-open.",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "El arreglo se emite solo desde la fuente canónica del target opencode (scripts/lib/target-profiles/opencode-plugin.js): el golden se regenera y el artefacto se reinstala, sin editar árboles generados a mano; el contrato plugin_root/cwd lo hace cumplir el validador."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "El shim arreglado sigue usando solo la biblioteca estándar de Node (child_process, fs, url, path) y el binario del layout gestionado; no añade dependencias ni descargas al instalar."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "La generación, la validación y el puente en vivo corren sin red: el shim llama por spawnSync al binario local y los tests corren con node --test; nada consulta la red."
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "El arreglo restaura en OpenCode la paridad del bridge de los demás targets (session-start y pre-tool-use) y el validador exige el contrato emitido para que la degradación no pase por omisión."
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-16T18:05:13.106Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-16T18:05:44.158Z",
+      "detail": {
+        "run": "run-3",
+        "tree": "sha256:c2a2f0e40b0ce1e7b6d9244106207db82beca0805de498410aec1c8ee687f6f7",
+        "plan": "Compatibilidad: el shim emitido conserva la forma dual (server v1 + setup v2) y el validador exige el contrato plugin_root/cwd; cli.test.js y el golden cubren la generación de los 7 targets. Rollback: reinstalar con npm run setup:opencode revierte el shim al contenido previo; no hay migración de datos de usuario."
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-16T18:25:24.432Z",
+      "detail": {
+        "lineage_id": "sha256:c702526f8f953ad2cc623300e10a06081092e9122e20e596d562667da3116e67",
+        "candidate_id": "sha256:c8e1fd02476a54e9e6cc58b70161a53e17e35e10a1be57e94e7b1efa6d2e6786",
+        "candidate_tree": "e7dafdfbe1165e7d696de4e25a887c14c54f5a5f",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f"
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-16T18:26:24.317Z",
+      "detail": {
+        "tree": "sha256:5c130f0f04407fb2063d30c24231f5e19089729b12834617d1890e77ad044d0e",
+        "runs": [
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-16T18:26:24.317Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:5c130f0f04407fb2063d30c24231f5e19089729b12834617d1890e77ad044d0e",
+        "fitness": [
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-16T18:26:49.783Z"
+    }
+  ],
+  "base": "d327d164f545e01d70693b8369cf28871e9eeb41",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/target-profiles/opencode-plugin.test.js scripts/configure/validate-opencode.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:137a3197c2e8e78761399753090692e77c5d108bb3c802fa6fa6de6cd3fb98ec",
+      "tree": "sha256:47fac3fbe21bd6375ffdb2d97c57b942f21f2f23ca56cf798120a357d8c077b0",
+      "recorded_at": "2026-10-16T18:04:39.174Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/target-profiles/opencode-plugin.test.js scripts/configure/validate-opencode.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:59f754abd6c9c86878eb3d70d6498f2c02fc98e65e7cc83690b4aa88db43c2ae",
+      "tree": "sha256:c2a2f0e40b0ce1e7b6d9244106207db82beca0805de498410aec1c8ee687f6f7",
+      "recorded_at": "2026-10-16T18:05:13.106Z",
+      "tests": 24
+    },
+    {
+      "id": "run-3",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/target-profiles/opencode-plugin.test.js scripts/configure/validate-opencode.test.js scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:275c08539c48de7ed683a429b452bf52aea0c9eaca4e02073dfb1f1c3a41fed2",
+      "tree": "sha256:c2a2f0e40b0ce1e7b6d9244106207db82beca0805de498410aec1c8ee687f6f7",
+      "recorded_at": "2026-10-16T18:05:44.158Z",
+      "tests": 70
+    },
+    {
+      "id": "run-4",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e1011308483347e7a219cf7ed65a373c099df278dff102caea322446e9d9a06e",
+      "tree": "sha256:5c130f0f04407fb2063d30c24231f5e19089729b12834617d1890e77ad044d0e",
+      "recorded_at": "2026-10-16T18:26:24.317Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:dd219dccad3d94b9bb586b3806d66672e8987858164f4a1c8454c1807e7f1e07",
+      "tree": "sha256:5c130f0f04407fb2063d30c24231f5e19089729b12834617d1890e77ad044d0e",
+      "recorded_at": "2026-10-16T18:26:24.317Z",
+      "tests": 46
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:5c130f0f04407fb2063d30c24231f5e19089729b12834617d1890e77ad044d0e",
+      "recorded_at": "2026-10-16T18:26:24.317Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:26461759e1a72cd423256999c0212db98266928ece390315ce2e99618d153784",
+      "tree": "sha256:5c130f0f04407fb2063d30c24231f5e19089729b12834617d1890e77ad044d0e",
+      "recorded_at": "2026-10-16T18:26:24.317Z",
+      "tests": 12
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:24ca0c2fb1d91419925deec8051763d5856ff93dde9264dc03034920b59a18ef",
+      "tree": "sha256:5c130f0f04407fb2063d30c24231f5e19089729b12834617d1890e77ad044d0e",
+      "recorded_at": "2026-10-16T18:26:24.317Z",
+      "tests": 46
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:c702526f8f953ad2cc623300e10a06081092e9122e20e596d562667da3116e67",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "c0a45ef8139ccb40885d838ab36c86795679b820",
+          "candidate_tree": "e7dafdfbe1165e7d696de4e25a887c14c54f5a5f",
+          "paths": [
+            "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+            "scripts/configure/validate-opencode.js",
+            "scripts/configure/validate-opencode.test.js",
+            "scripts/lib/target-profiles/opencode-plugin.js",
+            "scripts/lib/target-profiles/opencode-plugin.test.js"
+          ],
+          "diff_hash": "sha256:957df6e1313f30282158f5ed5378baaa98ba01b248bde6d543c7068fcb5e4046",
+          "paths_digest": "sha256:3b264d9d1d46a283d227cfc728a3c1c14d515bcdb2caaa744f7e35649548b59b",
+          "authored_lines": 434,
+          "original_changed_lines": 520
+        },
+        "candidate_id": "sha256:c8e1fd02476a54e9e6cc58b70161a53e17e35e10a1be57e94e7b1efa6d2e6786",
+        "paths": [
+          "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+          "scripts/configure/validate-opencode.js",
+          "scripts/configure/validate-opencode.test.js",
+          "scripts/lib/target-profiles/opencode-plugin.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "e7dafdfbe1165e7d696de4e25a887c14c54f5a5f",
+        "original_changed_lines": 520,
+        "authored_lines": 434
+      },
+      "current_candidate_id": "sha256:c8e1fd02476a54e9e6cc58b70161a53e17e35e10a1be57e94e7b1efa6d2e6786",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "c0a45ef8139ccb40885d838ab36c86795679b820",
+        "candidate_tree": "e7dafdfbe1165e7d696de4e25a887c14c54f5a5f",
+        "paths": [
+          "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+          "scripts/configure/validate-opencode.js",
+          "scripts/configure/validate-opencode.test.js",
+          "scripts/lib/target-profiles/opencode-plugin.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js"
+        ],
+        "diff_hash": "sha256:957df6e1313f30282158f5ed5378baaa98ba01b248bde6d543c7068fcb5e4046",
+        "paths_digest": "sha256:3b264d9d1d46a283d227cfc728a3c1c14d515bcdb2caaa744f7e35649548b59b",
+        "authored_lines": 434,
+        "original_changed_lines": 520
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "opencode-plugin-v2-live-bridge:lens-start:1:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "opencode-plugin-v2-live-bridge:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-10-16T18:26:49.783Z"
+}

@@ -113,6 +113,96 @@ test("validate fails when the plugin is missing spawnSync invocation", (t) => {
   assert.ok(result.errors.some((error) => error.includes("must reference the ospec-hooks binary")));
 });
 
+test("validate fails when the plugin lacks the v2 default definition OpenCode needs", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false, withSdd: true });
+
+  // A v1-only plugin: every binary-bridge string is present, so only the v2
+  // default-definition check can catch the PluginModule.LoadError OpenCode
+  // reports at startup (SchemaError: Missing key at ["default"]).
+  fs.writeFileSync(
+    path.join(out, ".opencode/plugins/ospec.js"),
+    [
+      "// v1-only stub",
+      "export const OspecWorkflowPlugin = () => ({",
+      '  "tool.execute.before": () => spawnSync("ospec-hooks", ["pre-tool-use", "session-start"]),',
+      "});",
+      "",
+    ].join("\n"),
+  );
+
+  const result = validate(out);
+
+  assert.ok(result.errors.some((error) => error.includes("must default-export a v2 plugin definition")));
+});
+
+test("validate fails when the default plugin definition drops the v1 server or the setup entrypoint", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false, withSdd: true });
+
+  fs.writeFileSync(
+    path.join(out, ".opencode/plugins/ospec.js"),
+    [
+      'export default { id: "ospec" };',
+      '// spawnSync("ospec-hooks", ["pre-tool-use", "session-start"]);',
+      "",
+    ].join("\n"),
+  );
+
+  const result = validate(out);
+
+  assert.ok(result.errors.some((error) => error.includes("must keep the v1 server: entrypoint")));
+  assert.ok(result.errors.some((error) => error.includes("must declare setup: or effect:")));
+});
+
+test("validate fails when the plugin drops the bundle root or the workspace cwd", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false, withSdd: true });
+  assert.equal(validate(out).errors.length, 0);
+
+  // Every bridge string is present, but the plugin forgets plugin_root (so
+  // session-start resolves skills/ against the plugin host's cwd) and pins no
+  // workspace cwd (so the git collaboration guard sees the wrong repository).
+  fs.writeFileSync(
+    path.join(out, ".opencode/plugins/ospec.js"),
+    [
+      "// stub without the workspace contract",
+      'export default { id: "ospec", server: 1, setup: 1 };',
+      'spawnSync("ospec-hooks", ["pre-tool-use", "session-start"]);',
+      "",
+    ].join("\n"),
+  );
+
+  const result = validate(out);
+
+  assert.ok(result.errors.some((error) => error.includes("must pass plugin_root")));
+  assert.ok(result.errors.some((error) => error.includes("must spawn the hooks with cwd at the session workspace")));
+});
+
+test("validate fails when the plugin collapses an ask verdict to a hard block", (t) => {
+  const out = tmpOut(t);
+  runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false, withSdd: true });
+  assert.equal(validate(out).errors.length, 0);
+
+  // Every other bridge string is present, but the plugin has no native ask:
+  // an ask verdict would collapse to a hard block instead of prompting.
+  fs.writeFileSync(
+    path.join(out, ".opencode/plugins/ospec.js"),
+    [
+      "// stub without the native ask surface",
+      'export default { id: "ospec", server: 1, setup: 1 };',
+      'spawnSync("ospec-hooks", ["pre-tool-use", "session-start"]);',
+      "plugin_root; cwd: directory;",
+      "",
+    ].join("\n"),
+  );
+
+  const result = validate(out);
+
+  assert.ok(result.errors.some((error) => error.includes("must bridge the guard's ask verdict to ctx.permission.assert")));
+  assert.ok(result.errors.some((error) => error.includes("must escalate the ospec action to ask in the permission evaluate hook")));
+});
+
 test("validate requires the skills tree so agent skill references resolve", (t) => {
   const out = tmpOut(t);
   runConfigure({ sourceDir: SOURCE, target: "opencode", outDir: out, validate: false, withSdd: true });
