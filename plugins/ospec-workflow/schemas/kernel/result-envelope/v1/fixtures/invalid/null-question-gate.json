@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "status": "success",
+  "executive_summary": "Explicit null question_gate on non-blocked status must be rejected.",
+  "artifacts": "inline",
+  "next_recommended": "sdd-tasks",
+  "risks": "None",
+  "skill_resolution": "injected",
+  "question_gate": null
+}

@@ -1,0 +1,363 @@
+"use strict";
+
+// Pure reducers and the verdict behind `ospec check` and `ospec run`
+// (openspec/specs/idd/spec.md, REQ-idd-007, REQ-idd-014, REQ-idd-015).
+// Evidence comes only from runs the CLI observed: checks-pass holds while
+// every declared check passed on the current tree, repro-test or tdd-red-green
+// hold once a run failed and a later run of the same command passed on another
+// tree, the migration obligation holds while its test passed on the current
+// tree, and the contract obligation while the diff touches a contract document
+// and a test with every check passing. No filesystem access: idd-exec.js runs
+// the commands, idd-store.js persists.
+
+const { DECISIONS_ROOT, GATED_IMPACTS, GATES, OBLIGATIONS, RECORDED_IMPACTS, RUN_EVIDENCE, isIntentAmbiguous } = require("./idd-contract.js");
+const { GATE_QUESTIONS, WORK_ORDER } = require("./idd-next.js");
+const { configureChecksStep } = require("./idd-checks-config.js");
+const { fitnessReason } = require("./idd-fitness.js");
+const { IddRecordError } = require("./idd-record.js");
+const { trustReason } = require("./idd-review.js");
+
+const EVIDENCE_BY_OBLIGATION = new Map(OBLIGATIONS.map((obligation) => [obligation.id, obligation.evidence]));
+const PAIR_OBLIGATIONS = Object.freeze(["repro-test", "tdd-red-green"]);
+const PAIR_MOMENT = Object.freeze({ "repro-test": "the fix", "tdd-red-green": "the code" });
+const MIGRATION = "migration-compat-and-test";
+const CONTRACT = "contract-spec-and-test";
+const IMPACT = "adr-impact-declaration";
+// Obligations `ospec run` proves, and the run purpose it records for each.
+const RUN_OBLIGATIONS = Object.freeze({
+  "repro-test": "repro-test",
+  "tdd-red-green": "tdd-red-green",
+  [MIGRATION]: "migration-test",
+});
+
+function requireOpen(state) {
+  if (state.status === "closed") throw new IddRecordError("change-closed", `change ${state.change} is closed`);
+}
+
+function nextEvidenceId(state) {
+  return `ev-${state.evidence.length + 1}`;
+}
+
+/** Appends CLI-observed runs, numbered after the ones already recorded. */
+function recordRuns(state, runs) {
+  requireOpen(state);
+  const next = structuredClone(state);
+  next.runs = next.runs || [];
+  const ids = [];
+  for (const run of runs) {
+    const id = `run-${next.runs.length + 1}`;
+    next.runs.push({ id, ...run });
+    ids.push(id);
+  }
+  return { state: next, ids };
+}
+
+/**
+ * checks-pass is satisfied by this check exactly when every run in `runIds`
+ * passed on `tree`, the tree current when the checks finished; otherwise it
+ * returns to pending, because older evidence proved an older tree.
+ */
+function settleChecks(state, { tree, runIds, recordedAt }) {
+  requireOpen(state);
+  const next = structuredClone(state);
+  const target = next.obligations.find((entry) => entry.id === "checks-pass");
+  if (!target || target.status === "withdrawn") return { state: next, evidence: null };
+  const runs = (next.runs || []).filter((run) => runIds.includes(run.id));
+  const passed =
+    runIds.length > 0 &&
+    runs.length === runIds.length &&
+    runs.every((run) => run.exit_code === 0 && run.tree === tree && run.tests !== 0);
+  if (!passed) {
+    target.status = "pending";
+    target.evidence = [];
+    return { state: next, evidence: null };
+  }
+  const id = nextEvidenceId(next);
+  next.evidence.push({
+    id,
+    kind: "check-run",
+    obligation: "checks-pass",
+    recorded_at: recordedAt,
+    detail: { tree, runs: [...runIds] },
+  });
+  target.status = "satisfied";
+  target.evidence = [id];
+  return { state: next, evidence: id };
+}
+
+/**
+ * boundary-tests holds once a passing check on `tree` reports more than zero
+ * tests. A recognized count of zero is not evidence (REQ-idd-014).
+ */
+function settleBoundary(state, { tree, runIds, recordedAt, hasTest = false }) {
+  requireOpen(state);
+  const next = structuredClone(state);
+  const target = next.obligations.find((entry) => entry.id === "boundary-tests");
+  if (!target || target.status === "withdrawn") return { state: next, evidence: null };
+  const proof = (next.runs || []).find(
+    (run) => runIds.includes(run.id) && run.exit_code === 0 && run.tree === tree && (run.tests > 0 || (run.tests == null && hasTest)),
+  );
+  if (!proof) {
+    target.status = "pending";
+    target.evidence = [];
+    return { state: next, evidence: null };
+  }
+  const id = nextEvidenceId(next);
+  const detail = { tree, run: proof.id };
+  if (!(proof.tests > 0)) detail.has_test = true;
+  next.evidence.push({
+    id,
+    kind: "tested-check",
+    obligation: "boundary-tests",
+    recorded_at: recordedAt,
+    detail,
+  });
+  target.status = "satisfied";
+  target.evidence = [id];
+  return { state: next, evidence: id };
+}
+
+function samePairKey(left, right) {
+  return left.purpose === right.purpose && left.command === right.command && (left.unit ?? null) === (right.unit ?? null);
+}
+
+/**
+ * After a run of a pair obligation: a passing run closes the pair with the
+ * latest earlier failing run of the same command (and unit) on another tree.
+ */
+function settlePair(state, { obligation: obligationId, runId, recordedAt }) {
+  requireOpen(state);
+  const kind = EVIDENCE_BY_OBLIGATION.get(obligationId);
+  const runs = state.runs || [];
+  const greenIndex = runs.findIndex((run) => run.id === runId);
+  const green = runs[greenIndex];
+  if (!green || RUN_EVIDENCE[kind] !== green.purpose || green.exit_code !== 0) return { state, evidence: null };
+  const red = runs
+    .slice(0, greenIndex)
+    .reverse()
+    .find((run) => samePairKey(run, green) && run.exit_code !== 0 && run.tree !== green.tree);
+  if (!red) return { state, evidence: null };
+
+  const next = structuredClone(state);
+  const target = next.obligations.find((entry) => entry.id === obligationId);
+  if (!target || target.status === "withdrawn") return { state, evidence: null };
+  const id = nextEvidenceId(next);
+  next.evidence.push({ id, kind, obligation: obligationId, recorded_at: recordedAt, detail: { red: red.id, green: green.id } });
+  target.status = "satisfied";
+  target.evidence = [...target.evidence, id];
+  return { state: next, evidence: id };
+}
+
+function activeObligation(state, id) {
+  const target = state.obligations.find((entry) => entry.id === id);
+  return target && target.status !== "withdrawn" ? target : null;
+}
+
+function reopen(target) {
+  target.status = "pending";
+  target.evidence = [];
+}
+
+/**
+ * After a migration test run: a passing run with the declared compatibility or
+ * rollback plan satisfies the obligation on its tree; a failing run reopens it.
+ */
+function settleMigration(state, { runId, plan, recordedAt }) {
+  requireOpen(state);
+  const next = structuredClone(state);
+  const target = activeObligation(next, MIGRATION);
+  const run = (next.runs || []).find((entry) => entry.id === runId);
+  if (!target || !run) return { state: next, evidence: null };
+  if (run.exit_code !== 0) {
+    reopen(target);
+    return { state: next, evidence: null };
+  }
+  const id = nextEvidenceId(next);
+  next.evidence.push({ id, kind: "migration-test", obligation: MIGRATION, recorded_at: recordedAt, detail: { run: run.id, tree: run.tree, plan } });
+  target.status = "satisfied";
+  target.evidence = [id];
+  return { state: next, evidence: id };
+}
+
+/** Tree-bound evidence proves only the tree it ran on: a newer tree reopens it. */
+function settleTreeBound(state, { tree }) {
+  const next = structuredClone(state);
+  const target = activeObligation(next, MIGRATION);
+  if (target?.status === "satisfied") {
+    const current = next.evidence.find((entry) => entry.id === target.evidence.at(-1));
+    if (current?.detail?.tree !== tree) reopen(target);
+  }
+  return next;
+}
+
+/**
+ * During a check: the contract obligation holds when the diff touches a
+ * contract document and a test and every check passed on this tree.
+ */
+function settleContract(state, { tree, checkEvidence, documents, tests, recordedAt }) {
+  requireOpen(state);
+  const next = structuredClone(state);
+  const target = activeObligation(next, CONTRACT);
+  if (!target) return { state: next, evidence: null, reason: null };
+  let reason = null;
+  if (!checkEvidence) reason = "every check must pass on the current tree first";
+  else if (documents.length === 0) reason = "the diff touches no contract document (contracts.documents in idd/config.yaml)";
+  else if (tests.length === 0) reason = "the diff touches no test of the contract (contracts.tests in idd/config.yaml)";
+  if (reason) {
+    reopen(target);
+    return { state: next, evidence: null, reason };
+  }
+  const id = nextEvidenceId(next);
+  next.evidence.push({
+    id,
+    kind: CONTRACT,
+    obligation: CONTRACT,
+    recorded_at: recordedAt,
+    detail: { tree, check: checkEvidence, documents: [...documents], tests: [...tests] },
+  });
+  target.status = "satisfied";
+  target.evidence = [id];
+  return { state: next, evidence: id, reason: null };
+}
+
+// Why the declared impacts do not settle yet, or null (E3.1). `records` maps
+// each new ADR path to what the CLI read: whether it exists, its lint errors,
+// its id and the ADR ids it cites.
+function impactReason(state, records) {
+  const label = (entry) => (entry.kind === "adr" ? `ADR ${entry.id}` : `scenario ${entry.id}`);
+  const gate = state.gates.find((entry) => entry.id === "adr-amend-or-contradict");
+  for (const entry of state.impacts || []) {
+    const flag = entry.kind === "adr" ? "--adr" : "--quality";
+    if (entry.impact == null) {
+      return `declare the impact on ${label(entry)}: ospec record impact --change ${state.change} ${flag} ${entry.id} --impact <none|conforms|amends|supersedes|contradicts> --reason <why>`;
+    }
+    if (GATED_IMPACTS.includes(entry.impact) && gate?.status !== "resolved") {
+      return `${label(entry)} ${entry.impact}: the user answers adr-amend-or-contradict first`;
+    }
+    if (entry.kind !== "adr" || !RECORDED_IMPACTS.includes(entry.impact)) continue;
+    if (!entry.record) {
+      return `${label(entry)} ${entry.impact}: write the new ADR under ${DECISIONS_ROOT}/ and attach it with ospec record impact --change ${state.change} --adr ${entry.id} --record <path>`;
+    }
+    const read = records[entry.record] || { exists: false };
+    if (!read.exists) return `${entry.record} does not exist`;
+    if (read.errors.length > 0) return `${entry.record} fails the decision-record lint: ${read.errors[0]}`;
+    if (read.id === entry.id) return `${entry.record} rewrites ${label(entry)}: an accepted ADR is never rewritten, write a new one`;
+    if (!read.cites.includes(entry.id)) return `${entry.record} must cite the ${label(entry)} it ${entry.impact === "amends" ? "amends" : "supersedes"}`;
+  }
+  return null;
+}
+
+// Why this check's fitness runs do not hold on `tree`, or null (E3.3).
+function fitnessRunsReason(runs, tree) {
+  const failed = fitnessReason(runs);
+  if (failed) return failed;
+  if (runs.some((run) => run.tree !== tree)) return "the tree changed while the fitness checks ran: run ospec check again";
+  return null;
+}
+
+/**
+ * During a check: the impact declaration holds when every declared reference
+ * has its impact, the user answered any amendment, supersession or
+ * contradiction, each ADR amended or superseded has a new ADR that exists,
+ * passes the decision-record lint and cites it (E3.1, REQ-idd-005), and every
+ * fitness run of this check passed on `fitness.tree` (E3.3, REQ-idd-022).
+ */
+function settleImpacts(state, { records = {}, fitness = null, recordedAt }) {
+  requireOpen(state);
+  const next = structuredClone(state);
+  const target = activeObligation(next, IMPACT);
+  if (!target) return { state: next, evidence: null, reason: null };
+  const runIds = fitness?.runIds || [];
+  const runs = (next.runs || []).filter((run) => runIds.includes(run.id));
+  const reason =
+    (next.impacts || []).length === 0
+      ? "declare the ADRs or quality scenarios the change touches with ospec signals --adr <id> or --quality <id>"
+      : fitnessRunsReason(runs, fitness?.tree) || impactReason(next, records);
+  if (reason) {
+    reopen(target);
+    return { state: next, evidence: null, reason };
+  }
+  const refs = next.impacts.map((entry) => `${entry.kind}:${entry.id} ${entry.impact}`);
+  const recorded = next.impacts.filter((entry) => entry.record).map((entry) => entry.record);
+  const detail = { refs, records: recorded, ...(runIds.length > 0 ? { tree: fitness.tree, fitness: [...runIds] } : {}) };
+  const current = next.evidence.find((entry) => entry.id === target.evidence.at(-1));
+  if (target.status === "satisfied" && JSON.stringify(current?.detail) === JSON.stringify(detail)) {
+    return { state: next, evidence: current.id, reason: null };
+  }
+  const id = nextEvidenceId(next);
+  next.evidence.push({ id, kind: IMPACT, obligation: IMPACT, recorded_at: recordedAt, detail });
+  target.status = "satisfied";
+  target.evidence = [id];
+  return { state: next, evidence: id, reason: null };
+}
+
+function pairReason(state, obligationId) {
+  const runs = (state.runs || []).filter((run) => run.purpose === obligationId);
+  const moment = PAIR_MOMENT[obligationId];
+  if (!runs.some((run) => run.exit_code !== 0)) {
+    return `no failing run recorded: run the test with ospec run --obligation ${obligationId} before ${moment}`;
+  }
+  return `a failing run is recorded: run the same command again after ${moment}`;
+}
+
+function checksReason({ checks, results, treeChanged, candidateCommand }) {
+  if (!checks || checks.length === 0) return `no checks declared in idd/config.yaml (checks:); ${configureChecksStep(candidateCommand).how}`;
+  if (treeChanged) return "the tree changed while the checks ran: run ospec check again";
+  const failed = (results || []).find((result) => result.exit_code !== 0);
+  if (failed) return `check ${failed.name} failed with exit code ${failed.exit_code}`;
+  const empty = (results || []).find((result) => result.tests === 0);
+  if (empty) return `check ${empty.name} executed 0 tests, which is not evidence: ospec check --change <id> after the suite runs at least one test`;
+  return "no passing run of every check on the current tree: run ospec check";
+}
+
+/**
+ * The answer of `ospec check`: `missing` while an obligation is pending,
+ * `needs-decision` while a gate is open, else `ready` to close.
+ */
+const DEFAULT_REASONS = Object.freeze({
+  [MIGRATION]: `no passing migration test on the current tree: run it with ospec run --obligation ${MIGRATION} --plan <compatibility or rollback>`,
+  [CONTRACT]: "needs a contract document and a test in the diff, with every check passing: run ospec check",
+  [IMPACT]: "needs the declared impact on every ADR or quality scenario the change touches: ospec record impact, then ospec check",
+  "boundary-tests": "needs a passing check that reports tests greater than 0: ospec check --change <id> after the diff adds a test",
+});
+
+// living-doc is satisfied by ospec close itself (REQ-idd-004): a current
+// change.md does not hold the verdict back, a stale one says what it lacks.
+function checkVerdict(state, { checks = [], results = [], treeChanged = false, reasons = {}, livingDoc = null, candidateCommand } = {}) {
+  const openGates = state.gates
+    .filter((gate) => gate.status === "open")
+    .sort((left, right) => GATES.indexOf(left.id) - GATES.indexOf(right.id));
+  const decisionFor = (gate) => ({ gate: gate.id, question: GATE_QUESTIONS[gate.id], ...(gate.reason ? { reason: gate.reason } : {}) });
+  if (isIntentAmbiguous(state)) {
+    return { verdict: "needs-decision", missing: [], decision: { ...decisionFor({ id: "ambiguous-intent" }), reason: state.intent.request } };
+  }
+  const missing = state.obligations
+    .filter((entry) => entry.status === "pending" && !(entry.id === "living-doc" && livingDoc?.ok))
+    .sort((left, right) => WORK_ORDER.indexOf(left.id) - WORK_ORDER.indexOf(right.id))
+    .map((entry) => {
+      const evidence = EVIDENCE_BY_OBLIGATION.get(entry.id);
+      let reason = reasons[entry.id] || DEFAULT_REASONS[entry.id] || `needs ${evidence} evidence`;
+      if (entry.id === "checks-pass") reason = checksReason({ checks, results, treeChanged, candidateCommand });
+      else if (PAIR_OBLIGATIONS.includes(entry.id)) reason = pairReason(state, entry.id);
+      else if (entry.id === "trust-review") reason = trustReason(state);
+      else if (entry.id === "living-doc") reason = `${livingDoc?.reason || "change.md was not read"}: ospec close records it once change.md is current`;
+      return { obligation: entry.id, evidence, reason };
+    });
+  const decision = openGates.length > 0 ? decisionFor(openGates[0]) : null;
+  const verdict = missing.length > 0 ? "missing" : decision ? "needs-decision" : "ready";
+  return { verdict, missing, decision };
+}
+
+module.exports = {
+  PAIR_OBLIGATIONS,
+  RUN_OBLIGATIONS,
+  checkVerdict,
+  recordRuns,
+  settleBoundary,
+  settleChecks,
+  settleContract,
+  settleImpacts,
+  settleMigration,
+  settlePair,
+  settleTreeBound,
+};

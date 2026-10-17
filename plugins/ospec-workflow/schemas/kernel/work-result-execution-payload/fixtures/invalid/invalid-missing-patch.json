@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "work_result_id": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "work_order_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "source_snapshot_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "commands": [],
+  "logs": [],
+  "exit_code": 0,
+  "filesystem_inventory": [],
+  "execution_usage": {}
+}

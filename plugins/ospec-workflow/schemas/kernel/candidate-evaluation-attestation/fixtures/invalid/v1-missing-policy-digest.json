@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "kind": "candidate-evaluation-attestation",
+  "attestation_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "candidate_id": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "contract_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "graph_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "evidence_root_digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "findings_digest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "expected_revision": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "authority_revision": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "issuer_version": "ospec-issuer/1.0.0",
+  "runtime_version": "node/22.11.0",
+  "outcome": "approved-for-evaluation",
+  "valid_for": "evaluation",
+  "issued_at": "2026-09-28T10:00:00.000Z"
+}
