@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.138.3] - 2026-10-17
+
+### Fixed
+- **Bridge de OpenCode v2 restaurado y prompt nativo de permisos para `ask` (E1.25 `opencode-plugin-v2-api`, `opencode-plugin-v2-live-bridge`, E1.26 `opencode-plugin-native-ask` y `opencode-plugin-v2-hardening`)**: el plugin generado emite la forma dual `export default { id: "ospec", server, setup }` que exige OpenCode v2 sin romper v1 (`>= 1.18.29`). `session-start` resuelve las skills desde la raíz del bundle (`plugin_root`, cascada global → proyecto) con el `cwd` de la sesión, y `pre-tool-use` ejecuta el binario en el directorio del workspace con política fail-closed (ADR 0008). En OpenCode `>= 2.0.29`, los veredictos `ask` del guard pasan por el prompt nativo de permisos (`ctx.permission.assert` y escalada en `permission.evaluate` con el motivo del guard, omitiendo `source` cuando faltan `messageID`/`id` y extrayendo `command`/`filePath`/`file_path`/`path`/`target_file`), mientras que `deny` y los runtimes sin API de permisos conservan el bloqueo duro fail-closed. El validador exige el contrato emitido, el spec `hooks-runtime` queda actualizado y el golden se regenera. Hecho con IDD (`idd/archive/2026-10-16-opencode-plugin-v2-api/`, `idd/archive/2026-10-16-opencode-plugin-v2-live-bridge/`, `idd/archive/2026-10-17-opencode-plugin-native-ask/`, `idd/archive/2026-10-17-opencode-plugin-v2-hardening/`).
+
+**Verificación directa**: `node scripts/check.js` (3759 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.138.2] - 2026-10-16
 
 ### Fixed
