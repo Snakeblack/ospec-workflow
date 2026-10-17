@@ -1,0 +1,287 @@
+{
+  "schema": "idd-state/v1",
+  "change": "docs-dx-corrections",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Corregir tres hallazgos de auditoria: el README (EN/ES) presenta 'claude plugin validate --strict' como gate de CI sin serlo; SECURITY.md cita '.plugin/plugin.json', que no existe; scripts/configure/cli.js ejecutado fuera del checkout falla con 'invalid SDD model policy' sin decir la causa.",
+    "acceptance": "Tabla y parrafo del README (EN/ES) dicen lo mismo y un test de docs impide la contradiccion; 'rg plugin/plugin.json SECURITY.md' no devuelve nada; el installer ejecutado desde un cwd fuera del checkout funciona o falla con un mensaje accionable que menciona --source, cubierto por un test en cli.test.js."
+  },
+  "facts": {
+    "open": [
+      "OSP-021: que arreglo para sourceDir del CLI: (a) caer al checkout donde vive cli.js con path.resolve(__dirname, '..', '..') de modo que funcione fuera del checkout, o (b) mantener process.cwd() y fallar con un mensaje accionable que mencione --source."
+    ]
+  },
+  "plan": {
+    "paths": [
+      "README.es.md",
+      "README.md",
+      "SECURITY.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/specs/generator/spec.md",
+      "scripts/configure/cli.js",
+      "scripts/configure/cli.test.js",
+      "scripts/docs-lint.test.js"
+    ],
+    "work_units": 2,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/configure/cli.js (matches scripts/configure/cli.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component generator: ADR 0001, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "La generación sigue partiendo de la fuente canónica: el fallback solo resuelve el sourceDir al checkout que posee el CLI y --source conserva la prioridad; ninguna transformación de target cambia."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas: el CLI sigue usando solo la biblioteca estándar (fs, path, child_process) y el cambio no toca el empaquetado del runtime."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "La resolución del sourceDir y la generación son locales, sin red ni descargas."
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "El cambio afecta solo al entry del CLI; los árboles generados por cada target quedan idénticos."
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "Verificado en el diff: el cambio solo toca dos READMEs, SECURITY.md, el spec del generador, el roadmap, el default de sourceDir en scripts/configure/cli.js (path.resolve local) y tests; no añade fetch ni clientes de red al CLI, los hooks ni las skills, y next/check dan el mismo resultado al repetirse.",
+      "recorded_at": "2026-10-17T17:55:52.522Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Fallback al checkout del CLI: sourceDir = args.source || path.resolve(__dirname, '..', '..') de modo que funcione fuera del checkout, manteniendo la prioridad de --source.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-17T17:53:43.810Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-17T17:55:44.074Z",
+      "detail": {
+        "tree": "sha256:0413c7fe023de6ca378633299830bc154787cdd04b2c6b26b5f97071f10830e7",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-17T17:55:44.074Z",
+      "detail": {
+        "tree": "sha256:0413c7fe023de6ca378633299830bc154787cdd04b2c6b26b5f97071f10830e7",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/generator/spec.md"
+        ],
+        "tests": [
+          "scripts/configure/cli.test.js",
+          "scripts/docs-lint.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-17T17:55:44.074Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:0413c7fe023de6ca378633299830bc154787cdd04b2c6b26b5f97071f10830e7",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-17T17:56:03.463Z"
+    }
+  ],
+  "base": "c9fb474a350b9e927c9f2650050a25db8b76ebf4",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/configure/cli.test.js scripts/docs-lint.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:037fee47f9e2efd6e481e1c8fc764343a039bf644137732af3291ba8fc93688e",
+      "tree": "sha256:eee36dc03f6514cbeed5071714d578f6f11ce0366a0a4a5e253dae963c60c0a4",
+      "recorded_at": "2026-10-17T17:50:17.730Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/configure/cli.test.js scripts/docs-lint.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9cb6d2df983f9eb7af3b161c4da7355ccc33187f3cf6e0f11688ca7f3e5cbbcd",
+      "tree": "sha256:26b7dff8c37ac26ca7958cd752fb1e3353039f3f2d2cbdcabdd6abd9d1e6bacb",
+      "recorded_at": "2026-10-17T17:53:43.810Z",
+      "tests": 50
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7143bb8c71498857cc3c208f8b37c7bed15f654328dc27f92651eca2240c5438",
+      "tree": "sha256:0413c7fe023de6ca378633299830bc154787cdd04b2c6b26b5f97071f10830e7",
+      "recorded_at": "2026-10-17T17:55:44.074Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7734a8846e70bb4ecc87978de8e62edb4c6e51a107bcbccf5983625461aecef2",
+      "tree": "sha256:0413c7fe023de6ca378633299830bc154787cdd04b2c6b26b5f97071f10830e7",
+      "recorded_at": "2026-10-17T17:55:44.074Z",
+      "tests": 47
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:0413c7fe023de6ca378633299830bc154787cdd04b2c6b26b5f97071f10830e7",
+      "recorded_at": "2026-10-17T17:55:44.074Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f23f3847bc2669f49de36e69e862fc37cf041210c0ac3c462e89c467deb01f5b",
+      "tree": "sha256:0413c7fe023de6ca378633299830bc154787cdd04b2c6b26b5f97071f10830e7",
+      "recorded_at": "2026-10-17T17:55:44.074Z",
+      "tests": 12
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d90ec3b1793181a23df9e94e6d5b1b4ba8c15a11eaa9e93e4ad6ae5a5445342a",
+      "tree": "sha256:0413c7fe023de6ca378633299830bc154787cdd04b2c6b26b5f97071f10830e7",
+      "recorded_at": "2026-10-17T17:55:44.074Z",
+      "tests": 47
+    }
+  ],
+  "closed_at": "2026-10-17T17:56:03.463Z"
+}

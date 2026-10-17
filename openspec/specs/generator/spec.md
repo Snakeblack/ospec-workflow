@@ -191,13 +191,13 @@ When arguments are parsed,
 Then:
 - `--target` MUST be one of `claude`, `vscode`, `github-copilot`, `opencode`, `codex`, `cursor`, `antigravity`; an unknown target causes exit code 2.
 - `--out` defaults to `dist/<target>` relative to cwd.
-- `--source` defaults to cwd.
+- `--source` defaults to the checkout root that owns the CLI (resolved from the script location), so the CLI works from any cwd.
 - If `--target` is missing or invalid, the CLI MUST write a usage hint to stderr and set `process.exitCode = 2`.
 - On success, the CLI MUST print a summary of generated file paths to stdout.
 - On validation failure, the validator's output MUST be forwarded to stdout/stderr and the CLI exit code MUST reflect the validator's exit code (non-zero).
 - If the CLI execution encounters an uncaught error, it MUST write the fatal error stack or message to stderr and terminate with exit code 1.
 
-(Previously: five accepted targets; `cursor` is the sixth, validated by `scripts/configure/validate-cursor.js`.)
+(Previously: five accepted targets; `cursor` is the sixth, validated by `scripts/configure/validate-cursor.js`; `--source` defaulted to `process.cwd()`.)
 
 ### Scenario 13: MCP Placeholder Normalization (Per-Profile Opt-In)
 

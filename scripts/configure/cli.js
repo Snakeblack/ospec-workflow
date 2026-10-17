@@ -739,7 +739,7 @@ function main(argv) {
     return;
   }
 
-  const sourceDir = args.source || process.cwd();
+  const sourceDir = args.source || path.resolve(__dirname, "..", "..");
   const outDir = args.out || path.join("dist", args.target);
   const result = runConfigure({ sourceDir, target: args.target, outDir, validate: args.validate, withExtras: Boolean(args.withExtras), withSdd: Boolean(args.withSdd) });
 
