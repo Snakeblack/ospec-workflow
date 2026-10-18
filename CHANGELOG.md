@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.139.3] - 2026-10-18
+
+### Changed
+- **Puntos calientes de la suite en Windows ([#365](https://github.com/Snakeblack/ospec-workflow/pull/365))**:
+  - **Caché de Go en CI:** Validate Harness configura Go 1.23 con caché. El test que instala antigravity desde el checkout compila ospec-hooks, que no está versionado: en frío tardaba 19 s y con caché tarda 0,4 s. agy baja de 53,9 a 14,4 s en Windows y de 9,9 a 2,4 s en Ubuntu.
+  - **Rutas canónicas del instalador:** el preflight de Codex resuelve una sola vez por pasada la raíz aprobada y cada directorio padre; antes hacía 8.340 `realpathSync` en una instalación global y ahora 1.092. El motor compartido de instalación memoiza durante una sincronización las rutas que existen, y ambos dejan de repetir el `mkdir` de un directorio ya creado. El `lstat` por entrada que detecta enlaces simbólicos se mantiene. En un A/B en Windows la ganancia es pequeña (instalación global de Codex: 8,4 s de media con el instalador base y 6,9 s con la memo).
+  - **Test nuevo:** el instalador de Codex rechaza un ancestro del destino redirigido fuera de la raíz aprobada.
+  - **Medido sin cambios:** Windows PowerShell 5.1 arranca en 0,2 s aislado. Sus 49,7 s dentro de la suite son contención, igual que el resto del sobrecoste de Windows.
+
+  Hecho con IDD (`idd/archive/2026-10-18-windows-test-hotspots/`).
+
+**Verificación directa**: `node scripts/check.js` (3892 tests pasando, 0 fallos y 3 omitidos), más el run 39168973681 de Validate Harness en verde en las cuatro plataformas.
+
 ## [2.139.2] - 2026-10-18
 
 ### Changed
