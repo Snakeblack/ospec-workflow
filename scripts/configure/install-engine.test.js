@@ -332,6 +332,26 @@ test("mergeHooksDoc retires removed Cursor events while preserving user commands
   assert.deepEqual(mergeHooksDoc(merged, generated, "cursor"), merged);
 });
 
+test("mergeHooksDoc retires Antigravity ospec groups no longer generated and keeps foreign ones", () => {
+  const existing = {
+    herdr: { PreInvocation: [{ type: "command", command: "herdr.sh" }] },
+    "ospec-pre-tool-use": { PreToolUse: [{ matcher: ".*", hooks: [{ command: "old" }] }] },
+    "ospec-pre-compact": { enabled: true, PreCompact: [{ matcher: ".*", hooks: [{ command: "old" }] }] },
+    "ospec-subagent-stop": { enabled: true, SubagentStop: [{ matcher: ".*", hooks: [{ command: "old" }] }] },
+  };
+  const generated = {
+    "ospec-session-start": { enabled: true, SessionStart: [{ command: "new session-start" }] },
+    "ospec-pre-tool-use": { enabled: true, PreToolUse: [{ matcher: "*", hooks: [{ command: "new" }] }] },
+  };
+  const original = structuredClone(existing);
+
+  const merged = mergeHooksDoc(existing, generated, "antigravity");
+
+  assert.deepEqual(merged, { herdr: existing.herdr, ...generated });
+  assert.deepEqual(existing, original);
+  assert.deepEqual(mergeHooksDoc(merged, generated, "antigravity"), merged);
+});
+
 test("safeParseJsonc parses complex JSONC without corrupting string literals", () => {
   const jsonc = `// Leading file comment
 {

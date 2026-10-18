@@ -69,7 +69,7 @@ The generated Codex tree MUST contain `agent.md`, `.codex/agents/*.toml`, `skill
 
 ### 1.6 Antigravity — Native Configuration & Hooks
 
-`npm run setup:antigravity` builds `dist/antigravity` and deploys into `~/.gemini/config`, non-destructively merging `hooks.json` and tracking installed files via `.ospec-workflow-install.json`.
+`npm run setup:antigravity` builds `dist/antigravity` and deploys into `~/.gemini/config`, non-destructively merging `hooks.json` and tracking installed files via `.ospec-workflow-install.json`. The generated `hooks.json` holds the groups `ospec-session-start`, `ospec-pre-tool-use` and `ospec-stop`: `SessionStart` and `Stop` list their handlers directly, and only `PreToolUse` wraps them in a `{ matcher: "*", hooks }` group, because agy 1.4.2 discards the whole file when a flat event holds a matcher group. agy has no `PreCompact` or `SubagentStop` event, and its `PostToolUse` cannot rewrite tool output, so those events are not generated. The merge MUST replace the generated groups, remove any other `ospec-*` group left by an earlier release, and keep every other group. `validate-antigravity` MUST reject a handler shape that agy would reject.
 
 ---
 

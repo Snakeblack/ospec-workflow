@@ -66,6 +66,7 @@ function launcherFailure(sub, detail, cursorHost = false, rawInput = "") {
   if (sub === "post-tool-use") {
     let fallback = postToolUseFallback(rawInput, detail);
     if (process.env.OSPEC_TARGET === "codex") fallback = normalizeCodexHookOutput(sub, fallback);
+    else if (process.env.OSPEC_TARGET === "antigravity") fallback = normalizeAntigravityHookOutput(sub, fallback);
     else if (cursorHost) fallback = normalizeCursorHookOutput(sub, fallback);
     if (fallback && Object.keys(fallback).length > 0) {
       process.stdout.write(`${JSON.stringify(fallback)}\n`);
@@ -78,12 +79,13 @@ function launcherFailure(sub, detail, cursorHost = false, rawInput = "") {
     : { continue: true, systemMessage: `[ospec error] Hook ${sub} failed: ${detail}` };
   try {
     // Native advisory adapters need ASK as input to preserve their context.
-    if (sub === "pre-tool-use" && !cursorHost && process.env.OSPEC_TARGET !== "codex" && JSON.parse(rawInput).permission_mode === "bypassPermissions") {
+    if (sub === "pre-tool-use" && !cursorHost && !["codex", "antigravity"].includes(process.env.OSPEC_TARGET) && JSON.parse(rawInput).permission_mode === "bypassPermissions") {
       output.hookSpecificOutput.permissionDecision = "allow";
       output.systemMessage = `[ospec advisory] ${message}`;
     }
   } catch { /* Unknown permission mode preserves the inspection-error ASK. */ }
   if (process.env.OSPEC_TARGET === "codex") output = normalizeCodexHookOutput(sub, output);
+  else if (process.env.OSPEC_TARGET === "antigravity") output = normalizeAntigravityHookOutput(sub, output);
   else if (cursorHost) output = normalizeCursorHookOutput(sub, output);
   process.stdout.write(`${JSON.stringify(output)}\n`);
   return 0;
@@ -184,6 +186,91 @@ function normalizeCodexHookOutput(subcommand, output) {
   return typeof output.systemMessage === "string" && output.systemMessage.trim()
     ? { systemMessage: output.systemMessage.trim() }
     : {};
+}
+
+// agy (Antigravity 1.4.2) runs a hook from the directory holding hooks.json
+// and sends { toolCall: { name, args }, conversationId, workspacePaths }.
+// Rebuild the shared contract and the directory the policy must read from:
+// a shell command's own Cwd, else the first workspace that exists. A tool
+// call it cannot read is `unreadable`: the guard must not see it as empty.
+function adaptAntigravityHookInput(subcommand, rawInput, exists = fs.existsSync) {
+  const unreadable = { input: rawInput, cwd: undefined, unreadable: subcommand === "pre-tool-use" };
+  let parsed;
+  try {
+    parsed = JSON.parse(stripUtf8Bom(rawInput) || "{}");
+  } catch {
+    return unreadable;
+  }
+  if (!isPlainObject(parsed)) {
+    return unreadable;
+  }
+  const isDir = (dir) => typeof dir === "string" && path.isAbsolute(dir) && exists(dir);
+  const workspace = Array.isArray(parsed.workspacePaths) ? parsed.workspacePaths.find(isDir) : undefined;
+  const adapted = { ...parsed, session_id: parsed.conversationId, cwd: workspace };
+  let cwd = workspace;
+  if (subcommand === "pre-tool-use") {
+    const args = parsed.toolCall?.args;
+    if (!isPlainObject(parsed.toolCall) || typeof parsed.toolCall.name !== "string" || !isPlainObject(args)) {
+      return unreadable;
+    }
+    const filePath = [args.AbsolutePath, args.TargetFile].find((value) => typeof value === "string");
+    // write_to_file sends CodeContent; the replace tools send ReplacementContent,
+    // also inside ReplacementChunks.
+    const bodies = collectStrings(args, new Set(["CodeContent", "ReplacementContent"]));
+    adapted.tool_name = parsed.toolCall.name;
+    adapted.tool_input = {
+      ...args,
+      ...(typeof args.CommandLine === "string" ? { command: args.CommandLine } : {}),
+      ...(filePath ? { file_path: filePath } : {}),
+      ...(bodies.length > 0 ? { content: bodies.join("\n") } : {}),
+    };
+    // A relative Cwd is relative to the workspace, never to hooks.json's
+    // directory; an empty or missing one leaves the workspace. Without any
+    // directory to inspect from, the guard cannot read the call.
+    if (typeof args.Cwd === "string" && args.Cwd) {
+      const commandDir = path.isAbsolute(args.Cwd) ? args.Cwd : workspace && path.resolve(workspace, args.Cwd);
+      if (isDir(commandDir)) cwd = commandDir;
+    }
+    if (!cwd) {
+      return unreadable;
+    }
+    adapted.cwd = cwd;
+  }
+  return { input: JSON.stringify(adapted), cwd, unreadable: false };
+}
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function collectStrings(value, keys, found = []) {
+  for (const [key, child] of Object.entries(value || {})) {
+    if (typeof child === "string" && keys.has(key)) found.push(child);
+    else if (child && typeof child === "object") collectStrings(child, keys, found);
+  }
+  return found;
+}
+
+// agy's PreToolUse takes { decision, reason }, its SessionStart injects steps
+// and its Stop only reads decision "continue", which ospec never asks for.
+// An affirmative allow would skip agy's own prompts, so none is emitted.
+function normalizeAntigravityHookOutput(subcommand, output) {
+  if (!output || typeof output !== "object" || Array.isArray(output)) {
+    return {};
+  }
+  if (subcommand === "pre-tool-use") {
+    const decision = output.hookSpecificOutput?.permissionDecision;
+    const reason = output.hookSpecificOutput?.permissionDecisionReason || output.systemMessage;
+    if (decision === "deny") return { decision: "deny", reason: reason || "Blocked by OSpec policy." };
+    if (decision === "ask") return reason ? { decision: "ask", reason } : { decision: "ask" };
+    return {};
+  }
+  if (subcommand === "session-start") {
+    // The same model-facing context Codex receives as additionalContext.
+    const context = normalizeCodexHookOutput(subcommand, output).hookSpecificOutput?.additionalContext;
+    return context ? { injectSteps: [{ systemMessage: { systemMessage: context } }] } : {};
+  }
+  return {};
 }
 
 // Cursor installs live under ~/.cursor (or a path segment named ".cursor").
@@ -430,7 +517,7 @@ function isClaudeCodeHost(env = process.env) {
 // `env` is injectable (defaults to process.env) so tests never mutate the
 // ambient environment; the codex branch keeps reading process.env exactly as
 // before (byte-for-byte precedent, REQ-hooks-019).
-function resolveInvocation(sub, scriptDir, suffix = hostBinarySuffix(), exists = fs.existsSync, readFileSync = fs.readFileSync, env = process.env) {
+function resolveInvocation(sub, scriptDir, suffix = hostBinarySuffix(), exists = fs.existsSync, readFileSync = fs.readFileSync, env = process.env, cwd = process.cwd()) {
   // Codex live O1 binding depends on the exact installed Node producer that
   // consumes OSPEC_CODEX_EVENTS_PATH. Do not let a stale bundled binary shadow
   // that audited producer for SubagentStop.
@@ -444,7 +531,7 @@ function resolveInvocation(sub, scriptDir, suffix = hostBinarySuffix(), exists =
     return { command: process.execPath, args: [path.join(scriptDir, `${sub}.js`)] };
   }
   if (FEDERATION_AWARE_HOOKS.has(sub)) {
-    const configPath = path.join(process.cwd(), "openspec", "config.yaml");
+    const configPath = path.join(cwd, "openspec", "config.yaml");
     if (exists(configPath)) {
       const mode = readBackendModeSync(configPath, readFileSync);
       if (mode === "workspace-federated") {
@@ -471,8 +558,13 @@ function launch(argv, scriptDir) {
 
   const rawInput = stripUtf8Bom(fs.readFileSync(0, "utf8"));
   const cursorHost = isCursorHost(scriptDir, process.env, rawInput);
-  const { command, args } = resolveInvocation(sub, scriptDir);
-  const input = cursorHost ? adaptCursorHookInput(sub, rawInput) : rawInput;
+  const antigravityHost = process.env.OSPEC_TARGET === "antigravity";
+  const adapted = antigravityHost ? adaptAntigravityHookInput(sub, rawInput) : { input: rawInput, cwd: undefined };
+  if (adapted.unreadable) {
+    return launcherFailure(sub, "unrecognized agy tool call", cursorHost, rawInput);
+  }
+  const { command, args } = resolveInvocation(sub, scriptDir, undefined, undefined, undefined, undefined, adapted.cwd);
+  const input = cursorHost ? adaptCursorHookInput(sub, rawInput) : adapted.input;
   const pluginRoot = path.resolve(scriptDir, "../..");
   const env = {
     ...process.env,
@@ -480,7 +572,7 @@ function launch(argv, scriptDir) {
     OSPEC_OUTPUT_REDACTION: argv.includes(OUTPUT_REDACTION_FLAG) ? "1" : "",
     ...(cursorHost ? { OSPEC_TARGET: process.env.OSPEC_TARGET || "cursor" } : {}),
   };
-  const result = spawnSync(command, args, { input, env, encoding: "utf8", timeout: CHILD_TIMEOUT_MS, killSignal: "SIGKILL" });
+  const result = spawnSync(command, args, { input, env, cwd: adapted.cwd, encoding: "utf8", timeout: CHILD_TIMEOUT_MS, killSignal: "SIGKILL" });
 
   if (result.error || result.signal || result.status !== 0) {
     // Never forward partial stdout from a failed child as a permission decision.
@@ -504,6 +596,8 @@ function launch(argv, scriptDir) {
   }
   if (process.env.OSPEC_TARGET === "codex") {
     process.stdout.write(`${JSON.stringify(normalizeCodexHookOutput(sub, parseLastJson(result.stdout)))}\n`);
+  } else if (antigravityHost) {
+    process.stdout.write(`${JSON.stringify(normalizeAntigravityHookOutput(sub, parseLastJson(result.stdout)))}\n`);
   } else if (cursorHost) {
     process.stdout.write(`${JSON.stringify(normalizeCursorHookOutput(sub, parseLastJson(result.stdout)))}\n`);
   } else if (result.stdout) {
@@ -532,6 +626,8 @@ module.exports = {
   resolveInvocation,
   isClaudeCodeHost,
   normalizeCodexHookOutput,
+  adaptAntigravityHookInput,
+  normalizeAntigravityHookOutput,
   stripUtf8Bom,
   isCursorInstall,
   isCursorHost,
