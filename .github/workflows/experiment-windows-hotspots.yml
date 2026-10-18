@@ -1,0 +1,48 @@
+name: Experiment Windows hotspots
+
+# Temporary (windows-test-hotspots): A/B of the installer path memo on one
+# runner, alternating the base and the new installer. Removed before merge.
+on:
+  push:
+    branches:
+      - ci/windows-test-hotspots
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Dev Drive for TEMP
+        shell: pwsh
+        run: |
+          $script = "$env:RUNNER_TEMP\devdrive.txt"
+          "create vdisk file=`"C:\ospec-devdrive.vhdx`" maximum=20480 type=expandable`nselect vdisk file=`"C:\ospec-devdrive.vhdx`"`nattach vdisk`ncreate partition primary`nassign letter=R" | Set-Content $script
+          diskpart /s $script | Out-Null
+          Format-Volume -DriveLetter R -DevDrive -Confirm:$false -Force | Out-Null
+          New-Item -ItemType Directory -Path R:\tmp | Out-Null
+          "TEMP=R:\tmp" >> $env:GITHUB_ENV
+          "TMP=R:\tmp" >> $env:GITHUB_ENV
+      - name: A/B installer
+        shell: bash
+        run: |
+          files="scripts/configure/install-codex.js scripts/configure/install-engine.js"
+          tests="scripts/configure/codex-smoke.test.js scripts/configure/install-codex.test.js scripts/configure/install-antigravity.test.js"
+          cp scripts/configure/install-codex.js ab-new-codex.js; cp scripts/configure/install-engine.js ab-new-engine.js
+          for rep in 1 2 3; do
+            for variant in base new; do
+              if [ $variant = base ]; then git checkout -q 1d4e3948 -- $files; else cp ab-new-codex.js scripts/configure/install-codex.js; cp ab-new-engine.js scripts/configure/install-engine.js; fi
+              start=$(date +%s.%N)
+              node --test --test-reporter=tap $tests > ab-tap.txt 2>&1 || echo "  ($variant failed)"
+              end=$(date +%s.%N)
+              node -e 'const t=require("fs").readFileSync("ab-tap.txt","utf8");const pick=n=>{const i=t.indexOf(n);if(i<0)return "?";const m=t.slice(i).match(/duration_ms: ([\d.]+)/);return (m[1]/1000).toFixed(2)};console.log(process.argv[1].padEnd(5),"wall",(process.argv[2]-process.argv[3]).toFixed(1),"s  global-install",pick("global install contains every generated skill"),"s  repo-install",pick("a repository install carries the IDD protocol"),"s  "+(t.match(/# fail \d+/)||[""])[0])' $variant $end $start
+            done
+          done
