@@ -123,14 +123,16 @@ func extractShellReadPaths(command string) []string {
 			if len(parts) > 0 {
 				name = strings.ToLower(parts[len(parts)-1])
 			}
-			reader = tok.literal && strings.Contains("|cat|head|tail|less|more|type|get-content|gc|grep|sed|awk|base64|xxd|cp|", "|"+name+"|")
+			reader = tok.literal && strings.Contains("|cat|head|tail|less|more|type|get-content|gc|grep|sed|awk|base64|xxd|od|tar|scp|cp|", "|"+name+"|")
 			readerName = name
 			first = false
 		} else if reader {
 			countReader := readerName == "head" || readerName == "tail"
 			contentReader := readerName == "get-content" || readerName == "gc"
 			option := "|" + strings.ToLower(tok.value) + "|"
-			if (countReader && strings.Contains("|-n|-c|--lines|--bytes|", option)) || (contentReader && strings.Contains("|-encoding|-totalcount|-tail|-readcount|", option)) {
+			// ssh reads the identity and options itself: their values never leave the host.
+			scpOption := readerName == "scp" && strings.Contains("|-i|-o|", option)
+			if (countReader && strings.Contains("|-n|-c|--lines|--bytes|", option)) || (contentReader && strings.Contains("|-encoding|-totalcount|-tail|-readcount|", option)) || scpOption {
 				skip = true
 			} else if tok.literal && !strings.HasPrefix(tok.value, "-") {
 				paths = append(paths, tok.value)

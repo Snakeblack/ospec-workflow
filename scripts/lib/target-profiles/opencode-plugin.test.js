@@ -113,7 +113,8 @@ test("the plugin hands the binary the bundle root and the workspace cwd", () => 
   assert.match(PLUGIN_SOURCE, /plugin_root: resolvePluginRoot\(\)/);
   assert.match(PLUGIN_SOURCE, /\{ cwd: directory \}/);
   assert.match(PLUGIN_SOURCE, /hookVerdict\(input && input\.tool, output && output\.args, directory\)/);
-  assert.match(PLUGIN_SOURCE, /hookVerdict\(event && event\.tool, event && event\.input, directory\)/);
+  assert.match(PLUGIN_SOURCE, /hookVerdict\(event && event\.tool, event && event\.input, directory, true\)/);
+  assert.match(PLUGIN_SOURCE, /redactedResult\(event\.tool, event\.input, event\.result, directory\)/);
 });
 
 test("emitted plugin loads as ESM and exercises both the v1 and v2 entrypoints", async (t) => {
@@ -132,6 +133,7 @@ test("emitted plugin loads as ESM and exercises both the v1 and v2 entrypoints",
   const v1Hooks = await mod.default.server({ directory: "/repo" });
   assert.equal(typeof v1Hooks.event, "function");
   assert.equal(typeof v1Hooks["tool.execute.before"], "function");
+  assert.equal(typeof v1Hooks["tool.execute.after"], "function");
 
   // v2 entrypoint: setup() registers the tool hook and the event subscription.
   const registrations = [];
@@ -147,7 +149,7 @@ test("emitted plugin loads as ESM and exercises both the v1 and v2 entrypoints",
   };
   const cleanup = await mod.default.setup(ctx);
 
-  assert.deepEqual(registrations.map((entry) => entry.name), ["execute.before"]);
+  assert.deepEqual(registrations.map((entry) => entry.name), ["execute.before", "execute.after"]);
   assert.equal(typeof registrations[0].callback, "function");
   assert.equal(typeof cleanup, "function");
 });
@@ -310,3 +312,98 @@ test("v1 keeps collapsing ask to a hard block (no native surface)", async (t) =>
   await assert.rejects(hooks["tool.execute.before"]({ tool: "bash" }, { args: { command: "pwd" } }), /aviso del guard/);
 });
 
+
+// --- tool result redaction (E1.27) ------------------------------------------
+
+// Drives the emitted module with a stub that answers each hook subcommand.
+async function loadPluginWithStub(t, stub) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "opencode-plugin-redact-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, "ospec.mjs");
+  fs.writeFileSync(file, PLUGIN_SOURCE.replace(
+    "return spawnSync(resolveBinary(), [subcommand], options);",
+    "return globalThis.__ospecRedactStub(subcommand, options);",
+  ));
+  const calls = [];
+  globalThis.__ospecRedactStub = (subcommand, options) => {
+    calls.push({ subcommand, input: JSON.parse(options.input), redaction: options.env && options.env.OSPEC_OUTPUT_REDACTION });
+    return stub(subcommand, JSON.parse(options.input));
+  };
+  t.after(() => {
+    delete globalThis.__ospecRedactStub;
+  });
+  return { mod: await import(pathToFileURL(file).href), calls };
+}
+
+const REDACTED_RESULT = {
+  output: { exit: 0, output: "DB_PASSWORD=[REDACTED:assigned-secret]\n" },
+  content: [{ type: "text", text: "DB_PASSWORD=[REDACTED:assigned-secret]\n" }],
+};
+
+function redactingStub(subcommand) {
+  if (subcommand !== "post-tool-use") return { status: 0, stdout: "" };
+  return { status: 0, stdout: JSON.stringify({ hookSpecificOutput: { hookEventName: "PostToolUse", updatedToolOutput: REDACTED_RESULT, additionalContext: "note" } }) };
+}
+
+function shellResult() {
+  return {
+    tool: "shell",
+    input: { command: "cat app.conf" },
+    status: "completed",
+    result: {
+      output: { exit: 0, output: "DB_PASSWORD=s3cr3t-Pass\n" },
+      content: [{ type: "text", text: "DB_PASSWORD=s3cr3t-Pass\n" }],
+    },
+  };
+}
+
+test("v2 replaces a completed tool result with the redacted one", async (t) => {
+  const { mod, calls } = await loadPluginWithStub(t, redactingStub);
+  const ctx = fakeContext();
+  await mod.default.setup(ctx);
+  const event = shellResult();
+  await findHook(ctx, "tool", "execute.after")(event);
+  assert.deepEqual(event.result, REDACTED_RESULT);
+  assert.deepEqual(calls[0], { subcommand: "post-tool-use", input: { tool_name: "shell", tool_input: { command: "cat app.conf" }, tool_response: shellResult().result }, redaction: undefined });
+});
+
+test("v2 tells its PreToolUse that reads come back redacted; v1 clears the flag", async (t) => {
+  const { mod, calls } = await loadPluginWithStub(t, redactingStub);
+  const ctx = fakeContext();
+  await mod.default.setup(ctx);
+  await findHook(ctx, "tool", "execute.before")(toolEvent());
+  const hooks = await mod.default.server({ directory: "/repo" });
+  await hooks["tool.execute.before"]({ tool: "bash" }, { args: { command: "pwd" } });
+  assert.deepEqual(calls.map((call) => [call.subcommand, call.redaction]), [["pre-tool-use", "1"], ["pre-tool-use", ""]]);
+});
+
+test("v2 withholds the result when the redaction hook fails, and keeps a clean one", async (t) => {
+  const failing = await loadPluginWithStub(t, () => ({ status: 1, stdout: "" }));
+  const ctx = fakeContext();
+  await failing.mod.default.setup(ctx);
+  const event = shellResult();
+  await findHook(ctx, "tool", "execute.after")(event);
+  assert.equal(JSON.stringify(event.result).includes("s3cr3t-Pass"), false);
+  assert.match(event.result.output.output, /Salida retenida/);
+  assert.equal(event.result.output.exit, 0);
+
+  const clean = await loadPluginWithStub(t, () => ({ status: 0, stdout: "" }));
+  const cleanCtx = fakeContext();
+  await clean.mod.default.setup(cleanCtx);
+  const untouched = shellResult();
+  await findHook(cleanCtx, "tool", "execute.after")(untouched);
+  assert.deepEqual(untouched.result, shellResult().result);
+  const failed = { tool: "shell", status: "error", error: new Error("x") };
+  await findHook(cleanCtx, "tool", "execute.after")(failed);
+  assert.equal(failed.result, undefined);
+});
+
+test("v1 rewrites the fields of the tool output in place", async (t) => {
+  const { mod } = await loadPluginWithStub(t, (subcommand) => subcommand !== "post-tool-use"
+    ? { status: 0, stdout: "" }
+    : { status: 0, stdout: JSON.stringify({ hookSpecificOutput: { hookEventName: "PostToolUse", updatedToolOutput: { title: "cat", output: "[REDACTED:github-token]", metadata: {} }, additionalContext: "note" } }) });
+  const hooks = await mod.default.server({ directory: "/repo" });
+  const output = { title: "cat", output: "token", metadata: {} };
+  await hooks["tool.execute.after"]({ tool: "bash" }, output);
+  assert.deepEqual(output, { title: "cat", output: "[REDACTED:github-token]", metadata: {} });
+});

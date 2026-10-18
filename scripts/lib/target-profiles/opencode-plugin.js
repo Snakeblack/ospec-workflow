@@ -83,7 +83,7 @@ export function resolvePluginRoot({ here: pluginDir = here, exists = existsSync 
   return globalRoot;
 }
 
-function runHook(subcommand, payload, { cwd } = {}) {
+function runHook(subcommand, payload, { cwd, env } = {}) {
   const options = {
     input: JSON.stringify(payload),
     encoding: "utf8",
@@ -95,14 +95,20 @@ function runHook(subcommand, payload, { cwd } = {}) {
   if (cwd) {
     options.cwd = cwd;
   }
+  if (env) {
+    options.env = { ...process.env, ...env };
+  }
   return spawnSync(resolveBinary(), [subcommand], options);
 }
 
-function hookVerdict(toolName, toolInput, directory) {
+// outputRedaction tells the guard that this runtime rewrites tool results
+// (v2 execute.after), so a non-shell read of a secret needs no prompt; any
+// other caller clears an inherited value.
+function hookVerdict(toolName, toolInput, directory, outputRedaction = false) {
   const result = runHook(
     "pre-tool-use",
     { tool_name: toolName, tool_input: toolInput || {} },
-    { cwd: directory },
+    { cwd: directory, env: { OSPEC_OUTPUT_REDACTION: outputRedaction ? "1" : "" } },
   );
   if (result.error) {
     throw new Error("[ospec-workflow] pre-tool-use hook failed: " + result.error.message);
@@ -118,6 +124,46 @@ function hookVerdict(toolName, toolInput, directory) {
     throw new Error("[ospec-workflow] pre-tool-use invalid output: " + err.message);
   }
   return verdict;
+}
+
+// E1.27: the post-tool-use hook returns the tool result with every secret
+// replaced by a marker, or nothing when there is none. When the hook cannot
+// run, every string of the result is withheld instead (fail closed).
+function withheldResult(value, notice) {
+  if (typeof value === "string") {
+    return notice;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => withheldResult(item, notice));
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, withheldResult(item, notice)]));
+  }
+  return value;
+}
+
+// tool_input names the file read, so a .env or credentials file is
+// redacted in sensitive-file mode.
+function redactedResult(toolName, toolInput, response, directory) {
+  let detail;
+  try {
+    const result = runHook("post-tool-use", { tool_name: toolName, tool_input: toolInput, tool_response: response }, { cwd: directory });
+    if (!result.error && result.status === 0) {
+      if (!(result.stdout || "").trim()) {
+        return null;
+      }
+      const output = JSON.parse(result.stdout).hookSpecificOutput;
+      if (output && output.hookEventName === "PostToolUse" && output.updatedToolOutput !== undefined) {
+        return output.updatedToolOutput;
+      }
+      detail = "invalid output";
+    } else {
+      detail = result.error ? result.error.message : "status " + result.status;
+    }
+  } catch (err) {
+    detail = err.message;
+  }
+  return withheldResult(response, "[ospec] Salida retenida: la censura de secretos falló (" + detail + ").");
 }
 
 // v1, and any runtime without the native permission API, can only allow
@@ -191,6 +237,16 @@ export const OspecWorkflowPlugin = async ({ directory }) => {
     "tool.execute.before": async (input, output) => {
       blockOrAllow(hookVerdict(input && input.tool, output && output.args, directory));
     },
+    // Not verified live on OpenCode 1.x: the guard keeps asking before reads.
+    "tool.execute.after": async (input, output) => {
+      if (!output || typeof output !== "object") {
+        return;
+      }
+      const redacted = redactedResult(input && input.tool, undefined, output, directory);
+      if (redacted && typeof redacted === "object") {
+        Object.assign(output, redacted);
+      }
+    },
   };
 };
 
@@ -215,7 +271,7 @@ async function setupOspecWorkflow(ctx) {
     });
   }
   await ctx.tool.hook("execute.before", async (event) => {
-    const verdict = hookVerdict(event && event.tool, event && event.input, directory);
+    const verdict = hookVerdict(event && event.tool, event && event.input, directory, true);
     // deny stays a hard block; ask becomes the host's native prompt when the
     // runtime exposes ctx.permission.assert (OpenCode >= 2.0.29).
     if (verdict && verdict.permissionDecision === "ask" && nativeAsk(ctx)) {
@@ -223,6 +279,17 @@ async function setupOspecWorkflow(ctx) {
       return;
     }
     blockOrAllow(verdict);
+  });
+  // OpenCode 2.x returns event.result after execute.after: replacing it is
+  // what the model receives (verified live on 2.0.32).
+  await ctx.tool.hook("execute.after", async (event) => {
+    if (!event || event.status !== "completed" || event.result === undefined) {
+      return;
+    }
+    const redacted = redactedResult(event.tool, event.input, event.result, directory);
+    if (redacted !== null) {
+      event.result = redacted;
+    }
   });
   const controller = new AbortController();
   void (async () => {

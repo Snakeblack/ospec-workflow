@@ -8,6 +8,7 @@ implementation, then (only if the contract itself changed) the fixture.
 | Hook           | Fixture prefix     | Floor | Spawned/dispatched script         | Go mirror test                     |
 |----------------|---------------------|-------|------------------------------------|-------------------------------------|
 | PreToolUse     | `pre-tool-use-*`    | 4     | `scripts/hooks/pre-tool-use.js`    | `TestPreToolUse_ParityFixtures`     |
+| PostToolUse    | `post-tool-use-*`   | 4     | `scripts/hooks/post-tool-use.js`   | `TestPostToolUse_ParityFixtures`    |
 | SubagentStop   | `subagent-stop-*`   | 4     | `scripts/hooks/subagent-stop.js`   | `TestSubagentStop_ParityFixtures`   |
 
 (Previously: `SubagentStop`'s floor was 2, covering only the valid-envelope and

@@ -16,8 +16,11 @@ New cross-cutting requirements are added below.
 ### Requirement: Hook Registration
 
 `hooks/hooks.json` is the single source of truth for hook binding for the claude
-and vscode targets. It MUST list all five lifecycle events under the top-level
-`hooks` key.
+and vscode targets. It MUST list all six lifecycle events under the top-level
+`hooks` key. The vscode target omits `PostToolUse`: VS Code cannot replace a tool
+result, so the redaction hook would only add its note over the original output.
+The claude target appends `--output-redaction` to the `pre-tool-use` command
+(REQ-agent-shield-security-001's read exemption applies only there).
 
 All entries MUST be of type `"command"`. The command template MUST invoke the Go
 binary with the hook event name as its first positional argument instead of a
@@ -32,6 +35,7 @@ Command template for the claude target:
 |---|---|---|
 | `SessionStart` | `session-start` | 5 s |
 | `PreToolUse` | `pre-tool-use` | 5 s |
+| `PostToolUse` | `post-tool-use` (REQ-agent-shield-security-002) | 5 s |
 | `PreCompact` | `pre-compact` | 5 s |
 | `SubagentStop` | `subagent-stop` | 5 s |
 | `Stop` | `stop` | 5 s |
@@ -50,7 +54,7 @@ Node.js 22+ CommonJS. The stdin/stdout contract is identical.)
 
 - GIVEN `hooks/hooks.json` is updated with the Go binary command for all events
 - WHEN the host reads the registration
-- THEN each of the 5 events MUST map to its corresponding subcommand per the table above
+- THEN each of the 6 events MUST map to its corresponding subcommand per the table above
 
 #### Scenario: github-copilot both shell keys updated
 
@@ -184,20 +188,20 @@ The JSON stdin/stdout contract MUST be identical across all targets.
 
 | Target | Config file | Invocation surface | Hooks wired |
 |---|---|---|---|
-| claude | `hooks/hooks.json` | Shell command via `CLAUDE_PLUGIN_ROOT` | All 5 |
-| vscode | inherits canonical `hooks/hooks.json` via identity transform | Shell command | All 5 |
+| claude | `hooks/hooks.json` | Shell command via `CLAUDE_PLUGIN_ROOT` | All 6 (`pre-tool-use --output-redaction`) |
+| vscode | inherits canonical `hooks/hooks.json` via identity transform | Shell command | 5 (`PostToolUse` omitted) |
 | github-copilot | `.github/hooks/hooks.json` (`bash` + `powershell` keys, repo-relative) | Shell command | 2 (sessionStart, preToolUse) |
-| opencode | `.opencode/plugins/ospec.js` (generated) | spawnSync — see Requirement: opencode SpawnSync | 2 (session.created → session-start, tool.execute.before → pre-tool-use) |
-| codex | `hooks/hooks.json` (wrapper matcher + POSIX/Windows adapter) | Shell command via `$PLUGIN_ROOT` / `%PLUGIN_ROOT%` | All 5 |
+| opencode | `.opencode/plugins/ospec.js` (generated) | spawnSync — see Requirement: opencode SpawnSync | 3 (session.created → session-start, tool.execute.before → pre-tool-use, tool.execute.after → post-tool-use) |
+| codex | `hooks/hooks.json` (wrapper matcher + POSIX/Windows adapter) | Shell command via `$PLUGIN_ROOT` / `%PLUGIN_ROOT%` | All 6 (`PostToolUse` answers `decision: "block"` with the redacted output as reason) |
 | cursor | `hooks.json` (camelCase event map + `__OSPEC_CURSOR_ROOT__` placeholder expanded at install) | Shell command via absolute `ospec-hooks-launch.js` | Mapped Cursor events (beforeSubmitPrompt, beforeShellExecution, beforeReadFile, afterFileEdit, stop); `SubagentStop` dropped |
 
 (Previously: table covered four targets and said "All four targets"; now includes codex and cursor as first-class wiring rows.)
 
-#### Scenario: claude and vscode wiring covers all 5 hooks
+#### Scenario: claude and vscode wiring covers their hooks
 
 - GIVEN the canonical `hooks/hooks.json` is updated with the Go binary command
-- WHEN the vscode identity transform is applied
-- THEN both targets MUST produce hook registrations for all 5 events pointing to the binary
+- WHEN the claude and vscode transforms are applied
+- THEN claude MUST register all 6 events and vscode the 5 other than `PostToolUse`, pointing to the binary
 
 #### Scenario: github-copilot wiring covers only its 2 hooks
 
@@ -248,6 +252,16 @@ The generated plugin MUST:
      fail-closed, ADR 0008).
 4. If spawnSync fails (binary absent, non-zero exit, unparseable stdout) during
    `tool.execute.before`: throw (fail-closed, ADR 0008 — MUST block the tool call).
+5. On the v2 entrypoint, pass `OSPEC_OUTPUT_REDACTION=1` to `pre-tool-use` (the v1
+   entrypoint passes it empty), and for each completed `execute.after` event call
+   `spawnSync` with subcommand `post-tool-use`, passing
+   `{"tool_name": event.tool, "tool_response": event.result}`, and replace
+   `event.result` with `hookSpecificOutput.updatedToolOutput` when present
+   (REQ-agent-shield-security-002; OpenCode 2.x returns the reassigned result to
+   the model, verified on 2.0.32). Empty stdout keeps the result. A failed spawn,
+   a non-zero exit or an invalid output MUST replace every string of the result
+   with a withheld-output notice (fail-closed, ADR 0008). The v1
+   `tool.execute.after` hook applies the same redaction to the fields of `output`.
 
 The plugin module MUST default-export `{ id: "ospec", server: <v1 entrypoint>,
 setup: <v2 entrypoint> }` so one artifact loads on OpenCode 1.x (>= 1.18.29, object

@@ -10,6 +10,9 @@ module.exports = {
   id: "vscode",
   agentFile: { from: ".agent.md", to: ".agent.md" },
   commandFile: { from: ".prompt.md", to: ".prompt.md" },
+  // VS Code's PostToolUse cannot replace a tool result, so the E1.27
+  // redaction hook would only inject its note over the original output.
+  hooks: { omitEvents: ["PostToolUse"] },
   model: true,
   validate: ["node", "scripts/configure/validate-vscode.js", "{out}"],
 };

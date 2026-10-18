@@ -24,5 +24,11 @@ test('literal read operands keep quotes, separators and option values distinct',
     ['base64 .env', ['.env']],
     ['xxd .env', ['.env']],
     ['cp .env /tmp/out.env', ['.env', '/tmp/out.env']],
+    ['od -c .env', ['.env']],
+    ['tar cf - .env', ['cf', '.env']],
+    ['tar -czf out.tgz .env', ['out.tgz', '.env']],
+    ['scp .env host:', ['.env', 'host:']],
+    ['scp -i ~/.ssh/id_rsa notes.txt host:', ['notes.txt', 'host:']],
+    ['scp -o IdentityFile=~/.ssh/id_rsa notes.txt host:', ['notes.txt', 'host:']],
   ]) assert.deepEqual(extractShellReadPaths(command), expected, command);
 });

@@ -1,0 +1,5 @@
+{
+  "description": "Read: only the secret value changes inside file.content",
+  "stdin": "{\"tool_name\":\"Read\",\"tool_response\":{\"file\":{\"content\":\"DB_HOST=db\\nDB_PASSWORD=s3cr3t-Pass\\n\",\"filePath\":\"/repo/.env\",\"numLines\":3,\"startLine\":1,\"totalLines\":3},\"type\":\"text\"}}",
+  "expectedStdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"updatedToolOutput\":{\"file\":{\"content\":\"DB_HOST=db\\nDB_PASSWORD=[REDACTED:assigned-secret]\\n\",\"filePath\":\"/repo/.env\",\"numLines\":3,\"startLine\":1,\"totalLines\":3},\"type\":\"text\"},\"additionalContext\":\"[ospec] Se censuraron secretos en esta salida (assigned-secret). El fichero real los conserva: no escribas el marcador [REDACTED:…] en ningún fichero.\"}}"
+}

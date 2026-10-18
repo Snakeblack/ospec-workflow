@@ -1,0 +1,225 @@
+{
+  "description": "Shared corpus of the PostToolUse secret redaction (E1.27). scripts/hooks/lib/secret-redact.test.js and internal/hooks/secretredact_test.go expand the templates and require the same output. A case without output must come back unchanged. Templates keep real-format secrets out of the repository: {{fill:N}} repeats aB3xY7kM9pQ2wE5rT8uI1oP4, {{alpha:N}} repeats aBxYkMpQwErTuIoP, {{upper:N}} repeats AB3XY7KM9PQ2WE5R, {{dash5}} is five dashes and {{sq}} a single quote.",
+  "cases": [
+    {
+      "name": "dotenv password keeps the other lines",
+      "input": "DB_HOST=localhost\nDB_PASSWORD=s3cr3t-Pass\nPORT=5432\n",
+      "output": "DB_HOST=localhost\nDB_PASSWORD=[REDACTED:assigned-secret]\nPORT=5432\n",
+      "kinds": ["assigned-secret"]
+    },
+    {
+      "name": "dotenv value made only of letters",
+      "input": "SECRET_KEY=djangoinsecurevalue",
+      "output": "SECRET_KEY=[REDACTED:assigned-secret]",
+      "kinds": ["assigned-secret"]
+    },
+    {
+      "name": "exported and quoted dotenv value keeps its quotes",
+      "input": "export GITHUB_TOKEN=\"{{fill:20}}\"",
+      "output": "export GITHUB_TOKEN=\"[REDACTED:assigned-secret]\"",
+      "kinds": ["assigned-secret"]
+    },
+    {
+      "name": "dotenv with CRLF line endings",
+      "input": "A=1\r\nAPI_KEY=abcd1234efgh\r\nB=2\r\n",
+      "output": "A=1\r\nAPI_KEY=[REDACTED:assigned-secret]\r\nB=2\r\n",
+      "kinds": ["assigned-secret"]
+    },
+    {
+      "name": "grep line prefix",
+      "input": "config/.env:12:DB_PASSWORD=s3cr3t-Pass",
+      "output": "config/.env:12:DB_PASSWORD=[REDACTED:assigned-secret]",
+      "kinds": ["assigned-secret"]
+    },
+    {
+      "name": "line-numbered read output",
+      "input": "1: DB_HOST=db\n2: DB_PASSWORD=s3cr3t-Pass",
+      "output": "1: DB_HOST=db\n2: DB_PASSWORD=[REDACTED:assigned-secret]",
+      "kinds": ["assigned-secret"]
+    },
+    {
+      "name": "uppercase key with colon in compose yaml",
+      "input": "    environment:\n      POSTGRES_PASSWORD: Pg5ecretValue\n      POSTGRES_DB: app",
+      "output": "    environment:\n      POSTGRES_PASSWORD: [REDACTED:assigned-secret]\n      POSTGRES_DB: app",
+      "kinds": ["assigned-secret"]
+    },
+    {
+      "name": "quoted password in code",
+      "input": "const config = { password: \"hunter2!secure\" };",
+      "output": "const config = { password: \"[REDACTED:assigned-secret]\" };",
+      "kinds": ["assigned-secret"]
+    },
+    {
+      "name": "camelCase api key in json",
+      "input": "{\"apiKey\": \"{{fill:24}}\", \"region\": \"eu-west-1\"}",
+      "output": "{\"apiKey\": \"[REDACTED:assigned-secret]\", \"region\": \"eu-west-1\"}",
+      "kinds": ["assigned-secret"]
+    },
+    {
+      "name": "single-quoted client secret in python",
+      "input": "client_secret = {{sq}}Zx9-{{fill:12}}{{sq}}",
+      "output": "client_secret = {{sq}}[REDACTED:assigned-secret]{{sq}}",
+      "kinds": ["assigned-secret"]
+    },
+    {
+      "name": "github token inside other text",
+      "input": "remote: use ghp_{{fill:36}} to push",
+      "output": "remote: use [REDACTED:github-token] to push",
+      "kinds": ["github-token"]
+    },
+    {
+      "name": "github fine-grained token",
+      "input": "github_pat_{{fill:22}}_{{fill:59}}",
+      "output": "[REDACTED:github-fine-grained-token]",
+      "kinds": ["github-fine-grained-token"]
+    },
+    {
+      "name": "anthropic key",
+      "input": "key sk-ant-api03-{{fill:93}}AA end",
+      "output": "key [REDACTED:anthropic-api-key] end",
+      "kinds": ["anthropic-api-key"]
+    },
+    {
+      "name": "openai project key",
+      "input": "sk-proj-{{fill:120}}",
+      "output": "[REDACTED:openai-project-key]",
+      "kinds": ["openai-project-key"]
+    },
+    {
+      "name": "legacy openai key",
+      "input": "'sk-{{fill:48}}'",
+      "output": "'[REDACTED:openai-api-key]'",
+      "kinds": ["openai-api-key"]
+    },
+    {
+      "name": "aws access key id",
+      "input": "aws_access_key_id=AKIA{{upper:16}}",
+      "output": "aws_access_key_id=[REDACTED:aws-access-key]",
+      "kinds": ["aws-access-key"]
+    },
+    {
+      "name": "google api key",
+      "input": "maps(AIzaSy{{fill:33}})",
+      "output": "maps([REDACTED:google-api-key])",
+      "kinds": ["google-api-key"]
+    },
+    {
+      "name": "slack token",
+      "input": "xoxb-123456789012-{{fill:24}}",
+      "output": "[REDACTED:slack-token]",
+      "kinds": ["slack-token"]
+    },
+    {
+      "name": "stripe live key",
+      "input": "sk_live_{{fill:24}}",
+      "output": "[REDACTED:stripe-secret-key]",
+      "kinds": ["stripe-secret-key"]
+    },
+    {
+      "name": "npm token",
+      "input": "//registry.npmjs.org/:_authToken=npm_{{fill:36}}",
+      "output": "//registry.npmjs.org/:_authToken=[REDACTED:npm-token]",
+      "kinds": ["npm-token"]
+    },
+    {
+      "name": "gitlab token",
+      "input": "glpat-{{fill:20}}",
+      "output": "[REDACTED:gitlab-token]",
+      "kinds": ["gitlab-token"]
+    },
+    {
+      "name": "hugging face token",
+      "input": "hf_{{alpha:34}}",
+      "output": "[REDACTED:huggingface-token]",
+      "kinds": ["huggingface-token"]
+    },
+    {
+      "name": "sendgrid key",
+      "input": "SG.{{fill:22}}.{{fill:43}}",
+      "output": "[REDACTED:sendgrid-api-key]",
+      "kinds": ["sendgrid-api-key"]
+    },
+    {
+      "name": "jwt",
+      "input": "Cookie: session=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.{{fill:43}}",
+      "output": "Cookie: session=[REDACTED:jwt]",
+      "kinds": ["jwt"]
+    },
+    {
+      "name": "url credentials keep user and host",
+      "input": "DATABASE_URL=postgres://app:Xy7kd92Lm@db:5432/app",
+      "output": "DATABASE_URL=postgres://app:[REDACTED:url-password]@db:5432/app",
+      "kinds": ["url-password"]
+    },
+    {
+      "name": "bearer token in a header",
+      "input": "curl -H \"Authorization: Bearer {{fill:32}}\" https://api.example.com",
+      "output": "curl -H \"Authorization: Bearer [REDACTED:bearer-token]\" https://api.example.com",
+      "kinds": ["bearer-token"]
+    },
+    {
+      "name": "private key block keeps its frame",
+      "input": "{{dash5}}BEGIN RSA PRIVATE KEY{{dash5}}\n{{fill:64}}\n{{fill:64}}\n{{dash5}}END RSA PRIVATE KEY{{dash5}}\nafter",
+      "output": "{{dash5}}BEGIN RSA PRIVATE KEY{{dash5}}\n[REDACTED:private-key]\n{{dash5}}END RSA PRIVATE KEY{{dash5}}\nafter",
+      "kinds": ["private-key"]
+    },
+    {
+      "name": "truncated private key hides the rest",
+      "input": "{{dash5}}BEGIN PRIVATE KEY{{dash5}}\n{{fill:64}}\n{{fill:30}}",
+      "output": "{{dash5}}BEGIN PRIVATE KEY{{dash5}}\n[REDACTED:private-key]",
+      "kinds": ["private-key"]
+    },
+    {
+      "name": "two secrets on different lines",
+      "input": "GH_TOKEN=ghp_{{fill:36}}\nDB_PASSWORD=s3cr3t-Pass",
+      "output": "GH_TOKEN=[REDACTED:github-token]\nDB_PASSWORD=[REDACTED:assigned-secret]",
+      "kinds": ["github-token", "assigned-secret"]
+    },
+    { "name": "token counts are numbers", "input": "max_tokens: 4096\nMAX_TOKENS=4096\nTOKEN_LIMIT=1000" },
+    { "name": "settings named after a password", "input": "password_min_length: 12\npasswordField: \"input-1\"" },
+    { "name": "i18n labels", "input": "{\"password\": \"Contraseña\", \"token\": \"Token\"}" },
+    { "name": "typescript type", "input": "interface User {\n  password: string;\n  PASSWORD: string;\n}" },
+    { "name": "object field from a request", "input": "save({ password: req.body.password, token: hashed });" },
+    { "name": "environment reference in code", "input": "const token = process.env.GITHUB_TOKEN;\nconst API_KEY=process.env.API_KEY;" },
+    { "name": "shell references", "input": "DB_PASSWORD=${DB_PASSWORD}\nTOKEN=$GITHUB_TOKEN\nPASSWORD=$(cat /run/secrets/db)" },
+    { "name": "placeholders", "input": "DB_PASSWORD=changeme\nAPI_KEY=<your-api-key>\nAPI_KEY=your_api_key_here\nPASSWORD=\nSECRET=xxxxxxxx\nTOKEN=true" },
+    { "name": "github actions secret reference", "input": "with:\n  token: ${{ secrets.GITHUB_TOKEN }}" },
+    { "name": "path to a key file", "input": "private_key: \"/etc/ssl/private/server.key\"\nPWD=/home/user/project" },
+    { "name": "sentence as a value", "input": "\"secret\": \"Enter your secret phrase\"" },
+    { "name": "key alone is not sensitive", "input": "primary_key = \"user_id_123\"\ncache_key: \"users:42:profile\"" },
+    { "name": "url credential placeholders", "input": "postgres://user:password@localhost/db\nhttps://user:${TOKEN}@github.com/org/repo" },
+    { "name": "spanish url credential placeholder", "input": "una URL `esquema://usuario:contraseña@host` o `ftp://user:clave@host`" },
+    { "name": "bearer placeholders", "input": "Authorization: Bearer <token>\nAuthorization: Bearer $TOKEN" },
+    { "name": "short body under a key header", "input": "{{dash5}}BEGIN PRIVATE KEY{{dash5}}\nabc\n{{dash5}}END PRIVATE KEY{{dash5}}" },
+    { "name": "certificate", "input": "{{dash5}}BEGIN CERTIFICATE{{dash5}}\n{{fill:64}}\n{{dash5}}END CERTIFICATE{{dash5}}" },
+    { "name": "token prefixes without a body", "input": "ghp_short\nsee the sk-project-plan\ndesk-{{fill:48}}" },
+    { "name": "dom lookup", "input": "const passwordField = document.getElementById({{sq}}password{{sq}});" },
+    { "name": "secret name", "input": "secret_name: my-app-secret-01" },
+    { "name": "value inside backticks in docs", "input": "Set `DB_PASSWORD=mysecret1` in your environment." },
+    { "name": "numeric value", "input": "API_KEY=1234567890" },
+    { "name": "constant name as value", "input": "token_env: \"GITHUB_TOKEN\"\ntoken: \"GITHUB_TOKEN\"" },
+    { "name": "already redacted", "input": "DB_PASSWORD=[REDACTED:assigned-secret]\n\"secret\": \"[REDACTED:assigned-secret]\"" },
+    { "name": "ordinary readme", "input": "# Project\n\nRun `npm test` and set PORT=3000.\n" },
+    {"name": "private key inside a json string with escaped newlines (T1)", "input": "{\"private_key\": \"{{dash5}}BEGIN PRIVATE KEY{{dash5}}\\n{{fill:64}}\\n{{fill:64}}\\n{{dash5}}END PRIVATE KEY{{dash5}}\\n\", \"client_email\": \"svc@proj.iam.gserviceaccount.com\"}", "output": "{\"private_key\": \"{{dash5}}BEGIN PRIVATE KEY{{dash5}}\\n[REDACTED:private-key]\\n{{dash5}}END PRIVATE KEY{{dash5}}\\n\", \"client_email\": \"svc@proj.iam.gserviceaccount.com\"}", "kinds": ["private-key"]},
+    {"name": "aws credentials file in a sensitive file (T2)", "sensitive_file": true, "input": "[default]\nregion = eu-west-1\naws_access_key_id = AKIA{{upper:16}}\naws_secret_access_key = wJalr{{fill:35}}\n", "output": "[default]\nregion = eu-west-1\naws_access_key_id = [REDACTED:aws-access-key]\naws_secret_access_key = [REDACTED:assigned-secret]\n", "kinds": ["aws-access-key", "assigned-secret"]},
+    {"name": "env values that a code file would treat as examples (T2)", "sensitive_file": true, "input": "ADMIN_PASSWORD=MyPassword!2024\nSECRET_KEY_BASE=3f9a8b7c6d5e4f3a2b1c0d9e8f7a\nTOKEN_URL=https://auth.example.com/token\nNODE_ENV=production\nPORT=3000\nMAILGUN=key{{fill:32}}\n", "output": "ADMIN_PASSWORD=[REDACTED:assigned-secret]\nSECRET_KEY_BASE=[REDACTED:assigned-secret]\nTOKEN_URL=https://auth.example.com/token\nNODE_ENV=production\nPORT=3000\nMAILGUN=[REDACTED:assigned-secret]\n", "kinds": ["assigned-secret"]},
+    {"name": "lowercase yaml in a sensitive file (T2)", "sensitive_file": true, "input": "database:\n  host: db.internal\n  password: hunter2abc\n  name: my-app\n", "output": "database:\n  host: db.internal\n  password: [REDACTED:assigned-secret]\n  name: my-app\n", "kinds": ["assigned-secret"]},
+    {"name": "opaque values of any key in a sensitive file (review N2)", "sensitive_file": true, "input": "REDIS_URL=redis://:s3cr3tP4ss@cache:6379\nSENDGRID_KEY=abcd1234efgh5678ijkl\nLOG_LEVEL=INFO\nAPP_NAME=\"My Cool App\"\nREGION=eu-west-1\n", "output": "REDIS_URL=redis://:[REDACTED:url-password]@cache:6379\nSENDGRID_KEY=[REDACTED:assigned-secret]\nLOG_LEVEL=INFO\nAPP_NAME=\"My Cool App\"\nREGION=eu-west-1\n", "kinds": ["url-password", "assigned-secret"]},
+    {"name": "the same lowercase yaml outside a sensitive file stays", "input": "database:\n  password: hunter2abc\n"},
+    {"name": "env reference outside a sensitive file keeps the descriptive rule", "input": "const x = {{sq}}ADMIN_PASSWORD=MyPassword!2024{{sq}};"},
+    { "name": "namespaced opaque ids", "input": "authorityToken: \"opaque:model\",\nauthority_token: \"opaque:auth-1\"," },
+    { "name": "cli argument as a value", "input": "arguments: [{ name: \"node_id\", token: \"--node-id=n1\" }]" },
+    { "name": "hyphenated label", "input": "fs.writeFileSync(authPath, {{sq}}{\"token\":\"user-owned\"}\\n{{sq}});" },
+    { "name": "config reference in braces", "input": "\"CONTEXT7_API_KEY\": \"{env:CONTEXT7_API_KEY}\"" },
+    { "name": "values that name what they are", "input": "db_password = \"superSecretAdmin123\"\nownerToken: \"token-123\"\nhttps://username:password123@github.com/repo.git\nhttps://user:secret123@github.com/org/repo.git" },
+    { "name": "env line embedded in a test string", "input": "fs.writeFileSync(file, \"API_KEY=secretvalue\\n\");\nconst x = {{sq}}SECRET=\"deploy-secret-value\"{{sq}};" },
+    { "name": "truncated example token in docs", "input": "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..." },
+    { "name": "regular expression that looks like a url", "input": "credenciales incrustadas (patrón `https://[^:]+:[^@]+@`)." },
+    {
+      "name": "env line inside docker inspect json",
+      "input": "\"Env\": [\"POSTGRES_PASSWORD=Pg5ecret9x\", \"PGDATA=/var/lib/postgresql/data\"]",
+      "output": "\"Env\": [\"POSTGRES_PASSWORD=[REDACTED:assigned-secret]\", \"PGDATA=/var/lib/postgresql/data\"]",
+      "kinds": ["assigned-secret"]
+    }
+  ]
+}
