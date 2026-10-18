@@ -706,7 +706,12 @@ async function review(root, positionals, values) {
           candidateBlobs: treeBlobs(root, tree),
         });
         const reviewedChanged = reviewedPathsChanged(root, lineage, tree, numstat, context.patterns);
-        outcome = startTrustReview(stored, { candidate, reviewedChanged });
+        // A review waiting for its correction: the changes since the reviewed
+        // candidate decide whether they still fit one bounded correction.
+        const correctionChanges = lineage && lineage.status === "correction-required"
+          ? treeNumstat(root, lineage.current_candidate.candidate_tree, tree)
+          : undefined;
+        outcome = startTrustReview(stored, { candidate, reviewedChanged, correctionChanges });
       } else if (action === "record") {
         outcome = recordTrustFindings(stored, { result, recordedAt });
       } else if (action === "correct") {

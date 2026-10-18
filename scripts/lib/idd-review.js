@@ -100,20 +100,57 @@ function withReview(state, lineage) {
   return next;
 }
 
-function reviewRequest(lineage) {
-  return { lineage_id: lineage.lineage_id, generation: lineage.generation, lens: LENS, reviewer: REVIEWER, paths: [...lineage.genesis.paths] };
+// A successor whose predecessor ended with unresolved blocking findings hands
+// them to the reviewer, who checks them on top of the full review.
+function reviewRequest(state, lineage) {
+  const request = { lineage_id: lineage.lineage_id, generation: lineage.generation, lens: LENS, reviewer: REVIEWER, paths: [...lineage.genesis.paths] };
+  const predecessor = (state.reviews || []).find((entry) => entry.lineage_id === lineage.predecessor_lineage_id);
+  const unresolved = predecessor ? predecessor.findings.filter((finding) => finding.blocking && finding.resolution === "unresolved") : [];
+  if (unresolved.length > 0) {
+    request.predecessor_findings = unresolved.map(({ id, severity, summary, acceptance_criteria }) => ({ id, severity, summary, acceptance_criteria }));
+  }
+  return request;
 }
+
+/**
+ * True when the changes since the reviewed candidate do not fit the one
+ * bounded correction: more lines than the budget left, or a path outside the
+ * frozen ones. Such a fix needs a successor review, not a targeted validation.
+ */
+function exceedsBoundedCorrection(lineage, changes) {
+  const lines = changes.reduce((sum, entry) => sum + entry.added + entry.deleted, 0);
+  const budget = lineage.correction_budget;
+  const frozen = new Set(lineage.genesis.paths);
+  return lines > budget.limit_lines - budget.used_lines || changes.some((entry) => !frozen.has(entry.path));
+}
+
+const OVERSIZED_CORRECTION = "the correction does not fit one bounded correction (line budget or frozen paths)";
 
 /**
  * Opens the trust review of the current candidate, or resumes the one in
  * progress. `reviewedChanged` says whether the reviewed paths (and any new
  * security-boundary path) differ from the last reviewed candidate.
+ * `correctionChanges` are the changes since a candidate waiting for its
+ * correction: when they do not fit one bounded correction, that review ends
+ * as escalated and the successor opens (it counts toward MAX_REVIEWS).
  */
-function startTrustReview(state, { candidate, reviewedChanged }) {
+function startTrustReview(state, { candidate, reviewedChanged, correctionChanges }) {
   requireReviewable(state);
   const reviews = state.reviews || [];
-  const current = currentReview(state);
-  if (current && !TERMINAL.has(current.status)) return { state, changed: false, request: reviewRequest(current) };
+  let current = currentReview(state);
+  if (current && current.status === "correction-required" && correctionChanges && correctionChanges.length > 0
+    && exceedsBoundedCorrection(current, correctionChanges)) {
+    if (reviews.length >= MAX_REVIEWS) refuse("review-limit", `${MAX_REVIEWS} of ${MAX_REVIEWS} trust reviews used: the person decides how to go on`);
+    const predecessor = current;
+    current = lineageStep(() => terminateLineage(predecessor, {
+      status: "escalated",
+      reason: `${OVERSIZED_CORRECTION}: a successor review checks it`,
+      expected_revision: predecessor.revision,
+      request_id: requestId(state, "terminate", predecessor),
+    }));
+    state = withReview(state, current);
+  }
+  if (current && !TERMINAL.has(current.status)) return { state, changed: false, request: reviewRequest(state, current) };
   if (current) {
     if (trustObligation(state).status === "satisfied") refuse("review-current", "the trust review of the current candidate is already approved");
     if (!reviewedChanged) refuse("candidate-unchanged", "the reviewed paths did not change: change the code before a successor review");
@@ -127,7 +164,8 @@ function startTrustReview(state, { candidate, reviewedChanged }) {
     );
     return beginLens(started, { dimension: LENS, expected_revision: started.revision, request_id: requestId(state, "lens-start", started) });
   });
-  return { state: withReview(state, lineage), changed: true, request: reviewRequest(lineage) };
+  const next = withReview(state, lineage);
+  return { state: next, changed: true, request: reviewRequest(next, lineage) };
 }
 
 function approve(state, lineage, recordedAt) {
@@ -182,6 +220,7 @@ function correctTrustReview(state, { changes, candidateTree, diffHash }) {
   const current = currentReview(state);
   if (!current || current.status !== "correction-required") refuse("review-refused", "no frozen blocking finding is waiting for a correction");
   if (changes.length === 0) refuse("review-refused", "nothing changed since the reviewed candidate");
+  if (exceedsBoundedCorrection(current, changes)) refuse("review-refused", `${OVERSIZED_CORRECTION}: run ospec review start for a successor review`);
   const paths = changes.map((entry) => entry.path).sort();
   const lines = changes.reduce((sum, entry) => sum + entry.added + entry.deleted, 0);
   const findingIds = unresolvedIds(current);
