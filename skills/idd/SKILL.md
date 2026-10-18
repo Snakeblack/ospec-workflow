@@ -116,8 +116,7 @@ Then resume with `ospec next`.
      `ospec review record --result @<file>`. Fix what it blocks on, run
      `ospec review correct`, hand its request to the read-only
      `review-correction` validator and pass its result to
-     `ospec review validate --result @<file>`. A fix too large for that
-     correction is refused: run `ospec review start` for the successor.
+     `ospec review validate --result @<file>`.
    - `checks-pass`: `ospec check` on the current tree; a `tests 0` summary is not
      evidence.
    - `living-doc`: keep the Plan and Decisions of `idd/<id>/change.md` current.
