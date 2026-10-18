@@ -24,10 +24,17 @@ const FORBIDDEN_PATHS = [
 const REQUIRED_HOOK_GROUPS = [
   "ospec-session-start",
   "ospec-pre-tool-use",
-  "ospec-pre-compact",
-  "ospec-subagent-stop",
   "ospec-stop",
 ];
+
+// agy 1.4.2 wraps only its tool events in matcher groups; the rest take
+// handlers directly, and one malformed handler discards the whole file.
+const TOOL_HOOK_EVENTS = new Set(["PreToolUse", "PostToolUse"]);
+const FLAT_HOOK_EVENTS = new Set(["SessionStart", "PreInvocation", "PostInvocation", "Stop"]);
+
+function isHandler(entry) {
+  return Boolean(entry) && typeof entry === "object" && typeof entry.command === "string";
+}
 
 function pathType(root, rel, fsImpl = fs) {
   const abs = path.join(root, rel);
@@ -90,6 +97,20 @@ function validateHooksJson(root, errors, fsImpl = fs) {
   for (const group of REQUIRED_HOOK_GROUPS) {
     if (!parsed[group] || typeof parsed[group] !== "object") {
       errors.push(`hooks.json missing required hook group: ${group}`);
+    }
+  }
+
+  for (const [group, spec] of Object.entries(parsed)) {
+    if (!spec || typeof spec !== "object") continue;
+    for (const [event, entries] of Object.entries(spec)) {
+      if (!Array.isArray(entries)) continue;
+      entries.forEach((entry, index) => {
+        if (TOOL_HOOK_EVENTS.has(event) && !(Array.isArray(entry?.hooks) && entry.hooks.every(isHandler))) {
+          errors.push(`hooks.json ${group}.${event}[${index}] must be a matcher group with hooks`);
+        } else if (FLAT_HOOK_EVENTS.has(event) && !isHandler(entry)) {
+          errors.push(`hooks.json ${group}.${event}[${index}] must be a handler with a string command`);
+        }
+      });
     }
   }
 }

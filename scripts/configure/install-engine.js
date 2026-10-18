@@ -471,6 +471,13 @@ function mergeHooksDoc(existingDoc, generatedDoc, format = "standard") {
 
   // Standard / Claude / Antigravity format: keyed by hook group name ("ospec-...")
   const next = { ...existingDoc };
+  if (format === "antigravity") {
+    // Retire the ospec groups a release stopped generating (agy has no
+    // PreCompact or SubagentStop); foreign groups stay.
+    for (const groupName of Object.keys(next)) {
+      if (groupName.startsWith("ospec-") && !Object.hasOwn(generatedDoc, groupName)) delete next[groupName];
+    }
+  }
   for (const [groupName, groupValue] of Object.entries(generatedDoc)) {
     next[groupName] = groupValue;
   }

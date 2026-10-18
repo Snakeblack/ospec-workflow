@@ -247,6 +247,26 @@ test("codex wraps PostToolUse; vscode, antigravity, copilot and cursor drop it",
   }
 });
 
+test("antigravity keeps SessionStart and Stop flat, groups PreToolUse, and drops events agy lacks", () => {
+  const launch = 'node "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js"';
+  const events = ["SessionStart", "PreToolUse", "PostToolUse", "PreCompact", "SubagentStop", "Stop"];
+  const subcommands = ["session-start", "pre-tool-use", "post-tool-use", "pre-compact", "subagent-stop", "stop"];
+  const files = makeSource().map((file) => file.path !== "hooks/hooks.json" ? file : {
+    path: file.path,
+    content: JSON.stringify({
+      hooks: Object.fromEntries(events.map((event, i) => [event, [{ type: "command", command: `${launch} ${subcommands[i]}`, timeout: 5 }]])),
+    }),
+  });
+  const hooks = JSON.parse(find(transform({ files, profile: antigravity, models: MODELS }), "hooks.json").content);
+  const wrapper = 'node "__OSPEC_ANTIGRAVITY_ROOT__/scripts/hooks/ospec-antigravity-hook.js"';
+  assert.deepEqual(Object.keys(hooks), ["ospec-session-start", "ospec-pre-tool-use", "ospec-stop"]);
+  assert.deepEqual(hooks["ospec-session-start"].SessionStart, [{ type: "command", command: `${wrapper} session-start`, timeout: 5 }]);
+  assert.deepEqual(hooks["ospec-stop"].Stop, [{ type: "command", command: `${wrapper} stop`, timeout: 5 }]);
+  assert.deepEqual(hooks["ospec-pre-tool-use"].PreToolUse, [
+    { matcher: "*", hooks: [{ type: "command", command: `${wrapper} pre-tool-use`, timeout: 5 }] },
+  ]);
+});
+
 // ---------------------------------------------------------------------------
 // Requirement: File Extension Mapping
 // ---------------------------------------------------------------------------

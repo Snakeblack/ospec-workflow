@@ -1,0 +1,537 @@
+{
+  "schema": "idd-state/v1",
+  "change": "agy-workspace-fallback",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "En agy, pre-tool-use usa el primer workspace absoluto que exista (o un Cwd absoluto existente) y, si no hay ninguno, va por el fallo de inspección en vez de inspeccionar ~/.gemini/config",
+    "acceptance": "Con workspacePaths [inexistente, existente] el hijo corre en el existente; sin workspace válido y Cwd absoluto existente corre en el Cwd; sin ningún directorio válido la respuesta es {decision: ask} con el motivo de inspección y el hijo no se lanza"
+  },
+  "facts": {
+    "basis": "El usuario eligió el comportamiento al responder sobre T5 (primer workspace que exista; si no hay ninguno, ask por fallo de inspección), y el código fija el resto: el camino unreadable del adaptador y launcherFailure"
+  },
+  "plan": {
+    "paths": [
+      "openspec/specs/hooks/spec.md",
+      "scripts/hooks/ospec-hooks-launch.js",
+      "scripts/hooks/ospec-hooks-launch.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/ospec-hooks-launch.js and 1 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component hooks: ADR 0008, 0010 and quality scenario guard-fail-closed",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/hooks/ospec-hooks-launch.test.js adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "Sin un directorio desde el que inspeccionar, el guard de agy va por el fallo de inspección (ask) en vez de inspeccionar otro directorio."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "none",
+      "reason": "Solo biblioteca estándar de Node."
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "Un workspace ausente o inexistente ya no deja pasar lecturas relativas sin decisión."
+    },
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "El diff desde main incluye agy-hooks-adapter (sin commitear): el hooks.json de agy sigue saliendo de la transformación pura; T5 no toca el generador."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "No toca red ni memoria."
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "La salida de agy viene de la fuente de transformación y la verifican los tests del generador; T5 no cambia la salida generada."
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-18T18:01:35.398Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-18T18:03:01.195Z",
+      "detail": {
+        "tree": "sha256:36224baa82466e89ee53d5310c64937f320bb705336b513b538c692caf471cd2",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-18T18:03:32.047Z",
+      "detail": {
+        "run": "run-10",
+        "tree": "sha256:9c743277a54a3bca9a1f150afd763d447cf970b5a772c7bb6f6c24ffe63f02bb",
+        "plan": "Heredado de agy-hooks-adapter en el mismo diff desde main: al reinstalar, mergeHooksDoc sustituye los grupos ospec-* generados, retira los ospec-pre-compact/ospec-subagent-stop de releases anteriores y conserva todo grupo ajeno; es idempotente; el instalador captura hooks.json en su journal y lo restaura si falla. Rollback: reinstalar la release anterior. T5 no toca datos persistidos."
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-18T18:04:38.464Z",
+      "detail": {
+        "tree": "sha256:36224baa82466e89ee53d5310c64937f320bb705336b513b538c692caf471cd2",
+        "runs": [
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-18T18:04:38.464Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 none",
+          "scenario:guard-fail-closed conforms",
+          "adr:0001 conforms",
+          "scenario:offline-operation none",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:36224baa82466e89ee53d5310c64937f320bb705336b513b538c692caf471cd2",
+        "fitness": [
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-18T18:05:27.370Z",
+      "detail": {
+        "lineage_id": "sha256:eb29def45a7a2f1c0de40057a1fccad6b716efffafb80379b81565a31ceb9bf5",
+        "candidate_id": "sha256:2cec781a3802fe9ca47fe0d0a499f3408314a8eb10180eea5a841bcd9daeda50",
+        "candidate_tree": "c5812c92349ec971af4260cabff2c2a77a61d8b6",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f"
+      }
+    }
+  ],
+  "base": "2dbdce9f867749d129832f751f8b8081db7f543e",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:4ca24066dfbc132b4968ec377092755bdc4261f5b2818c523769eff66379936c",
+      "tree": "sha256:a352ffc9bb47ace0b63a0db5a1fcebf02305dd23c821958f6ad8acaaaa5814e9",
+      "recorded_at": "2026-10-18T18:00:57.029Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c28ef124f8062438af5392e688af53f8d07c564ca51b7846ef6d10b87f81835e",
+      "tree": "sha256:417091c8ab8e3dc241e73ce9128b4d9f09e5ff359f6cd6446898b79a65a0d86e",
+      "recorded_at": "2026-10-18T18:01:35.398Z",
+      "tests": 36
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5bb8d6f049871813df67a4910bfc755e7198968f5b2af3fdf07b9a410c8881a3",
+      "tree": "sha256:36224baa82466e89ee53d5310c64937f320bb705336b513b538c692caf471cd2",
+      "recorded_at": "2026-10-18T18:03:01.195Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c7145410076f3a99625f734c877ef4855238c4630011876861aa93d3beaf8e2d",
+      "tree": "sha256:36224baa82466e89ee53d5310c64937f320bb705336b513b538c692caf471cd2",
+      "recorded_at": "2026-10-18T18:03:01.195Z",
+      "tests": 77
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:36224baa82466e89ee53d5310c64937f320bb705336b513b538c692caf471cd2",
+      "recorded_at": "2026-10-18T18:03:01.195Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a9e45b8550279259540bea4b71671fe01c869cd1136d7733a4b49444c44c15f9",
+      "tree": "sha256:36224baa82466e89ee53d5310c64937f320bb705336b513b538c692caf471cd2",
+      "recorded_at": "2026-10-18T18:03:01.195Z",
+      "tests": 16
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e0e97acc5219a58dbc4e66bc1b05c648a4d7145e1801269ff2261c7271a05f82",
+      "tree": "sha256:36224baa82466e89ee53d5310c64937f320bb705336b513b538c692caf471cd2",
+      "recorded_at": "2026-10-18T18:03:01.195Z",
+      "tests": 77
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:807329398114ad2a188a93c9af279d2940cba2c315a7589c1a6424199cb23dee",
+      "tree": "sha256:36224baa82466e89ee53d5310c64937f320bb705336b513b538c692caf471cd2",
+      "recorded_at": "2026-10-18T18:03:01.195Z",
+      "tests": 47
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5564fdc98c337888120c20fe7478bd8ac7dcc5153808f2143e3006cf90283b95",
+      "tree": "sha256:36224baa82466e89ee53d5310c64937f320bb705336b513b538c692caf471cd2",
+      "recorded_at": "2026-10-18T18:03:01.195Z",
+      "tests": 47
+    },
+    {
+      "id": "run-10",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern=mergeHooksDoc scripts/configure/install-engine.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:db38b3b289fb9623f539458645f09d99e2f703e79ee63631f3c4fa5bf8d55b3c",
+      "tree": "sha256:9c743277a54a3bca9a1f150afd763d447cf970b5a772c7bb6f6c24ffe63f02bb",
+      "recorded_at": "2026-10-18T18:03:32.047Z",
+      "tests": 3
+    },
+    {
+      "id": "run-11",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f58cec728fe34f7f4d7e743fc3cbd8bc6b395c7ff0aa73c73c8e36a1f3d4ba24",
+      "tree": "sha256:36224baa82466e89ee53d5310c64937f320bb705336b513b538c692caf471cd2",
+      "recorded_at": "2026-10-18T18:04:38.464Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bfc9873138904d940b2e15c1e67e360c533def4c823d245d796eb2baf722939e",
+      "tree": "sha256:36224baa82466e89ee53d5310c64937f320bb705336b513b538c692caf471cd2",
+      "recorded_at": "2026-10-18T18:04:38.464Z",
+      "tests": 77
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:36224baa82466e89ee53d5310c64937f320bb705336b513b538c692caf471cd2",
+      "recorded_at": "2026-10-18T18:04:38.464Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:db3e41867e61c2d59106e958e490d491ae0bd8df643a9140b64f13682eba86b2",
+      "tree": "sha256:36224baa82466e89ee53d5310c64937f320bb705336b513b538c692caf471cd2",
+      "recorded_at": "2026-10-18T18:04:38.464Z",
+      "tests": 16
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:859e692600f08f4b998865bf61892b819d159e9483f7c76249af3daa680da081",
+      "tree": "sha256:36224baa82466e89ee53d5310c64937f320bb705336b513b538c692caf471cd2",
+      "recorded_at": "2026-10-18T18:04:38.464Z",
+      "tests": 77
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6dac963f7745fb120ed30b030439030753ab68b37d4f253af7ba1d8bc77abc0e",
+      "tree": "sha256:36224baa82466e89ee53d5310c64937f320bb705336b513b538c692caf471cd2",
+      "recorded_at": "2026-10-18T18:04:38.464Z",
+      "tests": 47
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a8f0a1b0ada51d70ee37b604921feb1e8990b2d04b0ced71ab1e55aff9271429",
+      "tree": "sha256:36224baa82466e89ee53d5310c64937f320bb705336b513b538c692caf471cd2",
+      "recorded_at": "2026-10-18T18:04:38.464Z",
+      "tests": 47
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:eb29def45a7a2f1c0de40057a1fccad6b716efffafb80379b81565a31ceb9bf5",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "7634999b63cbe06dd05d41429ef710cacf42aa37",
+          "candidate_tree": "c5812c92349ec971af4260cabff2c2a77a61d8b6",
+          "paths": [
+            "docs/roadmaps/harness-evolution.md",
+            "docs/target-capabilities.md",
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/install/spec.md",
+            "scripts/configure/install-engine.js",
+            "scripts/configure/install-engine.test.js",
+            "scripts/configure/validate-antigravity.js",
+            "scripts/configure/validate-antigravity.test.js",
+            "scripts/hooks/ospec-antigravity-hook.js",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js",
+            "scripts/lib/target-transform.js",
+            "scripts/lib/target-transform.test.js"
+          ],
+          "diff_hash": "sha256:4a0d9d30b62bd7a7554fbb0863d93f04a8f5e5c2039aea23790aa348aced7563",
+          "paths_digest": "sha256:1fde4eb1cb2c3ba156ca4d1d103fc076487737edd20083459875e4dce6f28dfd",
+          "authored_lines": 414,
+          "original_changed_lines": 456
+        },
+        "candidate_id": "sha256:2cec781a3802fe9ca47fe0d0a499f3408314a8eb10180eea5a841bcd9daeda50",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "docs/target-capabilities.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/install/spec.md",
+          "scripts/configure/install-engine.js",
+          "scripts/configure/install-engine.test.js",
+          "scripts/configure/validate-antigravity.js",
+          "scripts/configure/validate-antigravity.test.js",
+          "scripts/hooks/ospec-antigravity-hook.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/target-transform.js",
+          "scripts/lib/target-transform.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "c5812c92349ec971af4260cabff2c2a77a61d8b6",
+        "original_changed_lines": 456,
+        "authored_lines": 414
+      },
+      "current_candidate_id": "sha256:2cec781a3802fe9ca47fe0d0a499f3408314a8eb10180eea5a841bcd9daeda50",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "7634999b63cbe06dd05d41429ef710cacf42aa37",
+        "candidate_tree": "c5812c92349ec971af4260cabff2c2a77a61d8b6",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "docs/target-capabilities.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/install/spec.md",
+          "scripts/configure/install-engine.js",
+          "scripts/configure/install-engine.test.js",
+          "scripts/configure/validate-antigravity.js",
+          "scripts/configure/validate-antigravity.test.js",
+          "scripts/hooks/ospec-antigravity-hook.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/target-transform.js",
+          "scripts/lib/target-transform.test.js"
+        ],
+        "diff_hash": "sha256:4a0d9d30b62bd7a7554fbb0863d93f04a8f5e5c2039aea23790aa348aced7563",
+        "paths_digest": "sha256:1fde4eb1cb2c3ba156ca4d1d103fc076487737edd20083459875e4dce6f28dfd",
+        "authored_lines": 414,
+        "original_changed_lines": 456
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "agy-workspace-fallback:lens-start:1:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "agy-workspace-fallback:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-10-18T18:05:31.019Z"
+}

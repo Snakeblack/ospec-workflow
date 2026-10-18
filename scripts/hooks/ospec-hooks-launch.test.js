@@ -11,6 +11,7 @@ const {
   resolveBinary,
   resolveInvocation,
   normalizeCodexHookOutput,
+  normalizeAntigravityHookOutput,
   stripUtf8Bom,
   isCursorInstall,
   adaptCursorHookInput,
@@ -48,7 +49,10 @@ test("launcher bounds children and reports PreToolUse failures through each adap
   for (const target of ['claude', 'codex', 'cursor', 'github-copilot', 'vscode', 'opencode', 'antigravity']) {
     process.env.OSPEC_TARGET = target;
     for (const mode of ['default', 'bypassPermissions']) {
-    fs.readFileSync = (file, encoding) => file === 0 ? JSON.stringify({ permission_mode: mode }) : originalRead(file, encoding);
+    const stdin = target === 'antigravity'
+      ? JSON.stringify({ permission_mode: mode, toolCall: { name: 'view_file', args: { AbsolutePath: path.join(__dirname, 'a') } }, workspacePaths: [__dirname] })
+      : JSON.stringify({ permission_mode: mode });
+    fs.readFileSync = (file, encoding) => file === 0 ? stdin : originalRead(file, encoding);
     for (const failure of [
       { error: Object.assign(new Error('start failed'), { code: 'ENOENT' }), status: null },
       { error: Object.assign(new Error('deadline'), { code: 'ETIMEDOUT' }), status: null },
@@ -59,6 +63,7 @@ test("launcher bounds children and reports PreToolUse failures through each adap
       { status: 0, stdout: '{"continue":true}' },
     ]) {
       outcome = failure;
+      options = undefined;
       const written = [];
       process.stdout.write = (chunk) => { written.push(String(chunk)); return true; };
       assert.equal(launcher.main(['pre-tool-use'], HOOKS_DIR), 0);
@@ -72,6 +77,10 @@ test("launcher bounds children and reports PreToolUse failures through each adap
       } else if (target === 'codex') {
         assert.match(output.hookSpecificOutput.additionalContext, /could not inspect/);
         assert.equal(output.hookSpecificOutput.permissionDecision, undefined);
+      } else if (target === 'antigravity') {
+        // agy sends no permission mode: the inspection failure always asks.
+        assert.equal(output.decision, 'ask');
+        assert.match(output.reason, /could not inspect/);
       } else {
         assert.equal(output.hookSpecificOutput.permissionDecision, mode === 'bypassPermissions' ? 'allow' : 'ask');
         assert.match(output.hookSpecificOutput.permissionDecisionReason, /could not inspect/);
@@ -207,6 +216,163 @@ test("a valid post-tool-use result is forwarded, and adapted to Codex's block fe
     normalizeCodexHookOutput("post-tool-use", { hookSpecificOutput: { hookEventName: "PostToolUse", updatedToolOutput: { stdout: "x" }, additionalContext: "note" } }).reason,
     'note\n{"stdout":"x"}',
   );
+});
+
+// Payloads captured from agy 1.4.2: it runs hooks from the directory holding
+// hooks.json, so the workspace only arrives in workspacePaths.
+function agyToolCall(name, args, workspace) {
+  return JSON.stringify({
+    conversationId: "c-1",
+    stepIdx: 2,
+    toolCall: { name, args: { ...args, toolAction: "a", toolSummary: "s" } },
+    workspacePaths: [workspace],
+  });
+}
+
+test("antigravity input reaches the shared PreToolUse contract from the workspace", (t) => {
+  const workspace = path.resolve(__dirname, "..", "..");
+  const outcome = { status: 0, stdout: "", stderr: "" };
+  const read = runLauncher(t, {
+    argv: ["pre-tool-use"],
+    stdin: agyToolCall("view_file", { AbsolutePath: path.join(workspace, ".env") }, workspace),
+    outcome,
+    target: "antigravity",
+  });
+  assert.equal(read.options.cwd, workspace);
+  const readInput = JSON.parse(read.options.input);
+  assert.equal(readInput.tool_name, "view_file");
+  assert.equal(readInput.tool_input.file_path, path.join(workspace, ".env"));
+  assert.equal(readInput.cwd, workspace);
+  assert.equal(readInput.session_id, "c-1");
+
+  const scripts = path.join(workspace, "scripts");
+  const shell = runLauncher(t, {
+    argv: ["pre-tool-use"],
+    stdin: agyToolCall("run_command", { CommandLine: "cat .env", Cwd: scripts }, workspace),
+    outcome,
+    target: "antigravity",
+  });
+  assert.equal(shell.options.cwd, scripts, "a shell command resolves its operands from its own Cwd");
+  assert.equal(JSON.parse(shell.options.input).tool_input.command, "cat .env");
+  assert.equal(shell.written, "{}\n", "no objection leaves agy's own permission flow");
+
+  for (const [cwd, expected] of [["scripts", scripts], ["", workspace], ["no-such-dir", workspace], [path.join(workspace, "no-such-dir"), workspace]]) {
+    const relative = runLauncher(t, {
+      argv: ["pre-tool-use"],
+      stdin: agyToolCall("run_command", { CommandLine: "cat x", Cwd: cwd }, workspace),
+      outcome,
+      target: "antigravity",
+    });
+    assert.equal(relative.options.cwd, expected, `Cwd ${JSON.stringify(cwd)} resolves inside the workspace`);
+  }
+
+  const stale = runLauncher(t, {
+    argv: ["pre-tool-use"],
+    stdin: JSON.stringify({ toolCall: { name: "run_command", args: { CommandLine: "cat .env" } }, workspacePaths: [path.join(workspace, "gone"), workspace] }),
+    outcome,
+    target: "antigravity",
+  });
+  assert.equal(stale.options.cwd, workspace, "the first workspace that exists wins");
+  const noWorkspace = runLauncher(t, {
+    argv: ["pre-tool-use"],
+    stdin: JSON.stringify({ toolCall: { name: "run_command", args: { CommandLine: "cat config", Cwd: scripts } } }),
+    outcome,
+    target: "antigravity",
+  });
+  assert.equal(noWorkspace.options.cwd, scripts, "an absolute Cwd that exists stands without a workspace");
+  for (const workspacePaths of [undefined, [], [path.join(workspace, "gone")], ["relative/dir"]]) {
+    const lost = runLauncher(t, {
+      argv: ["pre-tool-use"],
+      stdin: JSON.stringify({ toolCall: { name: "run_command", args: { CommandLine: "cat .env" } }, workspacePaths }),
+      outcome,
+      target: "antigravity",
+    });
+    assert.equal(lost.options, undefined, "without a directory to inspect, the policy never runs in hooks.json's");
+    assert.equal(JSON.parse(lost.written).decision, "ask", JSON.stringify(workspacePaths));
+  }
+
+  const chunks = runLauncher(t, {
+    argv: ["pre-tool-use"],
+    stdin: agyToolCall("multi_replace_file_content", {
+      TargetFile: path.join(workspace, "a.js"),
+      ReplacementChunks: [{ TargetContent: "x", ReplacementContent: "one" }, { TargetContent: "y", ReplacementContent: "two" }],
+    }, workspace),
+    outcome,
+    target: "antigravity",
+  });
+  assert.equal(JSON.parse(chunks.options.input).tool_input.content, "one\ntwo", "every written body reaches the content scan");
+
+  for (const stdin of [
+    JSON.stringify({ conversationId: "c-1", workspacePaths: [workspace] }),
+    JSON.stringify({ toolCall: "view_file", workspacePaths: [workspace] }),
+    JSON.stringify({ toolCall: { name: "view_file", args: '{"AbsolutePath":".env"}' }, workspacePaths: [workspace] }),
+    "not json",
+  ]) {
+    const drift = runLauncher(t, { argv: ["pre-tool-use"], stdin, outcome, target: "antigravity" });
+    assert.equal(drift.options, undefined, "an unreadable tool call never reaches the policy as an empty one");
+    assert.equal(JSON.parse(drift.written).decision, "ask", stdin);
+    assert.match(JSON.parse(drift.written).reason, /could not inspect/);
+  }
+
+  const missing = runLauncher(t, {
+    argv: ["session-start"],
+    stdin: JSON.stringify({ conversationId: "c-1", workspacePaths: [path.join(workspace, "no-such-dir")] }),
+    outcome,
+    target: "antigravity",
+  });
+  assert.equal(missing.options.cwd, undefined, "a workspace that does not exist is not a cwd");
+});
+
+test("normalizeAntigravityHookOutput speaks agy's decision and injectSteps contracts", () => {
+  const ask = { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: "secret" } };
+  const deny = { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: "blocked" } };
+  const allow = { systemMessage: "[ospec advisory] x", hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "allow", permissionDecisionReason: "x" } };
+  assert.deepEqual(normalizeAntigravityHookOutput("pre-tool-use", ask), { decision: "ask", reason: "secret" });
+  assert.deepEqual(normalizeAntigravityHookOutput("pre-tool-use", deny), { decision: "deny", reason: "blocked" });
+  assert.deepEqual(normalizeAntigravityHookOutput("pre-tool-use", allow), {}, "an affirmative allow would skip agy's prompts");
+  assert.deepEqual(normalizeAntigravityHookOutput("pre-tool-use", null), {});
+
+  const session = { status: "ok", ospecDetected: true, systemMessage: "Crea una rama." };
+  assert.deepEqual(normalizeAntigravityHookOutput("session-start", session), {
+    injectSteps: [{ systemMessage: { systemMessage: 'Crea una rama.\n{"ospecDetected":true}' } }],
+  });
+  assert.deepEqual(normalizeAntigravityHookOutput("session-start", { status: "error", message: "boom" }), {
+    injectSteps: [{ systemMessage: { systemMessage: "[ospec error] boom" } }],
+  });
+  assert.deepEqual(normalizeAntigravityHookOutput("session-start", { status: "ok" }), {});
+  // Stop never blocks: only decision "continue" would keep agy running.
+  assert.deepEqual(normalizeAntigravityHookOutput("stop", { continue: true, systemMessage: "x" }), {});
+});
+
+test("the antigravity wrapper asks before a .env read through view_file or run_command", (t) => {
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const { spawnSync } = require("node:child_process");
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-agy-"));
+  fs.writeFileSync(path.join(workspace, ".env"), "DB_PASSWORD=hunter2hunter2\n");
+  t.after(() => fs.rmSync(workspace, { recursive: true, force: true }));
+  const wrapper = path.join(__dirname, "ospec-antigravity-hook.js");
+  const env = { ...process.env };
+  delete env.OSPEC_TARGET;
+  delete env.CLAUDE_PLUGIN_ROOT;
+  const token = `ghp_${"aB3".repeat(12)}`;
+  for (const input of [
+    agyToolCall("view_file", { AbsolutePath: path.join(workspace, ".env") }, workspace),
+    agyToolCall("run_command", { CommandLine: "cat .env", Cwd: workspace }, workspace),
+    agyToolCall("write_to_file", { TargetFile: path.join(workspace, "config.js"), CodeContent: `const t = "${token}";` }, workspace),
+  ]) {
+    const result = spawnSync(process.execPath, [wrapper, "pre-tool-use"], { input, env, encoding: "utf8", cwd: os.homedir(), timeout: 10000 });
+    assert.equal(result.status, 0, result.stderr);
+    const output = JSON.parse(result.stdout);
+    assert.equal(output.decision, "ask");
+    assert.match(output.reason, /secreto|credenciales|token/i);
+  }
+
+  fs.mkdirSync(path.join(workspace, ".git"));
+  fs.writeFileSync(path.join(workspace, ".git", "config"), "[remote \"origin\"]\n");
+  const input = agyToolCall("run_command", { CommandLine: "cat config", Cwd: ".git" }, workspace);
+  const result = spawnSync(process.execPath, [wrapper, "pre-tool-use"], { input, env, encoding: "utf8", cwd: os.homedir(), timeout: 10000 });
+  assert.equal(JSON.parse(result.stdout).decision, "deny", "a relative Cwd resolves against the workspace");
 });
 
 test("hostBinarySuffix maps node platform/arch to Go tuples", () => {

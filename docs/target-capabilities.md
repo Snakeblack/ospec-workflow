@@ -38,21 +38,25 @@ agente alucine o se trabe. Ante la duda, el prompt generado usa el mínimo comú
 
 ## 3. Paridad de hooks / protecciones por target (D2)
 
-| Protección | Mecanismo | claude | vscode | github-copilot | opencode | codex | cursor | Mitigación donde falta |
-|---|---|---|---|---|---|---|---|---|
-| AgentShield (secretos) | hook `PreToolUse` | ✅ | ❌ | ❌ | parcial | ✅ | parcial (según evento mapeado) | regla instruccional en `rules/` del target |
-| Censura de secretos en la salida (E1.27) | hook `PostToolUse` | ✅ (`updatedToolOutput`, verificado en vivo) | ❌ (no reescribe la salida) | ❌ | ✅ en 2.x (`execute.after`, verificado en vivo en 2.0.32); 1.x sin verificar | parcial (`block` sustituye el resultado; sin verificar en vivo) | ❌ (solo MCP) | `ask` de lectura en `PreToolUse`; Antigravity tampoco puede (su `PostToolUse` no recibe el resultado) |
-| Token budget advisor | hook `PreToolUse` | ✅ | ❌ | ❌ | parcial | ✅ | parcial (según evento mapeado) | `skills/_shared/token-budget.md` (pasivo) |
-| Git collaboration guard | hook `PreToolUse` | ✅ | ❌ | ❌ | parcial | ✅ | parcial (según evento mapeado) | git hooks locales (`pre-commit`) |
-| No-model-attribution | 3 capas | ✅ (hook+git+regla) | git hook + regla | git hook + regla | git hook + regla | git hook + regla | git hook + regla | git hook cubre TODOS los targets al instalarse |
-| Strict TDD guard | git hook + regla | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — (git hook, host-agnóstico) |
-| Registry fresh / session state | `SessionStart`/`Stop` | ✅ | ❌ (registro por comando) | ❌ | parcial (`SessionStart`; sin `Stop`) | ✅ | parcial (según eventos mapeados) | `sdd-init` regenera el registry on-demand |
+| Protección | Mecanismo | claude | vscode | github-copilot | opencode | codex | cursor | antigravity | Mitigación donde falta |
+|---|---|---|---|---|---|---|---|---|---|
+| AgentShield (secretos) | hook `PreToolUse` | ✅ | ❌ | ❌ | parcial | ✅ | parcial (según evento mapeado) | ✅ (`decision` `ask`/`deny`; `deny` verificado en vivo en 1.4.2) | regla instruccional en `rules/` del target |
+| Censura de secretos en la salida (E1.27) | hook `PostToolUse` | ✅ (`updatedToolOutput`, verificado en vivo) | ❌ (no reescribe la salida) | ❌ | ✅ en 2.x (`execute.after`, verificado en vivo en 2.0.32); 1.x sin verificar | parcial (`block` sustituye el resultado; sin verificar en vivo) | ❌ (solo MCP) | ❌ (su `PostToolUse` no recibe el resultado) | `ask` de lectura en `PreToolUse` |
+| Token budget advisor | hook `PreToolUse` | ✅ | ❌ | ❌ | parcial | ✅ | parcial (según evento mapeado) | ✅ | `skills/_shared/token-budget.md` (pasivo) |
+| Git collaboration guard | hook `PreToolUse` | ✅ | ❌ | ❌ | parcial | ✅ | parcial (según evento mapeado) | ✅ | git hooks locales (`pre-commit`) |
+| No-model-attribution | 3 capas | ✅ (hook+git+regla) | git hook + regla | git hook + regla | git hook + regla | git hook + regla | git hook + regla | git hook + regla | git hook cubre TODOS los targets al instalarse |
+| Strict TDD guard | git hook + regla | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — (git hook, host-agnóstico) |
+| Registry fresh / session state | `SessionStart`/`Stop` | ✅ | ❌ (registro por comando) | ❌ | parcial (`SessionStart`; sin `Stop`) | ✅ | parcial (según eventos mapeados) | ✅ (`SessionStart` con `injectSteps`, verificado en vivo; `Stop`) | `sdd-init` regenera el registry on-demand |
 
 Lectura correcta de esta tabla: **los git hooks locales son la única capa**
-compartida entre los seis targets cuando se instalan y se ejecuta la operación
+compartida entre los siete targets cuando se instalan y se ejecuta la operación
 Git pertinente; no son hooks de lifecycle del host ni cubren toda ejecución.
 Las protecciones de lifecycle hooks dependen del evento realmente mapeado e
-invocado: Cursor no mapea `SubagentStop`, por lo que no se afirma paridad total.
+invocado: Cursor no mapea `SubagentStop` y Antigravity no tiene `SubagentStop`
+ni `PreCompact`, por lo que no se afirma paridad total. Con `toolPermission:
+always-proceed`, agy aprueba solo los `ask` de ospec, como el modo bypass de
+Claude, incluido el `ask` de un hook que falla al inspeccionar; los `deny` se
+siguen aplicando.
 Un usuario de vscode/copilot NO debe asumir que el token advisor o AgentShield
 corren para él — tiene la versión instruccional (defensa pasiva) generada en las
 rules de su target.
@@ -89,7 +93,7 @@ Seven generated profiles exist: `claude`, `vscode`, `github-copilot`, `opencode`
 | `opencode` | instructional | unavailable | Plugin maps session start and pre-tool use, not SubagentStop. |
 | `codex` | instructional | partial | Generated native hooks mapping; host invocation and equivalent projection are not proven here. |
 | `cursor` | instructional | unavailable | Cursor deliberately omits SubagentStop from its camelCase event map. |
-| `antigravity` | instructional | partial | Seventh generated hooks profile; host invocation and equivalent projection are not proven here. |
+| `antigravity` | instructional | unavailable | agy 1.4.2 has no SubagentStop event; ospec generates SessionStart, PreToolUse and Stop only. |
 
 PP2: `scripts/validate-phase.js` is delivered with generated runtimes and can validate a phase when explicitly executed. The orchestrator command uses the plugin install root plus `--workspace`. A global install resolves the plugin/runtime root separately from the project workspace (`--workspace`, `OSPEC_PROJECT_ROOT`, or the working directory). The dispatcher and `validate-phase` share one parser: only a direct child of a column-0 `route:` counts, a nested `actual_route` does not override it, and a caller-supplied route does not fill a missing direct child. Delivered Node scripts are **not host-enforced** proof of automatic invocation. CX1: the Node and Go `SubagentStop` reducers validate envelopes and perform locked CAS/replay-safe projection when invoked. A v2.67.0–v2.67.3 noop accepts only the frozen key order, including nested `question_gate`; a status-first envelope is not a promised noop, and original JSON bytes are not preserved. Generation and mapping alone do not prove that a given host calls it. `partial` does not mean end-to-end host enforcement. No profile is claimed to mediate all shell commands, network operations, or connectors. Git hooks, where installed, are separate from host lifecycle hooks and cannot substitute for SubagentStop.
 

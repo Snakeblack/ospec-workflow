@@ -67,16 +67,32 @@ test("validate-antigravity passes for a valid generated tree", () => {
     "skills/accessibility/SKILL.md": "---\nname: accessibility\n---\nbody",
     "scripts/hooks/ospec-hooks-launch.js": "console.log('hook')",
     "hooks.json": JSON.stringify({
-      "ospec-session-start": {},
-      "ospec-pre-tool-use": {},
-      "ospec-pre-compact": {},
-      "ospec-subagent-stop": {},
-      "ospec-stop": {},
+      "ospec-session-start": { enabled: true, SessionStart: [{ type: "command", command: "x session-start" }] },
+      "ospec-pre-tool-use": { enabled: true, PreToolUse: [{ matcher: "*", hooks: [{ type: "command", command: "x pre-tool-use" }] }] },
+      "ospec-stop": { enabled: true, Stop: [{ type: "command", command: "x stop" }] },
     }),
   });
 
   const res = validate(path.resolve("/dist"), { fs: fakeFs });
-  assert.equal(res.errors.length, 0);
+  assert.deepEqual(res.errors, []);
+});
+
+// agy 1.4.2 discards the whole hooks.json when one handler lacks `command`:
+// a matcher group under a flat event is read as a handler without one.
+test("validate-antigravity flags hook shapes agy rejects", () => {
+  const fakeFs = createFakeTree({
+    "hooks.json": JSON.stringify({
+      "ospec-session-start": { SessionStart: [{ matcher: ".*", hooks: [{ type: "command", command: "x" }] }] },
+      "ospec-pre-tool-use": { PreToolUse: [{ type: "command", command: "x" }] },
+      "ospec-stop": { Stop: [{ type: "command", command: "x" }] },
+    }),
+  });
+
+  const errors = validate(path.resolve("/dist"), { fs: fakeFs }).errors.filter((e) => e.startsWith("hooks.json"));
+  assert.deepEqual(errors, [
+    "hooks.json ospec-session-start.SessionStart[0] must be a handler with a string command",
+    "hooks.json ospec-pre-tool-use.PreToolUse[0] must be a matcher group with hooks",
+  ]);
 });
 
 test("validate-antigravity flags missing required directories and forbidden paths", () => {

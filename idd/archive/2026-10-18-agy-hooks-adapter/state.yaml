@@ -1,0 +1,1125 @@
+{
+  "schema": "idd-state/v1",
+  "change": "agy-hooks-adapter",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Antigravity carga y aplica los hooks de ospec: SessionStart/Stop en formato plano, wrapper ospec-antigravity-hook.js y adaptador de entrada (toolCall, workspacePaths, cwd) y salida (decision, injectSteps) en el lanzador",
+    "acceptance": "agy 1.4.2 carga el hooks.json generado sin 'invalid hook'; una lectura de .env por view_file o run_command recibe decision ask; SessionStart inyecta el contexto de ospec con injectSteps; los hooks se ejecutan en el workspace y no en ~/.gemini/config"
+  },
+  "facts": {
+    "open": [
+      "¿Se dejan de generar PreCompact y SubagentStop para agy (no son eventos de agy) y la reinstalación retira los grupos ospec-* obsoletos del hooks.json global?",
+      "¿El contexto de SessionStart se inyecta como systemMessage persistente (como el additionalContext de Codex, con la línea JSON estructurada) o como ephemeralMessage?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "docs/target-capabilities.md",
+      "openspec/specs/hooks/spec.md",
+      "openspec/specs/install/spec.md",
+      "scripts/configure/install-engine.js",
+      "scripts/configure/install-engine.test.js",
+      "scripts/hooks/ospec-antigravity-hook.js",
+      "scripts/hooks/ospec-hooks-launch.js",
+      "scripts/hooks/ospec-hooks-launch.test.js",
+      "scripts/lib/target-transform.js",
+      "scripts/lib/target-transform.test.js"
+    ],
+    "work_units": 3,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 3 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/ospec-antigravity-hook.js and 2 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components generator, hooks: ADR 0001, 0008, 0010 and quality scenario guard-fail-closed, offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/hooks/ospec-hooks-launch.test.js adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "El hooks.json de agy sigue generándose desde hooks/hooks.json con la transformación pura de target-transform.js; solo cambia la forma que emite."
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "En agy una inspección fallida pregunta (decision ask) y un deny se emite como deny; nunca se degrada, agy no envía modo de permisos."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "El wrapper y el adaptador son Node con la biblioteca estándar; el lanzador sigue eligiendo el binario o el hook interpretado."
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "agy pasa de no ejecutar ningún guard a recibir ask/deny del PreToolUse compartido; un fallo de inspección pregunta."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "No toca red ni memoria."
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "La salida de agy cambia en la fuente de transformación y se verifica con los tests y fixtures del generador."
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-10"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-14"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-13"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-11"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-12"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Quitar y limpiar: dejar de generar PreCompact y SubagentStop para agy y retirar al reinstalar los grupos ospec-* que ya no se generan, sin tocar grupos ajenos. SessionStart con systemMessage persistente, con el aviso legible y la línea JSON estructurada, como el additionalContext de Codex.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-18T17:39:11.333Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-18T17:45:25.173Z",
+      "detail": {
+        "tree": "sha256:9cfc413440a78b3ef7fb34dab52a8a243b4ee02f2cc5e1a40bd3b80dc1caf3e9",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-18T17:45:25.173Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms",
+          "scenario:offline-operation none",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:9cfc413440a78b3ef7fb34dab52a8a243b4ee02f2cc5e1a40bd3b80dc1caf3e9",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-18T17:45:33.590Z",
+      "detail": {
+        "run": "run-10",
+        "tree": "sha256:5a1b6f58a1c8f35258f82fa9178230e3b8f3aba22b8cfb74b6a1f47bfc1d292a",
+        "plan": "Compatibilidad: al reinstalar, mergeHooksDoc sustituye los grupos ospec-* generados, retira los ospec-pre-compact/ospec-subagent-stop de releases anteriores (agy los ignoraba) y conserva todo grupo ajeno; es idempotente. El instalador captura hooks.json en su journal antes de escribir y lo restaura si falla. Rollback: reinstalar la release anterior reescribe sus grupos; un hooks.json sin reinstalar sigue como estaba."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-18T17:48:16.935Z",
+      "detail": {
+        "lineage_id": "sha256:00165761ce5ed9939588056ef63a45f1ce9cb71af89f2f201e0d2f19e7827f25",
+        "candidate_id": "sha256:7cb65edd771452c9fcb3477544f9a04dda3cee08f0d694475edce377674b4fe0",
+        "candidate_tree": "956bf27e30fe5d12c28195f3812afd2ef3a02236",
+        "findings_digest": "sha256:2fc0944eab8ecc72077713c90b871ab581162bc4f0b36c7232356b5aa98714bd"
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-18T17:50:45.476Z",
+      "detail": {
+        "tree": "sha256:d30318a46e930739a9c4b56c4246edddf9911faede922bfa670316b56c91cc75",
+        "runs": [
+          "run-11"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-18T17:50:45.476Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms",
+          "scenario:offline-operation none",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:d30318a46e930739a9c4b56c4246edddf9911faede922bfa670316b56c91cc75",
+        "fitness": [
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-18T17:50:54.636Z",
+      "detail": {
+        "run": "run-18",
+        "tree": "sha256:c9089c38deabbbbb3d33f597df687c9c10928adb9888a27de4fd3ec1e9136e7c",
+        "plan": "Compatibilidad: al reinstalar, mergeHooksDoc sustituye los grupos ospec-* generados, retira los ospec-pre-compact/ospec-subagent-stop de releases anteriores (agy los ignoraba) y conserva todo grupo ajeno; es idempotente. El instalador captura hooks.json en su journal antes de escribir y lo restaura si falla. Rollback: reinstalar la release anterior reescribe sus grupos; un hooks.json sin reinstalar sigue como estaba."
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-18T17:52:29.475Z",
+      "detail": {
+        "lineage_id": "sha256:6b8ad2cc45f8dbde30a89e37b2ee38bf2f6467241deb51c1a99b6dc7365a600f",
+        "candidate_id": "sha256:e5e27519bff3edd99eda58e0a162ae17b433a2ebfe192aac67e3bf9d377566d2",
+        "candidate_tree": "a82fc3cfbecba678374654910c7da6a1d0f8f9f3",
+        "findings_digest": "sha256:f2833840188a2bc84a7becb45cd714c33029505dbe85db82c48dfd54bd019ed1"
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-18T17:54:16.664Z",
+      "detail": {
+        "tree": "sha256:856715a2810a236d11328dc6bf591f5f32974d645ddae4edb38eef385ecf2b05",
+        "runs": [
+          "run-19"
+        ]
+      }
+    },
+    {
+      "id": "ev-11",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-18T17:54:16.664Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms",
+          "scenario:offline-operation none",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:856715a2810a236d11328dc6bf591f5f32974d645ddae4edb38eef385ecf2b05",
+        "fitness": [
+          "run-20",
+          "run-21",
+          "run-22",
+          "run-23",
+          "run-24",
+          "run-25"
+        ]
+      }
+    },
+    {
+      "id": "ev-12",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-18T17:54:23.948Z",
+      "detail": {
+        "run": "run-26",
+        "tree": "sha256:ccda71753004862607549aaaf9d84c95f27e46bff3bb54c526bbb2b847d4625b",
+        "plan": "Compatibilidad: al reinstalar, mergeHooksDoc sustituye los grupos ospec-* generados, retira los ospec-pre-compact/ospec-subagent-stop de releases anteriores (agy los ignoraba) y conserva todo grupo ajeno; es idempotente. El instalador captura hooks.json en su journal antes de escribir y lo restaura si falla. Rollback: reinstalar la release anterior reescribe sus grupos; un hooks.json sin reinstalar sigue como estaba."
+      }
+    },
+    {
+      "id": "ev-13",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-18T17:56:10.100Z",
+      "detail": {
+        "lineage_id": "sha256:0b1759a5f029ff4e36c28080283d0e6bd4ce315963634cc664ef01a05104dfb0",
+        "candidate_id": "sha256:a16273187a621c2343e219ed703bfe8dc713f92b5a5a34d1bfff9445f061a381",
+        "candidate_tree": "5dbaa091bf3c827c96818a9dbc033e148969f380",
+        "findings_digest": "sha256:0096b33fd3f5181edfaebdd751376a5bdba6c4e8537c2730a6e6eee9e6c0f845"
+      }
+    },
+    {
+      "id": "ev-14",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-18T18:00:27.624Z"
+    }
+  ],
+  "base": "2dbdce9f867749d129832f751f8b8081db7f543e",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/target-transform.test.js scripts/hooks/ospec-hooks-launch.test.js scripts/configure/install-engine.test.js scripts/configure/validate-antigravity.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:da5257b11fbaaec87df814063de59114c499a895e049f6f82b06ce439affe22d",
+      "tree": "sha256:af4e85b284b20a38f68ee41e9441534265bcc10d29e44b47f2cf647a4aa7b288",
+      "recorded_at": "2026-10-18T17:37:33.811Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/target-transform.test.js scripts/hooks/ospec-hooks-launch.test.js scripts/configure/install-engine.test.js scripts/configure/validate-antigravity.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:95643dfe30ab27d045befd1bd877905e6439bac824dd02fa090f8c5e62acf3d4",
+      "tree": "sha256:4b75b75e2b56be1df0e30782eb2254210b8b20b57978a27d26d83460ba5044dd",
+      "recorded_at": "2026-10-18T17:39:11.333Z",
+      "tests": 150
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4bb4142b1460ef7d51c48c1c9e830dbdf852cf2f6985b6b2ac56b28a9afefee2",
+      "tree": "sha256:9cfc413440a78b3ef7fb34dab52a8a243b4ee02f2cc5e1a40bd3b80dc1caf3e9",
+      "recorded_at": "2026-10-18T17:45:25.173Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:02163b7f35f82a093bc06fdeea8fa012f69f04b9094213892f5a005caf33711a",
+      "tree": "sha256:9cfc413440a78b3ef7fb34dab52a8a243b4ee02f2cc5e1a40bd3b80dc1caf3e9",
+      "recorded_at": "2026-10-18T17:45:25.173Z",
+      "tests": 47
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:97b65611a0aa2cfb6403b7eb5734f396fec4be9bc539fc9b0168f349e9a45bb3",
+      "tree": "sha256:9cfc413440a78b3ef7fb34dab52a8a243b4ee02f2cc5e1a40bd3b80dc1caf3e9",
+      "recorded_at": "2026-10-18T17:45:25.173Z",
+      "tests": 77
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:9cfc413440a78b3ef7fb34dab52a8a243b4ee02f2cc5e1a40bd3b80dc1caf3e9",
+      "recorded_at": "2026-10-18T17:45:25.173Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9c82950a6dd58542df9ed3572cb50ab2e2ebdeb1fdf2741a6faa8a7049d3138a",
+      "tree": "sha256:9cfc413440a78b3ef7fb34dab52a8a243b4ee02f2cc5e1a40bd3b80dc1caf3e9",
+      "recorded_at": "2026-10-18T17:45:25.173Z",
+      "tests": 16
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2f322a01914c28fc064cab9a5589ff8c3c1d758cfb999088bc8d2919ff648eb9",
+      "tree": "sha256:9cfc413440a78b3ef7fb34dab52a8a243b4ee02f2cc5e1a40bd3b80dc1caf3e9",
+      "recorded_at": "2026-10-18T17:45:25.173Z",
+      "tests": 77
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1a9c91cb0e4275d26e1b6f8850520b693ad3ce9ee25cbc6392583eb609afc936",
+      "tree": "sha256:9cfc413440a78b3ef7fb34dab52a8a243b4ee02f2cc5e1a40bd3b80dc1caf3e9",
+      "recorded_at": "2026-10-18T17:45:25.173Z",
+      "tests": 47
+    },
+    {
+      "id": "run-10",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern=mergeHooksDoc scripts/configure/install-engine.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:463cdca80bb2e7e819ae1ab3f32d9083589ef07662fab6e564a5cfc24f27b5db",
+      "tree": "sha256:5a1b6f58a1c8f35258f82fa9178230e3b8f3aba22b8cfb74b6a1f47bfc1d292a",
+      "recorded_at": "2026-10-18T17:45:33.590Z",
+      "tests": 3
+    },
+    {
+      "id": "run-11",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:afc65cbd82bccdbc793a8f1bc9f81272fc7f89677360b9327e92a3dd131e2928",
+      "tree": "sha256:d30318a46e930739a9c4b56c4246edddf9911faede922bfa670316b56c91cc75",
+      "recorded_at": "2026-10-18T17:50:45.476Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:eefaeb7001244b765cef9769597f2df13de7bbf691d5062fade4f61cc3958040",
+      "tree": "sha256:d30318a46e930739a9c4b56c4246edddf9911faede922bfa670316b56c91cc75",
+      "recorded_at": "2026-10-18T17:50:45.476Z",
+      "tests": 47
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:26c06fdb74384dec124d380b570eb855b61249d52a64100c1a8c72d2614e56f8",
+      "tree": "sha256:d30318a46e930739a9c4b56c4246edddf9911faede922bfa670316b56c91cc75",
+      "recorded_at": "2026-10-18T17:50:45.476Z",
+      "tests": 77
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:d30318a46e930739a9c4b56c4246edddf9911faede922bfa670316b56c91cc75",
+      "recorded_at": "2026-10-18T17:50:45.476Z"
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e48cdaec5bfa73c73d8e65233d17ebd67df207546e6d5b9d6e0ca1163a419459",
+      "tree": "sha256:d30318a46e930739a9c4b56c4246edddf9911faede922bfa670316b56c91cc75",
+      "recorded_at": "2026-10-18T17:50:45.476Z",
+      "tests": 16
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:841a39a6441edad713093f8bbafea6353dcc3a4a833348036e598b28055fe105",
+      "tree": "sha256:d30318a46e930739a9c4b56c4246edddf9911faede922bfa670316b56c91cc75",
+      "recorded_at": "2026-10-18T17:50:45.476Z",
+      "tests": 77
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f09f25c1fed2228aadee42787a0f1fcc2a7901a42537d85a79d493017425257d",
+      "tree": "sha256:d30318a46e930739a9c4b56c4246edddf9911faede922bfa670316b56c91cc75",
+      "recorded_at": "2026-10-18T17:50:45.476Z",
+      "tests": 47
+    },
+    {
+      "id": "run-18",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern=mergeHooksDoc scripts/configure/install-engine.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:41a782c7e79669f0207196553a52db5d2e3a9341d4f75213dbb9356a3290a595",
+      "tree": "sha256:c9089c38deabbbbb3d33f597df687c9c10928adb9888a27de4fd3ec1e9136e7c",
+      "recorded_at": "2026-10-18T17:50:54.636Z",
+      "tests": 3
+    },
+    {
+      "id": "run-19",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e10f5ebb0574de30bf27894b2ecdcb97d9102e85ba6e7fa1b4b033407ee3aa3e",
+      "tree": "sha256:856715a2810a236d11328dc6bf591f5f32974d645ddae4edb38eef385ecf2b05",
+      "recorded_at": "2026-10-18T17:54:16.664Z"
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:091c0f8c199c1074bac2487fb5f8b32f8f5e9ae7cd5f7a8e8eb6d36b34e6445d",
+      "tree": "sha256:856715a2810a236d11328dc6bf591f5f32974d645ddae4edb38eef385ecf2b05",
+      "recorded_at": "2026-10-18T17:54:16.664Z",
+      "tests": 47
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2b274310f196a01ef7eef4a8f86d502905f4c4f667e17c0be0498c203641401a",
+      "tree": "sha256:856715a2810a236d11328dc6bf591f5f32974d645ddae4edb38eef385ecf2b05",
+      "recorded_at": "2026-10-18T17:54:16.664Z",
+      "tests": 77
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:856715a2810a236d11328dc6bf591f5f32974d645ddae4edb38eef385ecf2b05",
+      "recorded_at": "2026-10-18T17:54:16.664Z"
+    },
+    {
+      "id": "run-23",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7cee1f00069265a29efa4646f58a3a86ba5e1c0117bc8c44d4ad927d2034654e",
+      "tree": "sha256:856715a2810a236d11328dc6bf591f5f32974d645ddae4edb38eef385ecf2b05",
+      "recorded_at": "2026-10-18T17:54:16.664Z",
+      "tests": 16
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7ac52d8780b4f8db7d1d499dc3449231eb57477e93539bd053f264fa84867cb5",
+      "tree": "sha256:856715a2810a236d11328dc6bf591f5f32974d645ddae4edb38eef385ecf2b05",
+      "recorded_at": "2026-10-18T17:54:16.664Z",
+      "tests": 77
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:335c0675833adec4f26b91d7be0c1b7aeebb4a635aff91864791ac25f01196d6",
+      "tree": "sha256:856715a2810a236d11328dc6bf591f5f32974d645ddae4edb38eef385ecf2b05",
+      "recorded_at": "2026-10-18T17:54:16.664Z",
+      "tests": 47
+    },
+    {
+      "id": "run-26",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern=mergeHooksDoc scripts/configure/install-engine.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:eda1e4a87d68646d5f56c0c92dd262eb39d6402f3dae6bdfedfa49239259cc03",
+      "tree": "sha256:ccda71753004862607549aaaf9d84c95f27e46bff3bb54c526bbb2b847d4625b",
+      "recorded_at": "2026-10-18T17:54:23.948Z",
+      "tests": 3
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:00165761ce5ed9939588056ef63a45f1ce9cb71af89f2f201e0d2f19e7827f25",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "7634999b63cbe06dd05d41429ef710cacf42aa37",
+          "candidate_tree": "956bf27e30fe5d12c28195f3812afd2ef3a02236",
+          "paths": [
+            "docs/roadmaps/harness-evolution.md",
+            "docs/target-capabilities.md",
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/install/spec.md",
+            "scripts/configure/install-engine.js",
+            "scripts/configure/install-engine.test.js",
+            "scripts/configure/validate-antigravity.js",
+            "scripts/configure/validate-antigravity.test.js",
+            "scripts/hooks/ospec-antigravity-hook.js",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js",
+            "scripts/lib/target-transform.js",
+            "scripts/lib/target-transform.test.js"
+          ],
+          "diff_hash": "sha256:876a1e349510e22c32a766cc9ebe4a22b4f6c7d09c6b4efd25f3658a9b39ed28",
+          "paths_digest": "sha256:1fde4eb1cb2c3ba156ca4d1d103fc076487737edd20083459875e4dce6f28dfd",
+          "authored_lines": 306,
+          "original_changed_lines": 347
+        },
+        "candidate_id": "sha256:7cb65edd771452c9fcb3477544f9a04dda3cee08f0d694475edce377674b4fe0",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "docs/target-capabilities.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/install/spec.md",
+          "scripts/configure/install-engine.js",
+          "scripts/configure/install-engine.test.js",
+          "scripts/configure/validate-antigravity.js",
+          "scripts/configure/validate-antigravity.test.js",
+          "scripts/hooks/ospec-antigravity-hook.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/target-transform.js",
+          "scripts/lib/target-transform.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "956bf27e30fe5d12c28195f3812afd2ef3a02236",
+        "original_changed_lines": 347,
+        "authored_lines": 306
+      },
+      "current_candidate_id": "sha256:7cb65edd771452c9fcb3477544f9a04dda3cee08f0d694475edce377674b4fe0",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "7634999b63cbe06dd05d41429ef710cacf42aa37",
+        "candidate_tree": "956bf27e30fe5d12c28195f3812afd2ef3a02236",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "docs/target-capabilities.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/install/spec.md",
+          "scripts/configure/install-engine.js",
+          "scripts/configure/install-engine.test.js",
+          "scripts/configure/validate-antigravity.js",
+          "scripts/configure/validate-antigravity.test.js",
+          "scripts/hooks/ospec-antigravity-hook.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/target-transform.js",
+          "scripts/lib/target-transform.test.js"
+        ],
+        "diff_hash": "sha256:876a1e349510e22c32a766cc9ebe4a22b4f6c7d09c6b4efd25f3658a9b39ed28",
+        "paths_digest": "sha256:1fde4eb1cb2c3ba156ca4d1d103fc076487737edd20083459875e4dce6f28dfd",
+        "authored_lines": 306,
+        "original_changed_lines": 347
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "agy-hooks-adapter:lens-start:1:0",
+          "result_digest": "sha256:253120386bf90f913a45767e3feb6f26746fc883b2eeeb175525679755f5ab71",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "The adapter maps only path keys. It does not map agy's content argument (CodeContent), so the secret and redaction-marker body checks never run on agy file writes.",
+                "acceptance_criteria": "A PreToolUse payload `{toolCall:{name:'write_to_file',args:{TargetFile:<new file>,CodeContent:<text with a known token>}}}` through the antigravity launcher yields `{decision:'ask'}`. `CodeContent` carrying a redaction marker over a file with real secrets yields `{decision:'deny'}`. A test fixes both."
+              },
+              {
+                "severity": "WARNING",
+                "summary": "An unrecognized agy PreToolUse payload is passed through with no `tool_input`, and the policy then stays silent. This is a fail-open path, which ADR 0008 forbids for security guards.",
+                "acceptance_criteria": "For subcommand pre-tool-use on agy, a payload with no `toolCall`, a non-object `toolCall`, or non-object `args` produces the inspection-failure `ask`, with a stderr diagnostic, instead of `{}`. A launcher test covers these three shapes."
+              },
+              {
+                "severity": "WARNING",
+                "summary": "On agy the inspection-failure fallback emits `ask`, but the change's own live evidence shows agy auto-approves `ask` under `toolPermission: always-proceed`. A hook crash, timeout or invalid output therefore lets the call through, including reads that would have been denied.",
+                "acceptance_criteria": "Either the spec and docs state that, in always-proceed mode, an agy inspection failure is equivalent to an allow, or the antigravity pre-tool-use failure path emits `{decision:'deny'}` (or another verified blocking signal) with the inspection reason. A launcher test fixes the chosen behavior for child timeout and invalid child output."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "agy-hooks-adapter:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-f5239d3d1bb7d8c0",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "The adapter maps only path keys. It does not map agy's content argument (CodeContent), so the secret and redaction-marker body checks never run on agy file writes.",
+          "acceptance_criteria": "A PreToolUse payload `{toolCall:{name:'write_to_file',args:{TargetFile:<new file>,CodeContent:<text with a known token>}}}` through the antigravity launcher yields `{decision:'ask'}`. `CodeContent` carrying a redaction marker over a file with real secrets yields `{decision:'deny'}`. A test fixes both.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-601f591cbd43a9ed",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "An unrecognized agy PreToolUse payload is passed through with no `tool_input`, and the policy then stays silent. This is a fail-open path, which ADR 0008 forbids for security guards.",
+          "acceptance_criteria": "For subcommand pre-tool-use on agy, a payload with no `toolCall`, a non-object `toolCall`, or non-object `args` produces the inspection-failure `ask`, with a stderr diagnostic, instead of `{}`. A launcher test covers these three shapes.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-c592d9d1eb6ce970",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "On agy the inspection-failure fallback emits `ask`, but the change's own live evidence shows agy auto-approves `ask` under `toolPermission: always-proceed`. A hook crash, timeout or invalid output therefore lets the call through, including reads that would have been denied.",
+          "acceptance_criteria": "Either the spec and docs state that, in always-proceed mode, an agy inspection failure is equivalent to an allow, or the antigravity pre-tool-use failure path emits `{decision:'deny'}` (or another verified blocking signal) with the inspection reason. A launcher test fixes the chosen behavior for child timeout and invalid child output.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:2fc0944eab8ecc72077713c90b871ab581162bc4f0b36c7232356b5aa98714bd",
+      "correction_budget": {
+        "limit_lines": 174,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:6b8ad2cc45f8dbde30a89e37b2ee38bf2f6467241deb51c1a99b6dc7365a600f",
+      "generation": 2,
+      "predecessor_lineage_id": "sha256:00165761ce5ed9939588056ef63a45f1ce9cb71af89f2f201e0d2f19e7827f25",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "7634999b63cbe06dd05d41429ef710cacf42aa37",
+          "candidate_tree": "a82fc3cfbecba678374654910c7da6a1d0f8f9f3",
+          "paths": [
+            "docs/roadmaps/harness-evolution.md",
+            "docs/target-capabilities.md",
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/install/spec.md",
+            "scripts/configure/install-engine.js",
+            "scripts/configure/install-engine.test.js",
+            "scripts/configure/validate-antigravity.js",
+            "scripts/configure/validate-antigravity.test.js",
+            "scripts/hooks/ospec-antigravity-hook.js",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js",
+            "scripts/lib/target-transform.js",
+            "scripts/lib/target-transform.test.js"
+          ],
+          "diff_hash": "sha256:fc5247409d9c114a5616f65d472d356115e0c6e81c00f4225b2f88fd6226d95a",
+          "paths_digest": "sha256:1fde4eb1cb2c3ba156ca4d1d103fc076487737edd20083459875e4dce6f28dfd",
+          "authored_lines": 362,
+          "original_changed_lines": 404
+        },
+        "candidate_id": "sha256:e5e27519bff3edd99eda58e0a162ae17b433a2ebfe192aac67e3bf9d377566d2",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "docs/target-capabilities.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/install/spec.md",
+          "scripts/configure/install-engine.js",
+          "scripts/configure/install-engine.test.js",
+          "scripts/configure/validate-antigravity.js",
+          "scripts/configure/validate-antigravity.test.js",
+          "scripts/hooks/ospec-antigravity-hook.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/target-transform.js",
+          "scripts/lib/target-transform.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "a82fc3cfbecba678374654910c7da6a1d0f8f9f3",
+        "original_changed_lines": 404,
+        "authored_lines": 362
+      },
+      "current_candidate_id": "sha256:e5e27519bff3edd99eda58e0a162ae17b433a2ebfe192aac67e3bf9d377566d2",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "7634999b63cbe06dd05d41429ef710cacf42aa37",
+        "candidate_tree": "a82fc3cfbecba678374654910c7da6a1d0f8f9f3",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "docs/target-capabilities.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/install/spec.md",
+          "scripts/configure/install-engine.js",
+          "scripts/configure/install-engine.test.js",
+          "scripts/configure/validate-antigravity.js",
+          "scripts/configure/validate-antigravity.test.js",
+          "scripts/hooks/ospec-antigravity-hook.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/target-transform.js",
+          "scripts/lib/target-transform.test.js"
+        ],
+        "diff_hash": "sha256:fc5247409d9c114a5616f65d472d356115e0c6e81c00f4225b2f88fd6226d95a",
+        "paths_digest": "sha256:1fde4eb1cb2c3ba156ca4d1d103fc076487737edd20083459875e4dce6f28dfd",
+        "authored_lines": 362,
+        "original_changed_lines": 404
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "agy-hooks-adapter:lens-start:2:0",
+          "result_digest": "sha256:50b0db7db023e00b3ef2874bcf6274ee9f35db6fd3767d491a0971c2b13305e3",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "A relative, empty or non-existent args.Cwd is not resolved against the workspace. The policy child then runs in the hooks.json directory, so the `.git/config` deny (and content-based checks) can be sidestepped.",
+                "acceptance_criteria": "For `run_command` with a relative Cwd (e.g. `.git`), an empty Cwd, or a Cwd that does not exist, the child policy resolves operands against the workspace, not the hooks.json directory. A test shows `{CommandLine:\"cat config\", Cwd:\".git\"}` with a workspace containing `.git` returns `{decision:\"deny\"}`. A test shows an empty or non-existent Cwd uses the workspace as the child cwd."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "agy-hooks-adapter:lens-result:2:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-3429d66950535ed4",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "A relative, empty or non-existent args.Cwd is not resolved against the workspace. The policy child then runs in the hooks.json directory, so the `.git/config` deny (and content-based checks) can be sidestepped.",
+          "acceptance_criteria": "For `run_command` with a relative Cwd (e.g. `.git`), an empty Cwd, or a Cwd that does not exist, the child policy resolves operands against the workspace, not the hooks.json directory. A test shows `{CommandLine:\"cat config\", Cwd:\".git\"}` with a workspace containing `.git` returns `{decision:\"deny\"}`. A test shows an empty or non-existent Cwd uses the workspace as the child cwd.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:f2833840188a2bc84a7becb45cd714c33029505dbe85db82c48dfd54bd019ed1",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:0b1759a5f029ff4e36c28080283d0e6bd4ce315963634cc664ef01a05104dfb0",
+      "generation": 3,
+      "predecessor_lineage_id": "sha256:6b8ad2cc45f8dbde30a89e37b2ee38bf2f6467241deb51c1a99b6dc7365a600f",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "7634999b63cbe06dd05d41429ef710cacf42aa37",
+          "candidate_tree": "5dbaa091bf3c827c96818a9dbc033e148969f380",
+          "paths": [
+            "docs/roadmaps/harness-evolution.md",
+            "docs/target-capabilities.md",
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/install/spec.md",
+            "scripts/configure/install-engine.js",
+            "scripts/configure/install-engine.test.js",
+            "scripts/configure/validate-antigravity.js",
+            "scripts/configure/validate-antigravity.test.js",
+            "scripts/hooks/ospec-antigravity-hook.js",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js",
+            "scripts/lib/target-transform.js",
+            "scripts/lib/target-transform.test.js"
+          ],
+          "diff_hash": "sha256:18737315b37633eb7b0041da91dea9cc6daf2e17c1e7fc7a70e6bb6910dd80b8",
+          "paths_digest": "sha256:1fde4eb1cb2c3ba156ca4d1d103fc076487737edd20083459875e4dce6f28dfd",
+          "authored_lines": 383,
+          "original_changed_lines": 425
+        },
+        "candidate_id": "sha256:a16273187a621c2343e219ed703bfe8dc713f92b5a5a34d1bfff9445f061a381",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "docs/target-capabilities.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/install/spec.md",
+          "scripts/configure/install-engine.js",
+          "scripts/configure/install-engine.test.js",
+          "scripts/configure/validate-antigravity.js",
+          "scripts/configure/validate-antigravity.test.js",
+          "scripts/hooks/ospec-antigravity-hook.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/target-transform.js",
+          "scripts/lib/target-transform.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "5dbaa091bf3c827c96818a9dbc033e148969f380",
+        "original_changed_lines": 425,
+        "authored_lines": 383
+      },
+      "current_candidate_id": "sha256:a16273187a621c2343e219ed703bfe8dc713f92b5a5a34d1bfff9445f061a381",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "7634999b63cbe06dd05d41429ef710cacf42aa37",
+        "candidate_tree": "5dbaa091bf3c827c96818a9dbc033e148969f380",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "docs/target-capabilities.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/install/spec.md",
+          "scripts/configure/install-engine.js",
+          "scripts/configure/install-engine.test.js",
+          "scripts/configure/validate-antigravity.js",
+          "scripts/configure/validate-antigravity.test.js",
+          "scripts/hooks/ospec-antigravity-hook.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/lib/target-transform.js",
+          "scripts/lib/target-transform.test.js"
+        ],
+        "diff_hash": "sha256:18737315b37633eb7b0041da91dea9cc6daf2e17c1e7fc7a70e6bb6910dd80b8",
+        "paths_digest": "sha256:1fde4eb1cb2c3ba156ca4d1d103fc076487737edd20083459875e4dce6f28dfd",
+        "authored_lines": 383,
+        "original_changed_lines": 425
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "agy-hooks-adapter:lens-start:3:0",
+          "result_digest": "sha256:e72c77a305379fd2a68a47ad1a7e4733ecba8a181000dc77a5fbc8b3f536a58e",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "At lines 207-233, a pre-tool-use call whose workspace is missing, not a string, or not an existing directory is still sent to the policy. `adapted.cwd` is then undefined, so spawnSync inherits agy's cwd, the hooks.json directory. Relative operands are resolved against the wrong directory, and the call is not asked about.",
+                "acceptance_criteria": "With target antigravity, a pre-tool-use payload for `run_command` `cat .env` and no usable workspace (absent, empty, or non-existent) never spawns the child with an undefined cwd. It either runs with an absolute existing directory or returns `{decision:'ask', reason:/could not inspect/}`. If `workspacePaths` is `[nonexistent, existingDir]`, the child cwd is `existingDir`. A test covers each of these cases for pre-tool-use."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "agy-hooks-adapter:lens-result:3:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-1e98c5037b3485ed",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "At lines 207-233, a pre-tool-use call whose workspace is missing, not a string, or not an existing directory is still sent to the policy. `adapted.cwd` is then undefined, so spawnSync inherits agy's cwd, the hooks.json directory. Relative operands are resolved against the wrong directory, and the call is not asked about.",
+          "acceptance_criteria": "With target antigravity, a pre-tool-use payload for `run_command` `cat .env` and no usable workspace (absent, empty, or non-existent) never spawns the child with an undefined cwd. It either runs with an absolute existing directory or returns `{decision:'ask', reason:/could not inspect/}`. If `workspacePaths` is `[nonexistent, existingDir]`, the child cwd is `existingDir`. A test covers each of these cases for pre-tool-use.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:0096b33fd3f5181edfaebdd751376a5bdba6c4e8537c2730a6e6eee9e6c0f845",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-10-18T18:00:27.624Z"
+}

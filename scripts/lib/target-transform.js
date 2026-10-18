@@ -548,22 +548,24 @@ function antigravityHooks(file, profile) {
   const placeholder = profile.hooks.runtimePlaceholder || "__OSPEC_ANTIGRAVITY_ROOT__";
   const out = {};
 
+  // agy 1.4.2 has no PreCompact or SubagentStop event, and runs PostToolUse
+  // without the tool result, ignoring an overwritten one: redaction is not
+  // possible there (E1.27). SessionStart and Stop take a flat handler list;
+  // only tool events take a matcher group, and agy discards the whole file
+  // when a flat event holds one.
   const groupMapping = {
     SessionStart: "ospec-session-start",
     PreToolUse: "ospec-pre-tool-use",
-    PreCompact: "ospec-pre-compact",
-    SubagentStop: "ospec-subagent-stop",
     Stop: "ospec-stop",
   };
+  const toolEvents = new Set(["PreToolUse"]);
 
   for (const [event, entries] of Object.entries(events)) {
-    // agy 1.4.2 runs PostToolUse without the tool result and ignores an
-    // overwritten one: redaction is not possible there (E1.27).
-    if (event === "PostToolUse") {
+    const groupName = groupMapping[event];
+    if (!groupName) {
       continue;
     }
     validateHookEntries(file, event, entries);
-    const groupName = groupMapping[event] || `ospec-${event.toLowerCase()}`;
     const hooks = entries.map((entry, index) => {
       if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
         throw new Error(`${file.path}: hooks.${event}[${index}] must be an object`);
@@ -571,7 +573,10 @@ function antigravityHooks(file, profile) {
       if (typeof entry.command !== "string") {
         throw new Error(`${file.path}: hooks.${event}[${index}].command must be a string`);
       }
-      const command = entry.command.split("${CLAUDE_PLUGIN_ROOT}").join(placeholder);
+      // The wrapper marks the host so the launcher speaks agy's protocol.
+      const command = entry.command
+        .split("${CLAUDE_PLUGIN_ROOT}").join(placeholder)
+        .replace("/scripts/hooks/ospec-hooks-launch.js\"", "/scripts/hooks/ospec-antigravity-hook.js\"");
       const res = {
         type: entry.type || "command",
         command,
@@ -584,12 +589,7 @@ function antigravityHooks(file, profile) {
 
     out[groupName] = {
       enabled: true,
-      [event]: [
-        {
-          matcher: ".*",
-          hooks,
-        },
-      ],
+      [event]: toolEvents.has(event) ? [{ matcher: "*", hooks }] : hooks,
     };
   }
 
