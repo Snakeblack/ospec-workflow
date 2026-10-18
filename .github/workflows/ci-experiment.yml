@@ -1,0 +1,87 @@
+name: CI Experiment (temporary)
+
+# Temporary measurement of Windows speed-ups; removed before the PR merges.
+on:
+  push:
+    branches:
+      - ci/windows-ci-optimization
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    name: ${{ matrix.variant }}-${{ matrix.rep }}
+    runs-on: windows-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [base, defender, devdrive, devdrive-defender, conc8]
+        rep: [1, 2]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Runner facts
+        shell: pwsh
+        run: |
+          node -e "console.log('availableParallelism', require('os').availableParallelism(), 'tmpdir', require('os').tmpdir())"
+          Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled, AMRunningMode | Format-List
+
+      - name: Defender exclusions
+        if: contains(matrix.variant, 'defender')
+        shell: pwsh
+        run: |
+          $t0 = Get-Date
+          Add-MpPreference -ExclusionPath $env:GITHUB_WORKSPACE, $env:RUNNER_TEMP, $env:TEMP, "R:\"
+          Add-MpPreference -ExclusionProcess "node.exe", "git.exe", "pwsh.exe", "powershell.exe", "cmd.exe", "bash.exe"
+          try { Set-MpPreference -DisableRealtimeMonitoring $true } catch { Write-Host "DisableRealtimeMonitoring failed: $_" }
+          Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled | Format-List
+          Write-Host "defender setup took $(((Get-Date) - $t0).TotalSeconds) s"
+
+      - name: Dev Drive for TEMP
+        if: startsWith(matrix.variant, 'devdrive')
+        shell: pwsh
+        run: |
+          $t0 = Get-Date
+          $vhd = "C:\ospec-devdrive.vhdx"
+          "create vdisk file=`"$vhd`" maximum=20480 type=expandable`nselect vdisk file=`"$vhd`"`nattach vdisk`ncreate partition primary`nassign letter=R" | Set-Content "$env:RUNNER_TEMP\dp.txt"
+          diskpart /s "$env:RUNNER_TEMP\dp.txt" | Out-Host
+          try {
+            Format-Volume -DriveLetter R -DevDrive -Confirm:$false -Force | Out-Host
+          } catch {
+            Write-Host "DevDrive format failed, falling back to ReFS: $_"
+            Format-Volume -DriveLetter R -FileSystem ReFS -Confirm:$false -Force | Out-Host
+          }
+          fsutil devdrv query R: | Out-Host
+          New-Item -ItemType Directory -Path R:\tmp | Out-Null
+          "TEMP=R:\tmp" >> $env:GITHUB_ENV
+          "TMP=R:\tmp" >> $env:GITHUB_ENV
+          Write-Host "dev drive setup took $(((Get-Date) - $t0).TotalSeconds) s"
+
+      - name: Native Node tests
+        shell: pwsh
+        run: |
+          $extra = @()
+          if ("${{ matrix.variant }}" -eq "conc8") { $extra += "--test-concurrency=8" }
+          $t0 = Get-Date
+          node --test @extra --test-reporter=dot --test-reporter-destination=stdout --test-reporter=tap --test-reporter-destination=tap.txt "scripts/**/*.test.js" "tests/**/*.test.js"
+          $code = $LASTEXITCODE
+          Write-Host "WALL_SECONDS=$(((Get-Date) - $t0).TotalSeconds)"
+          Get-Content tap.txt -Tail 12
+          exit $code
+
+      - name: Upload TAP
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tap-${{ matrix.variant }}-${{ matrix.rep }}
+          path: tap.txt

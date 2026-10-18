@@ -1,12 +1,13 @@
 name: Validate Harness
 
 on:
+  # A pull request validates its branch merged with main; push validates only
+  # main, so a PR branch runs one matrix, not two. Tag pushes are not a second
+  # matrix either: publish-marketplace.yml waits for the main run of the same
+  # SHA.
   push:
-    # Tag pushes are not a second matrix. publish-marketplace.yml waits for the
-    # branch run of the same SHA; a tag run only duplicated Windows and could
-    # fail after main had already passed.
     branches:
-      - "**"
+      - main
   pull_request:
 
 # Least privilege: the harness only reads the checkout, never writes to the repo.

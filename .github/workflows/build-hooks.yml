@@ -1,7 +1,11 @@
 name: Build ospec-hooks
 
 on:
+  # Same as Validate Harness: a PR branch builds once, through pull_request,
+  # and push builds only main.
   push:
+    branches:
+      - main
     paths:
       - 'cmd/**'
       - 'internal/**'
