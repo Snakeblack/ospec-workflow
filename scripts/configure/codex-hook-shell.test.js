@@ -52,21 +52,35 @@ function shells() {
 }
 
 function runHook(shell, command, input, fixture) {
-  const options = { cwd: fixture.workspace, env: fixture.env, input: JSON.stringify(input), encoding: "utf8", timeout: 60000 };
+  // A hang guard: a cold Windows PowerShell start outlasted 60 s under the
+  // rest of the suite.
+  const options = { cwd: fixture.workspace, env: fixture.env, input: JSON.stringify(input), encoding: "utf8", timeout: 180000 };
   return shell.cmd
     ? spawnSync(command, { ...options, shell: shell.program })
     : spawnSync(shell.program, [...shell.args, command], options);
 }
 
+// Windows only: a hook child that outlasts the launcher's own 4 s deadline
+// under the rest of the suite (#321) runs once more, and the first failure
+// stays in the TAP diagnostics. A broken rule or shell still fails.
+const LAUNCHER_DEADLINE = /\[ospec error\] Hook [\w-]+ failed: ETIMEDOUT/;
+
+function runHookOnceMore(t, shell, command, input, fixture) {
+  const result = runHook(shell, command, input, fixture);
+  if (process.platform !== "win32" || !LAUNCHER_DEADLINE.test(`${result.stdout}${result.stderr}`)) return result;
+  t.diagnostic(`retrying ${shell.name} after the launcher deadline: ${`${result.stderr}${result.stdout}`.trim()}`);
+  return runHook(shell, command, input, fixture);
+}
+
 test("generated installed Codex hooks run in real shells without ambient target markers", async (t) => {
   const f = fixture(t);
   const hooks = JSON.parse(fs.readFileSync(path.join(f.codexRoot, "hooks.json"), "utf8")).hooks;
-  for (const shell of shells()) await t.test(shell.name, () => {
+  for (const shell of shells()) await t.test(shell.name, (st) => {
     for (const event of ["SessionStart", "PreToolUse"]) {
       const hook = hooks[event][0].hooks[0];
       const command = process.platform === "win32" && !shell.posix ? hook.commandWindows : hook.command;
       const input = { hook_event_name: event, cwd: f.workspace, source: "startup", tool_name: "Bash", tool_input: { command: "git status --short" } };
-      const result = runHook(shell, command, input, f);
+      const result = runHookOnceMore(st, shell, command, input, f);
       assert.equal(result.error, undefined, `${shell.name}: ${result.error}`);
       assert.equal(result.status, 0, `${shell.name} ${event}: ${result.stderr || result.stdout}`);
       const output = JSON.parse(result.stdout);
@@ -77,7 +91,7 @@ test("generated installed Codex hooks run in real shells without ambient target 
         assert.deepEqual(output, {}, "safe calls must preserve Codex's normal approval flow");
         // Only a hook payload: the denied command is never executed.
         const deniedCommand = ["git", "push", "--force", "origin", "main"].join(" ");
-        const denied = runHook(shell, command, { ...input, tool_input: { command: deniedCommand } }, f);
+        const denied = runHookOnceMore(st, shell, command, { ...input, tool_input: { command: deniedCommand } }, f);
         assert.equal(denied.status, 0, denied.stderr);
         assert.equal(JSON.parse(denied.stdout).hookSpecificOutput?.permissionDecision, "deny", "portable launch must retain blocking rules");
       }
@@ -106,7 +120,7 @@ test("installed hooks discover shared skills from an isolated CODEX_HOME", (t) =
   const hook = JSON.parse(fs.readFileSync(path.join(f.codexRoot, "hooks.json"), "utf8")).hooks.SessionStart[0].hooks[0];
   const shell = shells()[0];
   const command = process.platform === "win32" ? hook.commandWindows : hook.command;
-  const result = runHook(shell, command, { cwd: f.workspace, source: "startup", hook_event_name: "SessionStart" }, f);
+  const result = runHookOnceMore(t, shell, command, { cwd: f.workspace, source: "startup", hook_event_name: "SessionStart" }, f);
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.equal(JSON.parse(result.stdout).hookSpecificOutput?.hookEventName, "SessionStart");
 });

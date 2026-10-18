@@ -14,20 +14,29 @@ on:
 permissions:
   contents: read
 
-# Supersede in-flight runs for the same ref so pushes don't pile up duplicate work.
+# A new push to a PR supersedes its in-flight run. A main run is never
+# cancelled: publish-marketplace.yml needs the run of its own SHA to succeed.
 concurrency:
   group: validate-harness-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   validate:
-    name: Validate (${{ matrix.os }})
+    name: Validate (${{ matrix.os }}${{ matrix.shard && format(' {0}', matrix.shard) || '' }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # Windows runs the Node tests in two shards: one job took 6-12 min
+        # there against 2 min on Ubuntu (measured on this branch's experiment).
+        include:
+          - os: ubuntu-latest
+          - os: macos-latest
+          - os: windows-latest
+            shard: 1/2
+          - os: windows-latest
+            shard: 2/2
 
     steps:
       - name: Checkout
@@ -41,5 +50,25 @@ jobs:
         with:
           node-version: 22
 
+      # The tests write many small files under the temp directory, which NTFS
+      # makes slow: a ReFS Dev Drive cut the Windows test time by 40 %. If the
+      # drive cannot be created, the job runs on the default TEMP.
+      - name: Dev Drive for TEMP
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          try {
+            $script = "$env:RUNNER_TEMP\devdrive.txt"
+            "create vdisk file=`"C:\ospec-devdrive.vhdx`" maximum=20480 type=expandable`nselect vdisk file=`"C:\ospec-devdrive.vhdx`"`nattach vdisk`ncreate partition primary`nassign letter=R" | Set-Content $script
+            diskpart /s $script | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "diskpart exited with $LASTEXITCODE" }
+            Format-Volume -DriveLetter R -DevDrive -Confirm:$false -Force -ErrorAction Stop | Out-Null
+            New-Item -ItemType Directory -Path R:\tmp -ErrorAction Stop | Out-Null
+            "TEMP=R:\tmp" >> $env:GITHUB_ENV
+            "TMP=R:\tmp" >> $env:GITHUB_ENV
+          } catch {
+            Write-Host "::warning::no Dev Drive, the tests use the default TEMP: $_"
+          }
+
       - name: Run validation harness
-        run: node scripts/check.js
+        run: node scripts/check.js ${{ matrix.shard && format('--shard {0}', matrix.shard) || '' }}

@@ -74,7 +74,9 @@ test("serveDirectory serves the workspace and nothing outside it", async () => {
 
 test("startBrowser retries a start that does not open its DevTools port in time", async (t) => {
   const fake = fakeBrowser(t, "cold");
-  const started = await startBrowser({ executable: "chromium", timeoutMs: 500, spawnProcess: fake.spawnProcess });
+  // The cold start hangs for the whole timeout, so it must outlast a Node
+  // start on a loaded Windows runner, or the warm start is the first one.
+  const started = await startBrowser({ executable: "chromium", timeoutMs: 5000, spawnProcess: fake.spawnProcess });
   try {
     assert.equal(started.port, "9222");
     assert.equal(started.browserPath, "/devtools/browser/fake");
