@@ -1,0 +1,122 @@
+{
+  "schema": "idd-state/v1",
+  "change": "startbrowser-fake-child",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El test de startBrowser del navegador que nunca abre su puerto usa un ChildProcess falso en el propio proceso, sin arrancar Node, para que su stderr llegue antes del plazo aunque el runner Windows esté cargado (E1.30)",
+    "acceptance": "startBrowser reports the timeout and stderr of a browser that never opens its port pasa sin arrancar ningún proceso real, con el mismo mensaje de error (plazo y stderr del segundo arranque) y dos arranques, y la suite sigue verde"
+  },
+  "facts": {
+    "open": [
+      "Alcance: ¿solo el test 'hang' (el que falla), o también pasar a ChildProcess falso los tests 'crash' y 'cold', que también arrancan un Node real?",
+      "En POSIX stop() mata el grupo con process.kill(-pid), no con child.kill(): ¿vale simular ese kill con t.mock.method(process, 'kill') solo para el pid falso, o prefieres inyectar la función de kill en startBrowser (toca producción)?",
+      "El criterio de E1.30 '0 flakes hasta el 2026-10-21' ya no se cumple: ¿qué nuevo plazo fijamos en el roadmap?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "scripts/evals/bench/browser.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Alcance: solo 'hang'. Kill POSIX: mock de process.kill con t.mock.method, solo para el pid falso. Nuevo criterio: 0 flakes de Windows hasta el 2026-10-26.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-18T23:00:00.772Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-18T23:03:37.318Z",
+      "detail": {
+        "tree": "sha256:32fef9f83c53d9a8b2e393e88baea930642991815f899132b10ce4edc441f528",
+        "runs": [
+          "run-3"
+        ]
+      }
+    }
+  ],
+  "base": "5e5feed617c9b78abb599a2fac445500d0e561b9",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"never opens its port\" scripts/evals/bench/browser.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:493df5b666b225afbcdadcf38acd6dca4fc321851fa22494f005508b95d4da35",
+      "tree": "sha256:63281c81e7b8ca56d43cb107ec0b21777e7237bcdd9dc8a23e9ac8506d0d62c9",
+      "recorded_at": "2026-10-18T22:59:28.720Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"never opens its port\" scripts/evals/bench/browser.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:141a70624d683b8909011d2609fc9599f24e2cb2dfb6439b7c8e9834b2ff9c62",
+      "tree": "sha256:672c32fbcd705b381d94d6e5bc6c6597ddee3691ff19b840e21d455099673f68",
+      "recorded_at": "2026-10-18T23:00:00.772Z",
+      "tests": 1
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:261dbb01cff7a4d990d09966ae83baa3e9bf5074fceeae913236256c93577ca2",
+      "tree": "sha256:32fef9f83c53d9a8b2e393e88baea930642991815f899132b10ce4edc441f528",
+      "recorded_at": "2026-10-18T23:03:37.318Z"
+    }
+  ],
+  "closed_at": "2026-10-18T23:03:53.706Z"
+}
