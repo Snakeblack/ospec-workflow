@@ -6,13 +6,16 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
+const crypto = require("node:crypto");
+const http = require("node:http");
 const { spawn } = require("node:child_process");
 
-const { LAUNCH_TIMEOUT_MS, findBrowser, serveDirectory, startBrowser } = require("./browser.js");
+const { LAUNCH_TIMEOUT_MS, connect, findBrowser, serveDirectory, startBrowser } = require("./browser.js");
 
 // A stand-in for a Chromium start: `cold` hangs on its first start and opens
 // its port on the next, as a first start on a cold CI runner did (E4.7);
-// `crash` writes to stderr and exits; `hang` never opens a port.
+// `crash` writes to stderr and exits; `hang` never opens a port and writes to
+// stderr a second late, as a Node start on a loaded Windows runner did (#362).
 const FAKE_BROWSER = `
 const fs = require("node:fs");
 const path = require("node:path");
@@ -24,7 +27,9 @@ if (mode === "crash") {
   process.stderr.write("boom: missing shared library\\n");
   process.exit(3);
 }
-process.stderr.write("start " + starts + "\\n");
+const announce = () => process.stderr.write("start " + starts + "\\n");
+if (mode === "hang") setTimeout(announce, 1000);
+else announce();
 if (mode === "cold" && starts > 1) fs.writeFileSync(path.join(profile, "DevToolsActivePort"), "9222\\n/devtools/browser/fake\\n");
 setInterval(() => {}, 1000);
 `;
@@ -91,10 +96,33 @@ test("startBrowser reports the exit code and stderr of a browser that exits on b
 test("startBrowser reports the timeout and stderr of a browser that never opens its port", async (t) => {
   const fake = fakeBrowser(t, "hang");
   await assert.rejects(
-    startBrowser({ executable: "chromium", timeoutMs: 500, spawnProcess: fake.spawnProcess }),
-    /the browser did not open its DevTools port within 500 ms; stderr: start 2/,
+    startBrowser({ executable: "chromium", timeoutMs: 5000, spawnProcess: fake.spawnProcess }),
+    /the browser did not open its DevTools port within 5000 ms; stderr: start 2/,
   );
   assert.equal(fake.starts(), 2);
+});
+
+// A DevTools endpoint that accepts the WebSocket handshake and drops the
+// connection on the first request, as a browser that dies mid-check does.
+async function closingDevTools(t) {
+  const server = http.createServer();
+  server.on("upgrade", (request, socket) => {
+    const accept = crypto.createHash("sha1").update(`${request.headers["sec-websocket-key"]}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest("base64");
+    socket.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
+    socket.once("data", () => socket.destroy());
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  return `ws://127.0.0.1:${server.address().port}/devtools/browser/fake`;
+}
+
+test("a request the browser never answers fails when its DevTools connection closes", async (t) => {
+  const connection = await connect(await closingDevTools(t));
+  const outcome = await Promise.race([
+    connection.send("Browser.getVersion").then(() => "answered", (error) => error.message),
+    new Promise((resolve) => setTimeout(resolve, 3000, "still pending")),
+  ]);
+  assert.match(outcome, /Browser\.getVersion: the browser closed its DevTools connection/);
 });
 
 test("a start waits up to 60 s before its retry, because a loaded CI runner outlasts 20 s twice", () => {

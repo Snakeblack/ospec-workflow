@@ -45,7 +45,9 @@ test("installer tests preserve an inherited CODEX_HOME", (t) => {
   ], {
     env,
     encoding: "utf8",
-    timeout: 60000,
+    // A hang guard, not a speed check: the nested installer suite takes 33 s
+    // on a Windows runner and outlasts 60 s under the rest of the suite.
+    timeout: 180000,
     maxBuffer: 4 * 1024 * 1024,
   });
 

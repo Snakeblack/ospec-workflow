@@ -108,6 +108,12 @@ function connect(url) {
     }
     for (const listener of listeners) listener(message);
   });
+  // A browser that dies mid-check never answers: without this, its pending
+  // requests stay unsettled and the check ends without a verdict.
+  socket.addEventListener("close", () => {
+    for (const { reject, method } of pending.values()) reject(new Error(`${method}: the browser closed its DevTools connection`));
+    pending.clear();
+  });
   const opened = new Promise((resolve, reject) => {
     socket.addEventListener("open", () => resolve());
     socket.addEventListener("error", () => reject(new Error(`could not connect to ${url}`)));
@@ -350,4 +356,4 @@ async function launchBrowser({ root, executable = findBrowser() }) {
   };
 }
 
-module.exports = { LAUNCH_TIMEOUT_MS, findBrowser, launchBrowser, serveDirectory, startBrowser };
+module.exports = { LAUNCH_TIMEOUT_MS, connect, findBrowser, launchBrowser, serveDirectory, startBrowser };
