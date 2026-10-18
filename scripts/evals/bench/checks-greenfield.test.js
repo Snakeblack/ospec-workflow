@@ -19,6 +19,13 @@ const { listFiles, loadCorpus, materializeRepo } = require("./scenarios.js");
 const RUNNER = path.join(__dirname, "check-runner.js");
 const REFERENCE_DIR = path.join(__dirname, "__fixtures__", "reference-greenfield");
 const CONCURRENCY = 4;
+const STDERR_TAIL_CHARS = 2048;
+// A Windows runner under the rest of the suite loses a browser now and then
+// (#344): such a check, and only such a check, runs once more and the first
+// failure stays in the TAP diagnostics. A check that fails its assertion
+// prints a verdict and is never retried.
+const INFRA_RETRIES = process.platform === "win32" ? 1 : 0;
+const INFRA_FAILURE = /without a verdict|DevTools port|DevTools connection|could not connect to ws:/;
 const browser = findBrowser();
 
 function workspace(scenario, { reference }) {
@@ -31,43 +38,55 @@ function workspace(scenario, { reference }) {
   return root;
 }
 
-function runCheck(scenario, root, check) {
+function runCheckOnce(scenario, root, check) {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [RUNNER, scenario.checksPath, root, check.id], { cwd: root });
     let stdout = "";
+    let stderr = "";
     child.stdout.on("data", (chunk) => { stdout += chunk; });
-    child.on("close", () => {
+    child.stderr.on("data", (chunk) => { stderr = (stderr + chunk).slice(-STDERR_TAIL_CHARS); });
+    child.on("close", (code, signal) => {
       const line = stdout.trim().split("\n").pop();
       let verdict = null;
       try {
         verdict = JSON.parse(line);
       } catch {
-        verdict = { pass: false, error: stdout };
+        const exit = signal ? `signal ${signal}` : `code ${code}`;
+        verdict = { pass: false, error: `the check runner exited with ${exit} without a verdict; stdout: ${stdout.trim()}; stderr: ${stderr.trim()}` };
       }
       resolve({ id: check.id, kind: check.kind, pass: verdict.pass === true, error: verdict.error });
     });
   });
 }
 
-async function runAll(scenario, root, checks) {
+async function runCheck(t, scenario, root, check) {
+  let result = await runCheckOnce(scenario, root, check);
+  for (let retry = 0; retry < INFRA_RETRIES && !result.pass && INFRA_FAILURE.test(result.error || ""); retry += 1) {
+    t.diagnostic(`retrying ${check.id} after an infrastructure failure: ${result.error}`);
+    result = await runCheckOnce(scenario, root, check);
+  }
+  return result;
+}
+
+async function runAll(t, scenario, root, checks) {
   const results = [];
   const queue = [...checks];
   await Promise.all(Array.from({ length: CONCURRENCY }, async () => {
-    while (queue.length > 0) results.push(await runCheck(scenario, root, queue.shift()));
+    while (queue.length > 0) results.push(await runCheck(t, scenario, root, queue.shift()));
   }));
   return results;
 }
 
 for (const scenario of loadCorpus("greenfield")) {
-  test(`${scenario.id}: the reference delivery passes every hidden check`, { skip: browser ? false : "no Chromium-family browser" }, async () => {
-    const results = await runAll(scenario, workspace(scenario, { reference: true }), scenario.checks);
+  test(`${scenario.id}: the reference delivery passes every hidden check`, { skip: browser ? false : "no Chromium-family browser" }, async (t) => {
+    const results = await runAll(t, scenario, workspace(scenario, { reference: true }), scenario.checks);
     assert.deepEqual(results.filter((result) => !result.pass), []);
   });
 
-  test(`${scenario.id}: the seed fails every acceptance check and keeps its regressions green`, { skip: browser ? false : "no Chromium-family browser" }, async () => {
+  test(`${scenario.id}: the seed fails every acceptance check and keeps its regressions green`, { skip: browser ? false : "no Chromium-family browser" }, async (t) => {
     const judged = scenario.checks.filter((check) => check.kind !== "fact");
     assert.ok(judged.some((check) => check.kind === "acceptance"));
-    const results = await runAll(scenario, workspace(scenario, { reference: false }), judged);
+    const results = await runAll(t, scenario, workspace(scenario, { reference: false }), judged);
     for (const result of results) assert.equal(result.pass, result.kind === "regression", result.id);
   });
 }
