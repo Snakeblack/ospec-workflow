@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.139.1, 2026-10-18.
+> **Versión de referencia:** v2.139.2, 2026-10-18.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -579,6 +579,11 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Garantía que protege:** la puerta «publicar solo con CI verde» (OSP-004 / E1.28); no se quita la espera del CI.
 - **Alcance:** subir el timeout de PowerShell y dar más margen al lock **solo** en esos tests (no en producción); en la referencia win32, esperar el estado del DOM antes de evaluar o un reintento acotado que registre el primer fallo. Si se repite, aislar o reintentar el test de Chromium en Windows.
 - **Hecho cuando:** los tres tests pasan 20× en un runner Windows sin fallos y hay 0 flakes de Windows (incluida la CI de PR) hasta el 2026-10-21; no se declara la causa raíz resuelta por un solo verde.
+- **Avance (v2.139.2, [#363](https://github.com/Snakeblack/ospec-workflow/pull/363)):**
+  - **Causas:** `connect()` rechaza las peticiones CDP pendientes cuando el navegador se cae, y los fakes de `startBrowser` tienen 5 s.
+  - **Margen y reintentos:** los cuelgues tienen 180 s de margen solo en los tests. En Windows hay un reintento acotado y visible solo para los fallos de infraestructura de los checks de navegador y del plazo del lanzador en `codex-hook-shell`.
+  - **Runner:** TEMP en un Dev Drive.
+  - **Resultado:** 4 runs de PR en verde sin reintentos. Sigue abierto hasta cumplir el criterio de hecho.
 
 ### E1.31 — `doctor-hook-probe` (OSP-014, #345)
 
