@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.139.3, 2026-10-18.
+> **Versión de referencia:** v2.139.4, 2026-10-19.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -149,7 +149,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.27** | `hook-secret-coverage` (OSP-001 residual / #336: tokens de GitHub/Anthropic/OpenAI project y lectores `od`/`tar`/`scp` en el hook; ampliado con la censura de secretos en `PostToolUse` como `hook-secret-redaction`, en v2.139.0) | feature |
 | `pending` | **E1.28** | `supply-chain-hardening` (OSP-004 / #337: ruleset de `main`, actions fijadas por SHA, Dependabot, Go 1.26; decisión de bypass pendiente) | bugfix |
 | `pending` | **E1.29** | `approval-provenance-limit` (OSP-010 / #343: documentar que `--source user` y `--quote` no se verifican; enum de `source` opcional) | docs |
-| `pending` | **E1.30** | `windows-flake-repair` (OSP-022 / #344: PowerShell, lock y Chromium en Windows; cierre con 0 flakes hasta el 2026-10-21) | bugfix |
+| `pending` | **E1.30** | `windows-flake-repair` (OSP-022 / #344: PowerShell, lock y Chromium en Windows; cierre con 0 flakes hasta el 2026-10-26) | bugfix |
 | `pending` | **E1.31** | `doctor-hook-probe` (OSP-014 / #345: sonda de hook en `ospec doctor`; seguimiento de E1.7) | feature |
 | `pending` | **E1.32** | `docs-dx-corrections` (OSP-008/013/021/023 / #346 y #347: README EN/ES, `SECURITY.md`, `cli.js` fuera del checkout y tags del CHANGELOG; OSP-023 pendiente de decisión) | docs |
 | `pending` | **E1.33** | `trust-review-attestation` (OSP-029 / #351: `request_digest` y `reviewed[]` verificados contra el árbol congelado; repara REQ-idd-016) | bugfix |
@@ -193,7 +193,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | #341 · OSP-026 | **E4.6** (calidad del par, digest reproducible y encuadre publicado) |
 | #342 · OSP-011 | **E4.6** (repetición con Claude con n ≥ 3, brazos simétricos y corpus reservado) |
 | #343 · OSP-010 | **E1.29** `approval-provenance-limit` (nuevo) |
-| #344 · OSP-022 | **E1.30** `windows-flake-repair` (nuevo; cierre con 0 flakes hasta el 2026-10-21) |
+| #344 · OSP-022 | **E1.30** `windows-flake-repair` (nuevo; cierre con 0 flakes hasta el 2026-10-26) |
 | #345 · OSP-014 | **E1.31** `doctor-hook-probe` (nuevo; seguimiento de E1.7) |
 | #346 · OSP-008 | **E1.32** `docs-dx-corrections` (nuevo) |
 | #347 · OSP-013/021/023 | **E1.32** `docs-dx-corrections` (nuevo) |
@@ -578,7 +578,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Problema:** tres tests intermitentes en Windows — PowerShell con ETIMEDOUT (`scripts/configure/codex-hook-shell.test.js`), lock concurrente de `ospec-state` y la referencia de `todo-spa` con Chromium (`scripts/evals/bench/checks-greenfield.test.js`) — pueden bloquear un PR o una release legítima.
 - **Garantía que protege:** la puerta «publicar solo con CI verde» (OSP-004 / E1.28); no se quita la espera del CI.
 - **Alcance:** subir el timeout de PowerShell y dar más margen al lock **solo** en esos tests (no en producción); en la referencia win32, esperar el estado del DOM antes de evaluar o un reintento acotado que registre el primer fallo. Si se repite, aislar o reintentar el test de Chromium en Windows.
-- **Hecho cuando:** los tres tests pasan 20× en un runner Windows sin fallos y hay 0 flakes de Windows (incluida la CI de PR) hasta el 2026-10-21; no se declara la causa raíz resuelta por un solo verde.
+- **Hecho cuando:** los tres tests pasan 20× en un runner Windows sin fallos y hay 0 flakes de Windows (incluida la CI de PR) hasta el 2026-10-26; no se declara la causa raíz resuelta por un solo verde.
 - **Avance (v2.139.2, [#363](https://github.com/Snakeblack/ospec-workflow/pull/363)):**
   - **Causas:** `connect()` rechaza las peticiones CDP pendientes cuando el navegador se cae, y los fakes de `startBrowser` tienen 5 s.
   - **Margen y reintentos:** los cuelgues tienen 180 s de margen solo en los tests. En Windows hay un reintento acotado y visible solo para los fallos de infraestructura de los checks de navegador y del plazo del lanzador en `codex-hook-shell`.
@@ -588,6 +588,9 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
   - **Contención:** en Windows, un test tarda unas 10 veces más dentro de la suite que solo. Windows PowerShell 5.1 arranca en 0,2 s aislado.
   - **Flake repetido:** `startBrowser reports the timeout and stderr` volvió a fallar con 5 s; el falso navegador no llega a escribir su stderr a tiempo. Siguiente paso: un ChildProcess falso dentro del test, sin arrancar un proceso real.
   - **Resultado:** el criterio de 0 flakes hasta el 2026-10-21 no se cumple.
+- **Avance (v2.139.4, `startbrowser-fake-child`):**
+  - **ChildProcess falso:** el test `hang` no arranca ningún proceso. Su stderr llega en el siguiente tick y un mock de `process.kill` dirige el kill de grupo de POSIX al falso. `crash` y `cold` siguen arrancando un Node real.
+  - **Plazo nuevo:** 0 flakes de Windows hasta el 2026-10-26 (decisión del usuario).
 
 ### E1.31 — `doctor-hook-probe` (OSP-014, #345)
 
@@ -972,6 +975,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-19: avance de E1.30 con IDD (`startbrowser-fake-child`). El test del navegador que nunca abre su puerto usa un ChildProcess falso dentro del proceso: ya no depende de que un Node arranque a tiempo y pasa de unos 11 s a 0,3 s. El plazo de 0 flakes pasa al 2026-10-26 (decisión del usuario).
 - 2026-10-18: seguimiento de E1.27 `agy-hooks-adapter` (IDD). agy 1.4.2 vuelve a cargar los hooks de ospec: `SessionStart`/`Stop` planos, wrapper `ospec-antigravity-hook.js` y adaptador de entrada, salida y `cwd` en el launcher (REQ-hooks-026). La causa no era `enabled`. Verificado en vivo. Después, `opencode-global-plugin-shadow`: `install:opencode` y `ospec doctor` avisan cuando el plugin global de OpenCode tapa al de proyecto. Queda Codex en vivo (pospuesto).
 - 2026-10-18: E1.27 hecho con IDD como `hook-secret-redaction` y publicado en v2.139.0. Se amplió por decisión del usuario: además de preguntar, el hook `PostToolUse` censura los secretos de la salida de las herramientas. Los cubre en Claude Code y en OpenCode 2.x (verificados en vivo) y en Codex vía `block` (sin verificar en vivo); VS Code, Copilot, Cursor y Antigravity conservan el `ask`. La revisión de confianza destapó un hueco del protocolo IDD: una corrección mayor que el presupuesto no tenía salida. Se arregló en `review-oversized-correction` (mismo release): `ospec review start` escala a una sucesora con los hallazgos pendientes. Seguimientos: el `hooks.json` de agy no carga por la clave `enabled`, OpenCode deduplica plugins por `id` y Codex está pendiente de verificar en vivo.
 - 2026-10-17: entran los 14 issues abiertos de las auditorías diarias (#336–#351) ligados a un cambio: nuevos E1.27 `hook-secret-coverage` (OSP-001), E1.28 `supply-chain-hardening` (OSP-004), E1.29 `approval-provenance-limit` (OSP-010), E1.30 `windows-flake-repair` (OSP-022), E1.31 `doctor-hook-probe` (OSP-014), E1.32 `docs-dx-corrections` (OSP-008/013/021/023), E1.33 `trust-review-attestation` (OSP-029) y E5.9 `installer-tui-and-skill-profiles` (#348, fuera de la cola); E4.3 absorbe el ratchet de OSP-009 y el margen de OSP-028; E4.6 absorbe OSP-025/026/011/027 (gate → simetría de Engram y repetición de `idd-4` → calidad y digest → repetición con Claude); E4.9 corrige la decisión de Engram en todos los brazos. Ninguno desplaza el ▶ y cada issue se cierra cuando su cambio se completa.

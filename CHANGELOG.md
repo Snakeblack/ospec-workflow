@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.139.4] - 2026-10-19
+
+### Fixed
+- **Flake de `startBrowser` en Windows (E1.30)**:
+  - **ChildProcess falso:** el test del navegador que nunca abre su puerto ya no arranca un Node real. Un falso dentro del proceso escribe su stderr en el siguiente tick y un mock de `process.kill` dirige el kill de grupo de POSIX al falso. Antes, bajo contención en Windows, el stderr llegaba después del plazo y el error lo perdía (#362, #365). El test pasa de unos 11 s a 0,3 s y la producción no cambia.
+  - **Plazo de E1.30:** el criterio de 0 flakes en Windows pasa al 2026-10-26.
+
+  Hecho con IDD (`idd/archive/2026-10-18-startbrowser-fake-child/`).
+
+**Verificación directa**: `node scripts/check.js` (3892 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.139.3] - 2026-10-18
 
 ### Changed
