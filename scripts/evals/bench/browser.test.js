@@ -8,14 +8,14 @@ const path = require("node:path");
 
 const crypto = require("node:crypto");
 const http = require("node:http");
+const { EventEmitter } = require("node:events");
 const { spawn } = require("node:child_process");
 
 const { LAUNCH_TIMEOUT_MS, connect, findBrowser, serveDirectory, startBrowser } = require("./browser.js");
 
 // A stand-in for a Chromium start: `cold` hangs on its first start and opens
 // its port on the next, as a first start on a cold CI runner did (E4.7);
-// `crash` writes to stderr and exits; `hang` never opens a port and writes to
-// stderr a second late, as a Node start on a loaded Windows runner did (#362).
+// `crash` writes to stderr and exits.
 const FAKE_BROWSER = `
 const fs = require("node:fs");
 const path = require("node:path");
@@ -27,9 +27,7 @@ if (mode === "crash") {
   process.stderr.write("boom: missing shared library\\n");
   process.exit(3);
 }
-const announce = () => process.stderr.write("start " + starts + "\\n");
-if (mode === "hang") setTimeout(announce, 1000);
-else announce();
+process.stderr.write("start " + starts + "\\n");
 if (mode === "cold" && starts > 1) fs.writeFileSync(path.join(profile, "DevToolsActivePort"), "9222\\n/devtools/browser/fake\\n");
 setInterval(() => {}, 1000);
 `;
@@ -43,6 +41,38 @@ function fakeBrowser(t, mode) {
   return {
     starts: () => Number(fs.readFileSync(state, "utf8")),
     spawnProcess: (_executable, args, options) => spawn(process.execPath, [script, state, mode, ...args], options),
+  };
+}
+
+// A browser that writes to stderr and never opens its port, kept in this
+// process: a Node start on a loaded Windows runner wrote its stderr after
+// the timeout (#362, #365). stop() ends it with child.kill() on Windows and
+// with process.kill(-pid) elsewhere, so the mock sends that kill to it.
+function hangingBrowser(t) {
+  const children = new Map();
+  const kill = process.kill;
+  t.mock.method(process, "kill", (pid, signal) => (children.has(-pid) ? children.get(-pid).kill(signal) : kill.call(process, pid, signal)));
+  return {
+    starts: () => children.size,
+    spawnProcess: () => {
+      const child = new EventEmitter();
+      // Above any pid_max, so it names no real process.
+      child.pid = 2 ** 30 + children.size;
+      child.exitCode = null;
+      child.signalCode = null;
+      child.stderr = new EventEmitter();
+      child.kill = (signal = "SIGTERM") => {
+        if (child.signalCode !== null) return false;
+        child.signalCode = signal;
+        child.emit("exit", null, signal);
+        child.stderr.emit("close");
+        return true;
+      };
+      children.set(child.pid, child);
+      const announce = `start ${children.size}\n`;
+      process.nextTick(() => child.stderr.emit("data", announce));
+      return child;
+    },
   };
 }
 
@@ -96,10 +126,10 @@ test("startBrowser reports the exit code and stderr of a browser that exits on b
 });
 
 test("startBrowser reports the timeout and stderr of a browser that never opens its port", async (t) => {
-  const fake = fakeBrowser(t, "hang");
+  const fake = hangingBrowser(t);
   await assert.rejects(
-    startBrowser({ executable: "chromium", timeoutMs: 5000, spawnProcess: fake.spawnProcess }),
-    /the browser did not open its DevTools port within 5000 ms; stderr: start 2/,
+    startBrowser({ executable: "chromium", timeoutMs: 100, spawnProcess: fake.spawnProcess }),
+    /the browser did not open its DevTools port within 100 ms; stderr: start 2/,
   );
   assert.equal(fake.starts(), 2);
 });
