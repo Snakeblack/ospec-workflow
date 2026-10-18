@@ -955,7 +955,11 @@ The checks MUST cover at least:
 - `project` also reports `codex-repo` when the project has a repository Codex
   install (`install:codex -- <repo>`): `warn` when neither the repository nor a
   global Codex install provides the IDD protocol, `info` when the global one
-  does. `sdd-package` names every installed host without the SDD package.
+  does. It reports `opencode-plugin` when the project has
+  `.opencode/plugins/ospec.js`: `warn` when a global
+  `~/.config/opencode/plugins/ospec.js` shadows it (OpenCode loads one plugin
+  per id), even when the files are identical, and `ok` otherwise.
+  `sdd-package` names every installed host without the SDD package.
 
 #### Scenario: Doctor writes nothing
 

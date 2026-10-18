@@ -311,6 +311,29 @@ test("mode sdd names every installed host without the SDD package", async (t) =>
   assert.match(check.action, /--with-sdd/);
 });
 
+// OpenCode 2.x loads one plugin per id: with a global ospec.js, the project's
+// never loads, so the global runtime is the one that runs.
+test("a project OpenCode plugin shadowed by the global one is always a warning", async (t) => {
+  const repo = setup(t);
+  assert.equal(find(await doctor(repo), "project", "opencode-plugin"), undefined, "no project plugin, no check");
+
+  write(path.join(repo.root, ".opencode", "plugins", "ospec.js"), "export default { id: \"ospec\" };\n");
+  assert.equal(find(await doctor(repo), "project", "opencode-plugin").status, "ok");
+
+  const globalRoot = install(repo.home, "opencode", { version: "2.130.0" });
+  fs.copyFileSync(path.join(repo.root, ".opencode", "plugins", "ospec.js"), path.join(globalRoot, "plugins", "ospec.js"));
+  const shadowed = find(await doctor(repo), "project", "opencode-plugin");
+  assert.equal(shadowed.status, "warn", "identical files still run the global runtime");
+  assertActionable(shadowed, "opencode plugin");
+  assert.ok(shadowed.cause.includes(path.join(globalRoot, "plugins", "ospec.js")));
+  assert.match(shadowed.cause, /2\.130\.0/);
+  assert.match(shadowed.action, /npm run setup:opencode/);
+
+  const elsewhere = setup(t);
+  install(elsewhere.home, "opencode");
+  assert.equal(find(await doctor(elsewhere), "project", "opencode-plugin"), undefined, "a global install alone is not a project concern");
+});
+
 test("a repository Codex install without the IDD protocol is a warning, unless the global install provides it", async (t) => {
   const repo = setup(t);
   write(path.join(repo.root, "AGENTS.md"), `${BEGIN}\n${ROUTER}${END}\n`);

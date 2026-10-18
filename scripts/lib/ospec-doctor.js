@@ -637,6 +637,7 @@ async function runDoctor({
   sessionDirCheck(root, spawn, project);
   hookGuardCheck(env, project);
   hosts.codexRepoCheck(root, others, project);
+  hosts.opencodeRepoCheck(root, others, { home, env, platform }, project);
 
   const engramSpawn = sharedEngramSpawn(spawn);
   if (target ? target === "claude" : claude) {

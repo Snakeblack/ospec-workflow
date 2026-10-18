@@ -289,6 +289,45 @@ test("main: builds and syncs a generated tree into a safe destination", (t) => {
   assert.equal(fs.readFileSync(path.join(destination, ".github", "agent.md"), "utf8"), "agent\n");
 });
 
+test("main: an opencode install warns when a global ospec plugin shadows the project's", (t) => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), "install-target-shadow-"));
+  t.after(() => fs.rmSync(base, { recursive: true, force: true }));
+  const sourceDir = path.join(base, "source");
+  const destination = path.join(base, "destination");
+  const home = path.join(base, "home");
+  fs.mkdirSync(sourceDir);
+  fs.mkdirSync(destination);
+  const runConfigure = ({ outDir }) => {
+    fs.mkdirSync(path.join(outDir, ".opencode", "plugins"), { recursive: true });
+    fs.writeFileSync(path.join(outDir, ".opencode", "plugins", "ospec.js"), "export default { id: \"ospec\" };\n");
+    return { exitCode: 0, validation: null };
+  };
+  const run = (args) => {
+    const err = [];
+    const exitObj = { exitCode: 0 };
+    main(["opencode", destination, "--source", sourceDir, ...args], {
+      runConfigure,
+      homedir: () => home,
+      stdout: { write() {} },
+      stderr: { write(chunk) { err.push(chunk); } },
+      exitCodeTarget: exitObj,
+    });
+    return { exitCode: exitObj.exitCode, stderr: err.join("") };
+  };
+
+  assert.doesNotMatch(run([]).stderr, /plugin/, "without a global plugin there is nothing to say");
+
+  const globalPlugin = path.join(home, ".config", "opencode", "plugins", "ospec.js");
+  fs.mkdirSync(path.dirname(globalPlugin), { recursive: true });
+  fs.writeFileSync(globalPlugin, "export default { id: \"ospec\" };\n");
+  for (const args of [[], ["--dry-run"]]) {
+    const { exitCode, stderr } = run(args);
+    assert.equal(exitCode, 0, "a warning, never a failure");
+    assert.ok(stderr.includes(globalPlugin), stderr);
+    assert.match(stderr, /npm run setup:opencode/);
+  }
+});
+
 test("main: dry-run reports generated entries without syncing them", (t) => {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), "install-target-dry-run-"));
   t.after(() => fs.rmSync(base, { recursive: true, force: true }));

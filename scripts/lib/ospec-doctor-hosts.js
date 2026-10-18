@@ -488,6 +488,26 @@ function codexRepoCheck(root, hosts, add) {
       });
 }
 
+// OpenCode 2.x loads one plugin per id, and the global ospec.js wins over the
+// one `install:opencode -- <repo>` writes: that one never loads, and the
+// global runtime and hooks run instead, even when both files are identical.
+function opencodeRepoCheck(root, hosts, context, add) {
+  const project = path.join(root, ".opencode", "plugins", "ospec.js");
+  if (!fs.existsSync(project)) return;
+  const global = path.join(MANIFEST_HOSTS.opencode.root(context), "plugins", "ospec.js");
+  if (!fs.existsSync(global)) {
+    add({ id: "opencode-plugin", status: "ok", detail: project });
+    return;
+  }
+  const version = hosts.opencode?.version;
+  add({
+    id: "opencode-plugin",
+    status: "warn",
+    cause: `${global}${version ? ` (ospec-workflow ${version})` : ""} has the same plugin id, ospec, as ${project}; OpenCode loads only the global one, so this repository runs the global runtime and hooks`,
+    action: "Run `npm run setup:opencode` in the ospec-workflow checkout so the global install matches, or delete the global plugin if you only use repository installs.",
+  });
+}
+
 function hostsWithoutSdd(hosts) {
   return Object.values(hosts).filter((host) => host.agents && !hasSddPackage(host.agents)).map((host) => host.target);
 }
@@ -510,6 +530,7 @@ function installDriftChecks(version, hosts, add) {
 module.exports = {
   HOST_TARGETS: [...Object.keys(MANIFEST_HOSTS), "vscode"],
   codexRepoCheck,
+  opencodeRepoCheck,
   detectHosts,
   hostChecks,
   hostsWithoutSdd,

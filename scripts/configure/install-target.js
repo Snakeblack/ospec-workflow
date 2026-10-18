@@ -320,6 +320,19 @@ function assertSafeDest(destDir, sourceDir) {
   }
 }
 
+// OpenCode 2.x loads one plugin per id: a global ospec.js (setup:opencode)
+// wins over the repository's, which then never loads (`ospec doctor` reports
+// it too). The install still succeeds; the user decides which one to keep.
+function warnGlobalPluginShadow(destDir, homedir, fsImpl, stderr) {
+  const global = path.join(homedir(), ".config", "opencode", "plugins", "ospec.js");
+  if (!fsImpl.existsSync(global)) return;
+  stderr.write(
+    `\naviso: ${global} tiene el mismo id de plugin (ospec) que ${path.join(destDir, ".opencode", "plugins", "ospec.js")}; ` +
+      "OpenCode carga solo el global, así que en este repositorio corren el runtime y los hooks globales. " +
+      "Ejecuta `npm run setup:opencode` en el checkout de ospec-workflow para igualar la instalación global, o borra el plugin global si solo usas instalaciones de repositorio.\n",
+  );
+}
+
 function main(argv, deps = {}) {
   const fsImpl = deps.fs || fs;
   const stdout = deps.stdout || process.stdout;
@@ -383,6 +396,7 @@ function main(argv, deps = {}) {
   for (const entry of entries) {
     stdout.write(`  ${args.dryRun ? "·" : "+"} ${entry}\n`);
   }
+  if (args.target === "opencode") warnGlobalPluginShadow(destDir, deps.homedir || os.homedir, fsImpl, stderr);
 
   if (args.dryRun) {
     stdout.write("\n[dry-run] no files written.\n");

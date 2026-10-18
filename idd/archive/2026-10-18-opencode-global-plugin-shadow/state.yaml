@@ -1,0 +1,264 @@
+{
+  "schema": "idd-state/v1",
+  "change": "opencode-global-plugin-shadow",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Avisar cuando el plugin global de OpenCode (~/.config/opencode/plugins/ospec.js, id ospec) tapa al de proyecto (.opencode/plugins/ospec.js): install:opencode lo avisa al instalar y ospec doctor lo informa en el proyecto",
+    "acceptance": "Con ambos plugins presentes y distintos, install:opencode termina bien y escribe un aviso con la causa y la acción, y ospec doctor da un warn project/opencode-plugin; sin plugin global no hay aviso"
+  },
+  "facts": {
+    "open": [
+      "Si el plugin global y el de proyecto son idénticos byte a byte (mismo código, aunque cada uno resuelve su propio runtime), ¿se avisa igualmente o solo se informa (info) sin warning?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/specs/idd/spec.md",
+      "openspec/specs/install/spec.md",
+      "scripts/configure/install-target.js",
+      "scripts/configure/install-target.test.js",
+      "scripts/lib/ospec-doctor-hosts.js",
+      "scripts/lib/ospec-doctor-hosts.test.js",
+      "scripts/lib/ospec-doctor.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component generator: ADR 0001, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/configure/install-target.test.js adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "none",
+      "reason": "No cambia la generación; solo avisa al instalar y en doctor."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Solo biblioteca estándar de Node."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "Solo lee ficheros locales."
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "none",
+      "reason": "El árbol generado no cambia."
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Avisar siempre: con ambos plugins presentes siempre hay warn, porque el de proyecto nunca carga y el runtime que corre es el global.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-18T18:28:19.093Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-18T18:29:41.792Z",
+      "detail": {
+        "tree": "sha256:e2f34c33e95a26f958cf7c8c1f638c01005545ce21e1bd4d59f306e90d22ea84",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-18T18:29:41.792Z",
+      "detail": {
+        "refs": [
+          "adr:0001 none",
+          "adr:0010 conforms",
+          "scenario:offline-operation none",
+          "scenario:target-parity none"
+        ],
+        "records": [],
+        "tree": "sha256:e2f34c33e95a26f958cf7c8c1f638c01005545ce21e1bd4d59f306e90d22ea84",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-18T18:29:50.477Z",
+      "detail": {
+        "run": "run-8",
+        "tree": "sha256:78aa9472abd70d49d6287721629995ca7682878a0c0b639020d527bce1c234df",
+        "plan": "Sin migración de datos: install:opencode solo lee la existencia de ~/.config/opencode/plugins/ospec.js y escribe un aviso; no modifica ni borra la instalación global, y el sync del repositorio no cambia. Compatibilidad: instalaciones existentes siguen igual; rollback: revertir el commit."
+      }
+    }
+  ],
+  "base": "db2b03a1a1930d5896ac03b13173200970603c72",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/configure/install-target.test.js scripts/lib/ospec-doctor-hosts.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:65d80e74bf531b84a00c08bb7095982909610c0940624c8bf08d8eb645fe5d47",
+      "tree": "sha256:a093903fefcabe1a5ce939aa95c399fdae040903bdd2e51667cd3e31253ab152",
+      "recorded_at": "2026-10-18T18:27:52.100Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/configure/install-target.test.js scripts/lib/ospec-doctor-hosts.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fc074d10af9dadc3f9fb68bed27738eb6f81ac357d4d2d1b05ed730f116a2da5",
+      "tree": "sha256:576e37beaf7867ef4a169b68ba02df090dce09696ee3af596e350241f62a2e10",
+      "recorded_at": "2026-10-18T18:28:19.093Z",
+      "tests": 49
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:672705516a90b4e3b7bf94ef275e6b43e533f9b90bc73b14074f56e4603a9b26",
+      "tree": "sha256:e2f34c33e95a26f958cf7c8c1f638c01005545ce21e1bd4d59f306e90d22ea84",
+      "recorded_at": "2026-10-18T18:29:41.792Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:27b3a0dcd6fce1b60f6306f277be5ddaff0d89d676ab9ac083253bf8f69167fa",
+      "tree": "sha256:e2f34c33e95a26f958cf7c8c1f638c01005545ce21e1bd4d59f306e90d22ea84",
+      "recorded_at": "2026-10-18T18:29:41.792Z",
+      "tests": 47
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:e2f34c33e95a26f958cf7c8c1f638c01005545ce21e1bd4d59f306e90d22ea84",
+      "recorded_at": "2026-10-18T18:29:41.792Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d9c5798ce79b6b5135c37b6041d82b2d56668ca8b33e6c210283787227ed5446",
+      "tree": "sha256:e2f34c33e95a26f958cf7c8c1f638c01005545ce21e1bd4d59f306e90d22ea84",
+      "recorded_at": "2026-10-18T18:29:41.792Z",
+      "tests": 16
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ccbdba94cb045594a9c1b6081269de41c01f40bc71c47ce9169448614328fedf",
+      "tree": "sha256:e2f34c33e95a26f958cf7c8c1f638c01005545ce21e1bd4d59f306e90d22ea84",
+      "recorded_at": "2026-10-18T18:29:41.792Z",
+      "tests": 47
+    },
+    {
+      "id": "run-8",
+      "purpose": "migration-test",
+      "command": "node --test scripts/configure/install-target.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a903f6af692069f5c2786581bb30bc4cb9f8464551381f47b9270f7ea059048e",
+      "tree": "sha256:78aa9472abd70d49d6287721629995ca7682878a0c0b639020d527bce1c234df",
+      "recorded_at": "2026-10-18T18:29:50.477Z",
+      "tests": 30
+    }
+  ],
+  "closed_at": "2026-10-18T18:29:57.416Z"
+}
