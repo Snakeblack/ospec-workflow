@@ -741,6 +741,30 @@ test("a blocker gets one bounded correction validated against its frozen id", (t
   assert.strictEqual(ospec(root, "check", "--change", "rotate-tokens", "--json").json.verdict, "ready");
 });
 
+test("a correction outside one bounded correction escalates and review start opens the successor", (t) => {
+  const root = openRotation(t);
+  review(root, "start");
+  const frozen = review(root, "record", "--result", JSON.stringify({ findings: [BLOCKER] }));
+  const [finding] = frozen.json.review.findings;
+
+  // The fix needs a file the review never froze.
+  writeFile(root, "src/auth/tokens.js", "module.exports = { ttl: 3600, rejectExpired: true };\n");
+  writeFile(root, "src/auth/expiry.js", "module.exports = (token) => token.exp > Date.now();\n");
+  const refused = review(root, "correct");
+  assert.strictEqual(refused.code, 1);
+  assert.strictEqual(refused.json.error.code, "review-refused");
+  assert.match(refused.json.error.message, /does not fit one bounded correction.*ospec review start/);
+
+  const successor = review(root, "start");
+  assert.strictEqual(successor.code, 0, successor.stderr);
+  assert.strictEqual(successor.json.review.generation, 2);
+  assert.deepStrictEqual(successor.json.review.request.predecessor_findings.map((entry) => entry.id), [finding.id]);
+  const [first, second] = stateOf(root, "rotate-tokens").reviews;
+  assert.strictEqual(first.status, "escalated");
+  assert.strictEqual(second.predecessor_lineage_id, first.lineage_id);
+  assert.ok(second.genesis.paths.includes("src/auth/expiry.js"), "the successor reviews the new path");
+});
+
 test("review refuses bad results, a change without the obligation and an unknown action", (t) => {
   const root = openRotation(t);
   review(root, "start");

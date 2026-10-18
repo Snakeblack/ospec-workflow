@@ -209,3 +209,65 @@ test("REQ-idd-016 names the review commands, the reviewer and the limits", () =>
   }
   assert.ok(section.includes(String(MAX_REVIEWS)), "REQ-idd-016 must state the review limit");
 });
+
+// review-oversized-correction: a fix that does not fit one bounded correction
+// (over the line budget or outside the frozen paths) used to leave the change
+// stuck in correction-required. `ospec review start` now ends that lineage as
+// escalated and opens the successor, which carries the unresolved blocking
+// findings so the reviewer checks them.
+test("a correction that does not fit the bounded correction escalates to a successor review", () => {
+  const started = startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true }).state;
+  const frozen = recordTrustFindings(started, { result: { findings: [BLOCKER, ADVICE] }, recordedAt: AT }).state;
+  const predecessor = currentReview(frozen);
+  const budget = predecessor.correction_budget.limit_lines;
+
+  // A correction that fits keeps the review in progress: run ospec review correct.
+  const fits = startTrustReview(frozen, {
+    candidate: candidate("d".repeat(40), "3".repeat(40)),
+    reviewedChanged: true,
+    correctionChanges: [{ path: "src/auth/tokens.js", added: 1, deleted: 0 }],
+  });
+  assert.strictEqual(fits.changed, false);
+  assert.strictEqual(fits.request.generation, 1);
+
+  for (const correctionChanges of [
+    [{ path: "src/auth/tokens.js", added: budget + 1, deleted: 0 }],
+    [{ path: "src/auth/session.js", added: 1, deleted: 0 }],
+  ]) {
+    const next = startTrustReview(frozen, { candidate: candidate("d".repeat(40), "3".repeat(40)), reviewedChanged: true, correctionChanges });
+    assert.strictEqual(next.changed, true);
+    const ended = next.state.reviews[0];
+    assert.strictEqual(ended.status, "escalated");
+    assert.match(ended.terminal_reason, /bounded correction/);
+    assert.strictEqual(next.request.generation, 2);
+    assert.strictEqual(currentReview(next.state).predecessor_lineage_id, predecessor.lineage_id);
+    assert.deepStrictEqual(next.request.predecessor_findings, [{
+      id: predecessor.findings.find((finding) => finding.blocking).id,
+      severity: "BLOCKER",
+      summary: BLOCKER.summary,
+      acceptance_criteria: BLOCKER.acceptance_criteria,
+    }]);
+    assert.strictEqual(obligation(next.state).status, "pending");
+    valid(next.state);
+  }
+});
+
+test("the escalated successor counts toward the three reviews of a change", () => {
+  let state = startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true }).state;
+  for (let generation = 1; generation <= MAX_REVIEWS; generation += 1) {
+    if (generation > 1) {
+      state = startTrustReview(state, {
+        candidate: candidate("e".repeat(39) + generation, String(generation).repeat(40)),
+        reviewedChanged: true,
+        correctionChanges: [{ path: "src/auth/other.js", added: 1, deleted: 0 }],
+      }).state;
+    }
+    state = recordTrustFindings(state, { result: { findings: [BLOCKER] }, recordedAt: AT }).state;
+  }
+  assertCode(() => startTrustReview(state, {
+    candidate: candidate("f".repeat(40), "f".repeat(40)),
+    reviewedChanged: true,
+    correctionChanges: [{ path: "src/auth/other.js", added: 1, deleted: 0 }],
+  }), "review-limit");
+  assert.strictEqual(currentReview(state).status, "correction-required", "the refused start leaves the last review as it was");
+});

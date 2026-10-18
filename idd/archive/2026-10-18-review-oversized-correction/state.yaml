@@ -1,0 +1,501 @@
+{
+  "schema": "idd-state/v1",
+  "change": "review-oversized-correction",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "Arreglar el hueco del CLI: una corrección fuera de presupuesto escale la línea y permita la sucesora",
+    "kind": "bug",
+    "summary": "Una corrección de trust-review que supera el presupuesto de líneas o sale de las rutas congeladas deja el cambio IDD sin salida: review correct la rechaza y review start no abre sucesora porque la generación sigue en correction-required",
+    "acceptance": "Con una generación en correction-required y cambios desde el candidato revisado que superan el presupuesto o salen de las rutas congeladas, ospec review start termina esa generación como escalated con el motivo y abre la sucesora (contando para el límite de 3); si los cambios caben, start devuelve la revisión en curso como hoy; el rechazo de review correct nombra ese camino; spec REQ-idd-016 y tests actualizados"
+  },
+  "facts": {
+    "open": [
+      "¿El paso a sucesora lo dispara ospec review start de forma automática cuando los cambios no caben en una corrección acotada, o exige un flag explícito como --supersede?",
+      "¿La petición de la revisión sucesora incluye los hallazgos bloqueantes sin resolver de la anterior (predecessor_findings) para que el revisor compruebe que se arreglaron, o es una revisión limpia?",
+      "¿La sucesora por corrección fuera de presupuesto cuenta para el límite de 3 revisiones por cambio, o es un límite aparte?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-review.js",
+      "scripts/lib/idd-review.test.js",
+      "scripts/ospec.js",
+      "scripts/ospec.test.js",
+      "skills/idd/SKILL.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches scripts/ospec.js (matches scripts/ospec.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components cli, idd-engine, skills: ADR 0003, 0004, 0005, 0006, 0010, 0011 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.test.js adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La decisión de escalar vive en la librería pura idd-review.js y la ejecuta el CLI; el agente no decide"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "No cambia qué señales derivan obligaciones"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "El cierre sigue exigiendo frozen-review aprobada; escalar no satisface trust-review, solo abre la sucesora"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "Sin memoria"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "none",
+      "reason": "Sin dependencias nuevas"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "Solo modo IDD (idd/); SDD no cambia"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "El escalado y la sucesora se persisten en state.yaml en la misma mutación bajo lock; reanudar lee el disco"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "Sin red"
+    },
+    {
+      "kind": "adr",
+      "id": "0007",
+      "impact": "conforms",
+      "reason": "Cada linaje sigue con un revisor de descubrimiento y una corrección; la sucesora queda ligada a un predecesor terminal (escalated) y cuenta para el límite de 3"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "El cambio solo toca idd-review.js, ospec.js (cálculo local con git), spec y skill; sin llamadas de red",
+      "recorded_at": "2026-10-18T14:19:11.121Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Disparador: ospec review start automático cuando los cambios no caben en una corrección acotada. Hallazgos: sí, la petición sucesora lleva predecessor_findings con los bloqueantes sin resolver. Límite: cuenta para las 3 revisiones.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-18T14:17:19.908Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-18T14:18:53.053Z",
+      "detail": {
+        "tree": "sha256:610274092fedef6d8b007f0205fae1ca6a9371da361a8e42c0753004b3662bb1",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-18T14:18:53.053Z",
+      "detail": {
+        "tree": "sha256:610274092fedef6d8b007f0205fae1ca6a9371da361a8e42c0753004b3662bb1",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-review.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-18T14:19:11.287Z",
+      "detail": {
+        "run": "run-11",
+        "tree": "sha256:7a315a533d9a9fcbece8d5f12e0f868ec3f7324f3ba42591dfc4e4581eb8b2c4",
+        "plan": "Compatible: el estado persistido no cambia de esquema (escalated y terminal_reason ya existen en el linaje); predecessor_findings se calcula al construir la petición y no se guarda. Un state.yaml con una revisión en correction-required sigue funcionando y ahora puede escalar. Rollback: revertir idd-review.js y ospec.js."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-18T14:20:27.068Z",
+      "detail": {
+        "tree": "sha256:610274092fedef6d8b007f0205fae1ca6a9371da361a8e42c0753004b3662bb1",
+        "runs": [
+          "run-12"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-18T14:20:27.068Z",
+      "detail": {
+        "tree": "sha256:610274092fedef6d8b007f0205fae1ca6a9371da361a8e42c0753004b3662bb1",
+        "check": "ev-5",
+        "documents": [
+          "openspec/specs/idd/spec.md"
+        ],
+        "tests": [
+          "scripts/lib/idd-review.test.js",
+          "scripts/ospec.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-18T14:20:27.068Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 conforms",
+          "adr:0006 none",
+          "adr:0010 none",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation none",
+          "adr:0007 conforms"
+        ],
+        "records": [],
+        "tree": "sha256:610274092fedef6d8b007f0205fae1ca6a9371da361a8e42c0753004b3662bb1",
+        "fitness": [
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17",
+          "run-18",
+          "run-19",
+          "run-20"
+        ]
+      }
+    }
+  ],
+  "base": "201bd4dddd55f09fd6efd55ef3333d95c69d1399",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/idd-review.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:54bdc0379e90ba021c088a5bf85db588351f9d04a4709f4a7ccb7c99fa9c8fe2",
+      "tree": "sha256:e840009b6153befefc5e23c996d0901ce433c3cacd9e6b0cddb65360d4347c55",
+      "recorded_at": "2026-10-18T14:16:43.294Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/idd-review.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:71e0b581d48617fa199970684151f4d17f34455e60caf686cfd30a41f35d7744",
+      "tree": "sha256:9024bf19b4113c49e681bf26a4dab53051200896208956129a30a51a28209551",
+      "recorded_at": "2026-10-18T14:17:19.908Z",
+      "tests": 12
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:70291ee3aa98a59aeb4fa9d056f923f5d4c93f0c27160c15d82fe9a55bbd8a7c",
+      "tree": "sha256:610274092fedef6d8b007f0205fae1ca6a9371da361a8e42c0753004b3662bb1",
+      "recorded_at": "2026-10-18T14:18:53.053Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:22f77387050372246ac9a7b262038c1ac3cfff132f547e262f67899ca497d42f",
+      "tree": "sha256:610274092fedef6d8b007f0205fae1ca6a9371da361a8e42c0753004b3662bb1",
+      "recorded_at": "2026-10-18T14:18:53.053Z",
+      "tests": 37
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:959da5febd777cf82f2276b382ccacf6b20aed7908515bba434d5fc88ae05579",
+      "tree": "sha256:610274092fedef6d8b007f0205fae1ca6a9371da361a8e42c0753004b3662bb1",
+      "recorded_at": "2026-10-18T14:18:53.053Z",
+      "tests": 11
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:372a09cbcd10ce519a41a8fbbe175550c95480eeda9df1959a3d0949e480f1b6",
+      "tree": "sha256:610274092fedef6d8b007f0205fae1ca6a9371da361a8e42c0753004b3662bb1",
+      "recorded_at": "2026-10-18T14:18:53.053Z",
+      "tests": 2
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:610274092fedef6d8b007f0205fae1ca6a9371da361a8e42c0753004b3662bb1",
+      "recorded_at": "2026-10-18T14:18:53.053Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ad3316e71f2b75f3c79e7cc963ac8e2190c3566d01707cc269008018d2b04c00",
+      "tree": "sha256:610274092fedef6d8b007f0205fae1ca6a9371da361a8e42c0753004b3662bb1",
+      "recorded_at": "2026-10-18T14:18:53.053Z",
+      "tests": 12
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0aa786f7fd1e0f5abf44f72a97167383262ae7e74273ad746d569684ca712e40",
+      "tree": "sha256:610274092fedef6d8b007f0205fae1ca6a9371da361a8e42c0753004b3662bb1",
+      "recorded_at": "2026-10-18T14:18:53.053Z",
+      "tests": 79
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0336f22ffbdac5b4efe49c985b95a7e01ce65d0b45622fc07ed9a077e7523519",
+      "tree": "sha256:610274092fedef6d8b007f0205fae1ca6a9371da361a8e42c0753004b3662bb1",
+      "recorded_at": "2026-10-18T14:18:53.053Z",
+      "tests": 37
+    },
+    {
+      "id": "run-11",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/idd-review.test.js scripts/review-lineage.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:56022171f3f60ddf0a7bce8f2c31893cad0789f3bc46cbaf850bb2a526650550",
+      "tree": "sha256:7a315a533d9a9fcbece8d5f12e0f868ec3f7324f3ba42591dfc4e4581eb8b2c4",
+      "recorded_at": "2026-10-18T14:19:11.287Z",
+      "tests": 43
+    },
+    {
+      "id": "run-12",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8a990923ebd0a1cd2afde08a8e85fb76cd686203c240b0cffb1de3cbf27c9f9b",
+      "tree": "sha256:610274092fedef6d8b007f0205fae1ca6a9371da361a8e42c0753004b3662bb1",
+      "recorded_at": "2026-10-18T14:20:27.068Z"
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1e9fded3373b14566265ee1584794d68ca4bc72d90b982c2c22123118f0b25b1",
+      "tree": "sha256:610274092fedef6d8b007f0205fae1ca6a9371da361a8e42c0753004b3662bb1",
+      "recorded_at": "2026-10-18T14:20:27.068Z",
+      "tests": 37
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8885adc8f019ae60f7bbb10fb02e12e330bdb2755c39999f628b051109daa1d2",
+      "tree": "sha256:610274092fedef6d8b007f0205fae1ca6a9371da361a8e42c0753004b3662bb1",
+      "recorded_at": "2026-10-18T14:20:27.068Z",
+      "tests": 11
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9ff2dae2e455601cc0adae6175ba1cdaef5843ff8bfa88189b6b01d7dcb93d3a",
+      "tree": "sha256:610274092fedef6d8b007f0205fae1ca6a9371da361a8e42c0753004b3662bb1",
+      "recorded_at": "2026-10-18T14:20:27.068Z",
+      "tests": 2
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:610274092fedef6d8b007f0205fae1ca6a9371da361a8e42c0753004b3662bb1",
+      "recorded_at": "2026-10-18T14:20:27.068Z"
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2964d5ea380847197baf9f4876cee93b61038f5e1800b79704ad98eff4dac0a3",
+      "tree": "sha256:610274092fedef6d8b007f0205fae1ca6a9371da361a8e42c0753004b3662bb1",
+      "recorded_at": "2026-10-18T14:20:27.068Z",
+      "tests": 12
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7a9c08c27f6bdd22fa8d379ba2c1222d59552f8d9abafed7360a268f8db8cdd1",
+      "tree": "sha256:610274092fedef6d8b007f0205fae1ca6a9371da361a8e42c0753004b3662bb1",
+      "recorded_at": "2026-10-18T14:20:27.068Z",
+      "tests": 79
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9a7682e834d79bfaf0abadcb3e0a960be8da8d664d8b55b611656080867a3e64",
+      "tree": "sha256:610274092fedef6d8b007f0205fae1ca6a9371da361a8e42c0753004b3662bb1",
+      "recorded_at": "2026-10-18T14:20:27.068Z",
+      "tests": 37
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0007",
+      "command": "node --test scripts/review-lineage.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d0270151a6e63d8f9120efc9f872f9d951d74781563791b38707e7e5af2834c2",
+      "tree": "sha256:610274092fedef6d8b007f0205fae1ca6a9371da361a8e42c0753004b3662bb1",
+      "recorded_at": "2026-10-18T14:20:27.068Z",
+      "tests": 31
+    }
+  ],
+  "closed_at": "2026-10-18T14:20:36.240Z"
+}

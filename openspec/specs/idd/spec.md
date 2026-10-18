@@ -754,6 +754,18 @@ its verdict to exactly those IDs. A passing validation approves the review; a
 failing one MUST end the lineage, because IDD allows one correction per review.
 Results are passed as JSON with `--result`.
 
+A fix that does not fit one bounded correction (more changed lines since the
+reviewed candidate than the budget left, or a path outside the frozen ones)
+MUST NOT leave the change without a way on: `ospec review correct` MUST refuse
+it naming `ospec review start`, and `ospec review start` on a review waiting
+for its correction MUST end it as `escalated` with that reason and open the
+successor, which counts toward the 3 reviews of the change. When the changes
+fit, `ospec review start` MUST keep returning the review in progress. The
+request of a successor whose predecessor ended with unresolved `BLOCKER` or
+`CRITICAL` findings MUST carry them as `predecessor_findings` (id, severity,
+summary, acceptance criteria) so the reviewer checks them on top of the full
+review.
+
 Approved evidence proves only its candidate: on every `ospec check`, if the
 reviewed paths, or any security-boundary path the diff now touches, differ
 from the reviewed candidate, `trust-review` MUST return to `pending`. A
@@ -779,6 +791,14 @@ saying so, and the person decides how to go on. All lineages stay in
 - THEN it MUST return that finding's ID for `review-correction`
 - AND a validation that resolves it MUST approve the review, while one that
   does not MUST end the lineage
+
+#### Scenario: Oversized correction escalates to a successor
+
+- GIVEN a trust review whose frozen findings hold one `BLOCKER`
+- WHEN the fix also needs a file the review never froze
+- THEN `ospec review correct` MUST refuse naming `ospec review start`
+- AND `ospec review start` MUST end the review as `escalated` and open review 2,
+  whose request carries the `BLOCKER` as `predecessor_findings`
 
 #### Scenario: Documentation-only change closes without review
 
