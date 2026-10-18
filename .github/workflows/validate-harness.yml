@@ -50,6 +50,14 @@ jobs:
         with:
           node-version: 22
 
+      # A test that installs from the checkout compiles ospec-hooks, which is
+      # not committed: the cached build makes that compilation incremental.
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.23'
+          cache: true
+
       # The tests write many small files under the temp directory, which NTFS
       # makes slow: a ReFS Dev Drive cut the Windows test time by 40 %. If the
       # drive cannot be created, the job runs on the default TEMP.

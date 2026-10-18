@@ -93,9 +93,14 @@ function lstatIfExists(targetPath, fsImpl = fs) {
   }
 }
 
-function realpathIfExists(targetPath, fsImpl = fs) {
+// `canonical` memoizes, for one sync, the paths that exist: the sync creates
+// directories between checks, so a missing path is resolved again each time.
+function realpathIfExists(targetPath, fsImpl = fs, canonical = null) {
+  if (canonical?.has(targetPath)) return canonical.get(targetPath);
   try {
-    return fsImpl.realpathSync(targetPath);
+    const real = fsImpl.realpathSync(targetPath);
+    canonical?.set(targetPath, real);
+    return real;
   } catch (error) {
     if (error.code === "ENOENT") {
       return path.resolve(targetPath);
@@ -104,7 +109,7 @@ function realpathIfExists(targetPath, fsImpl = fs) {
   }
 }
 
-function assertPathSafe(targetRoot, managedPath = targetRoot, fsImpl = fs) {
+function assertPathSafe(targetRoot, managedPath = targetRoot, fsImpl = fs, canonical = null) {
   const resolvedRoot = path.resolve(targetRoot);
   if (resolvedRoot === path.parse(resolvedRoot).root) {
     throw new Error(`refusing to sync into filesystem root: ${resolvedRoot}`);
@@ -121,9 +126,9 @@ function assertPathSafe(targetRoot, managedPath = targetRoot, fsImpl = fs) {
     throw new Error(`refusing symlinked destination path: ${resolvedManaged}`);
   }
 
-  const canonicalRoot = realpathIfExists(resolvedRoot, fsImpl);
+  const canonicalRoot = realpathIfExists(resolvedRoot, fsImpl, canonical);
   const parentOfManaged = path.dirname(resolvedManaged);
-  const canonicalManagedParent = realpathIfExists(parentOfManaged, fsImpl);
+  const canonicalManagedParent = realpathIfExists(parentOfManaged, fsImpl, canonical);
 
   if (path.resolve(managedPath) !== resolvedRoot) {
     const relative = path.relative(
@@ -148,11 +153,12 @@ function createRollbackJournal(targetRoot, fsImpl = fs, retryOptions = {}) {
   const entries = [];
   const captured = new Set();
   const newDirectories = new Set();
+  const canonical = new Map();
 
   return {
     captureDirectory(targetPath) {
       const absolute = path.resolve(targetPath);
-      assertPathSafe(targetRoot, absolute, fsImpl);
+      assertPathSafe(targetRoot, absolute, fsImpl, canonical);
       const stat = lstatIfExists(absolute, fsImpl);
       if (!stat) {
         newDirectories.add(absolute);
@@ -163,7 +169,7 @@ function createRollbackJournal(targetRoot, fsImpl = fs, retryOptions = {}) {
     capture(targetPath) {
       const absolute = path.resolve(targetPath);
       if (captured.has(absolute)) return;
-      assertPathSafe(targetRoot, absolute, fsImpl);
+      assertPathSafe(targetRoot, absolute, fsImpl, canonical);
       const stat = lstatIfExists(absolute, fsImpl);
       if (stat && !stat.isFile()) {
         throw new Error(`refusing to replace non-file managed path: ${absolute}`);
@@ -494,8 +500,9 @@ function syncTargetTree(
   journal = null,
   relPrefix = "",
   retryOptions = {},
+  canonical = new Map(),
 ) {
-  assertPathSafe(targetRoot, destDir, fsImpl);
+  assertPathSafe(targetRoot, destDir, fsImpl, canonical);
   if (journal) journal.captureDirectory(destDir);
   mutateFs("mkdir", destDir, () => fsImpl.mkdirSync(destDir, { recursive: true }), retryOptions);
 
@@ -508,15 +515,14 @@ function syncTargetTree(
     const relFile = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
 
     if (entry.isDirectory()) {
-      syncTargetTree(source, destination, fsImpl, result, skipNames, targetRoot, journal, relFile, retryOptions);
+      syncTargetTree(source, destination, fsImpl, result, skipNames, targetRoot, journal, relFile, retryOptions, canonical);
     } else if (entry.isFile()) {
-      assertPathSafe(targetRoot, destination, fsImpl);
+      assertPathSafe(targetRoot, destination, fsImpl, canonical);
       result.ownedFiles.push(relFile);
       if (filesMatch(source, destination, fsImpl)) {
         result.unchanged.push(destination);
       } else {
         if (journal) journal.capture(destination);
-        mutateFs("mkdir", path.dirname(destination), () => fsImpl.mkdirSync(path.dirname(destination), { recursive: true }), retryOptions);
         mutateFs("copy", destination, () => fsImpl.copyFileSync(source, destination), retryOptions);
         result.updated.push(destination);
       }

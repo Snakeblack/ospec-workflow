@@ -170,7 +170,6 @@ function syncTreeByContent(sourceDir, destDir, fsImpl = fs, result = { updated: 
       if (filesMatch(source, destination, fsImpl)) {
         result.unchanged.push(destination);
       } else {
-        fsImpl.mkdirSync(path.dirname(destination), { recursive: true });
         fsImpl.copyFileSync(source, destination);
         result.updated.push(destination);
       }
@@ -194,7 +193,9 @@ function pruneManagedTree(sourceDir, destDir, fsImpl = fs) {
   }
 }
 
-function preflightManagedTree(sourceDir, destDir, approvedRoot, fsImpl = fs) {
+// The preflight only reads, so one pass resolves the approved root and each
+// shared parent once instead of once per entry (slow on Windows).
+function preflightManagedTree(sourceDir, destDir, approvedRoot, fsImpl = fs, canonical = new Map()) {
   const sourceStat = lstatIfExists(sourceDir, fsImpl);
   if (!sourceStat?.isDirectory() || sourceStat.isSymbolicLink()) {
     throw new Error(`generated Codex skills root must be a real directory: ${sourceDir}`);
@@ -203,9 +204,9 @@ function preflightManagedTree(sourceDir, destDir, approvedRoot, fsImpl = fs) {
   for (const entry of fsImpl.readdirSync(sourceDir, { withFileTypes: true })) {
     const source = path.join(sourceDir, entry.name);
     const destination = path.join(destDir, entry.name);
-    assertManagedPathSafe(approvedRoot, destination, "Codex skill destination", fsImpl);
+    assertManagedPathSafe(approvedRoot, destination, "Codex skill destination", fsImpl, canonical);
     if (entry.isDirectory()) {
-      preflightManagedTree(source, destination, approvedRoot, fsImpl);
+      preflightManagedTree(source, destination, approvedRoot, fsImpl, canonical);
     } else if (!entry.isFile()) {
       throw new Error(`generated Codex skill entry must be a regular file or directory: ${source}`);
     }
@@ -863,27 +864,26 @@ function lstatIfExists(targetPath, fsImpl = fs) {
   }
 }
 
-function realpathIfExists(targetPath, fsImpl = fs) {
-  const missingSegments = [];
-  let candidate = path.resolve(targetPath);
-  while (true) {
-    try {
-      return path.resolve(fsImpl.realpathSync(candidate), ...missingSegments.reverse());
-    } catch (error) {
-      if (error.code !== "ENOENT") {
-        throw error;
-      }
-      const parent = path.dirname(candidate);
-      if (parent === candidate) {
-        throw error;
-      }
-      missingSegments.push(path.basename(candidate));
-      candidate = parent;
+// `canonical` memoizes the paths one read-only pass resolves; a missing path
+// resolves under its nearest existing ancestor.
+function realpathIfExists(targetPath, fsImpl = fs, canonical = null) {
+  const resolved = path.resolve(targetPath);
+  if (canonical?.has(resolved)) return canonical.get(resolved);
+  let real;
+  try {
+    real = fsImpl.realpathSync(resolved);
+  } catch (error) {
+    const parent = path.dirname(resolved);
+    if (error.code !== "ENOENT" || parent === resolved) {
+      throw error;
     }
+    real = path.resolve(realpathIfExists(parent, fsImpl, canonical), path.basename(resolved));
   }
+  canonical?.set(resolved, real);
+  return real;
 }
 
-function assertManagedPathSafe(rootPath, managedPath, label, fsImpl = fs) {
+function assertManagedPathSafe(rootPath, managedPath, label, fsImpl = fs, canonical = null) {
   const resolvedRoot = path.resolve(rootPath);
   const resolvedManaged = path.resolve(managedPath);
   const rootStat = lstatIfExists(resolvedRoot, fsImpl);
@@ -894,8 +894,8 @@ function assertManagedPathSafe(rootPath, managedPath, label, fsImpl = fs) {
   if (managedStat?.isSymbolicLink()) {
     throw new Error(`${label} redirects through a symlinked or canonicalized path: ${resolvedManaged}`);
   }
-  const canonicalRoot = realpathIfExists(resolvedRoot, fsImpl);
-  const canonicalManaged = realpathIfExists(path.dirname(resolvedManaged), fsImpl);
+  const canonicalRoot = realpathIfExists(resolvedRoot, fsImpl, canonical);
+  const canonicalManaged = realpathIfExists(path.dirname(resolvedManaged), fsImpl, canonical);
   const relative = path.relative(canonicalRoot, canonicalManaged);
   if (relative.startsWith("..") || path.isAbsolute(relative)) {
     throw new Error(`${label} escapes the approved Codex root via canonical path redirection`);

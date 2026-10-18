@@ -759,6 +759,25 @@ test("syncCodexSkills fails closed before a nested destination symlink can escap
   assert.ok(!fs.existsSync(path.join(skillsRoot, "apply", "SKILL.md")), "preflight must prevent partial skill writes");
 });
 
+test("syncCodexSkills fails closed when an ancestor of the missing destination redirects outside", (t) => {
+  const outDir = makeTempDir(t, "codex-skills-ancestor-source-");
+  const homeDir = makeTempDir(t, "codex-skills-ancestor-home-");
+  const outsideDir = makeTempDir(t, "codex-skills-ancestor-outside-");
+  writeGeneratedCodexTree(outDir);
+  try {
+    fs.symlinkSync(outsideDir, path.join(homeDir, ".agents"), "junction");
+  } catch {
+    t.skip("symlink creation unavailable");
+    return;
+  }
+
+  assert.throws(
+    () => syncCodexSkills(outDir, path.join(homeDir, ".agents", "skills"), { approvedRoot: homeDir }),
+    /escapes the approved Codex root via canonical path redirection/i,
+  );
+  assert.deepEqual(fs.readdirSync(outsideDir), [], "preflight must not write through the redirected ancestor");
+});
+
 test("syncCodexSkills fails closed when the generated skills root is missing or redirected", (t) => {
   const outDir = makeTempDir(t, "codex-skills-invalid-source-");
   const skillsRoot = makeTempDir(t, "codex-skills-invalid-dest-");
