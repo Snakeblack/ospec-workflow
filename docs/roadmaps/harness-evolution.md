@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.139.2, 2026-10-18.
+> **Versión de referencia:** v2.139.3, 2026-10-18.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -584,6 +584,10 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
   - **Margen y reintentos:** los cuelgues tienen 180 s de margen solo en los tests. En Windows hay un reintento acotado y visible solo para los fallos de infraestructura de los checks de navegador y del plazo del lanzador en `codex-hook-shell`.
   - **Runner:** TEMP en un Dev Drive.
   - **Resultado:** 4 runs de PR en verde sin reintentos. Sigue abierto hasta cumplir el criterio de hecho.
+- **Medición (v2.139.3, [#365](https://github.com/Snakeblack/ospec-workflow/pull/365)):**
+  - **Contención:** en Windows, un test tarda unas 10 veces más dentro de la suite que solo. Windows PowerShell 5.1 arranca en 0,2 s aislado.
+  - **Flake repetido:** `startBrowser reports the timeout and stderr` volvió a fallar con 5 s; el falso navegador no llega a escribir su stderr a tiempo. Siguiente paso: un ChildProcess falso dentro del test, sin arrancar un proceso real.
+  - **Resultado:** el criterio de 0 flakes hasta el 2026-10-21 no se cumple.
 
 ### E1.31 — `doctor-hook-probe` (OSP-014, #345)
 
