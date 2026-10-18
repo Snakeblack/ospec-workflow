@@ -1,0 +1,427 @@
+{
+  "schema": "idd-state/v1",
+  "change": "windows-test-hotspots",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "refactor",
+    "summary": "Recortar los cuatro puntos calientes de la suite en Windows (preflight de rutas del instalador Codex, mkdir redundante, go build en frío del test de agy y arranques de Windows PowerShell 5.1) sin cambiar el comportamiento observable",
+    "acceptance": "La suma de duraciones TAP de los shards de Windows baja frente al run base 39165680389 (480 s y 675 s), con codex-smoke, codex-hook-shell, hosts/agy e install-codex-env-isolation más rápidos, y toda la suite en verde en las tres plataformas"
+  },
+  "facts": {
+    "open": [
+      "¿Se acepta memoizar dentro de una misma pasada de preflight el realpath de la raíz aprobada y el de cada directorio padre en assertManagedPathSafe (install-codex.js), manteniendo por entrada el lstat que detecta enlaces simbólicos?",
+      "¿Se aplica también al motor compartido (install-engine.js assertPathSafe, que hace 2 lstat y 2 realpath por fichero dos veces por fichero) o solo a Codex?",
+      "Para el go build en frío del test de agy: ¿caché de Go en CI (actions/setup-go con cache), compilar antes en CI, o que el test no compile?",
+      "Windows PowerShell 5.1 tarda ~16 s por arranque en el runner: ¿medir la causa en un experimento de CI y corregirla en el entorno del test, reducir sus invocaciones, o dejarlo?",
+      "¿Queda fuera ospec.test.js (130 s en Windows, repartido en ~100 tests que lanzan procesos)?",
+      "¿Se puede subir una rama y usar el CI del PR (y un workflow de experimento temporal si hace falta) para medir el después?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      ".github/workflows/validate-harness.yml",
+      "scripts/configure/codex-hook-shell.test.js",
+      "scripts/configure/install-codex.js",
+      "scripts/configure/install-engine.js"
+    ],
+    "work_units": 3,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 3 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component generator: ADR 0001, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "none",
+      "reason": "Solo cambia el instalador y el CI; la generación de targets y sus golden no cambian."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "none",
+      "reason": "No añade dependencias al runtime ni a la instalación; la caché de Go solo afecta al CI."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "El instalador sigue sin red; la caché de Go es solo de CI."
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "none",
+      "reason": "Los árboles generados no cambian; el golden de cli.test.js lo comprueba."
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "La comprobación de rutas del instalador sigue fallando cerrada: el lstat por entrada y los errores se mantienen; solo se reutiliza en una misma pasada el realpath de la raíz y del directorio padre."
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Instalador: Codex + motor compartido (memoizar realpath de raíz y padre por pasada; se mantiene el lstat por entrada). Go build: caché de Go en CI con actions/setup-go. PowerShell 5.1: medir la causa primero con un workflow de experimento y corregir solo lo demostrado. Medición: sí, rama + PR en borrador frente al run 39165680389; ospec.test.js queda fuera como seguimiento.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-18T21:21:21.186Z",
+      "detail": {
+        "tree": "sha256:a2d123b8a72fde81a29cfa7fdb498c89e8d1cef3cf11620a5b72f48f8cc809e4",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-18T21:21:21.186Z",
+      "detail": {
+        "refs": [
+          "adr:0001 none",
+          "adr:0010 none",
+          "scenario:offline-operation none",
+          "scenario:target-parity none",
+          "adr:0008 conforms"
+        ],
+        "records": [],
+        "tree": "sha256:a2d123b8a72fde81a29cfa7fdb498c89e8d1cef3cf11620a5b72f48f8cc809e4",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5",
+          "run-6"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-18T21:29:40.650Z",
+      "detail": {
+        "tree": "sha256:244b4d89bbbdd70f555b08253754656e31b2d141278d8679f650409dad191cd7",
+        "runs": [
+          "run-7"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-18T21:29:40.650Z",
+      "detail": {
+        "refs": [
+          "adr:0001 none",
+          "adr:0010 none",
+          "scenario:offline-operation none",
+          "scenario:target-parity none",
+          "adr:0008 conforms"
+        ],
+        "records": [],
+        "tree": "sha256:244b4d89bbbdd70f555b08253754656e31b2d141278d8679f650409dad191cd7",
+        "fitness": [
+          "run-8",
+          "run-9",
+          "run-10",
+          "run-11",
+          "run-12"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-18T21:41:11.749Z",
+      "detail": {
+        "tree": "sha256:7f7faaaaa3b94b3781af417b624ac90eef990012686e8d78ee7f3aa5b0df2c72",
+        "runs": [
+          "run-13"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-18T21:41:11.749Z",
+      "detail": {
+        "refs": [
+          "adr:0001 none",
+          "adr:0010 none",
+          "scenario:offline-operation none",
+          "scenario:target-parity none",
+          "adr:0008 conforms"
+        ],
+        "records": [],
+        "tree": "sha256:7f7faaaaa3b94b3781af417b624ac90eef990012686e8d78ee7f3aa5b0df2c72",
+        "fitness": [
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17",
+          "run-18"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-18T21:41:30.238Z"
+    }
+  ],
+  "base": "1d4e39485c955d06970747295d3c0d31b41b99e5",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8a8cef133543af25736429536fc17c9e2d0b294f019958484d72ca7ca205453b",
+      "tree": "sha256:a2d123b8a72fde81a29cfa7fdb498c89e8d1cef3cf11620a5b72f48f8cc809e4",
+      "recorded_at": "2026-10-18T21:21:21.186Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d2dfd33a2f7d543efe4cd17dbf8c939002adcf605a2a41d1a40106df542cb63d",
+      "tree": "sha256:a2d123b8a72fde81a29cfa7fdb498c89e8d1cef3cf11620a5b72f48f8cc809e4",
+      "recorded_at": "2026-10-18T21:21:21.186Z",
+      "tests": 47
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:a2d123b8a72fde81a29cfa7fdb498c89e8d1cef3cf11620a5b72f48f8cc809e4",
+      "recorded_at": "2026-10-18T21:21:21.186Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9a895f471552d6a32f7b6a8236569e749817bd05d768ad966ad51b00a5581acb",
+      "tree": "sha256:a2d123b8a72fde81a29cfa7fdb498c89e8d1cef3cf11620a5b72f48f8cc809e4",
+      "recorded_at": "2026-10-18T21:21:21.186Z",
+      "tests": 16
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5db59a5642dd92cc28f77de67740ea7447c0ad8cd16d84b67ed778604fcfa487",
+      "tree": "sha256:a2d123b8a72fde81a29cfa7fdb498c89e8d1cef3cf11620a5b72f48f8cc809e4",
+      "recorded_at": "2026-10-18T21:21:21.186Z",
+      "tests": 47
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ce4ddb184c7c2da0a9c99f24c99f43f9a691c24ed523278619930302ff251f38",
+      "tree": "sha256:a2d123b8a72fde81a29cfa7fdb498c89e8d1cef3cf11620a5b72f48f8cc809e4",
+      "recorded_at": "2026-10-18T21:21:21.186Z",
+      "tests": 77
+    },
+    {
+      "id": "run-7",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:78686583859f38baab3391a231bf551362d8234aa4611dc8157bab386d8a5c81",
+      "tree": "sha256:244b4d89bbbdd70f555b08253754656e31b2d141278d8679f650409dad191cd7",
+      "recorded_at": "2026-10-18T21:29:40.650Z"
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:599ebfb25dd6cc9aee7e791b0e055c7f787778cc6101d1b57e156a351dc48428",
+      "tree": "sha256:244b4d89bbbdd70f555b08253754656e31b2d141278d8679f650409dad191cd7",
+      "recorded_at": "2026-10-18T21:29:40.650Z",
+      "tests": 47
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:244b4d89bbbdd70f555b08253754656e31b2d141278d8679f650409dad191cd7",
+      "recorded_at": "2026-10-18T21:29:40.650Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f418c8e533dd77a62290e1505fe6cbe4addde222e00f754269c3bf63b94c1bce",
+      "tree": "sha256:244b4d89bbbdd70f555b08253754656e31b2d141278d8679f650409dad191cd7",
+      "recorded_at": "2026-10-18T21:29:40.650Z",
+      "tests": 16
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c1a8687317eedf8586ecf6cff74be53bd89040016402cf5ef35a9c8efe4e83b7",
+      "tree": "sha256:244b4d89bbbdd70f555b08253754656e31b2d141278d8679f650409dad191cd7",
+      "recorded_at": "2026-10-18T21:29:40.650Z",
+      "tests": 47
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9d20d920a207ae4dcd5fa632c543bd1a40ba7c89aad54136fe8cb047bd3617ba",
+      "tree": "sha256:244b4d89bbbdd70f555b08253754656e31b2d141278d8679f650409dad191cd7",
+      "recorded_at": "2026-10-18T21:29:40.650Z",
+      "tests": 77
+    },
+    {
+      "id": "run-13",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a1cad727026e0eebc8d33b6fa8e36ba5913e67df271999a77abf58f5442db669",
+      "tree": "sha256:7f7faaaaa3b94b3781af417b624ac90eef990012686e8d78ee7f3aa5b0df2c72",
+      "recorded_at": "2026-10-18T21:41:11.749Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:743785fdc186916e7f6641af3d612c3ff78009a56616b66edd7fb4d267f9efcc",
+      "tree": "sha256:7f7faaaaa3b94b3781af417b624ac90eef990012686e8d78ee7f3aa5b0df2c72",
+      "recorded_at": "2026-10-18T21:41:11.749Z",
+      "tests": 47
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:7f7faaaaa3b94b3781af417b624ac90eef990012686e8d78ee7f3aa5b0df2c72",
+      "recorded_at": "2026-10-18T21:41:11.749Z"
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:66c0cc1f770124292745eb9e764191dae03a3d0e09925d935359af576d1e686d",
+      "tree": "sha256:7f7faaaaa3b94b3781af417b624ac90eef990012686e8d78ee7f3aa5b0df2c72",
+      "recorded_at": "2026-10-18T21:41:11.749Z",
+      "tests": 16
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a1280676f48a53d1b1694c6c9c1f7af22e8991dbdd2b2543dbd52b98bd711cf2",
+      "tree": "sha256:7f7faaaaa3b94b3781af417b624ac90eef990012686e8d78ee7f3aa5b0df2c72",
+      "recorded_at": "2026-10-18T21:41:11.749Z",
+      "tests": 47
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7875b74acd40e4bcdab97a59732ca10e592d5469b6813939502522e9f5351635",
+      "tree": "sha256:7f7faaaaa3b94b3781af417b624ac90eef990012686e8d78ee7f3aa5b0df2c72",
+      "recorded_at": "2026-10-18T21:41:11.749Z",
+      "tests": 77
+    }
+  ],
+  "closed_at": "2026-10-18T21:41:30.238Z"
+}
