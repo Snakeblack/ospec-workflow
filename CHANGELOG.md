@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.139.1] - 2026-10-18
+
+### Fixed
+- **Antigravity carga y aplica los hooks de ospec (seguimiento de E1.27, [#360](https://github.com/Snakeblack/ospec-workflow/pull/360))**:
+  - **Formato:** agy 1.4.2 descartaba entero el `hooks.json` generado, así que no corría ningún hook de ospec. La causa no era la clave `enabled`, que es válida. Era que `SessionStart` y `Stop` iban en grupos `matcher`, y agy solo los admite en `PreToolUse`/`PostToolUse`. Ahora esos dos eventos van planos y `PreToolUse` va con `matcher: "*"`. `PreCompact` y `SubagentStop` dejan de generarse, porque agy no los tiene.
+  - **Adaptador:** el nuevo wrapper `ospec-antigravity-hook.js` y el launcher traducen el protocolo de agy (REQ-hooks-026).
+    - Entrada: `toolCall`, con `command`, `file_path` y el contenido que se escribe.
+    - Directorio: el `Cwd` del comando o el primer workspace que exista, nunca `~/.gemini/config`.
+    - Salida: `decision` `ask`/`deny`, sin `allow`; `injectSteps` en `SessionStart`.
+    - Una carga ilegible, o una sin directorio desde el que inspeccionar, pregunta como fallo de inspección.
+  - **Instalación:** la reinstalación retira los grupos `ospec-*` obsoletos y conserva los ajenos. `validate-antigravity` rechaza las formas que agy rechaza.
+  - **Verificado en vivo:** agy carga sin error, `SessionStart` inyecta el contexto y `deny` bloquea la lectura de una clave privada. Con `toolPermission: always-proceed`, agy aprueba solo los `ask`, como el modo bypass.
+
+  Hecho con IDD (`idd/archive/2026-10-18-agy-hooks-adapter/`, `idd/archive/2026-10-18-agy-workspace-fallback/`).
+- **Aviso del plugin global de OpenCode (seguimiento de E1.27, [#361](https://github.com/Snakeblack/ospec-workflow/pull/361))**:
+  - **Problema:** OpenCode 2.x carga un plugin por `id`. Si existe `~/.config/opencode/plugins/ospec.js`, el plugin que escribe `install:opencode -- <repo>` no carga.
+  - **Instalación:** `install:opencode` lo avisa, también con `--dry-run`, sin fallar.
+  - **Diagnóstico:** `ospec doctor` da `warn` en `project/opencode-plugin`, aunque los ficheros sean idénticos, porque el que corre es el runtime global.
+
+  Hecho con IDD (`idd/archive/2026-10-18-opencode-global-plugin-shadow/`).
+
+**Verificación directa**: `node scripts/check.js` (3882 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.139.0] - 2026-10-18
 
 ### Added
