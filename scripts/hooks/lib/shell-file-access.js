@@ -3,10 +3,12 @@
 // A bounded literal-operand recognizer, not a shell interpreter. Quotes keep
 // separators inside data inert; variable expansion and nested interpreters are
 // deliberately unsupported. Mirrored in internal/hooks/shellfileaccess.go.
-const READERS = new Set(['cat', 'head', 'tail', 'less', 'more', 'type', 'get-content', 'gc', 'grep', 'sed', 'awk', 'base64', 'xxd', 'cp']);
+const READERS = new Set(['cat', 'head', 'tail', 'less', 'more', 'type', 'get-content', 'gc', 'grep', 'sed', 'awk', 'base64', 'xxd', 'od', 'tar', 'scp', 'cp']);
 const COUNT_OPTIONS = new Set(['-n', '-c', '--lines', '--bytes']);
 const CONTENT_OPTIONS = new Set(['-encoding', '-totalcount', '-tail', '-readcount']);
-const VALUE_OPTIONS = new Map([['head', COUNT_OPTIONS], ['tail', COUNT_OPTIONS], ['get-content', CONTENT_OPTIONS], ['gc', CONTENT_OPTIONS]]);
+// ssh reads the identity and options itself: their values never leave the host.
+const SCP_OPTIONS = new Set(['-i', '-o']);
+const VALUE_OPTIONS = new Map([['head', COUNT_OPTIONS], ['tail', COUNT_OPTIONS], ['get-content', CONTENT_OPTIONS], ['gc', CONTENT_OPTIONS], ['scp', SCP_OPTIONS]]);
 
 function extractShellReadPaths(command) {
   const tokens = [];

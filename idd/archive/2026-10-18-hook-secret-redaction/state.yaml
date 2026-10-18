@@ -1,0 +1,1902 @@
+{
+  "schema": "idd-state/v1",
+  "change": "hook-secret-redaction",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "hay que hacer el 1.27, pero hay que hacer que sea completamente seguro, pero sin perder contexto, quiero ver la viabilidad de usar el hook que el script vea si hay secretos, paswords, etc.. la idea es censurar lo que es sensible, para luego entregar el archivo ya con la censura al llm, de esta forma puede ver todo lo demás pero con lo que es sensible censurado, pero sin falsos positivos",
+    "kind": "feature",
+    "summary": "E1.27 hook-secret-coverage (#336): ampliar tokens conocidos (GitHub, Anthropic, OpenAI project) y lectores od/tar/scp del PreToolUse, y añadir un hook PostToolUse que censura los secretos de alta confianza en la salida de las herramientas antes de que la vea el modelo, sin falsos positivos",
+    "acceptance": "Write/Read con tokens ghp_/github_pat_/sk-ant-/sk-proj- da ask; od .env, tar cf - .env y scp .env host: dan ask; un README normal y un .pem sin clave siguen sin decisión; en Claude Code un Read/Bash/Grep de un fichero con secretos entrega al modelo el contenido con cada secreto sustituido por un marcador y el resto intacto, verificado en vivo; un corpus de negativos (código, i18n, docs, placeholders) queda sin cambios; paridad JS/Go"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "Asignaciones genéricas (password=..., apiKey: ...): ¿límite estricto de valor con 8 caracteres o más, sin espacios, con dígito o símbolo y sin placeholders, aceptando no censurar contraseñas solo de letras en código?"
+      },
+      {
+        "category": "uniqueness",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/hooks/lib/secret-scan.js",
+          "line": 43
+        }
+      },
+      {
+        "category": "persistence",
+        "question": "Un Write/Edit con el marcador [REDACTED:<tipo>] sobre un fichero que guarda secretos reales: ¿deny, ask o restaurar el valor original?"
+      },
+      {
+        "category": "copy",
+        "question": "Con la censura activa en Claude, ¿el PreToolUse deja de mostrar el ask de lectura de ficheros con secretos (deny de claves privadas intacto) o sigue preguntando además de censurar?"
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/hooks/pre-tool-use.js",
+          "line": 526
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/hooks/pre-tool-use.js",
+          "line": 526
+        }
+      },
+      {
+        "category": "errors",
+        "question": "En los targets que no pueden reescribir la salida (Cursor, VS Code, Copilot; Codex y Gemini/agy sin verificar) ¿se mantiene el ask actual como límite, y qué targets entran en este cambio además de Claude Code?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/harness-go-js-parity.md",
+      "docs/roadmaps/harness-evolution.md",
+      "docs/target-capabilities.md",
+      "hooks/hooks.json",
+      "internal/hooks/posttooluse.go",
+      "internal/hooks/posttooluse_test.go",
+      "internal/hooks/pretooluse.go",
+      "internal/hooks/pretooluse_test.go",
+      "internal/hooks/secretredact.go",
+      "internal/hooks/secretredact_test.go",
+      "internal/hooks/secretscan.go",
+      "internal/hooks/secretscan_test.go",
+      "internal/hooks/shellfileaccess.go",
+      "internal/hooks/shellfileaccess_test.go",
+      "internal/testdata/parity/README",
+      "internal/testdata/parity/post-tool-use-bash.json",
+      "internal/testdata/parity/post-tool-use-sensitive-file.json",
+      "internal/testdata/secret-redaction/cases.json",
+      "openspec/specs/agent-shield-security/spec.md",
+      "openspec/specs/hooks-runtime/spec.md",
+      "openspec/specs/hooks/spec.md",
+      "scripts/configure/__fixtures__/golden/claude/hooks/hooks.json",
+      "scripts/configure/__fixtures__/golden/codex/hooks.json",
+      "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+      "scripts/configure/__fixtures__/source/hooks/hooks.json",
+      "scripts/hooks/lib/secret-redact.js",
+      "scripts/hooks/lib/secret-redact.test.js",
+      "scripts/hooks/lib/secret-scan.js",
+      "scripts/hooks/lib/secret-scan.test.js",
+      "scripts/hooks/lib/shell-file-access.js",
+      "scripts/hooks/lib/shell-file-access.test.js",
+      "scripts/hooks/ospec-hooks-launch.js",
+      "scripts/hooks/ospec-hooks-launch.test.js",
+      "scripts/hooks/parity-contract.test.js",
+      "scripts/hooks/post-tool-use.js",
+      "scripts/hooks/post-tool-use.test.js",
+      "scripts/hooks/pre-tool-use.js",
+      "scripts/hooks/pre-tool-use.test.js",
+      "scripts/lib/target-profiles/opencode-plugin.js",
+      "scripts/lib/target-profiles/opencode-plugin.test.js",
+      "scripts/lib/target-profiles/vscode.js",
+      "scripts/lib/target-transform.js",
+      "scripts/lib/target-transform.test.js"
+    ],
+    "work_units": 4,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 4 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: touches hooks/hooks.json (matches hooks/hooks.json)",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches internal/hooks/secretredact.go and 15 more (matches **/*secret*)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components generator, hooks: ADR 0001, 0008, 0010 and quality scenario guard-fail-closed, offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: internal/hooks/pretooluse_test.go adds os.WriteFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "El evento PostToolUse nace en hooks/hooks.json y cada perfil lo transforma u omite (claude anida y añade --output-redaction, codex lo envuelve, vscode/antigravity lo omiten, copilot/cursor lo descartan por eventMap); ningún target se edita a mano y los golden se regeneran desde la fuente"
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "La censura falla cerrada: si el hijo post-tool-use falla, el launcher censura en proceso y si eso falla retiene cada string; el plugin de OpenCode retiene ante fallo; el deny del marcador sobre secretos reales nunca se degrada, tampoco en bypassPermissions"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas: Go stdlib (regexp, encoding/json) y Node stdlib; paridad Go/JS byte a byte por fixtures y corpus compartido"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "Cubierto por los tests de fallo del launcher y del plugin y por el deny del marcador en todos los modos"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "La censura es local y no hace llamadas de red"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "Golden de claude, codex y opencode regenerados desde la fuente y verificados por cli.test.js"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "grep de http/fetch/net en post-tool-use.js, secret-redact.js, secretredact.go y posttooluse.go: sin llamadas de red; la censura solo usa regexp y JSON de la stdlib; next/check no cambian sin red",
+      "recorded_at": "2026-10-18T13:00:38.154Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-21"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-24"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-22"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-19"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-23"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-20"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Targets: todos los posibles (Claude, OpenCode, y el truco block/deny+reason en Codex y Gemini/agy). Lectura con censura activa: no pregunta, censura (deny de claves privadas, .npmrc y .git/config y ask al escribir secretos se mantienen; en targets sin censura sigue el ask). Genéricas: estricta, cero FP. Write/Edit con marcador sobre fichero con secretos reales: deny con motivo.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-18T12:51:43.902Z",
+      "detail": {
+        "tree": "sha256:07c2bcc9a0fb479b5805128c1b8203fd56ec7873a95e3b89f45513d76856a604",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-18T13:00:22.801Z",
+      "detail": {
+        "tree": "sha256:72ce0b59dba54146532773acd0a6a1cd9cf8ed1448500a561567bb4dad71923e",
+        "runs": [
+          "run-8"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-18T13:00:22.801Z",
+      "detail": {
+        "tree": "sha256:72ce0b59dba54146532773acd0a6a1cd9cf8ed1448500a561567bb4dad71923e",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/agent-shield-security/spec.md",
+          "openspec/specs/hooks-runtime/spec.md",
+          "openspec/specs/hooks/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/posttooluse_test.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/secretredact_test.go",
+          "internal/hooks/secretscan_test.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "scripts/hooks/lib/secret-redact.test.js",
+          "scripts/hooks/lib/secret-scan.test.js",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/parity-contract.test.js",
+          "scripts/hooks/post-tool-use.test.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js",
+          "scripts/lib/target-transform.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-18T13:00:47.318Z",
+      "detail": {
+        "run": "run-15",
+        "tree": "sha256:64bceb5127c04eb5ae9e92c606380508ab9ae2c6b3be998b3ab5e41c018e7606",
+        "plan": "Aditivo y compatible: una instalación anterior conserva sus 5 eventos hasta reinstalar; launcher, hooks.json y binario se publican juntos, y un binario sin el subcomando post-tool-use (exit 2) hace que el launcher censure en proceso con Node; el binario Go ignora el argumento --output-redaction. Sin estado persistente ni migración de datos. Rollback: quitar PostToolUse de hooks/hooks.json y el flag de nestHooks, regenerar targets."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-18T13:01:51.610Z",
+      "detail": {
+        "tree": "sha256:72ce0b59dba54146532773acd0a6a1cd9cf8ed1448500a561567bb4dad71923e",
+        "runs": [
+          "run-16"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-18T13:01:51.610Z",
+      "detail": {
+        "tree": "sha256:72ce0b59dba54146532773acd0a6a1cd9cf8ed1448500a561567bb4dad71923e",
+        "check": "ev-5",
+        "documents": [
+          "openspec/specs/agent-shield-security/spec.md",
+          "openspec/specs/hooks-runtime/spec.md",
+          "openspec/specs/hooks/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/posttooluse_test.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/secretredact_test.go",
+          "internal/hooks/secretscan_test.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "scripts/hooks/lib/secret-redact.test.js",
+          "scripts/hooks/lib/secret-scan.test.js",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/parity-contract.test.js",
+          "scripts/hooks/post-tool-use.test.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js",
+          "scripts/lib/target-transform.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-18T13:01:51.610Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:72ce0b59dba54146532773acd0a6a1cd9cf8ed1448500a561567bb4dad71923e",
+        "fitness": [
+          "run-17",
+          "run-18",
+          "run-19",
+          "run-20",
+          "run-21",
+          "run-22"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-18T13:14:47.619Z",
+      "detail": {
+        "tree": "sha256:c9595e813cadf62f956b15101062841b1006390502436740c5c8e31e58ac4cca",
+        "runs": [
+          "run-23"
+        ]
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-18T13:14:47.619Z",
+      "detail": {
+        "tree": "sha256:c9595e813cadf62f956b15101062841b1006390502436740c5c8e31e58ac4cca",
+        "check": "ev-8",
+        "documents": [
+          "openspec/specs/agent-shield-security/spec.md",
+          "openspec/specs/hooks-runtime/spec.md",
+          "openspec/specs/hooks/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/posttooluse_test.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/secretredact_test.go",
+          "internal/hooks/secretscan_test.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "scripts/hooks/lib/secret-redact.test.js",
+          "scripts/hooks/lib/secret-scan.test.js",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/parity-contract.test.js",
+          "scripts/hooks/post-tool-use.test.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js",
+          "scripts/lib/target-transform.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-18T13:14:47.619Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:c9595e813cadf62f956b15101062841b1006390502436740c5c8e31e58ac4cca",
+        "fitness": [
+          "run-24",
+          "run-25",
+          "run-26",
+          "run-27",
+          "run-28",
+          "run-29"
+        ]
+      }
+    },
+    {
+      "id": "ev-11",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-18T13:14:59.168Z",
+      "detail": {
+        "run": "run-30",
+        "tree": "sha256:2eca63e7448aa257b7016370ab47a241a253c1e66634ffcef62c2c9eee4ae1e0",
+        "plan": "Aditivo y compatible: una instalación anterior conserva sus 5 eventos hasta reinstalar; launcher, hooks.json y binario se publican juntos, y un binario sin el subcomando post-tool-use (exit 2) hace que el launcher censure en proceso con Node; el binario Go ignora el argumento --output-redaction. Sin estado persistente ni migración de datos. Rollback: quitar PostToolUse de hooks/hooks.json y el flag de nestHooks, regenerar targets."
+      }
+    },
+    {
+      "id": "ev-12",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-18T13:17:15.091Z",
+      "detail": {
+        "tree": "sha256:8ec451522c2afc1441479d2a768764b291b33f8bcfbc21283075bd38ddc4cc0d",
+        "runs": [
+          "run-31"
+        ]
+      }
+    },
+    {
+      "id": "ev-13",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-18T13:17:15.091Z",
+      "detail": {
+        "tree": "sha256:8ec451522c2afc1441479d2a768764b291b33f8bcfbc21283075bd38ddc4cc0d",
+        "check": "ev-12",
+        "documents": [
+          "openspec/specs/agent-shield-security/spec.md",
+          "openspec/specs/hooks-runtime/spec.md",
+          "openspec/specs/hooks/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/posttooluse_test.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/secretredact_test.go",
+          "internal/hooks/secretscan_test.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "scripts/hooks/lib/secret-redact.test.js",
+          "scripts/hooks/lib/secret-scan.test.js",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/parity-contract.test.js",
+          "scripts/hooks/post-tool-use.test.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js",
+          "scripts/lib/target-transform.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-14",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-18T13:17:15.091Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:8ec451522c2afc1441479d2a768764b291b33f8bcfbc21283075bd38ddc4cc0d",
+        "fitness": [
+          "run-32",
+          "run-33",
+          "run-34",
+          "run-35",
+          "run-36",
+          "run-37"
+        ]
+      }
+    },
+    {
+      "id": "ev-15",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-18T13:17:23.935Z",
+      "detail": {
+        "run": "run-38",
+        "tree": "sha256:893035bac43f496729aa86f3376ca6f150ff0f80395b45ea96abbdb5494f59a3",
+        "plan": "Aditivo y compatible: una instalación anterior conserva sus 5 eventos hasta reinstalar; launcher, hooks.json y binario se publican juntos, y un binario sin el subcomando post-tool-use (exit 2) hace que el launcher censure en proceso con Node; el binario Go ignora el argumento --output-redaction. Sin estado persistente ni migración de datos. Rollback: quitar PostToolUse de hooks/hooks.json y el flag de nestHooks, regenerar targets."
+      }
+    },
+    {
+      "id": "ev-16",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-18T14:26:17.790Z",
+      "detail": {
+        "tree": "sha256:7d400922f548fed4b74987747ca0a12e04c8fbea53fab66110bd43d9302794bf",
+        "runs": [
+          "run-39"
+        ]
+      }
+    },
+    {
+      "id": "ev-17",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-18T14:26:17.790Z",
+      "detail": {
+        "tree": "sha256:7d400922f548fed4b74987747ca0a12e04c8fbea53fab66110bd43d9302794bf",
+        "check": "ev-16",
+        "documents": [
+          "openspec/specs/agent-shield-security/spec.md",
+          "openspec/specs/hooks-runtime/spec.md",
+          "openspec/specs/hooks/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/posttooluse_test.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/secretredact_test.go",
+          "internal/hooks/secretscan_test.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "scripts/hooks/lib/secret-redact.test.js",
+          "scripts/hooks/lib/secret-scan.test.js",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/parity-contract.test.js",
+          "scripts/hooks/post-tool-use.test.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js",
+          "scripts/lib/target-transform.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-18",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-18T14:26:17.790Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:7d400922f548fed4b74987747ca0a12e04c8fbea53fab66110bd43d9302794bf",
+        "fitness": [
+          "run-40",
+          "run-41",
+          "run-42",
+          "run-43",
+          "run-44",
+          "run-45"
+        ]
+      }
+    },
+    {
+      "id": "ev-19",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-18T14:27:21.563Z",
+      "detail": {
+        "lineage_id": "sha256:b5262f27b0fa56a9a113d8963e04cd5df1481709b6f1740a2194219e80ee3d58",
+        "candidate_id": "sha256:dd4d6bbfd4c5bd72501b3e8c759dc7ff523228cbd97e253700243ee3da710d92",
+        "candidate_tree": "bc0018813769fdd2c5c104b5a579edbcded0b534",
+        "findings_digest": "sha256:af1c598a957dac37cf56b41dc82645069fb29e19ae2c87acadd40e3478ad135e"
+      }
+    },
+    {
+      "id": "ev-20",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-18T14:27:37.298Z",
+      "detail": {
+        "run": "run-46",
+        "tree": "sha256:e41d7828f2d23d32e9a65412548390bf34041f3297858468beb3e22812af63f4",
+        "plan": "Aditivo y compatible: una instalación anterior conserva sus 5 eventos hasta reinstalar; launcher, hooks.json y binario se publican juntos, y un binario sin el subcomando post-tool-use (exit 2) hace que el launcher censure en proceso con Node; el binario Go ignora el argumento --output-redaction. Sin estado persistente ni migración de datos. Rollback: quitar PostToolUse de hooks/hooks.json y el flag de nestHooks, regenerar targets."
+      }
+    },
+    {
+      "id": "ev-21",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-18T14:28:37.799Z",
+      "detail": {
+        "tree": "sha256:7d400922f548fed4b74987747ca0a12e04c8fbea53fab66110bd43d9302794bf",
+        "runs": [
+          "run-47"
+        ]
+      }
+    },
+    {
+      "id": "ev-22",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-18T14:28:37.799Z",
+      "detail": {
+        "tree": "sha256:7d400922f548fed4b74987747ca0a12e04c8fbea53fab66110bd43d9302794bf",
+        "check": "ev-21",
+        "documents": [
+          "openspec/specs/agent-shield-security/spec.md",
+          "openspec/specs/hooks-runtime/spec.md",
+          "openspec/specs/hooks/spec.md"
+        ],
+        "tests": [
+          "internal/hooks/posttooluse_test.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/secretredact_test.go",
+          "internal/hooks/secretscan_test.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "scripts/hooks/lib/secret-redact.test.js",
+          "scripts/hooks/lib/secret-scan.test.js",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/parity-contract.test.js",
+          "scripts/hooks/post-tool-use.test.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js",
+          "scripts/lib/target-transform.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-23",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-18T14:28:37.799Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:7d400922f548fed4b74987747ca0a12e04c8fbea53fab66110bd43d9302794bf",
+        "fitness": [
+          "run-48",
+          "run-49",
+          "run-50",
+          "run-51",
+          "run-52",
+          "run-53"
+        ]
+      }
+    },
+    {
+      "id": "ev-24",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-18T14:28:44.219Z"
+    }
+  ],
+  "base": "201bd4dddd55f09fd6efd55ef3333d95c69d1399",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d4f7ba2a2e8fdc581817b76a994214abfa47f6f4020e836d7d77b0d70e6c79d9",
+      "tree": "sha256:07c2bcc9a0fb479b5805128c1b8203fd56ec7873a95e3b89f45513d76856a604",
+      "recorded_at": "2026-10-18T12:51:43.902Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2b232f65f81a4d8522bd5fdf9e4d4e85b0683064303655c89cf22a8e9d19730d",
+      "tree": "sha256:07c2bcc9a0fb479b5805128c1b8203fd56ec7873a95e3b89f45513d76856a604",
+      "recorded_at": "2026-10-18T12:51:43.902Z",
+      "tests": 47
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:67825c75d9182a389a342956fdcd31ae460db7b3a21fc36646a632d1efb6252d",
+      "tree": "sha256:07c2bcc9a0fb479b5805128c1b8203fd56ec7873a95e3b89f45513d76856a604",
+      "recorded_at": "2026-10-18T12:51:43.902Z",
+      "tests": 75
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:07c2bcc9a0fb479b5805128c1b8203fd56ec7873a95e3b89f45513d76856a604",
+      "recorded_at": "2026-10-18T12:51:43.902Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:11788ae2d8a721770f9a51a09863a8af43d908b99d92aa4213f59848ebb55ced",
+      "tree": "sha256:07c2bcc9a0fb479b5805128c1b8203fd56ec7873a95e3b89f45513d76856a604",
+      "recorded_at": "2026-10-18T12:51:43.902Z",
+      "tests": 16
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4038d1252db2613fb8995b2bb84c531eb759bbec975aae9942b704e45aa1e968",
+      "tree": "sha256:07c2bcc9a0fb479b5805128c1b8203fd56ec7873a95e3b89f45513d76856a604",
+      "recorded_at": "2026-10-18T12:51:43.902Z",
+      "tests": 75
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f75d579b7e981b4cfc37c09cb86f0f74c661bee3cd040b0fc72598d13f33f98a",
+      "tree": "sha256:07c2bcc9a0fb479b5805128c1b8203fd56ec7873a95e3b89f45513d76856a604",
+      "recorded_at": "2026-10-18T12:51:43.902Z",
+      "tests": 47
+    },
+    {
+      "id": "run-8",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:af841a9f2ad6af99abfc5cc5b2285e97f792ad9a6ed94d7b31887a99e7689e2d",
+      "tree": "sha256:72ce0b59dba54146532773acd0a6a1cd9cf8ed1448500a561567bb4dad71923e",
+      "recorded_at": "2026-10-18T13:00:22.801Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cd3f2a08e77851b2ba5db8bf90d66a5136798c7a1759a31ef23e073273df903d",
+      "tree": "sha256:72ce0b59dba54146532773acd0a6a1cd9cf8ed1448500a561567bb4dad71923e",
+      "recorded_at": "2026-10-18T13:00:22.801Z",
+      "tests": 47
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:16f1ad837b5d320ab376382237e6581954ab34a73b5a690adc051e73e36b3c68",
+      "tree": "sha256:72ce0b59dba54146532773acd0a6a1cd9cf8ed1448500a561567bb4dad71923e",
+      "recorded_at": "2026-10-18T13:00:22.801Z",
+      "tests": 75
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:72ce0b59dba54146532773acd0a6a1cd9cf8ed1448500a561567bb4dad71923e",
+      "recorded_at": "2026-10-18T13:00:22.801Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:217d000e76177d75fb6c1455515ce806294eb8b6b12fd2b18ed5497d78aae46a",
+      "tree": "sha256:72ce0b59dba54146532773acd0a6a1cd9cf8ed1448500a561567bb4dad71923e",
+      "recorded_at": "2026-10-18T13:00:22.801Z",
+      "tests": 16
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:595b7d2424d11c97e26e9746244fa3e75e3d8e017c032eee39a95a003d02f53f",
+      "tree": "sha256:72ce0b59dba54146532773acd0a6a1cd9cf8ed1448500a561567bb4dad71923e",
+      "recorded_at": "2026-10-18T13:00:22.801Z",
+      "tests": 75
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b74dd1ef45b5954e5f0345405d79f290a9c99480f80384a7ca12f5d91940d469",
+      "tree": "sha256:72ce0b59dba54146532773acd0a6a1cd9cf8ed1448500a561567bb4dad71923e",
+      "recorded_at": "2026-10-18T13:00:22.801Z",
+      "tests": 47
+    },
+    {
+      "id": "run-15",
+      "purpose": "migration-test",
+      "command": "node --test scripts/hooks/ospec-hooks-launch.test.js scripts/lib/target-transform.test.js scripts/configure/cli.test.js scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f81a9cee998219f4bf4f35cc4889e85c65839228d816f2880a4912608eb84d47",
+      "tree": "sha256:64bceb5127c04eb5ae9e92c606380508ab9ae2c6b3be998b3ab5e41c018e7606",
+      "recorded_at": "2026-10-18T13:00:47.318Z",
+      "tests": 190
+    },
+    {
+      "id": "run-16",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:59313c771f0214ecb21e2d588b6c856dff2642472b8c77d0d886340c697ceec5",
+      "tree": "sha256:72ce0b59dba54146532773acd0a6a1cd9cf8ed1448500a561567bb4dad71923e",
+      "recorded_at": "2026-10-18T13:01:51.610Z"
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:08c3a9167a6ead7982584a268511ef9bc5beae63d5192ac08c98c03dd38ceec9",
+      "tree": "sha256:72ce0b59dba54146532773acd0a6a1cd9cf8ed1448500a561567bb4dad71923e",
+      "recorded_at": "2026-10-18T13:01:51.610Z",
+      "tests": 47
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e52104e33308504e55b79777df760c43bd6ad82f7aa4e570a72820c610f6f6b3",
+      "tree": "sha256:72ce0b59dba54146532773acd0a6a1cd9cf8ed1448500a561567bb4dad71923e",
+      "recorded_at": "2026-10-18T13:01:51.610Z",
+      "tests": 75
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:72ce0b59dba54146532773acd0a6a1cd9cf8ed1448500a561567bb4dad71923e",
+      "recorded_at": "2026-10-18T13:01:51.610Z"
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c6db210e1d0e99af54b5404f891e4c439e065ba96b7a5a928acbcd38cf4ce3a4",
+      "tree": "sha256:72ce0b59dba54146532773acd0a6a1cd9cf8ed1448500a561567bb4dad71923e",
+      "recorded_at": "2026-10-18T13:01:51.610Z",
+      "tests": 16
+    },
+    {
+      "id": "run-21",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:055a5317a1a7fae7e2e83007d22324f3c0beb9cb806b8eae23b42209aeaf4fe0",
+      "tree": "sha256:72ce0b59dba54146532773acd0a6a1cd9cf8ed1448500a561567bb4dad71923e",
+      "recorded_at": "2026-10-18T13:01:51.610Z",
+      "tests": 75
+    },
+    {
+      "id": "run-22",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9712f6c8309f4562772ed92501286eaeb34d16535024b531dc71f4583151584e",
+      "tree": "sha256:72ce0b59dba54146532773acd0a6a1cd9cf8ed1448500a561567bb4dad71923e",
+      "recorded_at": "2026-10-18T13:01:51.610Z",
+      "tests": 47
+    },
+    {
+      "id": "run-23",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8c22323f61bb9debd87c2a7cd1bd45c68a1fd16a4449e0cb9732394aef783676",
+      "tree": "sha256:c9595e813cadf62f956b15101062841b1006390502436740c5c8e31e58ac4cca",
+      "recorded_at": "2026-10-18T13:14:47.619Z"
+    },
+    {
+      "id": "run-24",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b361b29d19d0b21ce6f29db686a495b10e15bed74177f0e53ea3f5482d749af0",
+      "tree": "sha256:c9595e813cadf62f956b15101062841b1006390502436740c5c8e31e58ac4cca",
+      "recorded_at": "2026-10-18T13:14:47.619Z",
+      "tests": 47
+    },
+    {
+      "id": "run-25",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f82e310d29bc6bb81001955277ffe1d8d9ae11b5ba73360ecd589fed11226050",
+      "tree": "sha256:c9595e813cadf62f956b15101062841b1006390502436740c5c8e31e58ac4cca",
+      "recorded_at": "2026-10-18T13:14:47.619Z",
+      "tests": 77
+    },
+    {
+      "id": "run-26",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:c9595e813cadf62f956b15101062841b1006390502436740c5c8e31e58ac4cca",
+      "recorded_at": "2026-10-18T13:14:47.619Z"
+    },
+    {
+      "id": "run-27",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e7a7b39c228ec9b34f1683ff5d0e350c0f42265ef8393e935eb02a81e882753b",
+      "tree": "sha256:c9595e813cadf62f956b15101062841b1006390502436740c5c8e31e58ac4cca",
+      "recorded_at": "2026-10-18T13:14:47.619Z",
+      "tests": 17
+    },
+    {
+      "id": "run-28",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:553da66fa387f19ae15e9eabc0883d567a9b9f2eadfb0c888a27d967895a17e5",
+      "tree": "sha256:c9595e813cadf62f956b15101062841b1006390502436740c5c8e31e58ac4cca",
+      "recorded_at": "2026-10-18T13:14:47.619Z",
+      "tests": 77
+    },
+    {
+      "id": "run-29",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2aeefb471905deb45538aca6a54c2c63bc45416c9eae04b8c348dd1a129d16d9",
+      "tree": "sha256:c9595e813cadf62f956b15101062841b1006390502436740c5c8e31e58ac4cca",
+      "recorded_at": "2026-10-18T13:14:47.619Z",
+      "tests": 47
+    },
+    {
+      "id": "run-30",
+      "purpose": "migration-test",
+      "command": "node --test scripts/hooks/ospec-hooks-launch.test.js scripts/lib/target-transform.test.js scripts/configure/cli.test.js scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:11e03ddc01bdcce326ef350e9b001d7634a131a45548f0b747aa547376775ac2",
+      "tree": "sha256:2eca63e7448aa257b7016370ab47a241a253c1e66634ffcef62c2c9eee4ae1e0",
+      "recorded_at": "2026-10-18T13:14:59.168Z",
+      "tests": 191
+    },
+    {
+      "id": "run-31",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:29c8ff18ace45918bdde94266a16930679356be5a943d32e646fc880469c5648",
+      "tree": "sha256:8ec451522c2afc1441479d2a768764b291b33f8bcfbc21283075bd38ddc4cc0d",
+      "recorded_at": "2026-10-18T13:17:15.091Z"
+    },
+    {
+      "id": "run-32",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b9c82d4603e6b43c12efcc9b5c9a57002a7706fe37e97695f0a4db659fe6e316",
+      "tree": "sha256:8ec451522c2afc1441479d2a768764b291b33f8bcfbc21283075bd38ddc4cc0d",
+      "recorded_at": "2026-10-18T13:17:15.091Z",
+      "tests": 47
+    },
+    {
+      "id": "run-33",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:67a761a8bbbbafef6b795038a35736553a727eeea59557f384fe26aff19332e9",
+      "tree": "sha256:8ec451522c2afc1441479d2a768764b291b33f8bcfbc21283075bd38ddc4cc0d",
+      "recorded_at": "2026-10-18T13:17:15.091Z",
+      "tests": 77
+    },
+    {
+      "id": "run-34",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:8ec451522c2afc1441479d2a768764b291b33f8bcfbc21283075bd38ddc4cc0d",
+      "recorded_at": "2026-10-18T13:17:15.091Z"
+    },
+    {
+      "id": "run-35",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a0e620c9054bd10ffff5ff45c3cf9ba16cc38ff0e632c5cbe4b88960d2e23209",
+      "tree": "sha256:8ec451522c2afc1441479d2a768764b291b33f8bcfbc21283075bd38ddc4cc0d",
+      "recorded_at": "2026-10-18T13:17:15.091Z",
+      "tests": 16
+    },
+    {
+      "id": "run-36",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2fedfa353cec3bde69f3f843745a92304af9c85fa9bcec9004dad62903a504f1",
+      "tree": "sha256:8ec451522c2afc1441479d2a768764b291b33f8bcfbc21283075bd38ddc4cc0d",
+      "recorded_at": "2026-10-18T13:17:15.091Z",
+      "tests": 77
+    },
+    {
+      "id": "run-37",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:684f5c520ff0768c95afedc8ac44e3201425e4b7f83cd4da3063ddb23ccbff48",
+      "tree": "sha256:8ec451522c2afc1441479d2a768764b291b33f8bcfbc21283075bd38ddc4cc0d",
+      "recorded_at": "2026-10-18T13:17:15.091Z",
+      "tests": 47
+    },
+    {
+      "id": "run-38",
+      "purpose": "migration-test",
+      "command": "node --test scripts/hooks/ospec-hooks-launch.test.js scripts/lib/target-transform.test.js scripts/configure/cli.test.js scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a3e85f0bb0d4939514ceca395e9269e70b48055f99b6081f5c3a7b87b2802529",
+      "tree": "sha256:893035bac43f496729aa86f3376ca6f150ff0f80395b45ea96abbdb5494f59a3",
+      "recorded_at": "2026-10-18T13:17:23.935Z",
+      "tests": 190
+    },
+    {
+      "id": "run-39",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cf689e54e3957724f19554a366032ddc4e3a6e9f3a1f2c932b321fc621b3ae49",
+      "tree": "sha256:7d400922f548fed4b74987747ca0a12e04c8fbea53fab66110bd43d9302794bf",
+      "recorded_at": "2026-10-18T14:26:17.790Z"
+    },
+    {
+      "id": "run-40",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2af37c9344fd60186dee3f7caa1dfad9be67feb4f38ad8486ffa102250c5d1b3",
+      "tree": "sha256:7d400922f548fed4b74987747ca0a12e04c8fbea53fab66110bd43d9302794bf",
+      "recorded_at": "2026-10-18T14:26:17.790Z",
+      "tests": 47
+    },
+    {
+      "id": "run-41",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5af635563669e257744e080b4211224798915a63f04622e618a10d5b89f7b28f",
+      "tree": "sha256:7d400922f548fed4b74987747ca0a12e04c8fbea53fab66110bd43d9302794bf",
+      "recorded_at": "2026-10-18T14:26:17.790Z",
+      "tests": 77
+    },
+    {
+      "id": "run-42",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:7d400922f548fed4b74987747ca0a12e04c8fbea53fab66110bd43d9302794bf",
+      "recorded_at": "2026-10-18T14:26:17.790Z"
+    },
+    {
+      "id": "run-43",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:dbd80774348fd16e3da43058174275117451559a319a56c22e8d27fce988f555",
+      "tree": "sha256:7d400922f548fed4b74987747ca0a12e04c8fbea53fab66110bd43d9302794bf",
+      "recorded_at": "2026-10-18T14:26:17.790Z",
+      "tests": 16
+    },
+    {
+      "id": "run-44",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d80cd51823bd6e5e01436a52cc911c982988b8d3143bc495595a9c01b2460e7a",
+      "tree": "sha256:7d400922f548fed4b74987747ca0a12e04c8fbea53fab66110bd43d9302794bf",
+      "recorded_at": "2026-10-18T14:26:17.790Z",
+      "tests": 77
+    },
+    {
+      "id": "run-45",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ed22051666c132ef03d1468674ace91eb80369280d409f85a46ec51ab251d0e0",
+      "tree": "sha256:7d400922f548fed4b74987747ca0a12e04c8fbea53fab66110bd43d9302794bf",
+      "recorded_at": "2026-10-18T14:26:17.790Z",
+      "tests": 47
+    },
+    {
+      "id": "run-46",
+      "purpose": "migration-test",
+      "command": "node --test scripts/hooks/ospec-hooks-launch.test.js scripts/lib/target-transform.test.js scripts/configure/cli.test.js scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d904d497db362b1eccba2b8f07d03ae8bacf1354cdff9a1de1f8a54333081d2c",
+      "tree": "sha256:e41d7828f2d23d32e9a65412548390bf34041f3297858468beb3e22812af63f4",
+      "recorded_at": "2026-10-18T14:27:37.298Z",
+      "tests": 190
+    },
+    {
+      "id": "run-47",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d329d0631aa2e26f2cb67b8f90cfc7ab97af31fffe74f874850fcb2ffd4da0a4",
+      "tree": "sha256:7d400922f548fed4b74987747ca0a12e04c8fbea53fab66110bd43d9302794bf",
+      "recorded_at": "2026-10-18T14:28:37.799Z"
+    },
+    {
+      "id": "run-48",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9652e3bc346e0b8a538a82bfdf9a9ffc4d5500154ad4fc16b9cd223e54eb0ba2",
+      "tree": "sha256:7d400922f548fed4b74987747ca0a12e04c8fbea53fab66110bd43d9302794bf",
+      "recorded_at": "2026-10-18T14:28:37.799Z",
+      "tests": 47
+    },
+    {
+      "id": "run-49",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3cafc0af1ff598bacedc3f15fa0255e23311def495231c0d8c6e5f0495a09339",
+      "tree": "sha256:7d400922f548fed4b74987747ca0a12e04c8fbea53fab66110bd43d9302794bf",
+      "recorded_at": "2026-10-18T14:28:37.799Z",
+      "tests": 77
+    },
+    {
+      "id": "run-50",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:7d400922f548fed4b74987747ca0a12e04c8fbea53fab66110bd43d9302794bf",
+      "recorded_at": "2026-10-18T14:28:37.799Z"
+    },
+    {
+      "id": "run-51",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9c0cacdb8c975b29dbcccaebfcb91247f528ef3a56ce321e50c39ad85089fad9",
+      "tree": "sha256:7d400922f548fed4b74987747ca0a12e04c8fbea53fab66110bd43d9302794bf",
+      "recorded_at": "2026-10-18T14:28:37.799Z",
+      "tests": 16
+    },
+    {
+      "id": "run-52",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:43232c93e6be8867eb8a05a77df747a2bebcffb97a7233793ab1e0b8152128dd",
+      "tree": "sha256:7d400922f548fed4b74987747ca0a12e04c8fbea53fab66110bd43d9302794bf",
+      "recorded_at": "2026-10-18T14:28:37.799Z",
+      "tests": 77
+    },
+    {
+      "id": "run-53",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:dcb95eec0d1cd9d656b35b87e0570bac3aed8013093e400a245b83b98ac847a9",
+      "tree": "sha256:7d400922f548fed4b74987747ca0a12e04c8fbea53fab66110bd43d9302794bf",
+      "recorded_at": "2026-10-18T14:28:37.799Z",
+      "tests": 47
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:831f102d595bd480b6da31df56ec31b3b47e7271827cc4428543a79827930366",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 4,
+      "status": "escalated",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "afed98413a654bb117619c779f95199cd150d942",
+          "candidate_tree": "14d1ab8b93e78e2cfe1beeb40fb11e39b02b5579",
+          "paths": [
+            "docs/harness-go-js-parity.md",
+            "docs/roadmaps/harness-evolution.md",
+            "docs/target-capabilities.md",
+            "hooks/hooks.json",
+            "internal/hooks/posttooluse.go",
+            "internal/hooks/posttooluse_test.go",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_test.go",
+            "internal/hooks/secretredact.go",
+            "internal/hooks/secretredact_test.go",
+            "internal/hooks/secretscan.go",
+            "internal/hooks/secretscan_test.go",
+            "internal/hooks/shellfileaccess.go",
+            "internal/hooks/shellfileaccess_test.go",
+            "internal/testdata/parity/README",
+            "internal/testdata/parity/post-tool-use-bash.json",
+            "internal/testdata/parity/post-tool-use-neutral.json",
+            "internal/testdata/parity/post-tool-use-read.json",
+            "internal/testdata/parity/post-tool-use-string.json",
+            "internal/testdata/secret-redaction/cases.json",
+            "openspec/specs/agent-shield-security/spec.md",
+            "openspec/specs/hooks-runtime/spec.md",
+            "openspec/specs/hooks/spec.md",
+            "scripts/configure/__fixtures__/golden/claude/hooks/hooks.json",
+            "scripts/configure/__fixtures__/golden/codex/hooks.json",
+            "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+            "scripts/configure/__fixtures__/source/hooks/hooks.json",
+            "scripts/hooks/lib/secret-redact.js",
+            "scripts/hooks/lib/secret-redact.test.js",
+            "scripts/hooks/lib/secret-scan.js",
+            "scripts/hooks/lib/secret-scan.test.js",
+            "scripts/hooks/lib/shell-file-access.js",
+            "scripts/hooks/lib/shell-file-access.test.js",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js",
+            "scripts/hooks/parity-contract.test.js",
+            "scripts/hooks/post-tool-use.js",
+            "scripts/hooks/post-tool-use.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js",
+            "scripts/lib/target-profiles/opencode-plugin.js",
+            "scripts/lib/target-profiles/opencode-plugin.test.js",
+            "scripts/lib/target-profiles/vscode.js",
+            "scripts/lib/target-transform.js",
+            "scripts/lib/target-transform.test.js"
+          ],
+          "diff_hash": "sha256:1a6ee832752ef44ac0b4126cf9c7d8bd48073ae1d2ccbfe43a343c0ca5cfc895",
+          "paths_digest": "sha256:0ddef3ae5f4441d5e1a6c52285e91049afeb5cbb081cbe4188805069e54d14c5",
+          "authored_lines": 2225,
+          "original_changed_lines": 2281
+        },
+        "candidate_id": "sha256:76f4aa164debac60f5bce1578854de80591d3ef003d591481bed1ea583e8d9d9",
+        "paths": [
+          "docs/harness-go-js-parity.md",
+          "docs/roadmaps/harness-evolution.md",
+          "docs/target-capabilities.md",
+          "hooks/hooks.json",
+          "internal/hooks/posttooluse.go",
+          "internal/hooks/posttooluse_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/secretredact.go",
+          "internal/hooks/secretredact_test.go",
+          "internal/hooks/secretscan.go",
+          "internal/hooks/secretscan_test.go",
+          "internal/hooks/shellfileaccess.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "internal/testdata/parity/README",
+          "internal/testdata/parity/post-tool-use-bash.json",
+          "internal/testdata/parity/post-tool-use-neutral.json",
+          "internal/testdata/parity/post-tool-use-read.json",
+          "internal/testdata/parity/post-tool-use-string.json",
+          "internal/testdata/secret-redaction/cases.json",
+          "openspec/specs/agent-shield-security/spec.md",
+          "openspec/specs/hooks-runtime/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "scripts/configure/__fixtures__/golden/claude/hooks/hooks.json",
+          "scripts/configure/__fixtures__/golden/codex/hooks.json",
+          "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+          "scripts/configure/__fixtures__/source/hooks/hooks.json",
+          "scripts/hooks/lib/secret-redact.js",
+          "scripts/hooks/lib/secret-redact.test.js",
+          "scripts/hooks/lib/secret-scan.js",
+          "scripts/hooks/lib/secret-scan.test.js",
+          "scripts/hooks/lib/shell-file-access.js",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/parity-contract.test.js",
+          "scripts/hooks/post-tool-use.js",
+          "scripts/hooks/post-tool-use.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/target-profiles/opencode-plugin.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js",
+          "scripts/lib/target-profiles/vscode.js",
+          "scripts/lib/target-transform.js",
+          "scripts/lib/target-transform.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "14d1ab8b93e78e2cfe1beeb40fb11e39b02b5579",
+        "original_changed_lines": 2281,
+        "authored_lines": 2225
+      },
+      "current_candidate_id": "sha256:76f4aa164debac60f5bce1578854de80591d3ef003d591481bed1ea583e8d9d9",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "afed98413a654bb117619c779f95199cd150d942",
+        "candidate_tree": "14d1ab8b93e78e2cfe1beeb40fb11e39b02b5579",
+        "paths": [
+          "docs/harness-go-js-parity.md",
+          "docs/roadmaps/harness-evolution.md",
+          "docs/target-capabilities.md",
+          "hooks/hooks.json",
+          "internal/hooks/posttooluse.go",
+          "internal/hooks/posttooluse_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/secretredact.go",
+          "internal/hooks/secretredact_test.go",
+          "internal/hooks/secretscan.go",
+          "internal/hooks/secretscan_test.go",
+          "internal/hooks/shellfileaccess.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "internal/testdata/parity/README",
+          "internal/testdata/parity/post-tool-use-bash.json",
+          "internal/testdata/parity/post-tool-use-neutral.json",
+          "internal/testdata/parity/post-tool-use-read.json",
+          "internal/testdata/parity/post-tool-use-string.json",
+          "internal/testdata/secret-redaction/cases.json",
+          "openspec/specs/agent-shield-security/spec.md",
+          "openspec/specs/hooks-runtime/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "scripts/configure/__fixtures__/golden/claude/hooks/hooks.json",
+          "scripts/configure/__fixtures__/golden/codex/hooks.json",
+          "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+          "scripts/configure/__fixtures__/source/hooks/hooks.json",
+          "scripts/hooks/lib/secret-redact.js",
+          "scripts/hooks/lib/secret-redact.test.js",
+          "scripts/hooks/lib/secret-scan.js",
+          "scripts/hooks/lib/secret-scan.test.js",
+          "scripts/hooks/lib/shell-file-access.js",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/parity-contract.test.js",
+          "scripts/hooks/post-tool-use.js",
+          "scripts/hooks/post-tool-use.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/target-profiles/opencode-plugin.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js",
+          "scripts/lib/target-profiles/vscode.js",
+          "scripts/lib/target-transform.js",
+          "scripts/lib/target-transform.test.js"
+        ],
+        "diff_hash": "sha256:1a6ee832752ef44ac0b4126cf9c7d8bd48073ae1d2ccbfe43a343c0ca5cfc895",
+        "paths_digest": "sha256:0ddef3ae5f4441d5e1a6c52285e91049afeb5cbb081cbe4188805069e54d14c5",
+        "authored_lines": 2225,
+        "original_changed_lines": 2281
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "hook-secret-redaction:lens-start:1:0",
+          "result_digest": "sha256:bfd9fa07fc987038f0f2d6151bdac7adb34836cc00f1597c3f66dbde8d358985",
+          "result": {
+            "findings": [
+              {
+                "severity": "BLOCKER",
+                "summary": "[T1] scripts/hooks/lib/secret-redact.js:109 A private key stored as a JSON string with literal \\n escapes is never redacted. PRIVATE_KEY_BLOCK (line 42, mirrored at internal/hooks/secretredact.go:26) needs a real newline after the header. The quoted-assignment fallback (line 52) calls isStrictSecret, which rejects any value containing a space (line 111), and \"-----BEGIN PRIVATE KEY-----\" contains one. The read exemption (pre-tool-use.js:412, pretooluse.go:501) removed the content-scan ask that used to catch this file.",
+                "acceptance_criteria": "Make the private-key pass handle escaped newlines: match a header followed by \\\\n and redact up to the footer or the end of the string. Also let a value that starts with -----BEGIN skip the no-spaces rule in isStrictSecret. Add a JSON service-account case to cases.json for both implementations. Alternatively, keep the content-scan ask whenever the redactor cannot prove it covered the file."
+              },
+              {
+                "severity": "CRITICAL",
+                "summary": "[T2] scripts/hooks/pre-tool-use.js:412 The exemption drops the ask for every file the name classifier flags (.env*, secrets.json, credentials) and for any content match, but the redactor covers much less than the scan did. Unredacted forms: lowercase INI/YAML assignments without quotes (aws_secret_access_key = ..., password: hunter2abc, because DOTENV/UPPER_COLON need an uppercase key and QUOTED_ASSIGN needs quotes); SECRET_KEY_BASE (last word 'base' is not a sensitive ending); and any .env value containing 'password', 'secret' or 'token' (PLACEHOLDER_PARTS, secret-redact.js:62-67). Escenario: The model Reads ~/proj/credentials containing 'aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYzR4tQ7nLpK'. Before, the filename 'credentials' forced an ask. Now readsRedacted skips it. Only the AKIA key id is redacted; the secret-key line passes through verbatim. Likewise .env with 'ADMIN_PASSWORD=MyPassword!2024' or 'SECRET_KEY_BASE=<hex>' is delivered unredacted with no prompt.",
+                "acceptance_criteria": "Make the exemption conditional on the redaction result. For example, have PreToolUse keep asking for files classified ask unless the redactor handles their content shape, or widen the redactor (unquoted lowercase key = value / key: value, 'base' in key endings, no placeholder-substring rule inside .env or credentials files). Add corpus cases for these shapes."
+              },
+              {
+                "severity": "CRITICAL",
+                "summary": "[T3] scripts/hooks/pre-tool-use.js:153 The marker-overwrite deny only works with the Claude argument names (DECLARED_PATH_KEYS = file_path/path/target_file/notebook_path; CONTENT_KEYS = content/new_string/...). OpenCode tools use filePath/oldString/newString, as opencode-plugin.js:188 itself shows. OpenCode 2.x runs with the read exemption on (opencode-plugin.js:272, outputRedaction=true), so the deny never fires there. The Go copy has the same key sets (pretooluse.go:251-255). Escenario: OpenCode 2.x: the model reads .env (no prompt, redacted) and then calls write {filePath:'.env', content:'DB_PASSWORD=[REDACTED:assigned-secret]'}. containsRedactionMarker is true, but collectKeyedStrings(DECLARED_PATH_KEYS) is empty, so fileHoldsSecrets is never called. No deny. The write also skips the name ask because of the exemption. The real secrets are destroyed. An edit with newString='[REDACTED:...]' is never inspected at all.",
+                "acceptance_criteria": "Add filePath, newString, oldString and the other host argument names (and the patch/input text for apply_patch) to the key sets in JS and Go. Add a PreToolUse test with OpenCode-shaped input."
+              },
+              {
+                "severity": "CRITICAL",
+                "summary": "[T4] scripts/hooks/pre-tool-use.js:412 The exemption is keyed only on commands.length === 0, not on the tool being a read, so it covers every non-shell tool whose input mentions a sensitive path. The spec (agent-shield-security REQ, line 32) limits it to reads (Read, Grep, view_file). Write/Edit on .env and MCP tools that upload or send a local path no longer ask. Same logic at pretooluse.go:501. Escenario: (a) Write {file_path:'.env', content:'FOO=bar'} on Claude: previously asked on the .env name; now there is no hook objection and, in acceptEdits or similar modes, the host does not prompt either, so the secrets file is overwritten. The marker deny only triggers for marker content. (b) An MCP tool such as upload_file/send_attachment with path='.env' or 'credentials': the file content goes to a third party and never passes through a model-visible tool_response that PostToolUse could redact.",
+                "acceptance_criteria": "Restrict the exemption to an allowlist of read tools (Read, Grep, Glob, view_file, and OpenCode read), compared via normalizeToolName; keep the ask for writes and unknown or MCP tools. Mirror in Go and add tests for Write and MCP tools."
+              },
+              {
+                "severity": "WARNING",
+                "summary": "[T5] scripts/hooks/pre-tool-use.js:412 The exemption depends only on OSPEC_OUTPUT_REDACTION=1, but PostToolUse returns null when DISABLE_SECRET_REDACTION=true (post-tool-use.js:19, posttooluse.go:33). The two sides are not coupled. Escenario: A user sets DISABLE_SECRET_REDACTION=true to turn off censoring because of false positives. The launcher still passes --output-redaction, so PreToolUse stops asking on Read of .env and the unredacted file goes straight to the model. The ask is lost silently, although DISABLE_AGENT_SHIELD was not set.",
+                "acceptance_criteria": "In PreToolUse (JS and Go), ignore the exemption when DISABLE_SECRET_REDACTION === 'true'. Add a test."
+              },
+              {
+                "severity": "WARNING",
+                "summary": "[T6] scripts/hooks/pre-tool-use.js:398 The marker-overwrite deny only inspects CONTENT_KEYS bodies of structured tools. A shell command that writes the marker is not checked: DENY_RULES do not cover it, and extractShellReadPaths skips the target of '>' (line 71). Escenario: After a redacted Read of .env, the model runs: printf 'DB_PASSWORD=[REDACTED:assigned-secret]\\n' > .env (or cat > .env <<EOF ... EOF). No deny, no ask, and the real credentials are destroyed, which is the case REQ-agent-shield-security says is denied in every permission mode.",
+                "acceptance_criteria": "Also test the marker against the command text. When it appears, deny if any redirect target or path token holds secrets, or at least ask."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "hook-secret-redaction:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-508435a6f77161ab",
+          "owner": "trust",
+          "severity": "BLOCKER",
+          "summary": "[T1] scripts/hooks/lib/secret-redact.js:109 A private key stored as a JSON string with literal \\n escapes is never redacted. PRIVATE_KEY_BLOCK (line 42, mirrored at internal/hooks/secretredact.go:26) needs a real newline after the header. The quoted-assignment fallback (line 52) calls isStrictSecret, which rejects any value containing a space (line 111), and \"-----BEGIN PRIVATE KEY-----\" contains one. The read exemption (pre-tool-use.js:412, pretooluse.go:501) removed the content-scan ask that used to catch this file.",
+          "acceptance_criteria": "Make the private-key pass handle escaped newlines: match a header followed by \\\\n and redact up to the footer or the end of the string. Also let a value that starts with -----BEGIN skip the no-spaces rule in isStrictSecret. Add a JSON service-account case to cases.json for both implementations. Alternatively, keep the content-scan ask whenever the redactor cannot prove it covered the file.",
+          "blocking": true,
+          "resolution": "unresolved"
+        },
+        {
+          "id": "F-5906585dcf5ebd7b",
+          "owner": "trust",
+          "severity": "CRITICAL",
+          "summary": "[T2] scripts/hooks/pre-tool-use.js:412 The exemption drops the ask for every file the name classifier flags (.env*, secrets.json, credentials) and for any content match, but the redactor covers much less than the scan did. Unredacted forms: lowercase INI/YAML assignments without quotes (aws_secret_access_key = ..., password: hunter2abc, because DOTENV/UPPER_COLON need an uppercase key and QUOTED_ASSIGN needs quotes); SECRET_KEY_BASE (last word 'base' is not a sensitive ending); and any .env value containing 'password', 'secret' or 'token' (PLACEHOLDER_PARTS, secret-redact.js:62-67). Escenario: The model Reads ~/proj/credentials containing 'aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYzR4tQ7nLpK'. Before, the filename 'credentials' forced an ask. Now readsRedacted skips it. Only the AKIA key id is redacted; the secret-key line passes through verbatim. Likewise .env with 'ADMIN_PASSWORD=MyPassword!2024' or 'SECRET_KEY_BASE=<hex>' is delivered unredacted with no prompt.",
+          "acceptance_criteria": "Make the exemption conditional on the redaction result. For example, have PreToolUse keep asking for files classified ask unless the redactor handles their content shape, or widen the redactor (unquoted lowercase key = value / key: value, 'base' in key endings, no placeholder-substring rule inside .env or credentials files). Add corpus cases for these shapes.",
+          "blocking": true,
+          "resolution": "unresolved"
+        },
+        {
+          "id": "F-aa24e985abd31d2a",
+          "owner": "trust",
+          "severity": "CRITICAL",
+          "summary": "[T3] scripts/hooks/pre-tool-use.js:153 The marker-overwrite deny only works with the Claude argument names (DECLARED_PATH_KEYS = file_path/path/target_file/notebook_path; CONTENT_KEYS = content/new_string/...). OpenCode tools use filePath/oldString/newString, as opencode-plugin.js:188 itself shows. OpenCode 2.x runs with the read exemption on (opencode-plugin.js:272, outputRedaction=true), so the deny never fires there. The Go copy has the same key sets (pretooluse.go:251-255). Escenario: OpenCode 2.x: the model reads .env (no prompt, redacted) and then calls write {filePath:'.env', content:'DB_PASSWORD=[REDACTED:assigned-secret]'}. containsRedactionMarker is true, but collectKeyedStrings(DECLARED_PATH_KEYS) is empty, so fileHoldsSecrets is never called. No deny. The write also skips the name ask because of the exemption. The real secrets are destroyed. An edit with newString='[REDACTED:...]' is never inspected at all.",
+          "acceptance_criteria": "Add filePath, newString, oldString and the other host argument names (and the patch/input text for apply_patch) to the key sets in JS and Go. Add a PreToolUse test with OpenCode-shaped input.",
+          "blocking": true,
+          "resolution": "unresolved"
+        },
+        {
+          "id": "F-a4c1df7a9135fa6a",
+          "owner": "trust",
+          "severity": "CRITICAL",
+          "summary": "[T4] scripts/hooks/pre-tool-use.js:412 The exemption is keyed only on commands.length === 0, not on the tool being a read, so it covers every non-shell tool whose input mentions a sensitive path. The spec (agent-shield-security REQ, line 32) limits it to reads (Read, Grep, view_file). Write/Edit on .env and MCP tools that upload or send a local path no longer ask. Same logic at pretooluse.go:501. Escenario: (a) Write {file_path:'.env', content:'FOO=bar'} on Claude: previously asked on the .env name; now there is no hook objection and, in acceptEdits or similar modes, the host does not prompt either, so the secrets file is overwritten. The marker deny only triggers for marker content. (b) An MCP tool such as upload_file/send_attachment with path='.env' or 'credentials': the file content goes to a third party and never passes through a model-visible tool_response that PostToolUse could redact.",
+          "acceptance_criteria": "Restrict the exemption to an allowlist of read tools (Read, Grep, Glob, view_file, and OpenCode read), compared via normalizeToolName; keep the ask for writes and unknown or MCP tools. Mirror in Go and add tests for Write and MCP tools.",
+          "blocking": true,
+          "resolution": "unresolved"
+        },
+        {
+          "id": "F-678cea11ef72f7db",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "[T5] scripts/hooks/pre-tool-use.js:412 The exemption depends only on OSPEC_OUTPUT_REDACTION=1, but PostToolUse returns null when DISABLE_SECRET_REDACTION=true (post-tool-use.js:19, posttooluse.go:33). The two sides are not coupled. Escenario: A user sets DISABLE_SECRET_REDACTION=true to turn off censoring because of false positives. The launcher still passes --output-redaction, so PreToolUse stops asking on Read of .env and the unredacted file goes straight to the model. The ask is lost silently, although DISABLE_AGENT_SHIELD was not set.",
+          "acceptance_criteria": "In PreToolUse (JS and Go), ignore the exemption when DISABLE_SECRET_REDACTION === 'true'. Add a test.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-3c144e0d54aad0de",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "[T6] scripts/hooks/pre-tool-use.js:398 The marker-overwrite deny only inspects CONTENT_KEYS bodies of structured tools. A shell command that writes the marker is not checked: DENY_RULES do not cover it, and extractShellReadPaths skips the target of '>' (line 71). Escenario: After a redacted Read of .env, the model runs: printf 'DB_PASSWORD=[REDACTED:assigned-secret]\\n' > .env (or cat > .env <<EOF ... EOF). No deny, no ask, and the real credentials are destroyed, which is the case REQ-agent-shield-security says is denied in every permission mode.",
+          "acceptance_criteria": "Also test the marker against the command text. When it appears, deny if any redirect target or path token holds secrets, or at least ask.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:36f6f386f083ca2c882b06b5ebb6b485176d0ea197c2a31cd9d9ed1ee7120f69",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "the correction does not fit one bounded correction (line budget or frozen paths): a successor review checks it"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:b5262f27b0fa56a9a113d8963e04cd5df1481709b6f1740a2194219e80ee3d58",
+      "generation": 2,
+      "predecessor_lineage_id": "sha256:831f102d595bd480b6da31df56ec31b3b47e7271827cc4428543a79827930366",
+      "migration": null,
+      "recovery": null,
+      "revision": 6,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "afed98413a654bb117619c779f95199cd150d942",
+          "candidate_tree": "48638a4568cc3dfd59e348bc9d63e6164215178d",
+          "paths": [
+            "docs/harness-go-js-parity.md",
+            "docs/roadmaps/harness-evolution.md",
+            "docs/target-capabilities.md",
+            "hooks/hooks.json",
+            "internal/hooks/posttooluse.go",
+            "internal/hooks/posttooluse_test.go",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/pretooluse_test.go",
+            "internal/hooks/secretredact.go",
+            "internal/hooks/secretredact_test.go",
+            "internal/hooks/secretscan.go",
+            "internal/hooks/secretscan_test.go",
+            "internal/hooks/shellfileaccess.go",
+            "internal/hooks/shellfileaccess_test.go",
+            "internal/testdata/parity/README",
+            "internal/testdata/parity/post-tool-use-bash.json",
+            "internal/testdata/parity/post-tool-use-neutral.json",
+            "internal/testdata/parity/post-tool-use-read.json",
+            "internal/testdata/parity/post-tool-use-string.json",
+            "internal/testdata/secret-redaction/cases.json",
+            "openspec/specs/agent-shield-security/spec.md",
+            "openspec/specs/hooks-runtime/spec.md",
+            "openspec/specs/hooks/spec.md",
+            "scripts/configure/__fixtures__/golden/claude/hooks/hooks.json",
+            "scripts/configure/__fixtures__/golden/codex/hooks.json",
+            "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+            "scripts/configure/__fixtures__/source/hooks/hooks.json",
+            "scripts/hooks/lib/secret-redact.js",
+            "scripts/hooks/lib/secret-redact.test.js",
+            "scripts/hooks/lib/secret-scan.js",
+            "scripts/hooks/lib/secret-scan.test.js",
+            "scripts/hooks/lib/shell-file-access.js",
+            "scripts/hooks/lib/shell-file-access.test.js",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js",
+            "scripts/hooks/parity-contract.test.js",
+            "scripts/hooks/post-tool-use.js",
+            "scripts/hooks/post-tool-use.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js",
+            "scripts/lib/target-profiles/opencode-plugin.js",
+            "scripts/lib/target-profiles/opencode-plugin.test.js",
+            "scripts/lib/target-profiles/vscode.js",
+            "scripts/lib/target-transform.js",
+            "scripts/lib/target-transform.test.js"
+          ],
+          "diff_hash": "sha256:0c6061c0ce87619d9d35ab2cd2b052994e8660550b4a29836054efd2f024dc8d",
+          "paths_digest": "sha256:0ddef3ae5f4441d5e1a6c52285e91049afeb5cbb081cbe4188805069e54d14c5",
+          "authored_lines": 2676,
+          "original_changed_lines": 2735
+        },
+        "candidate_id": "sha256:8f300b1f3f7307b175b3f9bfa31b5ee024c03d6a857437730196f78653f0afad",
+        "paths": [
+          "docs/harness-go-js-parity.md",
+          "docs/roadmaps/harness-evolution.md",
+          "docs/target-capabilities.md",
+          "hooks/hooks.json",
+          "internal/hooks/posttooluse.go",
+          "internal/hooks/posttooluse_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/secretredact.go",
+          "internal/hooks/secretredact_test.go",
+          "internal/hooks/secretscan.go",
+          "internal/hooks/secretscan_test.go",
+          "internal/hooks/shellfileaccess.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "internal/testdata/parity/README",
+          "internal/testdata/parity/post-tool-use-bash.json",
+          "internal/testdata/parity/post-tool-use-neutral.json",
+          "internal/testdata/parity/post-tool-use-read.json",
+          "internal/testdata/parity/post-tool-use-string.json",
+          "internal/testdata/secret-redaction/cases.json",
+          "openspec/specs/agent-shield-security/spec.md",
+          "openspec/specs/hooks-runtime/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "scripts/configure/__fixtures__/golden/claude/hooks/hooks.json",
+          "scripts/configure/__fixtures__/golden/codex/hooks.json",
+          "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+          "scripts/configure/__fixtures__/source/hooks/hooks.json",
+          "scripts/hooks/lib/secret-redact.js",
+          "scripts/hooks/lib/secret-redact.test.js",
+          "scripts/hooks/lib/secret-scan.js",
+          "scripts/hooks/lib/secret-scan.test.js",
+          "scripts/hooks/lib/shell-file-access.js",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/parity-contract.test.js",
+          "scripts/hooks/post-tool-use.js",
+          "scripts/hooks/post-tool-use.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/target-profiles/opencode-plugin.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js",
+          "scripts/lib/target-profiles/vscode.js",
+          "scripts/lib/target-transform.js",
+          "scripts/lib/target-transform.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "48638a4568cc3dfd59e348bc9d63e6164215178d",
+        "original_changed_lines": 2735,
+        "authored_lines": 2676
+      },
+      "current_candidate_id": "sha256:dd4d6bbfd4c5bd72501b3e8c759dc7ff523228cbd97e253700243ee3da710d92",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "afed98413a654bb117619c779f95199cd150d942",
+        "candidate_tree": "bc0018813769fdd2c5c104b5a579edbcded0b534",
+        "paths": [
+          "docs/harness-go-js-parity.md",
+          "docs/roadmaps/harness-evolution.md",
+          "docs/target-capabilities.md",
+          "hooks/hooks.json",
+          "internal/hooks/posttooluse.go",
+          "internal/hooks/posttooluse_test.go",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/pretooluse_test.go",
+          "internal/hooks/secretredact.go",
+          "internal/hooks/secretredact_test.go",
+          "internal/hooks/secretscan.go",
+          "internal/hooks/secretscan_test.go",
+          "internal/hooks/shellfileaccess.go",
+          "internal/hooks/shellfileaccess_test.go",
+          "internal/testdata/parity/README",
+          "internal/testdata/parity/post-tool-use-bash.json",
+          "internal/testdata/parity/post-tool-use-neutral.json",
+          "internal/testdata/parity/post-tool-use-read.json",
+          "internal/testdata/parity/post-tool-use-string.json",
+          "internal/testdata/secret-redaction/cases.json",
+          "openspec/specs/agent-shield-security/spec.md",
+          "openspec/specs/hooks-runtime/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "scripts/configure/__fixtures__/golden/claude/hooks/hooks.json",
+          "scripts/configure/__fixtures__/golden/codex/hooks.json",
+          "scripts/configure/__fixtures__/golden/opencode/.opencode/plugins/ospec.js",
+          "scripts/configure/__fixtures__/source/hooks/hooks.json",
+          "scripts/hooks/lib/secret-redact.js",
+          "scripts/hooks/lib/secret-redact.test.js",
+          "scripts/hooks/lib/secret-scan.js",
+          "scripts/hooks/lib/secret-scan.test.js",
+          "scripts/hooks/lib/shell-file-access.js",
+          "scripts/hooks/lib/shell-file-access.test.js",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js",
+          "scripts/hooks/parity-contract.test.js",
+          "scripts/hooks/post-tool-use.js",
+          "scripts/hooks/post-tool-use.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js",
+          "scripts/lib/target-profiles/opencode-plugin.js",
+          "scripts/lib/target-profiles/opencode-plugin.test.js",
+          "scripts/lib/target-profiles/vscode.js",
+          "scripts/lib/target-transform.js",
+          "scripts/lib/target-transform.test.js"
+        ],
+        "diff_hash": "sha256:67040fadb8b742d01ccb6e73862d068f997f0d5a4921d15e6008126747ac32e2",
+        "paths_digest": "sha256:0ddef3ae5f4441d5e1a6c52285e91049afeb5cbb081cbe4188805069e54d14c5",
+        "authored_lines": 2676,
+        "original_changed_lines": 2735
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "hook-secret-redaction:lens-start:2:0",
+          "result_digest": "sha256:ac2c29370111160bcb6c850273aeaecbf8c06b3b46232691be465b725b3c24b7",
+          "result": {
+            "findings": [
+              {
+                "severity": "CRITICAL",
+                "summary": "[N1] scripts/hooks/pre-tool-use.js:442 (Go: internal/hooks/pretooluse.go:547) isCoveredByRedaction proves coverage on the WHOLE file, but PostToolUse redacts only the slice the tool returns. A PEM body is redacted only when its BEGIN header is in the same string (secret-redact.js:44). Scenario: Read {file_path:'/p/tls/server.pem', offset:2} or Grep {pattern:'^[A-Za-z0-9+/=]{40,}$', path:'server.pem'}. '.pem' is not name-classified, so PreToolUse redacts the whole file, sees the private-key block covered, and skips the ask. The returned lines have no header, no pattern matches, and the base64 key body reaches the model unredacted with no prompt. Before this change the private-key-header content scan asked. Same in Go. T1 itself (escaped \\n) is fixed; this is the remaining way to bypass the PEM coverage proof.",
+                "acceptance_criteria": "A Read with offset/limit, or a Grep over a file whose content holds a PEM private-key block, either asks in PreToolUse (the exemption is withheld when the file has a private-key block and the call can return a partial slice) or returns the body lines redacted. Add a Node+Go test with a body-only slice of a PEM file and a case in cases.json."
+              },
+              {
+                "severity": "CRITICAL",
+                "summary": "[T2 residual] scripts/hooks/lib/secret-redact.js:48,164,172 (Go: internal/hooks/secretredact.go:31,245) The exemption still drops the name-based ask for .env*/credentials files when the heuristic redactor and the old scanner both find nothing, so any secret shape they miss is delivered with no prompt. Concrete cases in a .env: REDIS_URL=redis://:s3cr3tP4ss@cache:6379 (URL_CREDENTIALS needs 1 or more user characters before ':', so an empty user is not matched; the key is not sensitive; isHighEntropy rejects ':'), and SENDGRID_KEY=abcd1234efgh5678ijkl (only 'key' after a qualifier counts; lowercase+digits is not high entropy). Neither matches GENERIC_CREDENTIAL_REGEX (it needs quotes), so isCoveredByRedaction returns true. Before, the .env filename always asked. The shapes listed in T2 are fixed, but the exemption rests on heuristics.",
+                "acceptance_criteria": "For a file classified by name (.env*, credentials, secrets.json), PreToolUse still asks unless every assignment value in the file is a placeholder or already redacted, or the redactor also redacts userinfo with an empty user (redis://:pw@host) and arbitrary non-placeholder values. Add Node+Go corpus cases for a .env with REDIS_URL=redis://:pw@host and SENDGRID_KEY=<lowercase+digits>: it asks, or the value is replaced by a marker."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "hook-secret-redaction:lens-result:2:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-3160e7256f218313",
+          "owner": "trust",
+          "severity": "CRITICAL",
+          "summary": "[N1] scripts/hooks/pre-tool-use.js:442 (Go: internal/hooks/pretooluse.go:547) isCoveredByRedaction proves coverage on the WHOLE file, but PostToolUse redacts only the slice the tool returns. A PEM body is redacted only when its BEGIN header is in the same string (secret-redact.js:44). Scenario: Read {file_path:'/p/tls/server.pem', offset:2} or Grep {pattern:'^[A-Za-z0-9+/=]{40,}$', path:'server.pem'}. '.pem' is not name-classified, so PreToolUse redacts the whole file, sees the private-key block covered, and skips the ask. The returned lines have no header, no pattern matches, and the base64 key body reaches the model unredacted with no prompt. Before this change the private-key-header content scan asked. Same in Go. T1 itself (escaped \\n) is fixed; this is the remaining way to bypass the PEM coverage proof.",
+          "acceptance_criteria": "A Read with offset/limit, or a Grep over a file whose content holds a PEM private-key block, either asks in PreToolUse (the exemption is withheld when the file has a private-key block and the call can return a partial slice) or returns the body lines redacted. Add a Node+Go test with a body-only slice of a PEM file and a case in cases.json.",
+          "blocking": true,
+          "resolution": "resolved"
+        },
+        {
+          "id": "F-becd9beaa393c3c9",
+          "owner": "trust",
+          "severity": "CRITICAL",
+          "summary": "[T2 residual] scripts/hooks/lib/secret-redact.js:48,164,172 (Go: internal/hooks/secretredact.go:31,245) The exemption still drops the name-based ask for .env*/credentials files when the heuristic redactor and the old scanner both find nothing, so any secret shape they miss is delivered with no prompt. Concrete cases in a .env: REDIS_URL=redis://:s3cr3tP4ss@cache:6379 (URL_CREDENTIALS needs 1 or more user characters before ':', so an empty user is not matched; the key is not sensitive; isHighEntropy rejects ':'), and SENDGRID_KEY=abcd1234efgh5678ijkl (only 'key' after a qualifier counts; lowercase+digits is not high entropy). Neither matches GENERIC_CREDENTIAL_REGEX (it needs quotes), so isCoveredByRedaction returns true. Before, the .env filename always asked. The shapes listed in T2 are fixed, but the exemption rests on heuristics.",
+          "acceptance_criteria": "For a file classified by name (.env*, credentials, secrets.json), PreToolUse still asks unless every assignment value in the file is a placeholder or already redacted, or the redactor also redacts userinfo with an empty user (redis://:pw@host) and arbitrary non-placeholder values. Add Node+Go corpus cases for a .env with REDIS_URL=redis://:pw@host and SENDGRID_KEY=<lowercase+digits>: it asks, or the value is replaced by a marker.",
+          "blocking": true,
+          "resolution": "resolved"
+        }
+      ],
+      "findings_digest": "sha256:af1c598a957dac37cf56b41dc82645069fb29e19ae2c87acadd40e3478ad135e",
+      "correction_budget": {
+        "limit_lines": 200,
+        "used_lines": 79,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [
+        {
+          "attempt": 1,
+          "request_id": "hook-secret-redaction:correction-start:2:3",
+          "finding_ids": [
+            "F-3160e7256f218313",
+            "F-becd9beaa393c3c9"
+          ],
+          "paths": [
+            "internal/hooks/pretooluse_test.go",
+            "internal/hooks/secretredact.go",
+            "internal/testdata/secret-redaction/cases.json",
+            "openspec/specs/agent-shield-security/spec.md",
+            "scripts/hooks/lib/secret-redact.js",
+            "scripts/hooks/pre-tool-use.test.js"
+          ],
+          "base_candidate_id": "sha256:8f300b1f3f7307b175b3f9bfa31b5ee024c03d6a857437730196f78653f0afad",
+          "forecast_lines": 79,
+          "record_request_id": "hook-secret-redaction:correction-record:2:4",
+          "actual_changed_lines": 79,
+          "corrected_candidate_id": "sha256:dd4d6bbfd4c5bd72501b3e8c759dc7ff523228cbd97e253700243ee3da710d92",
+          "status": "passed"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "hook-secret-redaction:validation:2:5",
+          "request_digest": "sha256:8c4d440e31d2c704e5db743d3cf90957c809647037c0c4abe63b65ea4fce401c",
+          "outcomes": [
+            {
+              "id": "F-3160e7256f218313",
+              "status": "resolved"
+            },
+            {
+              "id": "F-becd9beaa393c3c9",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "I could not run tests, because this validator has no shell tool. I traced both the JS and Go code. isCoveredByRedaction now returns false when redaction notes a private-key block, so Read with an offset or a Grep on a PEM file asks. Node and Go tests assert 'ask' for a Read of sa.json with offset 2.",
+              "Traced REDIS_URL=redis://:pw@host: the URL-credentials regex now accepts an empty user and redacts the password. SENDGRID_KEY=abcd1234efgh5678ijkl is redacted by isOpaqueValue. cases.json has this sensitive-file case, and both the JS and Go corpus runners use sensitive_file. Remaining gaps: plain values of 10 characters or fewer are left unredacted, which is the stated design. Other trust paths are unchanged."
+            ]
+          },
+          "follow_up_count": 0,
+          "result": "passed"
+        }
+      ],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "all-frozen-findings-resolved"
+    }
+  ],
+  "closed_at": "2026-10-18T14:28:44.219Z"
+}

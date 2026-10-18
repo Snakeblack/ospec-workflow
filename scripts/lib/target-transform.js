@@ -71,6 +71,10 @@ function handleFile(file, profile, models, rulesContent, sources, withSdd) {
     return nestHooks(file);
   }
 
+  if (profile.hooks && profile.hooks.omitEvents && path === (profile.hooks.location || "hooks/hooks.json")) {
+    return omitHookEvents(file, profile);
+  }
+
   if (profile.hooks && profile.hooks.format === "copilot" && path === (profile.hooks.source || "hooks/hooks.json")) {
     return copilotHooks(file, profile);
   }
@@ -353,16 +357,37 @@ function reshapeManifest(file, profile) {
 
 // --- hooks -----------------------------------------------------------------
 
+// Claude Code rewrites tool output from PostToolUse (E1.27), so its PreToolUse
+// learns that a non-shell read of a secret reaches the model redacted.
+function withOutputRedaction(event, entry) {
+  if (event !== "PreToolUse" || !entry || typeof entry.command !== "string") {
+    return entry;
+  }
+  return { ...entry, command: entry.command.replace(/ pre-tool-use$/, " pre-tool-use --output-redaction") };
+}
+
 function nestHooks(file) {
   const obj = parseJsonFile(file);
   const events = obj.hooks || {};
   const nested = {};
 
   for (const [event, entries] of Object.entries(events)) {
-    nested[event] = [{ hooks: entries }];
+    nested[event] = [{ hooks: entries.map((entry) => withOutputRedaction(event, entry)) }];
   }
 
   return { path: file.path, content: JSON.stringify({ ...obj, hooks: nested }, null, 2) };
+}
+
+// Flat hooks without the events the host would misread (VS Code runs
+// PostToolUse but ignores a rewritten output, so it would only inject the
+// "redacted" note over the original).
+function omitHookEvents(file, profile) {
+  const obj = parseJsonFile(file);
+  const hooks = { ...(obj.hooks || {}) };
+  for (const event of profile.hooks.omitEvents) {
+    delete hooks[event];
+  }
+  return { path: file.path, content: JSON.stringify({ ...obj, hooks }, null, 2) };
 }
 
 // Reshape the source hooks into GitHub Copilot CLI's project-hook schema at
@@ -422,11 +447,11 @@ function rewriteCodexCommand(file, event, index, entry) {
   return command.replace(/(?<!")__OSPEC_RUNTIME__\/[^^\s"]+/g, (match) => `"${match}"`);
 }
 
-// REQ-hooks-004: the exactly-five Codex hook events the wrapper supports.
+// REQ-hooks-004: the exactly-six Codex hook events the wrapper supports.
 // Any other event present in the source hooks.json (e.g. a future baseline
-// event with no Codex equivalent yet) is silently dropped — "No event beyond
-// the five listed MUST be added by this requirement."
-const CODEX_WRAPPER_EVENTS = ["SessionStart", "PreToolUse", "PreCompact", "SubagentStop", "Stop"];
+// event with no Codex equivalent yet) is silently dropped. PostToolUse (E1.27)
+// redacts through Codex's `block`, which replaces the tool result.
+const CODEX_WRAPPER_EVENTS = ["SessionStart", "PreToolUse", "PostToolUse", "PreCompact", "SubagentStop", "Stop"];
 
 // Windows adapter (REQ-hooks-004): keep the quoted runtime path and render
 // its separators; no shell-specific variable assignments belong here.
@@ -532,6 +557,11 @@ function antigravityHooks(file, profile) {
   };
 
   for (const [event, entries] of Object.entries(events)) {
+    // agy 1.4.2 runs PostToolUse without the tool result and ignores an
+    // overwritten one: redaction is not possible there (E1.27).
+    if (event === "PostToolUse") {
+      continue;
+    }
     validateHookEntries(file, event, entries);
     const groupName = groupMapping[event] || `ospec-${event.toLowerCase()}`;
     const hooks = entries.map((entry, index) => {

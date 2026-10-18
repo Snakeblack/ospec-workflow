@@ -12,6 +12,13 @@
         "command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks pre-tool-use",
         "timeout": 5
       }
+    ],
+    "PostToolUse": [
+      {
+        "type": "command",
+        "command": "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks post-tool-use",
+        "timeout": 5
+      }
     ]
   }
 }

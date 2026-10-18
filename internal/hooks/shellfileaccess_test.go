@@ -29,6 +29,12 @@ func TestLiteralReadOperands(t *testing.T) {
 		{"base64 .env", []string{".env"}},
 		{"xxd .env", []string{".env"}},
 		{"cp .env /tmp/out.env", []string{".env", "/tmp/out.env"}},
+		{"od -c .env", []string{".env"}},
+		{"tar cf - .env", []string{"cf", ".env"}},
+		{"tar -czf out.tgz .env", []string{"out.tgz", ".env"}},
+		{"scp .env host:", []string{".env", "host:"}},
+		{"scp -i ~/.ssh/id_rsa notes.txt host:", []string{"notes.txt", "host:"}},
+		{"scp -o IdentityFile=~/.ssh/id_rsa notes.txt host:", []string{"notes.txt", "host:"}},
 	} {
 		if got := extractShellReadPaths(tc.command); !reflect.DeepEqual(got, tc.paths) {
 			t.Errorf("%s: got %v, want %v", tc.command, got, tc.paths)

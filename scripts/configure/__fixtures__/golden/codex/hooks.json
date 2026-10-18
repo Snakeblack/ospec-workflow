@@ -25,6 +25,19 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"__OSPEC_RUNTIME__/scripts/hooks/ospec-codex-hook.js\" post-tool-use",
+            "commandWindows": "node \"__OSPEC_RUNTIME__\\scripts\\hooks\\ospec-codex-hook.js\" post-tool-use",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }

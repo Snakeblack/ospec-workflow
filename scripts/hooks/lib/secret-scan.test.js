@@ -104,6 +104,12 @@ const KNOWN_TOKEN_SAMPLES = [
   ["aws-access-key", "AWS_KEY=AKIA" + "Z".repeat(16)],
   ["slack-token", "token xoxb-1234567890abcd"],
   ["jwt", "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abc123-_"],
+  // Construidos en tiempo de ejecución: un literal con formato real activaría
+  // el push protection de GitHub.
+  ...["p", "o", "u", "s", "r"].map((kind) => ["github-token", `GH_TOKEN=gh${kind}_${"aB3".repeat(12)}`]),
+  ["github-fine-grained-token", `token: github_pat_${"A1b".repeat(7)}C_${"x9Y".repeat(19)}Zq`],
+  ["anthropic-api-key", `ANTHROPIC_API_KEY=sk-ant-api03-${"Ab9_-".repeat(19)}AA`],
+  ["openai-project-key", `OPENAI_API_KEY=sk-proj-${"Qw3-_e".repeat(10)}`],
 ];
 
 for (const [expectedId, sample] of KNOWN_TOKEN_SAMPLES) {
@@ -113,6 +119,19 @@ for (const [expectedId, sample] of KNOWN_TOKEN_SAMPLES) {
     assert.equal(result.patternId, expectedId);
   });
 }
+
+test("scanContentForSecrets: prefijos de token sin cuerpo válido no disparan", () => {
+  for (const sample of [
+    "ghp_short",
+    "see the sk-project-plan document",
+    `prefixghp_${"aB3".repeat(12)}`,
+    `ghp_${"aB3".repeat(12)}x`,
+    "sk-ant-api03-short",
+    "github_pat_tooShort",
+  ]) {
+    assert.deepEqual(scanContentForSecrets(sample), { matched: false, patternId: null }, sample);
+  }
+});
 
 test("KNOWN_TOKEN_PATTERNS: cada patrón tiene id y regex", () => {
   assert.ok(KNOWN_TOKEN_PATTERNS.length >= 5);

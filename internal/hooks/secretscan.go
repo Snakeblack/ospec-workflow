@@ -18,18 +18,32 @@ const maxScanSizeBytes = 1024 * 1024
 
 // knownTokenPattern asocia un id estable (telemetría/tests) a un formato de
 // token de proveedor conocido. Precompilados una sola vez a nivel de paquete.
+// La censura de salidas (secretredact.go) sustituye cada match por su id, así
+// que un patrón debe cubrir el token entero.
 type knownTokenPattern struct {
 	id string
 	re *regexp.Regexp
 }
 
+// `\b` delante: un prefijo dentro de otra palabra ("desk-…") no es el token.
+// `\b` detrás solo cuando el alfabeto no admite `-`: con `-` no hay frontera
+// de palabra tras el último carácter.
 var knownTokenPatterns = []knownTokenPattern{
-	{"openai-api-key", regexp.MustCompile(`sk-[a-zA-Z0-9]{48}`)},
-	{"google-api-key", regexp.MustCompile(`AIzaSy[a-zA-Z0-9-_]{33}`)},
-	{"aws-access-key", regexp.MustCompile(`AKIA[A-Z0-9]{16}`)},
-	{"slack-token", regexp.MustCompile(`xox[baprs]-[0-9a-zA-Z]{10,48}`)},
-	{"jwt", regexp.MustCompile(`eyJ[a-zA-Z0-9-_]+\.eyJ[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+`)},
+	{"openai-api-key", regexp.MustCompile(`\bsk-[a-zA-Z0-9]{48}\b`)},
+	{"google-api-key", regexp.MustCompile(`\bAIzaSy[a-zA-Z0-9_-]{33}`)},
+	{"aws-access-key", regexp.MustCompile(`\b(?:AKIA|ASIA)[A-Z0-9]{16}\b`)},
+	{"slack-token", regexp.MustCompile(`\bxox[abposr]-[0-9A-Za-z-]{10,}`)},
+	{"jwt", regexp.MustCompile(`\beyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+`)},
 	{"private-key-header", regexp.MustCompile(`-----BEGIN (?:RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KEY-----`)},
+	{"github-token", regexp.MustCompile(`\bgh[pousr]_[A-Za-z0-9]{36}\b`)},
+	{"github-fine-grained-token", regexp.MustCompile(`\bgithub_pat_[A-Za-z0-9]{22}_[A-Za-z0-9]{59}\b`)},
+	{"anthropic-api-key", regexp.MustCompile(`\bsk-ant-[a-z]+\d{2}-[A-Za-z0-9_-]{80,}`)},
+	{"openai-project-key", regexp.MustCompile(`\bsk-(?:proj|svcacct|admin)-[A-Za-z0-9_-]{40,}`)},
+	{"stripe-secret-key", regexp.MustCompile(`\b[sr]k_(?:live|test)_[0-9A-Za-z]{24,}\b`)},
+	{"npm-token", regexp.MustCompile(`\bnpm_[A-Za-z0-9]{36}\b`)},
+	{"gitlab-token", regexp.MustCompile(`\bglpat-[A-Za-z0-9_-]{20,}`)},
+	{"huggingface-token", regexp.MustCompile(`\bhf_[A-Za-z]{34}\b`)},
+	{"sendgrid-api-key", regexp.MustCompile(`\bSG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}`)},
 }
 
 // genericCredentialRegex detecta asignaciones genéricas de credencial:

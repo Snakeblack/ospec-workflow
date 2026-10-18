@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.139.0] - 2026-10-18
+
+### Added
+- **Censura de secretos en la salida de las herramientas (E1.27, [#336](https://github.com/Snakeblack/ospec-workflow/issues/336))**:
+  - **Hook `PostToolUse`:** el nuevo `post-tool-use` (Go y Node, con paridad byte a byte) entrega al modelo la salida de cualquier herramienta con cada secreto sustituido por `[REDACTED:<tipo>]` y el resto intacto. El fichero en disco no cambia.
+  - **Qué censura:** solo formas inequívocas:
+    - tokens de proveedor;
+    - el cuerpo de una clave PEM, también con `\n` escapados;
+    - la contraseña de una URL;
+    - la cabecera `Authorization`;
+    - el valor asignado a un nombre sensible que parece secreto.
+
+    En `.env*`, `credentials` y `secrets.json` censura además cualquier valor opaco.
+  - **Sin falsos positivos:** un barrido de los 4481 ficheros del repositorio solo cambia fixtures de tests con forma real de secreto.
+  - **Por target:** Claude Code (`updatedToolOutput`) y OpenCode 2.x (`execute.after`) reescriben la salida, verificados en vivo. Codex la recibe como `decision: block`, sin verificar en vivo. VS Code, Copilot, Cursor y Antigravity no pueden reescribirla y conservan la pregunta.
+  - **Lecturas sin pregunta:** en Claude, con `--output-redaction`, una herramienta de lectura deja de preguntar cuando la censura cubre todo el fichero. Sigue preguntando si hay una clave privada o con `DISABLE_SECRET_REDACTION=true`.
+  - **Protección del secreto real:** escribir el marcador sobre un fichero con secretos reales se deniega en cualquier modo de permisos, también por shell.
+  - **Fallo cerrado:** si el hook falla, el launcher censura en proceso o retiene la salida (ADR 0008).
+  - **Cobertura del guard:** `PreToolUse` reconoce tokens de GitHub (clásicos y fine-grained), Anthropic, OpenAI project, Stripe, npm, GitLab, Hugging Face y SendGrid, y trata `od`, `tar` y `scp` como lectores.
+
+  Hecho con IDD (`idd/archive/2026-10-18-hook-secret-redaction/`).
+
+### Fixed
+- **Revisión de confianza IDD sin salida ante una corrección grande**: una corrección que superaba el presupuesto de líneas o salía de las rutas congeladas dejaba el cambio bloqueado. Ahora:
+  - `ospec review start` cierra esa revisión como `escalated` y abre la sucesora, que cuenta para el límite de 3 y lleva los hallazgos bloqueantes pendientes (`predecessor_findings`);
+  - `ospec review correct` rechaza esos casos indicando ese camino (REQ-idd-016).
+
+  Hecho con IDD (`idd/archive/2026-10-18-review-oversized-correction/`).
+
+**Verificación directa**: `node scripts/check.js` (3874 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.138.4] - 2026-10-17
 
 ### Fixed

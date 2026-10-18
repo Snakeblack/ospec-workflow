@@ -18,7 +18,9 @@ const {
   classifySensitiveFile,
   scanContentForSecrets,
   scanFileForSecrets,
+  MAX_SCAN_SIZE_BYTES,
 } = require("./lib/secret-scan.js");
+const { containsRedactionMarker, isCoveredByRedaction, redactSecrets } = require("./lib/secret-redact.js");
 const { extractShellReadPaths } = require("./lib/shell-file-access.js");
 
 /**
@@ -148,8 +150,12 @@ function isShellTool(toolName) {
   return SHELL_TOOL_NAMES.has(normalizeToolName(toolName));
 }
 
-const DECLARED_PATH_KEYS = new Set(["file_path", "path", "target_file", "notebook_path"]);
-const CONTENT_KEYS = new Set(["content", "contents", "new_string", "new_str", "old_string", "text"]);
+// Claude and VS Code use snake_case argument names; OpenCode uses camelCase.
+const DECLARED_PATH_KEYS = new Set(["file_path", "filePath", "path", "target_file", "notebook_path"]);
+const CONTENT_KEYS = new Set(["content", "contents", "new_string", "newString", "new_str", "old_string", "oldString", "text"]);
+// Tools whose result is only what they read; anything else (writes, MCP
+// uploads) may move a file without its content passing through PostToolUse.
+const READ_TOOLS = new Set(["read", "grep", "glob", "ls", "list", "viewfile", "notebookread"]);
 
 function collectKeyedStrings(value, keys, found = []) {
   if (!value || typeof value !== "object") return found;
@@ -200,6 +206,37 @@ function makeDecision(permissionDecision, permissionDecisionReason) {
       permissionDecisionReason,
     },
   };
+}
+
+const MARKER_OVERWRITE_REASON =
+  "Bloqueado: el contenido lleva el marcador [REDACTED:…] de ospec y el fichero destino guarda secretos reales; escribirlo los destruiría. Edita solo las líneas sin secretos, o pide al usuario que cambie el valor.";
+
+function readSmallFile(filePath) {
+  try {
+    if (fs.statSync(filePath).size >= MAX_SCAN_SIZE_BYTES) return null;
+    return fs.readFileSync(filePath, "utf8");
+  } catch {
+    return null;
+  }
+}
+
+// True when the file on disk holds something the output redaction would hide.
+function fileHoldsSecrets(filePath) {
+  const content = readSmallFile(filePath);
+  const sensitiveFile = classifySensitiveFile(filePath) !== null;
+  return content !== null && redactSecrets(content, { sensitiveFile }).kinds.length > 0;
+}
+
+// The read exemption holds only when the redacted content leaves nothing the
+// secret scan would still ask about (an unreadable or oversized file asks).
+function readCoveredByRedaction(filePath) {
+  const content = readSmallFile(filePath);
+  return content !== null && isCoveredByRedaction(content, { sensitiveFile: classifySensitiveFile(filePath) !== null });
+}
+
+// Operands of a shell command that may name a file it writes.
+function shellOperands(command) {
+  return command.split(/[ \t\r\n\f\v;|&<>"'`]+/).filter(Boolean);
 }
 
 function extractPaths(obj) {
@@ -380,7 +417,29 @@ function evaluateToolUseCore(input, opts) {
         return makeDecision("deny", "Acceso denegado: El archivo es una clave privada o configuración sensible del sistema y no puede ser leído por el agente.");
       }
     }
+    const bodies = collectKeyedStrings(input?.tool_input, CONTENT_KEYS);
+    // A redaction marker copied back over a file that keeps real secrets
+    // would destroy them: a hard denial, never degraded.
+    const targets = [
+      ...(bodies.some(containsRedactionMarker) ? collectKeyedStrings(input?.tool_input, DECLARED_PATH_KEYS) : []),
+      ...commands.filter(containsRedactionMarker).flatMap(shellOperands),
+    ];
+    for (const file of targets) {
+      if (fileHoldsSecrets(path.resolve(workspace, file))) {
+        return makeDecision("deny", MARKER_OVERWRITE_REASON);
+      }
+    }
+    // With output redaction (the launcher's --output-redaction flag) the
+    // model only ever sees the redacted result of a read tool, so a read
+    // whose content the redaction fully covers needs no prompt. A shell
+    // command keeps it: its output may leave the machine instead of reaching
+    // the model.
+    const readsRedacted = process.env.OSPEC_OUTPUT_REDACTION === "1"
+      && process.env.DISABLE_SECRET_REDACTION !== "true"
+      && commands.length === 0
+      && READ_TOOLS.has(normalizeToolName(input?.tool_name));
     for (const filePath of paths) {
+      if (readsRedacted && readCoveredByRedaction(filePath)) continue;
       // Bloqueo/advertencia por nombre de archivo
       const classification = classifySensitiveFile(filePath);
       if (classification && classification.action === "ask") {
@@ -398,7 +457,7 @@ function evaluateToolUseCore(input, opts) {
         );
       }
     }
-    for (const body of collectKeyedStrings(input?.tool_input, CONTENT_KEYS)) {
+    for (const body of bodies) {
       if (scanContentForSecrets(body).matched) {
         return makeDecision(
           "ask",

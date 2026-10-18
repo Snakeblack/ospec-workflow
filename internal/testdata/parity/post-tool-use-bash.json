@@ -1,0 +1,5 @@
+{
+  "description": "Bash: the redacted stdout keeps the shape of the Bash response",
+  "stdin": "{\"tool_name\":\"Bash\",\"tool_response\":{\"interrupted\":false,\"isImage\":false,\"stderr\":\"\",\"stdout\":\"DB_HOST=db\\nDB_PASSWORD=s3cr3t-Pass\"}}",
+  "expectedStdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"updatedToolOutput\":{\"interrupted\":false,\"isImage\":false,\"stderr\":\"\",\"stdout\":\"DB_HOST=db\\nDB_PASSWORD=[REDACTED:assigned-secret]\"},\"additionalContext\":\"[ospec] Se censuraron secretos en esta salida (assigned-secret). El fichero real los conserva: no escribas el marcador [REDACTED:…] en ningún fichero.\"}}"
+}

@@ -1,0 +1,5 @@
+{
+  "description": "NEUTRAL: an output without secrets writes nothing, so the host keeps it",
+  "stdin": "{\"tool_name\":\"Bash\",\"tool_response\":{\"interrupted\":false,\"isImage\":false,\"stderr\":\"\",\"stdout\":\"PORT=3000\"}}",
+  "expectedStdout": ""
+}
