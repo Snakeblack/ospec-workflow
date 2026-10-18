@@ -14,7 +14,7 @@ este describe la frontera de lenguajes y su mantenimiento.
 
 | Capa | Lenguaje | Motivo |
 |------|----------|--------|
-| 5 hooks de runtime (`pre-tool-use`, `session-start`, `pre-compact`, `stop`, `subagent-stop`) | **Go**, con **JS como fallback** | Camino caliente. `pre-tool-use` se dispara en cada tool-call; Node arranca en ~0.3–0.5s, Go en ~0.03s. Migrado en `harness-go-migration` (Phase 1). |
+| 6 hooks de runtime (`pre-tool-use`, `post-tool-use`, `session-start`, `pre-compact`, `stop`, `subagent-stop`) | **Go**, con **JS como fallback** | Camino caliente. `pre-tool-use` se dispara en cada tool-call; Node arranca en ~0.3–0.5s, Go en ~0.03s. Migrado en `harness-go-migration` (Phase 1). |
 | Generadores, build, `scripts/configure/*`, orquestador SDD, **todo el subsistema de federación/workspace** | **JS únicamente** | Fuera de scope de la migración (Phase 2 diferida). No es camino caliente. |
 
 **Cómo coexisten en runtime.** `hooks/hooks.json` no invoca el binario directamente:
@@ -34,7 +34,10 @@ corre **uno u otro**, nunca los dos.
 > `TestPreToolUse_ParityFixtures` y JS vía `scripts/hooks/parity-contract.test.js`
 > (proceso real del hook). Un mismo set de fixtures, dos runtimes: añadir una fixture
 > extiende el contrato para los dos a la vez. Empezado por `pre-tool-use` (el camino
-> caliente); `session-start` es el siguiente candidato. Ante un mismatch, decide el
+> caliente); `post-tool-use` (E1.27) se verifica byte a byte con `post-tool-use-*`
+> y `TestPostToolUse_ParityFixtures`, y su motor de censura con el corpus compartido
+> `internal/testdata/secret-redaction/cases.json`; `session-start` es el siguiente
+> candidato. Ante un mismatch, decide el
 > comportamiento canónico y corrige la implementación rezagada — nunca "arregles" la fixture sola.
 
 
@@ -73,6 +76,7 @@ Lo mismo aplica a `internal/skillreg/skillreg.go` (espeja `skill-registry.js`),
 | `skill-registry.js` | `skillreg/skillreg.go` | discovery + fingerprint + cache v2 |
 | `pre-tool-use.js` reglas | `rules/rules.go` | DENY/ASK |
 | `scripts/hooks/lib/secret-scan.js` | `hooks/secretscan.go` | agent-shield: clasificación de archivos sensibles + escaneo de credenciales |
+| `scripts/hooks/lib/secret-redact.js` | `hooks/secretredact.go` | censura de secretos en la salida de las herramientas (E1.27) |
 | `agent-identity.js` | `agentidentity/agentidentity.go` | resolución canónica de agentes, prefijos de host y conjunto cerrado |
 | parser YAML inline | `yamllite/yamllite.go` | solo lectura |
 

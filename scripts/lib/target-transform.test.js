@@ -13,6 +13,7 @@ const vscode = require("./target-profiles/vscode.js");
 const githubCopilot = require("./target-profiles/github-copilot.js");
 const opencode = require("./target-profiles/opencode.js");
 const codex = require("./target-profiles/codex.js");
+const antigravity = require("./target-profiles/antigravity.js");
 const { parse, getField } = require("./frontmatter.js");
 
 // ---------------------------------------------------------------------------
@@ -204,6 +205,46 @@ test("vscode leaves hooks flat (identity)", () => {
   const out = transform({ files: makeSource(), profile: vscode, models: MODELS });
   const h = JSON.parse(find(out, "hooks/hooks.json").content);
   assert.deepEqual(h.hooks.SessionStart, [{ type: "command", command: "node x.js" }]);
+});
+
+// E1.27: PostToolUse redaction reaches only the hosts that rewrite tool
+// output from a command hook (Claude Code, Codex through `block`). A host that
+// ignores the rewrite would still inject its "redacted" note.
+function sourceWithRedaction() {
+  const launch = 'node "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js"';
+  return makeSource().map((file) => file.path !== "hooks/hooks.json" ? file : {
+    path: file.path,
+    content: JSON.stringify({
+      hooks: {
+        SessionStart: [{ type: "command", command: `${launch} session-start`, timeout: 5 }],
+        PreToolUse: [{ type: "command", command: `${launch} pre-tool-use`, timeout: 5 }],
+        PostToolUse: [{ type: "command", command: `${launch} post-tool-use`, timeout: 5 }],
+      },
+    }, null, 2),
+  });
+}
+
+test("claude keeps PostToolUse and tells its PreToolUse that the host redacts reads", () => {
+  const out = transform({ files: sourceWithRedaction(), profile: claude, models: MODELS });
+  const h = JSON.parse(find(out, "hooks/hooks.json").content);
+  assert.match(h.hooks.PreToolUse[0].hooks[0].command, / pre-tool-use --output-redaction$/);
+  assert.match(h.hooks.PostToolUse[0].hooks[0].command, / post-tool-use$/);
+  assert.match(h.hooks.SessionStart[0].hooks[0].command, / session-start$/);
+});
+
+test("codex wraps PostToolUse; vscode, antigravity, copilot and cursor drop it", () => {
+  const codexHooks = JSON.parse(find(transform({ files: sourceWithRedaction(), profile: codex, models: MODELS }), "hooks.json").content);
+  assert.match(codexHooks.hooks.PostToolUse[0].hooks[0].command, /ospec-codex-hook\.js" post-tool-use$/);
+  assert.doesNotMatch(codexHooks.hooks.PreToolUse[0].hooks[0].command, /--output-redaction/);
+  const vscodeHooks = JSON.parse(find(transform({ files: sourceWithRedaction(), profile: vscode, models: MODELS }), "hooks/hooks.json").content);
+  assert.deepEqual(Object.keys(vscodeHooks.hooks), ["SessionStart", "PreToolUse"]);
+  assert.equal(vscodeHooks.hooks.PreToolUse[0].command.includes("--output-redaction"), false);
+  const agyHooks = JSON.parse(find(transform({ files: sourceWithRedaction(), profile: antigravity, models: MODELS }), "hooks.json").content);
+  assert.equal(JSON.stringify(agyHooks).includes("post-tool-use"), false);
+  for (const [profile, location] of [[githubCopilot, ".github/hooks/hooks.json"], [cursor, "hooks.json"]]) {
+    const hooks = find(transform({ files: sourceWithRedaction(), profile, models: MODELS }), location).content;
+    assert.equal(hooks.includes("post-tool-use"), false, profile.id);
+  }
 });
 
 // ---------------------------------------------------------------------------

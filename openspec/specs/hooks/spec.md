@@ -16,7 +16,7 @@ response to stdout. Support logic lives in `scripts/lib/ospec-state.js` and
 
 ### 1.1 Registration file
 `hooks/hooks.json` is the single source of truth for hook binding. It MUST list all
-five lifecycle events under the top-level `hooks` key.
+six lifecycle events under the top-level `hooks` key.
 
 ### 1.2 Registered events and scripts
 
@@ -24,6 +24,7 @@ five lifecycle events under the top-level `hooks` key.
 |---|---|---|
 | `SessionStart` | `scripts/hooks/session-start.js` | 5 s |
 | `PreToolUse` | `scripts/hooks/pre-tool-use.js` | 5 s |
+| `PostToolUse` | `scripts/hooks/post-tool-use.js` (secret redaction, REQ-agent-shield-security-002) | 5 s |
 | `PreCompact` | `scripts/hooks/pre-compact.js` | 5 s |
 | `SubagentStop` | `scripts/hooks/subagent-stop.js` | 5 s |
 | `Stop` | `scripts/hooks/stop.js` | 5 s |
@@ -449,21 +450,24 @@ with `$PLUGIN_ROOT` (e.g., `node "$PLUGIN_ROOT/scripts/hooks/<name>.js"`).
 ### Requirement: Codex Wrapper Matcher and Hooks Generation With Cross-Platform Adapter {#REQ-hooks-004}
 
 The generator MUST emit, for the `codex` target's published payload, a wrapper `matcher`
-+ `hooks` structure in `hooks/hooks.json` covering exactly the five current Codex hook
-events (`SessionStart`, `PreToolUse`, `PreCompact`, `SubagentStop`, `Stop` — see hooks
-Requirement REQ-hooks-003 for the base event/command-translation mapping). The wrapper
++ `hooks` structure in `hooks/hooks.json` covering exactly the six current Codex hook
+events (`SessionStart`, `PreToolUse`, `PostToolUse`, `PreCompact`, `SubagentStop`, `Stop` —
+see hooks Requirement REQ-hooks-003 for the base event/command-translation mapping). On
+`PostToolUse` the launcher answers the redacted output (REQ-agent-shield-security-002)
+as `{"decision": "block", "reason": "<note>\n<redacted output>"}`, since Codex replaces
+the tool result with the reason and cannot rewrite it otherwise. The wrapper
 MUST include a POSIX/Windows adapter so the same generated command string resolves and
 executes correctly under `sh`/`bash` and under `cmd.exe`/PowerShell, and MUST propagate
 the `PLUGIN_DATA` variable (the Codex analogue of `CLAUDE_PLUGIN_ROOT`-resolved payload
-data) to each invoked hook script without loss or corruption. No event beyond the five
+data) to each invoked hook script without loss or corruption. No event beyond the six
 listed MUST be added by this requirement.
 
-#### Scenario: Wrapper matcher generated for all five Codex events
+#### Scenario: Wrapper matcher generated for all six Codex events
 
 - GIVEN the codex target payload is generated
 - WHEN `hooks/hooks.json` is produced
-- THEN each of the five events MUST carry a wrapper entry with a `matcher` and a
-  `hooks` array, and no additional (sixth) event MUST be present
+- THEN each of the six events MUST carry a wrapper entry with a `matcher` and a
+  `hooks` array, and no additional (seventh) event MUST be present
 
 #### Scenario: POSIX adapter resolves and runs the wrapper
 

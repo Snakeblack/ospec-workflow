@@ -133,6 +133,52 @@ func extractCommands(input *preToolUseInput) []string {
 	return cmds
 }
 
+const markerOverwriteReason = "Bloqueado: el contenido lleva el marcador [REDACTED:…] de ospec y el fichero destino guarda secretos reales; escribirlo los destruiría. Edita solo las líneas sin secretos, o pide al usuario que cambie el valor."
+
+func readSmallFile(filePath string) (string, bool) {
+	info, err := os.Stat(filePath)
+	if err != nil || info.Size() >= maxScanSizeBytes {
+		return "", false
+	}
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return "", false
+	}
+	return string(content), true
+}
+
+// fileHoldsSecrets reports whether the file on disk holds something the
+// output redaction would hide.
+func fileHoldsSecrets(filePath string) bool {
+	content, ok := readSmallFile(filePath)
+	if !ok {
+		return false
+	}
+	_, kinds := redactSecrets(content, classifySensitiveFile(filePath) != nil)
+	return len(kinds) > 0
+}
+
+// readCoveredByRedaction: the read exemption holds only when the redacted
+// content leaves nothing the secret scan would still ask about (an unreadable
+// or oversized file asks).
+func readCoveredByRedaction(filePath string) bool {
+	content, ok := readSmallFile(filePath)
+	return ok && isCoveredByRedaction(content, classifySensitiveFile(filePath) != nil)
+}
+
+var shellOperandSeparatorRe = regexp.MustCompile("[ \t\r\n\f\v;|&<>\"'`]+")
+
+// readTools: tools whose result is only what they read; anything else
+// (writes, MCP uploads) may move a file without its content passing through
+// PostToolUse. Names are compared without punctuation and in lower case.
+var readTools = map[string]bool{"read": true, "grep": true, "glob": true, "ls": true, "list": true, "viewfile": true, "notebookread": true}
+
+var toolNamePunctuationRe = regexp.MustCompile(`[^a-z0-9]`)
+
+func isReadTool(toolName string) bool {
+	return readTools[toolNamePunctuationRe.ReplaceAllString(strings.ToLower(toolName), "")]
+}
+
 // noDecision is the output of a call without objection: empty stdout, so the
 // host applies its own permission prompt and rules. An affirmative allow would
 // skip them (OSP-017).
@@ -231,12 +277,13 @@ func extractPaths(v interface{}) []string {
 	return paths
 }
 
+// Claude and VS Code use snake_case argument names; OpenCode uses camelCase.
 var declaredPathKeys = map[string]bool{
-	"file_path": true, "path": true, "target_file": true, "notebook_path": true,
+	"file_path": true, "filePath": true, "path": true, "target_file": true, "notebook_path": true,
 }
 
 var contentKeys = map[string]bool{
-	"content": true, "contents": true, "new_string": true, "new_str": true, "old_string": true, "text": true,
+	"content": true, "contents": true, "new_string": true, "newString": true, "new_str": true, "old_string": true, "oldString": true, "text": true,
 }
 
 func collectKeyedStrings(value interface{}, keys map[string]bool) []string {
@@ -463,7 +510,43 @@ func (h *preToolUseHandler) run(input *preToolUseInput, stdin []byte) ([]byte, i
 				return makeDecision("deny", "Acceso denegado: El archivo es una clave privada o configuración sensible del sistema y no puede ser leído por el agente."), 0
 			}
 		}
+		bodies := collectKeyedStrings(rawInput.ToolInput, contentKeys)
+		// A redaction marker copied back over a file that keeps real secrets
+		// would destroy them: a hard denial, never degraded.
+		var targets []string
+		for _, body := range bodies {
+			if containsRedactionMarker(body) {
+				targets = append(targets, collectKeyedStrings(rawInput.ToolInput, declaredPathKeys)...)
+				break
+			}
+		}
+		for _, cmd := range cmds {
+			if containsRedactionMarker(cmd) {
+				for _, operand := range shellOperandSeparatorRe.Split(cmd, -1) {
+					if operand != "" {
+						targets = append(targets, operand)
+					}
+				}
+			}
+		}
+		for _, target := range targets {
+			if absolute, err := filepath.Abs(target); err == nil && fileHoldsSecrets(absolute) {
+				return makeDecision("deny", markerOverwriteReason), 0
+			}
+		}
+		// With output redaction (the launcher's --output-redaction flag) the
+		// model only ever sees the redacted result of a read tool, so a read
+		// whose content the redaction fully covers needs no prompt. A shell
+		// command keeps it: its output may leave the machine instead of
+		// reaching the model.
+		readsRedacted := os.Getenv("OSPEC_OUTPUT_REDACTION") == "1" &&
+			os.Getenv("DISABLE_SECRET_REDACTION") != "true" &&
+			len(cmds) == 0 &&
+			isReadTool(input.ToolName)
 		for _, filePath := range paths {
+			if readsRedacted && readCoveredByRedaction(filePath) {
+				continue
+			}
 			// Bloqueo/advertencia por nombre de archivo (secretscan.go)
 			if class := classifySensitiveFile(filePath); class != nil {
 				return makeDecision("ask", "Advertencia de seguridad: Se detectó un posible archivo de entorno o secreto. ¿Está seguro de permitir su lectura?"), 0
@@ -474,7 +557,7 @@ func (h *preToolUseHandler) run(input *preToolUseInput, stdin []byte) ([]byte, i
 				return makeDecision("ask", "Advertencia de seguridad: El contenido de este archivo parece contener credenciales o tokens. ¿Está seguro de permitir su lectura?"), 0
 			}
 		}
-		for _, body := range collectKeyedStrings(rawInput.ToolInput, contentKeys) {
+		for _, body := range bodies {
 			if matched, _ := scanContentForSecrets(body); matched {
 				return makeDecision("ask", "Advertencia de seguridad: El contenido de este archivo parece contener credenciales o tokens. ¿Está seguro de permitir su lectura?"), 0
 			}

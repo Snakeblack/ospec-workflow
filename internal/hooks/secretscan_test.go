@@ -86,11 +86,37 @@ func TestScanContent_KnownTokens(t *testing.T) {
 		{"aws-access-key", "AWS_KEY=AKIA" + strings.Repeat("Z", 16)},
 		{"slack-token", "token xoxb-1234567890abcd"},
 		{"jwt", "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abc123-_"},
+		// Construidos en tiempo de ejecución: un literal con formato real
+		// activaría el push protection de GitHub.
+		{"github-fine-grained-token", "token: github_pat_" + strings.Repeat("A1b", 7) + "C_" + strings.Repeat("x9Y", 19) + "Zq"},
+		{"anthropic-api-key", "ANTHROPIC_API_KEY=sk-ant-api03-" + strings.Repeat("Ab9_-", 19) + "AA"},
+		{"openai-project-key", "OPENAI_API_KEY=sk-proj-" + strings.Repeat("Qw3-_e", 10)},
+	}
+	for _, kind := range []string{"p", "o", "u", "s", "r"} {
+		cases = append(cases, struct {
+			id      string
+			content string
+		}{"github-token", "GH_TOKEN=gh" + kind + "_" + strings.Repeat("aB3", 12)})
 	}
 	for _, tc := range cases {
 		matched, patternID := scanContentForSecrets(tc.content)
 		if !matched || patternID != tc.id {
 			t.Errorf("scanContentForSecrets(%q) = (%v, %q), want (true, %q)", tc.content, matched, patternID, tc.id)
+		}
+	}
+}
+
+func TestScanContent_TokenPrefixesWithoutValidBody(t *testing.T) {
+	for _, content := range []string{
+		"ghp_short",
+		"see the sk-project-plan document",
+		"prefixghp_" + strings.Repeat("aB3", 12),
+		"ghp_" + strings.Repeat("aB3", 12) + "x",
+		"sk-ant-api03-short",
+		"github_pat_tooShort",
+	} {
+		if matched, patternID := scanContentForSecrets(content); matched {
+			t.Errorf("scanContentForSecrets(%q) = (true, %q), want no match", content, patternID)
 		}
 	}
 }

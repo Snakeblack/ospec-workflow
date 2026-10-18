@@ -112,10 +112,100 @@ test('launcher timeout terminates a real child and returns a visible inspection 
   assert.doesNotMatch(result.stdout, /completed/);
 });
 
-test("SUBCOMMANDS covers exactly the five hook events", () => {
+test("SUBCOMMANDS covers exactly the six hook events", () => {
   assert.deepEqual(
     [...SUBCOMMANDS].sort(),
-    ["pre-compact", "pre-tool-use", "session-start", "stop", "subagent-stop"],
+    ["post-tool-use", "pre-compact", "pre-tool-use", "session-start", "stop", "subagent-stop"],
+  );
+});
+
+// Mocks the child and the hook stdin, runs main(argv) and returns what the
+// launcher wrote plus the options it spawned the child with.
+function runLauncher(t, { argv, stdin, outcome, target = "claude" }) {
+  const cp = require("node:child_process");
+  const fs = require("node:fs");
+  const saved = { spawn: cp.spawnSync, read: fs.readFileSync, write: process.stdout.write, error: process.stderr.write, target: process.env.OSPEC_TARGET };
+  let options;
+  cp.spawnSync = (_command, _args, opts) => { options = opts; return outcome; };
+  fs.readFileSync = (file, encoding) => (file === 0 ? stdin : saved.read(file, encoding));
+  process.stderr.write = () => true;
+  process.env.OSPEC_TARGET = target;
+  const restore = () => {
+    cp.spawnSync = saved.spawn;
+    fs.readFileSync = saved.read;
+    process.stdout.write = saved.write;
+    process.stderr.write = saved.error;
+    if (saved.target === undefined) delete process.env.OSPEC_TARGET;
+    else process.env.OSPEC_TARGET = saved.target;
+    delete require.cache[require.resolve("./ospec-hooks-launch.js")];
+  };
+  t.after(restore);
+  delete require.cache[require.resolve("./ospec-hooks-launch.js")];
+  const launcher = require("./ospec-hooks-launch.js");
+  const written = [];
+  process.stdout.write = (chunk) => { written.push(String(chunk)); return true; };
+  const code = launcher.main(argv, HOOKS_DIR);
+  restore();
+  return { code, written: written.join(""), options };
+}
+
+test("--output-redaction tells the PreToolUse child that the host redacts reads, and only then", (t) => {
+  const previous = process.env.OSPEC_OUTPUT_REDACTION;
+  process.env.OSPEC_OUTPUT_REDACTION = "1";
+  t.after(() => {
+    if (previous === undefined) delete process.env.OSPEC_OUTPUT_REDACTION;
+    else process.env.OSPEC_OUTPUT_REDACTION = previous;
+  });
+  const outcome = { status: 0, stdout: "", stderr: "" };
+  const flagged = runLauncher(t, { argv: ["pre-tool-use", "--output-redaction"], stdin: "{}", outcome });
+  assert.equal(flagged.options.env.OSPEC_OUTPUT_REDACTION, "1");
+  const plain = runLauncher(t, { argv: ["pre-tool-use"], stdin: "{}", outcome });
+  assert.equal(plain.options.env.OSPEC_OUTPUT_REDACTION, "", "an inherited value never enables it");
+});
+
+test("a failed post-tool-use child still redacts in process, or withholds, and never forwards its stdout", (t) => {
+  const token = `ghp_${"aB3".repeat(12)}`;
+  const secretStdin = JSON.stringify({ tool_name: "Bash", tool_response: { stdout: `token ${token}`, stderr: "" } });
+  for (const outcome of [
+    { error: Object.assign(new Error("start failed"), { code: "ENOENT" }), status: null },
+    { error: Object.assign(new Error("deadline"), { code: "ETIMEDOUT" }), status: null },
+    { status: 7, stdout: secretStdin },
+    { status: 0, stdout: "invalid output" },
+    { status: 0, stdout: '{"hookSpecificOutput":{"hookEventName":"PreToolUse"}}' },
+  ]) {
+    const { code, written } = runLauncher(t, { argv: ["post-tool-use"], stdin: secretStdin, outcome });
+    assert.equal(code, 0);
+    assert.equal(written.includes(token), false);
+    assert.equal(JSON.parse(written).hookSpecificOutput.updatedToolOutput.stdout, "token [REDACTED:github-token]");
+  }
+  const clean = runLauncher(t, {
+    argv: ["post-tool-use"],
+    stdin: JSON.stringify({ tool_name: "Bash", tool_response: { stdout: "ok" } }),
+    outcome: { status: null, signal: "SIGKILL", stdout: "" },
+  });
+  assert.equal(clean.written, "", "nothing to redact keeps the original output");
+});
+
+test("a valid post-tool-use result is forwarded, and adapted to Codex's block feedback", (t) => {
+  const result = {
+    hookSpecificOutput: {
+      hookEventName: "PostToolUse",
+      updatedToolOutput: "DB_PASSWORD=[REDACTED:assigned-secret]",
+      additionalContext: "[ospec] Se censuraron secretos en esta salida (assigned-secret).",
+    },
+  };
+  const outcome = { status: 0, stdout: `${JSON.stringify(result)}\n`, stderr: "" };
+  const claude = runLauncher(t, { argv: ["post-tool-use"], stdin: "{}", outcome });
+  assert.deepEqual(JSON.parse(claude.written), result);
+  const codex = runLauncher(t, { argv: ["post-tool-use"], stdin: "{}", outcome, target: "codex" });
+  assert.deepEqual(JSON.parse(codex.written), {
+    decision: "block",
+    reason: "[ospec] Se censuraron secretos en esta salida (assigned-secret).\nDB_PASSWORD=[REDACTED:assigned-secret]",
+  });
+  assert.deepEqual(normalizeCodexHookOutput("post-tool-use", null), {});
+  assert.equal(
+    normalizeCodexHookOutput("post-tool-use", { hookSpecificOutput: { hookEventName: "PostToolUse", updatedToolOutput: { stdout: "x" }, additionalContext: "note" } }).reason,
+    'note\n{"stdout":"x"}',
   );
 });
 

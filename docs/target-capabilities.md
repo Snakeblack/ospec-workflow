@@ -41,6 +41,7 @@ agente alucine o se trabe. Ante la duda, el prompt generado usa el mínimo comú
 | Protección | Mecanismo | claude | vscode | github-copilot | opencode | codex | cursor | Mitigación donde falta |
 |---|---|---|---|---|---|---|---|---|
 | AgentShield (secretos) | hook `PreToolUse` | ✅ | ❌ | ❌ | parcial | ✅ | parcial (según evento mapeado) | regla instruccional en `rules/` del target |
+| Censura de secretos en la salida (E1.27) | hook `PostToolUse` | ✅ (`updatedToolOutput`, verificado en vivo) | ❌ (no reescribe la salida) | ❌ | ✅ en 2.x (`execute.after`, verificado en vivo en 2.0.32); 1.x sin verificar | parcial (`block` sustituye el resultado; sin verificar en vivo) | ❌ (solo MCP) | `ask` de lectura en `PreToolUse`; Antigravity tampoco puede (su `PostToolUse` no recibe el resultado) |
 | Token budget advisor | hook `PreToolUse` | ✅ | ❌ | ❌ | parcial | ✅ | parcial (según evento mapeado) | `skills/_shared/token-budget.md` (pasivo) |
 | Git collaboration guard | hook `PreToolUse` | ✅ | ❌ | ❌ | parcial | ✅ | parcial (según evento mapeado) | git hooks locales (`pre-commit`) |
 | No-model-attribution | 3 capas | ✅ (hook+git+regla) | git hook + regla | git hook + regla | git hook + regla | git hook + regla | git hook + regla | git hook cubre TODOS los targets al instalarse |

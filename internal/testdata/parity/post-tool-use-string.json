@@ -1,0 +1,5 @@
+{
+  "description": "A plain string response (MCP, Codex) is redacted as a string",
+  "stdin": "{\"tool_name\":\"mcp__fs__read\",\"tool_response\":\"url=postgres://app:Xy7kd92Lm@db/app\"}",
+  "expectedStdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"updatedToolOutput\":\"url=postgres://app:[REDACTED:url-password]@db/app\",\"additionalContext\":\"[ospec] Se censuraron secretos en esta salida (url-password). El fichero real los conserva: no escribas el marcador [REDACTED:…] en ningún fichero.\"}}"
+}

@@ -1147,3 +1147,157 @@ func TestPreToolUse_OSP017_ExplicitDecisionsKeepOutput(t *testing.T) {
 		}
 	}
 }
+
+// E1.27: with output redaction a non-shell read needs no prompt; shell reads,
+// hard denials and secret writes keep theirs. Mirrors pre-tool-use.test.js.
+func TestPreToolUse_OutputRedactionReads(t *testing.T) {
+	t.Setenv("DISABLE_AGENT_SHIELD", "")
+	t.Setenv("OSPEC_TARGET", "")
+	t.Setenv("OSPEC_CODEX_WRAPPER", "")
+	root := t.TempDir()
+	envFile := filepath.Join(root, ".env")
+	tokenFile := filepath.Join(root, "config.txt")
+	if err := os.WriteFile(envFile, []byte("DB_PASSWORD=s3cr3t-Pass\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(tokenFile, []byte("TOKEN=ghp_"+strings.Repeat("aB3", 12)+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	decision := func(input map[string]interface{}) string {
+		stdin, _ := json.Marshal(input)
+		got, _ := runPreToolUse(t, stdin)
+		return got.PermissionDecision
+	}
+	t.Setenv("OSPEC_OUTPUT_REDACTION", "1")
+	for _, tc := range []struct {
+		input map[string]interface{}
+		want  string
+	}{
+		{map[string]interface{}{"tool_name": "Read", "tool_input": map[string]interface{}{"file_path": envFile}}, noDecision},
+		{map[string]interface{}{"tool_name": "Grep", "tool_input": map[string]interface{}{"pattern": "TOKEN", "path": tokenFile}}, noDecision},
+		{map[string]interface{}{"tool_name": "Bash", "tool_input": map[string]interface{}{"command": "cat " + envFile}}, "ask"},
+		{map[string]interface{}{"tool_name": "Read", "tool_input": map[string]interface{}{"file_path": filepath.Join(root, "id_rsa")}}, "deny"},
+		{map[string]interface{}{"tool_name": "Write", "tool_input": map[string]interface{}{"file_path": filepath.Join(root, "new.txt"), "content": "TOKEN=sk-ant-api03-" + strings.Repeat("Ab9_-", 19) + "AA"}}, "ask"},
+	} {
+		if got := decision(tc.input); got != tc.want {
+			t.Errorf("%v: got %q, want %q", tc.input, got, tc.want)
+		}
+	}
+	t.Setenv("OSPEC_OUTPUT_REDACTION", "")
+	if got := decision(map[string]interface{}{"tool_name": "Read", "tool_input": map[string]interface{}{"file_path": envFile}}); got != "ask" {
+		t.Errorf("without output redaction a .env read asks, got %q", got)
+	}
+}
+
+// E1.27: writing the redaction marker over a file that keeps real secrets is
+// denied in every mode; a file without secrets may mention the marker.
+func TestPreToolUse_RedactionMarkerOverwrite(t *testing.T) {
+	t.Setenv("DISABLE_AGENT_SHIELD", "")
+	t.Setenv("OSPEC_TARGET", "")
+	t.Setenv("OSPEC_CODEX_WRAPPER", "")
+	root := t.TempDir()
+	secretFile := filepath.Join(root, ".env")
+	plainFile := filepath.Join(root, "notes.md")
+	if err := os.WriteFile(secretFile, []byte("DB_HOST=db\nDB_PASSWORD=s3cr3t-Pass\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(plainFile, []byte("The hook writes [REDACTED:github-token] in place of a token.\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	redacted := "DB_HOST=db.internal\nDB_PASSWORD=[REDACTED:assigned-secret]\n"
+	for _, mode := range []string{"1", ""} {
+		t.Setenv("OSPEC_OUTPUT_REDACTION", mode)
+		for _, permissionMode := range []string{"default", "bypassPermissions"} {
+			for _, input := range []map[string]interface{}{
+				{"tool_name": "Write", "permission_mode": permissionMode, "tool_input": map[string]interface{}{"file_path": secretFile, "content": redacted}},
+				{"tool_name": "Edit", "permission_mode": permissionMode, "tool_input": map[string]interface{}{"file_path": secretFile, "old_string": "DB_PASSWORD=[REDACTED:assigned-secret]", "new_string": "DB_PASSWORD=[REDACTED:assigned-secret]\nDB_PORT=5432"}},
+			} {
+				stdin, _ := json.Marshal(input)
+				got, _ := runPreToolUse(t, stdin)
+				if got.PermissionDecision != "deny" || !strings.Contains(got.PermissionDecisionReason, "REDACTED") {
+					t.Errorf("mode %q / %s / %s: got %+v, want deny", mode, permissionMode, input["tool_name"], got)
+				}
+			}
+		}
+		stdin, _ := json.Marshal(map[string]interface{}{"tool_name": "Edit", "tool_input": map[string]interface{}{"file_path": plainFile, "old_string": "token", "new_string": "[REDACTED:github-token] marker"}})
+		if got, _ := runPreToolUse(t, stdin); got.PermissionDecision == "deny" {
+			t.Errorf("mode %q: a file without secrets may mention the marker, got deny", mode)
+		}
+	}
+}
+
+// Review T1, T2, T4, T5: the read exemption needs a read tool, live
+// redaction and full coverage. Mirrors pre-tool-use.test.js.
+func TestPreToolUse_RedactionExemptionScope(t *testing.T) {
+	t.Setenv("DISABLE_AGENT_SHIELD", "")
+	t.Setenv("DISABLE_SECRET_REDACTION", "")
+	t.Setenv("OSPEC_TARGET", "")
+	t.Setenv("OSPEC_CODEX_WRAPPER", "")
+	t.Setenv("OSPEC_OUTPUT_REDACTION", "1")
+	root := t.TempDir()
+	write := func(name, content string) string {
+		file := filepath.Join(root, name)
+		if err := os.WriteFile(file, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return file
+	}
+	keyBody := "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7" + strings.Repeat("x", 20)
+	envFile := write(".env", "DB_PASSWORD=s3cr3t-Pass\n")
+	serviceAccount := write("sa.json", `{"private_key":"-----BEGIN PRIVATE KEY-----\n`+keyBody+`\n`+keyBody+`\n-----END PRIVATE KEY-----\n"}`)
+	credentials := write("credentials", "[default]\naws_secret_access_key = wJalrXUtnFEMIK7MDENGbPxRfiCYzR4tQ7nLpK12\n")
+	example := write("fixture.js", `const sample = { password: "superSecretAdmin123" };`+"\n")
+	decision := func(input map[string]interface{}) string {
+		stdin, _ := json.Marshal(input)
+		got, _ := runPreToolUse(t, stdin)
+		return got.PermissionDecision
+	}
+	for _, tc := range []struct {
+		input map[string]interface{}
+		want  string
+	}{
+		// Review N1: a private key is never covered, a partial read loses its header.
+		{map[string]interface{}{"tool_name": "Read", "tool_input": map[string]interface{}{"file_path": serviceAccount, "offset": 2}}, "ask"},
+		{map[string]interface{}{"tool_name": "read", "tool_input": map[string]interface{}{"filePath": credentials}}, noDecision},
+		{map[string]interface{}{"tool_name": "Read", "tool_input": map[string]interface{}{"file_path": example}}, "ask"},
+		{map[string]interface{}{"tool_name": "Write", "tool_input": map[string]interface{}{"file_path": envFile, "content": "FOO=bar\n"}}, "ask"},
+		{map[string]interface{}{"tool_name": "mcp__drive__upload_file", "tool_input": map[string]interface{}{"path": envFile}}, "ask"},
+	} {
+		if got := decision(tc.input); got != tc.want {
+			t.Errorf("%v: got %q, want %q", tc.input, got, tc.want)
+		}
+	}
+	t.Setenv("DISABLE_SECRET_REDACTION", "true")
+	if got := decision(map[string]interface{}{"tool_name": "Read", "tool_input": map[string]interface{}{"file_path": envFile}}); got != "ask" {
+		t.Errorf("with redaction disabled a .env read asks, got %q", got)
+	}
+}
+
+// Review T3, T6: the marker deny reads OpenCode arguments and shell commands.
+func TestPreToolUse_MarkerDenyAcrossHosts(t *testing.T) {
+	t.Setenv("DISABLE_AGENT_SHIELD", "")
+	t.Setenv("OSPEC_TARGET", "")
+	t.Setenv("OSPEC_CODEX_WRAPPER", "")
+	t.Setenv("OSPEC_OUTPUT_REDACTION", "1")
+	root := t.TempDir()
+	envFile := filepath.Join(root, ".env")
+	if err := os.WriteFile(envFile, []byte("DB_PASSWORD=s3cr3t-Pass\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	marker := "DB_PASSWORD=[REDACTED:assigned-secret]"
+	for _, input := range []map[string]interface{}{
+		{"tool_name": "write", "tool_input": map[string]interface{}{"filePath": envFile, "content": marker}},
+		{"tool_name": "edit", "tool_input": map[string]interface{}{"filePath": envFile, "oldString": "DB_PASSWORD", "newString": marker}},
+		{"tool_name": "Bash", "tool_input": map[string]interface{}{"command": "printf '" + marker + "\\n' > " + envFile}},
+		{"tool_name": "Bash", "tool_input": map[string]interface{}{"command": `sed -i 's/s3cr3t-Pass/[REDACTED:assigned-secret]/' "` + envFile + `"`}},
+	} {
+		stdin, _ := json.Marshal(input)
+		if got, _ := runPreToolUse(t, stdin); got.PermissionDecision != "deny" {
+			t.Errorf("%v: got %+v, want deny", input["tool_input"], got)
+		}
+	}
+	stdin, _ := json.Marshal(map[string]interface{}{"tool_name": "Bash", "tool_input": map[string]interface{}{"command": "echo '[REDACTED:github-token]' > " + filepath.Join(root, "notes.md")}})
+	if got, _ := runPreToolUse(t, stdin); got.PermissionDecision == "deny" {
+		t.Errorf("a file without secrets may receive the marker, got deny")
+	}
+}

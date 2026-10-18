@@ -14,6 +14,13 @@
         "timeout": 5
       }
     ],
+    "PostToolUse": [
+      {
+        "type": "command",
+        "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js\" post-tool-use",
+        "timeout": 5
+      }
+    ],
     "PreCompact": [
       {
         "type": "command",

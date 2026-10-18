@@ -115,6 +115,17 @@ const FIXTURE_FAMILY = [
     },
   },
   {
+    hook: "PostToolUse",
+    prefix: "post-tool-use-",
+    hookPath: path.join(ROOT, "scripts", "hooks", "post-tool-use.js"),
+    floor: 4,
+    // Redaction has no implementation-specific text: every fixture is
+    // compared byte-for-byte.
+    isFailOpen() {
+      return false;
+    },
+  },
+  {
     hook: "SubagentStop",
     prefix: "subagent-stop-",
     hookPath: path.join(ROOT, "scripts", "hooks", "subagent-stop.js"),

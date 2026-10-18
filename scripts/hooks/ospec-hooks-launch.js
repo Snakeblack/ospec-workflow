@@ -28,17 +28,50 @@ const { spawnSync } = require("node:child_process");
 const SUBCOMMANDS = new Set([
   "session-start",
   "pre-tool-use",
+  "post-tool-use",
   "pre-compact",
   "subagent-stop",
   "stop",
 ]);
 
+// Only the Claude Code hooks pass it (nestHooks in target-transform.js): that
+// host rewrites tool output through PostToolUse, so a non-shell read of a
+// secret needs no prompt. Every other invocation clears an inherited value.
+const OUTPUT_REDACTION_FLAG = "--output-redaction";
+
 const CONTINUE = '{"continue":true}\n';
 // Leave one second for launch, normalization and host delivery (host: 5s).
 const CHILD_TIMEOUT_MS = 4000;
 
+// A failed PostToolUse child must not let the original output through (ADR
+// 0008): redact in process, or withhold every string when that fails too.
+// Without a readable payload there is no shape to rewrite, so nothing is sent.
+function postToolUseFallback(rawInput, detail) {
+  let input;
+  try {
+    input = JSON.parse(stripUtf8Bom(rawInput) || "{}");
+  } catch {
+    return null;
+  }
+  const { evaluatePostToolUse, withheldOutput } = require("./post-tool-use.js");
+  try {
+    return evaluatePostToolUse(input);
+  } catch {
+    return withheldOutput(input, detail);
+  }
+}
+
 function launcherFailure(sub, detail, cursorHost = false, rawInput = "") {
   process.stderr.write(`[ospec error] Hook ${sub} failed: ${detail}\n`);
+  if (sub === "post-tool-use") {
+    let fallback = postToolUseFallback(rawInput, detail);
+    if (process.env.OSPEC_TARGET === "codex") fallback = normalizeCodexHookOutput(sub, fallback);
+    else if (cursorHost) fallback = normalizeCursorHookOutput(sub, fallback);
+    if (fallback && Object.keys(fallback).length > 0) {
+      process.stdout.write(`${JSON.stringify(fallback)}\n`);
+    }
+    return 0;
+  }
   const message = `The safety hook could not inspect this tool call: ${detail}`;
   let output = sub === "pre-tool-use"
     ? { hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: message } }
@@ -135,6 +168,17 @@ function normalizeCodexHookOutput(subcommand, output) {
     // An allow decision without updatedInput is invalid in Codex. Empty output
     // preserves the normal approval flow for safe OSpec decisions.
     return {};
+  }
+
+  if (subcommand === "post-tool-use") {
+    // Codex cannot rewrite a tool result, but `block` replaces it with the
+    // reason: the reason carries the redacted output.
+    const hook = output.hookSpecificOutput;
+    if (!hook || hook.updatedToolOutput === undefined) {
+      return {};
+    }
+    const text = typeof hook.updatedToolOutput === "string" ? hook.updatedToolOutput : JSON.stringify(hook.updatedToolOutput);
+    return { decision: "block", reason: hook.additionalContext ? `${hook.additionalContext}\n${text}` : text };
   }
 
   return typeof output.systemMessage === "string" && output.systemMessage.trim()
@@ -433,6 +477,7 @@ function launch(argv, scriptDir) {
   const env = {
     ...process.env,
     OSPEC_PLUGIN_ROOT: pluginRoot,
+    OSPEC_OUTPUT_REDACTION: argv.includes(OUTPUT_REDACTION_FLAG) ? "1" : "",
     ...(cursorHost ? { OSPEC_TARGET: process.env.OSPEC_TARGET || "cursor" } : {}),
   };
   const result = spawnSync(command, args, { input, env, encoding: "utf8", timeout: CHILD_TIMEOUT_MS, killSignal: "SIGKILL" });
@@ -448,6 +493,12 @@ function launch(argv, scriptDir) {
   if (sub === "pre-tool-use" && result.stdout?.trim()) {
     const output = parseLastJson(result.stdout)?.hookSpecificOutput;
     if (output?.hookEventName !== "PreToolUse" || !["allow", "deny", "ask"].includes(output.permissionDecision) || typeof output.permissionDecisionReason !== "string") {
+      return launcherFailure(sub, "invalid output", cursorHost, rawInput);
+    }
+  }
+  if (sub === "post-tool-use" && result.stdout?.trim()) {
+    const output = parseLastJson(result.stdout)?.hookSpecificOutput;
+    if (output?.hookEventName !== "PostToolUse" || output.updatedToolOutput === undefined) {
       return launcherFailure(sub, "invalid output", cursorHost, rawInput);
     }
   }
