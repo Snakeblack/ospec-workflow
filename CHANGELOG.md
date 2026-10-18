@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.139.2] - 2026-10-18
+
+### Changed
+- **CI más rápido y con un solo run por PR ([#363](https://github.com/Snakeblack/ospec-workflow/pull/363))**:
+  - **Disparo:** Validate Harness y Build ospec-hooks validan las PR por `pull_request` y en push solo `main`. Antes, cada PR lanzaba dos matrices.
+  - **Windows en 2 shards con TEMP en un Dev Drive ReFS:** el job baja de 9 min 46 s a 3-4,7 min por shard. Medido en windows-latest:
+    - el Dev Drive baja un 40 % el tiempo de los tests;
+    - las exclusiones de Defender no aportan, porque el runner ya trae la protección en tiempo real desactivada.
+  - **`check.js --shard <i>/<n>`:** reparte los tests de Node con `--test-shard` y genera los targets solo en el shard 1. Un valor inválido falla antes de ejecutar nada.
+  - **Runs de `main`:** ya no se cancelan entre sí, porque publish-marketplace necesita el de su SHA.
+
+### Fixed
+- **Flakes de Windows (avance de E1.30, [#344](https://github.com/Snakeblack/ospec-workflow/issues/344))**:
+  - **Navegador del banco:** `connect()` rechaza las peticiones CDP pendientes cuando el navegador cierra la conexión, en lugar de dejar el check sin veredicto. El runner de checks informa del código de salida y del stderr.
+  - **Tests con tiempo:** los fakes `hang` y `cold` de `startBrowser` tienen 5 s, no 500 ms. Los cuelgues tienen 180 s de margen en el suite anidado de Codex y en los shells reales.
+  - **Reintento acotado, solo en Windows:** un reintento visible en el TAP, solo para los fallos de infraestructura de los checks de navegador y para el plazo del lanzador en `codex-hook-shell`. El plazo de 4 s del lanzador en producción no cambia.
+
+  Hecho con IDD (`idd/archive/2026-10-18-ci-windows-optimization/`).
+
+**Verificación directa**: `node scripts/check.js` (3891 tests pasando, 0 fallos y 3 omitidos), más 4 runs de Validate Harness en verde en la PR, sin reintentos.
+
 ## [2.139.1] - 2026-10-18
 
 ### Fixed
