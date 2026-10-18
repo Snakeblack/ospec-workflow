@@ -185,6 +185,7 @@ Given `node scripts/configure/install-target.js <target> <destRepo>`:
 7. `fs.readdirSync(outDir)` — enumerate top-level entries.
 8. Unless `--dry-run`, sync those entries through `syncEntriesTransactional`: snapshot each destination entry into a temp backup, copy all entries, and on any failure roll back every mutated entry (restore backups or remove newly created paths) before exiting with code 2. Unrelated destination entries MUST NOT be included in the snapshot/rollback set.
 9. If `--dry-run`, print preview lines but write nothing.
+10. For `opencode`, with or without `--dry-run`, when `~/.config/opencode/plugins/ospec.js` exists, write a warning to stderr and still exit 0. OpenCode 2.x loads one plugin per id, so the global plugin shadows the repository's `.opencode/plugins/ospec.js`, even when both files are identical: the global runtime and hooks are the ones that run. The warning MUST name both paths and the `npm run setup:opencode` action.
 
 (Previously: step 8 used a best-effort per-entry `fs.cpSync` without transactional rollback.)
 
