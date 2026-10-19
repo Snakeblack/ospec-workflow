@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.139.6] - 2026-10-19
+
+### Fixed
+- **Engram no se configuraba con una configuración MCP vacía**: con `~/.gemini/config/mcp_config.json` vacío, el instalador leía el estado de Engram como ilegible y no hacía nada, así que Antigravity arrancaba sin las herramientas `mem_*`. Además `engram setup` falla con `unexpected end of JSON input` sobre ese fichero. Ahora un JSON de MCP vacío o en blanco cuenta como ausente en Antigravity, OpenCode, Cursor, VS Code y Copilot CLI, y antes de registrar se escribe `{}` en él, solo si sigue en blanco (REQ-install-030). Un fichero con contenido nunca se reescribe.
+
+  Hecho con IDD (`idd/archive/2026-10-19-engram-empty-mcp-config/`).
+
+**Verificación directa**: `node scripts/check.js` (3896 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.139.5] - 2026-10-19
 
 ### Fixed

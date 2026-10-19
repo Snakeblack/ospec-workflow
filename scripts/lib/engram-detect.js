@@ -181,6 +181,22 @@ function hasKey(section) {
   };
 }
 
+function isBlank(content) {
+  return !String(content).trim();
+}
+
+// A blank MCP JSON config holds nothing to lose: it is absent, and its path is
+// kept so the installer can write `{}` first (`engram setup` rejects it).
+function probeMcpJson(fsImpl, file, section) {
+  let blank = false;
+  const check = hasKey(section);
+  const mcp = probeFile(fsImpl, file, (content) => {
+    blank = isBlank(content);
+    return !blank && check(content);
+  });
+  return blank ? { mcp, blankMcpFile: file } : { mcp };
+}
+
 function absEnv(env, name) {
   const value = env[name] && String(env[name]).trim();
   return value && path.isAbsolute(value) ? value : null;
@@ -235,32 +251,32 @@ function probeHost(target, { spawn, hostBin, fs: fsImpl, homedir, env, platform,
       const gemini = path.join(homedir(), ".gemini");
       return {
         protocol: probeFile(fsImpl, path.join(gemini, "GEMINI.md"), (content) => content.includes(GEMINI_MARKER)),
-        mcp: probeFile(fsImpl, path.join(gemini, "config", "mcp_config.json"), hasKey("mcpServers")),
+        ...probeMcpJson(fsImpl, path.join(gemini, "config", "mcp_config.json"), "mcpServers"),
       };
     }
     case "opencode": {
       const { dir, file } = openCodeConfigFile(fsImpl, homedir, env);
       return {
         protocol: probeExists(fsImpl, path.join(dir, "plugins", "engram.ts")),
-        mcp: probeFile(fsImpl, file, hasKey("mcp")),
+        ...probeMcpJson(fsImpl, file, "mcp"),
       };
     }
     case "cursor": {
       const cursor = path.join(homedir(), ".cursor");
       return {
         protocol: probeExists(fsImpl, path.join(cursor, "engram-memory-protocol.md")),
-        mcp: probeFile(fsImpl, path.join(cursor, "mcp.json"), hasKey("mcpServers")),
+        ...probeMcpJson(fsImpl, path.join(cursor, "mcp.json"), "mcpServers"),
       };
     }
     case "vscode": {
       const user = vscodeUserDir(homedir, env, platform);
       return {
         protocol: probeExists(fsImpl, path.join(user, "prompts", "engram.instructions.md")),
-        mcp: probeFile(fsImpl, path.join(user, "mcp.json"), hasKey("servers")),
+        ...probeMcpJson(fsImpl, path.join(user, "mcp.json"), "servers"),
       };
     }
     default:
-      return { protocol: NOT_APPLICABLE, mcp: probeFile(fsImpl, copilotMcpFile(homedir), hasKey("mcpServers")) };
+      return { protocol: NOT_APPLICABLE, ...probeMcpJson(fsImpl, copilotMcpFile(homedir), "mcpServers") };
   }
 }
 

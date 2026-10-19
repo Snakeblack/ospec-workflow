@@ -475,6 +475,50 @@ test("run: file-based targets re-check their config after the upstream setup", (
   assert.equal(stderr, "");
 });
 
+test("run: a blank MCP JSON config becomes {} before the upstream setup", () => {
+  const file = home(".gemini", "config", "mcp_config.json");
+  const files = makeFs({ [file]: "" });
+  // Like engram 1.x: setup fails on an empty file and works on {}.
+  const spawn = makeSpawn({
+    ...ENGRAM,
+    "engram setup antigravity-cli": () => {
+      const doc = files.store.get(path.resolve(file));
+      if (!doc.trim()) return fail(2, "unexpected end of JSON input");
+      files.store.set(path.resolve(file), JSON.stringify({ ...JSON.parse(doc), mcpServers: { engram: {} } }));
+      files.store.set(home(".gemini", "GEMINI.md"), "<!-- BEGIN ENGRAM MEMORY PROTOCOL -->");
+      return ok();
+    },
+  });
+  const { stdout, stderr } = run({ target: "antigravity", spawn, fs: files });
+  assert.deepEqual(mutations(spawn.calls), ["engram setup antigravity-cli"]);
+  assert.match(stdout, /Engram configurado para Antigravity/);
+  assert.equal(stderr, "");
+});
+
+test("detect: a blank MCP JSON config is absent on every JSON target", () => {
+  const cases = {
+    antigravity: home(".gemini", "config", "mcp_config.json"),
+    opencode: home(".config", "opencode", "opencode.json"),
+    cursor: home(".cursor", "mcp.json"),
+    vscode: home(".config", "Code", "User", "mcp.json"),
+    "github-copilot": home(".copilot", "mcp-config.json"),
+  };
+  for (const [target, file] of Object.entries(cases)) {
+    for (const blank of ["", " \n\t\r\n"]) {
+      const d = detectEngram({ target, spawn: makeSpawn(ENGRAM), fs: makeFs({ [file]: blank }), homedir, env: {}, platform: "linux" });
+      assert.equal(d.mcp, "absent", `${target} ${JSON.stringify(blank)}`);
+    }
+  }
+});
+
+test("run: Copilot CLI writes its entry into a blank mcp-config.json", () => {
+  const file = home(".copilot", "mcp-config.json");
+  const files = makeFs({ [file]: "\n" });
+  const { stdout } = run({ target: "github-copilot", spawn: makeSpawn(ENGRAM), fs: files });
+  assert.deepEqual(Object.keys(JSON.parse(files.store.get(path.resolve(file))).mcpServers), ["engram"]);
+  assert.match(stdout, /Engram configurado para Copilot CLI/);
+});
+
 test("run: Copilot CLI merges the engram entry and keeps existing servers", () => {
   const file = home(".copilot", "mcp-config.json");
   const files = makeFs({ [file]: JSON.stringify({ mcpServers: { context7: { command: "npx" } }, other: true }) });

@@ -1,0 +1,349 @@
+{
+  "schema": "idd-state/v1",
+  "change": "engram-empty-mcp-config",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Con ~/.gemini/config/mcp_config.json vacío (0 bytes), el instalador lee el estado de engram como desconocido y no configura nada; además engram setup antigravity-cli falla con 'unexpected end of JSON input' sobre ese fichero.",
+    "acceptance": "npm run setup:antigravity con un mcp_config.json vacío deja engram registrado en mcpServers y el protocolo en GEMINI.md, sin perder nada del usuario."
+  },
+  "facts": {
+    "open": [
+      "¿Qué hace el instalador con un fichero de configuración JSON vacío antes de ejecutar engram setup: escribir {} y seguir, o no tocarlo y solo avisar con una instrucción concreta?",
+      "¿El arreglo cubre solo Antigravity o todos los targets cuya configuración MCP es JSON (OpenCode, Cursor, VS Code, Copilot)?",
+      "¿Un fichero con solo espacios o saltos de línea cuenta como vacío?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "openspec/specs/install/spec.md",
+      "scripts/configure/engram-setup.js",
+      "scripts/configure/engram-setup.test.js",
+      "scripts/lib/engram-detect.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component generator: ADR 0001, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/configure/engram-setup.js adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "none",
+      "reason": "No toca el generador ni la fuente canónica; solo el paso Engram del instalador."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "none",
+      "reason": "Sin dependencias nuevas: Node estándar en engram-detect y engram-setup."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Engram sigue siendo opcional: un fallo del paso solo avisa y no rompe la instalación de ospec."
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "La misma regla de JSON en blanco se aplica a los cinco targets con MCP en JSON."
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "1) Escribir {} y seguir. 2) Todos los targets de MCP en JSON. 3) Sí, un fichero con solo espacios o saltos de línea cuenta como vacío.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-19T20:15:39.927Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-19T20:17:00.537Z",
+      "detail": {
+        "tree": "sha256:c179e0a4bfa160de065c4d6e9a845e68953bae00e2e5d47081e95bbbb976e148",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-19T20:17:00.537Z",
+      "detail": {
+        "refs": [
+          "adr:0001 none",
+          "adr:0010 none",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:c179e0a4bfa160de065c4d6e9a845e68953bae00e2e5d47081e95bbbb976e148",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-19T20:17:09.522Z",
+      "detail": {
+        "run": "run-8",
+        "tree": "sha256:800abf89118f8a60cb20634ef0d3f6cde487f488a87a920393010217024805a0",
+        "plan": "Solo cambia un fichero MCP en JSON vacío o en blanco, que pasa a {} y se vuelve a leer justo antes de escribir; un fichero con contenido, válido o ilegible, nunca se reescribe y sigue como antes (registered/absent/unknown). Marcha atrás: vaciar el fichero devuelve el estado previo, que no contenía datos."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-19T20:18:09.003Z",
+      "detail": {
+        "tree": "sha256:c179e0a4bfa160de065c4d6e9a845e68953bae00e2e5d47081e95bbbb976e148",
+        "runs": [
+          "run-9"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-19T20:18:09.003Z",
+      "detail": {
+        "refs": [
+          "adr:0001 none",
+          "adr:0010 none",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:c179e0a4bfa160de065c4d6e9a845e68953bae00e2e5d47081e95bbbb976e148",
+        "fitness": [
+          "run-10",
+          "run-11",
+          "run-12",
+          "run-13"
+        ]
+      }
+    }
+  ],
+  "base": "3ded67313e8bc54d5f0686760c6462213150d144",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"blank\" scripts/configure/engram-setup.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:d9aff1edc22cd28e2dc8112d8fa1fd1962486d61686c5513d31cb325e83fb23d",
+      "tree": "sha256:52bbd9dc22ee5a52ac53bebbee5b2a1d5c998f5becaca3770f0abd0a733ac1ba",
+      "recorded_at": "2026-10-19T20:15:05.660Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"blank\" scripts/configure/engram-setup.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a88c74acffb7589a0580e055abbf346c7b3267f27e83f3dd29da1d86de8ca7bf",
+      "tree": "sha256:1f44b2723e79467e2dde4991f68f4424b42578fc78b6fb654348f6a728c080cc",
+      "recorded_at": "2026-10-19T20:15:39.927Z",
+      "tests": 3
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:712f8e282dda82e3f680140a8b366261e269b9b03ee1e8cc6fd9941893f39f7a",
+      "tree": "sha256:c179e0a4bfa160de065c4d6e9a845e68953bae00e2e5d47081e95bbbb976e148",
+      "recorded_at": "2026-10-19T20:17:00.537Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d976444d354ae3b6d5ba2dbfd036517bf7e1b68af1f2a5416bdb0e730c32129f",
+      "tree": "sha256:c179e0a4bfa160de065c4d6e9a845e68953bae00e2e5d47081e95bbbb976e148",
+      "recorded_at": "2026-10-19T20:17:00.537Z",
+      "tests": 47
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:c179e0a4bfa160de065c4d6e9a845e68953bae00e2e5d47081e95bbbb976e148",
+      "recorded_at": "2026-10-19T20:17:00.537Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d300fb22f1af6348930daa7b90302f7429df9e34f553e62c361be2cd707c8397",
+      "tree": "sha256:c179e0a4bfa160de065c4d6e9a845e68953bae00e2e5d47081e95bbbb976e148",
+      "recorded_at": "2026-10-19T20:17:00.537Z",
+      "tests": 16
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:35d0021d86f52cc0b50731d8caa32fc8bc52983fd8727059925ef5b13c085a1a",
+      "tree": "sha256:c179e0a4bfa160de065c4d6e9a845e68953bae00e2e5d47081e95bbbb976e148",
+      "recorded_at": "2026-10-19T20:17:00.537Z",
+      "tests": 47
+    },
+    {
+      "id": "run-8",
+      "purpose": "migration-test",
+      "command": "node --test scripts/configure/engram-setup.test.js scripts/configure/engram-scope.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2b66249b31252e9d79b7e4bab99246d57861b85f584e91db94d7d614b9081834",
+      "tree": "sha256:800abf89118f8a60cb20634ef0d3f6cde487f488a87a920393010217024805a0",
+      "recorded_at": "2026-10-19T20:17:09.522Z",
+      "tests": 83
+    },
+    {
+      "id": "run-9",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8fedfc9e8a7848279c9242f94a4380cddc0ed6bb77e52bd128d088afb14677da",
+      "tree": "sha256:c179e0a4bfa160de065c4d6e9a845e68953bae00e2e5d47081e95bbbb976e148",
+      "recorded_at": "2026-10-19T20:18:09.003Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8fe15f0e28b2959a4be81a37360293faae41e715ec53873e02de941c303ba8fe",
+      "tree": "sha256:c179e0a4bfa160de065c4d6e9a845e68953bae00e2e5d47081e95bbbb976e148",
+      "recorded_at": "2026-10-19T20:18:09.003Z",
+      "tests": 47
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:c179e0a4bfa160de065c4d6e9a845e68953bae00e2e5d47081e95bbbb976e148",
+      "recorded_at": "2026-10-19T20:18:09.003Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6458582eb4099403accc8cbe3d0315712f1005089d37be1ac9bc581bacb4898a",
+      "tree": "sha256:c179e0a4bfa160de065c4d6e9a845e68953bae00e2e5d47081e95bbbb976e148",
+      "recorded_at": "2026-10-19T20:18:09.003Z",
+      "tests": 16
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:40bee4b8d6e01aa11359f23a70fb25d7c97bf17652224a04293bdd8e9a139cea",
+      "tree": "sha256:c179e0a4bfa160de065c4d6e9a845e68953bae00e2e5d47081e95bbbb976e148",
+      "recorded_at": "2026-10-19T20:18:09.003Z",
+      "tests": 47
+    }
+  ],
+  "closed_at": "2026-10-19T20:18:17.932Z"
+}
