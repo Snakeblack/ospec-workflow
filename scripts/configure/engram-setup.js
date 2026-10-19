@@ -109,8 +109,10 @@ function planEngramActions(detection, { enabled = true, homedir = os.homedir } =
   if (isConfigured(detection) || isUnknown(detection)) return [];
   const target = detection.target || "claude";
   const { agent } = targetSpec(target);
-  if (agent) return [{ id: `setup-${agent}`, kind: "spawn", bin: detection.binary.bin, argv: ["setup", agent] }];
-  return [{
+  // `engram setup` and the Copilot merge both reject a blank JSON file.
+  const prepare = detection.blankMcpFile ? [{ id: "init-mcp-json", kind: "init-json", file: detection.blankMcpFile }] : [];
+  if (agent) return [...prepare, { id: `setup-${agent}`, kind: "spawn", bin: detection.binary.bin, argv: ["setup", agent] }];
+  return [...prepare, {
     id: "register-copilot-mcp",
     kind: "mcp-json",
     file: copilotMcpFile(homedir),
@@ -119,6 +121,7 @@ function planEngramActions(detection, { enabled = true, homedir = os.homedir } =
 }
 
 function describe(action) {
+  if (action.kind === "init-json") return `escribir {} en ${action.file}, que estaba vacío`;
   return action.kind === "mcp-json" ? `registrar el MCP de engram en ${action.file}` : `${action.bin} ${action.argv.join(" ")}`;
 }
 
@@ -243,6 +246,16 @@ function writeJsonObject(fsImpl, file, value) {
 
 // Returns null on success or a failure reason. Existing servers are preserved.
 function runAction(action, { spawn, fs: fsImpl }) {
+  if (action.kind === "init-json") {
+    try {
+      // Re-read: only a file that is still blank is replaced.
+      if (fsImpl.readFileSync(action.file, "utf8").trim()) return "the file is no longer blank";
+      fsImpl.writeFileSync(action.file, "{}\n", "utf8");
+      return null;
+    } catch (error) {
+      return error.code || error.message;
+    }
+  }
   if (action.kind === "mcp-json") {
     const doc = readJsonObject(fsImpl, action.file);
     if (!doc.ok) return doc.reason;

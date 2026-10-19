@@ -1199,7 +1199,7 @@ When the Engram binary is on PATH and the host is not fully configured, the inst
 
 ### Requirement: Engram Registration Is Idempotent {#REQ-install-030}
 
-Engram counts as configured for a host only when BOTH its `engram` MCP server (the `mem_*` tools) and its memory-protocol piece are present. A single piece alone is NOT configured, and any piece that cannot be read (for example a missing `claude`/`codex` CLI or an unparseable config) MUST lead to no change. When both are present, the installer MUST NOT register anything again and MUST report it as already configured. After a setup action, the installer MUST re-check both pieces and warn (without failing) when one is still missing, naming the manual fix. Re-running MUST converge to the same state.
+Engram counts as configured for a host only when BOTH its `engram` MCP server (the `mem_*` tools) and its memory-protocol piece are present. A single piece alone is NOT configured, and any piece that cannot be read (for example a missing `claude`/`codex` CLI or an unparseable config) MUST lead to no change. A JSON MCP config that is empty or holds only whitespace (Antigravity, OpenCode, Cursor, VS Code, Copilot CLI) is not unparseable but absent: it holds nothing to lose, so before registering the installer MUST write `{}` into it, and only while it is still blank, because `engram setup` and the Copilot merge reject a blank file. When both are present, the installer MUST NOT register anything again and MUST report it as already configured. After a setup action, the installer MUST re-check both pieces and warn (without failing) when one is still missing, naming the manual fix. Re-running MUST converge to the same state.
 
 #### Scenario: Already registered
 
@@ -1212,6 +1212,12 @@ Engram counts as configured for a host only when BOTH its `engram` MCP server (t
 - GIVEN the Claude `engram@engram` plugin is registered but no `engram` MCP server is listed
 - WHEN `setup:claude` runs
 - THEN `engram setup claude-code` runs and the output confirms the configuration, or a warning names the manual fix when it is still incomplete
+
+#### Scenario: Blank MCP config
+
+- GIVEN `~/.gemini/config/mcp_config.json` exists and is empty
+- WHEN `setup:antigravity` runs with the Engram binary on PATH
+- THEN the installer writes `{}` into it, runs `engram setup antigravity-cli` and the output confirms the configuration
 
 ### Requirement: Cursor Loads the Engram Protocol as a Global Rule {#REQ-install-044}
 
