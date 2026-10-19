@@ -254,7 +254,7 @@ test("antigravity input reaches the shared PreToolUse contract from the workspac
   });
   assert.equal(shell.options.cwd, scripts, "a shell command resolves its operands from its own Cwd");
   assert.equal(JSON.parse(shell.options.input).tool_input.command, "cat .env");
-  assert.equal(shell.written, "{}\n", "no objection leaves agy's own permission flow");
+  assert.equal(shell.written, "", "no objection leaves agy's own permission flow");
 
   for (const [cwd, expected] of [["scripts", scripts], ["", workspace], ["no-such-dir", workspace], [path.join(workspace, "no-such-dir"), workspace]]) {
     const relative = runLauncher(t, {
@@ -373,6 +373,24 @@ test("the antigravity wrapper asks before a .env read through view_file or run_c
   const input = agyToolCall("run_command", { CommandLine: "cat config", Cwd: ".git" }, workspace);
   const result = spawnSync(process.execPath, [wrapper, "pre-tool-use"], { input, env, encoding: "utf8", cwd: os.homedir(), timeout: 10000 });
   assert.equal(JSON.parse(result.stdout).decision, "deny", "a relative Cwd resolves against the workspace");
+});
+
+test("the antigravity wrapper writes nothing when ospec has no objection", (t) => {
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const { spawnSync } = require("node:child_process");
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-agy-"));
+  t.after(() => fs.rmSync(workspace, { recursive: true, force: true }));
+  const wrapper = path.join(__dirname, "ospec-antigravity-hook.js");
+  const env = { ...process.env };
+  delete env.OSPEC_TARGET;
+  delete env.CLAUDE_PLUGIN_ROOT;
+  // agy 1.4.2 reads `{}` as an empty decision and denies the call; only an
+  // empty stdout lets its own permission flow run.
+  const input = agyToolCall("run_command", { CommandLine: "echo hola", Cwd: workspace }, workspace);
+  const result = spawnSync(process.execPath, [wrapper, "pre-tool-use"], { input, env, encoding: "utf8", cwd: os.homedir(), timeout: 10000 });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, "");
 });
 
 test("hostBinarySuffix maps node platform/arch to Go tuples", () => {

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.139.5] - 2026-10-19
+
+### Fixed
+- **Antigravity denegaba todas las herramientas con ospec instalado**: cuando ospec no tenía objeción, el hook PreToolUse respondía `{}` y agy 1.4.2 lo leía como una decisión vacía, así que cada llamada fallaba con `tool call denied by pre-tool hook:`. Ahora el launcher no escribe nada en ese caso; `deny` y `ask` siguen saliendo con su razón y un fallo de inspección sigue preguntando (REQ-hooks-026). Medido con `agy -p`: salida vacía ejecuta, `{}` deniega, `ask` y `allow` ejecutan.
+
+  Hecho con IDD (`idd/archive/2026-10-19-agy-empty-decision/`).
+
+**Verificación directa**: `node scripts/check.js` (3893 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.139.4] - 2026-10-19
 
 ### Fixed
