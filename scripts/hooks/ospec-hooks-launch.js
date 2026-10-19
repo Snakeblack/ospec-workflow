@@ -84,11 +84,22 @@ function launcherFailure(sub, detail, cursorHost = false, rawInput = "") {
       output.systemMessage = `[ospec advisory] ${message}`;
     }
   } catch { /* Unknown permission mode preserves the inspection-error ASK. */ }
+  if (process.env.OSPEC_TARGET === "antigravity") {
+    writeAntigravityHookOutput(normalizeAntigravityHookOutput(sub, output));
+    return 0;
+  }
   if (process.env.OSPEC_TARGET === "codex") output = normalizeCodexHookOutput(sub, output);
-  else if (process.env.OSPEC_TARGET === "antigravity") output = normalizeAntigravityHookOutput(sub, output);
   else if (cursorHost) output = normalizeCursorHookOutput(sub, output);
   process.stdout.write(`${JSON.stringify(output)}\n`);
   return 0;
+}
+
+// agy 1.4.2 reads `{}` as an empty PreToolUse decision and denies the call,
+// so an answer without fields is written as nothing at all.
+function writeAntigravityHookOutput(output) {
+  if (Object.keys(output).length > 0) {
+    process.stdout.write(`${JSON.stringify(output)}\n`);
+  }
 }
 
 // Cursor's hook stdin is UTF-8 and may start with U+FEFF. encoding/json
@@ -597,7 +608,7 @@ function launch(argv, scriptDir) {
   if (process.env.OSPEC_TARGET === "codex") {
     process.stdout.write(`${JSON.stringify(normalizeCodexHookOutput(sub, parseLastJson(result.stdout)))}\n`);
   } else if (antigravityHost) {
-    process.stdout.write(`${JSON.stringify(normalizeAntigravityHookOutput(sub, parseLastJson(result.stdout)))}\n`);
+    writeAntigravityHookOutput(normalizeAntigravityHookOutput(sub, parseLastJson(result.stdout)));
   } else if (cursorHost) {
     process.stdout.write(`${JSON.stringify(normalizeCursorHookOutput(sub, parseLastJson(result.stdout)))}\n`);
   } else if (result.stdout) {
