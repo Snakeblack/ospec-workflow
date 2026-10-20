@@ -1,0 +1,445 @@
+{
+  "schema": "idd-state/v1",
+  "change": "idd-review-limit",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Tras 3 trust reviews un cambio IDD no tiene salida: la spec dice que la persona decide (REQ-idd-016) pero el CLI no ofrece ningún comando, y volver al candidato aprobado no recupera la aprobación",
+    "acceptance": "Con 3 de 3 reviews usadas, una decisión explícita del usuario registrada con el CLI permite seguir y cerrar; un árbol que vuelve al último candidato aprobado deja trust-review satisfecha otra vez"
+  },
+  "facts": {
+    "open": [
+      "¿Qué permite la decisión de la persona: aceptar el diff actual sin otra review, autorizar una review sucesora más, o ambas?",
+      "¿Se registra como un quinto gate (record gate, enmienda REQ-idd-008 'solo cuatro gates') o como una opción explícita de ospec review start?",
+      "¿Volver al árbol del último candidato aprobado debe restaurar trust-review como satisfecha sin decisión del usuario?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "README.es.md",
+      "README.md",
+      "docs/en/README.md",
+      "openspec/specs/generator/spec.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-contract.test.js",
+      "scripts/lib/idd-next.js",
+      "scripts/lib/idd-record.js",
+      "scripts/lib/idd-review.js",
+      "scripts/lib/idd-review.test.js",
+      "scripts/ospec.test.js",
+      "skills/idd/SKILL.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components idd-engine, skills: ADR 0003, 0004, 0005, 0006, 0011 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/ospec.test.js adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "El límite de reviews, la apertura del gate review-limit y la restauración de la aprobación se calculan en idd-review.js con tests; la skill solo dice cuándo responde la persona."
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "No cambia cómo se derivan señales ni obligaciones del impacto."
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "trust-review sigue satisfaciéndose solo con la evidencia frozen-review de una review aprobada; la restauración reutiliza esa misma evidencia cuando el árbol vuelve a su candidato, y un gate abierto sigue bloqueando el cierre."
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "No toca la memoria entre sesiones."
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "Solo cambia estado IDD bajo idd/; SDD no se toca."
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "El gate review-limit y las autorizaciones viven en state.yaml; next devuelve resolve-gate igual tras una interrupción."
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "Sin red ni dependencias nuevas."
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "1) Autorizar otra review: el usuario autoriza explícitamente una review sucesora más; la evidencia sigue siendo una review aprobada; cada autorización abre una review. 2) Quinto gate review-limit resuelto con record gate --resolve --source user, enmendando REQ-idd-008. 3) Sí, volver exactamente al último candidato aprobado restaura trust-review.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-20T19:53:00.410Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-20T19:54:57.468Z",
+      "detail": {
+        "tree": "sha256:8cdb0018b173c9925f1ba223e53145a3cb42616c87637739cf3dcad02cedba23",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-20T19:54:57.468Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 conforms",
+          "adr:0006 none",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation none"
+        ],
+        "records": [],
+        "tree": "sha256:8cdb0018b173c9925f1ba223e53145a3cb42616c87637739cf3dcad02cedba23",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-20T19:55:40.316Z",
+      "detail": {
+        "run": "run-11",
+        "tree": "sha256:6f6a91b90ffdd006fab7616d112965079078715cdca84dd80f63d25c9e4fc0c9",
+        "plan": "Compatible hacia atrás: un state.yaml sin review-limit sigue siendo válido y el próximo ospec check abre el gate si las reviews están agotadas. Rollback: un CLI anterior rechaza un estado con review-limit (unknown gate); cerrar o terminar el cambio antes de volver a una versión anterior."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-20T19:56:48.055Z",
+      "detail": {
+        "tree": "sha256:4a945007619d18f5892f8b12ed23c2447b7b206dfd59349e19f6dd15e2f4077d",
+        "runs": [
+          "run-12"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-20T19:56:48.055Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 conforms",
+          "adr:0006 none",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation none"
+        ],
+        "records": [],
+        "tree": "sha256:4a945007619d18f5892f8b12ed23c2447b7b206dfd59349e19f6dd15e2f4077d",
+        "fitness": [
+          "run-13",
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-20T19:56:48.141Z"
+    }
+  ],
+  "base": "c15e470a8d5ab4bf25f08d27a7fe8f0c5fed6cb7",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern='approved candidate|review-limit gate' scripts/ospec.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:691e9aab066b4a5c983c98d9022cea215c5b455331185c0679f5652082a69fe5",
+      "tree": "sha256:5b9ea32ffdb5518d69785c1a57f5eb4e3228e62f25ae22971d4e918d8769e7de",
+      "recorded_at": "2026-10-20T19:52:11.179Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern='approved candidate|review-limit gate' scripts/ospec.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:17902fc3dc3b0e0bf5e4e0be5baf4c77bd166d1a77ba4b19445887cef7d25459",
+      "tree": "sha256:86f2842d322e12fc588a69ea4730d33912a88a357c27f5e21a7359be6a121efd",
+      "recorded_at": "2026-10-20T19:53:00.410Z",
+      "tests": 2
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2ef6953d67f924cce8d697a37359eca715748527f1b94c6dbe2b1659100f0721",
+      "tree": "sha256:8cdb0018b173c9925f1ba223e53145a3cb42616c87637739cf3dcad02cedba23",
+      "recorded_at": "2026-10-20T19:54:57.468Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:95dead767c2871b900daddd646c1fbec1299751ae5548eb3ae3dca0a4bafaaf0",
+      "tree": "sha256:8cdb0018b173c9925f1ba223e53145a3cb42616c87637739cf3dcad02cedba23",
+      "recorded_at": "2026-10-20T19:54:57.468Z",
+      "tests": 37
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5e3da05fff3ed17306d1c5415f3632730b86b57799870b587744450c3e7d8aa7",
+      "tree": "sha256:8cdb0018b173c9925f1ba223e53145a3cb42616c87637739cf3dcad02cedba23",
+      "recorded_at": "2026-10-20T19:54:57.468Z",
+      "tests": 11
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4dd365d191ea105c25cfb93490df333a6ac1f3fd6881679ca90efb2c555476a2",
+      "tree": "sha256:8cdb0018b173c9925f1ba223e53145a3cb42616c87637739cf3dcad02cedba23",
+      "recorded_at": "2026-10-20T19:54:57.468Z",
+      "tests": 2
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9ee905053f3bf00610e109af8f9a37ac23069b28cd0850c4cdc8dd07ac4ded5c",
+      "tree": "sha256:8cdb0018b173c9925f1ba223e53145a3cb42616c87637739cf3dcad02cedba23",
+      "recorded_at": "2026-10-20T19:54:57.468Z",
+      "tests": 79
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f0d3380b5bcd1ad3f9f7d65334d2f6f4fecad534bca6ce16f6fd42bd17f112f1",
+      "tree": "sha256:8cdb0018b173c9925f1ba223e53145a3cb42616c87637739cf3dcad02cedba23",
+      "recorded_at": "2026-10-20T19:54:57.468Z",
+      "tests": 37
+    },
+    {
+      "id": "run-9",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern='previous CLI' scripts/lib/idd-review.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:915c4d36a2dc3ba4c450b0dea9e3e6240b676e43540c833dd7d306ba2e12415f",
+      "tree": "sha256:eeae788d8dca70bec584dd1d523be7bf288907192ea1165246f5907b3656536f",
+      "recorded_at": "2026-10-20T19:55:26.245Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern='previous CLI' scripts/lib/idd-review.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:f94f0e44ab46d6b8a9648d75279ab7cdab805ed64230310acb8a7408b78b4479",
+      "tree": "sha256:eeae788d8dca70bec584dd1d523be7bf288907192ea1165246f5907b3656536f",
+      "recorded_at": "2026-10-20T19:55:33.084Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern='previous CLI' scripts/lib/idd-review.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:627edd0fe7ba40a06b1a9334b9bd9ddad32da726c596a317eefa43bdfab1f284",
+      "tree": "sha256:6f6a91b90ffdd006fab7616d112965079078715cdca84dd80f63d25c9e4fc0c9",
+      "recorded_at": "2026-10-20T19:55:40.316Z",
+      "tests": 1
+    },
+    {
+      "id": "run-12",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ed4d171d8e9ab34d9abb493892e8c84a2810b158af3f79d64173bf0b4b04e469",
+      "tree": "sha256:4a945007619d18f5892f8b12ed23c2447b7b206dfd59349e19f6dd15e2f4077d",
+      "recorded_at": "2026-10-20T19:56:48.055Z"
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d47a6eb1166f1f1cd628ff9c8dfee268446cc9d71397cb747f00cef5cd8b1a24",
+      "tree": "sha256:4a945007619d18f5892f8b12ed23c2447b7b206dfd59349e19f6dd15e2f4077d",
+      "recorded_at": "2026-10-20T19:56:48.055Z",
+      "tests": 37
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:05887566971b63a085ef27ae80686f9652c4c842f31173e62439c2fbdb898609",
+      "tree": "sha256:4a945007619d18f5892f8b12ed23c2447b7b206dfd59349e19f6dd15e2f4077d",
+      "recorded_at": "2026-10-20T19:56:48.055Z",
+      "tests": 11
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c8056ce558dacb4a9c2fcda48ce0bbcb8bb1475e0a23f08b5023f2aab1be314c",
+      "tree": "sha256:4a945007619d18f5892f8b12ed23c2447b7b206dfd59349e19f6dd15e2f4077d",
+      "recorded_at": "2026-10-20T19:56:48.055Z",
+      "tests": 2
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5ab878d1cff37627a4d182c7722e8def45610e296fd29084954a7a2bff539a3d",
+      "tree": "sha256:4a945007619d18f5892f8b12ed23c2447b7b206dfd59349e19f6dd15e2f4077d",
+      "recorded_at": "2026-10-20T19:56:48.055Z",
+      "tests": 79
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d9f0ec0d8890bb14c4ad1dad19fa9c43373eb788b9b09c6f0f7019f74ef1add3",
+      "tree": "sha256:4a945007619d18f5892f8b12ed23c2447b7b206dfd59349e19f6dd15e2f4077d",
+      "recorded_at": "2026-10-20T19:56:48.055Z",
+      "tests": 37
+    }
+  ],
+  "closed_at": "2026-10-20T19:56:48.141Z"
+}
