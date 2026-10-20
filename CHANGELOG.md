@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.140.3] - 2026-10-20
+
+### Fixed
+- **`pnpm format` y `bun run format` podían ejecutar el `format` del sistema**: si el proyecto no tiene script `format`, pnpm pasa la orden a `pnpm exec` y `bun run` la busca como orden del sistema, así que `pnpm format D:` o `bun run format D:` llegarían a `format.com` en Windows. Se comprobó en Linux poniendo un `format` falso en el PATH. `npm [run] format`, `yarn [run] format` (1.x y 4.x), `pnpm run format` y `bun format` fallan sin ejecutar nada y siguen permitidos. Las dos formas inseguras se deniegan ahora siempre, aunque el proyecto tenga el script. La regla es idéntica en el hook JS y en `internal/rules/rules.json` del binario Go.
+
+  Hecho con IDD (`idd/archive/2026-10-20-disk-guard-pm-fallback/`). La trust review no encontró problemas.
+
 ## [2.140.2] - 2026-10-20
 
 ### Fixed
