@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   Hecho con IDD (`idd/archive/2026-10-20-disk-guard-pm-fallback/`). La trust review no encontró problemas.
 
+**Verificación directa**: `node scripts/check.js` (3908 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.140.2] - 2026-10-20
 
 ### Fixed
