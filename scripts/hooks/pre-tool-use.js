@@ -84,7 +84,7 @@ const DENY_RULES = [
   },
   {
     pattern:
-      /\b(?:clear-disk|format-volume)\b|(?<![-.])\bformat(?:\.com)?\b[^\r\n;&|]*[\s,(]["']?(?:[a-z]:(?![a-z0-9_])|\\\\\?\\volume\{)/i,
+      /\b(?:clear-disk|format-volume)\b|(?<![-.])\bformat(?<!(?:^|[\r\n;&|(])[^\S\r\n]*(?:dotnet|ruff|biome|buf|swift|taplo|npm|pnpm|yarn|bun)[^\S\r\n]+(?:run[^\S\r\n]+)?format)(?:\.com)?\b(?!\(\s*[a-z_$][\w$]*\??:\s+[a-z_$])[^\r\n;&|]*[\s,(]["']?(?:[a-z]:(?![a-z0-9_])|\\\\\?\\volume\{)/i,
     reason: "Formatting or clearing a disk is blocked.",
   },
 ];

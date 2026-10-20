@@ -281,6 +281,42 @@ test("the disk rule ignores format options and needs a standalone drive", () => 
   }
 });
 
+test("the disk rule lets formatter subcommands and function signatures through", () => {
+  for (const command of [
+    "dotnet format C:\\repo\\app.sln",
+    "ruff format D:/proj",
+    "biome format --write D:/web",
+    "buf format -w C:\\proto",
+    "swift format -i C:\\src\\main.swift",
+    "taplo format D:\\cfg.toml",
+    "npm run format -- C:\\src",
+    "pnpm format D:/src",
+    "yarn run format D:/src",
+    "bun run format D:/src",
+    "cd C:\\repo && dotnet format C:\\repo\\app.sln",
+    "(ruff format D:/proj)",
+    "function format(a: string) {}",
+    "def format(s: str):",
+    "  format(value?: Date): string {",
+  ]) {
+    assert.equal(decisionFor(command).permissionDecision, null, command);
+  }
+
+  for (const command of [
+    "format('D:')",
+    "dotnet format C:\\repo\\app.sln && format D:",
+    "npx format D:",
+    "dotnet\nformat C:",
+    "npm\r\nformat D: /q",
+    "bun run\nformat E:",
+    'cmd /c "if not exist dotnet format C: /q /y"',
+    "if defined npm format D:",
+    "cmd /c dotnet format C:\\repo\\app.sln",
+  ]) {
+    assert.equal(decisionFor(command).permissionDecision, "deny", command);
+  }
+});
+
 test("supports command arrays", () => {
   assert.deepEqual(
     extractCommands({
