@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.139.8] - 2026-10-20
+
+### Fixed
+- **Claude Code lanzado desde Cursor perdía el ask/deny y la censura de los hooks**: el launcher decidía que el host era Cursor en cuanto veía `CURSOR_AGENT`, `CURSOR_SESSION_ID` o `CURSOR_HOOK` en el entorno, antes de mirar el stdin. Esas variables se heredan, así que Claude Code recibía la salida plana de Cursor: sin `hookSpecificOutput.permissionDecision` y sin el `updatedToolOutput` censurado, aunque `--output-redaction` ya hubiera eximido la lectura de `.env` (OSP-031, #368). Ahora el payload decide primero: `cursor_version` o `conversation_id` indican Cursor, y `session_id` con un evento PascalCase indica Claude Code. Las variables solo deciden cuando el stdin no lo hace (REQ-hooks-022). Medido con `cursor-agent` 2026.10.16: Cursor envía su payload nativo también a los hooks de Claude que carga, y no pone ninguna de esas variables.
+
+  Hecho con IDD (`idd/archive/2026-10-20-cursor-host-stdin/`).
+
+**Verificación directa**: `node scripts/check.js` (3902 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.139.7] - 2026-10-20
 
 ### Fixed
