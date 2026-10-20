@@ -111,11 +111,9 @@ Then resume with `ospec next`.
      failure names the ADR: fix the code, never the check. `fitness.manual`
      items never block: verify each, then
      `ospec record fitness --change <id> --adr <id> --evidence "<what you verified>"`.
-   - `trust-review`: `ospec review start`, hand the returned request, with its
-     `request_digest` and `result_contract`, to the read-only `review-trust`
-     reviewer, and pass its JSON unchanged to
-     `ospec review record --result @<file>`; a result that does not cite the
-     frozen paths is refused. Fix what it blocks on, run
+   - `trust-review`: `ospec review start`, hand the whole returned request to
+     the read-only `review-trust` reviewer, and pass its JSON unchanged to
+     `ospec review record --result @<file>`. Fix what it blocks on, run
      `ospec review correct`, hand its request to the read-only
      `review-correction` validator and pass its result to
      `ospec review validate --result @<file>`.
