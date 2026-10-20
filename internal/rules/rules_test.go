@@ -33,6 +33,27 @@ func TestEvaluate_Deny(t *testing.T) {
 		{name: "dd to device", command: "dd if=image.iso of=/dev/sda"},
 		// Rule 8: format/clear-disk
 		{name: "Clear-Disk -Number 0", command: "Clear-Disk -Number 0"},
+		{name: "format drive", command: "format C:"},
+		{name: "format drive root", command: `format C:\`},
+		{name: "format quoted drive", command: `format "D:" /q`},
+		{name: "format.com drive", command: "format.com D: /FS:NTFS"},
+		{name: "cmd /c format", command: "cmd /c format E: /q"},
+		{name: "format.com by path", command: `C:\Windows\System32\format.com D:`},
+		{name: "Clear-Disk from pipeline", command: "Get-Disk 1 | Clear-Disk -RemoveData"},
+		{name: "Format-Volume", command: "Format-Volume -DriveLetter D -FileSystem NTFS"},
+		{name: "format drive before ;", command: "format D:;"},
+		{name: "format drive before &&", command: "format D:&&echo x"},
+		{name: "format drive before redirect", command: "echo y|format D:>nul"},
+		{name: "format drive in parens", command: "(format D:)"},
+		{name: "cmd /c quoted format", command: `cmd /c "format D:&echo"`},
+		{name: "assigned Clear-Disk", command: "$null=Clear-Disk -Number 0"},
+		{name: "assigned Format-Volume", command: "$r=Format-Volume -DriveLetter D"},
+		{name: "assigned format", command: "$r=format D:"},
+		{name: "format volume GUID", command: `format /fs:ntfs \\?\Volume{00000000-0000-0000-0000-000000000000}\`},
+		{name: "format mount point", command: `format C:\mnt\data /fs:ntfs`},
+		{name: "Start-Process argument list", command: "Start-Process format.com -ArgumentList '/q','D:'"},
+		{name: "Start-Process array argument", command: "Start-Process format -ArgumentList @('D:','/y')"},
+		{name: "Start-Process paren argument", command: "Start-Process format -ArgumentList ('D:')"},
 		{name: "rm -r -f /", command: "rm -r -f /"},
 		{name: "git push origin +main", command: "git push origin +main"},
 	}
@@ -108,6 +129,10 @@ func TestEvaluate_Allow(t *testing.T) {
 		{name: "rm single file", command: "rm ./temporary-file.txt"},
 		{name: "node check script", command: "node --check scripts/hooks/pre-tool-use.js"},
 		{name: "rg search", command: "rg -n TODO src"},
+		{name: "output-format option", command: `cursor-agent -p --output-format text "Responde: hola"`},
+		{name: "git log --format", command: "git log --format='%h: %s' -5"},
+		{name: "git log --pretty=format", command: "git log --pretty=format:'%h %an: %s'"},
+		{name: "format word in text", command: `echo "the format is: ok"`},
 	}
 
 	for _, tt := range tests {

@@ -846,7 +846,7 @@ Si algún comando coincide con una regla de denegación: retornar `deny` con la 
 | Drive-root recursive forced deletion (Windows) | `Remove-Item C:\\ -Recurse -Force` |
 | Filesystem format | `mkfs.ext4 /dev/sda1` |
 | Raw write to block device | `dd if=image.iso of=/dev/sda` |
-| Format or clear a disk | `Clear-Disk -Number 0`, `format C:` |
+| Format or clear a disk | `Clear-Disk -Number 0`, `format C:`, `Format-Volume -DriveLetter D`, `format \\?\Volume{…}`; `Clear-Disk` and `Format-Volume` deny with any arguments; `format` preceded by `-` or `.` (`--output-format`) is an option, not the command, and its target is a standalone drive token or a volume GUID |
 
 **Step 5b — GIT COLLABORATION GUARD.** Detecta estados git riesgosos durante el desarrollo y advierte al usuario antes de permitir operaciones potencialmente peligrosas. Full guard logic is specified in the `git-collaboration-guard` domain spec. The guard:
 - Resolves the current branch, default branch (via `origin/HEAD`), and working tree state (via `git status --porcelain`)

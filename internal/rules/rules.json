@@ -44,7 +44,7 @@
   {
     "action": "deny",
     "flags": "i",
-    "pattern": "\\b(?:format(?:\\.com)?|clear-disk)\\b[^\\r\\n;&|]*(?:[a-z]:|-\\s*number\\b)",
+    "pattern": "\\b(?:clear-disk|format-volume)\\b|(?<![-.])\\bformat(?:\\.com)?\\b[^\\r\\n;&|]*[\\s,(][\"']?(?:[a-z]:(?![a-z0-9_])|\\\\\\\\\\?\\\\volume\\{)",
     "reason": "Formatting or clearing a disk is blocked."
   },
   {
