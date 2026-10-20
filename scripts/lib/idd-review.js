@@ -5,7 +5,8 @@
 // review-lineage.js: one frozen candidate, only the `trust` lens, findings
 // frozen once, at most one bounded correction validated against the frozen
 // IDs. A successor review needs a changed candidate and a change runs at most
-// MAX_REVIEWS of them; no other approval is asked (REQ-idd-008). Pure: the
+// MAX_REVIEWS of them, plus one per review-limit gate the person resolves;
+// no other approval is asked (REQ-idd-008). Pure: the
 // CLI reads the trees from git and dispatches the reviewers.
 
 const crypto = require("node:crypto");
@@ -28,6 +29,7 @@ const LENS = "trust";
 const REVIEWER = "review-trust";
 const VALIDATOR = "review-correction";
 const MAX_REVIEWS = 3;
+const LIMIT_GATE = "review-limit";
 const TERMINAL = new Set(["approved", "exhausted", "escalated", "invalidated"]);
 const PROJECTION = "idd-tree-diff/v1";
 
@@ -55,6 +57,15 @@ function requestId(state, operation, lineage) {
 
 function currentReview(state) {
   return (state.reviews || []).at(-1) || null;
+}
+
+// Each review-limit gate the person resolves authorizes one more review.
+function allowedReviews(state) {
+  return MAX_REVIEWS + state.gates.filter((gate) => gate.id === LIMIT_GATE && gate.status === "resolved").length;
+}
+
+function limitReason(state) {
+  return `${(state.reviews || []).length} of ${allowedReviews(state)} trust reviews used: ospec check opens the ${LIMIT_GATE} gate, and only the person's answer authorizes one more`;
 }
 
 function trustObligation(state) {
@@ -132,7 +143,7 @@ const OVERSIZED_CORRECTION = "the correction does not fit one bounded correction
  * security-boundary path) differ from the last reviewed candidate.
  * `correctionChanges` are the changes since a candidate waiting for its
  * correction: when they do not fit one bounded correction, that review ends
- * as escalated and the successor opens (it counts toward MAX_REVIEWS).
+ * as escalated and the successor opens (it counts toward the limit).
  */
 function startTrustReview(state, { candidate, reviewedChanged, correctionChanges }) {
   requireReviewable(state);
@@ -140,7 +151,7 @@ function startTrustReview(state, { candidate, reviewedChanged, correctionChanges
   let current = currentReview(state);
   if (current && current.status === "correction-required" && correctionChanges && correctionChanges.length > 0
     && exceedsBoundedCorrection(current, correctionChanges)) {
-    if (reviews.length >= MAX_REVIEWS) refuse("review-limit", `${MAX_REVIEWS} of ${MAX_REVIEWS} trust reviews used: the person decides how to go on`);
+    if (reviews.length >= allowedReviews(state)) refuse("review-limit", limitReason(state));
     const predecessor = current;
     current = lineageStep(() => terminateLineage(predecessor, {
       status: "escalated",
@@ -154,7 +165,7 @@ function startTrustReview(state, { candidate, reviewedChanged, correctionChanges
   if (current) {
     if (trustObligation(state).status === "satisfied") refuse("review-current", "the trust review of the current candidate is already approved");
     if (!reviewedChanged) refuse("candidate-unchanged", "the reviewed paths did not change: change the code before a successor review");
-    if (reviews.length >= MAX_REVIEWS) refuse("review-limit", `${MAX_REVIEWS} of ${MAX_REVIEWS} trust reviews used: the person decides how to go on`);
+    if (reviews.length >= allowedReviews(state)) refuse("review-limit", limitReason(state));
   }
   const lineage = lineageStep(() => {
     const started = startQualityReviewLineage(
@@ -276,13 +287,31 @@ function validateTrustCorrection(state, { result, recordedAt }) {
   return { state: withReview(state, ended), evidence: null, lineage: ended };
 }
 
-/** An approved review proves only the candidate it reviewed. */
+/**
+ * An approved review proves only the candidate it reviewed: trust-review
+ * leaves it when the reviewed paths change and returns when they come back.
+ * Once the reviews are used up, the review-limit gate asks the person.
+ */
 function settleReviewFreshness(state, { reviewedChanged }) {
   const next = structuredClone(state);
   const target = trustObligation(next);
-  if (target?.status === "satisfied" && reviewedChanged) {
+  if (!target) return next;
+  const current = currentReview(next);
+  if (target.status === "satisfied" && reviewedChanged) {
     target.status = "pending";
     target.evidence = [];
+  } else if (target.status === "pending" && !reviewedChanged && current?.status === "approved") {
+    const approval = next.evidence.find((entry) =>
+      entry.kind === "frozen-review" && entry.obligation === OBLIGATION && entry.detail?.lineage_id === current.lineage_id);
+    if (approval) {
+      target.status = "satisfied";
+      target.evidence = [approval.id];
+    }
+  }
+  const asking = next.gates.some((gate) => gate.id === LIMIT_GATE && gate.status === "open");
+  if (target.status === "pending" && current && TERMINAL.has(current.status) && !asking
+    && next.reviews.length >= allowedReviews(next)) {
+    next.gates.push({ id: LIMIT_GATE, status: "open", reason: limitReason(next) });
   }
   return next;
 }
@@ -300,9 +329,9 @@ function trustReason(state) {
   if (action.type === "targeted-validation") {
     return `dispatch ${VALIDATOR} for ${action.finding_ids.join(", ")} and record its verdict with ospec review validate`;
   }
-  if (reviews.length >= MAX_REVIEWS) return `${MAX_REVIEWS} of ${MAX_REVIEWS} trust reviews used: the person decides how to go on`;
+  if (reviews.length >= allowedReviews(state)) return limitReason(state);
   const why = current.status === "approved" ? "the reviewed paths changed after the review" : "the review was not approved";
-  return `${why}: change the code and run ospec review start for a successor review (${reviews.length + 1} of ${MAX_REVIEWS})`;
+  return `${why}: change the code and run ospec review start for a successor review (${reviews.length + 1} of ${allowedReviews(state)})`;
 }
 
 module.exports = {

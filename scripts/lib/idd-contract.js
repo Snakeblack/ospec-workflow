@@ -94,7 +94,7 @@ const OBLIGATIONS = Object.freeze(
 
 const EVIDENCE_KINDS = Object.freeze(OBLIGATIONS.map((obligation) => obligation.evidence));
 
-const GATES = Object.freeze(["ambiguous-intent", "open-facts", "adr-amend-or-contradict", "irreversible-operation"]);
+const GATES = Object.freeze(["ambiguous-intent", "open-facts", "adr-amend-or-contradict", "irreversible-operation", "review-limit"]);
 
 // Architecture references a change declares (E3.1): accepted ADRs under
 // DECISIONS_ROOT and quality scenarios of the knowledge map. Each gets one

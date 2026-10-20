@@ -32,7 +32,7 @@ A one-line fix and a schema migration do not need the same ceremony. IDD has no 
 
 1. **Impact decides the work**: `ospec signals` reads the files the change touches (and later the real diff) and raises signals; each signal adds one obligation.
 2. **Evidence over opinion**: an obligation is satisfied only by evidence the CLI records from a run it observes (`ospec run`, `ospec check`, `ospec review`). Saying that tests pass satisfies nothing.
-3. **Ask before deciding**: the agent stops only at four gates, and an explicit answer from you is the only thing that resolves one.
+3. **Ask before deciding**: the agent stops only at five gates, and an explicit answer from you is the only thing that resolves one.
 4. **The repository is the memory**: each change lives in `idd/<change>/state.yaml` (owned by the CLI) and is archived under `idd/archive/` when `ospec close` succeeds.
 
 | Signal | Raised when | Obligation |
@@ -46,7 +46,7 @@ A one-line fix and a schema migration do not need the same ceremony. IDD has no 
 | `multi-unit-or-decision` | Several work units or a recorded design decision | `living-doc`: `idd/<change>/change.md` keeps the plan and decisions current |
 | `adr-or-quality-attribute` | `ospec signals --adr <id>` or `--quality <id>` declares the ADRs or quality scenarios the change touches | `adr-impact-declaration`: `none`, `conforms`, `amends`, `supersedes` or `contradicts` for each; the last three stop at `adr-amend-or-contradict`, and an amendment brings a new ADR that passes the lint |
 
-The patterns adapt to the detected stack (Node, JVM, .NET, Python, Go) and extend under `impact:` in `idd/config.yaml`. The four gates are `ambiguous-intent` (no acceptance can be stated yet), `open-facts` (behaviors that neither the request nor the code settle, asked all at once before editing), `irreversible-operation` and `adr-amend-or-contradict`. Every open gate is asked before the work it decides.
+The patterns adapt to the detected stack (Node, JVM, .NET, Python, Go) and extend under `impact:` in `idd/config.yaml`. The five gates are `ambiguous-intent` (no acceptance can be stated yet), `open-facts` (behaviors that neither the request nor the code settle, asked all at once before editing), `irreversible-operation`, `adr-amend-or-contradict` and `review-limit` (the trust reviews of the change are used up; your answer authorizes one more). Every open gate is asked before the work it decides.
 
 The agent builds the smallest change that meets the acceptance and chooses tests by risk: business rules, validation, non-trivial transformations, algorithms and contracts, with their error and edge paths. Unit tests stay deterministic and offline; no coverage percentage replaces that choice.
 

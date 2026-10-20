@@ -259,14 +259,15 @@ pass", without a recorded execution MUST NOT satisfy any obligation.
 - WHEN the model reports that the tests pass
 - THEN `checks-pass` MUST stay `pending`
 
-### Requirement: Only Four Gates {#REQ-idd-008}
+### Requirement: Only Five Gates {#REQ-idd-008}
 
-IDD MUST stop for the user only at four gates: `ambiguous-intent` when the
+IDD MUST stop for the user only at five gates: `ambiguous-intent` when the
 intent is materially ambiguous, `open-facts` when behavior questions that
 neither the request nor the code settles are open (REQ-idd-018),
 `adr-amend-or-contradict` when the change amends
-or contradicts an ADR, and `irreversible-operation` before a destructive or
-irreversible operation. No other question MAY block progress. A gate MUST be
+or contradicts an ADR, `irreversible-operation` before a destructive or
+irreversible operation, and `review-limit` when the trust reviews of the
+change are used up (REQ-idd-016). No other question MAY block progress. A gate MUST be
 resolved only by an explicit user answer, recorded with its source. While
 `ambiguous-intent` is open, no signal MUST be derived. A declared impact
 `amends`, `supersedes` or `contradicts` MUST open `adr-amend-or-contradict`
@@ -771,9 +772,14 @@ reviewed paths, or any security-boundary path the diff now touches, differ
 from the reviewed candidate, `trust-review` MUST return to `pending`. A
 successor review MUST need no approval (REQ-idd-008) but MUST be refused while
 the reviewed paths are unchanged since the last review, and a change MUST run
-at most 3 reviews; after that `trust-review` stays `pending` with a reason
-saying so, and the person decides how to go on. All lineages stay in
-`reviews`, each successor naming its predecessor.
+at most 3 reviews plus one for each resolved `review-limit` gate. Once they are
+used up while `trust-review` is pending after a terminal review, `ospec check`
+MUST open `review-limit`, one entry per authorization that only the CLI opens,
+and `ospec review start` MUST refuse with `review-limit` until the person
+resolves it. When the reviewed paths come back to the candidate of an approved
+current review, `ospec check` MUST satisfy `trust-review` again with that
+review's evidence. All lineages stay in `reviews`, each successor naming its
+predecessor.
 
 #### Scenario: Approved review goes stale with the reviewed code
 
@@ -799,6 +805,23 @@ saying so, and the person decides how to go on. All lineages stay in
 - THEN `ospec review correct` MUST refuse naming `ospec review start`
 - AND `ospec review start` MUST end the review as `escalated` and open review 2,
   whose request carries the `BLOCKER` as `predecessor_findings`
+
+#### Scenario: The person authorizes one more review
+
+- GIVEN a change whose 3 trust reviews are used and whose reviewed code
+  changed after the last one
+- WHEN `ospec check` runs
+- THEN `review-limit` MUST be open and `ospec review start` MUST refuse with
+  `review-limit`
+- AND once the user resolves it, `ospec review start` MUST open review 4
+
+#### Scenario: Back on the approved candidate
+
+- GIVEN an approved trust review whose reviewed file changed, so that
+  `trust-review` returned to `pending`
+- WHEN the file holds the reviewed content again and `ospec check` runs
+- THEN `trust-review` MUST be satisfied by that review's evidence without
+  another review
 
 #### Scenario: Documentation-only change closes without review
 

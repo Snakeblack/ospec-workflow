@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.140.0] - 2026-10-20
+
+### Added
+- **Quinto gate de IDD: `review-limit`**: cuando un cambio agotaba sus 3 trust reviews y el código revisado volvía a cambiar, `trust-review` se quedaba pendiente para siempre. La spec decía que «la persona decide», pero el CLI no tenía ningún comando para hacerlo. Ahora `ospec check` abre `review-limit` y `ospec review start` se niega hasta que el usuario lo resuelve con `ospec record gate --resolve --source user`. Cada resolución autoriza una sola review más, así que la única evidencia de `trust-review` sigue siendo una review aprobada. El gate solo lo abre el CLI, y cada autorización queda como una entrada propia con su respuesta (REQ-idd-008, que pasa a cinco gates, y REQ-idd-016).
+
+### Fixed
+- **Volver al código revisado no recuperaba la aprobación**: si el código de una trust review aprobada cambiaba, `trust-review` volvía a pendiente y se borraba su evidencia. Seguía pendiente aunque el árbol volviera exactamente al candidato aprobado. Ahora `ospec check` la satisface otra vez con la evidencia `frozen-review` de esa review (REQ-idd-016).
+
+  Compatibilidad: un `state.yaml` sin `review-limit` sigue siendo válido, y el siguiente `ospec check` abre el gate si las reviews ya estaban agotadas. Una versión anterior del CLI rechaza un estado que contenga `review-limit`.
+
+  Hecho con IDD (`idd/archive/2026-10-20-idd-review-limit/`).
+
+**Verificación directa**: `node scripts/check.js` (3906 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.139.9] - 2026-10-20
 
 ### Fixed
