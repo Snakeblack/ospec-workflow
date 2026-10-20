@@ -1,0 +1,351 @@
+{
+  "schema": "idd-state/v1",
+  "change": "launcher-catch-stdin",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Si launch() lanza una excepción, el catch de main() decide el host sin stdin y no le pasa el stdin a launcherFailure: un CURSOR_* heredado da el formato de Cursor a Claude Code y el PostToolUse no censura (follow-up de OSP-031, F-b68390e985c50014)",
+    "acceptance": "Cuando launch() lanza tras leer el stdin, con CURSOR_AGENT heredado y un payload de Claude, pre-tool-use emite hookSpecificOutput.permissionDecision ask y post-tool-use emite updatedToolOutput censurado; un payload de Cursor sigue recibiendo el formato de Cursor"
+  },
+  "facts": {
+    "basis": "El hallazgo de la revisión trust fija el criterio y launcherFailure ya implementa la salida correcta cuando recibe el host y el stdin: basta con que main() le pase el stdin que launch() ya leyó"
+  },
+  "plan": {
+    "paths": [
+      "openspec/specs/hooks/spec.md",
+      "scripts/hooks/ospec-hooks-launch.js",
+      "scripts/hooks/ospec-hooks-launch.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/ospec-hooks-launch.js and 1 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component hooks: ADR 0008, 0010 and quality scenario guard-fail-closed",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "La ruta de excepción del launcher vuelve a entregar el ask fail-closed en el formato de Claude y a censurar el PostToolUse, en vez de un formato que el host ignora"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "none",
+      "reason": "Solo cambia el manejo de errores del launcher Node; sin dependencias"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "Una excepción tras leer el stdin responde con el host del stdin y censura con el fallback en proceso"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-20T18:36:44.169Z",
+      "detail": {
+        "red": "run-2",
+        "green": "run-3"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-20T18:37:17.688Z",
+      "detail": {
+        "lineage_id": "sha256:eecf89090d0856807c7136b805e206f9f2b7589358b026aaf7b3e92245ba1fd3",
+        "candidate_id": "sha256:1cb0498a9a5b802d72bef3a56efd5b43f87461220a9859a96fc15e0d7d579501",
+        "candidate_tree": "68fad7f65c4f55a25b64b19a5ebcc67d933338d4",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f"
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-20T18:38:20.564Z",
+      "detail": {
+        "tree": "sha256:51a7798fdebe0b149b920ee83c46ae149434b298eb35fe16ee11a9d6bbe962de",
+        "runs": [
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-20T18:38:20.564Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 none",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:51a7798fdebe0b149b920ee83c46ae149434b298eb35fe16ee11a9d6bbe962de",
+        "fitness": [
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8"
+        ]
+      }
+    }
+  ],
+  "base": "a31439aea7efd7cf0256e8dd0b6d2f37a408155f",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:950454d960592646f4ca22fee658a3f9a8749760a9e75f0596f9c1043c133561",
+      "tree": "sha256:eb3d50b1f30c29dba8031f6abcaef70f9f709015fe27d8db57fe2a2f861c8fdc",
+      "recorded_at": "2026-10-20T18:36:08.403Z",
+      "tests": 39
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:0e0b50789b8fe42ead8ac05fb64e5854b6fa734cfcf9c3b131e97fec6c517ffd",
+      "tree": "sha256:35f5e5bf18c125838416b0821261556871aa21bc271bdfd17e4bcdb26de24410",
+      "recorded_at": "2026-10-20T18:36:29.280Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f2c47992eba72a21a8efa74fcc86ed88833b1647e08ba5fc81b3eb5fe4f2ea9d",
+      "tree": "sha256:1cdbd4f250ada4a9796d7d391fb1ce0be015636fd8c22e555f51fff6ff943301",
+      "recorded_at": "2026-10-20T18:36:44.169Z",
+      "tests": 40
+    },
+    {
+      "id": "run-4",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:997ded0e47f623d7c7e8c0f892fb4deb3ff7ec151dd87052cfe20296b16aa229",
+      "tree": "sha256:51a7798fdebe0b149b920ee83c46ae149434b298eb35fe16ee11a9d6bbe962de",
+      "recorded_at": "2026-10-20T18:38:20.564Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:20a1f3db600e8d9c559298e27a144a1f901b1174b65de31fd02533038c2d32fe",
+      "tree": "sha256:51a7798fdebe0b149b920ee83c46ae149434b298eb35fe16ee11a9d6bbe962de",
+      "recorded_at": "2026-10-20T18:38:20.564Z",
+      "tests": 77
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:51a7798fdebe0b149b920ee83c46ae149434b298eb35fe16ee11a9d6bbe962de",
+      "recorded_at": "2026-10-20T18:38:20.564Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:abd9953386c6011b1a71bba920b7ecc71ce586a29499fa6bc973b8bde49c6b94",
+      "tree": "sha256:51a7798fdebe0b149b920ee83c46ae149434b298eb35fe16ee11a9d6bbe962de",
+      "recorded_at": "2026-10-20T18:38:20.564Z",
+      "tests": 16
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:456983491c10a6eb4948b64e31c1fc3f9dc9a13cadcb782f56fd91c0bfca2fd1",
+      "tree": "sha256:51a7798fdebe0b149b920ee83c46ae149434b298eb35fe16ee11a9d6bbe962de",
+      "recorded_at": "2026-10-20T18:38:20.564Z",
+      "tests": 77
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:eecf89090d0856807c7136b805e206f9f2b7589358b026aaf7b3e92245ba1fd3",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "168b160dc83623497983f63678729baccf294742",
+          "candidate_tree": "68fad7f65c4f55a25b64b19a5ebcc67d933338d4",
+          "paths": [
+            "openspec/specs/hooks/spec.md",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js"
+          ],
+          "diff_hash": "sha256:bdec996afd0d038fd88e51d5d1d32eaa41a0bbeabd148e03e0c06bc5c3da035c",
+          "paths_digest": "sha256:2f0ec25383bd2624baa5f263c26e244dd1434c4d99aa5f3edef1ee24ddafb694",
+          "authored_lines": 49,
+          "original_changed_lines": 54
+        },
+        "candidate_id": "sha256:1cb0498a9a5b802d72bef3a56efd5b43f87461220a9859a96fc15e0d7d579501",
+        "paths": [
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "68fad7f65c4f55a25b64b19a5ebcc67d933338d4",
+        "original_changed_lines": 54,
+        "authored_lines": 49
+      },
+      "current_candidate_id": "sha256:1cb0498a9a5b802d72bef3a56efd5b43f87461220a9859a96fc15e0d7d579501",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "168b160dc83623497983f63678729baccf294742",
+        "candidate_tree": "68fad7f65c4f55a25b64b19a5ebcc67d933338d4",
+        "paths": [
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js"
+        ],
+        "diff_hash": "sha256:bdec996afd0d038fd88e51d5d1d32eaa41a0bbeabd148e03e0c06bc5c3da035c",
+        "paths_digest": "sha256:2f0ec25383bd2624baa5f263c26e244dd1434c4d99aa5f3edef1ee24ddafb694",
+        "authored_lines": 49,
+        "original_changed_lines": 54
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "launcher-catch-stdin:lens-start:1:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "launcher-catch-stdin:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 27,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-10-20T18:38:25.865Z"
+}
