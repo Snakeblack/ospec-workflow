@@ -87,7 +87,7 @@ Then resume with `ospec next`.
    the others the change bears on. Without such a map, read the ADRs under
    `docs/architecture/decisions/` that govern that code and declare each one,
    and each quality scenario of `docs/architecture/knowledge-map.yaml`.
-   `next` returns `declare-plan` until you do. If the plan overstated a signal, retract
+   If the plan overstated a signal, retract
    it with `ospec record retract --change <id> --signal <id> --reason "<why>"`;
    the CLI refuses while the diff confirms it.
 5. Loop: `ospec next --change <id> --json`, do what `next_step` says, repeat.
@@ -165,12 +165,11 @@ no coverage percentage replaces this choice.
 ## Gates
 
 Stop for the user at the gates and for project-check approval above. Ask with the host's question tool;
-when the host has none, end your turn with the questions and wait for the
+without one, end your turn with the questions and wait for the
 answer:
 
 - `ambiguous-intent`: rule 3.
-- `open-facts`: rule 2. Ask every question of `pending_decision.questions` in
-  one message.
+- `open-facts`: rule 2; ask all of `pending_decision.questions` at once.
 - `irreversible-operation`: `--operation` in rule 4 or a destructive
   statement in the diff opens it. Before any other destructive or
   irreversible step (deleting data, rewriting published history), open it
@@ -180,8 +179,7 @@ answer:
   answered once. For a departure no declared reference covers, open it with
   `ospec record gate --change <id> --gate adr-amend-or-contradict --open --reason "<ADR>: <how the change departs from it>"`.
   A change that conforms opens nothing.
-- `review-limit`: `ospec check` opens it once the trust reviews are used up;
-  resolving it authorizes one more.
+- `review-limit`: `ospec check` opens it when the trust reviews run out.
 
 Resolve each one with `ospec record gate --change <id> --gate <id> --resolve --answer "<their words>" --source user`.
 Only an explicit answer from the user resolves a gate. Outside these gates
