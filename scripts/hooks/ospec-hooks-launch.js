@@ -577,7 +577,7 @@ function resolveInvocation(sub, scriptDir, suffix = hostBinarySuffix(), exists =
 }
 
 
-function launch(argv, scriptDir) {
+function launch(argv, scriptDir, seen = {}) {
   const sub = argv[0];
   if (!SUBCOMMANDS.has(sub)) {
     process.stderr.write(`ospec-hooks-launch: unknown subcommand '${sub || ""}'\n`);
@@ -586,6 +586,7 @@ function launch(argv, scriptDir) {
   }
 
   const rawInput = stripUtf8Bom(fs.readFileSync(0, "utf8"));
+  seen.rawInput = rawInput;
   const cursorHost = isCursorHost(scriptDir, process.env, rawInput);
   const antigravityHost = process.env.OSPEC_TARGET === "antigravity";
   const adapted = antigravityHost ? adaptAntigravityHookInput(sub, rawInput) : { input: rawInput, cwd: undefined };
@@ -636,10 +637,13 @@ function launch(argv, scriptDir) {
 }
 
 function main(argv, scriptDir = __dirname) {
+  // launch() records the stdin it read, so an exception still answers in the
+  // caller's protocol and the PostToolUse fallback can redact it (OSP-031).
+  const seen = { rawInput: "" };
   try {
-    return launch(argv, scriptDir);
+    return launch(argv, scriptDir, seen);
   } catch (error) {
-    return launcherFailure(argv[0], error.code || "launcher error", isCursorHost(scriptDir));
+    return launcherFailure(argv[0], error.code || "launcher error", isCursorHost(scriptDir, process.env, seen.rawInput), seen.rawInput);
   }
 }
 
