@@ -1,0 +1,80 @@
+{
+  "schema": "idd-state/v1",
+  "change": "idd-first-docs",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "Documentación (web openwiki y docs relacionados) con IDD como flujo principal y SDD como modo opcional en segundo plano, sin mezclar ambos flujos",
+    "acceptance": "Cada página de openwiki y onboarding presenta IDD (ospec CLI, idd/) como flujo por defecto; SDD aparece solo en secciones o páginas marcadas como modo opcional; ninguna página atribuye a IDD artefactos SDD (fases, openspec/changes, /sdd-*) ni al revés; no cambia código"
+  },
+  "facts": {
+    "open": [
+      "Alcance: ¿solo la web (openwiki/) o también docs/onboarding, docs/en y los README raíz?",
+      "¿Se crea una página nueva dedicada a IDD en la web, situada justo tras la guía rápida?",
+      "Páginas mixtas (orquestación, persistencia, testing, agentes): ¿IDD primero con sección final 'Modo SDD opcional', o separar SDD en un grupo propio del sidebar?",
+      "Páginas históricas (evolución K1–K12): ¿se dejan como están, solo con su aviso de histórico?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "openwiki/idd/flujo-idd.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Alcance: Web + onboarding + README. Página IDD: sí, página nueva tras la guía rápida. Páginas mixtas: grupo SDD aparte. Históricas: dejarlas igual.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-20T20:57:41.906Z",
+      "detail": {
+        "tree": "sha256:c2f10610a46755d125687809a1aab9533a2ff71358bb1bbc717f74c83680af14",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "5f7913286443f1c52d3a5c993e1f07a45ebab4db",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4bfd87f1d73dfbaea685a461f891bc0c64dc2f069c535715647d8631736050f8",
+      "tree": "sha256:c2f10610a46755d125687809a1aab9533a2ff71358bb1bbc717f74c83680af14",
+      "recorded_at": "2026-10-20T20:57:41.906Z"
+    }
+  ],
+  "closed_at": "2026-10-20T20:57:48.565Z"
+}

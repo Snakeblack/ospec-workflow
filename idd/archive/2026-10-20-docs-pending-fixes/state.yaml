@@ -1,0 +1,71 @@
+{
+  "schema": "idd-state/v1",
+  "change": "docs-pending-fixes",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "Corregir tres documentos desalineados con el código: página del kernel (código retirado en E1.5), Token Budget Advisor (selector y límites inexistentes) y guarda de pre-commit en docs/tdd-y-revision.md (ignora strict_tdd de IDD)",
+    "acceptance": "openwiki/kernel-runtime presenta el kernel como histórico retirado en v2.95–v2.97 y nombra solo lo que sigue distribuido; la documentación del Token Budget Advisor describe solo el límite de 50k por lectura y el acumulado de 150k con cambio SDD activo, sin selector ni porcentajes; docs/tdd-y-revision.md describe que el pre-commit sigue strict_tdd de idd/config.yaml y testing.tdd_mode solo con mode: sdd o sin idd/config.yaml; no cambia código"
+  },
+  "facts": {
+    "basis": "El código fija cada comportamiento (scripts/lib/precommit-strict.js, internal/hooks/pretooluse.go:567-593, scripts/hooks/pre-tool-use.js, roadmap E1.5 v2.95-v2.97) y el usuario ya decidió que las páginas históricas se conservan"
+  },
+  "plan": {
+    "paths": [
+      "openwiki/kernel-runtime/kernel-runtime.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-20T21:06:49.468Z",
+      "detail": {
+        "tree": "sha256:e9c4746ef8db275a1dabd52df8e57b9e3aa34f2aa0cc8a4f338bba5d93b7c279",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "5f7913286443f1c52d3a5c993e1f07a45ebab4db",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:68fded41628537e5420f44926d8c76726f746dcb37f7f089f4c81a6e5ecb76f1",
+      "tree": "sha256:e9c4746ef8db275a1dabd52df8e57b9e3aa34f2aa0cc8a4f338bba5d93b7c279",
+      "recorded_at": "2026-10-20T21:06:49.468Z"
+    }
+  ],
+  "assumptions": [
+    "La página del kernel se conserva con su URL y pasa a histórica (como evolution/), en lugar de borrarse"
+  ],
+  "closed_at": "2026-10-20T21:06:52.956Z"
+}
