@@ -411,6 +411,9 @@ inherited terminal/plugin markers, in all three detectors:
   sends both to its own and to third-party hooks), and one with a string
   `session_id` and a PascalCase `hook_event_name` is not. Only a payload that
   says neither falls back to the env markers and the Cursor shape checks.
+- When the launcher throws after reading the stdin, its failure answer MUST
+  use the same stdin for host detection and for the PostToolUse redaction
+  fallback, never the env markers alone.
 - `isClaudeCodeHost` returns `OSPEC_TARGET === "claude"` when the variable is
   set, taking precedence over `CLAUDE_PLUGIN_ROOT` (hosts reusing Claude plugin
   layouts, e.g. Cursor, can override).

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.139.9] - 2026-10-20
+
+### Fixed
+- **Una excepción en el launcher de hooks ignoraba el stdin**: si `launch()` lanzaba una excepción después de leer el stdin, el `catch` de `main()` decidía el host solo por el entorno y no le pasaba el stdin al fallback. Con un `CURSOR_*` heredado, Claude Code recibía el ask fail-closed en el formato de Cursor, que ignora. Y en un PostToolUse no había nada que censurar, así que la salida pasaba sin censura. Ahora `main()` reutiliza el stdin que `launch()` ya leyó, tanto para detectar el host como para el fallback de censura (REQ-hooks-022). Es el seguimiento de la sugerencia de la revisión trust de OSP-031 (#368).
+
+  Hecho con IDD (`idd/archive/2026-10-20-launcher-catch-stdin/`).
+
+**Verificación directa**: `node scripts/check.js` (3903 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.139.8] - 2026-10-20
 
 ### Fixed

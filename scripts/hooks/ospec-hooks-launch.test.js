@@ -135,10 +135,15 @@ function runLauncher(t, { argv, stdin, outcome, target = "claude" }) {
   const fs = require("node:fs");
   const saved = { spawn: cp.spawnSync, read: fs.readFileSync, write: process.stdout.write, error: process.stderr.write, target: process.env.OSPEC_TARGET };
   let options;
-  cp.spawnSync = (_command, _args, opts) => { options = opts; return outcome; };
+  cp.spawnSync = (_command, _args, opts) => {
+    options = opts;
+    if (outcome instanceof Error) throw outcome;
+    return outcome;
+  };
   fs.readFileSync = (file, encoding) => (file === 0 ? stdin : saved.read(file, encoding));
   process.stderr.write = () => true;
-  process.env.OSPEC_TARGET = target;
+  if (target === null) delete process.env.OSPEC_TARGET;
+  else process.env.OSPEC_TARGET = target;
   const restore = () => {
     cp.spawnSync = saved.spawn;
     fs.readFileSync = saved.read;
@@ -193,6 +198,38 @@ test("a failed post-tool-use child still redacts in process, or withholds, and n
     outcome: { status: null, signal: "SIGKILL", stdout: "" },
   });
   assert.equal(clean.written, "", "nothing to redact keeps the original output");
+});
+
+test("a launcher exception keeps the stdin's host and redaction under an inherited CURSOR_AGENT", (t) => {
+  const previous = process.env.CURSOR_AGENT;
+  process.env.CURSOR_AGENT = "1";
+  t.after(() => {
+    if (previous === undefined) delete process.env.CURSOR_AGENT;
+    else process.env.CURSOR_AGENT = previous;
+  });
+  const failure = Object.assign(new Error("spawn exploded"), { code: "EBOOM" });
+  const claude = { session_id: "s", transcript_path: "/tmp/x.jsonl", permission_mode: "default", tool_name: "Read", tool_input: { file_path: "/repo/.env" } };
+  const pre = runLauncher(t, { argv: ["pre-tool-use"], stdin: JSON.stringify({ ...claude, hook_event_name: "PreToolUse" }), outcome: failure, target: null });
+  assert.equal(pre.code, 0);
+  assert.equal(JSON.parse(pre.written).hookSpecificOutput.permissionDecision, "ask");
+
+  const secret = `DB_PASSWORD=${"hunter2".repeat(2)}`;
+  const post = runLauncher(t, {
+    argv: ["post-tool-use"],
+    stdin: JSON.stringify({ ...claude, hook_event_name: "PostToolUse", tool_response: { type: "text", file: { filePath: "/repo/.env", content: secret } } }),
+    outcome: failure,
+    target: null,
+  });
+  assert.equal(post.written.includes(secret), false);
+  assert.match(post.written, /\[REDACTED:assigned-secret\]/);
+
+  const cursor = runLauncher(t, {
+    argv: ["pre-tool-use"],
+    stdin: JSON.stringify({ conversation_id: "c", cursor_version: "2026.10.16", hook_event_name: "preToolUse", tool_name: "Read", tool_input: { file_path: "/repo/.env" } }),
+    outcome: failure,
+    target: null,
+  });
+  assert.equal(JSON.parse(cursor.written).permission, "allow", "Cursor keeps its advisory format");
 });
 
 test("a valid post-tool-use result is forwarded, and adapted to Codex's block feedback", (t) => {
