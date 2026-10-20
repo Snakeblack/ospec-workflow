@@ -1342,13 +1342,19 @@ Each installer that ships an orchestrator carrying `__OSPEC_SHARED_DIR__` (REQ-g
 
 ### Requirement: Installers Render The Runtime Directory {#REQ-install-035}
 
-Each installer that ships the IDD protocol carrying `__OSPEC_RUNTIME_DIR__` (REQ-generator-024) MUST replace the marker with the directory that holds the installed runtime `scripts/` (`scripts/configure/shared-dir.js`): the install root as an absolute POSIX path for `setup:copilot`, `setup:opencode`, `setup:cursor` and `setup:antigravity` (a WSL root written as its Windows path), `~/.codex/ospec-workflow` for `setup:codex`, the absolute path of `dist/vscode` for `setup:vscode`, and `.` for `install-target`, which syncs the tree into the repository root. The marker follows the rendering and restore rules of REQ-install-034. An empty value or one that still holds the marker MUST fail the install. `setup:claude` renders nothing. `install:codex -- <destRepo>` installs no runtime and does not install the protocol.
+Each installer that ships the IDD protocol carrying `__OSPEC_RUNTIME_DIR__` (REQ-generator-024) MUST replace the marker with the directory that holds the installed runtime `scripts/` (`scripts/configure/shared-dir.js`): the install root as an absolute POSIX path for `setup:copilot`, `setup:opencode`, `setup:cursor` and `setup:antigravity` (a WSL root written as its Windows path), `~/.codex/ospec-workflow` for `setup:codex`, the absolute path of `dist/vscode` for `setup:vscode`, and `.` for `install-target`, which syncs the tree into the repository root. The marker follows the rendering and restore rules of REQ-install-034. An empty value or one that still holds the marker MUST fail the install. `setup:claude` renders nothing. `install:codex -- <destRepo>` installs no runtime and does not install the protocol. The runtime scripts load their data from `../../schemas/`, so every install that copies `scripts/` into a root MUST also copy the build's `schemas/` beside it, owned by the same ownership manifest, and the installed `scripts/ospec.js` MUST start from any working directory.
 
 #### Scenario: A global install names its own runtime
 
 - GIVEN `setup:copilot` runs with `--dest <root>`
 - WHEN the installed `skills/idd/SKILL.md` is read
 - THEN it runs `node "<root>/scripts/ospec.js"` as an absolute POSIX path, that file exists, and the generated protocol in `dist/` still holds the marker
+
+#### Scenario: The installed runtime starts
+
+- GIVEN `setup:opencode` or `setup:copilot` runs with `--dest <root>`
+- WHEN `node "<root>/scripts/ospec.js" --help` runs from another directory, and `status --json` runs from a git repository
+- THEN both exit with 0, the ownership manifest lists `schemas/foundation/knowledge-map/catalog.json`, and a reinstall prunes a schema the build no longer has
 
 #### Scenario: A repository install stays portable
 

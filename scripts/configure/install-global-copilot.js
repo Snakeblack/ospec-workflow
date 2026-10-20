@@ -139,6 +139,8 @@ function install(argv = process.argv.slice(2), deps = {}) {
       { src: path.join(outDir, ".github", "hooks"), dest: path.join(globalDir, "hooks"), destRel: "hooks" },
       { src: path.join(outDir, "skills"), dest: path.join(globalDir, "skills"), destRel: "skills" },
       { src: path.join(outDir, "scripts"), dest: path.join(globalDir, "scripts"), destRel: "scripts" },
+      // OSP-030: the runtime scripts require their data from ../../schemas.
+      { src: path.join(outDir, "schemas"), dest: path.join(globalDir, "schemas"), destRel: "schemas" },
     ];
 
     if (fsImpl.existsSync(path.join(outDir, "release"))) {

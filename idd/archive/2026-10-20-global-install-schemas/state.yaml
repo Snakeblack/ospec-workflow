@@ -1,0 +1,339 @@
+{
+  "schema": "idd-state/v1",
+  "change": "global-install-schemas",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "setup:opencode y setup:copilot no instalan schemas/ y el CLI ospec instalado falla con MODULE_NOT_FOUND (OSP-030, #355)",
+    "acceptance": "Tras setup:opencode y setup:copilot en un destino aislado, <dest>/scripts/ospec.js responde a --help y a status --json con exit 0, schemas/** figura en el manifiesto y una reinstalación no deja huérfanos"
+  },
+  "facts": {
+    "basis": "La auditoría 2026-10-20 y el código lo fijan: install-codex.js l.145-149 ya instala schemas/ junto a scripts/ con poda gestionada; los instaladores globales siguen el mismo remapeo con destRel y manifiesto, así que basta con añadir schemas/ a remappings"
+  },
+  "plan": {
+    "paths": [
+      "openspec/specs/install/spec.md",
+      "scripts/configure/install-global-copilot.js",
+      "scripts/configure/install-global-copilot.test.js",
+      "scripts/configure/install-global-opencode.js",
+      "scripts/configure/install-global-opencode.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component generator: ADR 0001, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/configure/install-global-copilot.test.js adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "El instalador global copia el árbol que ya genera el build del target; no cambia la generación desde una fuente"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Instala schemas/ junto al runtime para que sea autocontenido; no añade dependencias ni descargas"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "conforms",
+      "reason": "Los schemas se copian del build local; nada se descarga"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "opencode y copilot globales instalan schemas/ como ya hace codex; reduce la divergencia entre targets"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-20T15:45:12.435Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-20T15:46:47.058Z",
+      "detail": {
+        "tree": "sha256:f31c772018a91f255ce205c8f578179a7b8ac01ebbeebcd7874aaa7503337483",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-20T15:46:47.058Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:f31c772018a91f255ce205c8f578179a7b8ac01ebbeebcd7874aaa7503337483",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-20T15:47:01.906Z",
+      "detail": {
+        "run": "run-8",
+        "tree": "sha256:ba376d8b954b21b3c694f156d5da5558b48ad0b31f4b99fcee16097c3540035a",
+        "plan": "Compatible hacia delante: una reinstalación sobre un manifiesto sin schemas/ añade schemas/** al árbol y al manifiesto sin tocar los ficheros del usuario; reversión: volver a la versión anterior y reinstalar poda schemas/** por el manifiesto"
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-20T15:48:10.735Z",
+      "detail": {
+        "tree": "sha256:170f08b8f486535e7f3701e4cf9edf035d32de6de6ae904eafa3946471cb4998",
+        "runs": [
+          "run-9"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-20T15:48:10.735Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0010 conforms",
+          "scenario:offline-operation conforms",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:170f08b8f486535e7f3701e4cf9edf035d32de6de6ae904eafa3946471cb4998",
+        "fitness": [
+          "run-10",
+          "run-11",
+          "run-12",
+          "run-13"
+        ]
+      }
+    }
+  ],
+  "base": "8f1dd7e190dc74bd9fd305cd7bc815e11d229d9a",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/configure/install-global-opencode.test.js scripts/configure/install-global-copilot.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:2670f74945fc1dc3fadeeee95329f39848a4acc989276f789dee4a84931f7d75",
+      "tree": "sha256:c546dc2ae52bd72a8128aa49cc1f17fc91eee59c62ca87cff133dd94adfeacd3",
+      "recorded_at": "2026-10-20T15:45:04.527Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/configure/install-global-opencode.test.js scripts/configure/install-global-copilot.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6194fa6527c8403996f7dbbbc95d891e8294cb9676db0618706f2551b5a4bdde",
+      "tree": "sha256:2fa328e52c11e57390e5768dafc24c4ca4e7acdd8dbaab169e5a12c1dc2179bd",
+      "recorded_at": "2026-10-20T15:45:12.435Z",
+      "tests": 8
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:20be51881267a7d674800fd61bd5cec564b90613ce370ea83128c8f675269342",
+      "tree": "sha256:f31c772018a91f255ce205c8f578179a7b8ac01ebbeebcd7874aaa7503337483",
+      "recorded_at": "2026-10-20T15:46:47.058Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:79bd127b80dad545d7544346a7983cb7bd175e39ef8d920fd6c471a8f12150c5",
+      "tree": "sha256:f31c772018a91f255ce205c8f578179a7b8ac01ebbeebcd7874aaa7503337483",
+      "recorded_at": "2026-10-20T15:46:47.058Z",
+      "tests": 47
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:f31c772018a91f255ce205c8f578179a7b8ac01ebbeebcd7874aaa7503337483",
+      "recorded_at": "2026-10-20T15:46:47.058Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:166d96d400c50c2803814582646b460eadbc3c541268992c86c7bcfe25e7eb79",
+      "tree": "sha256:f31c772018a91f255ce205c8f578179a7b8ac01ebbeebcd7874aaa7503337483",
+      "recorded_at": "2026-10-20T15:46:47.058Z",
+      "tests": 16
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:94f4cc9a9bbe33204bf8a5f8bf4db793a17a289813677da3aeedae3a06c10453",
+      "tree": "sha256:f31c772018a91f255ce205c8f578179a7b8ac01ebbeebcd7874aaa7503337483",
+      "recorded_at": "2026-10-20T15:46:47.058Z",
+      "tests": 47
+    },
+    {
+      "id": "run-8",
+      "purpose": "migration-test",
+      "command": "node --test scripts/configure/install-global-opencode.test.js scripts/configure/install-global-copilot.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:208676da9efd175397e728a6ff140e9c284757d1dfd0821ca106189503162ffc",
+      "tree": "sha256:ba376d8b954b21b3c694f156d5da5558b48ad0b31f4b99fcee16097c3540035a",
+      "recorded_at": "2026-10-20T15:47:01.906Z",
+      "tests": 10
+    },
+    {
+      "id": "run-9",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b0b8d5e672eedd140ec9cae1076e62278deca8dc388b3c39f3b6bba339331fc0",
+      "tree": "sha256:170f08b8f486535e7f3701e4cf9edf035d32de6de6ae904eafa3946471cb4998",
+      "recorded_at": "2026-10-20T15:48:10.735Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1b1aee4a71a1a8e7260a56a6c72460d841b1efc0f593992cb55bd1e45188c911",
+      "tree": "sha256:170f08b8f486535e7f3701e4cf9edf035d32de6de6ae904eafa3946471cb4998",
+      "recorded_at": "2026-10-20T15:48:10.735Z",
+      "tests": 47
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:170f08b8f486535e7f3701e4cf9edf035d32de6de6ae904eafa3946471cb4998",
+      "recorded_at": "2026-10-20T15:48:10.735Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e733b27956c0a7f6bf62ae925e60d01b40edaa4778a4e3359c7dedee79ae7090",
+      "tree": "sha256:170f08b8f486535e7f3701e4cf9edf035d32de6de6ae904eafa3946471cb4998",
+      "recorded_at": "2026-10-20T15:48:10.735Z",
+      "tests": 16
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:04ad603b907154c090a0f4e0a69ae7728cd947a8996824b09728673489a10bd3",
+      "tree": "sha256:170f08b8f486535e7f3701e4cf9edf035d32de6de6ae904eafa3946471cb4998",
+      "recorded_at": "2026-10-20T15:48:10.735Z",
+      "tests": 47
+    }
+  ],
+  "closed_at": "2026-10-20T15:48:10.806Z"
+}
