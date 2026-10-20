@@ -31,7 +31,15 @@ const VALIDATOR = "review-correction";
 const MAX_REVIEWS = 3;
 const LIMIT_GATE = "review-limit";
 const TERMINAL = new Set(["approved", "exhausted", "escalated", "invalidated"]);
+const BLOCKING = new Set(["BLOCKER", "CRITICAL"]);
 const PROJECTION = "idd-tree-diff/v1";
+// The CLI does not see the reviewer run: it checks what the result cites and
+// records that the result was relayed to it (OSP-029).
+const ATTESTATION = "relayed";
+const CITE = /^(.+):([1-9][0-9]*)(?:-([1-9][0-9]*))?$/;
+const RESULT_CONTRACT = "Return JSON {request_digest, reviewed, findings}: request_digest copied from this request; "
+  + "reviewed with one {path, cites} entry per path of this request, each cite \"<path>:<line>\" or \"<path>:<start>-<end>\" "
+  + "of lines read in that path; findings in the review-judgment contract, each BLOCKER or CRITICAL with a location \"<path>:<line>\".";
 
 function refuse(code, message) {
   throw new IddRecordError(code, message);
@@ -111,10 +119,28 @@ function withReview(state, lineage) {
   return next;
 }
 
+/** Digest of the request a result must answer: its lineage, generation, tree and paths. */
+function requestDigest(lineage) {
+  return sha256(JSON.stringify({
+    lineage_id: lineage.lineage_id,
+    generation: lineage.generation,
+    candidate_tree: lineage.genesis.candidate.candidate_tree,
+    paths: [...lineage.genesis.paths],
+  }));
+}
+
 // A successor whose predecessor ended with unresolved blocking findings hands
 // them to the reviewer, who checks them on top of the full review.
 function reviewRequest(state, lineage) {
-  const request = { lineage_id: lineage.lineage_id, generation: lineage.generation, lens: LENS, reviewer: REVIEWER, paths: [...lineage.genesis.paths] };
+  const request = {
+    lineage_id: lineage.lineage_id,
+    generation: lineage.generation,
+    lens: LENS,
+    reviewer: REVIEWER,
+    paths: [...lineage.genesis.paths],
+    request_digest: requestDigest(lineage),
+    result_contract: RESULT_CONTRACT,
+  };
   const predecessor = (state.reviews || []).find((entry) => entry.lineage_id === lineage.predecessor_lineage_id);
   const unresolved = predecessor ? predecessor.findings.filter((finding) => finding.blocking && finding.resolution === "unresolved") : [];
   if (unresolved.length > 0) {
@@ -193,6 +219,7 @@ function approve(state, lineage, recordedAt) {
       candidate_id: lineage.current_candidate_id,
       candidate_tree: lineage.current_candidate.candidate_tree,
       findings_digest: lineage.findings_digest,
+      attestation: ATTESTATION,
     },
   });
   target.status = "satisfied";
@@ -204,11 +231,55 @@ function unresolvedIds(lineage) {
   return lineage.findings.filter((finding) => finding.blocking && finding.resolution === "unresolved").map((finding) => finding.id);
 }
 
-/** Records the trust reviewer's findings and freezes them. */
-function recordTrustFindings(state, { result, recordedAt }) {
+/** Refuses a cite that names no lines of `file` (any file without one) in the frozen trees. */
+function checkCite(cite, lineCount, file) {
+  const match = typeof cite === "string" ? CITE.exec(cite) : null;
+  const lines = match && (!file || match[1] === file) ? lineCount(match[1]) : null;
+  const start = match ? Number(match[2]) : 0;
+  const end = match && match[3] ? Number(match[3]) : start;
+  if (lines == null || start > end || end > lines) {
+    refuse("review-refused", `${JSON.stringify(cite)} is not a line of ${file || "a file"} in the frozen trees: cite "<path>:<line>" or "<path>:<start>-<end>"`);
+  }
+}
+
+/**
+ * Refuses a result that does not answer the review in progress: the request
+ * digest, a cited entry for every path of the request, and a location for each
+ * blocking finding, every cite resolved by `lineCount` in the frozen trees.
+ */
+function checkAttestation(lineage, result, lineCount) {
+  const fix = "run ospec review start and hand the reviewer its request_digest and result_contract";
+  if (!result || typeof result !== "object" || result.request_digest !== requestDigest(lineage)) {
+    refuse("review-refused", `the result does not carry the request_digest of this review: ${fix}`);
+  }
+  if (!Array.isArray(result.reviewed)) refuse("review-refused", `the result needs reviewed, one {path, cites} entry per path of the request: ${fix}`);
+  const paths = new Set(lineage.genesis.paths);
+  const covered = new Set();
+  for (const entry of result.reviewed) {
+    const file = entry && entry.path;
+    if (!paths.has(file)) refuse("review-refused", `reviewed names ${JSON.stringify(file)}, a path outside the request`);
+    if (!Array.isArray(entry.cites) || entry.cites.length === 0) refuse("review-refused", `reviewed ${file} needs at least one cite of the lines read`);
+    for (const cite of entry.cites) checkCite(cite, lineCount, file);
+    covered.add(file);
+  }
+  const missing = [...paths].filter((file) => !covered.has(file));
+  if (missing.length > 0) refuse("review-refused", `reviewed does not cover ${missing.join(", ")}`);
+  for (const finding of Array.isArray(result.findings) ? result.findings : []) {
+    if (finding && finding.location !== undefined) checkCite(finding.location, lineCount);
+    else if (finding && BLOCKING.has(finding.severity)) refuse("review-refused", `a ${finding.severity} finding needs a location "<path>:<line>"`);
+  }
+}
+
+/**
+ * Records the trust reviewer's findings and freezes them. `lineCount(path)`
+ * gives the lines of a path in the candidate tree, or in the base tree when
+ * the candidate deletes it, and null when neither holds it.
+ */
+function recordTrustFindings(state, { result, recordedAt, lineCount }) {
   requireReviewable(state);
   const current = currentReview(state);
   if (!current || current.status !== "reviewing") refuse("review-refused", "no trust review is waiting for findings: run ospec review start");
+  checkAttestation(current, result, lineCount);
   const frozen = lineageStep(() => {
     const recorded = recordLensResult(current, {
       dimension: LENS,

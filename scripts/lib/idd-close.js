@@ -71,7 +71,10 @@ function renderEvidence(text, state) {
   const end = text.indexOf(EVIDENCE_MARKERS.end, start);
   if (start === -1 || end === -1) return text;
   const eol = text.includes("\r\n") ? "\r\n" : "\n";
-  const lines = state.evidence.map((entry) => `- ${entry.id}: ${entry.kind} for ${entry.obligation} (${entry.recorded_at})`);
+  const lines = state.evidence.map((entry) => {
+    const attestation = entry.detail?.attestation ? `, ${entry.detail.attestation}` : "";
+    return `- ${entry.id}: ${entry.kind} for ${entry.obligation} (${entry.recorded_at}${attestation})`;
+  });
   const body = lines.length ? `${eol}${lines.join(eol)}${eol}` : eol;
   return `${text.slice(0, start + EVIDENCE_MARKERS.start.length)}${body}${text.slice(end)}`;
 }

@@ -474,7 +474,7 @@ function recordLensResult(state, input) {
   if (state.status !== "reviewing") throw new Error(`lens result is not allowed in status ${state.status}`);
   const dimension = input.dimension;
   if (!((state.schema_version >= 2 ? QUALITY : DIMENSIONS).includes(dimension)) || !selectedLensIds(state).includes(dimension)) throw new Error("lens dimension is not selected in genesis");
-  const normalized = normalizeLensResult(input.result);
+  const normalized = normalizeLensResult(input.result, { location: state.schema_version === 2 });
   const resultDigest = digest("review-lens-result-v1", normalized);
   const lens = state.lenses[dimension];
   if (lens.status === "completed") {
@@ -487,18 +487,21 @@ function recordLensResult(state, input) {
   return commit(next);
 }
 
-function normalizeLensResult(result) {
+// A schema v2 lineage keeps the optional `location` of a finding; a finding
+// without one keeps the content, and so the ID, it had before. K7 drops it.
+function normalizeLensResult(result, options = {}) {
   if (!result || typeof result !== "object" || !Array.isArray(result.findings)) throw new TypeError("lens result findings are required");
-  return { findings: result.findings.map((finding) => normalizeFinding(finding)) };
+  return { findings: result.findings.map((finding) => normalizeFinding(finding, options)) };
 }
 
-function normalizeFinding(finding) {
+function normalizeFinding(finding, { location = false } = {}) {
   if (!finding || typeof finding !== "object") throw new TypeError("finding must be an object");
   if (!["BLOCKER", "CRITICAL", "WARNING", "SUGGESTION"].includes(finding.severity)) throw new TypeError("finding severity is invalid");
-  for (const field of ["summary", "acceptance_criteria"]) {
+  const fields = ["summary", "acceptance_criteria", ...(location && finding.location !== undefined ? ["location"] : [])];
+  for (const field of fields) {
     if (typeof finding[field] !== "string" || finding[field].trim().length === 0 || finding[field].length > 1000) throw new TypeError(`finding ${field} is invalid`);
   }
-  return { severity: finding.severity, summary: finding.summary.trim(), acceptance_criteria: finding.acceptance_criteria.trim() };
+  return Object.fromEntries([["severity", finding.severity], ...fields.map((field) => [field, finding[field].trim()])]);
 }
 
 function freezeFindings(state, input) {

@@ -347,7 +347,8 @@ function validateContractEvidence(entry, evidenceById, fail) {
 }
 
 // frozen-review must name an approved review of the candidate it names, with
-// the findings it froze (REQ-idd-016).
+// the findings it froze (REQ-idd-016). Evidence recorded before OSP-029 has no
+// attestation; newer evidence says the result was relayed.
 function validateReviewEvidence(entry, reviews, fail) {
   const detail = entry.detail || {};
   const review = reviews.find((lineage) => lineage?.lineage_id === detail.lineage_id);
@@ -357,6 +358,7 @@ function validateReviewEvidence(entry, reviews, fail) {
     review.current_candidate_id === detail.candidate_id &&
     review.findings_digest === detail.findings_digest;
   if (!approved) fail(`evidence ${entry.id} needs an approved trust review of its candidate`);
+  if (detail.attestation !== undefined && detail.attestation !== "relayed") fail(`evidence ${entry.id} has an unknown attestation`);
 }
 
 // The open-facts declaration (REQ-idd-018): the behavior questions neither the

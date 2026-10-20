@@ -662,21 +662,34 @@ function openRotation(t) {
 }
 
 const review = (root, action, ...extra) => ospec(root, "review", action, "--change", "rotate-tokens", ...extra, "--json");
-const BLOCKER = { severity: "BLOCKER", summary: "Old tokens never expire.", acceptance_criteria: "Expired tokens are rejected." };
+const BLOCKER = { severity: "BLOCKER", summary: "Old tokens never expire.", acceptance_criteria: "Expired tokens are rejected.", location: "src/auth/tokens.js:1" };
+
+// The reviewer's answer to the review in progress (OSP-029): its request
+// digest and a cite of the first line of each reviewed path.
+function answer(root, findings = [], overrides = {}) {
+  const { request } = review(root, "start").json.review;
+  const reviewed = request.paths.map((file) => ({ path: file, cites: [`${file}:1`] }));
+  return JSON.stringify({ request_digest: request.request_digest, reviewed, findings, ...overrides });
+}
+
+const recordAnswer = (root, findings) => review(root, "record", "--result", answer(root, findings));
 
 test("a trust review without blockers satisfies trust-review until the reviewed paths change", (t) => {
   const root = openRotation(t);
   const started = review(root, "start");
   assert.strictEqual(started.code, 0, started.stderr);
-  assert.deepStrictEqual(started.json.review.request, {
+  const { request_digest: digest, result_contract: contract, ...request } = started.json.review.request;
+  assert.deepStrictEqual(request, {
     lineage_id: started.json.review.lineage_id,
     generation: 1,
     lens: "trust",
     reviewer: "review-trust",
     paths: ["src/auth/tokens.js", "src/auth/tokens.test.js", "src/pages.txt"],
   });
+  assert.match(digest, /^sha256:[0-9a-f]{64}$/);
+  assert.match(contract, /reviewed/);
 
-  const recorded = review(root, "record", "--result", JSON.stringify({ findings: [] }));
+  const recorded = recordAnswer(root);
   assert.strictEqual(recorded.code, 0, recorded.stderr);
   assert.strictEqual(recorded.json.review.status, "approved");
   assert.ok(recorded.json.evidence);
@@ -697,7 +710,7 @@ test("a trust review without blockers satisfies trust-review until the reviewed 
 test("an IDD successor needs no approval, and an unchanged or exhausted review is refused", (t) => {
   const root = openRotation(t);
   review(root, "start");
-  review(root, "record", "--result", JSON.stringify({ findings: [] }));
+  recordAnswer(root);
   const same = review(root, "start");
   assert.strictEqual(same.code, 1);
   assert.strictEqual(same.json.error.code, "review-current");
@@ -709,7 +722,7 @@ test("an IDD successor needs no approval, and an unchanged or exhausted review i
     const started = review(root, "start");
     assert.strictEqual(started.code, 0, started.stderr);
     assert.strictEqual(started.json.review.generation, generation);
-    review(root, "record", "--result", JSON.stringify({ findings: [] }));
+    recordAnswer(root);
   }
   writeFile(root, "src/auth/tokens.js", "module.exports = { ttl: 4 };\n");
   const stale = ospec(root, "check", "--change", "rotate-tokens", "--json");
@@ -725,7 +738,7 @@ test("an IDD successor needs no approval, and an unchanged or exhausted review i
 test("a tree back on the approved candidate satisfies trust-review again", (t) => {
   const root = openRotation(t);
   review(root, "start");
-  review(root, "record", "--result", JSON.stringify({ findings: [] }));
+  recordAnswer(root);
   writeFile(root, "src/auth/tokens.js", "module.exports = { ttl: 60 };\n");
   assert.strictEqual(ospec(root, "check", "--change", "rotate-tokens", "--json").json.verdict, "missing");
 
@@ -742,7 +755,7 @@ test("after the last review the person authorizes one more through the review-li
     writeFile(root, "src/auth/tokens.js", `module.exports = { ttl: ${generation} };\n`);
     ospec(root, "check", "--change", "rotate-tokens", "--json");
     review(root, "start");
-    review(root, "record", "--result", JSON.stringify({ findings: [] }));
+    recordAnswer(root);
   }
   assert.deepStrictEqual(reviewLimit(), [], "an approved last review opens nothing");
 
@@ -759,7 +772,7 @@ test("after the last review the person authorizes one more through the review-li
   const fourth = review(root, "start");
   assert.strictEqual(fourth.code, 0, fourth.stderr);
   assert.strictEqual(fourth.json.review.generation, 4);
-  review(root, "record", "--result", JSON.stringify({ findings: [] }));
+  recordAnswer(root);
   assert.strictEqual(ospec(root, "check", "--change", "rotate-tokens", "--json").json.verdict, "ready");
 
   writeFile(root, "src/auth/tokens.js", "module.exports = { ttl: 5 };\n");
@@ -771,7 +784,7 @@ test("after the last review the person authorizes one more through the review-li
 test("a blocker gets one bounded correction validated against its frozen id", (t) => {
   const root = openRotation(t);
   review(root, "start");
-  const frozen = review(root, "record", "--result", JSON.stringify({ findings: [BLOCKER] }));
+  const frozen = recordAnswer(root, [BLOCKER]);
   assert.strictEqual(frozen.json.review.status, "correction-required");
   const [finding] = frozen.json.review.findings;
   assert.strictEqual(finding.blocking, true);
@@ -790,7 +803,7 @@ test("a blocker gets one bounded correction validated against its frozen id", (t
 test("a correction outside one bounded correction escalates and review start opens the successor", (t) => {
   const root = openRotation(t);
   review(root, "start");
-  const frozen = review(root, "record", "--result", JSON.stringify({ findings: [BLOCKER] }));
+  const frozen = recordAnswer(root, [BLOCKER]);
   const [finding] = frozen.json.review.findings;
 
   // The fix needs a file the review never froze.
@@ -811,12 +824,53 @@ test("a correction outside one bounded correction escalates and review start ope
   assert.ok(second.genesis.paths.includes("src/auth/expiry.js"), "the successor reviews the new path");
 });
 
+// OSP-029 (#351): a {"findings":[]} the main agent wrote by hand approved the
+// review and let the change close without any reviewer run.
+test("review record refuses a result that does not cite the frozen candidate", (t) => {
+  const root = openRotation(t);
+  review(root, "start");
+  const refusedWith = (result, pattern) => {
+    const refused = review(root, "record", "--result", result);
+    assert.strictEqual(refused.code, 1, refused.stdout);
+    assert.strictEqual(refused.json.error.code, "review-refused");
+    assert.match(refused.json.error.message, pattern);
+  };
+  refusedWith(JSON.stringify({ findings: [] }), /request_digest/);
+  assert.notStrictEqual(ospec(root, "next", "--change", "rotate-tokens", "--json").json.next_step.action, "close");
+  refusedWith(answer(root, [], { reviewed: [{ path: "src/auth/tokens.js", cites: ["src/auth/tokens.js:2"] }] }), /src\/auth\/tokens\.js:2/);
+  refusedWith(answer(root, [{ ...BLOCKER, location: undefined }]), /location/);
+  assert.strictEqual(stateOf(root, "rotate-tokens").reviews[0].status, "reviewing");
+
+  const recorded = recordAnswer(root);
+  assert.strictEqual(recorded.code, 0, recorded.stderr);
+  assert.strictEqual(recorded.json.review.status, "approved");
+  const evidence = stateOf(root, "rotate-tokens").evidence.find((entry) => entry.id === recorded.json.evidence);
+  assert.strictEqual(evidence.detail.attestation, "relayed");
+
+  assert.strictEqual(ospec(root, "check", "--change", "rotate-tokens", "--json").json.verdict, "ready");
+  const closed = ospec(root, "close", "--change", "rotate-tokens", "--json");
+  assert.strictEqual(closed.code, 0, closed.stdout);
+  assert.deepStrictEqual(closed.json.reviews, [{ evidence: evidence.id, lineage_id: evidence.detail.lineage_id, attestation: "relayed" }]);
+  assert.match(ospec(root, "close", "--change", "rotate-tokens").stdout, new RegExp(`trust review ${evidence.id}: relayed`));
+});
+
+test("a deleted reviewed path is cited in the base tree", (t) => {
+  const root = openRotation(t);
+  fs.rmSync(path.join(root, "src", "pages.txt"));
+  ospec(root, "check", "--change", "rotate-tokens", "--json");
+  const { request } = review(root, "start").json.review;
+  assert.ok(request.paths.includes("src/pages.txt"));
+  const recorded = recordAnswer(root);
+  assert.strictEqual(recorded.code, 0, recorded.stdout);
+  assert.strictEqual(recorded.json.review.status, "approved");
+});
+
 test("review refuses bad results, a change without the obligation and an unknown action", (t) => {
   const root = openRotation(t);
   review(root, "start");
   assert.strictEqual(review(root, "record").code, 2, "record needs --result");
   assert.strictEqual(review(root, "record", "--result", "{not json").code, 2);
-  const invalid = review(root, "record", "--result", JSON.stringify({ findings: [{ severity: "HUGE" }] }));
+  const invalid = review(root, "record", "--result", answer(root, [{ severity: "HUGE" }]));
   assert.strictEqual(invalid.code, 1);
   assert.strictEqual(invalid.json.error.code, "review-refused");
   assert.strictEqual(review(root, "restart").code, 2);

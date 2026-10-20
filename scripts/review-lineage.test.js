@@ -598,6 +598,25 @@ test("v2 correction follow-ups accept quality owners only", () => {
   );
 });
 
+// OSP-029: a v2 finding keeps its optional location; one without it keeps the
+// content, and so the frozen ID, it had before.
+test("v2 lens results keep a finding location without changing findings that have none", () => {
+  const frozen = (findings) => {
+    let state = startQualityReviewLineage({ candidate: candidate(), classification: "normal", selected_domains: ["trust"], evidence_fingerprint: `sha256:${"c".repeat(64)}` });
+    state = beginLens(state, { dimension: "trust", expected_revision: state.revision, request_id: "trust-start" });
+    state = recordLensResult(state, { dimension: "trust", expected_revision: state.revision, request_id: "trust-result", result: { findings } });
+    return freezeFindings(state, { expected_revision: state.revision, request_id: "freeze" }).findings;
+  };
+  const advice = { severity: "SUGGESTION", summary: "Name the TTL.", acceptance_criteria: "A named TTL." };
+  const [plain] = frozen([advice]);
+  assert.equal("location" in plain, false);
+  const [located] = frozen([{ ...advice, location: " scripts/a.js:3 " }]);
+  assert.equal(located.location, "scripts/a.js:3");
+  assert.notEqual(located.id, plain.id);
+  assert.equal(frozen([{ ...advice, extra: "ignored" }])[0].id, plain.id);
+  assert.throws(() => frozen([{ ...advice, location: "" }]), /finding location is invalid/);
+});
+
 // ---------------------------------------------------------------------------
 // FU1: createSuccessor v2 native taxonomy inheritance (QRAR-004, ROUTING-012)
 // ---------------------------------------------------------------------------
