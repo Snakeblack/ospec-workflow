@@ -405,6 +405,12 @@ inherited terminal/plugin markers, in all three detectors:
   install-path or env markers are present. `VSCODE_PID` / `VSCODE_CWD` are no
   longer Cursor host markers (inherited VS Code terminal markers); only
   `CURSOR_AGENT`, `CURSOR_SESSION_ID`, and `CURSOR_HOOK` remain.
+- Without `OSPEC_TARGET` and outside a Cursor install path, the hook stdin
+  decides before those env markers, which a host can inherit (OSP-031): a
+  payload with a string `cursor_version` or `conversation_id` is Cursor (Cursor
+  sends both to its own and to third-party hooks), and one with a string
+  `session_id` and a PascalCase `hook_event_name` is not. Only a payload that
+  says neither falls back to the env markers and the Cursor shape checks.
 - `isClaudeCodeHost` returns `OSPEC_TARGET === "claude"` when the variable is
   set, taking precedence over `CLAUDE_PLUGIN_ROOT` (hosts reusing Claude plugin
   layouts, e.g. Cursor, can override).
@@ -417,6 +423,16 @@ superseded by "Cursor env markers with explicit `OSPEC_TARGET` precedence".
 - GIVEN `OSPEC_TARGET=codex` AND `CURSOR_AGENT=1` inherited in the environment
 - WHEN `isCursorHost` evaluates
 - THEN it MUST return false — the explicit target wins over inherited markers
+
+#### Scenario: El stdin de Claude Code gana sobre CURSOR_AGENT heredado
+
+- GIVEN no `OSPEC_TARGET`, `CURSOR_AGENT=1` inherited in the environment, and a
+  Claude Code stdin (`session_id`, `hook_event_name: "PreToolUse"`) for a Read
+  of `.env`
+- WHEN the launcher runs `pre-tool-use` and then `post-tool-use`
+- THEN it MUST emit `hookSpecificOutput.permissionDecision: "ask"` and an
+  `updatedToolOutput` with the secret redacted, and a stdin carrying
+  `cursor_version` MUST still select Cursor's protocol
 
 #### Scenario: OSPEC_TARGET=claude gana sobre CLAUDE_PLUGIN_ROOT
 
