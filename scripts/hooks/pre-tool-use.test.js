@@ -243,6 +243,44 @@ test("makes no decision for ordinary shell commands", () => {
   }
 });
 
+test("the disk rule ignores format options and needs a standalone drive", () => {
+  for (const command of [
+    'cursor-agent -p --output-format text "Responde: hola"',
+    "git log --format='%h: %s' -5",
+    "git log --pretty=format:'%h %an: %s'",
+    'echo "the format is: ok"',
+  ]) {
+    assert.equal(decisionFor(command).permissionDecision, null, command);
+  }
+
+  for (const command of [
+    "format C:",
+    "format C:\\",
+    'format "D:" /q',
+    "format.com D: /FS:NTFS",
+    "cmd /c format E: /q",
+    "C:\\Windows\\System32\\format.com D:",
+    "Clear-Disk -Number 0",
+    "Get-Disk 1 | Clear-Disk -RemoveData",
+    "Format-Volume -DriveLetter D -FileSystem NTFS",
+    "format D:;",
+    "format D:&&echo x",
+    "echo y|format D:>nul",
+    "(format D:)",
+    'cmd /c "format D:&echo"',
+    "$null=Clear-Disk -Number 0",
+    "$r=Format-Volume -DriveLetter D",
+    "$r=format D:",
+    "format /fs:ntfs \\\\?\\Volume{00000000-0000-0000-0000-000000000000}\\",
+    "format C:\\mnt\\data /fs:ntfs",
+    "Start-Process format.com -ArgumentList '/q','D:'",
+    "Start-Process format -ArgumentList @('D:','/y')",
+    "Start-Process format -ArgumentList ('D:')",
+  ]) {
+    assert.equal(decisionFor(command).permissionDecision, "deny", command);
+  }
+});
+
 test("supports command arrays", () => {
   assert.deepEqual(
     extractCommands({

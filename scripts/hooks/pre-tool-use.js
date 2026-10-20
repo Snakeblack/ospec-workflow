@@ -84,7 +84,7 @@ const DENY_RULES = [
   },
   {
     pattern:
-      /\b(?:format(?:\.com)?|clear-disk)\b[^\r\n;&|]*(?:[a-z]:|-\s*number\b)/i,
+      /\b(?:clear-disk|format-volume)\b|(?<![-.])\bformat(?:\.com)?\b[^\r\n;&|]*[\s,(]["']?(?:[a-z]:(?![a-z0-9_])|\\\\\?\\volume\{)/i,
     reason: "Formatting or clearing a disk is blocked.",
   },
 ];
