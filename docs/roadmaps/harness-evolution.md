@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.140.3, 2026-10-20.
+> **Versión de referencia:** v2.141.0, 2026-10-21.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -152,7 +152,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `pending` | **E1.30** | `windows-flake-repair` (OSP-022 / #344: PowerShell, lock y Chromium en Windows; cierre con 0 flakes hasta el 2026-10-26) | bugfix |
 | `pending` | **E1.31** | `doctor-hook-probe` (OSP-014 / #345: sonda de hook en `ospec doctor`; seguimiento de E1.7) | feature |
 | `pending` | **E1.32** | `docs-dx-corrections` (OSP-008/013/021/023 / #346 y #347: README EN/ES, `SECURITY.md`, `cli.js` fuera del checkout y tags del CHANGELOG; OSP-023 pendiente de decisión) | docs |
-| `pending` | **E1.33** | `trust-review-attestation` (OSP-029 / #351: `request_digest` y `reviewed[]` verificados contra el árbol congelado; repara REQ-idd-016) | bugfix |
+| `done` | **E1.33** | `trust-review-attestation` (OSP-029 / #351: `request_digest` y `reviewed[]` verificados contra el árbol congelado; repara REQ-idd-016, en v2.141.0) | bugfix |
 | `done` | **E2.1** | `knowledge-map-contract` (mapa en `docs/architecture/knowledge-map.yaml`; contrato `ospec-knowledge-map/v1`) | contrato |
 | `done` | **E2.2** | `decision-gap-engine` (`ospec foundation next` elige la ronda; `record` persiste la respuesta) | feature |
 | `done` | **E2.3** | `foundation-discovery-rounds` (escenarios de aceptación en la skill `foundation`; `cncf-landscape` en la instalación por defecto) | feature |
@@ -614,6 +614,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Garantía que protege:** los principios 3, 4 y 8 y la obligación `frozen-review`; repara la garantía existente (no amplía el roadmap).
 - **Alcance (paso 1, cierra el issue):** `review start` añade a la petición un `request_digest` (linaje, generación, árbol candidato y rutas); `review record` exige ese digest y un array `reviewed` con una entrada por ruta y una cita `ruta:línea` que exista en el árbol congelado (`git cat-file -p <tree>:<path>`); los hallazgos BLOCKER/CRITICAL llevan `location` verificado; la evidencia registra `attestation: "relayed"` y `close`/`records` lo muestran. *Paso 2, opcional:* recibo en `SubagentStop` cuando el transcript del revisor contiene el digest (`attestation: "subagent-stop"`, aviso y no bloqueo en hosts sin hook).
 - **Hecho cuando:** repetir la secuencia de #351 con el CLI nuevo: `{"findings":[]}` sin `reviewed` → `review-refused` y `next` no es `close`; una cita inexistente o un digest de otra generación → refused; un resultado que cubre las rutas con citas reales cierra; el archivo distingue la atestación.
+- **Estado (2026-10-21):** paso 1 hecho en v2.141.0. El formato del resultado lo fija `result_contract` en la petición, sin tocar `review-trust`, que SDD comparte; `location` solo se conserva en linajes v2 (K7 no cambia). El paso 2 (recibo `SubagentStop`) y la misma exigencia en `review validate` quedan como follow-up.
 
 ## Etapa 2 — Foundation de verdad: descubrimiento de arquitectura
 

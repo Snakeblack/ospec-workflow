@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.141.0] - 2026-10-21
+
+### Changed
+- **La trust review de IDD ya no se aprueba con un resultado escrito a mano** (OSP-029, #351): antes `ospec review record` aceptaba cualquier `{"findings":[]}`, aunque ningún revisor se hubiera ejecutado. Ahora la petición de `ospec review start` trae un `request_digest` (linaje, generación, árbol candidato y rutas) y un `result_contract`. `review record` rechaza con `review-refused`, sin registrar nada, un resultado que no lleve ese digest, que no tenga en `reviewed` una entrada citada por cada ruta de la petición o cuyas citas `ruta:N` o `ruta:N-M` no existan en el árbol candidato congelado (en el árbol base, si la ruta se borra). Cada hallazgo `BLOCKER` o `CRITICAL` necesita una `location` que exista, y el linaje v2 la conserva. La evidencia `frozen-review` registra `attestation: relayed`: el CLI comprueba las citas, no que el revisor se ejecutara. `ospec close` lista cada atestación en `reviews` y la sección de evidencia del archivo la muestra. La evidencia anterior no lleva atestación y sigue siendo válida (REQ-idd-016).
+
+  Hecho con IDD (`idd/archive/2026-10-20-trust-review-attestation/`). El recibo del hook `SubagentStop` (paso 2 del issue) y la misma exigencia en `review validate` quedan como follow-up.
+
+**Verificación directa**: `node scripts/check.js` (3913 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.140.3] - 2026-10-20
 
 ### Fixed
