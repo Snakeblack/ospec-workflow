@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.139.6, 2026-10-19.
+> **Versión de referencia:** v2.139.7, 2026-10-20.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -975,6 +975,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-20: `global-install-schemas` (IDD, OSP-030, #355), publicado en v2.139.7. `setup:opencode` y `setup:copilot` instalan `schemas/` junto a `scripts/`, y el CLI `ospec` instalado vuelve a arrancar. Cierra el defecto del instalador global anotado el 2026-10-17.
 - 2026-10-19: avance de E1.30 con IDD (`startbrowser-fake-child`). El test del navegador que nunca abre su puerto usa un ChildProcess falso dentro del proceso: ya no depende de que un Node arranque a tiempo y pasa de unos 11 s a 0,3 s. El plazo de 0 flakes pasa al 2026-10-26 (decisión del usuario).
 - 2026-10-18: seguimiento de E1.27 `agy-hooks-adapter` (IDD). agy 1.4.2 vuelve a cargar los hooks de ospec: `SessionStart`/`Stop` planos, wrapper `ospec-antigravity-hook.js` y adaptador de entrada, salida y `cwd` en el launcher (REQ-hooks-026). La causa no era `enabled`. Verificado en vivo. Después, `opencode-global-plugin-shadow`: `install:opencode` y `ospec doctor` avisan cuando el plugin global de OpenCode tapa al de proyecto. Queda Codex en vivo (pospuesto).
 - 2026-10-18: E1.27 hecho con IDD como `hook-secret-redaction` y publicado en v2.139.0. Se amplió por decisión del usuario: además de preguntar, el hook `PostToolUse` censura los secretos de la salida de las herramientas. Los cubre en Claude Code y en OpenCode 2.x (verificados en vivo) y en Codex vía `block` (sin verificar en vivo); VS Code, Copilot, Cursor y Antigravity conservan el `ask`. La revisión de confianza destapó un hueco del protocolo IDD: una corrección mayor que el presupuesto no tenía salida. Se arregló en `review-oversized-correction` (mismo release): `ospec review start` escala a una sucesora con los hallazgos pendientes. Seguimientos: el `hooks.json` de agy no carga por la clave `enabled`, OpenCode deduplica plugins por `id` y Codex está pendiente de verificar en vivo.

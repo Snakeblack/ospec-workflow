@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.139.7] - 2026-10-20
+
+### Fixed
+- **El CLI `ospec` instalado por `setup:opencode` y `setup:copilot` no arrancaba**: los dos instaladores globales copiaban `scripts/` pero no `schemas/`, y el runtime carga sus datos desde `../../schemas/`. Por eso `ospec --help`, `ospec doctor` y el flujo IDD fallaban con `MODULE_NOT_FOUND` desde v2.120.0 (OSP-030, #355). Ahora `schemas/` se instala junto a `scripts/` y entra en el manifiesto, así que una reinstalación borra lo que el build ya no trae (REQ-install-035). Los tests instalan un build real en un directorio aislado y arrancan el CLI instalado.
+
+  Hecho con IDD (`idd/archive/2026-10-20-global-install-schemas/`).
+
+**Verificación directa**: `node scripts/check.js` (3900 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.139.6] - 2026-10-19
 
 ### Fixed
