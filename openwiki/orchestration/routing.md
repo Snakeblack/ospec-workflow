@@ -1,68 +1,93 @@
-# Orquestación de Fases y Rutas SDD
+# Orquestación: del router a la ceremonia proporcional
 
-> **En pocas palabras:** No todos los cambios en un proyecto son iguales: arreglar una errata no requiere el mismo proceso que diseñar una arquitectura desde cero. En el modo SDD, el **orquestador** analiza lo que quieres hacer y elige automáticamente la ruta más rápida y segura para tu caso, asegurando que solo se ejecuten los pasos necesarios.
-
----
-
-## Antes del orquestador: el router
-
-Cada instalador añade un router pequeño a las instrucciones que el asistente carga siempre. Decide qué flujo sigue cada petición:
-
-| Petición | Flujo |
-|---|---|
-| Un cambio de código | **IDD**, el flujo por defecto: la skill `idd` lo lleva con el CLI `ospec` hasta `ospec close`. |
-| Una pregunta, una explicación o trabajo de solo lectura | Directo, sin cambio registrado. |
-| Un comando `/sdd-*` o «hazme un SDD para X» | **SDD**: el orquestador de esta página, si el paquete se instaló con `--with-sdd`. |
-| Un proyecto con `mode: sdd` en `idd/config.yaml` | IDD apagado: trabajo directo y SDD solo bajo petición. |
-
-Los cambios SDD en curso terminan en SDD. El resto de esta página describe el modo SDD.
+> **En pocas palabras:** Cada petición de código entra por un router pequeño. El flujo por defecto es **IDD**: no tiene fases, sino señales de impacto que deciden qué obligaciones tiene cada cambio, y se da por terminado solo cuando el CLI `ospec` observa la evidencia. El modo **SDD** es opcional y tiene su propio orquestador; sus fases, rutas y gates están en [Ciclo y rutas SDD](/openwiki/sdd/ciclo-y-rutas.md).
 
 ---
 
-## El Ciclo Completo de Desarrollo (SDD)
+## El router: a qué flujo va cada petición
 
-El ciclo de desarrollo guiado por especificaciones (Spec-Driven Development) consta de 7 fases fundamentales:
+El instalador añade un router a las instrucciones que el asistente carga siempre. Decide el flujo antes de tocar nada:
 
 ```mermaid
-flowchart LR
-    A["propose
-(Propuesta)"] --> B["spec
-(Especificación)"]
-    B --> C["design
-(Diseño técnico)"]
-    C --> D["tasks
-(Plan de tareas)"]
-    D --> E["apply
-(Código TDD)"]
-    E --> F["verify
-(Verificación)"]
-    F --> G["archive
-(Archivo histórico)"]
+flowchart TD
+    P["Petición"] --> S{"¿Un /sdd-*, una petición explícita de SDD o continuar un cambio SDD en curso?"}
+    S -- Sí --> SDD["Modo SDD (opcional)"]
+    S -- No --> Q{"¿Cambia código?"}
+    Q -- No --> D["Directo: sin cambio registrado"]
+    Q -- Sí --> M{"¿mode: sdd en idd/config.yaml?"}
+    M -- Sí --> D
+    M -- No --> IDD["IDD (por defecto)"]
 ```
 
----
-
-## Catálogo de Rutas Inteligentes
-
-El orquestador consulta la tabla de rutas de `openspec/config.yaml` y activa la primera ruta que coincide con tu necesidad:
-
-| Ruta | ¿Cuándo se utiliza? | Fases que ejecuta |
+| Petición | Flujo | Qué ocurre |
 |---|---|---|
-| **standard** | Desarrollo normal de nuevas funcionalidades en proyectos activos. | `propose → spec → design → tasks → apply → verify → archive` |
-| **lite** | Cambios pequeños y directos de bajo riesgo. | `propose → tasks → apply → verify → archive` |
-| **hotfix** | Corrección urgente de emergencia que debe aplicarse ya. | `apply → verify → archive` |
-| **bugfix** | Corrección de un fallo tras investigar la causa raíz. | `explore → tasks → apply → verify → archive` |
-| **refactor** | Reestructuración de código sin alterar el comportamiento externo. | `design → tasks → apply → verify → archive` |
-| **foundation** | Creación inicial de un proyecto desde cero. | `foundation` (construye la base antes de programar) |
-| **brownfield** | Proyectos existentes con código pero sin especificaciones. | `sdd-baseline` (genera especificaciones por dominios) |
-| **federated** | Cambios coordinados en múltiples repositorios a la vez. | `sdd-workspace → propose → spec → design → ...` |
+| Un cambio de código | **IDD** | El router carga la skill `idd`; el CLI `ospec` lleva el cambio hasta `ospec close`. |
+| Una pregunta, una explicación o trabajo de solo lectura | Directo | Sin cambio registrado y sin skill de IDD. |
+| Un comando `/sdd-*` o «hazme un SDD para X» | **SDD** (opcional) | Carga `sdd-orchestrator` una vez. Requiere instalar con `--with-sdd`. |
+| Un cambio SDD ya en curso | **SDD** | Termina en SDD; nunca pasa a IDD. |
+| Un proyecto con `mode: sdd` en `idd/config.yaml` | Directo | IDD queda apagado; SDD solo si se pide. |
+
+Reglas del router:
+
+- IDD necesita un proyecto: un work tree git cuyo toplevel no sea `$HOME` ni `/`. Fuera de uno, un arreglo del sistema o un script suelto se hacen directamente.
+- Si el usuario pide explícitamente un cambio sin IDD, se hace directo. El router nunca lo ofrece por su cuenta.
+- Un proyecto nuevo, o una petición para definir la arquitectura de un sistema, empieza con la skill `foundation`, en cualquier modo. IDD construye después sobre las decisiones que esa skill registra.
+- SDD no se ofrece ni arranca solo, ni aunque `openspec/changes/` tenga un cambio activo.
 
 ---
 
-## Compuertas de Control y Seguridad (*Gates*)
+## Cómo IDD elige la ceremonia
 
-En puntos críticos de la ruta, el orquestador aplica compuertas de calidad automáticas:
+IDD no tiene rutas ni fases. Una errata y una migración de esquema no necesitan el mismo proceso, y IDD lo resuelve con **señales de impacto**:
 
-1. **Gate de Aclaración (`clarify`):** Si la especificación tiene contradicciones o ambigüedades graves, el sistema se detiene y realiza preguntas puntuales al usuario antes de permitir el diseño técnico.
-2. **Gate de revisión de calidad (`quality-review-gate`):** Tras verificar el código, una clasificación determinista elige qué dimensiones revisar (Confianza, Runtime, Evolución y Eficiencia), y cada revisor seleccionado actúa una sola vez dentro de un linaje de revisión acotado.
-3. **Límite de Carga de Revisión (`review-workload`):** Advierte si un cambio supera las **400 líneas modificadas**, recomendando dividirlo en entregas encadenadas para proteger la atención del revisor humano.
+1. El agente declara los ficheros que espera tocar con `ospec signals --path`. Las señales se activan a partir de esos ficheros, de la intención registrada y de las decisiones y ADR declarados.
+2. Con el diff real, `ospec check` recalcula las señales. Cada señal activa añade su obligación; un cambio gana ceremonia solo cuando su impacto la pide.
+3. Cada obligación se cierra únicamente con evidencia que el CLI observa ejecutarse sobre el árbol actual. Decir «los tests pasan» no satisface nada.
+
+| Señal | Se activa cuando | Obligación que añade |
+|---|---|---|
+| `always` | Todo cambio con intención registrada | `checks-pass`: `ospec check` ejecuta los checks de `idd/config.yaml` |
+| `bug-fix` | La intención es un bug | `repro-test`: el test de reproducción falla antes del arreglo y pasa después |
+| `strict-tdd` | `strict_tdd: true` en `idd/config.yaml`, salvo documentación y refactors | `tdd-red-green`: un par rojo → verde por unidad de trabajo |
+| `untested-product` | La intención es `feature` o `bug` y el diff cambia código de producto sin tocar ningún test | `boundary-tests`: un check que pase sobre el árbol actual con más de cero tests |
+| `multi-unit-or-decision` | Varias unidades de trabajo o una decisión de diseño registrada | `living-doc`: `idd/<cambio>/change.md` al día con el plan y las decisiones |
+| `public-contract` | Rutas de API, OpenAPI, proto o GraphQL, o lo que publica un `package.json` no privado | `contract-spec-and-test`: el documento de contrato y su test cambian en el diff |
+| `persistent-data` | Migraciones, SQL o esquemas de ORM | `migration-compat-and-test`: un test de migración con plan de compatibilidad o de vuelta atrás |
+| `security-boundary` | Autenticación, seguridad, permisos, secretos o credenciales | `trust-review`: una revisión de confianza acotada y de solo lectura |
+| `adr-or-quality-attribute` | El cambio declara los ADR o escenarios de calidad que toca | `adr-impact-declaration`: `none`, `conforms`, `amends`, `supersedes` o `contradicts` para cada uno |
+
+### Ejemplos
+
+| Cambio | Señales | Obligaciones |
+|---|---|---|
+| Errata en la documentación | `always` | Solo `checks-pass` |
+| Refactor interno que no toca contrato, datos ni seguridad | `always` | Solo `checks-pass` |
+| Arreglo de un bug de validación, aunque sea de una línea | `always`, `bug-fix` | `checks-pass` y `repro-test` |
+| Cambio de autenticación | `always`, `security-boundary` | `checks-pass` y `trust-review` |
+
+Un arreglo de una línea solo se queda en `checks-pass` si no es un bug ni toca contrato, datos o seguridad. Un bug suma `repro-test` aunque ocupe una línea, porque la intención `bug` activa `bug-fix`.
+
+### Gates
+
+El agente se detiene en cinco gates. Solo una respuesta explícita del usuario los resuelve:
+
+- `ambiguous-intent`: no se puede enunciar la aceptación. Hasta resolverlo no se deriva ninguna señal.
+- `open-facts`: comportamientos que ni la petición ni el código fijan. Se preguntan todos juntos antes de editar.
+- `irreversible-operation`: borrado de datos, reescritura de historia publicada u otra operación destructiva.
+- `adr-amend-or-contradict`: el cambio enmienda, sustituye o contradice un ADR.
+- `review-limit`: se agotaron las revisiones de confianza del cambio; la respuesta autoriza una más.
+
+### Dónde vive el estado
+
+- `idd/<cambio>/state.yaml`: lo escribe solo el CLI.
+- `idd/<cambio>/change.md`: plan y decisiones vivas, que mantiene el agente.
+- `idd/config.yaml`: `checks:`, `impact:`, `team:` y `mode`. Sin al menos un comando en `checks:`, ningún cambio puede cerrar.
+- `idd/archive/`: destino de cada cambio cuando `ospec close` termina bien.
+
+El recorrido completo, paso a paso, está en [Flujo IDD](/openwiki/idd/flujo-idd.md). El contrato que lo define está en [openspec/specs/idd/spec.md](https://github.com/snakeblack/ospec-workflow/blob/main/openspec/specs/idd/spec.md).
+
+---
+
+## Cuando se pide SDD
+
+Si pides SDD, el router carga `sdd-orchestrator` y la ceremonia cambia por completo: la propuesta, la especificación, el diseño y las tareas se aprueban antes de programar. Lo que es el modo y cómo se instala está en [Modo SDD](/openwiki/sdd/modo-sdd.md). Sus fases, rutas y gates están en [Ciclo y rutas SDD](/openwiki/sdd/ciclo-y-rutas.md).

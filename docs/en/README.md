@@ -63,12 +63,14 @@ differences per host are declared in
 
 ## Optional SDD mode
 
-SDD runs a change through planned phases (proposal, specs, design, tasks,
-apply, verify, archive) with OpenSpec artifacts and an orchestrator. It is not
-installed by default: add `--with-sdd` to any installer
+SDD is an **optional mode**. IDD is the default flow and never hands a change
+over to SDD on its own. SDD runs a change through planned phases (proposal,
+specs, design, tasks, apply, verify, archive) with OpenSpec artifacts and an
+orchestrator. It is not installed by default: add `--with-sdd` to any installer
 (`npm run setup:claude -- --with-sdd`), then run a `/sdd-*` command or ask for
 spec-driven work ("do SDD for X"). The marketplace build ships without it. To
-turn IDD off in a project, declare `mode: sdd` in `idd/config.yaml`.
+turn IDD off in a project, declare `mode: sdd` in `idd/config.yaml`. The two
+modes keep separate state: `idd/` for IDD, `openspec/changes/` for SDD.
 
 | Command | Use |
 |---|---|
@@ -80,8 +82,10 @@ turn IDD off in a project, declare `mode: sdd` in `idd/config.yaml`.
 
 ## Where to read next
 
+- Web guide: [IDD](https://ospec-workflow.mretamozo.com/idd/flujo-idd/) (the
+  default flow) and [SDD mode (optional)](https://ospec-workflow.mretamozo.com/sdd/modo-sdd/).
 - IDD contract: [`openspec/specs/idd/spec.md`](../../openspec/specs/idd/spec.md).
-- SDD methodology: [`docs/sdd-metodologia.md`](../sdd-metodologia.md) ·
+- SDD methodology (optional mode): [`docs/sdd-metodologia.md`](../sdd-metodologia.md) ·
   workflows: `docs/sdd-workflows.md` (Spanish).
 - Role guides (Spanish, 10 minutes each): `docs/onboarding/tech-lead.md`,
   `developer.md`, `reviewer.md`.

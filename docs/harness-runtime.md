@@ -87,9 +87,11 @@ fase persiste o devuelve inline). Ver [openspec.md](openspec.md) y la
 El arnés incorpora políticas activas durante el ciclo de vida del agente para evitar el consumo desmedido de tokens y proteger archivos o credenciales sensibles.
 
 ### 1. Token Budget Advisor (PreToolUse)
-Controla la lectura excesiva de archivos para proteger el contexto del modelo:
-- **Límite de archivo individual**: Bloquea con advertencia interactiva (`ask`) lecturas de un único archivo que estime más de **50,000 tokens** (~200 KB en código o ~300 KB en texto).
-- **Límite acumulado de sesión**: Si el total acumulado de la sesión excede los **150,000 tokens** (registrado en `.ospec/session/<changeName>/token-events.jsonl`), advierte interactivamente para aconsejar una compactación de contexto.
+Avisa antes de leer ficheros grandes para no llenar el contexto del modelo sin que lo notes. Nunca bloquea: pide confirmación (`ask`) y, si la apruebas, la herramienta continúa.
+- **Estimación**: por tamaño en disco, sin leer el contenido. Bytes / 4 en extensiones de código (`.js`, `.go`, `.json`, `.yaml`, `.yml`, `.md`, `.ts`, `.py`, `.txt`, `.rs`, `.c`, `.cpp`, `.h`, `.html`, `.css`) y (bytes / 6) × 1.3 en el resto. Cuentan los ficheros que existen y que la herramienta trae en su entrada.
+- **Límite por petición**: si la suma estimada de los ficheros de una petición supera **50,000 tokens** (~200 KB en código o ~230 KB en otros formatos), pide confirmación. Funciona sin cambio SDD activo.
+- **Límite acumulado**: solo con un cambio SDD activo (`openspec/changes/<cambio>/state.yaml` con `status: active`). Cada petición que pasa los controles se suma en `.ospec/session/<cambio>/token-events.jsonl`. Si el total más lo que pide la petición supera **150,000 tokens**, pide confirmación y recomienda compactar. Mientras el total siga por encima, cada llamada a herramienta vuelve a preguntar, incluidas las que no leen ficheros. Se libera borrando ese registro o cambiando el cambio activo. Sin cambio SDD activo (p. ej. en IDD) no se acumula nada y el nombre del cambio es `unknown`.
+- **Modo `bypassPermissions`**: la confirmación pasa a ser un aviso (`systemMessage`) y la lectura continúa.
 - **Bypass**: Habilita la variable de entorno `DISABLE_TOKEN_ADVISOR=true` para omitir esta validación.
 
 ### 2. AgentShield Security (SessionStart y PreToolUse)

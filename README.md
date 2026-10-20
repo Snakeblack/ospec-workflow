@@ -40,6 +40,7 @@ A one-line fix and a schema migration do not need the same ceremony. IDD has no 
 | `always` | Every change with a resolved intent | `checks-pass`: `ospec check` runs the checks declared in `idd/config.yaml` on the current tree |
 | `bug-fix` | The intent is a bug | `repro-test`: the reproduction test fails first, then passes |
 | `strict-tdd` | `strict_tdd: true` in `idd/config.yaml`, except for docs and refactor changes | `tdd-red-green`: a red → green pair per unit |
+| `untested-product` | The intent is a `feature` or a `bug`, and the diff changes product code with no test | `boundary-tests`: a passing check on the current tree that reports more than zero tests (or, when the output has no count, a diff that touches a test) |
 | `public-contract` | The change touches API routes, OpenAPI, proto or GraphQL schemas, or what a non-private `package.json` publishes | `contract-spec-and-test`: the contract document and its test change in the diff |
 | `persistent-data` | The change touches migrations, SQL or ORM schemas | `migration-compat-and-test`: a migration test with a compatibility or rollback plan |
 | `security-boundary` | The change touches auth, security, permissions, secrets or credentials | `trust-review`: a bounded read-only trust review |
@@ -114,7 +115,7 @@ Choose a target, edit models when that target supports it, review the summary, t
 ## Detailed Setup per Target
 
 ### 🛠️ VS Code (Agent Plugin from `dist/vscode`)
-VS Code loads the built tree, not the source: the source still carries placeholders that only the build renders, and the whole SDD package.
+VS Code loads the built tree, not the source: the source still carries placeholders that only the build renders. The SDD package is left out unless you pass `--with-sdd`.
 ```powershell
 npm run setup:vscode
 ```
@@ -223,23 +224,23 @@ Every `npm run setup:<target>` (Claude, Codex, Antigravity, opencode, Cursor, VS
 | `idd/` | IDD configuration (`config.yaml`), changes in flight and `archive/`, in each project. |
 | `.plugin.json` | **Canonical** manifest (VS Code/direct-load). Edit this one first. |
 | `.claude-plugin/plugin.json` | Compatibility copy for Claude distribution; also the source read by the generator (`scripts/configure/cli.js`). It must mirror the canonical one — `scripts/manifest-sync.test.js` verifies this in CI. |
-| `agents/` | Orchestrator and specialized agents per phase. |
-| `commands/` | Visible commands and routing to the orchestrator. |
+| `agents/` | The IDD review agents (`review-*`) and, for the optional SDD mode, the orchestrator and the `sdd-*` agents per phase. |
+| `commands/` | The `/sdd-*` commands of the optional SDD mode and their routing to the orchestrator. |
 | `skills/` | On-demand capabilities and shared contracts. |
-| `rules/` | Persistent SDD, OpenSpec and Strict TDD rules. |
+| `rules/` | The always-on router, Engram and attribution rules, and the `sdd-*` rules of the optional SDD mode (OpenSpec, Strict TDD). |
 | `hooks/` | Declarative definition of plugin lifecycle events. |
 | `scripts/hooks/` | Hooks runtime (Node.js) and its tests. |
-| `scripts/lib/` | Shared libraries: OpenSpec state, artifact-store and the generator core (`frontmatter`, `model-resolver`, `target-transform`, profiles). |
+| `scripts/lib/` | Shared libraries: IDD and OpenSpec state, artifact-store and the generator core (`frontmatter`, `model-resolver`, `target-transform`, profiles). |
 | `scripts/configure/` | Multi-target generator CLI (`cli.js`), per-profile validators and golden fixtures. |
 | `models.yaml` | Tier→model tables per target for the generator. |
 | `profiles/models/` | Optional model-routing profiles (direct use in VS Code). |
 | `docs/` | Detailed architecture and usage documentation. |
 | `.mcp.json` | Canonical MCP source. Codex does not bundle it: `setup:codex` translates its entries to the native CLI and avoids duplicates. |
-| `openspec/` | Versionable source of truth for every SDD change. |
+| `openspec/` | Versionable source of truth for every SDD change (optional SDD mode). |
 
 ## Optional SDD Mode
 
-SDD runs a change through planned phases (proposal, specs, design, tasks, apply, verify, archive) with OpenSpec artifacts. Use it when you want the contract written and approved before any code: install the package with `--with-sdd`, then run a `/sdd-*` command or ask for spec-driven work ("do SDD for X"). The rest of this section describes that mode.
+SDD is an **optional mode**. IDD is the default flow and does not use these phases or files. SDD runs a change through planned phases (proposal, specs, design, tasks, apply, verify, archive) with OpenSpec artifacts, for when you want the contract written and approved before any code. It needs the package installed (`--with-sdd`) and enters only when you run a `/sdd-*` command or explicitly ask for spec-driven work ("do SDD for X"). The agent never offers or starts it on its own, an IDD change does not switch to SDD, and an SDD change in flight finishes in SDD. The rest of this section describes that mode.
 
 ### SDD Commands
 
@@ -247,12 +248,14 @@ SDD runs a change through planned phases (proposal, specs, design, tasks, apply,
 | --- | --- |
 | `/sdd-init` | Detects the project and prepares OpenSpec, testing and the skill registry. |
 | `/sdd-baseline` | Seeds openspec/specs/ with baseline specs of existing behavior (brownfield repos, resumable batches). |
+| `/sdd-reconcile` | Folds already-shipped, undocumented code changes back into a domain's baseline spec as a retroactive delta. |
 | `/sdd-workspace` | Manages multi-repo federation: atlas (`init`), cross-repo state (`status`), contract-based impact (`impact`). |
 | `/sdd-new` | Starts a persisted change and selects the workflow. |
 | `/sdd-lite` | Runs the reduced flow for small, low-risk changes. |
 | `/sdd-ff` | Completes planning: proposal, specs, design and tasks. |
 | `/sdd-continue` | Restores state from OpenSpec and resumes the next available phase. |
 | `/sdd-explore` | Investigates an idea without implementing. |
+| `/sdd-clarify` | Re-runs or manually triggers the clarify phase of an existing change. |
 | `/sdd-propose` | Defines intent, scope, risks and approach of the change. |
 | `/sdd-spec` | Writes requirements and verifiable scenarios. |
 | `/sdd-design` | Defines architecture, data flow and testing strategy. |
@@ -260,6 +263,7 @@ SDD runs a change through planned phases (proposal, specs, design, tasks, apply,
 | `/sdd-apply` | Implements tasks in reviewable batches. |
 | `/sdd-verify` | Checks specs, design, tasks and test evidence. |
 | `/sdd-archive` | Consolidates and archives a verified change. |
+| `/sdd-document` | Generates wiki pages with the repository's architecture, specifications and status. |
 | `/sdd-onboard` | Walks through a real SDD cycle on the current repository. |
 
 In SDD, the `foundation` route delegates to the `foundation` agent when the project is empty. Phase agents must not be invoked as an uncoordinated team: the orchestrator preserves order and contracts.
@@ -327,10 +331,11 @@ Hooks offload repetitive lifecycle-cycle tasks from the prompt and enforce secur
 
 | Event | Responsibility |
 | --- | --- |
-| `SessionStart` | Validates OpenSpec, refreshes the compact skill cache and runs **AgentShield** security scans (alerts for exposed `.env` files or credentials in `.git/config`). |
-| `PreToolUse` | Blocks or asks for confirmation for dangerous commands, evaluates **Token Budget Advisor** limits (limit of 50k tokens per file, 150k accumulated tokens per session) and implements **AgentShield** (blocking of SSH keys, `.npmrc`, `.git/config`, and interactive prompts for secrets). |
+| `SessionStart` | Refreshes the compact skill cache, runs **AgentShield** security scans (alerts for exposed `.env` files or credentials in `.git/config`) and, when the project has OpenSpec, warns about spec drift (SDD mode). |
+| `PreToolUse` | Blocks or asks for confirmation for dangerous commands, evaluates **Token Budget Advisor** limits (limit of 50k tokens per request, 150k accumulated tokens only with an active SDD change) and implements **AgentShield** (blocking of SSH keys, `.npmrc`, `.git/config`, and interactive prompts for secrets). |
+| `PostToolUse` | Redacts secrets from tool output before the model sees it. |
 | `PreCompact` | Persists a recoverable summary before compacting context. |
-| `SubagentStop` | Detects degradation in skill resolution. |
+| `SubagentStop` | Records telemetry (tokens and duration) per agent and, for the `sdd-*` agents of the active SDD change, persists their result in its `state.yaml`. It warns when skill resolution degrades and never blocks the turn. |
 | `Stop` | Records minimal session continuity. |
 
 ### Bypass Environment Variables (Harness Gates)
@@ -340,6 +345,7 @@ You can temporarily skip the various security checks, budgets, and validators us
 - `DISABLE_AGENT_SHIELD=true`: Disables AgentShield scanning and blocking/prompting of sensitive files and credentials.
 - `DISABLE_TOKEN_ADVISOR=true`: Disables the estimated token-size check on file reads during the session (Token Budget Advisor).
 - `DISABLE_OSPEC_PRECOMMIT=true`: Disables local workspace-validation and Strict TDD enforcement in the Git pre-commit hook.
+- `DISABLE_SPEC_DRIFT_GUARD=true` (SDD mode): Turns off the OpenSpec spec-drift warning in SessionStart and PreToolUse.
 
 Hooks run native code (Node.js or optimized Go executables). `.ospec/cache` and `.ospec/session` are auxiliary; **`idd/` and OpenSpec state on disk remain the source of truth**.
 
@@ -351,7 +357,7 @@ Agents do not hardcode concrete model names. By default they inherit the selecte
 - `cheap`: reduces cost during exploration and proposal;
 - `premium`: increases reasoning during design and verification.
 
-Profiles live in `profiles/models/`. See [model-routing.md](docs/model-routing.md).
+Tiers come from `models.yaml`, which assigns one to every agent, `review-*` included (`review-change` is premium, the other reviewers default). The profiles in `profiles/models/` route the SDD agents (optional SDD mode): the `sdd-*` agents and the `foundation` agent, which only `default.yaml` lists. See [model-routing.md](docs/model-routing.md).
 
 ## Multi-target compatibility
 
@@ -391,24 +397,28 @@ Additional servers must be activated explicitly. See [mcp-policy.md](docs/mcp-po
 
 ## Workflow guarantees
 
-- A change is done only when `ospec close` succeeds; obligations are satisfied only by evidence from runs the CLI observes.
+- **IDD:** a change is done only when `ospec close` succeeds; obligations are satisfied only by evidence from runs the CLI observes.
+- **SDD (optional):** phases and approvals are reported as done only when `openspec/changes/<change>/state.yaml` says so.
 - Strict TDD when the project enables it (`strict_tdd: true` in IDD, a compatible runner in SDD).
 - Change state recoverable from disk: `idd/<change>/` in IDD, `openspec/changes/{change-name}/` in SDD.
 - Gates and approvals persisted in `state.yaml`, resolved only by an explicit answer, never inferred from chat history.
-- Dynamic delimited prompts to separate intent, artifacts, standards, and approval context.
-- Skills resolved as compact rules to control the token budget.
-- Changes organized into reviewable units, with guards when load exceeds the recommended budget.
+- **SDD:** dynamic delimited prompts to separate intent, artifacts, standards, and approval context for phase subagents.
+- **SDD:** skills resolved as compact rules to control the token budget when dispatching phase agents.
+- **Both:** changes organized into reviewable units. IDD uses the `work-unit-commits` and `chained-pr` skills when the diff exceeds the review budget; SDD proposes chained PRs above the ~400-line budget.
 
 ## Documentation
 
 | Document | Content |
 | --- | --- |
+| [ospec-workflow.mretamozo.com](https://ospec-workflow.mretamozo.com) | Web documentation: start page and quick start. |
+| [IDD guide](https://ospec-workflow.mretamozo.com/idd/flujo-idd/) | IDD, the default flow: obligations, evidence, gates and closing. |
+| [SDD mode (optional)](https://ospec-workflow.mretamozo.com/sdd/modo-sdd/) | What SDD is, when it enters and how it differs from IDD. |
 | [docs/README.md](docs/README.md) | Index and recommended reading path. |
 | [openspec/specs/idd/spec.md](openspec/specs/idd/spec.md) | IDD contract: signals, obligations, gates and the `ospec` CLI. |
-| [docs/sdd-metodologia.md](docs/sdd-metodologia.md) | SDD mode: principles and mental model. |
-| [docs/sdd-fases.md](docs/sdd-fases.md) | Contracts of each phase. |
-| [docs/sdd-workflows.md](docs/sdd-workflows.md) | Work lines: standard, lite, fast-forward, foundation, brownfield baseline, continuation, workspace and onboarding. |
-| [docs/openspec.md](docs/openspec.md) | Persistence, delta specs and archiving. |
+| [docs/sdd-metodologia.md](docs/sdd-metodologia.md) | SDD mode (optional): principles and mental model. |
+| [docs/sdd-fases.md](docs/sdd-fases.md) | SDD mode (optional): contracts of each phase. |
+| [docs/sdd-workflows.md](docs/sdd-workflows.md) | SDD mode (optional): work lines: standard, lite, fast-forward, foundation, brownfield baseline, continuation, workspace and onboarding. |
+| [docs/openspec.md](docs/openspec.md) | SDD mode (optional): persistence, delta specs and archiving. |
 | [docs/tdd-y-revision.md](docs/tdd-y-revision.md) | Strict TDD and review budget. |
 | [docs/harness-runtime.md](docs/harness-runtime.md) | Hooks runtime architecture. |
 | [docs/model-routing.md](docs/model-routing.md) | Model tiers and format per target (`models.yaml`). |

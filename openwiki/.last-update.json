@@ -26,7 +26,7 @@
     "evolution": "Evolución y roadmap",
     "architecture": "Arquitectura",
     "orchestration": "Orquestación",
-    "kernel-runtime": "Runtime del kernel",
+    "kernel-runtime": "Kernel (histórico)",
     "agents-skills": "Agentes y skills",
     "rules-system": "Sistema de reglas",
     "model-routing": "Ruteo de modelos",
@@ -37,6 +37,8 @@
     "testing-quality": "Testing y calidad",
     "generator": "Generador multi-target",
     "workspace-federation": "Federación multi-repo",
-    "legal": "Licencia"
+    "legal": "Licencia",
+    "idd": "IDD: flujo por defecto",
+    "sdd": "Modo SDD (opcional)"
   }
 }

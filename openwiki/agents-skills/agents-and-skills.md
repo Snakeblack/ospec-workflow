@@ -1,64 +1,92 @@
 # Agentes y Habilidades (Skills)
 
-> **En pocas palabras:** En `ospec-workflow`, un **Agente** es el rol profesional que asume la IA (como un arquitecto de software o un auditor de seguridad), y una **Skill** es el manual de instrucciones exacto que le enseña paso a paso cómo realizar su trabajo con excelencia.
+> **En pocas palabras:** Un **agente** es un rol con herramientas y responsabilidad acotadas: en IDD el asistente principal cambia el código, y los revisores `review-*` solo leen y aportan evidencia. Una **skill** es el manual paso a paso que le indica cómo hacer una tarea concreta. El flujo por defecto es IDD; los agentes de fase de SDD son un paquete opcional.
 
 ---
 
-## IDD por defecto, SDD como paquete opcional
+## Agente y skill: qué es cada cosa
 
-En el flujo por defecto (IDD) no hay agentes de fase: la skill `idd` guía al asistente con el CLI `ospec`, y solo intervienen los revisores de solo lectura `review-*` cuando una obligación pide una revisión de confianza. El orquestador y los agentes `sdd-*` de esta página forman el paquete SDD, que se instala con `--with-sdd`.
+| Pieza | Dónde vive | Qué define |
+|---|---|---|
+| **Agente** | `agents/<nombre>.agent.md` | Su rol, las herramientas que puede usar (`read`, `search`, `edit`, `execute`) y si el usuario lo invoca directamente (`user-invocable`). |
+| **Skill** | `skills/<nombre>/SKILL.md` | El procedimiento: qué hacer, en qué orden y con qué criterios. Su `description` incluye los disparadores que la activan. |
 
-## Estructura de Roles Especializados (modo SDD)
+Un agente sin `edit` no puede tocar ficheros. Los revisores `review-*` tienen solo `read` y `search`, así que su trabajo termina en un informe.
 
-En lugar de tener una sola IA que intente hacerlo todo, el sistema divide el trabajo entre agentes con responsabilidades muy claras:
+---
+
+## Flujo por defecto: IDD
+
+En IDD no hay agentes de fase. El instalador añade un router a las instrucciones del asistente: cada cambio de código entra en la skill `idd`, y las preguntas o el trabajo de solo lectura van directos. La skill `idd` y el CLI `ospec` deciden qué obligaciones faltan y cuándo el cambio está hecho. Los revisores aportan evidencia; no deciden el cierre.
 
 ```mermaid
 flowchart TD
-    Orch["sdd-orchestrator
-(Coordinador del flujo)"] --> P["sdd-propose (Propuestas)"]
-    Orch --> S["sdd-spec (Especificaciones)"]
-    Orch --> D["sdd-design (Arquitectura)"]
-    Orch --> T["sdd-tasks (Plan de tareas)"]
-    Orch --> A["sdd-apply (Programador TDD)"]
-    Orch --> V["sdd-verify (Verificador de tests)"]
-    Orch --> Arc["sdd-archive (Historiador)"]
-    
-    V --> R1["review-trust (Trust)"]
-    V --> R2["review-runtime (Runtime)"]
-    V --> R3["review-evolution (Evolution)"]
-    V --> R4["review-efficiency (Efficiency)"]
+    Router["Router del instalador"] -->|"cambio de código"| IDD["Skill idd + CLI ospec"]
+    Router -->|"pregunta o solo lectura"| Directo["Respuesta directa"]
+    IDD -->|"obligación trust-review"| RT["review-trust (solo lectura)"]
+    RT -->|"hallazgos"| IDD
+    IDD -->|"una corrección acotada"| RC["review-correction (solo lectura)"]
 ```
 
-Live routes use the quality v2 roster above. The 4R lenses (`review-risk`, `review-readability`, `review-reliability`, `review-resilience`) were retired in v2.91.0: `schema_version: 1` lineages stay readable for one minor version and migrate to v2 when they still need lenses.
+La revisión de confianza solo aparece cuando el cambio cruza una frontera de seguridad, según sus señales. El ciclo es:
+
+1. `ospec review start` abre la revisión y devuelve la petición.
+2. `review-trust` devuelve sus hallazgos, que el asistente pasa sin modificar a `ospec review record` y después corrige lo bloqueante.
+3. `ospec review correct` pide la validación: `review-correction` comprueba la corrección contra los hallazgos congelados, sin buscar problemas nuevos.
+4. `ospec review validate` registra el resultado.
+
+Un cambio admite como máximo 3 revisiones de confianza. Cuando se agotan, `ospec check` abre la puerta `review-limit` (una de las cinco puertas de IDD): solo la respuesta explícita de la persona autoriza una revisión más. Una nueva revisión exige código cambiado.
 
 ---
 
-## Catálogo de Agentes Principales
+## Catálogo de revisores (solo lectura)
 
-| Agente | Rol y Responsabilidad |
-|---|---|
-| **`sdd-orchestrator`** | El director de orquesta. Evalúa la solicitud, elige la ruta y delega en el especialista correspondiente. |
-| **`sdd-propose`** | Redacta la propuesta inicial con el objetivo, alcance y análisis de riesgos. |
-| **`sdd-spec`** | Define los requerimientos y escenarios de prueba utilizando el estándar OpenSpec. |
-| **`sdd-design`** | Diseña la arquitectura técnica, estructuras de datos y estrategia de archivos. |
-| **`sdd-tasks`** | Desglosa la solución en tareas concretas y estima el impacto en líneas de código. |
-| **`sdd-apply`** | Implementa el código siguiendo estrictamente TDD (primero el test que falla, luego el código). |
-| **`sdd-verify`** | Ejecuta las pruebas en consola real y audita que la evidencia sea sólida y sin trampas. |
-| **`sdd-archive`** | Registra el cambio terminado en el historial de archivo inmutable de la empresa. |
+| Agente | Lo usa | Qué revisa |
+|---|---|---|
+| `review-trust` | IDD (obligación `trust-review`) y la puerta de calidad de SDD | Fronteras de autenticación, credenciales, secretos y riesgos de permisos. |
+| `review-correction` | IDD y la puerta de calidad de SDD | Valida los hallazgos inmutables de un linaje de revisión. |
+| `review-runtime` | La puerta de calidad de SDD | Riesgos de red, errores, reintentos, concurrencia y fallos parciales. |
+| `review-evolution` | La puerta de calidad de SDD | Complejidad estructural, mantenibilidad y deriva de contratos. |
+| `review-efficiency` | La puerta de calidad de SDD | Rutas sensibles al rendimiento, siempre con evidencia. |
+| `review-change` | La puerta de calidad de SDD | Clasificación residual cuando la puerta no puede asignar el cambio a un dominio. |
 
----
-
-## Las Habilidades (*Skills*): Procedimientos Paso a Paso
-
-Cada agente cuenta con un documento `SKILL.md` que define su procedimiento operativo estándar. Existen 4 tipos de habilidades en el repositorio:
-
-1. **Habilidades de Fase SDD (`skills/sdd-*`):** El procedimiento formal para cada una de las etapas de desarrollo.
-2. **Protocolo Compartido (`skills/_shared/`):** Reglas universales para todos los agentes (formato de respuesta, memoria operativa y estilo de comunicación).
-3. **Habilidades de Stack Tecnológico (`skills/stack-*`):** Buenas prácticas específicas para React, Go, Python, Spring Boot, Astro Starlight, Angular, etc.
-4. **Habilidades de Utilidad (`skills/chained-pr`, `skills/branch-pr`, etc.):** Herramientas para dividir Pull Requests grandes, crear ramas o generar notas de versión.
+Los revisores no se invocan directamente (`user-invocable: false`). Las lentes de la v1 (`review-risk`, `review-readability`, `review-reliability`, `review-resilience`) se retiraron en la v2.91.0; los linajes `schema_version: 1` antiguos siguen legibles durante una versión menor y después migran a v2.
 
 ---
 
-## Registro Ultrarrápido en Caché
+## Las habilidades (*skills*)
 
-Para que los asistentes no pierdan tiempo buscando archivos en el disco, el sistema compila todo el catálogo de habilidades en un archivo JSON indexado (`.ospec/cache/skill-registry.cache.json`). Al iniciar la sesión, los agentes acceden a sus instrucciones en milisegundos.
+Cada grupo indica en qué instalaciones aparece.
+
+### Instaladas en cualquier modo
+
+| Grupo | Skills | Para qué |
+|---|---|---|
+| Flujo IDD | `idd` | Lleva cada cambio de código a través del CLI `ospec`. |
+| Arquitectura | `foundation` | Fija la arquitectura de un proyecto nuevo antes del primer cambio; IDD construye sobre sus decisiones. |
+| Ramas y entrega | `branch-pr`, `chained-pr`, `work-unit-commits` | Procedimientos para PR, PR encadenados y commits por unidad de revisión. Las ramas, commits y PR siguen siendo decisión del usuario. |
+| Diseño y calidad | `api-design`, `accessibility`, `design-system`, `hexagonal-architecture`, `cognitive-doc-design`, `cncf-landscape` | Guías de diseño y revisión de dominio. |
+| Revisión | `review-trust`, `review-correction`, `review-change`, `review-runtime`, `review-evolution`, `review-efficiency` | Las skills de los revisores de la tabla anterior. |
+| Herramientas | `caveman`, `skill-creator`, `skill-registry` | Estilo de respuesta, creación de skills y el registro de skills. |
+| Stacks | `stack-angular`, `stack-dotnet`, `stack-go`, `stack-java`, `stack-kafka`, `stack-kotlin`, `stack-postgres`, `stack-python`, `stack-react`, `stack-springboot`, `stack-sqlserver`, `stack-starlight`, `stack-vite` | Buenas prácticas por tecnología. |
+| Soporte | `skills/_shared/` | Ficheros compartidos de resolución de skills, presupuesto de tokens y protocolos de fase. Se instalan siempre porque IDD los usa, aunque la mayoría describen protocolos de SDD. |
+
+### Solo con `--with-sdd`
+
+Las skills `skills/sdd-*` (procedimiento de cada fase SDD) y los comandos `/sdd-*`. Se explican en [Agentes de fase SDD](/openwiki/sdd/agentes-de-fase.md).
+
+### Solo con `--with-extras`
+
+`issue-creation`, `comment-writer`, `gh-release-notes`, `judgment-day`, `caveman-compress` y `stack-webmcp`. Son de colaboración y nicho; ninguna instalación por defecto las incluye.
+
+---
+
+## Registro de skills en caché
+
+Para no releer cada `SKILL.md` en cada sesión, el hook `SessionStart` (igual en IDD y en SDD) calcula una huella de las skills y reutiliza o regenera `.ospec/cache/skill-registry.cache.json`; informa de si la caché se `reused` o `generated`. El registro indexa las skills de `skills/` salvo `sdd-*`, `_shared` y `skill-registry`, y extrae de cada una hasta 15 reglas compactas de sus secciones de reglas. La skill `skill-registry` crea o actualiza el registro bajo demanda, por ejemplo tras instalar o quitar skills.
+
+---
+
+## Modo SDD (opcional)
+
+El orquestador `sdd-orchestrator` y los agentes de fase `sdd-*` solo existen en el modo SDD. Se instalan con `--with-sdd` y se activan con un comando `/sdd-*` o una petición explícita. Se documentan en [Agentes de fase SDD](/openwiki/sdd/agentes-de-fase.md).

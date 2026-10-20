@@ -6,9 +6,12 @@ La IA puede escribir mucho codigo rapido. Precisamente por eso necesita frenos. 
 
 ## Strict TDD
 
-Strict TDD se activa cuando la configuración del proyecto establece `testing.tdd_mode: strict` y hay un test runner disponible. `sdd-init` detecta las capacidades y mapea el modo según escala (`solo` → `standard`, `team` → `focused`, `enterprise` → `strict`).
+El modo activo decide qué declaración manda. Si existe `idd/config.yaml` y su `mode` no es `sdd`, el modo es **IDD**; en otro caso, **SDD**. Cada modo lee solo su propia declaración.
 
-Cuando esta activo, `sdd-apply` debe seguir este ciclo por tarea:
+- **IDD**: `strict_tdd` de `idd/config.yaml` (`scripts/lib/idd-config.js:121`). Si la clave está declarada, manda su valor. Si no, decide el perfil de equipo `team:` del mismo fichero (`scripts/lib/team-profile.js`): `solo` → false; `small` y `multi-team` → true; `experience: junior` → true. Sin `team:` y sin la clave, es false. Con Strict TDD activo, cada cambio cuya intención no sea `docs` ni `refactor` (`scripts/lib/idd-signals.js:92,268`) recibe la obligación `tdd-red-green`: un test que falla antes del código y pasa después, registrado con `ospec run --obligation tdd-red-green` (`scripts/lib/idd-next.js:43-44`).
+- **SDD** (`mode: sdd`, o sin `idd/config.yaml`): `testing.tdd_mode` de `openspec/config.yaml` (`standard`, `focused` o `strict`, resuelto con `resolveTddMode`). `sdd-init` lo escribe desde el perfil `team:` (`solo` → `standard`, `small` → `focused`, `multi-team` → `strict`, `junior` → `strict`) o, con la clave antigua `scale:`, desde la escala (`solo` → `standard`, `team` → `focused`, `enterprise` → `strict`). Solo `strict` activa el ciclo de abajo; `focused` se pasa a `sdd-apply` como TDD focalizado (`agents/sdd-orchestrator.agent.md:414`). Un test runner no activa el modo: si no se pueden ejecutar comandos, la tarea queda como `STATIC_VALIDATED` o `DEFERRED` (`rules/sdd-strict-tdd.instructions.md`).
+
+En modo SDD, con `strict` activo, `sdd-apply` debe seguir este ciclo por tarea:
 
 ```text
 SAFETY NET -> RED -> GREEN -> TRIANGULATE -> REFACTOR
@@ -26,14 +29,15 @@ TDD no es "hacer tests". TDD es disenar desde comportamiento. Si escribes el cod
 
 ### Guardas locales en Git (Pre-commit Hook)
 
-Para asegurar que las reglas del ciclo Strict TDD no se pasen por alto, el arnés incluye un hook de pre-commit que actúa como validador local de Git:
-- **Control de Strict TDD**: Si `testing.tdd_mode: strict` está activo en `openspec/config.yaml`, el hook de Git examina los archivos preparados (`staged`) para el commit. Si detecta archivos de producción modificados en rutas de código activas (como `internal/`, `cmd/`, `scripts/hooks/`, `scripts/lib/`), requerirá obligatoriamente que también esté preparado al menos un archivo de pruebas correspondiente (`*_test.go`, `*.test.js`) o el archivo `tasks.md` de planificación.
-- **Validación del Workspace**: Ejecuta localmente `scripts/check.js` para asegurar la paridad e integridad de todos los targets y evitar subir código con errores de sintaxis o tests rotos.
-- **Instalación y bypass**: Instala el hook ejecutando `npm run setup:git-hooks`. Puedes omitirlo temporalmente con la variable `DISABLE_OSPEC_PRECOMMIT=true` o la opción de git `--no-verify`.
+Para asegurar que las reglas del ciclo Strict TDD no se pasen por alto, el arnés incluye un hook de pre-commit (`scripts/hooks/pre-commit-hook.js`) que actúa como validador local de Git:
+- **Control de Strict TDD**: El hook usa una sola fuente, la del modo activo (`scripts/lib/precommit-strict.js`): en IDD, `strict_tdd` de `idd/config.yaml` (con el default del perfil `team:`); en SDD, o sin `idd/config.yaml`, `testing.tdd_mode: strict` de `openspec/config.yaml`. Con Strict TDD activo, si hay archivos de producción preparados (`.go` o `.js` bajo `internal/`, `cmd/`, `scripts/hooks/` o `scripts/lib/`), exige que el commit incluya también al menos un archivo de test (`*_test.go` o `*.test.js`, de cualquier ruta, no necesariamente el correspondiente) o un `tasks.md`, de cualquier ruta (`scripts/hooks/pre-commit-hook.js:232-259`). Es una comprobación de ficheros preparados: no ejecuta tests ni verifica el orden RED → GREEN. La obligación `tdd-red-green` de IDD se comprueba aparte, con `ospec run`. Si `idd/config.yaml` no se puede parsear, el hook no exige tests (`scripts/lib/precommit-strict.js:31-32`).
+- **Validación del workspace**: Ejecuta `scripts/check.js --staged` (solo lo preparado) por defecto; con `OSPEC_PRECOMMIT_FULL=true` ejecuta `scripts/check.js` completo. Si falla, el commit se rechaza antes de la comprobación de Strict TDD.
+- **Diagnóstico**: `ospec doctor` (check `strict-tdd-hook`, `scripts/lib/ospec-doctor.js:488-510`) avisa cuando el hook está instalado y la otra fuente también existe y dice lo contrario. No cambia el comportamiento del hook. Sin hook instalado, solo informa de que la guarda estaría activa.
+- **Instalación y bypass**: Instala el hook con `npm run setup:git-hooks`. `DISABLE_OSPEC_PRECOMMIT=true` omite todo el hook, incluida la guarda de Strict TDD (`pre-commit-hook.js:29-33`); `DISABLE_AGENT_SHIELD=true` solo omite el escaneo de secretos; `git commit --no-verify` omite el hook entero.
 
-## Evidencia obligatoria
+## Evidencia obligatoria (SDD)
 
-`sdd-apply` debe guardar una tabla de evidencia en `apply-progress.md`:
+En modo SDD con Strict TDD, `sdd-apply` debe guardar la tabla `TDD Cycle Evidence` en `apply-progress.md` (IDD registra su evidencia con `ospec run`):
 
 ```markdown
 | Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
@@ -50,7 +54,7 @@ En paralelo, `tasks.md` refleja el estado real del trabajo:
 
 `apply-progress.md` ya no se trata como snapshot descartable. `sdd-apply` debe leer el progreso previo y hacer merge append-first para no perder evidencia historica.
 
-## Niveles de evidencia en verify
+## Niveles de evidencia en verify (SDD)
 
 `sdd-verify` clasifica cada escenario con la evidencia mas fuerte que puede probar:
 
@@ -69,7 +73,7 @@ Regla dura:
 - Un MAY puede vivir con evidencia mas debil si la limitacion queda documentada.
 - `no-proof` es CRITICAL para MUST y WARNING para SHOULD/MAY.
 
-## Veredictos y routing
+## Veredictos y routing (SDD)
 
 El cierre de verify es uno de estos:
 
@@ -83,9 +87,9 @@ Cada CRITICAL o WARNING debe salir con pista de origen: `code-bug`, `tasks-gap`,
 
 `sdd-archive` solo puede cerrar cambios con `PASS` o con `PASS WITH WARNINGS` cuando esos riesgos quedan aceptados o convertidos en follow-up. `FAIL` bloquea archive.
 
-## Calidad de aserciones
+## Calidad de aserciones (SDD)
 
-No todo test cuenta. Un test malo es peor que nada porque da confianza falsa.
+No todo test cuenta. Un test malo es peor que nada porque da confianza falsa. En IDD, la regla equivalente es «Tests by risk» de `skills/idd/SKILL.md:148`.
 
 Patrones prohibidos:
 
@@ -99,7 +103,7 @@ Patrones prohibidos:
 
 Un test valido llama codigo de produccion, verifica una salida especifica y fallaria si la logica estuviera mal.
 
-## Capas de test
+## Capas de test (SDD)
 
 La capa se elige por el comportamiento:
 
@@ -112,7 +116,7 @@ La capa se elige por el comportamiento:
 
 Si una capa no existe, se degrada a la siguiente disponible. Lo que no se permite es saltarse la prueba.
 
-## Presupuesto de revision
+## Presupuesto de revision (común)
 
 El presupuesto base es:
 
@@ -122,7 +126,7 @@ El presupuesto base es:
 
 No es una ley fisica, es una barrera contra reviews imposibles. Una PR enorme fuerza al reviewer a elegir entre bloquear todo o mirar por encima. Eso no es colaboracion tecnica seria.
 
-`sdd-tasks` debe incluir cerca del principio:
+El perfil `team:` fija este presupuesto en ambos modos (`scripts/lib/team-profile.js`, `REVIEW_BUDGET_LINES`). En SDD, `sdd-tasks` debe incluir cerca del principio:
 
 ```text
 Decision needed before apply: Yes|No
@@ -131,7 +135,9 @@ Chain strategy: stacked-to-main|feature-branch-chain|size-exception|pending
 400-line budget risk: Low|Medium|High
 ```
 
-## Estrategias de entrega
+## Estrategias de entrega (SDD)
+
+El valor por defecto sale del perfil `team:` en ambos modos (`single-pr`, `ask-on-risk` o `auto-chain`); las opciones de esta tabla y su tratamiento por el orquestador son de SDD.
 
 | Estrategia | Uso |
 | --- | --- |
@@ -140,7 +146,7 @@ Chain strategy: stacked-to-main|feature-branch-chain|size-exception|pending
 | `single-pr` | Obliga a aceptar `size:exception` si se supera presupuesto. |
 | `exception-ok` | Continua porque la excepcion ya esta aceptada. |
 
-## Tipos de cadena
+## Tipos de cadena (SDD)
 
 | Tipo | Como funciona |
 | --- | --- |
