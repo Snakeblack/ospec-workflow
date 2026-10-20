@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.140.1] - 2026-10-20
+
+### Fixed
+- **La regla de formateo de disco bloqueaba órdenes normales**: el guard PreToolUse denegaba cualquier orden con `--output-format` o `--pretty=format:` si en el resto de la línea había una letra seguida de dos puntos (`https:`, `Responde:`). Ocurría, por ejemplo, con `cursor-agent -p --output-format text`. Ahora `format` se ignora cuando forma parte de una opción (le precede `-` o `.`). Además, su objetivo tiene que ser una unidad como token propio (`C:`, `"D:"`, `C:\…`, también dentro de `-ArgumentList '/q','D:'`) o un volumen `\\?\Volume{…}`. Las órdenes reales siguen denegadas, incluidas las que llevan metacaracteres pegados (`format D:;`, `(format D:)`) o una asignación de PowerShell (`$r=format D:`). `Clear-Disk` y `Format-Volume` se deniegan ahora con cualquier argumento: antes `Clear-Disk` necesitaba `-Number` y `Format-Volume` no se cubría. La regla es idéntica en el hook JS y en `internal/rules/rules.json` del binario Go.
+
+  Hecho con IDD (`idd/archive/2026-10-20-disk-guard-false-positive/`). La cuarta trust review se autorizó con el gate `review-limit` de 2.140.0. Queda un falso positivo residual que la regla anterior también tenía: `dotnet format C:\repo\app.sln`.
+
+**Verificación directa**: `node scripts/check.js` (3907 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.140.0] - 2026-10-20
 
 ### Added
