@@ -11,13 +11,13 @@ flowchart LR
     A["npm test / scripts/check.js"] --> B["1. Contratos de Agentes"]
     A --> C["2. Registro de Habilidades"]
     A --> D["3. Reglas y Permisos"]
-    A --> E["4. Invariantes de OpenSpec"]
+    A --> E["4. Invariantes de OpenSpec (modo SDD, opcional)"]
 ```
 
 1. **Contratos de Agentes:** Comprueba que cada agente declarado en el orquestador exista físicamente y tenga sus herramientas permitidas bien definidas.
 2. **Estructura de Frontmatter:** Verifica que los encabezados YAML de cada archivo `.agent.md` y `SKILL.md` cumplan el formato esperado.
 3. **Paridad de Plataformas:** Garantiza que los generadores de las 7 plataformas produzcan árboles coherentes y sin archivos huérfanos.
-4. **Validación Estricta de TDD:** Verifica que la tabla de evidencias de pruebas no contenga registros vacíos o inconsistentes.
+4. **Validación Estricta de TDD (modo SDD, opcional):** Verifica que la tabla de evidencias de pruebas no contenga registros vacíos o inconsistentes.
 
 ---
 

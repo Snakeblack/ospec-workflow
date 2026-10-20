@@ -10,13 +10,13 @@
 flowchart LR
     A["Tarea Solicitada"] --> B{"Complejidad"}
     B -->|"Sencilla / Búsqueda"| C["Nivel Económico (Cheap)
-Flash / Haiku / Mini
+Haiku / gpt-6-luna
 Respuestas en milisegundos"]
     B -->|"Estándar / Código"| D["Nivel Predeterminado (Default)
-Sonnet / GPT-4o / Pro
+Sonnet / gpt-6-terra
 Equilibrio velocidad y precisión"]
     B -->|"Compleja / Arquitectura"| E["Nivel Premium (Premium)
-Opus / o3-mini / High Reasoning
+Opus / gpt-6.1-sol
 Máxima capacidad deductiva"]
 ```
 
@@ -24,13 +24,15 @@ Máxima capacidad deductiva"]
 
 ## Matriz de Asignación por Proveedor
 
-El archivo central `models.yaml` define cómo se mapea cada nivel abstracto al modelo real de cada proveedor de IA:
+El archivo central `models.yaml` asigna un tier a cada agente (`agents:`) y mapea cada tier al modelo real de cada proveedor (`tiers:`). Los agentes con tier son los del modo SDD (opcional), es decir `sdd-*` y el agente `foundation`, y los revisores `review-*`. IDD, el flujo por defecto, no tiene fases propias: los agentes que usa son `review-trust` y `review-correction`, ambos con tier `default`.
 
-| Nivel (*Tier*) | Rol Típico | Anthropic / Claude | OpenAI / Codex | Google / Gemini |
+| Nivel (*Tier*) | Agentes en `models.yaml` | Anthropic / Claude | OpenAI / Codex | Cursor |
 |---|---|---|---|---|
-| **`cheap`** | Búsquedas rápidas, resúmenes breves, lectura de archivos. | Claude Haiku | GPT-4o Mini | Gemini Flash |
-| **`default`** | Programación TDD, tareas estándar, propuestas. | Claude Sonnet | GPT-4o | Gemini Pro |
-| **`premium`** | Diseño de arquitectura compleja, auditoría de seguridad crítica. | Claude Opus | o3-mini / o1 | Gemini Ultra |
+| **`cheap`** | `sdd-init`, `sdd-explore`, `sdd-tasks`, `sdd-archive`, `sdd-onboard`, `sdd-document` (modo SDD): trabajo acotado o mecánico. | Claude Haiku | `gpt-6-luna` | `composer-2.5` |
+| **`default`** | `sdd-orchestrator`, `sdd-spec`, `sdd-clarify`, `sdd-apply`, `sdd-reconcile`, `sdd-baseline` (modo SDD); `review-trust`, `review-correction`, `review-runtime`, `review-evolution`, `review-efficiency`: trabajo frecuente que requiere razonamiento sólido. | Claude Sonnet | `gpt-6-terra` | `grok-4.6` |
+| **`premium`** | `sdd-propose`, `sdd-design`, `sdd-verify`, `sdd-workspace` y `foundation` (modo SDD); `review-change`: decisiones poco frecuentes y de alto impacto. | Claude Opus | `gpt-6.1-sol` | `gpt-6.1-sol` |
+
+VS Code y GitHub Copilot usan `gpt-6 Sol`, `gpt-6 Terra` y `gpt-6 Luna` (copilot). OpenCode usa `zai-coding-plan/glm-5.3` para `premium` y `zai-coding-plan/glm-5.3-flash` para `default` y `cheap`.
 
 ---
 

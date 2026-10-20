@@ -8,7 +8,7 @@
 
 Cada asistente de IA y cada editor de código espera que los agentes y las instrucciones se organicen de una forma completamente diferente:
 
-- **Claude Code** espera una carpeta `.claude-plugin/` con manifiestos JSON específicos y expone al orquestador como una *skill*.
+- **Claude Code** espera una carpeta `.claude-plugin/` con manifiestos JSON específicos y expone el orquestador del modo SDD (opcional) como una *skill*.
 - **GitHub Copilot** espera `.github/agents/*.agent.md` con nombres de herramientas específicos (`ask_user`).
 - **Cursor** necesita archivos de reglas `.mdc` en `.cursor/rules/` con propiedades `alwaysApply`.
 - **Codex (OpenAI)** utiliza una jerarquía plana con configuraciones de sandbox de grano fino.
@@ -48,7 +48,7 @@ El proceso de generación es **puro, determinista y seguro**:
 | Asistente / IDE | Carpeta de Salida | Adaptaciones Clave |
 | --- | --- | --- |
 | **VS Code** | *(Formato Canónico)* | Es la fuente original; no requiere transformación. |
-| **Claude Code** | `dist/claude/` | Estructura `.claude-plugin/`, orquestador como skill y adaptación de herramientas de contexto. |
+| **Claude Code** | `dist/claude/` | Estructura `.claude-plugin/`, orquestador del modo SDD (opcional) como skill y adaptación de herramientas de contexto. |
 | **GitHub Copilot** | `dist/github-copilot/` | Agentes en `.github/agents/`, comandos en `.github/prompts/` y reglas en `.github/instructions/`. |
 | **Cursor** | `dist/cursor/` | Reglas en formato `.mdc`, agentes adaptados y archivo global `agents-protocol.mdc`. |
 | **Codex (OpenAI)** | `dist/codex/` | Formato plano de agentes con políticas de aprobación y sandbox estricto. |
@@ -59,19 +59,17 @@ El proceso de generación es **puro, determinista y seguro**:
 
 ## Comandos para Generar Distribuciones
 
-Puedes generar una distribución específica o todas a la vez con un solo comando:
+Cada plataforma tiene su propio script de compilación, `npm run build:<target>`:
 
 ```bash
-# Compilar para una plataforma específica
-node scripts/configure/cli.js --target claude          --out dist/claude
-node scripts/configure/cli.js --target github-copilot  --out dist/github-copilot
-node scripts/configure/cli.js --target cursor           --out dist/cursor
-node scripts/configure/cli.js --target codex            --out dist/codex
-node scripts/configure/cli.js --target antigravity      --out dist/antigravity
-node scripts/configure/cli.js --target opencode         --out dist/opencode
-
-# O compilar todas las distribuciones simultáneamente
-npm run build:targets
+# Compilar la distribución de cada plataforma
+npm run build:claude
+npm run build:copilot
+npm run build:opencode
+npm run build:codex
+npm run build:vscode
+npm run build:cursor
+npm run build:antigravity
 ```
 
 ---
