@@ -18,7 +18,7 @@ Un arreglo de una línea y una migración de esquema no necesitan la misma cerem
 
 1. **El impacto decide el trabajo**: `ospec signals` lee los ficheros que toca el cambio (y después el diff real) y activa señales; cada señal añade una obligación.
 2. **Evidencia sobre opinión**: una obligación solo se satisface con evidencia que el CLI registra de una ejecución que observa (`ospec run`, `ospec check`, `ospec review`). Decir que los tests pasan no satisface nada.
-3. **Preguntar antes de decidir**: el agente solo se detiene en cuatro gates, y solo una respuesta explícita tuya resuelve uno.
+3. **Preguntar antes de decidir**: el agente solo se detiene en cinco gates, y solo una respuesta explícita tuya resuelve uno.
 4. **El repositorio es la memoria**: cada cambio vive en `idd/<cambio>/state.yaml` (lo gestiona el CLI) y se archiva en `idd/archive/` cuando `ospec close` termina bien.
 
 | Señal | Se activa cuando | Obligación |
@@ -32,7 +32,7 @@ Un arreglo de una línea y una migración de esquema no necesitan la misma cerem
 | `multi-unit-or-decision` | Varias unidades de trabajo o una decisión de diseño registrada | `living-doc`: `idd/<cambio>/change.md` mantiene al día el plan y las decisiones |
 | `adr-or-quality-attribute` | `ospec signals --adr <id>` o `--quality <id>` declara los ADR o escenarios de calidad que toca el cambio | `adr-impact-declaration`: `none`, `conforms`, `amends`, `supersedes` o `contradicts` para cada uno; los tres últimos se detienen en `adr-amend-or-contradict`, y una enmienda trae un ADR nuevo que pasa el lint |
 
-Los patrones se adaptan al stack detectado (Node, JVM, .NET, Python, Go) y se amplían en `impact:` de `idd/config.yaml`. Los cuatro gates son `ambiguous-intent` (aún no se puede enunciar la aceptación), `open-facts` (comportamientos que ni la petición ni el código fijan, preguntados todos juntos antes de editar), `irreversible-operation` y `adr-amend-or-contradict`. Cada gate abierto se pregunta antes del trabajo que decide.
+Los patrones se adaptan al stack detectado (Node, JVM, .NET, Python, Go) y se amplían en `impact:` de `idd/config.yaml`. Los cinco gates son `ambiguous-intent` (aún no se puede enunciar la aceptación), `open-facts` (comportamientos que ni la petición ni el código fijan, preguntados todos juntos antes de editar), `irreversible-operation`, `adr-amend-or-contradict` y `review-limit` (se agotaron las trust reviews del cambio; tu respuesta autoriza una más). Cada gate abierto se pregunta antes del trabajo que decide.
 
 El agente construye el cambio mínimo que cumple la aceptación y elige los tests por riesgo: reglas de negocio, validación, transformaciones no triviales, algoritmos y contratos, con sus caminos de error y de borde. Los tests unitarios son deterministas y no usan red; ningún porcentaje de cobertura sustituye esa elección.
 

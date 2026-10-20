@@ -169,6 +169,30 @@ test("a successor needs a changed candidate and at most three reviews run per ch
   valid(state);
 });
 
+test("a change the previous CLI left with its reviews used up gets the review-limit gate", () => {
+  let state = startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true }).state;
+  for (let generation = 1; generation <= MAX_REVIEWS; generation += 1) {
+    if (generation > 1) {
+      state = settleReviewFreshness(state, { reviewedChanged: true });
+      state = startTrustReview(state, { candidate: candidate("e".repeat(39) + generation, String(generation).repeat(40)), reviewedChanged: true }).state;
+    }
+    state = recordTrustFindings(state, { result: { findings: [] }, recordedAt: AT }).state;
+  }
+  // What the previous CLI wrote: trust-review pending, no review-limit gate.
+  const legacy = structuredClone(state);
+  Object.assign(obligation(legacy), { status: "pending", evidence: [] });
+  valid(legacy);
+
+  const settled = settleReviewFreshness(legacy, { reviewedChanged: true });
+  assert.deepStrictEqual(settled.gates.map(({ id, status }) => ({ id, status })), [{ id: "review-limit", status: "open" }]);
+  valid(settled);
+  const { recordGate } = require("./idd-record.js");
+  const answered = recordGate(settled, { id: "review-limit", action: "resolve", answer: "One more.", source: "user" }).state;
+  const fourth = startTrustReview(answered, { candidate: candidate("f".repeat(40), "f".repeat(40)), reviewedChanged: true });
+  assert.strictEqual(fourth.request.generation, MAX_REVIEWS + 1);
+  valid(fourth.state);
+});
+
 test("a reconciliation-required lineage is not replaced by a successor", () => {
   let state = startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true }).state;
   state = recordTrustFindings(state, { result: { findings: [] }, recordedAt: AT }).state;

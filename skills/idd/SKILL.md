@@ -164,7 +164,7 @@ no coverage percentage replaces this choice.
 
 ## Gates
 
-Stop for the user at the four gates and for project-check approval above. Ask with the host's question tool;
+Stop for the user at the gates and for project-check approval above. Ask with the host's question tool;
 when the host has none, end your turn with the questions and wait for the
 answer:
 
@@ -180,6 +180,8 @@ answer:
   answered once. For a departure no declared reference covers, open it with
   `ospec record gate --change <id> --gate adr-amend-or-contradict --open --reason "<ADR>: <how the change departs from it>"`.
   A change that conforms opens nothing.
+- `review-limit`: `ospec check` opens it once the trust reviews are used up;
+  resolving it authorizes one more.
 
 Resolve each one with `ospec record gate --change <id> --gate <id> --resolve --answer "<their words>" --source user`.
 Only an explicit answer from the user resolves a gate. Outside these gates

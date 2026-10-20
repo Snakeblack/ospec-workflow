@@ -28,6 +28,7 @@ const GATE_QUESTIONS = Object.freeze({
   "open-facts": "Before the change is built, answer these behavior questions that neither the request nor the code settles.",
   "adr-amend-or-contradict": "This change amends or contradicts an ADR. Approve the amendment?",
   "irreversible-operation": "This operation is destructive or irreversible. Approve it?",
+  "review-limit": "The trust reviews of this change are used up. Authorize one more trust review?",
 });
 
 const EVIDENCE_BY_OBLIGATION = new Map(OBLIGATIONS.map((obligation) => [obligation.id, obligation.evidence]));

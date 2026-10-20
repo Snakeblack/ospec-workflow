@@ -27,8 +27,9 @@ and archives it under `idd/archive/`.
 
 ## Core guarantees
 
-- **No self-approval**: the agent stops at four gates (ambiguous intent, open
-  facts, irreversible operation, ADR amended or contradicted), and only an
+- **No self-approval**: the agent stops at five gates (ambiguous intent, open
+  facts, irreversible operation, ADR amended or contradicted, trust reviews
+  used up), and only an
   explicit answer from you resolves one.
 - **Evidence over claims**: "tests pass" satisfies nothing; `ospec check` and
   `ospec run` record what actually ran on the current tree.

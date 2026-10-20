@@ -227,7 +227,14 @@ function recordGate(state, { id, action, reason, answer, source } = {}) {
   if (id === "open-facts" && action === "open") {
     refuse("gate-managed-by-intent", "open-facts is opened by the open facts of record intent");
   }
-  const existing = state.gates.find((gate) => gate.id === id);
+  if (id === "review-limit" && action === "open") {
+    refuse("gate-managed-by-review", "review-limit is opened by ospec check once the trust reviews of the change are used up");
+  }
+  // review-limit repeats, one entry per authorized review (REQ-idd-016): the
+  // open entry is the one to answer, else the latest.
+  let index = state.gates.findIndex((gate) => gate.id === id && gate.status === "open");
+  if (index === -1) index = state.gates.findLastIndex((gate) => gate.id === id);
+  const existing = index === -1 ? null : state.gates[index];
 
   if (action === "open") {
     if (existing) return unchanged(state);
@@ -249,7 +256,7 @@ function recordGate(state, { id, action, reason, answer, source } = {}) {
       refuse("gate-conflict", `gate ${id} is already resolved with a different answer`);
     }
     const next = structuredClone(state);
-    const gate = next.gates.find((entry) => entry.id === id);
+    const gate = next.gates[index];
     gate.status = "resolved";
     gate.answer = answer;
     gate.source = source;

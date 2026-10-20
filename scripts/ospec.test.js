@@ -722,6 +722,52 @@ test("an IDD successor needs no approval, and an unchanged or exhausted review i
   assert.strictEqual(stateOf(root, "rotate-tokens").reviews.length, 3, "check does not open another review");
 });
 
+test("a tree back on the approved candidate satisfies trust-review again", (t) => {
+  const root = openRotation(t);
+  review(root, "start");
+  review(root, "record", "--result", JSON.stringify({ findings: [] }));
+  writeFile(root, "src/auth/tokens.js", "module.exports = { ttl: 60 };\n");
+  assert.strictEqual(ospec(root, "check", "--change", "rotate-tokens", "--json").json.verdict, "missing");
+
+  writeFile(root, "src/auth/tokens.js", "module.exports = { ttl: 3600 };\n");
+  const restored = ospec(root, "check", "--change", "rotate-tokens", "--json");
+  assert.strictEqual(restored.json.verdict, "ready");
+  assert.strictEqual(stateOf(root, "rotate-tokens").reviews.length, 1);
+});
+
+test("after the last review the person authorizes one more through the review-limit gate", (t) => {
+  const root = openRotation(t);
+  const reviewLimit = () => stateOf(root, "rotate-tokens").gates.filter((gate) => gate.id === "review-limit");
+  for (let generation = 1; generation <= 3; generation += 1) {
+    writeFile(root, "src/auth/tokens.js", `module.exports = { ttl: ${generation} };\n`);
+    ospec(root, "check", "--change", "rotate-tokens", "--json");
+    review(root, "start");
+    review(root, "record", "--result", JSON.stringify({ findings: [] }));
+  }
+  assert.deepStrictEqual(reviewLimit(), [], "an approved last review opens nothing");
+
+  writeFile(root, "src/auth/tokens.js", "module.exports = { ttl: 4 };\n");
+  const stale = ospec(root, "check", "--change", "rotate-tokens", "--json");
+  assert.match(stale.json.missing.find((entry) => entry.obligation === "trust-review").reason, /review-limit/);
+  assert.deepStrictEqual(reviewLimit().map((gate) => gate.status), ["open"]);
+  assert.deepStrictEqual(ospec(root, "next", "--change", "rotate-tokens", "--json").json.next_step, { action: "resolve-gate", gate: "review-limit" });
+  assert.strictEqual(review(root, "start").json.error.code, "review-limit");
+  const manual = ospec(root, "record", "gate", "--change", "rotate-tokens", "--gate", "review-limit", "--open", "--reason", "more", "--json");
+  assert.strictEqual(manual.json.error.code, "gate-managed-by-review");
+
+  ospec(root, "record", "gate", "--change", "rotate-tokens", "--gate", "review-limit", "--resolve", "--answer", "One more review.", "--source", "user", "--json");
+  const fourth = review(root, "start");
+  assert.strictEqual(fourth.code, 0, fourth.stderr);
+  assert.strictEqual(fourth.json.review.generation, 4);
+  review(root, "record", "--result", JSON.stringify({ findings: [] }));
+  assert.strictEqual(ospec(root, "check", "--change", "rotate-tokens", "--json").json.verdict, "ready");
+
+  writeFile(root, "src/auth/tokens.js", "module.exports = { ttl: 5 };\n");
+  ospec(root, "check", "--change", "rotate-tokens", "--json");
+  assert.deepStrictEqual(reviewLimit().map((gate) => gate.status), ["resolved", "open"], "each authorization buys one review");
+  assert.strictEqual(review(root, "start").json.error.code, "review-limit");
+});
+
 test("a blocker gets one bounded correction validated against its frozen id", (t) => {
   const root = openRotation(t);
   review(root, "start");
