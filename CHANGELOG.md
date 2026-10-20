@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.140.2] - 2026-10-20
+
+### Fixed
+- **La regla de formateo de disco bloqueaba formateadores de código**: el guard PreToolUse denegaba `dotnet format C:\repo\app.sln`, `ruff format D:/proj` y el código con firmas como `function format(a: string)` (por ejemplo en un heredoc). Ahora `format` no cuenta como la orden cuando es subcomando de `dotnet`, `ruff`, `biome`, `buf`, `swift`, `taplo` o de los scripts de `npm`, `pnpm`, `yarn` y `bun`, y esa herramienta abre la orden: al inicio, tras un salto de línea o tras `;`, `&`, `|` o `(`. Tampoco cuenta en una firma `format(ident: tipo)`. La lista es cerrada. Una herramienta que no abre la orden (`cmd /c dotnet format …`, `if not exist dotnet format C:`) o que no está en la lista (`npx format D:`) se sigue denegando, igual que `format('D:')`. La regla es idéntica en el hook JS y en `internal/rules/rules.json` del binario Go.
+
+  Hecho con IDD (`idd/archive/2026-10-20-disk-guard-format-subcommand/`). Las tres trust reviews encontraron y cerraron dos bypass de la excepción: un salto de línea tras la herramienta y la herramienta como operando de `if` en cmd.
+
+**Verificación directa**: `node scripts/check.js` (3908 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.140.1] - 2026-10-20
 
 ### Fixed
