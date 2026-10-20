@@ -380,6 +380,20 @@ function treeBlobs(root, tree) {
 }
 
 /**
+ * The line count of a path in the first of the trees that holds it, or null
+ * when none does. An empty file has the one line an editor shows.
+ */
+function treeLineCounter(root, trees) {
+  const blobs = trees.map((tree) => treeBlobs(root, tree));
+  return (file) => {
+    const id = blobs.map((entries) => entries.get(file)).find(Boolean);
+    if (!id) return null;
+    const text = git(root, ["cat-file", "blob", id]);
+    return text === "" ? 1 : text.split("\n").length - (text.endsWith("\n") ? 1 : 0);
+  };
+}
+
+/**
  * The fitness functions at a change's base commit (E3.3, REQ-idd-022), never
  * the working tree, so the change cannot weaken them: each ADR directly under
  * docs/architecture/decisions/ with its status, its `Check:` commands and its
@@ -465,5 +479,6 @@ module.exports = {
   requireWorkTree,
   snapshotTree,
   treeBlobs,
+  treeLineCounter,
   treeNumstat,
 };

@@ -102,6 +102,11 @@ test("closing with living-doc records its evidence and writes only between the m
   assert.strictEqual(renderEvidence(rendered, closed), rendered, "rendering twice changes nothing");
 });
 
+test("the evidence section says how a trust review was attested", () => {
+  const state = { evidence: [{ id: "ev-1", kind: "frozen-review", obligation: "trust-review", recorded_at: AT, detail: { attestation: "relayed" } }] };
+  assert.match(renderEvidence(DOC, state), new RegExp(`- ev-1: frozen-review for trust-review \\(${AT}, relayed\\)`));
+});
+
 function tempRoot(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "idd-close-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

@@ -42,7 +42,7 @@ The reducer owns IDs, freeze, executions, and budgets. Each selected specialist 
 
 ## Completion
 
-Follow the supplied dispatch result contract, reply language, and `skill_resolution` requirement. IDD's `ospec review record` consumes a JSON object with a `findings` array; use the finding fields above and do not wrap that object in prose. Additional envelope fields are accepted by that consumer but are not required. Only an SDD dispatch uses the outer return envelope in `skills/_shared/sdd-phase-common.md`; that conditional protocol is supplied in builds with SDD. A review is read-only in either mode and never performs SDD artifact/state persistence.
+Follow the supplied dispatch result contract, reply language, and `skill_resolution` requirement. IDD's `ospec review record` consumes one JSON object: `findings` with the fields above, each `BLOCKER`/`CRITICAL` with a `location` `<path>:<line>`, plus what its request's `result_contract` names. Never wrap it in prose. Only an SDD dispatch uses the outer return envelope in `skills/_shared/sdd-phase-common.md`; that conditional protocol is supplied in builds with SDD. A review is read-only in either mode and never performs SDD artifact/state persistence.
 
 After a completed review with no supported findings, the **findings report text** is exactly:
 

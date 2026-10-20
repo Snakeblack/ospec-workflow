@@ -46,7 +46,7 @@ function candidate(tree = "c".repeat(40), blob = "2".repeat(40)) {
   });
 }
 
-const BLOCKER = { severity: "BLOCKER", summary: "Old tokens never expire.", acceptance_criteria: "Expired tokens are rejected." };
+const BLOCKER = { severity: "BLOCKER", summary: "Old tokens never expire.", acceptance_criteria: "Expired tokens are rejected.", location: "src/auth/tokens.js:2" };
 const ADVICE = { severity: "SUGGESTION", summary: "Name the TTL constant.", acceptance_criteria: "A named TTL." };
 
 function assertCode(fn, code) {
@@ -60,6 +60,22 @@ function obligation(state) {
 function valid(state) {
   const { ok, errors } = validateState(state);
   assert.ok(ok, errors.join("; "));
+}
+
+// The line count of each file in the frozen trees, as the CLI reads them.
+const LINES = new Map([["src/auth/tokens.js", 12], ["src/auth/session.js", 4]]);
+const lineCount = (file) => LINES.get(file) ?? null;
+
+// The reviewer's answer to the review in progress: the request digest and one
+// cited entry per reviewed path.
+function answer(state, findings, overrides = {}) {
+  const { request } = startTrustReview(state, { candidate: candidate(), reviewedChanged: false });
+  const reviewed = request.paths.map((file) => ({ path: file, cites: [`${file}:1-${LINES.get(file)}`] }));
+  return { request_digest: request.request_digest, reviewed, findings, ...overrides };
+}
+
+function record(state, findings) {
+  return recordTrustFindings(state, { result: answer(state, findings), recordedAt: AT, lineCount });
 }
 
 test("a candidate digests the reviewed paths, their blobs and the changed lines", () => {
@@ -78,7 +94,11 @@ test("starting a review freezes the candidate and runs only the trust lens", () 
   assert.strictEqual(lineage.schema_version, 2);
   assert.deepStrictEqual(lineage.genesis.selected_domains, ["trust"]);
   assert.strictEqual(lineage.lenses.trust.status, "running");
-  assert.deepStrictEqual(request, { lineage_id: lineage.lineage_id, generation: 1, lens: "trust", reviewer: "review-trust", paths: ["src/auth/tokens.js"] });
+  const { request_digest: digest, result_contract: contract, ...rest } = request;
+  assert.deepStrictEqual(rest, { lineage_id: lineage.lineage_id, generation: 1, lens: "trust", reviewer: "review-trust", paths: ["src/auth/tokens.js"] });
+  assert.match(digest, /^sha256:[0-9a-f]{64}$/);
+  assert.match(contract, /request_digest/);
+  assert.match(contract, /reviewed/);
   valid(state);
 
   const again = startTrustReview(state, { candidate: candidate(), reviewedChanged: false });
@@ -88,18 +108,61 @@ test("starting a review freezes the candidate and runs only the trust lens", () 
 
 test("findings without a blocker approve the review and record frozen-review evidence", () => {
   const started = startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true }).state;
-  const { state, evidence } = recordTrustFindings(started, { result: { findings: [ADVICE] }, recordedAt: AT });
+  const { state, evidence } = record(started, [ADVICE]);
   assert.strictEqual(currentReview(state).status, "approved");
   assert.strictEqual(evidence, "ev-1");
   assert.strictEqual(obligation(state).status, "satisfied");
-  assert.deepStrictEqual(Object.keys(state.evidence[0].detail).sort(), ["candidate_id", "candidate_tree", "findings_digest", "lineage_id"]);
+  assert.deepStrictEqual(Object.keys(state.evidence[0].detail).sort(), ["attestation", "candidate_id", "candidate_tree", "findings_digest", "lineage_id"]);
   valid(state);
-  assertCode(() => recordTrustFindings(state, { result: { findings: [] }, recordedAt: AT }), "review-refused");
+  assertCode(() => recordTrustFindings(state, { result: { findings: [] }, recordedAt: AT, lineCount }), "review-refused");
+});
+
+// OSP-029 (#351): any {"findings":[]} the main agent wrote approved the
+// review. A result must now answer the request in progress and cite, in the
+// frozen trees, every path it reviewed and the place of each blocking finding.
+test("a result must answer the request and cite each reviewed path in the frozen trees", () => {
+  const started = startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true }).state;
+  const refused = (result, pattern) => assert.throws(
+    () => recordTrustFindings(started, { result, recordedAt: AT, lineCount }),
+    (error) => error instanceof IddRecordError && error.code === "review-refused" && pattern.test(error.message),
+  );
+  const cited = (...cites) => [{ path: "src/auth/tokens.js", cites }];
+
+  refused({ findings: [] }, /request_digest/);
+  refused(answer(started, [], { request_digest: `sha256:${"0".repeat(64)}` }), /request_digest/);
+  refused(answer(started, [], { reviewed: undefined }), /reviewed/);
+  refused(answer(started, [], { reviewed: [] }), /src\/auth\/tokens\.js/);
+  refused(answer(started, [], { reviewed: cited() }), /cite/);
+  refused(answer(started, [], { reviewed: cited("src/auth/tokens.js:999") }), /src\/auth\/tokens\.js:999/);
+  refused(answer(started, [], { reviewed: cited("src/auth/tokens.js:12-13") }), /12-13/);
+  refused(answer(started, [], { reviewed: cited("src/auth/session.js:1") }), /src\/auth\/session\.js:1/);
+  refused(answer(started, [], { reviewed: cited("tokens.js") }), /tokens\.js/);
+  refused(answer(started, [], { reviewed: [...cited("src/auth/tokens.js:1"), { path: "src/auth/session.js", cites: ["src/auth/session.js:1"] }] }), /outside the request/);
+  refused(answer(started, [{ ...BLOCKER, location: undefined }]), /location/);
+  refused(answer(started, [{ ...BLOCKER, location: "src/auth/tokens.js:13" }]), /src\/auth\/tokens\.js:13/);
+  refused(answer(started, [{ ...ADVICE, location: "src/missing.js:1" }]), /src\/missing\.js:1/);
+  assert.strictEqual(currentReview(started).status, "reviewing", "a refused result records nothing");
+
+  const advice = { ...ADVICE, location: "src/auth/session.js:2" };
+  const { state } = recordTrustFindings(started, { result: answer(started, [advice], { reviewed: cited("src/auth/tokens.js:3", "src/auth/tokens.js:5-9") }), recordedAt: AT, lineCount });
+  assert.strictEqual(currentReview(state).status, "approved");
+  assert.strictEqual(currentReview(state).findings[0].location, "src/auth/session.js:2");
+  assert.strictEqual(state.evidence[0].detail.attestation, "relayed");
+  valid(state);
+
+  // The digest of the previous generation does not answer its successor.
+  const stale = settleReviewFreshness(state, { reviewedChanged: true });
+  const successor = startTrustReview(stale, { candidate: candidate("e".repeat(40), "e".repeat(40)), reviewedChanged: true }).state;
+  const previous = answer(started, []);
+  assert.throws(
+    () => recordTrustFindings(successor, { result: previous, recordedAt: AT, lineCount }),
+    (error) => error.code === "review-refused" && /request_digest/.test(error.message),
+  );
 });
 
 test("a blocker allows one bounded correction validated against the frozen findings", () => {
   const started = startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true }).state;
-  const frozen = recordTrustFindings(started, { result: { findings: [BLOCKER] }, recordedAt: AT });
+  const frozen = record(started, [BLOCKER]);
   assert.strictEqual(frozen.evidence, null);
   assert.strictEqual(currentReview(frozen.state).status, "correction-required");
   assert.match(trustReason(frozen.state), /fix the frozen blocking findings F-[0-9a-f]+ and run ospec review correct/);
@@ -132,7 +195,7 @@ test("a blocker allows one bounded correction validated against the frozen findi
 
 test("a failed validation ends the lineage: IDD allows one correction per review", () => {
   const started = startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true }).state;
-  const frozen = recordTrustFindings(started, { result: { findings: [BLOCKER] }, recordedAt: AT }).state;
+  const frozen = record(started, [BLOCKER]).state;
   const corrected = correctTrustReview(frozen, {
     changes: [{ path: "src/auth/tokens.js", added: 1, deleted: 0 }],
     candidateTree: "d".repeat(40),
@@ -150,7 +213,7 @@ test("a failed validation ends the lineage: IDD allows one correction per review
 
 test("a successor needs a changed candidate and at most three reviews run per change", () => {
   let state = startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true }).state;
-  state = recordTrustFindings(state, { result: { findings: [] }, recordedAt: AT }).state;
+  state = record(state, []).state;
   assertCode(() => startTrustReview(state, { candidate: candidate(), reviewedChanged: false }), "review-current");
 
   state = settleReviewFreshness(state, { reviewedChanged: true });
@@ -161,7 +224,7 @@ test("a successor needs a changed candidate and at most three reviews run per ch
     const next = startTrustReview(state, { candidate: candidate("e".repeat(39) + generation, String(generation).repeat(40)), reviewedChanged: true });
     assert.strictEqual(next.request.generation, generation);
     assert.strictEqual(currentReview(next.state).predecessor_lineage_id, currentReview(state).lineage_id);
-    state = recordTrustFindings(next.state, { result: { findings: [] }, recordedAt: AT }).state;
+    state = record(next.state, []).state;
     state = settleReviewFreshness(state, { reviewedChanged: true });
   }
   assertCode(() => startTrustReview(state, { candidate: candidate("f".repeat(40), "f".repeat(40)), reviewedChanged: true }), "review-limit");
@@ -176,7 +239,7 @@ test("a change the previous CLI left with its reviews used up gets the review-li
       state = settleReviewFreshness(state, { reviewedChanged: true });
       state = startTrustReview(state, { candidate: candidate("e".repeat(39) + generation, String(generation).repeat(40)), reviewedChanged: true }).state;
     }
-    state = recordTrustFindings(state, { result: { findings: [] }, recordedAt: AT }).state;
+    state = record(state, []).state;
   }
   // What the previous CLI wrote: trust-review pending, no review-limit gate.
   const legacy = structuredClone(state);
@@ -195,7 +258,7 @@ test("a change the previous CLI left with its reviews used up gets the review-li
 
 test("a reconciliation-required lineage is not replaced by a successor", () => {
   let state = startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true }).state;
-  state = recordTrustFindings(state, { result: { findings: [] }, recordedAt: AT }).state;
+  state = record(state, []).state;
   const lineage = currentReview(state);
   lineage.status = "reconciliation-required";
   const again = startTrustReview(state, { candidate: candidate("e".repeat(40), "e".repeat(40)), reviewedChanged: true });
@@ -207,13 +270,13 @@ test("a reconciliation-required lineage is not replaced by a successor", () => {
 
 test("a fresh approved review stays satisfied", () => {
   let state = startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true }).state;
-  state = recordTrustFindings(state, { result: { findings: [] }, recordedAt: AT }).state;
+  state = record(state, []).state;
   assert.strictEqual(obligation(settleReviewFreshness(state, { reviewedChanged: false })).status, "satisfied");
 });
 
 test("frozen-review evidence must name an approved review of its candidate", () => {
   let state = startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true }).state;
-  state = recordTrustFindings(state, { result: { findings: [] }, recordedAt: AT }).state;
+  state = record(state, []).state;
   const forged = structuredClone(state);
   forged.evidence[0].detail.candidate_id = `sha256:${"0".repeat(64)}`;
   assert.strictEqual(validateState(forged).ok, false);
@@ -228,7 +291,7 @@ test("REQ-idd-016 names the review commands, the reviewer and the limits", () =>
   assert.ok(start !== -1, "REQ-idd-016 is missing");
   const end = spec.indexOf("### Requirement:", start);
   const section = spec.slice(start, end === -1 ? undefined : end);
-  for (const name of ["ospec review start", "ospec review record", "ospec review correct", "ospec review validate", "review-trust", "review-correction", "reviews", "frozen-review", "trust"]) {
+  for (const name of ["ospec review start", "ospec review record", "ospec review correct", "ospec review validate", "review-trust", "review-correction", "reviews", "frozen-review", "trust", "request_digest", "reviewed", "location", "attestation: relayed", "review-refused"]) {
     assert.ok(section.includes(`\`${name}\``), `REQ-idd-016 must name ${name}`);
   }
   assert.ok(section.includes(String(MAX_REVIEWS)), "REQ-idd-016 must state the review limit");
@@ -241,7 +304,7 @@ test("REQ-idd-016 names the review commands, the reviewer and the limits", () =>
 // findings so the reviewer checks them.
 test("a correction that does not fit the bounded correction escalates to a successor review", () => {
   const started = startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true }).state;
-  const frozen = recordTrustFindings(started, { result: { findings: [BLOCKER, ADVICE] }, recordedAt: AT }).state;
+  const frozen = record(started, [BLOCKER, ADVICE]).state;
   const predecessor = currentReview(frozen);
   const budget = predecessor.correction_budget.limit_lines;
 
@@ -286,7 +349,7 @@ test("the escalated successor counts toward the three reviews of a change", () =
         correctionChanges: [{ path: "src/auth/other.js", added: 1, deleted: 0 }],
       }).state;
     }
-    state = recordTrustFindings(state, { result: { findings: [BLOCKER] }, recordedAt: AT }).state;
+    state = record(state, [BLOCKER]).state;
   }
   assertCode(() => startTrustReview(state, {
     candidate: candidate("f".repeat(40), "f".repeat(40)),

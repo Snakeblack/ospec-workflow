@@ -20,6 +20,7 @@ Un change IDD vive en `idd/<change>/` mientras está abierto y en `idd/archive/<
 
 - `state.yaml` → `reviews` guarda cada linaje de revisión, del más antiguo al más nuevo, con sus findings congelados.
 - Sin ningún finding `BLOCKER` ni `CRITICAL`, la revisión queda aprobada y se graba `frozen-review`. Si los hay, cabe una sola corrección acotada, que se valida contra esos mismos IDs. Si la validación falla, el linaje termina.
+- `ospec review record` rechaza un resultado sin el `request_digest` de la petición o sin citas `ruta:línea` reales de cada ruta revisada. La evidencia `frozen-review` lleva `attestation: relayed`: el CLI comprobó esas citas en el árbol congelado, no que el revisor se ejecutara. La evidencia anterior a esta comprobación no lleva `attestation`.
 - Un change tiene como máximo tres revisiones. Al agotarse, el gate `review-limit` pide tu respuesta, y una respuesta autoriza una revisión más.
 - Una aprobación caduca si cambia el código revisado: `trust-review` vuelve a `pending`.
 - Un change que solo toca documentación no necesita revisión de confianza.

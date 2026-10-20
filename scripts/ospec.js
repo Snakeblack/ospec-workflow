@@ -86,6 +86,7 @@ const {
   requireWorkTree,
   snapshotTree,
   treeBlobs,
+  treeLineCounter,
   treeNumstat,
 } = require("./lib/idd-workspace.js");
 
@@ -621,9 +622,18 @@ async function close(root, values) {
       closed_at: state.closed_at,
       archive,
       assumptions: state.assumptions || [],
+      reviews: reviewAttestations(state),
       records: readKnowledgeRecords(root, state, archive.destination),
     };
   });
+}
+
+// How each trust review evidence of the change was attested (OSP-029); null
+// for evidence recorded before attestation existed.
+function reviewAttestations(state) {
+  return state.evidence
+    .filter((entry) => entry.kind === "frozen-review")
+    .map((entry) => ({ evidence: entry.id, lineage_id: entry.detail?.lineage_id ?? null, attestation: entry.detail?.attestation ?? null }));
 }
 
 // The knowledge records of REQ-idd-024, read from the archived change and the
@@ -713,7 +723,9 @@ async function review(root, positionals, values) {
           : undefined;
         outcome = startTrustReview(stored, { candidate, reviewedChanged, correctionChanges });
       } else if (action === "record") {
-        outcome = recordTrustFindings(stored, { result, recordedAt });
+        // Cites resolve in the frozen candidate, or in its base for a deleted path.
+        const frozen = lineage ? [lineage.genesis.candidate.candidate_tree, lineage.genesis.candidate.base_tree] : [];
+        outcome = recordTrustFindings(stored, { result, recordedAt, lineCount: treeLineCounter(root, frozen) });
       } else if (action === "correct") {
         if (!lineage) throw new IddRecordError("review-refused", "no trust review to correct: run ospec review start");
         const { tree } = trees;
@@ -967,7 +979,8 @@ function describeReview(result) {
   const lines = [`review ${review.generation} (${review.status}) of ${result.change}`];
   if (review.request) {
     lines.push(`dispatch ${review.request.reviewer} (lens ${review.request.lens}) on: ${review.request.paths.join(", ")}`);
-    lines.push(`then: ospec review record --change ${result.change} --result '{"findings":[...]}'`);
+    lines.push(`hand it request_digest ${review.request.request_digest} and: ${review.request.result_contract}`);
+    lines.push(`then: ospec review record --change ${result.change} --result '{"request_digest":"...","reviewed":[...],"findings":[...]}'`);
   }
   if (review.validate) {
     lines.push(`dispatch ${review.validate.validator} for: ${review.validate.finding_ids.join(", ")}`);
@@ -985,7 +998,8 @@ function describeClose(result) {
   const line = `${result.change} ${how} ${archive.destination} (${archive.files} files, ${archive.inventory_sha256})`;
   const assumptions = result.assumptions || [];
   const listed = assumptions.length ? assumptions.map((item) => `- ${item}`).join("\n") : "none declared";
-  const body = `${line}\nassumptions:\n${listed}`;
+  const reviews = (result.reviews || []).map((entry) => `\ntrust review ${entry.evidence}: ${entry.attestation ?? "not attested"}`).join("");
+  const body = `${line}\nassumptions:\n${listed}${reviews}`;
   const records = result.records?.length || 0;
   return records ? `${body}\n${records} knowledge record(s) to keep in cross-session memory (see --json)` : body;
 }

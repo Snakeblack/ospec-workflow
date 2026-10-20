@@ -744,10 +744,22 @@ changes against the change's base, a digest of their content on both sides and
 the changed line counts, from a snapshot of the working tree that excludes
 `idd/`) and return the request for the independent `review-trust` reviewer;
 while a review is in progress it MUST return that review instead.
-`ospec review record` MUST record the reviewer's findings once and freeze them. With
+The request MUST carry a `request_digest` of its lineage, generation,
+candidate tree and paths, and the `result_contract` the result follows.
+`ospec review record` MUST refuse with `review-refused`, recording nothing, a
+result without that `request_digest`, or without a `reviewed` array that
+holds, for every path of the request and no other, at least one cite
+`<path>:<line>` or `<path>:<start>-<end>` of lines of that path in the frozen
+candidate tree (in its base tree for a path the candidate deletes); each
+`BLOCKER` or `CRITICAL` finding MUST carry a `location` cited the same way,
+and any finding `location` MUST resolve. It MUST then record the reviewer's
+findings once, keeping each `location`, and freeze them. With
 no `BLOCKER` or `CRITICAL` finding the review is approved and `frozen-review`
 evidence MUST be recorded, naming the lineage, the candidate, its tree and the
-findings digest. Otherwise one bounded correction is allowed:
+findings digest, with `attestation: relayed`: the CLI checks what the result
+cites, not that the reviewer ran. `ospec close` MUST list each `frozen-review`
+evidence with its attestation (null for evidence recorded before it existed),
+and the archived evidence section MUST show it. Otherwise one bounded correction is allowed:
 `ospec review correct` MUST record the changes since the reviewed candidate, refused outside
 the frozen paths or over the line budget, and return the frozen IDs for the
 read-only `review-correction` validator, and `ospec review validate` MUST apply
@@ -780,6 +792,16 @@ resolves it. When the reviewed paths come back to the candidate of an approved
 current review, `ospec check` MUST satisfy `trust-review` again with that
 review's evidence. All lineages stay in `reviews`, each successor naming its
 predecessor.
+
+#### Scenario: A hand-written empty result is refused
+
+- GIVEN a trust review in progress of `src/auth/policy.js`
+- WHEN `ospec review record` gets `{"findings":[]}`, a `reviewed` entry that
+  cites `src/auth/policy.js:999` past its last line, or the `request_digest`
+  of another generation
+- THEN it MUST refuse with `review-refused` and `next` MUST NOT be `close`
+- AND a result with the digest and a real cite of `src/auth/policy.js` MUST
+  approve it, its `frozen-review` evidence holding `attestation: relayed`
 
 #### Scenario: Approved review goes stale with the reviewed code
 
