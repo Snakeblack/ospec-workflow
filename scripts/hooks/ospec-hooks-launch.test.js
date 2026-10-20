@@ -709,6 +709,51 @@ test("isCursorHost detects Cursor-native stdin even from Claude plugin paths", (
   );
 });
 
+// OSP-031: the payload names its caller; inherited CURSOR_* markers only
+// decide when it does not. Cursor's shape is the one cursor-agent sends to
+// third-party hooks (measured with 2026.10.16).
+test("isCursorHost lets a Claude-shaped stdin win over inherited Cursor markers", () => {
+  const claudePluginDir = path.join("/home", "me", ".claude", "plugins", "cache", "ospec", "scripts", "hooks");
+  const claude = JSON.stringify({ session_id: "s", transcript_path: "/tmp/x.jsonl", permission_mode: "default", hook_event_name: "PreToolUse", tool_name: "Read" });
+  const cursor = JSON.stringify({ conversation_id: "c", session_id: "c", hook_event_name: "preToolUse", cursor_version: "2026.10.16", tool_name: "Read" });
+  for (const marker of ["CURSOR_AGENT", "CURSOR_SESSION_ID", "CURSOR_HOOK"]) {
+    assert.equal(isCursorHost(claudePluginDir, { [marker]: "1" }, claude), false, marker);
+    assert.equal(isCursorHost(claudePluginDir, { [marker]: "1" }, cursor), true, marker);
+  }
+  assert.equal(isCursorHost(claudePluginDir, {}, cursor), true);
+  assert.equal(isCursorHost(claudePluginDir, {}, JSON.stringify({ cursor_version: "2026.10.16", hook_event_name: "PreToolUse" })), true);
+  assert.equal(isCursorHost(claudePluginDir, { OSPEC_TARGET: "cursor" }, claude), true, "an explicit target still wins");
+});
+
+test("a Claude Code process that inherits CURSOR_AGENT keeps its ask and its redaction", (t) => {
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const { spawnSync } = require("node:child_process");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "ospec-launch-cursor-env-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const envFile = path.join(root, ".env");
+  const secret = `DB_PASSWORD=${"hunter2".repeat(2)}`;
+  const env = { ...process.env, CURSOR_AGENT: "1", CLAUDECODE: "1" };
+  for (const key of ["OSPEC_TARGET", "CURSOR_SESSION_ID", "CURSOR_HOOK", "OSPEC_OUTPUT_REDACTION"]) delete env[key];
+  const base = { session_id: "s", transcript_path: path.join(root, "x.jsonl"), cwd: root, permission_mode: "default", tool_name: "Read", tool_input: { file_path: envFile } };
+  const run = (sub, payload) => spawnSync(process.execPath, [require.resolve("./ospec-hooks-launch.js"), sub], {
+    input: JSON.stringify(payload), env, cwd: root, encoding: "utf8", timeout: 20000,
+  });
+
+  const pre = run("pre-tool-use", { ...base, hook_event_name: "PreToolUse" });
+  assert.equal(pre.status, 0, pre.stderr);
+  assert.equal(JSON.parse(pre.stdout).hookSpecificOutput.permissionDecision, "ask");
+
+  const post = run("post-tool-use", {
+    ...base,
+    hook_event_name: "PostToolUse",
+    tool_response: { type: "text", file: { filePath: envFile, content: `${secret}\n`, numLines: 1, startLine: 1, totalLines: 1 } },
+  });
+  assert.equal(post.status, 0, post.stderr);
+  assert.equal(post.stdout.includes(secret), false);
+  assert.match(JSON.stringify(JSON.parse(post.stdout).hookSpecificOutput.updatedToolOutput), /\[REDACTED:assigned-secret\]/);
+});
+
 test("adaptCursorHookInput maps beforeShellExecution and beforeReadFile shapes", () => {
   const shell = JSON.parse(
     adaptCursorHookInput(

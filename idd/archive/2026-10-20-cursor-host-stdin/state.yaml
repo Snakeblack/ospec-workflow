@@ -1,0 +1,366 @@
+{
+  "schema": "idd-state/v1",
+  "change": "cursor-host-stdin",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El launcher trata a Claude Code como Cursor si hereda CURSOR_AGENT/CURSOR_SESSION_ID/CURSOR_HOOK: pierde ask/deny y la censura de E1.27 (OSP-031, #368)",
+    "acceptance": "Con CURSOR_AGENT=1 heredado y un stdin con forma de Claude (session_id y evento PascalCase), pre-tool-use emite hookSpecificOutput.permissionDecision (ask/deny) y post-tool-use emite updatedToolOutput censurado; un stdin de Cursor (cursor_version o conversation_id) sigue detectándose como Cursor"
+  },
+  "facts": {
+    "basis": "Medido con cursor-agent 2026.10.16: los hooks third-party reciben el payload nativo de Cursor (evento camelCase, cursor_version, conversation_id) sin variables CURSOR_AGENT/SESSION_ID/HOOK; Claude Code envía session_id con evento PascalCase. El stdin identifica al host; las variables solo deciden cuando el stdin no lo hace"
+  },
+  "plan": {
+    "paths": [
+      "openspec/specs/hooks/spec.md",
+      "scripts/hooks/ospec-hooks-launch.js",
+      "scripts/hooks/ospec-hooks-launch.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/ospec-hooks-launch.js and 1 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component hooks: ADR 0008, 0010 and quality scenario guard-fail-closed",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "Restaura que deny/ask y la censura lleguen a Claude Code en el formato de su contrato; una variable heredada ya no degrada el guard a un formato que el host ignora"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "none",
+      "reason": "Solo cambia la detección del host en el launcher Node; sin dependencias ni descargas"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "Un stdin de Claude con CURSOR_AGENT heredado vuelve a emitir permissionDecision ask/deny y updatedToolOutput censurado; un stdin ilegible sigue cayendo al respaldo anterior"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-20T15:51:13.235Z",
+      "detail": {
+        "red": "run-2",
+        "green": "run-3"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-20T15:52:47.453Z",
+      "detail": {
+        "tree": "sha256:385c8661782ed86ddb29fff13dd8c0305177d8c8d3c02324e5aab528fa6c674e",
+        "runs": [
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-20T15:52:47.453Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 none",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:385c8661782ed86ddb29fff13dd8c0305177d8c8d3c02324e5aab528fa6c674e",
+        "fitness": [
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-20T15:52:59.389Z",
+      "detail": {
+        "lineage_id": "sha256:7aba1958b095145728176cdf4f410f3012d455419de65ac1647abc84be465408",
+        "candidate_id": "sha256:03afb21c4d65224a0fd72351046f7d2aca086236f436947684dde64551bdc83a",
+        "candidate_tree": "c49cce3f3ae9cf1584ba0aaed9138d7734a9adaf",
+        "findings_digest": "sha256:e28050045fb98d1ac6e89a05cd521c8cb1fdc10119ec0e20325a41f9f9dbbd1d"
+      }
+    }
+  ],
+  "base": "8f1dd7e190dc74bd9fd305cd7bc815e11d229d9a",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=OSP-031|Cursor.markers|inherits.CURSOR_AGENT scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 127,
+      "output_sha256": "sha256:a7c8bb0b71e12482263dd303f8b3808423b01a148f0f33f2b1e277f8b3052600",
+      "tree": "sha256:06fbefb50ab92fd5882e36bcd24e5c82f7914686cd7d7440fe631631404ade35",
+      "recorded_at": "2026-10-20T15:50:53.275Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:020312c2e8196c7954861790f893f36d33923ca451b3197275642f777d0d6c05",
+      "tree": "sha256:06fbefb50ab92fd5882e36bcd24e5c82f7914686cd7d7440fe631631404ade35",
+      "recorded_at": "2026-10-20T15:51:01.675Z"
+    },
+    {
+      "id": "run-3",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/ospec-hooks-launch.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c876219d8b4acbd9b1917c608d88527bc7f75ba765d5b9f2d3ef5d28e3315861",
+      "tree": "sha256:206af09e8b395e56fc1778fafd29e38ec6c647dbcbb6d1acfc108a08cb702575",
+      "recorded_at": "2026-10-20T15:51:13.235Z",
+      "tests": 39
+    },
+    {
+      "id": "run-4",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:09ab7c7b7f1524f6f38c7d28789f9b33d61af107e66960ee7c25edc81fe60678",
+      "tree": "sha256:385c8661782ed86ddb29fff13dd8c0305177d8c8d3c02324e5aab528fa6c674e",
+      "recorded_at": "2026-10-20T15:52:47.453Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fa44a422a873d58a2ad526bfccf352bad1b6291487c6e506768a115e01fd5b55",
+      "tree": "sha256:385c8661782ed86ddb29fff13dd8c0305177d8c8d3c02324e5aab528fa6c674e",
+      "recorded_at": "2026-10-20T15:52:47.453Z",
+      "tests": 77
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:385c8661782ed86ddb29fff13dd8c0305177d8c8d3c02324e5aab528fa6c674e",
+      "recorded_at": "2026-10-20T15:52:47.453Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4814d61d28b453885f0f1d0c623134c325456245ce70694a407a62411204101d",
+      "tree": "sha256:385c8661782ed86ddb29fff13dd8c0305177d8c8d3c02324e5aab528fa6c674e",
+      "recorded_at": "2026-10-20T15:52:47.453Z",
+      "tests": 16
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:10707a4d019975c3aa72d596d709f288e6100379bac97dba109d22a33ba24669",
+      "tree": "sha256:385c8661782ed86ddb29fff13dd8c0305177d8c8d3c02324e5aab528fa6c674e",
+      "recorded_at": "2026-10-20T15:52:47.453Z",
+      "tests": 77
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:7aba1958b095145728176cdf4f410f3012d455419de65ac1647abc84be465408",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "2cd6184a859d408d331993fab52c429c1dbc08d3",
+          "candidate_tree": "c49cce3f3ae9cf1584ba0aaed9138d7734a9adaf",
+          "paths": [
+            "openspec/specs/hooks/spec.md",
+            "scripts/hooks/ospec-hooks-launch.js",
+            "scripts/hooks/ospec-hooks-launch.test.js"
+          ],
+          "diff_hash": "sha256:1389f51fe3b134ce6e5e4dfe74dab3f2980497d0709da74d7aa7efecf0affeaf",
+          "paths_digest": "sha256:2f0ec25383bd2624baa5f263c26e244dd1434c4d99aa5f3edef1ee24ddafb694",
+          "authored_lines": 79,
+          "original_changed_lines": 79
+        },
+        "candidate_id": "sha256:03afb21c4d65224a0fd72351046f7d2aca086236f436947684dde64551bdc83a",
+        "paths": [
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "c49cce3f3ae9cf1584ba0aaed9138d7734a9adaf",
+        "original_changed_lines": 79,
+        "authored_lines": 79
+      },
+      "current_candidate_id": "sha256:03afb21c4d65224a0fd72351046f7d2aca086236f436947684dde64551bdc83a",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "2cd6184a859d408d331993fab52c429c1dbc08d3",
+        "candidate_tree": "c49cce3f3ae9cf1584ba0aaed9138d7734a9adaf",
+        "paths": [
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/ospec-hooks-launch.js",
+          "scripts/hooks/ospec-hooks-launch.test.js"
+        ],
+        "diff_hash": "sha256:1389f51fe3b134ce6e5e4dfe74dab3f2980497d0709da74d7aa7efecf0affeaf",
+        "paths_digest": "sha256:2f0ec25383bd2624baa5f263c26e244dd1434c4d99aa5f3edef1ee24ddafb694",
+        "authored_lines": 79,
+        "original_changed_lines": 79
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "cursor-host-stdin:lens-start:1:0",
+          "result_digest": "sha256:e1bcbce50660468a10e366384bffbf7705ac7108125062044139fdd840ad6368",
+          "result": {
+            "findings": [
+              {
+                "severity": "SUGGESTION",
+                "summary": "main() catch path (ospec-hooks-launch.js:642) calls isCursorHost(scriptDir) without rawInput or the stdin verdict. If launch() throws after the stdin-based detection, a Claude Code process that inherited CURSOR_AGENT, CURSOR_SESSION_ID or CURSOR_HOOK gets the fail-closed PreToolUse ASK in Cursor's flat format, which Claude Code ignores.",
+                "acceptance_criteria": "When launch() throws for a Claude-shaped PreToolUse payload and the process has CURSOR_AGENT set, the emitted failure output still carries hookSpecificOutput.permissionDecision 'ask'. A test that forces a launch() exception covers this case. A genuine Cursor payload under the same fault still gets the Cursor format."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "cursor-host-stdin:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-b68390e985c50014",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "main() catch path (ospec-hooks-launch.js:642) calls isCursorHost(scriptDir) without rawInput or the stdin verdict. If launch() throws after the stdin-based detection, a Claude Code process that inherited CURSOR_AGENT, CURSOR_SESSION_ID or CURSOR_HOOK gets the fail-closed PreToolUse ASK in Cursor's flat format, which Claude Code ignores.",
+          "acceptance_criteria": "When launch() throws for a Claude-shaped PreToolUse payload and the process has CURSOR_AGENT set, the emitted failure output still carries hookSpecificOutput.permissionDecision 'ask'. A test that forces a launch() exception covers this case. A genuine Cursor payload under the same fault still gets the Cursor format.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:e28050045fb98d1ac6e89a05cd521c8cb1fdc10119ec0e20325a41f9f9dbbd1d",
+      "correction_budget": {
+        "limit_lines": 40,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-10-20T15:53:06.108Z"
+}

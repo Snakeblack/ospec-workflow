@@ -307,6 +307,24 @@ function isCursorHost(scriptDir = __dirname, env = process.env, rawInput = "") {
   if (isCursorInstall(scriptDir, env)) {
     return true;
   }
+  // OSP-031: the payload names its caller, so an inherited CURSOR_* marker
+  // must not override it. Cursor always sends cursor_version and
+  // conversation_id, also to third-party hooks; Claude Code sends session_id
+  // with a PascalCase event.
+  let payload = null;
+  try {
+    payload = JSON.parse(stripUtf8Bom(rawInput) || "null");
+  } catch {
+    // Unreadable: the env markers and shape checks below decide.
+  }
+  if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+    if (typeof payload.cursor_version === "string" || typeof payload.conversation_id === "string") {
+      return true;
+    }
+    if (typeof payload.session_id === "string" && /^[A-Z]/.test(String(payload.hook_event_name || ""))) {
+      return false;
+    }
+  }
   if (env && (env.CURSOR_AGENT || env.CURSOR_SESSION_ID || env.CURSOR_HOOK)) {
     return true;
   }
