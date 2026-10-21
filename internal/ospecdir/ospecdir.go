@@ -27,7 +27,12 @@ func MkdirAll(dir string, perm os.FileMode) error {
 	if root == "" {
 		return nil
 	}
-	f, err := os.OpenFile(filepath.Join(root, ".gitignore"), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	ignore := filepath.Join(root, ".gitignore")
+	// An exclusive create may follow a dangling symlink on Windows.
+	if _, err := os.Lstat(ignore); err == nil {
+		return nil
+	}
+	f, err := os.OpenFile(ignore, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if errors.Is(err, fs.ErrExist) {
 		return nil
 	}

@@ -81,6 +81,21 @@ test("mkdirOspec never follows a symlink .ospec/.gitignore and leaves other dire
   mkdirOspec(path.join(root, ".ospec", "session"));
   assert.equal(fs.existsSync(missing), false);
 
+  // On Windows an exclusive create ("wx") follows a dangling symlink and
+  // creates its target (CI, windows-latest); this fs does the same anywhere.
+  const windowsLike = {
+    ...fs,
+    writeFileSync(file, data, options) {
+      const stat = fs.lstatSync(file, { throwIfNoEntry: false });
+      if (stat && stat.isSymbolicLink() && options && options.flag === "wx") {
+        return fs.writeFileSync(fs.readlinkSync(file), data);
+      }
+      return fs.writeFileSync(file, data, options);
+    },
+  };
+  mkdirOspec(path.join(root, ".ospec", "cache"), windowsLike);
+  assert.equal(fs.existsSync(missing), false);
+
   const plain = path.join(tempDir(t), "openspec", "changes");
   mkdirOspec(plain);
   assert.deepEqual(fs.readdirSync(path.dirname(plain)), ["changes"]);

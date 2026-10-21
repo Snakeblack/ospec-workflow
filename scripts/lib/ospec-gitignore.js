@@ -78,8 +78,11 @@ function ospecDirOf(dir) {
 function ignoreOspecDir(dir, fsImpl = fs) {
   const root = ospecDirOf(dir);
   if (!root) return;
+  const ignore = path.join(root, ".gitignore");
+  // On Windows "wx" follows a dangling symlink and creates its target.
+  if (lstatOrNull(fsImpl, ignore)) return;
   try {
-    fsImpl.writeFileSync(path.join(root, ".gitignore"), SELF_IGNORE, { flag: "wx" });
+    fsImpl.writeFileSync(ignore, SELF_IGNORE, { flag: "wx" });
   } catch (error) {
     if (error.code !== "EEXIST") throw error;
   }
