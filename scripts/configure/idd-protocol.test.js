@@ -19,6 +19,9 @@ const PROTOCOL = "skills/idd/SKILL.md";
 const MEMORY_LOOP = "skills/idd/references/memory-loop.md";
 const REPOSITORY = "skills/idd/references/repository.md";
 const MAX_PROTOCOL_BYTES = 12 * 1024;
+// Measured with CRLF, as a Windows checkout has it, so an excess fails on
+// every platform and not only on the Windows runners.
+const protocolBytes = (text) => Buffer.byteLength(text.replace(/\r?\n/g, "\r\n"), "utf8");
 
 const ROUTERS = {
   claude: "global-instructions/CLAUDE.md",
@@ -58,12 +61,20 @@ function generate(t, target) {
   return { out, byPath };
 }
 
+test("the protocol budget counts the CRLF line endings a Windows checkout has", () => {
+  const lines = "x".repeat(39) + "\n";
+  const protocol = lines.repeat(300);
+  assert.equal(Buffer.byteLength(protocol, "utf8"), 12000);
+  assert.ok(protocolBytes(protocol) > MAX_PROTOCOL_BYTES, `${protocolBytes(protocol)} B`);
+  assert.equal(protocolBytes(protocol.replace(/\n/g, "\r\n")), protocolBytes(protocol));
+});
+
 for (const target of Object.keys(ROUTERS)) {
   test(`${target}: ships the IDD protocol skill within budget, naming the installed ospec CLI`, (t) => {
     const { out, byPath } = generate(t, target);
     const protocol = byPath.get(PROTOCOL);
     assert.ok(protocol, `${target}: ${PROTOCOL} missing`);
-    assert.ok(Buffer.byteLength(protocol, "utf8") <= MAX_PROTOCOL_BYTES, `${target}: protocol over 12 KB`);
+    assert.ok(protocolBytes(protocol) <= MAX_PROTOCOL_BYTES, `${target}: protocol over 12 KB (${protocolBytes(protocol)} B)`);
     assert.doesNotMatch(protocol, /\{\{[a-z-]+\}\}/, `${target}: unresolved placeholder`);
 
     const cli = target === "claude" ? "${CLAUDE_SKILL_DIR}/../../scripts/ospec.js" : `${RUNTIME_DIR_MARKER}/scripts/ospec.js`;
