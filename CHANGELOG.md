@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.142.1] - 2026-10-21
+
+### Fixed
+- **Una página que no termina de cargar se reintenta en Windows** (OSP-022, #344, E1.30): el 2026-10-20 la referencia de `receta-spa` falló en `main` con `the page did not finish loading` en sus 4 checks, y Publish no subió v2.140.2 al marketplace. El reintento acotado de Windows de `checks-greenfield.test.js` no reconocía ese mensaje. Ahora lo reconoce, y un test fija los errores de infraestructura que se reintentan y que un check que falla su aserción no se reintenta nunca.
+- **El presupuesto de la skill `idd` se mide en CRLF en todas las plataformas** (OSP-028, #347): `idd-protocol.test.js` medía los bytes tal como se leen. En Linux y macOS el fichero tiene LF, así que pasar de 12 KB solo fallaba en Windows (#374 y #380). Ahora el exceso falla también en local y en ubuntu.
+
+  Hecho con IDD (`idd/archive/2026-10-21-windows-ci-guards/`). Solo cambian tests.
+
+**Verificación directa**: `node scripts/check.js` (3929 tests pasando, 0 fallos y 3 omitidos). Con un tiempo de carga recortado temporalmente: con 30 ms, dos checks se reintentaron y el test pasó; con 1 ms, el test siguió fallando.
+
 ## [2.142.0] - 2026-10-21
 
 ### Changed
