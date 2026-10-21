@@ -201,19 +201,21 @@ PATH or in its usual place).
 
 ## Checkpoint
 
-`margins.json` (`bench-margins-9`, E4.6) is declared before the greenfield
-comparison: `gentle-ai` is the baseline and `idd` the candidate; both arms run
-every scenario three times. Summed over the per-scenario means, the candidate
-may not escape more than 2 defects above the baseline (`max_mean_delta: 2`) or
-spend more than 10× the tokens (`max_total_ratio: 10`). Quality: the
-candidate's mean mutation score may not trail by more than 5 points, and the
-blind review may not prefer the baseline in both orders in more than one pair.
-That aggregate ceiling is not the campaign's binding rule. The report judges
-the binding one: on `todo-spa` the candidate's mean escaped defects are at most
-2, and on the reserved scenario they are strictly below the baseline. Token
-growth does not decide this campaign; 10× only stops a runaway. The verdict
-blocks nothing. `bench-margins-8` (E4.9, one repetition, delta 0, ratio 1, no
-quality criterion) stays reproducible from v2.137.0. The E4.5 checkpoint
+`margins.json` (`bench-margins-10`, E4.6) is declared before the repetition of
+`idd-4` with Engram in every arm (OSP-025), on Claude Code with Haiku for the
+agent and the persona (user decision, 2026-10-21): `gentle-ai` is the baseline
+and `idd` the candidate; both arms run each scenario of the default corpus
+once. Summed over the per-scenario means, the candidate may not escape more
+defects than the baseline (`max_mean_delta: 0`) or spend more tokens
+(`max_total_ratio: 1`), as in E4.9. Quality: the candidate's mean mutation
+score may not trail by more than 5 points, and the blind review may not prefer
+the baseline in both orders in more than one pair. With one repetition the
+verdict is exploratory and blocks nothing; the binding repetition on Claude is
+OSP-011 (#342). `bench-margins-9` (the greenfield campaign: three repetitions,
+delta 2, ratio 10, the same quality criterion, and per-scenario rules judged in
+its report) stays reproducible from v2.143.0. `bench-margins-8` (E4.9, one
+repetition, delta 0, ratio 1, no quality criterion) stays reproducible from
+v2.137.0. The E4.5 checkpoint
 (`bench-margins-7`, three repetitions and the same quality criterion) is
 reproducible from v2.134.0. The E4.2 checkpoint (`bench-margins-6`, one
 repetition, no quality criterion) is reproducible from v2.133.0. Fixed in code:
@@ -231,7 +233,7 @@ margins declares a new version first.
 Records of different harnesses are not comparable unless the margins declare a
 `harness_exception` (one baseline digest, the candidate digests accepted against
 it, the files that differ, and why), and a test then verifies it against
-committed copies of those files. `bench-margins-9` declares none: both arms run
+committed copies of those files. `bench-margins-10` declares none: both arms run
 with the same harness. The E4.1 checkpoint (`bench-margins-5`,
 `sdd-baseline-3` against `idd-2`, with its exception and
 `harness-exception.test.js`) is reproducible from v2.132.1 or earlier.

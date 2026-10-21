@@ -301,7 +301,12 @@ the same harness; their verdict blocks nothing. The E4.6 margins
 of the greenfield campaign. Its report judges the binding escaped-defect rules:
 on `todo-spa` the candidate's mean is at most 2, and on the reserved scenario
 it is strictly below the baseline. Token growth on that campaign does not
-decide; the 10× ratio only stops a runaway. The E4.5 checkpoint
+decide; the 10× ratio only stops a runaway. They stay reproducible from
+v2.143.0. The margins of the `idd-4` repetition with Engram in every arm
+(`bench-margins-10`: the same arms, one repetition on Claude Code with Haiku,
+`max_mean_delta` 0, `max_total_ratio` 1, and the E4.5 quality criterion)
+declare no harness exception; with one repetition their verdict is
+exploratory and blocks nothing. The E4.5 checkpoint
 (`bench-margins-7`) is reproducible from v2.134.0. The E4.2 checkpoint
 (`bench-margins-6`) is reproducible from v2.133.0.
 
