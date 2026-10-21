@@ -60,8 +60,40 @@ function ensureOspecGitignore(repoRoot, fsImpl = fs) {
   return { changed: true, path: gitignorePath };
 }
 
+// Every writer of `.ospec/` creates its directories through here, so the
+// folder ignores itself (`.ospec/.gitignore` with `*`) in any repository,
+// without touching the user's .gitignore. An existing `.ospec/.gitignore`,
+// symlink or not, is the user's and stays as it is. A directory outside any
+// `.ospec/` is only created.
+const OSPEC_DIR = ".ospec";
+const SELF_IGNORE = "*\n";
+
+function ospecDirOf(dir) {
+  for (let current = path.resolve(dir); ; current = path.dirname(current)) {
+    if (path.basename(current) === OSPEC_DIR) return current;
+    if (path.dirname(current) === current) return null;
+  }
+}
+
+function ignoreOspecDir(dir, fsImpl = fs) {
+  const root = ospecDirOf(dir);
+  if (!root) return;
+  try {
+    fsImpl.writeFileSync(path.join(root, ".gitignore"), SELF_IGNORE, { flag: "wx" });
+  } catch (error) {
+    if (error.code !== "EEXIST") throw error;
+  }
+}
+
+function mkdirOspec(dir, fsImpl = fs) {
+  fsImpl.mkdirSync(dir, { recursive: true });
+  ignoreOspecDir(dir, fsImpl);
+}
+
 module.exports = {
   OSPEC_IGNORE_LINE,
   ensureOspecGitignore,
+  ignoreOspecDir,
   ignoresOspec,
+  mkdirOspec,
 };

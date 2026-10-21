@@ -6,7 +6,7 @@ const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 
-const { ensureOspecGitignore } = require("./ospec-gitignore.js");
+const { ensureOspecGitignore, mkdirOspec } = require("./ospec-gitignore.js");
 const { setup } = require("../setup-git-hooks.js");
 
 function tempDir(t) {
@@ -57,4 +57,32 @@ test("setup adds .ospec/ to a repository gitignore", (t) => {
   setup(root);
   assert.match(fs.readFileSync(path.join(root, ".gitignore"), "utf8"), /^\.ospec\/\n/);
   assert.match(fs.readFileSync(path.join(root, ".git", "hooks", "pre-commit"), "utf8"), /pre-commit-hook\.js/);
+});
+
+test("mkdirOspec makes .ospec/ ignore itself and keeps an existing ignore", (t) => {
+  const root = tempDir(t);
+  const ignore = path.join(root, ".ospec", ".gitignore");
+  mkdirOspec(path.join(root, ".ospec", "session", "change"));
+  assert.equal(fs.statSync(path.join(root, ".ospec", "session", "change")).isDirectory(), true);
+  assert.equal(fs.readFileSync(ignore, "utf8"), "*\n");
+
+  fs.writeFileSync(ignore, "session/\n");
+  mkdirOspec(path.join(root, ".ospec", "cache"));
+  assert.equal(fs.readFileSync(ignore, "utf8"), "session/\n");
+  assert.equal(fs.existsSync(path.join(root, ".gitignore")), false);
+});
+
+test("mkdirOspec never follows a symlink .ospec/.gitignore and leaves other directories alone", (t) => {
+  const root = tempDir(t);
+  const outside = tempDir(t);
+  const missing = path.join(outside, "missing-target");
+  fs.mkdirSync(path.join(root, ".ospec"));
+  fs.symlinkSync(missing, path.join(root, ".ospec", ".gitignore"));
+  mkdirOspec(path.join(root, ".ospec", "session"));
+  assert.equal(fs.existsSync(missing), false);
+
+  const plain = path.join(tempDir(t), "openspec", "changes");
+  mkdirOspec(plain);
+  assert.deepEqual(fs.readdirSync(path.dirname(plain)), ["changes"]);
+  assert.equal(fs.existsSync(path.join(path.dirname(plain), ".gitignore")), false);
 });

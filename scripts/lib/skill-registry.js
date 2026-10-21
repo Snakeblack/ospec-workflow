@@ -4,6 +4,8 @@ const crypto = require("node:crypto");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 
+const { mkdirOspec } = require("./ospec-gitignore.js");
+
 function compareStrings(left, right) {
   if (left < right) {
     return -1;
@@ -360,7 +362,7 @@ async function readRegistryCache(cachePath) {
 }
 
 async function writeRegistryCache(cachePath, data) {
-  await fs.mkdir(path.dirname(cachePath), { recursive: true });
+  mkdirOspec(path.dirname(cachePath));
 
   const temporaryPath = `${cachePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
   let writeFailed = false;

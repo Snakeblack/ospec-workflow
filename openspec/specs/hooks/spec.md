@@ -1790,3 +1790,10 @@ When `review-trust` or `review-correction` (plain or with a host prefix) stops, 
 
 - GIVEN `ospec-workflow:review-trust` stops and its last transcript message holds the result in a fenced `json` block THEN the hook MUST write the receipt of its `request_digest`, and its output MUST stay `{ "continue": true }`.
 - GIVEN an `sdd-apply` stop, only a `transcript_path`, or a last message that is prose THEN no receipt MUST be written.
+
+### Requirement: Session Data Ignores Itself {#REQ-hooks-028}
+
+Every writer of the workspace's `.ospec/` (the Node hooks and the native binary: the session trace, session summaries, phase costs, context measurements, token events, runtime events, the skill-registry cache, review receipts and the archive journal) MUST create its directories through one helper per runtime (`mkdirOspec` in `scripts/lib/ospec-gitignore.js`, `ospecdir.MkdirAll` in Go). When the directory lies under a `.ospec/`, the helper MUST create `.ospec/.gitignore` with `*` exclusively, so the folder ignores itself in any repository without touching the user's `.gitignore`. An existing `.ospec/.gitignore`, a symlink included, MUST stay as it is and never be followed. A directory outside `.ospec/` MUST only be created. Ignoring never untracks: `ospec doctor` names files of `.ospec/` that git already tracks (REQ-idd-019). The strict-TDD historical snapshot (`.ospec/strict-tdd-historical/`) is frozen by the K1 scope guard and relies on an earlier writer of the session.
+
+- GIVEN a git repository whose `.gitignore` does not mention `.ospec/` WHEN the Stop hook writes `.ospec/session/latest.md` THEN `git status --porcelain --untracked-files=all` MUST stay empty and `.ospec/.gitignore` MUST hold `*`.
+- GIVEN `.ospec/.gitignore` already exists with other content, or as a dangling symlink, WHEN a writer creates a directory under `.ospec/` THEN the file MUST keep its content and the symlink target MUST NOT be created.

@@ -94,7 +94,10 @@ bench configuration directory for every arm.
 
 `run` builds the plugin from the checkout (the gentle-ai arm records its install instead), materializes each scenario in a
 directory of its own with an opaque name under the system temp directory
-(`ospec-bench/<opaque>/<scenario>`), writes the record to
+(`ospec-bench/<opaque>/<scenario>`) whose `.git/info/exclude` lists `.ospec/`
+(the Stop hook rewrites its session trace every turn; tracked by the setup
+commit, it left no clean tree and the `idd` arm never finished, as in the
+discarded first attempt of `idd-5`), writes the record to
 `records/<record>.json` after every run, and keeps transcripts under
 `scripts/evals/.runs/bench/<record>/<scenario>[/r<n>]/` (gitignored). Once
 judged, the workspace moves there too (`workspace/`), so no later run can find

@@ -17,6 +17,7 @@ const {
   isRelativeUnder,
 } = require("./archive-plan.js");
 const { renameWithFallback } = require("./atomic-write.js");
+const { ignoreOspecDir } = require("./ospec-gitignore.js");
 
 const TERMINAL_STATES = new Set(["done", "failed", "rolled-back"]);
 const NON_TERMINAL = new Set([
@@ -386,12 +387,14 @@ async function readJournal(txDir, fsx) {
 
 async function writeJournal(txDir, journal, fsx) {
   await fsx.mkdir(txDir, { recursive: true });
+  ignoreOspecDir(txDir);
   const p = path.join(txDir, "journal.json");
   await fsx.writeFile(p, JSON.stringify(journal, null, 2), "utf8");
 }
 
 async function writeReceipt(txDir, receipt, fsx) {
   await fsx.mkdir(txDir, { recursive: true });
+  ignoreOspecDir(txDir);
   const p = path.join(txDir, "receipt.json");
   await fsx.writeFile(p, JSON.stringify(receipt, null, 2), "utf8");
 }

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/snakeblack/ospec-workflow/internal/ospecdir"
 	"github.com/snakeblack/ospec-workflow/internal/rules"
 )
 
@@ -385,7 +386,7 @@ func recordTokens(changeName string, tokens int) {
 	}
 	root := findWorkspaceRoot()
 	logDir := filepath.Join(root, ".ospec", "session", changeName)
-	if err := os.MkdirAll(logDir, 0755); err != nil {
+	if err := ospecdir.MkdirAll(logDir, 0755); err != nil {
 		return
 	}
 	logPath := filepath.Join(logDir, "token-events.jsonl")

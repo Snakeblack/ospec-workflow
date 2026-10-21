@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/snakeblack/ospec-workflow/internal/ospecdir"
 )
 
 // CacheVersion is the schema version written to the registry cache.
@@ -299,7 +301,7 @@ func ReadCache(path string) (map[string]any, error) {
 
 // WriteCache atomically writes data as pretty-printed JSON + newline to path.
 func WriteCache(path string, data map[string]any) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := ospecdir.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return fmt.Errorf("skillreg.WriteCache mkdir: %w", err)
 	}
 	bs, err := json.MarshalIndent(data, "", "  ")

@@ -300,6 +300,29 @@ test("the idd arm writes idd/config.yaml, requests the brief, and ends when the 
   assert.deepEqual(run.open_facts, { kind: "feature", categories: { inputs: "asked", uniqueness: "cited", persistence: "quoted" }, questions: 1 });
 });
 
+// The ospec Stop hook rewrites .ospec/session/latest.md on every turn. The
+// setup commit used to track it, so no later turn left a clean tree and the
+// idd arm never finished (idd-5). The bench excludes .ospec/ on its own, even
+// with a plugin that does not ignore the folder.
+test("the setup commit leaves .ospec/ out, so a session trace rewritten every turn never blocks the delivery", async () => {
+  const arm = armFor("idd");
+  const trace = (effect) => (cwd) => {
+    if (effect) effect(cwd);
+    fs.mkdirSync(path.join(cwd, ".ospec", "session"), { recursive: true });
+    fs.writeFileSync(path.join(cwd, ".ospec", "session", "latest.md"), `${Math.random()}\n`);
+  };
+  const host = fakeHost({
+    texts: ["Configuración creada.", "Cambio abierto.", "ospec close ha archivado el cambio y está commiteado."],
+    effects: [trace(writeIddConfig("idd")), trace(writeCode), trace(archiveIdd)],
+  });
+  const { workspaceRoot, runDir } = dirs();
+  const run = await runScenario({ scenario: seedRepo(), arm, host, workspaceRoot, runDir, checks: () => [] });
+  assert.equal(run.status, "complete");
+  assert.equal(run.metrics.agent_turns, 2);
+  const tracked = spawnSync("git", ["ls-files", "--", ".ospec"], { cwd: workspaceRoot, encoding: "utf8" });
+  assert.equal(tracked.stdout, "");
+});
+
 test("the idd arm's setup is done only with a readable config in IDD mode", () => {
   const arm = armFor("idd");
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "bench-idd-"));

@@ -14,6 +14,7 @@ const {
   createArtifactStoreFromConfig,
 } = require("../lib/artifact-store.js");
 const { writeFileAtomic } = require("../lib/atomic-write.js");
+const { mkdirOspec } = require("../lib/ospec-gitignore.js");
 const { resolveWorkspaceCwd } = require("../lib/pathsafe.js");
 const { readIddSession } = require("./lib/idd-session.js");
 
@@ -138,6 +139,7 @@ function sddChangeName(change) {
 async function writeLatestTrace(filePath, content) {
   // Atomic temp+rename so a crash mid-write never leaves the next session
   // reading a partially written latest.md.
+  mkdirOspec(path.dirname(filePath));
   await writeFileAtomic(filePath, content);
 }
 

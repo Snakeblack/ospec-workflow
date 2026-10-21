@@ -1005,7 +1005,9 @@ The checks MUST cover at least:
   `strict-tdd-hook` (`warn` when the installed pre-commit hook's active mode
   and the other Strict TDD source disagree: IDD follows `strict_tdd`, and
   `mode: sdd` or a missing `idd/config.yaml` follows `testing.tdd_mode`),
-  `session-dir` (`warn` when `.ospec/` exists and git does not ignore it) and
+  `session-dir` (`warn` when `.ospec/` exists and git tracks files under it,
+  with `git rm -r --cached .ospec`, or does not ignore `.ospec/session/latest.md`;
+  the hooks make the folder ignore itself, REQ-hooks-028) and
   `hook-guards` (`warn` naming every `DISABLE_*` guard set to `true`).
 - `claude`: `plugin` (`error` when an installation's directory or manifest is
   missing, `warn` when several installations exist), `hooks` (`error` when

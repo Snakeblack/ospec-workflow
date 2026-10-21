@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/snakeblack/ospec-workflow/internal/ospecdir"
 	"github.com/snakeblack/ospec-workflow/internal/yamllite"
 )
 
@@ -281,6 +282,9 @@ func (s *Store) WriteSessionSummary(changeName, content string) (*WriteResult, e
 		return nil, fmt.Errorf("store.WriteSessionSummary: read check: %w", err)
 	}
 
+	if err := ospecdir.MkdirAll(filepath.Dir(summaryPath), 0755); err != nil {
+		return nil, fmt.Errorf("store.WriteSessionSummary: mkdir: %w", err)
+	}
 	if err := atomicWriteFile(summaryPath, content); err != nil {
 		return nil, fmt.Errorf("store.WriteSessionSummary: %w", err)
 	}
@@ -296,7 +300,7 @@ func (s *Store) WriteSessionSummary(changeName, content string) (*WriteResult, e
 // using an advisory lock (.lock sibling) to serialise concurrent writers.
 func (s *Store) AppendRuntimeEvent(line []byte) error {
 	evPath := s.runtimeEventsPath()
-	if err := os.MkdirAll(filepath.Dir(evPath), 0755); err != nil {
+	if err := ospecdir.MkdirAll(filepath.Dir(evPath), 0755); err != nil {
 		return fmt.Errorf("store.AppendRuntimeEvent: mkdir: %w", err)
 	}
 	return withLock(evPath, func() error {
@@ -324,7 +328,7 @@ func (s *Store) AppendRuntimeEvent(line []byte) error {
 // to determine and set the relaunch field on the record.
 func (s *Store) AppendPhaseCost(changeName string, line []byte) error {
 	costPath := s.SessionPhaseCostPath(changeName)
-	if err := os.MkdirAll(filepath.Dir(costPath), 0755); err != nil {
+	if err := ospecdir.MkdirAll(filepath.Dir(costPath), 0755); err != nil {
 		return fmt.Errorf("store.AppendPhaseCost: mkdir: %w", err)
 	}
 	return withLock(costPath, func() error {

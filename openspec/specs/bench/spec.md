@@ -98,7 +98,10 @@ the same command resumes it after the reset.
 No run MUST be able to reach another run's delivery. `bench.js run` MUST take
 a lock on the workspaces directory, so runs go one at a time, and each run
 MUST work in its own directory with an opaque name (neither record, arm,
-scenario nor repetition) whose only content is the workspace. Once judged, the
+scenario nor repetition) whose only content is the workspace. The workspace's
+`.git/info/exclude` MUST list `.ospec/` before the first commit, so ospec's
+session data, which the Stop hook rewrites every turn, never enters the setup
+commit nor dirties a delivery, whatever the plugin under test does. Once judged, the
 workspace MUST move out of the workspaces directory, next to the run's
 transcripts under `scripts/evals/.runs/bench/`, where the quality tooling
 reads it. On agy, every agy process MUST run in a bubblewrap sandbox with a
