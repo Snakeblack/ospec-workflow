@@ -29,6 +29,7 @@ const {
   derivePhaseKey,
   resolveCanonicalAgent,
 } = require("../lib/agent-identity.js");
+const { RESULT_LISTS, buildReceipt, findReviewResult, receiptPath } = require("../lib/review-receipt.js");
 
 const EVENT_RELATIVE_PATH = ARTIFACT_STORE_RELATIVE_PATHS.runtimeEvents;
 const RESULT_FIELDS = [
@@ -1244,6 +1245,55 @@ function resolveTimestamp(input, now) {
   return timestamp || now().toISOString();
 }
 
+// The text of the last assistant message of a JSONL transcript: Claude Code
+// writes {type: "assistant", message: {role, content}}, Codex
+// {payload: {role, content}}.
+function lastAssistantText(content) {
+  const lines = content.split(/\r?\n/).filter((line) => line.trim());
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const entry = parseJsonText(lines[index]);
+    const message = entry && (entry.message || entry.payload);
+    if (!message || message.role !== "assistant") continue;
+    if (typeof message.content === "string") return message.content;
+    if (!Array.isArray(message.content)) continue;
+    const text = message.content.filter((block) => typeof block?.text === "string").map((block) => block.text).join("\n");
+    if (text) return text;
+  }
+  return null;
+}
+
+/**
+ * OSP-029 step 2 (REQ-hooks-027): when review-trust or review-correction ends
+ * with a result that carries a request_digest, writes its receipt under
+ * .ospec/review-receipts/ for ospec review record and validate. The result
+ * comes from the input's result fields, else from the last assistant message
+ * of the subagent's own transcript (`agent_transcript_path`): in Claude Code
+ * `transcript_path` is the main session's, whose text the main agent writes.
+ * Fail-safe: a failure writes nothing and never alters the hook's output.
+ */
+async function persistReviewReceipt({ input, workspace, now }) {
+  try {
+    const agent = resolveCanonicalAgent(resolveAgentName(input));
+    if (!Object.hasOwn(RESULT_LISTS, agent)) return null;
+    let result = null;
+    for (const field of RESULT_FIELDS) {
+      result = findReviewResult(input?.[field], agent);
+      if (result) break;
+    }
+    if (!result) {
+      const { cleaned, ok } = validatePath(input?.agent_transcript_path);
+      if (!ok) return null;
+      result = findReviewResult(lastAssistantText(await fs.readFile(cleaned, "utf8")), agent);
+    }
+    if (!result) return null;
+    const receipt = buildReceipt({ agent, result, recordedAt: resolveTimestamp(input, now) });
+    await writeFileAtomic(receiptPath(workspace, receipt.request_digest), `${JSON.stringify(receipt, null, 2)}\n`);
+    return receipt;
+  } catch {
+    return null;
+  }
+}
+
 async function runSubagentStop({
   input = {},
   fallbackCwd = process.cwd(),
@@ -1267,6 +1317,9 @@ async function runSubagentStop({
   // CX0 is intentionally post-O1 and independently fail-safe.  Its return
   // value is diagnostic-only and never participates in the hook's stdout.
   await persistContextMeasurement({ input, workspace, activeChangeResolution });
+
+  // REQ-hooks-027: receipt of a trust review result, fail-safe like the above.
+  await persistReviewReceipt({ input, workspace, now });
 
   const resolution =
     findResolutionInInput(input) ||
@@ -1360,6 +1413,7 @@ module.exports = {
   isDegradedResolution,
   persistPhaseCost,
   persistContextMeasurement,
+  persistReviewReceipt,
   contextMetricObservations,
   resolveCostFieldPresence,
   persistResultEnvelope,

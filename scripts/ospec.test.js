@@ -11,6 +11,8 @@ const os = require("node:os");
 const path = require("node:path");
 const { execFileSync, spawnSync } = require("node:child_process");
 
+const { buildReceipt, receiptPath } = require("./lib/review-receipt.js");
+
 const CLI = path.join(__dirname, "ospec.js");
 
 // A directory outside any git work tree.
@@ -792,11 +794,24 @@ test("a blocker gets one bounded correction validated against its frozen id", (t
   writeFile(root, "src/auth/tokens.js", "module.exports = { ttl: 3600, rejectExpired: true };\n");
   const corrected = review(root, "correct");
   assert.strictEqual(corrected.code, 0, corrected.stderr);
-  assert.deepStrictEqual(corrected.json.review.validate, { validator: "review-correction", finding_ids: [finding.id] });
+  const { validate } = corrected.json.review;
+  assert.strictEqual(validate.validator, "review-correction");
+  assert.deepStrictEqual(validate.finding_ids, [finding.id]);
+  assert.deepStrictEqual(validate.paths, ["src/auth/tokens.js"]);
+  assert.deepStrictEqual(review(root, "start").json.review.validate, validate, "review start returns the validation request again");
 
-  const verdict = { outcomes: [{ id: finding.id, status: "resolved" }], regression: { detected: false, evidence: ["expired tokens rejected"] } };
+  const outcomes = [{ id: finding.id, status: "resolved" }];
+  const regression = { detected: false, evidence: ["expired tokens rejected"] };
+  const uncited = review(root, "validate", "--result", JSON.stringify({ outcomes, regression }));
+  assert.strictEqual(uncited.json.error.code, "review-refused");
+  assert.match(uncited.json.error.message, /request_digest/);
+  const pastEnd = { request_digest: validate.request_digest, reviewed: [{ path: "src/auth/tokens.js", cites: ["src/auth/tokens.js:2"] }], outcomes, regression };
+  assert.match(review(root, "validate", "--result", JSON.stringify(pastEnd)).json.error.message, /src\/auth\/tokens\.js:2/);
+
+  const verdict = { ...pastEnd, reviewed: [{ path: "src/auth/tokens.js", cites: ["src/auth/tokens.js:1"] }] };
   const validated = review(root, "validate", "--result", JSON.stringify(verdict));
   assert.strictEqual(validated.json.review.status, "approved");
+  assert.match(validated.json.warnings.join("\n"), /no SubagentStop receipt of review-correction/);
   assert.strictEqual(ospec(root, "check", "--change", "rotate-tokens", "--json").json.verdict, "ready");
 });
 
@@ -852,6 +867,55 @@ test("review record refuses a result that does not cite the frozen candidate", (
   assert.strictEqual(closed.code, 0, closed.stdout);
   assert.deepStrictEqual(closed.json.reviews, [{ evidence: evidence.id, lineage_id: evidence.detail.lineage_id, attestation: "relayed" }]);
   assert.match(ospec(root, "close", "--change", "rotate-tokens").stdout, new RegExp(`trust review ${evidence.id}: relayed`));
+});
+
+// OSP-029 step 2: the receipt the SubagentStop hook leaves for the reviewer's
+// result attests it; the same digest with another result is refused.
+test("a SubagentStop receipt of the reviewer's result is recorded as subagent-stop", (t) => {
+  const root = openRotation(t);
+  // As installed: .ospec/ is ignored, which git add refuses to exclude.
+  writeFile(root, ".gitignore", ".ospec/\n");
+  const result = JSON.parse(answer(root));
+  const receipt = buildReceipt({ agent: "review-trust", result, recordedAt: "2026-10-21T08:00:00.000Z" });
+  fs.mkdirSync(path.join(root, ".ospec", "review-receipts"), { recursive: true });
+  fs.writeFileSync(receiptPath(root, result.request_digest), JSON.stringify(receipt));
+
+  const changed = review(root, "record", "--result", JSON.stringify({ ...result, findings: [BLOCKER] }));
+  assert.strictEqual(changed.json.error.code, "review-refused");
+  assert.match(changed.json.error.message, /differs from the one review-trust returned/);
+
+  const recorded = review(root, "record", "--result", JSON.stringify(result));
+  assert.strictEqual(recorded.code, 0, recorded.stdout);
+  assert.strictEqual(recorded.json.warnings, undefined);
+  const evidence = stateOf(root, "rotate-tokens").evidence.find((entry) => entry.id === recorded.json.evidence);
+  assert.strictEqual(evidence.detail.attestation, "subagent-stop");
+  assert.strictEqual(evidence.detail.receipt.result_digest, receipt.result_digest);
+  assert.ok(fs.existsSync(receiptPath(root, result.request_digest)), "the receipt is kept");
+
+  assert.strictEqual(ospec(root, "check", "--change", "rotate-tokens", "--json").json.verdict, "ready");
+  const closed = ospec(root, "close", "--change", "rotate-tokens", "--json");
+  assert.strictEqual(closed.code, 0, closed.stdout);
+  assert.strictEqual(closed.json.reviews[0].attestation, "subagent-stop");
+});
+
+// The receipt lands in the working tree: in a project that does not ignore
+// .ospec/ it must not count as a changed path, or the one bounded correction
+// looks oversized and review start escalates the lineage.
+test("a review receipt in a project that does not ignore .ospec/ is not part of the diff", (t) => {
+  const root = openRotation(t);
+  review(root, "start");
+  const frozen = recordAnswer(root, [BLOCKER]);
+  const [finding] = frozen.json.review.findings;
+  const digest = `sha256:${"c".repeat(64)}`;
+  fs.mkdirSync(path.join(root, ".ospec", "review-receipts"), { recursive: true });
+  fs.writeFileSync(receiptPath(root, digest), JSON.stringify(buildReceipt({ agent: "review-trust", result: { request_digest: digest, findings: [] }, recordedAt: "2026-10-21T08:00:00.000Z" })));
+
+  writeFile(root, "src/auth/tokens.js", "module.exports = { ttl: 3600, rejectExpired: true };\n");
+  const corrected = review(root, "correct");
+  assert.strictEqual(corrected.code, 0, corrected.stdout);
+  assert.deepStrictEqual(corrected.json.review.validate.finding_ids, [finding.id]);
+  assert.deepStrictEqual(corrected.json.review.validate.paths, ["src/auth/tokens.js"]);
+  assert.ok(!ospec(root, "check", "--change", "rotate-tokens", "--json").stdout.includes(".ospec/review-receipts"), "check does not see the receipt");
 });
 
 test("a deleted reviewed path is cited in the base tree", (t) => {
