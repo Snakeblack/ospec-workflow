@@ -1,0 +1,110 @@
+{
+  "schema": "idd-state/v1",
+  "change": "bench-digest-windows-home",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "En Windows el digest del plugin (agy y Engram en Claude) cambia con el HOME: el instalador escribe la ruta escapada en JSON y con barras normales, y solo se sustituía la forma nativa",
+    "acceptance": "Dos HOME distintos del mismo checkout dan el mismo digest también con rutas de Windows (nativa, escapada en JSON y con barras normales); la CI de Windows pasa"
+  },
+  "facts": {
+    "basis": "El acceptance de bench-symmetry-validity fija el comportamiento (mismo digest desde dos HOME); solo cambia cómo se reconoce la ruta"
+  },
+  "plan": {
+    "paths": [
+      "scripts/evals/bench/hosts/engram.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-21T11:31:09.536Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-21T11:32:15.645Z",
+      "detail": {
+        "tree": "sha256:aba3509c02f0da04326798b596707a7d45f72a61006aab127f14fba22be31a0c",
+        "runs": [
+          "run-3"
+        ]
+      }
+    }
+  ],
+  "base": "eb5808955c78c1b325fc1f2e77f8d829fc33fda5",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/evals/bench/hosts/engram.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:5fd2629fea6a1298eb9d210a3d62bc852ff29c42ab9bbb1d5f2ecc20f77129e7",
+      "tree": "sha256:b8b1eed95bfcdbff6725a2629a17d7902469053c175b90ae7d51c4d948d27c52",
+      "recorded_at": "2026-10-21T11:31:09.363Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/evals/bench/hosts/engram.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ac55d12c9b9262967219d273549e955ba80a25eb8d74d060103941efde629adb",
+      "tree": "sha256:9469008e8f19e15da0a0175971d125c3f0bb6c026f1aef9e4b19f457f0e4ca78",
+      "recorded_at": "2026-10-21T11:31:09.536Z",
+      "tests": 4
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e82475a8969a704e41f263604af34a1914d3cc725ac38933d0e10d6fb11bcbf1",
+      "tree": "sha256:aba3509c02f0da04326798b596707a7d45f72a61006aab127f14fba22be31a0c",
+      "recorded_at": "2026-10-21T11:32:15.645Z"
+    }
+  ],
+  "closed_at": "2026-10-21T11:32:19.774Z"
+}

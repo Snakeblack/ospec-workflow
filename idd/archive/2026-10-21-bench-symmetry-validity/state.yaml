@@ -1,0 +1,191 @@
+{
+  "schema": "idd-state/v1",
+  "change": "bench-symmetry-validity",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El banco compara brazos asimétricos y no acredita su validez: Engram solo en gentle-ai (#340), digest de plugin no reproducible en agy, calidad declarada sin exigir y encuadre de docs sesgado (#341)",
+    "acceptance": "Cada brazo (idd, sdd, gentle-ai) en claude y agy arranca con el MCP de Engram y su record guarda engram_mcp_bytes, plugin_commit, tokens por turno y el modo de cierre de cada categoría de open-facts; el checkpoint rechaza records sin Engram en los dos brazos y falla si los márgenes declaran calidad sin resultado; dos HOME distintos del mismo commit dan el mismo plugin_digest en agy; README y docs del banco no presentan p≈0,49 como victoria, declaran la asimetría de Engram y la autoría real de receta-spa"
+  },
+  "facts": {
+    "open": [
+      "¿El brazo IDD lleva solo el MCP de Engram (mismo binario y 'engram mcp --tools=agent' que gentle-ai, vacío por workspace) o la instalación completa de 'engram setup' con su protocolo y hooks?",
+      "¿Con márgenes que declaran quality y sin quality.json del par, el checkpoint da 'revise' con la razón 'quality-missing' o aborta con error?",
+      "¿Los modelos por defecto del host claude (agente, persona) y del juez de quality pasan de claude-sonnet-5-5 a claude-haiku-5-5, o se quedan y Haiku se pasa con --model en cada corrida?",
+      "¿La autoría de receta-spa se corrige en los docs públicos ('escrito en la misma sesión, independencia no demostrada') o se sustituye ya por un escenario nuevo escrito y congelado en otra sesión?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "scripts/evals/bench/arms.js"
+    ],
+    "work_units": 4,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 4 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/evals/bench/bench.test.js adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Engram IDD: engram setup completo. Calidad: revise: quality-missing. Haiku: defaults a Haiku. receta-spa: corregir los docs.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-21T10:57:13.130Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-21T11:03:11.894Z",
+      "detail": {
+        "run": "run-4",
+        "tree": "sha256:5ce98b50fbc3a10908fb6105ec9bed593bb2ad30115f1abfb96fda61b5e6a38f",
+        "plan": "Schema 3 es aditivo: los records de schema 1 y 2 se siguen leyendo sin los campos nuevos (los 12 commiteados validan y su informe se regenera); un record nuevo se escribe en schema 3. Rollback: revertir el commit; ningún record commiteado se reescribe."
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-21T11:04:13.488Z",
+      "detail": {
+        "tree": "sha256:e09761661c778d4b52fd58a8ab76dd25278ee8efa341188ac514357032932a82",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-21T11:04:19.730Z"
+    }
+  ],
+  "base": "6dd42b6e6721251a00e2b4f163e93e487977e092",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/evals/bench/checkpoint.test.js scripts/evals/bench/hosts/agy.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:d7baeba061c58642ab69af4590614fe5eba6b599a187a8a795007eefd18898aa",
+      "tree": "sha256:6c2375c997a6e7dfb6436dd1d12a4b72fa19ecf9a2d1a3710f636a8eefa692cc",
+      "recorded_at": "2026-10-21T10:48:12.263Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/evals/bench/checkpoint.test.js scripts/evals/bench/hosts/agy.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:df0f6f382faea457e7ddd59fb1c9fab8cc1fea591b1ecdedd3832d02d6a13ea7",
+      "tree": "sha256:c4e00755bae6baa4990838e3951414afcc364d5e1c10f7ca889518677b4fbf4a",
+      "recorded_at": "2026-10-21T10:57:13.130Z",
+      "tests": 31
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:9fccce431a3d037aad5f51f2840ea55369f5b3a931d40cb9133ca3ab7501913d",
+      "tree": "sha256:1a62fe0802303b3bc598d9a0dafdebcdbc8c798dcd05be150f96f025e6d84d28",
+      "recorded_at": "2026-10-21T11:02:26.629Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "migration-test",
+      "command": "node --test scripts/evals/bench/record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bd0992a026fb4ed7b330d9cd37535d3e83d47d7677a53f04ac0d02aa5b2ede30",
+      "tree": "sha256:5ce98b50fbc3a10908fb6105ec9bed593bb2ad30115f1abfb96fda61b5e6a38f",
+      "recorded_at": "2026-10-21T11:03:11.894Z",
+      "tests": 13
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:da68426df4967c10e8d386f9df6954e2b3b342d8c5acf90dda5b2b290d1cb956",
+      "tree": "sha256:e09761661c778d4b52fd58a8ab76dd25278ee8efa341188ac514357032932a82",
+      "recorded_at": "2026-10-21T11:04:13.488Z"
+    }
+  ],
+  "assumptions": [
+    "Los brazos ospec (idd y sdd) usan el binario engram del HOME de gentle-ai del mismo host, para que sea literalmente el mismo; sin él, run explica cómo instalarlo.",
+    "Un record sin engram_mcp_bytes en cualquiera de los dos brazos hace el checkpoint not-comparable (OSP-025), así que idd-agy-4 frente a gentle-ai-agy-4 deja de ser comparable.",
+    "plugin_digest en agy sustituye la ruta del HOME por un marcador y deja fuera los binarios; el record añade plugin_commit (SHA de HEAD, con -dirty si hay cambios sin commitear).",
+    "El record pasa a schema 3; los records de schema 1 y 2 se siguen leyendo sin los campos nuevos."
+  ],
+  "closed_at": "2026-10-21T11:04:19.730Z"
+}

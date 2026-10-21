@@ -6,6 +6,8 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
+const { spawnSync } = require("node:child_process");
+
 const { buildOspecHome, copyHome, createAgyHost, findEscapes, isolatedEnv, sandboxArgs, streamInput, summarizeAgyTurn, turnArgs } = require("./agy.js");
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..", "..", "..");
@@ -49,7 +51,7 @@ function fakeAgy(dir) {
       fs.writeFileSync(counter, String(n));
       emit({
         conversation_id: conversation, status: "SUCCESS", duration_seconds: 0.5, num_turns: n,
-        response: JSON.stringify({ args, prompt, home: process.env.HOME, engramPort: process.env.ENGRAM_PORT || null, nested: process.env.CLAUDECODE || null, rules: fs.existsSync(path.join(process.env.HOME, ".gemini", "config", "rules", "r.md")) }),
+        response: JSON.stringify({ args, prompt, home: process.env.HOME, engramPort: process.env.ENGRAM_PORT || null, pathHead: (process.env.PATH || "").split(path.delimiter)[0], nested: process.env.CLAUDECODE || null, rules: fs.existsSync(path.join(process.env.HOME, ".gemini", "config", "rules", "r.md")) }),
         usage: { input_tokens: 100 * n, output_tokens: 10 * n, thinking_tokens: 3, cache_read_tokens: 50 * n, total_tokens: 110 * n },
       });
     });
@@ -372,6 +374,67 @@ test("buildOspecHome installs ospec for antigravity without SDD and identifies i
   assert.ok(fs.existsSync(path.join(home, ".gemini", "config", "rules", "ospec-router.instructions.md")));
   assert.ok(fs.existsSync(path.join(home, ".gemini", "config", "skills", "idd", "SKILL.md")));
   assert.ok(!fs.existsSync(path.join(home, ".gemini", "config", "skills", "sdd-orchestrator")));
-  const again = buildOspecHome({ repoRoot: REPO_ROOT, home });
+  // OSP-026 (#341): the digest identifies what a run reads, not where the
+  // template HOME lives: another HOME of the same checkout gives the same digest.
+  const again = buildOspecHome({ repoRoot: REPO_ROOT, home: path.join(dir, "elsewhere", "home") });
   assert.equal(again.digest, first.digest);
+});
+
+// OSP-025 (#340): the ospec template gets Engram the way `engram setup
+// antigravity-cli` installs it, and the digest covers it from any HOME. The
+// ospec install is faked too: the real one rebuilds dist/antigravity, which
+// other suites digest while they run.
+function withFakeEngramSetup(bin, args, options) {
+  if (path.basename(bin) !== "engram") {
+    const configDir = args[args.indexOf("--dest") + 1];
+    const home = path.dirname(path.dirname(configDir));
+    fs.mkdirSync(path.join(configDir, "scripts", "hooks"), { recursive: true });
+    fs.writeFileSync(path.join(configDir, ".ospec-workflow-install.json"), JSON.stringify({ version: "2.142.2", installed_at: String(Math.random()) }));
+    fs.writeFileSync(path.join(configDir, "hooks.json"), JSON.stringify({ command: `node "${path.join(home, ".gemini", "config", "scripts", "hook.js")}"` }));
+    fs.writeFileSync(path.join(configDir, "scripts", "hooks", "ospec-hooks"), Buffer.from([0x7f, 0x45, 0x4c, 0x46, 0, Math.floor(Math.random() * 255)]));
+    return { status: 0, stdout: "" };
+  }
+  if (args[0] === "version") return { status: 0, stdout: "engram 3.4.0\n" };
+  const gemini = path.join(options.env.HOME, ".gemini");
+  fs.writeFileSync(path.join(gemini, "config", "mcp_config.json"), JSON.stringify({ mcpServers: { engram: { command: bin, args: ["mcp", "--tools=agent"] } } }));
+  fs.writeFileSync(path.join(gemini, "GEMINI.md"), "<!-- engram -->\nEngram Memory Protocol\n");
+  return { status: 0, stdout: "" };
+}
+
+test("buildOspecHome with engram sets it up in the template, names its version, and digests it from any HOME", () => {
+  const dir = tempDir();
+  const engram = path.join(dir, "engram-src");
+  fs.writeFileSync(engram, "binary");
+  const first = buildOspecHome({ repoRoot: REPO_ROOT, home: path.join(dir, "a"), engram, spawnSyncImpl: withFakeEngramSetup });
+  assert.equal(first.version, "2.142.2 (engram 3.4.0)");
+  assert.equal(fs.readFileSync(path.join(dir, "a", "bin", "engram"), "utf8"), "binary");
+  assert.match(fs.readFileSync(path.join(dir, "a", ".gemini", "config", "mcp_config.json"), "utf8"), /a[\\/]+bin[\\/]+engram/);
+  const second = buildOspecHome({ repoRoot: REPO_ROOT, home: path.join(dir, "elsewhere", "b"), engram, spawnSyncImpl: withFakeEngramSetup });
+  assert.equal(second.digest, first.digest, "the HOME reads as ~ and the hook binary stays out");
+  const bare = buildOspecHome({ repoRoot: REPO_ROOT, home: path.join(dir, "c"), spawnSyncImpl: withFakeEngramSetup });
+  assert.notEqual(bare.digest, first.digest, "Engram's MCP server and protocol are part of the digest");
+  assert.equal(bare.version, "2.142.2");
+});
+
+test("an ospec template with engram gets an empty Engram per workspace, with its engram first on the PATH", async () => {
+  const dir = tempDir();
+  const root = workspace(dir);
+  const home = template(dir);
+  const started = [];
+  let stopped = 0;
+  const engram = {
+    startEngram: async ({ home: at, workspaceRoot }) => {
+      started.push({ at, workspaceRoot });
+      return { env: { ENGRAM_DATA_DIR: path.join(workspaceRoot, ".git", "bench-engram"), ENGRAM_PORT: "4343" }, stop: () => { stopped += 1; } };
+    },
+  };
+  const host = createAgyHost({ executable: process.execPath, prefixArgs: [fakeAgy(dir)], template: home, model: "m", personaModel: "p", personaDir: dir, engram });
+  const turn = await host.turn({ cwd: root, prompt: "hola", sessionId: null, transcriptPath: path.join(dir, "t.json") });
+  const seen = JSON.parse(turn.final_text);
+  assert.equal(seen.engramPort, "4343");
+  assert.equal(seen.pathHead, path.join(home, "bin"));
+  assert.equal(seen.home, path.join(root, ".git", "agy-home"), "the agent keeps its own HOME, not gentle-ai's");
+  assert.deepEqual(started, [{ at: home, workspaceRoot: root }]);
+  host.release(root);
+  assert.equal(stopped, 1);
 });

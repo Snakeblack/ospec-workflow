@@ -9,15 +9,24 @@
 // Schema 2 repeats every scenario `repetitions` times: each run carries its
 // `repetition` (1..N) and the report adds per-scenario means. A schema 1 record
 // reads as one repetition per scenario.
+//
+// Schema 3 (OSP-025, OSP-026) adds the `repo_commit` the record was produced
+// from, requires `host.engram_mcp_bytes` (Engram goes in every arm), gives
+// every agent turn of the conversation its `tokens`, and adds each run's
+// `open_facts`: how the IDD change closed its open facts (null for arms
+// without IDD). Schema 1 and 2 records stay valid without them.
 
 const { PROFILES } = require("./scenarios.js");
 
-const RECORD_SCHEMA_VERSION = 2;
-const RECORD_KEYS = Object.freeze(["schema_version", "record_id", "arm", "recorded_at", "host", "persona", "scenarios_digest", "harness_digest", "limits", "repetitions", "runs"]);
-const RUN_KEYS = Object.freeze([
+const RECORD_SCHEMA_VERSION = 3;
+const RECORD_KEYS_2 = Object.freeze(["schema_version", "record_id", "arm", "recorded_at", "host", "persona", "scenarios_digest", "harness_digest", "limits", "repetitions", "runs"]);
+const RECORD_KEYS = Object.freeze([...RECORD_KEYS_2, "repo_commit"]);
+const RUN_KEYS_2 = Object.freeze([
   "scenario_id", "repetition", "profile", "status", "reason", "setup", "metrics", "persona", "checks",
   "escaped_defects", "facts_disclosed", "changed_files", "conversation", "transcripts",
 ]);
+const RUN_KEYS = Object.freeze([...RUN_KEYS_2, "open_facts"]);
+const CLOSING_MODES = Object.freeze(["asked", "cited", "quoted"]);
 const METRIC_KEYS = Object.freeze([
   "usage", "tokens_total", "cost_usd", "duration_ms", "agent_turns", "model_turns", "subagents",
   "questions", "decision_changing_questions", "interventions", "host_errors",
@@ -44,8 +53,8 @@ function hasExactKeys(value, keys) {
   return actual.length === keys.length && [...keys].sort().every((key, index) => key === actual[index]);
 }
 
-function createRecord({ record_id: recordId, arm, recorded_at: recordedAt, host, persona, scenarios_digest: scenariosDigest, harness_digest: harness, limits, repetitions = 1 }) {
-  return { schema_version: RECORD_SCHEMA_VERSION, record_id: recordId, arm, recorded_at: recordedAt, host, persona, scenarios_digest: scenariosDigest, harness_digest: harness, limits, repetitions, runs: [] };
+function createRecord({ record_id: recordId, arm, recorded_at: recordedAt, host, persona, repo_commit: repoCommit = null, scenarios_digest: scenariosDigest, harness_digest: harness, limits, repetitions = 1 }) {
+  return { schema_version: RECORD_SCHEMA_VERSION, record_id: recordId, arm, recorded_at: recordedAt, host, persona, repo_commit: repoCommit, scenarios_digest: scenariosDigest, harness_digest: harness, limits, repetitions, runs: [] };
 }
 
 const runKey = (run) => `${run.scenario_id}#${run.repetition}`;
@@ -64,10 +73,21 @@ function upsertRun(record, run) {
 /** A run that never reached the change (voided setup, exhausted quota) has no check results. */
 const isJudged = (run) => run.status === "complete" || run.checks.length > 0;
 
-function validateRun(run, index, repetitions) {
+function validateOpenFacts(openFacts, fail) {
+  if (openFacts === null) return;
+  if (!isPlainObject(openFacts) || typeof openFacts.kind !== "string") fail("open_facts must be null or name the change kind");
+  const { categories } = openFacts;
+  if (categories !== null && !(isPlainObject(categories) && Object.values(categories).every((mode) => CLOSING_MODES.includes(mode)))) {
+    fail(`open_facts.categories must be null or map each category to ${CLOSING_MODES.join(", ")}`);
+  }
+  if (!isCount(openFacts.questions)) fail("open_facts.questions must be a non-negative integer");
+}
+
+function validateRun(run, index, repetitions, schema) {
   const where = `runs[${index}]`;
   const fail = (message) => { throw new BenchRecordError(`${where} ${message}`); };
-  if (!isPlainObject(run) || !hasExactKeys(run, RUN_KEYS)) fail(`must declare exactly ${RUN_KEYS.join(", ")}`);
+  const keys = schema < 3 ? RUN_KEYS_2 : RUN_KEYS;
+  if (!isPlainObject(run) || !hasExactKeys(run, keys)) fail(`must declare exactly ${keys.join(", ")}`);
   if (!Number.isInteger(run.repetition) || run.repetition < 1 || run.repetition > repetitions) fail(`repetition must be an integer from 1 to ${repetitions}`);
   if (!["complete", "incomplete"].includes(run.status)) fail("status must be complete or incomplete");
   if (run.status === "incomplete" && typeof run.reason !== "string") fail("an incomplete run needs a reason");
@@ -79,6 +99,11 @@ function validateRun(run, index, repetitions) {
     fail("checks must list { id, pass } results");
   }
   if (run.escaped_defects !== run.checks.filter((check) => !check.pass).length) fail("escaped_defects must equal the failed checks");
+  if (schema < 3) return;
+  validateOpenFacts(run.open_facts, fail);
+  if (!Array.isArray(run.conversation) || !run.conversation.filter((entry) => isPlainObject(entry) && entry.role === "agent").every((entry) => isCount(entry.tokens))) {
+    fail("every agent turn of the conversation needs its tokens");
+  }
 }
 
 /** Schema 1 had one run per scenario: read it as repetition 1 of 1. */
@@ -87,7 +112,7 @@ function upgradeRecord(record) {
   const { runs, ...rest } = record;
   return {
     ...rest,
-    schema_version: RECORD_SCHEMA_VERSION,
+    schema_version: 2,
     repetitions: 1,
     runs: runs.map((run) => (isPlainObject(run) ? { scenario_id: run.scenario_id, repetition: 1, ...run } : run)),
   };
@@ -96,11 +121,19 @@ function upgradeRecord(record) {
 /** Returns the record, upgraded in memory when it uses schema 1. */
 function validateRecord(input) {
   const record = upgradeRecord(input);
-  if (!isPlainObject(record) || !hasExactKeys(record, RECORD_KEYS)) throw new BenchRecordError(`a bench record must declare exactly ${RECORD_KEYS.join(", ")}`);
-  if (record.schema_version !== RECORD_SCHEMA_VERSION) throw new BenchRecordError(`schema_version must be 1 or ${RECORD_SCHEMA_VERSION}`);
+  if (!isPlainObject(record) || ![2, RECORD_SCHEMA_VERSION].includes(record.schema_version)) {
+    throw new BenchRecordError(`schema_version must be 1, 2 or ${RECORD_SCHEMA_VERSION}`);
+  }
+  const schema = record.schema_version;
+  const keys = schema < 3 ? RECORD_KEYS_2 : RECORD_KEYS;
+  if (!hasExactKeys(record, keys)) throw new BenchRecordError(`a bench record must declare exactly ${keys.join(", ")}`);
+  if (schema >= 3) {
+    if (!isPlainObject(record.host) || !isCount(record.host.engram_mcp_bytes)) throw new BenchRecordError("host.engram_mcp_bytes must be a non-negative integer: Engram goes in every arm (OSP-025)");
+    if (record.repo_commit !== null && !/^[0-9a-f]{40}(-dirty)?$/.test(record.repo_commit || "")) throw new BenchRecordError("repo_commit must be a commit SHA, optionally with -dirty, or null");
+  }
   if (!isCount(record.repetitions) || record.repetitions < 1) throw new BenchRecordError("repetitions must be a positive integer");
   if (!Array.isArray(record.runs)) throw new BenchRecordError("runs must be an array");
-  record.runs.forEach((run, index) => validateRun(run, index, record.repetitions));
+  record.runs.forEach((run, index) => validateRun(run, index, record.repetitions, schema));
   if (new Set(record.runs.map(runKey)).size !== record.runs.length) throw new BenchRecordError("a scenario repetition appears twice in runs");
   return record;
 }
@@ -220,6 +253,22 @@ function renderReport(record) {
     "Tokens add input, output, cache reads, and cache writes of every model in the run, subagents included. Setup turns (project initialization) and the simulated user are not counted. Escaped defects are the hidden checks the delivered workspace fails; the fact in parentheses is the one the user would have given if asked. A run that never reached the change (voided setup, exhausted host quota) is not judged.",
     "",
   );
+  const closings = record.runs.filter((run) => run.open_facts);
+  if (closings.length > 0) {
+    lines.push(
+      "## Open facts",
+      "",
+      "| Scenario | Kind | Asked | Cited | Quoted | Questions |",
+      "| --- | --- | ---: | ---: | ---: | ---: |",
+    );
+    for (const run of closings) {
+      const { kind, categories, questions } = run.open_facts;
+      const count = (mode) => (categories ? Object.values(categories).filter((value) => value === mode).length : "—");
+      const label = record.repetitions > 1 ? `${run.scenario_id} #${run.repetition}` : run.scenario_id;
+      lines.push(`| ${label} | ${kind} | ${count("asked")} | ${count("cited")} | ${count("quoted")} | ${questions} |`);
+    }
+    lines.push("", "A feature closes each open-facts category by asking, citing a `path:line` of the project, or quoting the request; other kinds list their questions.", "");
+  }
   if (record.repetitions > 1) {
     const decimal = (value) => (Number.isInteger(value) ? String(value) : value.toFixed(2));
     lines.push(

@@ -8,8 +8,9 @@ const { assertSameIdentity, createRecord, renderReport, summarizeRecord, upsertR
 const identity = {
   record_id: "sdd-baseline-1",
   arm: "sdd",
-  host: { name: "claude-code", cli_version: "2.1.286", model: "claude-sonnet-5-5", effort: null, plugin_version: "2.103.0", plugin_digest: "a".repeat(64) },
+  host: { name: "claude-code", cli_version: "2.1.286", model: "claude-sonnet-5-5", effort: null, plugin_version: "2.103.0", plugin_digest: "a".repeat(64), engram_mcp_bytes: 120 },
   persona: { model: "claude-haiku-4-5-20251001" },
+  repo_commit: "c".repeat(40),
   scenarios_digest: "b".repeat(64),
   harness_digest: "f".repeat(64),
   limits: { maxAgentTurns: 30, maxSetupTurns: 6, maxCostUsd: 25 },
@@ -42,7 +43,8 @@ function run(scenarioId, profile, overrides = {}) {
     escaped_defects: 1,
     facts_disclosed: ["F2"],
     changed_files: ["src/cli.js"],
-    conversation: [{ role: "agent", text: "hola" }],
+    open_facts: null,
+    conversation: [{ role: "agent", text: "hola", tokens: 1100 }],
     transcripts: [{ label: "change", turn: 1, sha256: "c".repeat(64) }],
     ...overrides,
   };
@@ -50,7 +52,8 @@ function run(scenarioId, profile, overrides = {}) {
 
 test("createRecord starts empty and validates", () => {
   const record = createRecord({ ...identity, recorded_at: "2026-10-06T10:00:00Z" });
-  assert.equal(record.schema_version, 2);
+  assert.equal(record.schema_version, 3);
+  assert.equal(record.repo_commit, "c".repeat(40));
   assert.equal(record.repetitions, 1);
   assert.deepEqual(record.runs, []);
   assert.equal(validateRecord(record), record);
@@ -125,9 +128,11 @@ test("repetitions are separate runs of the same scenario, ordered by profile the
 test("a schema 1 record still reads as one repetition per scenario", () => {
   const v1 = createRecord({ ...identity, recorded_at: "2026-10-06T10:00:00Z" });
   delete v1.repetitions;
+  delete v1.repo_commit;
   v1.schema_version = 1;
   const legacyRun = run("cli-local", "cli-local");
   delete legacyRun.repetition;
+  delete legacyRun.open_facts;
   v1.runs = [legacyRun];
   const read = validateRecord(JSON.parse(JSON.stringify(v1)));
   assert.equal(read.schema_version, 2);
@@ -165,4 +170,51 @@ test("the report breaks checks down by kind and states the Engram MCP size apart
   assert.match(report, /\| Acceptance \| Regression \| Fact \|/);
   assert.match(report, /\| 1\/1 \| 0\/0 \| 0\/1 \|/);
   assert.match(report, /Engram MCP: 120 bytes, reported apart and not subtracted from token totals/);
+});
+
+// Schema 3 (OSP-025, OSP-026): Engram in every arm, the commit, tokens per
+// turn and how IDD closed its open facts. Schema 2 records keep reading.
+test("schema 3 requires Engram, the commit, tokens per agent turn and valid open facts; schema 2 still reads", () => {
+  const record = upsertRun(createRecord({ ...identity, recorded_at: "2026-10-21T10:00:00Z" }), run("cli-local", "cli-local"));
+  const { engram_mcp_bytes: _bytes, ...withoutEngram } = record.host;
+  assert.throws(() => validateRecord({ ...record, host: withoutEngram }), /engram_mcp_bytes.*OSP-025/);
+  assert.throws(() => validateRecord({ ...record, repo_commit: "main" }), /repo_commit/);
+  assert.doesNotThrow(() => validateRecord({ ...record, repo_commit: `${"c".repeat(40)}-dirty` }));
+  const turn = (overrides) => ({ ...record, runs: [{ ...record.runs[0], ...overrides }] });
+  assert.throws(() => validateRecord(turn({ conversation: [{ role: "agent", text: "hola" }, { role: "user", text: "sí" }] })), /tokens/);
+  const closed = { kind: "feature", categories: { inputs: "asked", uniqueness: "cited", persistence: "quoted" }, questions: 1 };
+  assert.doesNotThrow(() => validateRecord(turn({ open_facts: closed })));
+  assert.throws(() => validateRecord(turn({ open_facts: { ...closed, categories: { inputs: "guessed" } } })), /open_facts.categories/);
+  assert.throws(() => validateRecord(turn({ open_facts: { kind: "bug", categories: null, questions: -1 } })), /questions/);
+
+  const { repo_commit: _commit, ...v2 } = { ...record, schema_version: 2, host: withoutEngram };
+  const { open_facts: _openFacts, ...v2Run } = record.runs[0];
+  assert.equal(validateRecord({ ...v2, runs: [v2Run] }).schema_version, 2);
+});
+
+test("the report lists how each IDD change closed its open facts", () => {
+  const closed = { kind: "feature", categories: { inputs: "asked", uniqueness: "cited", persistence: "quoted", copy: "cited" }, questions: 1 };
+  let record = createRecord({ ...identity, recorded_at: "2026-10-21T10:00:00Z" });
+  record = upsertRun(record, run("cli-local", "cli-local", { open_facts: closed }));
+  record = upsertRun(record, run("bugfix", "bugfix", { open_facts: { kind: "bug", categories: null, questions: 2 } }));
+  const report = renderReport(record);
+  assert.match(report, /## Open facts/);
+  assert.match(report, /\| cli-local \| feature \| 1 \| 2 \| 1 \| 1 \|/);
+  assert.match(report, /\| bugfix \| bug \| — \| — \| — \| 2 \|/);
+  assert.doesNotMatch(renderReport(createRecord({ ...identity, recorded_at: "2026-10-21T10:00:00Z" })), /## Open facts/);
+});
+
+// Schema 3 is additive: every record already committed (schema 1 or 2) still
+// validates and renders, so its report and checkpoint regenerate as before.
+test("every committed record still validates and renders under schema 3", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const dir = path.join(__dirname, "records");
+  const files = fs.readdirSync(dir).filter((file) => file.endsWith(".json"));
+  assert.ok(files.length > 0);
+  for (const file of files) {
+    const record = validateRecord(JSON.parse(fs.readFileSync(path.join(dir, file), "utf8")));
+    assert.ok([2, 3].includes(record.schema_version), file);
+    assert.match(renderReport(record), new RegExp(`Bench record \`${record.record_id}\``), file);
+  }
 });

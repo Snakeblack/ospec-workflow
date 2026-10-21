@@ -7,6 +7,7 @@ const os = require("node:os");
 const path = require("node:path");
 
 const { HOSTS, main, parseArgs } = require("./bench.js");
+const { prepareAgentConfig } = require("./hosts/claude.js");
 
 function tempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "bench-cli-"));
@@ -43,6 +44,7 @@ function fakeRun(scenarioId, profile, { status = "complete", failing = [] } = {}
     escaped_defects: failing.length,
     facts_disclosed: [],
     changed_files: [],
+    open_facts: null,
     conversation: [],
     transcripts: [],
   };
@@ -58,6 +60,13 @@ function deps(dir, overrides = {}) {
     resolveExecutable: () => "claude.exe",
     buildPlugin: () => ({ pluginDir: path.join(dir, "plugin"), version: "2.103.0", digest: "a".repeat(64) }),
     createHost: () => ({ name: "claude-code", version: () => "2.1.286 (Claude Code)" }),
+    prepareAgentConfig: ({ destDir }) => destDir,
+    findEngram: () => ({ engram: path.join(dir, "engram") }),
+    setupEngram: () => ({ bin: path.join(dir, "engram"), version: "3.4.0" }),
+    claudeEngramDigest: () => "e".repeat(64),
+    engramMcpBytes: () => 120,
+    mcpConfig: () => JSON.stringify({ mcpServers: { engram: { command: "engram" } } }),
+    repoCommit: () => "c".repeat(40),
     runScenario: async ({ scenario, workspaceRoot }) => {
       calls.runs.push(scenario.id);
       calls.workspaces.push(workspaceRoot);
@@ -99,9 +108,12 @@ test("run writes the record after each scenario and resumes skipping complete ru
   assert.deepEqual(first.calls.runs, ["cli-local", "bugfix"]);
   const record = JSON.parse(fs.readFileSync(path.join(dir, "r1.json"), "utf8"));
   assert.deepEqual(record.runs.map((run) => run.scenario_id), ["cli-local", "bugfix"]);
-  assert.equal(record.host.model, "claude-sonnet-5-5");
+  assert.equal(record.host.model, "claude-haiku-5-5");
   assert.equal(record.host.cli_version, "2.1.286");
-  assert.equal(record.persona.model, "claude-sonnet-5-5");
+  assert.equal(record.host.plugin_version, "2.103.0 (engram 3.4.0)");
+  assert.equal(record.host.engram_mcp_bytes, 120);
+  assert.equal(record.persona.model, "claude-haiku-5-5");
+  assert.equal(record.repo_commit, "c".repeat(40));
   assert.match(record.harness_digest, /^[a-f0-9]{64}$/);
 
   const second = deps(dir);
@@ -131,8 +143,10 @@ test("report and checkpoint read records from disk", async () => {
     limits: {},
     runs,
   }));
-  write("base", "sdd", [fakeRun("bugfix", "bugfix")]);
-  write("cand", "idd", [fakeRun("bugfix", "bugfix", { failing: ["a"] })]);
+  // Schema 1 runs predate open_facts.
+  const legacy = ({ open_facts: _openFacts, ...entry }) => entry;
+  write("base", "sdd", [legacy(fakeRun("bugfix", "bugfix"))]);
+  write("cand", "idd", [legacy(fakeRun("bugfix", "bugfix", { failing: ["a"] }))]);
 
   const report = deps(dir);
   assert.equal(await main(["report", "--record", "base", "--records-dir", dir], report), 0);
@@ -142,6 +156,16 @@ test("report and checkpoint read records from disk", async () => {
   assert.equal(await main(["checkpoint", "--baseline", "base", "--candidate", "cand", "--records-dir", dir], checkpoint), 1);
   assert.match(checkpoint.stdout.text, /revise/);
   assert.match(checkpoint.stdout.text, /check-regression/);
+  assert.match(checkpoint.stdout.text, /quality-missing/);
+
+  const qualityDir = path.join(dir, "quality");
+  const arm = { mutation: { score: 80, suite_passes: true } };
+  fs.mkdirSync(path.join(qualityDir, "base__cand"), { recursive: true });
+  fs.writeFileSync(path.join(qualityDir, "base__cand", "quality.json"), JSON.stringify({ scenarios: { bugfix: { baseline: arm, candidate: arm, judge: { preferred: "tie" } } } }));
+  const judged = deps(dir);
+  assert.equal(await main(["checkpoint", "--baseline", "base", "--candidate", "cand", "--records-dir", dir, "--quality-dir", qualityDir], judged), 1);
+  assert.doesNotMatch(judged.stdout.text, /quality-missing/);
+  assert.match(judged.stdout.text, /- Quality: continue/);
 });
 
 test("run --repetitions runs every scenario once per repetition, repetition by repetition", async () => {
@@ -152,7 +176,7 @@ test("run --repetitions runs every scenario once per repetition, repetition by r
   assert.deepEqual(first.calls.runs, ["cli-local", "bugfix", "cli-local", "bugfix"]);
   assert.equal(new Set(first.calls.workspaces).size, 4, "each repetition gets its own workspace");
   const record = JSON.parse(fs.readFileSync(path.join(dir, "r3.json"), "utf8"));
-  assert.equal(record.schema_version, 2);
+  assert.equal(record.schema_version, 3);
   assert.equal(record.repetitions, 2);
   assert.deepEqual(record.runs.map((run) => `${run.scenario_id}#${run.repetition}`), ["cli-local#1", "cli-local#2", "bugfix#1", "bugfix#2"]);
   assert.match(first.stdout.text, /Mean per scenario/);
@@ -236,7 +260,7 @@ test("run --arm gentle-ai identifies the gentle-ai install as the plugin and bui
 });
 
 function agyDeps(dir, overrides = {}) {
-  const seen = { host: null, ospecHomes: [] };
+  const seen = { host: null, ospecHomes: [], engrams: [] };
   const d = deps(dir, {
     engramMcpBytes: () => 42,
     resolveExecutable: () => { throw new Error("agy runs need no claude executable"); },
@@ -244,8 +268,9 @@ function agyDeps(dir, overrides = {}) {
     createHost: () => { throw new Error("agy runs create no Claude host"); },
     findAgy: () => "/usr/bin/agy",
     findBwrap: () => "/usr/bin/bwrap",
-    buildOspecHome: ({ home }) => {
+    buildOspecHome: ({ home, engram }) => {
       seen.ospecHomes.push(home);
+      seen.engrams.push(engram);
       return { home, version: "2.134.0", digest: "d".repeat(64) };
     },
     createAgyHost: (options) => {
@@ -270,7 +295,9 @@ test("run --host agy installs ospec for antigravity as the template, with the ag
   assert.equal(seen.host.personaInvoke, null);
   assert.equal(seen.host.gentleAi, null);
   const record = JSON.parse(fs.readFileSync(path.join(dir, "a1.json"), "utf8"));
-  assert.deepEqual(record.host, { name: "agy", cli_version: "1.3.3", model: "gemini-3.8-flash-high", effort: null, plugin_version: "2.134.0", plugin_digest: "d".repeat(64) });
+  assert.deepEqual(record.host, { name: "agy", cli_version: "1.3.3", model: "gemini-3.8-flash-high", effort: null, plugin_version: "2.134.0", plugin_digest: "d".repeat(64), engram_mcp_bytes: 42 });
+  assert.deepEqual(seen.engrams, [path.join(dir, "engram")], "the ospec template gets the gentle-ai arm's engram");
+  assert.equal(typeof seen.host.engram.startEngram, "function");
   assert.equal(record.persona.model, "claude-sonnet-5-5-medium");
   assert.equal(record.limits.maxTokens, 30000000);
   assert.equal(record.limits.maxCostUsd, null);
@@ -297,7 +324,13 @@ test("run --arm idd builds the plugin without SDD and writes the router only int
   fs.writeFileSync(path.join(config, "session"), "login");
   let withSdd = null;
   let hostOptions = null;
+  let setup = null;
   const d = deps(dir, {
+    prepareAgentConfig,
+    setupEngram: (options) => {
+      setup = options;
+      return { bin: path.join(options.home, "bin", "engram"), version: "3.4.0" };
+    },
     buildPlugin: ({ withSdd: flag }) => {
       withSdd = flag;
       return { pluginDir: path.join(dir, "plugin"), version: "2.136.0", digest: "a".repeat(64) };
@@ -315,6 +348,25 @@ test("run --arm idd builds the plugin without SDD and writes the router only int
   assert.match(fs.readFileSync(path.join(agentConfig, "CLAUDE.md"), "utf8"), /ospec-workflow:router:begin/);
   assert.equal(fs.existsSync(path.join(config, "CLAUDE.md")), false, "the persona configuration stays without the router");
   assert.equal(fs.readFileSync(path.join(agentConfig, "session"), "utf8"), "login");
+  // Engram is set up in the agent's copy (OSP-025), with the claude CLI on the PATH for `engram setup`.
+  assert.equal(setup.host, "claude");
+  assert.equal(setup.env.CLAUDE_CONFIG_DIR, agentConfig);
+  assert.equal(setup.env.PATH.split(path.delimiter)[0], path.dirname("claude.exe"));
+  assert.equal(hostOptions.engram.home, path.join(dir, "i1", "engram-home"));
+  assert.match(hostOptions.engram.mcpConfig, /engram/);
+  const record = JSON.parse(fs.readFileSync(path.join(dir, "i1.json"), "utf8"));
+  assert.equal(record.host.plugin_version, "2.136.0 (engram 3.4.0)");
+  assert.notEqual(record.host.plugin_digest, "a".repeat(64), "the digest covers the engram plugin too");
+  assert.equal(record.host.engram_mcp_bytes, 120);
+});
+
+test("an ospec arm without an engram binary stops before running", async () => {
+  const dir = tempDir();
+  const d = deps(dir, { findEngram: () => ({ engram: null, expected: path.join(dir, "missing", "bin", "engram"), gentleAiHome: path.join(dir, "missing") }) });
+  const code = await main(["run", "--arm", "idd", "--record", "n1", "--config-dir", dir, "--records-dir", dir, "--runs-dir", dir, "--workspaces-dir", dir, "--scenario", "bugfix"], d);
+  assert.equal(code, 2);
+  assert.match(d.stderr.text, /OSP-025.*--engram-bin/);
+  assert.deepEqual(d.calls.runs, []);
 });
 
 test("run --host agy --arm gentle-ai uses the agy install as the template and starts its Engram per workspace", async () => {

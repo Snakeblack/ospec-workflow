@@ -58,9 +58,15 @@ MUST use a dedicated configuration directory (`CLAUDE_CONFIG_DIR`) so the
 user's instructions, installed plugins, MCP servers, and memory do not reach
 the run. The `sdd` arm MUST load the plugin built from the current checkout
 with the SDD package (`--with-sdd`). The `idd` arm MUST load that plugin
-without SDD, and its agent MUST run with a copy of the bench configuration
-that adds the router block from the plugin's `global-instructions/CLAUDE.md`;
-the persona MUST keep the bench configuration without that block. The `gentle-ai` arm
+without SDD. The agent of both ospec arms MUST run with a copy of the bench
+configuration, which for `idd` adds the router block from the plugin's
+`global-instructions/CLAUDE.md`; the persona MUST keep the bench configuration
+without that block. Engram goes in every arm (OSP-025): in that copy, `engram
+setup claude-code`, run from a copy of the engram binary of the bench's
+gentle-ai home (or `--engram-bin`), MUST install Engram as an ospec user's
+install does, and the agent MUST load exactly the MCP servers it registered,
+passed with `--strict-mcp-config`; without that binary, `bench.js run` MUST
+refuse to start an ospec arm. The `gentle-ai` arm
 MUST instead run the agent with `HOME` set to the bench's gentle-ai home,
 where gentle-ai was installed once (`bench.js setup-gentle-ai`), without the
 ospec plugin and with exactly the MCP servers gentle-ai registered in
@@ -69,7 +75,7 @@ account's claude.ai connectors never load, because gentle-ai writes only to
 `$HOME/.claude` and `$HOME/.claude.json`. That install MUST be Claude
 Code only, with the `persona`, `engram`, and `skills` components, the
 `ecosystem-only` preset, and the `neutral` persona, with telemetry and
-self-update off, and its binaries copied into the home. Each workspace MUST get
+self-update off, and its binaries copied into the home. In every arm, each workspace MUST get
 an empty Engram of its own (data under `.git/`, its own port) that the bench
 stops when the run ends; an interrupted bench MUST also stop the turns in flight. On Claude Code the persona MUST run in the bench configuration
 directory for every arm. Variables of
@@ -112,7 +118,10 @@ workspace MUST run in its own `HOME`, copied under `.git/` from the arm's
 template without agy's runtime state (conversations, summaries, knowledge,
 logs), so nothing passes from one run to another and none of the user's rules
 load. The `idd` arm's template MUST be ospec installed for antigravity from the
-checkout, without SDD and without Engram. The `gentle-ai` arm's template MUST
+checkout, without SDD, with Engram set up by `engram setup antigravity-cli`
+from the same engram binary (its MCP server in `.gemini/config/mcp_config.json`
+and its protocol in `.gemini/GEMINI.md`); each workspace MUST get an empty
+Engram of its own. The `gentle-ai` arm's template MUST
 be gentle-ai installed for antigravity once (`bench.js setup-gentle-ai --host
 agy`) with the same selection as on Claude Code, plus the three environment
 steps that place its unchanged output where agy reads it: an empty
@@ -212,17 +221,28 @@ results, and the escaped defects (failed checks). A bench record MUST bind its
 runs to the arm, host and version, model, effort, plugin version and digest
 (for the `gentle-ai` arm, the gentle-ai and Engram versions and a digest of
 both binaries, its MCP servers, and the installed assets a run reads),
-persona model, corpus digest, and harness digest (the bench code itself), and MUST keep the SHA-256 of every
-transcript. A record MUST declare how many repetitions it runs per scenario,
+persona model, corpus digest, harness digest (the bench code itself), and the
+commit of the checkout it was produced from (`repo_commit`, `-dirty` when a
+tracked file outside the records differs), and MUST keep the SHA-256 of every
+transcript. An ospec arm's plugin version and digest MUST cover the Engram
+installed with it. A plugin digest MUST identify content, not the machine: the
+same commit installed in two template directories MUST give the same digest,
+so the absolute template directory MUST read as `~` and binaries built from the
+repository MUST stay out of it. A record MUST declare how many repetitions it runs per scenario,
 and each run MUST carry its repetition number; the repetition count is part of
 the identity. Resuming a record with a different identity MUST be refused. The
 report MUST be recomputable from the record without calling a model and, with
 more than one repetition, MUST add the mean of each scenario over its
 repetitions. It MUST break hidden checks down by kind (`acceptance`,
-`regression` and `fact`). A `gentle-ai` record MUST store the byte size of the
-Engram MCP config that arm loads, and the report MUST state that size apart
-from token totals, without subtracting it. A record of schema 1 (one run per scenario) MUST still be read as
-one repetition.
+`regression` and `fact`). Every record MUST store the byte size of the
+Engram MCP config its arm loads, and the report MUST state that size apart
+from token totals, without subtracting it. Each agent turn of a run's
+conversation MUST keep its own tokens. An `idd` run MUST record how the change
+it archived closed its open facts (`open_facts`: the change kind, each feature
+category `asked`, `cited` or `quoted`, and the questions asked), and the report
+MUST list it. A record of schema 1 (one run per scenario) MUST still be read as
+one repetition, and records of schema 1 and 2 MUST still be read without the
+fields schema 3 adds.
 
 #### Scenario: Resume with another plugin build
 
@@ -246,8 +266,8 @@ compare a candidate record with a baseline record and decide `continue` or
 `revise`. The margins MUST declare the repetitions per scenario, and the
 totals MUST add per-scenario means over those repetitions. It MUST revise when
 the records are not comparable (arms other than the margins name, a repetition
-count other than the margins', or a different corpus, harness, host, model,
-effort, persona, or scenario set), when any run is incomplete or a repetition is
+count other than the margins', a different corpus, harness, host, model,
+effort, persona, or scenario set, or either record without Engram's MCP size), when any run is incomplete or a repetition is
 missing, when a hidden check the baseline passes in every repetition fails in
 any repetition of the candidate, when the candidate's summed mean of escaped
 defects exceeds the baseline's by more than `escaped_defects.max_mean_delta`,
@@ -266,11 +286,13 @@ candidate digest, and the baseline arm MUST behave as it did.
 
 The margins MAY declare a `quality` criterion: the most points the candidate's
 mean mutation score may trail the baseline's, and the most pairs in which the
-blind review may prefer the baseline in both orders. The checkpoint MUST only
-validate it; `scripts/evals/quality` MUST evaluate it over every delivery
-pair, counting a delivered suite that fails before any mutant as a score of 0,
-and MUST decide `revise` when either margin is exceeded or a pair is not
-judged. The E4.9 margins (`bench-margins-8`: `gentle-ai` as baseline, `idd` as
+blind review may prefer the baseline in both orders. `scripts/evals/quality`
+MUST evaluate it over every delivery pair, counting a delivered suite that
+fails before any mutant as a score of 0, and MUST decide `revise` when either
+margin is exceeded or a pair is not judged. When the margins declare it, the
+checkpoint MUST read that pair's result, MUST revise with `quality-missing`
+when there is none, and MUST revise with `quality` when its verdict is
+`revise` (OSP-026). The E4.9 margins (`bench-margins-8`: `gentle-ai` as baseline, `idd` as
 candidate, one repetition, `max_mean_delta` 0, `max_total_ratio` 1, and no
 quality criterion) declare no harness exception, because both arms run with
 the same harness; their verdict blocks nothing. The E4.6 margins
@@ -282,6 +304,20 @@ it is strictly below the baseline. Token growth on that campaign does not
 decide; the 10× ratio only stops a runaway. The E4.5 checkpoint
 (`bench-margins-7`) is reproducible from v2.134.0. The E4.2 checkpoint
 (`bench-margins-6`) is reproducible from v2.133.0.
+
+#### Scenario: An arm without Engram is not comparable
+
+- GIVEN a baseline record with Engram's MCP size
+- AND a candidate record without it
+- WHEN the checkpoint runs
+- THEN the decision MUST be `revise` with reason `not-comparable`, naming the arm
+
+#### Scenario: Declared quality needs its result
+
+- GIVEN margins that declare a quality criterion
+- AND no `scripts/evals/quality` result for the pair
+- WHEN the checkpoint runs
+- THEN the decision MUST be `revise` with reason `quality-missing`
 
 #### Scenario: Improvement in totals does not hide a regression
 

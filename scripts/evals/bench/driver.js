@@ -102,7 +102,7 @@ async function converse({ host, persona, prompt, cwd, runDir, label, maxTurns, m
     state.duration_ms += turn.wall_ms;
     state.subagents += turn.subagents;
     state.transcripts.push({ label, turn: state.agent_turns, sha256: turn.sha256 });
-    state.conversation.push({ role: "agent", text: clip(turn.final_text), ...(turn.is_error ? { error: turn.error } : {}) });
+    state.conversation.push({ role: "agent", text: clip(turn.final_text), tokens: tokenTotal(turn.usage), ...(turn.is_error ? { error: turn.error } : {}) });
 
     if (turn.escapes && turn.escapes.length > 0) {
       state.reason = "workspace-escape";
@@ -249,6 +249,7 @@ async function runScenario({
     escaped_defects: results.filter((result) => !result.pass).length,
     facts_disclosed: change.facts_disclosed.slice().sort(),
     changed_files: changedFiles,
+    open_facts: judged && arm.openFacts ? arm.openFacts(workspaceRoot, base) : null,
     conversation: change.conversation,
     transcripts: [...(setup ? setup.transcripts : []), ...change.transcripts],
     ...(change.escapes ? { escapes: change.escapes } : {}),

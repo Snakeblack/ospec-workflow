@@ -23,10 +23,10 @@ const { spawnSync } = require("node:child_process");
 
 const { addedLines, classifyPath, locateWorkspace, metricsFromNumstat, readDelivery, scrubDiff } = require("./deliveries.js");
 const { inlineScriptLines, runMutation } = require("./mutation.js");
+const { evaluateQuality } = require("./criterion.js");
 const { JUDGE_CRITERIA, JUDGE_SCHEMA, aggregateJudgments, buildJudgePrompt } = require("./judge.js");
 const { loadMargins } = require("../bench/checkpoint.js");
 const { loadCorpus } = require("../bench/scenarios.js");
-const { taskInterval } = require("../bench/stats.js");
 const { isolatedEnv, resultOf, streamInput } = require("../bench/hosts/agy.js");
 const { benchEnv, resolveClaudeExecutable } = require("../bench/hosts/claude.js");
 
@@ -35,7 +35,8 @@ const RESULTS_ROOT = path.join(__dirname, "results");
 // left theirs in the workspaces directory (`--bench-root <tmp>/ospec-bench`).
 const DEFAULT_BENCH_ROOT = path.join(__dirname, "..", ".runs", "bench");
 const DEFAULT_CONFIG_DIR = path.join(os.homedir(), ".ospec-bench", "claude");
-const DEFAULT_MODELS = Object.freeze({ claude: "claude-sonnet-5-5", agy: "claude-sonnet-5-5-medium" });
+// Claude judges with Haiku (user decision, 2026-10-21); agy offers no Haiku.
+const DEFAULT_MODELS = Object.freeze({ claude: "claude-haiku-5-5", agy: "claude-sonnet-5-5-medium" });
 const JUDGE_TIMEOUT_MS = 10 * 60 * 1000;
 const SOURCE_CODE = /\.(?:[cm]?js|html?)$/;
 const HTML = /\.html?$/;
@@ -229,43 +230,6 @@ function judge(options) {
 function mean(values) {
   const present = values.filter((value) => typeof value === "number");
   return present.length ? Math.round((present.reduce((a, b) => a + b, 0) / present.length) * 100) / 100 : null;
-}
-
-// A delivery's mutation score for the quality criterion: a suite that fails
-// before any mutant protects nothing and counts as 0; a delivery with no code
-// to mutate has no score and is left out.
-function criterionScore(arm) {
-  if (arm.mutation.suite_passes === false) return 0;
-  return typeof arm.mutation.score === "number" ? arm.mutation.score : null;
-}
-
-/**
- * The quality criterion the margins declare (E4.5): the candidate's mean
- * mutation score may trail the baseline's by at most
- * `max_mutation_score_deficit` points, and the blind review may prefer the
- * baseline in both orders in at most `max_consistent_baseline_preferences`
- * pairs. Every pair must be judged.
- */
-function evaluateQuality(results, criterion) {
-  const entries = Object.values(results.scenarios);
-  const scores = (arm) => entries.map((entry) => criterionScore(entry[arm])).filter((value) => value !== null);
-  const mutation = { baseline: taskInterval(scores("baseline")), candidate: taskInterval(scores("candidate")) };
-  const reasons = [];
-  if (mutation.baseline.mean === null || mutation.candidate.mean === null) {
-    reasons.push("a record has no mutation score to compare");
-  } else {
-    const deficit = Math.round((mutation.baseline.mean - mutation.candidate.mean) * 100) / 100;
-    if (deficit > criterion.max_mutation_score_deficit) {
-      reasons.push(`the candidate's mean mutation score trails the baseline's by ${deficit} points (margin ${criterion.max_mutation_score_deficit})`);
-    }
-  }
-  const judged = entries.filter((entry) => entry.judge);
-  if (judged.length < entries.length) reasons.push(`${entries.length - judged.length} of ${entries.length} pairs are not judged`);
-  const baselinePreferences = judged.filter((entry) => entry.judge.preferred === "baseline").length;
-  if (baselinePreferences > criterion.max_consistent_baseline_preferences) {
-    reasons.push(`the blind review prefers the baseline in both orders in ${baselinePreferences} pairs (margin ${criterion.max_consistent_baseline_preferences})`);
-  }
-  return { decision: reasons.length === 0 ? "continue" : "revise", mutation, pairs: judged.length, baseline_preferences: baselinePreferences, reasons };
 }
 
 function renderInterval(interval) {

@@ -114,6 +114,11 @@ test("the sdd arm runs setup, then the change until it is archived, counting the
   assert.equal(run.transcripts.length, 3);
   assert.equal(run.persona.cost_usd, 0.01);
   assert.deepEqual(run.conversation.map((entry) => entry.role), ["agent", "user", "agent"]);
+  // Tokens per agent turn (OSP-025) add up to the change's total; sdd has no IDD open facts.
+  const turns = run.conversation.filter((entry) => entry.role === "agent").map((entry) => entry.tokens);
+  assert.equal(turns.length, 2);
+  assert.equal(turns.reduce((sum, tokens) => sum + tokens, 0), run.metrics.tokens_total);
+  assert.equal(run.open_facts, null);
 });
 
 test("a change that never archives stops at the turn limit as incomplete and is still judged", async () => {
@@ -260,6 +265,12 @@ const writeArchive = (cwd) => {
   const file = path.join(cwd, "idd", "archive", "2026-10-07-prioridades", "change.md");
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, "# prioridades\n");
+  const coverage = [
+    { category: "inputs", question: "¿Cuántos caracteres admite el título, «200»?" },
+    { category: "uniqueness", cite: { kind: "path", path: "index.js", line: 1 } },
+    { category: "persistence", cite: { kind: "request", text: "Quiero prioridades." } },
+  ];
+  fs.writeFileSync(path.join(path.dirname(file), "state.yaml"), JSON.stringify({ intent: { kind: "feature" }, facts: { coverage } }));
 };
 const archiveIdd = (cwd) => {
   writeArchive(cwd);
@@ -285,7 +296,8 @@ test("the idd arm writes idd/config.yaml, requests the brief, and ends when the 
   assert.equal(host.calls.turns[0].prompt, arm.setupPrompts[0]);
   assert.equal(host.calls.turns[1].prompt, "Quiero prioridades.");
   assert.equal(run.metrics.agent_turns, 2);
-  assert.deepEqual(run.changed_files, ["idd/archive/2026-10-07-prioridades/change.md", "index.js"]);
+  assert.deepEqual(run.changed_files, ["idd/archive/2026-10-07-prioridades/change.md", "idd/archive/2026-10-07-prioridades/state.yaml", "index.js"]);
+  assert.deepEqual(run.open_facts, { kind: "feature", categories: { inputs: "asked", uniqueness: "cited", persistence: "quoted" }, questions: 1 });
 });
 
 test("the idd arm's setup is done only with a readable config in IDD mode", () => {
