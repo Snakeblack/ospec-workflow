@@ -757,15 +757,30 @@ findings once, keeping each `location`, and freeze them. With
 no `BLOCKER` or `CRITICAL` finding the review is approved and `frozen-review`
 evidence MUST be recorded, naming the lineage, the candidate, its tree and the
 findings digest, with `attestation: relayed`: the CLI checks what the result
-cites, not that the reviewer ran. `ospec close` MUST list each `frozen-review`
+cites, not that the reviewer ran. When `.ospec/review-receipts/` holds the
+`SubagentStop` receipt of that `request_digest` from `review-trust`
+(REQ-hooks-027), a result whose content digest differs MUST be refused with
+`review-refused`, recording nothing, and the evidence MUST hold
+`attestation: subagent-stop` with the receipt's agent, `recorded_at` and
+`result_digest`; without one the CLI MUST warn that the result is relayed and
+never block. The receipt is kept, and it is not proof: the main agent can
+write the same file. `ospec close` MUST list each `frozen-review`
 evidence with its attestation (null for evidence recorded before it existed),
 and the archived evidence section MUST show it. Otherwise one bounded correction is allowed:
 `ospec review correct` MUST record the changes since the reviewed candidate, refused outside
-the frozen paths or over the line budget, and return the frozen IDs for the
-read-only `review-correction` validator, and `ospec review validate` MUST apply
-its verdict to exactly those IDs. A passing validation approves the review; a
-failing one MUST end the lineage, because IDD allows one correction per review.
-Results are passed as JSON with `--result`.
+the frozen paths or over the line budget, and return the validation request
+for the read-only `review-correction` validator: the frozen IDs, the corrected
+paths, a `request_digest` of the lineage, generation, corrected tree, those
+paths and IDs, and its `result_contract`. `ospec review start` MUST return that
+request again while the correction waits for validation. `ospec review validate`
+MUST refuse with `review-refused` a result without that `request_digest` or
+without a `reviewed` entry that cites each corrected path, and no other, in the
+corrected tree (in the reviewed one for a path the correction deletes); it MUST
+attest the result as `ospec review record` does, with a receipt from
+`review-correction`, and apply its verdict to exactly those IDs. A passing
+validation approves the review, and its evidence takes the attestation of the
+validation result; a failing one MUST end the lineage, because IDD allows one
+correction per review. Results are passed as JSON with `--result`.
 
 A fix that does not fit one bounded correction (more changed lines since the
 reviewed candidate than the budget left, or a path outside the frozen ones)
@@ -803,6 +818,16 @@ predecessor.
 - AND a result with the digest and a real cite of `src/auth/policy.js` MUST
   approve it, its `frozen-review` evidence holding `attestation: relayed`
 
+#### Scenario: A SubagentStop receipt attests the reviewer's result
+
+- GIVEN a trust review in progress and the receipt `review-trust` left for its
+  `request_digest`
+- WHEN `ospec review record` gets that result with other findings
+- THEN it MUST refuse with `review-refused`
+- AND the same result, in any key order, MUST approve the review with
+  `attestation: subagent-stop`, while without a receipt it is `relayed` with a
+  warning
+
 #### Scenario: Approved review goes stale with the reviewed code
 
 - GIVEN an approved trust review of `src/auth/tokens.js`
@@ -816,7 +841,10 @@ predecessor.
 - GIVEN a trust review whose frozen findings hold one `BLOCKER`
 - WHEN the code is corrected inside the frozen paths and `ospec review correct`
   runs
-- THEN it MUST return that finding's ID for `review-correction`
+- THEN it MUST return that finding's ID for `review-correction` with the
+  validation `request_digest`
+- AND a validation without that digest or a real cite of the corrected path
+  MUST be refused
 - AND a validation that resolves it MUST approve the review, while one that
   does not MUST end the lineage
 

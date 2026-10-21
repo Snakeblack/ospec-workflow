@@ -12,6 +12,7 @@ const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 
 const { CHANGE_ROOT, DECISIONS_ROOT } = require("./idd-contract.js");
+const { RECEIPTS_DIR } = require("./review-receipt.js");
 const { CONFIG_FILE, parseIddConfig } = require("./idd-config.js");
 const { candidateCheckCommand } = require("./idd-checks-config.js");
 const { MAP_RELATIVE } = require("./decision-gap.js");
@@ -202,9 +203,14 @@ function nulList(output) {
   return output.split("\0").filter(Boolean);
 }
 
-// The change's own state never counts as part of its diff.
+// Never part of a change's diff: its own state under idd/ and the review
+// receipts the SubagentStop hook writes (REQ-hooks-027), even where .ospec/
+// is not ignored.
+const OWN_ROOTS = [CHANGE_ROOT, RECEIPTS_DIR];
+const OWN_EXCLUDES = OWN_ROOTS.map((own) => `:(exclude)${own}`);
+
 function isIddState(file) {
-  return file === CHANGE_ROOT || file.startsWith(`${CHANGE_ROOT}/`);
+  return OWN_ROOTS.some((own) => file === own || file.startsWith(`${own}/`));
 }
 
 function addedLinesByFile(patch) {
@@ -310,16 +316,15 @@ const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 /**
  * Digest of the working tree a run executed on (REQ-idd-014): HEAD, the binary
  * diff of tracked files against it and the content of every untracked file.
- * The change's own state under idd/ never counts.
+ * The change's own state under idd/ and the review receipts never count.
  */
 function readTreeFingerprint(root) {
   requireWorkTree(root);
   const head = tryHead(root);
   const hash = crypto.createHash("sha256");
   hash.update(`head\0${head ?? "none"}\0`);
-  const exclude = `:(exclude)${CHANGE_ROOT}`;
-  hash.update(git(root, ["diff", "--binary", "--no-color", "--no-ext-diff", "--no-renames", head ?? EMPTY_TREE, "--", ".", exclude]));
-  const untracked = nulList(git(root, ["ls-files", "--others", "--exclude-standard", "-z", "--", ".", exclude]))
+  hash.update(git(root, ["diff", "--binary", "--no-color", "--no-ext-diff", "--no-renames", head ?? EMPTY_TREE, "--", ".", ...OWN_EXCLUDES]));
+  const untracked = nulList(git(root, ["ls-files", "--others", "--exclude-standard", "-z", "--", ".", ...OWN_EXCLUDES]))
     .map(normalizePath)
     .sort();
   for (const file of untracked) {
@@ -341,7 +346,7 @@ function readCheckTreeFingerprint(root, checks = parseIddConfig(readIddConfig(ro
 
 /**
  * The working tree as a git tree object (REQ-idd-016): tracked and untracked
- * files, never ignored ones nor idd/. A throwaway index keeps the real index
+ * files, never ignored ones, idd/ nor the review receipts. A throwaway index keeps the real index
  * untouched; the tree lands in the object store, so a later diff can compare
  * the reviewed candidate with the current tree.
  */
@@ -353,6 +358,9 @@ function snapshotTree(root) {
   try {
     git(root, head ? ["read-tree", head] : ["read-tree", "--empty"], { env });
     git(root, ["add", "-A", "--", ".", `:(exclude)${CHANGE_ROOT}`], { env });
+    // git add refuses an exclude pathspec that names an ignored path, so the
+    // receipts go back to their HEAD state in the throwaway index instead.
+    git(root, head ? ["reset", "-q", head, "--", RECEIPTS_DIR] : ["rm", "--cached", "-r", "-q", "--ignore-unmatch", "--", RECEIPTS_DIR], { env });
     return git(root, ["write-tree"], { env }).trim();
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

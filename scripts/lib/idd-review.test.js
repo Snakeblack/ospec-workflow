@@ -22,6 +22,8 @@ const {
   validateTrustCorrection,
 } = require("./idd-review.js");
 
+const { resultDigest } = require("./review-receipt.js");
+
 const AT = "2026-10-05T08:00:00.000Z";
 
 function openAuth() {
@@ -76,6 +78,25 @@ function answer(state, findings, overrides = {}) {
 
 function record(state, findings) {
   return recordTrustFindings(state, { result: answer(state, findings), recordedAt: AT, lineCount });
+}
+
+// The validator's answer to the correction: the validation request digest and
+// one cited entry per corrected path.
+function verdict(validate, status, overrides = {}) {
+  const reviewed = validate.paths.map((file) => ({ path: file, cites: [`${file}:1`] }));
+  const outcomes = validate.finding_ids.map((id) => ({ id, status }));
+  return { request_digest: validate.request_digest, reviewed, outcomes, regression: { detected: false, evidence: ["tests cover expiry"] }, ...overrides };
+}
+
+function correct(state, changes = [{ path: "src/auth/tokens.js", added: 2, deleted: 1 }]) {
+  return correctTrustReview(state, { changes, candidateTree: "d".repeat(40), diffHash: `sha256:${"9".repeat(64)}` });
+}
+
+// The receipt the SubagentStop hook writes for a reviewer result (REQ-hooks-027).
+function receiptOf(agent, result) {
+  return (digest) => (digest === result.request_digest
+    ? { schema: "ospec-review-receipt/v1", request_digest: digest, agent, result_digest: resultDigest(result), recorded_at: AT }
+    : null);
 }
 
 test("a candidate digests the reviewed paths, their blobs and the changed lines", () => {
@@ -173,21 +194,13 @@ test("a blocker allows one bounded correction validated against the frozen findi
   );
   assertCode(() => correctTrustReview(frozen.state, { changes: [], candidateTree: "d".repeat(40), diffHash: "x" }), "review-refused");
 
-  const corrected = correctTrustReview(frozen.state, {
-    changes: [{ path: "src/auth/tokens.js", added: 2, deleted: 1 }],
-    candidateTree: "d".repeat(40),
-    diffHash: `sha256:${"9".repeat(64)}`,
-  });
+  const corrected = correct(frozen.state);
   const lineage = currentReview(corrected.state);
   assert.strictEqual(lineage.status, "validating");
   assert.strictEqual(lineage.correction_budget.used_lines, 3);
-  assert.deepStrictEqual(corrected.finding_ids, lineage.findings.map((finding) => finding.id));
+  assert.deepStrictEqual(corrected.validate.finding_ids, lineage.findings.map((finding) => finding.id));
 
-  const outcomes = corrected.finding_ids.map((id) => ({ id, status: "resolved" }));
-  const approved = validateTrustCorrection(corrected.state, {
-    result: { outcomes, regression: { detected: false, evidence: ["tests cover expiry"] } },
-    recordedAt: AT,
-  });
+  const approved = validateTrustCorrection(corrected.state, { result: verdict(corrected.validate, "resolved"), recordedAt: AT, lineCount });
   assert.strictEqual(currentReview(approved.state).status, "approved");
   assert.strictEqual(obligation(approved.state).status, "satisfied");
   valid(approved.state);
@@ -196,19 +209,81 @@ test("a blocker allows one bounded correction validated against the frozen findi
 test("a failed validation ends the lineage: IDD allows one correction per review", () => {
   const started = startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true }).state;
   const frozen = record(started, [BLOCKER]).state;
-  const corrected = correctTrustReview(frozen, {
-    changes: [{ path: "src/auth/tokens.js", added: 1, deleted: 0 }],
-    candidateTree: "d".repeat(40),
-    diffHash: `sha256:${"9".repeat(64)}`,
-  });
-  const failed = validateTrustCorrection(corrected.state, {
-    result: { outcomes: corrected.finding_ids.map((id) => ({ id, status: "unresolved" })), regression: { detected: false, evidence: ["still accepted"] } },
-    recordedAt: AT,
-  });
+  const corrected = correct(frozen, [{ path: "src/auth/tokens.js", added: 1, deleted: 0 }]);
+  const failed = validateTrustCorrection(corrected.state, { result: verdict(corrected.validate, "unresolved"), recordedAt: AT, lineCount });
   assert.strictEqual(currentReview(failed.state).status, "escalated");
   assert.strictEqual(obligation(failed.state).status, "pending");
   assert.match(trustReason(failed.state), /change the code and run ospec review start for a successor review \(2 of 3\)/);
   valid(failed.state);
+});
+
+// OSP-029 follow-up: the validator's verdict approved the review with no
+// proof that it read the correction. It now answers the validation request
+// and cites each corrected path in the corrected tree, like a trust result.
+test("a validation must answer the correction request and cite each corrected path", () => {
+  const frozen = record(startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true }).state, [BLOCKER]).state;
+  const corrected = correct(frozen);
+  const { validate } = corrected;
+  assert.strictEqual(validate.validator, "review-correction");
+  assert.deepStrictEqual(validate.paths, ["src/auth/tokens.js"]);
+  assert.match(validate.request_digest, /^sha256:[0-9a-f]{64}$/);
+  assert.match(validate.result_contract, /request_digest/);
+  assert.notStrictEqual(validate.request_digest, answer(frozen, []).request_digest, "validation has its own digest");
+  assert.deepStrictEqual(startTrustReview(corrected.state, { candidate: candidate(), reviewedChanged: false }).validate, validate, "review start returns it again");
+  assert.match(trustReason(corrected.state), /with the request ospec review start returns/);
+
+  const refused = (result, pattern) => assert.throws(
+    () => validateTrustCorrection(corrected.state, { result, recordedAt: AT, lineCount }),
+    (error) => error instanceof IddRecordError && error.code === "review-refused" && pattern.test(error.message),
+  );
+  refused({ outcomes: verdict(validate, "resolved").outcomes, regression: { detected: false, evidence: ["ok"] } }, /request_digest/);
+  refused(verdict(validate, "resolved", { request_digest: answer(frozen, []).request_digest }), /request_digest/);
+  refused(verdict(validate, "resolved", { reviewed: undefined }), /reviewed/);
+  refused(verdict(validate, "resolved", { reviewed: [{ path: "src/auth/tokens.js", cites: ["src/auth/tokens.js:999"] }] }), /src\/auth\/tokens\.js:999/);
+  assert.strictEqual(currentReview(corrected.state).status, "validating", "a refused verdict records nothing");
+});
+
+// OSP-029 step 2: the SubagentStop hook's receipt of the same result attests
+// it; a result changed on its way under the same digest is refused; without
+// a receipt the result is relayed and the CLI says so.
+test("a SubagentStop receipt of the same result attests it, and a changed result is refused", () => {
+  const started = startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true }).state;
+  const result = answer(started, [ADVICE]);
+  const relayed = recordTrustFindings(started, { result, recordedAt: AT, lineCount });
+  assert.strictEqual(relayed.state.evidence[0].detail.attestation, "relayed");
+  assert.match(relayed.warnings.join("\n"), /no SubagentStop receipt of review-trust/);
+
+  const other = recordTrustFindings(started, { result, recordedAt: AT, lineCount, receiptFor: receiptOf("review-correction", result) });
+  assert.strictEqual(other.state.evidence[0].detail.attestation, "relayed", "a receipt of another agent does not count");
+
+  assert.throws(
+    () => recordTrustFindings(started, { result: { ...result, findings: [] }, recordedAt: AT, lineCount, receiptFor: receiptOf("review-trust", result) }),
+    (error) => error.code === "review-refused" && /differs from the one review-trust returned/.test(error.message),
+  );
+
+  const reformatted = JSON.parse(JSON.stringify({ findings: result.findings, reviewed: result.reviewed, request_digest: result.request_digest }, null, 2));
+  const attested = recordTrustFindings(started, { result: reformatted, recordedAt: AT, lineCount, receiptFor: receiptOf("review-trust", result) });
+  assert.deepStrictEqual(attested.warnings, []);
+  assert.deepStrictEqual(attested.state.evidence[0].detail.receipt, { agent: "review-trust", recorded_at: AT, result_digest: resultDigest(result) });
+  assert.strictEqual(attested.state.evidence[0].detail.attestation, "subagent-stop");
+  valid(attested.state);
+
+  const forged = structuredClone(attested.state);
+  delete forged.evidence[0].detail.receipt;
+  assert.strictEqual(validateState(forged).ok, false, "subagent-stop needs its receipt");
+
+  const frozen = record(started, [BLOCKER]).state;
+  const { validate, state: corrected } = correct(frozen);
+  const answered = verdict(validate, "resolved");
+  assert.throws(
+    () => validateTrustCorrection(corrected, { result: { ...answered, regression: { detected: true, evidence: ["x"] } }, recordedAt: AT, lineCount, receiptFor: receiptOf("review-correction", answered) }),
+    (error) => error.code === "review-refused" && /differs from the one review-correction returned/.test(error.message),
+  );
+  const approved = validateTrustCorrection(corrected, { result: answered, recordedAt: AT, lineCount, receiptFor: receiptOf("review-correction", answered) });
+  assert.strictEqual(currentReview(approved.state).status, "approved");
+  assert.strictEqual(approved.state.evidence[0].detail.attestation, "subagent-stop");
+  assert.strictEqual(approved.state.evidence[0].detail.receipt.agent, "review-correction");
+  valid(approved.state);
 });
 
 test("a successor needs a changed candidate and at most three reviews run per change", () => {
@@ -285,13 +360,34 @@ test("frozen-review evidence must name an approved review of its candidate", () 
   assert.strictEqual(validateState(unreviewed).ok, false);
 });
 
+// Archived states keep validating: evidence from before OSP-029 has no
+// attestation, and relayed evidence names no receipt.
+test("frozen-review evidence without attestation or relayed stays valid, and a receipt needs subagent-stop", () => {
+  const state = record(startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true }).state, []).state;
+  valid(state);
+  const legacy = structuredClone(state);
+  delete legacy.evidence[0].detail.attestation;
+  valid(legacy);
+  const unknown = structuredClone(state);
+  unknown.evidence[0].detail.attestation = "observed";
+  assert.strictEqual(validateState(unknown).ok, false);
+  const relayedWithReceipt = structuredClone(state);
+  relayedWithReceipt.evidence[0].detail.receipt = { agent: "review-trust", recorded_at: AT, result_digest: `sha256:${"1".repeat(64)}` };
+  assert.strictEqual(validateState(relayedWithReceipt).ok, false);
+  const badReceipt = structuredClone(relayedWithReceipt);
+  badReceipt.evidence[0].detail.attestation = "subagent-stop";
+  valid(badReceipt);
+  badReceipt.evidence[0].detail.receipt.agent = "sdd-apply";
+  assert.strictEqual(validateState(badReceipt).ok, false);
+});
+
 test("REQ-idd-016 names the review commands, the reviewer and the limits", () => {
   const spec = fs.readFileSync(path.join(__dirname, "..", "..", "openspec", "specs", "idd", "spec.md"), "utf8");
   const start = spec.indexOf("{#REQ-idd-016}");
   assert.ok(start !== -1, "REQ-idd-016 is missing");
   const end = spec.indexOf("### Requirement:", start);
   const section = spec.slice(start, end === -1 ? undefined : end);
-  for (const name of ["ospec review start", "ospec review record", "ospec review correct", "ospec review validate", "review-trust", "review-correction", "reviews", "frozen-review", "trust", "request_digest", "reviewed", "location", "attestation: relayed", "review-refused"]) {
+  for (const name of ["ospec review start", "ospec review record", "ospec review correct", "ospec review validate", "review-trust", "review-correction", "reviews", "frozen-review", "trust", "request_digest", "reviewed", "location", "attestation: relayed", "attestation: subagent-stop", "result_contract", "review-refused"]) {
     assert.ok(section.includes(`\`${name}\``), `REQ-idd-016 must name ${name}`);
   }
   assert.ok(section.includes(String(MAX_REVIEWS)), "REQ-idd-016 must state the review limit");

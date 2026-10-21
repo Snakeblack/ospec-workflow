@@ -64,6 +64,7 @@ const {
   validateTrustCorrection,
 } = require("./lib/idd-review.js");
 const { IddImpactError, matchImpact } = require("./lib/idd-impact.js");
+const { readReceipt } = require("./lib/review-receipt.js");
 const { DecisionGapError, nextRound, recordAnswer } = require("./lib/decision-gap.js");
 const { DoctorUsageError, renderDoctor, runDoctor } = require("./lib/ospec-doctor.js");
 const { applyDerivation, classifyPath, deriveSignals } = require("./lib/idd-signals.js");
@@ -699,6 +700,8 @@ async function review(root, positionals, values) {
   const recordedAt = new Date().toISOString();
   const context = action === "start" || action === "correct" ? readProjectContext(root) : null;
   const trees = context ? reviewTrees(root, values, current) : null;
+  // The SubagentStop hook's receipt of a reviewer result (REQ-hooks-027).
+  const receiptFor = (digest) => readReceipt(root, digest);
 
   let outcome;
   const { state } = await mutateChange(
@@ -725,7 +728,7 @@ async function review(root, positionals, values) {
       } else if (action === "record") {
         // Cites resolve in the frozen candidate, or in its base for a deleted path.
         const frozen = lineage ? [lineage.genesis.candidate.candidate_tree, lineage.genesis.candidate.base_tree] : [];
-        outcome = recordTrustFindings(stored, { result, recordedAt, lineCount: treeLineCounter(root, frozen) });
+        outcome = recordTrustFindings(stored, { result, recordedAt, lineCount: treeLineCounter(root, frozen), receiptFor });
       } else if (action === "correct") {
         if (!lineage) throw new IddRecordError("review-refused", "no trust review to correct: run ospec review start");
         const { tree } = trees;
@@ -733,7 +736,9 @@ async function review(root, positionals, values) {
         const diffHash = candidateDiffHash(lineage.genesis.paths, treeBlobs(root, lineage.genesis.candidate.base_tree), treeBlobs(root, tree));
         outcome = correctTrustReview(stored, { changes, candidateTree: tree, diffHash });
       } else {
-        outcome = validateTrustCorrection(stored, { result, recordedAt });
+        // Cites resolve in the corrected tree, or in the reviewed one for a path the correction deletes.
+        const trees = lineage ? [lineage.current_candidate.candidate_tree, lineage.genesis.candidate.candidate_tree] : [];
+        outcome = validateTrustCorrection(stored, { result, recordedAt, lineCount: treeLineCounter(root, trees), receiptFor });
       }
       return { state: outcome.state, changed: outcome.changed !== false };
     }),
@@ -741,13 +746,14 @@ async function review(root, positionals, values) {
   const lineage = currentReview(state);
   const summary = { lineage_id: lineage.lineage_id, generation: lineage.generation, status: lineage.status };
   if (outcome.request) summary.request = outcome.request;
-  if (outcome.finding_ids) summary.validate = { validator: outcome.validator, finding_ids: outcome.finding_ids };
+  if (outcome.validate) summary.validate = outcome.validate;
   if (lineage.findings.length) summary.findings = lineage.findings.map(({ id, severity, summary: text, blocking }) => ({ id, severity, summary: text, blocking }));
   return {
     change: state.change,
     action,
     review: summary,
     evidence: outcome.evidence ?? null,
+    ...(outcome.warnings?.length ? { warnings: outcome.warnings } : {}),
     ...checkVerdict(state, { checks: (context || readProjectContext(root)).checks, livingDoc: readLivingDoc(root, state) }),
     next: nextForChange(state),
   };
@@ -983,11 +989,13 @@ function describeReview(result) {
     lines.push(`then: ospec review record --change ${result.change} --result '{"request_digest":"...","reviewed":[...],"findings":[...]}'`);
   }
   if (review.validate) {
-    lines.push(`dispatch ${review.validate.validator} for: ${review.validate.finding_ids.join(", ")}`);
-    lines.push(`then: ospec review validate --change ${result.change} --result '{"outcomes":[...],"regression":{...}}'`);
+    lines.push(`dispatch ${review.validate.validator} for ${review.validate.finding_ids.join(", ")} on: ${review.validate.paths.join(", ")}`);
+    lines.push(`hand it request_digest ${review.validate.request_digest} and: ${review.validate.result_contract}`);
+    lines.push(`then: ospec review validate --change ${result.change} --result '{"request_digest":"...","reviewed":[...],"outcomes":[...],"regression":{...}}'`);
   }
   for (const finding of review.findings || []) lines.push(`${finding.id} ${finding.severity}: ${finding.summary}`);
   if (result.evidence) lines.push(`recorded evidence ${result.evidence}`);
+  for (const warning of result.warnings || []) lines.push(`warning: ${warning}`);
   lines.push(...describeVerdict(result), describeNext(result.next));
   return lines.join("\n");
 }

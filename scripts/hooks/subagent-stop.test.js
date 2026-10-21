@@ -16,10 +16,12 @@ const {
   persistContextMeasurement,
   persistPhaseCost,
   persistResultEnvelope,
+  persistReviewReceipt,
   resolveDispatchStatus,
   runSubagentStop,
   resolveHostBinding,
 } = require("./subagent-stop.js");
+const { readReceipt, receiptPath, resultDigest } = require("../lib/review-receipt.js");
 const {
   PHASE_COST_FILE_NAME,
   CONTEXT_MEASUREMENT_FILE_NAME,
@@ -2350,3 +2352,76 @@ test("SubagentStop integration: sdd-verify with FAIL outcome projects blocked st
 
 
 
+
+// OSP-029 step 2 (REQ-hooks-027): the receipt of a trust review result.
+const REVIEW_DIGEST = `sha256:${"b".repeat(64)}`;
+const TRUST_RESULT = {
+  request_digest: REVIEW_DIGEST,
+  reviewed: [{ path: "src/auth/tokens.js", cites: ["src/auth/tokens.js:1"] }],
+  findings: [],
+};
+
+async function writeTranscript(workspace, entries) {
+  const file = path.join(workspace, "agent-transcript.jsonl");
+  await fs.writeFile(file, `${entries.map((entry) => JSON.stringify(entry)).join("\n")}\n`);
+  return file;
+}
+
+test("a review-trust result in its Claude Code transcript leaves a receipt", async (t) => {
+  const workspace = await createWorkspace(t);
+  const agentTranscript = await writeTranscript(workspace, [
+    { type: "user", message: { role: "user", content: `Review this: ${JSON.stringify({ request_digest: REVIEW_DIGEST, reviewer: "review-trust" })}` } },
+    { type: "assistant", message: { role: "assistant", content: [{ type: "text", text: `No findings.\n\n\`\`\`json\n${JSON.stringify(TRUST_RESULT, null, 2)}\n\`\`\`` }] } },
+    { type: "attachment", attachment: { type: "hook_success" } },
+  ]);
+  const result = await runSubagentStop({
+    input: { cwd: workspace, agent_type: "ospec-workflow:review-trust", agent_transcript_path: agentTranscript, transcript_path: "/nonexistent/main.jsonl" },
+    now: () => new Date("2026-10-21T08:00:00.000Z"),
+  });
+  assert.equal(result.status, "skipped", "the hook's answer does not change");
+  assert.deepEqual(readReceipt(workspace, REVIEW_DIGEST), {
+    schema: "ospec-review-receipt/v1",
+    request_digest: REVIEW_DIGEST,
+    agent: "review-trust",
+    result_digest: resultDigest(TRUST_RESULT),
+    recorded_at: "2026-10-21T08:00:00.000Z",
+  });
+});
+
+test("a review-correction verdict in a Codex transcript leaves a receipt", async (t) => {
+  const workspace = await createWorkspace(t);
+  const verdict = { request_digest: REVIEW_DIGEST, reviewed: [], outcomes: [{ id: "F-1", status: "resolved" }], regression: { detected: false, evidence: ["ok"] } };
+  const agentTranscript = await writeTranscript(workspace, [
+    { type: "response_item", payload: { type: "message", role: "assistant", content: [{ type: "output_text", text: JSON.stringify(verdict) }] } },
+  ]);
+  const receipt = await persistReviewReceipt({
+    input: { cwd: workspace, agent_type: "review-correction", agent_transcript_path: agentTranscript },
+    workspace,
+    now: () => new Date("2026-10-21T08:00:00.000Z"),
+  });
+  assert.equal(receipt.agent, "review-correction");
+  assert.equal(readReceipt(workspace, REVIEW_DIGEST).result_digest, resultDigest(verdict));
+});
+
+test("no receipt for another agent, the main session transcript or a message without a result", async (t) => {
+  const workspace = await createWorkspace(t);
+  const withResult = await writeTranscript(workspace, [
+    { type: "assistant", message: { role: "assistant", content: [{ type: "text", text: JSON.stringify(TRUST_RESULT) }] } },
+  ]);
+  const now = () => new Date("2026-10-21T08:00:00.000Z");
+  assert.equal(await persistReviewReceipt({ input: { agent_type: "sdd-apply", agent_transcript_path: withResult }, workspace, now }), null);
+  assert.equal(await persistReviewReceipt({ input: { agent_type: "review-trust", transcript_path: withResult }, workspace, now }), null, "only the subagent's own transcript");
+  assert.equal(await persistReviewReceipt({ input: { agent_type: "review-trust", agent_transcript_path: "relative.jsonl" }, workspace, now }), null);
+  const prose = await writeTranscript(workspace, [
+    { type: "assistant", message: { role: "assistant", content: [{ type: "text", text: JSON.stringify(TRUST_RESULT) }] } },
+    { type: "assistant", message: { role: "assistant", content: [{ type: "text", text: "No findings." }] } },
+  ]);
+  assert.equal(await persistReviewReceipt({ input: { agent_type: "review-trust", agent_transcript_path: prose }, workspace, now }), null, "only the last assistant message counts");
+  await assert.rejects(fs.access(receiptPath(workspace, REVIEW_DIGEST)));
+});
+
+test("a review result in the input's result field leaves a receipt", async (t) => {
+  const workspace = await createWorkspace(t);
+  await persistReviewReceipt({ input: { agent_type: "review-trust", result: JSON.stringify(TRUST_RESULT) }, workspace, now: () => new Date("2026-10-21T08:00:00.000Z") });
+  assert.equal(readReceipt(workspace, REVIEW_DIGEST).agent, "review-trust");
+});

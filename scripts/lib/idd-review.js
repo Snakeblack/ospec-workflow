@@ -12,6 +12,7 @@
 const crypto = require("node:crypto");
 
 const { IddRecordError } = require("./idd-record.js");
+const { resultDigest } = require("./review-receipt.js");
 const {
   applyTargetedValidation,
   beginCorrection,
@@ -34,12 +35,18 @@ const TERMINAL = new Set(["approved", "exhausted", "escalated", "invalidated"]);
 const BLOCKING = new Set(["BLOCKER", "CRITICAL"]);
 const PROJECTION = "idd-tree-diff/v1";
 // The CLI does not see the reviewer run: it checks what the result cites and
-// records that the result was relayed to it (OSP-029).
-const ATTESTATION = "relayed";
+// records that the result was relayed to it, or that the SubagentStop hook
+// left a receipt of the same result (OSP-029).
+const RELAYED = "relayed";
+const RECEIPTED = "subagent-stop";
 const CITE = /^(.+):([1-9][0-9]*)(?:-([1-9][0-9]*))?$/;
 const RESULT_CONTRACT = "Return JSON {request_digest, reviewed, findings}: request_digest copied from this request; "
   + "reviewed with one {path, cites} entry per path of this request, each cite \"<path>:<line>\" or \"<path>:<start>-<end>\" "
   + "of lines read in that path; findings in the review-judgment contract, each BLOCKER or CRITICAL with a location \"<path>:<line>\".";
+const VALIDATION_CONTRACT = "Return JSON {request_digest, reviewed, outcomes, regression, follow_ups}: request_digest copied from this request; "
+  + "reviewed with one {path, cites} entry per path of this request, each cite \"<path>:<line>\" or \"<path>:<start>-<end>\" "
+  + "of lines read in that path of the corrected tree; outcomes with one {id, status: resolved|unresolved} per finding_ids entry; "
+  + "regression {detected, evidence}; follow_ups optional and non-blocking.";
 
 function refuse(code, message) {
   throw new IddRecordError(code, message);
@@ -129,6 +136,35 @@ function requestDigest(lineage) {
   }));
 }
 
+function correctionPaths(lineage) {
+  return [...(lineage.correction_history.at(-1)?.paths || [])];
+}
+
+/** Digest of a validation request: the corrected tree, the correction's paths and the frozen IDs. */
+function validationDigest(lineage) {
+  return sha256(JSON.stringify({
+    lineage_id: lineage.lineage_id,
+    generation: lineage.generation,
+    operation: "validate",
+    candidate_tree: lineage.current_candidate.candidate_tree,
+    paths: correctionPaths(lineage),
+    finding_ids: unresolvedIds(lineage),
+  }));
+}
+
+// The request for the read-only validator of the one bounded correction.
+function validationRequest(lineage) {
+  return {
+    lineage_id: lineage.lineage_id,
+    generation: lineage.generation,
+    validator: VALIDATOR,
+    finding_ids: unresolvedIds(lineage),
+    paths: correctionPaths(lineage),
+    request_digest: validationDigest(lineage),
+    result_contract: VALIDATION_CONTRACT,
+  };
+}
+
 // A successor whose predecessor ended with unresolved blocking findings hands
 // them to the reviewer, who checks them on top of the full review.
 function reviewRequest(state, lineage) {
@@ -187,6 +223,7 @@ function startTrustReview(state, { candidate, reviewedChanged, correctionChanges
     }));
     state = withReview(state, current);
   }
+  if (current && current.status === "validating") return { state, changed: false, validate: validationRequest(current) };
   if (current && !TERMINAL.has(current.status)) return { state, changed: false, request: reviewRequest(state, current) };
   if (current) {
     if (trustObligation(state).status === "satisfied") refuse("review-current", "the trust review of the current candidate is already approved");
@@ -205,7 +242,7 @@ function startTrustReview(state, { candidate, reviewedChanged, correctionChanges
   return { state: next, changed: true, request: reviewRequest(next, lineage) };
 }
 
-function approve(state, lineage, recordedAt) {
+function approve(state, lineage, recordedAt, attestation) {
   const next = withReview(state, lineage);
   const target = trustObligation(next);
   const id = `ev-${next.evidence.length + 1}`;
@@ -219,7 +256,7 @@ function approve(state, lineage, recordedAt) {
       candidate_id: lineage.current_candidate_id,
       candidate_tree: lineage.current_candidate.candidate_tree,
       findings_digest: lineage.findings_digest,
-      attestation: ATTESTATION,
+      ...attestation.detail,
     },
   });
   target.status = "satisfied";
@@ -243,27 +280,32 @@ function checkCite(cite, lineCount, file) {
 }
 
 /**
- * Refuses a result that does not answer the review in progress: the request
- * digest, a cited entry for every path of the request, and a location for each
- * blocking finding, every cite resolved by `lineCount` in the frozen trees.
+ * Refuses a result that does not answer the request it names: its digest, and
+ * a cited entry for every path of the request, each cite resolved by
+ * `lineCount` in the frozen trees.
  */
-function checkAttestation(lineage, result, lineCount) {
-  const fix = "run ospec review start and hand the reviewer its request_digest and result_contract";
-  if (!result || typeof result !== "object" || result.request_digest !== requestDigest(lineage)) {
-    refuse("review-refused", `the result does not carry the request_digest of this review: ${fix}`);
+function checkCoverage(result, { digest, paths, lineCount, fix }) {
+  if (!result || typeof result !== "object" || result.request_digest !== digest) {
+    refuse("review-refused", `the result does not carry the request_digest of this request: ${fix}`);
   }
   if (!Array.isArray(result.reviewed)) refuse("review-refused", `the result needs reviewed, one {path, cites} entry per path of the request: ${fix}`);
-  const paths = new Set(lineage.genesis.paths);
+  const requested = new Set(paths);
   const covered = new Set();
   for (const entry of result.reviewed) {
     const file = entry && entry.path;
-    if (!paths.has(file)) refuse("review-refused", `reviewed names ${JSON.stringify(file)}, a path outside the request`);
+    if (!requested.has(file)) refuse("review-refused", `reviewed names ${JSON.stringify(file)}, a path outside the request`);
     if (!Array.isArray(entry.cites) || entry.cites.length === 0) refuse("review-refused", `reviewed ${file} needs at least one cite of the lines read`);
     for (const cite of entry.cites) checkCite(cite, lineCount, file);
     covered.add(file);
   }
-  const missing = [...paths].filter((file) => !covered.has(file));
+  const missing = [...requested].filter((file) => !covered.has(file));
   if (missing.length > 0) refuse("review-refused", `reviewed does not cover ${missing.join(", ")}`);
+}
+
+/** Refuses a trust result that does not answer the review in progress or leaves a blocking finding without a location. */
+function checkAttestation(lineage, result, lineCount) {
+  const fix = "run ospec review start and hand the reviewer its request_digest and result_contract";
+  checkCoverage(result, { digest: requestDigest(lineage), paths: lineage.genesis.paths, lineCount, fix });
   for (const finding of Array.isArray(result.findings) ? result.findings : []) {
     if (finding && finding.location !== undefined) checkCite(finding.location, lineCount);
     else if (finding && BLOCKING.has(finding.severity)) refuse("review-refused", `a ${finding.severity} finding needs a location "<path>:<line>"`);
@@ -271,15 +313,37 @@ function checkAttestation(lineage, result, lineCount) {
 }
 
 /**
+ * How a result is attested: `subagent-stop` when `receiptFor(digest)` gives
+ * the hook's receipt of the same result from `agent`, `relayed` with a
+ * warning when there is none. A different result under that digest was
+ * changed on its way to the CLI and is refused.
+ */
+function attest(result, { digest, agent, receiptFor }) {
+  const receipt = receiptFor ? receiptFor(digest) : null;
+  if (!receipt || receipt.agent !== agent) {
+    return { detail: { attestation: RELAYED }, warnings: [`no SubagentStop receipt of ${agent} for this request_digest: the result is recorded as relayed`] };
+  }
+  if (receipt.result_digest !== resultDigest(result)) {
+    refuse("review-refused", `the result differs from the one ${agent} returned (SubagentStop receipt of ${receipt.recorded_at}): pass its result unchanged`);
+  }
+  return {
+    detail: { attestation: RECEIPTED, receipt: { agent, recorded_at: receipt.recorded_at, result_digest: receipt.result_digest } },
+    warnings: [],
+  };
+}
+
+/**
  * Records the trust reviewer's findings and freezes them. `lineCount(path)`
  * gives the lines of a path in the candidate tree, or in the base tree when
- * the candidate deletes it, and null when neither holds it.
+ * the candidate deletes it, and null when neither holds it; `receiptFor`
+ * gives the SubagentStop receipt of a request digest.
  */
-function recordTrustFindings(state, { result, recordedAt, lineCount }) {
+function recordTrustFindings(state, { result, recordedAt, lineCount, receiptFor }) {
   requireReviewable(state);
   const current = currentReview(state);
   if (!current || current.status !== "reviewing") refuse("review-refused", "no trust review is waiting for findings: run ospec review start");
   checkAttestation(current, result, lineCount);
+  const attestation = attest(result, { digest: requestDigest(current), agent: REVIEWER, receiptFor });
   const frozen = lineageStep(() => {
     const recorded = recordLensResult(current, {
       dimension: LENS,
@@ -289,8 +353,9 @@ function recordTrustFindings(state, { result, recordedAt, lineCount }) {
     });
     return freezeFindings(recorded, { expected_revision: recorded.revision, request_id: requestId(state, "freeze", recorded) });
   });
-  if (frozen.status === "approved") return { ...approve(state, frozen, recordedAt), lineage: frozen };
-  return { state: withReview(state, frozen), evidence: null, lineage: frozen };
+  const { warnings } = attestation;
+  if (frozen.status === "approved") return { ...approve(state, frozen, recordedAt, attestation), lineage: frozen, warnings };
+  return { state: withReview(state, frozen), evidence: null, lineage: frozen, warnings };
 }
 
 /**
@@ -324,17 +389,24 @@ function correctTrustReview(state, { changes, candidateTree, diffHash }) {
       request_id: requestId(state, "correction-record", begun),
     });
   });
-  return { state: withReview(state, corrected), finding_ids: findingIds, validator: VALIDATOR };
+  return { state: withReview(state, corrected), validate: validationRequest(corrected) };
 }
 
 /**
- * Applies the correction validator's verdict on the frozen IDs. A failure
+ * Applies the correction validator's verdict on the frozen IDs, once the
+ * result answers the validation request and cites the corrected paths
+ * (`lineCount` reads the corrected tree, then the reviewed one). A failure
  * ends the lineage: IDD allows one bounded correction per review.
  */
-function validateTrustCorrection(state, { result, recordedAt }) {
+function validateTrustCorrection(state, { result, recordedAt, lineCount, receiptFor }) {
   requireReviewable(state);
   const current = currentReview(state);
   if (!current || current.status !== "validating") refuse("review-refused", "no correction is waiting for validation");
+  const digest = validationDigest(current);
+  const fix = `hand ${VALIDATOR} the request_digest and result_contract of ospec review correct (ospec review start returns them again)`;
+  checkCoverage(result, { digest, paths: correctionPaths(current), lineCount, fix });
+  const attestation = attest(result, { digest, agent: VALIDATOR, receiptFor });
+  const { warnings } = attestation;
   const validated = lineageStep(() =>
     applyTargetedValidation(current, {
       outcomes: result.outcomes,
@@ -344,7 +416,7 @@ function validateTrustCorrection(state, { result, recordedAt }) {
       request_id: requestId(state, "validation", current),
     }),
   );
-  if (validated.status === "approved") return { ...approve(state, validated, recordedAt), lineage: validated };
+  if (validated.status === "approved") return { ...approve(state, validated, recordedAt, attestation), lineage: validated, warnings };
   const ended = TERMINAL.has(validated.status)
     ? validated
     : lineageStep(() =>
@@ -355,7 +427,7 @@ function validateTrustCorrection(state, { result, recordedAt }) {
           request_id: requestId(state, "terminate", validated),
         }),
       );
-  return { state: withReview(state, ended), evidence: null, lineage: ended };
+  return { state: withReview(state, ended), evidence: null, lineage: ended, warnings };
 }
 
 /**
@@ -398,7 +470,7 @@ function trustReason(state) {
   }
   if (action.type === "correct") return `fix the frozen blocking findings ${action.finding_ids.join(", ")} and run ospec review correct`;
   if (action.type === "targeted-validation") {
-    return `dispatch ${VALIDATOR} for ${action.finding_ids.join(", ")} and record its verdict with ospec review validate`;
+    return `dispatch ${VALIDATOR} for ${action.finding_ids.join(", ")} with the request ospec review start returns, and record its verdict with ospec review validate`;
   }
   if (reviews.length >= allowedReviews(state)) return limitReason(state);
   const why = current.status === "approved" ? "the reviewed paths changed after the review" : "the review was not approved";
