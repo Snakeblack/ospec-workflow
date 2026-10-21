@@ -1,0 +1,237 @@
+{
+  "schema": "idd-state/v1",
+  "change": "open-facts-gate-hardening",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El gate de categorías de open-facts (E4.6, #339) se cierra con citas o fragmentos repetidos, líneas vacías y preguntas sin contenido",
+    "acceptance": "record intent de una feature rechaza la misma cita o fragmento en dos categorías, una cita a una línea sin contenido y una pregunta entre comillas de menos de 3 caracteres; las coberturas legítimas siguen pasando"
+  },
+  "facts": {
+    "open": [
+      "¿Unicidad estricta (una misma ruta:línea o fragmento no puede cubrir dos categorías) o se permite que una línea fije varias?",
+      "¿Qué línea citada se rechaza: solo vacía/espacios, o también sin letras ni dígitos (---, ```)?",
+      "¿isConcrete exige además al menos 2 palabras de contenido, para rechazar «¿cosa?», o solo se endurece el texto entre comillas (≥3 caracteres sin espacios)?",
+      "¿El modo de cierre (asked/cited/quoted) se guarda como campo explícito en state.yaml o se deriva de la cobertura existente, y el record del banco lo recoge en este cambio o junto a #340/#341?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-facts.js",
+      "scripts/lib/idd-facts.test.js",
+      "scripts/ospec.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component idd-engine: ADR 0003, 0004, 0005, 0011 and quality scenario deterministic-resume",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "x"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "No cambia la derivación de señales ni obligaciones"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "none",
+      "reason": "No cambia qué evidencia satisface una obligación ni el cierre"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "Solo toca el gate de IDD; no lee ni escribe estado de SDD"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "El formato de state.yaml y su validación no cambian: los estados guardados, también con citas repetidas, siguen siendo válidos y next da el mismo paso"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Unicidad: Estricta. Línea citada: se rechaza si no tiene letras ni dígitos. Pregunta: solo comillas ≥3 caracteres sin espacios. Modo: derivar de la cobertura; el record del banco lo recoge con #340.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-21T09:04:28.088Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-21T09:06:03.835Z",
+      "detail": {
+        "tree": "sha256:cd2f62a3cd131d3b237d785ab63598e7c25bae8f898d2e696468a3c1bb40010a",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-21T09:06:03.835Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 none",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms"
+        ],
+        "records": [],
+        "tree": "sha256:cd2f62a3cd131d3b237d785ab63598e7c25bae8f898d2e696468a3c1bb40010a",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7"
+        ]
+      }
+    }
+  ],
+  "base": "d9fa921cd541778cbf6a9b800f01d5dbd57f4253",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/idd-facts.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:8d72e14e62854145f039a07abf9af0faf91e1ef7e6331138f93d8881f2ab3e93",
+      "tree": "sha256:f171de3bfa7a63e2aeff95d01d9a804e4ecff5200dbb6aae0882aae592b1ff45",
+      "recorded_at": "2026-10-21T09:01:57.732Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/idd-facts.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:afc530055ceec4b23f3465caaffad070045278ec178c245a4b87d583aaadf632",
+      "tree": "sha256:748e6f3f831e3d3bb5d4df91a1d2fa57881bd10d8680a1205289f2bb3da455ed",
+      "recorded_at": "2026-10-21T09:04:28.088Z",
+      "tests": 8
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:96253b74b8fc4c0d2cb8027dc9764fa30f0e053e447e04f87443987323127f58",
+      "tree": "sha256:cd2f62a3cd131d3b237d785ab63598e7c25bae8f898d2e696468a3c1bb40010a",
+      "recorded_at": "2026-10-21T09:06:03.835Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ce7bd27fa349823e3b0958e56e84e2e82382c87132801cfc69d264212725a96c",
+      "tree": "sha256:cd2f62a3cd131d3b237d785ab63598e7c25bae8f898d2e696468a3c1bb40010a",
+      "recorded_at": "2026-10-21T09:06:03.835Z",
+      "tests": 37
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fa584b311b91cf979833d26baa55d99c53ed6af259fcfa8a4ce8f2c0e13ce8b4",
+      "tree": "sha256:cd2f62a3cd131d3b237d785ab63598e7c25bae8f898d2e696468a3c1bb40010a",
+      "recorded_at": "2026-10-21T09:06:03.835Z",
+      "tests": 12
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:dbbadc68cca9fb8df60302ad5e8cb17d876cbf6dcf3e093836fc534e6d730c28",
+      "tree": "sha256:cd2f62a3cd131d3b237d785ab63598e7c25bae8f898d2e696468a3c1bb40010a",
+      "recorded_at": "2026-10-21T09:06:03.835Z",
+      "tests": 79
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9d7cd8a9af78a3855e281be8766ae9726a4254f5d6a2cfede5f1d22a1bc7dedf",
+      "tree": "sha256:cd2f62a3cd131d3b237d785ab63598e7c25bae8f898d2e696468a3c1bb40010a",
+      "recorded_at": "2026-10-21T09:06:03.835Z",
+      "tests": 37
+    }
+  ],
+  "closed_at": "2026-10-21T09:06:11.219Z"
+}
