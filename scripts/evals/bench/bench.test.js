@@ -102,7 +102,7 @@ test("run requires the bench configuration directory to exist", async () => {
 
 test("run writes the record after each scenario and resumes skipping complete runs", async () => {
   const dir = tempDir();
-  const common = ["run", "--arm", "sdd", "--record", "r1", "--config-dir", dir, "--records-dir", dir, "--runs-dir", dir, "--workspaces-dir", dir, "--scenario", "bugfix", "--scenario", "cli-local"];
+  const common = ["run", "--repetitions", "1", "--arm", "sdd", "--record", "r1", "--config-dir", dir, "--records-dir", dir, "--runs-dir", dir, "--workspaces-dir", dir, "--scenario", "bugfix", "--scenario", "cli-local"];
   const first = deps(dir);
   assert.equal(await main(common, first), 0);
   assert.deepEqual(first.calls.runs, ["cli-local", "bugfix"]);
@@ -189,9 +189,19 @@ test("run --repetitions runs every scenario once per repetition, repetition by r
   assert.match(otherCount.stderr.text, /repetitions/);
 });
 
+test("run without --repetitions runs three repetitions, the head-to-head default (OSP-011)", async () => {
+  const dir = tempDir();
+  const run = deps(dir);
+  assert.equal(await main(["run", "--arm", "sdd", "--record", "r4", "--config-dir", dir, "--records-dir", dir, "--runs-dir", dir, "--workspaces-dir", dir, "--scenario", "bugfix"], run), 0);
+  assert.deepEqual(run.calls.runs, ["bugfix", "bugfix", "bugfix"]);
+  const record = JSON.parse(fs.readFileSync(path.join(dir, "r4.json"), "utf8"));
+  assert.equal(record.repetitions, 3);
+  assert.deepEqual(record.runs.map((entry) => entry.repetition), [1, 2, 3]);
+});
+
 test("an exhausted host quota stops the whole run without recording the interrupted scenario", async () => {
   const dir = tempDir();
-  const common = ["run", "--arm", "sdd", "--record", "rq", "--config-dir", dir, "--records-dir", dir, "--runs-dir", dir, "--workspaces-dir", dir, "--scenario", "bugfix", "--scenario", "cli-local"];
+  const common = ["run", "--repetitions", "1", "--arm", "sdd", "--record", "rq", "--config-dir", dir, "--records-dir", dir, "--runs-dir", dir, "--workspaces-dir", dir, "--scenario", "bugfix", "--scenario", "cli-local"];
   const limited = deps(dir, {
     runScenario: async ({ scenario }) => (scenario.id === "cli-local"
       ? fakeRun(scenario.id, scenario.profile)
@@ -493,7 +503,7 @@ test("a run that escaped its workspace is kept apart, not recorded, and runs aga
   const runs = path.join(dir, "runs");
   const seen = [];
   const { d } = agyDeps(dir, { runScenario: deliveringRun(seen, ["workspace-escape"]) });
-  const args = ["run", "--host", "agy", "--arm", "idd", "--record", "a6", "--records-dir", dir, "--runs-dir", runs, "--workspaces-dir", path.join(dir, "ws"), "--scenario", "bugfix"];
+  const args = ["run", "--repetitions", "1", "--host", "agy", "--arm", "idd", "--record", "a6", "--records-dir", dir, "--runs-dir", runs, "--workspaces-dir", path.join(dir, "ws"), "--scenario", "bugfix"];
   assert.equal(await main(args, d), 0, d.stderr.text);
   assert.match(d.stderr.text, /bugfix: voided \(workspace-escape\), not recorded: change-01 step 7 run_command: \/tmp\/ospec-bench\/x/);
   const voided = path.join(runs, "a6", "bugfix.escaped-1");
@@ -512,7 +522,7 @@ test("runs go one at a time: a live run's lock refuses another, a stale one is t
   const dir = tempDir();
   const workspaces = path.join(dir, "ws");
   fs.mkdirSync(workspaces);
-  const args = ["run", "--arm", "sdd", "--record", "l1", "--config-dir", dir, "--records-dir", dir, "--runs-dir", dir, "--workspaces-dir", workspaces, "--scenario", "bugfix"];
+  const args = ["run", "--repetitions", "1", "--arm", "sdd", "--record", "l1", "--config-dir", dir, "--records-dir", dir, "--runs-dir", dir, "--workspaces-dir", workspaces, "--scenario", "bugfix"];
   fs.writeFileSync(path.join(workspaces, ".bench.lock"), String(process.ppid));
   const refused = deps(dir);
   assert.equal(await main(args, refused), 2);

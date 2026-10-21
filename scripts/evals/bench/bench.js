@@ -4,10 +4,12 @@
 // Bench CLI (E4.1, E4.2, E4.5).
 //   node scripts/evals/bench/bench.js list [--corpus <name>]
 //   node scripts/evals/bench/bench.js setup-gentle-ai --gentle-ai-bin <file> [--engram-bin <file>] [--gentle-ai-home <dir>] [--host agy]
-//   node scripts/evals/bench/bench.js run --arm sdd --record <id> [--host claude|agy] [--corpus <name>] [--scenario <id>]... [--force]
+//   node scripts/evals/bench/bench.js run --arm sdd --record <id> [--host claude|agy] [--corpus <name>] [--repetitions <n>] [--scenario <id>]... [--force]
 //   node scripts/evals/bench/bench.js report --record <id>
 //   node scripts/evals/bench/bench.js checkpoint --baseline <id> --candidate <id> [--quality-dir <dir>]
 // `run` drives real agents and spends tokens: it never runs in `npm test`.
+// It runs three repetitions unless told otherwise, the fewest a head-to-head
+// comparison concludes from (OSP-011); `--repetitions 1` makes a quick try.
 // Each run works in its own opaque directory under the workspaces directory,
 // one run at a time (a lock), and once judged its workspace moves to the runs
 // directory, next to its transcripts: no run can find another's delivery.
@@ -18,7 +20,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const { armFor } = require("./arms.js");
-const { evaluateCheckpoint, loadMargins, renderCheckpoint } = require("./checkpoint.js");
+const { CONCLUSIVE_REPETITIONS, evaluateCheckpoint, loadMargins, renderCheckpoint } = require("./checkpoint.js");
 const { DEFAULT_LIMITS, runScenario: defaultRunScenario } = require("./driver.js");
 const { buildOspecHome: defaultBuildOspecHome, createAgyHost } = require("./hosts/agy.js");
 const { benchEnv, buildPlugin: defaultBuildPlugin, createClaudeHost, prepareAgentConfig, resolveClaudeExecutable } = require("./hosts/claude.js");
@@ -379,7 +381,7 @@ async function runCommand(args, deps) {
   const opts = { ...DEFAULTS, model: hostDefaults.model, personaModel: hostDefaults.personaModel, ...defined, host: hostName };
   if (!opts.arm || !opts.record) throw new Error("run needs --arm and --record");
   const arm = armFor(opts.arm, { host: opts.host });
-  const repetitions = opts.repetitions === undefined ? 1 : opts.repetitions;
+  const repetitions = opts.repetitions === undefined ? CONCLUSIVE_REPETITIONS : opts.repetitions;
   if (!Number.isInteger(repetitions) || repetitions < 1) throw new Error("--repetitions must be a positive integer");
   const corpus = loadCorpus(opts.corpus);
   const unknown = opts.scenarios.filter((id) => !corpus.some((scenario) => scenario.id === id));

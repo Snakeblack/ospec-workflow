@@ -10,7 +10,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { loadScenarios, materializeRepo, listFiles } = require("./scenarios.js");
+const { loadCorpus, loadScenarios, materializeRepo, listFiles } = require("./scenarios.js");
 const { runChecks } = require("./checks.js");
 const { parseCsv } = require("./check-kit.js");
 
@@ -30,7 +30,7 @@ function workspace(scenario, { reference }) {
   return root;
 }
 
-for (const scenario of loadScenarios()) {
+for (const scenario of [...loadScenarios(), ...loadCorpus("reserved")]) {
   test(`${scenario.id}: the reference delivery passes every hidden check`, () => {
     const results = runChecks(scenario, workspace(scenario, { reference: true }));
     assert.deepEqual(results.filter((result) => !result.pass), []);

@@ -29,6 +29,10 @@
 // Engram goes in every arm (user decision, 2026-10-13; OSP-025): a pair where
 // either record lacks `host.engram_mcp_bytes` is not comparable.
 //
+// Fewer than three repetitions per scenario conclude nothing about either
+// arm's superiority (OSP-011): the result says so in `conclusive`, apart from
+// the decision, which still applies the margins.
+//
 // Measurement tooling only: it grants no authority and promotes nothing.
 
 const fs = require("node:fs");
@@ -44,6 +48,7 @@ const MARGINS_KEYS = Object.freeze(["schema_version", "margins_version", "declar
 const QUALITY_KEYS = Object.freeze(["max_mutation_score_deficit", "max_consistent_baseline_preferences"]);
 const EXCEPTION_KEYS = Object.freeze(["baseline_digest", "candidate_digests", "changed_files", "reason"]);
 const DIGEST_PATTERN = /^[a-f0-9]{64}$/;
+const CONCLUSIVE_REPETITIONS = 3;
 const IDENTITY_FIELDS = Object.freeze([["scenarios_digest"], ["harness_digest"], ["host", "name"], ["host", "model"], ["host", "effort"], ["persona", "model"]]);
 
 class BenchMarginsError extends Error {
@@ -258,6 +263,7 @@ function evaluateCheckpoint({ baseline, candidate, margins, margins_digest: marg
     margins_version: margins.margins_version,
     margins_digest: marginsDigest,
     repetitions: margins.repetitions,
+    conclusive: margins.repetitions >= CONCLUSIVE_REPETITIONS,
     harness_exception: appliedHarnessException(baseline, candidate, margins),
     quality: qualityVerdict,
     baseline_record: baseline.record_id,
@@ -279,13 +285,16 @@ function renderHarnessException(exception) {
 }
 
 function renderCheckpoint(result) {
+  const interval = result.totals.tokens_ratio_by_scenario;
   const lines = [
     `# Bench checkpoint: ${result.decision}`,
     "",
     `- Baseline: \`${result.baseline_record}\` · Candidate: \`${result.candidate_record}\``,
     `- Margins: \`${result.margins_version}\`${result.margins_digest ? ` (\`${result.margins_digest.slice(0, 12)}\`)` : ""} · ${result.repetitions} repetitions per scenario; figures are per-scenario means`,
+    ...(result.conclusive ? [] : [`- Inconclusive: ${result.repetitions} repetition${result.repetitions === 1 ? "" : "s"} per scenario, fewer than ${CONCLUSIVE_REPETITIONS}; the decision applies the margins but shows neither arm is better`]),
     ...(result.harness_exception ? [renderHarnessException(result.harness_exception)] : []),
     `- Tokens: ${result.totals.candidate_tokens} / ${result.totals.baseline_tokens} = ${result.totals.tokens_ratio}`,
+    ...(interval.ci95 ? [`- Tokens ratio by scenario: mean ${interval.mean}, 95% CI [${interval.ci95.join(", ")}] over ${interval.tasks} scenarios`] : []),
     `- Escaped defects (sum of scenario means), candidate − baseline: ${result.totals.escaped_delta}`,
     ...(result.quality ? [`- Quality: ${result.quality.decision} (mutation score ${result.quality.mutation.baseline.mean} → ${result.quality.mutation.candidate.mean}; blind review prefers the baseline in ${result.quality.baseline_preferences} of ${result.quality.pairs} pairs)`] : []),
     "",
@@ -299,4 +308,4 @@ function renderCheckpoint(result) {
   return `${lines.join("\n").trimEnd()}\n`;
 }
 
-module.exports = { BenchMarginsError, MARGINS_PATH, evaluateCheckpoint, loadMargins, renderCheckpoint, validateMargins };
+module.exports = { BenchMarginsError, CONCLUSIVE_REPETITIONS, MARGINS_PATH, evaluateCheckpoint, loadMargins, renderCheckpoint, validateMargins };

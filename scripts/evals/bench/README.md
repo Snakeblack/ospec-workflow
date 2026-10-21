@@ -13,6 +13,7 @@ tooling only: it grants no authority and never runs a model in `npm test`.
 | --- | --- |
 | `scenarios/<id>/` | The `default` corpus: `scenario.json` (brief and hidden facts), `repo/` (the seed the agent gets), `checks.js` (hidden checks) |
 | `scenarios-greenfield/<id>/` | The `greenfield` corpus: `todo-spa` (E4.5) and the reserved `receta-spa` (E4.6), each one page |
+| `scenarios-reserved/<id>/` | The `reserved` corpus (OSP-011): `salas`, frozen before the head-to-head runs that judge it; its digest is pinned in `scenarios.test.js` and its ids differ from the default corpus |
 | `__fixtures__/reference/<id>/`, `__fixtures__/reference-greenfield/<id>/` | A correct delivery per scenario; `checks.test.js` and `checks-greenfield.test.js` prove every check passes on it and acceptance fails on the seed |
 | `scenarios.js` | Loads and validates the corpus, digests it, materializes a seed |
 | `checks.js`, `check-runner.js`, `check-kit.js` | Run each hidden check in its own process against the delivered workspace |
@@ -43,6 +44,7 @@ tooling only: it grants no authority and never runs a model in `npm test`.
 | `bugfix` | Pagination with an extra empty page | 1-based pages, out-of-range pages, empty lists, invalid page size |
 | `greenfield` (corpus `greenfield`) | A to-do list in one `index.html`, from a README and an empty `package.json` | Trimmed titles and their 200-character limit, pending duplicates, storage key and corrupt data, counter wording, filter in the URL, editing keys, order, titles as text, accessible names |
 | `greenfield` (corpus `greenfield`) | `receta-spa`, a recipe card in one `index.html`, reserved for E4.6 | Nine hidden facts, frozen in its `scenario.json`. They are not repeated here, so tuning IDD does not read them |
+| `saas-small` (corpus `reserved`) | `salas`, room bookings in a multi-tenant API, reserved for OSP-011 | Four hidden facts, frozen in its `scenario.json` and not repeated here, for the same reason |
 
 The facts are what a careful engineer would ask about, never trivia. An agent
 that does not ask may still get them right from the code; one that asks gets
@@ -103,7 +105,9 @@ discarded first attempt of `idd-5`), writes the record to
 judged, the workspace moves there too (`workspace/`), so no later run can find
 it. Runs go one at a time: a second `run` on the same workspaces directory
 refuses while the first is alive. `--repetitions <n>` runs every
-scenario n times, repetition by repetition (default 1). Rerunning the same
+scenario n times, repetition by repetition (default 3, the fewest a
+head-to-head checkpoint concludes from, OSP-011; `--repetitions 1` makes a
+quick try). Rerunning the same
 record skips complete runs (`--force` reruns them) and refuses a different host,
 model, plugin build, persona, corpus, harness, or repetition count. When the
 host's usage quota runs out (HTTP 429, such as a subscription session limit),
@@ -204,17 +208,22 @@ PATH or in its usual place).
 
 ## Checkpoint
 
-`margins.json` (`bench-margins-10`, E4.6) is declared before the repetition of
-`idd-4` with Engram in every arm (OSP-025), on Claude Code with Haiku for the
-agent and the persona (user decision, 2026-10-21): `gentle-ai` is the baseline
-and `idd` the candidate; both arms run each scenario of the default corpus
-once. Summed over the per-scenario means, the candidate may not escape more
-defects than the baseline (`max_mean_delta: 0`) or spend more tokens
+`margins.json` (`bench-margins-11`, OSP-011, #342) is declared before the
+repetition on Claude Code with Haiku for the agent and the persona (user
+decision, 2026-10-21), with Engram in every arm (OSP-025): `gentle-ai` is the
+baseline and `idd` the candidate; both arms run each scenario of the default
+corpus and of the reserved corpus three times, one record per corpus and arm.
+Summed over the per-scenario means, the candidate may not escape more defects
+than the baseline (`max_mean_delta: 0`) or spend more tokens
 (`max_total_ratio: 1`), as in E4.9. Quality: the candidate's mean mutation
 score may not trail by more than 5 points, and the blind review may not prefer
-the baseline in both orders in more than one pair. With one repetition the
-verdict is exploratory and blocks nothing; the binding repetition on Claude is
-OSP-011 (#342). `bench-margins-9` (the greenfield campaign: three repetitions,
+the baseline in both orders in more than one pair. The verdict blocks nothing.
+With fewer than three repetitions per scenario the checkpoint states
+`Inconclusive` (`conclusive: false`): the decision still applies the margins,
+but shows neither arm is better (OSP-011). The report also gives the mean of
+the per-scenario token ratios with its 95% t interval. `bench-margins-10` (E4.6, one
+repetition, the same thresholds) stays reproducible from v2.144.0.
+`bench-margins-9` (the greenfield campaign: three repetitions,
 delta 2, ratio 10, the same quality criterion, and per-scenario rules judged in
 its report) stays reproducible from v2.143.0. `bench-margins-8` (E4.9, one
 repetition, delta 0, ratio 1, no quality criterion) stays reproducible from
@@ -236,7 +245,7 @@ margins declares a new version first.
 Records of different harnesses are not comparable unless the margins declare a
 `harness_exception` (one baseline digest, the candidate digests accepted against
 it, the files that differ, and why), and a test then verifies it against
-committed copies of those files. `bench-margins-10` declares none: both arms run
+committed copies of those files. `bench-margins-11` declares none: both arms run
 with the same harness. The E4.1 checkpoint (`bench-margins-5`,
 `sdd-baseline-3` against `idd-2`, with its exception and
 `harness-exception.test.js`) is reproducible from v2.132.1 or earlier.

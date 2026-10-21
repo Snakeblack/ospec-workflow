@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.145.0] - 2026-10-21
+
+### Changed
+- **Tres repeticiones por defecto en el banco** (OSP-011, #342): `bench.js run` hace tres repeticiones por escenario si no se pasa `--repetitions`; `--repetitions 1` queda para pruebas rápidas.
+- **Checkpoint no concluyente con n < 3:** con menos de tres repeticiones por escenario, el resultado lleva `conclusive: false` y el informe una línea `Inconclusive`. La decisión `continue`/`revise` y el código de salida no cambian. El informe muestra además la media del ratio de tokens por escenario con su IC 95 %.
+- **Márgenes `bench-margins-11`**, declarados antes de correr: los umbrales de `bench-margins-10` (escapados delta 0, tokens ratio 1 y el criterio de calidad de E4.5) con tres repeticiones, en Claude con Haiku y Engram en los dos brazos, sobre los corpus `default` y `reserved`. `bench-margins-10` sigue reproducible desde v2.144.0.
+
+### Added
+- **Corpus reservado `reserved`** con el escenario `salas` (reservas de salas en una API multi-organización, perfil `saas-small`, cuatro hechos ocultos). Se escribió y congeló en un commit propio, en un cambio que no toca IDD. Su digest (`bba3c8d0b72e…`) queda fijado en un test, y sus ids no pueden coincidir con los del corpus por defecto, cuyo digest no cambia.
+
+La spec del banco (REQ-bench-001, 004 y 005), su README, `docs/benchs/` y el roadmap lo recogen. Falta la corrida de #342 (36 + 6 ejecuciones) y su informe.
+
+Hecho con IDD (`idd/archive/2026-10-21-bench-repetitions-reserved/`).
+
+**Verificación directa**: `node scripts/check.js` (3958 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.144.0] - 2026-10-21
 
 ### Fixed

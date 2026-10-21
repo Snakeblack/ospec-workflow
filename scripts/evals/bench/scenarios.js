@@ -4,9 +4,11 @@
 // request (brief), the facts only the simulated user knows, and hidden checks
 // that judge the delivered workspace. Only `repo/` ever reaches the agent.
 //
-// Two corpora: `default`, the six profiles of E4.1 and E4.2, and `greenfield`
-// (E4.5), a project built from an almost empty repository. They live in
-// separate directories, so adding one never changes the other's digest.
+// Three corpora: `default`, the six profiles of E4.1 and E4.2, `greenfield`
+// (E4.5), a project built from an almost empty repository, and `reserved`
+// (OSP-011), a task frozen before the head-to-head runs that judge it, with
+// ids of its own. They live in separate directories, so adding one never
+// changes another's digest.
 //
 // Measurement tooling only: it grants no authority and promotes nothing.
 
@@ -21,6 +23,7 @@ const PROFILES = Object.freeze(["cli-local", "saas-small", "regulated", "brownfi
 const CORPORA = Object.freeze({
   default: Object.freeze({ dir: SCENARIOS_DIR, profiles: PROFILES }),
   greenfield: Object.freeze({ dir: path.join(__dirname, "scenarios-greenfield"), profiles: Object.freeze(["greenfield"]) }),
+  reserved: Object.freeze({ dir: path.join(__dirname, "scenarios-reserved"), profiles: Object.freeze(["saas-small"]) }),
 });
 const CHECK_KINDS = Object.freeze(["acceptance", "fact", "regression"]);
 const SCENARIO_KEYS = Object.freeze(["schema_version", "id", "profile", "title", "brief", "facts"]);
@@ -113,7 +116,7 @@ function loadScenarios(root = SCENARIOS_DIR, profiles = PROFILES) {
   return scenarios.sort((a, b) => profiles.indexOf(a.profile) - profiles.indexOf(b.profile) || a.id.localeCompare(b.id));
 }
 
-/** Loads a corpus by name (`default` or `greenfield`). */
+/** Loads a corpus by name (`default`, `greenfield` or `reserved`). */
 function loadCorpus(name = "default") {
   const corpus = CORPORA[name];
   if (!corpus) throw new BenchScenarioError(`unknown corpus ${name}; known corpora: ${Object.keys(CORPORA).join(", ")}`, "UNKNOWN_BENCH_CORPUS");

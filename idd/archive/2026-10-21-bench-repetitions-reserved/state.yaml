@@ -1,0 +1,187 @@
+{
+  "schema": "idd-state/v1",
+  "change": "bench-repetitions-reserved",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "primero los pasos 1 a 3 (código, escenario reservado y márgenes) como un cambio IDD con su propia release",
+    "kind": "feature",
+    "summary": "Banco head-to-head con 3 repeticiones por defecto, conclusión no concluyente con n<3, un corpus reservado congelado y márgenes bench-margins-11 declarados antes de correr (#342, pasos 1-3)",
+    "acceptance": "bench.js run sin --repetitions ejecuta 3 repeticiones; el checkpoint con menos de 3 repeticiones marca la conclusión como no concluyente; existe un corpus reservado con su digest fijado en tests; margins.json declara bench-margins-11 con repetitions 3"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿el default de 3 repeticiones vale para todo bench.js run, o se deja en 1 y --repetitions pasa a ser obligatorio en corridas que se van a comparar?"
+      },
+      {
+        "category": "uniqueness",
+        "question": "¿puede un id de escenario reservado coincidir con uno del corpus default, o deben ser distintos?"
+      },
+      {
+        "category": "persistence",
+        "question": "¿el escenario reservado va en un corpus propio (directorio y digest fijado aparte) o dentro del corpus default, cuántos escenarios y de qué perfil?"
+      },
+      {
+        "category": "copy",
+        "question": "¿cómo se expresa «no concluyente» en el checkpoint: un campo y una línea aparte sin tocar continue/revise ni el código de salida, o una tercera decisión inconclusive?"
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/evals/bench/bench.js",
+          "line": 566
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/evals/bench/checkpoint.js",
+          "line": 269
+        }
+      },
+      {
+        "category": "errors",
+        "question": "¿bench-margins-11 rechaza repetitions < 3 como márgenes inválidos o los acepta como no concluyentes, y qué umbrales de escapados, tokens y calidad declara?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "scripts/evals/bench/bench.js"
+    ],
+    "work_units": 3,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 3 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "public-contract",
+      "reason": "public contract: scripts/evals/bench/scenarios-reserved/salas/repo/README.md adds API",
+      "source": "diff"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "contract-spec-and-test",
+      "signal": "public-contract",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Todo run con 3 repeticiones por defecto (quien quiera menos pasa --repetitions 1). No concluyente: campo conclusive:false y línea aparte en el informe, sin tocar continue/revise ni el código de salida; margins con repetitions<3 se aceptan. Escenario reservado: corpus propio scenarios-reserved con 1 escenario de dominio nuevo (perfil saas-small) y digest fijado en tests. bench-margins-11: los umbrales de bench-margins-10 (escapados 0, tokens 1, calidad 5/1) con repetitions 3. Ids del corpus reservado distintos de los del default, con test.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-21T20:44:46.818Z",
+      "detail": {
+        "tree": "sha256:919b8816bb959c41e93e65a374beea1989a0384e7c1f6daee0c6d23593cddd1d",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-21T20:46:22.371Z",
+      "detail": {
+        "tree": "sha256:0d7fe3fb2665b7b8e39d040435e056ecd77927e02e2f0a70e340aa817110dda8",
+        "runs": [
+          "run-2"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "contract-spec-and-test",
+      "obligation": "contract-spec-and-test",
+      "recorded_at": "2026-10-21T20:46:22.371Z",
+      "detail": {
+        "tree": "sha256:0d7fe3fb2665b7b8e39d040435e056ecd77927e02e2f0a70e340aa817110dda8",
+        "check": "ev-2",
+        "documents": [
+          "openspec/specs/bench/spec.md"
+        ],
+        "tests": [
+          "scripts/evals/bench/bench.test.js",
+          "scripts/evals/bench/checkpoint.test.js",
+          "scripts/evals/bench/checks.test.js",
+          "scripts/evals/bench/scenarios-reserved/salas/repo/test/app.js",
+          "scripts/evals/bench/scenarios.test.js"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-21T20:46:27.703Z"
+    }
+  ],
+  "base": "6e0ee28a003fb351820c692e8ea92be8c2a49c86",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e0f89acf1fc9600a55ab88d7e45a0f3c8209f81474acb785a8b303576b0f9242",
+      "tree": "sha256:919b8816bb959c41e93e65a374beea1989a0384e7c1f6daee0c6d23593cddd1d",
+      "recorded_at": "2026-10-21T20:44:46.818Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:711aa2ceb50159c5b4c5008d52899c2c5cd9054fefb15b5ad854323baf3cb7d1",
+      "tree": "sha256:0d7fe3fb2665b7b8e39d040435e056ecd77927e02e2f0a70e340aa817110dda8",
+      "recorded_at": "2026-10-21T20:46:22.371Z"
+    }
+  ],
+  "closed_at": "2026-10-21T20:46:27.703Z"
+}
