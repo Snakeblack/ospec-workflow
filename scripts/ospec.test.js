@@ -61,10 +61,15 @@ const OPEN_BUG = [
 const FEATURE_COVER = [
   "--request",
   "The request fixes every behavior.",
-  ...["inputs", "uniqueness", "persistence", "copy", "url-state", "accessibility", "errors"].flatMap((id) => [
-    "--quote",
-    `${id}=The request fixes every behavior.`,
-  ]),
+  ...[
+    "inputs=The request fixes",
+    "uniqueness=request fixes every",
+    "persistence=fixes every behavior",
+    "copy=every behavior.",
+    "url-state=The request fixes every",
+    "accessibility=request fixes every behavior",
+    "errors=quest fixes every",
+  ].flatMap((quote) => ["--quote", quote]),
 ];
 
 test("record intent opens the change, reports the next step and is idempotent", (t) => {
