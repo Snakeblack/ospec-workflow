@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.143.0] - 2026-10-21
+
+### Changed
+- **Engram en todos los brazos del banco** (OSP-025, #340, E4.6): los brazos `idd` y `sdd` instalan Engram con `engram setup <agent>` (MCP y protocolo), con el mismo binario del HOME de gentle-ai del host o `--engram-bin`. En Claude se instala en la copia de configuración del agente, con el plugin `engram@engram` y sus hooks, y el agente carga solo su MCP. En agy se instala en el template de IDD (`mcp_config.json` y el bloque de `GEMINI.md`). Cada workspace tiene un Engram vacío. Sin binario, `run` se niega y dice cómo instalarlo. Lógica en `scripts/evals/bench/hosts/engram.js`.
+- **Record del banco en schema 3:** `repo_commit` (commit del checkout, con `-dirty` si hay cambios), `host.engram_mcp_bytes` obligatorio, tokens de cada turno del agente y `open_facts`: cómo cerró el cambio IDD cada categoría (`asked`, `cited`, `quoted`). El informe lo muestra en una tabla. Los records de schema 1 y 2 se siguen leyendo.
+- **El checkpoint exige un par válido** (OSP-026, #341): da `not-comparable` si un brazo corrió sin Engram, y `quality-missing` si los márgenes declaran calidad y falta `scripts/evals/quality/results/<base>__<cand>/quality.json` (`--quality-dir`). Si hay resultado, su veredicto cuenta como razón `quality`. El criterio pasa a `scripts/evals/quality/criterion.js`. Por eso `idd-agy-4` frente a `gentle-ai-agy-4` ya no es comparable.
+- **Haiku por defecto en Claude:** el agente, la persona del banco y el juez de calidad usan `claude-haiku-5-5`. agy no ofrece Haiku y conserva sus modelos.
+- **Encuadre del banco:** el README y `docs/benchs/bench-idd-vs-gentle-ai*.md` declaran la calidad como no demostrada (p≈0,49 en E4.2), la asimetría de Engram de todos los bancos publicados y que `receta-spa` se escribió en la misma sesión que ajustó IDD. Un test de `docs-lint` impide volver a afirmar menos defectos en todos los bancos.
+
+### Fixed
+- **`plugin_digest` reproducible en agy:** el digest leía las rutas absolutas del HOME que el instalador escribe en hooks y skills. Ahora ese HOME cuenta como `~` y los binarios quedan fuera, así que el mismo commit da el mismo digest en cualquier directorio.
+
+Hecho con IDD (`idd/archive/2026-10-21-bench-symmetry-validity/`). Solo código y docs: no se ha corrido el banco. #340 y #341 siguen abiertos hasta repetir `idd-4` con Engram en todos los brazos y recoger la calidad del par.
+
+**Verificación directa**: `node scripts/check.js` (3947 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.142.2] - 2026-10-21
 
 ### Fixed
