@@ -1,0 +1,10 @@
+{
+  "name": "rooms-api",
+  "version": "0.4.0",
+  "private": true,
+  "description": "API de salas de reuniones (SaaS multi-organización)",
+  "main": "src/app.js",
+  "scripts": {
+    "test": "node --test"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "salas",
+  "profile": "saas-small",
+  "title": "Reservar salas de reuniones en un SaaS multi-organización",
+  "brief": "Quiero que la gente pueda reservar salas: `POST /bookings` con el cuerpo `{ \"roomId\": \"r1\", \"start\": \"2026-11-03T10:00:00Z\", \"end\": \"2026-11-03T11:00:00Z\" }`, y ver las reservas de una sala con `GET /rooms/:id/bookings`. Deja el trabajo commiteado.",
+  "facts": [
+    { "id": "F1", "text": "Dos reservas de la misma sala no pueden solaparse: la segunda falla con 409 y no se guarda. Una reserva que empieza justo cuando acaba otra sí vale." },
+    { "id": "F2", "text": "Solo se reservan salas de tu organización: una sala de otra organización se trata como inexistente (404) y no se reserva." },
+    { "id": "F3", "text": "Una reserva necesita un `start` anterior a su `end`; si no, falla con 400 y no se guarda." },
+    { "id": "F4", "text": "`GET /rooms/:id/bookings` devuelve las reservas ordenadas por `start`, de la más temprana a la más tardía." }
+  ]
+}

@@ -149,3 +149,22 @@ test("the greenfield corpus is apart from the default one and does not change it
   assert.ok(!loadCorpus().some((scenario) => scenario.profile === "greenfield"));
   assert.throws(() => loadCorpus("nope"), /unknown corpus nope/);
 });
+
+test("the reserved corpus is frozen apart from the default one, with ids of its own (OSP-011)", () => {
+  const reserved = loadCorpus("reserved");
+  assert.deepEqual(reserved.map((scenario) => scenario.id), ["salas"]);
+  assert.ok(reserved.every((scenario) => scenario.profile === "saas-small"));
+  const defaultIds = new Set(loadCorpus().map((scenario) => scenario.id));
+  assert.ok(reserved.every((scenario) => !defaultIds.has(scenario.id)), "reserved ids must differ from the default corpus");
+  for (const scenario of reserved) {
+    assert.match(scenario.brief, /Deja el trabajo commiteado\.$/, scenario.id);
+    assert.ok(scenario.checks.some((check) => check.kind === "acceptance"), scenario.id);
+    assert.ok(scenario.checks.some((check) => check.id === "suite"), scenario.id);
+    for (const fact of scenario.facts) {
+      assert.ok(scenario.checks.some((check) => check.fact === fact.id), `${scenario.id} ${fact.id}`);
+    }
+  }
+  // Frozen: changing the reserved scenario changes this digest.
+  assert.equal(scenariosDigest(reserved), "bba3c8d0b72e6e2a339f100784270ff138a4763f7d6c7c828d2d878e9d585ff3");
+  assert.equal(scenariosDigest(loadCorpus()), "3eed3740a0d60661b6724c7884225f575189723fb75b334d8c7377bfe93ad8b4");
+});
