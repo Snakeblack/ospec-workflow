@@ -218,6 +218,25 @@ test("an exhausted host quota stops the whole run without recording the interrup
   assert.deepEqual(resumed.calls.runs, ["bugfix"]);
 });
 
+test("a persona that stops answering stops the whole run without recording the interrupted scenario", async () => {
+  const dir = tempDir();
+  const common = ["run", "--repetitions", "1", "--arm", "sdd", "--record", "rp", "--config-dir", dir, "--records-dir", dir, "--runs-dir", dir, "--workspaces-dir", dir, "--scenario", "bugfix", "--scenario", "cli-local"];
+  const silent = deps(dir, {
+    runScenario: async ({ scenario }) => (scenario.id === "cli-local"
+      ? fakeRun(scenario.id, scenario.profile)
+      : { ...fakeRun(scenario.id, scenario.profile, { status: "incomplete" }), reason: "persona-error", checks: [], escaped_defects: 0, persona_error: "Failed to authenticate: OAuth session expired" }),
+  });
+  assert.equal(await main(common, silent), 4);
+  assert.match(silent.stderr.text, /persona/);
+  assert.match(silent.stderr.text, /Failed to authenticate/);
+  const record = JSON.parse(fs.readFileSync(path.join(dir, "rp.json"), "utf8"));
+  assert.deepEqual(record.runs.map((run) => run.scenario_id), ["cli-local"]);
+
+  const resumed = deps(dir);
+  assert.equal(await main(common, resumed), 0);
+  assert.deepEqual(resumed.calls.runs, ["bugfix"]);
+});
+
 test("setup-gentle-ai installs into the gentle-ai home and explains the login", async () => {
   const dir = tempDir();
   const installs = [];

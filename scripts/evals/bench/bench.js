@@ -94,6 +94,7 @@ const OPTIONS = Object.freeze({
   "--engram-bin": ["engramBin", String],
 });
 const EXIT_HOST_QUOTA = 3;
+const EXIT_PERSONA = 4;
 const LOCK_FILE = ".bench.lock";
 
 function parseArgs(argv) {
@@ -486,6 +487,12 @@ async function runLocked(args, opts, arm, corpus, selected, repetitions, limits,
           const where = run.escapes.map((escape) => `${escape.label}-${String(escape.turn).padStart(2, "0")} step ${escape.step} ${escape.tool}: ${escape.paths.join(", ")}`).join("; ");
           stderr.write(`${label}: voided (workspace-escape), not recorded: ${where}. Kept in ${voided}; run the same command again to repeat it.\n`);
           continue;
+        }
+        if (run.reason === "persona-error") {
+          // Nobody answered the agent: every later run would fail the same way.
+          fs.rmSync(runRoot, { recursive: true, force: true });
+          stderr.write(`${label}: the persona stopped answering (${run.persona_error}). Stopped without recording it; fix the bench login and run the same command again.\n`);
+          return EXIT_PERSONA;
         }
         if (run.reason === "host-quota") fs.rmSync(runRoot, { recursive: true, force: true });
         else archiveWorkspace(runRoot, workspaceRoot, path.join(runDir, "workspace"));
