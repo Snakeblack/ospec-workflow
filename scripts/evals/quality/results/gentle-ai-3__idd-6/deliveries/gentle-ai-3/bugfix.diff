@@ -1,0 +1,55 @@
+diff --git a/src/paginate.js b/src/paginate.js
+index ed94097..b2ad907 100644
+--- a/src/paginate.js
++++ b/src/paginate.js
+@@ -6,9 +6,16 @@
+  * @param {number} page 1-based page number
+  * @param {number} [pageSize=10]
+  * @returns {{ page: number, pageSize: number, totalPages: number, items: Array }}
++ * @throws {RangeError} when `page` or `pageSize` is not a positive integer
+  */
+ function paginate(items, page, pageSize = 10) {
+-  const totalPages = Math.floor(items.length / pageSize) + 1;
++  if (!Number.isInteger(page) || page < 1) {
++    throw new RangeError(`page must be a positive integer, got ${page}`);
++  }
++  if (!Number.isInteger(pageSize) || pageSize < 1) {
++    throw new RangeError(`pageSize must be a positive integer, got ${pageSize}`);
++  }
++  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+   const start = (page - 1) * pageSize;
+   return { page, pageSize, totalPages, items: items.slice(start, start + pageSize) };
+ }
+diff --git a/test/paginate.js b/test/paginate.js
+index 6989bee..effd7ae 100644
+--- a/test/paginate.js
++++ b/test/paginate.js
+@@ -21,3 +21,28 @@ test("partial last page", () => {
+ test("catalog lists ten products per page", () => {
+   assert.equal(listProducts(2).items[0].id, 11);
+ });
++
++test("total pages does not add an empty page when items fill the last page", () => {
++  const twenty = Array.from({ length: 20 }, (_, index) => index + 1);
++  assert.equal(paginate(twenty, 1, 10).totalPages, 2);
++  assert.equal(paginate(items, 1, 5).totalPages, 5);
++});
++
++test("empty list has one (empty) page", () => {
++  assert.equal(paginate([], 1, 10).totalPages, 1);
++});
++
++test("rejects page numbers below 1", () => {
++  assert.throws(() => paginate(items, 0), RangeError);
++  assert.throws(() => paginate(items, -1), RangeError);
++});
++
++test("rejects non-integer page numbers", () => {
++  assert.throws(() => paginate(items, 1.5), RangeError);
++  assert.throws(() => paginate(items, Number.NaN), RangeError);
++});
++
++test("rejects invalid page sizes", () => {
++  assert.throws(() => paginate(items, 1, 0), RangeError);
++  assert.throws(() => paginate(items, 1, -10), RangeError);
++});

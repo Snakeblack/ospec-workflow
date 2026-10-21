@@ -1,0 +1,123 @@
+{
+  "schema": "idd-state/v1",
+  "change": "bench-claude-haiku-report",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "Publicar el banco de E4.6 con Claude y Haiku (idd-6 frente a gentle-ai-3), sus records y su calidad, y corregir la cabecera de ospec-doctor",
+    "acceptance": "docs/analysis tiene el informe del par con el checkpoint revise de bench-margins-10 y la calidad continue; los records idd-5, idd-6 y gentle-ai-3 y el resultado de calidad están versionados; bench-idd-vs-gentle-ai (es/en), comparacion-arneses y el roadmap citan el par; la cabecera de ospec-doctor.js nombra git ls-files"
+  },
+  "facts": {
+    "basis": "Los records idd-6.json, gentle-ai-3.json e idd-5.json, el quality.json del par y la salida de bench.js checkpoint fijan cada número; el usuario decidió los márgenes, que idd-5 queda como referencia y que el veredicto no bloquea"
+  },
+  "plan": {
+    "paths": [
+      "README.es.md",
+      "README.md",
+      "docs/analysis/2026-10-21-bench-claude-haiku.md",
+      "docs/benchs/bench-idd-vs-gentle-ai.es.md",
+      "docs/benchs/bench-idd-vs-gentle-ai.md",
+      "docs/comparacion-arneses.md",
+      "docs/roadmaps/harness-evolution.md",
+      "scripts/evals/bench/records/gentle-ai-3.json",
+      "scripts/evals/bench/records/idd-5.json",
+      "scripts/evals/bench/records/idd-6.json",
+      "scripts/evals/quality/results/gentle-ai-3__idd-6/quality.json",
+      "scripts/lib/ospec-doctor.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/evals/quality/results/gentle-ai-3__idd-6/deliveries/idd-6/cli-local.diff adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-21T18:30:22.326Z",
+      "detail": {
+        "run": "run-2",
+        "tree": "sha256:438f920a76f15c8eaaea4e7ff42938ffca5078951cee7f692ab710a439461a14",
+        "plan": "Datos de evaluación nuevos y aditivos (tres records en schema 3 y el resultado de calidad del par); no cambia ningún esquema ni dato existente, y el test valida y renderiza cada record versionado. Se revierte con git rm de esos ficheros. El writeFile que dispara la señal está en un diff de entrega guardado como texto, no en código del producto."
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-21T18:31:24.162Z",
+      "detail": {
+        "tree": "sha256:b84c1c2e3d646ef464ec1710a8a7d880ef2acc45274c7522292fad7a457abf63",
+        "runs": [
+          "run-3"
+        ]
+      }
+    }
+  ],
+  "base": "b76395b49051081d20bcd3b755d57d954db7b4f7",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:2aa19caade2de6b30fc145c3636f42734caf55bafcba97839ce133f5cad87cad",
+      "tree": "sha256:c4063e1b2db3e1fc9ac2d7baf12dc9e24f98a2424867ac190ca5ae3d1f5e985f",
+      "recorded_at": "2026-10-21T18:28:37.452Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "migration-test",
+      "command": "node --test scripts/evals/bench/record.test.js scripts/evals/quality/quality.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:aa718982e5f9125087f4614b0f37cbadf79c3adbe7adafe712508ab39fb96034",
+      "tree": "sha256:438f920a76f15c8eaaea4e7ff42938ffca5078951cee7f692ab710a439461a14",
+      "recorded_at": "2026-10-21T18:30:22.326Z",
+      "tests": 28
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:746228509a30128263c40a4a97ce1f1f67ca08211995e8f2edaebc1335c057dc",
+      "tree": "sha256:b84c1c2e3d646ef464ec1710a8a7d880ef2acc45274c7522292fad7a457abf63",
+      "recorded_at": "2026-10-21T18:31:24.162Z"
+    }
+  ],
+  "closed_at": "2026-10-21T18:31:27.802Z"
+}

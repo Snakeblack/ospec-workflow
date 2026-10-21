@@ -59,11 +59,11 @@ A new project, or a request to define a system's architecture, starts with the `
 
 ## IDD vs gentle-ai: bench
 
-IDD is measured against gentle-ai (its ODD flow, installed with Engram) on fixed scenarios with real agents, on Claude Code (`claude-sonnet-5-5`) and on the Antigravity CLI (`gemini-3.8-flash-high`), with a simulated user and hidden checks. In short:
+IDD is measured against gentle-ai (its ODD flow, installed with Engram) on fixed scenarios with real agents, on Claude Code (`claude-sonnet-5-5` and `claude-haiku-5-5`) and on the Antigravity CLI (`gemini-3.8-flash-high`), with a simulated user and hidden checks. In short:
 
-- **Quality: not demonstrated.** Acceptance and regression tie in every bench; the escaped defects differ only in hidden-fact checks, with one to three repetitions and no significant difference (2 against 0 in E4.2 is p≈0.49). Every bench so far ran Engram only in gentle-ai's arm.
-- **Tokens:** with Claude and small tasks IDD spends 0.44× what gentle-ai spends; with Gemini it spends more (2.29× on the same six scenarios), and more still on the complex one-page apps, where the IDD runs that spent more left fewer defects (a correlation over six runs, not proof).
-- **Caveats:** one to three repetitions per scenario, IDD versions that changed between benches, Engram in one arm only, and a reserved scenario written in the same session that tuned IDD. Read them before quoting a number.
+- **Quality: not demonstrated.** Acceptance and regression tie in every bench; the escaped defects differ only in hidden-fact checks, with one to three repetitions and no significant difference (2 against 0 in E4.2 is p≈0.49). Every bench before E4.6 on Claude with Haiku ran Engram only in gentle-ai's arm; that one, with Engram in both arms, gives 9 escaped against 3 and a mutation score of 89.6 % against 98.4 %, with one repetition.
+- **Tokens:** with Claude and small tasks IDD spends 0.44× what gentle-ai spends with Sonnet and 2.61× with Haiku; with Gemini it spends more (2.29× on the same six scenarios), and more still on the complex one-page apps, where the IDD runs that spent more left fewer defects (a correlation over six runs, not proof).
+- **Caveats:** one to three repetitions per scenario, IDD versions that changed between benches, Engram in one arm only before E4.6 on Claude, and a reserved scenario written in the same session that tuned IDD. Read them before quoting a number.
 
 Full tables, models, personas, who wins and why: [docs/benchs/bench-idd-vs-gentle-ai.md](docs/benchs/bench-idd-vs-gentle-ai.md) ([Español](docs/benchs/bench-idd-vs-gentle-ai.es.md)).
 

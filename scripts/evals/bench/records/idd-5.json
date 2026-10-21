@@ -1,0 +1,1000 @@
+{
+  "schema_version": 3,
+  "record_id": "idd-5",
+  "arm": "idd",
+  "recorded_at": "2026-10-21T13:45:13.059Z",
+  "host": {
+    "name": "claude-code",
+    "cli_version": "2.1.304",
+    "model": "claude-haiku-5-5",
+    "effort": null,
+    "plugin_version": "2.143.0 (engram 3.4.0)",
+    "plugin_digest": "f974e66fafca2a4b76840fb2fb7608b9f633a923b8fdea077db6353b71df093e",
+    "engram_mcp_bytes": 140
+  },
+  "persona": {
+    "model": "claude-haiku-5-5"
+  },
+  "repo_commit": "b76395b49051081d20bcd3b755d57d954db7b4f7",
+  "scenarios_digest": "3eed3740a0d60661b6724c7884225f575189723fb75b334d8c7377bfe93ad8b4",
+  "harness_digest": "076387f7611da6973da1fae16a6909520142028ee731a57b3a8b8e891cc3b6ad",
+  "limits": {
+    "maxAgentTurns": 30,
+    "maxSetupTurns": 6,
+    "maxCostUsd": 25
+  },
+  "repetitions": 1,
+  "runs": [
+    {
+      "scenario_id": "cli-local",
+      "repetition": 1,
+      "profile": "cli-local",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 4,
+          "output": 381,
+          "cache_read": 40017,
+          "cache_creation": 14187
+        },
+        "cost_usd": 0.003428,
+        "duration_ms": 6136,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 66,
+          "output": 29067,
+          "cache_read": 1516267,
+          "cache_creation": 81580
+        },
+        "tokens_total": 1626980,
+        "cost_usd": 0.046018,
+        "duration_ms": 116973,
+        "agent_turns": 2,
+        "model_turns": 29,
+        "subagents": 0,
+        "questions": 1,
+        "decision_changing_questions": 1,
+        "interventions": 1,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 2,
+          "output": 1363,
+          "cache_read": 578,
+          "cache_creation": 2459
+        },
+        "cost_usd": 0.001179,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "priority-order",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "default-media",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "invalid-priority",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "legacy-file",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "stable-ties",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": true
+        },
+        {
+          "id": "line-prefix",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": true
+        },
+        {
+          "id": "done-still-works",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 0,
+      "facts_disclosed": [
+        "F1",
+        "F2",
+        "F3",
+        "F4",
+        "F5"
+      ],
+      "changed_files": [
+        "README.md",
+        "idd/archive/2026-10-21-task-priority/change.md",
+        "idd/archive/2026-10-21-task-priority/state.yaml",
+        "src/cli.js",
+        "test/cli.js"
+      ],
+      "open_facts": {
+        "kind": "feature",
+        "categories": {
+          "inputs": "asked",
+          "uniqueness": "asked",
+          "persistence": "asked",
+          "copy": "asked",
+          "url-state": "asked",
+          "accessibility": "asked",
+          "errors": "asked"
+        },
+        "questions": 7
+      },
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Antes de tocar código tengo que resolver unas preguntas de comportamiento que la petición no cubre. Abrí el cambio `task-priority` en IDD y no he editado nada todavía. Te pongo las preguntas con mi recomendación para cada una:\n\n1. **Sin `--priority`**: ¿se guarda `media`? Recomiendo `media`, para que las tareas antiguas y las nuevas se comporten igual. La alternativa es `baja`.\n2. **Mayúsculas** (`--priority Alta`): ¿se aceptan y se guardan en minúsculas? Recomiendo aceptarlas. La alternativa es rechazarlas con error.\n3. **Tareas ya guardadas sin campo `priority`**: ¿se leen como `media` sin reescribir `~/.tasks.json`? Recomiendo que sí, sin migración.\n4. **Salida de `tasks list`**: ¿muestro la prioridad en cada línea, p. ej. `[ ] 1 [alta] Comprar pan`, o solo la uso para ordenar? Mostrarla cambia el formato actual y obliga a actualizar el test de `list`. Si prefieres no cambiar la salida, la alternativa es solo ordenar.\n5. **Valor no válido** (`--priority urgente`) o `--priority` sin valor: ¿error de uso con código `2` y el mensaje de uso? Recomiendo esto, que es lo que ya hace el CLI con los errores de uso.\n6. **Orden dentro de la misma prioridad**: ¿se mantiene el orden de inserción? Recomiendo que sí, así `list` sigue siendo estable.\n7. **URL y accesibilidad**: confirmo que no aplican a una CLI, salvo que quieras que la salida de `list` sea legible sin color (la recomendación es que lo sea, con la etiqueta en texto).\n\nSi me confirmas esto (basta con \"sí a todo\" o indicar …",
+          "tokens": 260606
+        },
+        {
+          "role": "user",
+          "kind": "question",
+          "text": "Respondo punto por punto:\n\n1. Sin `--priority`: sí, se guarda `media`. Una tarea sin prioridad es de prioridad media.\n2. Mayúsculas: no tengo preferencia; sigue tu recomendación.\n3. Tareas antiguas sin campo `priority`: sí, se leen como `media`, sin migrar ni reescribir `~/.tasks.json`. `list` no puede fallar con ellas.\n4. Salida de `list`: no pongas la prioridad delante del título. El principio de cada línea (`[ ] 3 título`) no puede cambiar, porque hay scripts que lo leen. Si quieres mostrarla, añádela detrás del título, por ejemplo `[ ] 1 Comprar pan [alta]`. Si no, solo úsala para ordenar.\n5. Valor no válido: sí, es un error de uso con código de salida `2`, mensaje en stderr y no se guarda nada. Para `--priority` sin valor no tengo preferencia; sigue tu recomendación.\n6. Igual prioridad: se mantiene el orden de creación.\n7. URL y accesibilidad: no tengo preferencia sobre la salida sin color; sigue tu recomendación.\n\nCuando lo tengas, implementa, añade los tests, cierra con ospec (archivado en idd/archive/) y haz el commit dejando el árbol limpio.",
+          "facts_disclosed": [
+            "F1",
+            "F2",
+            "F3",
+            "F4",
+            "F5"
+          ],
+          "deviates_from_recommendation": true
+        },
+        {
+          "role": "agent",
+          "text": "Prioridad implementada, con tests, cerrada con IDD y commiteada. El árbol está limpio.\n\n**Commit:** `4b39d5f feat(tasks): añadir prioridad a las tareas`\n\n**Qué hace ahora:**\n- `tasks add Comprar pan --priority alta` guarda la prioridad. Sin el flag, la tarea es `media`. Se aceptan mayúsculas y se guardan en minúsculas.\n- Un valor no válido, `--priority` sin valor o el flag fuera del final da error de uso con código `2`, mensaje en stderr, y no se guarda nada.\n- `tasks list` ordena alta → media → baja. Dentro de cada prioridad se mantiene el orden de creación.\n- Las tareas antiguas sin campo `priority` se leen como `media`. No se reescribe `~/.tasks.json`.\n\n**Un cambio de salida que conviene que sepas:** como elegiste mostrar la prioridad, `list` añade `[media]`, `[alta]` o `[baja]` detrás del título en todas las líneas, también en las tareas antiguas. El inicio de cada línea (`[ ] 3 `) no cambia, así que los scripts que lo leen siguen funcionando. Si alguno parsea el final de la línea, habrá que revisarlo.\n\n**Verificación:** `npm test` pasa 7/7. Escribí los tests antes de implementar y comprobé que fallaban por las razones esperadas. La migración de tareas antiguas quedó registrada como evidencia en IDD.\n\n**Cambios:** `src/cli.js`, `test/cli.js`, `README.md` y el archivo del cambio en `idd/archive/2026-10-21-task-priority/`.\n\n**Commit sin atribución:** la regla de tu CLAUDE.md prohíbe citar a un modelo en los commits. Por eso no añadí la línea `Co-Authored-By: Claude Haiku 5.…",
+          "tokens": 1366374
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "0ba727b329ffa51a45b07a79273d428d67e886ebf216ec3bb088dfb9ca40b930"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "91003407a27422517ae4c74516f2a2eee6924cf8ee2a46ba43d767bb1b0d7432"
+        },
+        {
+          "label": "change",
+          "turn": 2,
+          "sha256": "611a3745137dccdd9c73686159219fd6863b4af8a80caf4a34e95bd9eda772c2"
+        }
+      ]
+    },
+    {
+      "scenario_id": "saas-small",
+      "repetition": 1,
+      "profile": "saas-small",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 4,
+          "output": 568,
+          "cache_read": 40019,
+          "cache_creation": 14383
+        },
+        "cost_usd": 0.003561,
+        "duration_ms": 5982,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 78,
+          "output": 32733,
+          "cache_read": 1912152,
+          "cache_creation": 86233
+        },
+        "tokens_total": 2031196,
+        "cost_usd": 0.052742,
+        "duration_ms": 135321,
+        "agent_turns": 2,
+        "model_turns": 39,
+        "subagents": 0,
+        "questions": 1,
+        "decision_changing_questions": 1,
+        "interventions": 1,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 2,
+          "output": 1474,
+          "cache_read": 578,
+          "cache_creation": 2450
+        },
+        "cost_usd": 0.001233,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "share-visible",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "owner-only-share",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "no-cross-tenant-share",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "read-only-share",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "idempotent-share",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": true
+        },
+        {
+          "id": "tenant-isolation",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 0,
+      "facts_disclosed": [
+        "F1",
+        "F2",
+        "F3",
+        "F4"
+      ],
+      "changed_files": [
+        "README.md",
+        "idd/archive/2026-10-21-share-note/state.yaml",
+        "idd/config.yaml",
+        "src/app.js",
+        "src/repo.js",
+        "test/app.js"
+      ],
+      "open_facts": {
+        "kind": "feature",
+        "categories": {
+          "inputs": "asked",
+          "uniqueness": "asked",
+          "persistence": "asked",
+          "copy": "asked",
+          "url-state": "cited",
+          "accessibility": "asked",
+          "errors": "asked"
+        },
+        "questions": 6
+      },
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Ya tengo el cambio registrado en IDD (`share-note`), pero no edito nada hasta que respondas. Hay 6 decisiones de comportamiento que la petición no fija y que el CLI exige cerrar antes de programar. Te propongo una opción para cada una:\n\n1. **`userId` ausente o inexistente.** Propongo `400 userId-required` si falta, y `404 user-not-found` si no existe. El 404 cubre también usuarios de otra organización, igual que hoy hace `sameTenant` con las notas. Alternativa: 400 para ambos casos, pero no oculta que el usuario existe en otra org.\n2. **Compartir dos veces con el mismo usuario.** Propongo que sea idempotente (`200`, sin duplicar). Así un reintento del cliente no da error. Alternativa: `409`, más estricto pero más frágil para clientes.\n3. **Borrar la nota.** Propongo que el acceso compartido desaparezca con ella, porque el acceso vive en la propia nota. Alternativa: conservar un registro de compartidos aparte, que complica el modelo sin un caso de uso pedido.\n4. **Respuesta del share correcto.** Propongo `200` con `{ id, sharedWith: [...] }`. Alternativa: `204`, igual que `DELETE`, si no quieres exponer la lista de compartidos.\n5. **Interfaz.** El repo es solo API (`createApp().handle`, sin UI). Propongo no añadir nada de interfaz; el destinatario ve la nota por `GET /notes` y `GET /notes/:id`.\n6. **Permisos.**\n   - Solo el dueño puede compartir. Otro usuario de la misma org recibe `403`, como hoy en `PUT` y `DELETE`. Un usuario de otra org recibe `404`.\n   - El destinatario e…",
+          "tokens": 218274
+        },
+        {
+          "role": "user",
+          "kind": "question",
+          "text": "Acepto las seis propuestas tal cual. Las comparé con lo que sé y no contradicen nada:\n\n1. Sí: `400` si falta `userId` y `404` si no existe. Compartir con alguien de otra organización falla y no da acceso, así que el `404` encaja.\n2. Sí: compartir dos veces con la misma persona es idempotente (`200`, sin duplicar). Compartir dos veces no es un error.\n3. Sí, el acceso compartido desaparece con la nota.\n4. Sí, `200` con `{ id, sharedWith: [...] }`.\n5. Sí, sin interfaz; solo API.\n6. Sí. Solo el dueño puede compartir, así que el otro usuario de la misma org recibe `403` y el de otra org `404`. El destinatario es de solo lectura: `PUT` y `DELETE` le dan `403`. No puede volver a compartir.\n\nSigue hasta dejarlo terminado: implementación, tests, `ospec close` con archivo en idd/archive/, commit y árbol limpio.",
+          "facts_disclosed": [
+            "F1",
+            "F2",
+            "F3",
+            "F4"
+          ],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "Compartir notas ya está implementado, probado, cerrado en IDD y commiteado. El árbol de trabajo queda limpio.\n\n**Commit:** `b312334` `feat(notes): permitir compartir una nota con un compañero`\n\n**Lo que hace**\n- `POST /notes/:id/share` con `{ \"userId\": \"u2\" }` lo ejecuta solo el dueño. Responde `200` con `{ id, sharedWith: [...] }`.\n- El destinatario de la misma organización ve la nota en `GET /notes` y la lee con `GET /notes/:id`.\n- El destinatario es de solo lectura: `PUT` y `DELETE` le dan `403`, y no puede volver a compartir.\n- Compartir dos veces con la misma persona es idempotente.\n- Si falta `userId` responde `400 userId-required`. Si el usuario no existe o es de otra organización responde `404 user-not-found`.\n- Si el dueño borra la nota, el acceso compartido desaparece con ella.\n\n**Verificación**\n- `npm test`: 10 de 10 tests pasan. Los siete tests nuevos se vieron fallar antes de implementar.\n- `ospec check`: `check test: exit 0`. `ospec close`: cambio archivado en `idd/archive/2026-10-21-share-note`.\n\n**Decisiones que tomé y conviene revisar**\n- **Compartir con uno mismo:** no hace nada y responde `200`. No estaba en las seis propuestas.\n- **`idd/config.yaml`:** añadí `contracts.documents: [README.md]`. Sin esto, el CLI no reconoce el README como contrato de API y el cambio no cierra, porque los patrones por defecto de Node solo miran `*.d.ts`. Es un cambio pequeño y reversible; si prefieres otro documento de contrato, dímelo.\n- **Forma de `GET /notes` y `GET /notes…",
+          "tokens": 1812922
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "f0e6e6adf6ac4cebf7854074d3c8d45fc7cf259f38def072e0e164fd15385ebf"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "d25f014b7b71db76fbe0a8e244131be5a70610149fbb0d1d1fe027ee82c5650b"
+        },
+        {
+          "label": "change",
+          "turn": 2,
+          "sha256": "d01c631c2ff70fea4d725616c6c6a7c56b11c4056a7cfdac3eb703b7dbb1426e"
+        }
+      ]
+    },
+    {
+      "scenario_id": "regulated",
+      "repetition": 1,
+      "profile": "regulated",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 4,
+          "output": 648,
+          "cache_read": 40016,
+          "cache_creation": 14457
+        },
+        "cost_usd": 0.003616,
+        "duration_ms": 6661,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 76,
+          "output": 35377,
+          "cache_read": 1845273,
+          "cache_creation": 90763
+        },
+        "tokens_total": 1971489,
+        "cost_usd": 0.054302,
+        "duration_ms": 143513,
+        "agent_turns": 2,
+        "model_turns": 32,
+        "subagents": 0,
+        "questions": 1,
+        "decision_changing_questions": 1,
+        "interventions": 1,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 2,
+          "output": 2065,
+          "cache_read": 1760,
+          "cache_creation": 1519
+        },
+        "cost_usd": 0.001354,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "export-day-sorted",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "no-national-id-or-diagnosis",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "export-audited",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "export-roles",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "csv-escaping",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": true
+        },
+        {
+          "id": "patient-reads-still-audited",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 0,
+      "facts_disclosed": [
+        "F2",
+        "F3",
+        "F4"
+      ],
+      "changed_files": [
+        "README.md",
+        "idd/archive/2026-10-21-appointments-csv-export/state.yaml",
+        "src/clinic.js",
+        "test/clinic.js"
+      ],
+      "open_facts": {
+        "kind": "feature",
+        "categories": {
+          "inputs": "asked",
+          "uniqueness": "asked",
+          "persistence": "asked",
+          "copy": "asked",
+          "url-state": "asked",
+          "accessibility": "asked",
+          "errors": "asked"
+        },
+        "questions": 7
+      },
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Registré la intención del cambio en IDD (`appointments-csv-export`), pero no he editado código todavía. Antes hay que resolver 7 preguntas de comportamiento que ni la petición ni el código fijan. Son estas, con mi recomendación en cada una:\n\n1. **¿Quién puede exportar?** `appointmentsOn` deja leer la agenda a `doctor` y `reception`. Recomiendo lo mismo para el export, porque es la misma información impresa. La alternativa es solo `reception`, que es más restrictiva pero exige un rol nuevo en el control de acceso. También: ¿neutralizo las celdas que empiezan por `=`, `+`, `-` o `@`? Recomiendo sí, porque el motivo y el nombre son texto libre y Excel podría ejecutarlos como fórmulas.\n2. **¿Citas a la misma hora?** Recomiendo ordenar por hora y, a igual hora, por `id`, para que la salida sea determinista. La alternativa es mantener el orden de entrada, que no es estable si cambia la fuente de datos.\n3. **¿Auditar el export?** Recomiendo sí, con una acción nueva `export-appointments`, en línea con el art. 9 del RGPD y con cómo está hecho `appointmentsOn`. Un documento impreso con nombres de pacientes es un acceso que debe quedar registrado.\n4. **¿Cabecera en español o inglés?** La petición está en español, así que recomiendo `hora,paciente,motivo`.\n5. **¿Algún estado de URL o ruta?** No veo ninguno en el código, que es una función pura sin rutas. Solo confirma que no lo hay.\n6. **¿BOM UTF-8?** Recomiendo añadirlo para que tildes y ñ se vean bien al abrir el CSV en Excel. Tiene el…",
+          "tokens": 301794
+        },
+        {
+          "role": "user",
+          "kind": "question",
+          "text": "1: Pueden exportar `doctor` y `reception`, cualquier otro rol recibe AccessDeniedError. Lo de neutralizar celdas que empiezan por =, +, -, @ no lo tengo decidido; sigue tu recomendación.\n2: No tengo preferencia; sigue tu recomendación (hora, y a igual hora, id).\n3: Sí, audítalo. Cada exportación debe quedar registrada con quién la hizo y cuántas filas salieron. La acción nueva que propones me vale.\n4: No tengo preferencia; sigue tu recomendación (hora,paciente,motivo).\n5: No tengo información sobre estados de URL o ruta; no tengo preferencia.\n6: No tengo preferencia; sigue tu recomendación.\n7: No tengo preferencia; sigue tu recomendación.\nLo del escapado CSV y el CRLF me parece bien, pero el resultado tiene que abrirse bien en una hoja de cálculo cuando haya comas y comillas en nombres y motivos, como `Pérez, Ana` o `Revisión \"anual\"`.\nCuando tengas las respuestas, sigue hasta dejarlo cerrado con ospec close, archivado y commiteado.",
+          "facts_disclosed": [
+            "F2",
+            "F3",
+            "F4"
+          ],
+          "deviates_from_recommendation": false
+        },
+        {
+          "role": "agent",
+          "text": "`exportAppointmentsCsv(date, actor)` ya está en `createClinic`, cerrado con `ospec close`, archivado y commiteado como `0771946`. `npm test` pasa con 10 pruebas.\n\n- **Roles:** `doctor` y `reception` pueden exportar; cualquier otro rol recibe `AccessDeniedError`.\n- **Contenido:** cabecera `hora,paciente,motivo` y una fila por cita del día, ordenadas por hora y, a igual hora, por `id`. Si no hay citas, sale solo la cabecera.\n- **CSV:** los campos siguen RFC 4180, así que `Pérez, Ana` y `Revisión \"anual\"` quedan bien en sus celdas. Las líneas terminan en CRLF y el texto lleva BOM UTF-8 para que las tildes se vean al abrirlo.\n- **Fórmulas:** las celdas que empiezan por `=`, `+`, `-`, `@`, tabulador o retorno de carro llevan un apóstrofo delante. Tiene un coste: la hoja muestra ese apóstrofo como parte del texto.\n- **Paciente inexistente:** la fila sale con el nombre vacío. **Fecha inválida:** lanza `TypeError`.\n- **Auditoría:** cada exportación registra la acción `export-appointments` con quién la hizo, la fecha y cuántas filas salieron.\n- **README:** la tabla de roles ya indica que ambos pueden exportar.\n\nDos cosas que conviene saber:\n\n- Cerré el cambio después de sustituir el BOM literal por la secuencia `\\uFEFF` en el código. Es un cambio cosmético: el comportamiento es idéntico y las pruebas siguen pasando, pero la verificación registrada en IDD corresponde al árbol anterior.\n- Antes de escribir código, `ospec check` pasó y `next` pidió cerrar, aunque la funcionalidad no exis…",
+          "tokens": 1669695
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "ddcf3fe523484c75c710df2237b3e96abfbe6f6fb895c68cecd16ddb71979137"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "2904a472510ff15660b1f5514155aeaec1ade76bf40e300425ca4fb6e737ab87"
+        },
+        {
+          "label": "change",
+          "turn": 2,
+          "sha256": "e486bf43780d9afecfd20564a92d54f73c82d9d8f30c44461ce13a2d9283817e"
+        }
+      ]
+    },
+    {
+      "scenario_id": "brownfield",
+      "repetition": 1,
+      "profile": "brownfield",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 6,
+          "output": 868,
+          "cache_read": 65805,
+          "cache_creation": 16641
+        },
+        "cost_usd": 0.004421,
+        "duration_ms": 7594,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 70,
+          "output": 38884,
+          "cache_read": 1735347,
+          "cache_creation": 89045
+        },
+        "tokens_total": 1863346,
+        "cost_usd": 0.054612,
+        "duration_ms": 156760,
+        "agent_turns": 2,
+        "model_turns": 31,
+        "subagents": 0,
+        "questions": 1,
+        "decision_changing_questions": 1,
+        "interventions": 1,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 2,
+          "output": 2140,
+          "cache_read": 0,
+          "cache_creation": 3592
+        },
+        "cost_usd": 0.001789,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "discount-applied",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "discount-before-vat",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "shipping-after-discount",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "case-insensitive-code",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "unknown-code-throws",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": true
+        },
+        {
+          "id": "history-unchanged",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 0,
+      "facts_disclosed": [
+        "F1",
+        "F2",
+        "F3",
+        "F4",
+        "F5"
+      ],
+      "changed_files": [
+        "README.md",
+        "idd/archive/2026-10-21-discount-codes/change.md",
+        "idd/archive/2026-10-21-discount-codes/state.yaml",
+        "src/invoice.js",
+        "test/invoice.test.js"
+      ],
+      "open_facts": {
+        "kind": "feature",
+        "categories": {
+          "inputs": "asked",
+          "uniqueness": "asked",
+          "persistence": "asked",
+          "copy": "asked",
+          "url-state": "asked",
+          "accessibility": "asked",
+          "errors": "asked"
+        },
+        "questions": 7
+      },
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "He abierto el cambio `discount-codes` en IDD y he registrado la intención. Antes de tocar código tengo que resolver unas preguntas de comportamiento que ni la petición ni el código fijan. Quedo a la espera de tus respuestas. Te dejo mi recomendación en cada una.\n\nHallazgos del código:\n- `src/invoice.js` tiene un comentario en la cabecera: \"No tocar sin hablar con contabilidad\". La petición viene de contabilidad, pero conviene confirmarlo.\n- El README describe el contrato de `calcInvoice` (`{ lineas, subtotal, iva, envio, total }`). Añadir `descuento` cambia ese contrato.\n- `src/invoice.js` no tiene pruebas, y `npm test` (el check configurado) no tiene ninguna que ejecutar.\n\n**Preguntas**\n\n1. **Código desconocido o mal escrito** (p. ej. `VERANO99`): ¿error o factura sin descuento?\n   - Recomiendo lanzar error. Si se ignora en silencio, contabilidad facturaría sin descuento sin enterarse. El coste es que el checkout tendrá que gestionar el error.\n2. **Mayúsculas y espacios** (`verano10` o `\" VERANO10 \"`): ¿se normalizan?\n   - Recomiendo normalizar con `trim` y mayúsculas. El riesgo es casi nulo y evita rechazos absurdos.\n3. **Campo `descuento` sin código**: ¿siempre presente con `0`, o solo cuando hay código?\n   - Recomiendo siempre presente con `0`. Así la forma de la factura es estable para quien la consume. Añadir un campo no rompe a los consumidores actuales.\n4. **Nombre y unidad**: ¿`descuento` es el importe en euros (no el porcentaje)?\n   - Recomiendo importe en euros, re…",
+          "tokens": 218503
+        },
+        {
+          "role": "user",
+          "kind": "question",
+          "text": "Respuestas:\n\n1. Código desconocido (p. ej. VERANO99): error. Se lanza excepción y no se calcula la factura.\n2. Mayúsculas: sí, `verano10` vale igual que `VERANO10`. Sobre los espacios no tengo preferencia; sigue tu recomendación (trim).\n3. Campo `descuento` sin código: no lo quiero con 0. Las facturas sin código tienen que salir exactamente igual que hoy, céntimo a céntimo, incluido el redondeo por línea. Así que el campo solo aparece cuando hay código. Corrige tu recomendación.\n4. Unidades: no tengo preferencia; sigue tu recomendación (importe en euros, r2).\n5. Dónde viaja el código: no tengo preferencia; sigue tu recomendación (solo en `order`).\n6. Accesibilidad: no tengo preferencia. No sé si existe plantilla de factura; compruébalo en el repo y decide según lo que haya.\n7. Base del descuento: sí. El descuento reduce la base imponible antes del IVA, y el IVA se calcula sobre el importe ya descontado.\n8. Envío: corrijo. El envío nunca se descuenta, pero el umbral de envío gratis (50) se evalúa con el importe ya descontado, no con el subtotal previo.\n\nSobre los hallazgos: sí, la petición viene de contabilidad. Añadir `descuento` es el cambio que pido, así que actualiza el README. Escribe primero los tests de comportamiento y, al terminar, cierra con ospec (archivado en idd/archive/) y deja el commit con el árbol limpio.",
+          "facts_disclosed": [
+            "F1",
+            "F2",
+            "F3",
+            "F4",
+            "F5"
+          ],
+          "deviates_from_recommendation": true
+        },
+        {
+          "role": "agent",
+          "text": "El cambio está hecho y commiteado en la rama `discount-codes` (commit `b2a43e7`). No lo he subido a remoto ni he tocado `main`: como estaba en `main`, lo he puesto en una rama nueva. Si lo prefieres en `main`, dímelo y lo muevo.\n\n**Qué hace**\n- `calcInvoice` acepta `order.discountCode` (p. ej. `VERANO10`, `BIENVENIDA5`) usando los porcentajes de `src/discounts.js`.\n- Con código, la factura incluye `descuento` en euros. El descuento se calcula por línea, el IVA se aplica sobre la base ya descontada, el envío no se descuenta, y el umbral de envío gratis (50 €) se evalúa con el importe descontado. `total = subtotal - descuento + iva + envio`.\n- Código desconocido: lanza error. Mayúsculas y espacios se normalizan.\n- Sin código (`undefined`, `null` o vacío), la factura no incluye `descuento`.\n\n**Verificación**\n- Escribí los tests antes de implementar (`test/invoice.test.js`). En rojo, 5 de 8 fallaban; tras implementar, `npm test` pasa 8/8.\n- Comparé la versión nueva con la original (`git show HEAD`) sobre 200.000 pedidos aleatorios sin código: salida idéntica, céntimo a céntimo.\n- `ospec check` dio `checks-pass` (`npm test`), y `ospec close` archivó el cambio en `idd/archive/2026-10-21-discount-codes/`.\n\n**Decisiones que tomé yo** (no las fijaste en tus respuestas)\n- Descuento por línea, y `subtotal` sigue siendo el bruto. Así `lineas` y `subtotal` no cambian de significado.\n- Cadena vacía o solo espacios cuenta como \"sin código\".\n- Accesibilidad: no aplica. El repo no tiene plant…",
+          "tokens": 1644843
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "e8e5724099f008682b1f56e74ccae2d2bc831a5e8935638f4f3718c75d9f6670"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "8addb04e10cd3a3f95cfff2a2440db77732f2c008f3dcf5bb0a0aca17e92bea6"
+        },
+        {
+          "label": "change",
+          "turn": 2,
+          "sha256": "c304e84a913202386103c2d630f5ff098eeb358ffe66fbc0fbc2e1034fff5b20"
+        }
+      ]
+    },
+    {
+      "scenario_id": "public-library",
+      "repetition": 1,
+      "profile": "public-library",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 4,
+          "output": 382,
+          "cache_read": 40016,
+          "cache_creation": 14180
+        },
+        "cost_usd": 0.003428,
+        "duration_ms": 4421,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 90,
+          "output": 33145,
+          "cache_read": 2036314,
+          "cache_creation": 86778
+        },
+        "tokens_total": 2156327,
+        "cost_usd": 0.054301,
+        "duration_ms": 143028,
+        "agent_turns": 2,
+        "model_turns": 42,
+        "subagents": 0,
+        "questions": 1,
+        "decision_changing_questions": 1,
+        "interventions": 1,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 2,
+          "output": 2135,
+          "cache_read": 578,
+          "cache_creation": 2404
+        },
+        "cost_usd": 0.001554,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "parse-days",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "format-unchanged-by-default",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "format-days-option",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "types-updated",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "changelog-updated",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "existing-behavior",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 0,
+      "facts_disclosed": [
+        "F1",
+        "F2"
+      ],
+      "changed_files": [
+        "CHANGELOG.md",
+        "README.md",
+        "idd/archive/2026-10-21-add-days-unit/change.md",
+        "idd/archive/2026-10-21-add-days-unit/state.yaml",
+        "index.d.ts",
+        "index.js",
+        "test/duration.js"
+      ],
+      "open_facts": {
+        "kind": "feature",
+        "categories": {
+          "inputs": "asked",
+          "uniqueness": "asked",
+          "persistence": "cited",
+          "copy": "asked",
+          "url-state": "cited",
+          "accessibility": "asked",
+          "errors": "asked"
+        },
+        "questions": 5
+      },
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "He abierto el cambio IDD `add-days-unit` y ahí me he parado: todavía no he editado código. La intención quedó registrada, y el protocolo exige resolver estas preguntas de comportamiento antes de implementar.\n\nPara cada una dejo mi recomendación:\n\n1. **Mayúsculas (`2D`)**: hoy el patrón solo acepta minúsculas (`h`, `m`, `s`, `ms`). Recomiendo que `d` también sea solo minúscula, para ser coherente. La alternativa es aceptar `D`, más permisivo pero distinto del resto.\n2. **Unidad repetida (`1d1d`)**: hoy `1h1h` se suma a 2h. Recomiendo sumar también los días, para no cambiar la regla. La alternativa es rechazarla con `SyntaxError`, pero eso introduce una regla nueva solo para días.\n3. **Texto de `format`**: recomiendo `1d 2h`, con `d` igual que `h`, `m`, `s`. La alternativa es `days`, que es más legible pero rompe el estilo compacto.\n4. **Accesibilidad**: recomiendo el mismo formato compacto. Spelled-out units cambiarían la salida de todo el paquete, no solo de los días.\n5. **Entradas malformadas (`1.5d`, `d`)**: recomiendo `SyntaxError`, igual que hoy con `1.5h`, que ya falla así.\n\nAdemás, dos decisiones que no entraron en el registro, pero que asumiría salvo que digas otra cosa:\n\n- **Orden de unidades**: mantener el parseo en cualquier orden (`4h2d` válido), como hoy con h/m/s.\n- **Versión y changelog**: añadir la entrada a `[Unreleased]` del CHANGELOG sin subir la versión 1.4.0. El bump a 1.5.0 lo dejaría para cuando publiques.\n\n¿Confirmas estas recomendaciones o prefieres ot…",
+          "tokens": 454527
+        },
+        {
+          "role": "user",
+          "kind": "question",
+          "text": "No tengo preferencia en las preguntas 1, 2, 4 y 5 ni en el orden de unidades: sigue tu recomendación.\n\nSobre la 3, hay que corregir algo. `format` no puede cambiar por defecto: sin opciones tiene que devolver la salida de siempre (por ejemplo `25h`), porque hay usuarios que guardan esa salida y la comparan. Los días solo aparecen con `format(ms, { days: true })`, y con esa opción sí muestra `1d 2h`. Ajusta el plan a eso.\n\nSobre la versión: la próxima versión es 1.5.0 y es menor. Nada de lo que ya funciona puede cambiar de comportamiento. Tu propuesta de dejar el bump para cuando publiquemos me parece bien.\n\nCuando lo tengas, implementa con TDD, cierra con ospec close (archivado en idd/archive/), haz el commit y deja el árbol limpio.",
+          "facts_disclosed": [
+            "F1",
+            "F2"
+          ],
+          "deviates_from_recommendation": true
+        },
+        {
+          "role": "agent",
+          "text": "Hecho: `parse('2d4h')` funciona, `format` muestra días con `{ days: true }` y el trabajo está commiteado en `697ee45` con el árbol limpio. Los 7 tests pasan.\n\n- **parse**: acepta `d`. `2d4h` devuelve 187200000 ms. Los tests cubren también `1d 2h`, `4h2d` y `1d1d`, y rechazan `2D`, `1.5d` y `d` con `SyntaxError`.\n- **format**: sin opciones, la salida es la de siempre (`format(90000000)` sigue dando `25h`). Con `{ days: true }`, `format(187200000, { days: true })` devuelve `2d 4h`.\n- **Compatibilidad**: comparé contra el `index.js` de HEAD con 40.000 entradas aleatorias y no hubo ninguna diferencia en `parse` ni en `format` por defecto.\n- **Docs**: `index.d.ts`, `README.md` y `CHANGELOG.md` (en `[Unreleased]`, sin bump a 1.5.0).\n- **IDD**: el cambio `add-days-unit` está cerrado con `ospec close` y archivado en `idd/archive/`. Ese archivo también va en el commit.\n\nUn error mío: en el intent de IDD registré el acceptance con el número equivocado, 183600000 (que es 2d 3h). El valor correcto es 187200000. El intent no se puede editar después de resolverlo, así que lo dejé anotado en `change.md` y en el registro de la puerta. El código y los tests usan el valor correcto.\n\nNo añadí el `Co-Authored-By` de Claude que indicaba el aviso del sistema, porque tu CLAUDE.md prohíbe atribuir modelos en commits.\n\nLo último que no pude hacer: guardar la decisión en engram. La llamada falló con un error de hook (\"session already ended\"). La decisión queda documentada en `change.md` del archivo de…",
+          "tokens": 1701800
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "2e21e1b81af33dd2fe546126e856137b1d41d84a4a1219a079d4778688d44539"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "62c82622e0288464adf8c1d6adfb3138c953836daf04e482aa148529ff834b5e"
+        },
+        {
+          "label": "change",
+          "turn": 2,
+          "sha256": "100820f7d2cd185a70b7ed145115ca0948a6d9262ff7b5e57b2ef49f233b30d8"
+        }
+      ]
+    },
+    {
+      "scenario_id": "bugfix",
+      "repetition": 1,
+      "profile": "bugfix",
+      "status": "complete",
+      "reason": null,
+      "setup": {
+        "status": "complete",
+        "reason": null,
+        "agent_turns": 1,
+        "usage": {
+          "input": 4,
+          "output": 648,
+          "cache_read": 40018,
+          "cache_creation": 14532
+        },
+        "cost_usd": 0.003631,
+        "duration_ms": 5860,
+        "interventions": 0,
+        "modified_seed": []
+      },
+      "metrics": {
+        "usage": {
+          "input": 52,
+          "output": 14441,
+          "cache_read": 990350,
+          "cache_creation": 62916
+        },
+        "tokens_total": 1067759,
+        "cost_usd": 0.029712,
+        "duration_ms": 64336,
+        "agent_turns": 2,
+        "model_turns": 23,
+        "subagents": 0,
+        "questions": 1,
+        "decision_changing_questions": 1,
+        "interventions": 1,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 2,
+          "output": 685,
+          "cache_read": 578,
+          "cache_creation": 2512
+        },
+        "cost_usd": 0.000851,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "exact-multiple",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "page-below-one",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "beyond-last-page",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "empty-list",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "invalid-page-size",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": false,
+          "error": "Missing expected exception (RangeError)."
+        },
+        {
+          "id": "existing-pages",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 1,
+      "facts_disclosed": [
+        "F1",
+        "F3"
+      ],
+      "changed_files": [
+        "idd/archive/2026-10-21-paginate-total-pages/state.yaml",
+        "src/paginate.js",
+        "test/paginate.js"
+      ],
+      "open_facts": {
+        "kind": "bug",
+        "categories": null,
+        "questions": 2
+      },
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "He encontrado la causa, pero antes de tocar código necesito dos respuestas tuyas. El cambio ya está abierto en IDD (`paginate-total-pages`) y no he editado nada.\n\n**Causa del bug** (`src/paginate.js`, por lectura del código; no lo he ejecutado):\n- `totalPages = Math.floor(items.length / pageSize) + 1`. Con 20 productos y páginas de 10 da 3, cuando debería dar 2. Con 25 da 3, correcto por casualidad. Lo correcto es `Math.ceil(items.length / pageSize)`.\n- `paginate(items, 0)`: `start = -10`, así que `slice(-10, 0)` devuelve `[]`. Con página negativa, `slice` cuenta desde el final y devuelve elementos sueltos. Por eso lo ves \"raro\".\n\n**Pregunta 1: ¿qué debe pasar con `page` < 1 (0 o negativo)?**\n- **A) Lanzar `RangeError`.** Es lo más explícito: el error aparece donde está el fallo. El tradeoff es que la ruta `GET /products?page=0` debe capturarlo y responder 400 o 404.\n- **B) Ajustar a la página 1.** La web nunca rompe, pero oculta peticiones inválidas.\n- **C) Devolver una página vacía.** Es lo que hace hoy de forma accidental, y no lo recomiendo.\n\nMi recomendación es **A**.\n\n**Pregunta 2: ¿cuántas páginas tiene una lista vacía, `paginate([], 10)`?**\n- **A) `totalPages = 0`.** Es coherente con `ceil(0 / n) = 0`. La web debe mostrar \"sin resultados\" en lugar de paginación.\n- **B) `totalPages = 1`.** La página 1 existe aunque esté vacía, y la UI no cambia. Es menos puro matemáticamente.\n\nMi recomendación es **A**, porque es la fórmula directa y la página 1 sigue devolviendo `item…",
+          "tokens": 207912
+        },
+        {
+          "role": "user",
+          "kind": "question",
+          "text": "Pregunta 1: una página menor que 1 (0 o negativa) se trata como la página 1, y la respuesta devuelve `page: 1`. No quiero RangeError para eso. Pregunta 2: una lista vacía tiene 0 páginas, `totalPages = 0`, como propones. Sigue con lo que has indicado: prueba de regresión primero, `npm test`, y commit en Conventional Commits sin atribución de modelo. Cierra el cambio con ospec close (archivado en idd/archive/) y deja el árbol limpio.",
+          "facts_disclosed": [
+            "F1",
+            "F3"
+          ],
+          "deviates_from_recommendation": true
+        },
+        {
+          "role": "agent",
+          "text": "Arreglado y commiteado en `cd2963a`. El árbol está limpio y `npm test` pasa 6/6.\n\n**Cambio** (`src/paginate.js`):\n- `totalPages` pasa de `floor(n / pageSize) + 1` a `ceil(n / pageSize)`. Con 20 productos y páginas de 10 da 2, y una lista vacía da 0.\n- Una página menor que 1 se trata como la 1, y la respuesta devuelve `page: 1`. No hay `RangeError`.\n\n**Pruebas** (`test/paginate.js`): añadí cuatro casos. Antes del arreglo, el caso de página < 1 falló con `0 !== 1`. Después, los seis casos pasan.\n\n**IDD:** el cambio `paginate-total-pages` se cerró con `ospec close` y quedó archivado en `idd/archive/2026-10-21-paginate-total-pages`. Ese archivo va en el mismo commit.\n\n**Commit:** `fix(paginate): use ceil for totalPages and treat page < 1 as page 1`, sin línea de atribución de modelo. El recordatorio del harness pedía un `Co-Authored-By` de Claude; no lo añadí porque tu CLAUDE.md prevalece sobre él. Si lo quieres, dímelo y lo añado con `--amend`.\n\n**Pendiente:** no pude guardar la memoria del arreglo. El hook de engram devolvió \"Claude host session already ended\". No afecta al código.",
+          "tokens": 859847
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "setup",
+          "turn": 1,
+          "sha256": "03db83c9179a3f49d2d31159a6cc143ee70e190a35a58db17254a929168bac4f"
+        },
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "109ee67f8bea5166505404b548d45233bf6631ecb848aec4f30c57fdf8a05bde"
+        },
+        {
+          "label": "change",
+          "turn": 2,
+          "sha256": "38fc5b8682403f681365281721ce01c7b709212bcb0912283c2fc1c9245515be"
+        }
+      ]
+    }
+  ]
+}

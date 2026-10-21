@@ -1,0 +1,91 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 2a82b5d..a2c161b 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,10 @@
+ 
+ ## [Unreleased]
+ 
++### Added
++
++- Day parts (`2d4h`) in `parse` and `format`.
++
+ ## [1.4.0] - 2026-06-02
+ 
+ ### Added
+diff --git a/README.md b/README.md
+index 4d0054e..e83bb66 100644
+--- a/README.md
++++ b/README.md
+@@ -11,9 +11,9 @@ format(5400000); // "1h 30m"
+ 
+ ## API
+ 
+-- `parse(text)`: milliseconds from a duration made of `h`, `m`, `s` and `ms`
+-  parts. Throws `TypeError` on empty input and `SyntaxError` on anything else
+-  it cannot read.
++- `parse(text)`: milliseconds from a duration made of `d`, `h`, `m`, `s` and
++  `ms` parts. Throws `TypeError` on empty input and `SyntaxError` on anything
++  else it cannot read.
+ - `format(ms)`: the largest units first, separated by spaces. `0` is `"0s"`.
+ 
+ ## Versioning
+diff --git a/index.d.ts b/index.d.ts
+index 2542036..951a44d 100644
+--- a/index.d.ts
++++ b/index.d.ts
+@@ -1,5 +1,5 @@
+-/** Parses a compact duration such as "1h30m" or "2m 5s" into milliseconds. */
++/** Parses a compact duration such as "1h30m", "2d4h" or "2m 5s" into milliseconds. */
+ export function parse(text: string): number;
+ 
+-/** Formats milliseconds as "1h 30m". */
++/** Formats milliseconds as "1h 30m" or "1d 2h". */
+ export function format(ms: number): string;
+diff --git a/index.js b/index.js
+index 400bf47..fb5fd7d 100644
+--- a/index.js
++++ b/index.js
+@@ -1,7 +1,7 @@
+ "use strict";
+ 
+-const UNITS = Object.freeze({ h: 3600000, m: 60000, s: 1000, ms: 1 });
+-const PATTERN = /(\d+)(ms|h|m|s)/g;
++const UNITS = Object.freeze({ d: 86400000, h: 3600000, m: 60000, s: 1000, ms: 1 });
++const PATTERN = /(\d+)(ms|d|h|m|s)/g;
+ 
+ /**
+  * Parses a compact duration such as "1h30m" or "2m 5s" into milliseconds.
+diff --git a/test/duration.js b/test/duration.js
+index 36609f0..b5d90f7 100644
+--- a/test/duration.js
++++ b/test/duration.js
+@@ -5,10 +5,12 @@ const assert = require("node:assert/strict");
+ 
+ const { parse, format } = require("../index.js");
+ 
+-test("parse reads hours, minutes, seconds, and milliseconds", () => {
++test("parse reads days, hours, minutes, seconds, and milliseconds", () => {
+   assert.equal(parse("1h30m"), 5400000);
+   assert.equal(parse("2m 5s"), 125000);
+   assert.equal(parse("250ms"), 250);
++  assert.equal(parse("2d4h"), 2 * 86400000 + 4 * 3600000);
++  assert.equal(parse("1d"), 86400000);
+ });
+ 
+ test("parse rejects malformed input", () => {
+@@ -21,3 +23,14 @@ test("format renders the largest units first", () => {
+   assert.equal(format(0), "0s");
+   assert.equal(format(3723004), "1h 2m 3s 4ms");
+ });
++
++test("format shows days as the largest unit", () => {
++  assert.equal(format(86400000), "1d");
++  assert.equal(format(93600000), "1d 2h");
++  assert.equal(format(2 * 86400000 + 4 * 3600000), "2d 4h");
++});
++
++test("parse and format round-trip durations with days", () => {
++  const ms = parse("3d 5h 6m");
++  assert.equal(parse(format(ms)), ms);
++});

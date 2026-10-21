@@ -1,0 +1,158 @@
+diff --git a/README.md b/README.md
+index 4c576f0..058aa54 100644
+--- a/README.md
++++ b/README.md
+@@ -5,10 +5,16 @@ Gestor de tareas personal para la terminal. Guarda las tareas en un fichero JSON
+ 
+ ```sh
+ tasks add Comprar pan
++tasks add Pagar la luz --priority alta
+ tasks list
+ tasks done 1
+ ```
+ 
+-Códigos de salida: `0` correcto, `1` la tarea no existe, `2` error de uso.
++La prioridad es `alta`, `media` o `baja` (por defecto `media`) y va al final del
++comando. `tasks list` muestra primero las tareas de mayor prioridad, y dentro de
++cada prioridad en orden de creación.
++
++Códigos de salida: `0` correcto, `1` la tarea no existe, `2` error de uso (incluida
++una prioridad no válida).
+ 
+ Pruebas: `npm test`.
+diff --git a/src/cli.js b/src/cli.js
+index 3f5f441..eda8e1b 100644
+--- a/src/cli.js
++++ b/src/cli.js
+@@ -2,7 +2,30 @@
+ 
+ const { storePath, load, save } = require("./store.js");
+ 
+-const USAGE = "uso: tasks add <título> | tasks list | tasks done <id>";
++const USAGE = "uso: tasks add <título> [--priority <alta|media|baja>] | tasks list | tasks done <id>";
++const PRIORITIES = ["alta", "media", "baja"];
++const DEFAULT_PRIORITY = "media";
++
++// Only a trailing `--priority <value>` pair is a flag, so titles keep any other words.
++function parseAdd(words) {
++  const flagAt = words.length - 2;
++  let priority = DEFAULT_PRIORITY;
++  let titleWords = words;
++  if (flagAt >= 0 && words[flagAt] === "--priority") {
++    priority = words[flagAt + 1].toLowerCase();
++    titleWords = words.slice(0, flagAt);
++  } else if (words[words.length - 1] === "--priority") {
++    return null;
++  }
++  const title = titleWords.join(" ").trim();
++  if (!title || !PRIORITIES.includes(priority)) return null;
++  return { title, priority };
++}
++
++// Tasks saved before priorities existed have no field and count as the default.
++function priorityOf(task) {
++  return PRIORITIES.includes(task.priority) ? task.priority : DEFAULT_PRIORITY;
++}
+ 
+ // Exit codes: 0 ok, 1 the task does not exist, 2 usage error.
+ function run(argv, { stdout = process.stdout, stderr = process.stderr, env = process.env } = {}) {
+@@ -10,13 +33,13 @@ function run(argv, { stdout = process.stdout, stderr = process.stderr, env = pro
+   const file = storePath(env);
+ 
+   if (command === "add") {
+-    const title = rest.join(" ").trim();
+-    if (!title) {
++    const parsed = parseAdd(rest);
++    if (!parsed) {
+       stderr.write(`${USAGE}\n`);
+       return 2;
+     }
+     const data = load(file);
+-    const task = { id: data.nextId, title, done: false };
++    const task = { id: data.nextId, title: parsed.title, done: false, priority: parsed.priority };
+     data.nextId += 1;
+     data.tasks.push(task);
+     save(file, data);
+@@ -26,8 +49,12 @@ function run(argv, { stdout = process.stdout, stderr = process.stderr, env = pro
+ 
+   if (command === "list") {
+     const data = load(file);
+-    for (const task of data.tasks) {
+-      stdout.write(`${task.done ? "[x]" : "[ ]"} ${task.id} ${task.title}\n`);
++    // Array sort is stable, so tasks within the same priority keep creation order.
++    const byPriority = [...data.tasks].sort(
++      (a, b) => PRIORITIES.indexOf(priorityOf(a)) - PRIORITIES.indexOf(priorityOf(b)),
++    );
++    for (const task of byPriority) {
++      stdout.write(`${task.done ? "[x]" : "[ ]"} ${task.id} ${task.title} (${priorityOf(task)})\n`);
+     }
+     return 0;
+   }
+diff --git a/test/cli.js b/test/cli.js
+index 0ddacaa..b92bf94 100644
+--- a/test/cli.js
++++ b/test/cli.js
+@@ -27,14 +27,14 @@ test("add and list keep insertion order", () => {
+   const tasks = session();
+   assert.equal(tasks("add", "comprar", "pan").status, 0);
+   assert.equal(tasks("add", "llamar").status, 0);
+-  assert.equal(tasks("list").out, "[ ] 1 comprar pan\n[ ] 2 llamar\n");
++  assert.equal(tasks("list").out, "[ ] 1 comprar pan (media)\n[ ] 2 llamar (media)\n");
+ });
+ 
+ test("done marks a task", () => {
+   const tasks = session();
+   tasks("add", "regar");
+   assert.equal(tasks("done", "1").status, 0);
+-  assert.equal(tasks("list").out, "[x] 1 regar\n");
++  assert.equal(tasks("list").out, "[x] 1 regar (media)\n");
+ });
+ 
+ test("unknown task and usage errors", () => {
+@@ -43,3 +43,46 @@ test("unknown task and usage errors", () => {
+   assert.equal(tasks("add").status, 2);
+   assert.equal(tasks("borrar").status, 2);
+ });
++
++test("add accepts --priority at the end and list shows highest priority first", () => {
++  const tasks = session();
++  tasks("add", "llamar", "--priority", "baja");
++  tasks("add", "Comprar", "pan", "--priority", "alta");
++  tasks("add", "regar");
++  tasks("add", "pagar", "--priority", "alta");
++  assert.equal(
++    tasks("list").out,
++    "[ ] 2 Comprar pan (alta)\n[ ] 4 pagar (alta)\n[ ] 3 regar (media)\n[ ] 1 llamar (baja)\n",
++  );
++});
++
++test("priority is case-insensitive and stored in lowercase", () => {
++  const tasks = session();
++  assert.equal(tasks("add", "pan", "--priority", "ALTA").status, 0);
++  assert.equal(tasks("list").out, "[ ] 1 pan (alta)\n");
++});
++
++test("invalid or missing priority is a usage error and saves nothing", () => {
++  const tasks = session();
++  const invalid = tasks("add", "pan", "--priority", "urgente");
++  assert.equal(invalid.status, 2);
++  assert.match(invalid.err, /uso: tasks add/);
++  assert.equal(tasks("add", "pan", "--priority").status, 2);
++  assert.equal(tasks("add", "--priority", "alta").status, 2);
++  assert.equal(tasks("list").out, "");
++});
++
++test("tasks saved without priority are listed as media", () => {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tasks-"));
++  const file = path.join(dir, "tasks.json");
++  fs.writeFileSync(file, JSON.stringify({
++    nextId: 3,
++    tasks: [
++      { id: 1, title: "antigua", done: false },
++      { id: 2, title: "urgente", done: false, priority: "alta" },
++    ],
++  }));
++  let out = "";
++  run(["list"], { env: { TASKS_FILE: file }, stdout: { write: (text) => { out += text; } } });
++  assert.equal(out, "[ ] 2 urgente (alta)\n[ ] 1 antigua (media)\n");
++});

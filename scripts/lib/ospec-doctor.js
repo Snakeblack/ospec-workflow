@@ -5,7 +5,8 @@
 // status (ok, info, warn, error); warnings and errors carry their cause and the
 // action that fixes them. Nothing here writes: state files are parsed, never
 // read through the store (which recovers interrupted writes), and the only
-// processes spawned are `git check-ignore` and the read-only Engram probes.
+// processes spawned are `git ls-files`, `git check-ignore` and the read-only
+// Engram probes.
 //
 // The Claude Code checks live here; the other six hosts, in ospec-doctor-hosts.js.
 
