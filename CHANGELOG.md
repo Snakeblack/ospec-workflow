@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.146.0] - 2026-10-22
+
+### Added
+- **Repetición de #342 en Claude con Haiku y tres repeticiones** (OSP-011, cierra #342). Enfrenta `idd-7` a `gentle-ai-4` en el corpus por defecto, e `idd-7-reserved` a `gentle-ai-4-reserved` en `salas`, el escenario reservado. Corre gentle-ai 4.2.0 y ospec-workflow 2.145.1, con engram 3.5.1 en los dos brazos: 42 ejecuciones completas, sin ningún fallo de la persona.
+  - **Escapados:** 4,67 frente a 1,67 sumando medias en el corpus por defecto, y 1 frente a 0 en cada repetición de `salas`. Sobre los siete escenarios no es significativo (p≈0,13).
+  - **Tokens:** IDD gasta 2,34 veces lo de gentle-ai en el corpus por defecto (IC 95 % del ratio por escenario: 1,67 a 3,13) y 2,84 veces en `salas`.
+  - **Calidad:** la revisión ciega prefiere a IDD en 18 de 21 pares. El mutation score queda en el 92,1 % frente al 94,4 %, y en el 84,1 % frente al 90,6 % en `salas`.
+  - **Checkpoints:** los dos `bench-margins-11` dan `revise`, por tokens y por márgenes de calidad estrechos. El del corpus por defecto también da `revise` por tres regresiones de una sola repetición; dos de ellas las indujo la persona.
+
+  [Informe](docs/analysis/2026-10-22-bench-claude-n3.md). Los records y la calidad quedan versionados. `docs/benchs/`, los README, la comparación de arneses y el roadmap lo citan. Quedan en issues aparte la repetición en agy (#388), la persona que da indicaciones técnicas (#389) y el gate `open-facts` que acepta solo citas (#390).
+
+Hecho con IDD (`idd/archive/2026-10-21-bench-claude-n3-report/`).
+
+**Verificación directa**: `node scripts/check.js` (3962 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.145.1] - 2026-10-21
 
 ### Fixed
