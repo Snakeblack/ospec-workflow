@@ -63,14 +63,14 @@ const reps = (scenarioId, specs) => specs.map(([tokens, failing = []], index) =>
 
 test("the committed margins load and carry a digest", () => {
   const { margins: loaded, digest } = loadMargins(MARGINS_PATH);
-  // E4.6 (declared 2026-10-21, before the idd-4 repetition on Claude with
-  // Haiku and Engram in every arm): one repetition, E4.9's escaped-defect and
-  // token margins, and the E4.5 quality criterion. The verdict blocks nothing.
-  // bench-margins-9 (greenfield, three repetitions) stays reproducible from v2.143.0.
+  // OSP-011 (declared 2026-10-21, before the Claude repetition with Haiku over
+  // the default and reserved corpora): three repetitions and the thresholds of
+  // bench-margins-10, which stays reproducible from v2.144.0. The verdict
+  // blocks nothing.
   assert.equal(loaded.baseline_arm, "gentle-ai");
   assert.equal(loaded.candidate_arm, "idd");
-  assert.equal(loaded.margins_version, "bench-margins-10");
-  assert.equal(loaded.repetitions, 1);
+  assert.equal(loaded.margins_version, "bench-margins-11");
+  assert.equal(loaded.repetitions, 3);
   assert.equal(loaded.escaped_defects.max_mean_delta, 0);
   assert.equal(loaded.tokens.max_total_ratio, 1);
   assert.deepEqual(loaded.quality, { max_mutation_score_deficit: 5, max_consistent_baseline_preferences: 1 });
@@ -157,6 +157,7 @@ test("with repetitions the margins apply to per-scenario means", () => {
   assert.equal(cli.candidate.tokens_total, 700);
   assert.equal(result.totals.tokens_ratio, 0.75);
   assert.equal(result.totals.escaped_delta, 0);
+  assert.match(renderCheckpoint(result), /^- Tokens ratio by scenario: mean 0\.75, 95% CI \[[\d.-]+, [\d.-]+\] over 2 scenarios$/m);
 });
 
 test("a check the baseline always passes is a veto when the candidate fails it in any repetition", () => {
@@ -234,6 +235,19 @@ test("a declared harness exception accepts exactly its digest pairs and reports 
   assert.ok(reversed.reasons.some((reason) => reason.code === "not-comparable"));
   const same = evaluateCheckpoint({ baseline, candidate: record("idd", [run("cli-local", 500)]), margins: withException });
   assert.equal(same.harness_exception, null, "identical harnesses need no exception");
+});
+
+test("fewer than three repetitions per scenario make the conclusion inconclusive without changing the decision", () => {
+  const single = evaluateCheckpoint({ baseline: record("sdd", [run("cli-local", 1000)]), candidate: record("idd", [run("cli-local", 700)]), margins });
+  assert.equal(single.decision, "continue");
+  assert.equal(single.conclusive, false);
+  assert.match(renderCheckpoint(single), /^- Inconclusive: 1 repetition per scenario, fewer than 3/m);
+
+  const baseline = record("sdd", reps("cli-local", [[1000], [1000], [1000]]));
+  const candidate = record("idd", reps("cli-local", [[700], [700], [700]]));
+  const triple = evaluateCheckpoint({ baseline, candidate, margins: margins3 });
+  assert.equal(triple.conclusive, true);
+  assert.doesNotMatch(renderCheckpoint(triple), /Inconclusive/);
 });
 
 test("renderCheckpoint states the decision and every reason", () => {

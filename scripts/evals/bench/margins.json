@@ -1,10 +1,10 @@
 {
   "schema_version": 5,
-  "margins_version": "bench-margins-10",
+  "margins_version": "bench-margins-11",
   "declared_at": "2026-10-21",
   "baseline_arm": "gentle-ai",
   "candidate_arm": "idd",
-  "repetitions": 1,
+  "repetitions": 3,
   "escaped_defects": {
     "max_mean_delta": 0
   },

@@ -18,7 +18,10 @@ The `default` corpus MUST cover the six project profiles `cli-local`,
 `saas-small`, `regulated`, `brownfield`, `public-library`, and `bugfix`, with at
 least one scenario each. The `greenfield` corpus (E4.5) MUST live in its own
 directory, cover the `greenfield` profile, and leave the `default` corpus
-digest unchanged; `bench.js --corpus` selects one. A scenario MUST declare a seed repository (`repo/`), a change
+digest unchanged; `bench.js --corpus` selects one. The `reserved` corpus
+(OSP-011) MUST live in its own directory, cover the `saas-small` profile, use
+scenario ids absent from the `default` corpus, and keep its digest pinned by a
+test, so the scenario stays frozen before the head-to-head runs that judge it. A scenario MUST declare a seed repository (`repo/`), a change
 request (`brief`), the facts only the simulated user knows (`F<n>`), and hidden
 checks of kind `acceptance`, `fact`, or `regression`. Every fact MUST be judged
 by at least one `fact` check, and every scenario MUST run its own test suite as
@@ -36,6 +39,12 @@ browser, the test of its reference delivery MUST be skipped, not failed.
 - GIVEN a scenario whose fact `F3` no check names
 - WHEN the corpus is validated by its test
 - THEN the test MUST fail naming the scenario and `F3`
+
+#### Scenario: The reserved corpus stays frozen
+
+- GIVEN the `reserved` corpus with its digest pinned by its test
+- WHEN a scenario of it changes, or takes an id of the `default` corpus
+- THEN that test MUST fail
 
 #### Scenario: A browser check starts from an empty profile
 
@@ -232,6 +241,7 @@ installed with it. A plugin digest MUST identify content, not the machine: the
 same commit installed in two template directories MUST give the same digest,
 so the absolute template directory MUST read as `~` and binaries built from the
 repository MUST stay out of it. A record MUST declare how many repetitions it runs per scenario,
+`bench.js run` MUST run three unless `--repetitions` names another count (OSP-011),
 and each run MUST carry its repetition number; the repetition count is part of
 the identity. Resuming a record with a different identity MUST be refused. The
 report MUST be recomputable from the record without calling a model and, with
@@ -252,6 +262,12 @@ fields schema 3 adds.
 - GIVEN a record produced with plugin digest A
 - WHEN `bench.js run` resumes it with a plugin whose digest is B
 - THEN it MUST refuse and ask for a new record id
+
+#### Scenario: Three repetitions by default
+
+- GIVEN `bench.js run` without `--repetitions`
+- WHEN it runs a scenario
+- THEN the scenario MUST run three times and the record MUST declare 3 repetitions
 
 #### Scenario: Repetitions in the report
 
@@ -275,7 +291,12 @@ missing, when a hidden check the baseline passes in every repetition fails in
 any repetition of the candidate, when the candidate's summed mean of escaped
 defects exceeds the baseline's by more than `escaped_defects.max_mean_delta`,
 or when the candidate's summed mean tokens exceed `tokens.max_total_ratio`
-times the baseline's. These vetoes MUST NOT be configurable.
+times the baseline's. These vetoes MUST NOT be configurable. With fewer than
+three repetitions per scenario the result MUST state `conclusive: false` and
+its report a line `Inconclusive`, without changing the decision or the exit
+code: such a comparison shows neither arm is better (OSP-011). The report
+MUST give the mean of the per-scenario token ratios with its 95% t interval
+when there are at least two scenarios.
 
 The margins MAY declare one `harness_exception`: a baseline digest, the
 candidate digests accepted against it (distinct, the current harness last), the
@@ -309,7 +330,11 @@ v2.143.0. The margins of the `idd-4` repetition with Engram in every arm
 (`bench-margins-10`: the same arms, one repetition on Claude Code with Haiku,
 `max_mean_delta` 0, `max_total_ratio` 1, and the E4.5 quality criterion)
 declare no harness exception; with one repetition their verdict is
-exploratory and blocks nothing. The E4.5 checkpoint
+exploratory and blocks nothing, and they stay reproducible from v2.144.0. The
+margins of the OSP-011 repetition (`bench-margins-11`: the same arms and
+thresholds as `bench-margins-10`, three repetitions on Claude Code with Haiku,
+over the `default` and `reserved` corpora) declare no harness exception; their
+verdict blocks nothing. The E4.5 checkpoint
 (`bench-margins-7`) is reproducible from v2.134.0. The E4.2 checkpoint
 (`bench-margins-6`) is reproducible from v2.133.0.
 
@@ -319,6 +344,14 @@ exploratory and blocks nothing. The E4.5 checkpoint
 - AND a candidate record without it
 - WHEN the checkpoint runs
 - THEN the decision MUST be `revise` with reason `not-comparable`, naming the arm
+
+#### Scenario: Fewer than three repetitions are inconclusive
+
+- GIVEN margins with one repetition per scenario
+- AND records that meet every margin
+- WHEN the checkpoint runs
+- THEN the decision MUST be `continue`
+- AND the result MUST state `conclusive: false` and its report `Inconclusive`
 
 #### Scenario: Declared quality needs its result
 

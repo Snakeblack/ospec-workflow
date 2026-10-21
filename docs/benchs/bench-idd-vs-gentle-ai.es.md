@@ -110,6 +110,6 @@ Checkpoint de E4.6 agy con `bench-margins-9`, tal como lo calculaba el arnés de
 - **Engram solo en el brazo de gentle-ai** en todos los bancos hasta E4.6 agy (OSP-025): suma a los tokens de gentle-ai y le da un protocolo de memoria que IDD no tenía. E4.6 Claude es el primero con Engram en los dos brazos (140 bytes de MCP en cada uno).
 - **`receta-spa` se escribió en la misma sesión** que ajustó IDD para E4.6: la independencia del escenario reservado respecto al ajuste no está demostrada (OSP-026).
 - **La calidad de E4.6 agy nunca se recogió:** las entregas del par ya no están en disco. La de E4.6 Claude sí (`scripts/evals/quality/results/gentle-ai-3__idd-6/`).
-- **Pendiente:** la repetición con Claude con n ≥ 3, brazos simétricos y un corpus reservado escrito aparte (#342).
+- **Pendiente:** la repetición con Claude con n ≥ 3 y brazos simétricos (#342). Su preparación queda hecha en v2.145.0: `bench.js run` hace tres repeticiones por defecto, el checkpoint declara `Inconclusive` por debajo de tres, los márgenes `bench-margins-11` están declarados y el corpus `reserved` (`salas`, digest `bba3c8d0b72e`) se escribió y congeló en un cambio que no toca IDD.
 
 Análisis detallado de cada banco: [E4.2](../analysis/2026-10-12-bench-gentle-ai.md), [E4.5](../analysis/2026-10-13-bench-greenfield.md), [E4.9](../analysis/2026-10-14-bench-arm-symmetry.md), [E4.6 Claude](../analysis/2026-10-21-bench-claude-haiku.md).
