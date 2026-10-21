@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.145.1] - 2026-10-21
+
+### Fixed
+- **La persona del banco perdía el login en Claude:** la copia de configuración del agente ospec y la original comparten un login OAuth. Al caducar el token, el agente lo refrescaba en su copia y rotaba el refresh token, y la persona, en el original, ya no podía autenticarse. En el primer intento de la corrida de #342 (`idd-7`, cli-local), las 29 llamadas a la persona fallaron, el driver contestó «Continúa, por favor» y las 3 repeticiones agotaron los 30 turnos sin respuesta a sus preguntas. Ese intento se descartó. Ahora `hosts/claude.js` copia la credencial con `expiresAt` más tardío sobre la otra (permisos 0600) antes de cada turno del agente y de cada llamada a la persona. Sin `.credentials.json` no hace nada.
+- **Una persona que deja de responder para el banco:** dos fallos seguidos de la persona (cada llamada ya reintenta) paran la ejecución sin juzgarla (`persona-error`). `bench.js run` sale con código 4, no la registra y el mismo comando la retoma. Antes, la ejecución gastaba todos sus turnos.
+
+Los records publicados (`idd-5`, `idd-6` y `gentle-ai-3`) no tienen ningún error de persona.
+
+Hecho con IDD (`idd/archive/2026-10-21-bench-persona-credentials/`).
+
+**Verificación directa**: `node scripts/check.js` (3962 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.145.0] - 2026-10-21
 
 ### Changed
