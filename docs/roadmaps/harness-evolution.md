@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.142.0, 2026-10-21.
+> **Versión de referencia:** v2.142.1, 2026-10-21.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -591,6 +591,9 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Avance (v2.139.4, `startbrowser-fake-child`):**
   - **ChildProcess falso:** el test `hang` no arranca ningún proceso. Su stderr llega en el siguiente tick y un mock de `process.kill` dirige el kill de grupo de POSIX al falso. `crash` y `cold` siguen arrancando un Node real.
   - **Plazo nuevo:** 0 flakes de Windows hasta el 2026-10-26 (decisión del usuario).
+- **Avance (v2.142.1, `windows-ci-guards`):**
+  - **Flake en `main`:** el 2026-10-20 `receta-spa` falló en Windows con `the page did not finish loading` en sus 4 checks (run 39497533697) y Publish no subió v2.140.2 al marketplace. El reintento de #363 no reconocía ese mensaje; ahora está en `INFRA_FAILURE`, y un test fija qué errores se reintentan y que un fallo con veredicto nunca se reintenta.
+  - **Plazo:** la cuenta de 0 flakes vuelve a empezar el 2026-10-20. Si se absorbe más de un reintento por semana, el siguiente paso es `CONCURRENCY = 2` en win32.
 
 ### E1.31 — `doctor-hook-probe` (OSP-014, #345)
 
@@ -976,6 +979,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-21: `windows-ci-guards` (IDD, auditoría del 2026-10-21), publicado en v2.142.1. Avance de E1.30: el test de `checks-greenfield` reintenta en Windows una página que no termina de cargar (OSP-022, #344). Para OSP-028 (#347), el test de presupuesto mide la skill `idd` en CRLF en todas las plataformas, así que el exceso falla también en Linux y macOS.
 - 2026-10-20: `global-install-schemas` (IDD, OSP-030, #355), publicado en v2.139.7. `setup:opencode` y `setup:copilot` instalan `schemas/` junto a `scripts/`, y el CLI `ospec` instalado vuelve a arrancar. Cierra el defecto del instalador global anotado el 2026-10-17.
 - 2026-10-19: avance de E1.30 con IDD (`startbrowser-fake-child`). El test del navegador que nunca abre su puerto usa un ChildProcess falso dentro del proceso: ya no depende de que un Node arranque a tiempo y pasa de unos 11 s a 0,3 s. El plazo de 0 flakes pasa al 2026-10-26 (decisión del usuario).
 - 2026-10-18: seguimiento de E1.27 `agy-hooks-adapter` (IDD). agy 1.4.2 vuelve a cargar los hooks de ospec: `SessionStart`/`Stop` planos, wrapper `ospec-antigravity-hook.js` y adaptador de entrada, salida y `cwd` en el launcher (REQ-hooks-026). La causa no era `enabled`. Verificado en vivo. Después, `opencode-global-plugin-shadow`: `install:opencode` y `ospec doctor` avisan cuando el plugin global de OpenCode tapa al de proyecto. Queda Codex en vivo (pospuesto).

@@ -1,0 +1,242 @@
+{
+  "schema": "idd-state/v1",
+  "change": "windows-ci-guards",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El test de checks greenfield reintenta en Windows una página que no termina de cargar, y el test de presupuesto de la skill idd la mide en CRLF en todas las plataformas",
+    "acceptance": "INFRA_FAILURE reconoce 'the page did not finish loading' y un test fija qué errores se reintentan (nunca un fallo de aserción con veredicto); con la skill idd por encima de 12 KB en CRLF el test de presupuesto falla también en Linux"
+  },
+  "facts": {
+    "basis": "La auditoría 2026-10-21 (Fase B y A2) fija el mensaje que falta, el criterio de reintento existente (checks-greenfield.test.js l.22-28) y la medición en CRLF; no cambia comportamiento publicado, solo tests"
+  },
+  "plan": {
+    "paths": [
+      "scripts/configure/idd-protocol.test.js",
+      "scripts/evals/bench/checks-greenfield.test.js"
+    ],
+    "work_units": 2,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component generator: ADR 0001, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "Solo cambia el test que mide la skill idd generada para cada target; no toca la fuente ni el generador"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "none",
+      "reason": "Cambios solo en tests, sin dependencias nuevas; usan la biblioteca estándar"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "No cambia el CLI, los hooks ni las skills que corren en la máquina del usuario"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "El presupuesto de 12 KB de la skill idd se mide igual en todas las plataformas (CRLF), así que el exceso se detecta antes de publicar en cualquier target"
+    }
+  ],
+  "attestations": [
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "evidence": "git diff: solo cambian scripts/evals/bench/checks-greenfield.test.js y scripts/configure/idd-protocol.test.js; ninguna línea añadida hace require ni llamadas de red, y el CLI, los hooks y las skills no cambian",
+      "recorded_at": "2026-10-21T08:17:01.109Z"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-21T08:14:43.343Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-21T08:16:55.041Z",
+      "detail": {
+        "tree": "sha256:66166519b03a38cc5540f3a5b34bba0b5a2654cd8ed81b0798e748500f2b9d03",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-21T08:16:55.041Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0010 none",
+          "scenario:offline-operation none",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:66166519b03a38cc5540f3a5b34bba0b5a2654cd8ed81b0798e748500f2b9d03",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-21T08:17:09.247Z"
+    }
+  ],
+  "base": "a9102171620da0d387645546bd6e11dff396be28",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"only a check that failed without a verdict|counts the CRLF line endings\" scripts/evals/bench/checks-greenfield.test.js scripts/configure/idd-protocol.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:f8da42d29ce9dc04314fa33ba2445c9e89afe5cf62a462b2bebeb346cb9cfaea",
+      "tree": "sha256:f94a9f3a6820d5de2d98cb55c6dbe90a04bc37b3d832d48c169ff6c57aed9df4",
+      "recorded_at": "2026-10-21T08:14:34.579Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"only a check that failed without a verdict|counts the CRLF line endings\" scripts/evals/bench/checks-greenfield.test.js scripts/configure/idd-protocol.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5810ac6448ef35c172ec3df981034e1edae732a0e0eef1b0b0aed38edf4be58d",
+      "tree": "sha256:c05a534c46c8d82438ca4e6db26ed55537d85c357f1490537defbdd1b04f0c19",
+      "recorded_at": "2026-10-21T08:14:43.343Z",
+      "tests": 2
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cb78f48336e5cd8eb68f3d974143aeec89e0c4979b37ae6dc0117d5c564856fd",
+      "tree": "sha256:66166519b03a38cc5540f3a5b34bba0b5a2654cd8ed81b0798e748500f2b9d03",
+      "recorded_at": "2026-10-21T08:16:55.041Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:200fd204b40af37ec96632ccd9967bf1353a97c03c87da18191264acb3748f0f",
+      "tree": "sha256:66166519b03a38cc5540f3a5b34bba0b5a2654cd8ed81b0798e748500f2b9d03",
+      "recorded_at": "2026-10-21T08:16:55.041Z",
+      "tests": 47
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:66166519b03a38cc5540f3a5b34bba0b5a2654cd8ed81b0798e748500f2b9d03",
+      "recorded_at": "2026-10-21T08:16:55.041Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5afad2f24f5e51ff8b6c225102118e1f820d3d9668ab4400d84511f17589613e",
+      "tree": "sha256:66166519b03a38cc5540f3a5b34bba0b5a2654cd8ed81b0798e748500f2b9d03",
+      "recorded_at": "2026-10-21T08:16:55.041Z",
+      "tests": 16
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5e3ff44f71b1deb8bb5738e042a1edde6c40aaa339fd30f0ea05fa19c82b20c1",
+      "tree": "sha256:66166519b03a38cc5540f3a5b34bba0b5a2654cd8ed81b0798e748500f2b9d03",
+      "recorded_at": "2026-10-21T08:16:55.041Z",
+      "tests": 47
+    }
+  ],
+  "closed_at": "2026-10-21T08:17:09.247Z"
+}
