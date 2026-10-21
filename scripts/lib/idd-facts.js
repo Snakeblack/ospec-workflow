@@ -26,7 +26,7 @@ const FEATURE_COVERAGE_HOW = [
   "--cite persistence=README.md:12",
   '--quote copy="<a literal fragment of --request, at least 12 characters>"',
   `Categories: ${FEATURE_CATEGORIES.map((category) => `${category.id} (${category.label})`).join(", ")}.`,
-  "Each category is one --open-fact, one --cite path:line that exists, or one --quote of the request.",
+  "Each category is one --open-fact, one --cite path:line that exists and has a letter or digit, or one --quote of the request; no two categories share a cite or a quote.",
   "A question that only names the category is refused.",
 ].join(" ");
 
@@ -41,7 +41,9 @@ function categoryOf(id) {
 function isConcrete(question, categoryId) {
   const category = categoryOf(categoryId);
   if (!category || typeof question !== "string" || question.trim() === "") return false;
-  if (/\d/.test(question) || /["'«`][^"'»`]{1,}["'»`]/.test(question)) return true;
+  if (/\d/.test(question)) return true;
+  const quoted = [...question.matchAll(/["'«`]([^"'»`]+)["'»`]/g)];
+  if (quoted.some((match) => match[1].replace(/\s/g, "").length >= 3)) return true;
   const labelWords = new Set([...category.label.toLowerCase().split(/\s+/), ...category.id.split("-")]);
   const tokens = question
     .toLowerCase()
@@ -101,6 +103,9 @@ function parseCite(raw, found, readFile) {
   const count = lineCount(body);
   if (count == null) return problem("cite-unresolved", `${file} is not text`);
   if (line > count) return problem("cite-unresolved", `${file} has no line ${line}`);
+  if (!/[\p{L}\p{N}]/u.test(body.replace(/\r\n/g, "\n").split("\n")[line - 1])) {
+    return problem("cite-unresolved", `${file}:${line} has no letter or digit`);
+  }
   return take(found, categoryId, { category: categoryId, cite: { kind: "path", path: file, line } });
 }
 
@@ -117,6 +122,21 @@ function parseQuote(raw, found, request) {
     return problem("cite-unresolved", `the quote for ${categoryId || "a category"} is not a fragment of --request`);
   }
   return take(found, categoryId, { category: categoryId, cite: { kind: "request", text: fragment } });
+}
+
+// One line or fragment settles one category, so a single cite cannot cover
+// the seven at once.
+function reusedCite(entries) {
+  const used = new Map();
+  for (const entry of entries) {
+    if (!entry.cite) continue;
+    const key = entry.cite.kind === "path" ? `path:${entry.cite.path}:${entry.cite.line}` : `request:${entry.cite.text.trim()}`;
+    if (used.has(key)) {
+      return problem("facts-undeclared", `${entry.category} reuses the cite of ${used.get(key)}; each category needs its own line, fragment or question`);
+    }
+    used.set(key, entry.category);
+  }
+  return null;
 }
 
 /**
@@ -137,6 +157,8 @@ function resolveFeatureCoverage({ openFacts = [], cites = [], quotes = [], reque
     const failed = parseQuote(raw, found, request);
     if (failed) return failed;
   }
+  const reused = reusedCite(found.values());
+  if (reused) return reused;
   const missing = CATEGORY_IDS.filter((id) => !found.has(id));
   if (missing.length > 0) return problem("facts-undeclared", `a feature must cover ${missing.join(", ")}`);
   return { coverage: CATEGORY_IDS.map((id) => found.get(id)) };
@@ -168,13 +190,15 @@ function factsFromCoverage(coverage) {
     const failed = take(found, entry.category, stored);
     if (failed) return failed;
   }
+  const reused = reusedCite(found.values());
+  if (reused) return reused;
   const missing = CATEGORY_IDS.filter((id) => !found.has(id));
   if (missing.length > 0) return problem("facts-undeclared", `a feature must cover ${missing.join(", ")}`);
   return { facts: { coverage: CATEGORY_IDS.map((id) => found.get(id)) } };
 }
 
 function citedCoverage(text = "the user asked for this behavior") {
-  return CATEGORY_IDS.map((id) => ({ category: id, cite: { kind: "request", text } }));
+  return CATEGORY_IDS.map((id) => ({ category: id, cite: { kind: "request", text: `${text}: ${id}` } }));
 }
 
 /** A test count from the tail of a check, or null when the runner is unrecognized. */

@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.142.1, 2026-10-21.
+> **Versión de referencia:** v2.142.2, 2026-10-21.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -885,6 +885,7 @@ La foundation termina cuando todas las ranuras obligatorias que bloquean el prim
   3. **Validez y procedencia (OSP-026 / #341).** El par lleva `scripts/evals/quality` (también en la repetición con Claude) y el checkpoint falla si falta el resultado de calidad declarado en los márgenes; `plugin_digest` reproducible (rutas relativas al plugin, sin el binario, commit SHA y versión real en el record); la autoría de `receta-spa` queda coherente en todos los artefactos; el README y `docs/benchs/bench-idd-vs-gentle-ai*.md` corrigen el encuadre (p≈0,49 no es victoria) y declaran la asimetría de Engram.
   4. **Rigor de la repetición (OSP-011 / #342).** `repetitions` por defecto 3 en head-to-head, con n e IC en el informe; un head-to-head con n < 3 declara la calidad como no concluyente; la repetición en Claude usa brazos simétricos, la calidad del par y procedencia reproducible; al menos un escenario reservado escrito y congelado fuera del cambio que se evalúa.
 - **Progreso (v2.138.0):** hecho con IDD (`idd/archive/2026-10-14-open-facts-robustness/`) y medido en agy. [Comparación](../benchs/bench-idd-vs-gentle-ai.es.md). Corpus greenfield `7ce1db3ed2ba`, márgenes `bench-margins-9`, tres repeticiones. `idd-agy-4` frente a `gentle-ai-agy-4`: escapados 14 frente a 8 de media, acceptance 15/15 y regression 6/6 en los dos, tokens 2,81 veces, checkpoint `continue`. En `todo-spa` la media de IDD es 2 (gentle-ai, 6,33) y en `receta-spa`, 6 frente a 7,67, una ventaja que depende de una sola repetición. **Falta** la repetición con Claude frente a `idd-4`, con sus propios márgenes declarados antes de correr; por eso el ítem sigue `pending`.
+- **Avance (v2.142.2, `open-facts-gate-hardening`, paso 1 de las adiciones, OSP-027 / #339):** dos categorías no comparten la misma `ruta:línea` ni el mismo fragmento de `--request`; una línea citada necesita una letra o un dígito; el texto entre comillas de una pregunta cuenta con 3 caracteres o más sin espacios. Decisiones del usuario del 2026-10-21: unicidad estricta, una cabecera como `# demo` sigue valiendo y una pregunta de una palabra (`¿cosa?`) también. El modo de cierre (`asked` / `cited` / `quoted`) se deriva de `facts.coverage` sin campo nuevo en `state.yaml`; el record del banco lo recoge en la misma subida de esquema que #340 y #341, y #339 se cierra entonces.
 
 ### E4.10 — `greenfield-foundation-hint`
 
@@ -979,6 +980,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-21: `open-facts-gate-hardening` (IDD, OSP-027, #339), publicado en v2.142.2. Primer paso de las adiciones de E4.6: el gate de categorías ya no se cierra con la misma cita en las siete categorías, con una línea sin contenido ni con una pregunta `"x"`.
 - 2026-10-21: `windows-ci-guards` (IDD, auditoría del 2026-10-21), publicado en v2.142.1. Avance de E1.30: el test de `checks-greenfield` reintenta en Windows una página que no termina de cargar (OSP-022, #344). Para OSP-028 (#347), el test de presupuesto mide la skill `idd` en CRLF en todas las plataformas, así que el exceso falla también en Linux y macOS.
 - 2026-10-20: `global-install-schemas` (IDD, OSP-030, #355), publicado en v2.139.7. `setup:opencode` y `setup:copilot` instalan `schemas/` junto a `scripts/`, y el CLI `ospec` instalado vuelve a arrancar. Cierra el defecto del instalador global anotado el 2026-10-17.
 - 2026-10-19: avance de E1.30 con IDD (`startbrowser-fake-child`). El test del navegador que nunca abre su puerto usa un ChildProcess falso dentro del proceso: ya no depende de que un Node arranque a tiempo y pasa de unos 11 s a 0,3 s. El plazo de 0 flakes pasa al 2026-10-26 (decisión del usuario).

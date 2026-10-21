@@ -25,7 +25,7 @@ test("a feature cite must be a real line or a fragment of the request", () => {
   const covered = resolveFeatureCoverage({
     openFacts: ["inputs:¿el título admite más de 200 caracteres?"],
     cites: ["persistence=README.md:2"],
-    quotes: CATEGORY_IDS.filter((id) => id !== "inputs" && id !== "persistence").map((id) => `${id}=${REQUEST}`),
+    quotes: ["uniqueness=Build a task list", "copy=that stores items", "url-state=rejects an empty", "accessibility=an empty title.", "errors=task list that"],
     request: REQUEST,
     readFile: filesOf(tree),
   });
@@ -38,6 +38,34 @@ test("a feature cite must be a real line or a fragment of the request", () => {
     "cite-unresolved",
   );
   assert.strictEqual(resolveFeatureCoverage({ openFacts: ["inputs:¿límites?"], readFile: filesOf(tree) }).error.code, "facts-undeclared");
+});
+
+test("a quoted value needs three characters besides spaces", () => {
+  assert.strictEqual(isConcrete('"x"', "inputs"), false);
+  assert.strictEqual(isConcrete("¿« a »?", "uniqueness"), false);
+  assert.strictEqual(isConcrete("¿el filtro usa «abc»?", "url-state"), true);
+});
+
+test("a cite must point at a line with a letter or a digit", () => {
+  const tree = { "README.md": "# demo\n\n---\n```\n" };
+  for (const line of [2, 3, 4]) {
+    assert.strictEqual(resolveFeatureCoverage({ cites: [`copy=README.md:${line}`], readFile: filesOf(tree) }).error.code, "cite-unresolved");
+  }
+  assert.match(resolveFeatureCoverage({ cites: ["copy=README.md:2"], readFile: filesOf(tree) }).error.message, /README\.md:2/);
+  assert.strictEqual(resolveFeatureCoverage({ cites: ["copy=README.md:1"], readFile: filesOf(tree) }).error.code, "facts-undeclared");
+});
+
+test("each category needs its own line, fragment or question", () => {
+  const tree = { "README.md": "line one\nline two\n" };
+  const sameLine = resolveFeatureCoverage({ cites: ["copy=README.md:1", "errors=README.md:1"], readFile: filesOf(tree) });
+  assert.strictEqual(sameLine.error.code, "facts-undeclared");
+  assert.match(sameLine.error.message, /errors reuses the cite of copy/);
+  const sameQuote = resolveFeatureCoverage({ quotes: [`copy=${REQUEST}`, `errors= ${REQUEST} `], request: ` ${REQUEST} `, readFile: filesOf(tree) });
+  assert.strictEqual(sameQuote.error.code, "facts-undeclared");
+  const stored = citedCoverage().map((entry, index) => (index === 1 ? { ...entry, cite: citedCoverage()[0].cite } : entry));
+  assert.strictEqual(factsFromCoverage(stored).error.code, "facts-undeclared");
+  const paths = CATEGORY_IDS.map((id) => ({ category: id, cite: { kind: "path", path: "README.md", line: 1 } }));
+  assert.strictEqual(factsFromCoverage(paths).error.code, "facts-undeclared");
 });
 
 test("missing categories are refused and name the command", () => {

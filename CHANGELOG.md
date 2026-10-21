@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.142.2] - 2026-10-21
+
+### Fixed
+- **El gate de categorías de `open-facts` ya no se cierra sin preguntar nada** (OSP-027, #339, E4.6): una `feature` cubría sus siete categorías citando `README.md:1` siete veces, repitiendo el mismo `--quote` o con `--open-fact inputs:"x"`. Ahora `record intent` rechaza con `facts-undeclared` dos categorías que comparten la misma `ruta:línea` o el mismo fragmento de `--request` y nombra la que lo repite. Rechaza con `cite-unresolved` una cita a una línea sin letras ni dígitos (vacía, `---`, ```` ``` ````). El texto entre comillas solo hace concreta una pregunta si tiene 3 caracteres o más sin contar espacios (REQ-idd-018). La validación de `state.yaml` no cambia, así que los cambios ya archivados siguen siendo válidos.
+
+  Hecho con IDD (`idd/archive/2026-10-21-open-facts-gate-hardening/`). El modo de cierre de cada categoría se deriva de `facts.coverage`; el record del banco lo recogerá con #340 y #341.
+
+**Verificación directa**: `node scripts/check.js` (3932 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.142.1] - 2026-10-21
 
 ### Fixed
