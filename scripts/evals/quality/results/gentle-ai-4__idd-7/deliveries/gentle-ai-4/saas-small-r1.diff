@@ -1,0 +1,118 @@
+diff --git a/README.md b/README.md
+index f0ada69..192df1e 100644
+--- a/README.md
++++ b/README.md
+@@ -10,7 +10,8 @@ El gateway autentica y pasa `user` (`{ id, tenantId }`).
+ | --- | --- |
+ | `GET /notes` | Notas del usuario |
+ | `POST /notes` | Crea una nota (`title`, `body`) |
+-| `GET /notes/:id` | Lee una nota propia |
++| `GET /notes/:id` | Lee una nota propia o compartida contigo |
++| `POST /notes/:id/share` | Comparte una nota propia con otro usuario de la organización (`userId`) |
+ | `PUT /notes/:id` | Edita una nota propia |
+ | `DELETE /notes/:id` | Borra una nota propia |
+ 
+diff --git a/src/app.js b/src/app.js
+index d9bddc3..c961783 100644
+--- a/src/app.js
++++ b/src/app.js
+@@ -1,20 +1,27 @@
+ "use strict";
+ 
+ const { NotesRepo } = require("./repo.js");
++const { findUser } = require("./users.js");
+ 
+ // HTTP-shaped handler. The gateway authenticates and passes `user`
+ // ({ id, tenantId }); a request without user is rejected.
+ // Tenant isolation: a note from another organization is reported as missing (404).
++// Sharing: the owner can share a note with a user of the same organization; that user
++// can list and read it, but only the owner can edit or delete it.
+ function createApp({ repo = new NotesRepo() } = {}) {
+   function sameTenant(note, user) {
+     return note && note.tenantId === user.tenantId;
+   }
+ 
++  function canRead(note, user) {
++    return note.ownerId === user.id || note.sharedWith.includes(user.id);
++  }
++
+   function handle({ method, path, user, body = {} }) {
+     if (!user) return { status: 401, body: { error: "unauthenticated" } };
+ 
+     if (path === "/notes" && method === "GET") {
+-      const notes = repo.list((note) => note.tenantId === user.tenantId && note.ownerId === user.id);
++      const notes = repo.list((note) => note.tenantId === user.tenantId && canRead(note, user));
+       return { status: 200, body: notes };
+     }
+ 
+@@ -24,12 +31,25 @@ function createApp({ repo = new NotesRepo() } = {}) {
+       return { status: 201, body: note };
+     }
+ 
++    const share = /^\/notes\/([^/]+)\/share$/.exec(path);
++    if (share && method === "POST") {
++      const note = repo.get(share[1]);
++      if (!sameTenant(note, user)) return { status: 404, body: { error: "not-found" } };
++      if (note.ownerId !== user.id) return { status: 403, body: { error: "forbidden" } };
++      if (!body.userId) return { status: 400, body: { error: "userId-required" } };
++      const target = findUser(body.userId);
++      if (!target || target.tenantId !== user.tenantId) return { status: 404, body: { error: "user-not-found" } };
++      const sharedWith = [...new Set([...note.sharedWith, target.id])];
++      return { status: 200, body: repo.update(note.id, { sharedWith }) };
++    }
++
+     const match = /^\/notes\/([^/]+)$/.exec(path);
+     if (match) {
+       const note = repo.get(match[1]);
+       if (!sameTenant(note, user)) return { status: 404, body: { error: "not-found" } };
+-      if (note.ownerId !== user.id) return { status: 403, body: { error: "forbidden" } };
++      if (!canRead(note, user)) return { status: 403, body: { error: "forbidden" } };
+       if (method === "GET") return { status: 200, body: note };
++      if (note.ownerId !== user.id) return { status: 403, body: { error: "forbidden" } };
+       if (method === "PUT") return { status: 200, body: repo.update(note.id, { title: body.title ?? note.title, body: body.body ?? note.body }) };
+       if (method === "DELETE") {
+         repo.remove(note.id);
+diff --git a/src/repo.js b/src/repo.js
+index 9736e34..f4fc87f 100644
+--- a/src/repo.js
++++ b/src/repo.js
+@@ -8,7 +8,7 @@ class NotesRepo {
+ 
+   create({ tenantId, ownerId, title, body }) {
+     this.sequence += 1;
+-    const note = { id: `n${this.sequence}`, tenantId, ownerId, title, body };
++    const note = { id: `n${this.sequence}`, tenantId, ownerId, title, body, sharedWith: [] };
+     this.notes.set(note.id, note);
+     return { ...note };
+   }
+diff --git a/test/app.js b/test/app.js
+index 9815af7..04621c9 100644
+--- a/test/app.js
++++ b/test/app.js
+@@ -28,6 +28,26 @@ test("other users cannot read a note", () => {
+   assert.deepEqual(app.handle({ method: "GET", path: "/notes", user: bruno }).body, []);
+ });
+ 
++test("owner shares a note with a teammate, who can list and read it", () => {
++  const app = createApp();
++  const { id } = app.handle({ method: "POST", path: "/notes", user: ana, body: { title: "Compartida" } }).body;
++  assert.equal(app.handle({ method: "POST", path: `/notes/${id}/share`, user: ana, body: { userId: "u2" } }).status, 200);
++  assert.deepEqual(app.handle({ method: "GET", path: "/notes", user: bruno }).body.map((note) => note.id), [id]);
++  assert.equal(app.handle({ method: "GET", path: `/notes/${id}`, user: bruno }).status, 200);
++  assert.equal(app.handle({ method: "PUT", path: `/notes/${id}`, user: bruno, body: { title: "Mía" } }).status, 403);
++  assert.equal(app.handle({ method: "GET", path: `/notes/${id}`, user: zoe }).status, 404);
++});
++
++test("only the owner can share, and only with a user of the same organization", () => {
++  const app = createApp();
++  const { id } = app.handle({ method: "POST", path: "/notes", user: ana, body: { title: "Privada" } }).body;
++  assert.equal(app.handle({ method: "POST", path: `/notes/${id}/share`, user: bruno, body: { userId: "u3" } }).status, 403);
++  assert.equal(app.handle({ method: "POST", path: `/notes/${id}/share`, user: ana, body: { userId: "u9" } }).status, 404);
++  assert.equal(app.handle({ method: "POST", path: `/notes/${id}/share`, user: ana, body: { userId: "nadie" } }).status, 404);
++  assert.equal(app.handle({ method: "POST", path: `/notes/${id}/share`, user: ana, body: {} }).status, 400);
++  assert.deepEqual(app.handle({ method: "GET", path: "/notes", user: bruno }).body, []);
++});
++
+ test("requests without user are rejected", () => {
+   assert.equal(createApp().handle({ method: "GET", path: "/notes" }).status, 401);
+ });

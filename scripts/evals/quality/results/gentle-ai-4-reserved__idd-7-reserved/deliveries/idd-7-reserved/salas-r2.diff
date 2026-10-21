@@ -1,0 +1,222 @@
+diff --git a/src/app.js b/src/app.js
+index f3164f9..62fbfba 100644
+--- a/src/app.js
++++ b/src/app.js
+@@ -1,12 +1,15 @@
+ "use strict";
+ 
+ const { ROOMS, findRoom } = require("./rooms.js");
++const { parseInterval, createBookingStore } = require("./bookings.js");
+ 
+ // HTTP-shaped handler. The gateway authenticates and passes `user`
+ // ({ id, tenantId }); a request without user is rejected.
+ // Tenant isolation: a room from another organization is reported as missing (404).
+ function createApp() {
+-  function handle({ method, path, user }) {
++  const bookings = createBookingStore();
++
++  function handle({ method, path, user, body }) {
+     if (!user) return { status: 401, body: { error: "unauthenticated" } };
+ 
+     if (path === "/rooms" && method === "GET") {
+@@ -20,6 +23,26 @@ function createApp() {
+       return { status: 200, body: { ...room } };
+     }
+ 
++    if (path === "/bookings" && method === "POST") {
++      const input = body || {};
++      const interval = parseInterval(input.start, input.end);
++      if (typeof input.roomId !== "string" || !interval) return { status: 400, body: { error: "invalid-booking" } };
++
++      const room = findRoom(input.roomId);
++      if (!room || room.tenantId !== user.tenantId) return { status: 404, body: { error: "not-found" } };
++
++      const booking = bookings.add({ roomId: room.id, userId: user.id, ...interval });
++      if (!booking) return { status: 409, body: { error: "booking-overlap" } };
++      return { status: 201, body: booking };
++    }
++
++    const roomBookings = /^\/rooms\/([^/]+)\/bookings$/.exec(path);
++    if (roomBookings && method === "GET") {
++      const room = findRoom(roomBookings[1]);
++      if (!room || room.tenantId !== user.tenantId) return { status: 404, body: { error: "not-found" } };
++      return { status: 200, body: bookings.listForRoom(room.id) };
++    }
++
+     return { status: 404, body: { error: "not-found" } };
+   }
+ 
+diff --git a/src/bookings.js b/src/bookings.js
+new file mode 100644
+index 0000000..910d472
+--- /dev/null
++++ b/src/bookings.js
+@@ -0,0 +1,44 @@
++"use strict";
++
++// Room bookings kept in memory, one store per app instance. Intervals are half-open:
++// a booking that starts when another ends does not overlap it.
++const ISO_WITH_ZONE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/;
++
++// Returns { start, end } normalized to UTC ISO strings, or null when the input is invalid.
++function parseInterval(start, end) {
++  if (typeof start !== "string" || typeof end !== "string") return null;
++  if (!ISO_WITH_ZONE.test(start) || !ISO_WITH_ZONE.test(end)) return null;
++
++  const startMs = Date.parse(start);
++  const endMs = Date.parse(end);
++  if (Number.isNaN(startMs) || Number.isNaN(endMs) || startMs >= endMs) return null;
++
++  return { start: new Date(startMs).toISOString(), end: new Date(endMs).toISOString() };
++}
++
++function createBookingStore() {
++  const bookings = [];
++  let lastId = 0;
++
++  return {
++    // Returns the stored booking, or null when it overlaps another booking of the same room.
++    // Normalized UTC ISO strings sort correctly as text.
++    add({ roomId, userId, start, end }) {
++      if (bookings.some((b) => b.roomId === roomId && b.start < end && start < b.end)) return null;
++
++      lastId += 1;
++      const booking = { id: `b${lastId}`, roomId, userId, start, end };
++      bookings.push(booking);
++      return { ...booking };
++    },
++
++    listForRoom(roomId) {
++      return bookings
++        .filter((b) => b.roomId === roomId)
++        .sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0))
++        .map((b) => ({ ...b }));
++    },
++  };
++}
++
++module.exports = { parseInterval, createBookingStore };
+diff --git a/test/bookings.js b/test/bookings.js
+new file mode 100644
+index 0000000..5a70798
+--- /dev/null
++++ b/test/bookings.js
+@@ -0,0 +1,118 @@
++"use strict";
++
++const test = require("node:test");
++const assert = require("node:assert/strict");
++
++const { createApp } = require("../src/app.js");
++
++const ana = { id: "u1", tenantId: "acme" };
++const zoe = { id: "u9", tenantId: "globex" };
++
++function book(app, body, user = ana) {
++  return app.handle({ method: "POST", path: "/bookings", user, body });
++}
++
++function listBookings(app, roomId, user = ana) {
++  return app.handle({ method: "GET", path: `/rooms/${roomId}/bookings`, user });
++}
++
++test("users book a room of their organization and list its bookings", () => {
++  const app = createApp();
++  const res = book(app, { roomId: "r1", start: "2026-11-03T10:00:00Z", end: "2026-11-03T11:00:00Z" });
++
++  assert.equal(res.status, 201);
++  assert.deepEqual(res.body, {
++    id: res.body.id,
++    roomId: "r1",
++    userId: "u1",
++    start: "2026-11-03T10:00:00.000Z",
++    end: "2026-11-03T11:00:00.000Z",
++  });
++  assert.deepEqual(listBookings(app, "r1").body, [res.body]);
++});
++
++test("bookings of a room are listed from the earliest start to the latest", () => {
++  const app = createApp();
++  book(app, { roomId: "r1", start: "2026-11-03T14:00:00Z", end: "2026-11-03T15:00:00Z" });
++  book(app, { roomId: "r1", start: "2026-11-03T09:00:00Z", end: "2026-11-03T10:00:00Z" });
++
++  assert.deepEqual(listBookings(app, "r1").body.map((b) => b.start), [
++    "2026-11-03T09:00:00.000Z",
++    "2026-11-03T14:00:00.000Z",
++  ]);
++});
++
++test("a booking that starts when another ends does not overlap it", () => {
++  const app = createApp();
++  book(app, { roomId: "r1", start: "2026-11-03T10:00:00Z", end: "2026-11-03T11:00:00Z" });
++
++  assert.equal(book(app, { roomId: "r1", start: "2026-11-03T11:00:00Z", end: "2026-11-03T12:00:00Z" }).status, 201);
++});
++
++test("an overlapping booking of the same room is rejected and not stored", () => {
++  const app = createApp();
++  book(app, { roomId: "r1", start: "2026-11-03T10:00:00Z", end: "2026-11-03T11:00:00Z" });
++
++  const res = book(app, { roomId: "r1", start: "2026-11-03T10:30:00Z", end: "2026-11-03T11:30:00Z" });
++
++  assert.equal(res.status, 409);
++  assert.equal(listBookings(app, "r1").body.length, 1);
++});
++
++test("overlapping bookings of another room are accepted", () => {
++  const app = createApp();
++  book(app, { roomId: "r1", start: "2026-11-03T10:00:00Z", end: "2026-11-03T11:00:00Z" });
++
++  assert.equal(book(app, { roomId: "r2", start: "2026-11-03T10:00:00Z", end: "2026-11-03T11:00:00Z" }).status, 201);
++});
++
++test("a booking whose start is not before its end is rejected and not stored", () => {
++  const app = createApp();
++
++  assert.equal(book(app, { roomId: "r1", start: "2026-11-03T10:00:00Z", end: "2026-11-03T10:00:00Z" }).status, 400);
++  assert.equal(book(app, { roomId: "r1", start: "2026-11-03T11:00:00Z", end: "2026-11-03T10:00:00Z" }).status, 400);
++  assert.deepEqual(listBookings(app, "r1").body, []);
++});
++
++test("an invalid booking body is rejected and not stored", () => {
++  const app = createApp();
++
++  assert.equal(book(app, { start: "2026-11-03T10:00:00Z", end: "2026-11-03T11:00:00Z" }).status, 400);
++  assert.equal(book(app, { roomId: "r1", start: "2026-11-03 10:00", end: "2026-11-03T11:00:00Z" }).status, 400);
++  assert.equal(book(app, { roomId: "r1", start: "2026-11-03T10:00:00", end: "2026-11-03T11:00:00Z" }).status, 400);
++  assert.equal(book(app, { roomId: "r1", start: "2026-11-03T10:00:00Z" }).status, 400);
++  assert.equal(book(app, undefined).status, 400);
++  assert.deepEqual(listBookings(app, "r1").body, []);
++});
++
++test("times with a UTC offset are stored in UTC", () => {
++  const app = createApp();
++  const res = book(app, { roomId: "r1", start: "2026-11-03T12:00:00+02:00", end: "2026-11-03T13:00:00+02:00" });
++
++  assert.equal(res.status, 201);
++  assert.equal(res.body.start, "2026-11-03T10:00:00.000Z");
++  assert.equal(res.body.end, "2026-11-03T11:00:00.000Z");
++});
++
++test("rooms of another organization are missing for booking and listing", () => {
++  const app = createApp();
++  const body = { roomId: "r1", start: "2026-11-03T10:00:00Z", end: "2026-11-03T11:00:00Z" };
++
++  assert.equal(book(app, body, zoe).status, 404);
++  assert.equal(listBookings(app, "r1", zoe).status, 404);
++  assert.deepEqual(listBookings(app, "r1").body, []);
++});
++
++test("booking or listing a room that does not exist is missing", () => {
++  const app = createApp();
++
++  assert.equal(book(app, { roomId: "r404", start: "2026-11-03T10:00:00Z", end: "2026-11-03T11:00:00Z" }).status, 404);
++  assert.equal(listBookings(app, "r404").status, 404);
++});
++
++test("booking and listing bookings require a user", () => {
++  const app = createApp();
++
++  assert.equal(app.handle({ method: "POST", path: "/bookings", body: { roomId: "r1", start: "2026-11-03T10:00:00Z", end: "2026-11-03T11:00:00Z" } }).status, 401);
++  assert.equal(app.handle({ method: "GET", path: "/rooms/r1/bookings" }).status, 401);
++});

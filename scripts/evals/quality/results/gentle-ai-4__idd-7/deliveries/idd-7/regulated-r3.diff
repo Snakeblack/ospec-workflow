@@ -1,0 +1,145 @@
+diff --git a/src/clinic.js b/src/clinic.js
+index e4eb220..511aed3 100644
+--- a/src/clinic.js
++++ b/src/clinic.js
+@@ -9,6 +9,21 @@ class AccessDeniedError extends Error {
+   }
+ }
+ 
++const CSV_HEADER = ["Hora", "Paciente", "Motivo"];
++
++// RFC 4180: quote fields with commas, quotes or line breaks, doubling inner quotes.
++function csvField(value) {
++  const text = String(value ?? "");
++  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
++}
++
++function isRealIsoDate(date) {
++  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
++  const [year, month, day] = date.split("-").map(Number);
++  const parsed = new Date(Date.UTC(year, month - 1, day));
++  return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day;
++}
++
+ // Patient: { id, nationalId, name, birthDate, diagnosis }
+ // Appointment: { id, patientId, date: "YYYY-MM-DD", time: "HH:MM", reason }
+ function createClinic({ patients = [], appointments = [], audit = createAuditLog() } = {}) {
+@@ -32,7 +47,27 @@ function createClinic({ patients = [], appointments = [], audit = createAuditLog
+     return result;
+   }
+ 
+-  return { getPatient, appointmentsOn, audit };
++  // Printable agenda of one day: a BOM so spreadsheets read UTF-8, CRLF line breaks,
++  // and rows ordered by time, then by patient name. Patients missing from the register
++  // leave the name cell empty.
++  function exportAppointmentsCsv(date, actor) {
++    requireRole(actor, ["doctor", "reception"]);
++    if (!isRealIsoDate(date)) {
++      throw new TypeError(`date must be a real YYYY-MM-DD day, got ${date}`);
++    }
++    const rows = appointments
++      .filter((item) => item.date === date)
++      .map((item) => {
++        const patient = patients.find((entry) => entry.id === item.patientId);
++        return [item.time, patient ? patient.name : "", item.reason];
++      })
++      .sort((a, b) => a[0].localeCompare(b[0]) || a[1].localeCompare(b[1], "es"));
++    audit.record({ action: "export-appointments-csv", actorId: actor.id, date, count: rows.length });
++    const lines = [CSV_HEADER, ...rows].map((line) => line.map(csvField).join(","));
++    return `﻿${lines.join("\r\n")}\r\n`;
++  }
++
++  return { getPatient, appointmentsOn, exportAppointmentsCsv, audit };
+ }
+ 
+ module.exports = { createClinic, AccessDeniedError };
+diff --git a/test/clinic.js b/test/clinic.js
+index 6da846c..245239f 100644
+--- a/test/clinic.js
++++ b/test/clinic.js
+@@ -31,3 +31,85 @@ test("appointments of a day are listed and audited", () => {
+   assert.deepEqual(clinic.appointmentsOn("2026-10-06", reception).map((item) => item.id), ["a1"]);
+   assert.equal(clinic.audit.entries()[0].count, 1);
+ });
++
++const csvHeader = "﻿Hora,Paciente,Motivo\r\n";
++const dayPatients = [
++  ...patients,
++  { id: "p2", nationalId: "87654321X", name: "Ana Ruiz", birthDate: "1990-05-05", diagnosis: "" },
++];
++
++test("doctors and reception export a day as CSV sorted by time, with BOM and CRLF", () => {
++  const clinic = createClinic({
++    patients: dayPatients,
++    appointments: [
++      { id: "a3", patientId: "p2", date: "2026-10-06", time: "11:00", reason: "Revisión" },
++      { id: "a4", patientId: "p1", date: "2026-10-06", time: "09:30", reason: "Control" },
++      { id: "a5", patientId: "p2", date: "2026-10-07", time: "08:00", reason: "Otro día" },
++    ],
++  });
++  const expected = `${csvHeader}09:30,Luis Gómez,Control\r\n11:00,Ana Ruiz,Revisión\r\n`;
++  assert.equal(clinic.exportAppointmentsCsv("2026-10-06", reception), expected);
++  assert.equal(clinic.exportAppointmentsCsv("2026-10-06", doctor), expected);
++});
++
++test("appointments at the same time are ordered by patient name", () => {
++  const clinic = createClinic({
++    patients: dayPatients,
++    appointments: [
++      { id: "a6", patientId: "p1", date: "2026-10-06", time: "09:30", reason: "Control" },
++      { id: "a7", patientId: "p2", date: "2026-10-06", time: "09:30", reason: "Revisión" },
++    ],
++  });
++  assert.equal(
++    clinic.exportAppointmentsCsv("2026-10-06", reception),
++    `${csvHeader}09:30,Ana Ruiz,Revisión\r\n09:30,Luis Gómez,Control\r\n`,
++  );
++});
++
++test("fields with commas, quotes or line breaks are quoted as RFC 4180 requires", () => {
++  const clinic = createClinic({
++    patients: [{ id: "p3", nationalId: "11111111H", name: 'Pérez, "Pepe"', birthDate: "1975-01-01", diagnosis: "" }],
++    appointments: [{ id: "a8", patientId: "p3", date: "2026-10-06", time: "10:00", reason: "Revisión\nurgente" }],
++  });
++  assert.equal(
++    clinic.exportAppointmentsCsv("2026-10-06", reception),
++    `${csvHeader}10:00,"Pérez, ""Pepe""","Revisión\nurgente"\r\n`,
++  );
++});
++
++test("an empty day exports only the header", () => {
++  const clinic = createClinic({ patients, appointments });
++  assert.equal(clinic.exportAppointmentsCsv("2026-01-01", reception), csvHeader);
++});
++
++test("an appointment whose patient does not exist leaves the name cell empty", () => {
++  const clinic = createClinic({
++    patients,
++    appointments: [{ id: "a9", patientId: "p9", date: "2026-10-06", time: "09:00", reason: "Control" }],
++  });
++  assert.equal(clinic.exportAppointmentsCsv("2026-10-06", reception), `${csvHeader}09:00,,Control\r\n`);
++});
++
++test("a date that is not a real YYYY-MM-DD day is rejected without an audit entry", () => {
++  const clinic = createClinic({ patients, appointments });
++  assert.throws(() => clinic.exportAppointmentsCsv("06/10/2026", reception), TypeError);
++  assert.throws(() => clinic.exportAppointmentsCsv("2026-02-30", reception), TypeError);
++  assert.equal(clinic.audit.entries().length, 0);
++});
++
++test("roles other than doctor and reception are denied without an audit entry", () => {
++  const clinic = createClinic({ patients, appointments });
++  assert.throws(() => clinic.exportAppointmentsCsv("2026-10-06", { id: "n1", role: "nurse" }), AccessDeniedError);
++  assert.equal(clinic.audit.entries().length, 0);
++});
++
++test("every export is audited with the actor, the date and the number of rows", () => {
++  const clinic = createClinic({ patients, appointments });
++  clinic.exportAppointmentsCsv("2026-10-06", reception);
++  const [entry] = clinic.audit.entries();
++  assert.equal(clinic.audit.entries().length, 1);
++  assert.equal(entry.action, "export-appointments-csv");
++  assert.equal(entry.actorId, reception.id);
++  assert.equal(entry.date, "2026-10-06");
++  assert.equal(entry.count, 1);
++});

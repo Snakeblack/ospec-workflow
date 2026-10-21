@@ -1,0 +1,124 @@
+diff --git a/README.md b/README.md
+index 5a8c6aa..fdf72a6 100644
+--- a/README.md
++++ b/README.md
+@@ -3,7 +3,11 @@
+ Cálculo de facturas de la tienda online (2014). Lo usan el checkout, la
+ facturación mensual y la conciliación con contabilidad.
+ 
+-`calcInvoice(order)` recibe `{ items: [{ sku, price, qty, reducedVat? }], pickup? }`
+-y devuelve `{ lineas, subtotal, iva, envio, total }`.
++`calcInvoice(order)` recibe `{ items: [{ sku, price, qty, reducedVat? }], pickup?, discountCode? }`
++y devuelve `{ lineas, subtotal, descuento, iva, envio, total }`.
+ 
+-No hay pruebas automáticas.
++- `discountCode` es una clave de `src/discounts.js` (p. ej. `VERANO10`). Un código desconocido lanza error.
++- El descuento se aplica por línea antes del IVA; `subtotal` es el importe bruto y `total = subtotal - descuento + iva + envio`.
++- El umbral de envío gratis se evalúa sobre el `subtotal` bruto.
++
++Pruebas: `npm test` (tests en `test/`).
+diff --git a/src/invoice.js b/src/invoice.js
+index 9b01eaa..8b2b613 100644
+--- a/src/invoice.js
++++ b/src/invoice.js
+@@ -1,6 +1,8 @@
+ // Facturacion v1 (2014). No tocar sin hablar con contabilidad.
+ // TODO: tests
+ 
++var discounts = require("./discounts.js");
++
+ var IVA = 0.21;
+ var IVA_REDUCIDO = 0.10;
+ var ENVIO = 4.95;
+@@ -8,25 +10,39 @@ var UMBRAL_ENVIO_GRATIS = 50;
+ 
+ function r2(n) { return Math.round(n * 100) / 100; }
+ 
++// El descuento reduce la base imponible de cada linea, asi que el IVA se calcula sobre el importe ya descontado.
++function porcentajeDescuento(code) {
++  if (code === undefined || code === null) return 0;
++  if (!Object.prototype.hasOwnProperty.call(discounts.CODIGOS, code)) {
++    throw new Error("Codigo de descuento no valido: " + code);
++  }
++  return discounts.CODIGOS[code];
++}
++
+ function calcInvoice(order) {
++  var pct = porcentajeDescuento(order.discountCode);
+   var lineas = [];
+   var subtotal = 0;
++  var descuento = 0;
+   var iva = 0;
+   for (var i = 0; i < order.items.length; i++) {
+     var it = order.items[i];
+     var importe = r2(it.price * it.qty);
+-    var ivaLinea = r2(importe * (it.reducedVat ? IVA_REDUCIDO : IVA));
++    var descuentoLinea = r2(importe * pct / 100);
++    var ivaLinea = r2((importe - descuentoLinea) * (it.reducedVat ? IVA_REDUCIDO : IVA));
+     subtotal = subtotal + importe;
++    descuento = descuento + descuentoLinea;
+     iva = iva + ivaLinea;
+     lineas.push({ sku: it.sku, importe: importe, iva: ivaLinea });
+   }
+   subtotal = r2(subtotal);
++  descuento = r2(descuento);
+   iva = r2(iva);
+   var envio = subtotal >= UMBRAL_ENVIO_GRATIS ? 0 : ENVIO;
+   if (order.pickup) envio = 0;
+   // el envio va sin IVA (acuerdo con la transportista, 2016)
+-  var total = r2(subtotal + iva + envio);
+-  return { lineas: lineas, subtotal: subtotal, iva: iva, envio: envio, total: total };
++  var total = r2(subtotal - descuento + iva + envio);
++  return { lineas: lineas, subtotal: subtotal, descuento: descuento, iva: iva, envio: envio, total: total };
+ }
+ 
+ module.exports = { calcInvoice: calcInvoice };
+diff --git a/test/invoice.test.js b/test/invoice.test.js
+new file mode 100644
+index 0000000..20d27a2
+--- /dev/null
++++ b/test/invoice.test.js
+@@ -0,0 +1,43 @@
++var test = require("node:test");
++var assert = require("node:assert/strict");
++var { calcInvoice } = require("../src/invoice.js");
++
++var base = {
++  items: [
++    { sku: "A", price: 20, qty: 2 },
++    { sku: "B", price: 10, qty: 1, reducedVat: true }
++  ]
++};
++
++test("sin codigo: descuento a 0 y totales sin cambios", function () {
++  var f = calcInvoice(base);
++  assert.equal(f.descuento, 0);
++  assert.equal(f.subtotal, 50);
++  assert.equal(f.iva, 9.4);
++  assert.equal(f.envio, 0);
++  assert.equal(f.total, 59.4);
++});
++
++test("VERANO10 aplica 10% sobre la base antes de IVA", function () {
++  var f = calcInvoice({ items: base.items, discountCode: "VERANO10" });
++  assert.equal(f.subtotal, 50);
++  assert.equal(f.descuento, 5);
++  // IVA 21% sobre 36 (7.56) + IVA 10% sobre 9 (0.9)
++  assert.equal(f.iva, 8.46);
++  assert.equal(f.envio, 0);
++  assert.equal(f.total, 53.46);
++});
++
++test("codigo desconocido lanza error", function () {
++  assert.throws(
++    function () { calcInvoice({ items: base.items, discountCode: "NOPE" }); },
++    /codigo de descuento/i
++  );
++});
++
++test("claves heredadas de Object.prototype no son codigos validos", function () {
++  assert.throws(
++    function () { calcInvoice({ items: base.items, discountCode: "constructor" }); },
++    /codigo de descuento/i
++  );
++});

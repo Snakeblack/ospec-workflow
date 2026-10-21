@@ -1,0 +1,192 @@
+diff --git a/README.md b/README.md
+index 5a8c6aa..79fe1b6 100644
+--- a/README.md
++++ b/README.md
+@@ -3,7 +3,15 @@
+ Cálculo de facturas de la tienda online (2014). Lo usan el checkout, la
+ facturación mensual y la conciliación con contabilidad.
+ 
+-`calcInvoice(order)` recibe `{ items: [{ sku, price, qty, reducedVat? }], pickup? }`
+-y devuelve `{ lineas, subtotal, iva, envio, total }`.
++`calcInvoice(order)` recibe `{ items: [{ sku, price, qty, reducedVat? }], pickup?, discountCode? }`
++y devuelve `{ lineas, subtotal, iva, envio, total, descuento }`.
+ 
+-No hay pruebas automáticas.
++- `discountCode` es opcional. Se busca en `src/discounts.js` sin distinguir
++  mayúsculas ni espacios (`verano10` = `VERANO10`). Un código que no existe
++  lanza un error y no se calcula la factura.
++- El porcentaje se aplica al subtotal antes del IVA; el IVA se calcula sobre
++  el importe ya descontado. El envío no se descuenta, y el umbral de envío
++  gratis se evalúa con el subtotal ya descontado.
++- `descuento` es el importe descontado en euros (positivo). Sin código vale `0`.
++
++Pruebas: `npm test`.
+diff --git a/src/invoice.js b/src/invoice.js
+index 9b01eaa..5b9d7c3 100644
+--- a/src/invoice.js
++++ b/src/invoice.js
+@@ -1,5 +1,6 @@
+ // Facturacion v1 (2014). No tocar sin hablar con contabilidad.
+-// TODO: tests
++
++var CODIGOS = require('./discounts.js').CODIGOS;
+ 
+ var IVA = 0.21;
+ var IVA_REDUCIDO = 0.10;
+@@ -8,25 +9,43 @@ var UMBRAL_ENVIO_GRATIS = 50;
+ 
+ function r2(n) { return Math.round(n * 100) / 100; }
+ 
++// Porcentaje del codigo; 0 si no hay codigo. Un codigo desconocido lanza error.
++function porcentajeDescuento(code) {
++  if (code === undefined || code === null) return 0;
++  var c = String(code).trim().toUpperCase();
++  if (c === '') return 0;
++  if (!Object.prototype.hasOwnProperty.call(CODIGOS, c)) {
++    throw new Error('Codigo de descuento no valido: ' + code);
++  }
++  return CODIGOS[c];
++}
++
+ function calcInvoice(order) {
++  var pct = porcentajeDescuento(order.discountCode);
+   var lineas = [];
++  var subtotalBruto = 0;
+   var subtotal = 0;
+   var iva = 0;
+   for (var i = 0; i < order.items.length; i++) {
+     var it = order.items[i];
+-    var importe = r2(it.price * it.qty);
++    var bruto = r2(it.price * it.qty);
++    var importe = r2(bruto * (100 - pct) / 100);
+     var ivaLinea = r2(importe * (it.reducedVat ? IVA_REDUCIDO : IVA));
++    subtotalBruto = subtotalBruto + bruto;
+     subtotal = subtotal + importe;
+     iva = iva + ivaLinea;
+     lineas.push({ sku: it.sku, importe: importe, iva: ivaLinea });
+   }
++  subtotalBruto = r2(subtotalBruto);
+   subtotal = r2(subtotal);
++  var descuento = r2(subtotalBruto - subtotal);
+   iva = r2(iva);
++  // el umbral de envio gratis usa el subtotal ya descontado; el envio no se descuenta
+   var envio = subtotal >= UMBRAL_ENVIO_GRATIS ? 0 : ENVIO;
+   if (order.pickup) envio = 0;
+   // el envio va sin IVA (acuerdo con la transportista, 2016)
+   var total = r2(subtotal + iva + envio);
+-  return { lineas: lineas, subtotal: subtotal, iva: iva, envio: envio, total: total };
++  return { lineas: lineas, subtotal: subtotal, iva: iva, envio: envio, total: total, descuento: descuento };
+ }
+ 
+ module.exports = { calcInvoice: calcInvoice };
+diff --git a/test/invoice.test.js b/test/invoice.test.js
+new file mode 100644
+index 0000000..737e6ec
+--- /dev/null
++++ b/test/invoice.test.js
+@@ -0,0 +1,105 @@
++const test = require('node:test');
++const assert = require('node:assert/strict');
++const { calcInvoice } = require('../src/invoice.js');
++
++test('sin codigo la factura no cambia y descuento es 0', () => {
++  const factura = calcInvoice({
++    items: [
++      { sku: 'A', price: 19.99, qty: 3 },
++      { sku: 'B', price: 7.35, qty: 1, reducedVat: true },
++    ],
++  });
++  assert.deepEqual(factura, {
++    lineas: [
++      { sku: 'A', importe: 59.97, iva: 12.59 },
++      { sku: 'B', importe: 7.35, iva: 0.74 },
++    ],
++    subtotal: 67.32,
++    iva: 13.33,
++    envio: 0,
++    total: 80.65,
++    descuento: 0,
++  });
++});
++
++test('codigo vacio o null equivale a sin codigo', () => {
++  const order = { items: [{ sku: 'A', price: 10, qty: 1 }] };
++  const sin = calcInvoice(order);
++  assert.deepEqual(calcInvoice({ ...order, discountCode: '' }), sin);
++  assert.deepEqual(calcInvoice({ ...order, discountCode: '   ' }), sin);
++  assert.deepEqual(calcInvoice({ ...order, discountCode: null }), sin);
++});
++
++test('VERANO10 descuenta el 10% del subtotal antes del IVA', () => {
++  const factura = calcInvoice({
++    items: [{ sku: 'A', price: 20, qty: 2 }],
++    discountCode: 'VERANO10',
++  });
++  assert.deepEqual(factura, {
++    lineas: [{ sku: 'A', importe: 36, iva: 7.56 }],
++    subtotal: 36,
++    iva: 7.56,
++    envio: 4.95,
++    total: 48.51,
++    descuento: 4,
++  });
++});
++
++test('el codigo se normaliza en mayusculas y espacios', () => {
++  const order = { items: [{ sku: 'A', price: 20, qty: 2 }] };
++  const esperada = calcInvoice({ ...order, discountCode: 'VERANO10' });
++  assert.deepEqual(calcInvoice({ ...order, discountCode: 'verano10' }), esperada);
++  assert.deepEqual(calcInvoice({ ...order, discountCode: ' VERANO10 ' }), esperada);
++});
++
++test('el umbral de envio gratis se evalua con el importe ya descontado', () => {
++  // 52 sin descuento supera el umbral; con VERANO10 baja a 46,80 y paga envio
++  const sin = calcInvoice({ items: [{ sku: 'C', price: 52, qty: 1 }] });
++  assert.equal(sin.envio, 0);
++  const con = calcInvoice({ items: [{ sku: 'C', price: 52, qty: 1 }], discountCode: 'VERANO10' });
++  assert.equal(con.subtotal, 46.8);
++  assert.equal(con.envio, 4.95);
++  assert.equal(con.total, 61.58);
++});
++
++test('el envio nunca se descuenta', () => {
++  const factura = calcInvoice({
++    items: [{ sku: 'A', price: 20, qty: 1 }],
++    discountCode: 'VERANO10',
++  });
++  assert.equal(factura.envio, 4.95);
++  assert.equal(factura.total, 26.73);
++});
++
++test('recogida en tienda sigue sin envio con codigo', () => {
++  const factura = calcInvoice({
++    items: [{ sku: 'A', price: 20, qty: 1 }],
++    pickup: true,
++    discountCode: 'BIENVENIDA5',
++  });
++  assert.equal(factura.envio, 0);
++  assert.equal(factura.descuento, 1);
++});
++
++test('el IVA reducido se calcula sobre el importe descontado', () => {
++  const factura = calcInvoice({
++    items: [{ sku: 'B', price: 10, qty: 1, reducedVat: true }],
++    discountCode: 'VERANO10',
++  });
++  assert.deepEqual(factura.lineas, [{ sku: 'B', importe: 9, iva: 0.9 }]);
++  assert.equal(factura.iva, 0.9);
++});
++
++test('codigo inexistente lanza error y no calcula la factura', () => {
++  assert.throws(
++    () => calcInvoice({ items: [{ sku: 'A', price: 10, qty: 1 }], discountCode: 'BIENVENIDA99' }),
++    /BIENVENIDA99/,
++  );
++});
++
++test('un nombre de propiedad del objeto no es un codigo valido', () => {
++  assert.throws(
++    () => calcInvoice({ items: [{ sku: 'A', price: 10, qty: 1 }], discountCode: 'constructor' }),
++    /constructor/,
++  );
++});
