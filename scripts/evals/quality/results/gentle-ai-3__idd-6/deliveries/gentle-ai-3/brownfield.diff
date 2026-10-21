@@ -1,0 +1,154 @@
+diff --git a/README.md b/README.md
+index 5a8c6aa..5061be2 100644
+--- a/README.md
++++ b/README.md
+@@ -3,7 +3,13 @@
+ Cálculo de facturas de la tienda online (2014). Lo usan el checkout, la
+ facturación mensual y la conciliación con contabilidad.
+ 
+-`calcInvoice(order)` recibe `{ items: [{ sku, price, qty, reducedVat? }], pickup? }`
+-y devuelve `{ lineas, subtotal, iva, envio, total }`.
++`calcInvoice(order)` recibe `{ items: [{ sku, price, qty, reducedVat? }], pickup?, discountCode? }`
++y devuelve `{ lineas, descuento, subtotal, iva, envio, total }`.
+ 
+-No hay pruebas automáticas.
++- `discountCode` (p. ej. `VERANO10`) es opcional; los códigos válidos están en
++  `src/discounts.js`. Un código desconocido lanza un error.
++- El descuento se aplica por línea antes del IVA; `descuento` es el importe total descontado
++  y `subtotal` ya lo incluye restado.
++- El umbral de envío gratis se evalúa sobre el `subtotal` descontado.
++
++Pruebas: `npm test`.
+diff --git a/src/discounts.js b/src/discounts.js
+index 6533171..d62f3ff 100644
+--- a/src/discounts.js
++++ b/src/discounts.js
+@@ -1,4 +1,4 @@
+-// Codigos de descuento de marketing (porcentaje). Pendiente de usar en factura.
++// Codigos de descuento de marketing (porcentaje). Aplicados en calcInvoice.
+ var CODIGOS = {
+   VERANO10: 10,
+   BIENVENIDA5: 5
+diff --git a/src/invoice.js b/src/invoice.js
+index 9b01eaa..529200b 100644
+--- a/src/invoice.js
++++ b/src/invoice.js
+@@ -1,6 +1,8 @@
+ // Facturacion v1 (2014). No tocar sin hablar con contabilidad.
+ // TODO: tests
+ 
++var CODIGOS = require('./discounts').CODIGOS;
++
+ var IVA = 0.21;
+ var IVA_REDUCIDO = 0.10;
+ var ENVIO = 4.95;
+@@ -8,25 +10,40 @@ var UMBRAL_ENVIO_GRATIS = 50;
+ 
+ function r2(n) { return Math.round(n * 100) / 100; }
+ 
++function porcentajeDescuento(codigo) {
++  if (codigo === undefined || codigo === null || codigo === '') return 0;
++  if (!Object.prototype.hasOwnProperty.call(CODIGOS, codigo)) {
++    throw new Error('Codigo de descuento desconocido: ' + codigo);
++  }
++  return CODIGOS[codigo];
++}
++
+ function calcInvoice(order) {
++  var pct = porcentajeDescuento(order.discountCode);
+   var lineas = [];
+   var subtotal = 0;
+   var iva = 0;
++  var descuento = 0;
+   for (var i = 0; i < order.items.length; i++) {
+     var it = order.items[i];
+-    var importe = r2(it.price * it.qty);
++    var bruto = r2(it.price * it.qty);
++    // el descuento se resta antes del IVA: el IVA se calcula sobre lo que realmente se cobra
++    var descuentoLinea = r2(bruto * pct / 100);
++    var importe = r2(bruto - descuentoLinea);
+     var ivaLinea = r2(importe * (it.reducedVat ? IVA_REDUCIDO : IVA));
++    descuento = descuento + descuentoLinea;
+     subtotal = subtotal + importe;
+     iva = iva + ivaLinea;
+     lineas.push({ sku: it.sku, importe: importe, iva: ivaLinea });
+   }
++  descuento = r2(descuento);
+   subtotal = r2(subtotal);
+   iva = r2(iva);
+   var envio = subtotal >= UMBRAL_ENVIO_GRATIS ? 0 : ENVIO;
+   if (order.pickup) envio = 0;
+   // el envio va sin IVA (acuerdo con la transportista, 2016)
+   var total = r2(subtotal + iva + envio);
+-  return { lineas: lineas, subtotal: subtotal, iva: iva, envio: envio, total: total };
++  return { lineas: lineas, descuento: descuento, subtotal: subtotal, iva: iva, envio: envio, total: total };
+ }
+ 
+ module.exports = { calcInvoice: calcInvoice };
+diff --git a/test/invoice.test.js b/test/invoice.test.js
+new file mode 100644
+index 0000000..02b76b6
+--- /dev/null
++++ b/test/invoice.test.js
+@@ -0,0 +1,61 @@
++var test = require('node:test');
++var assert = require('node:assert');
++var calcInvoice = require('../src/invoice.js').calcInvoice;
++
++test('sin codigo de descuento la factura no descuenta nada', function () {
++  var f = calcInvoice({ items: [{ sku: 'A', price: 10, qty: 2 }] });
++  assert.strictEqual(f.descuento, 0);
++  assert.strictEqual(f.subtotal, 20);
++  assert.strictEqual(f.iva, 4.2);
++  assert.strictEqual(f.envio, 4.95);
++  assert.strictEqual(f.total, 29.15);
++});
++
++test('codigo vacio equivale a no tener codigo', function () {
++  var f = calcInvoice({ items: [{ sku: 'A', price: 10, qty: 2 }], discountCode: '' });
++  assert.strictEqual(f.descuento, 0);
++  assert.strictEqual(f.total, 29.15);
++});
++
++test('VERANO10 descuenta el 10% antes del IVA', function () {
++  var f = calcInvoice({ items: [{ sku: 'A', price: 100, qty: 1 }], discountCode: 'VERANO10' });
++  assert.strictEqual(f.descuento, 10);
++  assert.strictEqual(f.subtotal, 90);
++  assert.strictEqual(f.iva, 18.9);
++  assert.strictEqual(f.envio, 0);
++  assert.strictEqual(f.total, 108.9);
++});
++
++test('el descuento usa el IVA reducido de la linea sobre el importe ya descontado', function () {
++  var f = calcInvoice({ items: [{ sku: 'L', price: 100, qty: 1, reducedVat: true }], discountCode: 'VERANO10' });
++  assert.strictEqual(f.descuento, 10);
++  assert.strictEqual(f.subtotal, 90);
++  assert.strictEqual(f.iva, 9);
++  assert.strictEqual(f.total, 99);
++});
++
++test('el umbral de envio gratis se evalua sobre el subtotal descontado', function () {
++  var f = calcInvoice({ items: [{ sku: 'A', price: 55, qty: 1 }], discountCode: 'BIENVENIDA5' });
++  assert.strictEqual(f.descuento, 2.75);
++  assert.strictEqual(f.subtotal, 52.25);
++  assert.strictEqual(f.envio, 0);
++});
++
++test('recogida en tienda sigue sin envio con descuento', function () {
++  var f = calcInvoice({ items: [{ sku: 'A', price: 10, qty: 1 }], pickup: true, discountCode: 'VERANO10' });
++  assert.strictEqual(f.descuento, 1);
++  assert.strictEqual(f.envio, 0);
++  assert.strictEqual(f.total, 9 + 1.89);
++});
++
++test('un codigo desconocido lanza error en lugar de facturar sin descuento', function () {
++  assert.throws(function () {
++    calcInvoice({ items: [{ sku: 'A', price: 10, qty: 1 }], discountCode: 'NOEXISTE' });
++  }, /descuento/i);
++});
++
++test('claves heredadas de Object.prototype no son codigos validos', function () {
++  assert.throws(function () {
++    calcInvoice({ items: [{ sku: 'A', price: 10, qty: 1 }], discountCode: 'constructor' });
++  }, /descuento/i);
++});

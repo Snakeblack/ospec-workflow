@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/snakeblack/ospec-workflow/internal/iddsession"
+	"github.com/snakeblack/ospec-workflow/internal/ospecdir"
 	"github.com/snakeblack/ospec-workflow/internal/store"
 	"github.com/snakeblack/ospec-workflow/internal/yamllite"
 )
@@ -148,7 +149,7 @@ func resolveStopSessionID(input stopInput) string {
 
 func writeLatest(s *store.Store, content string) error {
 	latestPath := s.LatestSessionPath()
-	if err := os.MkdirAll(filepath.Dir(latestPath), 0755); err != nil {
+	if err := ospecdir.MkdirAll(filepath.Dir(latestPath), 0755); err != nil {
 		return fmt.Errorf("stop: mkdir: %w", err)
 	}
 	return os.WriteFile(latestPath, []byte(content), 0644)

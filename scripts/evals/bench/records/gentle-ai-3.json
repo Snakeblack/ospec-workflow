@@ -1,0 +1,677 @@
+{
+  "schema_version": 3,
+  "record_id": "gentle-ai-3",
+  "arm": "gentle-ai",
+  "recorded_at": "2026-10-21T16:44:26.719Z",
+  "host": {
+    "name": "claude-code",
+    "cli_version": "",
+    "model": "claude-haiku-5-5",
+    "effort": null,
+    "plugin_version": "4.2.0 (engram 3.5.1)",
+    "plugin_digest": "1bb41ce744a748205518dc1e2d285b88b3a944e342455f5bd84f9abdd7fd6c68",
+    "engram_mcp_bytes": 140
+  },
+  "persona": {
+    "model": "claude-haiku-5-5"
+  },
+  "repo_commit": "b76395b49051081d20bcd3b755d57d954db7b4f7",
+  "scenarios_digest": "3eed3740a0d60661b6724c7884225f575189723fb75b334d8c7377bfe93ad8b4",
+  "harness_digest": "076387f7611da6973da1fae16a6909520142028ee731a57b3a8b8e891cc3b6ad",
+  "limits": {
+    "maxAgentTurns": 30,
+    "maxSetupTurns": 6,
+    "maxCostUsd": 25
+  },
+  "repetitions": 1,
+  "runs": [
+    {
+      "scenario_id": "cli-local",
+      "repetition": 1,
+      "profile": "cli-local",
+      "status": "complete",
+      "reason": null,
+      "setup": null,
+      "metrics": {
+        "usage": {
+          "input": 36,
+          "output": 8348,
+          "cache_read": 970712,
+          "cache_creation": 54479
+        },
+        "tokens_total": 1033575,
+        "cost_usd": 0.024781,
+        "duration_ms": 46839,
+        "agent_turns": 1,
+        "model_turns": 19,
+        "subagents": 0,
+        "questions": 0,
+        "decision_changing_questions": 0,
+        "interventions": 0,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "priority-order",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "default-media",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "invalid-priority",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "legacy-file",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "stable-ties",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": true
+        },
+        {
+          "id": "line-prefix",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": true
+        },
+        {
+          "id": "done-still-works",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 0,
+      "facts_disclosed": [],
+      "changed_files": [
+        ".atl/.skill-registry.cache.json",
+        ".atl/skill-registry.md",
+        "README.md",
+        "src/cli.js",
+        "test/cli.js"
+      ],
+      "open_facts": null,
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Ya está: `tasks add` acepta `--priority alta|media|baja` al final y `tasks list` muestra primero las de prioridad más alta. El trabajo está commiteado en la rama `feat/task-priority` (commit `65a2d10`).\n\nDecisiones que tomé (puedes cambiarlas):\n- **Posición del flag:** `--priority` solo se reconoce como los dos últimos argumentos. Si aparece en otro sitio, o el valor no es válido, sale con código 2 y no añade nada.\n- **Por defecto:** sin flag, la prioridad es `media`. Las tareas guardadas antes de este cambio (sin campo `priority`) también cuentan como `media`.\n- **Orden:** dentro de la misma prioridad se mantiene el orden de creación.\n- **Salida de `list`:** no muestra la prioridad. Mantuve el formato actual para no romper los tests existentes. Si quieres verla, puedo añadirla.\n\nVerificación: `npm test` pasa los 7 tests (4 nuevos, que vi fallar antes de implementar). También comprobé a mano que `constructor` como prioridad se rechaza. Actualicé el README y la ayuda de uso.\n\nNo añadí ninguna línea de atribución al commit. La rama no está publicada ni hay PR abierto.",
+          "tokens": 1033575
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "0245b7e2e433b5f567147f9b4a6519596c0ba0b18d99c79e9e94a45bbc50a3e9"
+        }
+      ]
+    },
+    {
+      "scenario_id": "saas-small",
+      "repetition": 1,
+      "profile": "saas-small",
+      "status": "complete",
+      "reason": null,
+      "setup": null,
+      "metrics": {
+        "usage": {
+          "input": 18,
+          "output": 9199,
+          "cache_read": 468172,
+          "cache_creation": 55002
+        },
+        "tokens_total": 532391,
+        "cost_usd": 0.020283,
+        "duration_ms": 51265,
+        "agent_turns": 1,
+        "model_turns": 17,
+        "subagents": 0,
+        "questions": 0,
+        "decision_changing_questions": 0,
+        "interventions": 0,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "share-visible",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "owner-only-share",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "no-cross-tenant-share",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "read-only-share",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "idempotent-share",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": true
+        },
+        {
+          "id": "tenant-isolation",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 0,
+      "facts_disclosed": [],
+      "changed_files": [
+        ".atl/.skill-registry.cache.json",
+        ".atl/skill-registry.md",
+        "README.md",
+        "src/app.js",
+        "src/repo.js",
+        "test/app.js"
+      ],
+      "open_facts": null,
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Ya está implementado y commiteado en `main` como `caab094` (`feat(notes): allow owners to share notes with users in the same tenant`).\n\n**Comportamiento**\n- `POST /notes/:id/share` con `{ \"userId\": \"u2\" }` añade al compañero a la nota.\n- El compañero ve la nota en `GET /notes` y puede abrirla con `GET /notes/:id`.\n- Solo el dueño puede compartir, editar o borrar. Si el compañero intenta `PUT`, `DELETE` o compartir, recibe 403.\n\n**Decisiones que tomé**\n- **Destinatario del mismo tenant:** si el `userId` no existe o es de otra organización, responde 404 `user-not-found`. Así no se revela si un usuario de otro tenant existe.\n- **Errores adicionales:** sin `userId` responde 400, y compartir con uno mismo también 400.\n- **Contrato de respuesta:** las notas ahora incluyen un campo `sharedWith` (array de ids). Es una adición, no un cambio de campos existentes, pero los consumidores que comparen el objeto completo lo verán.\n\n**Verificación**\n- Escribí los 3 tests nuevos primero y comprobé que fallaban (RED). Después implementé (GREEN): `npm test` pasa 6/6, incluidos los 3 originales.\n- Actualicé la tabla de rutas del README.\n\n**Pendiente**\n- No hice push ni PR. Dime si quieres que lo haga.\n- La carpeta `.atl/` sin seguimiento quedó fuera del commit.\n- Como esto toca permisos, lo clasifiqué como riesgo alto. No lancé un verificador independiente; la verificación fue la suite de tests más la revisión de los caminos de autorización.",
+          "tokens": 532391
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "c8c122db5bbec9399d1d6a8ddcfc36b403acf29ccffb62897793e555ffa7a412"
+        }
+      ]
+    },
+    {
+      "scenario_id": "regulated",
+      "repetition": 1,
+      "profile": "regulated",
+      "status": "complete",
+      "reason": null,
+      "setup": null,
+      "metrics": {
+        "usage": {
+          "input": 16,
+          "output": 8186,
+          "cache_read": 416960,
+          "cache_creation": 53480
+        },
+        "tokens_total": 478642,
+        "cost_usd": 0.01896,
+        "duration_ms": 46203,
+        "agent_turns": 1,
+        "model_turns": 12,
+        "subagents": 0,
+        "questions": 0,
+        "decision_changing_questions": 0,
+        "interventions": 0,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "export-day-sorted",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": false,
+          "error": "role reception cannot perform this action"
+        },
+        {
+          "id": "no-national-id-or-diagnosis",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": false,
+          "error": "role reception cannot perform this action"
+        },
+        {
+          "id": "export-audited",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": false,
+          "error": "role reception cannot perform this action"
+        },
+        {
+          "id": "export-roles",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "csv-escaping",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": false,
+          "error": "role reception cannot perform this action"
+        },
+        {
+          "id": "patient-reads-still-audited",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 4,
+      "facts_disclosed": [],
+      "changed_files": [
+        ".atl/.skill-registry.cache.json",
+        ".atl/skill-registry.md",
+        "README.md",
+        "src/clinic.js",
+        "test/clinic.js"
+      ],
+      "open_facts": null,
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Añadí `exportAppointmentsCsv(date, actor)` a `createClinic` y lo commiteé como `aed4f5d`. Los 6 tests pasan.\n\n**Decisión de permisos:** la exportación solo la puede usar `doctor`, no `reception`. El CSV incluye el nombre del paciente, y en el código solo `doctor` puede leer pacientes (`getPatient`). Dejar que recepción exporte nombres sería ampliar el acceso a datos de salud. Si quieres que recepción también pueda exportar, hay que decidir qué ve: nombres (cambio de política, habría que actualizar la tabla de roles del README) o solo hora y motivo (cambio pequeño en `exportAppointmentsCsv`).\n\n**Qué hace:**\n- Devuelve la cabecera `hora,paciente,motivo` y una fila por cita del día, ordenadas por hora.\n- Escapa comas, comillas y saltos de línea según CSV estándar.\n- Registra la exportación en la auditoría (`export-appointments`) con el número de citas y los `patientId` expuestos, en línea con la política del README.\n- La cabecera está en español porque el CSV es para imprimir; si lo prefieres en inglés, es un cambio de una línea.\n\n**Archivos:** `src/clinic.js`, `test/clinic.js` (tests escritos antes de la implementación y vistos en rojo), y `README.md` (fila del rol `doctor`).\n\n**Riesgo:** Risk: item 2 (permisos: nueva lectura de nombres de pacientes con control de rol). No he lanzado un verificador independiente; los tests cubren el control de rol, la auditoría y el formato.\n\nNo he incluido `.atl/` en el commit, que sigue sin seguimiento.",
+          "tokens": 478642
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "a2e8116e6c53a222bf1f70dc8fde44c026588c6b2069eb6fcd975eb5462c91ca"
+        }
+      ]
+    },
+    {
+      "scenario_id": "brownfield",
+      "repetition": 1,
+      "profile": "brownfield",
+      "status": "complete",
+      "reason": null,
+      "setup": null,
+      "metrics": {
+        "usage": {
+          "input": 24,
+          "output": 9886,
+          "cache_read": 642207,
+          "cache_creation": 54254
+        },
+        "tokens_total": 706371,
+        "cost_usd": 0.022218,
+        "duration_ms": 55093,
+        "agent_turns": 1,
+        "model_turns": 14,
+        "subagents": 0,
+        "questions": 0,
+        "decision_changing_questions": 0,
+        "interventions": 0,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "discount-applied",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "discount-before-vat",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": true
+        },
+        {
+          "id": "shipping-after-discount",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "case-insensitive-code",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": false,
+          "error": "Codigo de descuento desconocido: verano10"
+        },
+        {
+          "id": "unknown-code-throws",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": true
+        },
+        {
+          "id": "history-unchanged",
+          "kind": "fact",
+          "fact": "F5",
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 1,
+      "facts_disclosed": [],
+      "changed_files": [
+        ".atl/.skill-registry.cache.json",
+        ".atl/skill-registry.md",
+        "README.md",
+        "src/discounts.js",
+        "src/invoice.js",
+        "test/invoice.test.js"
+      ],
+      "open_facts": null,
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "`calcInvoice` ahora acepta `order.discountCode` y devuelve el campo `descuento`. El trabajo está commiteado en `main` como `b2325d3 feat(invoice): aplicar codigos de descuento antes del IVA`.\n\n**Decisiones que tomé** (conviene que contabilidad las confirme):\n- **El descuento se resta antes del IVA**, línea a línea. Así el IVA se calcula sobre lo que realmente se cobra. `lineas[].importe` pasa a ser el importe ya descontado.\n- **El umbral de envío gratis (50) se evalúa sobre el subtotal descontado.**\n- **Un código desconocido lanza un error** en vez de facturar sin descuento en silencio. Esto puede romper el checkout si llega un código mal escrito; si prefieren ignorarlo, es un cambio de una línea.\n- Sin código (o con `discountCode: ''`), `descuento` es `0` y el resto de la salida es idéntica a la base. Lo comprobé comparando cuatro pedidos contra el commit anterior.\n\n**Cambios:**\n- `src/invoice.js`: lógica de descuento. Uso `hasOwnProperty` para que claves como `constructor` no se acepten como códigos.\n- `test/invoice.test.js`: 8 tests nuevos. Los 7 de descuento fallaron antes de implementar y ahora pasan todos (`npm test`).\n- `README.md` y el comentario de `src/discounts.js` actualizados.\n\nNo commiteé `.atl/`, que sigue sin seguimiento.",
+          "tokens": 706371
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "fd0ff74d2b0345068565b0b0f85c66f5104b79c5f4ed1649e7dc60f3ef117bd0"
+        }
+      ]
+    },
+    {
+      "scenario_id": "public-library",
+      "repetition": 1,
+      "profile": "public-library",
+      "status": "complete",
+      "reason": null,
+      "setup": null,
+      "metrics": {
+        "usage": {
+          "input": 18,
+          "output": 5378,
+          "cache_read": 438696,
+          "cache_creation": 47901
+        },
+        "tokens_total": 491993,
+        "cost_usd": 0.016658,
+        "duration_ms": 32139,
+        "agent_turns": 1,
+        "model_turns": 18,
+        "subagents": 0,
+        "questions": 0,
+        "decision_changing_questions": 0,
+        "interventions": 0,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "parse-days",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "format-unchanged-by-default",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n\n'1d 1h' !== '25h'\n"
+        },
+        {
+          "id": "format-days-option",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "types-updated",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": false,
+          "error": "The input did not match the regular expression /format\\s*\\(\\s*ms\\s*:\\s*number\\s*,/. Input:\n\n'/** Parses a compact duration such as \"1h30m\", \"2d4h\" or \"2m 5s\" into milliseconds. */\\n' +\n  'export function parse(text: string): number;\\n' +\n  '\\n' +\n  '/** Formats milliseconds as \"1h 30m\" or \"1d 2h\". */\\n' +\n  'export function format(ms: number): string;\\n'\n"
+        },
+        {
+          "id": "changelog-updated",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": true
+        },
+        {
+          "id": "existing-behavior",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 2,
+      "facts_disclosed": [],
+      "changed_files": [
+        ".atl/.skill-registry.cache.json",
+        ".atl/skill-registry.md",
+        "CHANGELOG.md",
+        "README.md",
+        "index.d.ts",
+        "index.js",
+        "test/duration.js"
+      ],
+      "open_facts": null,
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Hecho. Los días ya funcionan en `tiny-duration` y el trabajo está commiteado en `main` como `56c1df1 feat: support days in parse and format`.\n\n- **`parse`**: `parse('2d4h')` devuelve `187200000`. También acepta `1d`.\n- **`format`**: `format(93600000)` devuelve `\"1d 2h\"`, y `format(86400000)` devuelve `\"1d\"`. La salida por debajo de un día no cambia.\n\nCambios:\n- `index.js`: la unidad `d` (86400000 ms) en `UNITS` y en el patrón. Va primero en `UNITS` porque `format` itera en orden de inserción.\n- `test/duration.js`: tests para parsear y formatear días, y un round-trip. Los tests fallaron antes de la implementación y pasan ahora (5/5).\n- `index.d.ts`, `README.md` y `CHANGELOG.md` (en `Unreleased`) actualizados.\n\nNo he tocado la versión de `package.json`; si quieres publicar, eso sería un paso aparte. El directorio `.atl/` sin seguimiento no está en el commit.",
+          "tokens": 491993
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "4f1c0779c05e2eda3265db844e087a53a254d7ebae094eb4d580c67e254fa7a2"
+        }
+      ]
+    },
+    {
+      "scenario_id": "bugfix",
+      "repetition": 1,
+      "profile": "bugfix",
+      "status": "complete",
+      "reason": null,
+      "setup": null,
+      "metrics": {
+        "usage": {
+          "input": 24,
+          "output": 5858,
+          "cache_read": 621870,
+          "cache_creation": 51684
+        },
+        "tokens_total": 679436,
+        "cost_usd": 0.019487,
+        "duration_ms": 37525,
+        "agent_turns": 1,
+        "model_turns": 17,
+        "subagents": 0,
+        "questions": 0,
+        "decision_changing_questions": 0,
+        "interventions": 0,
+        "host_errors": 0
+      },
+      "persona": {
+        "usage": {
+          "input": 0,
+          "output": 0,
+          "cache_read": 0,
+          "cache_creation": 0
+        },
+        "cost_usd": 0,
+        "errors": 0,
+        "unknown_facts": []
+      },
+      "checks": [
+        {
+          "id": "exact-multiple",
+          "kind": "acceptance",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "page-below-one",
+          "kind": "fact",
+          "fact": "F1",
+          "pass": false,
+          "error": "page must be a positive integer, got 0"
+        },
+        {
+          "id": "beyond-last-page",
+          "kind": "fact",
+          "fact": "F2",
+          "pass": true
+        },
+        {
+          "id": "empty-list",
+          "kind": "fact",
+          "fact": "F3",
+          "pass": false,
+          "error": "Expected values to be strictly equal:\n\n1 !== 0\n"
+        },
+        {
+          "id": "invalid-page-size",
+          "kind": "fact",
+          "fact": "F4",
+          "pass": true
+        },
+        {
+          "id": "existing-pages",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        },
+        {
+          "id": "suite",
+          "kind": "regression",
+          "fact": null,
+          "pass": true
+        }
+      ],
+      "escaped_defects": 2,
+      "facts_disclosed": [],
+      "changed_files": [
+        ".atl/.skill-registry.cache.json",
+        ".atl/skill-registry.md",
+        "src/paginate.js",
+        "test/paginate.js"
+      ],
+      "open_facts": null,
+      "conversation": [
+        {
+          "role": "agent",
+          "text": "Arreglado y commiteado en `6cc0911` (`fix(paginate): correct totalPages and reject invalid page numbers`). Los 8 tests pasan.\n\n**Causas:**\n- **Página de más:** `totalPages = Math.floor(n / pageSize) + 1`. Con 20 productos y páginas de 10 daba 3 en vez de 2. Ahora usa `Math.ceil`, con mínimo 1 para una lista vacía (así una lista vacía sigue teniendo \"página 1\").\n- **`paginate(items, 0)`:** no se validaban los argumentos. Con página 0, `slice(-10, 0)` devolvía vacío. Con página -1, los índices negativos de `slice` daban la página 1.\n\n**Cambio de comportamiento:** `paginate` ahora lanza `RangeError` si `page` o `pageSize` no son enteros positivos. Eso significa que cualquier llamada que pase directamente el `?page=` de la query (`listProducts`) puede lanzar error ante entradas inválidas. El código de la web no está en este repo, así que hay que validar o convertir ese parámetro en la capa que llama. La alternativa sería fijar la página a 1 en silencio; prefiero el error porque no esconde entradas incorrectas, pero es una decisión tuya si quieres clamp.\n\n**Tests:** añadí casos para el total de páginas (20 ítems, cierre exacto), la lista vacía, páginas < 1, no enteros, y `pageSize` inválido. Vi los 4 casos nuevos fallar antes del cambio.\n\nNo toqué `.atl/`, que estaba sin seguimiento antes de empezar.",
+          "tokens": 679436
+        }
+      ],
+      "transcripts": [
+        {
+          "label": "change",
+          "turn": 1,
+          "sha256": "e9dd278a3cc2c9c85c8c629535442dc373d0bb4839d0767b50b4d713ffde1493"
+        }
+      ]
+    }
+  ]
+}

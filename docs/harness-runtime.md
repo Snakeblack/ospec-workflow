@@ -45,7 +45,7 @@ El siguiente diagrama detalla cómo interactúan los comandos de usuario, el orq
 
 ## No fuente de verdad
 
-`.ospec/` es datos derivados de sesión: resúmenes, costes, mediciones y caché. No se versiona. `npm run setup:git-hooks` y la instalación de Codex en un repositorio añaden `.ospec/` a `.gitignore` si falta. `ospec doctor` avisa solo cuando la carpeta existe y git no la ignora.
+`.ospec/` es datos derivados de sesión: resúmenes, costes, mediciones y caché. No se versiona. Cada escritor de `.ospec/` (hooks Node y binario nativo) crea `.ospec/.gitignore` con `*` si falta, así que la carpeta se ignora sola en cualquier repositorio sin tocar su `.gitignore` (REQ-hooks-028); uno que ya existe, o un symlink, no se toca. `npm run setup:git-hooks` y la instalación de Codex en un repositorio añaden además `.ospec/` a `.gitignore` si falta. Ignorar no saca del índice lo ya versionado: `ospec doctor` avisa cuando git sigue ficheros de `.ospec/` y propone `git rm -r --cached .ospec`, y también cuando la carpeta existe y git no la ignora.
 
 `.ospec/cache` y `.ospec/session` nunca sustituyen a OpenSpec. `.atl/` es residuo legacy ignorado; no es estado activo del registro ni del runtime.
 

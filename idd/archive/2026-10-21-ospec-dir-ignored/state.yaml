@@ -1,0 +1,597 @@
+{
+  "schema": "idd-state/v1",
+  "change": "ospec-dir-ignored",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Los datos de sesión de .ospec/ quedan ignorados por git en cualquier proyecto, y el banco no los versiona en el commit setup",
+    "acceptance": "En un repositorio sin .ospec/ en .gitignore, tras el hook Stop git status queda limpio y git check-ignore .ospec/session/latest.md da 0; en el banco el commit setup no contiene .ospec/ y un cambio IDD cerrado y commiteado cuenta como entrega sin tocar .gitignore"
+  },
+  "facts": {
+    "open": [
+      "¿Mecanismo: un .ospec/.gitignore con '*' que ospec crea dentro de su carpeta (no toca ficheros del usuario) o añadir '.ospec/' al .gitignore raíz con el helper existente ensureOspecGitignore (cambio visible en el repo del usuario)?",
+      "¿Quién lo garantiza: solo el hook Stop (el que reescribe latest.md en cada turno) o todo escritor de .ospec/ (artifact-store, pre-tool-use, recibos de review, archive-tx) a través de un helper común?",
+      "¿Qué pasa con un .ospec/ ya versionado en el repo del usuario (ignorar no lo saca del índice): no hacer nada más, o que ospec doctor lo detecte y proponga git rm --cached?",
+      "¿Si ya existe un .ospec/.gitignore con otro contenido, se deja intacto o se reescribe?",
+      "¿En el banco: excluir .ospec/ con .git/info/exclude en prepareWorkspace para todos los brazos, o fiarse del arreglo del producto y solo añadir un test de que el commit setup no contiene .ospec/?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/harness-runtime.md",
+      "internal/hooks/pretooluse.go",
+      "internal/hooks/stop.go",
+      "internal/hooks/stop_test.go",
+      "internal/ospecdir/ospecdir.go",
+      "internal/ospecdir/ospecdir_test.go",
+      "internal/skillreg/skillreg.go",
+      "internal/store/store.go",
+      "openspec/specs/bench/spec.md",
+      "openspec/specs/hooks/spec.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/evals/bench/README.md",
+      "scripts/evals/bench/driver.js",
+      "scripts/evals/bench/driver.test.js",
+      "scripts/hooks/pre-tool-use.js",
+      "scripts/hooks/stop.js",
+      "scripts/hooks/stop.test.js",
+      "scripts/hooks/subagent-stop.js",
+      "scripts/lib/archive-transaction.js",
+      "scripts/lib/ospec-doctor.js",
+      "scripts/lib/ospec-doctor.test.js",
+      "scripts/lib/ospec-gitignore.js",
+      "scripts/lib/ospec-gitignore.test.js",
+      "scripts/lib/ospec-state.js",
+      "scripts/lib/skill-registry.js",
+      "scripts/lib/strict-tdd-evidence-remediation.js"
+    ],
+    "work_units": 3,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 3 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: touches scripts/lib/archive-transaction.js and 1 more (matches scripts/lib/archive-*.js)",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/pre-tool-use.js and 3 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components change-state, hooks: ADR 0002, 0008, 0009, 0010, 0011 and quality scenario contract-compatibility, deterministic-resume, guard-fail-closed",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0002",
+      "impact": "none",
+      "reason": "No toca el estado de los cambios (idd/, openspec/); .ospec/ son datos derivados, no autoridad."
+    },
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "No cambia ningún guard. Los escritores afectados solo trazan y siguen fallando abiertos: un fallo al escribir .ospec/.gitignore se trata como el de su propia escritura."
+    },
+    {
+      "kind": "adr",
+      "id": "0009",
+      "impact": "none",
+      "reason": "No cambia ningún contrato de máquina ni esquema; las rutas y formatos de .ospec/ siguen iguales."
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Solo biblioteca estándar en Node y Go; el binario nativo y el hook interpretado tienen el mismo comportamiento (ospecdir y mkdirOspec)."
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "No toca la separación de SDD e IDD en disco."
+    },
+    {
+      "kind": "scenario",
+      "id": "contract-compatibility",
+      "impact": "conforms",
+      "reason": "Sin cambio de formato: una versión nueva solo añade .ospec/.gitignore si falta y no reescribe uno existente."
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "none",
+      "reason": "Retomar lee idd/ y openspec/, no .ospec/."
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "none",
+      "reason": "Ningún guard de seguridad cambia."
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Mecanismo: .ospec/.gitignore con * . Dónde: todo escritor, con un helper. Ya versionado: doctor lo detecta. Banco: exclude + test. Existente: dejarlo intacto.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-21T13:36:27.025Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-21T13:40:59.184Z",
+      "detail": {
+        "run": "run-3",
+        "tree": "sha256:f940154e849c2782390162337be6dc14efc86fee5e164882ef61ea676c4370e3",
+        "plan": "Compatible: no cambia ningún formato ni ruta de .ospec/; solo añade .ospec/.gitignore con * si falta. Un .ospec/.gitignore existente o un symlink no se toca. Lo ya versionado sigue versionado y ospec doctor propone git rm -r --cached .ospec. Reversión: borrar .ospec/.gitignore o revertir el helper."
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-21T13:42:25.340Z",
+      "detail": {
+        "tree": "sha256:afb61304bf1b03cdcb5b6b9070976754451aebca893c7a936452773b72e48955",
+        "runs": [
+          "run-4"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-21T13:42:25.340Z",
+      "detail": {
+        "refs": [
+          "adr:0002 none",
+          "adr:0008 conforms",
+          "adr:0009 none",
+          "adr:0010 conforms",
+          "adr:0011 none",
+          "scenario:contract-compatibility conforms",
+          "scenario:deterministic-resume none",
+          "scenario:guard-fail-closed none"
+        ],
+        "records": [],
+        "tree": "sha256:afb61304bf1b03cdcb5b6b9070976754451aebca893c7a936452773b72e48955",
+        "fitness": [
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8",
+          "run-9",
+          "run-10",
+          "run-11",
+          "run-12",
+          "run-13"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-21T13:44:52.651Z",
+      "detail": {
+        "lineage_id": "sha256:3556b1baa1192982750d6c1977d64824ebb81a8cd038cc211b47ba65b1099cbe",
+        "candidate_id": "sha256:e0c6eeb87c266de7afa6593afa45e2b006ae2a87e796f16dfa5db25d01e0d4e4",
+        "candidate_tree": "7d99d2c2d08e8a60ef65f943b14e5822f7026291",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-21T13:44:34.020Z",
+          "result_digest": "sha256:fb30bffef2a8e37425fc234be9151452ac15e2aad25518c3b4357833d8d72bc0"
+        }
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-21T13:44:57.707Z"
+    }
+  ],
+  "base": "80bc6ba6aae3b70b84e5b503d23013c9903db4e8",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"does not ignore .ospec\" scripts/hooks/stop.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:28c98de10dcfdad967e0d908d3c88bfa71c6bcb0476ad42958e27170eafb2360",
+      "tree": "sha256:9557ebead8d76a95edbeaca6f9e601d0682c3c4daf23dd6315643e14f28973c0",
+      "recorded_at": "2026-10-21T13:35:35.956Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"does not ignore .ospec\" scripts/hooks/stop.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d17f7a1da1fb7e1f3bdacdc0f31b6208f06efeb30cc995bf787631c02e73c76c",
+      "tree": "sha256:d7a6a05fba49b94f5274dd93628542d8d8ffcd6a85813bd027603d2cc01207d8",
+      "recorded_at": "2026-10-21T13:36:27.025Z",
+      "tests": 1
+    },
+    {
+      "id": "run-3",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/ospec-gitignore.test.js scripts/lib/archive-transaction.test.js scripts/lib/ospec-doctor.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b9fd51c09fff2dbd487a223ae5144b45e9a16ef786a440e0a0c546f438c987c1",
+      "tree": "sha256:f940154e849c2782390162337be6dc14efc86fee5e164882ef61ea676c4370e3",
+      "recorded_at": "2026-10-21T13:40:59.184Z",
+      "tests": 78
+    },
+    {
+      "id": "run-4",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:11a2e33b0ddbbf7d989d6dc5355c8e7da9d1db3914316fb85ede0428db910789",
+      "tree": "sha256:afb61304bf1b03cdcb5b6b9070976754451aebca893c7a936452773b72e48955",
+      "recorded_at": "2026-10-21T13:42:25.340Z"
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0002",
+      "command": "node --test scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c751bad516db96648d96268f77987641d962aaf79ae831ed56b44298a9a60795",
+      "tree": "sha256:afb61304bf1b03cdcb5b6b9070976754451aebca893c7a936452773b72e48955",
+      "recorded_at": "2026-10-21T13:42:25.340Z",
+      "tests": 11
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:65e4ef28bd936dc0128866bef6f1bdd03f06612a8fde70d2714f6e6badee1cea",
+      "tree": "sha256:afb61304bf1b03cdcb5b6b9070976754451aebca893c7a936452773b72e48955",
+      "recorded_at": "2026-10-21T13:42:25.340Z",
+      "tests": 79
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0009",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:75da8124b0e28f27e0a676a1ce14039d3a797591ac47f96ed34ef6310e8c75d2",
+      "tree": "sha256:afb61304bf1b03cdcb5b6b9070976754451aebca893c7a936452773b72e48955",
+      "recorded_at": "2026-10-21T13:42:25.340Z",
+      "tests": 32
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:afb61304bf1b03cdcb5b6b9070976754451aebca893c7a936452773b72e48955",
+      "recorded_at": "2026-10-21T13:42:25.340Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:799911c3b6862b46094ad65478d117e5c092fd6c7fac1aba3257f28070556137",
+      "tree": "sha256:afb61304bf1b03cdcb5b6b9070976754451aebca893c7a936452773b72e48955",
+      "recorded_at": "2026-10-21T13:42:25.340Z",
+      "tests": 16
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6c5f432a7de08a99414ec19c4d80963c4669eb70fff63113a7341fda7ce617e9",
+      "tree": "sha256:afb61304bf1b03cdcb5b6b9070976754451aebca893c7a936452773b72e48955",
+      "recorded_at": "2026-10-21T13:42:25.340Z",
+      "tests": 79
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "scenario:contract-compatibility",
+      "command": "node --test scripts/lib/knowledge-map.test.js scripts/lib/component-map.test.js scripts/lib/decision-records.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cea0519abb81fdb40a5dd2727e7777035264ba9fc51fb82d7c33eba56a2be51e",
+      "tree": "sha256:afb61304bf1b03cdcb5b6b9070976754451aebca893c7a936452773b72e48955",
+      "recorded_at": "2026-10-21T13:42:25.340Z",
+      "tests": 32
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c31e36c72bc0c6913fc7d33c10faf193a93c0a0d004294e40110721e9f057a1a",
+      "tree": "sha256:afb61304bf1b03cdcb5b6b9070976754451aebca893c7a936452773b72e48955",
+      "recorded_at": "2026-10-21T13:42:25.340Z",
+      "tests": 37
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3a73a9565e269c4e997f7836a30b216fef0719d3e0f570fd4d2429d9ce9f2b31",
+      "tree": "sha256:afb61304bf1b03cdcb5b6b9070976754451aebca893c7a936452773b72e48955",
+      "recorded_at": "2026-10-21T13:42:25.340Z",
+      "tests": 79
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:3556b1baa1192982750d6c1977d64824ebb81a8cd038cc211b47ba65b1099cbe",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "96c27709bfc68c52575198433eef7b452bff72a9",
+          "candidate_tree": "7d99d2c2d08e8a60ef65f943b14e5822f7026291",
+          "paths": [
+            "docs/harness-runtime.md",
+            "internal/hooks/pretooluse.go",
+            "internal/hooks/stop.go",
+            "internal/hooks/stop_test.go",
+            "internal/ospecdir/ospecdir.go",
+            "internal/ospecdir/ospecdir_test.go",
+            "internal/skillreg/skillreg.go",
+            "internal/store/store.go",
+            "openspec/specs/bench/spec.md",
+            "openspec/specs/hooks/spec.md",
+            "openspec/specs/idd/spec.md",
+            "scripts/evals/bench/README.md",
+            "scripts/evals/bench/driver.js",
+            "scripts/evals/bench/driver.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/stop.js",
+            "scripts/hooks/stop.test.js",
+            "scripts/hooks/subagent-stop.js",
+            "scripts/lib/archive-transaction.js",
+            "scripts/lib/ospec-doctor.js",
+            "scripts/lib/ospec-doctor.test.js",
+            "scripts/lib/ospec-gitignore.js",
+            "scripts/lib/ospec-gitignore.test.js",
+            "scripts/lib/ospec-state.js",
+            "scripts/lib/skill-registry.js"
+          ],
+          "diff_hash": "sha256:0be7a4c1fa51a915846aeb43d55666e117a43bbaabe61411a5b320a6642c682a",
+          "paths_digest": "sha256:01b5f62dd66838417c42e1811213c6ffaba8f62a8eb474b153afad159e3346c5",
+          "authored_lines": 327,
+          "original_changed_lines": 347
+        },
+        "candidate_id": "sha256:e0c6eeb87c266de7afa6593afa45e2b006ae2a87e796f16dfa5db25d01e0d4e4",
+        "paths": [
+          "docs/harness-runtime.md",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/stop.go",
+          "internal/hooks/stop_test.go",
+          "internal/ospecdir/ospecdir.go",
+          "internal/ospecdir/ospecdir_test.go",
+          "internal/skillreg/skillreg.go",
+          "internal/store/store.go",
+          "openspec/specs/bench/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/evals/bench/README.md",
+          "scripts/evals/bench/driver.js",
+          "scripts/evals/bench/driver.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/stop.js",
+          "scripts/hooks/stop.test.js",
+          "scripts/hooks/subagent-stop.js",
+          "scripts/lib/archive-transaction.js",
+          "scripts/lib/ospec-doctor.js",
+          "scripts/lib/ospec-doctor.test.js",
+          "scripts/lib/ospec-gitignore.js",
+          "scripts/lib/ospec-gitignore.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/skill-registry.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "7d99d2c2d08e8a60ef65f943b14e5822f7026291",
+        "original_changed_lines": 347,
+        "authored_lines": 327
+      },
+      "current_candidate_id": "sha256:e0c6eeb87c266de7afa6593afa45e2b006ae2a87e796f16dfa5db25d01e0d4e4",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "96c27709bfc68c52575198433eef7b452bff72a9",
+        "candidate_tree": "7d99d2c2d08e8a60ef65f943b14e5822f7026291",
+        "paths": [
+          "docs/harness-runtime.md",
+          "internal/hooks/pretooluse.go",
+          "internal/hooks/stop.go",
+          "internal/hooks/stop_test.go",
+          "internal/ospecdir/ospecdir.go",
+          "internal/ospecdir/ospecdir_test.go",
+          "internal/skillreg/skillreg.go",
+          "internal/store/store.go",
+          "openspec/specs/bench/spec.md",
+          "openspec/specs/hooks/spec.md",
+          "openspec/specs/idd/spec.md",
+          "scripts/evals/bench/README.md",
+          "scripts/evals/bench/driver.js",
+          "scripts/evals/bench/driver.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/stop.js",
+          "scripts/hooks/stop.test.js",
+          "scripts/hooks/subagent-stop.js",
+          "scripts/lib/archive-transaction.js",
+          "scripts/lib/ospec-doctor.js",
+          "scripts/lib/ospec-doctor.test.js",
+          "scripts/lib/ospec-gitignore.js",
+          "scripts/lib/ospec-gitignore.test.js",
+          "scripts/lib/ospec-state.js",
+          "scripts/lib/skill-registry.js"
+        ],
+        "diff_hash": "sha256:0be7a4c1fa51a915846aeb43d55666e117a43bbaabe61411a5b320a6642c682a",
+        "paths_digest": "sha256:01b5f62dd66838417c42e1811213c6ffaba8f62a8eb474b153afad159e3346c5",
+        "authored_lines": 327,
+        "original_changed_lines": 347
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "ospec-dir-ignored:lens-start:1:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "ospec-dir-ignored:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 174,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-10-21T13:44:57.707Z"
+}

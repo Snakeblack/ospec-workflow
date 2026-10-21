@@ -59,11 +59,11 @@ Un proyecto nuevo, o una petición para definir la arquitectura de un sistema, e
 
 ## IDD frente a gentle-ai: bench
 
-IDD se mide contra gentle-ai (su flujo ODD, instalado con Engram) en escenarios fijos con agentes reales, en Claude Code (`claude-sonnet-5-5`) y en el Antigravity CLI (`gemini-3.8-flash-high`), con un usuario simulado y checks ocultos. En resumen:
+IDD se mide contra gentle-ai (su flujo ODD, instalado con Engram) en escenarios fijos con agentes reales, en Claude Code (`claude-sonnet-5-5` y `claude-haiku-5-5`) y en el Antigravity CLI (`gemini-3.8-flash-high`), con un usuario simulado y checks ocultos. En resumen:
 
-- **Calidad: no demostrada.** Aceptación y regresión empatan en todos los bancos; los defectos escapados solo difieren en checks de hechos ocultos, con una a tres repeticiones y ninguna diferencia significativa (2 frente a 0 en E4.2 da p≈0,49). Hasta ahora, todos los bancos cargaron Engram solo en el brazo de gentle-ai.
-- **Tokens:** con Claude y tareas pequeñas IDD gasta 0,44 veces lo de gentle-ai; con Gemini gasta más (2,29 veces en los mismos seis escenarios), y más aún en las apps complejas de una página, donde las ejecuciones de IDD que más gastaron dejaron menos defectos (una correlación sobre seis ejecuciones, no una prueba).
-- **Matices:** de una a tres repeticiones por escenario, versiones de IDD que cambiaron entre bancos, Engram en un solo brazo y un escenario reservado escrito en la misma sesión que ajustó IDD. Léelos antes de citar un número.
+- **Calidad: no demostrada.** Aceptación y regresión empatan en todos los bancos; los defectos escapados solo difieren en checks de hechos ocultos, con una a tres repeticiones y ninguna diferencia significativa (2 frente a 0 en E4.2 da p≈0,49). Los bancos anteriores a E4.6 en Claude con Haiku cargaron Engram solo en el brazo de gentle-ai. Ese, con Engram en los dos brazos, da 9 escapados frente a 3 y un mutation score del 89,6 % frente al 98,4 %, con una repetición.
+- **Tokens:** con Claude y tareas pequeñas IDD gasta 0,44 veces lo de gentle-ai con Sonnet y 2,61 veces con Haiku; con Gemini gasta más (2,29 veces en los mismos seis escenarios), y más aún en las apps complejas de una página, donde las ejecuciones de IDD que más gastaron dejaron menos defectos (una correlación sobre seis ejecuciones, no una prueba).
+- **Matices:** de una a tres repeticiones por escenario, versiones de IDD que cambiaron entre bancos, Engram en un solo brazo antes de E4.6 en Claude y un escenario reservado escrito en la misma sesión que ajustó IDD. Léelos antes de citar un número.
 
 Tablas completas, modelos, personas, quién gana y por qué: [docs/benchs/bench-idd-vs-gentle-ai.es.md](docs/benchs/bench-idd-vs-gentle-ai.es.md) ([English](docs/benchs/bench-idd-vs-gentle-ai.md)).
 

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.144.0] - 2026-10-21
+
+### Fixed
+- **`.ospec/` se ignora a sí misma en cualquier proyecto** (REQ-hooks-028): el hook Stop reescribe `.ospec/session/latest.md` en cada turno. En un repositorio cuyo `.gitignore` no menciona `.ospec/`, un `git add -A` lo versionaba, y desde entonces ningún turno dejaba el árbol limpio. Ahora todo escritor de `.ospec/` (hooks Node, estado, registro de skills, transacciones de archivo y el binario Go) crea `.ospec/.gitignore` con `*` si falta. Usa un helper común (`mkdirOspec` / `ospecdir.MkdirAll`) y no toca el `.gitignore` del usuario, uno existente ni un symlink. Comprueba con `lstat` antes de crear, porque en Windows la creación exclusiva sigue un symlink colgante y crearía su destino fuera del repositorio (lo detectó la CI de `windows-latest`).
+- **`ospec doctor` detecta `.ospec/` ya versionado:** el check `session-dir` avisa si git sigue ficheros bajo `.ospec/` y propone `git rm -r --cached .ospec`.
+- **El banco deja `.ospec/` fuera del commit `setup`** (`.git/info/exclude` de cada workspace). Sin esto, el brazo IDD en Claude no podía entregar: el primer intento de `idd-5` llegó a 30 turnos y 217 M tokens en `saas-small` y se descartó.
+
+### Changed
+- **Márgenes `bench-margins-10`** para repetir `idd-4` en Claude con Haiku, declarados antes de correr: gentle-ai frente a IDD, una repetición, escapados delta 0, tokens ratio 1 y el criterio de calidad de E4.5. El veredicto no bloquea nada.
+
+### Added
+- **Repetición de `idd-4` en Claude con Haiku y Engram en los dos brazos** (E4.6, cierra #340 y #341): `idd-6` frente a `gentle-ai-3` (gentle-ai 4.2.0, engram 3.5.1). Escapados 3 frente a 9, fact 24/26 frente a 18/26 y acceptance 5/6 en los dos. IDD gasta 2,61 veces los tokens (10,2 M frente a 3,9 M). El checkpoint da `revise` por tokens y por `bugfix/invalid-page-size`. La calidad da `continue`: mutation score del 89,6 % frente al 98,4 %, y la revisión ciega prefiere a IDD en 5 de 6 pares. [Informe](docs/analysis/2026-10-21-bench-claude-haiku.md). Los records (`idd-5` de referencia con engram 3.4.0) y el resultado de calidad quedan versionados. README, `docs/benchs/`, la comparación de arneses y el roadmap los citan. Falta #342 (n ≥ 3 y corpus reservado).
+
+Hecho con IDD (`idd/archive/2026-10-21-bench-margins-claude-haiku/`, `idd/archive/2026-10-21-ospec-dir-ignored/` e `idd/archive/2026-10-21-bench-claude-haiku-report/` y, para el symlink en Windows, `idd/archive/2026-10-21-ospec-ignore-windows-symlink/`).
+
+**Verificación directa**: `node scripts/check.js` (3953 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.143.0] - 2026-10-21
 
 ### Changed

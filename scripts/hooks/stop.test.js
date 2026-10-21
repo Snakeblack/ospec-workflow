@@ -1,6 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const { execFileSync } = require("node:child_process");
 const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
@@ -173,6 +174,20 @@ test("writes a trace even when no active change exists", async (t) => {
     latest,
     /## Next recommended action\nStart a new session when more work is needed\./,
   );
+});
+
+// The trace changes on every turn: in a repository whose .gitignore does not
+// mention .ospec/, `git add -A` used to track it and every later turn left the
+// tree dirty (the idd-5 bench run).
+test("the trace stays out of git in a repository that does not ignore .ospec/", async (t) => {
+  const workspace = await createWorkspace(t);
+  const git = (...args) => execFileSync("git", args, { cwd: workspace, encoding: "utf8" });
+  git("init", "-q");
+
+  await runStop({ input: { cwd: workspace, sessionId: "first" } });
+
+  assert.equal(git("status", "--porcelain", "--untracked-files=all"), "");
+  assert.equal(await fs.readFile(path.join(workspace, ".ospec", ".gitignore"), "utf8"), "*\n");
 });
 
 test("replaces the latest trace on each session end", async (t) => {

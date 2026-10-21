@@ -10,6 +10,7 @@ const {
   DEFAULT_ARTIFACT_STORE_MODE,
 } = require("./artifact-store-modes.js");
 const { recoverOrphanBak, writeFileAtomic } = require("./atomic-write.js");
+const { mkdirOspec } = require("./ospec-gitignore.js");
 const { reducePhaseCompletion } = require("./lifecycle-kernel/phase-completion-reducer.js");
 
 const TERMINAL_STATUSES = new Set([
@@ -327,7 +328,7 @@ async function writeSessionSummary(changePath, summary) {
     }
   }
 
-  await fs.mkdir(path.dirname(summaryPath), { recursive: true });
+  mkdirOspec(path.dirname(summaryPath));
 
   const temporaryPath = `${summaryPath}.${process.pid}.${crypto.randomUUID()}.tmp`;
 
@@ -1131,7 +1132,7 @@ async function appendRuntimeEvent(event) {
   delete serializedEvent.workspace;
   delete serializedEvent.cwd;
 
-  await fs.mkdir(path.dirname(eventPath), { recursive: true });
+  mkdirOspec(path.dirname(eventPath));
   await withFileLock(eventPath, () =>
     fs.appendFile(eventPath, `${JSON.stringify(serializedEvent)}\n`, "utf8"),
   );
@@ -1162,7 +1163,7 @@ async function appendPhaseCost({ workspace, changeName, record }) {
     PHASE_COST_FILE_NAME,
   );
 
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  mkdirOspec(path.dirname(filePath));
   await withFileLock(filePath, async () => {
     let hasPrior = false;
     let rowIndex = 0;
@@ -1222,7 +1223,7 @@ async function appendContextMeasurement({ workspace, changeName, record }) {
   if (!changeName || typeof changeName !== "string") throw new TypeError("changeName is required.");
   if (!record || typeof record !== "object" || Array.isArray(record)) throw new TypeError("record must be an object.");
   const filePath = path.join(path.resolve(workspace), ".ospec", "session", changeName, CONTEXT_MEASUREMENT_FILE_NAME);
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  mkdirOspec(path.dirname(filePath));
   const line = `${JSON.stringify(record)}\n`;
   await withFileLock(filePath, () => fs.appendFile(filePath, line, "utf8"));
   return { path: toPortablePath(path.relative(path.resolve(workspace), filePath)), absolutePath: filePath, record };

@@ -53,6 +53,10 @@ function prepareWorkspace(scenario, workspaceRoot, git) {
   git(workspaceRoot, ["config", "user.name", "bench"]);
   git(workspaceRoot, ["config", "user.email", "bench@example.invalid"]);
   git(workspaceRoot, ["config", "commit.gpgsign", "false"]);
+  // ospec's session data (.ospec/) is never versioned, as in an installed
+  // project; the exclude keeps it out of every commit whatever the plugin does.
+  fs.mkdirSync(path.join(workspaceRoot, ".git", "info"), { recursive: true });
+  fs.appendFileSync(path.join(workspaceRoot, ".git", "info", "exclude"), "\n.ospec/\n");
   git(workspaceRoot, ["add", "-A"]);
   git(workspaceRoot, ["commit", "-q", "-m", "base"]);
   return git(workspaceRoot, ["rev-parse", "HEAD"]);

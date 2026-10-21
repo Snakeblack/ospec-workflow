@@ -22,6 +22,7 @@ const {
 const { normalizeContextMeasurement, validateContextMeasurement } = require("../lib/context-measurement.js");
 const { extractClaudeTelemetry } = require("./lib/claude-usage.js");
 const { writeFileAtomic, recoverOrphanBak } = require("../lib/atomic-write.js");
+const { mkdirOspec } = require("../lib/ospec-gitignore.js");
 const { extractEnvelope, validateEnvelope, adaptLegacyEnvelope } = require("../lib/result-envelope.js");
 const { resolveModelTier } = require("./lib/model-tier.js");
 const {
@@ -1287,7 +1288,9 @@ async function persistReviewReceipt({ input, workspace, now }) {
     }
     if (!result) return null;
     const receipt = buildReceipt({ agent, result, recordedAt: resolveTimestamp(input, now) });
-    await writeFileAtomic(receiptPath(workspace, receipt.request_digest), `${JSON.stringify(receipt, null, 2)}\n`);
+    const file = receiptPath(workspace, receipt.request_digest);
+    mkdirOspec(path.dirname(file));
+    await writeFileAtomic(file, `${JSON.stringify(receipt, null, 2)}\n`);
     return receipt;
   } catch {
     return null;

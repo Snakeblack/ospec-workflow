@@ -1,0 +1,124 @@
+{
+  "schema": "idd-state/v1",
+  "change": "bench-margins-claude-haiku",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "Host: Claude con Haiku. Repeticiones: 1, como idd-4. continua",
+    "kind": "feature",
+    "summary": "Declarar bench-margins-10 para repetir idd-4 en Claude con Haiku, una repetición y Engram en todos los brazos",
+    "acceptance": "loadMargins devuelve bench-margins-10 con repetitions 1 y los brazos gentle-ai/idd; el README, la spec del banco y el test lo recogen y bench-margins-9 queda reproducible desde v2.143.0"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿Qué max_mean_delta de escapados y qué max_total_ratio de tokens admite bench-margins-10 (bench-margins-8 usaba 0 y 1; bench-margins-9, 2 y 10)?"
+      },
+      {
+        "category": "uniqueness",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/evals/bench/checkpoint.test.js",
+          "line": 72
+        }
+      },
+      {
+        "category": "persistence",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/evals/bench/margins.json",
+          "line": 3
+        }
+      },
+      {
+        "category": "copy",
+        "question": "¿El README y la spec dicen que el veredicto de esta corrida no bloquea nada, como con bench-margins-8 y 9, o que bloquea algo concreto?"
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "request",
+          "text": "Repeticiones: 1, como idd-4"
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "openspec/specs/bench/spec.md",
+          "line": 299
+        }
+      },
+      {
+        "category": "errors",
+        "question": "¿bench-margins-10 declara el criterio de calidad de E4.5 (5 puntos de mutation score, 1 par preferido en ambos órdenes), de modo que sin el resultado del par revise con quality-missing, o no declara calidad?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/specs/bench/spec.md",
+      "scripts/evals/bench/README.md",
+      "scripts/evals/bench/checkpoint.test.js",
+      "scripts/evals/bench/margins.json"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Márgenes: delta 0, ratio 1. Calidad: sí, el de E4.5. Veredicto: no bloquea nada.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-21T12:13:06.797Z",
+      "detail": {
+        "tree": "sha256:21d39d0231655ab9faf5a235702ba2d7efcf7563c9769eabfb5acf4aa432515c",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "7a4f6635b78beeb784eab2609a580f529d6fcfb7",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7c4d19675de8e299f226a403b6af0c800e498da56977f6ebcbf25861b03e71be",
+      "tree": "sha256:21d39d0231655ab9faf5a235702ba2d7efcf7563c9769eabfb5acf4aa432515c",
+      "recorded_at": "2026-10-21T12:13:06.797Z"
+    }
+  ],
+  "closed_at": "2026-10-21T12:13:08.940Z"
+}

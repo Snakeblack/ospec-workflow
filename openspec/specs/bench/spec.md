@@ -98,7 +98,10 @@ the same command resumes it after the reset.
 No run MUST be able to reach another run's delivery. `bench.js run` MUST take
 a lock on the workspaces directory, so runs go one at a time, and each run
 MUST work in its own directory with an opaque name (neither record, arm,
-scenario nor repetition) whose only content is the workspace. Once judged, the
+scenario nor repetition) whose only content is the workspace. The workspace's
+`.git/info/exclude` MUST list `.ospec/` before the first commit, so ospec's
+session data, which the Stop hook rewrites every turn, never enters the setup
+commit nor dirties a delivery, whatever the plugin under test does. Once judged, the
 workspace MUST move out of the workspaces directory, next to the run's
 transcripts under `scripts/evals/.runs/bench/`, where the quality tooling
 reads it. On agy, every agy process MUST run in a bubblewrap sandbox with a
@@ -301,7 +304,12 @@ the same harness; their verdict blocks nothing. The E4.6 margins
 of the greenfield campaign. Its report judges the binding escaped-defect rules:
 on `todo-spa` the candidate's mean is at most 2, and on the reserved scenario
 it is strictly below the baseline. Token growth on that campaign does not
-decide; the 10× ratio only stops a runaway. The E4.5 checkpoint
+decide; the 10× ratio only stops a runaway. They stay reproducible from
+v2.143.0. The margins of the `idd-4` repetition with Engram in every arm
+(`bench-margins-10`: the same arms, one repetition on Claude Code with Haiku,
+`max_mean_delta` 0, `max_total_ratio` 1, and the E4.5 quality criterion)
+declare no harness exception; with one repetition their verdict is
+exploratory and blocks nothing. The E4.5 checkpoint
 (`bench-margins-7`) is reproducible from v2.134.0. The E4.2 checkpoint
 (`bench-margins-6`) is reproducible from v2.133.0.
 

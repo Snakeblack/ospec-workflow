@@ -4,6 +4,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { mkdirOspec } = require("../lib/ospec-gitignore.js");
 const {
   resolveGitState,
   isRiskyAction,
@@ -341,7 +342,7 @@ function recordTokensSync(changeName, tokens) {
   const logDir = path.join(process.cwd(), ".ospec", "session", changeName);
   const logPath = path.join(logDir, "token-events.jsonl");
   try {
-    fs.mkdirSync(logDir, { recursive: true });
+    mkdirOspec(logDir);
     fs.appendFileSync(logPath, JSON.stringify({ t: tokens, ts: Date.now() }) + "\n", "utf8");
   } catch (err) {
     // ignore

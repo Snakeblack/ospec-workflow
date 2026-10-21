@@ -5,6 +5,7 @@ package hooks_test
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -171,6 +172,32 @@ func TestStop_NoActiveChange(t *testing.T) {
 	}
 	if !strings.Contains(latest, "Start a new session when more work is needed") {
 		t.Errorf("fallback next action missing; got:\n%s", latest)
+	}
+}
+
+// TestStop_TraceStaysOutOfGit mirrors the JS case: in a repository whose
+// .gitignore does not mention .ospec/, the trace never shows in git status.
+func TestStop_TraceStaysOutOfGit(t *testing.T) {
+	ws := createStopWorkspace(t)
+	git := func(args ...string) string {
+		out, err := exec.Command("git", append([]string{"-C", ws}, args...)...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return string(out)
+	}
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	git("init", "-q")
+
+	runStopHook(t, stopInput(ws, "", "first"))
+
+	if status := git("status", "--porcelain", "--untracked-files=all"); status != "" {
+		t.Fatalf("the tree is dirty after Stop:\n%s", status)
+	}
+	if got, err := os.ReadFile(filepath.Join(ws, ".ospec", ".gitignore")); err != nil || string(got) != "*\n" {
+		t.Fatalf(".ospec/.gitignore = %q, %v", got, err)
 	}
 }
 

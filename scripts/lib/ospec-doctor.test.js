@@ -45,12 +45,13 @@ function treeDigest(dir) {
 
 // Spawn stub: `git check-ignore` answers from `ignored`, every other command is
 // absent unless listed in `commands` ("bin arg..." -> result).
-function makeSpawn({ ignored = true, commands = {} } = {}) {
+function makeSpawn({ ignored = true, tracked = "", commands = {} } = {}) {
   const calls = [];
   const spawn = (bin, args) => {
     const key = [bin, ...args].join(" ");
     calls.push(key);
     if (bin === "git" && args[0] === "check-ignore") return { status: ignored ? 0 : 1, stdout: "", stderr: "" };
+    if (bin === "git" && args[0] === "ls-files") return { status: 0, stdout: tracked, stderr: "" };
     if (Object.hasOwn(commands, key)) return { status: 0, stdout: "", stderr: "", ...commands[key] };
     return { error: Object.assign(new Error(`spawn ${bin} ENOENT`), { code: "ENOENT" }) };
   };
@@ -267,6 +268,17 @@ test("strict TDD declared in both places and an ignored .ospec/ are fine", async
   const result = await doctor(env);
   assert.equal(find(result, "project", "strict-tdd-hook").status, "ok");
   assert.equal(find(result, "project", "session-dir").status, "ok");
+});
+
+test("a tracked .ospec/ is named with the command that untracks it", async (t) => {
+  const env = setup(t);
+  fs.mkdirSync(path.join(env.root, ".ospec", "session"), { recursive: true });
+  const spawn = makeSpawn({ tracked: ".ospec/session/latest.md\n" });
+  const session = find(await doctor(env, { spawn }), "project", "session-dir");
+  assert.equal(session.status, "warn");
+  assert.match(session.cause, /tracks/);
+  assert.match(session.action, /git rm -r --cached \.ospec/);
+  assert.equal(spawn.calls.some((call) => call.startsWith("git check-ignore")), false);
 });
 
 test("disabled hook guards are named", async (t) => {

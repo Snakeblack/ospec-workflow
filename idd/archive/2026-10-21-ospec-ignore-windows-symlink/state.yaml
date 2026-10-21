@@ -1,0 +1,169 @@
+{
+  "schema": "idd-state/v1",
+  "change": "ospec-ignore-windows-symlink",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "En Windows, mkdirOspec sigue un .ospec/.gitignore que es un symlink colgante y crea su destino fuera del repositorio",
+    "acceptance": "Con un .ospec/.gitignore symlink colgante, mkdirOspec y ospecdir.MkdirAll no crean el destino en ninguna plataforma; el test de ospec-gitignore pasa en windows-latest"
+  },
+  "facts": {
+    "basis": "REQ-hooks-028 y la cabecera de scripts/lib/ospec-gitignore.js:63-67 ya fijan que un .ospec/.gitignore existente, symlink o no, queda intacto; ensureOspecGitignore (scripts/lib/ospec-gitignore.js:41-44) resuelve el mismo caso con lstat antes de escribir"
+  },
+  "plan": {
+    "paths": [
+      "CHANGELOG.md",
+      "internal/ospecdir/ospecdir.go",
+      "scripts/lib/ospec-gitignore.js",
+      "scripts/lib/ospec-gitignore.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/lib/ospec-gitignore.js adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-21T18:41:50.404Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-21T18:42:54.118Z",
+      "detail": {
+        "tree": "sha256:6c96f232ac3d0b148a4bde27c658d413f20fcfd83154767ae48156d5e5d48474",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-21T18:42:59.996Z",
+      "detail": {
+        "run": "run-4",
+        "tree": "sha256:f4d25c0b0e6918ec7d19b051e9ac0d66ae884646b7e606d540a861b3ca98d3b4",
+        "plan": "Sin cambio de formato: .ospec/.gitignore sigue siendo '*' y solo se escribe si no existe ninguna entrada con ese nombre; un fichero o symlink existente queda intacto como antes, ahora también en Windows. Se revierte quitando la comprobación con lstat."
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-21T18:43:57.777Z",
+      "detail": {
+        "tree": "sha256:6c96f232ac3d0b148a4bde27c658d413f20fcfd83154767ae48156d5e5d48474",
+        "runs": [
+          "run-5"
+        ]
+      }
+    }
+  ],
+  "base": "a18bb52c59bc32e34e65f7500c6fa3bdbdd64dbc",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/ospec-gitignore.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:dd5a5ba52334d8774d41a043994aade1710413ec93dcb2b84c81b85d9db85fe6",
+      "tree": "sha256:a633f92f73eb69f7b7d1fa8e6cdd61fa100efc5fb0ee9d2b9e20f05ac525eee0",
+      "recorded_at": "2026-10-21T18:41:36.532Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/ospec-gitignore.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b4560924fca54aa260ab6310aa6f1f18830f93d1af2cd6bbc03441a21cb01d5e",
+      "tree": "sha256:9e2554e664e01437872e5d526dee0f0beba14d247417a4577650f14607a2e8dc",
+      "recorded_at": "2026-10-21T18:41:50.404Z",
+      "tests": 5
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d9405ef7cf90263fdbe1bd1c3c03b0a608e9ed7ef5619c136687601592adeec5",
+      "tree": "sha256:6c96f232ac3d0b148a4bde27c658d413f20fcfd83154767ae48156d5e5d48474",
+      "recorded_at": "2026-10-21T18:42:54.118Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/ospec-gitignore.test.js scripts/hooks/stop.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f7a74638e280a0e931b7e49b0e953a677b2223b74719fa0b6c944596aa509af9",
+      "tree": "sha256:f4d25c0b0e6918ec7d19b051e9ac0d66ae884646b7e606d540a861b3ca98d3b4",
+      "recorded_at": "2026-10-21T18:42:59.996Z",
+      "tests": 11
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:db16ca0177a8b9c0ccda7aa0be4d10ea4e2dd1b5e0a5336d943a2cb4978a83b6",
+      "tree": "sha256:6c96f232ac3d0b148a4bde27c658d413f20fcfd83154767ae48156d5e5d48474",
+      "recorded_at": "2026-10-21T18:43:57.777Z"
+    }
+  ],
+  "closed_at": "2026-10-21T18:44:02.693Z"
+}

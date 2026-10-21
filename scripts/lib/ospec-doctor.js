@@ -5,7 +5,8 @@
 // status (ok, info, warn, error); warnings and errors carry their cause and the
 // action that fixes them. Nothing here writes: state files are parsed, never
 // read through the store (which recovers interrupted writes), and the only
-// processes spawned are `git check-ignore` and the read-only Engram probes.
+// processes spawned are `git ls-files`, `git check-ignore` and the read-only
+// Engram probes.
 //
 // The Claude Code checks live here; the other six hosts, in ospec-doctor-hosts.js.
 
@@ -509,10 +510,24 @@ function strictTddCheck(root, add) {
   add({ id: "strict-tdd-hook", status: "ok" });
 }
 
+// The hooks make .ospec/ ignore itself (.ospec/.gitignore), which ignores its
+// contents, not the directory: the probe is a file inside it. Ignoring never
+// untracks what a commit already holds, so tracked files are named first.
 function sessionDirCheck(root, spawn, add) {
   if (!fs.existsSync(path.join(root, ".ospec"))) return;
-  const result = spawn("git", ["check-ignore", "-q", ".ospec/"], { cwd: root, timeout: 10000 }) || {};
-  if (result.error || (result.status !== 0 && result.status !== 1)) return; // not a git work tree
+  const tracked = spawn("git", ["ls-files", "--", ".ospec"], { cwd: root, timeout: 10000 }) || {};
+  if (tracked.error || tracked.status !== 0) return; // not a git work tree
+  if (String(tracked.stdout || "").trim() !== "") {
+    add({
+      id: "session-dir",
+      status: "warn",
+      cause: "git tracks files under .ospec/, so every hook run leaves the tree dirty",
+      action: "Run `git rm -r --cached .ospec` and commit.",
+    });
+    return;
+  }
+  const result = spawn("git", ["check-ignore", "-q", ".ospec/session/latest.md"], { cwd: root, timeout: 10000 }) || {};
+  if (result.error || (result.status !== 0 && result.status !== 1)) return;
   add(result.status === 0
     ? { id: "session-dir", status: "ok" }
     : {
