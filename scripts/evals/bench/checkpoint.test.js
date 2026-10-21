@@ -34,7 +34,7 @@ function record(arm, runs, overrides = {}) {
     record_id: `${arm}-1`,
     arm,
     recorded_at: "2026-10-06T10:00:00Z",
-    host: { name: "claude-code", cli_version: "2.1.286", model: "claude-sonnet-5-5", effort: null, plugin_version: "2.103.0", plugin_digest: arm.repeat(64).slice(0, 64) },
+    host: { name: "claude-code", cli_version: "2.1.286", model: "claude-sonnet-5-5", effort: null, plugin_version: "2.103.0", plugin_digest: arm.repeat(64).slice(0, 64), engram_mcp_bytes: 181 },
     persona: { model: "claude-haiku-4-5-20251001" },
     scenarios_digest: "b".repeat(64),
     harness_digest: "f".repeat(64),
@@ -102,6 +102,38 @@ test("validateMargins rejects unknown or missing margins", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bench-margins-"));
   fs.writeFileSync(path.join(dir, "m.json"), "{");
   assert.throws(() => loadMargins(path.join(dir, "m.json")), /could not read/);
+});
+
+// OSP-025 (#340): Engram goes in every arm, so a pair where one arm ran
+// without it measures the asymmetry, not the workflow.
+test("records without Engram in both arms are not comparable", () => {
+  const baseline = record("sdd", [run("cli-local", 1000)]);
+  const candidate = record("idd", [run("cli-local", 700)]);
+  const { engram_mcp_bytes: _bytes, ...withoutEngram } = candidate.host;
+  const result = evaluateCheckpoint({ baseline, candidate: { ...candidate, host: withoutEngram }, margins });
+  const reason = result.reasons.find((entry) => entry.code === "not-comparable");
+  assert.ok(reason);
+  assert.match(reason.detail.join(" "), /Engram.*idd/);
+});
+
+// OSP-026 (#341): margins that declare quality need its result.
+test("declared quality without its result revises with quality-missing, and a result adds its verdict", () => {
+  const baseline = record("sdd", [run("cli-local", 1000)]);
+  const candidate = record("idd", [run("cli-local", 700)]);
+  const withQuality = { ...margins, quality: { max_mutation_score_deficit: 5, max_consistent_baseline_preferences: 0 } };
+  const missing = evaluateCheckpoint({ baseline, candidate, margins: withQuality });
+  assert.equal(missing.decision, "revise");
+  assert.deepEqual(missing.reasons.map((reason) => reason.code), ["quality-missing"]);
+  const arm = (score) => ({ mutation: { score, suite_passes: true } });
+  const pair = (preferred) => ({ baseline: arm(80), candidate: arm(60), judge: { preferred } });
+  const quality = { baseline: "sdd-1", candidate: "idd-1", scenarios: { "cli-local": pair("baseline") } };
+  const judged = evaluateCheckpoint({ baseline, candidate, margins: withQuality, quality });
+  assert.equal(judged.decision, "revise");
+  assert.deepEqual(judged.reasons.map((reason) => reason.code), ["quality"]);
+  assert.match(judged.reasons[0].detail.join(" "), /20 points/);
+  assert.equal(judged.quality.decision, "revise");
+  const level = { ...quality, scenarios: { "cli-local": { baseline: arm(70), candidate: arm(70), judge: { preferred: "inconsistent" } } } };
+  assert.equal(evaluateCheckpoint({ baseline, candidate, margins: withQuality, quality: level }).decision, "continue");
 });
 
 test("fewer tokens and no extra escapes continue", () => {

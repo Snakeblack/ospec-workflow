@@ -38,6 +38,7 @@ const { spawn, spawnSync } = require("node:child_process");
 const { PERSONA_SCHEMA, buildPersonaPrompt, buildPersonaSystemPrompt, normalizePersonaReply } = require("../persona.js");
 const { emptyUsage } = require("../transcript.js");
 const { listFiles } = require("../scenarios.js");
+const { setupEngram } = require("./engram.js");
 
 const DEFAULT_TURN_TIMEOUT_MS = 60 * 60 * 1000;
 const PERSONA_TIMEOUT_MS = 5 * 60 * 1000;
@@ -287,17 +288,26 @@ function copyHome(template, dest) {
   });
 }
 
-/** SHA-256 over the files under `root` a run reads, skipping install manifests that carry a timestamp. */
+/**
+ * SHA-256 over the files under `root` a run reads, skipping install manifests
+ * that carry a timestamp. It identifies the content, not the machine
+ * (OSP-026): the absolute `root` the installers write into hooks and skills
+ * reads as `~`, and binaries (the hook launcher built from Go) stay out, since
+ * the record's `repo_commit` pins their source.
+ */
 function hashFiles(root, relatives) {
   const hash = crypto.createHash("sha256");
+  const home = path.resolve(root);
   for (const relative of relatives) {
     const full = path.join(root, relative);
     if (!fs.existsSync(full)) continue;
     const files = fs.statSync(full).isDirectory() ? listFiles(full).map((file) => `${relative}/${file}`) : [relative];
     for (const file of files) {
       if (path.basename(file) === ".ospec-workflow-install.json") continue;
+      const bytes = fs.readFileSync(path.join(root, file));
+      if (bytes.includes(0)) continue;
       hash.update(`${file}\0`);
-      hash.update(crypto.createHash("sha256").update(fs.readFileSync(path.join(root, file))).digest("hex"));
+      hash.update(crypto.createHash("sha256").update(bytes.toString("utf8").split(home).join("~")).digest("hex"));
       hash.update("\n");
     }
   }
@@ -306,10 +316,13 @@ function hashFiles(root, relatives) {
 
 /**
  * Installs ospec for antigravity, built from `repoRoot`, into the template
- * HOME `home` (its `.gemini/config`), without SDD and without Engram (a
- * `--dest` install skips that step), and identifies it.
+ * HOME `home` (its `.gemini/config`), without SDD, and identifies it. A
+ * `--dest` install skips Engram, so with `engram` (a binary) it runs
+ * `engram setup antigravity-cli` in the template, as the gentle-ai arm has
+ * Engram (OSP-025): its MCP server in `.gemini/config/mcp_config.json` and
+ * its protocol in `.gemini/GEMINI.md`, both part of the digest.
  */
-function buildOspecHome({ repoRoot, home, spawnSyncImpl = spawnSync }) {
+function buildOspecHome({ repoRoot, home, engram = null, baseEnv = process.env, spawnSyncImpl = spawnSync }) {
   fs.rmSync(home, { recursive: true, force: true });
   const configDir = path.join(home, ".gemini", "config");
   const result = spawnSyncImpl(process.execPath, [
@@ -320,7 +333,12 @@ function buildOspecHome({ repoRoot, home, spawnSyncImpl = spawnSync }) {
   ], { cwd: repoRoot, encoding: "utf8" });
   if (result.status !== 0) throw new Error(`ospec install for antigravity failed: ${result.stderr || result.stdout}`);
   const manifest = JSON.parse(fs.readFileSync(path.join(configDir, ".ospec-workflow-install.json"), "utf8"));
-  return { home, version: manifest.version, digest: hashFiles(home, [".gemini/config"]) };
+  const memory = engram ? setupEngram({ engram, home, host: "agy", env: isolatedEnv(baseEnv, home), spawnSyncImpl }) : null;
+  return {
+    home,
+    version: memory ? `${manifest.version} (engram ${memory.version})` : manifest.version,
+    digest: hashFiles(home, [".gemini/config", ".gemini/GEMINI.md"]),
+  };
 }
 
 function createAgyHost({
@@ -331,6 +349,7 @@ function createAgyHost({
   personaModel,
   personaDir,
   gentleAi = null,
+  engram = null,
   forbidden = [],
   sandbox = null,
   personaInvoke = null,
@@ -355,16 +374,23 @@ function createAgyHost({
   const children = new Set();
 
   // The agent's HOME for one workspace: a fresh copy of the template under
-  // .git/ (never part of the delivery). gentle-ai also gets an empty Engram.
+  // .git/ (never part of the delivery). Every arm with Engram (gentle-ai, and
+  // an ospec template set up with `engram`: { startEngram }) gets an empty one,
+  // with the template's engram first on the PATH for its hooks.
+  const memory = gentleAi || engram;
   async function workspaceEnv(cwd) {
     if (!homes.has(cwd)) {
       const home = path.join(cwd, ".git", "agy-home");
       copyHome(template, home);
       homes.set(cwd, home);
-      if (gentleAi) engrams.set(cwd, await gentleAi.startEngram({ home: template, workspaceRoot: cwd, baseEnv: inheritedEnv(baseEnv) }));
+      if (memory) engrams.set(cwd, await memory.startEngram({ home: template, workspaceRoot: cwd, baseEnv: inheritedEnv(baseEnv) }));
     }
     const home = homes.get(cwd);
-    if (!gentleAi) return { ...isolatedEnv(baseEnv, home), PWD: cwd };
+    if (!gentleAi) {
+      const env = isolatedEnv(baseEnv, home);
+      if (!engram) return { ...env, PWD: cwd };
+      return { ...env, PATH: `${path.join(template, "bin")}${path.delimiter}${env.PATH || ""}`, ...engrams.get(cwd).env, PWD: cwd };
+    }
     return { ...gentleAi.homeEnv(inheritedEnv(baseEnv), home), PATH: `${path.join(template, "bin")}${path.delimiter}${baseEnv.PATH || ""}`, ...engrams.get(cwd).env, PWD: cwd };
   }
 
@@ -444,7 +470,7 @@ function createAgyHost({
     return (result.stdout || "").trim();
   }
 
-  /** Ends what the host keeps for a workspace (gentle-ai's Engram). */
+  /** Ends what the host keeps for a workspace (its Engram). */
   function release(cwd) {
     const engram = engrams.get(cwd);
     if (engram) engram.stop();

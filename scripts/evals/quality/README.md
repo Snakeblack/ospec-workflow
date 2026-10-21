@@ -46,8 +46,11 @@ gives `revise`.
 `results/<baseline>__<candidate>/deliveries/<record>/<scenario>.diff` and the
 measures in `quality.json`, so the comparison survives a cleaned temp
 directory. `judge` uses the bench's Claude configuration
-(`~/.ospec-bench/claude`, `--config-dir`) and `claude-sonnet-5-5` (`--model`),
-skips scenarios already judged, and records its cost.
+(`~/.ospec-bench/claude`, `--config-dir`) and `claude-haiku-5-5` (`--model`;
+user decision, 2026-10-21), skips scenarios already judged, and records its
+cost. The bench checkpoint reads `quality.json` too: margins that declare
+quality revise with `quality-missing` until the pair has one, and the criterion
+it applies lives in `criterion.js`.
 
 ## Limits
 

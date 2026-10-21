@@ -136,3 +136,29 @@ test("READMEs present `claude plugin validate --strict` as a local check, not a 
   }
   assert.deepEqual(problems, [], `unqualified claude validate gate:\n${problems.join("\n")}`);
 });
+
+// ---------------------------------------------------------------------------
+// OSP-026 (#341): the published bench summary must not sell a difference no
+// bench supports. Quality reads as not demonstrated, with the significance of
+// the one-repetition result, and never as fewer defects in every bench.
+// ---------------------------------------------------------------------------
+
+const BENCH_SUMMARIES = new Map([
+  ["README.md", { verdict: "not demonstrated", significance: "p≈0.49", claim: /fewer defects in every bench/i }],
+  ["README.es.md", { verdict: "no demostrada", significance: "p≈0,49", claim: /menos defectos en todos los bancos/i }],
+  ["docs/benchs/bench-idd-vs-gentle-ai.md", { verdict: "not demonstrated", significance: "p≈0.49", claim: /fewer defects than gentle-ai in every bench/i }],
+  ["docs/benchs/bench-idd-vs-gentle-ai.es.md", { verdict: "no demostrada", significance: "p≈0,49", claim: /menos defectos que gentle-ai en todos los bancos/i }],
+]);
+
+test("bench summaries call quality not demonstrated, with its significance and the Engram asymmetry", () => {
+  const problems = [];
+  for (const [file, { verdict, significance, claim }] of BENCH_SUMMARIES) {
+    const text = fs.readFileSync(path.join(ROOT, file), "utf8");
+    const quality = text.split(/\r?\n/).find((line) => /^- \*\*(Quality|Calidad)/.test(line)) || "";
+    if (!quality.includes(verdict)) problems.push(`${file}: the quality line must say "${verdict}"`);
+    if (!quality.includes(significance)) problems.push(`${file}: the quality line must give ${significance}`);
+    if (!/Engram/.test(quality)) problems.push(`${file}: the quality line must state that Engram ran in one arm`);
+    if (claim.test(text)) problems.push(`${file}: claims fewer defects in every bench`);
+  }
+  assert.deepEqual(problems, [], problems.join("\n"));
+});

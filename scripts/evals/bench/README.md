@@ -20,7 +20,8 @@ tooling only: it grants no authority and never runs a model in `npm test`.
 | `arms.js` | `sdd` (init, `sdd-new`, archived change), `idd` (agent writes `idd/config.yaml` with `mode: idd` and `npm test`, the brief as is because the router is loaded, finished when the new `idd/archive/` entry is committed and the tree is clean) and `gentle-ai` (no setup, the brief as is, a commit after setup with nothing uncommitted outside `odd/` and `.atl/`, its skill registry, and every `odd/tasks/*.md` task checked) |
 | `persona.js` | The simulated user: brief, facts, and goal; classifies each agent message and answers |
 | `driver.js` | Seed → git → setup (unmeasured; the persona only knows the setup goal, and a setup that edits the seed voids the run) → change conversation → hidden checks |
-| `hosts/claude.js` | Headless `claude -p` turns and persona calls in a dedicated config directory, with the plugin built from the checkout; for `gentle-ai`, agent turns in gentle-ai's own HOME |
+| `hosts/claude.js` | Headless `claude -p` turns and persona calls in a dedicated config directory, with the plugin built from the checkout and the agent in its own copy of that directory; for `gentle-ai`, agent turns in gentle-ai's own HOME |
+| `hosts/engram.js` | Engram for the ospec arms: the gentle-ai arm's engram binary, installed with `engram setup <agent>`, and the digest of what it installed |
 | `hosts/gentle-ai.js` | Installs gentle-ai into its bench HOME (for Claude Code or for agy), identifies that install, and starts an empty Engram per workspace |
 | `hosts/agy.js` | Headless `agy --print` turns and persona calls (prompts on stdin as stream-json), each workspace in a fresh copy of the arm's template HOME; installs ospec for antigravity as the IDD template. A persona model whose id starts with `grok-` is asked through `hosts/cursor-persona.js` instead |
 | `hosts/cursor-persona.js` | Cursor CLI persona (`agent --print --mode ask`) in an empty directory, for a Grok persona agy cannot serve |
@@ -104,9 +105,25 @@ record skips complete runs (`--force` reruns them) and refuses a different host,
 model, plugin build, persona, corpus, harness, or repetition count. When the
 host's usage quota runs out (HTTP 429, such as a subscription session limit),
 `run` stops at once with exit code 3 and does not record the interrupted run:
-the same command resumes after the reset. Defaults: model `claude-sonnet-5-5`,
-persona `claude-sonnet-5-5`, 30 agent turns and $25 per scenario
-(`--model`, `--persona-model`, `--max-turns`, `--max-cost`).
+the same command resumes after the reset. Defaults: model `claude-haiku-5-5`,
+persona `claude-haiku-5-5` (user decision, 2026-10-21), 30 agent turns and $25
+per scenario (`--model`, `--persona-model`, `--max-turns`, `--max-cost`).
+
+### Engram in every arm (OSP-025)
+
+Engram goes in every arm (user decision, 2026-10-13). The ospec arms (`idd`,
+`sdd`) use the engram binary of the host's gentle-ai HOME (`<gentle-ai
+home>/bin/engram`, or `--engram-bin`), so `setup-gentle-ai` comes first for
+them too, and install it the way an ospec user's install does, with the
+upstream `engram setup <agent>` (user decision, 2026-10-21): its MCP server and
+its memory protocol. On Claude Code it runs in the agent's copy of the bench
+configuration (the persona's stays without it) and fetches the `engram@engram`
+plugin, its hooks and skill, from its GitHub marketplace, so the plugin version
+floats and the record's `plugin_digest` covers it. The agent loads only
+Engram's MCP server (`--strict-mcp-config`). On agy it writes
+`.gemini/config/mcp_config.json` and the protocol block of `.gemini/GEMINI.md`
+into the IDD template. As for gentle-ai, every workspace gets an empty Engram
+of its own, and the record keeps `host.engram_mcp_bytes` in every arm.
 
 ### On the Antigravity CLI (E4.5)
 
@@ -114,9 +131,9 @@ persona `claude-sonnet-5-5`, 30 agent turns and $25 per scenario
 its login outside `HOME`: no bench login is needed. Each workspace gets a fresh
 copy of the arm's template HOME under its `.git/`, without agy's
 conversations, summaries, or knowledge, so no repetition learns from another.
-The IDD template is ospec installed for antigravity from the checkout (no SDD,
-no Engram); its router loads, so the change is the brief itself, as for
-gentle-ai. gentle-ai 4.1.1 does not reach agy 1.3.3 on its own (its
+The IDD template is ospec installed for antigravity from the checkout (no SDD)
+with Engram set up in it (see above); its router loads, so the change is the
+brief itself, as for gentle-ai. gentle-ai 4.1.1 does not reach agy 1.3.3 on its own (its
 verification needs a file its Engram step never writes, and it leaves its
 skills and plugin where agy does not read them), so `setup-gentle-ai --host
 agy` adds three environment steps around its unchanged install: an empty
@@ -160,7 +177,9 @@ PATH or in its usual place).
 - **Tokens:** input, output, cache reads, and cache writes of every model in the
   change conversation, subagents included. Setup and persona are reported apart.
   On agy: input, output (its thinking included), and cache reads, each turn as
-  the difference of the conversation's accumulated usage; cost is 0.
+  the difference of the conversation's accumulated usage; cost is 0. Each agent
+  turn of the conversation keeps its own `tokens`, so the weight of a turn
+  (such as the commit turn) can be read apart.
 - **Duration:** wall clock of the host processes.
 - **Questions:** agent messages the persona classifies as `question` or
   `approval`; **decision-changing** when the answer discloses a fact or departs
@@ -168,10 +187,17 @@ PATH or in its usual place).
 - **Interventions:** every persona reply.
 - **Escaped defects:** hidden checks the delivered workspace fails. A run that
   never reached the change (voided setup) is not judged and shows as such.
+- **Open facts:** for the `idd` arm, how the change `ospec close` archived
+  settled its open facts (`open_facts`): a feature's categories each asked,
+  cited (`path:line`) or quoted (from the request), and the questions asked.
+  The report lists them.
 - **Repetitions:** the report adds the mean of each scenario over its
   repetitions; the total of those means compares with a one-repetition record.
   Schema 1 records (one run per scenario, such as `sdd-baseline-2`) still read
   as one repetition.
+- **Schema 3:** adds `repo_commit` (the checkout's commit, `-dirty` when a
+  tracked file outside `records/` differs), requires `host.engram_mcp_bytes`,
+  tokens per agent turn and `open_facts`. Schema 1 and 2 records still read.
 
 ## Checkpoint
 
@@ -191,10 +217,16 @@ quality criterion) stays reproducible from v2.137.0. The E4.5 checkpoint
 (`bench-margins-7`, three repetitions and the same quality criterion) is
 reproducible from v2.134.0. The E4.2 checkpoint (`bench-margins-6`, one
 repetition, no quality criterion) is reproducible from v2.133.0. Fixed in code:
-incomparable records (including another repetition count), incomplete or missing
-runs, and any hidden check the baseline passes in every repetition and the
-candidate fails in any force `revise`. A new campaign that needs other margins
-declares a new version first.
+incomparable records (including another repetition count, and a pair where
+either arm ran without Engram, OSP-025), incomplete or missing runs, and any
+hidden check the baseline passes in every repetition and the candidate fails in
+any force `revise`. Margins that declare quality need the pair's
+`scripts/evals/quality` result (`scripts/evals/quality/results/<baseline>__<candidate>/quality.json`,
+or `--quality-dir`): without it the checkpoint revises with `quality-missing`,
+and with it the quality verdict is one more reason (OSP-026). So the E4.6 pair
+`gentle-ai-agy-4` / `idd-agy-4` is no longer comparable: its IDD arm ran without
+Engram and its quality was never collected. A new campaign that needs other
+margins declares a new version first.
 
 Records of different harnesses are not comparable unless the margins declare a
 `harness_exception` (one baseline digest, the candidate digests accepted against
@@ -213,7 +245,8 @@ with the same harness. The E4.1 checkpoint (`bench-margins-5`,
 - agy's accumulated usage is the conversation's: whether it includes the
   subagents agy may launch is not documented, and the record counts none.
 - An agy template HOME records absolute paths of the record's workspace
-  directory, so its digest is stable only on the same machine and path.
+  directory; the digest reads that directory as `~` and leaves out binaries
+  (the hook launcher built from Go), whose source `repo_commit` pins.
 - The persona is a model: its classification is checked only by the record's
   conversation log, which keeps every message (clipped) for audit.
 - Isolation from the hidden checks is by location: they live in this

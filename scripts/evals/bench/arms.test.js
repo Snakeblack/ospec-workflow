@@ -7,7 +7,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const { armFor, hasClosedIddChange, hasIddDelivery, hasOddDelivery } = require("./arms.js");
+const { armFor, hasClosedIddChange, hasIddDelivery, hasOddDelivery, iddOpenFacts } = require("./arms.js");
 
 function git(cwd, args) {
   const result = spawnSync("git", args, { cwd, encoding: "utf8" });
@@ -129,4 +129,25 @@ test("only an IDD change archived after setup closes the requested change", () =
   assert.equal(hasClosedIddChange(fresh.root, fresh.base), false);
   write(fresh.root, "idd/archive/2026-10-13-x/change.md", "# x\n");
   assert.equal(hasClosedIddChange(fresh.root, fresh.base), true);
+});
+
+// E4.6 (OSP-027): the record keeps how the delivered IDD change closed its
+// open facts, read from the state.yaml `ospec close` archived.
+test("iddOpenFacts reads how the change archived after setup closed its open facts", () => {
+  const { root, base } = workspace();
+  assert.equal(iddOpenFacts(root, base), null, "no archive");
+  write(root, "idd/archive/2026-10-01-old/state.yaml", JSON.stringify({ intent: { kind: "bug" }, facts: { open: ["¿a?"] } }));
+  commit(root, "setup archive");
+  const after = git(root, ["rev-parse", "HEAD"]);
+  assert.equal(iddOpenFacts(root, after), null, "an archive the setup commit holds is not the change");
+  write(root, "idd/archive/2026-10-02-bug/state.yaml", JSON.stringify({ intent: { kind: "bug" }, facts: { open: ["¿Qué límite, «200»?", "¿Qué formato, «ISO»?"] } }));
+  assert.deepEqual(iddOpenFacts(root, after), { kind: "bug", categories: null, questions: 2 });
+  write(root, "idd/archive/2026-10-03-docs/state.yaml", JSON.stringify({ intent: { kind: "docs" }, facts: { basis: "the request fixes it" } }));
+  assert.deepEqual(iddOpenFacts(root, after), { kind: "docs", categories: null, questions: 0 }, "the latest new archive");
+  write(root, "idd/archive/2026-10-04-broken/state.yaml", "{");
+  assert.equal(iddOpenFacts(root, after), null, "an unreadable state says nothing");
+  write(root, "idd/archive/2026-10-05-odd/state.yaml", JSON.stringify({ intent: { kind: "feature" }, facts: { coverage: [{ category: "inputs", cite: { kind: "url" } }] } }));
+  assert.equal(iddOpenFacts(root, after), null, "an unknown cite kind is not guessed");
+  assert.equal(armFor("idd").openFacts, iddOpenFacts);
+  assert.equal(armFor("gentle-ai").openFacts, undefined);
 });

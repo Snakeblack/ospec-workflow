@@ -50,6 +50,34 @@ function hasIddDelivery(root, base) {
   return [...now].some((name) => !before.has(name));
 }
 
+// How a closed IDD change settled its open facts, from the state.yaml `ospec
+// close` archived (it is JSON): a feature's categories each asked, cited
+// (path:line) or quoted (from the request), and the questions asked. Null when
+// no change the setup commit lacked was archived (E4.6, OSP-027).
+const CLOSING_MODE = Object.freeze({ path: "cited", request: "quoted" });
+
+function iddOpenFacts(root, base) {
+  const dir = path.join(root, "idd", "archive");
+  if (!hasDirectoryIn(dir)) return null;
+  const existing = trackedArchiveNames(root, base);
+  const added = fs.readdirSync(dir, { withFileTypes: true }).filter((entry) => entry.isDirectory() && !existing.has(entry.name)).map((entry) => entry.name).sort();
+  if (added.length === 0) return null;
+  let state;
+  try {
+    state = JSON.parse(fs.readFileSync(path.join(dir, added[added.length - 1], "state.yaml"), "utf8"));
+  } catch {
+    return null;
+  }
+  const facts = (state && state.facts) || {};
+  const kind = (state && state.intent && state.intent.kind) || "unknown";
+  if (Array.isArray(facts.coverage)) {
+    const categories = Object.fromEntries(facts.coverage.map((entry) => [entry.category, typeof entry.question === "string" ? "asked" : CLOSING_MODE[entry.cite && entry.cite.kind]]));
+    if (Object.values(categories).some((mode) => mode === undefined)) return null;
+    return { kind, categories, questions: Object.values(categories).filter((mode) => mode === "asked").length };
+  }
+  return { kind, categories: null, questions: Array.isArray(facts.open) ? facts.open.length : 0 };
+}
+
 function isIddMode(root) {
   try {
     return parseIddConfig(fs.readFileSync(path.join(root, CONFIG_FILE), "utf8")).mode === "idd";
@@ -133,6 +161,7 @@ const ARMS = Object.freeze({
     isSetupDone: isIddMode,
     changePrompt: (scenario) => scenario.brief,
     isComplete: hasIddDelivery,
+    openFacts: iddOpenFacts,
   }),
   // gentle-ai is installed once in the bench's gentle-ai HOME (bench.js
   // setup-gentle-ai), so a project needs no setup. ODD runs on every request,
@@ -159,4 +188,4 @@ function armFor(id, { host = "claude" } = {}) {
   return arm;
 }
 
-module.exports = { ARMS, armFor, hasArchivedChange, hasClosedIddChange, hasIddDelivery, hasOddDelivery };
+module.exports = { ARMS, armFor, hasArchivedChange, hasClosedIddChange, hasIddDelivery, hasOddDelivery, iddOpenFacts };

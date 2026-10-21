@@ -6,7 +6,7 @@
 //   node scripts/evals/bench/bench.js setup-gentle-ai --gentle-ai-bin <file> [--engram-bin <file>] [--gentle-ai-home <dir>] [--host agy]
 //   node scripts/evals/bench/bench.js run --arm sdd --record <id> [--host claude|agy] [--corpus <name>] [--scenario <id>]... [--force]
 //   node scripts/evals/bench/bench.js report --record <id>
-//   node scripts/evals/bench/bench.js checkpoint --baseline <id> --candidate <id>
+//   node scripts/evals/bench/bench.js checkpoint --baseline <id> --candidate <id> [--quality-dir <dir>]
 // `run` drives real agents and spends tokens: it never runs in `npm test`.
 // Each run works in its own opaque directory under the workspaces directory,
 // one run at a time (a lock), and once judged its workspace moves to the runs
@@ -15,12 +15,14 @@
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { spawnSync } = require("node:child_process");
 
 const { armFor } = require("./arms.js");
 const { evaluateCheckpoint, loadMargins, renderCheckpoint } = require("./checkpoint.js");
 const { DEFAULT_LIMITS, runScenario: defaultRunScenario } = require("./driver.js");
 const { buildOspecHome: defaultBuildOspecHome, createAgyHost } = require("./hosts/agy.js");
-const { buildPlugin: defaultBuildPlugin, createClaudeHost, prepareAgentConfig, resolveClaudeExecutable } = require("./hosts/claude.js");
+const { benchEnv, buildPlugin: defaultBuildPlugin, createClaudeHost, prepareAgentConfig, resolveClaudeExecutable } = require("./hosts/claude.js");
+const { claudeEngramDigest: defaultClaudeEngramDigest, combineDigests, setupEngram: defaultSetupEngram } = require("./hosts/engram.js");
 const { askCursorPersona } = require("./hosts/cursor-persona.js");
 const {
   engramMcpBytes: defaultEngramMcpBytes,
@@ -41,16 +43,18 @@ const DEFAULTS = Object.freeze({
   corpus: "default",
   recordsDir: path.join(__dirname, "records"),
   runsDir: path.join(REPO_ROOT, "scripts", "evals", ".runs", "bench"),
+  qualityDir: path.join(REPO_ROOT, "scripts", "evals", "quality", "results"),
   workspacesDir: path.join(os.tmpdir(), "ospec-bench"),
   configDir: path.join(os.homedir(), ".ospec-bench", "claude"),
 });
 // Per host: the models of the agent and the persona, the gentle-ai HOME, and
 // the limits. agy reports no cost, so a token cap replaces the cost cap (user
-// decision, 2026-10-13).
+// decision, 2026-10-13). Claude runs default to Haiku (user decision,
+// 2026-10-21); agy offers no Haiku and keeps its models.
 const HOSTS = Object.freeze({
   claude: Object.freeze({
-    model: "claude-sonnet-5-5",
-    personaModel: "claude-sonnet-5-5",
+    model: "claude-haiku-5-5",
+    personaModel: "claude-haiku-5-5",
     gentleAiHome: path.join(os.homedir(), ".ospec-bench", "gentle-ai"),
     limits: DEFAULT_LIMITS,
   }),
@@ -78,6 +82,7 @@ const OPTIONS = Object.freeze({
   "--claude-bin": ["claudeBin", String],
   "--records-dir": ["recordsDir", String],
   "--runs-dir": ["runsDir", String],
+  "--quality-dir": ["qualityDir", String],
   "--workspaces-dir": ["workspacesDir", String],
   "--max-turns": ["maxAgentTurns", Number],
   "--max-cost": ["maxCostUsd", Number],
@@ -112,6 +117,12 @@ function parseArgs(argv) {
 function recordPath(recordsDir, id) {
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id || "")) throw new Error(`record id must be kebab-case: ${id}`);
   return path.join(recordsDir, `${id}.json`);
+}
+
+// The scripts/evals/quality result of a pair, or null when it was never collected.
+function readQuality(qualityDir, baseline, candidate) {
+  const file = path.join(qualityDir, `${baseline}__${candidate}`, "quality.json");
+  return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : null;
 }
 
 function readRecord(recordsDir, id) {
@@ -158,6 +169,32 @@ function acquireLock(workspacesDir) {
       fs.rmSync(lock, { force: true });
     }
   }
+}
+
+/**
+ * The commit of this checkout that a record was produced from (OSP-026), with
+ * `-dirty` when a tracked file outside the records differs from it.
+ */
+function repoCommit(root = REPO_ROOT) {
+  const git = (args) => spawnSync("git", args, { cwd: root, encoding: "utf8" });
+  const head = git(["rev-parse", "HEAD"]);
+  if (head.status !== 0) return null;
+  const status = git(["status", "--porcelain", "--untracked-files=no", "--", ".", ":(exclude)scripts/evals/bench/records"]);
+  return `${head.stdout.trim()}${status.stdout.trim() ? "-dirty" : ""}`;
+}
+
+/** The engram binary the ospec arms share with the host's gentle-ai arm (OSP-025): --engram-bin, or the one in its HOME. */
+function findEngram(opts, hostDefaults) {
+  const gentleAiHome = path.resolve(opts.gentleAiHome || hostDefaults.gentleAiHome);
+  const engram = path.resolve(opts.engramBin || path.join(gentleAiHome, "bin", "engram"));
+  return { engram: fs.existsSync(engram) ? engram : null, expected: engram, gentleAiHome };
+}
+
+function engramFor(opts, hostDefaults, deps) {
+  const found = deps.findEngram(opts, hostDefaults);
+  if (found.engram) return found.engram;
+  deps.stderr.write(`Engram goes in every arm (OSP-025) and ${found.expected} does not exist. Install gentle-ai with \`bench.js setup-gentle-ai${opts.host === "agy" ? " --host agy" : ""} --gentle-ai-bin <file> --gentle-ai-home ${found.gentleAiHome}\`, or pass --engram-bin, then run again.\n`);
+  return null;
 }
 
 /** Moves a run's workspace out of its opaque directory to `dest`, then removes that directory. */
@@ -234,6 +271,7 @@ function prepareHost(opts, arm, recordWorkspaces, personaDir, deps) {
     }
     let plugin;
     let gentleAi = null;
+    let engram = null;
     let template;
     if (arm.id === "gentle-ai") {
       template = path.resolve(opts.gentleAiHome || hostDefaults.gentleAiHome);
@@ -245,8 +283,11 @@ function prepareHost(opts, arm, recordWorkspaces, personaDir, deps) {
       }
       gentleAi = { startEngram, homeEnv };
     } else {
-      plugin = deps.buildOspecHome({ repoRoot: REPO_ROOT, home: path.join(recordWorkspaces, "agy-ospec-home") });
+      const engramBin = engramFor(opts, hostDefaults, deps);
+      if (!engramBin) return null;
+      plugin = deps.buildOspecHome({ repoRoot: REPO_ROOT, home: path.join(recordWorkspaces, "agy-ospec-home"), engram: engramBin });
       template = plugin.home;
+      engram = { startEngram };
     }
     // Everything of the bench an agent must not read: other runs, their
     // archives and records, this repository (hidden checks), the installs.
@@ -259,11 +300,11 @@ function prepareHost(opts, arm, recordWorkspaces, personaDir, deps) {
       expose: [agyBin, path.dirname(path.dirname(process.execPath))],
       bin: [path.dirname(process.execPath), path.dirname(agyBin)],
     };
-    if (arm.id === "gentle-ai") plugin = { ...plugin, engramMcpBytes: deps.engramMcpBytes({ home: template, host: "agy" }) };
+    plugin = { ...plugin, engramMcpBytes: deps.engramMcpBytes({ home: template, host: "agy" }) };
     const personaInvoke = String(opts.personaModel || "").startsWith("grok-")
       ? (input) => deps.askCursorPersona({ ...input, model: opts.personaModel })
       : null;
-    const host = deps.createAgyHost({ executable, template, model: opts.model, personaModel: opts.personaModel, personaDir, gentleAi, forbidden, sandbox, personaInvoke });
+    const host = deps.createAgyHost({ executable, template, model: opts.model, personaModel: opts.personaModel, personaDir, gentleAi, engram, forbidden, sandbox, personaInvoke });
     return { host, plugin };
   }
   if (!fs.existsSync(opts.configDir)) {
@@ -275,6 +316,8 @@ function prepareHost(opts, arm, recordWorkspaces, personaDir, deps) {
   // what the record identifies as the plugin.
   let plugin;
   let gentleAi = null;
+  let engram = null;
+  let agentConfigDir = null;
   if (arm.id === "gentle-ai") {
     const home = path.resolve(opts.gentleAiHome || hostDefaults.gentleAiHome);
     try {
@@ -286,16 +329,32 @@ function prepareHost(opts, arm, recordWorkspaces, personaDir, deps) {
     gentleAi = { home, startEngram, mcpConfig: mcpConfig(home) };
     plugin = { ...plugin, engramMcpBytes: deps.engramMcpBytes({ home, host: "claude" }) };
   } else {
+    const engramBin = engramFor(opts, hostDefaults, deps);
+    if (!engramBin) return null;
     plugin = deps.buildPlugin({ repoRoot: REPO_ROOT, outDir: path.join(recordWorkspaces, "plugin-build"), withSdd: arm.id === "sdd" });
-  }
-  let agentConfigDir = null;
-  if (arm.id === "idd") {
     agentConfigDir = path.join(recordWorkspaces, "agent-config");
     deps.prepareAgentConfig({
       configDir: opts.configDir,
       destDir: agentConfigDir,
-      routerSource: path.join(plugin.pluginDir, "global-instructions", "CLAUDE.md"),
+      routerSource: arm.id === "idd" ? path.join(plugin.pluginDir, "global-instructions", "CLAUDE.md") : null,
     });
+    // `engram setup claude-code` installs into the agent's copy of the
+    // configuration and calls the claude CLI, so that one goes first on the PATH.
+    const engramHome = path.join(recordWorkspaces, "engram-home");
+    const setupEnv = benchEnv(process.env, agentConfigDir);
+    const installed = deps.setupEngram({
+      engram: engramBin,
+      home: engramHome,
+      host: "claude",
+      env: { ...setupEnv, PATH: `${path.dirname(executable)}${path.delimiter}${setupEnv.PATH || ""}` },
+    });
+    engram = { home: engramHome, startEngram, mcpConfig: deps.mcpConfig(agentConfigDir) };
+    plugin = {
+      ...plugin,
+      version: `${plugin.version} (engram ${installed.version})`,
+      digest: combineDigests(plugin.digest, deps.claudeEngramDigest({ configDir: agentConfigDir, home: engramHome })),
+      engramMcpBytes: deps.engramMcpBytes({ home: agentConfigDir, host: "claude" }),
+    };
   }
   const host = deps.createHost({
     executable,
@@ -303,6 +362,7 @@ function prepareHost(opts, arm, recordWorkspaces, personaDir, deps) {
     agentConfigDir,
     pluginDir: plugin.pluginDir,
     gentleAi,
+    engram,
     model: opts.model,
     effort: opts.effort || null,
     personaModel: opts.personaModel,
@@ -362,9 +422,10 @@ async function runLocked(args, opts, arm, corpus, selected, repetitions, limits,
       effort: opts.effort || null,
       plugin_version: plugin.version,
       plugin_digest: plugin.digest,
-      ...(typeof plugin.engramMcpBytes === "number" ? { engram_mcp_bytes: plugin.engramMcpBytes } : {}),
+      engram_mcp_bytes: plugin.engramMcpBytes,
     },
     persona: { model: opts.personaModel },
+    repo_commit: deps.repoCommit(),
     scenarios_digest: scenariosDigest(corpus),
     harness_digest: harnessDigest(),
     limits,
@@ -465,6 +526,11 @@ async function main(argv, deps = {}) {
     prepareAgentConfig,
     askCursorPersona,
     engramMcpBytes: defaultEngramMcpBytes,
+    setupEngram: defaultSetupEngram,
+    claudeEngramDigest: defaultClaudeEngramDigest,
+    repoCommit,
+    findEngram,
+    mcpConfig,
     runScenario: defaultRunScenario,
     ...deps,
   };
@@ -492,11 +558,12 @@ async function main(argv, deps = {}) {
         candidate: readRecord(recordsDir, args.candidate),
         margins,
         margins_digest: digest,
+        quality: readQuality(args.qualityDir || DEFAULTS.qualityDir, args.baseline, args.candidate),
       });
       io.stdout.write(renderCheckpoint(result));
       return result.decision === "continue" ? 0 : 1;
     }
-    io.stderr.write("usage: bench.js list [--corpus <name>] | setup-gentle-ai --gentle-ai-bin <file> [--engram-bin <file>] [--gentle-ai-home <dir>] [--host agy] | run --arm <arm> --record <id> [--host claude|agy] [--corpus <name>] [--repetitions <n>] | report --record <id> | checkpoint --baseline <id> --candidate <id>\n");
+    io.stderr.write("usage: bench.js list [--corpus <name>] | setup-gentle-ai --gentle-ai-bin <file> [--engram-bin <file>] [--gentle-ai-home <dir>] [--host agy] | run --arm <arm> --record <id> [--host claude|agy] [--corpus <name>] [--repetitions <n>] | report --record <id> | checkpoint --baseline <id> --candidate <id> [--quality-dir <dir>]\n");
     return 2;
   } catch (error) {
     io.stderr.write(`${error.message}\n`);

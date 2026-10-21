@@ -23,7 +23,11 @@
 //
 // The margins may also declare a quality criterion (E4.5): the comparison of
 // the deliveries' mutation scores and blind review that scripts/evals/quality
-// evaluates, since a record holds neither. The checkpoint only validates it.
+// evaluates, since a record holds neither. Once declared, the checkpoint needs
+// that result (`quality-missing` without it) and applies its verdict (OSP-026).
+//
+// Engram goes in every arm (user decision, 2026-10-13; OSP-025): a pair where
+// either record lacks `host.engram_mcp_bytes` is not comparable.
 //
 // Measurement tooling only: it grants no authority and promotes nothing.
 
@@ -32,6 +36,7 @@ const path = require("node:path");
 
 const { sha256Fingerprint } = require("../../lib/canonical-json.js");
 const { taskInterval } = require("./stats.js");
+const { evaluateQuality } = require("../quality/criterion.js");
 
 const MARGINS_PATH = path.join(__dirname, "margins.json");
 const MARGINS_SCHEMA_VERSION = 5;
@@ -138,6 +143,8 @@ function comparability(baseline, candidate, margins) {
   for (const record of [baseline, candidate]) {
     if (repetitionsOf(record) !== margins.repetitions) problems.push(`${record.arm} has ${repetitionsOf(record)} repetitions, margins expect ${margins.repetitions}`);
   }
+  const withoutEngram = [baseline, candidate].filter((record) => typeof fieldValue(record, ["host", "engram_mcp_bytes"]) !== "number");
+  if (withoutEngram.length > 0) problems.push(`Engram is not in every arm (OSP-025): ${withoutEngram.map((record) => record.arm).join(", ")} ran without it`);
   const ids = (record) => [...new Set(record.runs.map((run) => run.scenario_id))].sort().join(",");
   if (ids(baseline) !== ids(candidate)) problems.push(`scenario sets differ (${ids(baseline)} vs ${ids(candidate)})`);
   return problems;
@@ -188,9 +195,10 @@ const scenarioSummary = (runs) => ({
 });
 
 /**
- * @returns {{ decision: "continue"|"revise", reasons: Array<{code, detail}>, per_scenario, totals, margins_version }}
+ * `quality` is the scripts/evals/quality result of this pair, or null.
+ * @returns {{ decision: "continue"|"revise", reasons: Array<{code, detail}>, per_scenario, totals, quality, margins_version }}
  */
-function evaluateCheckpoint({ baseline, candidate, margins, margins_digest: marginsDigest = null }) {
+function evaluateCheckpoint({ baseline, candidate, margins, margins_digest: marginsDigest = null, quality = null }) {
   validateMargins(margins);
   const reasons = [];
   const problems = comparability(baseline, candidate, margins);
@@ -237,6 +245,12 @@ function evaluateCheckpoint({ baseline, candidate, margins, margins_digest: marg
   if (tokensRatio === null || tokensRatio > margins.tokens.max_total_ratio) {
     reasons.push({ code: "tokens", detail: [`candidate/baseline tokens = ${tokensRatio} (margin ≤ ${margins.tokens.max_total_ratio})`] });
   }
+  const qualityVerdict = margins.quality && quality ? evaluateQuality(quality, margins.quality) : null;
+  if (margins.quality && !quality) {
+    reasons.push({ code: "quality-missing", detail: [`the margins declare quality and there is no scripts/evals/quality result for ${baseline.record_id}__${candidate.record_id}`] });
+  } else if (qualityVerdict && qualityVerdict.decision !== "continue") {
+    reasons.push({ code: "quality", detail: qualityVerdict.reasons });
+  }
 
   return {
     decision: reasons.length === 0 ? "continue" : "revise",
@@ -245,6 +259,7 @@ function evaluateCheckpoint({ baseline, candidate, margins, margins_digest: marg
     margins_digest: marginsDigest,
     repetitions: margins.repetitions,
     harness_exception: appliedHarnessException(baseline, candidate, margins),
+    quality: qualityVerdict,
     baseline_record: baseline.record_id,
     candidate_record: candidate.record_id,
     per_scenario: perScenario,
@@ -272,6 +287,7 @@ function renderCheckpoint(result) {
     ...(result.harness_exception ? [renderHarnessException(result.harness_exception)] : []),
     `- Tokens: ${result.totals.candidate_tokens} / ${result.totals.baseline_tokens} = ${result.totals.tokens_ratio}`,
     `- Escaped defects (sum of scenario means), candidate − baseline: ${result.totals.escaped_delta}`,
+    ...(result.quality ? [`- Quality: ${result.quality.decision} (mutation score ${result.quality.mutation.baseline.mean} → ${result.quality.mutation.candidate.mean}; blind review prefers the baseline in ${result.quality.baseline_preferences} of ${result.quality.pairs} pairs)`] : []),
     "",
     "| Scenario | Tokens ratio | Escaped (baseline → candidate) | Questions | Regressions |",
     "| --- | ---: | --- | --- | --- |",

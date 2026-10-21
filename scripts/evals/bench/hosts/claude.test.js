@@ -6,7 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { benchEnv, createClaudeHost, resolveClaudeExecutable, turnArgs } = require("./claude.js");
+const { benchEnv, createClaudeHost, prepareAgentConfig, resolveClaudeExecutable, turnArgs } = require("./claude.js");
 
 function tempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "bench-host-"));
@@ -23,7 +23,7 @@ function fakeClaude(dir, { exitCode = 0 } = {}) {
       const args = process.argv.slice(2);
       const result = {
         type: "result", subtype: "success", is_error: false, session_id: "s-" + (args.includes("--resume") ? "resumed" : "new"),
-        result: JSON.stringify({ args, input, config: process.env.CLAUDE_CONFIG_DIR || null, nested: process.env.CLAUDECODE || null, home: process.env.HOME, engramPort: process.env.ENGRAM_PORT || null }),
+        result: JSON.stringify({ args, input, config: process.env.CLAUDE_CONFIG_DIR || null, nested: process.env.CLAUDECODE || null, home: process.env.HOME, engramPort: process.env.ENGRAM_PORT || null, pathHead: (process.env.PATH || "").split(require("node:path").delimiter)[0] }),
         duration_ms: 5, num_turns: 1, total_cost_usd: 0.01,
         modelUsage: { m: { inputTokens: 1, outputTokens: 2, cacheReadInputTokens: 3, cacheCreationInputTokens: 4 } },
       };
@@ -209,6 +209,55 @@ test("the gentle-ai agent runs from its HOME with its MCP server and an Engram p
   await host.turn({ cwd: other, prompt: "x", sessionId: null, transcriptPath: path.join(dir, "t3.jsonl") });
   host.releaseAll();
   assert.deepEqual(stopped, [workspace, other], "an interrupted bench stops every Engram it started");
+});
+
+// OSP-025 (#340): the ospec arms run with the plugin, the agent's copy of the
+// configuration where Engram was set up, its MCP server, and an empty Engram
+// per workspace whose engram binary leads the PATH for its hooks.
+test("an ospec agent with Engram keeps its plugin and configuration, loads only Engram's MCP server, and gets an Engram per workspace", async () => {
+  const dir = tempDir();
+  const engramHome = path.join(dir, "engram-home");
+  const started = [];
+  const startEngram = async ({ home, workspaceRoot }) => {
+    started.push({ home, workspaceRoot });
+    return { env: { ENGRAM_DATA_DIR: path.join(workspaceRoot, ".git", "bench-engram"), ENGRAM_PORT: "40100" }, stop: () => {} };
+  };
+  const mcpConfig = JSON.stringify({ mcpServers: { engram: { type: "stdio", command: path.join(engramHome, "bin", "engram"), args: ["mcp", "--tools=agent"] } } });
+  const agentConfigDir = path.join(dir, "agent-config");
+  const host = createClaudeHost({
+    executable: process.execPath,
+    prefixArgs: [fakeClaude(dir)],
+    configDir: path.join(dir, "config"),
+    agentConfigDir,
+    pluginDir: path.join(dir, "plugin"),
+    engram: { home: engramHome, startEngram, mcpConfig },
+    model: "m",
+    personaModel: "p",
+    personaDir: dir,
+  });
+  const workspace = path.join(dir, "ws");
+  fs.mkdirSync(workspace);
+  const seen = JSON.parse((await host.turn({ cwd: workspace, prompt: "hola", sessionId: null, transcriptPath: path.join(dir, "t1.jsonl") })).final_text);
+  assert.equal(seen.config, agentConfigDir);
+  assert.equal(seen.engramPort, "40100");
+  assert.equal(seen.pathHead, path.join(engramHome, "bin"));
+  assert.equal(seen.args[seen.args.indexOf("--plugin-dir") + 1], path.join(dir, "plugin"));
+  assert.ok(seen.args.includes("--strict-mcp-config"));
+  assert.equal(seen.args.at(-1), mcpConfig);
+  assert.deepEqual(started, [{ home: engramHome, workspaceRoot: workspace }]);
+});
+
+test("prepareAgentConfig copies the configuration and writes the router only when given one", () => {
+  const dir = tempDir();
+  const config = path.join(dir, "config");
+  fs.mkdirSync(config);
+  fs.writeFileSync(path.join(config, "session"), "login");
+  const plain = prepareAgentConfig({ configDir: config, destDir: path.join(dir, "sdd") });
+  assert.equal(fs.readFileSync(path.join(plain, "session"), "utf8"), "login");
+  assert.equal(fs.existsSync(path.join(plain, "CLAUDE.md")), false);
+  fs.writeFileSync(path.join(dir, "router.md"), "# ospec-workflow\n\nrouter\n");
+  const routed = prepareAgentConfig({ configDir: config, destDir: path.join(dir, "idd"), routerSource: path.join(dir, "router.md") });
+  assert.match(fs.readFileSync(path.join(routed, "CLAUDE.md"), "utf8"), /router/);
 });
 
 test("releaseAll stops the turn in flight", async () => {

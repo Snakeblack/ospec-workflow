@@ -61,9 +61,9 @@ A new project, or a request to define a system's architecture, starts with the `
 
 IDD is measured against gentle-ai (its ODD flow, installed with Engram) on fixed scenarios with real agents, on Claude Code (`claude-sonnet-5-5`) and on the Antigravity CLI (`gemini-3.8-flash-high`), with a simulated user and hidden checks. In short:
 
-- **Quality:** IDD escapes fewer defects in every bench with hidden facts but one, where it is level within noise (6.67 against 6.33), and loses no acceptance or regression check.
+- **Quality: not demonstrated.** Acceptance and regression tie in every bench; the escaped defects differ only in hidden-fact checks, with one to three repetitions and no significant difference (2 against 0 in E4.2 is p≈0.49). Every bench so far ran Engram only in gentle-ai's arm.
 - **Tokens:** with Claude and small tasks IDD spends 0.44× what gentle-ai spends; with Gemini it spends more (2.29× on the same six scenarios), and more still on the complex one-page apps, where the IDD runs that spent more left fewer defects (a correlation over six runs, not proof).
-- **Caveats:** one to three repetitions per scenario, and IDD versions that changed between benches. Read them before quoting a number.
+- **Caveats:** one to three repetitions per scenario, IDD versions that changed between benches, Engram in one arm only, and a reserved scenario written in the same session that tuned IDD. Read them before quoting a number.
 
 Full tables, models, personas, who wins and why: [docs/benchs/bench-idd-vs-gentle-ai.md](docs/benchs/bench-idd-vs-gentle-ai.md) ([Español](docs/benchs/bench-idd-vs-gentle-ai.es.md)).
 

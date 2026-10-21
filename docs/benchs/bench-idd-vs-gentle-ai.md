@@ -13,18 +13,19 @@ Date: 2026-10-14. Bench contract: [`openspec/specs/bench/spec.md`](../../openspe
 
 ## Short conclusion
 
-- **Quality:** IDD escapes fewer defects than gentle-ai in every bench with hidden facts, except `todo-spa` with IDD 2.133.0, where IDD escapes marginally more (6.67 against 6.33, one check, within noise). Neither loses acceptance or regression in any of them.
+- **Quality: not demonstrated.** Acceptance and regression tie in every bench. The escaped defects differ only in hidden-fact checks, and no difference is significant: E4.2 2 against 0 over 26 (one repetition, p≈0.49), E4.9 9 against 3 (one repetition), E4.5 6.33 against 6.67 (IDD escapes one more check), E4.6 14 against 8 summed over means (the `receta-spa` lead rests on one run). Every bench ran Engram only in gentle-ai's arm (OSP-025), and the E4.6 quality comparison was never collected (OSP-026).
+- **What holds:** the token saving with Claude on small tasks (0.44×), which has a structural cause (section 4).
 - **Token cost:** it depends on the host and the kind of task.
   - With **Claude** and small tasks, IDD spends **0.44×** what gentle-ai spends, and half in dollars.
   - With **Gemini 3.8 Flash** (agy), IDD spends more: 2.29× on the six small scenarios and 7.3× on `todo-spa`. On `receta-spa` it spends 0.80×.
-- **Reading on complexity:** on complex tasks IDD spends more and delivers better; on small tasks the saving only shows with Claude. This is not a proven law, it is what these records support (section 4).
+- **Reading on complexity:** on the complex tasks IDD spent more, and its most expensive runs escaped fewer defects; on small tasks the saving only shows with Claude. This is a correlation over a few runs, not a proven law (section 4).
 - **What gentle-ai does better:** it is cheaper and faster with Gemini, and on `todo-spa` it delivers in one turn with no interventions. Its strength, memory across sessions, is not measured here.
 
 ## 1. Common conditions
 
 | Element | Value |
 | --- | --- |
-| IDD | ospec-workflow 2.132.1 to 2.137.0, built from the checkout, no SDD and no Engram. The router loads in the agy arms |
+| IDD | ospec-workflow 2.132.1 to 2.137.0, built from the checkout, no SDD and **no Engram**: only gentle-ai's arm had it, an asymmetry of every bench here (OSP-025). The harness now sets Engram up in every arm; these records predate it. The router loads in the agy arms |
 | gentle-ai | gentle-ai 4.1.1 with Engram 3.4.0 (ODD with RDD on), Engram empty and isolated per scenario. On agy, with three environment adjustments that do not touch its content |
 | Agent | Claude Code 2.1.289/2.1.296 with `claude-sonnet-5-5`, or Antigravity CLI (`agy`) 1.3.3 to 1.3.5 with `gemini-3.8-flash-high` |
 | Persona (the simulated user) | `claude-sonnet-5-5` on Claude; `claude-sonnet-5-5-medium` or `grok-4.7-high` on agy |
@@ -42,7 +43,7 @@ The persona only gives a scenario's hidden facts if the agent asks. A hidden che
 | **E4.2** | `default` (`dde01d7028a9`) | 6: `cli-local`, `saas-small`, `regulated`, `brownfield`, `public-library`, `bugfix` (4–5 facts each) | 1 | Claude Code, `claude-sonnet-5-5`, persona `claude-sonnet-5-5` |
 | **E4.9** | `default` (`3eed3740a0d6`) | The same 6, with the commit in the brief for both arms | 1 | agy 1.3.4, `gemini-3.8-flash-high`, persona `grok-4.7-high` |
 | **E4.5** | `greenfield` | `todo-spa` (16 facts), a new page from a README | 3 | agy 1.3.3, `gemini-3.8-flash-high`, persona `claude-sonnet-5-5-medium` |
-| **E4.6** | `greenfield` (`7ce1db3ed2ba`) | `todo-spa` and `receta-spa` (9 facts, written and frozen by another session) | 3 | agy 1.3.5, `gemini-3.8-flash-high`, persona `grok-4.7-high` |
+| **E4.6** | `greenfield` (`7ce1db3ed2ba`) | `todo-spa` and `receta-spa` (9 facts, written and frozen in the same session that tuned IDD, so its independence is not demonstrated) | 3 | agy 1.3.5, `gemini-3.8-flash-high`, persona `grok-4.7-high` |
 
 Records: E4.2 `gentle-ai-1` vs `idd-3`; E4.9 `gentle-ai-2` vs `idd-4`; E4.5 `gentle-ai-agy-3` vs `idd-agy-3`; E4.6 `gentle-ai-agy-4` vs `idd-agy-4`. SDD (`sdd-baseline-3`, Claude, 65.7 M tokens, 38.64 USD, 93 min, 0 escaped) stays as a historical reference for a flow with every phase.
 
@@ -72,12 +73,12 @@ Regression passes everywhere (11/11, 3/3 and 6/6 in both arms). Bold: best on th
 | **`todo-spa` mean** | **2.02 M** · 6.33 | 14.76 M (7.30×) · **2** |
 | **`receta-spa` mean** | 4.53 M · 7.67 | **3.63 M** (0.80×) · **6** |
 
-E4.6 checkpoint with `bench-margins-9`: **`continue`**. No veto and every margin is met (tokens 2.81× against a 10× ceiling; −6 escaped against a +2 ceiling).
+E4.6 checkpoint with `bench-margins-9`, as the harness of its time computed it: **`continue`** (tokens 2.81× against a 10× ceiling; −6 escaped against a +2 ceiling). The 10× ceiling does not bound tokens in this campaign, so that part of the verdict says little. The current checkpoint no longer compares this pair: its IDD arm ran without Engram, and the quality its margins declare was never collected (`quality-missing`).
 
 ## 4. Who wins and why
 
-**Quality: IDD wins**, with caveats.
-- Its `open-facts` gate asks, before editing, what neither the request nor the code settles, and closing requires evidence from runs the CLI observes. In E4.2 it got 24 of 25 facts from the user; gentle-ai got 6 of 25. gentle-ai's escaped defects are facts nobody gave it (a lowercase code, a page below 1).
+**Quality: not demonstrated.** What the records show, and why it does not settle it:
+- IDD's `open-facts` gate asks, before editing, what neither the request nor the code settles, and closing requires evidence from runs the CLI observes. In E4.2 it got 24 of 25 facts from the user; gentle-ai got 6 of 25. gentle-ai's escaped defects are facts nobody gave it (a lowercase code, a page below 1).
 - With Gemini the model sometimes declares no open facts and skips the gate. In E4.5 both arms escaped nearly the same, and IDD spent less and delivered tests (33.3 % mutation score against 0 %). The E4.6 IDD was built from a checkout that already included the `open-facts-robustness` change (mandatory categories in `record intent`, required tests, content signals): on `todo-spa` it went from 6.67 to 2 escaped on average. That compares two different benches, it is not an A/B of the change.
 - On `receta-spa`, IDD's lead (6 against 7.67) rests on a single run (#2). It is the most fragile difference in this document.
 
@@ -102,6 +103,9 @@ E4.6 checkpoint with `bench-margins-9`: **`continue`**. No veto and every margin
 - **The persona models differ** between benches (Claude or Grok), and on agy the agent (Gemini) and the quality judge are not from the same family.
 - **gentle-ai's empty Engram** measures a new repository with no prior memory; the value of its memory across sessions is not measured.
 - **The E4.5 arms ran in parallel** and share Gemini's request limit: durations may come out inflated.
-- **Pending:** rerun the six scenarios with Claude against `idd-4`. The change requires it not to raise questions by more than one per scenario or tokens by more than 20 %, and it has not been run yet.
+- **Engram only in gentle-ai's arm** in every bench (OSP-025): it adds to gentle-ai's tokens and gives it a memory protocol IDD lacked. The harness now sets Engram up in every arm with `engram setup`; no bench has run with it yet.
+- **`receta-spa` was written in the same session** that tuned IDD for E4.6: the reserved scenario's independence from the tuning is not demonstrated (OSP-026).
+- **The E4.6 quality was never collected:** `bench-margins-9` declares a quality criterion, and the pair's deliveries are no longer on disk, so it needs a new run.
+- **Pending:** repeat `idd-4` with Engram in every arm, then the Claude repetition (n ≥ 3, symmetric arms, a reserved corpus written apart). The change requires it not to raise questions by more than one per scenario or tokens by more than 20 %, and it has not been run yet.
 
 Detailed analysis of each bench (in Spanish): [E4.2](../analysis/2026-10-12-bench-gentle-ai.md), [E4.5](../analysis/2026-10-13-bench-greenfield.md), [E4.9](../analysis/2026-10-14-bench-arm-symmetry.md).
