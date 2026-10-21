@@ -247,6 +247,79 @@ test("an ospec agent with Engram keeps its plugin and configuration, loads only 
   assert.deepEqual(started, [{ home: engramHome, workspaceRoot: workspace }]);
 });
 
+// A stand-in that refreshes the login of the configuration it runs in, as
+// Claude Code does when the access token expires: a turn writes `turnExpiry`,
+// the persona writes `personaExpiry`, and the persona answers with the login
+// it found before refreshing.
+function refreshingClaude(dir, { turnExpiry, personaExpiry }) {
+  const script = path.join(dir, "refreshing-claude.js");
+  fs.writeFileSync(script, `
+    const fs = require("node:fs");
+    const path = require("node:path");
+    process.stdin.resume();
+    process.stdin.on("end", () => {
+      const args = process.argv.slice(2);
+      const file = path.join(process.env.CLAUDE_CONFIG_DIR, ".credentials.json");
+      const seen = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")).claudeAiOauth.expiresAt : null;
+      const persona = args.includes("--json-schema");
+      const expiry = persona ? ${personaExpiry} : ${turnExpiry};
+      if (seen !== null && expiry) fs.writeFileSync(file, JSON.stringify({ claudeAiOauth: { expiresAt: expiry, refreshToken: "r" + expiry } }));
+      const result = { type: "result", subtype: "success", is_error: false, session_id: "s", result: String(seen), duration_ms: 1, num_turns: 1, total_cost_usd: 0, modelUsage: {} };
+      if (persona) {
+        result.structured_output = { kind: "question", answer: String(seen), facts_disclosed: [], deviates_from_recommendation: false };
+        process.stdout.write(JSON.stringify(result));
+      } else {
+        process.stdout.write(JSON.stringify(result) + "\\n");
+      }
+    });
+  `);
+  return script;
+}
+
+const writeLogin = (dir, expiresAt) => {
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, ".credentials.json"), JSON.stringify({ claudeAiOauth: { expiresAt, refreshToken: `r${expiresAt}` } }), { mode: 0o600 });
+};
+const loginOf = (dir) => JSON.parse(fs.readFileSync(path.join(dir, ".credentials.json"), "utf8")).claudeAiOauth;
+
+test("the login an ospec agent refreshes in its copy reaches the persona, and the persona's reaches the agent", async () => {
+  const dir = tempDir();
+  const configDir = path.join(dir, "config");
+  const agentConfigDir = path.join(dir, "agent-config");
+  writeLogin(configDir, 1000);
+  writeLogin(agentConfigDir, 1000);
+  const host = createClaudeHost({ executable: process.execPath, prefixArgs: [refreshingClaude(dir, { turnExpiry: 2000, personaExpiry: 3000 })], configDir, agentConfigDir, pluginDir: dir, model: "m", personaModel: "p", personaDir: dir });
+  const workspace = path.join(dir, "ws");
+  fs.mkdirSync(workspace);
+
+  await host.turn({ cwd: workspace, prompt: "hola", sessionId: null, transcriptPath: path.join(dir, "t1.jsonl") });
+  assert.equal(loginOf(agentConfigDir).expiresAt, 2000, "the agent refreshed its copy");
+  const { reply, error } = await host.persona({ scenario: { brief: "b", facts: [] }, goal: "g", message: "¿Prioridad?" });
+  assert.equal(error, null);
+  assert.equal(reply.answer, "2000", "the persona runs with the login the agent refreshed");
+  assert.deepEqual(loginOf(configDir), { expiresAt: 3000, refreshToken: "r3000" });
+
+  const turn = await host.turn({ cwd: workspace, prompt: "sigue", sessionId: "s", transcriptPath: path.join(dir, "t2.jsonl") });
+  assert.equal(turn.final_text, "3000", "the agent runs with the login the persona refreshed");
+  if (process.platform !== "win32") assert.equal(fs.statSync(path.join(configDir, ".credentials.json")).mode & 0o777, 0o600);
+});
+
+test("without a credentials file there is no login to share and nothing is written", async () => {
+  const dir = tempDir();
+  const configDir = path.join(dir, "config");
+  const agentConfigDir = path.join(dir, "agent-config");
+  fs.mkdirSync(configDir);
+  fs.mkdirSync(agentConfigDir);
+  const host = createClaudeHost({ executable: process.execPath, prefixArgs: [refreshingClaude(dir, { turnExpiry: 2000, personaExpiry: 3000 })], configDir, agentConfigDir, pluginDir: dir, model: "m", personaModel: "p", personaDir: dir });
+  const workspace = path.join(dir, "ws");
+  fs.mkdirSync(workspace);
+  await host.turn({ cwd: workspace, prompt: "hola", sessionId: null, transcriptPath: path.join(dir, "t1.jsonl") });
+  const { error } = await host.persona({ scenario: { brief: "b", facts: [] }, goal: "g", message: "m" });
+  assert.equal(error, null);
+  assert.equal(fs.existsSync(path.join(configDir, ".credentials.json")), false);
+  assert.equal(fs.existsSync(path.join(agentConfigDir, ".credentials.json")), false);
+});
+
 test("prepareAgentConfig copies the configuration and writes the router only when given one", () => {
   const dir = tempDir();
   const config = path.join(dir, "config");

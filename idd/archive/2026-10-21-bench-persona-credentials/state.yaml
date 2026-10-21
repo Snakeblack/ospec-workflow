@@ -1,0 +1,196 @@
+{
+  "schema": "idd-state/v1",
+  "change": "bench-persona-credentials",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "En Claude, el agente de los brazos ospec refresca la credencial OAuth en su copia de la configuración del banco y deja sin login a la persona, que sigue con el original; además, una persona que falla siempre deja la ejecución en «Continúa» hasta agotar los turnos",
+    "acceptance": "Tras refrescar el agente la credencial en su copia, la persona sigue autenticándose; y dos fallos seguidos de la persona detienen el banco sin registrar la ejecución, en vez de gastar los turnos"
+  },
+  "facts": {
+    "open": [
+      "¿Qué credencial gana al sincronizar la config del banco y la copia del agente: la de expiresAt más tardío, y cuándo se sincroniza (antes de cada turno del agente y de cada llamada a la persona)?",
+      "¿Dos fallos seguidos de la persona paran todo el banco sin registrar la ejecución (como la cuota agotada, con su propio código de salida), o solo anulan esa ejecución y siguen con la siguiente?",
+      "¿Si no hay .credentials.json (por ejemplo macOS con llavero) la sincronización no hace nada en silencio?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "scripts/evals/bench/hosts/claude.js"
+    ],
+    "work_units": 2,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/evals/bench/hosts/claude.js adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Gana la credencial con expiresAt más tardío, copiada sobre la otra (permisos 600) antes de cada turno del agente y de cada llamada a la persona. Dos fallos seguidos de la persona paran todo el banco sin registrar la ejecución, con código de salida propio (4) y un mensaje; el mismo comando la retoma. Sin .credentials.json la sincronización no hace nada en silencio.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-21T21:40:32.442Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-21T21:41:47.002Z",
+      "detail": {
+        "tree": "sha256:43d3951e327c63eeac20cc5a8d0d89d317e67cda9c63b56b0c751a217e21546e",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-21T21:41:57.495Z",
+      "detail": {
+        "run": "run-4",
+        "tree": "sha256:bdfbb5de91b3163e7abfbe6a82a765eeb60fa5c8b8845d222371271f641ccda9",
+        "plan": "No cambia ningún formato: shareLogin copia el .credentials.json más reciente tal cual sobre el otro, con permisos 0600, y no escribe nada si falta el fichero. Las credenciales existentes siguen valiendo sin migrar. Rollback: revertir el commit; la credencial vigente ya queda en los dos directorios."
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-21T21:42:55.457Z",
+      "detail": {
+        "tree": "sha256:43d3951e327c63eeac20cc5a8d0d89d317e67cda9c63b56b0c751a217e21546e",
+        "runs": [
+          "run-5"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-21T21:42:58.119Z"
+    }
+  ],
+  "base": "fc23252987cda4581132f13715869a0c464cff7b",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/evals/bench/hosts/claude.test.js scripts/evals/bench/driver.test.js scripts/evals/bench/bench.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:a7b13d62c4d1ad2b1c0a6fa37f7ae799fcb4f9ae968edac089f3ee20f2661e84",
+      "tree": "sha256:2678b653b3cc5bf48e77fa2668949a9878102d5a1d181b129ca4607377de30ae",
+      "recorded_at": "2026-10-21T21:39:52.960Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/evals/bench/hosts/claude.test.js scripts/evals/bench/driver.test.js scripts/evals/bench/bench.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b5f09bd4063f336430770f69d5a9f3a28d89cc7b1b8b9d24453dc9a311c974d8",
+      "tree": "sha256:cfc19872cf29f4f7c301fd4eb08ceb41fb6abaaa61323304ff6a0d56519f19bb",
+      "recorded_at": "2026-10-21T21:40:32.442Z",
+      "tests": 53
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5ec6caef3279d79e46553971a4f569b78dd4686ba754b715ea85770371828d5f",
+      "tree": "sha256:43d3951e327c63eeac20cc5a8d0d89d317e67cda9c63b56b0c751a217e21546e",
+      "recorded_at": "2026-10-21T21:41:47.002Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "migration-test",
+      "command": "node --test scripts/evals/bench/hosts/claude.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b42e50591bc2d21e7b3a59ce5e660817d2cd924be2c6352289e7812ffc033ef1",
+      "tree": "sha256:bdfbb5de91b3163e7abfbe6a82a765eeb60fa5c8b8845d222371271f641ccda9",
+      "recorded_at": "2026-10-21T21:41:57.495Z",
+      "tests": 14
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e33856582e76aaa6725920df9ae1e4bf82e5b871e9e5136f1d0a65c857887518",
+      "tree": "sha256:43d3951e327c63eeac20cc5a8d0d89d317e67cda9c63b56b0c751a217e21546e",
+      "recorded_at": "2026-10-21T21:42:55.457Z"
+    }
+  ],
+  "closed_at": "2026-10-21T21:42:58.119Z"
+}

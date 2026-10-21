@@ -10,6 +10,8 @@
 // A host that reports no cost (agy) caps tokens instead (`maxTokens`); a limit
 // left undefined does not apply.
 // Host errors resume the session without the persona; two in a row stop it.
+// A persona that fails twice in a row (`persona-error`, each call already
+// retried) stops the run unjudged: nobody would answer the agent's questions.
 // An exhausted usage quota stops at once (`host-quota`): the caller ends the
 // whole bench run there, because every later turn would fail the same way.
 // Only a change that was actually requested is judged; a voided setup leaves
@@ -30,6 +32,8 @@ const DEFAULT_LIMITS = Object.freeze({ maxAgentTurns: 30, maxSetupTurns: 6, maxC
 const RESUME_AFTER_ERROR = "Continúa donde lo dejaste.";
 const TEXT_LIMIT = 1500;
 const QUESTION_KINDS = new Set(["question", "approval"]);
+// Reasons that leave nothing to judge: the run is not the arm's delivery.
+const VOIDED = Object.freeze(["host-quota", "workspace-escape", "persona-error"]);
 const SETUP_BRIEF = "Prepara el proyecto para trabajar con ospec-workflow. Todavía no hay ningún cambio que hacer.";
 
 function defaultGit(cwd, args) {
@@ -94,6 +98,7 @@ async function converse({ host, persona, prompt, cwd, runDir, label, maxTurns, m
   let sessionId = null;
   let message = prompt;
   let consecutiveErrors = 0;
+  let consecutivePersonaErrors = 0;
 
   for (;;) {
     state.agent_turns += 1;
@@ -150,6 +155,12 @@ async function converse({ host, persona, prompt, cwd, runDir, label, maxTurns, m
     state.persona.usage = addUsage(state.persona.usage, usage);
     state.persona.cost_usd = round(state.persona.cost_usd + personaCost);
     if (error) state.persona.errors += 1;
+    consecutivePersonaErrors = error ? consecutivePersonaErrors + 1 : 0;
+    if (consecutivePersonaErrors >= 2) {
+      state.reason = "persona-error";
+      state.persona_error = error;
+      return state;
+    }
     state.persona.unknown_facts.push(...(reply.unknown_facts || []));
     state.interventions += 1;
     if (QUESTION_KINDS.has(reply.kind)) {
@@ -210,12 +221,12 @@ async function runScenario({
   const modifiedSeed = fileList(setupChanged).filter((file) => seedFiles.has(file));
   if (setupSummary) setupSummary.modified_seed = modifiedSeed;
 
-  const setupReason = setup && ["host-quota", "workspace-escape"].includes(setup.reason) ? setup.reason : "setup-incomplete";
+  const setupReason = setup && VOIDED.includes(setup.reason) ? setup.reason : "setup-incomplete";
   const skipReason = setup && setup.status !== "complete" ? setupReason : modifiedSeed.length > 0 ? "setup-modified-seed" : null;
   let change;
   try {
     change = skipReason
-      ? { ...emptyConversation(), reason: skipReason, ...(setup && setup.escapes ? { escapes: setup.escapes } : {}) }
+      ? { ...emptyConversation(), reason: skipReason, ...(setup && setup.escapes ? { escapes: setup.escapes } : {}), ...(setup && setup.persona_error ? { persona_error: setup.persona_error } : {}) }
       : await converse({
         host, persona: { scenario, goal: arm.goal }, prompt: arm.changePrompt(scenario), cwd: workspaceRoot, runDir, label: "change",
         maxTurns: bounds.maxAgentTurns, maxCostUsd: bounds.maxCostUsd, maxTokens: bounds.maxTokens, isDone: () => arm.isComplete(workspaceRoot, base),
@@ -226,7 +237,7 @@ async function runScenario({
 
   git(workspaceRoot, ["add", "-A"]);
   const changedFiles = fileList(git(workspaceRoot, ["diff", "--cached", "--name-only", base]));
-  const judged = !skipReason && !["host-quota", "workspace-escape"].includes(change.reason);
+  const judged = !skipReason && !VOIDED.includes(change.reason);
   const results = judged ? checks(scenario, workspaceRoot) : [];
 
   return {
@@ -257,6 +268,7 @@ async function runScenario({
     conversation: change.conversation,
     transcripts: [...(setup ? setup.transcripts : []), ...change.transcripts],
     ...(change.escapes ? { escapes: change.escapes } : {}),
+    ...(change.persona_error ? { persona_error: change.persona_error } : {}),
   };
 }
 

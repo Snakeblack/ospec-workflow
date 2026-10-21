@@ -9,7 +9,9 @@
 // without the plugin and with only its Engram MCP server (hosts/gentle-ai.js); the
 // persona still runs in the bench configuration, so it is the same for every
 // arm. The ospec arms run from a copy of that configuration with Engram set up
-// in it (hosts/engram.js, OSP-025) and only its MCP server.
+// in it (hosts/engram.js, OSP-025) and only its MCP server. That copy and the
+// original share one OAuth login, so the newer login is copied over the other
+// before every call (shareLogin).
 
 const crypto = require("node:crypto");
 const fs = require("node:fs");
@@ -26,6 +28,7 @@ const { emptyUsage, summarizeTurn } = require("../transcript.js");
 const DEFAULT_TURN_TIMEOUT_MS = 60 * 60 * 1000;
 const PERSONA_TIMEOUT_MS = 5 * 60 * 1000;
 const STDERR_TAIL = 2000;
+const CREDENTIALS_FILE = ".credentials.json";
 // Variables of the calling session that would leak into the bench: nested
 // Claude Code markers, this repository's hook switches, and an API key that
 // would bill the run outside the bench configuration's login.
@@ -153,6 +156,37 @@ function buildPlugin({ repoRoot, outDir, withSdd = true, spawnSyncImpl = spawnSy
   return { pluginDir, version: manifest.version, digest: hashTree(pluginDir) };
 }
 
+// Refreshing an expired access token rotates the refresh token, so of two
+// directories holding the same login, the one that refreshes first leaves the
+// other's dead (the persona of idd-7 never answered). The login with the later
+// `expiresAt` is copied over the other. Without a credentials file in either
+// directory (macOS keeps the login in the keychain) there is nothing to share.
+function shareLogin(dirs, fsImpl = fs) {
+  const logins = [];
+  for (const dir of dirs) {
+    const file = path.join(dir, CREDENTIALS_FILE);
+    let text;
+    try {
+      text = fsImpl.readFileSync(file, "utf8");
+    } catch {
+      return;
+    }
+    let expiresAt;
+    try {
+      expiresAt = JSON.parse(text).claudeAiOauth.expiresAt;
+    } catch {
+      expiresAt = null;
+    }
+    logins.push({ file, text, expiresAt: typeof expiresAt === "number" ? expiresAt : -Infinity });
+  }
+  const newest = logins.reduce((best, login) => (login.expiresAt > best.expiresAt ? login : best));
+  for (const login of logins) {
+    if (login.text === newest.text) continue;
+    fsImpl.writeFileSync(login.file, newest.text, { mode: 0o600 });
+    fsImpl.chmodSync(login.file, 0o600);
+  }
+}
+
 /**
  * Copies the logged-in bench configuration for the agent and, with
  * `routerSource` (the idd arm), writes the plugin's router block into that
@@ -189,6 +223,8 @@ function createClaudeHost({
     ? gentleAiEnv(baseEnv, gentleAi.home)
     : engram ? { ...ospecEnv, PATH: `${path.join(engram.home, "bin")}${path.delimiter}${ospecEnv.PATH || ""}` } : ospecEnv;
   const memory = gentleAi || engram;
+  // gentle-ai's agent logs in from its own HOME; an ospec agent shares the bench login.
+  const sharedLogin = agentConfigDir && !gentleAi ? [configDir, agentConfigDir] : null;
   const engrams = new Map();
   const children = new Set();
 
@@ -201,6 +237,7 @@ function createClaudeHost({
 
   async function turn({ cwd, prompt, sessionId, transcriptPath }) {
     fs.mkdirSync(path.dirname(transcriptPath), { recursive: true });
+    if (sharedLogin) shareLogin(sharedLogin);
     const run = await runProcess({
       executable,
       args: [...prefixArgs, ...turnArgs({ model, effort, pluginDir: gentleAi ? null : pluginDir, mcpConfig: memory ? memory.mcpConfig : null, sessionId })],
@@ -221,6 +258,7 @@ function createClaudeHost({
   }
 
   async function askPersona(scenario, goal, message) {
+    if (sharedLogin) shareLogin(sharedLogin);
     const run = await runProcess({
       executable,
       args: [...prefixArgs, ...personaArgs({ model: personaModel, system: buildPersonaSystemPrompt(scenario, { goal }) })],

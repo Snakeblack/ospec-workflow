@@ -70,7 +70,10 @@ with the SDD package (`--with-sdd`). The `idd` arm MUST load that plugin
 without SDD. The agent of both ospec arms MUST run with a copy of the bench
 configuration, which for `idd` adds the router block from the plugin's
 `global-instructions/CLAUDE.md`; the persona MUST keep the bench configuration
-without that block. Engram goes in every arm (OSP-025): in that copy, `engram
+without that block. Both directories hold the same OAuth login, and refreshing
+it rotates its refresh token, so before every agent turn and persona call the
+login with the later expiry MUST be copied over the other (mode 0600); without
+a credentials file there is nothing to share. Engram goes in every arm (OSP-025): in that copy, `engram
 setup claude-code`, run from a copy of the engram binary of the bench's
 gentle-ai home (or `--engram-bin`), MUST install Engram as an ospec user's
 install does, and the agent MUST load exactly the MCP servers it registered,
@@ -212,8 +215,18 @@ or `blocked`, MUST disclose a fact only when asked about it or to correct a
 proposal that contradicts it, MUST compare every summary or plan it is asked to
 approve against its facts, and MUST report as disclosed only the facts whose
 content its answer states, and whether it departed from the agent's
-recommendation. A persona failure MUST NOT
-end the run: the agent is asked to continue and the failure is counted.
+recommendation. A single persona failure MUST NOT
+end the run: the agent is asked to continue and the failure is counted. Two
+failures in a row MUST stop the run unjudged (`persona-error`), and `bench.js
+run` MUST exit with code 4 without recording it and skip the remaining
+scenarios, since nobody would answer the agent.
+
+#### Scenario: A persona that stops answering
+
+- GIVEN a persona whose calls keep failing (for example an expired login)
+- WHEN it fails for the second time in a row
+- THEN the run MUST stop without another turn and without being judged
+- AND `bench.js run` MUST exit with code 4 and leave the record without that run
 
 #### Scenario: A question that changes a decision
 

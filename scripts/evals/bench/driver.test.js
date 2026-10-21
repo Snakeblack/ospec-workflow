@@ -30,7 +30,7 @@ function usage(n) {
 
 // A scripted host: each agent turn runs `effects[i]` in the workspace and
 // returns `texts[i]`; the persona replies from `replies` in order.
-function fakeHost({ texts, effects = [], replies = [], errors = [] }) {
+function fakeHost({ texts, effects = [], replies = [], errors = [], personaErrors = [] }) {
   const calls = { turns: [], persona: [] };
   let index = 0;
   let replyIndex = 0;
@@ -62,8 +62,9 @@ function fakeHost({ texts, effects = [], replies = [], errors = [] }) {
       calls.personaContext = calls.personaContext || [];
       calls.personaContext.push({ brief: seen.brief, facts: seen.facts.length, goal });
       const reply = replies[replyIndex] || { kind: "stopped", answer: "Continúa.", facts_disclosed: [], deviates_from_recommendation: false, unknown_facts: [] };
+      const error = personaErrors[replyIndex] || null;
       replyIndex += 1;
-      return { reply, usage: usage(1), cost_usd: 0.01, error: null };
+      return { reply, usage: usage(1), cost_usd: 0.01, error };
     },
   };
 }
@@ -207,6 +208,23 @@ test("an exhausted host quota stops the run at once, without retrying or judging
   const setupRun = await runScenario({ scenario: seedRepo(), arm: armFor("sdd"), host: setupHost, ...dirs(), checks: () => [] });
   assert.equal(setupRun.reason, "host-quota");
   assert.equal(setupHost.calls.turns.length, 1);
+});
+
+test("two persona failures in a row stop the run without judging it; one alone does not", async () => {
+  const failing = fakeHost({ texts: ["init", "¿Prioridad?", "¿Prioridad?", "¿Prioridad?"], effects: [initConfig], personaErrors: ["auth", "auth", "auth"] });
+  let judged = false;
+  const run = await runScenario({ scenario: seedRepo(), arm: armFor("sdd"), host: failing, ...dirs(), checks: () => { judged = true; return []; } });
+  assert.equal(run.status, "incomplete");
+  assert.equal(run.reason, "persona-error");
+  assert.equal(failing.calls.turns.length, 3, "setup and two change turns");
+  assert.equal(run.persona.errors, 2);
+  assert.equal(run.persona_error, "auth");
+  assert.equal(judged, false);
+
+  const recovering = fakeHost({ texts: ["init", "¿Prioridad?", "hecho"], effects: [initConfig, undefined, (cwd) => { writeCode(cwd); archive(cwd); }], personaErrors: ["auth"] });
+  const recovered = await runScenario({ scenario: seedRepo(), arm: armFor("sdd"), host: recovering, ...dirs(), checks: () => [] });
+  assert.equal(recovered.status, "complete");
+  assert.equal(recovered.persona.errors, 1);
 });
 
 test("a turn that escapes the workspace voids the run at once, even when it finished the change, without judging it", async () => {

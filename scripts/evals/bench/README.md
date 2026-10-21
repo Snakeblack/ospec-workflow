@@ -112,7 +112,12 @@ record skips complete runs (`--force` reruns them) and refuses a different host,
 model, plugin build, persona, corpus, harness, or repetition count. When the
 host's usage quota runs out (HTTP 429, such as a subscription session limit),
 `run` stops at once with exit code 3 and does not record the interrupted run:
-the same command resumes after the reset. Defaults: model `claude-haiku-5-5`,
+the same command resumes after the reset. A persona that fails twice in a row
+(each call already retried, such as an expired login) stops `run` the same way
+with exit code 4. The ospec agent's copy of the configuration and the
+original share one OAuth login: before every call, the login with the later
+expiry is copied over the other, because refreshing it in one directory
+leaves the other's dead. Defaults: model `claude-haiku-5-5`,
 persona `claude-haiku-5-5` (user decision, 2026-10-21), 30 agent turns and $25
 per scenario (`--model`, `--persona-model`, `--max-turns`, `--max-cost`).
 
