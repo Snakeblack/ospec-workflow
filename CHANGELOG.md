@@ -17,11 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Encuadre del banco:** el README y `docs/benchs/bench-idd-vs-gentle-ai*.md` declaran la calidad como no demostrada (p≈0,49 en E4.2), la asimetría de Engram de todos los bancos publicados y que `receta-spa` se escribió en la misma sesión que ajustó IDD. Un test de `docs-lint` impide volver a afirmar menos defectos en todos los bancos.
 
 ### Fixed
-- **`plugin_digest` reproducible en agy:** el digest leía las rutas absolutas del HOME que el instalador escribe en hooks y skills. Ahora ese HOME cuenta como `~` y los binarios quedan fuera, así que el mismo commit da el mismo digest en cualquier directorio.
+- **`plugin_digest` reproducible en agy:** el digest leía las rutas absolutas del HOME que el instalador escribe en hooks y skills. Ahora ese HOME cuenta como `~` en las tres formas en que se escribe (nativa, escapada en JSON y con barras normales, que es lo que aparece en Windows), y los binarios quedan fuera, así que el mismo commit da el mismo digest en cualquier directorio.
 
-Hecho con IDD (`idd/archive/2026-10-21-bench-symmetry-validity/`). Solo código y docs: no se ha corrido el banco. #340 y #341 siguen abiertos hasta repetir `idd-4` con Engram en todos los brazos y recoger la calidad del par.
+Hecho con IDD (`idd/archive/2026-10-21-bench-symmetry-validity/` y, para las rutas de Windows que detectó la CI, `idd/archive/2026-10-21-bench-digest-windows-home/`). Solo código y docs: no se ha corrido el banco. #340 y #341 siguen abiertos hasta repetir `idd-4` con Engram en todos los brazos y recoger la calidad del par.
 
-**Verificación directa**: `node scripts/check.js` (3947 tests pasando, 0 fallos y 3 omitidos).
+**Verificación directa**: `node scripts/check.js` (3948 tests pasando, 0 fallos y 3 omitidos).
 
 ## [2.142.2] - 2026-10-21
 

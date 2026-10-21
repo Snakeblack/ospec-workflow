@@ -38,7 +38,7 @@ const { spawn, spawnSync } = require("node:child_process");
 const { PERSONA_SCHEMA, buildPersonaPrompt, buildPersonaSystemPrompt, normalizePersonaReply } = require("../persona.js");
 const { emptyUsage } = require("../transcript.js");
 const { listFiles } = require("../scenarios.js");
-const { setupEngram } = require("./engram.js");
+const { homeAsTilde, setupEngram } = require("./engram.js");
 
 const DEFAULT_TURN_TIMEOUT_MS = 60 * 60 * 1000;
 const PERSONA_TIMEOUT_MS = 5 * 60 * 1000;
@@ -297,7 +297,6 @@ function copyHome(template, dest) {
  */
 function hashFiles(root, relatives) {
   const hash = crypto.createHash("sha256");
-  const home = path.resolve(root);
   for (const relative of relatives) {
     const full = path.join(root, relative);
     if (!fs.existsSync(full)) continue;
@@ -307,7 +306,7 @@ function hashFiles(root, relatives) {
       const bytes = fs.readFileSync(path.join(root, file));
       if (bytes.includes(0)) continue;
       hash.update(`${file}\0`);
-      hash.update(crypto.createHash("sha256").update(bytes.toString("utf8").split(home).join("~")).digest("hex"));
+      hash.update(crypto.createHash("sha256").update(homeAsTilde(bytes.toString("utf8"), root)).digest("hex"));
       hash.update("\n");
     }
   }

@@ -22,6 +22,18 @@ const SETUP_TIMEOUT_MS = 5 * 60 * 1000;
 const engramBinIn = (home) => path.join(home, "bin", "engram");
 
 /**
+ * `text` with the absolute directory `home` read as `~`, in every form an
+ * installer writes it: native, with forward slashes, and with the
+ * backslashes JSON escapes on Windows. Longest first, so one form never
+ * leaves part of another behind.
+ */
+function homeAsTilde(text, home, pathImpl = path) {
+  const native = pathImpl.resolve(home);
+  const forms = [...new Set([native.replace(/\\/g, "\\\\"), native, native.replace(/\\/g, "/")])].sort((a, b) => b.length - a.length);
+  return forms.reduce((current, form) => current.split(form).join("~"), text);
+}
+
+/**
  * Copies `engram` into <home>/bin and runs `engram setup <agent>` from that
  * copy with `env` (HOME or CLAUDE_CONFIG_DIR say where it installs), so the
  * MCP server it registers points at <home>/bin/engram. stdin is empty, so
@@ -62,11 +74,11 @@ function claudeEngramDigest({ configDir, home }) {
     hash.update("\n");
   }
   const servers = JSON.parse(fs.readFileSync(path.join(configDir, ".claude.json"), "utf8")).mcpServers;
-  hash.update(`mcp\0${JSON.stringify(servers).split(path.resolve(home)).join("~")}\n`);
+  hash.update(`mcp\0${homeAsTilde(JSON.stringify(servers), home)}\n`);
   return hash.digest("hex");
 }
 
 /** One digest for a plugin and the Engram installed next to it. */
 const combineDigests = (plugin, engram) => crypto.createHash("sha256").update(`${plugin}\n${engram}\n`).digest("hex");
 
-module.exports = { SETUP_AGENTS, claudeEngramDigest, combineDigests, engramBinIn, setupEngram };
+module.exports = { SETUP_AGENTS, claudeEngramDigest, combineDigests, engramBinIn, homeAsTilde, setupEngram };

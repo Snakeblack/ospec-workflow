@@ -6,7 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { claudeEngramDigest, combineDigests, engramBinIn, setupEngram } = require("./engram.js");
+const { claudeEngramDigest, combineDigests, engramBinIn, homeAsTilde, setupEngram } = require("./engram.js");
 
 function tempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "bench-engram-"));
@@ -76,4 +76,13 @@ test("claudeEngramDigest identifies the installed plugin and MCP servers, not wh
   assert.notEqual(claudeEngramDigest(second), digest, "another plugin build is another digest");
   assert.throws(() => claudeEngramDigest({ configDir: path.join(dir, "none"), home: dir }), /installed no plugin/);
   assert.notEqual(combineDigests("a".repeat(64), digest), combineDigests("b".repeat(64), digest));
+});
+
+test("homeAsTilde reads the HOME as ~ in every form an installer writes it", () => {
+  const posix = "/tmp/bench/home";
+  assert.equal(homeAsTilde(`node "${posix}/hook.js" ${JSON.stringify({ command: `${posix}/bin/engram` })}`, posix, path.posix), 'node "~/hook.js" {"command":"~/bin/engram"}');
+  // On Windows: native in text, escaped in JSON, forward slashes in commands.
+  const win = "C:\\bench\\home";
+  const text = `${win}\\skills ${JSON.stringify({ command: `${win}\\bin\\engram` })} node "C:/bench/home/hook.js"`;
+  assert.equal(homeAsTilde(text, win, path.win32), '~\\skills {"command":"~\\\\bin\\\\engram"} node "~/hook.js"');
 });
