@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.142.0] - 2026-10-21
+
+### Changed
+- **`ospec review validate` exige lo mismo que `review record`** (seguimiento de OSP-029, #351): antes bastaba con un veredicto `{outcomes, regression}` para aprobar la corrección. Ahora `ospec review correct` devuelve una petición para `review-correction` con los IDs congelados, las rutas corregidas, su propio `request_digest` (linaje, generación, árbol corregido, esas rutas y esos IDs) y un `result_contract`. `ospec review start` la vuelve a dar mientras la corrección espera validación. `validate` rechaza con `review-refused`, sin registrar nada, un resultado sin ese digest o sin una entrada en `reviewed` que cite cada ruta corregida en el árbol corregido (REQ-idd-016).
+
+### Added
+- **Recibo de la trust review en el hook `SubagentStop`** (paso 2 de #351, REQ-hooks-027): cuando `review-trust` o `review-correction` terminan con un resultado que lleva `request_digest`, el hook Node de Claude Code y Codex escribe `.ospec/review-receipts/<hex>.json` con el digest canónico del resultado. Solo lee el transcript del propio subagente (`agent_transcript_path`), nunca el de la sesión principal. `review record` y `review validate` lo consultan. Si el resultado coincide, la evidencia `frozen-review` lleva `attestation: subagent-stop` con el recibo. Si no coincide, se rechaza, porque el resultado cambió por el camino. Sin recibo se registra `relayed` con un aviso y no se bloquea. El recibo no es una prueba: el agente principal puede escribir el mismo fichero. El diff, el snapshot y la huella de árbol de IDD dejan fuera `.ospec/review-receipts/`, aunque el proyecto no ignore `.ospec/`.
+
+  Hecho con IDD (`idd/archive/2026-10-21-trust-review-receipts/`). La primera trust review detectó que el recibo contaba como ruta cambiada en proyectos sin `.ospec/` en `.gitignore`. Se arregló en el mismo cambio y la segunda review no encontró problemas. Queda como seguimiento que un segundo stop del revisor sobrescribe el recibo.
+
+**Verificación directa**: `node scripts/check.js` (3927 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.141.0] - 2026-10-21
 
 ### Changed

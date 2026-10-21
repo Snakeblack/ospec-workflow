@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.141.0, 2026-10-21.
+> **Versión de referencia:** v2.142.0, 2026-10-21.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -614,7 +614,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Garantía que protege:** los principios 3, 4 y 8 y la obligación `frozen-review`; repara la garantía existente (no amplía el roadmap).
 - **Alcance (paso 1, cierra el issue):** `review start` añade a la petición un `request_digest` (linaje, generación, árbol candidato y rutas); `review record` exige ese digest y un array `reviewed` con una entrada por ruta y una cita `ruta:línea` que exista en el árbol congelado (`git cat-file -p <tree>:<path>`); los hallazgos BLOCKER/CRITICAL llevan `location` verificado; la evidencia registra `attestation: "relayed"` y `close`/`records` lo muestran. *Paso 2, opcional:* recibo en `SubagentStop` cuando el transcript del revisor contiene el digest (`attestation: "subagent-stop"`, aviso y no bloqueo en hosts sin hook).
 - **Hecho cuando:** repetir la secuencia de #351 con el CLI nuevo: `{"findings":[]}` sin `reviewed` → `review-refused` y `next` no es `close`; una cita inexistente o un digest de otra generación → refused; un resultado que cubre las rutas con citas reales cierra; el archivo distingue la atestación.
-- **Estado (2026-10-21):** paso 1 hecho en v2.141.0. El formato del resultado lo fija `result_contract` en la petición, sin tocar `review-trust`, que SDD comparte; `location` solo se conserva en linajes v2 (K7 no cambia). El paso 2 (recibo `SubagentStop`) y la misma exigencia en `review validate` quedan como follow-up.
+- **Estado (2026-10-21):** paso 1 hecho en v2.141.0. El formato del resultado lo fija `result_contract` en la petición, sin tocar `review-trust`, que SDD comparte; `location` solo se conserva en linajes v2 (K7 no cambia). Follow-ups hechos con IDD (`trust-review-receipts`): `review validate` exige el `request_digest` de la corrección y citas de las rutas corregidas, y el hook `SubagentStop` de Claude Code y Codex deja un recibo en `.ospec/review-receipts/` (REQ-hooks-027) que da `attestation: subagent-stop` y rechaza un resultado alterado. Sin recibo, `relayed` con aviso. El recibo no es prueba, porque el agente principal puede escribirlo; cerrarlo con un guard queda fuera, igual que el guard de `state.yaml`. Follow-up: un segundo stop del revisor con el mismo digest sobrescribe el recibo, así que un revisor relanzado no se distingue en la evidencia (contador de ejecuciones o `first_recorded_at`).
 
 ## Etapa 2 — Foundation de verdad: descubrimiento de arquitectura
 
