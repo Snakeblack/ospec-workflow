@@ -1,0 +1,3262 @@
+{
+  "baseline": "gentle-ai-4",
+  "candidate": "idd-7",
+  "scenarios": {
+    "cli-local/r1": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-4/cli-local-r1.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 25,
+            "test": 28,
+            "types": 0,
+            "docs": 5,
+            "other": 0
+          },
+          "removed": {
+            "source": 5,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 1.12,
+          "suite_passes": true,
+          "suite_tests": 6
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 13,
+          "total": 13,
+          "killed": 13,
+          "survived": [],
+          "score": 100
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-7/cli-local-r1.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 27,
+            "test": 57,
+            "types": 0,
+            "docs": 6,
+            "other": 0
+          },
+          "removed": {
+            "source": 6,
+            "test": 2,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "workflow_files": 1,
+          "test_to_source": 2.11,
+          "suite_passes": true,
+          "suite_tests": 8
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 13,
+          "total": 13,
+          "killed": 13,
+          "survived": [],
+          "score": 100
+        }
+      },
+      "judge": {
+        "host": "claude",
+        "model": "claude-haiku-5-5",
+        "cost_usd": 0.0072,
+        "scores": {
+          "baseline": {
+            "correctness": 4.5,
+            "readability": 4.5,
+            "design": 4,
+            "tests": 3,
+            "scope": 5
+          },
+          "candidate": {
+            "correctness": 5,
+            "readability": 4,
+            "design": 4,
+            "tests": 5,
+            "scope": 3.5
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 4,
+                  "B": 5
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 3,
+                  "B": 5
+                },
+                "scope": {
+                  "A": 5,
+                  "B": 3
+                }
+              },
+              "preferred": "B",
+              "rationale": "Both parse a trailing `--priority`, reject misplaced or invalid values with exit 2 and no save, and default missing priorities to media. A's test named \"tasks without priority\" only uses `add` and never covers a legacy file with no `priority` field, and it relies on sort stability for creation order. B tests the legacy file directly, checks the invalid-priority message, and sorts with an explicit id tie-breaker. B's cost is scope: it appends \"(media)\" to every `list` line, which changes output for all users (permitted by the requirements but a compatibility risk for scripts), and it adds case-insensitivity that was not requested. I would merge B, and would ask for the list suffix to be confirmed with the script owners before release."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 5,
+                  "B": 5
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 5
+                },
+                "design": {
+                  "A": 4,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 5,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 4,
+                  "B": 5
+                }
+              },
+              "preferred": "A",
+              "rationale": "Both deliveries handle the required edge cases correctly: trailing `--priority` only, invalid values exit 2 with nothing saved, the default is media, legacy tasks without a priority field sort as media, and ties keep creation order. A's test suite covers the legacy-file path by writing a real JSON file without a priority field, which is the requirement most likely to regress. B's \"tasks without priority\" test only creates tasks through `add`, which stores `priority: \"media\"` explicitly, so the `?? DEFAULT_PRIORITY` fallback in `priorityRank` is never exercised, and its test name overstates what it checks. A goes beyond the request with case-insensitive values and a visible priority column after the title; both are allowed by the requirements and documented in the README, so that costs little in scope. B is leaner and keeps `list` output unchanged, and its generic usage error on a bad priority is acceptable, but A's specific message and stronger tests make it the one I would merge."
+            }
+          }
+        ]
+      }
+    },
+    "cli-local/r2": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-4/cli-local-r2.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 31,
+            "test": 20,
+            "types": 0,
+            "docs": 4,
+            "other": 0
+          },
+          "removed": {
+            "source": 5,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 0.65,
+          "suite_passes": true,
+          "suite_tests": 5
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 10,
+          "total": 10,
+          "killed": 10,
+          "survived": [],
+          "score": 100
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-7/cli-local-r2.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 26,
+            "test": 68,
+            "types": 0,
+            "docs": 5,
+            "other": 0
+          },
+          "removed": {
+            "source": 4,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 1,
+          "test_to_source": 2.62,
+          "suite_passes": true,
+          "suite_tests": 9
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 18,
+          "total": 18,
+          "killed": 18,
+          "survived": [],
+          "score": 100
+        }
+      },
+      "judge": {
+        "host": "claude",
+        "model": "claude-haiku-5-5",
+        "cost_usd": 0.0057,
+        "scores": {
+          "baseline": {
+            "correctness": 4,
+            "readability": 4.5,
+            "design": 4,
+            "tests": 3,
+            "scope": 5
+          },
+          "candidate": {
+            "correctness": 4.5,
+            "readability": 3,
+            "design": 3,
+            "tests": 5,
+            "scope": 4.5
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 4,
+                  "B": 4
+                },
+                "readability": {
+                  "A": 5,
+                  "B": 3
+                },
+                "design": {
+                  "A": 4,
+                  "B": 3
+                },
+                "tests": {
+                  "A": 3,
+                  "B": 5
+                },
+                "scope": {
+                  "A": 5,
+                  "B": 4
+                }
+              },
+              "preferred": "B",
+              "rationale": "Both implement the requested behavior: `--priority` is only read as the final pair, missing or invalid values exit 2 without saving, default is media, and the sort is stable. A is cleaner, with `parseAdd` isolating the parsing and an easy-to-read `rank`, and it keeps scope tighter because it does not add case-insensitivity. B's `add` block is denser, and its `rank` fallback duplicates the default lookup, but its tests cover the explicit requirements that A leaves unverified: legacy files without `priority` listing as media, `done` tasks keeping their position, and a stderr message that names the bad value. A's legacy path works through `??` but has no regression test, and its error only prints the usage line. B is the one I would merge, after trimming the case-insensitive extra or documenting it in the README."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 5,
+                  "B": 4
+                },
+                "readability": {
+                  "A": 3,
+                  "B": 4
+                },
+                "design": {
+                  "A": 3,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 5,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 5,
+                  "B": 5
+                }
+              },
+              "preferred": "A",
+              "rationale": "A is correct on every stated requirement I traced: the missing-value and misplaced-flag cases exit 2 with nothing saved, an invalid value gets a specific stderr message, and legacy tasks without `priority` sort as media. B meets the exit-code and no-save rules but reports an invalid priority only with the generic usage line. B's `parseAdd` helper is cleaner than A's inline `flag` logic with its two `-1` ternaries, so A loses some readability and design points. The decisive gap is tests: B never checks that a file saved before priorities existed lists without error or as media, which the requirements call out explicitly, while A covers that case plus case-insensitivity, done-task ordering and missing values. I would merge A and ask for B's helper refactor only if readability matters more to the team than the test coverage."
+            }
+          }
+        ]
+      }
+    },
+    "cli-local/r3": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-4/cli-local-r3.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 23,
+            "test": 39,
+            "types": 0,
+            "docs": 5,
+            "other": 0
+          },
+          "removed": {
+            "source": 5,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 1.7,
+          "suite_passes": true,
+          "suite_tests": 6
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 13,
+          "total": 13,
+          "killed": 12,
+          "survived": [
+            {
+              "file": "src/cli.js",
+              "line": 16,
+              "operator": "arithmetic",
+              "text": "const priority = args[at - 1];"
+            }
+          ],
+          "score": 92.3
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-7/cli-local-r3.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 31,
+            "test": 56,
+            "types": 0,
+            "docs": 4,
+            "other": 0
+          },
+          "removed": {
+            "source": 5,
+            "test": 2,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 1,
+          "test_to_source": 1.81,
+          "suite_passes": true,
+          "suite_tests": 8
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 13,
+          "total": 13,
+          "killed": 13,
+          "survived": [],
+          "score": 100
+        }
+      },
+      "judge": {
+        "host": "claude",
+        "model": "claude-haiku-5-5",
+        "cost_usd": 0.007,
+        "scores": {
+          "baseline": {
+            "correctness": 4.5,
+            "readability": 4.5,
+            "design": 4,
+            "tests": 4,
+            "scope": 4.5
+          },
+          "candidate": {
+            "correctness": 4.5,
+            "readability": 3.5,
+            "design": 3.5,
+            "tests": 4.5,
+            "scope": 3.5
+          }
+        },
+        "preferred": "inconsistent",
+        "preferences": [
+          "baseline",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 5,
+                  "B": 4
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 3
+                },
+                "design": {
+                  "A": 4,
+                  "B": 3
+                },
+                "tests": {
+                  "A": 4,
+                  "B": 4
+                },
+                "scope": {
+                  "A": 5,
+                  "B": 3
+                }
+              },
+              "preferred": "A",
+              "rationale": "Ambas entregas cumplen los requisitos centrales: el valor por defecto es media, la prioridad inválida o incompleta devuelve 2 sin guardar nada, las tareas antiguas cuentan como media y el orden de creación se conserva gracias a un sort estable sobre una copia. A extrae el análisis en `parseAdd` con `lastIndexOf`, que es más legible y no altera la salida existente. B añade `[prioridad]` a todas las líneas de `list`, lo que no se pidió, cambia la salida de tareas que ya existían, obliga a reescribir dos tests antiguos y acepta `ALTA` sin que nadie lo pidiera. B tiene mejores ventajas: mensaje de error específico en stderr y más casos de prueba. Sus aserciones sobre `.err` dependen de que el helper `session()` devuelva `err`, algo que no he podido comprobar en el diff. A no comprueba stderr en ningún test. Mergearía A, y añadiría después a A un mensaje de error específico y una aserción de stderr si se quiere pulir."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 5,
+                  "B": 4
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 5
+                },
+                "design": {
+                  "A": 4,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 5,
+                  "B": 4
+                },
+                "scope": {
+                  "A": 4,
+                  "B": 4
+                }
+              },
+              "preferred": "A",
+              "rationale": "Both deliveries meet the agreed requirements: default media, exit 2 with no save on bad input, old tasks treated as media, stable sort, and the line prefix unchanged. A is slightly stronger on correctness because its `indexOf` plus exact-position check rejects a repeated flag, while B's `lastIndexOf` silently accepts `add x --priority alta --priority baja` as the title \"x --priority alta\". A's tests also assert the stderr message and empty stdout on bad input, which B never checks. B reads more cleanly, with the parsing pulled into `parseAdd`, and it leaves the list output untouched, but it shows no priority anywhere in `list`. A's `[prioridad]` suffix is permitted by the requirements and makes the feature visible, at the cost of changing every line's output. I would merge A, with a note that B's `parseAdd` structure is worth borrowing."
+            }
+          }
+        ]
+      }
+    },
+    "saas-small/r1": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-4/saas-small-r1.diff",
+        "metrics": {
+          "files": {
+            "source": 2,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 23,
+            "test": 20,
+            "types": 0,
+            "docs": 2,
+            "other": 0
+          },
+          "removed": {
+            "source": 3,
+            "test": 0,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 0.87,
+          "suite_passes": true,
+          "suite_tests": 5
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 19,
+          "total": 19,
+          "killed": 17,
+          "survived": [
+            {
+              "file": "src/app.js",
+              "line": 35,
+              "operator": "logical",
+              "text": "if (share || method === \"POST\") {"
+            },
+            {
+              "file": "src/app.js",
+              "line": 37,
+              "operator": "literal",
+              "text": "if (!sameTenant(note, user)) return { status: 405, body: { error: \"not-found\" } };"
+            }
+          ],
+          "score": 89.5
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-7/saas-small-r1.diff",
+        "metrics": {
+          "files": {
+            "source": 2,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 27,
+            "test": 38,
+            "types": 0,
+            "docs": 3,
+            "other": 0
+          },
+          "removed": {
+            "source": 4,
+            "test": 0,
+            "types": 0,
+            "docs": 2,
+            "other": 0
+          },
+          "workflow_files": 3,
+          "test_to_source": 1.41,
+          "suite_passes": true,
+          "suite_tests": 7
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 21,
+          "total": 21,
+          "killed": 19,
+          "survived": [
+            {
+              "file": "src/app.js",
+              "line": 29,
+              "operator": "logical",
+              "text": "if (share || method === \"POST\") {"
+            },
+            {
+              "file": "src/app.js",
+              "line": 31,
+              "operator": "literal",
+              "text": "if (!sameTenant(note, user)) return { status: 405, body: { error: \"not-found\" } };"
+            }
+          ],
+          "score": 90.5
+        }
+      },
+      "judge": {
+        "host": "claude",
+        "model": "claude-haiku-5-5",
+        "cost_usd": 0.0062,
+        "scores": {
+          "baseline": {
+            "correctness": 4,
+            "readability": 4,
+            "design": 4,
+            "tests": 3,
+            "scope": 3
+          },
+          "candidate": {
+            "correctness": 4,
+            "readability": 3,
+            "design": 3,
+            "tests": 5,
+            "scope": 4
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 4,
+                  "B": 4
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 3
+                },
+                "design": {
+                  "A": 4,
+                  "B": 3
+                },
+                "tests": {
+                  "A": 3,
+                  "B": 5
+                },
+                "scope": {
+                  "A": 3,
+                  "B": 4
+                }
+              },
+              "preferred": "B",
+              "rationale": "Both enforce the four requirements the same way: owner-only sharing, same-tenant target check, read-only PUT/DELETE, and an idempotent share. Delivery B's tests cover every requirement, including the explicit duplicate-share case, the recipient's DELETE returning 403, and the cross-organization share failure. Delivery A has no duplicate-share test and does not check the recipient's DELETE. A is cleaner in code: its `canRead` helper and Set-based dedup read better than B's inline `includes` predicate and long one-line filter. Delivery A also leaves the `GET /notes` README row saying \"Notas del usuario\" even though shared notes now appear there, and does not document read-only; B fixes both. I would merge B, and A's helper could be ported into it later."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 4,
+                  "B": 4
+                },
+                "readability": {
+                  "A": 3,
+                  "B": 4
+                },
+                "design": {
+                  "A": 3,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 5,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 4,
+                  "B": 3
+                }
+              },
+              "preferred": "A",
+              "rationale": "Ambas entregas cumplen los requisitos: solo el propietario comparte, la otra organización da 404, la lectura es de solo lectura y compartir dos veces es idempotente. A añade un método `repo.share` que duplica la ruta de `update`, y repite la lógica de lectura inline en dos sitios, además de tener líneas muy largas. B es más limpia, con el helper `canRead` y reutilizando `repo.update`, pero sus tests no cubren que compartir dos veces no duplique la nota en la lista ni que el receptor no pueda borrarla. B tampoco actualiza la fila de `GET /notes` del README, aunque ahora incluye notas compartidas. Yo mergearía A porque sus tests cubren todos los requisitos y su documentación está completa; el diseño de B es mejor, pero se podría trasladar a A en un ajuste posterior."
+            }
+          }
+        ]
+      }
+    },
+    "saas-small/r2": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-4/saas-small-r2.diff",
+        "metrics": {
+          "files": {
+            "source": 2,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 25,
+            "test": 40,
+            "types": 0,
+            "docs": 2,
+            "other": 0
+          },
+          "removed": {
+            "source": 3,
+            "test": 0,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 1.6,
+          "suite_passes": true,
+          "suite_tests": 8
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 20,
+          "total": 20,
+          "killed": 19,
+          "survived": [
+            {
+              "file": "src/app.js",
+              "line": 37,
+              "operator": "logical",
+              "text": "if (share || method === \"POST\") {"
+            }
+          ],
+          "score": 95
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-7/saas-small-r2.diff",
+        "metrics": {
+          "files": {
+            "source": 2,
+            "test": 1,
+            "types": 0,
+            "docs": 2,
+            "other": 0
+          },
+          "added": {
+            "source": 22,
+            "test": 48,
+            "types": 0,
+            "docs": 29,
+            "other": 0
+          },
+          "removed": {
+            "source": 2,
+            "test": 0,
+            "types": 0,
+            "docs": 2,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 2.18,
+          "suite_passes": true,
+          "suite_tests": 8
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 24,
+          "total": 24,
+          "killed": 21,
+          "survived": [
+            {
+              "file": "src/app.js",
+              "line": 34,
+              "operator": "logical",
+              "text": "if (share || method === \"POST\") {"
+            },
+            {
+              "file": "src/app.js",
+              "line": 36,
+              "operator": "literal",
+              "text": "if (!sameTenant(note, user)) return { status: 405, body: { error: \"not-found\" } };"
+            },
+            {
+              "file": "src/app.js",
+              "line": 38,
+              "operator": "literal",
+              "text": "if (typeof body.userId !== \"string\" || !body.userId) return { status: 401, body: { error: \"user-required\" } };"
+            }
+          ],
+          "score": 87.5
+        }
+      },
+      "judge": {
+        "host": "claude",
+        "model": "claude-haiku-5-5",
+        "cost_usd": 0.0073,
+        "scores": {
+          "baseline": {
+            "correctness": 4,
+            "readability": 4,
+            "design": 4,
+            "tests": 3,
+            "scope": 4
+          },
+          "candidate": {
+            "correctness": 4.5,
+            "readability": 4,
+            "design": 4,
+            "tests": 5,
+            "scope": 4
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 4,
+                  "B": 4
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 3,
+                  "B": 5
+                },
+                "scope": {
+                  "A": 5,
+                  "B": 4
+                }
+              },
+              "preferred": "B",
+              "rationale": "Both deliveries implement the required behavior: owner-only sharing, same-tenant checks that return 404 across organizations, read-only recipients, and a Set-based or early-return dedupe. A has no test for repeated sharing, which is an explicit requirement, and it silently accepts self-sharing without validation. B tests idempotency, self-sharing, empty and non-string userId, and the exact sharedWith contents, so it would catch regressions that A's suite would miss. B's weaknesses are a dead `if (method === \"GET\")` line after the owner check in the single-note handler (unreachable, since a GET that reaches it is never the owner), and a new docs/api/notes.md file that goes beyond the request, though it documents the error contract that users rely on. I would merge B after removing the dead line, since its test coverage matches the agreed requirements more closely."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 5,
+                  "B": 4
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 5,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 4,
+                  "B": 3
+                }
+              },
+              "preferred": "A",
+              "rationale": "Both deliveries implement the four requirements: owner-only sharing, same-tenant targets, read-only recipients, and idempotent sharing. A adds a self-share guard (400 cannot-share-with-self), which B lacks, so B lets an owner add themselves to sharedWith. A's tests cover every requirement, including a test that repeated sharing does not duplicate the note in the recipient's list, while B has no such test even though it is a stated requirement. B's README leaves `GET /notes` described as \"Notas del usuario\", which is now inaccurate, whereas A updates that row. A's new docs/api/notes.md is extra scope, but it is a user-facing contract and keeps the scoring close. I would merge A."
+            }
+          }
+        ]
+      }
+    },
+    "saas-small/r3": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-4/saas-small-r3.diff",
+        "metrics": {
+          "files": {
+            "source": 2,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 24,
+            "test": 50,
+            "types": 0,
+            "docs": 3,
+            "other": 0
+          },
+          "removed": {
+            "source": 3,
+            "test": 0,
+            "types": 0,
+            "docs": 2,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 2.08,
+          "suite_passes": true,
+          "suite_tests": 9
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 18,
+          "total": 18,
+          "killed": 17,
+          "survived": [
+            {
+              "file": "src/app.js",
+              "line": 34,
+              "operator": "logical",
+              "text": "if (shareMatch || method === \"POST\") {"
+            }
+          ],
+          "score": 94.4
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-7/saas-small-r3.diff",
+        "metrics": {
+          "files": {
+            "source": 2,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 27,
+            "test": 59,
+            "types": 0,
+            "docs": 2,
+            "other": 0
+          },
+          "removed": {
+            "source": 3,
+            "test": 0,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "workflow_files": 3,
+          "test_to_source": 2.19,
+          "suite_passes": true,
+          "suite_tests": 10
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 19,
+          "total": 19,
+          "killed": 18,
+          "survived": [
+            {
+              "file": "src/app.js",
+              "line": 34,
+              "operator": "logical",
+              "text": "if (share || method === \"POST\") {"
+            }
+          ],
+          "score": 94.7
+        }
+      },
+      "judge": {
+        "host": "claude",
+        "model": "claude-haiku-5-5",
+        "cost_usd": 0.0081,
+        "scores": {
+          "baseline": {
+            "correctness": 5,
+            "readability": 4,
+            "design": 4,
+            "tests": 4,
+            "scope": 5
+          },
+          "candidate": {
+            "correctness": 5,
+            "readability": 4,
+            "design": 3,
+            "tests": 4.5,
+            "scope": 3
+          }
+        },
+        "preferred": "baseline",
+        "preferences": [
+          "baseline",
+          "baseline"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 5,
+                  "B": 5
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 3
+                },
+                "tests": {
+                  "A": 4,
+                  "B": 5
+                },
+                "scope": {
+                  "A": 5,
+                  "B": 3
+                }
+              },
+              "preferred": "A",
+              "rationale": "Ambas entregas cumplen los requisitos: solo el propietario comparte, la comparticion cruza organizaciones con 404, la lectura es solo para el receptor (PUT/DELETE dan 403) y compartir dos veces es idempotente. A prefiere merge porque actualiza el README en todas las rutas afectadas, incluida la lectura compartida de GET /notes y la nota de solo lectura, mientras B deja GET /notes como \"Notas del usuario\" y no menciona que el acceso es de solo lectura. B tiene mejores pruebas (cubre nota inexistente, cuerpos de error y el estado de la segunda comparticion), pero A cubre re-compartir por un colaborador (403), que B no prueba. B mantiene un array compartido por referencia (`get` devuelve una copia superficial de `sharedWith`), lo que es un riesgo de diseño; A pasa por `repo.update`, cuyo comportamiento de fusion no he podido verificar porque no aparece en el diff."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 5,
+                  "B": 5
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 3,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 4,
+                  "B": 4
+                },
+                "scope": {
+                  "A": 3,
+                  "B": 5
+                }
+              },
+              "preferred": "B",
+              "rationale": "Ambas cumplen los cuatro requisitos según los diffs: solo el propietario comparte, el cruce de organizaciones devuelve 404 sin acceso, la lectura es solo lectura y el reparto es idempotente. B reutiliza `repo.update` en lugar de añadir `repo.share`, así que no duplica lógica en el repositorio, y su `canRead` incluye la comprobación de tenant como defensa en profundidad. A deja el README de `GET /notes` diciendo \"Notas del usuario\", que ya no es cierto, mientras B documenta bien todas las rutas afectadas. Los tests de B también comprueban el título de la nota compartida y el intento de compartir por parte de un compañero, y ambos conjuntos son razonables. Un punto a verificar fuera del diff es que `repo.update` fusione campos arbitrarios como `sharedWith`; los tests de B lo ejercitan, pero no pude confirmarlo leyendo `repo.js`."
+            }
+          }
+        ]
+      }
+    },
+    "regulated/r1": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-4/regulated-r1.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 21,
+            "test": 27,
+            "types": 0,
+            "docs": 2,
+            "other": 0
+          },
+          "removed": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 2,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 1.29,
+          "suite_passes": true,
+          "suite_tests": 6
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 3,
+          "total": 3,
+          "killed": 3,
+          "survived": [],
+          "score": 100
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-7/regulated-r1.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 35,
+            "test": 74,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 2.11,
+          "suite_passes": true,
+          "suite_tests": 10
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 15,
+          "total": 15,
+          "killed": 13,
+          "survived": [
+            {
+              "file": "src/clinic.js",
+              "line": 55,
+              "operator": "relational",
+              "text": ".sort((a, b) => (a.time < b.time ? -1 : a.time >= b.time ? 1 : 0))"
+            },
+            {
+              "file": "src/clinic.js",
+              "line": 55,
+              "operator": "literal",
+              "text": ".sort((a, b) => (a.time < b.time ? -2 : a.time > b.time ? 1 : 0))"
+            }
+          ],
+          "score": 86.7
+        }
+      },
+      "judge": {
+        "host": "claude",
+        "model": "claude-haiku-5-5",
+        "cost_usd": 0.0074,
+        "scores": {
+          "baseline": {
+            "correctness": 3,
+            "readability": 4,
+            "design": 4,
+            "tests": 3,
+            "scope": 4.5
+          },
+          "candidate": {
+            "correctness": 2.5,
+            "readability": 4,
+            "design": 3,
+            "tests": 4,
+            "scope": 2.5
+          }
+        },
+        "preferred": "baseline",
+        "preferences": [
+          "baseline",
+          "baseline"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 3,
+                  "B": 2
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 3
+                },
+                "tests": {
+                  "A": 3,
+                  "B": 4
+                },
+                "scope": {
+                  "A": 5,
+                  "B": 3
+                }
+              },
+              "preferred": "A",
+              "rationale": "A matches the agreed contract: the row holds hora, paciente and motivo, neither DNI nor diagnosis appears, roles are enforced and each export is audited with actor and count, and it updates the README role table. Its weak points are that a missing patient silently exports a blank name, it does not validate the date (a malformed date quietly yields a header-only file), and its comma delimiter may not split correctly in a Spanish-locale spreadsheet. B is more robust on those points (it validates dates, fails loudly on orphan appointments, uses \";\" and CRLF, and tests more thoroughly), but it drops the patient name for reception, which contradicts the requested row contents and defeats the printed list reception needs, and its tests lock that behavior in. It also changes the delimiter and adds validation the request did not ask for, without documenting the format. A should be merged after adding the orphan check, date validation and an explicit no-DNI/no-diagnosis assertion; B's reception name removal would need to be reverted or explicitly agreed first."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 3,
+                  "B": 3
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 3,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 4,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 2,
+                  "B": 4
+                }
+              },
+              "preferred": "B",
+              "rationale": "I would merge B, after two fixes. A drops the patient name for reception, but the request asks every row to carry hora, nombre and motivo, and reception is the main user of the printed list, so A changes the product beyond what was agreed. A also has a bug: isIsoDate calls toISOString on an Invalid Date for input like \"2026-13-01\", so the caller gets a RangeError instead of the documented TypeError, and no test covers it. B's comma delimiter can open as a single column in Spanish-locale Excel, which puts the spreadsheet requirement at risk, and it silently blanks names for orphaned appointments and returns a header-only file for a malformed date. A's \";\" choice and its tests are stronger, but B matches the requested columns and updates the README roles table that users rely on. Switch B to \";\" and add date validation, then merge."
+            }
+          }
+        ]
+      }
+    },
+    "regulated/r2": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-4/regulated-r2.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 21,
+            "test": 32,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 1.52,
+          "suite_passes": true,
+          "suite_tests": 6
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 3,
+          "total": 3,
+          "killed": 3,
+          "survived": [],
+          "score": 100
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-7/regulated-r2.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 30,
+            "test": 55,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 1.83,
+          "suite_passes": true,
+          "suite_tests": 9
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 17,
+          "total": 17,
+          "killed": 14,
+          "survived": [
+            {
+              "file": "src/clinic.js",
+              "line": 22,
+              "operator": "logical",
+              "text": "if (typeof date !== \"string\" && !/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) return false;"
+            },
+            {
+              "file": "src/clinic.js",
+              "line": 54,
+              "operator": "relational",
+              "text": ".sort((a, b) => (a.time < b.time ? -1 : a.time >= b.time ? 1 : 0));"
+            },
+            {
+              "file": "src/clinic.js",
+              "line": 54,
+              "operator": "literal",
+              "text": ".sort((a, b) => (a.time < b.time ? -2 : a.time > b.time ? 1 : 0));"
+            }
+          ],
+          "score": 82.4
+        }
+      },
+      "judge": {
+        "host": "claude",
+        "model": "claude-haiku-5-5",
+        "cost_usd": 0.0059,
+        "scores": {
+          "baseline": {
+            "correctness": 3.5,
+            "readability": 4.5,
+            "design": 3.5,
+            "tests": 3.5,
+            "scope": 4.5
+          },
+          "candidate": {
+            "correctness": 4.5,
+            "readability": 4,
+            "design": 4,
+            "tests": 5,
+            "scope": 4
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 4,
+                  "B": 5
+                },
+                "readability": {
+                  "A": 5,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 4,
+                  "B": 5
+                },
+                "scope": {
+                  "A": 5,
+                  "B": 4
+                }
+              },
+              "preferred": "B",
+              "rationale": "Prefiero B. Falla de forma explícita si una cita apunta a un paciente inexistente, en lugar de imprimir una fila con el nombre en blanco, y valida la fecha de entrada. Sus cabeceras están en español, como corresponde a una hoja para recepción, y sus tests cubren la estabilidad del orden, la fecha inválida, el paciente huérfano y la auditoría con actor, fecha y recuento. Sus defectos son que el comentario de esquema de Patient/Appointment queda separado de createClinic, que no comprueba la auditoría de un día vacío y que añade validaciones que no se pidieron. A es más pequeño y limpio, pero imprime en silencio filas sin nombre y usa cabeceras en inglés. Ninguno de los dos prueba explícitamente que el DNI y el diagnóstico estén ausentes, aunque las aserciones de cadena exacta lo cubren de forma implícita."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 4,
+                  "B": 3
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 3
+                },
+                "tests": {
+                  "A": 5,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 4,
+                  "B": 4
+                }
+              },
+              "preferred": "A",
+              "rationale": "Both deliveries meet the core requirements: neither exports nationalId or diagnosis, both check roles before anything else, both quote fields per RFC 4180, and both audit the actor and row count. A validates the date and fails loudly when an appointment points to an unknown patient, whereas B silently prints a blank patient name and accepts malformed dates such as \"06/10/2026\", which returns only a header with no error. B's headers are in English while the request and the rest of the Spanish-facing output are in Spanish, so a reception printout would show \"time,patient,reason\". A's tests cover the sort, quoting, invalid dates, missing patients, the audit entry and denied roles with no audit trace, while B's tests skip date validation and lock in the silent blank-name behavior. Neither updates docs, so scope is a wash."
+            }
+          }
+        ]
+      }
+    },
+    "regulated/r3": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-4/regulated-r3.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 21,
+            "test": 37,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 1.76,
+          "suite_passes": true,
+          "suite_tests": 7
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 2,
+          "total": 2,
+          "killed": 2,
+          "survived": [],
+          "score": 100
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-7/regulated-r3.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 36,
+            "test": 82,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 2.28,
+          "suite_passes": true,
+          "suite_tests": 11
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 14,
+          "total": 14,
+          "killed": 14,
+          "survived": [],
+          "score": 100
+        }
+      },
+      "judge": {
+        "host": "claude",
+        "model": "claude-haiku-5-5",
+        "cost_usd": 0.0063,
+        "scores": {
+          "baseline": {
+            "correctness": 2.5,
+            "readability": 3,
+            "design": 3.5,
+            "tests": 3,
+            "scope": 4
+          },
+          "candidate": {
+            "correctness": 5,
+            "readability": 4,
+            "design": 4,
+            "tests": 5,
+            "scope": 3.5
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 3,
+                  "B": 5
+                },
+                "readability": {
+                  "A": 3,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 3,
+                  "B": 5
+                },
+                "scope": {
+                  "A": 4,
+                  "B": 3
+                }
+              },
+              "preferred": "B",
+              "rationale": "A has no UTF-8 BOM, so Excel on Windows will mangle accented names like \"Pérez\" and \"Gómez\", which breaks the requirement that the CSV open correctly in a spreadsheet. A also uses English headers on a Spanish printout, joins lines through a convoluted map-and-join, and does not reject malformed dates. Its tests use fixture patients without nationalId or diagnosis, so they could not catch a DNI or diagnosis leak. B adds a BOM and CRLF, Spanish headers, null-safe fields, and exact-match assertions against fixtures that do carry nationalId and diagnosis, so a leak would fail the test. B's extras (date validation, name tie-break) go a little beyond the request, and its BOM is a literal invisible character that should be written as ﻿. Neither delivery updates docs, and I judged both from the diffs without running the tests."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 5,
+                  "B": 2
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 3
+                },
+                "design": {
+                  "A": 4,
+                  "B": 3
+                },
+                "tests": {
+                  "A": 5,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 4,
+                  "B": 4
+                }
+              },
+              "preferred": "A",
+              "rationale": "A is the only delivery that meets the spreadsheet requirement: it writes a UTF-8 BOM so accented names like \"Pérez\" open correctly in Excel, uses CRLF as RFC 4180 specifies, and sorts by time then patient name so same-time rows are deterministic. B omits the BOM, so Spanish names will likely display garbled, uses LF, leaves same-time ordering to input order, and prints English headers (\"time,patient,reason\") on a Spanish printout. B also places csvField between the Patient/Appointment shape comment and createClinic, which detaches that documentation from its function. A's extra date validation and its CSV_HEADER constant go somewhat beyond the request, and its BOM literal is invisible in the source, which is a maintainability note rather than a defect. A's tests cover ordering, quoting with embedded newlines, empty days, missing patients, invalid dates, denied roles and the audit fields; B lacks tests for the BOM, CRLF, newline quoting and same-time ordering. I would merge A."
+            }
+          }
+        ]
+      }
+    },
+    "brownfield/r1": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-4/brownfield-r1.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 19,
+            "test": 43,
+            "types": 0,
+            "docs": 7,
+            "other": 0
+          },
+          "removed": {
+            "source": 3,
+            "test": 0,
+            "types": 0,
+            "docs": 3,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 2.26,
+          "suite_passes": true,
+          "suite_tests": 4
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 11,
+          "total": 11,
+          "killed": 11,
+          "survived": [],
+          "score": 100
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-7/brownfield-r1.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 52,
+            "test": 95,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 4,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 1.83,
+          "suite_passes": true,
+          "suite_tests": 9
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 25,
+          "total": 25,
+          "killed": 24,
+          "survived": [
+            {
+              "file": "src/invoice.js",
+              "line": 25,
+              "operator": "relational",
+              "text": "var envio = subtotalNeto > UMBRAL_ENVIO_GRATIS ? 0 : ENVIO;"
+            }
+          ],
+          "score": 96
+        }
+      },
+      "judge": {
+        "host": "claude",
+        "model": "claude-haiku-5-5",
+        "cost_usd": 0.008,
+        "scores": {
+          "baseline": {
+            "correctness": 2,
+            "readability": 4,
+            "design": 3.5,
+            "tests": 2,
+            "scope": 3.5
+          },
+          "candidate": {
+            "correctness": 4,
+            "readability": 4,
+            "design": 3.5,
+            "tests": 5,
+            "scope": 3
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 2,
+                  "B": 4
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 3
+                },
+                "tests": {
+                  "A": 2,
+                  "B": 5
+                },
+                "scope": {
+                  "A": 3,
+                  "B": 3
+                }
+              },
+              "preferred": "B",
+              "rationale": "A incumple dos requisitos explícitos: el umbral de envío gratis se evalúa con el subtotal bruto (`subtotal >= UMBRAL`), así que con VERANO10 sobre 50 no se cobra envío cuando debería cobrarse (base 45), y `verano10` en minúsculas lanza error en lugar de valer lo mismo que `VERANO10`. Su test de VERANO10 fija el total erróneo (53.46 sin envío) y el README documenta la regla incorrecta. B cumple todos los requisitos, incluida la normalización del código y el umbral con el importe descontado, y sus tests cubren esos casos además de los importes sin código y los códigos desconocidos. B tiene dos puntos a revisar: el IVA con descuento se redondea sobre la suma sin redondear, así que `lineas[].iva` puede no sumar `iva`, y la lógica de cálculo está duplicada en dos funciones. B tampoco actualiza el README, que describe la forma de la factura y ya no es exacta. Aun así, merecería mergearse B con esos retoques, mientras que A necesita corregir la lógica antes de poder mergearse."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 4,
+                  "B": 2
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 3
+                },
+                "tests": {
+                  "A": 5,
+                  "B": 2
+                },
+                "scope": {
+                  "A": 3,
+                  "B": 4
+                }
+              },
+              "preferred": "A",
+              "rationale": "A is the one to merge. B breaks two agreed requirements: it does not normalize codes, so `verano10` throws, and its envio threshold uses the gross subtotal, which its own README states and its test `VERANO10` (total 53.46, envio 0) enshrines; a correctly discounted base of 45 should pay 4.95 shipping. A handles normalization, applies the threshold to the discounted base, keeps the no-code path as the original arithmetic, and its tests cover cent-exact fixtures, the threshold, pickup, and unknown or prototype codes. A's weaknesses are fixable: the discounted-path IVA total is rounded from unrounded sums, so it can differ by a cent from the sum of rounded line IVAs, and its README still describes the old output shape. Neither delivery was run here; the judgment is from the diffs alone."
+            }
+          }
+        ]
+      }
+    },
+    "brownfield/r2": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-4/brownfield-r2.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 18,
+            "test": 50,
+            "types": 0,
+            "docs": 8,
+            "other": 0
+          },
+          "removed": {
+            "source": 2,
+            "test": 0,
+            "types": 0,
+            "docs": 3,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 2.78,
+          "suite_passes": true,
+          "suite_tests": 6
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 9,
+          "total": 9,
+          "killed": 9,
+          "survived": [],
+          "score": 100
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-7/brownfield-r2.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 22,
+            "test": 105,
+            "types": 0,
+            "docs": 11,
+            "other": 0
+          },
+          "removed": {
+            "source": 3,
+            "test": 0,
+            "types": 0,
+            "docs": 3,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 4.77,
+          "suite_passes": true,
+          "suite_tests": 10
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 12,
+          "total": 12,
+          "killed": 12,
+          "survived": [],
+          "score": 100
+        }
+      },
+      "judge": {
+        "host": "claude",
+        "model": "claude-haiku-5-5",
+        "cost_usd": 0.0069,
+        "scores": {
+          "baseline": {
+            "correctness": 2,
+            "readability": 4,
+            "design": 3.5,
+            "tests": 3,
+            "scope": 3.5
+          },
+          "candidate": {
+            "correctness": 5,
+            "readability": 4,
+            "design": 4,
+            "tests": 5,
+            "scope": 4.5
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 2,
+                  "B": 5
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 3,
+                  "B": 5
+                },
+                "scope": {
+                  "A": 4,
+                  "B": 5
+                }
+              },
+              "preferred": "B",
+              "rationale": "Delivery A incumbe un requisito explícito: `verano10` no es igual a `VERANO10` porque A busca la clave tal cual, así que el código en minúsculas lanza error; tampoco normaliza espacios, y un código solo con espacios también lanza. Delivery B normaliza con trim y toUpperCase, cumple ese requisito y tiene pruebas para ello, además de cubrir null/vacío, recogida en tienda y el IVA reducido. Ambas cuentan sin código igual que hoy (el porcentaje 0 deja el importe de cada línea sin cambios) y ambas evalúan el umbral de envío sobre el subtotal descontado. Dos reservas para B: asume que las claves de `src/discounts.js` están en mayúsculas y que existe `BIENVENIDA5`, y `src/discounts.js` no está en el diff, así que no lo he verificado. Además, A conserva un `// TODO: tests` obsoleto, mientras que B lo retira; las pruebas de B usan const y funciones flecha frente al estilo `var` del resto del archivo, lo que es un detalle menor."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 5,
+                  "B": 2
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 3
+                },
+                "tests": {
+                  "A": 5,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 4,
+                  "B": 3
+                }
+              },
+              "preferred": "A",
+              "rationale": "A cumple todos los requisitos: normaliza el código con trim y mayúsculas, así `verano10` vale igual que `VERANO10`, y sin código cada línea da exactamente el mismo importe e IVA que antes (bruto × 100/100 = bruto). Sus tests cubren el redondeo del IVA reducido, el umbral de envío con importe descontado, el envío que no se descuenta, la recogida, el código inexistente y el caso `constructor`. B no normaliza la entrada: `CODIGOS[code]` con `verano10` lanza error si las claves están en mayúsculas, así que incumple un requisito explícito y ningún test lo detecta; además deja el comentario `TODO: tests` aunque ya hay pruebas. A tiene pequeñas inconsistencias de estilo (`const` en tests, `var` en src) y un `porcentajeDescuento` con ramas redundantes, pero no son bloqueantes. Mergearía A, y pediría a B la normalización y un test de minúsculas antes de considerarlo."
+            }
+          }
+        ]
+      }
+    },
+    "brownfield/r3": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-4/brownfield-r3.diff",
+        "metrics": {
+          "files": {
+            "source": 2,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 21,
+            "test": 45,
+            "types": 0,
+            "docs": 9,
+            "other": 0
+          },
+          "removed": {
+            "source": 5,
+            "test": 0,
+            "types": 0,
+            "docs": 3,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 2.14,
+          "suite_passes": true,
+          "suite_tests": 4
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 8,
+          "total": 8,
+          "killed": 8,
+          "survived": [],
+          "score": 100
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-7/brownfield-r3.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 24,
+            "test": 88,
+            "types": 0,
+            "docs": 9,
+            "other": 0
+          },
+          "removed": {
+            "source": 6,
+            "test": 0,
+            "types": 0,
+            "docs": 3,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 3.67,
+          "suite_passes": true,
+          "suite_tests": 11
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 14,
+          "total": 14,
+          "killed": 13,
+          "survived": [
+            {
+              "file": "src/invoice.js",
+              "line": 43,
+              "operator": "relational",
+              "text": "var envio = base > UMBRAL_ENVIO_GRATIS ? 0 : ENVIO;"
+            }
+          ],
+          "score": 92.9
+        }
+      },
+      "judge": {
+        "host": "claude",
+        "model": "claude-haiku-5-5",
+        "cost_usd": 0.0083,
+        "scores": {
+          "baseline": {
+            "correctness": 2.5,
+            "readability": 4,
+            "design": 3.5,
+            "tests": 2.5,
+            "scope": 4
+          },
+          "candidate": {
+            "correctness": 5,
+            "readability": 4,
+            "design": 4,
+            "tests": 5,
+            "scope": 4
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 3,
+                  "B": 5
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 3,
+                  "B": 5
+                },
+                "scope": {
+                  "A": 4,
+                  "B": 4
+                }
+              },
+              "preferred": "B",
+              "rationale": "A no cumple el requisito de normalización: `verano10` o `' VERANO10 '` lanzan error porque A compara la clave tal cual, y ningún test lo cubre. B normaliza mayúsculas y espacios, trata las claves heredadas como inválidas y calcula `envio` sobre la base descontada, con tests para cada caso. A tampoco prueba el caso en que el descuento cruza el umbral de 50 ni el recogida con descuento, mientras B sí. B mantiene `subtotal` bruto y añade `descuento`, así que el campo existente conserva su significado; A cambia `subtotal` a importe neto cuando hay código. Revisé los importes a mano sin ejecutar la suite; el redondeo de 2.375 en B depende de la aritmética de coma flotante y conviene confirmarlo con `npm test`."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 5,
+                  "B": 2
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 3
+                },
+                "tests": {
+                  "A": 5,
+                  "B": 2
+                },
+                "scope": {
+                  "A": 4,
+                  "B": 4
+                }
+              },
+              "preferred": "A",
+              "rationale": "Both deliveries leave no-code invoices unchanged, since with pct 0 the per-line rounding and the totals reduce to the original arithmetic. B breaks an agreed requirement, though: `porcentajeDescuento` does no trim or uppercase, so `verano10` or ` VERANO10 ` throws \"no válido\" instead of applying the discount, and no test would catch it. A normalizes the code, keeps `subtotal` gross and adds `descuento` as the request asked, and its tests cover the threshold crossing, pickup and shipping-not-discounted cases that B misses. A's one blemish is a stale \"Pendiente de usar en factura\" comment in `discounts.js` that B fixed. I checked these by reading the code paths and recomputing the expected values, not by running the suite. Merge A."
+            }
+          }
+        ]
+      }
+    },
+    "public-library/r1": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-4/public-library-r1.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 1,
+            "docs": 2,
+            "other": 0
+          },
+          "added": {
+            "source": 2,
+            "test": 3,
+            "types": 2,
+            "docs": 5,
+            "other": 0
+          },
+          "removed": {
+            "source": 2,
+            "test": 1,
+            "types": 2,
+            "docs": 1,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 1.5,
+          "suite_passes": true,
+          "suite_tests": 3
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 2,
+          "total": 2,
+          "killed": 2,
+          "survived": [],
+          "score": 100
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-7/public-library-r1.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 1,
+            "docs": 2,
+            "other": 0
+          },
+          "added": {
+            "source": 8,
+            "test": 18,
+            "types": 6,
+            "docs": 14,
+            "other": 0
+          },
+          "removed": {
+            "source": 5,
+            "test": 0,
+            "types": 3,
+            "docs": 4,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 2.25,
+          "suite_passes": true,
+          "suite_tests": 6
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 4,
+          "total": 4,
+          "killed": 4,
+          "survived": [],
+          "score": 100
+        }
+      },
+      "judge": {
+        "host": "claude",
+        "model": "claude-haiku-5-5",
+        "cost_usd": 0.004,
+        "scores": {
+          "baseline": {
+            "correctness": 1,
+            "readability": 4,
+            "design": 2,
+            "tests": 2,
+            "scope": 2
+          },
+          "candidate": {
+            "correctness": 5,
+            "readability": 4,
+            "design": 4.5,
+            "tests": 4.5,
+            "scope": 5
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 1,
+                  "B": 5
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 2,
+                  "B": 5
+                },
+                "tests": {
+                  "A": 2,
+                  "B": 5
+                },
+                "scope": {
+                  "A": 2,
+                  "B": 5
+                }
+              },
+              "preferred": "B",
+              "rationale": "A adds `d` to UNITS without any option, so `format` now emits days by default: `format(90000000)` changes from `\"25h\"` to `\"1d 1h\"`, which breaks the 1.5.0 requirement that existing output stays the same. Its test then asserts the new default (`format(93600000)` → `\"1d 2h\"`), so it locks in the regression, and it has no `{ days: true }` option at all. B keeps days out of `format` unless `{ days: true }` is passed, by filtering the `d` unit, so the default output is unchanged. B's tests pin the old `\"26h\"`/`\"25h\"` outputs, cover the option, and check that `1D` and `1w` are still rejected. B's README, index.d.ts and CHANGELOG all match the implementation. The one nit in B is that `format(ms, null)` would throw on `options.days`, which is minor. B should be merged."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 5,
+                  "B": 1
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 2
+                },
+                "tests": {
+                  "A": 4,
+                  "B": 2
+                },
+                "scope": {
+                  "A": 5,
+                  "B": 2
+                }
+              },
+              "preferred": "A",
+              "rationale": "Delivery B breaks the core requirement: `format(93600000)` changes from \"26h\" to \"1d 2h\" and `format(90000000)` from \"25h\" to \"1d 1h\", because it adds `d` to the default unit set and has no opt-in. Its test then enshrines that change, and its CHANGELOG never flags it as breaking for a minor release. Delivery A keeps the default output identical by filtering `d` out unless `{ days: true }` is passed, and its tests check both the unchanged default and the opt-in path. A has only minor nits: `options = {}` does not guard against `null`, and the new parse rejection tests for `1D` and `1w` pin down case sensitivity, which should be confirmed as intended. A is the clear merge; B needs its format change reverted before it is usable."
+            }
+          }
+        ]
+      }
+    },
+    "public-library/r2": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-4/public-library-r2.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 2,
+            "other": 0
+          },
+          "added": {
+            "source": 3,
+            "test": 10,
+            "types": 0,
+            "docs": 6,
+            "other": 0
+          },
+          "removed": {
+            "source": 2,
+            "test": 0,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 3.33,
+          "suite_passes": true,
+          "suite_tests": 5
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 2,
+          "total": 2,
+          "killed": 2,
+          "survived": [],
+          "score": 100
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-7/public-library-r2.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 1,
+            "docs": 2,
+            "other": 0
+          },
+          "added": {
+            "source": 2,
+            "test": 12,
+            "types": 2,
+            "docs": 13,
+            "other": 0
+          },
+          "removed": {
+            "source": 2,
+            "test": 0,
+            "types": 2,
+            "docs": 2,
+            "other": 0
+          },
+          "workflow_files": 3,
+          "test_to_source": 6,
+          "suite_passes": true,
+          "suite_tests": 5
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 2,
+          "total": 2,
+          "killed": 2,
+          "survived": [],
+          "score": 100
+        }
+      },
+      "judge": {
+        "host": "claude",
+        "model": "claude-haiku-5-5",
+        "cost_usd": 0.0039,
+        "scores": {
+          "baseline": {
+            "correctness": 1.5,
+            "readability": 4,
+            "design": 2,
+            "tests": 2,
+            "scope": 1.5
+          },
+          "candidate": {
+            "correctness": 2,
+            "readability": 4,
+            "design": 2,
+            "tests": 3,
+            "scope": 3
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 1,
+                  "B": 2
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 2,
+                  "B": 2
+                },
+                "tests": {
+                  "A": 2,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 1,
+                  "B": 2
+                }
+              },
+              "preferred": "B",
+              "rationale": "Neither delivery meets the core requirement: both make `format` emit days by default, so `format(90000000)` changes from `\"25h\"` to `\"1d 1h\"` with no `{ days: true }` option, which breaks users who store that output in a 1.5.0 minor release. A also changes that behavior silently, filing it under \"Added\" and leaving `index.d.ts` untouched. B updates the types and documents the change under \"Changed\", which is more honest and complete, but it still ships the breaking change and no test guards the old `\"25h\"` output. Both parse changes and their arithmetic check out (`2d4h` = 187200000, `1d 1h 1m 1s 1ms` = 90061001). Neither is mergeable as-is; B is the better starting point once the days option is added and a regression test for `format(90000000) === \"25h\"` is written."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 2,
+                  "B": 2
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 2,
+                  "B": 2
+                },
+                "tests": {
+                  "A": 3,
+                  "B": 2
+                },
+                "scope": {
+                  "A": 4,
+                  "B": 2
+                }
+              },
+              "preferred": "A",
+              "rationale": "Neither delivery is mergeable. Both add `d` to the shared UNITS table, so `format` now emits days by default: `format(90000000)` changes from \"25h\" to \"1d 1h\" in A, and `format(93600000)` changes from \"26h\" to \"1d 2h\" in B. This breaks the 1.5.0 rule that existing output must not change, and neither adds the `{ days: true }` option. A is preferred because it updates `index.d.ts`, documents the format change in the README and CHANGELOG, and has broader tests, although its tests lock in the breaking output and no test checks that \"25h\" is preserved. B omits the required `index.d.ts` update and its CHANGELOG hides the change to `format` output. Both need a rework that gates day output behind `format(ms, { days: true })` and adds a regression test for the default `25h` output."
+            }
+          }
+        ]
+      }
+    },
+    "public-library/r3": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-4/public-library-r3.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 2,
+            "other": 0
+          },
+          "added": {
+            "source": 2,
+            "test": 10,
+            "types": 0,
+            "docs": 5,
+            "other": 0
+          },
+          "removed": {
+            "source": 2,
+            "test": 0,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 5,
+          "suite_passes": true,
+          "suite_tests": 5
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 2,
+          "total": 2,
+          "killed": 2,
+          "survived": [],
+          "score": 100
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-7/public-library-r3.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 1,
+            "docs": 2,
+            "other": 0
+          },
+          "added": {
+            "source": 9,
+            "test": 19,
+            "types": 6,
+            "docs": 12,
+            "other": 0
+          },
+          "removed": {
+            "source": 5,
+            "test": 0,
+            "types": 3,
+            "docs": 4,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 2.11,
+          "suite_passes": true,
+          "suite_tests": 6
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 3,
+          "total": 3,
+          "killed": 3,
+          "survived": [],
+          "score": 100
+        }
+      },
+      "judge": {
+        "host": "claude",
+        "model": "claude-haiku-5-5",
+        "cost_usd": 0.0042,
+        "scores": {
+          "baseline": {
+            "correctness": 1,
+            "readability": 4,
+            "design": 2,
+            "tests": 2,
+            "scope": 2
+          },
+          "candidate": {
+            "correctness": 4.5,
+            "readability": 4,
+            "design": 4.5,
+            "tests": 4,
+            "scope": 4.5
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 1,
+                  "B": 5
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 2,
+                  "B": 5
+                },
+                "tests": {
+                  "A": 2,
+                  "B": 4
+                },
+                "scope": {
+                  "A": 2,
+                  "B": 5
+                }
+              },
+              "preferred": "B",
+              "rationale": "Delivery A breaks the explicit requirement: it adds `d` to the shared UNITS table, so `format(90000000)` changes from \"25h\" to \"1d 1h\" for every existing caller, and no test catches it. It also skips the opt-in `{ days: true }` option and leaves index.d.ts untouched, although the requirements say types ship with every delivery. Delivery B adds `d` to parse, keeps the default `format` output unchanged, and exposes days only through `options.days`. Its tests pin the existing \"25h\" output as a regression guard, and its README, CHANGELOG and index.d.ts are all updated. Its only gap is that it does not test a non-object `options` argument, which is minor. I would merge B."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 4,
+                  "B": 1
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 2
+                },
+                "tests": {
+                  "A": 4,
+                  "B": 2
+                },
+                "scope": {
+                  "A": 4,
+                  "B": 2
+                }
+              },
+              "preferred": "A",
+              "rationale": "A is the only delivery that meets the requirements. It adds days to `parse`, and `format` shows days only when `{ days: true }` is passed, so the default stays `format(90000000) === \"25h\"`. Its tests pin that default, and it updates `index.d.ts`, the README and the CHANGELOG. One small regression remains: `format(ms, null)` now throws, because the default parameter only covers `undefined`; a `options ?? {}` guard or a test would fix it. B adds `d` to the shared `UNITS` table that `format` also uses, so `format(90000000)` changes from `\"25h\"` to `\"1d 1h\"` and `format(187200000)` from `\"52h\"` to `\"2d 4h\"`, which breaks users who store that output. B's own test asserts the new default, so it enshrines the regression, and it also omits the required `index.d.ts` change and offers no opt-in. Merge A, fix the `null` case, and add a regression test for it."
+            }
+          }
+        ]
+      }
+    },
+    "bugfix/r1": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-4/bugfix-r1.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 8,
+            "test": 22,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 2.75,
+          "suite_passes": true,
+          "suite_tests": 7
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 8,
+          "total": 8,
+          "killed": 6,
+          "survived": [
+            {
+              "file": "src/paginate.js",
+              "line": 15,
+              "operator": "relational",
+              "text": "if (!Number.isInteger(pageSize) || pageSize <= 1) {"
+            },
+            {
+              "file": "src/paginate.js",
+              "line": 15,
+              "operator": "literal",
+              "text": "if (!Number.isInteger(pageSize) || pageSize < 2) {"
+            }
+          ],
+          "score": 75
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-7/bugfix-r1.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 7,
+            "test": 33,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 3,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 1,
+          "test_to_source": 4.71,
+          "suite_passes": true,
+          "suite_tests": 8
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 8,
+          "total": 8,
+          "killed": 4,
+          "survived": [
+            {
+              "file": "src/paginate.js",
+              "line": 11,
+              "operator": "relational",
+              "text": "if (!(pageSize > 1)) {"
+            },
+            {
+              "file": "src/paginate.js",
+              "line": 11,
+              "operator": "literal",
+              "text": "if (!(pageSize >= 2)) {"
+            },
+            {
+              "file": "src/paginate.js",
+              "line": 14,
+              "operator": "relational",
+              "text": "const current = page <= 1 ? 1 : page;"
+            },
+            {
+              "file": "src/paginate.js",
+              "line": 14,
+              "operator": "literal",
+              "text": "const current = page < 2 ? 1 : page;"
+            }
+          ],
+          "score": 50
+        }
+      },
+      "judge": {
+        "host": "claude",
+        "model": "claude-haiku-5-5",
+        "cost_usd": 0.0039,
+        "scores": {
+          "baseline": {
+            "correctness": 2,
+            "readability": 4,
+            "design": 3.5,
+            "tests": 2,
+            "scope": 3
+          },
+          "candidate": {
+            "correctness": 4,
+            "readability": 4.5,
+            "design": 4,
+            "tests": 4,
+            "scope": 3.5
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 2,
+                  "B": 4
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 2,
+                  "B": 4
+                },
+                "scope": {
+                  "A": 3,
+                  "B": 3
+                }
+              },
+              "preferred": "B",
+              "rationale": "A throws RangeError for page < 1, but the agreed requirement is that such a page is treated as page 1 and the response reports `page: 1`, so A breaks a required behavior and its tests lock in the wrong behavior. A also never tests the beyond-last-page case, which is the core of the reported bug. B implements every agreed rule (ceil totalPages, page < 1 clamped to 1, empty list gives 0, pageSize < 1 throws RangeError) and its tests cover each of them. B's weaknesses are that it does not update the JSDoc to describe the clamping or the throw, and that non-integer inputs such as pageSize 2.5 are not guarded. Those are smaller problems than A's, so I would merge B and then add the doc update and an integer check."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 4,
+                  "B": 2
+                },
+                "readability": {
+                  "A": 5,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 3
+                },
+                "tests": {
+                  "A": 4,
+                  "B": 2
+                },
+                "scope": {
+                  "A": 4,
+                  "B": 3
+                }
+              },
+              "preferred": "A",
+              "rationale": "A implements all four agreed requirements: it clamps page < 1 to 1 and returns `page: 1`, uses Math.ceil for totalPages (0 for an empty list), returns an empty page past the end with the correct totalPages, and throws RangeError for pageSize < 1. Its remaining gaps are unguarded non-integer or NaN page values, which the requirements do not cover. B throws RangeError for page < 1, which contradicts the agreed \"treat as page 1\" rule, and its tests lock in that wrong behavior, so it would fail the user's requirement. B also adds a non-integer pageSize check the user did not ask for, though it does update the JSDoc. The page-below-1 behavior is the decisive difference, so A is the one to merge. Both test files depend on the `items` fixture length, which the diffs do not show, so that assumption is unverified in both."
+            }
+          }
+        ]
+      }
+    },
+    "bugfix/r2": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-4/bugfix-r2.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 8,
+            "test": 20,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 2.5,
+          "suite_passes": true,
+          "suite_tests": 7
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 9,
+          "total": 9,
+          "killed": 7,
+          "survived": [
+            {
+              "file": "src/paginate.js",
+              "line": 15,
+              "operator": "relational",
+              "text": "if (!Number.isInteger(pageSize) || pageSize <= 1) {"
+            },
+            {
+              "file": "src/paginate.js",
+              "line": 15,
+              "operator": "literal",
+              "text": "if (!Number.isInteger(pageSize) || pageSize < 2) {"
+            }
+          ],
+          "score": 77.8
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-7/bugfix-r2.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 4,
+            "test": 28,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 3,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 1,
+          "test_to_source": 7,
+          "suite_passes": true,
+          "suite_tests": 7
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 4,
+          "total": 4,
+          "killed": 4,
+          "survived": [],
+          "score": 100
+        }
+      },
+      "judge": {
+        "host": "claude",
+        "model": "claude-haiku-5-5",
+        "cost_usd": 0.004,
+        "scores": {
+          "baseline": {
+            "correctness": 2,
+            "readability": 4,
+            "design": 3.5,
+            "tests": 2,
+            "scope": 3.5
+          },
+          "candidate": {
+            "correctness": 3,
+            "readability": 4,
+            "design": 3.5,
+            "tests": 3,
+            "scope": 3.5
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 2,
+                  "B": 3
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 3
+                },
+                "tests": {
+                  "A": 2,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 4,
+                  "B": 3
+                }
+              },
+              "preferred": "B",
+              "rationale": "A valida bien pageSize y documenta el @throws, pero incumple dos requisitos acordados: `page < 1` lanza en vez de tratarse como la página 1, y una lista vacía devuelve 1 página en lugar de 0 (`Math.max(1, ...)`), y sus tests fijan esos comportamientos incorrectos. B cumple el clamp de página, las 0 páginas en lista vacía, la página más allá de la última y el total exacto con 20 productos, pero no lanza `RangeError` para `pageSize < 1`: con `pageSize = 0` devuelve `totalPages: Infinity` y sin test que lo cubra. Como B falla un único requisito y A falla dos y además los fija en los tests, merecería ser la base del merge. Antes de mergear B hay que añadir la validación de `pageSize` con su test y documentar el comportamiento de página en el JSDoc. Esta evaluación se basa solo en leer los diffs; no ejecuté los tests."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 3,
+                  "B": 2
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 3
+                },
+                "tests": {
+                  "A": 3,
+                  "B": 2
+                },
+                "scope": {
+                  "A": 4,
+                  "B": 3
+                }
+              },
+              "preferred": "A",
+              "rationale": "A fixes the reported bug: totalPages is now ceil(length / pageSize), so 20 items give 2 pages, and page values below 1 are clamped to 1 with the response reporting page: 1. An empty list gives 0 pages and a page past the end gives empty items with the correct total, as agreed. Its main gap is that it never raises RangeError for pageSize < 1, so paginate(items, 1, 0) returns totalPages Infinity silently, and no test covers that. B does add the required RangeError for pageSize, but it throws for page < 1 where the agreed behavior is to treat it as page 1, and it forces totalPages to at least 1, so an empty list reports 1 page instead of 0. Its tests assert those wrong behaviors, so they would lock the errors in. A's fixes match the agreed behavior in more places, so I would merge A and add the pageSize guard as a follow-up."
+            }
+          }
+        ]
+      }
+    },
+    "bugfix/r3": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-4/bugfix-r3.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 8,
+            "test": 25,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 3.13,
+          "suite_passes": true,
+          "suite_tests": 8
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 8,
+          "total": 8,
+          "killed": 6,
+          "survived": [
+            {
+              "file": "src/paginate.js",
+              "line": 15,
+              "operator": "relational",
+              "text": "if (!Number.isInteger(pageSize) || pageSize <= 1) {"
+            },
+            {
+              "file": "src/paginate.js",
+              "line": 15,
+              "operator": "literal",
+              "text": "if (!Number.isInteger(pageSize) || pageSize < 2) {"
+            }
+          ],
+          "score": 75
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-7/bugfix-r3.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 13,
+            "test": 41,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 5,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 1,
+          "test_to_source": 3.15,
+          "suite_passes": true,
+          "suite_tests": 10
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 9,
+          "total": 9,
+          "killed": 7,
+          "survived": [
+            {
+              "file": "src/paginate.js",
+              "line": 15,
+              "operator": "relational",
+              "text": "if (!Number.isInteger(pageSize) || pageSize <= 1) {"
+            },
+            {
+              "file": "src/paginate.js",
+              "line": 15,
+              "operator": "literal",
+              "text": "if (!Number.isInteger(pageSize) || pageSize < 2) {"
+            }
+          ],
+          "score": 77.8
+        }
+      },
+      "judge": {
+        "host": "claude",
+        "model": "claude-haiku-5-5",
+        "cost_usd": 0.0042,
+        "scores": {
+          "baseline": {
+            "correctness": 1.5,
+            "readability": 4,
+            "design": 3.5,
+            "tests": 2,
+            "scope": 3
+          },
+          "candidate": {
+            "correctness": 5,
+            "readability": 4,
+            "design": 4.5,
+            "tests": 4.5,
+            "scope": 4
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 2,
+                  "B": 5
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 5
+                },
+                "tests": {
+                  "A": 2,
+                  "B": 5
+                },
+                "scope": {
+                  "A": 3,
+                  "B": 4
+                }
+              },
+              "preferred": "B",
+              "rationale": "A incumple un requisito acordado: `paginate(items, 0)` lanza `RangeError` cuando debería tratarse como la página 1 con `page: 1`, y sus tests fijan ese comportamiento incorrecto (“rejects page numbers below 1”). Además no prueba que pedir una página más allá del final devuelva `items` vacío con `page` intacto. B cumple los cuatro requisitos: clamp a 1 con `page: 1`, `Math.ceil` para `totalPages`, 0 páginas para lista vacía y `RangeError` para `pageSize < 1`, y sus tests cubren cada caso, incluido el de página fuera de rango. B añade además el rechazo de páginas y tamaños no enteros, que no estaba en los requisitos; es una decisión defendible y está documentada en JSDoc, pero conviene confirmarla con el usuario. Mergearía B."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 5,
+                  "B": 1
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 3
+                },
+                "tests": {
+                  "A": 4,
+                  "B": 2
+                },
+                "scope": {
+                  "A": 4,
+                  "B": 3
+                }
+              },
+              "preferred": "A",
+              "rationale": "A cumple los requisitos: `page < 1` se trata como 1 y la respuesta devuelve `page: 1`, `totalPages` es `ceil(n / pageSize)` (0 para lista vacía, 2 para 20 productos de 10), una página más allá del final devuelve `items` vacío sin recolocar, y `pageSize < 1` lanza `RangeError`; los tests cubren cada caso. A añade una validación extra (page no entero lanza) que el usuario no pidió, aunque es coherente y está documentada en JSDoc. B tiene un fallo de corrección: lanza `RangeError` para `page < 1` en lugar de tratarlo como 1, y sus tests fijan ese comportamiento incorrecto, además de no cubrir la página más allá del final. Por eso B no debería mergearse tal cual; A sí."
+            }
+          }
+        ]
+      }
+    }
+  }
+}

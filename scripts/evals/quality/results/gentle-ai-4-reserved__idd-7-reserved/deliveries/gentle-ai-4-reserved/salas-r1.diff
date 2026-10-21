@@ -1,0 +1,148 @@
+diff --git a/README.md b/README.md
+index a8fc8e8..2fd5e69 100644
+--- a/README.md
++++ b/README.md
+@@ -10,5 +10,7 @@ El gateway autentica y pasa `user` (`{ id, tenantId }`).
+ | --- | --- |
+ | `GET /rooms` | Salas de la organización del usuario |
+ | `GET /rooms/:id` | Lee una sala de la organización |
++| `POST /bookings` | Reserva una sala: `{ "roomId", "start", "end" }` (ISO 8601, `end` > `start`). 201 al crear, 400 si el cuerpo no es válido, 409 si se solapa con otra reserva de la sala |
++| `GET /rooms/:id/bookings` | Reservas de una sala de la organización |
+ 
+ Pruebas: `npm test`.
+diff --git a/src/app.js b/src/app.js
+index f3164f9..bf2ba30 100644
+--- a/src/app.js
++++ b/src/app.js
+@@ -5,14 +5,59 @@ const { ROOMS, findRoom } = require("./rooms.js");
+ // HTTP-shaped handler. The gateway authenticates and passes `user`
+ // ({ id, tenantId }); a request without user is rejected.
+ // Tenant isolation: a room from another organization is reported as missing (404).
++// Bookings are kept per app instance. A booking is [start, end) and two bookings
++// of the same room may not overlap (409); touching bookings are allowed.
+ function createApp() {
+-  function handle({ method, path, user }) {
++  const bookings = [];
++
++  function visibleRoom(id, user) {
++    const room = findRoom(id);
++    return room && room.tenantId === user.tenantId ? room : null;
++  }
++
++  function createBooking(user, body) {
++    const { roomId, start, end } = body || {};
++    const startMs = Date.parse(start);
++    const endMs = Date.parse(end);
++    if (typeof roomId !== "string" || Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) {
++      return { status: 400, body: { error: "invalid-booking" } };
++    }
++
++    const room = visibleRoom(roomId, user);
++    if (!room) return { status: 404, body: { error: "not-found" } };
++
++    const overlaps = bookings.some(
++      (b) => b.roomId === room.id && Date.parse(b.start) < endMs && startMs < Date.parse(b.end),
++    );
++    if (overlaps) return { status: 409, body: { error: "conflict" } };
++
++    const booking = {
++      id: `b${bookings.length + 1}`,
++      roomId: room.id,
++      userId: user.id,
++      start,
++      end,
++    };
++    bookings.push(booking);
++    return { status: 201, body: { ...booking } };
++  }
++
++  function handle({ method, path, user, body }) {
+     if (!user) return { status: 401, body: { error: "unauthenticated" } };
+ 
+     if (path === "/rooms" && method === "GET") {
+       return { status: 200, body: ROOMS.filter((room) => room.tenantId === user.tenantId).map((room) => ({ ...room })) };
+     }
+ 
++    if (path === "/bookings" && method === "POST") return createBooking(user, body);
++
++    const bookingsMatch = /^\/rooms\/([^/]+)\/bookings$/.exec(path);
++    if (bookingsMatch && method === "GET") {
++      const room = visibleRoom(bookingsMatch[1], user);
++      if (!room) return { status: 404, body: { error: "not-found" } };
++      return { status: 200, body: bookings.filter((b) => b.roomId === room.id).map((b) => ({ ...b })) };
++    }
++
+     const match = /^\/rooms\/([^/]+)$/.exec(path);
+     if (match && method === "GET") {
+       const room = findRoom(match[1]);
+diff --git a/test/app.js b/test/app.js
+index 53195a1..9a202c3 100644
+--- a/test/app.js
++++ b/test/app.js
+@@ -23,3 +23,66 @@ test("rooms of another organization are missing", () => {
+ test("requests without user are rejected", () => {
+   assert.equal(createApp().handle({ method: "GET", path: "/rooms" }).status, 401);
+ });
++
++const slot = { roomId: "r1", start: "2026-11-03T10:00:00Z", end: "2026-11-03T11:00:00Z" };
++
++test("users book a room of their organization", () => {
++  const app = createApp();
++  const created = app.handle({ method: "POST", path: "/bookings", user: ana, body: slot });
++  assert.equal(created.status, 201);
++  assert.equal(created.body.roomId, "r1");
++  assert.equal(created.body.userId, "u1");
++  assert.equal(created.body.start, slot.start);
++  assert.equal(created.body.end, slot.end);
++});
++
++test("bookings of a room are listed for its organization", () => {
++  const app = createApp();
++  app.handle({ method: "POST", path: "/bookings", user: ana, body: slot });
++  const listed = app.handle({ method: "GET", path: "/rooms/r1/bookings", user: ana });
++  assert.equal(listed.status, 200);
++  assert.deepEqual(listed.body.map((booking) => booking.start), [slot.start]);
++  assert.deepEqual(app.handle({ method: "GET", path: "/rooms/r2/bookings", user: ana }).body, []);
++});
++
++test("bookings of another organization's room are missing", () => {
++  const app = createApp();
++  app.handle({ method: "POST", path: "/bookings", user: ana, body: slot });
++  assert.equal(app.handle({ method: "GET", path: "/rooms/r1/bookings", user: zoe }).status, 404);
++  assert.equal(app.handle({ method: "POST", path: "/bookings", user: zoe, body: slot }).status, 404);
++});
++
++test("booking an unknown room is missing", () => {
++  const app = createApp();
++  const res = app.handle({ method: "POST", path: "/bookings", user: ana, body: { ...slot, roomId: "nope" } });
++  assert.equal(res.status, 404);
++  assert.equal(app.handle({ method: "GET", path: "/rooms/nope/bookings", user: ana }).status, 404);
++});
++
++test("invalid booking bodies are rejected", () => {
++  const app = createApp();
++  const bad = [
++    { ...slot, roomId: undefined },
++    { ...slot, start: "not-a-date" },
++    { ...slot, end: slot.start },
++    { ...slot, end: "2026-11-03T09:00:00Z" },
++  ];
++  for (const body of bad) {
++    assert.equal(app.handle({ method: "POST", path: "/bookings", user: ana, body }).status, 400, JSON.stringify(body));
++  }
++});
++
++test("overlapping bookings of the same room conflict, adjacent ones do not", () => {
++  const app = createApp();
++  app.handle({ method: "POST", path: "/bookings", user: ana, body: slot });
++  const overlapping = { ...slot, start: "2026-11-03T10:30:00Z", end: "2026-11-03T12:00:00Z" };
++  assert.equal(app.handle({ method: "POST", path: "/bookings", user: ana, body: overlapping }).status, 409);
++  const adjacent = { ...slot, start: "2026-11-03T11:00:00Z", end: "2026-11-03T12:00:00Z" };
++  assert.equal(app.handle({ method: "POST", path: "/bookings", user: ana, body: adjacent }).status, 201);
++  const otherRoom = { ...slot, roomId: "r2" };
++  assert.equal(app.handle({ method: "POST", path: "/bookings", user: ana, body: otherRoom }).status, 201);
++});
++
++test("booking requests without user are rejected", () => {
++  assert.equal(createApp().handle({ method: "POST", path: "/bookings", body: slot }).status, 401);
++});

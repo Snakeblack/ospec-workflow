@@ -1,0 +1,660 @@
+{
+  "baseline": "gentle-ai-4-reserved",
+  "candidate": "idd-7-reserved",
+  "scenarios": {
+    "salas/r1": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-4-reserved/salas-r1.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 46,
+            "test": 63,
+            "types": 0,
+            "docs": 2,
+            "other": 0
+          },
+          "removed": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 1.37,
+          "suite_passes": true,
+          "suite_tests": 10
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 22,
+          "total": 22,
+          "killed": 20,
+          "survived": [
+            {
+              "file": "src/app.js",
+              "line": 30,
+              "operator": "relational",
+              "text": "(b) => b.roomId === room.id && Date.parse(b.start) <= endMs && startMs < Date.parse(b.end),"
+            },
+            {
+              "file": "src/app.js",
+              "line": 52,
+              "operator": "logical",
+              "text": "if (path === \"/bookings\" || method === \"POST\") return createBooking(user, body);"
+            }
+          ],
+          "score": 90.9
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-7-reserved/salas-r1.diff",
+        "metrics": {
+          "files": {
+            "source": 3,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 193,
+            "test": 59,
+            "types": 0,
+            "docs": 5,
+            "other": 0
+          },
+          "removed": {
+            "source": 3,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 0.31,
+          "suite_passes": true,
+          "suite_tests": 9
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 29,
+          "total": 29,
+          "killed": 27,
+          "survived": [
+            {
+              "file": "src/app.js",
+              "line": 31,
+              "operator": "logical",
+              "text": "if (path === \"/bookings\" || method === \"POST\") {"
+            },
+            {
+              "file": "src/app.js",
+              "line": 40,
+              "operator": "logical",
+              "text": "if (bookingsMatch || method === \"GET\") {"
+            }
+          ],
+          "score": 93.1
+        }
+      },
+      "judge": {
+        "host": "claude",
+        "model": "claude-haiku-5-5",
+        "cost_usd": 0.0076,
+        "scores": {
+          "baseline": {
+            "correctness": 2,
+            "readability": 4,
+            "design": 3,
+            "tests": 3,
+            "scope": 4
+          },
+          "candidate": {
+            "correctness": 5,
+            "readability": 4,
+            "design": 4,
+            "tests": 5,
+            "scope": 3.5
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 2,
+                  "B": 5
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 3,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 3,
+                  "B": 5
+                },
+                "scope": {
+                  "A": 4,
+                  "B": 4
+                }
+              },
+              "preferred": "B",
+              "rationale": "A misses an explicit requirement: `GET /rooms/:id/bookings` returns bookings in insertion order, not sorted by `start`, and no test uses more than one booking, so the gap goes unnoticed. B sorts by `start` and tests that ordering with out-of-order inserts, and it also covers 409 without storing, adjacency on both sides, invalid bodies, and tenant 404s. B's strict UTC-only regex rejects valid ISO-8601 offsets such as `+02:00`, which the request did not ask for, though the README documents it. B's new OpenAPI file goes beyond the request, but the README update is useful and the file is consistent with the code. A's logic is compact and readable, but it cannot be merged while it violates the ordering requirement. I would merge B."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 5,
+                  "B": 2
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 3
+                },
+                "tests": {
+                  "A": 5,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 3,
+                  "B": 4
+                }
+              },
+              "preferred": "A",
+              "rationale": "Delivery A meets all four requirements: it validates ISO-UTC instants into epoch milliseconds, checks half-open overlap, and sorts `forRoom` by `start`, with a test that asserts the ordering. Delivery B's `forRoom` returns bookings in insertion order with no sort, so a later-created earlier booking breaks the required ordering, and no test covers it. B also stores raw client strings and accepts anything `Date.parse` takes, which is looser than the request asks for. A's weaknesses are scope creep, a new `openapi.yaml` with an invented version `0.5.0`, and rejecting non-`Z` offsets, which the README documents. Those are smaller problems than B's requirement violation, so I would merge A."
+            }
+          }
+        ]
+      }
+    },
+    "salas/r2": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-4-reserved/salas-r2.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 42,
+            "test": 45,
+            "types": 0,
+            "docs": 2,
+            "other": 0
+          },
+          "removed": {
+            "source": 3,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 1.07,
+          "suite_passes": true,
+          "suite_tests": 8
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 25,
+          "total": 25,
+          "killed": 23,
+          "survived": [
+            {
+              "file": "src/app.js",
+              "line": 53,
+              "operator": "logical",
+              "text": "if (path === \"/bookings\" || method === \"POST\") return createBooking(user, body);"
+            },
+            {
+              "file": "src/app.js",
+              "line": 56,
+              "operator": "logical",
+              "text": "if (bookingsMatch || method === \"GET\") {"
+            }
+          ],
+          "score": 92
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-7-reserved/salas-r2.diff",
+        "metrics": {
+          "files": {
+            "source": 2,
+            "test": 1,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 68,
+            "test": 118,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 1.74,
+          "suite_passes": true,
+          "suite_tests": 14
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 37,
+          "total": 37,
+          "killed": 26,
+          "survived": [
+            {
+              "file": "src/app.js",
+              "line": 26,
+              "operator": "logical",
+              "text": "if (path === \"/bookings\" || method === \"POST\") {"
+            },
+            {
+              "file": "src/app.js",
+              "line": 40,
+              "operator": "logical",
+              "text": "if (roomBookings || method === \"GET\") {"
+            },
+            {
+              "file": "src/app.js",
+              "line": 43,
+              "operator": "literal",
+              "text": "return { status: 201, body: bookings.listForRoom(room.id) };"
+            },
+            {
+              "file": "src/bookings.js",
+              "line": 9,
+              "operator": "logical",
+              "text": "if (typeof start !== \"string\" && typeof end !== \"string\") return null;"
+            },
+            {
+              "file": "src/bookings.js",
+              "line": 14,
+              "operator": "logical",
+              "text": "if (Number.isNaN(startMs) && Number.isNaN(endMs) || startMs >= endMs) return null;"
+            },
+            {
+              "file": "src/bookings.js",
+              "line": 21,
+              "operator": "literal",
+              "text": "let lastId = 1;"
+            },
+            {
+              "file": "src/bookings.js",
+              "line": 27,
+              "operator": "relational",
+              "text": "if (bookings.some((b) => b.roomId === roomId && b.start <= end && start < b.end)) return null;"
+            },
+            {
+              "file": "src/bookings.js",
+              "line": 29,
+              "operator": "literal",
+              "text": "lastId += 2;"
+            },
+            {
+              "file": "src/bookings.js",
+              "line": 38,
+              "operator": "relational",
+              "text": ".sort((a, b) => (a.start <= b.start ? -1 : a.start > b.start ? 1 : 0))"
+            },
+            {
+              "file": "src/bookings.js",
+              "line": 38,
+              "operator": "relational",
+              "text": ".sort((a, b) => (a.start < b.start ? -1 : a.start >= b.start ? 1 : 0))"
+            },
+            {
+              "file": "src/bookings.js",
+              "line": 38,
+              "operator": "literal",
+              "text": ".sort((a, b) => (a.start < b.start ? -2 : a.start > b.start ? 1 : 0))"
+            }
+          ],
+          "score": 70.3
+        }
+      },
+      "judge": {
+        "host": "claude",
+        "model": "claude-haiku-5-5",
+        "cost_usd": 0.007,
+        "scores": {
+          "baseline": {
+            "correctness": 2,
+            "readability": 4,
+            "design": 3.5,
+            "tests": 2,
+            "scope": 4
+          },
+          "candidate": {
+            "correctness": 4.5,
+            "readability": 4,
+            "design": 4,
+            "tests": 4.5,
+            "scope": 3
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 2,
+                  "B": 5
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 3,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 2,
+                  "B": 5
+                },
+                "scope": {
+                  "A": 4,
+                  "B": 3
+                }
+              },
+              "preferred": "B",
+              "rationale": "Delivery A misses an explicit requirement: `GET /rooms/:id/bookings` returns `bookings.filter(...)` in insertion order with no sort by `start`, and no test checks ordering, so the bug goes unnoticed. A also stores the raw input strings, so offset times are not normalized, and everything sits inline in `app.js`. Delivery B implements all four requirements in a separate `bookings.js` store, normalizes times to UTC so string comparison is valid, and covers the overlap boundary, ordering, tenant isolation, 400 cases and auth in its tests. B's weaknesses are that it does not update the README endpoint table, so its docs are behind, and it duplicates the tenant check instead of using a helper. Those are fixable in a follow-up, while A's ordering bug breaks a stated requirement, so I would merge B."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 4,
+                  "B": 2
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 4,
+                  "B": 2
+                },
+                "scope": {
+                  "A": 3,
+                  "B": 4
+                }
+              },
+              "preferred": "A",
+              "rationale": "Preferiría A. B no cumple un requisito explícito: el `GET /rooms/:id/bookings` de B devuelve `bookings.filter(...).map(...)` sin ordenar por `start`, y ningún test lo detecta. B además usa `Date.parse` sin validar formato, así que una hora sin zona (`2026-11-03T10:00:00`) se interpreta en la hora local del servidor, y guarda las cadenas sin normalizar a UTC. A valida el formato ISO con zona, normaliza a UTC, ordena por `start` y tiene tests para ese orden, los solapes, los límites y el aislamiento por organización. Sus fallos son menores: un `roomId` vacío responde 404 en lugar de 400, falta el caso de un intervalo contenido dentro de otro, y no actualiza el README, que B sí actualiza. Ese hueco de documentación no compensa el fallo de ordenación de B."
+            }
+          }
+        ]
+      }
+    },
+    "salas/r3": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-4-reserved/salas-r3.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 57,
+            "test": 52,
+            "types": 0,
+            "docs": 2,
+            "other": 0
+          },
+          "removed": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 0.91,
+          "suite_passes": true,
+          "suite_tests": 8
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 27,
+          "total": 27,
+          "killed": 24,
+          "survived": [
+            {
+              "file": "src/app.js",
+              "line": 27,
+              "operator": "logical",
+              "text": "if (roomBookings || method === \"GET\") {"
+            },
+            {
+              "file": "src/app.js",
+              "line": 30,
+              "operator": "literal",
+              "text": "return { status: 201, body: bookings.filter((item) => item.roomId === room.id).map(toView) };"
+            },
+            {
+              "file": "src/app.js",
+              "line": 33,
+              "operator": "logical",
+              "text": "if (path === \"/bookings\" || method === \"POST\") return createBooking(user, body);"
+            }
+          ],
+          "score": 88.9
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-7-reserved/salas-r3.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 2,
+            "other": 0
+          },
+          "added": {
+            "source": 54,
+            "test": 51,
+            "types": 0,
+            "docs": 40,
+            "other": 0
+          },
+          "removed": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 2,
+          "test_to_source": 0.94,
+          "suite_passes": true,
+          "suite_tests": 7
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 27,
+          "total": 27,
+          "killed": 24,
+          "survived": [
+            {
+              "file": "src/app.js",
+              "line": 27,
+              "operator": "logical",
+              "text": "if (bookingsMatch || method === \"GET\") {"
+            },
+            {
+              "file": "src/app.js",
+              "line": 37,
+              "operator": "logical",
+              "text": "if (path === \"/bookings\" || method === \"POST\") {"
+            },
+            {
+              "file": "src/app.js",
+              "line": 55,
+              "operator": "relational",
+              "text": "const overlaps = bookings.some((booking) => booking.roomId === room.id && startMs <= booking.endMs && booking.startMs < endMs);"
+            }
+          ],
+          "score": 88.9
+        }
+      },
+      "judge": {
+        "host": "claude",
+        "model": "claude-haiku-5-5",
+        "cost_usd": 0.0062,
+        "scores": {
+          "baseline": {
+            "correctness": 2.5,
+            "readability": 4,
+            "design": 4,
+            "tests": 3,
+            "scope": 4
+          },
+          "candidate": {
+            "correctness": 5,
+            "readability": 4,
+            "design": 4,
+            "tests": 5,
+            "scope": 4
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 3,
+                  "B": 5
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 3,
+                  "B": 5
+                },
+                "scope": {
+                  "A": 4,
+                  "B": 4
+                }
+              },
+              "preferred": "B",
+              "rationale": "Delivery A's `GET /rooms/:id/bookings` returns bookings in insertion order and never sorts by `start`, so it breaks an explicit requirement. Its tests only pass because they insert bookings in chronological order, so they cannot catch this. Delivery B sorts by `startMs`, and its list test inserts a later booking first, which does exercise the ordering. Both enforce overlap, back-to-back allowance, tenant isolation and `start < end` correctly, and both add comparable docs; B's new `docs/api/bookings.md` is slightly broader than strictly needed but documents the contract users rely on. B's long one-line expressions are a minor readability cost. B is the one to merge, after which A's missing sort is the main defect to avoid."
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "scores": {
+                "correctness": {
+                  "A": 5,
+                  "B": 2
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 4
+                },
+                "design": {
+                  "A": 4,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 5,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 4,
+                  "B": 4
+                }
+              },
+              "preferred": "A",
+              "rationale": "Delivery B's GET /rooms/:id/bookings returns bookings in insertion order (`bookings.filter(...).map(toView)`, no sort), which breaks the requirement to list them by start, and its tests never check ordering, so the bug passes. Delivery A sorts by startMs on a filtered copy, tests out-of-order insertion, and covers the 400 and 409 edge cases, including back-to-back bookings and reversed or missing fields. A's weaker points are minor: the id is `bookings.length + 1` rather than a counter, and the new docs file is a little verbose. B is tighter in its validation helper and docs, but its correctness gap decides the comparison. Merge A, after a one-line fix is not needed; no blocking issues were found in A."
+            }
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,112 @@
+diff --git a/src/clinic.js b/src/clinic.js
+index e4eb220..a7e4c52 100644
+--- a/src/clinic.js
++++ b/src/clinic.js
+@@ -11,6 +11,19 @@ class AccessDeniedError extends Error {
+ 
+ // Patient: { id, nationalId, name, birthDate, diagnosis }
+ // Appointment: { id, patientId, date: "YYYY-MM-DD", time: "HH:MM", reason }
++
++// RFC 4180: quote fields with separators, quotes or line breaks; double inner quotes.
++function csvField(value) {
++  const text = String(value);
++  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
++}
++
++function isCalendarDate(date) {
++  if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
++  const parsed = new Date(`${date}T00:00:00Z`);
++  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
++}
++
+ function createClinic({ patients = [], appointments = [], audit = createAuditLog() } = {}) {
+   function requireRole(actor, roles) {
+     if (!actor || !roles.includes(actor.role)) {
+@@ -32,7 +45,23 @@ function createClinic({ patients = [], appointments = [], audit = createAuditLog
+     return result;
+   }
+ 
+-  return { getPatient, appointmentsOn, audit };
++  function exportAppointmentsCsv(date, actor) {
++    requireRole(actor, ["doctor", "reception"]);
++    if (!isCalendarDate(date)) throw new TypeError(`date must be a YYYY-MM-DD calendar date, got ${date}`);
++    // Array.prototype.sort is stable, so same-time appointments keep insertion order.
++    const dayAppointments = appointments
++      .filter((item) => item.date === date)
++      .sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
++    const rows = dayAppointments.map((item) => {
++      const patient = patients.find((candidate) => candidate.id === item.patientId);
++      if (!patient) throw new Error(`appointment ${item.id} points to unknown patient ${item.patientId}`);
++      return [item.time, patient.name, item.reason].map(csvField).join(",");
++    });
++    audit.record({ action: "export-appointments-csv", actorId: actor.id, date, count: rows.length });
++    return ["hora,paciente,motivo", ...rows].join("\n") + "\n";
++  }
++
++  return { getPatient, appointmentsOn, exportAppointmentsCsv, audit };
+ }
+ 
+ module.exports = { createClinic, AccessDeniedError };
+diff --git a/test/clinic.js b/test/clinic.js
+index 6da846c..f15e1d5 100644
+--- a/test/clinic.js
++++ b/test/clinic.js
+@@ -31,3 +31,58 @@ test("appointments of a day are listed and audited", () => {
+   assert.deepEqual(clinic.appointmentsOn("2026-10-06", reception).map((item) => item.id), ["a1"]);
+   assert.equal(clinic.audit.entries()[0].count, 1);
+ });
++
++const csvPatients = [
++  ...patients,
++  { id: "p2", nationalId: "00000001R", name: "Pérez, Ana", birthDate: "1990-05-05", diagnosis: "Asma" },
++];
++const csvAppointments = [
++  { id: "a3", patientId: "p2", date: "2026-10-06", time: "11:00", reason: 'Revisión "anual"' },
++  { id: "a4", patientId: "p1", date: "2026-10-06", time: "09:30", reason: "Analítica,\nurgente" },
++  { id: "a5", patientId: "p1", date: "2026-10-06", time: "09:30", reason: "Control" },
++  { id: "a6", patientId: "p2", date: "2026-10-07", time: "08:00", reason: "Otro día" },
++];
++
++test("the day's appointments are exported as CSV sorted by time with quoted fields", () => {
++  const clinic = createClinic({ patients: csvPatients, appointments: csvAppointments });
++  assert.equal(
++    clinic.exportAppointmentsCsv("2026-10-06", reception),
++    'hora,paciente,motivo\n09:30,Luis Gómez,"Analítica,\nurgente"\n09:30,Luis Gómez,Control\n11:00,"Pérez, Ana","Revisión ""anual"""\n',
++  );
++});
++
++test("a day without appointments exports only the header", () => {
++  const clinic = createClinic({ patients: csvPatients, appointments: csvAppointments });
++  assert.equal(clinic.exportAppointmentsCsv("2026-10-08", doctor), "hora,paciente,motivo\n");
++});
++
++test("an invalid date is rejected", () => {
++  const clinic = createClinic({ patients: csvPatients, appointments: csvAppointments });
++  assert.throws(() => clinic.exportAppointmentsCsv("06/10/2026", doctor), TypeError);
++  assert.throws(() => clinic.exportAppointmentsCsv("2026-02-30", doctor), TypeError);
++});
++
++test("an appointment whose patient does not exist fails the export", () => {
++  const clinic = createClinic({
++    patients,
++    appointments: [{ id: "a7", patientId: "p9", date: "2026-10-06", time: "12:00", reason: "Control" }],
++  });
++  assert.throws(() => clinic.exportAppointmentsCsv("2026-10-06", doctor), /p9/);
++});
++
++test("every CSV export is audited with actor, date and row count", () => {
++  const clinic = createClinic({ patients: csvPatients, appointments: csvAppointments });
++  clinic.exportAppointmentsCsv("2026-10-06", reception);
++  const [entry] = clinic.audit.entries();
++  assert.equal(entry.action, "export-appointments-csv");
++  assert.equal(entry.actorId, "r1");
++  assert.equal(entry.date, "2026-10-06");
++  assert.equal(entry.count, 3);
++});
++
++test("only doctors and reception can export; other roles are denied and leave no audit entry", () => {
++  const clinic = createClinic({ patients: csvPatients, appointments: csvAppointments });
++  clinic.exportAppointmentsCsv("2026-10-06", doctor);
++  assert.throws(() => clinic.exportAppointmentsCsv("2026-10-06", { id: "n1", role: "nurse" }), AccessDeniedError);
++  assert.deepEqual(clinic.audit.entries().map((entry) => entry.actorId), ["d1"]);
++});

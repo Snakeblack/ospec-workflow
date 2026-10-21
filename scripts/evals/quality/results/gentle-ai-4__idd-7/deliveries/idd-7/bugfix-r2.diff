@@ -1,0 +1,54 @@
+diff --git a/src/paginate.js b/src/paginate.js
+index ed94097..7105eb1 100644
+--- a/src/paginate.js
++++ b/src/paginate.js
+@@ -8,9 +8,10 @@
+  * @returns {{ page: number, pageSize: number, totalPages: number, items: Array }}
+  */
+ function paginate(items, page, pageSize = 10) {
+-  const totalPages = Math.floor(items.length / pageSize) + 1;
+-  const start = (page - 1) * pageSize;
+-  return { page, pageSize, totalPages, items: items.slice(start, start + pageSize) };
++  const currentPage = Math.max(1, page);
++  const totalPages = Math.ceil(items.length / pageSize);
++  const start = (currentPage - 1) * pageSize;
++  return { page: currentPage, pageSize, totalPages, items: items.slice(start, start + pageSize) };
+ }
+ 
+ module.exports = { paginate };
+diff --git a/test/paginate.js b/test/paginate.js
+index 6989bee..552e340 100644
+--- a/test/paginate.js
++++ b/test/paginate.js
+@@ -21,3 +21,31 @@ test("partial last page", () => {
+ test("catalog lists ten products per page", () => {
+   assert.equal(listProducts(2).items[0].id, 11);
+ });
++
++test("total pages is exact when items divide evenly by page size", () => {
++  const twenty = Array.from({ length: 20 }, (_, index) => index + 1);
++  const result = paginate(twenty, 1, 10);
++  assert.equal(result.totalPages, 2);
++  assert.deepEqual(paginate(twenty, 2, 10).items, [11, 12, 13, 14, 15, 16, 17, 18, 19, 20]);
++});
++
++test("page below 1 is treated as page 1", () => {
++  for (const page of [0, -1]) {
++    const result = paginate(items, page, 10);
++    assert.equal(result.page, 1);
++    assert.deepEqual(result.items, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
++  }
++});
++
++test("empty list has zero pages", () => {
++  const result = paginate([], 1, 10);
++  assert.equal(result.totalPages, 0);
++  assert.deepEqual(result.items, []);
++});
++
++test("page past the last one is empty and keeps the exact total", () => {
++  const twenty = Array.from({ length: 20 }, (_, index) => index + 1);
++  const result = paginate(twenty, 3, 10);
++  assert.equal(result.totalPages, 2);
++  assert.deepEqual(result.items, []);
++});

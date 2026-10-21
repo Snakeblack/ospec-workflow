@@ -1,0 +1,136 @@
+diff --git a/README.md b/README.md
+index a8fc8e8..c697b3c 100644
+--- a/README.md
++++ b/README.md
+@@ -10,5 +10,7 @@ El gateway autentica y pasa `user` (`{ id, tenantId }`).
+ | --- | --- |
+ | `GET /rooms` | Salas de la organización del usuario |
+ | `GET /rooms/:id` | Lee una sala de la organización |
++| `POST /bookings` | Reserva una sala: `{ roomId, start, end }` (ISO 8601, `end` > `start`). 201, 400 si es inválida, 404 si la sala no es de la organización, 409 si solapa otra reserva de la sala |
++| `GET /rooms/:id/bookings` | Reservas de una sala de la organización |
+ 
+ Pruebas: `npm test`.
+diff --git a/src/app.js b/src/app.js
+index f3164f9..5821e4d 100644
+--- a/src/app.js
++++ b/src/app.js
+@@ -1,12 +1,42 @@
+ "use strict";
+ 
++const { randomUUID } = require("node:crypto");
+ const { ROOMS, findRoom } = require("./rooms.js");
+ 
+ // HTTP-shaped handler. The gateway authenticates and passes `user`
+ // ({ id, tenantId }); a request without user is rejected.
+ // Tenant isolation: a room from another organization is reported as missing (404).
+ function createApp() {
+-  function handle({ method, path, user }) {
++  const bookings = [];
++
++  function visibleRoom(id, user) {
++    const room = findRoom(id);
++    return room && room.tenantId === user.tenantId ? room : null;
++  }
++
++  // Intervals are half-open: a booking may start exactly when the previous one ends.
++  function createBooking(user, body) {
++    const { roomId, start, end } = body || {};
++    const startMs = Date.parse(start);
++    const endMs = Date.parse(end);
++    if (typeof roomId !== "string" || roomId === "" || Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) {
++      return { status: 400, body: { error: "invalid-booking" } };
++    }
++
++    const room = visibleRoom(roomId, user);
++    if (!room) return { status: 404, body: { error: "not-found" } };
++
++    const overlaps = bookings.some(
++      (booking) => booking.roomId === room.id && startMs < Date.parse(booking.end) && Date.parse(booking.start) < endMs,
++    );
++    if (overlaps) return { status: 409, body: { error: "conflict" } };
++
++    const booking = { id: randomUUID(), roomId: room.id, userId: user.id, start, end };
++    bookings.push(booking);
++    return { status: 201, body: { ...booking } };
++  }
++
++  function handle({ method, path, user, body }) {
+     if (!user) return { status: 401, body: { error: "unauthenticated" } };
+ 
+     if (path === "/rooms" && method === "GET") {
+@@ -15,11 +45,20 @@ function createApp() {
+ 
+     const match = /^\/rooms\/([^/]+)$/.exec(path);
+     if (match && method === "GET") {
+-      const room = findRoom(match[1]);
+-      if (!room || room.tenantId !== user.tenantId) return { status: 404, body: { error: "not-found" } };
++      const room = visibleRoom(match[1], user);
++      if (!room) return { status: 404, body: { error: "not-found" } };
+       return { status: 200, body: { ...room } };
+     }
+ 
++    if (path === "/bookings" && method === "POST") return createBooking(user, body);
++
++    const bookingsMatch = /^\/rooms\/([^/]+)\/bookings$/.exec(path);
++    if (bookingsMatch && method === "GET") {
++      const room = visibleRoom(bookingsMatch[1], user);
++      if (!room) return { status: 404, body: { error: "not-found" } };
++      return { status: 200, body: bookings.filter((booking) => booking.roomId === room.id).map((booking) => ({ ...booking })) };
++    }
++
+     return { status: 404, body: { error: "not-found" } };
+   }
+ 
+diff --git a/test/app.js b/test/app.js
+index 53195a1..17ee5ab 100644
+--- a/test/app.js
++++ b/test/app.js
+@@ -23,3 +23,48 @@ test("rooms of another organization are missing", () => {
+ test("requests without user are rejected", () => {
+   assert.equal(createApp().handle({ method: "GET", path: "/rooms" }).status, 401);
+ });
++
++const nov3 = (hour) => `2026-11-03T${String(hour).padStart(2, "0")}:00:00Z`;
++const book = (app, user, roomId, start, end) =>
++  app.handle({ method: "POST", path: "/bookings", user, body: { roomId, start, end } });
++
++test("users book a room of their organization and list its bookings", () => {
++  const app = createApp();
++  const created = book(app, ana, "r1", nov3(10), nov3(11));
++  assert.equal(created.status, 201);
++  assert.deepEqual(created.body, { id: created.body.id, roomId: "r1", userId: "u1", start: nov3(10), end: nov3(11) });
++
++  const listed = app.handle({ method: "GET", path: "/rooms/r1/bookings", user: ana });
++  assert.equal(listed.status, 200);
++  assert.deepEqual(listed.body, [created.body]);
++});
++
++test("overlapping bookings in the same room are rejected, back-to-back ones are allowed", () => {
++  const app = createApp();
++  book(app, ana, "r1", nov3(10), nov3(11));
++  assert.equal(book(app, ana, "r1", "2026-11-03T10:30:00Z", nov3(12)).status, 409);
++  assert.equal(book(app, ana, "r1", nov3(9), "2026-11-03T10:30:00Z").status, 409);
++  assert.equal(book(app, ana, "r1", nov3(11), nov3(12)).status, 201);
++  assert.equal(book(app, ana, "r2", nov3(10), nov3(11)).status, 201);
++});
++
++test("bookings of rooms from another organization are missing", () => {
++  const app = createApp();
++  assert.equal(book(app, zoe, "r1", nov3(10), nov3(11)).status, 404);
++  assert.equal(app.handle({ method: "GET", path: "/rooms/r1/bookings", user: zoe }).status, 404);
++  book(app, zoe, "r9", nov3(10), nov3(11));
++  assert.deepEqual(app.handle({ method: "GET", path: "/rooms/r1/bookings", user: ana }).body, []);
++});
++
++test("invalid booking bodies are rejected with 400", () => {
++  const app = createApp();
++  assert.equal(app.handle({ method: "POST", path: "/bookings", user: ana }).status, 400);
++  assert.equal(book(app, ana, "r1", nov3(10), "no-es-fecha").status, 400);
++  assert.equal(book(app, ana, "r1", nov3(11), nov3(10)).status, 400);
++  assert.equal(book(app, ana, "r1", nov3(10), nov3(10)).status, 400);
++  assert.equal(book(app, ana, "", nov3(10), nov3(11)).status, 400);
++});
++
++test("bookings require an authenticated user", () => {
++  assert.equal(createApp().handle({ method: "POST", path: "/bookings", body: {} }).status, 401);
++});

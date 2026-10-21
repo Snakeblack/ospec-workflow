@@ -1,0 +1,124 @@
+{
+  "schema": "idd-state/v1",
+  "change": "bench-claude-n3-report",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "Publicar la repetición de #342 en Claude con Haiku y n = 3 (idd-7 frente a gentle-ai-4, más el corpus reservado salas): records, calidad del par, informe y docs",
+    "acceptance": "Existe docs/analysis/2026-10-22-bench-claude-n3.md con resultados por escenario, checkpoints, calidad y límites; los records y la calidad están versionados; docs/benchs, README, comparacion-arneses y el roadmap citan el resultado y docs-lint pasa"
+  },
+  "facts": {
+    "basis": "Las cifras salen de los records y de los resultados de calidad, ya generados; las decisiones de alcance (cerrar #342 con Claude, issues de agy, de la persona y del gate, versión minor) las dio el usuario"
+  },
+  "plan": {
+    "paths": [
+      "docs/analysis/2026-10-22-bench-claude-n3.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/evals/quality/results/gentle-ai-4__idd-7/deliveries/gentle-ai-4/cli-local-r3.diff adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-21T23:41:40.112Z",
+      "detail": {
+        "tree": "sha256:23d2d00f38d57cbb61042b59cbb2e298a4c24cb873b9d78f7beda048acb10942",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-21T23:41:49.530Z",
+      "detail": {
+        "run": "run-2",
+        "tree": "sha256:1cdfee117d7e8491b95b21efe4b65602845c318f67af77d10843306ff0f7fd15",
+        "plan": "Solo se añaden datos: cuatro records de schema 3 y dos resultados de calidad, cuyos diffs de entrega guardan el código de los agentes (de ahí el writeFile). No cambia ningún formato ni ningún lector; record.test valida que todos los records versionados siguen siendo válidos con schema 3. Rollback: revertir el commit."
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-21T23:42:47.298Z",
+      "detail": {
+        "tree": "sha256:23d2d00f38d57cbb61042b59cbb2e298a4c24cb873b9d78f7beda048acb10942",
+        "runs": [
+          "run-3"
+        ]
+      }
+    }
+  ],
+  "base": "cba50920f341397000eac89d2f35685c3b619651",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b37e73b67b642b50a11c76a74f1a42f51dacfb643822ea36d96c4580f6a5810c",
+      "tree": "sha256:23d2d00f38d57cbb61042b59cbb2e298a4c24cb873b9d78f7beda048acb10942",
+      "recorded_at": "2026-10-21T23:41:40.112Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "migration-test",
+      "command": "node --test scripts/evals/bench/record.test.js scripts/evals/quality/quality.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:511e6d3acfcb72dd72ee1c1e5c2044821de288bfac7ef6bca1a64dcc008bc28c",
+      "tree": "sha256:1cdfee117d7e8491b95b21efe4b65602845c318f67af77d10843306ff0f7fd15",
+      "recorded_at": "2026-10-21T23:41:49.530Z",
+      "tests": 28
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:dc67c349e08f917a4caa22b1d5026ac3d3a060b9a084396eed755c5fc605d3c7",
+      "tree": "sha256:23d2d00f38d57cbb61042b59cbb2e298a4c24cb873b9d78f7beda048acb10942",
+      "recorded_at": "2026-10-21T23:42:47.298Z"
+    }
+  ],
+  "closed_at": "2026-10-21T23:42:47.377Z"
+}

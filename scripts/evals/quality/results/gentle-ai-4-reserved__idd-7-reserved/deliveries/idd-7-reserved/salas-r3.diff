@@ -1,0 +1,193 @@
+diff --git a/README.md b/README.md
+index a8fc8e8..6b6a1a8 100644
+--- a/README.md
++++ b/README.md
+@@ -10,5 +10,9 @@ El gateway autentica y pasa `user` (`{ id, tenantId }`).
+ | --- | --- |
+ | `GET /rooms` | Salas de la organización del usuario |
+ | `GET /rooms/:id` | Lee una sala de la organización |
++| `POST /bookings` | Reserva una sala: cuerpo `{ roomId, start, end }` (ISO 8601). `400` si `start >= end` o faltan campos, `409` si solapa otra reserva de la sala, `404` si la sala no existe o es de otra organización |
++| `GET /rooms/:id/bookings` | Reservas de la sala, ordenadas por `start` |
++
++Las reservas se guardan en memoria: se pierden al reiniciar el proceso.
+ 
+ Pruebas: `npm test`.
+diff --git a/docs/api/bookings.md b/docs/api/bookings.md
+new file mode 100644
+index 0000000..0d839b9
+--- /dev/null
++++ b/docs/api/bookings.md
+@@ -0,0 +1,36 @@
++# Reservas de salas
++
++Contrato de `POST /bookings` y `GET /rooms/:id/bookings`. Las reglas de
++tenant son las de `GET /rooms/:id`: una sala de otra organización es inexistente.
++
++## POST /bookings
++
++Cuerpo:
++
++```json
++{ "roomId": "r1", "start": "2026-11-03T10:00:00Z", "end": "2026-11-03T11:00:00Z" }
++```
++
++| Estado | Cuándo | Cuerpo |
++| --- | --- | --- |
++| `201` | Reserva creada | `{ id, roomId, userId, start, end }`, con `start` y `end` en UTC |
++| `400` | Faltan campos, `start` o `end` no son fechas ISO 8601, o `start >= end` | `{ error: "invalid-booking" }` |
++| `401` | Falta el usuario | `{ error: "unauthenticated" }` |
++| `404` | La sala no existe o es de otra organización | `{ error: "not-found" }` |
++| `409` | La sala ya tiene una reserva que solapa | `{ error: "booking-conflict" }` |
++
++Una reserva que empieza justo cuando termina otra no solapa con ella.
++Una reserva rechazada no se guarda.
++
++## GET /rooms/:id/bookings
++
++Devuelve un array con todas las reservas de la sala, ordenadas por `start`.
++
++| Estado | Cuándo | Cuerpo |
++| --- | --- | --- |
++| `200` | Sala de la organización del usuario | Array de reservas |
++| `404` | La sala no existe o es de otra organización | `{ error: "not-found" }` |
++
++## Persistencia
++
++Las reservas viven en memoria del proceso y se pierden al reiniciarlo.
+diff --git a/src/app.js b/src/app.js
+index f3164f9..2d92d7f 100644
+--- a/src/app.js
++++ b/src/app.js
+@@ -6,7 +6,10 @@ const { ROOMS, findRoom } = require("./rooms.js");
+ // ({ id, tenantId }); a request without user is rejected.
+ // Tenant isolation: a room from another organization is reported as missing (404).
+ function createApp() {
+-  function handle({ method, path, user }) {
++  // Bookings live in memory, like ROOMS. Times are kept as epoch milliseconds.
++  const bookings = [];
++
++  function handle({ method, path, user, body }) {
+     if (!user) return { status: 401, body: { error: "unauthenticated" } };
+ 
+     if (path === "/rooms" && method === "GET") {
+@@ -20,10 +23,60 @@ function createApp() {
+       return { status: 200, body: { ...room } };
+     }
+ 
++    const bookingsMatch = /^\/rooms\/([^/]+)\/bookings$/.exec(path);
++    if (bookingsMatch && method === "GET") {
++      const room = findRoom(bookingsMatch[1]);
++      if (!room || room.tenantId !== user.tenantId) return { status: 404, body: { error: "not-found" } };
++      const roomBookings = bookings
++        .filter((booking) => booking.roomId === room.id)
++        .sort((a, b) => a.startMs - b.startMs)
++        .map(toView);
++      return { status: 200, body: roomBookings };
++    }
++
++    if (path === "/bookings" && method === "POST") {
++      return createBooking(user, body || {});
++    }
++
+     return { status: 404, body: { error: "not-found" } };
+   }
+ 
++  // Start must be before end; a booking may begin exactly when another ends.
++  function createBooking(user, input) {
++    const startMs = parseInstant(input.start);
++    const endMs = parseInstant(input.end);
++    if (typeof input.roomId !== "string" || startMs === null || endMs === null || startMs >= endMs) {
++      return { status: 400, body: { error: "invalid-booking" } };
++    }
++
++    const room = findRoom(input.roomId);
++    if (!room || room.tenantId !== user.tenantId) return { status: 404, body: { error: "not-found" } };
++
++    const overlaps = bookings.some((booking) => booking.roomId === room.id && startMs < booking.endMs && booking.startMs < endMs);
++    if (overlaps) return { status: 409, body: { error: "booking-conflict" } };
++
++    const booking = { id: `b${bookings.length + 1}`, roomId: room.id, userId: user.id, startMs, endMs };
++    bookings.push(booking);
++    return { status: 201, body: toView(booking) };
++  }
++
+   return { handle };
+ }
+ 
++function parseInstant(value) {
++  if (typeof value !== "string") return null;
++  const ms = Date.parse(value);
++  return Number.isNaN(ms) ? null : ms;
++}
++
++function toView(booking) {
++  return {
++    id: booking.id,
++    roomId: booking.roomId,
++    userId: booking.userId,
++    start: new Date(booking.startMs).toISOString(),
++    end: new Date(booking.endMs).toISOString(),
++  };
++}
++
+ module.exports = { createApp };
+diff --git a/test/app.js b/test/app.js
+index 53195a1..6acb8a6 100644
+--- a/test/app.js
++++ b/test/app.js
+@@ -22,4 +22,55 @@ test("rooms of another organization are missing", () => {
+ 
+ test("requests without user are rejected", () => {
+   assert.equal(createApp().handle({ method: "GET", path: "/rooms" }).status, 401);
++  assert.equal(createApp().handle({ method: "POST", path: "/bookings", body: {} }).status, 401);
++});
++
++const slot = (start, end) => ({ roomId: "r1", start, end });
++
++test("users book a room of their organization and list its bookings by start", () => {
++  const app = createApp();
++  const late = app.handle({ method: "POST", path: "/bookings", user: ana, body: slot("2026-11-03T11:00:00Z", "2026-11-03T12:00:00Z") });
++  assert.equal(late.status, 201);
++  assert.equal(late.body.roomId, "r1");
++  assert.equal(late.body.userId, "u1");
++  assert.equal(typeof late.body.id, "string");
++  assert.equal(app.handle({ method: "POST", path: "/bookings", user: ana, body: slot("2026-11-03T10:00:00Z", "2026-11-03T11:00:00Z") }).status, 201);
++
++  const list = app.handle({ method: "GET", path: "/rooms/r1/bookings", user: ana });
++  assert.equal(list.status, 200);
++  assert.deepEqual(list.body.map((booking) => booking.start), ["2026-11-03T10:00:00.000Z", "2026-11-03T11:00:00.000Z"]);
++});
++
++test("bookings with start not before end or with invalid fields are rejected and not stored", () => {
++  const app = createApp();
++  const invalid = [
++    { roomId: "r1", start: "2026-11-03T10:00:00Z", end: "2026-11-03T10:00:00Z" },
++    { roomId: "r1", start: "2026-11-03T11:00:00Z", end: "2026-11-03T10:00:00Z" },
++    { roomId: "r1", start: "mañana", end: "2026-11-03T10:00:00Z" },
++    { roomId: "r1", start: "2026-11-03T10:00:00Z" },
++    { start: "2026-11-03T10:00:00Z", end: "2026-11-03T11:00:00Z" },
++  ];
++  for (const body of invalid) {
++    assert.equal(app.handle({ method: "POST", path: "/bookings", user: ana, body }).status, 400);
++  }
++  assert.deepEqual(app.handle({ method: "GET", path: "/rooms/r1/bookings", user: ana }).body, []);
++});
++
++test("overlapping bookings in the same room are rejected with 409 and not stored", () => {
++  const app = createApp();
++  assert.equal(app.handle({ method: "POST", path: "/bookings", user: ana, body: slot("2026-11-03T10:00:00Z", "2026-11-03T11:00:00Z") }).status, 201);
++  assert.equal(app.handle({ method: "POST", path: "/bookings", user: ana, body: slot("2026-11-03T10:30:00Z", "2026-11-03T11:30:00Z") }).status, 409);
++  assert.equal(app.handle({ method: "POST", path: "/bookings", user: ana, body: slot("2026-11-03T09:30:00Z", "2026-11-03T10:30:00Z") }).status, 409);
++  assert.equal(app.handle({ method: "POST", path: "/bookings", user: ana, body: slot("2026-11-03T09:00:00Z", "2026-11-03T12:00:00Z") }).status, 409);
++  assert.equal(app.handle({ method: "POST", path: "/bookings", user: ana, body: { ...slot("2026-11-03T10:30:00Z", "2026-11-03T11:30:00Z"), roomId: "r2" } }).status, 201);
++  assert.equal(app.handle({ method: "GET", path: "/rooms/r1/bookings", user: ana }).body.length, 1);
++});
++
++test("bookings of rooms from another organization or missing rooms are not found", () => {
++  const app = createApp();
++  assert.equal(app.handle({ method: "POST", path: "/bookings", user: zoe, body: slot("2026-11-03T10:00:00Z", "2026-11-03T11:00:00Z") }).status, 404);
++  assert.equal(app.handle({ method: "GET", path: "/rooms/r1/bookings", user: zoe }).status, 404);
++  assert.equal(app.handle({ method: "POST", path: "/bookings", user: ana, body: { roomId: "r404", start: "2026-11-03T10:00:00Z", end: "2026-11-03T11:00:00Z" } }).status, 404);
++  assert.equal(app.handle({ method: "GET", path: "/rooms/r404/bookings", user: ana }).status, 404);
++  assert.deepEqual(app.handle({ method: "GET", path: "/rooms/r1/bookings", user: ana }).body, []);
+ });

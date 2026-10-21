@@ -1,0 +1,136 @@
+diff --git a/src/clinic.js b/src/clinic.js
+index e4eb220..5113585 100644
+--- a/src/clinic.js
++++ b/src/clinic.js
+@@ -9,6 +9,17 @@ class AccessDeniedError extends Error {
+   }
+ }
+ 
++// ";" as delimiter so Spanish-locale spreadsheets split the columns; quoting follows RFC 4180.
++function csvField(value) {
++  const text = String(value);
++  return /[;"\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
++}
++
++function isIsoDate(date) {
++  return typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date) &&
++    new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) === date;
++}
++
+ // Patient: { id, nationalId, name, birthDate, diagnosis }
+ // Appointment: { id, patientId, date: "YYYY-MM-DD", time: "HH:MM", reason }
+ function createClinic({ patients = [], appointments = [], audit = createAuditLog() } = {}) {
+@@ -32,7 +43,30 @@ function createClinic({ patients = [], appointments = [], audit = createAuditLog
+     return result;
+   }
+ 
+-  return { getPatient, appointmentsOn, audit };
++  // Names are patient data: only doctors get the patient column.
++  function exportAppointmentsCsv(date, actor) {
++    requireRole(actor, ["doctor", "reception"]);
++    if (!isIsoDate(date)) {
++      throw new TypeError("date must be a valid YYYY-MM-DD string");
++    }
++    const withNames = actor.role === "doctor";
++    const rows = appointments
++      .filter((item) => item.date === date)
++      .sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0))
++      .map((item) => {
++        const patient = patients.find((entry) => entry.id === item.patientId);
++        if (!patient) {
++          throw new Error(`appointment ${item.id} references unknown patient ${item.patientId}`);
++        }
++        const fields = withNames ? [item.time, patient.name, item.reason] : [item.time, item.reason];
++        return fields.map(csvField).join(";");
++      });
++    const header = withNames ? "Hora;Paciente;Motivo" : "Hora;Motivo";
++    audit.record({ action: "export-appointments", actorId: actor.id, role: actor.role, date, count: rows.length });
++    return [header, ...rows].join("\r\n");
++  }
++
++  return { getPatient, appointmentsOn, exportAppointmentsCsv, audit };
+ }
+ 
+ module.exports = { createClinic, AccessDeniedError };
+diff --git a/test/clinic.js b/test/clinic.js
+index 6da846c..12aad5b 100644
+--- a/test/clinic.js
++++ b/test/clinic.js
+@@ -31,3 +31,77 @@ test("appointments of a day are listed and audited", () => {
+   assert.deepEqual(clinic.appointmentsOn("2026-10-06", reception).map((item) => item.id), ["a1"]);
+   assert.equal(clinic.audit.entries()[0].count, 1);
+ });
++
++const dayPatients = [
++  { id: "p1", nationalId: "12345678Z", name: "Luis Gómez", birthDate: "1980-02-01", diagnosis: "Hipertensión" },
++  { id: "p2", nationalId: "87654321X", name: "Ana; \"Pérez\"", birthDate: "1990-05-05", diagnosis: "" },
++];
++const dayAppointments = [
++  { id: "b1", patientId: "p1", date: "2026-10-06", time: "11:00", reason: "Analítica" },
++  { id: "b2", patientId: "p2", date: "2026-10-06", time: "09:30", reason: "Revisión,\nurgente \"hoy\"" },
++  { id: "b3", patientId: "p1", date: "2026-10-06", time: "09:30", reason: "Control" },
++  { id: "b4", patientId: "p1", date: "2026-10-07", time: "08:00", reason: "Otro día" },
++];
++
++test("doctors export the day's appointments as CSV sorted by time with patient names", () => {
++  const clinic = createClinic({ patients: dayPatients, appointments: dayAppointments });
++  assert.equal(
++    clinic.exportAppointmentsCsv("2026-10-06", doctor),
++    [
++      "Hora;Paciente;Motivo",
++      "09:30;\"Ana; \"\"Pérez\"\"\";\"Revisión,\nurgente \"\"hoy\"\"\"",
++      "09:30;Luis Gómez;Control",
++      "11:00;Luis Gómez;Analítica",
++    ].join("\r\n"),
++  );
++});
++
++test("reception exports the day's CSV without the patient column", () => {
++  const clinic = createClinic({ patients: dayPatients, appointments: dayAppointments });
++  const csv = clinic.exportAppointmentsCsv("2026-10-06", reception);
++  assert.equal(
++    csv,
++    [
++      "Hora;Motivo",
++      "09:30;\"Revisión,\nurgente \"\"hoy\"\"\"",
++      "09:30;Control",
++      "11:00;Analítica",
++    ].join("\r\n"),
++  );
++  assert.ok(!csv.includes("Luis Gómez"));
++  assert.ok(!csv.includes("Pérez"));
++});
++
++test("an empty day exports only the header", () => {
++  const clinic = createClinic({ patients: dayPatients, appointments: dayAppointments });
++  assert.equal(clinic.exportAppointmentsCsv("2026-12-31", doctor), "Hora;Paciente;Motivo");
++});
++
++test("an invalid date is refused instead of exporting an empty file", () => {
++  const clinic = createClinic({ patients: dayPatients, appointments: dayAppointments });
++  assert.throws(() => clinic.exportAppointmentsCsv("06/10/2026", doctor), TypeError);
++  assert.throws(() => clinic.exportAppointmentsCsv("2026-02-30", doctor), TypeError);
++  assert.equal(clinic.audit.entries().length, 0);
++});
++
++test("an appointment whose patient does not exist fails the export", () => {
++  const orphan = [{ id: "c1", patientId: "missing", date: "2026-10-06", time: "10:00", reason: "Control" }];
++  const clinic = createClinic({ patients: dayPatients, appointments: orphan });
++  assert.throws(() => clinic.exportAppointmentsCsv("2026-10-06", reception), /missing/);
++});
++
++test("roles other than doctor and reception cannot export", () => {
++  const clinic = createClinic({ patients: dayPatients, appointments: dayAppointments });
++  assert.throws(() => clinic.exportAppointmentsCsv("2026-10-06", { id: "x1", role: "admin" }), AccessDeniedError);
++});
++
++test("each export is audited with the actor, its role, the date and the row count", () => {
++  const clinic = createClinic({ patients: dayPatients, appointments: dayAppointments });
++  clinic.exportAppointmentsCsv("2026-10-06", reception);
++  const [entry] = clinic.audit.entries();
++  assert.equal(entry.action, "export-appointments");
++  assert.equal(entry.actorId, "r1");
++  assert.equal(entry.role, "reception");
++  assert.equal(entry.date, "2026-10-06");
++  assert.equal(entry.count, 3);
++});
