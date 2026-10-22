@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.146.1] - 2026-10-22
+
+### Fixed
+- **La persona del banco daba indicaciones técnicas que no estaban en sus hechos** (#389). En `regulated` de `idd-7`, la persona reveló F4 (coma con escapado RFC 4180), pero añadió «compruébalo en Excel; si no se abre bien, usa `;`». IDD entregó con `;` y fallaron `export-day-sorted` y `csv-escaping`. Ahora, si un hecho contesta, la persona responde solo con su contenido, sin condiciones, comprobaciones ni alternativas. Si ninguno contesta, responde solo que no tiene preferencia y que el agente siga su recomendación, sin matizarla. `deviates_from_recommendation` vale `true` solo cuando un hecho obliga a otra opción. El cambio cambia el `harness_digest`, así que los records anteriores no se comparan con los nuevos.
+
+Hecho con IDD (`idd/archive/2026-10-22-bench-persona-no-technical-advice/`).
+
+**Verificación directa**: `node scripts/check.js` (3963 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.146.0] - 2026-10-22
 
 ### Added
