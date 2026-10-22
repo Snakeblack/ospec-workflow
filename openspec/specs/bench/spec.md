@@ -117,13 +117,15 @@ commit nor dirties a delivery, whatever the plugin under test does. Once judged,
 workspace MUST move out of the workspaces directory, next to the run's
 transcripts under `scripts/evals/.runs/bench/`, where the quality tooling
 reads it. On agy, every agy process MUST run in a bubblewrap sandbox with a
-PID namespace of its own, in which the system temp directory, the user's
-`HOME` and the bench's directories (workspaces, runs, records, this
-repository, `~/.ospec-bench`) are empty except for the run's own directory,
-the arm's template, agy and the bench's Node; without bubblewrap, `bench.js
-run --host agy` MUST refuse to start. A turn whose tool steps name a path of
-those directories that the sandbox does not mount, nor lies above one it
-mounts, MUST void the run (`workspace-escape`): it MUST NOT be judged nor
+PID namespace of its own, in which the system temp directory, the top-level
+directory of the user's `HOME` (`/home`, with any filesystem snapshot under
+it) and the bench's directories (workspaces, runs, records, this repository,
+`~/.ospec-bench`) are empty except for the run's own directory, the arm's
+template, agy and the bench's Node; without bubblewrap, `bench.js run --host
+agy` MUST refuse to start. A turn whose tool steps name a path of those
+directories, or of a copy of one under another prefix (such as
+`/home/.snapshots/<n>/snapshot/<user>/<repo>`), that the sandbox does not
+mount, nor lies above one it mounts, MUST void the run (`workspace-escape`): it MUST NOT be judged nor
 recorded, its transcripts and workspace MUST be kept apart for audit, and the
 same command MUST repeat it.
 
@@ -167,6 +169,15 @@ arm MUST NOT run on agy. Since agy reports no cost, a run on agy MUST stop as
 - AND a step that names the first repetition's directory MUST end the run as
   `workspace-escape`, without judging or recording it, and the next
   `bench.js run` MUST repeat it
+
+#### Scenario: A snapshot of the repository stays out of reach
+
+- GIVEN a filesystem snapshot under `/home` that holds a copy of this
+  repository, its hidden facts and its records
+- WHEN the agent on agy lists `/home` or reads a path of that copy
+- THEN it MUST see no snapshot under `/home`
+- AND a step that names a path of the copy MUST end the run as
+  `workspace-escape`, without judging or recording it
 
 #### Scenario: gentle-ai stays in its own home
 

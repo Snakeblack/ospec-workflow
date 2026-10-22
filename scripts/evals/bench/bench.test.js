@@ -503,6 +503,10 @@ test("each run works in its own opaque directory and its judged workspace moves 
   const { sandbox } = agy.host;
   assert.equal(sandbox.bwrap, "/usr/bin/bwrap");
   for (const root of [os.tmpdir(), os.homedir(), ...agy.host.forbidden]) assert.ok(sandbox.hide.includes(root), `hides ${root}`);
+  // The whole top-level directory of HOME (/home), so a snapshot of it such as
+  // /home/.snapshots, which holds copies of this repository, stays hidden too.
+  const homeTop = path.join(path.parse(os.homedir()).root, os.homedir().split(path.sep)[1]);
+  assert.ok(sandbox.hide.includes(homeTop), `hides ${homeTop}`);
   assert.ok(sandbox.expose.includes("/usr/bin/agy"));
   assert.ok(sandbox.bin.includes(path.dirname(process.execPath)), "the bench's Node comes first on the agent's PATH");
 });

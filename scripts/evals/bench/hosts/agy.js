@@ -110,6 +110,19 @@ const SEGMENT = /&&|\|\||[;|\n]/;
 
 const isWithin = (child, parent) => child === parent || child.startsWith(parent.endsWith(path.sep) ? parent : `${parent}${path.sep}`);
 
+// Whether `named` lies in a copy of `root` under another prefix, as a
+// filesystem snapshot keeps it (/home/u/repo as /home/.snapshots/85/snapshot/u/repo):
+// it holds `root` without its first segment, when two or more segments remain.
+function inCopyOf(named, root) {
+  const tail = root.split(path.sep).filter(Boolean).slice(1);
+  if (tail.length < 2) return false;
+  const segments = named.split(path.sep).filter(Boolean);
+  for (let start = 1; start + tail.length <= segments.length; start += 1) {
+    if (tail.every((segment, offset) => segments[start + offset] === segment)) return true;
+  }
+  return false;
+}
+
 const beforeGlob = (value) => value.split(/[*?[{]/)[0];
 
 // Paths a value names. A path parameter is one path. A command line names
@@ -136,7 +149,8 @@ function namedPaths(value, isCommand, cwd) {
 
 /**
  * The tool steps of a stream-json transcript that name a path inside a
- * `forbidden` root, outside the `allowed` roots and not above one of them: in
+ * `forbidden` root or a copy of one under another prefix, outside the
+ * `allowed` roots and not above one of them: in
  * the sandbox such a path does not exist, so naming it means the agent learned
  * it from somewhere it should not have, or the sandbox let it through.
  */
@@ -157,7 +171,7 @@ function findEscapes(bytes, { cwd, allowed, forbidden }) {
       .filter(([key, value]) => PATH_PARAMETER.test(key) && typeof value === "string" && value !== "")
       .flatMap(([key, value]) => namedPaths(value, /commandline/i.test(key), base))
       .map((named) => path.resolve(named))
-      .filter((named) => forbidden.some((root) => isWithin(named, root)))
+      .filter((named) => forbidden.some((root) => isWithin(named, root) || inCopyOf(named, root)))
       .filter((named) => !allowed.some((root) => isWithin(named, root) || isWithin(root, named)));
     if (paths.length === 0) continue;
     seen.add(step.step_index);

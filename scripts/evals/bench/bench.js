@@ -294,12 +294,15 @@ function prepareHost(opts, arm, recordWorkspaces, personaDir, deps) {
     }
     // Everything of the bench an agent must not read: other runs, their
     // archives and records, this repository (hidden checks), the installs.
-    // The sandbox also empties the system temp directory and the user's HOME.
+    // The sandbox also empties the system temp directory and the top-level
+    // directory of the user's HOME (/home), since a filesystem snapshot there
+    // (/home/.snapshots) keeps copies of this repository.
     const forbidden = [...new Set([opts.workspacesDir, opts.runsDir, opts.recordsDir, REPO_ROOT, path.join(os.homedir(), ".ospec-bench")].map((dir) => path.resolve(dir)))];
     const agyBin = fs.existsSync(executable) ? fs.realpathSync(executable) : path.resolve(executable);
+    const homeTop = path.join(path.parse(os.homedir()).root, os.homedir().split(path.sep)[1] || "");
     const sandbox = {
       bwrap,
-      hide: [os.tmpdir(), os.homedir(), ...forbidden],
+      hide: [os.tmpdir(), homeTop, os.homedir(), ...forbidden],
       expose: [agyBin, path.dirname(path.dirname(process.execPath))],
       bin: [path.dirname(process.execPath), path.dirname(agyBin)],
     };

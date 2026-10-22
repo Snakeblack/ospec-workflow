@@ -157,15 +157,19 @@ it: in the first E4.5 runs it copied the previous repetition's delivery, and
 then found this repository through `ps` and read the hidden checks. So every
 agy process (agent and persona) runs in bubblewrap (`bwrap`, Linux only; `run
 --host agy` refuses without it): a PID namespace of its own, the system temp
-directory, the user's `HOME` and the bench's directories emptied, and only the
-run's own directory, the arm's template, agy and the bench's Node mounted back.
+directory, the top-level directory of the user's `HOME` (`/home`) and the
+bench's directories emptied, and only the run's own directory, the arm's
+template, agy and the bench's Node mounted back. `/home` goes whole because
+in the first run of #388 Gemini read this repository's copy in a btrfs
+snapshot (`/home/.snapshots/<n>/snapshot/...`): records, hidden facts,
+checks and reference solution.
 Its environment is an allowlist (`PATH`, locale, terminal, user, runtime
 directory, D-Bus and proxy or certificate variables): a terminal or editor
 variable such as `ORCA_WORKSPACE_ID`, which named this repository, never
 reaches agy.
 As a safety net, after every turn the host reads the tool steps of the
-transcript, and a step that names a path of the bench the sandbox never mounts
-voids the run (`workspace-escape`): it is neither judged nor recorded, it is
+transcript, and a step that names a path of the bench the sandbox never mounts,
+or of a copy of one under another prefix (a snapshot), voids the run (`workspace-escape`): it is neither judged nor recorded, it is
 kept as `<scenario>[/r<n>].escaped-<k>/` with its workspace, and the same
 command repeats it. The persona's `HOME`, which holds the hidden facts, is
 deleted after every call. Each turn gets a fresh sandbox, so a background
