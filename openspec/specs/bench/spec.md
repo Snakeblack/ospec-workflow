@@ -122,7 +122,13 @@ directory of the user's `HOME` (`/home`, with any filesystem snapshot under
 it) and the bench's directories (workspaces, runs, records, this repository,
 `~/.ospec-bench`) are empty except for the run's own directory, the arm's
 template, agy and the bench's Node; without bubblewrap, `bench.js run --host
-agy` MUST refuse to start. A turn whose tool steps name a path of those
+agy` MUST refuse to start. The template MUST be mounted as a copy without
+agy's runtime state (logs, conversations, summaries, knowledge) over its own
+path, so a log that names this repository never reaches the agent. Every
+workspace `HOME` MUST carry a `PreToolUse` hook, read-only in the sandbox,
+that denies agy's web and browser tools (`search_web`, `read_url_content`,
+`open_browser_url`, `browser_*`) in every permission mode; the shell keeps its
+network, since cutting it cuts agy's API. A turn whose tool steps name a path of those
 directories, or of a copy of one under another prefix (such as
 `/home/.snapshots/<n>/snapshot/<user>/<repo>`), that the sandbox does not
 mount, nor lies above one it mounts, MUST void the run (`workspace-escape`): it MUST NOT be judged nor
@@ -178,6 +184,15 @@ arm MUST NOT run on agy. Since agy reports no cost, a run on agy MUST stop as
 - THEN it MUST see no snapshot under `/home`
 - AND a step that names a path of the copy MUST end the run as
   `workspace-escape`, without judging or recording it
+
+#### Scenario: The agent on agy works offline and without the template's logs
+
+- GIVEN an arm's template that holds a log of agy naming this repository
+- WHEN the agent on agy calls `search_web`, edits its `hooks.json`, or reads
+  the template's log
+- THEN the hook MUST deny the search, the edit MUST fail, and the log MUST
+  NOT exist in the sandbox, while the template's configuration and binaries
+  do
 
 #### Scenario: gentle-ai stays in its own home
 

@@ -26,7 +26,12 @@
 // of the bench), an empty system temp directory and user HOME, the hidden
 // roots (the bench, other runs) emptied, and only the run's own directory (the
 // workspace's parent), the arm's template, and the tools it needs (agy, Node)
-// mounted back. As a safety net, a tool step that names a path inside a hidden
+// mounted back. The template goes back as a copy without agy's runtime state,
+// mounted over its own path (`templateView`): a log of agy there named this
+// repository. agy's web tools stay out too: `search_web` runs on Google's side,
+// so no network rule stops it, and the repository is public; each workspace
+// HOME carries a PreToolUse hook that denies them, read-only in the sandbox.
+// The shell keeps its network, since cutting it cuts agy's API. As a safety net, a tool step that names a path inside a hidden
 // root that is neither mounted back nor above something mounted back is an
 // escape, and the driver voids the run.
 
@@ -55,6 +60,13 @@ const INHERITED_ENV = [/^PATH$/, /^LANG$/, /^LANGUAGE$/, /^LC_[A-Z]+$/, /^TZ$/, 
 const RUNTIME_STATE = new Set(["annotations", "brain", "cache", "cli.log", "conversations", "conversation_summaries.db",
   "conversation_summaries.db-shm", "conversation_summaries.db-wal", "crashes", "history.jsonl", "implicit", "jetbox_summaries_proto.pb",
   "log", "presence", "updater", "last_check.timestamp", "installation_id", "jetski_state.pbtxt"]);
+// The PreToolUse hook every workspace HOME carries: agy's web and browser
+// tools are denied, whatever the permission mode.
+const OFFLINE_HOOK = "ospec-bench-offline";
+const OFFLINE_DENIAL = JSON.stringify({ decision: "deny", reason: "The bench runs offline: web and browser tools are disabled." });
+const OFFLINE_HOOKS = Object.freeze({
+  PreToolUse: [{ matcher: "search_web|read_url_content|open_browser_url|browser_.*", hooks: [{ command: `cat >/dev/null; printf '%s\\n' '${OFFLINE_DENIAL}'` }] }],
+});
 const PERSONA_FALLBACK = Object.freeze({
   kind: "stopped",
   answer: "Continúa, por favor.",
@@ -268,38 +280,54 @@ const depth = (dir) => dir.split(path.sep).length;
 
 /**
  * bubblewrap's arguments to run a command in `cwd` that sees the system but
- * none of `hide` (each emptied), except `expose` (read-only) and `root`
- * (writable), in a PID namespace of its own.
+ * none of `hide` (each emptied), except `expose` (read-only; a path, or a
+ * [source, target] pair that mounts `source` at `target`) and `root`
+ * (writable, but for `readOnly`), in a PID namespace of its own.
  */
-function sandboxArgs({ hide, expose, root, cwd }) {
+function sandboxArgs({ hide, expose, root, cwd, readOnly = [] }) {
   const hidden = [...new Set(hide.map((dir) => path.resolve(dir)))]
     .filter((dir) => fs.existsSync(dir))
     .sort((a, b) => depth(a) - depth(b))
     .filter((dir, index, all) => !all.slice(0, index).some((parent) => isWithin(dir, parent)));
-  const exposed = [...new Set(expose.map((target) => path.resolve(target)))].filter((target) => fs.existsSync(target));
+  const mounts = new Map(expose.map((entry) => (Array.isArray(entry) ? entry : [entry, entry]).map((target) => path.resolve(target)))
+    .filter(([source]) => fs.existsSync(source))
+    .map(([source, target]) => [target, source]));
   return [
     "--dev-bind", "/", "/",
     ...hidden.flatMap((dir) => ["--tmpfs", dir]),
-    ...exposed.flatMap((target) => ["--ro-bind", target, target]),
+    ...[...mounts].flatMap(([target, source]) => ["--ro-bind", source, target]),
     "--bind", root, root,
+    ...readOnly.flatMap((target) => ["--ro-bind", target, target]),
     "--unshare-pid", "--proc", "/proc", "--die-with-parent",
     "--chdir", cwd,
     "--",
   ];
 }
 
-/** Copies an arm's template HOME into `dest`, leaving out what agy wrote while running. */
-function copyHome(template, dest) {
+/**
+ * Copies an arm's template HOME into `dest`, leaving out what agy wrote while
+ * running and, unless `bin`, the binaries.
+ */
+function copyHome(template, dest, { bin = false } = {}) {
   fs.rmSync(dest, { recursive: true, force: true });
   fs.mkdirSync(dest, { recursive: true });
   fs.cpSync(template, dest, {
     recursive: true,
     filter: (source) => {
       const relative = path.relative(template, source).split(path.sep);
-      if (relative[0] === "bin") return false;
+      if (relative[0] === "bin" && !bin) return false;
       return !(relative[0] === ".gemini" && relative[1] === "antigravity-cli" && relative.length === 3 && RUNTIME_STATE.has(relative[2]));
     },
   });
+}
+
+/** Adds the hook that denies agy's web tools to the hooks of `home`; returns its file. */
+function blockWeb(home) {
+  const file = path.join(home, ".gemini", "config", "hooks.json");
+  const hooks = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : {};
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, `${JSON.stringify({ ...hooks, [OFFLINE_HOOK]: OFFLINE_HOOKS }, null, 2)}\n`);
+  return file;
 }
 
 /**
@@ -369,14 +397,18 @@ function createAgyHost({
   baseEnv = process.env,
   turnTimeoutMs = DEFAULT_TURN_TIMEOUT_MS,
 }) {
-  // `sandbox`: { bwrap, hide, expose, bin }, where `bin` are directories of
-  // `expose` that go first on the PATH, since the user's own PATH may lie
-  // under a hidden root.
-  function command(args, { root, cwd, env, extraExpose = [] }) {
+  // `sandbox`: { bwrap, hide, expose, bin, templateView }, where `bin` are
+  // directories of `expose` that go first on the PATH, since the user's own
+  // PATH may lie under a hidden root, and `templateView` is where the template
+  // is copied without agy's runtime state, to be mounted over it.
+  if (sandbox && sandbox.templateView) copyHome(template, sandbox.templateView, { bin: true });
+  const templateMount = sandbox && sandbox.templateView ? [sandbox.templateView, template] : template;
+
+  function command(args, { root, cwd, env, extraExpose = [], readOnly = [] }) {
     if (!sandbox) return { file: executable, args: [...prefixArgs, ...args], env };
     return {
       file: sandbox.bwrap,
-      args: [...sandboxArgs({ hide: sandbox.hide, expose: [...sandbox.expose, ...extraExpose], root, cwd }), executable, ...prefixArgs, ...args],
+      args: [...sandboxArgs({ hide: sandbox.hide, expose: [...sandbox.expose, ...extraExpose], root, cwd, readOnly }), executable, ...prefixArgs, ...args],
       env: { ...env, PATH: [...(sandbox.bin || []), env.PATH || ""].join(path.delimiter) },
     };
   }
@@ -387,7 +419,7 @@ function createAgyHost({
   const children = new Set();
 
   // The agent's HOME for one workspace: a fresh copy of the template under
-  // .git/ (never part of the delivery). Every arm with Engram (gentle-ai, and
+  // .git/ (never part of the delivery), with agy's web tools denied. Every arm with Engram (gentle-ai, and
   // an ospec template set up with `engram`: { startEngram }) gets an empty one,
   // with the template's engram first on the PATH for its hooks.
   const memory = gentleAi || engram;
@@ -395,6 +427,7 @@ function createAgyHost({
     if (!homes.has(cwd)) {
       const home = path.join(cwd, ".git", "agy-home");
       copyHome(template, home);
+      blockWeb(home);
       homes.set(cwd, home);
       if (memory) engrams.set(cwd, await memory.startEngram({ home: template, workspaceRoot: cwd, baseEnv: inheritedEnv(baseEnv) }));
     }
@@ -409,7 +442,9 @@ function createAgyHost({
 
   async function turn({ cwd, prompt, sessionId, transcriptPath }) {
     fs.mkdirSync(path.dirname(transcriptPath), { recursive: true });
-    const spawned = command(turnArgs({ model, conversationId: sessionId }), { root: path.dirname(cwd), cwd, env: await workspaceEnv(cwd), extraExpose: [template] });
+    const env = await workspaceEnv(cwd);
+    const hooks = path.join(homes.get(cwd), ".gemini", "config", "hooks.json");
+    const spawned = command(turnArgs({ model, conversationId: sessionId }), { root: path.dirname(cwd), cwd, env, extraExpose: [templateMount], readOnly: [hooks] });
     const run = await runProcess({
       executable: spawned.file,
       args: spawned.args,
