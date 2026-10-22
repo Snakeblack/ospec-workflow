@@ -186,6 +186,10 @@ test("schema 3 requires Engram, the commit, tokens per agent turn and valid open
   assert.doesNotThrow(() => validateRecord(turn({ open_facts: closed })));
   assert.throws(() => validateRecord(turn({ open_facts: { ...closed, categories: { inputs: "guessed" } } })), /open_facts.categories/);
   assert.throws(() => validateRecord(turn({ open_facts: { kind: "bug", categories: null, questions: -1 } })), /questions/);
+  const cites = [{ category: "uniqueness", path: "index.js", line: 1, text: null }, { category: "persistence", quote: "Quiero prioridades." }];
+  assert.doesNotThrow(() => validateRecord(turn({ open_facts: { ...closed, cites } })));
+  assert.throws(() => validateRecord(turn({ open_facts: { ...closed, cites: [{ path: "index.js", line: 1 }] } })), /open_facts.cites/);
+  assert.throws(() => validateRecord(turn({ open_facts: { ...closed, cites: "index.js:1" } })), /open_facts.cites/);
 
   const { repo_commit: _commit, ...v2 } = { ...record, schema_version: 2, host: withoutEngram };
   const { open_facts: _openFacts, ...v2Run } = record.runs[0];

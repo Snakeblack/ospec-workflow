@@ -1,0 +1,122 @@
+{
+  "schema": "idd-state/v1",
+  "change": "bench-open-facts-cites",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "Fase B de #390: medir qué dicen las citas antes de cambiar el gate open-facts; iddOpenFacts descarta path, line y el texto, así que hoy no se puede saber qué líneas citó public-library/r2",
+    "kind": "feature",
+    "summary": "El record del banco guarda qué dijo cada cita de open-facts (línea citada o fragmento de la petición), para decidir #390 con datos",
+    "acceptance": "Una ejecución IDD de una feature con categorías cited/quoted deja en open_facts.cites una entrada por categoría con su path:line y el texto de la línea en el commit de setup, o con el fragmento citado; record.js valida el campo y los records anteriores siguen válidos"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿El texto de la línea citada se recorta a 200 caracteres, y el fragmento citado de la petición («quote») se guarda entero o con el mismo límite?"
+      },
+      {
+        "category": "uniqueness",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/idd-facts.js",
+          "line": 127
+        }
+      },
+      {
+        "category": "persistence",
+        "question": "¿Si el fichero citado no está en el commit de setup se lee del árbol final, y si tampoco está ahí la entrada guarda «text: null» o se omite?"
+      },
+      {
+        "category": "copy",
+        "question": "¿El informe Markdown de «bench.js report» muestra las citas (tabla nueva por ejecución) o el campo «cites» queda solo en el JSON del record?"
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/evals/bench/record.js",
+          "line": 3
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/evals/bench/README.md",
+          "line": 33
+        }
+      },
+      {
+        "category": "errors",
+        "question": "¿record.js valida «cites» como campo opcional dentro del schema 3 (sin subir schema_version) y rechaza el record si una entrada no nombra su categoría?"
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "scripts/evals/bench/README.md",
+      "scripts/evals/bench/arms.js",
+      "scripts/evals/bench/arms.test.js",
+      "scripts/evals/bench/driver.test.js",
+      "scripts/evals/bench/record.js",
+      "scripts/evals/bench/record.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Solo Fase B (open_facts.cites en el banco; el gate de idd-facts.js no cambia hasta tener datos de #388). Línea y quote recortados a 200 caracteres. Fichero ausente: commit de setup, si no árbol final, si no text: null. Solo JSON, opcional en schema 3; record.js rechaza una entrada sin categoría; bench.js report no cambia.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-22T08:06:33.775Z",
+      "detail": {
+        "tree": "sha256:5ef3f7541d502e405e245ac2ee8b225a6c361370bf19d618ce07aaac18334069",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "30fae46d37ff8fd55078f6703a9844a71a608567",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e6b6e6eb452bb5d6e71baa329bdf7b0c92152ccf1306c4f6366e25234cd31675",
+      "tree": "sha256:5ef3f7541d502e405e245ac2ee8b225a6c361370bf19d618ce07aaac18334069",
+      "recorded_at": "2026-10-22T08:06:33.775Z"
+    }
+  ],
+  "closed_at": "2026-10-22T08:06:42.724Z"
+}
