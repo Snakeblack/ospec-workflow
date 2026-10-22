@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.146.3] - 2026-10-22
+
+### Fixed
+- **En agy, el agente leía el repositorio desde un snapshot de btrfs**. En la primera ejecución de la corrida #388 (`cli-local` r1 de `idd`), Gemini encontró la copia del repositorio que snapper guarda en `/home/.snapshots/<n>/snapshot/...`. Leyó records y transcripts anteriores, los hechos ocultos (`scenario.json`), `checks.js`, `persona.js` y la solución de referencia, y ejecutó los checks ocultos contra su propia entrega. El banco la dio por buena (`complete`, 0 escapados), con 7,5 M tokens frente a los 2,6 M de `idd-4`. Había dos causas. Bubblewrap solo tapaba `/tmp` y el HOME, así que `/home/.snapshots` seguía visible. Y el detector `workspace-escape` solo comparaba rutas absolutas, por lo que no reconocía la misma ruta con otro prefijo. Ahora el sandbox tapa el directorio de primer nivel del HOME (`/home`), y el detector anula también los pasos que nombran una copia de un directorio del banco bajo otro prefijo. La corrida se paró y su record se descartó. Ninguna otra corrida guardada menciona `.snapshots`. Dentro del sandbox ya no se ven las herramientas de `/home/linuxbrew`. Este cambio cambia el `harness_digest`.
+
+Hecho con IDD (`idd/archive/2026-10-22-bench-agy-sandbox-home/`).
+
+**Verificación directa**: `node scripts/check.js` (3965 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.146.2] - 2026-10-22
 
 ### Changed

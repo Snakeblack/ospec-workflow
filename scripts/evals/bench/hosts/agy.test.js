@@ -156,6 +156,26 @@ test("findEscapes flags tool steps that name a hidden path the sandbox never mou
   assert.deepEqual(found[4].paths, ["/home/u/repo/scripts/evals/bench/scenarios-greenfield"]);
 });
 
+test("findEscapes flags a copy of a hidden root under another prefix, such as a filesystem snapshot", { skip: process.platform === "win32" ? "agy runs only under bubblewrap, on Linux; its paths are POSIX" : false }, () => {
+  const cwd = "/tmp/ospec-bench/k3x9qa/cli-local";
+  const options = { cwd, allowed: [path.dirname(cwd)], forbidden: ["/tmp/ospec-bench", "/home/u/repo", "/home/u/.ospec-bench"] };
+  const snapshot = "/home/.snapshots/85/snapshot/u/repo";
+  const escaped = [
+    toolStep(1, "run_command", { CommandLine: `ls -la ${snapshot}/scripts/evals/` }),
+    toolStep(2, "read_file", { Path: `${snapshot}/scripts/evals/bench/scenarios/cli-local/scenario.json` }),
+    toolStep(3, "run_command", { CommandLine: "cat /mnt/backup/home/u/.ospec-bench/gentle-ai-agy/bin/engram" }),
+  ];
+  const found = findEscapes(escaped.join("\n"), options);
+  assert.deepEqual(found.map((escape) => escape.step), [1, 2, 3]);
+  assert.deepEqual(found[1].paths, [`${snapshot}/scripts/evals/bench/scenarios/cli-local/scenario.json`]);
+
+  const unrelated = [
+    toolStep(4, "run_command", { CommandLine: "ls /home/.snapshots /srv/repo /opt/u/other && cat /var/tmp/ospec-bench/notes" }),
+    toolStep(5, "read_file", { Path: `${cwd}/.git/agy-home/u/repo/notes.md` }),
+  ];
+  assert.deepEqual(findEscapes(unrelated.join("\n"), options), [], "a lone segment or the run's own directory is no copy of the bench");
+});
+
 test("sandboxArgs empties each hidden root once, outermost first, and mounts back the exposed paths and the run's directory", () => {
   const dir = tempDir();
   const home = path.join(dir, "home");

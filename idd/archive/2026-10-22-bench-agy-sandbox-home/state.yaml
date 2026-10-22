@@ -1,0 +1,134 @@
+{
+  "schema": "idd-state/v1",
+  "change": "bench-agy-sandbox-home",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El sandbox de agy tapa el directorio de primer nivel del HOME (/home entero) y el detector workspace-escape reconoce copias de los directorios del banco bajo otro prefijo, como /home/.snapshots/N/snapshot/...",
+    "acceptance": "Con HOME=/home/u, sandbox.hide incluye /home; findEscapes marca un paso que nombra /home/.snapshots/85/snapshot/u/repo/scripts/evals/bench/scenarios/x/scenario.json cuando /home/u/repo está prohibido, y no marca rutas del propio run ni rutas sin relación"
+  },
+  "facts": {
+    "basis": "El usuario eligió la opción A (2026-10-22): tapar /home entero y reconocer las rutas del banco por su parte relativa; el comportamiento restante lo fija openspec/specs/bench/spec.md:119-128"
+  },
+  "plan": {
+    "paths": [
+      "openspec/specs/bench/spec.md",
+      "scripts/evals/bench/README.md",
+      "scripts/evals/bench/bench.js",
+      "scripts/evals/bench/bench.test.js",
+      "scripts/evals/bench/hosts/agy.js",
+      "scripts/evals/bench/hosts/agy.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-22T08:55:01.932Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-22T08:56:53.972Z",
+      "detail": {
+        "tree": "sha256:ba4ec320e4ad214f2d96d0bb60fe79ec84dece7284728e49511d67446d950962",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-22T08:56:57.965Z"
+    }
+  ],
+  "base": "68cb9045d21316019faca5c5c251d46881172be7",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/evals/bench/hosts/agy.test.js scripts/evals/bench/bench.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:1bdc826326529921db76ff60adfd4353038ff09007c5db034c314d63fe18ab3f",
+      "tree": "sha256:87cc76d90cfcc441bead2349d4fc9bfe18b0bd060eb42a7a6ff9f961e4f287ce",
+      "recorded_at": "2026-10-22T08:54:15.283Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/evals/bench/hosts/agy.test.js scripts/evals/bench/bench.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:243c1e58b3850c61ff400453c7852d5c39b80450fa78f685ec521c5ad6e47de9",
+      "tree": "sha256:ccd76c5ae4fee153f7c08b2105b0eaa3ee2927d5aadc9db9b6b681d643e6f099",
+      "recorded_at": "2026-10-22T08:55:01.932Z",
+      "tests": 41
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f630b4894097dcc95ae2b9f70b2f2530bd5375e23be971b32067f8d6d33e1eb8",
+      "tree": "sha256:ba4ec320e4ad214f2d96d0bb60fe79ec84dece7284728e49511d67446d950962",
+      "recorded_at": "2026-10-22T08:56:53.972Z"
+    }
+  ],
+  "closed_at": "2026-10-22T08:56:57.965Z"
+}
