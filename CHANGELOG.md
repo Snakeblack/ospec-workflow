@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.146.2] - 2026-10-22
+
+### Changed
+- **El record del banco guarda qué dijo cada cita de `open-facts`** (Fase B de #390). Hasta ahora, `open_facts` solo guardaba si cada categoría se había preguntado, citado o tomado de la petición. Por eso no se podía saber qué líneas citó `public-library` r2 de `idd-7`, la repetición que escapó F1 y F3 sin preguntar nada. Ahora `open_facts.cites` lleva una entrada por cada categoría cerrada con una cita. Si la cita es de código, guarda `path`, `line` y el texto de la línea tal como estaba en el commit de setup. Si el fichero no estaba ahí, el texto se lee del árbol entregado, y si tampoco está, queda `null`. Si la cita es de la petición, guarda el fragmento. Los dos textos se recortan a 200 caracteres. `record.js` valida el campo como opcional en el schema 3, así que los records anteriores siguen siendo válidos, y `bench.js report` no cambia. El gate `open-facts` sigue igual hasta que la corrida #388 aporte datos. Este cambio cambia el `harness_digest`.
+
+Hecho con IDD (`idd/archive/2026-10-22-bench-open-facts-cites/`).
+
+**Verificación directa**: `node scripts/check.js` (3964 tests pasando, 0 fallos y 3 omitidos).
+
 ## [2.146.1] - 2026-10-22
 
 ### Fixed
