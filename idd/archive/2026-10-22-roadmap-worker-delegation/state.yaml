@@ -1,0 +1,68 @@
+{
+  "schema": "idd-state/v1",
+  "change": "roadmap-worker-delegation",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "Llevar al roadmap la propuesta de delegar la construcción a un worker con modelo recomendado: decisión sobre el primer experimento de E4.4, E4.12 user-model-map y E4.13 worker-delegation",
+    "acceptance": "harness-evolution.md tiene E4.12 y E4.13 en la tabla, en dependencias y con su sección (problema, alcance, restricciones, hechos abiertos, hecho cuando), y E4.4 registra la decisión del usuario del 2026-10-22 sobre su primer experimento; docs-lint y manifest-sync pasan"
+  },
+  "facts": {
+    "basis": "Las decisiones las dio el usuario el 2026-10-22: opción A para el mapeo de modelos, escribirlo en el roadmap, y el experimento con Sonnet de principal y worker Haiku; los hechos sin decidir quedan como hechos abiertos de cada ítem"
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-22T00:40:12.718Z",
+      "detail": {
+        "tree": "sha256:1a59e057db51f584ec969b273008f862a793702cde1cdcf8e5c305dda74ccdd2",
+        "runs": [
+          "run-1"
+        ]
+      }
+    }
+  ],
+  "base": "3db4276deb61325d56303da10112050d67bd8aea",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8e33c8a7b28d59244650aada58e6aa33ea6228af4651c25a2a387cba9bed9878",
+      "tree": "sha256:1a59e057db51f584ec969b273008f862a793702cde1cdcf8e5c305dda74ccdd2",
+      "recorded_at": "2026-10-22T00:40:12.718Z"
+    }
+  ],
+  "closed_at": "2026-10-22T00:40:12.787Z"
+}
