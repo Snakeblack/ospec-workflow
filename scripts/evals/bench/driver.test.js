@@ -315,7 +315,15 @@ test("the idd arm writes idd/config.yaml, requests the brief, and ends when the 
   assert.equal(host.calls.turns[1].prompt, "Quiero prioridades.");
   assert.equal(run.metrics.agent_turns, 2);
   assert.deepEqual(run.changed_files, ["idd/archive/2026-10-07-prioridades/change.md", "idd/archive/2026-10-07-prioridades/state.yaml", "index.js"]);
-  assert.deepEqual(run.open_facts, { kind: "feature", categories: { inputs: "asked", uniqueness: "cited", persistence: "quoted" }, questions: 1 });
+  assert.deepEqual(run.open_facts, {
+    kind: "feature",
+    categories: { inputs: "asked", uniqueness: "cited", persistence: "quoted" },
+    questions: 1,
+    cites: [
+      { category: "uniqueness", path: "index.js", line: 1, text: "module.exports = 1;" },
+      { category: "persistence", quote: "Quiero prioridades." },
+    ],
+  });
 });
 
 // The ospec Stop hook rewrites .ospec/session/latest.md on every turn. The

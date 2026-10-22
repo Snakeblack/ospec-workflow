@@ -202,7 +202,9 @@ PATH or in its usual place).
 - **Open facts:** for the `idd` arm, how the change `ospec close` archived
   settled its open facts (`open_facts`): a feature's categories each asked,
   cited (`path:line`) or quoted (from the request), and the questions asked.
-  The report lists them.
+  The report lists them. `open_facts.cites` keeps what each cite said: the
+  cited line as the setup commit held it (else the delivered tree, else
+  `null`) or the quoted fragment, up to 200 characters; only the JSON has it.
 - **Repetitions:** the report adds the mean of each scenario over its
   repetitions; the total of those means compares with a one-repetition record.
   Schema 1 records (one run per scenario, such as `sdd-baseline-2`) still read

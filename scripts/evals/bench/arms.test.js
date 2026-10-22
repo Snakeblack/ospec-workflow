@@ -151,3 +151,32 @@ test("iddOpenFacts reads how the change archived after setup closed its open fac
   assert.equal(armFor("idd").openFacts, iddOpenFacts);
   assert.equal(armFor("gentle-ai").openFacts, undefined);
 });
+
+// #390: the record keeps what each cite said, so the gate can be judged on the
+// lines a run cited. The line comes from the setup commit, the tree `record
+// intent` resolved it against, even when the change edits it later.
+test("iddOpenFacts keeps the cited line as the setup commit held it and the quoted fragment", () => {
+  const { root } = workspace();
+  write(root, "README.md", `# x\n  Los códigos no distinguen mayúsculas.  \n${"a".repeat(250)}\n`);
+  commit(root, "setup readme");
+  const base = git(root, ["rev-parse", "HEAD"]);
+  write(root, "README.md", "# x\nOtra cosa.\n");
+  write(root, "NEW.md", "nuevo\n");
+  const quote = `el formato por defecto no cambia ${"b".repeat(200)}`;
+  const coverage = [
+    { category: "inputs", question: "¿Qué límite, «200»?" },
+    { category: "uniqueness", cite: { kind: "path", path: "README.md", line: 2 } },
+    { category: "persistence", cite: { kind: "path", path: "README.md", line: 3 } },
+    { category: "copy", cite: { kind: "request", text: quote } },
+    { category: "url-state", cite: { kind: "path", path: "NEW.md", line: 1 } },
+    { category: "errors", cite: { kind: "path", path: "GONE.md", line: 1 } },
+  ];
+  write(root, "idd/archive/2026-10-22-feature/state.yaml", JSON.stringify({ intent: { kind: "feature" }, facts: { coverage } }));
+  assert.deepEqual(iddOpenFacts(root, base).cites, [
+    { category: "uniqueness", path: "README.md", line: 2, text: "Los códigos no distinguen mayúsculas." },
+    { category: "persistence", path: "README.md", line: 3, text: "a".repeat(200) },
+    { category: "copy", quote: quote.slice(0, 200) },
+    { category: "url-state", path: "NEW.md", line: 1, text: "nuevo" },
+    { category: "errors", path: "GONE.md", line: 1, text: null },
+  ]);
+});

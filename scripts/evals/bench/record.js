@@ -81,6 +81,9 @@ function validateOpenFacts(openFacts, fail) {
     fail(`open_facts.categories must be null or map each category to ${CLOSING_MODES.join(", ")}`);
   }
   if (!isCount(openFacts.questions)) fail("open_facts.questions must be a non-negative integer");
+  if (openFacts.cites !== undefined && !(Array.isArray(openFacts.cites) && openFacts.cites.every((cite) => isPlainObject(cite) && typeof cite.category === "string"))) {
+    fail("open_facts.cites must list each cite with its category");
+  }
 }
 
 function validateRun(run, index, repetitions, schema) {

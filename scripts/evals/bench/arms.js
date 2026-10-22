@@ -73,9 +73,29 @@ function iddOpenFacts(root, base) {
   if (Array.isArray(facts.coverage)) {
     const categories = Object.fromEntries(facts.coverage.map((entry) => [entry.category, typeof entry.question === "string" ? "asked" : CLOSING_MODE[entry.cite && entry.cite.kind]]));
     if (Object.values(categories).some((mode) => mode === undefined)) return null;
-    return { kind, categories, questions: Object.values(categories).filter((mode) => mode === "asked").length };
+    const cites = facts.coverage.filter((entry) => entry.cite).map((entry) => citeDetail(root, base, entry));
+    return { kind, categories, questions: Object.values(categories).filter((mode) => mode === "asked").length, cites };
   }
   return { kind, categories: null, questions: Array.isArray(facts.open) ? facts.open.length : 0 };
+}
+
+// What each cite said (#390): the cited line as the setup commit held it (the
+// tree `record intent` resolved it against), else as the delivered tree holds
+// it, or the quoted fragment. Null text when neither tree has the file.
+const CITE_TEXT_MAX = 200;
+
+function citeDetail(root, base, { category, cite }) {
+  if (cite.kind === "request") return { category, quote: cite.text.slice(0, CITE_TEXT_MAX) };
+  let body = base ? git(root, ["show", `${base}:${cite.path}`]) : null;
+  if (body === null) {
+    try {
+      body = fs.readFileSync(path.join(root, cite.path), "utf8");
+    } catch {
+      body = null;
+    }
+  }
+  const text = body === null ? null : (body.replace(/\r\n/g, "\n").split("\n")[cite.line - 1] ?? "").trim().slice(0, CITE_TEXT_MAX);
+  return { category, path: cite.path, line: cite.line, text };
 }
 
 function isIddMode(root) {
