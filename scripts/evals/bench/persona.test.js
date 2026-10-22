@@ -31,6 +31,13 @@ test("the system prompt ties disclosed facts to the answer and asks to check sum
   assert.match(system, /resume lo que entendió/);
 });
 
+test("the system prompt confines answers to the facts, without hedging or technical alternatives", () => {
+  const system = buildPersonaSystemPrompt(scenario, { goal: "g" });
+  assert.match(system, /contesta solo con su contenido, sin añadir condiciones, comprobaciones ni alternativas/);
+  assert.match(system, /responde solo que no tienes preferencia y que siga su recomendación, sin matizarla ni proponer alternativas/);
+  assert.match(system, /true solo si uno de tus hechos obliga a elegir otra opción o a corregirla/);
+});
+
 test("the turn prompt keeps the head and tail of a long agent message", () => {
   const long = `INICIO ${"x".repeat(20000)} FINAL`;
   const prompt = buildPersonaPrompt(long);

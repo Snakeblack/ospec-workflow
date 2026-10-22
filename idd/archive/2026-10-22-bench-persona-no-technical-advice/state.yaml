@@ -1,0 +1,122 @@
+{
+  "schema": "idd-state/v1",
+  "change": "bench-persona-no-technical-advice",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Endurecer el prompt de la persona del banco para que no matice ni proponga alternativas técnicas que no estén en sus hechos (#389)",
+    "acceptance": "buildPersonaSystemPrompt prohíbe matizar la recomendación o proponer alternativas cuando ningún hecho contesta, y persona.test.js lo comprueba"
+  },
+  "facts": {
+    "open": [
+      "En idd-7 la persona sí reveló F4 (coma, RFC 4180) pero le añadió 'compruébalo en Excel, si no usa ;'. ¿Se endurece también la respuesta cuando un hecho contesta (solo el contenido del hecho, sin condiciones ni pruebas añadidas), o solo el caso sin hechos que pide el issue?",
+      "¿Se añade la comprobación opcional en código (respuesta sin facts_disclosed y deviates false que proponga alternativas) o queda solo en el prompt?",
+      "¿deviates_from_recommendation debe quedar en true solo cuando un hecho obliga a otra opción, y nunca por preferencia propia de la persona?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "scripts/evals/bench/persona.js",
+      "scripts/evals/bench/persona.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "1) Ambos casos: con hecho, solo su contenido sin condiciones, pruebas ni alternativas; sin hecho, no tengo preferencia, sigue tu recomendación, sin matices. 2) Solo prompt, sin heurística en código. 3) deviates_from_recommendation true solo cuando un hecho obliga a otra opción.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-22T00:53:30.309Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-22T00:54:32.554Z",
+      "detail": {
+        "tree": "sha256:665cf6424c810c9b8005f88d42d3a0783a93256e6c23a377a952c5e15e110c0b",
+        "runs": [
+          "run-3"
+        ]
+      }
+    }
+  ],
+  "base": "5c20f66ba759eb07668ba60a5e4aa26e2949080d",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/evals/bench/persona.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:e7f680bdfbdfc046f3199c1f73d5860e6ee0b976d746a628ce789a91e6dc800f",
+      "tree": "sha256:862bca2d8e42a910750b78cdc342bdfa86711801dc9c94155d263a4cb7ecdb5a",
+      "recorded_at": "2026-10-22T00:53:20.513Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/evals/bench/persona.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d0fe3bd5e92e75af3fa4ab4fbf558d2068fbb47cd4de6f183046adc2e2fea66f",
+      "tree": "sha256:1c2f097e5e1979022612f2d2f34cf7120dc6ee14b9b901f8d7696c4ef9ee300e",
+      "recorded_at": "2026-10-22T00:53:30.309Z",
+      "tests": 7
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8e978c540e8975fd2d86a761ec4c6cc749769aa4d2a5dbe6c478bb4039a3ac4d",
+      "tree": "sha256:665cf6424c810c9b8005f88d42d3a0783a93256e6c23a377a952c5e15e110c0b",
+      "recorded_at": "2026-10-22T00:54:32.554Z"
+    }
+  ],
+  "closed_at": "2026-10-22T00:54:36.272Z"
+}
