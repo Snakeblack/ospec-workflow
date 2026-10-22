@@ -1,0 +1,160 @@
+{
+  "schema": "idd-state/v1",
+  "change": "bench-agy-web-block",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "En el banco de agy, el agente no puede usar las herramientas web (search_web, read_url_content, browser) ni leer el estado de ejecución de agy que guarda la plantilla del brazo (logs con la ruta del repo)",
+    "acceptance": "Un turno de agy en el sandbox recibe 'tool call denied by pre-tool hook' al llamar a search_web, y dentro del sandbox no existe ningún fichero de estado de ejecución de agy de la plantilla (log/, cli.log, conversations…) aunque la plantilla real lo tenga"
+  },
+  "facts": {
+    "open": [
+      "¿Cómo se evita que el sandbox exponga el estado de ejecución de agy guardado en la plantilla (log con la ruta del repo): montar una copia limpia sobre la ruta de la plantilla, negarse a correr mientras la plantilla lo tenga, o borrarlo de la plantilla al preparar el host?",
+      "¿Se mantiene el paso del argv de bwrap por --args <fd>, ahora que el argv no nombra el repo (solo /tmp, /home y lo que se vuelve a montar)?",
+      "¿La red del shell (curl, git clone desde run_command) queda abierta y documentada como límite, o el hook también deniega comandos con URLs o herramientas de red?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "openspec/specs/bench/spec.md",
+      "scripts/evals/bench/README.md",
+      "scripts/evals/bench/bench.js",
+      "scripts/evals/bench/bench.test.js",
+      "scripts/evals/bench/hosts/agy.js",
+      "scripts/evals/bench/hosts/agy.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/evals/bench/hosts/agy.js adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Plantilla: copia limpia (sin el estado de ejecución) montada con bwrap sobre la ruta de la plantilla. bwrap argv: quitar el paso por --args, no hace falta. Red del shell: abierta y documentada como límite; el hook solo bloquea las herramientas web.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-22T17:03:49.170Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-22T17:05:59.005Z",
+      "detail": {
+        "tree": "sha256:1f1254dc24353f9949e45ca2741916e4c6af3b3cdec1e4e44bad6e6659b498a9",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-22T17:06:13.463Z",
+      "detail": {
+        "run": "run-4",
+        "tree": "sha256:16402d95cfdc1faf0cec6a8757a716d49914a1b044a19a63e10fca1cdcf592fa",
+        "plan": "El único dato escrito es .gemini/config/hooks.json en el HOME desechable de cada workspace (bajo .git/, se recrea por run). Se fusiona: las claves que ya trae el brazo (los hooks de ospec) quedan intactas y la plantilla no se toca. Rollback: revertir el commit; no hay datos persistentes que migrar."
+      }
+    }
+  ],
+  "base": "78ff84df584c943409f6b8afc1ed3e9d46cf6344",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"web block|web tools|another target\" scripts/evals/bench/hosts/agy.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:0566b80f975f954959bc829d9968b80b12666639bc81b960d2b3ab076713c51a",
+      "tree": "sha256:ce877c3ac390df73ddf5b39c9d7b2ad58df684301dc10a6e7268ef637aba5f11",
+      "recorded_at": "2026-10-22T17:03:11.818Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"web block|web tools|another target\" scripts/evals/bench/hosts/agy.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4ca49abb95f0f1396ebb65543fe253ebc37237caac34efafa4983ebc8ae527ed",
+      "tree": "sha256:bc3a385853e9ff0a15c86d446e2006ad3b2dd2018a3a0eaf88fde9029a9c5a5f",
+      "recorded_at": "2026-10-22T17:03:49.170Z",
+      "tests": 3
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cbdd41af1f439138353ba22d843d1c7f6b436cc87804b85e9bf98587bdebf360",
+      "tree": "sha256:1f1254dc24353f9949e45ca2741916e4c6af3b3cdec1e4e44bad6e6659b498a9",
+      "recorded_at": "2026-10-22T17:05:59.005Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern=\"web tools\" scripts/evals/bench/hosts/agy.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:279e8542e336063544eb95ae5991b01ccdaf3e22695281396902be3801f8db2f",
+      "tree": "sha256:16402d95cfdc1faf0cec6a8757a716d49914a1b044a19a63e10fca1cdcf592fa",
+      "recorded_at": "2026-10-22T17:06:13.463Z",
+      "tests": 1
+    }
+  ],
+  "closed_at": "2026-10-22T17:06:20.193Z"
+}

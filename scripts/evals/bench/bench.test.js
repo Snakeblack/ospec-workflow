@@ -509,6 +509,7 @@ test("each run works in its own opaque directory and its judged workspace moves 
   assert.ok(sandbox.hide.includes(homeTop), `hides ${homeTop}`);
   assert.ok(sandbox.expose.includes("/usr/bin/agy"));
   assert.ok(sandbox.bin.includes(path.dirname(process.execPath)), "the bench's Node comes first on the agent's PATH");
+  assert.equal(sandbox.templateView, path.join(workspaces, "a5", "agy-template"), "the template goes back as a clean copy beside the record's workspaces");
 });
 
 test("run --host agy refuses without bubblewrap, before installing or running anything", async () => {

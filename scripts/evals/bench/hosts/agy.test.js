@@ -197,7 +197,91 @@ test("sandboxArgs empties each hidden root once, outermost first, and mounts bac
   ]);
 });
 
+test("sandboxArgs mounts an exposed source over another target, and the read-only paths over the run's directory", () => {
+  const dir = tempDir();
+  const view = path.join(dir, "view");
+  const target = path.join(dir, "home", "template");
+  fs.mkdirSync(view);
+  const root = path.join(dir, "k3x9qa");
+  const hooks = path.join(root, "todo-spa", ".git", "agy-home", ".gemini", "config", "hooks.json");
+  const args = sandboxArgs({ hide: [], expose: [[view, target], [path.join(dir, "nope"), target]], root, cwd: path.join(root, "todo-spa"), readOnly: [hooks] });
+  assert.deepEqual(args, [
+    "--dev-bind", "/", "/",
+    "--ro-bind", view, target,
+    "--bind", root, root,
+    "--ro-bind", hooks, hooks,
+    "--unshare-pid", "--proc", "/proc", "--die-with-parent",
+    "--chdir", path.join(root, "todo-spa"),
+    "--",
+  ]);
+});
+
+test("each workspace HOME denies agy's web tools through a PreToolUse hook, beside the arm's own hooks", { skip: process.platform === "win32" ? "the hook runs through sh" : false }, async () => {
+  const dir = tempDir();
+  const root = workspace(dir);
+  const home = template(dir);
+  const own = { ospec: { PreToolUse: [{ matcher: "run_command", hooks: [{ command: "./own.sh" }] }] } };
+  fs.writeFileSync(path.join(home, ".gemini", "config", "hooks.json"), JSON.stringify(own));
+  const host = createAgyHost({ executable: process.execPath, prefixArgs: [fakeAgy(dir)], template: home, model: "m", personaModel: "p", personaDir: dir });
+  await host.turn({ cwd: root, prompt: "hola", sessionId: null, transcriptPath: path.join(dir, "t.json") });
+  const hooks = JSON.parse(fs.readFileSync(path.join(root, ".git", "agy-home", ".gemini", "config", "hooks.json"), "utf8"));
+  assert.deepEqual(hooks.ospec, own.ospec, "the arm's own hooks stay as they were");
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(home, ".gemini", "config", "hooks.json"), "utf8")), own, "the template is untouched");
+  const offline = Object.values(hooks).flatMap((hook) => hook.PreToolUse || []).filter((group) => group.matcher !== "run_command");
+  assert.equal(offline.length, 1);
+  const matcher = new RegExp(`^(?:${offline[0].matcher})$`);
+  for (const tool of ["search_web", "read_url_content", "open_browser_url", "browser_subagent"]) assert.match(tool, matcher);
+  for (const tool of ["run_command", "view_file", "write_to_file", "grep_search"]) assert.doesNotMatch(tool, matcher);
+  const run = spawnSync("sh", ["-c", offline[0].hooks[0].command], { input: JSON.stringify({ toolCall: { name: "search_web", args: { query: "x" } } }), encoding: "utf8" });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(JSON.parse(run.stdout).decision, "deny");
+});
+
 const bwrap = ["/usr/bin/bwrap", "/bin/bwrap"].find((file) => fs.existsSync(file));
+
+test("in the sandbox the template shows none of agy's runtime state, and the agent cannot edit its web block", { skip: process.platform !== "linux" || !bwrap ? "needs bubblewrap" : false }, async () => {
+  const dir = tempDir();
+  const root = path.join(dir, "k3x9qa", "todo-spa");
+  fs.mkdirSync(path.join(root, ".git"), { recursive: true });
+  const home = template(dir);
+  const log = path.join(home, ".gemini", "antigravity-cli", "log", "cli-1.log");
+  fs.mkdirSync(path.dirname(log));
+  fs.writeFileSync(log, "workspaceDirs=[/home/u/dev/ospec-workflow]");
+  fs.mkdirSync(path.join(home, "bin"));
+  fs.writeFileSync(path.join(home, "bin", "engram"), "");
+  const tools = path.join(dir, "tools");
+  fs.mkdirSync(tools);
+  const script = path.join(tools, "probe-agy.js");
+  const hooks = path.join(root, ".git", "agy-home", ".gemini", "config", "hooks.json");
+  fs.writeFileSync(script, `
+    const fs = require("node:fs");
+    process.stdin.resume();
+    process.stdin.on("end", () => {
+      const seen = {
+        log: fs.existsSync(${JSON.stringify(log)}),
+        conversations: fs.existsSync(${JSON.stringify(path.join(home, ".gemini", "antigravity-cli", "conversations"))}),
+        rules: fs.existsSync(${JSON.stringify(path.join(home, ".gemini", "config", "rules", "r.md"))}),
+        engram: fs.existsSync(${JSON.stringify(path.join(home, "bin", "engram"))}),
+        editsHooks: (() => { try { fs.writeFileSync(${JSON.stringify(hooks)}, "{}"); return true; } catch { return false; } })(),
+      };
+      process.stdout.write(JSON.stringify({ event: "result", result: { conversation_id: "c", status: "SUCCESS", response: JSON.stringify(seen), num_turns: 1, usage: {} } }) + "\\n");
+    });
+  `);
+  const host = createAgyHost({
+    executable: process.execPath,
+    prefixArgs: [script],
+    template: home,
+    model: "m",
+    personaModel: "p",
+    personaDir: dir,
+    forbidden: [dir],
+    sandbox: { bwrap, hide: [os.tmpdir(), dir], expose: [path.dirname(path.dirname(process.execPath)), tools], bin: [path.dirname(process.execPath)], templateView: path.join(dir, "view") },
+  });
+  const turn = await host.turn({ cwd: root, prompt: "hola", sessionId: null, transcriptPath: path.join(os.tmpdir(), `bench-agy-view-${process.pid}.jsonl`) });
+  assert.equal(turn.is_error, false, turn.error);
+  assert.deepEqual(JSON.parse(turn.final_text), { log: false, conversations: false, rules: true, engram: true, editsHooks: false });
+  assert.ok(fs.existsSync(log), "the template itself is untouched");
+});
 
 test("in the sandbox agy sees its run, its template and its tools, but no other process, run, or hidden file", { skip: process.platform !== "linux" || !bwrap ? "needs bubblewrap" : false }, async () => {
   const dir = tempDir();

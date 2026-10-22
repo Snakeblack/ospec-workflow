@@ -162,7 +162,17 @@ bench's directories emptied, and only the run's own directory, the arm's
 template, agy and the bench's Node mounted back. `/home` goes whole because
 in the first run of #388 Gemini read this repository's copy in a btrfs
 snapshot (`/home/.snapshots/<n>/snapshot/...`): records, hidden facts,
-checks and reference solution.
+checks and reference solution. The template goes back as a copy without agy's
+runtime state, mounted over its own path, because in #388 gentle-ai found this
+repository's path in a log of agy that the gentle-ai template kept from its
+install. Every workspace `HOME` also carries a `PreToolUse` hook
+(`ospec-bench-offline` in `.gemini/config/hooks.json`, read-only in the
+sandbox) that denies `search_web`, `read_url_content`, `open_browser_url` and
+`browser_*`, even with `--dangerously-skip-permissions`: in #388 gentle-ai
+searched the web for the scenarios' phrases, and this repository is public.
+`search_web` runs on Google's side, so only a hook stops it. The shell keeps its
+network (cutting it cuts agy's API): a `curl` or `git clone` from
+`run_command` stays possible, and only watching the transcripts catches it.
 Its environment is an allowlist (`PATH`, locale, terminal, user, runtime
 directory, D-Bus and proxy or certificate variables): a terminal or editor
 variable such as `ORCA_WORKSPACE_ID`, which named this repository, never

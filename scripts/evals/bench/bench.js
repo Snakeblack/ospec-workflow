@@ -296,7 +296,9 @@ function prepareHost(opts, arm, recordWorkspaces, personaDir, deps) {
     // archives and records, this repository (hidden checks), the installs.
     // The sandbox also empties the system temp directory and the top-level
     // directory of the user's HOME (/home), since a filesystem snapshot there
-    // (/home/.snapshots) keeps copies of this repository.
+    // (/home/.snapshots) keeps copies of this repository. The template goes
+    // back as a copy without agy's runtime state (`templateView`), since a log
+    // of agy in it named this repository.
     const forbidden = [...new Set([opts.workspacesDir, opts.runsDir, opts.recordsDir, REPO_ROOT, path.join(os.homedir(), ".ospec-bench")].map((dir) => path.resolve(dir)))];
     const agyBin = fs.existsSync(executable) ? fs.realpathSync(executable) : path.resolve(executable);
     const homeTop = path.join(path.parse(os.homedir()).root, os.homedir().split(path.sep)[1] || "");
@@ -305,6 +307,7 @@ function prepareHost(opts, arm, recordWorkspaces, personaDir, deps) {
       hide: [os.tmpdir(), homeTop, os.homedir(), ...forbidden],
       expose: [agyBin, path.dirname(path.dirname(process.execPath))],
       bin: [path.dirname(process.execPath), path.dirname(agyBin)],
+      templateView: path.join(recordWorkspaces, "agy-template"),
     };
     plugin = { ...plugin, engramMcpBytes: deps.engramMcpBytes({ home: template, host: "agy" }) };
     const personaInvoke = String(opts.personaModel || "").startsWith("grok-")

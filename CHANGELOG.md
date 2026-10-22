@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.146.4] - 2026-10-22
+
+### Fixed
+- **En agy, el agente podía buscar en la web y leer los logs de agy de la plantilla del brazo**. En la corrida #388, gentle-ai usó `search_web` en `regulated`, `brownfield` y salas con frases de la petición, nombres de funciones y «ospec-bench». El repositorio es público y contiene los hechos ocultos. Los resultados de `search_web` no quedan en el transcript, así que no hay prueba de fuga, pero tampoco de que no la haya. En salas r2, además, encontró la ruta del repositorio en un log de agy que la plantilla `gentle-ai-agy` guardaba desde su instalación (`workspaceDirs=[…]`). El sandbox montaba la plantilla entera, y el detector anuló la ejecución. Ahora cada HOME de workspace lleva un hook `PreToolUse` (`ospec-bench-offline`) que deniega `search_web`, `read_url_content`, `open_browser_url` y `browser_*`, también con `--dangerously-skip-permissions`. El hook se añade a los del brazo y dentro del sandbox es de solo lectura. La plantilla se monta como una copia sin el estado de ejecución de agy (logs, conversaciones, resúmenes), sobre su misma ruta, y la plantilla real no se toca. La red del shell sigue abierta, porque cortarla corta la API de agy. Queda documentada como límite en la spec del banco y el README. Los records de la corrida #388 parada (`*-agy-5*`) quedan superados.
+
+Hecho con IDD (`idd/archive/2026-10-22-bench-agy-web-block/`).
+
+**Verificación directa**: `node scripts/check.js` (3968 tests pasando, 0 fallos y 3 omitidos). Prueba de humo con agy 1.4.5 real en bubblewrap: `search_web` recibe «tool call denied by pre-tool hook», la plantilla montada no tiene `log/` ni `conversations`, y escribir en `hooks.json` falla por ser de solo lectura.
+
 ## [2.146.3] - 2026-10-22
 
 ### Fixed
