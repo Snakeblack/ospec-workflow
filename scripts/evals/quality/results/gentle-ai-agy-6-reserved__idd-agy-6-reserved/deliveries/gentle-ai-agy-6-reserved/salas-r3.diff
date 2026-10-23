@@ -1,0 +1,105 @@
+diff --git a/README.md b/README.md
+index a8fc8e8..0cb4e73 100644
+--- a/README.md
++++ b/README.md
+@@ -10,5 +10,7 @@ El gateway autentica y pasa `user` (`{ id, tenantId }`).
+ | --- | --- |
+ | `GET /rooms` | Salas de la organización del usuario |
+ | `GET /rooms/:id` | Lee una sala de la organización |
++| `POST /bookings` | Reserva una sala |
++| `GET /rooms/:id/bookings` | Reservas de una sala |
+ 
+ Pruebas: `npm test`.
+diff --git a/src/app.js b/src/app.js
+index f3164f9..1b5b23e 100644
+--- a/src/app.js
++++ b/src/app.js
+@@ -6,13 +6,34 @@ const { ROOMS, findRoom } = require("./rooms.js");
+ // ({ id, tenantId }); a request without user is rejected.
+ // Tenant isolation: a room from another organization is reported as missing (404).
+ function createApp() {
+-  function handle({ method, path, user }) {
++  const bookings = [];
++
++  function handle({ method, path, user, body }) {
+     if (!user) return { status: 401, body: { error: "unauthenticated" } };
+ 
+     if (path === "/rooms" && method === "GET") {
+       return { status: 200, body: ROOMS.filter((room) => room.tenantId === user.tenantId).map((room) => ({ ...room })) };
+     }
+ 
++    if (path === "/bookings" && method === "POST") {
++      const room = findRoom(body?.roomId);
++      if (!room || room.tenantId !== user.tenantId) return { status: 404, body: { error: "not-found" } };
++      const booking = {
++        roomId: body.roomId,
++        start: body.start,
++        end: body.end,
++      };
++      bookings.push(booking);
++      return { status: 201, body: { ...booking } };
++    }
++
++    const bookingsMatch = /^\/rooms\/([^/]+)\/bookings$/.exec(path);
++    if (bookingsMatch && method === "GET") {
++      const room = findRoom(bookingsMatch[1]);
++      if (!room || room.tenantId !== user.tenantId) return { status: 404, body: { error: "not-found" } };
++      return { status: 200, body: bookings.filter((b) => b.roomId === room.id).map((b) => ({ ...b })) };
++    }
++
+     const match = /^\/rooms\/([^/]+)$/.exec(path);
+     if (match && method === "GET") {
+       const room = findRoom(match[1]);
+diff --git a/test/app.js b/test/app.js
+index 53195a1..1c26cb9 100644
+--- a/test/app.js
++++ b/test/app.js
+@@ -22,4 +22,48 @@ test("rooms of another organization are missing", () => {
+ 
+ test("requests without user are rejected", () => {
+   assert.equal(createApp().handle({ method: "GET", path: "/rooms" }).status, 401);
++  assert.equal(createApp().handle({ method: "POST", path: "/bookings", body: { roomId: "r1" } }).status, 401);
++  assert.equal(createApp().handle({ method: "GET", path: "/rooms/r1/bookings" }).status, 401);
++});
++
++test("users can book a room and view its bookings", () => {
++  const app = createApp();
++  assert.deepEqual(app.handle({ method: "GET", path: "/rooms/r1/bookings", user: ana }).body, []);
++
++  const booking = {
++    roomId: "r1",
++    start: "2026-11-03T10:00:00Z",
++    end: "2026-11-03T11:00:00Z",
++  };
++  const res = app.handle({ method: "POST", path: "/bookings", user: ana, body: booking });
++  assert.equal(res.status, 201);
++  assert.deepEqual(res.body, booking);
++
++  const list = app.handle({ method: "GET", path: "/rooms/r1/bookings", user: ana });
++  assert.equal(list.status, 200);
++  assert.deepEqual(list.body, [booking]);
++});
++
++test("bookings of another organization cannot be created or viewed", () => {
++  const app = createApp();
++  const res = app.handle({
++    method: "POST",
++    path: "/bookings",
++    user: zoe,
++    body: { roomId: "r1", start: "2026-11-03T10:00:00Z", end: "2026-11-03T11:00:00Z" },
++  });
++  assert.equal(res.status, 404);
++  assert.equal(app.handle({ method: "GET", path: "/rooms/r1/bookings", user: zoe }).status, 404);
++});
++
++test("bookings are segregated by room", () => {
++  const app = createApp();
++  const booking1 = { roomId: "r1", start: "2026-11-03T10:00:00Z", end: "2026-11-03T11:00:00Z" };
++  const booking2 = { roomId: "r2", start: "2026-11-03T12:00:00Z", end: "2026-11-03T13:00:00Z" };
++
++  app.handle({ method: "POST", path: "/bookings", user: ana, body: booking1 });
++  app.handle({ method: "POST", path: "/bookings", user: ana, body: booking2 });
++
++  assert.deepEqual(app.handle({ method: "GET", path: "/rooms/r1/bookings", user: ana }).body, [booking1]);
++  assert.deepEqual(app.handle({ method: "GET", path: "/rooms/r2/bookings", user: ana }).body, [booking2]);
+ });

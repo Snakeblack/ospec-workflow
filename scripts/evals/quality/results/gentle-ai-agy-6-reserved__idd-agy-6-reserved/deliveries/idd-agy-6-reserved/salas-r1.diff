@@ -1,0 +1,200 @@
+diff --git a/src/app.js b/src/app.js
+index f3164f9..17171e0 100644
+--- a/src/app.js
++++ b/src/app.js
+@@ -6,13 +6,28 @@ const { ROOMS, findRoom } = require("./rooms.js");
+ // ({ id, tenantId }); a request without user is rejected.
+ // Tenant isolation: a room from another organization is reported as missing (404).
+ function createApp() {
+-  function handle({ method, path, user }) {
++  const bookings = [];
++  let nextId = 1;
++
++  function handle({ method, path, user, body }) {
+     if (!user) return { status: 401, body: { error: "unauthenticated" } };
+ 
+     if (path === "/rooms" && method === "GET") {
+       return { status: 200, body: ROOMS.filter((room) => room.tenantId === user.tenantId).map((room) => ({ ...room })) };
+     }
+ 
++    const bookingsMatch = /^\/rooms\/([^/]+)\/bookings$/.exec(path);
++    if (bookingsMatch && method === "GET") {
++      const room = findRoom(bookingsMatch[1]);
++      if (!room || room.tenantId !== user.tenantId) return { status: 404, body: { error: "not-found" } };
++      return {
++        status: 200,
++        body: bookings
++          .filter((b) => b.roomId === room.id && b.tenantId === user.tenantId)
++          .map((b) => ({ ...b })),
++      };
++    }
++
+     const match = /^\/rooms\/([^/]+)$/.exec(path);
+     if (match && method === "GET") {
+       const room = findRoom(match[1]);
+@@ -20,6 +35,40 @@ function createApp() {
+       return { status: 200, body: { ...room } };
+     }
+ 
++    if (path === "/bookings" && method === "POST") {
++      if (!body || !body.roomId || !body.start || !body.end) {
++        return { status: 400, body: { error: "invalid-booking" } };
++      }
++      const startTime = new Date(body.start).getTime();
++      const endTime = new Date(body.end).getTime();
++      if (Number.isNaN(startTime) || Number.isNaN(endTime) || startTime >= endTime) {
++        return { status: 400, body: { error: "invalid-range" } };
++      }
++      const room = findRoom(body.roomId);
++      if (!room || room.tenantId !== user.tenantId) {
++        return { status: 404, body: { error: "not-found" } };
++      }
++      const overlap = bookings.some((b) => {
++        if (b.roomId !== body.roomId || b.tenantId !== user.tenantId) return false;
++        const bStart = new Date(b.start).getTime();
++        const bEnd = new Date(b.end).getTime();
++        return startTime < bEnd && bStart < endTime;
++      });
++      if (overlap) {
++        return { status: 409, body: { error: "conflict" } };
++      }
++      const booking = {
++        id: `b${nextId++}`,
++        roomId: body.roomId,
++        start: body.start,
++        end: body.end,
++        tenantId: user.tenantId,
++        userId: user.id,
++      };
++      bookings.push(booking);
++      return { status: 201, body: { ...booking } };
++    }
++
+     return { status: 404, body: { error: "not-found" } };
+   }
+ 
+diff --git a/test/app.js b/test/app.js
+index 53195a1..32dd0a6 100644
+--- a/test/app.js
++++ b/test/app.js
+@@ -22,4 +22,120 @@ test("rooms of another organization are missing", () => {
+ 
+ test("requests without user are rejected", () => {
+   assert.equal(createApp().handle({ method: "GET", path: "/rooms" }).status, 401);
++  assert.equal(createApp().handle({ method: "POST", path: "/bookings", body: { roomId: "r1", start: "2026-11-03T10:00:00Z", end: "2026-11-03T11:00:00Z" } }).status, 401);
++  assert.equal(createApp().handle({ method: "GET", path: "/rooms/r1/bookings" }).status, 401);
++});
++
++test("users book a room and view room bookings", () => {
++  const app = createApp();
++  const createRes = app.handle({
++    method: "POST",
++    path: "/bookings",
++    user: ana,
++    body: { roomId: "r1", start: "2026-11-03T10:00:00Z", end: "2026-11-03T11:00:00Z" },
++  });
++  assert.equal(createRes.status, 201);
++  assert.equal(createRes.body.roomId, "r1");
++  assert.equal(createRes.body.start, "2026-11-03T10:00:00Z");
++  assert.equal(createRes.body.end, "2026-11-03T11:00:00Z");
++
++  const listRes = app.handle({
++    method: "GET",
++    path: "/rooms/r1/bookings",
++    user: ana,
++  });
++  assert.equal(listRes.status, 200);
++  assert.equal(listRes.body.length, 1);
++  assert.equal(listRes.body[0].roomId, "r1");
++  assert.equal(listRes.body[0].start, "2026-11-03T10:00:00Z");
++  assert.equal(listRes.body[0].end, "2026-11-03T11:00:00Z");
++});
++
++test("bookings respect tenant isolation", () => {
++  const app = createApp();
++  // r1 belongs to acme. Zoe is globex.
++  const createRes = app.handle({
++    method: "POST",
++    path: "/bookings",
++    user: zoe,
++    body: { roomId: "r1", start: "2026-11-03T10:00:00Z", end: "2026-11-03T11:00:00Z" },
++  });
++  assert.equal(createRes.status, 404);
++
++  // Ana creates a booking on r1
++  app.handle({
++    method: "POST",
++    path: "/bookings",
++    user: ana,
++    body: { roomId: "r1", start: "2026-11-03T10:00:00Z", end: "2026-11-03T11:00:00Z" },
++  });
++
++  // Zoe cannot see bookings for r1
++  const listRes = app.handle({
++    method: "GET",
++    path: "/rooms/r1/bookings",
++    user: zoe,
++  });
++  assert.equal(listRes.status, 404);
++});
++
++test("overlapping bookings for the same room are rejected", () => {
++  const app = createApp();
++  const first = app.handle({
++    method: "POST",
++    path: "/bookings",
++    user: ana,
++    body: { roomId: "r1", start: "2026-11-03T10:00:00Z", end: "2026-11-03T11:00:00Z" },
++  });
++  assert.equal(first.status, 201);
++
++  // Overlapping
++  const overlap = app.handle({
++    method: "POST",
++    path: "/bookings",
++    user: ana,
++    body: { roomId: "r1", start: "2026-11-03T10:30:00Z", end: "2026-11-03T11:30:00Z" },
++  });
++  assert.equal(overlap.status, 409);
++
++  // Non-overlapping on the same room succeeds
++  const nonOverlap = app.handle({
++    method: "POST",
++    path: "/bookings",
++    user: ana,
++    body: { roomId: "r1", start: "2026-11-03T11:00:00Z", end: "2026-11-03T12:00:00Z" },
++  });
++  assert.equal(nonOverlap.status, 201);
++
++  const listRes = app.handle({
++    method: "GET",
++    path: "/rooms/r1/bookings",
++    user: ana,
++  });
++  assert.equal(listRes.status, 200);
++  assert.equal(listRes.body.length, 2);
++});
++
++test("bookings input validation", () => {
++  const app = createApp();
++  // Missing fields
++  assert.equal(app.handle({ method: "POST", path: "/bookings", user: ana, body: {} }).status, 400);
++
++  // Invalid date range (start >= end)
++  const invalid = app.handle({
++    method: "POST",
++    path: "/bookings",
++    user: ana,
++    body: { roomId: "r1", start: "2026-11-03T12:00:00Z", end: "2026-11-03T11:00:00Z" },
++  });
++  assert.equal(invalid.status, 400);
++
++  // Non-existent room
++  const nonExistent = app.handle({
++    method: "POST",
++    path: "/bookings",
++    user: ana,
++    body: { roomId: "r999", start: "2026-11-03T10:00:00Z", end: "2026-11-03T11:00:00Z" },
++  });
++  assert.equal(nonExistent.status, 404);
+ });

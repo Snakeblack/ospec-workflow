@@ -1,0 +1,40 @@
+diff --git a/src/paginate.js b/src/paginate.js
+index ed94097..8cc2e7a 100644
+--- a/src/paginate.js
++++ b/src/paginate.js
+@@ -8,7 +8,10 @@
+  * @returns {{ page: number, pageSize: number, totalPages: number, items: Array }}
+  */
+ function paginate(items, page, pageSize = 10) {
+-  const totalPages = Math.floor(items.length / pageSize) + 1;
++  const totalPages = Math.ceil(items.length / pageSize);
++  if (page < 1) {
++    return { page, pageSize, totalPages, items: [] };
++  }
+   const start = (page - 1) * pageSize;
+   return { page, pageSize, totalPages, items: items.slice(start, start + pageSize) };
+ }
+diff --git a/test/paginate.js b/test/paginate.js
+index 6989bee..58c03b6 100644
+--- a/test/paginate.js
++++ b/test/paginate.js
+@@ -21,3 +21,19 @@ test("partial last page", () => {
+ test("catalog lists ten products per page", () => {
+   assert.equal(listProducts(2).items[0].id, 11);
+ });
++
++test("exact multiple of page size gives exact total pages", () => {
++  const items20 = Array.from({ length: 20 }, (_, index) => index + 1);
++  const result = paginate(items20, 1, 10);
++  assert.equal(result.totalPages, 2);
++});
++
++test("page 0 or below returns empty items", () => {
++  const result0 = paginate(items, 0);
++  assert.deepEqual(result0.items, []);
++  assert.equal(result0.page, 0);
++
++  const resultNegative = paginate(items, -1);
++  assert.deepEqual(resultNegative.items, []);
++  assert.equal(resultNegative.page, -1);
++});

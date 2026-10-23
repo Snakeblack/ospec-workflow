@@ -1,0 +1,131 @@
+diff --git a/README.md b/README.md
+index 5a8c6aa..aa4ff19 100644
+--- a/README.md
++++ b/README.md
+@@ -3,7 +3,7 @@
+ Cálculo de facturas de la tienda online (2014). Lo usan el checkout, la
+ facturación mensual y la conciliación con contabilidad.
+ 
+-`calcInvoice(order)` recibe `{ items: [{ sku, price, qty, reducedVat? }], pickup? }`
+-y devuelve `{ lineas, subtotal, iva, envio, total }`.
++`calcInvoice(order)` recibe `{ items: [{ sku, price, qty, reducedVat? }], pickup?, discountCode? }`
++y devuelve `{ lineas, subtotal, descuento, iva, envio, total }`.
+ 
+ No hay pruebas automáticas.
+diff --git a/src/invoice.js b/src/invoice.js
+index 9b01eaa..93b0191 100644
+--- a/src/invoice.js
++++ b/src/invoice.js
+@@ -1,6 +1,8 @@
+ // Facturacion v1 (2014). No tocar sin hablar con contabilidad.
+ // TODO: tests
+ 
++var CODIGOS = require('./discounts').CODIGOS;
++
+ var IVA = 0.21;
+ var IVA_REDUCIDO = 0.10;
+ var ENVIO = 4.95;
+@@ -22,11 +24,15 @@ function calcInvoice(order) {
+   }
+   subtotal = r2(subtotal);
+   iva = r2(iva);
++  var porcentaje = (order.discountCode && Object.prototype.hasOwnProperty.call(CODIGOS, order.discountCode))
++    ? CODIGOS[order.discountCode]
++    : 0;
++  var descuento = r2(subtotal * (porcentaje / 100));
+   var envio = subtotal >= UMBRAL_ENVIO_GRATIS ? 0 : ENVIO;
+   if (order.pickup) envio = 0;
+   // el envio va sin IVA (acuerdo con la transportista, 2016)
+-  var total = r2(subtotal + iva + envio);
+-  return { lineas: lineas, subtotal: subtotal, iva: iva, envio: envio, total: total };
++  var total = r2(subtotal - descuento + iva + envio);
++  return { lineas: lineas, subtotal: subtotal, descuento: descuento, iva: iva, envio: envio, total: total };
+ }
+ 
+ module.exports = { calcInvoice: calcInvoice };
+diff --git a/test/invoice.test.js b/test/invoice.test.js
+new file mode 100644
+index 0000000..032f629
+--- /dev/null
++++ b/test/invoice.test.js
+@@ -0,0 +1,80 @@
++const test = require('node:test');
++const assert = require('node:assert');
++const { calcInvoice } = require('../src/invoice');
++
++test('calcInvoice calcula factura básica sin código de descuento', () => {
++  const order = {
++    items: [
++      { sku: 'ITEM1', price: 10, qty: 2 }
++    ]
++  };
++  const invoice = calcInvoice(order);
++  assert.strictEqual(invoice.subtotal, 20);
++  assert.strictEqual(invoice.descuento, 0);
++  assert.strictEqual(invoice.iva, 4.20);
++  assert.strictEqual(invoice.envio, 4.95);
++  assert.strictEqual(invoice.total, 29.15);
++  assert.strictEqual(invoice.lineas.length, 1);
++});
++
++test('calcInvoice aplica código de descuento VERANO10 (10%)', () => {
++  const order = {
++    items: [
++      { sku: 'ITEM1', price: 20, qty: 2 }
++    ],
++    discountCode: 'VERANO10'
++  };
++  const invoice = calcInvoice(order);
++  assert.strictEqual(invoice.subtotal, 40);
++  assert.strictEqual(invoice.descuento, 4);
++  assert.strictEqual(invoice.iva, 8.40);
++  assert.strictEqual(invoice.envio, 4.95);
++  // total = 40 - 4 + 8.40 + 4.95 = 49.35
++  assert.strictEqual(invoice.total, 49.35);
++});
++
++test('calcInvoice aplica código de descuento BIENVENIDA5 (5%) y envío gratis por umbral', () => {
++  const order = {
++    items: [
++      { sku: 'ITEM1', price: 100, qty: 1 }
++    ],
++    discountCode: 'BIENVENIDA5'
++  };
++  const invoice = calcInvoice(order);
++  assert.strictEqual(invoice.subtotal, 100);
++  assert.strictEqual(invoice.descuento, 5);
++  assert.strictEqual(invoice.iva, 21);
++  assert.strictEqual(invoice.envio, 0);
++  // total = 100 - 5 + 21 + 0 = 116.00
++  assert.strictEqual(invoice.total, 116);
++});
++
++test('calcInvoice ignora códigos de descuento desconocidos', () => {
++  const order = {
++    items: [
++      { sku: 'ITEM1', price: 10, qty: 2 }
++    ],
++    discountCode: 'NO_EXISTE'
++  };
++  const invoice = calcInvoice(order);
++  assert.strictEqual(invoice.subtotal, 20);
++  assert.strictEqual(invoice.descuento, 0);
++  assert.strictEqual(invoice.total, 29.15);
++});
++
++test('calcInvoice respeta pickup con descuento e IVA reducido', () => {
++  const order = {
++    items: [
++      { sku: 'LIBRO', price: 30, qty: 1, reducedVat: true }
++    ],
++    pickup: true,
++    discountCode: 'VERANO10'
++  };
++  const invoice = calcInvoice(order);
++  assert.strictEqual(invoice.subtotal, 30);
++  assert.strictEqual(invoice.descuento, 3);
++  assert.strictEqual(invoice.iva, 3);
++  assert.strictEqual(invoice.envio, 0);
++  // total = 30 - 3 + 3 + 0 = 30.00
++  assert.strictEqual(invoice.total, 30);
++});

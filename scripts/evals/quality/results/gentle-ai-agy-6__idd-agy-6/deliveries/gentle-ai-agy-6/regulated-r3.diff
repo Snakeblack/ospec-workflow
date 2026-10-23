@@ -1,0 +1,100 @@
+diff --git a/src/clinic.js b/src/clinic.js
+index e4eb220..64a36c7 100644
+--- a/src/clinic.js
++++ b/src/clinic.js
+@@ -32,7 +32,35 @@ function createClinic({ patients = [], appointments = [], audit = createAuditLog
+     return result;
+   }
+ 
+-  return { getPatient, appointmentsOn, audit };
++  function formatCsvField(value) {
++    const text = value === null || value === undefined ? "" : String(value);
++    if (/[",\r\n]/.test(text)) {
++      return `"${text.replace(/"/g, '""')}"`;
++    }
++    return text;
++  }
++
++  function exportAppointmentsCsv(date, actor) {
++    const dayAppointments = appointmentsOn(date, actor);
++    dayAppointments.sort((a, b) => (a.time || "").localeCompare(b.time || ""));
++
++    const rows = [
++      "hora,paciente,motivo",
++      ...dayAppointments.map((item) => {
++        const patient = patients.find((p) => p.id === item.patientId);
++        const patientName = patient ? patient.name : "";
++        return [
++          formatCsvField(item.time),
++          formatCsvField(patientName),
++          formatCsvField(item.reason),
++        ].join(",");
++      }),
++    ];
++
++    return rows.join("\n");
++  }
++
++  return { getPatient, appointmentsOn, exportAppointmentsCsv, audit };
+ }
+ 
+ module.exports = { createClinic, AccessDeniedError };
+diff --git a/test/clinic.js b/test/clinic.js
+index 6da846c..005f671 100644
+--- a/test/clinic.js
++++ b/test/clinic.js
+@@ -31,3 +31,54 @@ test("appointments of a day are listed and audited", () => {
+   assert.deepEqual(clinic.appointmentsOn("2026-10-06", reception).map((item) => item.id), ["a1"]);
+   assert.equal(clinic.audit.entries()[0].count, 1);
+ });
++
++test("reception exports day appointments to CSV sorted by time", () => {
++  const testAppointments = [
++    { id: "a1", patientId: "p1", date: "2026-10-06", time: "11:30", reason: "Revisión" },
++    { id: "a2", patientId: "p2", date: "2026-10-06", time: "09:00", reason: "Control" },
++    { id: "a3", patientId: "p1", date: "2026-10-07", time: "10:00", reason: "Analítica" },
++  ];
++  const testPatients = [
++    { id: "p1", nationalId: "12345678Z", name: "Luis Gómez", birthDate: "1980-02-01", diagnosis: "Hipertensión" },
++    { id: "p2", nationalId: "87654321A", name: "Marta Ruiz", birthDate: "1992-05-14", diagnosis: "Gripe" },
++  ];
++  const clinic = createClinic({ patients: testPatients, appointments: testAppointments });
++  const csv = clinic.exportAppointmentsCsv("2026-10-06", reception);
++  assert.equal(
++    csv,
++    "hora,paciente,motivo\n09:00,Marta Ruiz,Control\n11:30,Luis Gómez,Revisión"
++  );
++});
++
++test("doctor can also export appointments to CSV", () => {
++  const clinic = createClinic({ patients, appointments });
++  const csv = clinic.exportAppointmentsCsv("2026-10-06", doctor);
++  assert.equal(csv, "hora,paciente,motivo\n09:30,Luis Gómez,Control");
++});
++
++test("unauthorized actors cannot export appointments to CSV", () => {
++  const clinic = createClinic({ patients, appointments });
++  assert.throws(() => clinic.exportAppointmentsCsv("2026-10-06", { id: "u1", role: "guest" }), AccessDeniedError);
++  assert.throws(() => clinic.exportAppointmentsCsv("2026-10-06", null), AccessDeniedError);
++});
++
++test("exporting a day without appointments returns only the header row", () => {
++  const clinic = createClinic({ patients, appointments });
++  const csv = clinic.exportAppointmentsCsv("2026-10-20", reception);
++  assert.equal(csv, "hora,paciente,motivo");
++});
++
++test("escapes CSV values containing commas or quotes", () => {
++  const customPatients = [
++    { id: "p1", name: 'Gómez, "Luis"', nationalId: "12345678Z", birthDate: "1980-02-01", diagnosis: "Hipertensión" },
++  ];
++  const customAppointments = [
++    { id: "a1", patientId: "p1", date: "2026-10-06", time: "09:30", reason: "Control, revisión anual" },
++  ];
++  const clinic = createClinic({ patients: customPatients, appointments: customAppointments });
++  const csv = clinic.exportAppointmentsCsv("2026-10-06", reception);
++  assert.equal(
++    csv,
++    'hora,paciente,motivo\n09:30,"Gómez, ""Luis""","Control, revisión anual"'
++  );
++});
