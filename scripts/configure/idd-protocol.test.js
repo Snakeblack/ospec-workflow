@@ -18,6 +18,9 @@ const ROOT = path.resolve(__dirname, "..", "..");
 const PROTOCOL = "skills/idd/SKILL.md";
 const MEMORY_LOOP = "skills/idd/references/memory-loop.md";
 const REPOSITORY = "skills/idd/references/repository.md";
+const ARCHITECTURE = "skills/idd/references/architecture.md";
+const OPEN_FACTS = "skills/idd/references/open-facts.md";
+const APPROVALS = "skills/idd/references/approvals.md";
 const MAX_PROTOCOL_BYTES = 12 * 1024;
 // Measured with CRLF, as a Windows checkout has it, so an excess fails on
 // every platform and not only on the Windows runners.
@@ -183,6 +186,52 @@ for (const target of Object.keys(ROUTERS)) {
     assert.match(loop, /under its `topic`/, `${target}: saving again updates the same entry`);
     assert.match(loop, /never retried, and blocks nothing/, `${target}: a failing memory blocks nothing`);
     assert.doesNotMatch(loop, /\bengram\b|\bmem_[a-z_]+/i, `${target}: names no memory product`);
+  });
+
+  // OSP-028 (#405): the detail a change needs only sometimes lives in
+  // references/, so the protocol keeps its margin under the budget.
+  test(`${target}: the protocol links the architecture and feature-facts detail it moved to references`, (t) => {
+    const { byPath } = generate(t, target);
+    const protocol = byPath.get(PROTOCOL).replace(/\s+/g, " ");
+    assert.match(protocol, /A `feature` covers seven fact categories instead, as `references\/open-facts\.md` says/, `${target}: rule 2 links the categories`);
+    assert.match(protocol, /`--quality <id>`\) as `references\/architecture\.md` says/, `${target}: rule 4 links the ADR declaration`);
+    assert.match(protocol, /`adr-impact-declaration`: `ospec record impact`[^.]*`references\/architecture\.md`/, `${target}: the ADR obligation links its detail`);
+
+    const facts = byPath.get(OPEN_FACTS);
+    assert.ok(facts, `${target}: ${OPEN_FACTS} is not shipped`);
+    for (const category of ["inputs", "uniqueness", "persistence", "copy", "url-state", "accessibility", "errors"]) {
+      assert.ok(facts.includes(`- \`${category}\`:`), `${target}: open facts must name ${category}`);
+    }
+    assert.match(facts.replace(/\s+/g, " "), /At least one category is a question/, `${target}: a feature asks at least one category`);
+
+    const architecture = byPath.get(ARCHITECTURE);
+    assert.ok(architecture, `${target}: ${ARCHITECTURE} is not shipped`);
+    const text = architecture.replace(/\s+/g, " ");
+    for (const rule of [
+      /`docs\/architecture\/component-map\.yaml` gives components `paths` and `knowledge`/,
+      /`ospec record impact --change <id> --adr <id> --impact <none\|conforms\|amends\|supersedes\|contradicts>/,
+      /foundation template \(never rewrite an accepted one\)/,
+      /fix the code, never the check/,
+      /`ospec record fitness --change <id> --adr <id> --evidence/,
+      /`adr-promotion` never blocks/,
+      /never treat it as true until it is fixed/,
+    ]) {
+      assert.match(text, rule, `${target}: architecture detail must say ${rule}`);
+    }
+  });
+
+  // E1.29 (#343): the protocol says the CLI does not verify who answered.
+  test(`${target}: the protocol states the limit of approval provenance`, (t) => {
+    const { byPath } = generate(t, target);
+    const protocol = byPath.get(PROTOCOL).replace(/\s+/g, " ");
+    assert.match(protocol, /`user-unverified` for a relayed answer\. The CLI cannot verify who answered: read `references\/approvals\.md` first/, `${target}: the gates link the provenance limit`);
+    const approvals = byPath.get(APPROVALS);
+    assert.ok(approvals, `${target}: ${APPROVALS} is not shipped`);
+    const text = approvals.replace(/\s+/g, " ");
+    assert.match(text, /`--answer`, `--source` and `--quote` are your declarations/, `${target}: the answer, source and quote are declared`);
+    assert.match(text, /cannot tell whether a person answered/, `${target}: the CLI does not verify the user`);
+    assert.match(text, /`review-limit`, whose resolution grants one more trust review/, `${target}: review-limit is named`);
+    assert.match(text, /refused with `invalid-source`/, `${target}: an unknown source is refused`);
   });
 
   test(`${target}: only the IDD protocol carries the runtime marker`, (t) => {
