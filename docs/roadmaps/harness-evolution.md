@@ -149,7 +149,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.27** | `hook-secret-coverage` (OSP-001 residual / #336: tokens de GitHub/Anthropic/OpenAI project y lectores `od`/`tar`/`scp` en el hook; ampliado con la censura de secretos en `PostToolUse` como `hook-secret-redaction`, en v2.139.0) | feature |
 | `pending` | **E1.28** | `supply-chain-hardening` (OSP-004 / #337: ruleset de `main`, actions fijadas por SHA, Dependabot, Go 1.26; decisión de bypass pendiente) | bugfix |
 | `pending` | **E1.29** | `approval-provenance-limit` (OSP-010 / #343: documentar que `--source user` y `--quote` no se verifican; enum de `source` opcional) | docs |
-| `pending` | **E1.30** | `windows-flake-repair` (OSP-022 / #344: PowerShell, lock y Chromium en Windows; cierre con 0 flakes hasta el 2026-10-26) | bugfix |
+| `pending` | **E1.30** | `windows-flake-repair` (OSP-022 / #344: PowerShell, lock y Chromium en Windows; cierre con 0 flakes hasta el 2026-10-29) | bugfix |
 | `pending` | **E1.31** | `doctor-hook-probe` (OSP-014 / #345: sonda de hook en `ospec doctor`; seguimiento de E1.7; con OSP-032 / #406, aviso de versión de Claude Code con la censura activa) | feature |
 | `pending` | **E1.32** | `docs-dx-corrections` (OSP-008/013/021/023 / #346 y #347: README EN/ES, `SECURITY.md`, `cli.js` fuera del checkout y tags del CHANGELOG; solo queda OSP-023, pendiente de decisión) | docs |
 | `done` | **E1.33** | `trust-review-attestation` (OSP-029 / #351: `request_digest` y `reviewed[]` verificados contra el árbol congelado; repara REQ-idd-016, en v2.141.0) | bugfix |
@@ -201,7 +201,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | #341 · OSP-026 | **E4.6** (calidad del par, digest reproducible y encuadre publicado) |
 | #342 · OSP-011 | **E4.6** (repetición con Claude con n ≥ 3, brazos simétricos y corpus reservado) |
 | #343 · OSP-010 | **E1.29** `approval-provenance-limit` (nuevo) |
-| #344 · OSP-022 | **E1.30** `windows-flake-repair` (nuevo; cierre con 0 flakes hasta el 2026-10-26) |
+| #344 · OSP-022 | **E1.30** `windows-flake-repair` (nuevo; cierre con 0 flakes hasta el 2026-10-29) |
 | #345 · OSP-014 | **E1.31** `doctor-hook-probe` (nuevo; seguimiento de E1.7) |
 | #346 · OSP-008 | **E1.32** `docs-dx-corrections` (nuevo) |
 | #347 · OSP-013/021/023 | **E1.32** `docs-dx-corrections` (nuevo) |
@@ -600,7 +600,7 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Problema:** tres tests intermitentes en Windows — PowerShell con ETIMEDOUT (`scripts/configure/codex-hook-shell.test.js`), lock concurrente de `ospec-state` y la referencia de `todo-spa` con Chromium (`scripts/evals/bench/checks-greenfield.test.js`) — pueden bloquear un PR o una release legítima.
 - **Garantía que protege:** la puerta «publicar solo con CI verde» (OSP-004 / E1.28); no se quita la espera del CI.
 - **Alcance:** subir el timeout de PowerShell y dar más margen al lock **solo** en esos tests (no en producción); en la referencia win32, esperar el estado del DOM antes de evaluar o un reintento acotado que registre el primer fallo. Si se repite, aislar o reintentar el test de Chromium en Windows.
-- **Hecho cuando:** los tres tests pasan 20× en un runner Windows sin fallos y hay 0 flakes de Windows (incluida la CI de PR) hasta el 2026-10-26; no se declara la causa raíz resuelta por un solo verde.
+- **Hecho cuando:** los tres tests pasan 20× en un runner Windows sin fallos y hay 0 flakes de Windows (incluida la CI de PR) hasta el 2026-10-29; no se declara la causa raíz resuelta por un solo verde.
 - **Avance (v2.139.2, [#363](https://github.com/Snakeblack/ospec-workflow/pull/363)):**
   - **Causas:** `connect()` rechaza las peticiones CDP pendientes cuando el navegador se cae, y los fakes de `startBrowser` tienen 5 s.
   - **Margen y reintentos:** los cuelgues tienen 180 s de margen solo en los tests. En Windows hay un reintento acotado y visible solo para los fallos de infraestructura de los checks de navegador y del plazo del lanzador en `codex-hook-shell`.
@@ -616,6 +616,10 @@ E2.1 y E2.2 pueden empezar antes de E1.2 si E1 se retrasa, guardando su estado c
 - **Avance (v2.142.1, `windows-ci-guards`):**
   - **Flake en `main`:** el 2026-10-20 `receta-spa` falló en Windows con `the page did not finish loading` en sus 4 checks (run 39497533697) y Publish no subió v2.140.2 al marketplace. El reintento de #363 no reconocía ese mensaje; ahora está en `INFRA_FAILURE`, y un test fija qué errores se reintentan y que un fallo con veredicto nunca se reintenta.
   - **Plazo:** la cuenta de 0 flakes vuelve a empezar el 2026-10-20. Si se absorbe más de un reintento por semana, el siguiente paso es `CONCURRENCY = 2` en win32.
+- **Avance (`windows-crash-fake-child` y `windows-cold-fake-child`, sin release):**
+  - **Flake en `main`:** el 2026-10-23, en la run de v2.148.1, `startBrowser reports the exit code and stderr of a browser that exits on both starts` falló en Windows con 2 arranques esperados y 1 contado (14,5 s). El primer Node no llegó a escribir su contador en los 5 s y el reintento sí salió con código 3. Publish Marketplace subió v2.148.1 tras relanzar el job.
+  - **ChildProcess falso:** los tests `crash` y `cold` dejan de arrancar un Node real, como `hang` desde v2.139.4. `crash` sale con código 3 en el siguiente tick, y el segundo arranque de `cold` deja `DevToolsActivePort` en su perfil antes de volver. `browser.test.js` ya no arranca ningún proceso.
+  - **Plazo nuevo:** 0 flakes de Windows hasta el 2026-10-29 (decisión del usuario del 2026-10-23).
 
 ### E1.31 — `doctor-hook-probe` (OSP-014, #345)
 
@@ -1083,6 +1087,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
+- 2026-10-23: avance de E1.30 con IDD (`windows-crash-fake-child` y `windows-cold-fake-child`, sin release). Tras el flake de Windows en la run de v2.148.1, los tests `crash` y `cold` de `startBrowser` usan un ChildProcess falso dentro del proceso, y `browser.test.js` ya no arranca ningún proceso. El plazo de 0 flakes pasa al 2026-10-29.
 - 2026-10-23: `commit-attribution-ci` (IDD, OSP-034, #394), publicado en v2.148.1. E1.34 hecho: el workflow `No Model Attribution` aplica `findAttribution` a los commits del rango de la PR y a su título y cuerpo, y un `CLAUDE.md` en la raíz remite a la regla.
 - 2026-10-23: entran los issues de las auditorías diarias que no tenían ítem, con la auditoría del día verificada contra el código: nuevos E1.34 `commit-attribution-ci` (OSP-034, #394), E1.35 `disk-rule-command-precision` (OSP-033, #407), E1.36 `persistent-data-precision` (OSP-036, #404) y E4.14 `bench-validation-readiness` (OSP-035, #398, y puntos 1 y 2 de #400); E1.31 absorbe OSP-032 (#406) y E4.3, OSP-028 (#405). #347 se parte en un issue por hallazgo y queda solo con OSP-023. Cada issue abierto lleva la etiqueta `roadmap:<ID>`. El ▶ pasa a los defectos del harness antes que el banco, en el orden que eligió el usuario.
 - 2026-10-21: `bench-symmetry-validity` (IDD, OSP-025 y OSP-026, #340 y #341), publicado en v2.143.0. Pasos 2 y 3 de las adiciones de E4.6, solo código y docs: Engram en todos los brazos, record en schema 3, checkpoint con `not-comparable` sin Engram y `quality-missing`, digest reproducible en agy, Haiku por defecto en Claude y encuadre corregido. Falta la corrida de `idd-4` con Engram y la calidad del par.
