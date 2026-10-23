@@ -21,6 +21,8 @@ IDD solo trabaja dentro de un proyecto: un work tree git cuyo toplevel no es `$H
 
 Sin comandos en `checks:` de `idd/config.yaml`, no se obtiene la evidencia necesaria para cerrar. `ospec next` propone el paso `configure-checks`: la skill pide aprobar el comando candidato o indicar uno y espera antes de crear o editar el fichero, conservando sus claves. `ospec doctor` avisa si hay un cambio IDD abierto sin checks.
 
+Los gates se resuelven solo con una respuesta explícita del usuario, pero su procedencia la declara el agente: `--source` vale `user` o `user-unverified` (respuesta reenviada) y el CLI rechaza otro valor, aunque no puede comprobar que el usuario respondiera. Lo mismo vale para `--answer` y `--quote`, en todos los gates, `review-limit` incluido (E1.29). La skill lo explica en `skills/idd/references/approvals.md`.
+
 El perfil de equipo (`team:` con `size` y `experience`) decide la estrategia de entrega, el umbral de review, Strict TDD y la mentoría sin volver a preguntar. Cada modo lo declara en su configuración: `idd/config.yaml` u `openspec/config.yaml`. `ospec team` muestra el perfil y sus defaults (REQ-idd-023).
 
 | Documento | Para qué sirve |

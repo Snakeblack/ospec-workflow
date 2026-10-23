@@ -96,14 +96,14 @@ const USAGE = `Usage:
   ospec next [--change <id>] [--json]
   ospec record intent --change <id> --kind <bug|feature|refactor|docs> --summary <text> --acceptance <text>
                       (--open-fact <question>... | --no-open-facts --basis <text>)
-                      [--request <text>] [--answer <text> --source <text>]
+                      [--request <text>] [--answer <text> --source user|user-unverified]
   ospec record intent --change <id> --kind feature --summary <text> --acceptance <text> --request <text>
                       (--open-fact <category>:<question> | --cite <category>=<path:line> | --quote <category>=<fragment>)...
                       categories: ${CATEGORY_IDS.join(", ")}; at least one is an --open-fact
   ospec record intent --change <id> --ambiguous --request <text>
   ospec record assumption --change <id> --text <text>
   ospec record signal --change <id> --signal <id> --reason <text> [--source declaration|diff]
-  ospec record gate --change <id> --gate <id> (--open [--reason <text>] | --resolve --answer <text> --source <text>)
+  ospec record gate --change <id> --gate <id> (--open [--reason <text>] | --resolve --answer <text> --source user|user-unverified)
   ospec record withdraw --change <id> --obligation <id> --reason <text>
   ospec record retract --change <id> --signal <id> --reason <text>
   ospec record impact --change <id> (--adr <id> | --quality <id>)

@@ -69,8 +69,10 @@ Then resume with `ospec next`.
    the intent with `ospec record intent --change <id> --kind <bug|feature|refactor|docs> --summary "<what>" --acceptance "<observable result>"`
    plus the open facts, one `--open-fact "<question>"` each, or
    `--no-open-facts --basis "<what settles every behavior>"` when there are
-   none. Features name `inputs`, `uniqueness`, `persistence`, `copy`, `url-state`, `accessibility` and `errors` with a question (at least one), a real `path:line` or a ≥12-char quote of the request; refusal prints the command. Assumptions: `ospec record assumption --text` (close lists them). Open `open-facts`: ask all at once before
-   editing anything.
+   none. A `feature` covers seven fact categories instead, as
+   `references/open-facts.md` says. Assumptions: `ospec record assumption --text`
+   (close lists them). Open `open-facts`: ask all at once before editing
+   anything.
 3. If the request is materially ambiguous (no acceptance can be stated), record
    `ospec record intent --change <id> --ambiguous --request "<request>"`, ask
    the user the question `next` returns, and resolve it with the same command
@@ -79,14 +81,10 @@ Then resume with `ospec next`.
 4. Declare the plan before editing: `ospec signals --change <id> --path <file>...`
    with every file you expect to touch; add `--work-units <n>` when the work
    splits into several units, `--decision` when it records a design decision,
-   and `--operation <op>` for a destructive or irreversible operation. When
-   `docs/architecture/component-map.yaml` gives components `paths` and
-   `knowledge`, the CLI adds the current ADRs and quality scenarios of the
-   components you touch; declare with `--adr <id>` or `--quality <id>` only
-   the others the change bears on. Without such a map, read the ADRs under
-   `docs/architecture/decisions/` that govern that code and declare each one,
-   and each quality scenario of `docs/architecture/knowledge-map.yaml`.
-   If the plan overstated a signal, retract
+   and `--operation <op>` for a destructive or irreversible operation. With
+   `docs/architecture/`, declare the ADRs and quality scenarios the change
+   bears on (`--adr <id>`, `--quality <id>`) as `references/architecture.md`
+   says. If the plan overstated a signal, retract
    it with `ospec record retract --change <id> --signal <id> --reason "<why>"`;
    the CLI refuses while the diff confirms it.
 5. Loop: `ospec next --change <id> --json`, do what `next_step` says, repeat.
@@ -100,16 +98,8 @@ Then resume with `ospec next`.
    - `contract-spec-and-test`: update the contract document and its test.
    - `migration-compat-and-test`: run the migration test with
      `--plan "<compatibility or rollback plan>"`.
-   - `adr-impact-declaration`: for each declared ADR or scenario,
-     `ospec record impact --change <id> --adr <id> --impact <none|conforms|amends|supersedes|contradicts> --reason "<why>"`.
-     Amending, superseding or contradicting opens `adr-amend-or-contradict`.
-     Once the user approves an amendment or supersession, write the new ADR
-     with the foundation template (never rewrite an accepted one) and attach
-     it with `--record <path>`; `ospec check` lints it.
-     `ospec check` also runs their fitness checks from the change's base; a
-     failure names the ADR: fix the code, never the check. `fitness.manual`
-     items never block: verify each, then
-     `ospec record fitness --change <id> --adr <id> --evidence "<what you verified>"`.
+   - `adr-impact-declaration`: `ospec record impact` for each declared ADR or
+     scenario, and their fitness checks, as `references/architecture.md` says.
    - `trust-review`: `ospec review start`, hand the whole returned request to
      the read-only `review-trust` reviewer, and pass its JSON unchanged to
      `ospec review record --result @<file>`. Fix what it blocks on, run
@@ -121,12 +111,8 @@ Then resume with `ospec next`.
    - `living-doc`: keep the Plan and Decisions of `idd/<id>/change.md` current.
      A development decision stays there; it is never an ADR.
 
-   A `suggestions` entry `adr-promotion` never blocks: when the change takes
-   an architecture decision at a boundary, propose an ADR to the user.
-   `references` lists the knowledge of the touched components by id: read only
-   those, and only the `current` ones as the rules the change follows. Each
-   `warnings` entry names a stale or absent reference: tell the user, and
-   never treat it as true until it is fixed.
+   For the `suggestions`, `references` and `warnings` of `next`, read
+   `references/architecture.md`; tell the user each warning.
 6. `ospec check` recomputes the signals from the real diff. New obligations can
    appear: work them like the rest. One leaves `pending` only through evidence,
    or through `ospec record withdraw --reason` when no active signal derives it.
@@ -181,9 +167,11 @@ questions and wait.
   A change that conforms opens nothing.
 - `review-limit`: `ospec check` opens it when the trust reviews run out.
 
-Resolve each one with `ospec record gate --change <id> --gate <id> --resolve --answer "<their words>" --source user`.
-Only an explicit answer from the user resolves a gate. Outside these gates
-and project-check approval, follow the code and the evidence without asking.
+Resolve each one with `ospec record gate --change <id> --gate <id> --resolve --answer "<their words>" --source user`,
+or `user-unverified` for a relayed answer. The CLI cannot verify who answered:
+read `references/approvals.md` first. Only an explicit answer from the user
+resolves a gate. Outside these gates and project-check approval, follow the
+code and the evidence without asking.
 
 ## Several services or repositories
 

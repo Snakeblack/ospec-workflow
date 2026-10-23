@@ -7,10 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.149.0] - 2026-10-23
+
+### Changed
+- **`--source` de una respuesta del usuario solo admite `user` o `user-unverified`** (E1.29, #343). `ospec record gate --resolve` y la resolución de `ambiguous-intent` aceptaban cualquier texto; ahora otro valor se rechaza con `invalid-source`. `user-unverified` es una respuesta que le llega reenviada al agente. Un `state.yaml` ya guardado conserva su `source`.
+- **La procedencia de una aprobación queda documentada como lo que es: una declaración del agente** (E1.29, #343). `--answer`, `--source` y `--quote` los escribe el agente y el CLI no puede comprobar que el usuario respondiera, en todos los gates, `review-limit` incluido. Lo dicen `skills/idd/references/approvals.md`, REQ-idd-008, los README, `docs/README.md`, `docs/en/README.md` y la guía de IDD.
+- **La skill `idd` recupera margen bajo su techo de 12 KiB** (OSP-028, #405). Medía 12 278 B en CRLF, a 10 B del límite. El detalle de ADR, escenarios de calidad y fitness pasa a `skills/idd/references/architecture.md`, y las 7 categorías de hechos de una feature a `references/open-facts.md`. La skill enlaza cada una y mide 11 074 B.
+
+Hecho con IDD (`idd/archive/2026-10-23-approval-provenance-limit/`).
+
 ### Fixed
 - **Los tests de `startBrowser` ya no dependen de cuánto tarda en arrancar un proceso** (E1.30, #344). El 2026-10-23, en la run de `main` de v2.148.1, el test del navegador que sale en los dos arranques falló en Windows: el primer Node no escribió su contador en los 5 s y el test contó 1 arranque de 2. Los tests `crash` y `cold` usan ahora un ChildProcess falso dentro del proceso, como `hang`, y `scripts/evals/bench/browser.test.js` no arranca ningún proceso. El plazo de 0 flakes de Windows pasa al 2026-10-29.
 
 Hecho con IDD (`idd/archive/2026-10-23-windows-crash-fake-child/` e `idd/archive/2026-10-23-windows-cold-fake-child/`).
+
+**Verificación directa**: `node scripts/check.js` (3993 tests pasando, 0 fallos y 3 omitidos). El test de la lista de fuentes falló antes del cambio y pasa después; los tests de las referencias nuevas fallan si cambia su texto.
 
 ## [2.148.1] - 2026-10-23
 

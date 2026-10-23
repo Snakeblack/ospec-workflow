@@ -131,6 +131,11 @@ test("signals, gates and refused withdrawals flow through record", (t) => {
   assert.strictEqual(gate.code, 0, gate.stderr);
   assert.strictEqual(gate.json.next.pending_decision.gate, "irreversible-operation");
 
+  const resolve = ["record", "gate", "--change", "fix-pagination", "--gate", "irreversible-operation", "--resolve", "--answer", "approve"];
+  const unknownSource = ospec(root, ...resolve, "--source", "AskUserQuestion", "--json");
+  assert.strictEqual(unknownSource.code, 1);
+  assert.strictEqual(unknownSource.json.error.code, "invalid-source");
+
   const resolved = ospec(
     root,
     "record",
@@ -143,7 +148,7 @@ test("signals, gates and refused withdrawals flow through record", (t) => {
     "--answer",
     "approve",
     "--source",
-    "AskUserQuestion",
+    "user",
     "--json",
   );
   assert.strictEqual(resolved.code, 0, resolved.stderr);

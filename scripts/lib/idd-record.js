@@ -12,6 +12,7 @@ const {
   DECISIONS_ROOT,
   GATED_IMPACTS,
   GATES,
+  GATE_SOURCES,
   IMPACTS,
   INTENT_KINDS,
   OBLIGATIONS,
@@ -157,6 +158,7 @@ function recordIntent(state, input = {}) {
     if (!input.answer || !input.source) {
       refuse("gate-answer-required", "resolving ambiguous-intent needs the user's answer and its source");
     }
+    requireGateSource(input.source);
     const facts = factsFor(input);
     const next = structuredClone(state);
     next.intent = resolvedIntent({ ...input, request: state.intent.request });
@@ -202,6 +204,10 @@ function recordIntent(state, input = {}) {
     addSignal(next, { id: "always", reason: ALWAYS_REASON, source: "declaration" });
   }
   return { state: next, changed: true };
+}
+
+function requireGateSource(source) {
+  if (!GATE_SOURCES.includes(source)) refuse("invalid-source", `gate source must be one of ${GATE_SOURCES.join(", ")}`);
 }
 
 function recordSignal(state, { id, reason, source } = {}) {
@@ -250,6 +256,7 @@ function recordGate(state, { id, action, reason, answer, source } = {}) {
 
   if (action === "resolve") {
     if (!answer || !source) refuse("gate-answer-required", `resolving ${id} needs the user's answer and its source`);
+    requireGateSource(source);
     if (!existing) refuse("gate-not-open", `gate ${id} is not open`);
     if (existing.status === "resolved") {
       if (existing.answer === answer && existing.source === source) return unchanged(state);

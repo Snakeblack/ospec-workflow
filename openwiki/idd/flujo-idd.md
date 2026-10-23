@@ -94,6 +94,8 @@ Solo una respuesta explícita tuya resuelve un gate:
 ospec record gate --change <id> --gate <gate> --resolve --answer "<tus palabras>" --source user
 ```
 
+`--source` vale `user` cuando respondiste en la sesión y `user-unverified` cuando la respuesta le llegó reenviada al agente; cualquier otro valor se rechaza con `invalid-source`. Es una declaración del agente: el CLI no puede comprobar que respondieras tú, y lo mismo vale para `--answer` y para el `--quote` de una feature, que se compara con un `--request` que también escribe el agente. Afecta a todos los gates, también a `review-limit`.
+
 La aprobación de los `checks:` del proyecto no es un gate, pero también exige tu respuesta (ver más abajo).
 
 ### Revisión de confianza
