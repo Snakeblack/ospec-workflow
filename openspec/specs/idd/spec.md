@@ -1043,8 +1043,16 @@ The checks MUST cover at least:
 - `claude`: `plugin` (`error` when an installation's directory or manifest is
   missing, `warn` when several installations exist), `hooks` (`error` when
   `hooks/hooks.json` or its launcher is missing, `info` when no native binary
-  ships for the platform), `router` (`warn` when the block is missing from
-  `~/.claude/CLAUDE.md` or differs from the installed plugin's router),
+  ships for the platform), `hook-responds` (only when `hooks` found the
+  launcher: it runs the installed launcher's `pre-tool-use` on a harmless
+  `Read` from the system temporary directory, with a 5 s timeout, and is
+  `error` when it times out, exits non-zero or reports `[ospec error]`, since
+  a failed child still exits 0 with a fail-closed `ask`), `output-redaction`
+  (only when the `PreToolUse` command passes `--output-redaction`: `warn` when
+  `claude --version` is older than 2.1.121, the first version that applies
+  `updatedToolOutput` to every tool, or cannot be read), `router` (`warn`
+  when the block is missing from `~/.claude/CLAUDE.md` or differs from the
+  installed plugin's router),
   `router-duplicate` (`warn` when text outside the block loads ospec skills),
   `budget` (`warn` when the router block exceeds the 4 KB always-on budget of
   E0.4) and `engram` (read-only Engram detection; `info` when the binary is
@@ -1118,6 +1126,22 @@ The checks MUST cover at least:
 - WHEN `ospec doctor` runs
 - THEN `sdd-package` MUST be `error` naming `--with-sdd`
 - AND the exit code MUST be 1
+
+#### Scenario: A broken Claude hook fails even though it exits 0
+
+- GIVEN a Claude installation whose `pre-tool-use` child exits with code 3
+- WHEN `ospec doctor` runs
+- THEN `claude/hook-responds` MUST be `error` naming `exit 3`, with a cause and
+  an action
+- AND the project and home trees MUST be byte-identical afterwards
+
+#### Scenario: Output redaction on an old Claude Code is a warning
+
+- GIVEN a Claude installation whose `PreToolUse` passes `--output-redaction`
+  and `claude --version` reporting 2.1.13
+- WHEN `ospec doctor` runs
+- THEN `claude/output-redaction` MUST be `warn` naming 2.1.121
+- AND without `--output-redaction` the check MUST NOT be reported
 
 ### Requirement: Architecture Impact Declaration {#REQ-idd-020}
 

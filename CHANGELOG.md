@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.150.0] - 2026-10-23
+
+### Added
+- **`ospec doctor` comprueba que el hook de Claude Code responde, no solo que está instalado** (E1.31, #345). El nuevo check `claude/hook-responds` ejecuta el `pre-tool-use` del lanzador instalado sobre un `Read` inocuo, desde el directorio temporal del sistema y con 5 s de margen (el timeout del PreToolUse en `hooks.json`). Da `error` con causa y acción si hay timeout, si sale con un código distinto de 0 o si escribe `[ospec error]`. El exit 0 no basta como señal: el lanzador responde a un hijo roto con exit 0 y un `ask` que falla cerrado (ADR 0008). La sonda no escribe ficheros.
+- **`ospec doctor` avisa si la censura de salida está activa con un Claude Code anterior a 2.1.121** (OSP-032, #406). Con `--output-redaction`, el PreToolUse deja leer sin preguntar un fichero sensible porque `PostToolUse` censura su salida, y Claude Code solo aplica `updatedToolOutput` a todas las herramientas desde 2.1.121. `claude/output-redaction` da `warn` si `claude --version` es anterior o no se puede leer, y no aparece si la censura no está activa.
+
+Hecho con IDD (`idd/archive/2026-10-23-doctor-hook-probe/`).
+
+**Verificación directa**: `node scripts/check.js` (3997 tests pasando, 0 fallos y 3 omitidos). Los tests nuevos fallaron antes del cambio y pasan después; contra la instalación real, `hook-responds` responde en 21 ms y `output-redaction` lee Claude Code 2.1.308.
+
 ## [2.149.0] - 2026-10-23
 
 ### Changed

@@ -1,0 +1,199 @@
+{
+  "schema": "idd-state/v1",
+  "change": "doctor-hook-probe",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "Salida, no exit (Recommended); Solo pre-tool-use (Recommended); Solo Claude Code (Recommended); warn (Recommended)",
+    "kind": "feature",
+    "summary": "ospec doctor ejecuta el hook PreToolUse instalado de Claude Code y avisa cuando la censura de salida necesita Claude Code >= 2.1.121",
+    "acceptance": "Con el hook roto, lento o ausente, doctor da claude/hook-responds error con causa y acción; con el sano, ok; la sonda no escribe ficheros. Con --output-redaction en hooks.json, claude < 2.1.121 o ilegible da claude/output-redaction warn con causa y acción, >= 2.1.121 da ok y sin censura no hay check."
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "question": "¿Cuánto espera la sonda antes de dar error por timeout: 5 s, como el timeout del PreToolUse en hooks.json, o 4 s, como dice el roadmap y el CHILD_TIMEOUT_MS del lanzador?"
+      },
+      {
+        "category": "uniqueness",
+        "cite": {
+          "kind": "request",
+          "text": "Solo pre-tool-use"
+        }
+      },
+      {
+        "category": "persistence",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/ospec-doctor.js",
+          "line": 3
+        }
+      },
+      {
+        "category": "copy",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/ospec-doctor.js",
+          "line": 187
+        }
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "openspec/specs/idd/spec.md",
+          "line": 1011
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/ospec-doctor.js",
+          "line": 698
+        }
+      },
+      {
+        "category": "errors",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/hooks/ospec-hooks-launch.js",
+          "line": 64
+        }
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "CHANGELOG.md",
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/ospec-doctor.js",
+      "scripts/lib/ospec-doctor.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "declared ADR 0008",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "La sonda no cambia ningún guard: trata el ask por fallo del lanzador (fallo cerrado) como hook roto y lo diagnostica; el aviso de versión cubre el disparador de revisión de un host que deja de aplicar la salida del hook"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "5 s (Recommended)",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-23T19:58:20.464Z",
+      "detail": {
+        "tree": "sha256:aab7360852fe2bfb616f6a9d241b950082ecf2c0c8f0df783e690f5683c10fe3",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-23T19:58:20.464Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms"
+        ],
+        "records": [],
+        "tree": "sha256:aab7360852fe2bfb616f6a9d241b950082ecf2c0c8f0df783e690f5683c10fe3",
+        "fitness": [
+          "run-2"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-23T19:58:27.453Z"
+    }
+  ],
+  "base": "410f2c72f383ef0d400aaee7d797d42d16edf15e",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:05423105897d6fdb16f01ac8ba8d7584e6c91149e7e8c534e9325b970163883a",
+      "tree": "sha256:aab7360852fe2bfb616f6a9d241b950082ecf2c0c8f0df783e690f5683c10fe3",
+      "recorded_at": "2026-10-23T19:58:20.464Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:11242f32362cc3617545db27bb8196459ee6b51a4b7c9a5eafe7143d9f275b93",
+      "tree": "sha256:aab7360852fe2bfb616f6a9d241b950082ecf2c0c8f0df783e690f5683c10fe3",
+      "recorded_at": "2026-10-23T19:58:20.464Z",
+      "tests": 79
+    }
+  ],
+  "closed_at": "2026-10-23T19:58:27.453Z"
+}
