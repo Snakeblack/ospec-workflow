@@ -1,0 +1,113 @@
+{
+  "schema": "idd-state/v1",
+  "change": "roadmap-audit-issues",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "Incorporar al roadmap los issues abiertos de las auditorías que no tienen ítem (#394, #398, #400) y los hallazgos sin issue (OSP-036, y OSP-028/032/033 agrupados en #347), con una etiqueta de ítem por issue",
+    "acceptance": "Cada issue abierto nombra en harness-evolution.md el ítem que lo cierra y lleva su etiqueta roadmap:<ID> en GitHub; ningún hallazgo verificado queda sin issue ni ítem"
+  },
+  "facts": {
+    "open": [
+      "¿En qué orden van los defectos del harness en el ▶ (E1.28–E1.36, E4.3, E4.10, E4.12) antes del banco?",
+      "¿Se parte #347 en un issue por hallazgo (OSP-028→E4.3, OSP-032→E1.31, OSP-033→ítem nuevo) y #347 queda solo con OSP-023?",
+      "¿#398 y los puntos 1 y 2 de #400 van a un ítem nuevo E4.14 previo a la corrida de validación o dentro de E4.6?",
+      "¿OSP-036 (persistent-data por cualquier writeFile) va a un ítem nuevo E1.36 o como seguimiento del paso 4 de E4.6?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: docs/roadmaps/harness-evolution.md adds localStorage",
+      "source": "diff"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Orden: Garantías primero (E1.34 → E1.29+OSP-028 → E1.31+OSP-032 → E1.36 → E1.35 → E1.32 → E1.28 tras E1.30 → E4.12 → E4.10 → E4.3). #347: sí, partir. #398 y #400 (1,2): ítem nuevo E4.14. OSP-036: ítem nuevo E1.36.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-23T11:30:23.261Z",
+      "detail": {
+        "tree": "sha256:890aa504beb742c6c24a57fe14e37b218dc546c53c3cd4eeb65d6d190e5ad3f2",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-23T11:31:53.728Z",
+      "detail": {
+        "run": "run-2",
+        "tree": "sha256:c4cdb39fd65d02878d32f89daf83b70fee767a5d3d0e913fd6169a0d3c3a2ef6",
+        "plan": "Falso positivo de OSP-036 (#404): la señal sale de la palabra localStorage escrita en prosa en la ficha de E1.36 del roadmap. El cambio solo toca docs/roadmaps/harness-evolution.md; no hay datos persistentes, formatos ni lectores que migrar. Rollback: revertir el commit."
+      }
+    }
+  ],
+  "base": "c7b372325a85f63e729ee868006948a77cad9335",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9e05cdd4b051dafd5adafcd045d629ddcb0685f29eff2bf6c04b8af651abf4a9",
+      "tree": "sha256:890aa504beb742c6c24a57fe14e37b218dc546c53c3cd4eeb65d6d190e5ad3f2",
+      "recorded_at": "2026-10-23T11:30:23.261Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "migration-test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6fb1dbc1861ce1424b61c88314ac08f8eb53f4002269ea91e106e9307a104b87",
+      "tree": "sha256:c4cdb39fd65d02878d32f89daf83b70fee767a5d3d0e913fd6169a0d3c3a2ef6",
+      "recorded_at": "2026-10-23T11:31:53.728Z"
+    }
+  ],
+  "closed_at": "2026-10-23T11:31:58.618Z"
+}
