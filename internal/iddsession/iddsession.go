@@ -67,7 +67,7 @@ var how = map[string]func(change string) string{
 		return "ospec run --change " + c + ` --obligation tdd-red-green --command "<test>" [--unit <name>]: failing before the code, passing after it`
 	},
 	"contract-spec-and-test": func(c string) string {
-		return "update the contract document and its test, then ospec check --change " + c
+		return "in one diff, touch a contract document and its test (contracts.documents and contracts.tests of idd/config.yaml), then ospec check --change " + c
 	},
 	"living-doc": func(c string) string {
 		return "write the Plan and Decisions of idd/" + c + "/change.md, then ospec close --change " + c

@@ -295,6 +295,20 @@ test("next says how to declare an impact on the declared references", () => {
   assert.strictEqual(result.suggestions, undefined);
 });
 
+test("the contract step names where the project's contract documents and tests live (#400)", () => {
+  let state = planned({ change: "orders-api", kind: "feature", summary: "s", acceptance: "a", coverage: require("./idd-facts.js").citedCoverage() });
+  state = recordSignal(state, { id: "public-contract", reason: "diff", source: "diff" }).state;
+  assert.strictEqual(
+    nextForChange(state).next_step.how,
+    "in one diff, touch a contract document and its test (contracts.documents and contracts.tests of idd/config.yaml), then ospec check --change orders-api",
+  );
+  const context = { checks: [{ name: "test", command: "npm test" }], contractPatterns: { documents: ["docs/api/**", "**/*.d.ts"], tests: ["**/*.test.*"] } };
+  assert.strictEqual(
+    nextForChange(state, context).next_step.how,
+    "in one diff, touch a contract document (docs/api/**, **/*.d.ts) and its test (**/*.test.*), then ospec check --change orders-api; if the project keeps its contract elsewhere, propose contracts.documents for idd/config.yaml to the user and edit it only after approval",
+  );
+});
+
 test("a boundary without a declared ADR suggests one and changes nothing else", () => {
   let state = planned({ change: "orders-api", kind: "feature", summary: "s", acceptance: "a", coverage: require("./idd-facts.js").citedCoverage() });
   state = recordSignal(state, { id: "public-contract", reason: "public contract: touches src/api/orders.js (matches **/api/**)", source: "declaration" }).state;

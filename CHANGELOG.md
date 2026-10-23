@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.148.0] - 2026-10-23
+
+### Changed
+- **Una feature abre el gate `open-facts` con al menos una pregunta** (#390). `record intent` ya no acepta las siete categorías cubiertas solo con `--cite` y `--quote`, y lo rechaza con `facts-undeclared` y el comando. Con un `--open-fact` se abre `open-facts`, y la persona ve el plan antes de construirlo. Las citas siguen valiendo para el resto de categorías.
+  - **Datos:** en los records `idd-7` (Claude con Haiku) e `idd-agy-6` (agy con Gemini), las features que cerraron el gate solo con citas escaparon defectos en 10 de 17 ejecuciones, y las que preguntaron, en 1 de 21. Las líneas citadas casi nunca contienen el valor (`"private": true` para `accessibility`), y no se distinguen entre las ejecuciones que escapan y las que no. Por eso no se filtran por su texto.
+  - **Compatibilidad:** los `state.yaml` guardados con todas las categorías citadas siguen siendo válidos.
+  - **Coste aceptado:** como mucho un turno más de la persona por feature. Cambia el criterio de aceptación de #390.
+  - La spec (REQ-idd-018) y la skill IDD lo recogen.
+
+### Added
+- **El CLI explica lo que el agente buscaba en su código** (#400, punto 3). En las 21 ejecuciones de IDD en agy, el 38 % de las lecturas del código del CLI eran para escribir `record intent` de una feature, y el 29 % para cumplir `contract-spec-and-test`.
+  - `ospec --help`, y también un `record intent` incompleto, listan las siete categorías y la regla de al menos una pregunta.
+  - El `how` de `contract-spec-and-test` lista los patrones de documento y de test del proyecto. Si el contrato vive en otro sitio, propone al usuario `contracts.documents` en `idd/config.yaml` y lo edita solo con su aprobación. Sin configuración, como en el hook de sesión en Go, nombra `contracts.documents` y `contracts.tests`.
+  - La spec (REQ-idd-015 y REQ-idd-018) lo recoge.
+
+El efecto en preguntas, escapados y tokens se medirá en la corrida de validación de E4.6.
+
+Hecho con IDD (`idd/archive/2026-10-23-idd-feature-asks-once/` e `idd/archive/2026-10-23-cli-self-explaining-how/`).
+
+**Verificación directa**: `node scripts/check.js` (3973 tests pasando, 0 fallos y 3 omitidos). Los tests nuevos fallaron antes de cada cambio y pasan después.
+
 ## [2.147.1] - 2026-10-23
 
 ### Fixed

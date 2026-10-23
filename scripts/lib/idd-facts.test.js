@@ -75,6 +75,25 @@ test("missing categories are refused and name the command", () => {
   assert.match(result.error.message, /inputs/);
 });
 
+test("a feature asks at least one category; cites alone are refused (#390)", () => {
+  const tree = { "README.md": "one\ntwo\nthree\nfour\nfive\nsix\nseven\n" };
+  const cites = CATEGORY_IDS.map((id, index) => `${id}=README.md:${index + 1}`);
+  const cited = resolveFeatureCoverage({ cites, request: REQUEST, readFile: filesOf(tree) });
+  assert.strictEqual(cited.error.code, "facts-undeclared");
+  assert.match(cited.error.message, /at least one category with --open-fact/);
+  assert.match(cited.error.how, /At least one category is an --open-fact/);
+  const asked = resolveFeatureCoverage({
+    openFacts: ["inputs:¿el título admite más de 200 caracteres?"],
+    cites: cites.slice(1),
+    request: REQUEST,
+    readFile: filesOf(tree),
+  });
+  assert.strictEqual(asked.error, undefined);
+  assert.strictEqual(asked.coverage[0].question, "¿el título admite más de 200 caracteres?");
+  // A state recorded before the rule, with every category cited, stays valid.
+  assert.strictEqual(factsFromCoverage(citedCoverage()).error, undefined);
+});
+
 test("resolved coverage stores the seven categories in order", () => {
   const built = factsFromCoverage(citedCoverage());
   assert.deepStrictEqual(

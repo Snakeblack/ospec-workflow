@@ -69,7 +69,7 @@ Then resume with `ospec next`.
    the intent with `ospec record intent --change <id> --kind <bug|feature|refactor|docs> --summary "<what>" --acceptance "<observable result>"`
    plus the open facts, one `--open-fact "<question>"` each, or
    `--no-open-facts --basis "<what settles every behavior>"` when there are
-   none. Features name `inputs`, `uniqueness`, `persistence`, `copy`, `url-state`, `accessibility` and `errors` with a question, an existing `path:line`, or a ≥12-char quote from the request; refusal prints the command. Assumptions: `ospec record assumption --text` (close lists them). Open `open-facts`: ask all at once before
+   none. Features name `inputs`, `uniqueness`, `persistence`, `copy`, `url-state`, `accessibility` and `errors` with a question (at least one), a real `path:line` or a ≥12-char quote of the request; refusal prints the command. Assumptions: `ospec record assumption --text` (close lists them). Open `open-facts`: ask all at once before
    editing anything.
 3. If the request is materially ambiguous (no acceptance can be stated), record
    `ospec record intent --change <id> --ambiguous --request "<request>"`, ask

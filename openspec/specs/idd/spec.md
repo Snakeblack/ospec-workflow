@@ -710,6 +710,10 @@ the diff against the change's base touches at least one contract document and
 one test and that check recorded `check-run` evidence; the evidence MUST name
 the tree, that `check-run` evidence and the matching `documents` and `tests`.
 Otherwise it MUST return to `pending` with a reason naming what is missing.
+When `next` has the project's configuration, the `how` of a pending
+`contract-spec-and-test` MUST list the resolved document and test patterns and
+say that a contract kept elsewhere is a `contracts.documents` entry the user
+approves before `idd/config.yaml` is edited.
 
 `ospec run --obligation migration-compat-and-test` MUST require `--plan`, the
 declared compatibility or rollback plan, and record a run with purpose
@@ -927,11 +931,15 @@ and never neither; otherwise `record intent` MUST be refused with
 `uniqueness`, `persistence`, `copy`, `url-state`, `accessibility`, `errors`)
 with a concrete `--open-fact` that names a value, limit or format, a `--cite`
 of `path:line` that exists in the tree, or a `--quote` of at least 12 characters
-taken from `--request`. A question is concrete when it holds a digit, a quoted
+taken from `--request`, and at least one category MUST be a question, so a
+feature always opens `open-facts`; coverage made only of cites and quotes MUST
+be refused with `facts-undeclared`. A state recorded before this rule, with
+every category cited, MUST stay valid. A question is concrete when it holds a digit, a quoted
 value of at least 3 characters besides spaces, or a word beyond the category's
 own name. A cited line MUST hold a letter or a digit, and no two categories MAY
 share the same `path:line` or the same fragment. A basis that cites nothing MUST
-be refused, and the refusal MUST include the command. The declaration MUST be stored in `facts`, with repeated
+be refused, and the refusal MUST include the command. The CLI usage MUST list
+the seven categories and the rule that at least one is a question. The declaration MUST be stored in `facts`, with repeated
 questions recorded once. Open facts MUST open the `open-facts` gate, which only
 `record intent` opens, and which MUST be resolved only by the user's answer
 with its source. While it is open, `next` MUST return the questions as one
@@ -952,6 +960,15 @@ batch, so they are asked together before the change is built.
   reuses the cite
 - AND a cite of a blank line or of a line such as `---` MUST be refused with
   `cite-unresolved`
+
+#### Scenario: A feature asks at least one category
+
+- GIVEN a feature whose seven categories each cite a distinct existing line or
+  fragment of `--request`
+- WHEN `record intent` runs
+- THEN it MUST be refused with `facts-undeclared` and the command
+- AND the same coverage with one category as a concrete `--open-fact` MUST open
+  the change with `open-facts` open
 
 #### Scenario: No open facts records its basis
 

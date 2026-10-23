@@ -38,7 +38,7 @@ const { archiveChange, closeChange, knowledgeRecords, livingDocStatus, renderEvi
 const { CONFIG_FILE, IddConfigError, parseIddConfig } = require("./lib/idd-config.js");
 const { ARCHIVE_ROOT, DECISIONS_ROOT, LIVING_DOC_FILE, STATE_FILE, isIntentAmbiguous } = require("./lib/idd-contract.js");
 const { runCommand } = require("./lib/idd-exec.js");
-const { countTests, resolveFeatureCoverage } = require("./lib/idd-facts.js");
+const { CATEGORY_IDS, countTests, resolveFeatureCoverage } = require("./lib/idd-facts.js");
 const { fitnessPlan } = require("./lib/idd-fitness.js");
 const { resolveReferences } = require("./lib/idd-knowledge.js");
 const { nextForChange, nextForProject, statusOf } = require("./lib/idd-next.js");
@@ -99,6 +99,7 @@ const USAGE = `Usage:
                       [--request <text>] [--answer <text> --source <text>]
   ospec record intent --change <id> --kind feature --summary <text> --acceptance <text> --request <text>
                       (--open-fact <category>:<question> | --cite <category>=<path:line> | --quote <category>=<fragment>)...
+                      categories: ${CATEGORY_IDS.join(", ")}; at least one is an --open-fact
   ospec record intent --change <id> --ambiguous --request <text>
   ospec record assumption --change <id> --text <text>
   ospec record signal --change <id> --signal <id> --reason <text> [--source declaration|diff]

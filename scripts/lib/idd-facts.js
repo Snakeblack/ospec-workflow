@@ -2,7 +2,8 @@
 
 // Feature open-facts coverage (openspec/specs/idd/spec.md, REQ-idd-018).
 // A feature accounts for every category with a concrete question or a cite
-// the CLI has already resolved. Pure: the caller reads files and the request.
+// the CLI has already resolved, and asks at least one of them (#390). Pure:
+// the caller reads files and the request.
 
 const FEATURE_CATEGORIES = Object.freeze([
   { id: "inputs", label: "entradas y límites" },
@@ -27,6 +28,7 @@ const FEATURE_COVERAGE_HOW = [
   '--quote copy="<a literal fragment of --request, at least 12 characters>"',
   `Categories: ${FEATURE_CATEGORIES.map((category) => `${category.id} (${category.label})`).join(", ")}.`,
   "Each category is one --open-fact, one --cite path:line that exists and has a letter or digit, or one --quote of the request; no two categories share a cite or a quote.",
+  "At least one category is an --open-fact: the user sees the plan before it is built.",
   "A question that only names the category is refused.",
 ].join(" ");
 
@@ -161,6 +163,12 @@ function resolveFeatureCoverage({ openFacts = [], cites = [], quotes = [], reque
   if (reused) return reused;
   const missing = CATEGORY_IDS.filter((id) => !found.has(id));
   if (missing.length > 0) return problem("facts-undeclared", `a feature must cover ${missing.join(", ")}`);
+  // Cites settle nothing the user has not seen: the features that cited every
+  // category escaped hidden facts, the ones that asked did not (#390). Stored
+  // states keep validating through factsFromCoverage, which does not ask this.
+  if (![...found.values()].some((entry) => entry.question)) {
+    return problem("facts-undeclared", "a feature must ask at least one category with --open-fact; cites and quotes cover the rest");
+  }
   return { coverage: CATEGORY_IDS.map((id) => found.get(id)) };
 }
 
