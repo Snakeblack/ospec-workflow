@@ -288,7 +288,8 @@ const writeArchive = (cwd) => {
     { category: "uniqueness", cite: { kind: "path", path: "index.js", line: 1 } },
     { category: "persistence", cite: { kind: "request", text: "Quiero prioridades." } },
   ];
-  fs.writeFileSync(path.join(path.dirname(file), "state.yaml"), JSON.stringify({ intent: { kind: "feature" }, facts: { coverage } }));
+  const gates = [{ id: "open-facts", status: "resolved", answer: "Por defecto, media.", source: "user" }];
+  fs.writeFileSync(path.join(path.dirname(file), "state.yaml"), JSON.stringify({ intent: { kind: "feature" }, facts: { coverage }, gates }));
 };
 const archiveIdd = (cwd) => {
   writeArchive(cwd);
@@ -323,7 +324,25 @@ test("the idd arm writes idd/config.yaml, requests the brief, and ends when the 
       { category: "uniqueness", path: "index.js", line: 1, text: "module.exports = 1;" },
       { category: "persistence", quote: "Quiero prioridades." },
     ],
+    user_gates: ["open-facts"],
+    self_answered_gates: [],
   });
+});
+
+// #399: in agy without a UI, ask_question returns "User Skipped" and the agent
+// resolved open-facts with --source user in the same turn. A gate the change
+// resolved as the user's while the persona never spoke is marked; the run
+// stays judged.
+test("a gate resolved with source user in a run the persona never answered is marked", async () => {
+  const host = fakeHost({
+    texts: ["Configuración creada.", "ospec close ha archivado el cambio y está commiteado."],
+    effects: [writeIddConfig("idd"), (cwd) => { writeCode(cwd); archiveIdd(cwd); }],
+  });
+  const run = await runScenario({ scenario: seedRepo(), arm: armFor("idd"), host, ...dirs(), checks: () => [{ id: "a", kind: "acceptance", fact: null, pass: true }] });
+  assert.equal(run.status, "complete");
+  assert.equal(run.metrics.interventions, 0);
+  assert.deepEqual(run.open_facts.self_answered_gates, ["open-facts"]);
+  assert.deepEqual(run.checks.map((check) => check.id), ["a"], "a marked run is still judged");
 });
 
 // The ospec Stop hook rewrites .ospec/session/latest.md on every turn. The

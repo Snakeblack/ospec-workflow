@@ -219,6 +219,10 @@ PATH or in its usual place).
   The report lists them. `open_facts.cites` keeps what each cite said: the
   cited line as the setup commit held it (else the delivered tree, else
   `null`) or the quoted fragment, up to 200 characters; only the JSON has it.
+  `open_facts.user_gates` lists the gates the change resolved with
+  `--source user`, and `open_facts.self_answered_gates` those of a run where
+  the persona never spoke: the agent answered them itself (#399). The report
+  lists them and the run stays judged.
 - **Repetitions:** the report adds the mean of each scenario over its
   repetitions; the total of those means compares with a one-repetition record.
   Schema 1 records (one run per scenario, such as `sdd-baseline-2`) still read

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.147.1] - 2026-10-23
+
+### Fixed
+- **En agy, el agente resolvía el gate `open-facts` con `--source user` sin que la persona contestara** (cierra #399). Sin interfaz, la herramienta `ask_question` de agy se salta en unos 0,04 s y devuelve «User Skipped». Es el paso sin tipo conocido que aparece en el transcript. En `bugfix/r3` de la corrida #388 el agente registró esa frase como respuesta, y en `bugfix/r2` una inventada que produjo la regresión `bugfix/page-below-one`.
+  - **Skill IDD:** una respuesta saltada, vacía o por defecto no es del usuario; en ese caso el agente termina el turno con las preguntas y espera. Para caber en el techo de 12 KiB sale una frase redundante de la configuración de checks. La skill queda en 12 271 B con CRLF, a 17 B del techo.
+  - **Banco:** `open_facts.user_gates` lista los gates que el cambio resolvió con `--source user`, y `open_facts.self_answered_gates` los de una ejecución en la que la persona no habló nunca. La ejecución sigue juzgada. El informe añade la columna «Self-answered gates», que muestra «—» en los records anteriores. Los campos son opcionales, así que los records versionados siguen validando.
+  - La CLI sigue sin poder comprobar quién respondió (#343), y el hook de agy no deniega `ask_question`.
+
+Hecho con IDD (`idd/archive/2026-10-23-agy-skipped-question-gate/`).
+
+**Verificación directa**: `node scripts/check.js` (3970 tests pasando, 0 fallos y 3 omitidos). Los tests nuevos fallaron antes del arreglo (13 fallos) y pasan después.
+
 ## [2.147.0] - 2026-10-23
 
 ### Added

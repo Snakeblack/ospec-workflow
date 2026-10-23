@@ -84,6 +84,11 @@ function validateOpenFacts(openFacts, fail) {
   if (openFacts.cites !== undefined && !(Array.isArray(openFacts.cites) && openFacts.cites.every((cite) => isPlainObject(cite) && typeof cite.category === "string"))) {
     fail("open_facts.cites must list each cite with its category");
   }
+  for (const key of ["user_gates", "self_answered_gates"]) {
+    if (openFacts[key] !== undefined && !(Array.isArray(openFacts[key]) && openFacts[key].every((id) => typeof id === "string"))) {
+      fail(`open_facts.${key} must list gate ids`);
+    }
+  }
 }
 
 function validateRun(run, index, repetitions, schema) {
@@ -261,16 +266,22 @@ function renderReport(record) {
     lines.push(
       "## Open facts",
       "",
-      "| Scenario | Kind | Asked | Cited | Quoted | Questions |",
-      "| --- | --- | ---: | ---: | ---: | ---: |",
+      "| Scenario | Kind | Asked | Cited | Quoted | Questions | Self-answered gates |",
+      "| --- | --- | ---: | ---: | ---: | ---: | --- |",
     );
     for (const run of closings) {
-      const { kind, categories, questions } = run.open_facts;
+      const { kind, categories, questions, self_answered_gates: selfAnswered } = run.open_facts;
       const count = (mode) => (categories ? Object.values(categories).filter((value) => value === mode).length : "—");
       const label = record.repetitions > 1 ? `${run.scenario_id} #${run.repetition}` : run.scenario_id;
-      lines.push(`| ${label} | ${kind} | ${count("asked")} | ${count("cited")} | ${count("quoted")} | ${questions} |`);
+      const gates = selfAnswered === undefined ? "—" : selfAnswered.join(", ") || "none";
+      lines.push(`| ${label} | ${kind} | ${count("asked")} | ${count("cited")} | ${count("quoted")} | ${questions} | ${gates} |`);
     }
-    lines.push("", "A feature closes each open-facts category by asking, citing a `path:line` of the project, or quoting the request; other kinds list their questions.", "");
+    lines.push(
+      "",
+      "A feature closes each open-facts category by asking, citing a `path:line` of the project, or quoting the request; other kinds list their questions.",
+      "A self-answered gate was resolved as the user's in a run where the persona never spoke (#399).",
+      "",
+    );
   }
   if (record.repetitions > 1) {
     const decimal = (value) => (Number.isInteger(value) ? String(value) : value.toFixed(2));
