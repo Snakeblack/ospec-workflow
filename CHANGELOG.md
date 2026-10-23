@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.147.0] - 2026-10-23
+
+### Added
+- **Repetición de #388 en agy con Gemini y tres repeticiones** (cierra #388). Enfrenta `idd-agy-6` a `gentle-ai-agy-6` en el corpus por defecto, e `idd-agy-6-reserved` a `gentle-ai-agy-6-reserved` en `salas`. Corre en agy 1.4.5 con `gemini-3.8-flash-high` y persona `claude-sonnet-5-5-medium`, con gentle-ai 4.2.0, ospec-workflow 2.146.4 y engram 3.5.1 en los dos brazos. Las 42 ejecuciones terminan completas. Una se anuló por nombrar la ruta de la plantilla y se repitió limpia. El hook sin web denegó las 10 búsquedas.
+  - **Escapados:** 9 frente a 7 sumando medias en el corpus por defecto, y 3 frente a 1,67 en `salas`. Sobre los siete escenarios no es significativo (p≈0,25).
+  - **Preguntas:** con Gemini, IDD pregunta una sola vez en 21 ejecuciones.
+  - **Tokens:** IDD gasta 2,63 veces lo de gentle-ai en el corpus por defecto (IC 95 % del ratio por escenario: 1,91 a 3,75) y 1,46 veces en `salas`.
+  - **Calidad:** en el corpus por defecto, el mutation score es del 92,5 % frente al 78 %, y la revisión ciega prefiere a IDD en 9 de 18 pares y a gentle-ai en 3. En `salas`, el mutation score es del 78,3 % frente al 89,6 %, y la revisión ciega prefiere a IDD en los 3 pares.
+  - **Checkpoints:** los dos `bench-margins-11` dan `revise`. El del corpus por defecto, por tokens, por dos regresiones de una repetición y por la revisión ciega. El de `salas`, por tokens y por el mutation score.
+
+  [Informe](docs/analysis/2026-10-23-bench-agy-n3.md). Los records y la calidad quedan versionados. `docs/benchs/`, los README, la comparación de arneses y el roadmap lo citan. Quedan en issues aparte:
+  - #399: el agente resolvió él mismo el gate `open-facts` con `--source user` en tres ejecuciones, y una produjo la regresión `bugfix/page-below-one`.
+  - #400: el reintento del juez de calidad en agy, el nombre del montaje de la plantilla y la lectura del código del CLI por el agente.
+
+Hecho con IDD (`idd/archive/2026-10-23-bench-agy-n3-report/`).
+
+**Verificación directa**: `node scripts/check.js` (3968 tests pasando, 0 fallos y 3 omitidos). En una de cinco ejecuciones falló un test de forma intermitente, que no se reprodujo en las otras cuatro. Este cambio solo añade datos y docs.
+
 ## [2.146.4] - 2026-10-22
 
 ### Fixed
