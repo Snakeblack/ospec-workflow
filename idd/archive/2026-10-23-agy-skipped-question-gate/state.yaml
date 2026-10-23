@@ -1,0 +1,393 @@
+{
+  "schema": "idd-state/v1",
+  "change": "agy-skipped-question-gate",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "En agy sin interfaz, ask_question devuelve 'User Skipped' y el agente resuelve open-facts con --source user sin respuesta de la persona; el skill IDD debe terminar el turno y el banco debe detectar y marcar esas ejecuciones (#399)",
+    "acceptance": "El skill IDD indica que una respuesta saltada, vacía o por defecto de la herramienta de preguntas no es del usuario y que entonces se termina el turno con las preguntas; el banco marca en el record cada ejecución que resuelve un gate con --source user sin turno de la persona, con test"
+  },
+  "facts": {
+    "open": [
+      "Producto: ¿basta con el texto del skill o la CLI también debe rechazar respuestas tipo 'User Skipped'?",
+      "Banco: ¿qué regla detecta la resolución sin respuesta (ningún turno de la persona en la ejecución, o cotejar el texto de la respuesta con los turnos)?",
+      "Banco: ¿la ejecución detectada solo se marca y sigue juzgada, o se anula y sale de las medias?",
+      "Banco: ¿el hook de agy debe denegar ask_question en los dos brazos para forzar que la pregunta termine el turno?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "scripts/configure/idd-protocol.test.js",
+      "scripts/evals/bench/arms.js",
+      "scripts/evals/bench/arms.test.js",
+      "scripts/evals/bench/driver.js",
+      "scripts/evals/bench/record.js",
+      "scripts/evals/bench/record.test.js",
+      "skills/idd/SKILL.md"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components generator, skills: ADR 0001, 0003, 0006, 0010 and quality scenario offline-operation, target-parity",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/evals/bench/driver.test.js adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0001",
+      "impact": "conforms",
+      "reason": "Solo se edita la fuente canónica skills/idd/SKILL.md; cada target la regenera"
+    },
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La detección del banco es código con tests (arms.js, driver.js); el skill solo dice qué hacer con una respuesta saltada de la herramienta del host, que la CLI no puede observar"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "No toca la memoria entre sesiones"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "none",
+      "reason": "Sin dependencias nuevas; el banco usa solo la biblioteca estándar"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "El cambio no depende de red ni de memoria"
+    },
+    {
+      "kind": "scenario",
+      "id": "target-parity",
+      "impact": "conforms",
+      "reason": "El protocolo se regenera igual en los 7 targets y su test de presupuesto pasa en todos"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Producto: solo el skill. Detección: gate resuelto con source user en una ejecución sin ningún turno de la persona. Marca: campo en el record y columna en el informe, la ejecución sigue juzgada. Hook agy: no denegar ask_question, lo resuelve el skill.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-23T09:36:15.376Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-23T09:37:35.971Z",
+      "detail": {
+        "tree": "sha256:81fd5fd79f965dd5d844fda11dee66a4802336bcb409cff5032d37c887d07602",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-23T09:37:35.971Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0003 conforms",
+          "adr:0006 none",
+          "adr:0010 none",
+          "scenario:offline-operation none",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:81fd5fd79f965dd5d844fda11dee66a4802336bcb409cff5032d37c887d07602",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7",
+          "run-8"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-23T09:37:42.404Z",
+      "detail": {
+        "run": "run-9",
+        "tree": "sha256:b604e835d7b97a58354849576ebbd9aebfb0b90bbaa93a8350163db984a76a0d",
+        "plan": "Aditivo y sin cambio de schema_version: open_facts.user_gates y open_facts.self_answered_gates son opcionales; los records versionados (schema 1, 2 y 3) siguen validando y el informe muestra «—» para las ejecuciones anteriores a #399. Reversión: revertir el commit; ningún record existente se reescribe."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-23T09:38:41.184Z",
+      "detail": {
+        "tree": "sha256:81fd5fd79f965dd5d844fda11dee66a4802336bcb409cff5032d37c887d07602",
+        "runs": [
+          "run-10"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-23T09:38:41.184Z",
+      "detail": {
+        "refs": [
+          "adr:0001 conforms",
+          "adr:0003 conforms",
+          "adr:0006 none",
+          "adr:0010 none",
+          "scenario:offline-operation none",
+          "scenario:target-parity conforms"
+        ],
+        "records": [],
+        "tree": "sha256:81fd5fd79f965dd5d844fda11dee66a4802336bcb409cff5032d37c887d07602",
+        "fitness": [
+          "run-11",
+          "run-12",
+          "run-13",
+          "run-14",
+          "run-15"
+        ]
+      }
+    }
+  ],
+  "base": "fd11d859528c9c58da58014884477ca022bb537e",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/evals/bench/arms.test.js scripts/evals/bench/driver.test.js scripts/evals/bench/record.test.js scripts/configure/idd-protocol.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:b569c67c7ca3b66d57df5852ab34b641c8b52bf14aeb59e8f70f6ac18ef890ea",
+      "tree": "sha256:7ea44e3dd3ca232557a3587411e3e6cdf60dc26350c1e28a9cf3e94787e3652e",
+      "recorded_at": "2026-10-23T09:35:20.715Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/evals/bench/arms.test.js scripts/evals/bench/driver.test.js scripts/evals/bench/record.test.js scripts/configure/idd-protocol.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:25a0fbca0739768bd6ea6f129111abd333b791bd8251c2cfc8146e224df5e792",
+      "tree": "sha256:12cb5155611099ca59980c1bc34f3ba2a7dc2e6d5b0f33baa36d4afebef96cb4",
+      "recorded_at": "2026-10-23T09:36:15.376Z",
+      "tests": 86
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:7374274ceeabb34b750d70339bf2ec7a17238bf5f9f295b4ac804f6eb47c8123",
+      "tree": "sha256:81fd5fd79f965dd5d844fda11dee66a4802336bcb409cff5032d37c887d07602",
+      "recorded_at": "2026-10-23T09:37:35.971Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a2b8ff1343d724f52c48a0b2d76a3b4d697935f4bc0b9f7257a2b06a8131dd19",
+      "tree": "sha256:81fd5fd79f965dd5d844fda11dee66a4802336bcb409cff5032d37c887d07602",
+      "recorded_at": "2026-10-23T09:37:35.971Z",
+      "tests": 47
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:25f88ca4c9fa9dd6965a9379e3ad056db3bd363af87372d8fff73f18f9aa7768",
+      "tree": "sha256:81fd5fd79f965dd5d844fda11dee66a4802336bcb409cff5032d37c887d07602",
+      "recorded_at": "2026-10-23T09:37:35.971Z",
+      "tests": 2
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:81fd5fd79f965dd5d844fda11dee66a4802336bcb409cff5032d37c887d07602",
+      "recorded_at": "2026-10-23T09:37:35.971Z"
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:69433ca3282ef01c13d184b58daa56d4dd1045ad11c406429635b8de1f10bde3",
+      "tree": "sha256:81fd5fd79f965dd5d844fda11dee66a4802336bcb409cff5032d37c887d07602",
+      "recorded_at": "2026-10-23T09:37:35.971Z",
+      "tests": 16
+    },
+    {
+      "id": "run-8",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d2402ffdd220699d0eeb8f2ab76b558b9209328fb3e8e03897c05c62f5bf810c",
+      "tree": "sha256:81fd5fd79f965dd5d844fda11dee66a4802336bcb409cff5032d37c887d07602",
+      "recorded_at": "2026-10-23T09:37:35.971Z",
+      "tests": 47
+    },
+    {
+      "id": "run-9",
+      "purpose": "migration-test",
+      "command": "node --test scripts/evals/bench/record.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:374f0b45abb9c6026b1b4ba0f21517c892ca39c8e8c312963210bdd485a1eae3",
+      "tree": "sha256:b604e835d7b97a58354849576ebbd9aebfb0b90bbaa93a8350163db984a76a0d",
+      "recorded_at": "2026-10-23T09:37:42.404Z",
+      "tests": 13
+    },
+    {
+      "id": "run-10",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:34b57fae88598a2fda126e5f8859ecb5b5f7df319f558684cdea54a4d6e9f823",
+      "tree": "sha256:81fd5fd79f965dd5d844fda11dee66a4802336bcb409cff5032d37c887d07602",
+      "recorded_at": "2026-10-23T09:38:41.184Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0001",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:189cfa4378a2fede8c014349fb577aa5692a136db07d09e425be91ad699f0ac4",
+      "tree": "sha256:81fd5fd79f965dd5d844fda11dee66a4802336bcb409cff5032d37c887d07602",
+      "recorded_at": "2026-10-23T09:38:41.184Z",
+      "tests": 47
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3adec150939f126cbe651c360b8873681ed2e3e04916719f773b39ab88b50fbc",
+      "tree": "sha256:81fd5fd79f965dd5d844fda11dee66a4802336bcb409cff5032d37c887d07602",
+      "recorded_at": "2026-10-23T09:38:41.184Z",
+      "tests": 2
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:81fd5fd79f965dd5d844fda11dee66a4802336bcb409cff5032d37c887d07602",
+      "recorded_at": "2026-10-23T09:38:41.184Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9db63570e4f50df804cad4b28230d9d6b9e894d6587f13866291533012e34911",
+      "tree": "sha256:81fd5fd79f965dd5d844fda11dee66a4802336bcb409cff5032d37c887d07602",
+      "recorded_at": "2026-10-23T09:38:41.184Z",
+      "tests": 16
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "scenario:target-parity",
+      "command": "node --test scripts/configure/cli.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:41fbd999fb99be730ed436edba1b90846c34d9cd33abfec5c5c6478d29bfdc3a",
+      "tree": "sha256:81fd5fd79f965dd5d844fda11dee66a4802336bcb409cff5032d37c887d07602",
+      "recorded_at": "2026-10-23T09:38:41.184Z",
+      "tests": 47
+    }
+  ],
+  "closed_at": "2026-10-23T09:38:49.630Z"
+}

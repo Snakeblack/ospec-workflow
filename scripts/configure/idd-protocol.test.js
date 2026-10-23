@@ -94,6 +94,8 @@ for (const target of Object.keys(ROUTERS)) {
     // No derivation opens the ADR gate: resolving it unopened fails with gate-not-open.
     assert.ok(protocol.includes("--gate adr-amend-or-contradict --open"), `${target}: protocol must say how to open the ADR gate`);
     assert.match(protocol, /`resolve-gate` comes first/, `${target}: an open gate is asked before the work it decides`);
+    // #399: agy without a UI answers ask_question with "User Skipped".
+    assert.match(protocol, /skipped, empty or\s+default answer is not the user's: end your turn with the\s+questions/, `${target}: a skipped answer ends the turn`);
     for (const section of ["## Build it simply", "## Tests by risk", "## Several services or repositories"]) {
       assert.ok(protocol.includes(section), `${target}: protocol must keep ${section}`);
     }

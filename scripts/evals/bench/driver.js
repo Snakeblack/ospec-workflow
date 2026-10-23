@@ -239,6 +239,9 @@ async function runScenario({
   const changedFiles = fileList(git(workspaceRoot, ["diff", "--cached", "--name-only", base]));
   const judged = !skipReason && !VOIDED.includes(change.reason);
   const results = judged ? checks(scenario, workspaceRoot) : [];
+  // A gate resolved as the user's while the persona never spoke was answered
+  // by the agent itself (#399); the run is marked and stays judged.
+  const openFacts = judged && arm.openFacts ? arm.openFacts(workspaceRoot, base) : null;
 
   return {
     scenario_id: scenario.id,
@@ -264,7 +267,7 @@ async function runScenario({
     escaped_defects: results.filter((result) => !result.pass).length,
     facts_disclosed: change.facts_disclosed.slice().sort(),
     changed_files: changedFiles,
-    open_facts: judged && arm.openFacts ? arm.openFacts(workspaceRoot, base) : null,
+    open_facts: openFacts && { ...openFacts, self_answered_gates: change.interventions === 0 ? openFacts.user_gates : [] },
     conversation: change.conversation,
     transcripts: [...(setup ? setup.transcripts : []), ...change.transcripts],
     ...(change.escapes ? { escapes: change.escapes } : {}),

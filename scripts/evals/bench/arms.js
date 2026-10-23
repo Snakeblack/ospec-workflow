@@ -52,8 +52,9 @@ function hasIddDelivery(root, base) {
 
 // How a closed IDD change settled its open facts, from the state.yaml `ospec
 // close` archived (it is JSON): a feature's categories each asked, cited
-// (path:line) or quoted (from the request), and the questions asked. Null when
-// no change the setup commit lacked was archived (E4.6, OSP-027).
+// (path:line) or quoted (from the request), the questions asked, and the gates
+// resolved as answered by the user (#399). Null when no change the setup
+// commit lacked was archived (E4.6, OSP-027).
 const CLOSING_MODE = Object.freeze({ path: "cited", request: "quoted" });
 
 function iddOpenFacts(root, base) {
@@ -70,13 +71,14 @@ function iddOpenFacts(root, base) {
   }
   const facts = (state && state.facts) || {};
   const kind = (state && state.intent && state.intent.kind) || "unknown";
+  const userGates = (Array.isArray(state && state.gates) ? state.gates : []).filter((gate) => gate.status === "resolved" && gate.source === "user").map((gate) => gate.id);
   if (Array.isArray(facts.coverage)) {
     const categories = Object.fromEntries(facts.coverage.map((entry) => [entry.category, typeof entry.question === "string" ? "asked" : CLOSING_MODE[entry.cite && entry.cite.kind]]));
     if (Object.values(categories).some((mode) => mode === undefined)) return null;
     const cites = facts.coverage.filter((entry) => entry.cite).map((entry) => citeDetail(root, base, entry));
-    return { kind, categories, questions: Object.values(categories).filter((mode) => mode === "asked").length, cites };
+    return { kind, categories, questions: Object.values(categories).filter((mode) => mode === "asked").length, cites, user_gates: userGates };
   }
-  return { kind, categories: null, questions: Array.isArray(facts.open) ? facts.open.length : 0 };
+  return { kind, categories: null, questions: Array.isArray(facts.open) ? facts.open.length : 0, user_gates: userGates };
 }
 
 // What each cite said (#390): the cited line as the setup commit held it (the

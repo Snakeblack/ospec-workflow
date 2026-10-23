@@ -54,7 +54,6 @@ checks:
 
 Read any existing configuration first and preserve its other keys and
 checks. Do not infer consent from a manifest, lockfile or passing test.
-The CLI only suggests this edit; it never creates the configuration.
 Then resume with `ospec next`.
 
 ## Rules
@@ -164,9 +163,10 @@ no coverage percentage replaces this choice.
 
 ## Gates
 
-Stop for the user at the gates and for project-check approval above. Ask with the host's question tool;
-without one, end your turn with the questions and wait for the
-answer:
+Stop for the user at the gates and for project-check approval above. Ask
+with the host's question tool, or without one end your turn with the questions.
+A skipped, empty or default answer is not the user's: end your turn with the
+questions and wait.
 
 - `ambiguous-intent`: rule 3.
 - `open-facts`: rule 2; ask all of `pending_decision.questions` at once.

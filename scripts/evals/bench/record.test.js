@@ -190,6 +190,9 @@ test("schema 3 requires Engram, the commit, tokens per agent turn and valid open
   assert.doesNotThrow(() => validateRecord(turn({ open_facts: { ...closed, cites } })));
   assert.throws(() => validateRecord(turn({ open_facts: { ...closed, cites: [{ path: "index.js", line: 1 }] } })), /open_facts.cites/);
   assert.throws(() => validateRecord(turn({ open_facts: { ...closed, cites: "index.js:1" } })), /open_facts.cites/);
+  assert.doesNotThrow(() => validateRecord(turn({ open_facts: { ...closed, user_gates: ["open-facts"], self_answered_gates: [] } })));
+  assert.throws(() => validateRecord(turn({ open_facts: { ...closed, user_gates: "open-facts" } })), /open_facts.user_gates/);
+  assert.throws(() => validateRecord(turn({ open_facts: { ...closed, self_answered_gates: [1] } })), /open_facts.self_answered_gates/);
 
   const { repo_commit: _commit, ...v2 } = { ...record, schema_version: 2, host: withoutEngram };
   const { open_facts: _openFacts, ...v2Run } = record.runs[0];
@@ -200,11 +203,14 @@ test("the report lists how each IDD change closed its open facts", () => {
   const closed = { kind: "feature", categories: { inputs: "asked", uniqueness: "cited", persistence: "quoted", copy: "cited" }, questions: 1 };
   let record = createRecord({ ...identity, recorded_at: "2026-10-21T10:00:00Z" });
   record = upsertRun(record, run("cli-local", "cli-local", { open_facts: closed }));
-  record = upsertRun(record, run("bugfix", "bugfix", { open_facts: { kind: "bug", categories: null, questions: 2 } }));
+  record = upsertRun(record, run("bugfix", "bugfix", { open_facts: { kind: "bug", categories: null, questions: 2, user_gates: ["open-facts"], self_answered_gates: ["open-facts"] } }));
+  record = upsertRun(record, run("brownfield", "brownfield", { open_facts: { kind: "bug", categories: null, questions: 3, user_gates: ["open-facts"], self_answered_gates: [] } }));
   const report = renderReport(record);
   assert.match(report, /## Open facts/);
-  assert.match(report, /\| cli-local \| feature \| 1 \| 2 \| 1 \| 1 \|/);
-  assert.match(report, /\| bugfix \| bug \| — \| — \| — \| 2 \|/);
+  assert.match(report, /\| Scenario \| Kind \| Asked \| Cited \| Quoted \| Questions \| Self-answered gates \|/);
+  assert.match(report, /\| cli-local \| feature \| 1 \| 2 \| 1 \| 1 \| — \|/, "a run recorded before #399 says nothing");
+  assert.match(report, /\| bugfix \| bug \| — \| — \| — \| 2 \| open-facts \|/);
+  assert.match(report, /\| brownfield \| bug \| — \| — \| — \| 3 \| none \|/);
   assert.doesNotMatch(renderReport(createRecord({ ...identity, recorded_at: "2026-10-21T10:00:00Z" })), /## Open facts/);
 });
 

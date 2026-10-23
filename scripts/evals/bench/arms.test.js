@@ -141,15 +141,29 @@ test("iddOpenFacts reads how the change archived after setup closed its open fac
   const after = git(root, ["rev-parse", "HEAD"]);
   assert.equal(iddOpenFacts(root, after), null, "an archive the setup commit holds is not the change");
   write(root, "idd/archive/2026-10-02-bug/state.yaml", JSON.stringify({ intent: { kind: "bug" }, facts: { open: ["¿Qué límite, «200»?", "¿Qué formato, «ISO»?"] } }));
-  assert.deepEqual(iddOpenFacts(root, after), { kind: "bug", categories: null, questions: 2 });
+  assert.deepEqual(iddOpenFacts(root, after), { kind: "bug", categories: null, questions: 2, user_gates: [] });
   write(root, "idd/archive/2026-10-03-docs/state.yaml", JSON.stringify({ intent: { kind: "docs" }, facts: { basis: "the request fixes it" } }));
-  assert.deepEqual(iddOpenFacts(root, after), { kind: "docs", categories: null, questions: 0 }, "the latest new archive");
+  assert.deepEqual(iddOpenFacts(root, after), { kind: "docs", categories: null, questions: 0, user_gates: [] }, "the latest new archive");
   write(root, "idd/archive/2026-10-04-broken/state.yaml", "{");
   assert.equal(iddOpenFacts(root, after), null, "an unreadable state says nothing");
   write(root, "idd/archive/2026-10-05-odd/state.yaml", JSON.stringify({ intent: { kind: "feature" }, facts: { coverage: [{ category: "inputs", cite: { kind: "url" } }] } }));
   assert.equal(iddOpenFacts(root, after), null, "an unknown cite kind is not guessed");
   assert.equal(armFor("idd").openFacts, iddOpenFacts);
   assert.equal(armFor("gentle-ai").openFacts, undefined);
+});
+
+// #399: the record keeps which gates the change resolved as answered by the
+// user, so the driver can mark the ones no persona turn answered.
+test("iddOpenFacts lists the gates resolved with source user", () => {
+  const { root, base } = workspace();
+  const gates = [
+    { id: "open-facts", status: "resolved", answer: "User Skipped", source: "user" },
+    { id: "irreversible-operation", status: "open" },
+    { id: "review-limit", status: "resolved", answer: "sí", source: "user-unverified" },
+    { id: "adr-amend-or-contradict", status: "resolved", answer: "adelante", source: "user" },
+  ];
+  write(root, "idd/archive/2026-10-02-bug/state.yaml", JSON.stringify({ intent: { kind: "bug" }, facts: { open: ["¿a?"] }, gates }));
+  assert.deepEqual(iddOpenFacts(root, base).user_gates, ["open-facts", "adr-amend-or-contradict"]);
 });
 
 // #390: the record keeps what each cite said, so the gate can be judged on the
