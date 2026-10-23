@@ -58,11 +58,14 @@ const OPEN_BUG = [
   "--json",
 ];
 
+// A feature asks at least one category (#390); the user's answer resolves
+// open-facts in openFeature.
 const FEATURE_COVER = [
   "--request",
   "The request fixes every behavior.",
+  "--open-fact",
+  "inputs:Is a page size above 100 refused?",
   ...[
-    "inputs=The request fixes",
     "uniqueness=request fixes every",
     "persistence=fixes every behavior",
     "copy=every behavior.",
@@ -71,6 +74,13 @@ const FEATURE_COVER = [
     "errors=quest fixes every",
   ].flatMap((quote) => ["--quote", quote]),
 ];
+
+function openFeature(root, ...intent) {
+  const opened = ospec(root, ...intent);
+  const change = intent[intent.indexOf("--change") + 1];
+  ospec(root, "record", "gate", "--change", change, "--gate", "open-facts", "--resolve", "--answer", "Yes, above 100 is refused.", "--source", "user");
+  return opened;
+}
 
 test("record intent opens the change, reports the next step and is idempotent", (t) => {
   const root = tempRoot(t);
@@ -466,7 +476,7 @@ test("empty checks keep configuration and require a user command when no candida
 
 test("check recomputes the signals from the diff: touching a migration adds its obligation", (t) => {
   const { root } = project(t);
-  ospec(root, "record", "intent", "--change", "add-index", "--kind", "feature", "--summary", "Faster search.", "--acceptance", "Search under 50 ms.", ...FEATURE_COVER);
+  openFeature(root, "record", "intent", "--change", "add-index", "--kind", "feature", "--summary", "Faster search.", "--acceptance", "Search under 50 ms.", ...FEATURE_COVER);
   writeFile(root, "src/pages.txt", "2");
   writeFile(root, "db/migrations/004_add_index.sql", "CREATE INDEX customers_name ON customers (name);\n");
 
@@ -602,7 +612,7 @@ test("a repository created with git init -b main and no commit takes a change to
 
 test("check satisfies the contract obligation once the diff touches a contract document and a test", (t) => {
   const { root } = project(t);
-  ospec(root, "record", "intent", "--change", "page-size", "--kind", "feature", "--summary", "Allow 50 per page.", "--acceptance", "size=50 works.", ...FEATURE_COVER);
+  openFeature(root, "record", "intent", "--change", "page-size", "--kind", "feature", "--summary", "Allow 50 per page.", "--acceptance", "size=50 works.", ...FEATURE_COVER);
   writeFile(root, "src/pages.txt", "2");
   writeFile(root, "src/api/orders.js", "module.exports = { maxSize: 50 };\n");
 
@@ -624,7 +634,7 @@ test("check satisfies the contract obligation once the diff touches a contract d
 
 test("the project declares where its contract documents live", (t) => {
   const { root } = project(t, { checks: "checks:\n  test: node verify.js\ncontracts:\n  documents:\n    - specs/**\n" });
-  ospec(root, "record", "intent", "--change", "page-size", "--kind", "feature", "--summary", "Allow 50 per page.", "--acceptance", "size=50 works.", ...FEATURE_COVER);
+  openFeature(root, "record", "intent", "--change", "page-size", "--kind", "feature", "--summary", "Allow 50 per page.", "--acceptance", "size=50 works.", ...FEATURE_COVER);
   writeFile(root, "src/pages.txt", "2");
   writeFile(root, "src/api/orders.js", "module.exports = { maxSize: 50 };\n");
   writeFile(root, "specs/orders.md", "size up to 50\n");
@@ -634,7 +644,7 @@ test("the project declares where its contract documents live", (t) => {
 
 test("a passing migration test with its plan satisfies the migration obligation until the tree changes", (t) => {
   const { root } = project(t);
-  ospec(root, "record", "intent", "--change", "add-index", "--kind", "feature", "--summary", "Faster search.", "--acceptance", "Search under 50 ms.", ...FEATURE_COVER);
+  openFeature(root, "record", "intent", "--change", "add-index", "--kind", "feature", "--summary", "Faster search.", "--acceptance", "Search under 50 ms.", ...FEATURE_COVER);
   writeFile(root, "src/pages.txt", "2");
   writeFile(root, "db/migrations/004_add_index.sql", "CREATE INDEX customers_name ON customers (name);\n");
   ospec(root, "check", "--change", "add-index");
@@ -658,7 +668,7 @@ test("a passing migration test with its plan satisfies the migration obligation 
 
 function openRotation(t) {
   const { root } = project(t);
-  ospec(root, "record", "intent", "--change", "rotate-tokens", "--kind", "feature", "--summary", "Rotate tokens.", "--acceptance", "Old tokens expire.", ...FEATURE_COVER);
+  openFeature(root, "record", "intent", "--change", "rotate-tokens", "--kind", "feature", "--summary", "Rotate tokens.", "--acceptance", "Old tokens expire.", ...FEATURE_COVER);
   writeFile(root, "src/pages.txt", "2");
   writeFile(root, "src/auth/tokens.js", "module.exports = { ttl: 3600 };\n");
   writeFile(root, "src/auth/tokens.test.js", "test('ttl', () => {});\n");
@@ -1036,7 +1046,7 @@ test("close is refused with a pending obligation or a tree changed after the las
 
 test("a change with a living document closes once its plan and decisions are written", (t) => {
   const { root } = project(t);
-  ospec(root, "record", "intent", "--change", "add-paging", "--kind", "feature", "--summary", "Page the list.", "--acceptance", "Two pages.", ...FEATURE_COVER);
+  openFeature(root, "record", "intent", "--change", "add-paging", "--kind", "feature", "--summary", "Page the list.", "--acceptance", "Two pages.", ...FEATURE_COVER);
   ospec(root, "signals", "--change", "add-paging", "--work-units", "2");
   writeFile(root, "src/pages.txt", "2");
   const doc = path.join(root, "idd", "add-paging", "change.md");
@@ -1137,7 +1147,7 @@ test("next asks to declare the plan after the intent gates and until signals rec
 
 test("record retract withdraws a declared signal the diff does not confirm and refuses one it confirms", (t) => {
   const { root } = project(t);
-  ospec(root, "record", "intent", "--change", "add-index", "--kind", "feature", "--summary", "Faster search.", "--acceptance", "Search under 50 ms.", ...FEATURE_COVER);
+  openFeature(root, "record", "intent", "--change", "add-index", "--kind", "feature", "--summary", "Faster search.", "--acceptance", "Search under 50 ms.", ...FEATURE_COVER);
   ospec(root, "signals", "--change", "add-index", "--path", "src/api/search.js", "--path", "db/migrations/004_add_index.sql", "--path", "src/pages.txt");
   writeFile(root, "db/migrations/004_add_index.sql", "CREATE INDEX customers_name ON customers (name);\n");
   writeFile(root, "src/pages.txt", "2");
@@ -1278,7 +1288,7 @@ const OPEN_EVENTS = ["record", "intent", "--change", "order-events", "--kind", "
 
 test("signals --adr and --quality declare existing references only", (t) => {
   const { root } = architectureProject(t);
-  ospec(root, ...OPEN_EVENTS);
+  openFeature(root, ...OPEN_EVENTS);
   const unknownAdr = ospec(root, "signals", "--change", "order-events", "--path", "src/orders.js", "--adr", "0099", "--json");
   assert.strictEqual(unknownAdr.code, 1);
   assert.deepStrictEqual(unknownAdr.json.error, { code: "unknown-reference", message: "ADR 0099 is not under docs/architecture/decisions/" });
@@ -1300,7 +1310,7 @@ test("signals --adr and --quality declare existing references only", (t) => {
 
 test("an amendment stops at the gate and settles once its new ADR passes the lint and cites the old one", (t) => {
   const { root } = architectureProject(t);
-  ospec(root, ...OPEN_EVENTS);
+  openFeature(root, ...OPEN_EVENTS);
   ospec(root, "signals", "--change", "order-events", "--path", "src/orders.js", "--adr", "0002");
 
   const usage = ospec(root, "record", "impact", "--change", "order-events", "--adr", "0002", "--quality", "module-integration", "--impact", "none", "--reason", "r", "--json");
@@ -1336,7 +1346,7 @@ test("an amendment stops at the gate and settles once its new ADR passes the lin
 
 test("next suggests an ADR for a boundary without a declared one, without blocking", (t) => {
   const { root } = architectureProject(t);
-  ospec(root, ...OPEN_EVENTS);
+  openFeature(root, ...OPEN_EVENTS);
   const planned = ospec(root, "signals", "--change", "order-events", "--path", "src/api/orders.js");
   assert.strictEqual(planned.code, 0, planned.stderr);
   assert.match(planned.stdout, /suggestion adr-promotion: public contract: touches src\/api\/orders\.js/);
@@ -1373,7 +1383,7 @@ function knowledgeProject(t, { map } = {}) {
 
 test("[REQ-idd-021] the touched component derives the ADR signal from its current references and next shows each one's currency", (t) => {
   const { root } = knowledgeProject(t);
-  ospec(root, ...OPEN_EVENTS);
+  openFeature(root, ...OPEN_EVENTS);
   const planned = ospec(root, "signals", "--change", "order-events", "--path", "src/orders/place.js", "--json");
   assert.strictEqual(planned.code, 0, planned.stderr);
   assert.deepStrictEqual(planned.json.signals.find((entry) => entry.id === "adr-or-quality-attribute"), {
@@ -1408,7 +1418,7 @@ test("[REQ-idd-021] the touched component derives the ADR signal from its curren
 
 test("[REQ-idd-021] check derives the references of the components the diff touches", (t) => {
   const { root } = knowledgeProject(t);
-  ospec(root, ...OPEN_EVENTS);
+  openFeature(root, ...OPEN_EVENTS);
   ospec(root, "signals", "--change", "order-events", "--path", "src/orders/place.js");
   writeFile(root, "src/billing/charge.js", "module.exports = {};\n");
   const checked = ospec(root, "check", "--change", "order-events", "--json");
@@ -1421,7 +1431,7 @@ test("[REQ-idd-021] check derives the references of the components the diff touc
 
 test("[REQ-idd-021] a broken component map warns and gives no references, and no map gives no warning", (t) => {
   const { root } = knowledgeProject(t, { map: "components: []\n" });
-  ospec(root, ...OPEN_EVENTS);
+  openFeature(root, ...OPEN_EVENTS);
   const planned = ospec(root, "signals", "--change", "order-events", "--path", "src/orders/place.js", "--json");
   assert.strictEqual(planned.code, 0, planned.stderr);
   assert.ok(!planned.json.signals.some((entry) => entry.id === "adr-or-quality-attribute"));
@@ -1460,7 +1470,7 @@ function fitnessProject(t) {
   writeFile(root, "docs/architecture/decisions/0006-nucleo-sin-adaptadores.md", boundaryAdr);
   git("add", "-A");
   git("commit", "-q", "--no-verify", "-m", "boundary ADR");
-  ospec(root, ...OPEN_EVENTS);
+  openFeature(root, ...OPEN_EVENTS);
   ospec(root, "signals", "--change", "order-events", "--path", "src/core.js", "--adr", "0006", "--adr", "0002");
   ospec(root, "record", "impact", "--change", "order-events", "--adr", "0006", "--impact", "conforms", "--reason", "core stays pure");
   ospec(root, "record", "impact", "--change", "order-events", "--adr", "0002", "--impact", "conforms", "--reason", "keeps sync calls");
@@ -1545,7 +1555,7 @@ test("[REQ-idd-023] two projects with different teams get different defaults wit
 
   // next hands the profile to every IDD change, and strict_tdd follows it.
   for (const root of [small, multi]) {
-    ospec(root, "record", "intent", "--change", "fix-pagination", "--kind", "feature", "--summary", "Fix the last page.", "--acceptance", "Two full pages.", ...FEATURE_COVER, "--json");
+    openFeature(root, "record", "intent", "--change", "fix-pagination", "--kind", "feature", "--summary", "Fix the last page.", "--acceptance", "Two full pages.", ...FEATURE_COVER, "--json");
   }
   ospec(small, "signals", "--change", "fix-pagination", "--path", "src/lib/paginate.js");
   ospec(multi, "signals", "--change", "fix-pagination", "--path", "src/lib/paginate.js");

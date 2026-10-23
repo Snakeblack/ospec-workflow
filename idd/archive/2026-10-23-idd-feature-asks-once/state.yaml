@@ -1,0 +1,286 @@
+{
+  "schema": "idd-state/v1",
+  "change": "idd-feature-asks-once",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "request": "≥1 pregunta por feature: Una feature necesita al menos un --open-fact; el resto puede seguir citado.",
+    "kind": "feature",
+    "summary": "Una feature abre open-facts con al menos una pregunta (#390)",
+    "acceptance": "record intent de una feature que cubre las 7 categorías solo con --cite y --quote se rechaza con facts-undeclared y el comando; con al menos un --open-fact se abre el gate open-facts; los estados ya guardados siguen siendo válidos"
+  },
+  "facts": {
+    "coverage": [
+      {
+        "category": "inputs",
+        "cite": {
+          "kind": "request",
+          "text": "Una feature necesita al menos un --open-fact"
+        }
+      },
+      {
+        "category": "uniqueness",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/idd-facts.js",
+          "line": 127
+        }
+      },
+      {
+        "category": "persistence",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/idd-record.js",
+          "line": 135
+        }
+      },
+      {
+        "category": "copy",
+        "cite": {
+          "kind": "request",
+          "text": "el resto puede seguir citado"
+        }
+      },
+      {
+        "category": "url-state",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/ospec.js",
+          "line": 101
+        }
+      },
+      {
+        "category": "accessibility",
+        "cite": {
+          "kind": "path",
+          "path": "skills/idd/SKILL.md",
+          "line": 72
+        }
+      },
+      {
+        "category": "errors",
+        "cite": {
+          "kind": "path",
+          "path": "scripts/lib/idd-facts.js",
+          "line": 33
+        }
+      }
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-facts.js",
+      "scripts/lib/idd-facts.test.js",
+      "scripts/ospec.test.js",
+      "skills/idd/SKILL.md"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "components idd-engine, skills: ADR 0003, 0004, 0005, 0006, 0011 and quality scenario deterministic-resume, offline-operation",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La regla de al menos una pregunta se calcula en resolveFeatureCoverage con tests; la skill solo la resume"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "El gate sigue dependiendo de la intención (kind feature), no se aplica a bugs, refactors ni docs"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "none",
+      "reason": "No cambia cómo se satisfacen obligaciones ni cuándo se niega el cierre"
+    },
+    {
+      "kind": "adr",
+      "id": "0006",
+      "impact": "none",
+      "reason": "No toca la memoria entre sesiones"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "No toca la separación en disco de SDD e IDD"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "factsFromCoverage no cambia: los estados guardados con todo citado siguen validando y reanudan igual"
+    },
+    {
+      "kind": "scenario",
+      "id": "offline-operation",
+      "impact": "none",
+      "reason": "Sin red ni dependencias nuevas"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-23T10:19:25.266Z",
+      "detail": {
+        "tree": "sha256:bb411947690a3327acf70b4ab50f9c6c8fb47b72e1200465c22d424e2b217d3e",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-23T10:19:25.266Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 none",
+          "adr:0006 none",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms",
+          "scenario:offline-operation none"
+        ],
+        "records": [],
+        "tree": "sha256:bb411947690a3327acf70b4ab50f9c6c8fb47b72e1200465c22d424e2b217d3e",
+        "fitness": [
+          "run-2",
+          "run-3",
+          "run-4",
+          "run-5",
+          "run-6"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-23T10:19:44.395Z"
+    }
+  ],
+  "base": "fbe622ab1529922ce0b04ed9432f2387019b1362",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d88fa72d178d59c9a712836afb13d57fb318d42bcf366537fea8bba97897c806",
+      "tree": "sha256:bb411947690a3327acf70b4ab50f9c6c8fb47b72e1200465c22d424e2b217d3e",
+      "recorded_at": "2026-10-23T10:19:25.266Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:71883ff054ba836f0c5b8e504ec5ced2f6a31491ce6295301f57dfe961c92ca1",
+      "tree": "sha256:bb411947690a3327acf70b4ab50f9c6c8fb47b72e1200465c22d424e2b217d3e",
+      "recorded_at": "2026-10-23T10:19:25.266Z",
+      "tests": 37
+    },
+    {
+      "id": "run-3",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1844a1805a74680bd011f72a857095abe90b569aa34c096ff9523cbda0c7ccbc",
+      "tree": "sha256:bb411947690a3327acf70b4ab50f9c6c8fb47b72e1200465c22d424e2b217d3e",
+      "recorded_at": "2026-10-23T10:19:25.266Z",
+      "tests": 12
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0006",
+      "command": "node --test scripts/lib/memory-boundary.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:38e10fed2fd15c5df8b16705d408ee22676576d9dbce2687d184ccd768b29305",
+      "tree": "sha256:bb411947690a3327acf70b4ab50f9c6c8fb47b72e1200465c22d424e2b217d3e",
+      "recorded_at": "2026-10-23T10:19:25.266Z",
+      "tests": 2
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ebe0c5ac7975d02bf8c7cc0df7b47a853dbb421d902e55d1e89a74dbc786fdab",
+      "tree": "sha256:bb411947690a3327acf70b4ab50f9c6c8fb47b72e1200465c22d424e2b217d3e",
+      "recorded_at": "2026-10-23T10:19:25.266Z",
+      "tests": 79
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6f78b2bd8a778a875e4b4779c85415b75b49894584bf0f1e1812318dfdb72d8f",
+      "tree": "sha256:bb411947690a3327acf70b4ab50f9c6c8fb47b72e1200465c22d424e2b217d3e",
+      "recorded_at": "2026-10-23T10:19:25.266Z",
+      "tests": 37
+    }
+  ],
+  "closed_at": "2026-10-23T10:19:44.395Z"
+}

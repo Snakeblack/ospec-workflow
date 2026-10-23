@@ -927,7 +927,10 @@ and never neither; otherwise `record intent` MUST be refused with
 `uniqueness`, `persistence`, `copy`, `url-state`, `accessibility`, `errors`)
 with a concrete `--open-fact` that names a value, limit or format, a `--cite`
 of `path:line` that exists in the tree, or a `--quote` of at least 12 characters
-taken from `--request`. A question is concrete when it holds a digit, a quoted
+taken from `--request`, and at least one category MUST be a question, so a
+feature always opens `open-facts`; coverage made only of cites and quotes MUST
+be refused with `facts-undeclared`. A state recorded before this rule, with
+every category cited, MUST stay valid. A question is concrete when it holds a digit, a quoted
 value of at least 3 characters besides spaces, or a word beyond the category's
 own name. A cited line MUST hold a letter or a digit, and no two categories MAY
 share the same `path:line` or the same fragment. A basis that cites nothing MUST
@@ -952,6 +955,15 @@ batch, so they are asked together before the change is built.
   reuses the cite
 - AND a cite of a blank line or of a line such as `---` MUST be refused with
   `cite-unresolved`
+
+#### Scenario: A feature asks at least one category
+
+- GIVEN a feature whose seven categories each cite a distinct existing line or
+  fragment of `--request`
+- WHEN `record intent` runs
+- THEN it MUST be refused with `facts-undeclared` and the command
+- AND the same coverage with one category as a concrete `--open-fact` MUST open
+  the change with `open-facts` open
 
 #### Scenario: No open facts records its basis
 
