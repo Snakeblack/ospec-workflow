@@ -1,0 +1,133 @@
+{
+  "schema": "idd-state/v1",
+  "change": "commit-attribution-ci",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "CI rechaza una PR cuyos commits o cuyo título o cuerpo atribuyen la autoría a un modelo (#394), y el repo declara la regla en un CLAUDE.md para las sesiones en la nube",
+    "acceptance": "Un workflow propio en ubuntu falla con el SHA y la línea cuando un commit de base..head o el título o cuerpo de la PR atribuye la autoría a un modelo según findAttribution, pasa con un coautor humano o con fix(claude) y con un rango vacío, y se relanza al editar la PR; CLAUDE.md en la raíz remite a rules/no-model-attribution.instructions.md"
+  },
+  "facts": {
+    "basis": "Issue #394 fija el comprobador (findAttribution, rango base..head, solo el PR) y el usuario confirmó el 2026-10-23: workflow aparte en ubuntu con opened/edited/synchronize/reopened, título y cuerpo por variable de entorno, Claude-Session fuera, CLAUDE.md mínimo en la raíz"
+  },
+  "plan": {
+    "paths": [
+      ".github/workflows/no-model-attribution.yml",
+      "CLAUDE.md",
+      "scripts/ci/check-commit-attribution.js",
+      "scripts/ci/check-commit-attribution.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-23T16:36:09.029Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-23T16:37:31.637Z",
+      "detail": {
+        "tree": "sha256:c92e9a6101a663615b329d0cbdb801d1b94242f56a90a761faadac70e0b5771c",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-23T16:37:38.637Z"
+    }
+  ],
+  "base": "874ffef632d907a9066614bb46229ab6873e6064",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/ci/check-commit-attribution.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:9253db06aa02d1adf8ae9914cce540cf400d679f6f7e0156486dbddb52af4dcf",
+      "tree": "sha256:5cb1109292bc58b22ea8a845d66dd3ea3bd6458b47c58d73a5243f1f13d1f655",
+      "recorded_at": "2026-10-23T16:35:58.482Z",
+      "tests": 1
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/ci/check-commit-attribution.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bfee45edb758c349455f6777bad5cc4ca43ba5c0e8ec768942c594370034a9cd",
+      "tree": "sha256:f2e18c00ddfe31b4fe3577e181e795c61975ed55f2949a241a128ef6a81193a0",
+      "recorded_at": "2026-10-23T16:36:09.029Z",
+      "tests": 5
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4716491153a33560148d5a54a71299d18520b166af824a822cfa6484f8ae03e2",
+      "tree": "sha256:c92e9a6101a663615b329d0cbdb801d1b94242f56a90a761faadac70e0b5771c",
+      "recorded_at": "2026-10-23T16:37:31.637Z"
+    }
+  ],
+  "closed_at": "2026-10-23T16:37:38.637Z"
+}

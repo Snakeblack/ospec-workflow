@@ -1,0 +1,45 @@
+name: No Model Attribution
+
+# The commit-msg and PreToolUse hooks only run where ospec is installed: a
+# commit or a PR made from a cloud session, the GitHub web or a plain terminal
+# reaches main unchecked. This job checks the PR commits and its title and
+# body, and edited reruns it when only the text changes.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+# Least privilege: the check only reads the checkout, never writes to the repo.
+permissions:
+  contents: read
+
+concurrency:
+  group: no-model-attribution-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  attribution:
+    name: No model attribution
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # base.sha..head.sha needs both commits.
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      # Only the PR range: older commits that describe the rule would fail it.
+      # The PR text goes through env, never into the script.
+      - name: Check the PR commits, title and body
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: node scripts/ci/check-commit-attribution.js "$BASE_SHA..$HEAD_SHA"

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.148.1] - 2026-10-23
+
+### Fixed
+- **La CI rechaza una PR que atribuye la autoría a un modelo** (#394). La regla de `rules/no-model-attribution.instructions.md` solo la aplicaban los hooks `commit-msg` y PreToolUse, que no corren donde ospec no está instalado: dos commits de la PR #385, hechos desde una sesión en la nube, llegaron a `main` con un trailer de coautoría de un modelo.
+  - `scripts/ci/check-commit-attribution.js` aplica `findAttribution`, el mismo comprobador del hook, a los commits del rango `base..head` de la PR y a su título y cuerpo, y nombra el commit o el texto y la línea.
+  - El workflow `No Model Attribution` lo ejecuta en ubuntu al abrir, actualizar, reabrir o editar la PR; una edición del texto solo relanza este check, no la matriz de `Validate Harness`.
+  - Solo se mira el rango de la PR: el historial conserva commits que describen la regla con su literal, y los dos ya fusionados no se reescriben.
+  - Un `CLAUDE.md` en la raíz remite a la regla, para que una sesión en la nube, sin las instrucciones globales ni los hooks, la vea.
+
+Hecho con IDD (`idd/archive/2026-10-23-commit-attribution-ci/`).
+
+**Verificación directa**: `node scripts/check.js` (3978 tests pasando, 0 fallos y 3 omitidos). Los tests nuevos fallaron antes del cambio y pasan después; sobre el historial real, el comprobador marca `b76395b4` y `80bc6ba6` en `a9102171..30fae46d` y sale con 0 en `6e0ee28a..30fae46d`.
+
 ## [2.148.0] - 2026-10-23
 
 ### Changed
