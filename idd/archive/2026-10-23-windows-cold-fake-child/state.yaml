@@ -1,0 +1,147 @@
+{
+  "schema": "idd-state/v1",
+  "change": "windows-cold-fake-child",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El test de startBrowser que reintenta un arranque sin puerto deja de arrancar un Node real, y la cuenta de 0 flakes de E1.30 pasa al 2026-10-29",
+    "acceptance": "El test de reintento usa un ChildProcess falso dentro del proceso: el primer arranque nunca abre su puerto y el segundo deja DevToolsActivePort en su perfil; comprueba el puerto, la ruta y 2 arranques sin depender de cuánto tarda un proceso; el fichero ya no arranca ningún proceso real; el roadmap fija el plazo de E1.30 en el 2026-10-29"
+  },
+  "facts": {
+    "basis": "El usuario pidió el 2026-10-23 hacer robusto también el test cold con el mismo patrón y fijar el plazo de 0 flakes en el 2026-10-29; el resto lo fija el test actual (browser.test.js) y startOnce/waitForPort en browser.js"
+  },
+  "plan": {
+    "paths": [
+      "CHANGELOG.md",
+      "docs/roadmaps/harness-evolution.md",
+      "scripts/evals/bench/browser.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/evals/bench/browser.test.js adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-23T18:47:28.508Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-23T18:50:46.935Z",
+      "detail": {
+        "tree": "sha256:7c86a0d3fcf0f705eacf56c89111a5706c138d33d7d52966e07725f2c2b0ff98",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-23T18:51:03.020Z",
+      "detail": {
+        "run": "run-4",
+        "tree": "sha256:872907a7c48c4025233c4f7cef76fc9f9e1fb51a709fb17685f512e03d4b7505",
+        "plan": "Sin datos persistidos: la señal sale de un fs.writeFileSync de fixture en un test, que escribe DevToolsActivePort en un perfil temporal (falso positivo de E1.36, #404). No cambia ningún formato guardado; revertir es revertir el test."
+      }
+    }
+  ],
+  "base": "1d7a0d297f567ad1fbfd869c887eaedb24959fa3",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"retries a start that does not open\" scripts/evals/bench/browser.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:2de03c1b00588552d20654f4c2ee7b7f8df57db47e2b33f45463bec8de24c95b",
+      "tree": "sha256:f99362c76a80355bb4b72db0c082a408ea222fedf1109793c5c5ca0cfd59035d",
+      "recorded_at": "2026-10-23T18:46:57.442Z",
+      "tests": 1
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"retries a start that does not open\" scripts/evals/bench/browser.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fed7b1d95ed3d88aa3d73547a7863adebc70c498a4ac3e2dd44a848ae40c5cc2",
+      "tree": "sha256:7140c30e086105743e07bfd098adb3d0efd3863e0b983fe4edd84845fe90a359",
+      "recorded_at": "2026-10-23T18:47:28.508Z",
+      "tests": 1
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:f21032b5d44c841bf12d6b13490b1ce0ea23de3f95a6c4cc9748e182ad204d2a",
+      "tree": "sha256:7c86a0d3fcf0f705eacf56c89111a5706c138d33d7d52966e07725f2c2b0ff98",
+      "recorded_at": "2026-10-23T18:50:46.935Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "migration-test",
+      "command": "node --test scripts/evals/bench/browser.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:26e26b9deb90278ab6ebbfdbbb57338a8e1c234fdfc05f4a815eafcbb4bebee5",
+      "tree": "sha256:872907a7c48c4025233c4f7cef76fc9f9e1fb51a709fb17685f512e03d4b7505",
+      "recorded_at": "2026-10-23T18:51:03.020Z",
+      "tests": 7
+    }
+  ],
+  "closed_at": "2026-10-23T18:51:03.172Z"
+}

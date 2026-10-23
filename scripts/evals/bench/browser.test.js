@@ -9,52 +9,23 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const http = require("node:http");
 const { EventEmitter } = require("node:events");
-const { spawn } = require("node:child_process");
 
 const { LAUNCH_TIMEOUT_MS, connect, findBrowser, serveDirectory, startBrowser } = require("./browser.js");
 
-// A stand-in for a Chromium start: `cold` hangs on its first start and opens
-// its port on the next, as a first start on a cold CI runner did (E4.7);
-// `crash` writes to stderr and exits.
-const FAKE_BROWSER = `
-const fs = require("node:fs");
-const path = require("node:path");
-const [state, mode, ...args] = process.argv.slice(2);
-const starts = (fs.existsSync(state) ? Number(fs.readFileSync(state, "utf8")) : 0) + 1;
-fs.writeFileSync(state, String(starts));
-const profile = args.find((arg) => arg.startsWith("--user-data-dir=")).slice("--user-data-dir=".length);
-if (mode === "crash") {
-  process.stderr.write("boom: missing shared library\\n");
-  process.exit(3);
-}
-process.stderr.write("start " + starts + "\\n");
-if (mode === "cold" && starts > 1) fs.writeFileSync(path.join(profile, "DevToolsActivePort"), "9222\\n/devtools/browser/fake\\n");
-setInterval(() => {}, 1000);
-`;
-
-function fakeBrowser(t, mode) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bench-fake-browser-"));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const script = path.join(dir, "browser.js");
-  const state = path.join(dir, "starts");
-  fs.writeFileSync(script, FAKE_BROWSER);
-  return {
-    starts: () => Number(fs.readFileSync(state, "utf8")),
-    spawnProcess: (_executable, args, options) => spawn(process.execPath, [script, state, mode, ...args], options),
-  };
-}
-
 // A browser that writes to stderr and never opens its port, kept in this
 // process: a Node start on a loaded Windows runner wrote its stderr after
-// the timeout (#362, #365). stop() ends it with child.kill() on Windows and
-// with process.kill(-pid) elsewhere, so the mock sends that kill to it.
-function hangingBrowser(t) {
+// the timeout (#362, #365), and outlasted it on a retry (E1.30). The start
+// numbered `opensPortOn` writes DevToolsActivePort before it returns, as a
+// warm start after a cold CI runner's first one did (E4.7). stop() ends it
+// with child.kill() on Windows and with process.kill(-pid) elsewhere, so the
+// mock sends that kill to it.
+function hangingBrowser(t, { opensPortOn } = {}) {
   const children = new Map();
   const kill = process.kill;
   t.mock.method(process, "kill", (pid, signal) => (children.has(-pid) ? children.get(-pid).kill(signal) : kill.call(process, pid, signal)));
   return {
     starts: () => children.size,
-    spawnProcess: () => {
+    spawnProcess: (_executable, args) => {
       const child = new EventEmitter();
       // Above any pid_max, so it names no real process.
       child.pid = 2 ** 30 + children.size;
@@ -69,8 +40,38 @@ function hangingBrowser(t) {
         return true;
       };
       children.set(child.pid, child);
+      if (children.size === opensPortOn) {
+        const profile = args.find((arg) => arg.startsWith("--user-data-dir=")).slice("--user-data-dir=".length);
+        fs.writeFileSync(path.join(profile, "DevToolsActivePort"), "9222\n/devtools/browser/fake\n");
+      }
       const announce = `start ${children.size}\n`;
       process.nextTick(() => child.stderr.emit("data", announce));
+      return child;
+    },
+  };
+}
+
+// A browser that writes to stderr and exits with code 3, kept in this process:
+// a Node start on a loaded Windows runner took longer than the 5 s timeout, so
+// the first start ended before it was counted (E1.30, 2026-10-23).
+function crashingBrowser() {
+  let starts = 0;
+  return {
+    starts: () => starts,
+    spawnProcess: () => {
+      starts += 1;
+      const child = new EventEmitter();
+      child.pid = 2 ** 30 + starts;
+      child.exitCode = null;
+      child.signalCode = null;
+      child.stderr = new EventEmitter();
+      child.kill = () => false;
+      process.nextTick(() => {
+        child.stderr.emit("data", "boom: missing shared library\n");
+        child.exitCode = 3;
+        child.emit("exit", 3, null);
+        child.stderr.emit("close");
+      });
       return child;
     },
   };
@@ -103,10 +104,8 @@ test("serveDirectory serves the workspace and nothing outside it", async () => {
 });
 
 test("startBrowser retries a start that does not open its DevTools port in time", async (t) => {
-  const fake = fakeBrowser(t, "cold");
-  // The cold start hangs for the whole timeout, so it must outlast a Node
-  // start on a loaded Windows runner, or the warm start is the first one.
-  const started = await startBrowser({ executable: "chromium", timeoutMs: 5000, spawnProcess: fake.spawnProcess });
+  const fake = hangingBrowser(t, { opensPortOn: 2 });
+  const started = await startBrowser({ executable: "chromium", timeoutMs: 100, spawnProcess: fake.spawnProcess });
   try {
     assert.equal(started.port, "9222");
     assert.equal(started.browserPath, "/devtools/browser/fake");
@@ -117,7 +116,7 @@ test("startBrowser retries a start that does not open its DevTools port in time"
 });
 
 test("startBrowser reports the exit code and stderr of a browser that exits on both starts", async (t) => {
-  const fake = fakeBrowser(t, "crash");
+  const fake = crashingBrowser();
   await assert.rejects(
     startBrowser({ executable: "chromium", timeoutMs: 5000, spawnProcess: fake.spawnProcess }),
     /the browser exited with code 3 before opening its DevTools port; stderr: boom: missing shared library/,
