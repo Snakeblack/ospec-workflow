@@ -1,6 +1,6 @@
 # Roadmap único de ospec-workflow
 
-> **Versión de referencia:** v2.148.1, 2026-10-23.
+> **Versión de referencia:** v2.149.0, 2026-10-23.
 > **Autoridad:** este es el único documento que fija dirección, prioridad, estado y criterios de cierre del harness. `docs/architecture/` queda reservada para la arquitectura vigente de ospec (E2.6), el análisis fechado (`docs/analysis/`) es evidencia, y el roadmap K1–K12 y su [arquitectura objetivo](archive/2026-10-03-arquitectura/README.md) están archivados.
 > **Origen:** [auditoría del 2026-10-03](../analysis/2026-10-03-auditoria-harness-y-gentle-ai.md) y la decisión del mismo día de que SDD deje de ser el flujo por defecto.
 > **Regla de estado:** los hechos se contrastan con código y OpenSpec. Este documento no cambia el estado de ningún change.
@@ -148,7 +148,7 @@ intención ─► ospec next ─► señales ─► obligaciones ─► el model
 | `done` | **E1.26** | `opencode-plugin-native-ask` (el bridge v2 mapea el `ask` del guard al prompt nativo de permisos con `ctx.permission.assert` y el hook `permission.evaluate`; sin API nativa o en v1 el ask sigue siendo bloqueo duro fail-closed, y deny nunca se degrada; contrato exigido por el validador y fijado en el spec de hooks-runtime, en v2.138.3) | bugfix |
 | `done` | **E1.27** | `hook-secret-coverage` (OSP-001 residual / #336: tokens de GitHub/Anthropic/OpenAI project y lectores `od`/`tar`/`scp` en el hook; ampliado con la censura de secretos en `PostToolUse` como `hook-secret-redaction`, en v2.139.0) | feature |
 | `pending` | **E1.28** | `supply-chain-hardening` (OSP-004 / #337: ruleset de `main`, actions fijadas por SHA, Dependabot, Go 1.26; decisión de bypass pendiente) | bugfix |
-| `done` | **E1.29** | `approval-provenance-limit` (OSP-010 / #343: la skill, la spec y la documentación de IDD dicen que `--source`, `--answer` y `--quote` no se verifican; `--source` solo admite `user` o `user-unverified`) | docs |
+| `done` | **E1.29** | `approval-provenance-limit` (OSP-010 / #343: la skill, la spec y la documentación de IDD dicen que `--source`, `--answer` y `--quote` no se verifican; `--source` solo admite `user` o `user-unverified`, en v2.149.0) | docs |
 | `pending` | **E1.30** | `windows-flake-repair` (OSP-022 / #344: PowerShell, lock y Chromium en Windows; cierre con 0 flakes hasta el 2026-10-29) | bugfix |
 | `pending` | **E1.31** | `doctor-hook-probe` (OSP-014 / #345: sonda de hook en `ospec doctor`; seguimiento de E1.7; con OSP-032 / #406, aviso de versión de Claude Code con la censura activa) | feature |
 | `pending` | **E1.32** | `docs-dx-corrections` (OSP-008/013/021/023 / #346 y #347: README EN/ES, `SECURITY.md`, `cli.js` fuera del checkout y tags del CHANGELOG; solo queda OSP-023, pendiente de decisión) | docs |
@@ -1089,7 +1089,7 @@ Lo que ya existe y en qué ítem se aprovecha. El detalle de cada pieza está en
 
 ## Historial
 
-- 2026-10-23: `approval-provenance-limit` (IDD, OSP-010 y OSP-028, #343 y #405). E1.29 hecho y OSP-028 de E4.3 resuelto: `--source` solo admite `user` o `user-unverified` en gates y en `ambiguous-intent`, el límite de la procedencia queda documentado, y la skill `idd` pasa de 12 278 B a 11 074 B en CRLF al mover detalle a `references/`.
+- 2026-10-23: `approval-provenance-limit` (IDD, OSP-010 y OSP-028, #343 y #405), publicado en v2.149.0. E1.29 hecho y OSP-028 de E4.3 resuelto: `--source` solo admite `user` o `user-unverified` en gates y en `ambiguous-intent`, el límite de la procedencia queda documentado, y la skill `idd` pasa de 12 278 B a 11 074 B en CRLF al mover detalle a `references/`.
 - 2026-10-23: avance de E1.30 con IDD (`windows-crash-fake-child` y `windows-cold-fake-child`, sin release). Tras el flake de Windows en la run de v2.148.1, los tests `crash` y `cold` de `startBrowser` usan un ChildProcess falso dentro del proceso, y `browser.test.js` ya no arranca ningún proceso. El plazo de 0 flakes pasa al 2026-10-29.
 - 2026-10-23: `commit-attribution-ci` (IDD, OSP-034, #394), publicado en v2.148.1. E1.34 hecho: el workflow `No Model Attribution` aplica `findAttribution` a los commits del rango de la PR y a su título y cuerpo, y un `CLAUDE.md` en la raíz remite a la regla.
 - 2026-10-23: entran los issues de las auditorías diarias que no tenían ítem, con la auditoría del día verificada contra el código: nuevos E1.34 `commit-attribution-ci` (OSP-034, #394), E1.35 `disk-rule-command-precision` (OSP-033, #407), E1.36 `persistent-data-precision` (OSP-036, #404) y E4.14 `bench-validation-readiness` (OSP-035, #398, y puntos 1 y 2 de #400); E1.31 absorbe OSP-032 (#406) y E4.3, OSP-028 (#405). #347 se parte en un issue por hallazgo y queda solo con OSP-023. Cada issue abierto lleva la etiqueta `roadmap:<ID>`. El ▶ pasa a los defectos del harness antes que el banco, en el orden que eligió el usuario.
