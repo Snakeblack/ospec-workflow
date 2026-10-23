@@ -1,0 +1,30 @@
+{
+  "id": "touched-writer",
+  "description": "Editing a product module that already writes to disk derives persistent-data even when the diff adds no write.",
+  "input": {
+    "intent": { "kind": "feature", "summary": "Pretty-print the store.", "acceptance": "The tasks file is indented." },
+    "project": { "strict_tdd": false, "stacks": [] },
+    "declaration": { "paths": ["src/store.js"], "work_units": 1, "non_obvious_decision": false, "operations": [] },
+    "diff": {
+      "paths": ["src/store.js", "test/store.js"],
+      "added_lines": {
+        "src/store.js": ["const INDENT = 2;"],
+        "test/store.js": ["test('indent', () => {});"]
+      },
+      "sources": {
+        "src/store.js": {
+          "lines": ["const INDENT = 2;", "function save(file, data) {", "  fs.writeFileSync(file, JSON.stringify(data, null, INDENT));", "}"],
+          "imports": {}
+        }
+      }
+    }
+  },
+  "expected": {
+    "signals": [
+      { "id": "always", "source": "declaration" },
+      { "id": "persistent-data", "source": "diff", "reason": "persistent data: src/store.js uses writeFile" }
+    ],
+    "gates": [],
+    "floor": "critical"
+  }
+}

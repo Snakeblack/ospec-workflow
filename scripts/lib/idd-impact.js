@@ -185,10 +185,15 @@ function resolvePatterns({ stacks = [], impact = {}, published = [] } = {}) {
   return resolved;
 }
 
+function isExcluded(file, patterns) {
+  const normalized = normalizePath(file);
+  return (patterns.exclude || []).some((glob) => matches(normalized, glob));
+}
+
 // The first matching pattern per signal, in catalog order; [] when excluded.
 function matchImpact(file, patterns) {
   const normalized = normalizePath(file);
-  if (patterns.exclude.some((glob) => matches(normalized, glob))) return [];
+  if (isExcluded(normalized, patterns)) return [];
   const found = [];
   for (const signal of IMPACT_SIGNALS) {
     const pattern = patterns[signal].find((glob) => matches(normalized, glob));
@@ -233,6 +238,7 @@ module.exports = {
   STACK_PATTERNS,
   detectStacks,
   globToRegExp,
+  isExcluded,
   matchImpact,
   normalizePath,
   publishedPaths,

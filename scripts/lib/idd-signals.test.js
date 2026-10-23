@@ -79,7 +79,7 @@ for (const fixture of readJsonDir(path.join(FIXTURES_DIR, "signals"))) {
         nonObviousDecision: input.declaration.non_obvious_decision,
         operations: input.declaration.operations,
       },
-      diff: { paths: input.diff.paths, addedLines: input.diff.added_lines },
+      diff: { paths: input.diff.paths, addedLines: input.diff.added_lines, sources: input.diff.sources },
       patterns: patternsFor(input.project.stacks),
     });
     const signals = derivation.signals.map(({ id, source, reason }) => {
@@ -239,6 +239,52 @@ test("destructive statements are read only from persistent-data files", () => {
     patterns: patternsFor(),
   });
   assert.deepStrictEqual(safe.gates, []);
+});
+
+test("persistent data needs a call or an access, not a mention of the API", () => {
+  const persistent = (line) =>
+    deriveSignals({
+      intent: { kind: "refactor", summary: "s", acceptance: "a" },
+      diff: { paths: ["src/a.js"], addedLines: { "src/a.js": [line] } },
+      patterns: patternsFor(),
+    }).signals.find((s) => s.id === "persistent-data")?.reason;
+
+  for (const line of [
+    '{ label: "localStorage", pattern: /\\blocalStorage\\b/ },',
+    'const { writeFileSync } = require("node:fs");',
+    'const why = "indexedDB is slow";',
+    "import java.io.File; // File.WriteAllText",
+  ]) {
+    assert.strictEqual(persistent(line), undefined, line);
+  }
+  for (const [line, label] of [
+    ['window.localStorage["tasks"] = "[]";', "localStorage"],
+    ["const request = indexedDB.open('db');", "indexedDB"],
+    ["await fs.promises.writeFile (file, data);", "writeFile"],
+    ["err := os.WriteFile(path, data, 0o600)", "os.WriteFile"],
+    ["File.AppendAllText(path, line);", "File.WriteAllText"],
+  ]) {
+    assert.strictEqual(persistent(line), `persistent data: src/a.js adds ${label}`, line);
+  }
+});
+
+test("impact.exclude silences persistent data from content, on the touched file and on the imported module", () => {
+  const intent = { kind: "feature", summary: "s", acceptance: "a" };
+  const diff = {
+    paths: ["src/cli.js", "src/hosts/agy.js"],
+    addedLines: { "src/cli.js": ["run();"], "src/hosts/agy.js": ["fs.writeFileSync(home, '{}');"] },
+    sources: {
+      "src/cli.js": { lines: ["require('./store.js');", "run();"], imports: { "src/store.js": ["fs.writeFileSync(f, d);"] } },
+      "src/hosts/agy.js": { lines: ["fs.writeFileSync(home, '{}');"], imports: {} },
+    },
+  };
+  const persistent = (exclude) =>
+    deriveSignals({ intent, diff, patterns: resolvePatterns({ impact: { exclude } }) }).signals.find((s) => s.id === "persistent-data");
+
+  assert.strictEqual(persistent([])?.reason, "persistent data: src/hosts/agy.js adds writeFile");
+  assert.strictEqual(persistent(["src/hosts/**"])?.reason, "persistent data: src/cli.js imports src/store.js, which uses writeFile");
+  assert.strictEqual(persistent(["src/hosts/**", "src/store.js"]), undefined);
+  assert.strictEqual(persistent(["src/hosts/**", "src/cli.js"]), undefined);
 });
 
 test("no signal is derived while the intent is ambiguous", () => {

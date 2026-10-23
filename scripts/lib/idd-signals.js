@@ -9,7 +9,7 @@
 
 const { classifyChange } = require("./change-classification.js");
 const { SIGNALS, isIntentAmbiguous } = require("./idd-contract.js");
-const { IMPACT_SIGNALS, matchImpact, normalizePath } = require("./idd-impact.js");
+const { IMPACT_SIGNALS, isExcluded, matchImpact, normalizePath } = require("./idd-impact.js");
 const { IddRecordError, recordGate, recordPlan, recordReferences, recordSignal } = require("./idd-record.js");
 const { derivedReferences, resolveReferences } = require("./idd-knowledge.js");
 
@@ -76,14 +76,15 @@ const MANIFESTS = new Set([
   "gemfile",
   "gemfile.lock",
 ]);
+// A call or an access, never a mere mention: a label, an import or this table.
 const PERSISTENCE_PATTERNS = Object.freeze([
-  { label: "localStorage", pattern: /\blocalStorage\b/ },
-  { label: "indexedDB", pattern: /\bindexedDB\b/i },
-  { label: "writeFile", pattern: /\b(?:writeFileSync|writeFile|appendFileSync|appendFile|createWriteStream)\b/ },
-  { label: "os.WriteFile", pattern: /\bos\.WriteFile\b/ },
-  { label: "ioutil.WriteFile", pattern: /\bioutil\.WriteFile\b/ },
-  { label: "File.WriteAllText", pattern: /\bFile\.(?:WriteAllText|AppendAllText)\b/ },
-  { label: "Deno.writeFile", pattern: /\bDeno\.write(?:Text)?File\b/ },
+  { label: "localStorage", pattern: /\blocalStorage\s*[.[]/ },
+  { label: "indexedDB", pattern: /\bindexedDB\s*\./i },
+  { label: "writeFile", pattern: /\b(?:writeFileSync|writeFile|appendFileSync|appendFile|createWriteStream)\s*\(/ },
+  { label: "os.WriteFile", pattern: /\bos\.WriteFile\s*\(/ },
+  { label: "ioutil.WriteFile", pattern: /\bioutil\.WriteFile\s*\(/ },
+  { label: "File.WriteAllText", pattern: /\bFile\.(?:WriteAllText|AppendAllText)\s*\(/ },
+  { label: "Deno.writeFile", pattern: /\bDeno\.write(?:Text)?File\s*\(/ },
 ]);
 const CONTRACT_PATTERNS = Object.freeze([
   { label: "selector", pattern: /\b(?:getElementById|querySelector(?:All)?)\b|data-testid|`#[A-Za-z][\w-]*`/ },
@@ -153,21 +154,40 @@ function firstContentHit(lines, patterns) {
   return null;
 }
 
-function contentHits(addedLines) {
-  let persistent = null;
-  let contract = null;
-  for (const file of sortedPaths(Object.keys(addedLines || {}))) {
-    const lines = addedLines[file];
-    if (!persistent) {
-      const label = firstContentHit(lines, PERSISTENCE_PATTERNS);
-      if (label) persistent = { file, label };
-    }
-    if (!contract && isDocumentation(file)) {
-      const label = firstContentHit(lines, CONTRACT_PATTERNS);
-      if (label) contract = { file, label };
+// Persistent data by content (OSP-036): only product code outside
+// impact.exclude counts. A changed product file derives it when its added lines
+// write, when it already writes, or when a product module it imports by
+// relative path writes (diff.sources, read by idd-workspace.js).
+function persistentHit(diff, patterns) {
+  const addedLines = diff.addedLines || {};
+  const sources = diff.sources || {};
+  const counts = (file) => classifyPath(file) === "product" && !isExcluded(file, patterns);
+  const files = sortedPaths([...Object.keys(addedLines), ...Object.keys(sources)]).filter(counts);
+  for (const file of files) {
+    const label = firstContentHit(addedLines[file], PERSISTENCE_PATTERNS);
+    if (label) return `${file} adds ${label}`;
+  }
+  for (const file of files) {
+    const label = firstContentHit(sources[file]?.lines, PERSISTENCE_PATTERNS);
+    if (label) return `${file} uses ${label}`;
+  }
+  for (const file of files) {
+    const imports = sources[file]?.imports || {};
+    for (const target of sortedPaths(Object.keys(imports)).filter(counts)) {
+      const label = firstContentHit(imports[target], PERSISTENCE_PATTERNS);
+      if (label) return `${file} imports ${target}, which uses ${label}`;
     }
   }
-  return { persistent, contract };
+  return null;
+}
+
+function contractHit(addedLines) {
+  for (const file of sortedPaths(Object.keys(addedLines || {}))) {
+    if (!isDocumentation(file)) continue;
+    const label = firstContentHit(addedLines[file], CONTRACT_PATTERNS);
+    if (label) return `${file} adds ${label}`;
+  }
+  return null;
 }
 
 function untestedProduct(intent, diff) {
@@ -249,7 +269,8 @@ function floorOf(intent, signalIds) {
  *   strictTdd?: boolean,
  *   declaration?: {paths?: string[], workUnits?: number, nonObviousDecision?: boolean, operations?: string[],
  *                  adrs?: string[], scenarios?: string[]},
- *   diff?: {paths?: string[], addedLines?: Record<string, string[]>},
+ *   diff?: {paths?: string[], addedLines?: Record<string, string[]>,
+ *          sources?: Record<string, {lines: string[], imports: Record<string, string[]>}>},
  *   patterns: object,                resolvePatterns() of idd-impact.js
  *   knowledge?: {map: object|null, sources: object},   readKnowledgeSources() of idd-workspace.js
  * }} input
@@ -269,9 +290,10 @@ function deriveSignals({ intent, strictTdd = false, declaration = {}, diff = {},
   if (intent.kind === "bug") add("bug-fix", "the intent is a bug fix", "declaration");
   const untested = untestedProduct(intent, diff);
   if (untested) add("untested-product", untested, "diff");
-  const content = contentHits(diff.addedLines);
-  if (content.persistent) add("persistent-data", `persistent data: ${content.persistent.file} adds ${content.persistent.label}`, "diff");
-  if (content.contract) add("public-contract", `public contract: ${content.contract.file} adds ${content.contract.label}`, "diff");
+  const persistent = persistentHit(diff, patterns);
+  if (persistent) add("persistent-data", `persistent data: ${persistent}`, "diff");
+  const contract = contractHit(diff.addedLines);
+  if (contract) add("public-contract", `public contract: ${contract}`, "diff");
   if ((declaration.workUnits || 0) > 1) {
     add("multi-unit-or-decision", `declared ${declaration.workUnits} work units`, "declaration");
   } else if (declaration.nonObviousDecision) {

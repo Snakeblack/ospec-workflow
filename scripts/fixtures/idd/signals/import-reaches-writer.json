@@ -1,0 +1,32 @@
+{
+  "id": "import-reaches-writer",
+  "description": "A product file that imports a module that writes to disk derives persistent-data even when the diff adds no write (the cli-local case of OSP-036).",
+  "input": {
+    "intent": { "kind": "feature", "summary": "Prioritize tasks.", "acceptance": "list shows high priority first." },
+    "project": { "strict_tdd": false, "stacks": [] },
+    "declaration": { "paths": ["src/cli.js"], "work_units": 1, "non_obvious_decision": false, "operations": [] },
+    "diff": {
+      "paths": ["src/cli.js", "test/cli.js"],
+      "added_lines": {
+        "src/cli.js": ["const task = { id: data.nextId, title, done: false, priority };"],
+        "test/cli.js": ["test('priority', () => {});"]
+      },
+      "sources": {
+        "src/cli.js": {
+          "lines": ["const { load, save } = require(\"./store.js\");", "const task = { id: data.nextId, title, done: false, priority };"],
+          "imports": {
+            "src/store.js": ["// fs.appendFileSync is never used", "function save(file, data) {", "  fs.writeFileSync(file, JSON.stringify(data));", "}"]
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "signals": [
+      { "id": "always", "source": "declaration" },
+      { "id": "persistent-data", "source": "diff", "reason": "persistent data: src/cli.js imports src/store.js, which uses writeFile" }
+    ],
+    "gates": [],
+    "floor": "critical"
+  }
+}

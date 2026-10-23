@@ -487,10 +487,16 @@ operation (`drop-table`, `drop-column`, `drop-schema`, `drop-database`,
 `truncate-table`, `delete-data`, `rewrite-history`) or for a destructive
 statement (drop of a table, schema, database or column, truncate, or a complete
 `DELETE` without `WHERE`) in a line the diff adds to a `persistent-data` file;
-comment lines MUST NOT count. Added lines MUST also derive `persistent-data`
-when they use `localStorage`, `indexedDB` or a disk write (`writeFile`,
-`appendFile`, `createWriteStream`, `os.WriteFile`, `ioutil.WriteFile`,
-`File.WriteAllText`, `Deno.writeFile`), and `public-contract` when documentation
+comment lines MUST NOT count. A changed product file outside `impact.exclude`
+MUST also derive `persistent-data` when it uses `localStorage`, `indexedDB` or a
+disk write (`writeFile`, `appendFile`, `createWriteStream`, `os.WriteFile`,
+`ioutil.WriteFile`, `File.WriteAllText`, `Deno.writeFile`) in a line the diff
+adds or anywhere in the file, or when it imports by relative path (JS/TS
+`require`, `import`, `export ... from` and `import()`, Python relative
+`from ... import`) a product module outside `impact.exclude` that uses one; a
+test, documentation, a manifest or any other file MUST NOT derive it by
+content, and the import is never followed through a symlink or out of the
+repository. Added lines MUST derive `public-contract` when documentation
 states a selector contract (`getElementById`, `querySelector`, `` `#id` ``) or
 an HTTP method plus a path. A comment line, including `//`, `#`, `--`, `/* */`
 and `<!-- -->`, MUST NOT count. For an intent of kind `feature` or `bug`, a
@@ -528,6 +534,22 @@ derivation misses, nor reopen a resolved gate (REQ-idd-006). While
 - THEN `persistent-data` MUST be recorded with `source: diff`
 - AND `irreversible-operation` MUST be open with a reason naming `DROP COLUMN`
   and the file
+
+#### Scenario: A disk write outside product code derives nothing
+
+- GIVEN a diff that adds `fs.writeFileSync` only to `test/cli.js`, a `.diff`
+  artifact and a JSON record, and `localStorage` only to `spec.md`
+- WHEN its signals are derived
+- THEN `persistent-data` MUST NOT be active
+
+#### Scenario: A product file that imports a module that writes derives persistent data
+
+- GIVEN a diff that changes `src/cli.js`, which requires `./store.js`, and
+  `src/store.js` calls `fs.writeFileSync`
+- WHEN `ospec check` runs, although the diff adds no write
+- THEN `persistent-data` MUST be recorded with `source: diff` and the reason
+  "persistent data: src/cli.js imports src/store.js, which uses writeFile"
+- AND with `src/store.js` in `impact.exclude` it MUST NOT be derived
 
 #### Scenario: Documentation about a boundary derives nothing
 

@@ -1,0 +1,24 @@
+{
+  "id": "content-outside-product",
+  "description": "A disk write or localStorage added only to a test, a .diff artifact, a JSON record or documentation derives no persistent-data (OSP-036).",
+  "input": {
+    "intent": { "kind": "refactor", "summary": "Tidy the bench.", "acceptance": "The bench still runs." },
+    "project": { "strict_tdd": false, "stacks": [] },
+    "declaration": { "paths": [], "work_units": 1, "non_obvious_decision": false, "operations": [] },
+    "diff": {
+      "paths": ["evals/results/cli-local-r1.diff", "records/run-6.json", "scripts/bench.test.js", "spec.md", "test/cli.js"],
+      "added_lines": {
+        "evals/results/cli-local-r1.diff": ["+  fs.writeFileSync(file, '{}');"],
+        "records/run-6.json": ["{ \"reason\": \"fs.writeFileSync(home)\" }"],
+        "scripts/bench.test.js": ["fs.writeFileSync(path.join(home, 'settings.json'), '{}');"],
+        "spec.md": ["The tasks are kept in localStorage."],
+        "test/cli.js": ["fs.writeFileSync(file, JSON.stringify({ tasks: [] }));"]
+      }
+    }
+  },
+  "expected": {
+    "signals": [{ "id": "always", "source": "declaration" }],
+    "gates": [],
+    "floor": "bounded"
+  }
+}

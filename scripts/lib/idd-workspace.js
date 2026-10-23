@@ -22,6 +22,7 @@ const { validateComponentMap } = require("./component-map.js");
 const { COMPONENT_MAP_RELATIVE, GLOSSARY_RELATIVE, parseGlossaryTerms } = require("./idd-knowledge.js");
 const { evidenceProblem } = require("./repository-evidence.js");
 const { detectStacks, normalizePath, publishedPaths, resolvePatterns } = require("./idd-impact.js");
+const { classifyPath } = require("./idd-signals.js");
 
 const MAX_UNTRACKED_BYTES = 1024 * 1024;
 const GIT_MAX_BUFFER = 64 * 1024 * 1024;
@@ -241,9 +242,96 @@ function readUntracked(root, file) {
   return content.replace(/\r?\n$/, "").split(/\r?\n/);
 }
 
+// Relative imports of a product file (E1.36, OSP-036): JS/TS `require`,
+// `import`, `export ... from` and `import()`, and Python relative
+// `from ... import`. Each specifier gives its candidate files in resolution
+// order; packages and namespaces are never followed.
+const JS_SOURCE = /\.[cm]?[jt]sx?$/i;
+const JS_IMPORTS = [
+  /\brequire\(\s*["'](\.\.?\/[^"']+)["']\s*\)/g,
+  /\b(?:import|export)\b[^"';]*?\bfrom\s*["'](\.\.?\/[^"']+)["']/g,
+  /\bimport\s*\(?\s*["'](\.\.?\/[^"']+)["']/g,
+];
+const JS_SUFFIXES = ["", ".js", ".ts", ".tsx", ".jsx", ".mjs", ".cjs", ".mts", ".cts"];
+const PY_FROM = /^\s*from\s+(\.+)([\w.]*)\s+import\s+\(?([^#)]*)/;
+
+function jsCandidates(target) {
+  const found = JS_SUFFIXES.map((suffix) => `${target}${suffix}`);
+  // TypeScript ESM names the emitted .js file of a .ts source.
+  if (/\.[cm]?js$/i.test(target)) found.push(...[".ts", ".tsx", ".mts", ".cts"].map((ext) => target.replace(/\.[cm]?js$/i, ext)));
+  found.push(...JS_SUFFIXES.slice(1).map((ext) => `${target}/index${ext}`));
+  return found;
+}
+
+function relativeImports(file, lines) {
+  const dir = path.posix.dirname(file);
+  const specifiers = [];
+  if (JS_SOURCE.test(file)) {
+    const text = lines.join("\n");
+    for (const pattern of JS_IMPORTS) {
+      for (const match of text.matchAll(pattern)) specifiers.push(jsCandidates(path.posix.join(dir, match[1])));
+    }
+  } else if (/\.py$/i.test(file)) {
+    for (const line of lines) {
+      const match = PY_FROM.exec(line);
+      if (!match) continue;
+      let base = dir;
+      for (let level = 1; level < match[1].length; level += 1) base = path.posix.join(base, "..");
+      if (match[2]) base = path.posix.join(base, ...match[2].split("."));
+      const names = match[2] ? [""] : match[3].split(",").map((name) => name.trim().split(/\s+/)[0]).filter((name) => /^\w+$/.test(name));
+      for (const name of names) {
+        const target = name ? path.posix.join(base, name) : base;
+        specifiers.push([`${target}.py`, `${target}/__init__.py`]);
+      }
+    }
+  }
+  return specifiers.map((candidates) => candidates.map((candidate) => path.posix.normalize(candidate)));
+}
+
+// The lines of a regular text file inside `root`, or null. A symlink, or a
+// path through one, is never read.
+function readSourceLines(root, file) {
+  if (file === ".." || file.startsWith("../") || path.posix.isAbsolute(file)) return null;
+  const full = path.join(root, file);
+  try {
+    if (fs.realpathSync(full) !== path.join(fs.realpathSync(root), file)) return null;
+    const stat = fs.lstatSync(full);
+    if (!stat.isFile() || stat.size > MAX_UNTRACKED_BYTES) return null;
+    const content = fs.readFileSync(full, "utf8");
+    if (content.includes("\0")) return null;
+    return content.replace(/\r?\n$/, "").split(/\r?\n/);
+  } catch {
+    return null;
+  }
+}
+
+// Each changed product file with the product modules it imports by relative
+// path, as the working tree holds them.
+function readSources(root, paths) {
+  const cache = new Map();
+  const read = (file) => {
+    if (!cache.has(file)) cache.set(file, readSourceLines(root, file));
+    return cache.get(file);
+  };
+  const sources = {};
+  for (const file of paths) {
+    if (classifyPath(file) !== "product") continue;
+    const lines = read(file);
+    if (!lines) continue;
+    const imports = {};
+    for (const candidates of relativeImports(file, lines)) {
+      const target = candidates.find((candidate) => read(candidate));
+      if (target && target !== file && classifyPath(target) === "product") imports[target] = read(target);
+    }
+    sources[file] = { lines, imports };
+  }
+  return sources;
+}
+
 /**
  * Paths changed between `base` and the working tree (staged, unstaged and
- * untracked), relative to `root`, with the lines each one adds.
+ * untracked), relative to `root`, with the lines each one adds and the
+ * sources of the product files among them.
  */
 function readGitDiff(root, { base = "HEAD" } = {}) {
   requireWorkTree(root);
@@ -271,7 +359,7 @@ function readGitDiff(root, { base = "HEAD" } = {}) {
   for (const file of Object.keys(addedLines)) {
     if (!paths.includes(file)) delete addedLines[file];
   }
-  return { paths, addedLines };
+  return { paths, addedLines, sources: readSources(root, paths) };
 }
 
 // What to do when there is no project to work in (E4.8): IDD needs a git work
