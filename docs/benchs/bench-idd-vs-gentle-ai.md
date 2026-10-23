@@ -9,15 +9,15 @@ node scripts/evals/bench/bench.js report --record <record>
 node scripts/evals/bench/bench.js checkpoint --baseline <gentle-ai-…> --candidate <idd-…>
 ```
 
-Date: 2026-10-22. Bench contract: [`openspec/specs/bench/spec.md`](../../openspec/specs/bench/spec.md). Manual: [`scripts/evals/bench/README.md`](../../scripts/evals/bench/README.md).
+Date: 2026-10-23. Bench contract: [`openspec/specs/bench/spec.md`](../../openspec/specs/bench/spec.md). Manual: [`scripts/evals/bench/README.md`](../../scripts/evals/bench/README.md).
 
 ## Short conclusion
 
-- **Quality: not demonstrated, though the data lean to IDD.** Regression ties in every bench, and acceptance differs by one check at most (E4.9 and OSP-011 Claude). The escaped defects differ only in hidden-fact checks, and no difference is significant: E4.2 2 against 0 over 26 (one repetition, p≈0.49), E4.9 9 against 3 (one repetition), E4.5 6.33 against 6.67 (IDD escapes one more check), E4.6 agy 14 against 8 summed over means (the `receta-spa` lead rests on one run), E4.6 Claude 9 against 3 (one repetition) and OSP-011 Claude 4.67 against 1.67 summed over means (three repetitions; p≈0.13 per scenario). Up to E4.6 agy, the benches ran Engram only in gentle-ai's arm (OSP-025). E4.6 Claude is the first with Engram in both arms and with the pair's quality collected (OSP-026): mutation score 89.6 % against 98.4 %, and the blind review prefers IDD in 5 of 6 pairs. In OSP-011 Claude, 94.4 % against 92.1 %, and the blind review prefers IDD in 15 of 18 pairs.
+- **Quality: not demonstrated, though the data lean to IDD.** Regression ties in every bench, and acceptance differs by one check at most (E4.9, OSP-011 Claude and #388 agy). The escaped defects differ only in hidden-fact checks, and no difference is significant: E4.2 2 against 0 over 26 (one repetition, p≈0.49), E4.9 9 against 3 (one repetition), E4.5 6.33 against 6.67 (IDD escapes one more check), E4.6 agy 14 against 8 summed over means (the `receta-spa` lead rests on one run), E4.6 Claude 9 against 3 (one repetition) OSP-011 Claude 4.67 against 1.67 summed over means (three repetitions; p≈0.13 per scenario) and #388 agy 9 against 7 (three repetitions; p≈0.25 per scenario). Up to E4.6 agy, the benches ran Engram only in gentle-ai's arm (OSP-025). E4.6 Claude is the first with Engram in both arms and with the pair's quality collected (OSP-026): mutation score 89.6 % against 98.4 %, and the blind review prefers IDD in 5 of 6 pairs. In OSP-011 Claude, 94.4 % against 92.1 %, and the blind review prefers IDD in 15 of 18 pairs. In #388 agy, 78 % against 92.5 %, and the blind review prefers IDD in 9 of 18 pairs and gentle-ai in 3.
 - **What holds:** with Sonnet and gentle-ai 4.1.1, the token saving with Claude on small tasks (0.44×), which has a structural cause (section 4). With Haiku and gentle-ai 4.2.0 it does not repeat: IDD spends 2.61× in E4.6 Claude and 2.34× with n = 3 in OSP-011 Claude (95 % CI of the per-scenario ratio: 1.67 to 3.13), so the extra cost with Haiku is consistent.
 - **Token cost:** it depends on the host and the kind of task.
   - With **Claude and Sonnet** on small tasks, IDD spends **0.44×** what gentle-ai spends, and half in dollars. With **Claude and Haiku**, 2.61× (0.28 against 0.12 USD) with one repetition and 2.34× with three (0.28 against 0.13 USD per corpus repetition).
-  - With **Gemini 3.8 Flash** (agy), IDD spends more: 2.29× on the six small scenarios and 7.3× on `todo-spa`. On `receta-spa` it spends 0.80×.
+  - With **Gemini 3.8 Flash** (agy), IDD spends more: 2.29× on the six small scenarios and 7.3× on `todo-spa`. On `receta-spa` it spends 0.80×. With three repetitions and Engram in both arms (#388 agy), 2.63× on the six scenarios (95 % CI of the per-scenario ratio: 1.91 to 3.75) and 1.46× on `salas`.
 - **Reading on complexity:** on the complex tasks IDD spent more, and its most expensive runs escaped fewer defects; on small tasks the saving only shows with Claude and Sonnet. This is a correlation over a few runs, not a proven law (section 4).
 - **What gentle-ai does better:** it is cheaper and faster with Gemini and with Haiku, and on `todo-spa` it delivers in one turn with no interventions. Its strength, memory across sessions, is not measured here.
 
@@ -25,13 +25,13 @@ Date: 2026-10-22. Bench contract: [`openspec/specs/bench/spec.md`](../../openspe
 
 | Element | Value |
 | --- | --- |
-| IDD | ospec-workflow 2.132.1 to 2.145.1, built from the checkout, no SDD. Up to E4.6 agy, **no Engram**: only gentle-ai's arm had it (OSP-025). E4.6 Claude and OSP-011 Claude load it in both arms (engram 3.5.1). The router loads in the agy arms and in E4.6 Claude |
-| gentle-ai | gentle-ai 4.1.1 with Engram 3.4.0; in E4.6 Claude and OSP-011 Claude, 4.2.0 with Engram 3.5.1 (ODD with RDD on). Engram empty and isolated per scenario. On agy, with three environment adjustments that do not touch its content |
-| Agent | Claude Code 2.1.289/2.1.296 with `claude-sonnet-5-5`, Claude Code 2.1.304 with `claude-haiku-5-5`, or Antigravity CLI (`agy`) 1.3.3 to 1.3.5 with `gemini-3.8-flash-high` |
+| IDD | ospec-workflow 2.132.1 to 2.146.4, built from the checkout, no SDD. Up to E4.6 agy, **no Engram**: only gentle-ai's arm had it (OSP-025). E4.6 Claude, OSP-011 Claude and #388 agy load it in both arms (engram 3.5.1). The router loads in the agy arms and in E4.6 Claude |
+| gentle-ai | gentle-ai 4.1.1 with Engram 3.4.0; in E4.6 Claude, OSP-011 Claude and #388 agy, 4.2.0 with Engram 3.5.1 (ODD with RDD on). Engram empty and isolated per scenario. On agy, with three environment adjustments that do not touch its content |
+| Agent | Claude Code 2.1.289/2.1.296 with `claude-sonnet-5-5`, Claude Code 2.1.304 with `claude-haiku-5-5`, or Antigravity CLI (`agy`) 1.3.3 to 1.4.5 with `gemini-3.8-flash-high` |
 | Persona (the simulated user) | `claude-sonnet-5-5` or `claude-haiku-5-5` on Claude; `claude-sonnet-5-5-medium` or `grok-4.7-high` on agy |
 | Judge of the checks | Deterministic hidden checks per scenario; for the one-page apps, headless Chromium over CDP |
 | Limits | 30 agent turns; 25 USD per scenario on Claude, 30 M tokens on agy (agy reports no cost) |
-| Isolation | One workspace per run. On agy, every process runs in bubblewrap with an allowlisted environment |
+| Isolation | One workspace per run. On agy, every process runs in bubblewrap with an allowlisted environment; since #388, with `/tmp` and `/home` covered and without agy's web tools |
 | Tokens | Input, output, cache reads and cache writes, subagents included. Cache is 86–91 % of the total in both arms. Setup and the persona do not count |
 
 The persona only gives a scenario's hidden facts if the agent asks. A hidden check that fails is an **escaped defect**: the delivery does not do what the user wanted, even if nobody told it.
@@ -46,12 +46,13 @@ The persona only gives a scenario's hidden facts if the agent asks. A hidden che
 | **E4.6 agy** | `greenfield` (`7ce1db3ed2ba`) | `todo-spa` and `receta-spa` (9 facts, written and frozen in the same session that tuned IDD, so its independence is not demonstrated) | 3 | agy 1.3.5, `gemini-3.8-flash-high`, persona `grok-4.7-high` |
 | **E4.6 Claude** | `default` (`3eed3740a0d6`) | The 6 of E4.9 | 1 | Claude Code 2.1.304, `claude-haiku-5-5`, persona `claude-haiku-5-5`, Engram in both arms |
 | **OSP-011 Claude** | `default` (`3eed3740a0d6`) and `reserved` (`bba3c8d0b72e`) | The 6 of E4.9 and `salas` (4 facts, written and frozen in a change that does not touch IDD) | 3 | Claude Code 2.1.304, `claude-haiku-5-5`, persona `claude-haiku-5-5`, Engram in both arms |
+| **#388 agy** | `default` (`3eed3740a0d6`) and `reserved` (`bba3c8d0b72e`) | The 6 of E4.9 and `salas` | 3 | agy 1.4.5, `gemini-3.8-flash-high`, persona `claude-sonnet-5-5-medium`, Engram in both arms |
 
-Records: E4.2 `gentle-ai-1` vs `idd-3`; E4.9 `gentle-ai-2` vs `idd-4`; E4.5 `gentle-ai-agy-3` vs `idd-agy-3`; E4.6 agy `gentle-ai-agy-4` vs `idd-agy-4`; E4.6 Claude `gentle-ai-3` vs `idd-6`; OSP-011 Claude `gentle-ai-4` vs `idd-7` and `gentle-ai-4-reserved` vs `idd-7-reserved`. SDD (`sdd-baseline-3`, Claude, 65.7 M tokens, 38.64 USD, 93 min, 0 escaped) stays as a historical reference for a flow with every phase.
+Records: E4.2 `gentle-ai-1` vs `idd-3`; E4.9 `gentle-ai-2` vs `idd-4`; E4.5 `gentle-ai-agy-3` vs `idd-agy-3`; E4.6 agy `gentle-ai-agy-4` vs `idd-agy-4`; E4.6 Claude `gentle-ai-3` vs `idd-6`; OSP-011 Claude `gentle-ai-4` vs `idd-7` and `gentle-ai-4-reserved` vs `idd-7-reserved`; #388 agy `gentle-ai-agy-6` vs `idd-agy-6` and `gentle-ai-agy-6-reserved` vs `idd-agy-6-reserved`. SDD (`sdd-baseline-3`, Claude, 65.7 M tokens, 38.64 USD, 93 min, 0 escaped) stays as a historical reference for a flow with every phase.
 
 ## 3. Results
 
-Per-bench sums; in E4.5, E4.6 agy and OSP-011 Claude, per-scenario means added up (different repetitions are not summed with each other).
+Per-bench sums; in E4.5, E4.6 agy, OSP-011 Claude and #388 agy, per-scenario means added up (different repetitions are not summed with each other).
 
 | Bench | Tokens (gentle-ai → IDD) | Cost | Duration | Questions | Acceptance | Facts | Escaped |
 | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: |
@@ -61,8 +62,9 @@ Per-bench sums; in E4.5, E4.6 agy and OSP-011 Claude, per-scenario means added u
 | E4.6 agy, 2 scenarios | **6.55 M** → 18.39 M (2.81×) | n/a | **62.6** → 80.3 min (sum of the 6 runs) | 0 → 0 | 15/15 → 15/15 | 33/75 → **51/75** | 14 → **8** |
 | E4.6 Claude, 6 scenarios | **3.92 M** → 10.23 M (2.61×) | **0.12** → 0.28 USD | **4.5** → 11.8 min | 0 → 6 | 5/6 → 5/6 | 18/26 → **24/26** | 9 → **3** |
 | OSP-011 Claude, 6 scenarios | **4.18 M** → 9.78 M (2.34×) | **0.13** → 0.28 USD | **4.6** → 10.9 min | 0 → 6.33 | **18/18** → 17/18 | 64/78 → **74/78** | 4.67 → **1.67** |
+| #388 agy, 6 scenarios | **9.95 M** → 26.16 M (2.63×) | n/a | **34.4** → 42.9 min | 0 → 0.33 | 15/18 → **16/18** | 54/78 → **59/78** | 9 → **7** |
 
-Regression passes everywhere (11/11, 3/3, 6/6 and 33/33 in both arms). Bold: best on the axis. In OSP-011 Claude, acceptance counts the 18 runs and the escaped defects are 14 against 5 over those 18. Its reserved scenario `salas` gives 707 k → 2,006 k tokens (2.84×), facts 9/12 → 12/12 and escaped 1, 1, 1 → 0, 0, 0 per repetition.
+Regression passes everywhere (11/11, 3/3, 6/6 and 33/33 in both arms). Bold: best on the axis. In OSP-011 Claude, acceptance counts the 18 runs and the escaped defects are 14 against 5 over those 18. Its reserved scenario `salas` gives 707 k → 2,006 k tokens (2.84×), facts 9/12 → 12/12 and escaped 1, 1, 1 → 0, 0, 0 per repetition. In #388 agy, the escaped defects are 27 against 21 over the 18 runs, and `salas` gives 2,906 k → 4,229 k tokens (1.46×), facts 3/12 → 7/12 and escaped 3, 3, 3 → 1, 1, 3.
 
 ### E4.6 agy breakdown, per run
 
@@ -87,11 +89,12 @@ E4.6 agy checkpoint with `bench-margins-9`, as the harness of its time computed 
 - On `receta-spa`, IDD's lead (6 against 7.67) rests on a single run (#2). It is the most fragile difference in this document.
 - In E4.6 Claude, with Engram in both arms, gentle-ai asks nothing and escapes 9 facts; IDD asks once per scenario and escapes 3. The pair's quality gives `continue`: mutation score 89.6 % against 98.4 %, and the blind review prefers IDD in 5 pairs, gentle-ai in none and is inconsistent in one. The `bench-margins-10` checkpoint gives `revise` for tokens and one regression (`bugfix/invalid-page-size`, a fact IDD did not ask about). With the same IDD, the `idd-5` reference escaped 1, so the run-to-run variance is of the order of that regression.
 - In OSP-011 Claude, with three repetitions, gentle-ai still asks nothing and escapes 4.67 facts summed over means; IDD escapes 1.67. IDD escapes fewer on `brownfield`, `public-library`, `bugfix` and the reserved `salas`, and more on `regulated`, where the persona suggested not ruling out `;` though no fact said so. Over the seven scenarios, an exact sign-permutation test gives p≈0.13: not significant. Quality gives `revise` on both corpora by narrow margins. On the default corpus, the blind review prefers IDD in 15 pairs, gentle-ai in 2 and is inconsistent in one; mutation score 94.4 % against 92.1 %. On `salas`, it prefers IDD in all 3 pairs, and the mutation score (90.6 % against 84.1 %) is pulled down by one delivery at 70.3 %. Both `bench-margins-11` checkpoints give `revise` for tokens; the default-corpus one also for three regressions that fail in one of three repetitions (`regulated/export-day-sorted` and `regulated/csv-escaping`, which come from the persona's answer, and `bugfix/invalid-page-size`).
+- In #388 agy, with three repetitions and Engram in both arms, IDD barely asks: once in 21 runs, against 17 of 18 in OSP-011 Claude. That question settled the five checks of `brownfield/r2`. In three other runs, Gemini resolved the `open-facts` gate itself with `--source user` and an answer nobody gave, and one of them caused the `bugfix/page-below-one` regression (#343, #399). IDD escapes 7 against 9 summed over means, and 1.67 against 3 on `salas`; over the seven scenarios, p≈0.25. On quality, the mutation score rises from 78 % to 92.5 % on the default corpus and falls from 89.6 % to 78.3 % on `salas` (three deliveries); the blind review prefers IDD in 9 default-corpus pairs and in all 3 of `salas`, and gentle-ai in 3. Both `bench-margins-11` checkpoints give `revise`: for tokens, two one-repetition regressions and the blind review on the default corpus, and for tokens and mutation score on `salas`.
 
 **Tokens and speed: it depends.**
 - **With Claude and Sonnet IDD wins** (0.44×, E4.2). gentle-ai 4.1.1 loads an 82 KB `CLAUDE.md` on every turn and makes 107 model turns against 76. The saving is structural.
 - **With Claude and Haiku gentle-ai wins** (E4.6 Claude: IDD spends 2.61×). gentle-ai 4.2.0 makes 97 model turns and IDD 194, with one question and a second turn per scenario. The bench does not separate how much comes from the model and how much from the versions. OSP-011 Claude confirms it with three repetitions: 2.34× (95 % CI of the per-scenario ratio: 1.67 to 3.13), with about 31 model turns per run in IDD against 18 in gentle-ai.
-- **With Gemini gentle-ai wins** on the small scenarios and on `todo-spa`: it delivers in one turn and stops. IDD keeps going until its obligations are satisfied, and every extra turn reloads the context.
+- **With Gemini gentle-ai wins** on the small scenarios and on `todo-spa`: it delivers in one turn and stops. IDD keeps going until its obligations are satisfied, and every extra turn reloads the context. #388 agy confirms it with three repetitions (2.63×, 95 % CI: 1.91 to 3.75); part of the spending is the agent reading the `ospec` CLI's code in every run (median of 17 reads).
 
 **The idea that IDD saves on the simple and spends more on the complex to deliver better:**
 - **What the records support.**
@@ -105,14 +108,14 @@ E4.6 agy checkpoint with `bench-margins-9`, as the harness of its time computed 
 
 ## 5. Limits
 
-- **One repetition** in E4.2, E4.9 and E4.6 Claude; three in E4.5, E4.6 agy and OSP-011 Claude. One hidden-fact check moves the result a lot (in E4.2, 2 against 0 over 26 gives p≈0.49 with a two-sided Fisher test).
-- **IDD versions changed** between benches (2.132.1, 2.133.0, 2.136.0, 2.137.0, 2.143.0, 2.145.1), and so did gentle-ai's (4.1.1 and 4.2.0), and the `default` corpus changed between E4.2 and E4.9 (`dde01d7028a9` to `3eed3740a0d6`): they are not compared one to one. IDD was tuned on the `default` corpus; `receta-spa` and `salas` are the only reserved scenarios.
-- **The persona models differ** between benches (Claude or Grok), and on agy the agent (Gemini) and the quality judge are not from the same family. In E4.6 Claude and OSP-011 Claude, Haiku is the agent, the persona and the judge. In OSP-011 Claude, the persona gave a technical hint that was not among its facts (`regulated/r1`).
+- **One repetition** in E4.2, E4.9 and E4.6 Claude; three in E4.5, E4.6 agy, OSP-011 Claude and #388 agy. One hidden-fact check moves the result a lot (in E4.2, 2 against 0 over 26 gives p≈0.49 with a two-sided Fisher test).
+- **IDD versions changed** between benches (2.132.1, 2.133.0, 2.136.0, 2.137.0, 2.143.0, 2.145.1, 2.146.4), and so did gentle-ai's (4.1.1 and 4.2.0), and the `default` corpus changed between E4.2 and E4.9 (`dde01d7028a9` to `3eed3740a0d6`): they are not compared one to one. IDD was tuned on the `default` corpus; `receta-spa` and `salas` are the only reserved scenarios.
+- **The persona models differ** between benches (Claude or Grok), and on agy the agent (Gemini) and the quality judge are not from the same family. In E4.6 Claude and OSP-011 Claude, Haiku is the agent, the persona and the judge. In OSP-011 Claude, the persona gave a technical hint that was not among its facts (`regulated/r1`). In #388 agy, the persona answered once in 42 runs.
 - **gentle-ai's empty Engram** measures a new repository with no prior memory; the value of its memory across sessions is not measured.
 - **The E4.5 arms ran in parallel** and share Gemini's request limit: durations may come out inflated.
 - **Engram only in gentle-ai's arm** in every bench up to E4.6 agy (OSP-025): it adds to gentle-ai's tokens and gives it a memory protocol IDD lacked. E4.6 Claude is the first with Engram in both arms (140 bytes of MCP in each), and OSP-011 Claude repeats that symmetry.
 - **`receta-spa` was written in the same session** that tuned IDD for E4.6: the reserved scenario's independence from the tuning is not demonstrated (OSP-026). `salas` (OSP-011 Claude) is the first reserved scenario written outside a tuning session: in a change that does not touch IDD and frozen before running, though by the same author who tunes IDD.
-- **The E4.6 agy quality was never collected:** the pair's deliveries are no longer on disk. E4.6 Claude's and OSP-011 Claude's were (`scripts/evals/quality/results/gentle-ai-3__idd-6/`, `gentle-ai-4__idd-7/` and `gentle-ai-4-reserved__idd-7-reserved/`).
-- **#342, done for Claude:** OSP-011 Claude repeats with n = 3, symmetric arms and the `reserved` corpus (`salas`), with margins `bench-margins-11` declared in v2.145.0 before running. The n ≥ 3 repetition on agy stays pending in a separate issue.
+- **The E4.6 agy quality was never collected:** the pair's deliveries are no longer on disk. E4.6 Claude's, OSP-011 Claude's and #388 agy's were (`scripts/evals/quality/results/gentle-ai-3__idd-6/`, `gentle-ai-4__idd-7/`, `gentle-ai-4-reserved__idd-7-reserved/`, `gentle-ai-agy-6__idd-agy-6/` and `gentle-ai-agy-6-reserved__idd-agy-6-reserved/`).
+- **#342, done for Claude:** OSP-011 Claude repeats with n = 3, symmetric arms and the `reserved` corpus (`salas`), with margins `bench-margins-11` declared in v2.145.0 before running. #388 agy runs the n = 3 repetition on agy, with the same margins.
 
-Detailed analysis of each bench (in Spanish): [E4.2](../analysis/2026-10-12-bench-gentle-ai.md), [E4.5](../analysis/2026-10-13-bench-greenfield.md), [E4.9](../analysis/2026-10-14-bench-arm-symmetry.md), [E4.6 Claude](../analysis/2026-10-21-bench-claude-haiku.md), [OSP-011 Claude](../analysis/2026-10-22-bench-claude-n3.md).
+Detailed analysis of each bench (in Spanish): [E4.2](../analysis/2026-10-12-bench-gentle-ai.md), [E4.5](../analysis/2026-10-13-bench-greenfield.md), [E4.9](../analysis/2026-10-14-bench-arm-symmetry.md), [E4.6 Claude](../analysis/2026-10-21-bench-claude-haiku.md), [OSP-011 Claude](../analysis/2026-10-22-bench-claude-n3.md), [#388 agy](../analysis/2026-10-23-bench-agy-n3.md).

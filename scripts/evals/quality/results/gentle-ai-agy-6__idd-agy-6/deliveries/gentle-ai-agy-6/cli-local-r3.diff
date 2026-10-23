@@ -1,0 +1,132 @@
+diff --git a/README.md b/README.md
+index 4c576f0..9a287a8 100644
+--- a/README.md
++++ b/README.md
+@@ -5,6 +5,7 @@ Gestor de tareas personal para la terminal. Guarda las tareas en un fichero JSON
+ 
+ ```sh
+ tasks add Comprar pan
++tasks add Comprar pan --priority alta
+ tasks list
+ tasks done 1
+ ```
+diff --git a/src/cli.js b/src/cli.js
+index 3f5f441..48f6d06 100644
+--- a/src/cli.js
++++ b/src/cli.js
+@@ -2,7 +2,14 @@
+ 
+ const { storePath, load, save } = require("./store.js");
+ 
+-const USAGE = "uso: tasks add <título> | tasks list | tasks done <id>";
++const USAGE = "uso: tasks add <título> [--priority <alta|media|baja>] | tasks list | tasks done <id>";
++
++const VALID_PRIORITIES = ["alta", "media", "baja"];
++const PRIORITY_RANK = {
++  alta: 1,
++  media: 2,
++  baja: 3,
++};
+ 
+ // Exit codes: 0 ok, 1 the task does not exist, 2 usage error.
+ function run(argv, { stdout = process.stdout, stderr = process.stderr, env = process.env } = {}) {
+@@ -10,13 +17,39 @@ function run(argv, { stdout = process.stdout, stderr = process.stderr, env = pro
+   const file = storePath(env);
+ 
+   if (command === "add") {
+-    const title = rest.join(" ").trim();
++    let priority = "media";
++    let titleWords = rest;
++
++    if (rest.length >= 2 && rest[rest.length - 2] === "--priority") {
++      const p = rest[rest.length - 1];
++      if (!VALID_PRIORITIES.includes(p)) {
++        stderr.write(`${USAGE}\n`);
++        return 2;
++      }
++      priority = p;
++      titleWords = rest.slice(0, -2);
++    } else if (rest.length >= 1 && rest[rest.length - 1] === "--priority") {
++      stderr.write(`${USAGE}\n`);
++      return 2;
++    } else if (rest.length >= 1 && rest[rest.length - 1].startsWith("--priority ")) {
++      const parts = rest[rest.length - 1].split(/\s+/);
++      if (parts.length === 2 && parts[0] === "--priority") {
++        if (!VALID_PRIORITIES.includes(parts[1])) {
++          stderr.write(`${USAGE}\n`);
++          return 2;
++        }
++        priority = parts[1];
++        titleWords = rest.slice(0, -1);
++      }
++    }
++
++    const title = titleWords.join(" ").trim();
+     if (!title) {
+       stderr.write(`${USAGE}\n`);
+       return 2;
+     }
+     const data = load(file);
+-    const task = { id: data.nextId, title, done: false };
++    const task = { id: data.nextId, title, done: false, priority };
+     data.nextId += 1;
+     data.tasks.push(task);
+     save(file, data);
+@@ -26,7 +59,15 @@ function run(argv, { stdout = process.stdout, stderr = process.stderr, env = pro
+ 
+   if (command === "list") {
+     const data = load(file);
+-    for (const task of data.tasks) {
++    const sortedTasks = [...data.tasks].sort((a, b) => {
++      const rankA = PRIORITY_RANK[a.priority] || PRIORITY_RANK.media;
++      const rankB = PRIORITY_RANK[b.priority] || PRIORITY_RANK.media;
++      if (rankA !== rankB) {
++        return rankA - rankB;
++      }
++      return a.id - b.id;
++    });
++    for (const task of sortedTasks) {
+       stdout.write(`${task.done ? "[x]" : "[ ]"} ${task.id} ${task.title}\n`);
+     }
+     return 0;
+diff --git a/test/cli.js b/test/cli.js
+index 0ddacaa..0ddcf5a 100644
+--- a/test/cli.js
++++ b/test/cli.js
+@@ -42,4 +42,36 @@ test("unknown task and usage errors", () => {
+   assert.equal(tasks("done", "9").status, 1);
+   assert.equal(tasks("add").status, 2);
+   assert.equal(tasks("borrar").status, 2);
++  assert.equal(tasks("add", "comprar pan", "--priority", "urgente").status, 2);
++  assert.equal(tasks("add", "comprar pan", "--priority").status, 2);
++  assert.equal(tasks("add", "--priority", "alta").status, 2);
++  assert.equal(tasks("add", "--priority").status, 2);
++});
++
++test("tasks list displays highest priority first and preserves insertion order", () => {
++  const tasks = session();
++  assert.equal(tasks("add", "tarea baja", "--priority", "baja").status, 0);
++  assert.equal(tasks("add", "tarea media por defecto").status, 0);
++  assert.equal(tasks("add", "tarea alta 1", "--priority", "alta").status, 0);
++  assert.equal(tasks("add", "tarea media explicita", "--priority", "media").status, 0);
++  assert.equal(tasks("add", "tarea alta 2", "--priority", "alta").status, 0);
++
++  assert.equal(
++    tasks("list").out,
++    "[ ] 3 tarea alta 1\n" +
++      "[ ] 5 tarea alta 2\n" +
++      "[ ] 2 tarea media por defecto\n" +
++      "[ ] 4 tarea media explicita\n" +
++      "[ ] 1 tarea baja\n"
++  );
++
++  assert.equal(tasks("done", "3").status, 0);
++  assert.equal(
++    tasks("list").out,
++    "[x] 3 tarea alta 1\n" +
++      "[ ] 5 tarea alta 2\n" +
++      "[ ] 2 tarea media por defecto\n" +
++      "[ ] 4 tarea media explicita\n" +
++      "[ ] 1 tarea baja\n"
++  );
+ });

@@ -1,0 +1,102 @@
+diff --git a/src/clinic.js b/src/clinic.js
+index e4eb220..9356b7f 100644
+--- a/src/clinic.js
++++ b/src/clinic.js
+@@ -9,6 +9,14 @@ class AccessDeniedError extends Error {
+   }
+ }
+ 
++function escapeCsv(val) {
++  const str = String(val ?? "");
++  if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
++    return `"${str.replace(/"/g, '""')}"`;
++  }
++  return str;
++}
++
+ // Patient: { id, nationalId, name, birthDate, diagnosis }
+ // Appointment: { id, patientId, date: "YYYY-MM-DD", time: "HH:MM", reason }
+ function createClinic({ patients = [], appointments = [], audit = createAuditLog() } = {}) {
+@@ -32,7 +40,21 @@ function createClinic({ patients = [], appointments = [], audit = createAuditLog
+     return result;
+   }
+ 
+-  return { getPatient, appointmentsOn, audit };
++  function exportAppointmentsCsv(date, actor) {
++    const list = appointmentsOn(date, actor);
++    const sorted = list.slice().sort((a, b) => a.time.localeCompare(b.time));
++    const rows = [
++      "hora,paciente,motivo",
++      ...sorted.map((item) => {
++        const patient = patients.find((p) => p.id === item.patientId);
++        const patientName = patient ? patient.name : "";
++        return [item.time, patientName, item.reason].map(escapeCsv).join(",");
++      }),
++    ];
++    return rows.join("\n");
++  }
++
++  return { getPatient, appointmentsOn, exportAppointmentsCsv, audit };
+ }
+ 
+ module.exports = { createClinic, AccessDeniedError };
+diff --git a/test/clinic.js b/test/clinic.js
+index 6da846c..36b1653 100644
+--- a/test/clinic.js
++++ b/test/clinic.js
+@@ -31,3 +31,55 @@ test("appointments of a day are listed and audited", () => {
+   assert.deepEqual(clinic.appointmentsOn("2026-10-06", reception).map((item) => item.id), ["a1"]);
+   assert.equal(clinic.audit.entries()[0].count, 1);
+ });
++
++test("export appointments to csv for a day sorted by time", () => {
++  const multipleAppointments = [
++    { id: "a1", patientId: "p1", date: "2026-10-06", time: "11:00", reason: "Revision" },
++    { id: "a2", patientId: "p2", date: "2026-10-06", time: "09:30", reason: "Control" },
++    { id: "a3", patientId: "p1", date: "2026-10-07", time: "08:00", reason: "Analítica" },
++  ];
++  const multiplePatients = [
++    { id: "p1", nationalId: "12345678Z", name: "Luis Gómez", birthDate: "1980-02-01", diagnosis: "Hipertensión" },
++    { id: "p2", nationalId: "87654321A", name: "Ana Pérez", birthDate: "1992-05-15", diagnosis: "Gripe" },
++  ];
++  const clinic = createClinic({ patients: multiplePatients, appointments: multipleAppointments });
++  const csv = clinic.exportAppointmentsCsv("2026-10-06", reception);
++  const expected = [
++    "hora,paciente,motivo",
++    "09:30,Ana Pérez,Control",
++    "11:00,Luis Gómez,Revision",
++  ].join("\n");
++  assert.equal(csv, expected);
++  assert.equal(clinic.audit.entries().length, 1);
++});
++
++test("export appointments to csv on a day without appointments", () => {
++  const clinic = createClinic({ patients, appointments });
++  const csv = clinic.exportAppointmentsCsv("2026-10-08", reception);
++  assert.equal(csv, "hora,paciente,motivo");
++});
++
++test("unauthorized role cannot export appointments csv", () => {
++  const clinic = createClinic({ patients, appointments });
++  const unauthorizedActor = { id: "u1", role: "assistant" };
++  assert.throws(() => clinic.exportAppointmentsCsv("2026-10-06", unauthorizedActor), AccessDeniedError);
++  assert.throws(() => clinic.exportAppointmentsCsv("2026-10-06", null), AccessDeniedError);
++});
++
++test("doctors can also export appointments csv", () => {
++  const clinic = createClinic({ patients, appointments });
++  const csv = clinic.exportAppointmentsCsv("2026-10-06", doctor);
++  assert.equal(csv, "hora,paciente,motivo\n09:30,Luis Gómez,Control");
++});
++
++test("export appointments escapes csv fields with commas or quotes", () => {
++  const specialPatients = [
++    { id: "p1", name: 'Gómez, "Luis"' },
++  ];
++  const specialAppointments = [
++    { id: "a1", patientId: "p1", date: "2026-10-06", time: "09:30", reason: "Control, revisión" },
++  ];
++  const clinic = createClinic({ patients: specialPatients, appointments: specialAppointments });
++  const csv = clinic.exportAppointmentsCsv("2026-10-06", reception);
++  assert.equal(csv, 'hora,paciente,motivo\n09:30,"Gómez, ""Luis""","Control, revisión"');
++});

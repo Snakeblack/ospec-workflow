@@ -1,0 +1,137 @@
+diff --git a/src/app.js b/src/app.js
+index f3164f9..edf09a2 100644
+--- a/src/app.js
++++ b/src/app.js
+@@ -6,13 +6,25 @@ const { ROOMS, findRoom } = require("./rooms.js");
+ // ({ id, tenantId }); a request without user is rejected.
+ // Tenant isolation: a room from another organization is reported as missing (404).
+ function createApp() {
+-  function handle({ method, path, user }) {
++  const bookings = [];
++
++  function handle({ method, path, user, body }) {
+     if (!user) return { status: 401, body: { error: "unauthenticated" } };
+ 
+     if (path === "/rooms" && method === "GET") {
+       return { status: 200, body: ROOMS.filter((room) => room.tenantId === user.tenantId).map((room) => ({ ...room })) };
+     }
+ 
++    const bookingsMatch = /^\/rooms\/([^/]+)\/bookings$/.exec(path);
++    if (bookingsMatch && method === "GET") {
++      const room = findRoom(bookingsMatch[1]);
++      if (!room || room.tenantId !== user.tenantId) return { status: 404, body: { error: "not-found" } };
++      return {
++        status: 200,
++        body: bookings.filter((b) => b.roomId === room.id && b.tenantId === user.tenantId).map((b) => ({ ...b })),
++      };
++    }
++
+     const match = /^\/rooms\/([^/]+)$/.exec(path);
+     if (match && method === "GET") {
+       const room = findRoom(match[1]);
+@@ -20,6 +32,26 @@ function createApp() {
+       return { status: 200, body: { ...room } };
+     }
+ 
++    if (path === "/bookings" && method === "POST") {
++      if (!body || !body.roomId || !body.start || !body.end) {
++        return { status: 400, body: { error: "bad-request" } };
++      }
++      const room = findRoom(body.roomId);
++      if (!room || room.tenantId !== user.tenantId) {
++        return { status: 404, body: { error: "not-found" } };
++      }
++      const booking = {
++        id: `b${bookings.length + 1}`,
++        roomId: body.roomId,
++        start: body.start,
++        end: body.end,
++        tenantId: user.tenantId,
++        userId: user.id,
++      };
++      bookings.push(booking);
++      return { status: 201, body: { ...booking } };
++    }
++
+     return { status: 404, body: { error: "not-found" } };
+   }
+ 
+diff --git a/test/app.js b/test/app.js
+index 53195a1..61e193a 100644
+--- a/test/app.js
++++ b/test/app.js
+@@ -22,4 +22,74 @@ test("rooms of another organization are missing", () => {
+ 
+ test("requests without user are rejected", () => {
+   assert.equal(createApp().handle({ method: "GET", path: "/rooms" }).status, 401);
++  assert.equal(createApp().handle({ method: "POST", path: "/bookings", body: { roomId: "r1" } }).status, 401);
++  assert.equal(createApp().handle({ method: "GET", path: "/rooms/r1/bookings" }).status, 401);
++});
++
++test("users can book a room in their organization and list its bookings", () => {
++  const app = createApp();
++  const res = app.handle({
++    method: "POST",
++    path: "/bookings",
++    user: ana,
++    body: { roomId: "r1", start: "2026-11-03T10:00:00Z", end: "2026-11-03T11:00:00Z" },
++  });
++  assert.equal(res.status, 201);
++  assert.equal(res.body.roomId, "r1");
++  assert.equal(res.body.start, "2026-11-03T10:00:00Z");
++  assert.equal(res.body.end, "2026-11-03T11:00:00Z");
++  assert.ok(res.body.id);
++
++  const listRes = app.handle({
++    method: "GET",
++    path: "/rooms/r1/bookings",
++    user: ana,
++  });
++  assert.equal(listRes.status, 200);
++  assert.equal(listRes.body.length, 1);
++  assert.equal(listRes.body[0].roomId, "r1");
++  assert.equal(listRes.body[0].start, "2026-11-03T10:00:00Z");
++  assert.equal(listRes.body[0].end, "2026-11-03T11:00:00Z");
++
++  const otherRoomList = app.handle({
++    method: "GET",
++    path: "/rooms/r2/bookings",
++    user: ana,
++  });
++  assert.equal(otherRoomList.status, 200);
++  assert.deepEqual(otherRoomList.body, []);
++});
++
++test("booking a room of another organization returns 404", () => {
++  const app = createApp();
++  const res = app.handle({
++    method: "POST",
++    path: "/bookings",
++    user: zoe,
++    body: { roomId: "r1", start: "2026-11-03T10:00:00Z", end: "2026-11-03T11:00:00Z" },
++  });
++  assert.equal(res.status, 404);
++});
++
++test("listing bookings for a room of another organization returns 404", () => {
++  const app = createApp();
++  app.handle({
++    method: "POST",
++    path: "/bookings",
++    user: ana,
++    body: { roomId: "r1", start: "2026-11-03T10:00:00Z", end: "2026-11-03T11:00:00Z" },
++  });
++  const res = app.handle({
++    method: "GET",
++    path: "/rooms/r1/bookings",
++    user: zoe,
++  });
++  assert.equal(res.status, 404);
++});
++
++test("booking with missing fields returns 400", () => {
++  const app = createApp();
++  assert.equal(app.handle({ method: "POST", path: "/bookings", user: ana, body: null }).status, 400);
++  assert.equal(app.handle({ method: "POST", path: "/bookings", user: ana, body: { roomId: "r1" } }).status, 400);
++  assert.equal(app.handle({ method: "POST", path: "/bookings", user: ana, body: { roomId: "r1", start: "2026-11-03T10:00:00Z" } }).status, 400);
+ });

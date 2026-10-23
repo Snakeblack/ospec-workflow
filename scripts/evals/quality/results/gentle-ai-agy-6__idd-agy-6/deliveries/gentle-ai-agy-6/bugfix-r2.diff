@@ -1,0 +1,53 @@
+diff --git a/src/paginate.js b/src/paginate.js
+index ed94097..1a90b18 100644
+--- a/src/paginate.js
++++ b/src/paginate.js
+@@ -3,14 +3,15 @@
+ /**
+  * Returns one page of `items`.
+  * @param {Array} items
+- * @param {number} page 1-based page number
++ * @param {number} [page=1] 1-based page number
+  * @param {number} [pageSize=10]
+  * @returns {{ page: number, pageSize: number, totalPages: number, items: Array }}
+  */
+-function paginate(items, page, pageSize = 10) {
+-  const totalPages = Math.floor(items.length / pageSize) + 1;
+-  const start = (page - 1) * pageSize;
+-  return { page, pageSize, totalPages, items: items.slice(start, start + pageSize) };
++function paginate(items, page = 1, pageSize = 10) {
++  const currentPage = Math.max(1, Math.floor(page) || 1);
++  const totalPages = Math.ceil(items.length / pageSize);
++  const start = (currentPage - 1) * pageSize;
++  return { page: currentPage, pageSize, totalPages, items: items.slice(start, start + pageSize) };
+ }
+ 
+ module.exports = { paginate };
+diff --git a/test/paginate.js b/test/paginate.js
+index 6989bee..4540aae 100644
+--- a/test/paginate.js
++++ b/test/paginate.js
+@@ -21,3 +21,23 @@ test("partial last page", () => {
+ test("catalog lists ten products per page", () => {
+   assert.equal(listProducts(2).items[0].id, 11);
+ });
++
++test("exact multiple of page size has no extra empty page", () => {
++  const twentyItems = Array.from({ length: 20 }, (_, index) => index + 1);
++  const result = paginate(twentyItems, 1, 10);
++  assert.equal(result.totalPages, 2);
++  assert.equal(paginate(twentyItems, 2, 10).items.length, 10);
++  assert.deepEqual(paginate(twentyItems, 3, 10).items, []);
++});
++
++test("page 0 normalizes to first page", () => {
++  const result = paginate(items, 0);
++  assert.equal(result.page, 1);
++  assert.deepEqual(result.items, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
++});
++
++test("negative page normalizes to first page", () => {
++  const result = paginate(items, -1);
++  assert.equal(result.page, 1);
++  assert.deepEqual(result.items, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
++});

@@ -1,0 +1,129 @@
+diff --git a/src/invoice.js b/src/invoice.js
+index 9b01eaa..205ef69 100644
+--- a/src/invoice.js
++++ b/src/invoice.js
+@@ -1,6 +1,8 @@
+ // Facturacion v1 (2014). No tocar sin hablar con contabilidad.
+ // TODO: tests
+ 
++var { CODIGOS } = require("./discounts");
++
+ var IVA = 0.21;
+ var IVA_REDUCIDO = 0.10;
+ var ENVIO = 4.95;
+@@ -24,9 +26,19 @@ function calcInvoice(order) {
+   iva = r2(iva);
+   var envio = subtotal >= UMBRAL_ENVIO_GRATIS ? 0 : ENVIO;
+   if (order.pickup) envio = 0;
++
++  var descuento = 0;
++  if (order.discountCode && typeof order.discountCode === "string") {
++    var code = order.discountCode.trim();
++    var pct = CODIGOS[code] || CODIGOS[code.toUpperCase()];
++    if (pct) {
++      descuento = r2(subtotal * (pct / 100));
++    }
++  }
++
+   // el envio va sin IVA (acuerdo con la transportista, 2016)
+-  var total = r2(subtotal + iva + envio);
+-  return { lineas: lineas, subtotal: subtotal, iva: iva, envio: envio, total: total };
++  var total = r2(subtotal - descuento + iva + envio);
++  return { lineas: lineas, subtotal: subtotal, descuento: descuento, iva: iva, envio: envio, total: total };
+ }
+ 
+ module.exports = { calcInvoice: calcInvoice };
+diff --git a/test/invoice.test.js b/test/invoice.test.js
+new file mode 100644
+index 0000000..89abac6
+--- /dev/null
++++ b/test/invoice.test.js
+@@ -0,0 +1,88 @@
++const { test, describe } = require("node:test");
++const assert = require("node:assert/strict");
++const { calcInvoice } = require("../src/invoice");
++
++describe("calcInvoice", () => {
++  test("factura estándar sin descuento incluye descuento 0", () => {
++    const order = {
++      items: [
++        { sku: "ITEM1", price: 20, qty: 1 }
++      ]
++    };
++    const inv = calcInvoice(order);
++    assert.equal(inv.subtotal, 20);
++    assert.equal(inv.descuento, 0);
++    assert.equal(inv.iva, 4.2);
++    assert.equal(inv.envio, 4.95);
++    assert.equal(inv.total, 29.15);
++  });
++
++  test("aplica código VERANO10 con 10% de descuento", () => {
++    const order = {
++      items: [
++        { sku: "ITEM1", price: 30, qty: 2 } // subtotal 60
++      ],
++      discountCode: "VERANO10"
++    };
++    const inv = calcInvoice(order);
++    assert.equal(inv.subtotal, 60);
++    assert.equal(inv.descuento, 6); // 10% de 60
++    assert.equal(inv.iva, 12.6); // 21% de 60
++    assert.equal(inv.envio, 0); // subtotal >= 50
++    assert.equal(inv.total, 66.6); // 60 - 6 + 12.60 + 0 = 66.60
++  });
++
++  test("aplica código BIENVENIDA5 con 5% de descuento", () => {
++    const order = {
++      items: [
++        { sku: "ITEM1", price: 100, qty: 1 }
++      ],
++      discountCode: "BIENVENIDA5"
++    };
++    const inv = calcInvoice(order);
++    assert.equal(inv.subtotal, 100);
++    assert.equal(inv.descuento, 5); // 5% de 100
++    assert.equal(inv.iva, 21);
++    assert.equal(inv.envio, 0);
++    assert.equal(inv.total, 116); // 100 - 5 + 21 = 116
++  });
++
++  test("código de descuento desconocido no aplica descuento", () => {
++    const order = {
++      items: [
++        { sku: "ITEM1", price: 20, qty: 1 }
++      ],
++      discountCode: "NOEXISTE"
++    };
++    const inv = calcInvoice(order);
++    assert.equal(inv.descuento, 0);
++    assert.equal(inv.total, 29.15);
++  });
++
++  test("código de descuento en minúsculas es aceptado", () => {
++    const order = {
++      items: [
++        { sku: "ITEM1", price: 50, qty: 1 }
++      ],
++      discountCode: "verano10"
++    };
++    const inv = calcInvoice(order);
++    assert.equal(inv.descuento, 5);
++    assert.equal(inv.total, 55.5); // 50 - 5 + 10.50 + 0 = 55.50
++  });
++
++  test("descuento con IVA reducido y envío", () => {
++    const order = {
++      items: [
++        { sku: "LIBRO", price: 20, qty: 1, reducedVat: true } // subtotal 20, iva 2
++      ],
++      discountCode: "VERANO10"
++    };
++    const inv = calcInvoice(order);
++    assert.equal(inv.subtotal, 20);
++    assert.equal(inv.descuento, 2); // 10% de 20
++    assert.equal(inv.iva, 2); // 10% de 20
++    assert.equal(inv.envio, 4.95);
++    assert.equal(inv.total, 24.95); // 20 - 2 + 2 + 4.95 = 24.95
++  });
++});

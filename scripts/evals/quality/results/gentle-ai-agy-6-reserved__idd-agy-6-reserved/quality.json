@@ -1,0 +1,660 @@
+{
+  "baseline": "gentle-ai-agy-6-reserved",
+  "candidate": "idd-agy-6-reserved",
+  "scenarios": {
+    "salas/r1": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-agy-6-reserved/salas-r1.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 22,
+            "test": 54,
+            "types": 0,
+            "docs": 2,
+            "other": 0
+          },
+          "removed": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 0,
+          "test_to_source": 2.45,
+          "suite_passes": true,
+          "suite_tests": 9
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 17,
+          "total": 17,
+          "killed": 16,
+          "survived": [
+            {
+              "file": "src/app.js",
+              "line": 32,
+              "operator": "logical",
+              "text": "if (path === \"/bookings\" || method === \"POST\") {"
+            }
+          ],
+          "score": 94.1
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-agy-6-reserved/salas-r1.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 50,
+            "test": 116,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 1,
+          "test_to_source": 2.32,
+          "suite_passes": true,
+          "suite_tests": 7
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 28,
+          "total": 28,
+          "killed": 20,
+          "survived": [
+            {
+              "file": "src/app.js",
+              "line": 10,
+              "operator": "literal",
+              "text": "let nextId = 2;"
+            },
+            {
+              "file": "src/app.js",
+              "line": 26,
+              "operator": "logical",
+              "text": ".filter((b) => b.roomId === room.id || b.tenantId === user.tenantId)"
+            },
+            {
+              "file": "src/app.js",
+              "line": 38,
+              "operator": "logical",
+              "text": "if (path === \"/bookings\" || method === \"POST\") {"
+            },
+            {
+              "file": "src/app.js",
+              "line": 39,
+              "operator": "logical",
+              "text": "if (!body && !body.roomId || !body.start || !body.end) {"
+            },
+            {
+              "file": "src/app.js",
+              "line": 44,
+              "operator": "relational",
+              "text": "if (Number.isNaN(startTime) || Number.isNaN(endTime) || startTime > endTime) {"
+            },
+            {
+              "file": "src/app.js",
+              "line": 44,
+              "operator": "logical",
+              "text": "if (Number.isNaN(startTime) && Number.isNaN(endTime) || startTime >= endTime) {"
+            },
+            {
+              "file": "src/app.js",
+              "line": 52,
+              "operator": "logical",
+              "text": "if (b.roomId !== body.roomId && b.tenantId !== user.tenantId) return false;"
+            },
+            {
+              "file": "src/app.js",
+              "line": 52,
+              "operator": "boolean",
+              "text": "if (b.roomId !== body.roomId || b.tenantId !== user.tenantId) return true;"
+            }
+          ],
+          "score": 71.4
+        }
+      },
+      "judge": {
+        "host": "agy",
+        "model": "claude-sonnet-5-5-medium",
+        "cost_usd": null,
+        "scores": {
+          "baseline": {
+            "correctness": 1,
+            "readability": 3.5,
+            "design": 2.5,
+            "tests": 2,
+            "scope": 3
+          },
+          "candidate": {
+            "correctness": 3,
+            "readability": 3.5,
+            "design": 3.5,
+            "tests": 3.5,
+            "scope": 2.5
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "preferred": "B",
+              "rationale": "Elegiría B. A no implementa tres de los cuatro requisitos: no detecta solapamientos (409), no valida que start sea anterior a end (400) y no ordena las reservas por start en el GET. B implementa el 409, con el caso de reservas contiguas permitido, y el 400 por rango inválido, y sus tests cubren esos casos. Pero B tampoco ordena el GET por start, y ningún test lo comprueba. Además B no actualiza el README, y A sí. Aun así, B está mucho más cerca de lo pedido.",
+              "scores": {
+                "correctness": {
+                  "A": 1,
+                  "B": 3
+                },
+                "design": {
+                  "A": 2,
+                  "B": 4
+                },
+                "readability": {
+                  "A": 3,
+                  "B": 4
+                },
+                "scope": {
+                  "A": 2,
+                  "B": 3
+                },
+                "tests": {
+                  "A": 2,
+                  "B": 4
+                }
+              }
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "preferred": "A",
+              "rationale": "I would merge A. It implements the overlap check (409, with back-to-back bookings allowed), the start < end validation (400) and tenant isolation, and it tests those cases. Its main flaws are that GET /rooms/:id/bookings doesn't sort by start and that it doesn't update the README. B skips three of the four requirements: it has no overlap check, no start < end validation and no sorting. B only covers tenant isolation and missing fields, and its tests don't exercise the missing behavior. B updates the README and is simpler, but it is functionally incomplete.",
+              "scores": {
+                "correctness": {
+                  "A": 3,
+                  "B": 1
+                },
+                "design": {
+                  "A": 3,
+                  "B": 3
+                },
+                "readability": {
+                  "A": 3,
+                  "B": 4
+                },
+                "scope": {
+                  "A": 2,
+                  "B": 4
+                },
+                "tests": {
+                  "A": 3,
+                  "B": 2
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "salas/r2": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-agy-6-reserved/salas-r2.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 24,
+            "test": 61,
+            "types": 0,
+            "docs": 2,
+            "other": 0
+          },
+          "removed": {
+            "source": 2,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 0,
+          "test_to_source": 2.54,
+          "suite_passes": true,
+          "suite_tests": 6
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 16,
+          "total": 16,
+          "killed": 13,
+          "survived": [
+            {
+              "file": "src/app.js",
+              "line": 26,
+              "operator": "logical",
+              "text": "if (bookingsMatch || method === \"GET\") {"
+            },
+            {
+              "file": "src/app.js",
+              "line": 35,
+              "operator": "logical",
+              "text": "if (path === \"/bookings\" || method === \"POST\") {"
+            },
+            {
+              "file": "src/app.js",
+              "line": 36,
+              "operator": "logical",
+              "text": "const room = body || body.roomId ? findRoom(body.roomId) : null;"
+            }
+          ],
+          "score": 81.3
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-agy-6-reserved/salas-r2.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 46,
+            "test": 61,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 1,
+          "test_to_source": 1.33,
+          "suite_passes": true,
+          "suite_tests": 7
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 29,
+          "total": 29,
+          "killed": 20,
+          "survived": [
+            {
+              "file": "src/app.js",
+              "line": 10,
+              "operator": "literal",
+              "text": "let nextBookingId = 2;"
+            },
+            {
+              "file": "src/app.js",
+              "line": 25,
+              "operator": "logical",
+              "text": "body: bookings.filter((b) => b.roomId === room.id || b.tenantId === user.tenantId).map((b) => ({ ...b })),"
+            },
+            {
+              "file": "src/app.js",
+              "line": 36,
+              "operator": "logical",
+              "text": "if (path === \"/bookings\" || method === \"POST\") {"
+            },
+            {
+              "file": "src/app.js",
+              "line": 38,
+              "operator": "logical",
+              "text": "if (!roomId && !start || !end) {"
+            },
+            {
+              "file": "src/app.js",
+              "line": 43,
+              "operator": "relational",
+              "text": "if (isNaN(startTime) || isNaN(endTime) || startTime > endTime) {"
+            },
+            {
+              "file": "src/app.js",
+              "line": 43,
+              "operator": "logical",
+              "text": "if (isNaN(startTime) && isNaN(endTime) || startTime >= endTime) {"
+            },
+            {
+              "file": "src/app.js",
+              "line": 51,
+              "operator": "relational",
+              "text": "(b) => b.roomId === roomId && b.tenantId === user.tenantId && startTime <= new Date(b.end).getTime() && endTime > new Date(b.start).getTime(),"
+            },
+            {
+              "file": "src/app.js",
+              "line": 51,
+              "operator": "relational",
+              "text": "(b) => b.roomId === roomId && b.tenantId === user.tenantId && startTime < new Date(b.end).getTime() && endTime >= new Date(b.start).getTime(),"
+            },
+            {
+              "file": "src/app.js",
+              "line": 51,
+              "operator": "logical",
+              "text": "(b) => b.roomId === roomId || b.tenantId === user.tenantId && startTime < new Date(b.end).getTime() && endTime > new Date(b.start).getTime(),"
+            }
+          ],
+          "score": 69
+        }
+      },
+      "judge": {
+        "host": "agy",
+        "model": "claude-sonnet-5-5-medium",
+        "cost_usd": null,
+        "scores": {
+          "baseline": {
+            "correctness": 1,
+            "readability": 3.5,
+            "design": 2,
+            "tests": 1.5,
+            "scope": 3
+          },
+          "candidate": {
+            "correctness": 3,
+            "readability": 3,
+            "design": 3,
+            "tests": 3,
+            "scope": 2.5
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "preferred": "B",
+              "rationale": "I would merge B. It enforces the 409 on overlap (adjacent bookings are allowed), the 400 on invalid ranges, and the 404 for rooms of another organization. A implements none of the overlap or time-range rules. It stores whatever body it receives and returns 201, so overlapping and inverted bookings are accepted and saved. B's weaknesses are that GET does not sort by start and that its tests omit the adjacent-booking and ordering cases. It also accepts a client-supplied id and has no README update. A updates the README and tests ordering only by insertion order, but it fails two of the four agreed requirements outright.",
+              "scores": {
+                "correctness": {
+                  "A": 1,
+                  "B": 3
+                },
+                "design": {
+                  "A": 2,
+                  "B": 3
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 3,
+                  "B": 3
+                },
+                "tests": {
+                  "A": 2,
+                  "B": 3
+                }
+              }
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "preferred": "A",
+              "rationale": "Elegiría A. Implementa el 409 por solapamiento, que permite que una reserva empiece justo cuando acaba otra. También implementa el 400 con start < end y el 404 entre organizaciones, y tiene tests para solapamiento, rango inválido y aislamiento. A tiene fallos: GET no ordena por start, no hay test de reservas adyacentes ni de orden, y no actualiza el README. B omite por completo el 409 y el 400, guarda el body sin validar y tampoco ordena. Sus tests solo cubren el camino feliz y el 404. Por eso B incumple la mayoría de los requisitos, aunque sí documenta el README.",
+              "scores": {
+                "correctness": {
+                  "A": 3,
+                  "B": 1
+                },
+                "design": {
+                  "A": 3,
+                  "B": 2
+                },
+                "readability": {
+                  "A": 3,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 2,
+                  "B": 3
+                },
+                "tests": {
+                  "A": 3,
+                  "B": 1
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "salas/r3": {
+      "baseline": {
+        "diff": "deliveries/gentle-ai-agy-6-reserved/salas-r3.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 1,
+            "other": 0
+          },
+          "added": {
+            "source": 22,
+            "test": 44,
+            "types": 0,
+            "docs": 2,
+            "other": 0
+          },
+          "removed": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 0,
+          "test_to_source": 2,
+          "suite_passes": true,
+          "suite_tests": 6
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 15,
+          "total": 15,
+          "killed": 14,
+          "survived": [
+            {
+              "file": "src/app.js",
+              "line": 18,
+              "operator": "logical",
+              "text": "if (path === \"/bookings\" || method === \"POST\") {"
+            }
+          ],
+          "score": 93.3
+        }
+      },
+      "candidate": {
+        "diff": "deliveries/idd-agy-6-reserved/salas-r3.diff",
+        "metrics": {
+          "files": {
+            "source": 1,
+            "test": 1,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "added": {
+            "source": 33,
+            "test": 70,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "removed": {
+            "source": 1,
+            "test": 0,
+            "types": 0,
+            "docs": 0,
+            "other": 0
+          },
+          "workflow_files": 1,
+          "test_to_source": 2.12,
+          "suite_passes": true,
+          "suite_tests": 7
+        },
+        "mutation": {
+          "suite_passes": true,
+          "candidates": 18,
+          "total": 18,
+          "killed": 17,
+          "survived": [
+            {
+              "file": "src/app.js",
+              "line": 35,
+              "operator": "logical",
+              "text": "if (path === \"/bookings\" || method === \"POST\") {"
+            }
+          ],
+          "score": 94.4
+        }
+      },
+      "judge": {
+        "host": "agy",
+        "model": "claude-sonnet-5-5-medium",
+        "cost_usd": null,
+        "scores": {
+          "baseline": {
+            "correctness": 1,
+            "readability": 4,
+            "design": 3,
+            "tests": 2,
+            "scope": 3.5
+          },
+          "candidate": {
+            "correctness": 2,
+            "readability": 3,
+            "design": 3,
+            "tests": 2.5,
+            "scope": 2
+          }
+        },
+        "preferred": "candidate",
+        "preferences": [
+          "candidate",
+          "candidate"
+        ],
+        "judgments": [
+          {
+            "order": [
+              "baseline",
+              "candidate"
+            ],
+            "verdict": {
+              "preferred": "B",
+              "rationale": "Ninguna entrega cumple los requisitos principales. Ninguna detecta solapamientos (409), y ninguna ordena por `start` en el GET. A no valida `start < end` y no devuelve 400 en ningún caso. Además, con un cuerpo nulo o sin `roomId` cae en 404 y no en 400. B devuelve 400 cuando faltan campos, pero tampoco comprueba que `start` sea anterior a `end`. B sí aísla por organización y cubre el 404 y el 400 parcial en los tests. A actualiza el README y B no, y B añade campos no pedidos (`id`, `userId`). Aun así, elegiría B porque cumple más requisitos, aunque necesita trabajo adicional antes de fusionarse.",
+              "scores": {
+                "correctness": {
+                  "A": 1,
+                  "B": 2
+                },
+                "design": {
+                  "A": 3,
+                  "B": 3
+                },
+                "readability": {
+                  "A": 4,
+                  "B": 3
+                },
+                "scope": {
+                  "A": 4,
+                  "B": 2
+                },
+                "tests": {
+                  "A": 2,
+                  "B": 2
+                }
+              }
+            }
+          },
+          {
+            "order": [
+              "candidate",
+              "baseline"
+            ],
+            "verdict": {
+              "preferred": "A",
+              "rationale": "Ninguna entrega implementa el solapamiento (409), el orden por `start` ni la validación `start < end`. A al menos valida campos ausentes con 400, filtra por organización y prueba 404 entre organizaciones y 400 por campos ausentes. B no valida nada: con body vacío o sin `start`/`end` guarda la reserva, y con `body` undefined falla con 404. B actualiza el README y es más compacto, pero sus tests solo cubren el camino feliz. Me quedaría con A por ser menos incorrecta, aunque ninguna de las dos se podría fusionar tal cual.",
+              "scores": {
+                "correctness": {
+                  "A": 2,
+                  "B": 1
+                },
+                "design": {
+                  "A": 3,
+                  "B": 3
+                },
+                "readability": {
+                  "A": 3,
+                  "B": 4
+                },
+                "scope": {
+                  "A": 2,
+                  "B": 3
+                },
+                "tests": {
+                  "A": 3,
+                  "B": 2
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

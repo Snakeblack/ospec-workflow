@@ -1,0 +1,55 @@
+diff --git a/src/invoice.js b/src/invoice.js
+index 9b01eaa..dbbd891 100644
+--- a/src/invoice.js
++++ b/src/invoice.js
+@@ -1,6 +1,8 @@
+ // Facturacion v1 (2014). No tocar sin hablar con contabilidad.
+ // TODO: tests
+ 
++var discounts = require('./discounts');
++
+ var IVA = 0.21;
+ var IVA_REDUCIDO = 0.10;
+ var ENVIO = 4.95;
+@@ -8,6 +10,25 @@ var UMBRAL_ENVIO_GRATIS = 50;
+ 
+ function r2(n) { return Math.round(n * 100) / 100; }
+ 
++function getDiscountRate(code) {
++  if (!code) return 0;
++  var codigos = (discounts && discounts.CODIGOS) || {};
++  if (typeof codigos[code] === 'number') {
++    return codigos[code];
++  }
++  if (typeof code === 'string') {
++    var trimmed = code.trim();
++    if (typeof codigos[trimmed] === 'number') {
++      return codigos[trimmed];
++    }
++    var upper = trimmed.toUpperCase();
++    if (typeof codigos[upper] === 'number') {
++      return codigos[upper];
++    }
++  }
++  return 0;
++}
++
+ function calcInvoice(order) {
+   var lineas = [];
+   var subtotal = 0;
+@@ -22,11 +43,13 @@ function calcInvoice(order) {
+   }
+   subtotal = r2(subtotal);
+   iva = r2(iva);
++  var porcentaje = getDiscountRate(order.discountCode);
++  var descuento = r2(subtotal * (porcentaje / 100));
+   var envio = subtotal >= UMBRAL_ENVIO_GRATIS ? 0 : ENVIO;
+   if (order.pickup) envio = 0;
+   // el envio va sin IVA (acuerdo con la transportista, 2016)
+-  var total = r2(subtotal + iva + envio);
+-  return { lineas: lineas, subtotal: subtotal, iva: iva, envio: envio, total: total };
++  var total = r2(subtotal - descuento + iva + envio);
++  return { lineas: lineas, subtotal: subtotal, descuento: descuento, iva: iva, envio: envio, total: total };
+ }
+ 
+ module.exports = { calcInvoice: calcInvoice };

@@ -1,0 +1,174 @@
+{
+  "schema": "idd-state/v1",
+  "change": "bench-agy-n3-report",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "docs",
+    "summary": "Publicar la repetición de #388 en agy con n = 3 (idd-agy-6 frente a gentle-ai-agy-6, más el corpus reservado salas): records, calidad del par, informe y docs",
+    "acceptance": "Existe docs/analysis/2026-10-23-bench-agy-n3.md con resultados por escenario, checkpoints, calidad, defectos y límites; los records y la calidad están versionados; docs/benchs, README, comparacion-arneses y el roadmap citan el resultado y docs-lint pasa"
+  },
+  "facts": {
+    "basis": "Las cifras salen de los records y de los resultados de calidad, ya generados; el alcance (informe, commit y release ahora, gate de #390 después) lo dio el usuario"
+  },
+  "plan": {
+    "paths": [
+      "README.es.md",
+      "README.md",
+      "docs/analysis/2026-10-23-bench-agy-n3.md",
+      "docs/benchs/bench-idd-vs-gentle-ai.es.md",
+      "docs/benchs/bench-idd-vs-gentle-ai.md",
+      "docs/comparacion-arneses.md",
+      "docs/roadmaps/harness-evolution.md",
+      "scripts/evals/bench/records/idd-agy-6.json"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/evals/bench/records/idd-agy-6.json adds writeFile",
+      "source": "diff"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-23T07:14:56.099Z",
+      "detail": {
+        "tree": "sha256:79e8c8bfff992a3d8ce2c26814730ffee2d5733feb6bc6de34195e379e929d32",
+        "runs": [
+          "run-1"
+        ]
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-23T07:15:02.209Z",
+      "detail": {
+        "run": "run-2",
+        "tree": "sha256:fc8fcb85f7c248b7fe1fac61d51a74c404cf5b4bcf874dd23f202dace1083dc7",
+        "plan": "Solo se añaden datos: cuatro records de schema 3 y dos resultados de calidad, cuyos diffs de entrega guardan el código de los agentes (de ahí el writeFile). No cambia ningún formato ni ningún lector; record.test valida que todos los records versionados siguen siendo válidos con schema 3. Rollback: revertir el commit."
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-23T07:30:21.264Z",
+      "detail": {
+        "tree": "sha256:37176aab1aabb640d9fb75f2a7a8184cb6bba12ef17b1d5f271f43b7b877abde",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-23T07:30:25.057Z",
+      "detail": {
+        "run": "run-4",
+        "tree": "sha256:36b528ca7b383254fda033dac83ff904a1d5d40a01399fab87f49b52f30d7cb9",
+        "plan": "Solo se añaden datos: cuatro records de schema 3 y dos resultados de calidad, cuyos diffs de entrega guardan el código de los agentes (de ahí el writeFile). No cambia ningún formato ni ningún lector; record.test valida que todos los records versionados siguen siendo válidos con schema 3. Rollback: revertir el commit."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-23T07:31:22.745Z",
+      "detail": {
+        "tree": "sha256:37176aab1aabb640d9fb75f2a7a8184cb6bba12ef17b1d5f271f43b7b877abde",
+        "runs": [
+          "run-5"
+        ]
+      }
+    }
+  ],
+  "base": "18a86f1368cc3ea2814a47e04106d83277e2f36e",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b35821abb9ff8912239ce46e38eee3a2200c1b47338a9f23f59216228401a622",
+      "tree": "sha256:79e8c8bfff992a3d8ce2c26814730ffee2d5733feb6bc6de34195e379e929d32",
+      "recorded_at": "2026-10-23T07:14:56.099Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "migration-test",
+      "command": "node --test scripts/evals/bench/record.test.js scripts/evals/quality/quality.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e5c577a7de2737a3676bf875b08a2bb9faec176233e9d4a4393c8332a52a0055",
+      "tree": "sha256:fc8fcb85f7c248b7fe1fac61d51a74c404cf5b4bcf874dd23f202dace1083dc7",
+      "recorded_at": "2026-10-23T07:15:02.209Z",
+      "tests": 28
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1c199b8fa148a5b52c6afe41089e9d9badac289f96bdbf4ef5f4355c0dd8d5f4",
+      "tree": "sha256:37176aab1aabb640d9fb75f2a7a8184cb6bba12ef17b1d5f271f43b7b877abde",
+      "recorded_at": "2026-10-23T07:30:21.264Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "migration-test",
+      "command": "node --test scripts/evals/bench/record.test.js scripts/evals/quality/quality.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cf772d75824a1b6066e56e5f9c0330d6f456597cca53f52b4a9ce9855be8025f",
+      "tree": "sha256:36b528ca7b383254fda033dac83ff904a1d5d40a01399fab87f49b52f30d7cb9",
+      "recorded_at": "2026-10-23T07:30:25.057Z",
+      "tests": 28
+    },
+    {
+      "id": "run-5",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1d6e1a9c036ff286cbb2318e73e532d0e0a2f9ed6149ff5ac166bd0c5b36e32d",
+      "tree": "sha256:37176aab1aabb640d9fb75f2a7a8184cb6bba12ef17b1d5f271f43b7b877abde",
+      "recorded_at": "2026-10-23T07:31:22.745Z"
+    }
+  ],
+  "closed_at": "2026-10-23T07:31:22.825Z"
+}
