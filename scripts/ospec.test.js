@@ -82,6 +82,17 @@ function openFeature(root, ...intent) {
   return opened;
 }
 
+test("the usage names the feature categories and the one-question rule (#400)", (t) => {
+  const root = tempRoot(t);
+  const help = ospec(root, "--help");
+  assert.strictEqual(help.code, 0);
+  assert.match(help.stdout, /categories: inputs, uniqueness, persistence, copy, url-state, accessibility, errors/);
+  assert.match(help.stdout, /at least one is an --open-fact/);
+  const bare = ospec(root, "record", "intent");
+  assert.strictEqual(bare.code, 2);
+  assert.match(bare.stderr, /at least one is an --open-fact/);
+});
+
 test("record intent opens the change, reports the next step and is idempotent", (t) => {
   const root = tempRoot(t);
   const first = ospec(root, ...OPEN_BUG);

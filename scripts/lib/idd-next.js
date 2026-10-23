@@ -42,7 +42,12 @@ const HOW = Object.freeze({
     `ospec run --change ${change} --obligation repro-test --command "<test>": once failing before the fix, again passing after it`,
   "tdd-red-green": (change) =>
     `ospec run --change ${change} --obligation tdd-red-green --command "<test>" [--unit <name>]: failing before the code, passing after it`,
-  "contract-spec-and-test": (change) => `update the contract document and its test, then ospec check --change ${change}`,
+  // The project's own patterns, so the agent need not read the CLI to learn
+  // what counts as a contract document (#400).
+  "contract-spec-and-test": (change, { contractPatterns } = {}) =>
+    contractPatterns
+      ? `in one diff, touch a contract document (${contractPatterns.documents.join(", ")}) and its test (${contractPatterns.tests.join(", ")}), then ospec check --change ${change}; if the project keeps its contract elsewhere, propose contracts.documents for idd/config.yaml to the user and edit it only after approval`
+      : `in one diff, touch a contract document and its test (contracts.documents and contracts.tests of idd/config.yaml), then ospec check --change ${change}`,
   "living-doc": (change) => `write the Plan and Decisions of idd/${change}/change.md, then ospec close --change ${change}`,
   "trust-review": (change) =>
     `ospec review start --change ${change}, dispatch review-trust on the returned paths, then ospec review record --change ${change} --result '<findings json>'`,
@@ -103,7 +108,7 @@ function pendingDecision(state, gate) {
   return decision;
 }
 
-function nextForChange(state, { checks, candidateCommand, knowledge, team } = {}) {
+function nextForChange(state, { checks, candidateCommand, contractPatterns, knowledge, team } = {}) {
   const pending = state.obligations
     .filter((obligation) => obligation.status === "pending")
     .sort(byWorkOrder)
@@ -123,7 +128,7 @@ function nextForChange(state, { checks, candidateCommand, knowledge, team } = {}
     nextStep = declarePlanStep(state.change);
   } else if (pending.length > 0) {
     nextStep = { action: "satisfy-obligation", obligation: pending[0].id, evidence: pending[0].evidence };
-    if (HOW[pending[0].id]) nextStep.how = HOW[pending[0].id](state.change);
+    if (HOW[pending[0].id]) nextStep.how = HOW[pending[0].id](state.change, { contractPatterns });
     if (checks?.length === 0 && ["checks-pass", "contract-spec-and-test"].includes(pending[0].id)) {
       nextStep = configureChecksStep(candidateCommand);
     }

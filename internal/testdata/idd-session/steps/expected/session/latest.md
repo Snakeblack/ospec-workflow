@@ -11,7 +11,7 @@
 Several changes are open; choose the one to resume:
 - `s-checks` (idd): Satisfy `checks-pass` with check-run evidence: ospec check --change s-checks; a run that reports tests 0 is not evidence.
 - `s-close` (idd): Close it: `ospec close --change s-close`.
-- `s-contract` (idd): Satisfy `contract-spec-and-test` with contract-spec-and-test evidence: update the contract document and its test, then ospec check --change s-contract.
+- `s-contract` (idd): Satisfy `contract-spec-and-test` with contract-spec-and-test evidence: in one diff, touch a contract document and its test (contracts.documents and contracts.tests of idd/config.yaml), then ospec check --change s-contract.
 - `s-gate` (idd): Resolve the `irreversible-operation` gate with the user: `ospec next --change s-gate` shows what to ask.
 - `s-living` (idd): Satisfy `living-doc` with living-doc-current evidence: write the Plan and Decisions of idd/s-living/change.md, then ospec close --change s-living.
 - `s-migration` (idd): Satisfy `migration-compat-and-test` with migration-test evidence: ospec run --change s-migration --obligation migration-compat-and-test --command "<migration test>" --plan "<compatibility or rollback>".

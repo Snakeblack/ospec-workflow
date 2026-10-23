@@ -710,6 +710,10 @@ the diff against the change's base touches at least one contract document and
 one test and that check recorded `check-run` evidence; the evidence MUST name
 the tree, that `check-run` evidence and the matching `documents` and `tests`.
 Otherwise it MUST return to `pending` with a reason naming what is missing.
+When `next` has the project's configuration, the `how` of a pending
+`contract-spec-and-test` MUST list the resolved document and test patterns and
+say that a contract kept elsewhere is a `contracts.documents` entry the user
+approves before `idd/config.yaml` is edited.
 
 `ospec run --obligation migration-compat-and-test` MUST require `--plan`, the
 declared compatibility or rollback plan, and record a run with purpose
@@ -934,7 +938,8 @@ every category cited, MUST stay valid. A question is concrete when it holds a di
 value of at least 3 characters besides spaces, or a word beyond the category's
 own name. A cited line MUST hold a letter or a digit, and no two categories MAY
 share the same `path:line` or the same fragment. A basis that cites nothing MUST
-be refused, and the refusal MUST include the command. The declaration MUST be stored in `facts`, with repeated
+be refused, and the refusal MUST include the command. The CLI usage MUST list
+the seven categories and the rule that at least one is a question. The declaration MUST be stored in `facts`, with repeated
 questions recorded once. Open facts MUST open the `open-facts` gate, which only
 `record intent` opens, and which MUST be resolved only by the user's answer
 with its source. While it is open, `next` MUST return the questions as one
