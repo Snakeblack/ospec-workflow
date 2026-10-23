@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.150.1] - 2026-10-24
+
+### Fixed
+- **`persistent-data` ya no sale de un `writeFile` en un test, un artefacto o un documento** (E1.36, OSP-036, #404). La señal se derivaba de cualquier línea añadida que nombrara una escritura, `localStorage` o `indexedDB`. Pasaba en tests, en `.diff` del banco, en records y en prosa de la spec y del roadmap, y como venía del diff no se podía retirar: cada falso positivo costaba un plan de migración y una ejecución completa. En `idd/archive`, 30 de 128 cambios la tenían, casi todos por tests y documentos.
+  - Ahora solo cuenta el código de producto fuera de `impact.exclude`, en tres casos: la línea añadida escribe, el fichero ya escribía, o importa por ruta relativa un módulo de producto que escribe. El import se sigue en JS/TS (`require`, `import`, `export … from`, `import()`) y en Python (`from . import`), y nunca a través de un symlink ni fuera del repositorio.
+  - Los patrones exigen una llamada o un acceso (`writeFile(`, `localStorage.` o `[`, `indexedDB.`), no una mención: la propia tabla de patrones de `idd-signals.js` derivaba la señal.
+  - En el banco, `cli-local` cambia el formato de `tasks.json` sin escribir en `src/cli.js`. Antes la señal salía en 4 de las 6 entregas, y siempre por el test; ahora sale en las 6, porque `src/cli.js` importa `src/store.js`, y en ningún otro escenario.
+
+Hecho con IDD (`idd/archive/2026-10-23-persistent-data-precision/`).
+
+**Verificación directa**: `node scripts/check.js` (4005 tests pasando, 0 fallos y 3 omitidos). Los tests nuevos fallaron antes del cambio y pasan después; uno aplica las 18 entregas de `idd-7` del banco y comprueba que solo `cli-local` deriva la señal.
+
 ## [2.150.0] - 2026-10-23
 
 ### Added

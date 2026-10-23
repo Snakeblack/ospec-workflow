@@ -1,0 +1,380 @@
+{
+  "schema": "idd-state/v1",
+  "change": "persistent-data-precision",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "persistent-data por contenido solo en código de producto, más un salto de import relativo a un módulo de producto que escribe (#404, E1.36)",
+    "acceptance": "Un writeFile añadido solo en un test, un .diff, un record o un .md no deriva persistent-data; un writeFile o localStorage en producto sí; un fichero de producto tocado que importa por ruta relativa un módulo que escribe la deriva, y las 6 entregas cli-local del banco (idd-7, idd-agy-6) quedan en critical"
+  },
+  "facts": {
+    "open": [
+      "¿Tocar el propio módulo que escribe sin añadir una escritura (salto 0) deriva la señal?",
+      "¿La regla de contenido y el salto respetan impact.exclude de idd/config.yaml?",
+      "¿Qué lenguajes sigue el salto de import?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-impact.js",
+      "scripts/lib/idd-signals.js",
+      "scripts/lib/idd-signals.test.js",
+      "scripts/lib/idd-workspace.js",
+      "scripts/lib/idd-workspace.test.js"
+    ],
+    "work_units": 2,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared 2 work units",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component idd-engine: ADR 0003, 0004, 0005, 0011 and quality scenario deterministic-resume",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: openspec/specs/idd/spec.md adds localStorage",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La regla de persistencia sigue calculada en código con tests (idd-signals.js, idd-workspace.js); ninguna skill la reimplementa"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "Afina la señal de datos persistentes derivada del diff para que solo la añada el código de producto que escribe o importa un módulo que escribe; la ceremonia sigue proporcional al impacto"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "none",
+      "reason": "No cambia cómo se registra la evidencia ni cuándo se niega el cierre"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "No toca el árbol en disco de ningún modo"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "none",
+      "reason": "La derivación sigue siendo determinista sobre el árbol de trabajo; no cambia el siguiente paso ni el estado guardado"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-5"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "1) Sí, también: un fichero de producto tocado que ya contiene una escritura cuenta (salto 0). 2) Sí: la regla por contenido y el salto respetan impact.exclude, tanto el fichero tocado como el módulo importado; solo para persistent-data. 3) JS/TS + Python: require, import/export from e import() con ./ o ../, y from .x import.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-23T23:32:16.123Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-23T23:33:38.981Z",
+      "detail": {
+        "tree": "sha256:86b5b123c93e801c1969c6fb3c12cd6fa23e8a9ccaa6086f27a4b75623795539",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-23T23:33:38.981Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 none",
+          "adr:0011 none",
+          "scenario:deterministic-resume none"
+        ],
+        "records": [],
+        "tree": "sha256:86b5b123c93e801c1969c6fb3c12cd6fa23e8a9ccaa6086f27a4b75623795539",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-23T23:41:27.033Z",
+      "detail": {
+        "run": "run-8",
+        "tree": "sha256:0d77a41d3d508f7901ade1d232ac46d0d07aa5f191ea28ac6e9249a20d7fc1a0",
+        "plan": "No hay datos persistentes: el cambio no toca ningún formato guardado ni state.yaml. La señal la derivó el CLI de dist/ con la regla anterior a este cambio, por la mención de localStorage en openspec/specs/idd/spec.md (el falso positivo de #404); con la regla nueva el diff no la deriva. Los tests cubren las dos reglas."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-23T23:42:39.929Z",
+      "detail": {
+        "tree": "sha256:84374c952d4a30a86f6f101acd1647500b441e6f73dffbddf438c871904dd742",
+        "runs": [
+          "run-9"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-23T23:42:39.929Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 none",
+          "adr:0011 none",
+          "scenario:deterministic-resume none"
+        ],
+        "records": [],
+        "tree": "sha256:84374c952d4a30a86f6f101acd1647500b441e6f73dffbddf438c871904dd742",
+        "fitness": [
+          "run-10",
+          "run-11",
+          "run-12",
+          "run-13"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-23T23:42:45.506Z"
+    }
+  ],
+  "base": "a29f0b0a7777629901f46f6e735cafdb362b8f87",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/idd-signals.test.js scripts/lib/idd-workspace.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:8aaab460224628d671ec4db800124db25f47bc369e992700cfed1b509c6e9bee",
+      "tree": "sha256:17718ea3fd89b1eff2d414f42d7be20e6050dd995ff191686171ac7911409cda",
+      "recorded_at": "2026-10-23T23:30:24.374Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/lib/idd-signals.test.js scripts/lib/idd-workspace.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5c6435868e20a24119408b662f1f9d48f88be0cc1c1435cfa7324e82ac90f0e0",
+      "tree": "sha256:74b5533fc36a16f7b340c2e90cd678f87e0f3ef0b0d5ec9e3220e12b40732660",
+      "recorded_at": "2026-10-23T23:32:16.123Z",
+      "tests": 62
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:05389dbc8ef3c82105d0a86b4559d56f7a38ed7b47d6fdd7d4a946261f98e2b5",
+      "tree": "sha256:86b5b123c93e801c1969c6fb3c12cd6fa23e8a9ccaa6086f27a4b75623795539",
+      "recorded_at": "2026-10-23T23:33:38.981Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2bd58a6113af9eebc262650db5279196e21df83bac92e7d34168a4dc61213898",
+      "tree": "sha256:86b5b123c93e801c1969c6fb3c12cd6fa23e8a9ccaa6086f27a4b75623795539",
+      "recorded_at": "2026-10-23T23:33:38.981Z",
+      "tests": 41
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b85c06d7ac094343a7c810286777ac07f8a8f24b196514412a9bcd5ca0c73bfa",
+      "tree": "sha256:86b5b123c93e801c1969c6fb3c12cd6fa23e8a9ccaa6086f27a4b75623795539",
+      "recorded_at": "2026-10-23T23:33:38.981Z",
+      "tests": 12
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:728ada3eda2cf6d66d648845556334a01b9f4f5c28499c6bfdc2b9da74ed8877",
+      "tree": "sha256:86b5b123c93e801c1969c6fb3c12cd6fa23e8a9ccaa6086f27a4b75623795539",
+      "recorded_at": "2026-10-23T23:33:38.981Z",
+      "tests": 79
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:94f99692cbd6f85a0936caa33d6672d914de5f528040397dedf5f13ea358d8aa",
+      "tree": "sha256:86b5b123c93e801c1969c6fb3c12cd6fa23e8a9ccaa6086f27a4b75623795539",
+      "recorded_at": "2026-10-23T23:33:38.981Z",
+      "tests": 38
+    },
+    {
+      "id": "run-8",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/idd-signals.test.js scripts/lib/idd-workspace.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:21bf1d06346d64d04340f1005228ff65da89c5971027df113bf11fc9b31b6c37",
+      "tree": "sha256:0d77a41d3d508f7901ade1d232ac46d0d07aa5f191ea28ac6e9249a20d7fc1a0",
+      "recorded_at": "2026-10-23T23:41:27.033Z",
+      "tests": 63
+    },
+    {
+      "id": "run-9",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:39f3f30dcb3f608a1e171caf2812fa3a58464e716076a7b30a58c88fb8f2a535",
+      "tree": "sha256:84374c952d4a30a86f6f101acd1647500b441e6f73dffbddf438c871904dd742",
+      "recorded_at": "2026-10-23T23:42:39.929Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2749e283611a7481a0c999f48ec63d795a0904e25c86181c02ef4fcd51e7e1f0",
+      "tree": "sha256:84374c952d4a30a86f6f101acd1647500b441e6f73dffbddf438c871904dd742",
+      "recorded_at": "2026-10-23T23:42:39.929Z",
+      "tests": 42
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a95273317abb8dc15e3d7acf2ee1bc3b2b6f4881df1cf3a9b4b575347b30d9f0",
+      "tree": "sha256:84374c952d4a30a86f6f101acd1647500b441e6f73dffbddf438c871904dd742",
+      "recorded_at": "2026-10-23T23:42:39.929Z",
+      "tests": 12
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:85580f66fe4251346db5c0fd621f79acdb93210eb95736f06cd9863a49649c2d",
+      "tree": "sha256:84374c952d4a30a86f6f101acd1647500b441e6f73dffbddf438c871904dd742",
+      "recorded_at": "2026-10-23T23:42:39.929Z",
+      "tests": 79
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9193de0add4900d98f2864c9747fc049a7e7a6dd35bf7b71079df075c24b8979",
+      "tree": "sha256:84374c952d4a30a86f6f101acd1647500b441e6f73dffbddf438c871904dd742",
+      "recorded_at": "2026-10-23T23:42:39.929Z",
+      "tests": 38
+    }
+  ],
+  "closed_at": "2026-10-23T23:42:45.506Z"
+}

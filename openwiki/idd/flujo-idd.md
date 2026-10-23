@@ -58,7 +58,7 @@ Para consultar el estado: `ospec status` lista los cambios, `ospec next` dice el
 | `untested-product` | Intención `feature` o `bug`, y el diff toca código de producto sin ningún test | `boundary-tests` | Un check en verde que reporta más de cero tests |
 | `multi-unit-or-decision` | Más de una unidad de trabajo o una decisión declarada | `living-doc` | `change.md` con sus secciones completas, al cerrar |
 | `public-contract` | El cambio toca un contrato público (rutas de los patrones, o los ficheros que publica el `package.json`) | `contract-spec-and-test` | Documento de contrato y su test, ambos tocados, con los checks en verde |
-| `persistent-data` | El cambio toca datos persistentes (migraciones, almacenamiento, escritura en disco) | `migration-compat-and-test` | Un plan de compatibilidad o de vuelta atrás (`--plan`) y un test de migración en verde |
+| `persistent-data` | El cambio toca datos persistentes: migraciones, o código de producto que escribe en disco o en `localStorage`, o que importa por ruta relativa un módulo que lo hace (un test o un documento no cuentan) | `migration-compat-and-test` | Un plan de compatibilidad o de vuelta atrás (`--plan`) y un test de migración en verde |
 | `security-boundary` | El cambio toca una frontera de seguridad | `trust-review` | Una revisión de confianza independiente, aprobada para el código actual |
 | `adr-or-quality-attribute` | Declaras un ADR o un escenario de calidad que el cambio toca | `adr-impact-declaration` | Un impacto declarado por referencia (`none`, `conforms`, `amends`, `supersedes`, `contradicts`) y los fitness checks de esas referencias en verde |
 

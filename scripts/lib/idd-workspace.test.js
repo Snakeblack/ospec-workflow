@@ -126,6 +126,68 @@ test("the diff holds modified, deleted and untracked paths with their added line
   assert.ok(!("src/legacy/fax.js" in diff.addedLines));
 });
 
+test("the diff reads each changed product file with the product modules it imports by relative path", (t) => {
+  const root = gitRepo(t);
+  write(root, "src/store.js", "module.exports = { save };\n");
+  write(root, "src/cli.ts", "export {};\n");
+  write(root, "app/views.py", "x = 1\n");
+  write(root, "test/cli.js", "\n");
+  commitAll(root, "base");
+
+  write(root, "src/cli.js", [
+    'const store = require("./store.js");',
+    'import { fmt } from "./util/format";',
+    'export { parse } from "../lib/parse.mjs";',
+    'const lazy = await import("./lazy.js");',
+    'const helper = require("../test/helper.js");',
+    'const outside = require("../../outside.js");',
+    'const pkg = require("node:fs");',
+    "",
+  ].join("\n"));
+  write(root, "src/cli.ts", 'import { save } from "./store.js";\n');
+  write(root, "src/util/format/index.ts", "export const fmt = 1;\n");
+  write(root, "lib/parse.mjs", "export const parse = 1;\n");
+  write(root, "test/helper.js", "fs.writeFileSync('x', '');\n");
+  write(root, "app/views.py", "from .models import Task\nfrom . import store, cache as c\nfrom ..shared.io import dump\nx = 2\n");
+  write(root, "app/models.py", "class Task: pass\n");
+  write(root, "app/store/__init__.py", "open('t', 'w')\n");
+  write(root, "shared/io.py", "def dump(): pass\n");
+  write(root, "test/cli.js", "fs.writeFileSync('y', '');\n");
+
+  const { sources } = readGitDiff(root);
+  assert.deepStrictEqual(Object.keys(sources["src/cli.js"].imports).sort(), [
+    "lib/parse.mjs",
+    "src/store.js",
+    "src/util/format/index.ts",
+  ]);
+  assert.deepStrictEqual(sources["src/cli.js"].imports["src/store.js"], ["module.exports = { save };"]);
+  assert.strictEqual(sources["src/cli.js"].lines[0], 'const store = require("./store.js");');
+  assert.deepStrictEqual(Object.keys(sources["src/cli.ts"].imports), ["src/store.js"]);
+  assert.deepStrictEqual(Object.keys(sources["app/views.py"].imports).sort(), ["app/models.py", "app/store/__init__.py", "shared/io.py"]);
+  assert.ok(!("test/cli.js" in sources), "a test is not product");
+  assert.ok(!("test/helper.js" in sources), "nor a module it imports");
+});
+
+test("the imports of a changed file never leave the repository through a symlink", (t) => {
+  const root = gitRepo(t);
+  const outside = tempDir(t);
+  write(outside, "secret.js", "fs.writeFileSync('x', '');\n");
+  write(root, "src/app.js", "module.exports = 1;\n");
+  commitAll(root, "base");
+  try {
+    fs.symlinkSync(outside, path.join(root, "src", "linked"), "dir");
+    fs.symlinkSync(path.join(outside, "secret.js"), path.join(root, "src", "secret.js"), "file");
+  } catch (error) {
+    t.skip(`symlink unavailable: ${error.message}`);
+    return;
+  }
+  write(root, "src/app.js", 'require("./linked/secret.js");\nrequire("./secret.js");\n');
+
+  const { sources } = readGitDiff(root);
+  assert.deepStrictEqual(sources["src/app.js"].imports, {});
+  assert.ok(!("src/secret.js" in sources), "a symlink is not read as a source");
+});
+
 test("an untracked symlink is its target, never followed, in the diff and the tree fingerprint", (t) => {
   const root = gitRepo(t);
   const outside = tempDir(t);
@@ -155,6 +217,35 @@ test("an untracked symlink is its target, never followed, in the diff and the tr
   fs.unlinkSync(path.join(root, "broken"));
   fs.symlinkSync("other/target", path.join(root, "broken"));
   assert.notStrictEqual(readTreeFingerprint(root), before, "a new link target changes it");
+});
+
+// OSP-036: the bench deliveries of idd-7 derive persistent data only where the
+// stored format changes (cli-local), and never from a test.
+test("the bench deliveries of idd-7 derive persistent data in cli-local only, from the product", (t) => {
+  const { deriveSignals } = require("./idd-signals.js");
+  const bench = path.join(__dirname, "..", "evals");
+  const deliveries = path.join(bench, "quality", "results", "gentle-ai-4__idd-7", "deliveries", "idd-7");
+  // LF on every platform: a Windows checkout may hold CRLF copies.
+  const lf = (file) => fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n");
+  const found = {};
+  for (const name of fs.readdirSync(deliveries).sort()) {
+    const scenario = name.replace(/-r\d+\.diff$/, "");
+    const root = gitRepo(t);
+    git(root, "config", "core.autocrlf", "false");
+    const repo = path.join(bench, "bench", "scenarios", scenario, "repo");
+    for (const file of fs.readdirSync(repo, { recursive: true })) {
+      if (fs.statSync(path.join(repo, file)).isFile()) write(root, file, lf(path.join(repo, file)));
+    }
+    commitAll(root, "setup");
+    execFileSync("git", ["-C", root, "apply", "--exclude=idd/*", "-"], { input: lf(path.join(deliveries, name)) });
+    const diff = readGitDiff(root);
+    const intent = { kind: scenario === "bugfix" ? "bug" : "feature" };
+    const derivation = deriveSignals({ intent, diff, patterns: readProjectContext(root).patterns });
+    const signal = derivation.signals.find((s) => s.id === "persistent-data");
+    if (signal) found[name] = `${derivation.floor}: ${signal.reason}`;
+  }
+  const reason = "critical: persistent data: src/cli.js imports src/store.js, which uses writeFile";
+  assert.deepStrictEqual(found, { "cli-local-r1.diff": reason, "cli-local-r2.diff": reason, "cli-local-r3.diff": reason });
 });
 
 test("the diff against a base includes committed work on the branch", (t) => {
