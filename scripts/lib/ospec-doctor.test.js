@@ -43,31 +43,42 @@ function treeDigest(dir) {
   return hash.digest("hex");
 }
 
-// Spawn stub: `git check-ignore` answers from `ignored`, every other command is
+// Spawn stub: `git check-ignore` answers from `ignored`, the hook launcher from
+// `probe` (a healthy, silent PreToolUse by default), and every other command is
 // absent unless listed in `commands` ("bin arg..." -> result).
-function makeSpawn({ ignored = true, tracked = "", commands = {} } = {}) {
+function makeSpawn({ ignored = true, tracked = "", commands = {}, probe = {} } = {}) {
   const calls = [];
-  const spawn = (bin, args) => {
+  const probes = [];
+  const spawn = (bin, args, options = {}) => {
     const key = [bin, ...args].join(" ");
     calls.push(key);
     if (bin === "git" && args[0] === "check-ignore") return { status: ignored ? 0 : 1, stdout: "", stderr: "" };
     if (bin === "git" && args[0] === "ls-files") return { status: 0, stdout: tracked, stderr: "" };
+    if (/ospec-hooks-launch\.js$/.test(String(args[0]))) {
+      probes.push({ bin, args, options });
+      return { status: 0, stdout: "", stderr: "", ...probe };
+    }
     if (Object.hasOwn(commands, key)) return { status: 0, stdout: "", stderr: "", ...commands[key] };
     return { error: Object.assign(new Error(`spawn ${bin} ENOENT`), { code: "ENOENT" }) };
   };
   spawn.calls = calls;
+  spawn.probes = probes;
   return spawn;
 }
 
-function installClaude(home, { version = "2.0.0", sdd = false, hooks = true, router = ROUTER, block = ROUTER, outside = "", extraInstall = null } = {}) {
+function installClaude(home, { version = "2.0.0", sdd = false, hooks = true, redaction = false, router = ROUTER, block = ROUTER, outside = "", extraInstall = null } = {}) {
   const installPath = path.join(home, ".claude", "plugins", "cache", "ospec-tools", "ospec-workflow", version);
   write(path.join(installPath, ".claude-plugin", "plugin.json"), { name: "ospec-workflow", version });
   write(path.join(installPath, "global-instructions", "CLAUDE.md"), router);
   write(path.join(installPath, "agents", "review-trust.md"), "reviewer\n");
   if (sdd) write(path.join(installPath, "agents", "sdd-explore.md"), "phase\n");
   if (hooks) {
+    const launch = 'node "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js"';
     write(path.join(installPath, "hooks", "hooks.json"), {
-      hooks: { SessionStart: [{ hooks: [{ type: "command", command: 'node "${CLAUDE_PLUGIN_ROOT}/scripts/hooks/ospec-hooks-launch.js" session-start' }] }] },
+      hooks: {
+        SessionStart: [{ hooks: [{ type: "command", command: `${launch} session-start` }] }],
+        PreToolUse: [{ hooks: [{ type: "command", command: `${launch} pre-tool-use${redaction ? " --output-redaction" : ""}`, timeout: 5 }] }],
+      },
     });
     write(path.join(installPath, "scripts", "hooks", "ospec-hooks-launch.js"), "// launcher\n");
   }
@@ -297,7 +308,7 @@ test("a healthy Claude installation passes every host check", async (t) => {
   const installPath = installClaude(env.home, { sdd: true });
   write(path.join(installPath, "scripts", "hooks", "ospec-hooks-linux-amd64"), "bin");
   const result = await doctor(env);
-  for (const id of ["plugin", "hooks", "router", "router-duplicate", "budget"]) {
+  for (const id of ["plugin", "hooks", "hook-responds", "router", "router-duplicate", "budget"]) {
     assert.equal(find(result, "claude", id).status, "ok", `claude/${id}`);
   }
   assert.equal(find(result, "claude", "plugin").detail, "2.0.0");
@@ -317,6 +328,84 @@ test("a broken or duplicated Claude installation is reported", async (t) => {
   assert.equal(hooks.status, "error");
   assertActionable(hooks);
   assert.equal(result.exit_code, 1);
+});
+
+test("the hook probe runs the installed PreToolUse launcher outside the project", async (t) => {
+  const env = setup(t);
+  const installPath = installClaude(env.home);
+  const spawn = makeSpawn();
+  const check = find(await doctor(env, { spawn, execPath: "/node" }), "claude", "hook-responds");
+  assert.equal(check.status, "ok");
+  assert.equal(spawn.probes.length, 1);
+  const [{ bin, args, options }] = spawn.probes;
+  assert.equal(bin, "/node");
+  assert.deepEqual(args, [path.join(installPath, "scripts", "hooks", "ospec-hooks-launch.js"), "pre-tool-use"]);
+  assert.equal(options.cwd, os.tmpdir());
+  assert.equal(options.timeout, 5000);
+  assert.equal(JSON.parse(options.input).tool_name, "Read");
+});
+
+test("a hook that fails, times out or is missing is an error with cause and action", async (t) => {
+  const cases = [
+    [{ stderr: "[ospec error] Hook pre-tool-use failed: exit 3\n", stdout: '{"hookSpecificOutput":{"permissionDecision":"ask"}}\n' }, /exit 3/],
+    [{ status: null, signal: "SIGKILL", error: Object.assign(new Error("spawnSync node ETIMEDOUT"), { code: "ETIMEDOUT" }) }, /ETIMEDOUT/],
+    [{ status: 1, stderr: "SyntaxError: Unexpected token\n" }, /exit 1.*SyntaxError/],
+  ];
+  for (const [probe, cause] of cases) {
+    const env = setup(t);
+    installClaude(env.home);
+    const result = await doctor(env, { spawn: makeSpawn({ probe }) });
+    const check = find(result, "claude", "hook-responds");
+    assert.equal(check.status, "error");
+    assertActionable(check);
+    assert.match(check.cause, cause);
+    assert.equal(result.exit_code, 1);
+  }
+  const env = setup(t);
+  installClaude(env.home, { hooks: false });
+  const spawn = makeSpawn();
+  const result = await doctor(env, { spawn });
+  assert.equal(find(result, "claude", "hook-responds"), undefined, "the hooks check already reports it");
+  assert.equal(spawn.probes.length, 0);
+});
+
+test("the probe reads the real launcher's failure and writes nothing", async (t) => {
+  const launcher = path.join(__dirname, "..", "hooks", "ospec-hooks-launch.js");
+  for (const [child, status] of [["process.stdin.resume(); process.stdin.on('end', () => process.exit(0));\n", "ok"], ["process.exit(3);\n", "error"]]) {
+    const env = setup(t);
+    const installPath = installClaude(env.home);
+    const hooksDir = path.join(installPath, "scripts", "hooks");
+    fs.copyFileSync(launcher, path.join(hooksDir, "ospec-hooks-launch.js"));
+    write(path.join(hooksDir, "pre-tool-use.js"), child);
+    const stub = makeSpawn();
+    const spawn = (bin, args, options) => (/ospec-hooks-launch\.js$/.test(String(args[0]))
+      ? require("node:child_process").spawnSync(bin, args, { encoding: "utf8", ...options })
+      : stub(bin, args, options));
+    const before = [treeDigest(env.root), treeDigest(env.home)];
+    const check = find(await doctor(env, { spawn, env: process.env }), "claude", "hook-responds");
+    assert.equal(check.status, status, check.cause);
+    if (status === "error") assert.match(check.cause, /exit 3/);
+    assert.deepEqual([treeDigest(env.root), treeDigest(env.home)], before);
+  }
+});
+
+test("output redaction warns unless Claude Code is 2.1.121 or later", async (t) => {
+  const cases = [["2.1.308 (Claude Code)\n", "ok"], ["2.1.121 (Claude Code)\n", "ok"], ["2.1.13 (Claude Code)\n", "warn"], ["1.0.0 (Claude Code)\n", "warn"], [null, "warn"]];
+  for (const [version, status] of cases) {
+    const env = setup(t);
+    installClaude(env.home, { redaction: true });
+    const commands = version === null ? {} : { "claude --version": { stdout: version } };
+    const check = find(await doctor(env, { spawn: makeSpawn({ commands }) }), "claude", "output-redaction");
+    assert.equal(check.status, status, String(version));
+    if (status === "warn") {
+      assertActionable(check);
+      assert.match(check.cause, version === null ? /could not be read/ : /2\.1\.121/);
+    }
+  }
+  const env = setup(t);
+  installClaude(env.home);
+  const check = find(await doctor(env, { spawn: makeSpawn({ commands: { "claude --version": { stdout: "1.0.0\n" } } }) }), "claude", "output-redaction");
+  assert.equal(check, undefined, "without redaction there is nothing to warn about");
 });
 
 test("several Claude installations are a warning", async (t) => {

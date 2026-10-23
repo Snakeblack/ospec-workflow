@@ -5,8 +5,9 @@
 // status (ok, info, warn, error); warnings and errors carry their cause and the
 // action that fixes them. Nothing here writes: state files are parsed, never
 // read through the store (which recovers interrupted writes), and the only
-// processes spawned are `git ls-files`, `git check-ignore` and the read-only
-// Engram probes.
+// processes spawned are `git ls-files`, `git check-ignore`, `claude --version`,
+// the read-only Engram probes and the installed PreToolUse hook, run on a
+// harmless Read outside the project.
 //
 // The Claude Code checks live here; the other six hosts, in ospec-doctor-hosts.js.
 
@@ -40,6 +41,11 @@ const HOOK_GUARDS = [
 const SKILL_REFERENCE = /ospec-workflow:(?:sdd-orchestrator|idd)\b/;
 const SDD_AGENT = /^sdd-[a-z0-9-]+\.md$/;
 const ENGRAM_TIMEOUT_MS = 30000;
+// The PreToolUse timeout of hooks/hooks.json; the launcher stops its child at 4 s.
+const HOOK_PROBE_TIMEOUT_MS = 5000;
+// Claude Code applies a PostToolUse `updatedToolOutput` to every tool since
+// 2.1.121; before it, the secret a redacted Read exempts reaches the model.
+const OUTPUT_REDACTION_MIN_CLAUDE = [2, 1, 121];
 
 class DoctorUsageError extends Error {
   constructor(message) {
@@ -136,7 +142,7 @@ function hasSddPackage(installPath) {
 
 // The same lookup as setup:claude: an npm `.cmd` shim cannot be spawned without
 // a shell, so on Windows the WinGet package's claude.exe is the fallback.
-function resolveClaudeBin({ spawn, env, platform }) {
+function resolveClaudeCli({ spawn, env, platform }) {
   const candidates = ["claude", "claude.exe", "claude.cmd"];
   if (platform === "win32" && env.LOCALAPPDATA) {
     const packages = path.join(env.LOCALAPPDATA, "Microsoft", "WinGet", "Packages");
@@ -146,7 +152,10 @@ function resolveClaudeBin({ spawn, env, platform }) {
   }
   for (const bin of candidates) {
     const result = spawn(bin, ["--version"], { timeout: 10000 }) || {};
-    if (!result.error && result.status === 0) return bin;
+    if (!result.error && result.status === 0) {
+      const match = /(\d+)\.(\d+)\.(\d+)/.exec(result.stdout || "");
+      return { bin, version: match ? match.slice(1).map(Number) : null };
+    }
   }
   return null;
 }
@@ -176,7 +185,66 @@ function claudePluginChecks(claude, add) {
   }
 }
 
-function claudeHookChecks(primary, { platform, arch }, add) {
+// The launcher answers a failed child with exit 0 and a fail-closed `ask`
+// (ADR 0008), so only its `[ospec error]` line tells a broken hook apart.
+function hookProbeFailure(result) {
+  if (result.error) return String(result.error.code || result.error.message);
+  if (result.signal) return result.signal;
+  if (result.status !== 0) return `exit ${result.status}${result.stderr ? `: ${result.stderr.trim().slice(0, 200)}` : ""}`;
+  const reported = /\[ospec error\][^\r\n]*/.exec(result.stderr || "");
+  return reported ? reported[0] : null;
+}
+
+function claudeHookProbe(launcher, { spawn, env, execPath }, add) {
+  const cwd = os.tmpdir();
+  const input = JSON.stringify({
+    session_id: "ospec-doctor-probe",
+    hook_event_name: "PreToolUse",
+    tool_name: "Read",
+    tool_input: { file_path: path.join(cwd, "ospec-doctor-probe") },
+    cwd,
+  });
+  const started = Date.now();
+  const result = spawn(execPath, [launcher, "pre-tool-use"], {
+    input,
+    cwd,
+    env: { ...env, OSPEC_TARGET: "" },
+    timeout: HOOK_PROBE_TIMEOUT_MS,
+    killSignal: "SIGKILL",
+  }) || {};
+  const failure = hookProbeFailure(result);
+  add(failure === null
+    ? { id: "hook-responds", status: "ok", detail: `${Date.now() - started} ms` }
+    : {
+        id: "hook-responds",
+        status: "error",
+        cause: `the installed PreToolUse hook does not answer a harmless Read: ${failure}`,
+        action: "Reinstall the plugin (`npm run setup:claude`), or check that Node and the ospec-hooks binary run on this machine; until then every tool call asks for permission.",
+      });
+}
+
+function claudeRedactionCheck(hooksJson, cli, add) {
+  if (!hooksJson.includes("--output-redaction")) return;
+  const minimum = OUTPUT_REDACTION_MIN_CLAUDE.join(".");
+  const version = cli?.version;
+  const differs = version ? version.findIndex((part, index) => part !== OUTPUT_REDACTION_MIN_CLAUDE[index]) : -1;
+  if (version && (differs === -1 || version[differs] > OUTPUT_REDACTION_MIN_CLAUDE[differs])) {
+    add({ id: "output-redaction", status: "ok", detail: `Claude Code ${version.join(".")}` });
+    return;
+  }
+  add({
+    id: "output-redaction",
+    status: "warn",
+    cause: version
+      ? `Claude Code ${version.join(".")} predates ${minimum}, which applies the PostToolUse redaction; a Read of a sensitive file runs without a prompt and its secret reaches the model`
+      : `the version of the claude CLI could not be read; the hooks skip the prompt for a Read of a sensitive file because Claude Code ${minimum} or later redacts its output`,
+    action: version
+      ? `Update Claude Code to ${minimum} or later (\`claude update\`).`
+      : `Make sure \`claude --version\` runs on PATH and reports ${minimum} or later, then run \`ospec doctor\` again.`,
+  });
+}
+
+function claudeHookChecks(primary, { platform, arch, spawn, env, execPath, cli }, add) {
   const hooksJson = readText(path.join(primary.installPath, "hooks", "hooks.json"));
   const hooksDir = path.join(primary.installPath, "scripts", "hooks");
   if (!hooksJson || !hooksJson.includes("ospec-hooks-launch.js") || !fs.existsSync(path.join(hooksDir, "ospec-hooks-launch.js"))) {
@@ -197,6 +265,8 @@ function claudeHookChecks(primary, { platform, arch }, add) {
         detail: `no native ospec-hooks binary for ${platform}/${arch}; hooks run on the Node fallback`,
         action: "Install from the marketplace release, or copy a built ospec-hooks binary into scripts/hooks/, for faster hooks.",
       });
+  claudeHookProbe(path.join(hooksDir, "ospec-hooks-launch.js"), { spawn, env, execPath }, add);
+  claudeRedactionCheck(hooksJson, cli, add);
 }
 
 function claudeRouterChecks(primary, home, add) {
@@ -242,11 +312,11 @@ function claudeRouterChecks(primary, home, add) {
     : { id: "budget", status: "ok", detail: `${block ? block.bytes : 0} B` });
 }
 
-function claudeEngramCheck({ spawn, home, env, platform }, add) {
+function claudeEngramCheck({ spawn, home, env, platform, cli }, add) {
   const detection = detectEngram({
     target: "claude",
     spawn,
-    hostBin: resolveClaudeBin({ spawn, env, platform }),
+    hostBin: cli?.bin || null,
     homedir: () => home,
     env,
     platform,
@@ -667,9 +737,10 @@ async function runDoctor({
     } else {
       claudePluginChecks(claude, add);
       if (claude.primary) {
-        claudeHookChecks(claude.primary, { platform, arch }, add);
+        const cli = resolveClaudeCli({ spawn: engramSpawn, env, platform });
+        claudeHookChecks(claude.primary, { platform, arch, spawn, env, execPath, cli }, add);
         claudeRouterChecks(claude.primary, home, add);
-        claudeEngramCheck({ spawn: engramSpawn, home, env, platform }, add);
+        claudeEngramCheck({ spawn: engramSpawn, home, env, platform, cli }, add);
       }
     }
   }
