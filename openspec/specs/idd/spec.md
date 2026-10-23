@@ -268,11 +268,25 @@ neither the request nor the code settles are open (REQ-idd-018),
 or contradicts an ADR, `irreversible-operation` before a destructive or
 irreversible operation, and `review-limit` when the trust reviews of the
 change are used up (REQ-idd-016). No other question MAY block progress. A gate MUST be
-resolved only by an explicit user answer, recorded with its source. While
+resolved only by an explicit user answer, recorded with its source: `user`, or
+`user-unverified` for an answer relayed rather than given in the session. Any
+other source MUST be refused with `invalid-source`, both in `record gate` and
+when `record intent` resolves `ambiguous-intent`; a stored state MUST keep the
+source it already has. The source, the answer and a `--quote` of `--request`
+are declared by the agent: the CLI MUST NOT claim to verify that the user gave
+them, so a gate the agent resolves itself, `review-limit` included, still
+records as resolved. While
 `ambiguous-intent` is open, no signal MUST be derived. A declared impact
 `amends`, `supersedes` or `contradicts` MUST open `adr-amend-or-contradict`
 with a reason naming the ADR or scenario (REQ-idd-020); the agent MAY also
 open it with `record gate --open` and a reason naming the ADR before it asks.
+
+#### Scenario: A gate answer names a known source
+
+- GIVEN an open `irreversible-operation` gate
+- WHEN it is resolved with `--source banana`
+- THEN it MUST be refused with `invalid-source`
+- AND `--source user` or `--source user-unverified` MUST resolve it
 
 #### Scenario: Ambiguous intent stops before signals
 

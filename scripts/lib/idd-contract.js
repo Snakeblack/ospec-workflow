@@ -49,6 +49,10 @@ const INTENT_KINDS = Object.freeze(["bug", "feature", "refactor", "docs"]);
 const SIGNAL_SOURCES = Object.freeze(["declaration", "diff"]);
 const OBLIGATION_STATUSES = Object.freeze(["pending", "satisfied", "withdrawn"]);
 const GATE_STATUSES = Object.freeze(["open", "resolved"]);
+// Who answered a gate, as the agent declares it (#343): the CLI cannot verify
+// it. `user-unverified` is an answer relayed rather than given in the session.
+// Only new answers are checked; a stored state keeps the source it has.
+const GATE_SOURCES = Object.freeze(["user", "user-unverified"]);
 // What a CLI-observed run was for (REQ-idd-014): the declared checks, the test
 // command of a red → green pair, or a fitness check of an ADR or quality
 // scenario the change touches (REQ-idd-022).
@@ -542,6 +546,7 @@ module.exports = {
   EVIDENCE_MARKERS,
   GATED_IMPACTS,
   GATES,
+  GATE_SOURCES,
   GATE_STATUSES,
   IMPACTS,
   INTENT_KINDS,

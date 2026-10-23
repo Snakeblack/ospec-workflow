@@ -89,7 +89,7 @@ test("resolving an ambiguous intent needs the user's answer and its source", () 
   };
   assertCode(() => recordIntent(ambiguous, resolution), "gate-answer-required");
 
-  const { state, changed } = recordIntent(ambiguous, { ...resolution, answer: "the timeout bug", source: "AskUserQuestion" });
+  const { state, changed } = recordIntent(ambiguous, { ...resolution, answer: "the timeout bug", source: "user" });
   assert.strictEqual(changed, true);
   assertValid(state);
   assert.deepStrictEqual(state.intent, {
@@ -99,9 +99,25 @@ test("resolving an ambiguous intent needs the user's answer and its source", () 
     acceptance: "Login in < 2s.",
   });
   assert.deepStrictEqual(state.gates, [
-    { id: "ambiguous-intent", status: "resolved", answer: "the timeout bug", source: "AskUserQuestion" },
+    { id: "ambiguous-intent", status: "resolved", answer: "the timeout bug", source: "user" },
   ]);
   assert.deepStrictEqual(state.obligations.map((o) => o.id), ["checks-pass"]);
+});
+
+// #343: the source of a user's answer is one of GATE_SOURCES. The agent still
+// declares it; the CLI only refuses a value outside the list.
+test("a user's answer comes from user or user-unverified, in a gate and in the ambiguous intent", () => {
+  const ambiguous = recordIntent(null, { change: "improve-login", ambiguous: true, request: "Improve the login." }).state;
+  const resolution = { change: "improve-login", kind: "bug", summary: "Fix the timeout.", acceptance: "Login in < 2s.", answer: "the timeout bug", ...NO_OPEN_FACTS };
+  assertCode(() => recordIntent(ambiguous, { ...resolution, source: "banana" }), "invalid-source");
+  assert.strictEqual(recordIntent(ambiguous, { ...resolution, source: "user-unverified" }).changed, true);
+
+  const open = recordGate(opened(), { id: "irreversible-operation", action: "open", reason: "drops fax_number" }).state;
+  const answer = { id: "irreversible-operation", action: "resolve", answer: "approve the data loss" };
+  assertCode(() => recordGate(open, { ...answer, source: "banana" }), "invalid-source");
+  for (const source of ["user", "user-unverified"]) {
+    assert.deepStrictEqual(recordGate(open, { ...answer, source }).state.gates[0].source, source);
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -280,7 +296,7 @@ test("a gate opens once with its reason and resolves only with an answer and a s
     id: "irreversible-operation",
     action: "resolve",
     answer: "approve the data loss",
-    source: "AskUserQuestion",
+    source: "user",
   });
   assertValid(resolved.state);
   assert.deepStrictEqual(resolved.state.gates[0], {
@@ -288,10 +304,10 @@ test("a gate opens once with its reason and resolves only with an answer and a s
     status: "resolved",
     reason: "drops fax_number",
     answer: "approve the data loss",
-    source: "AskUserQuestion",
+    source: "user",
   });
 
-  const repeat = { id: "irreversible-operation", action: "resolve", answer: "approve the data loss", source: "AskUserQuestion" };
+  const repeat = { id: "irreversible-operation", action: "resolve", answer: "approve the data loss", source: "user" };
   assert.strictEqual(recordGate(resolved.state, repeat).changed, false);
   assertCode(() => recordGate(resolved.state, { ...repeat, answer: "reject" }), "gate-conflict");
 });
@@ -300,7 +316,7 @@ test("gate records reject unknown gates, unopened resolutions and the intent-own
   const state = opened();
   assertCode(() => recordGate(state, { id: "size-review", action: "open" }), "unknown-gate");
   assertCode(
-    () => recordGate(state, { id: "irreversible-operation", action: "resolve", answer: "a", source: "s" }),
+    () => recordGate(state, { id: "irreversible-operation", action: "resolve", answer: "a", source: "user" }),
     "gate-not-open",
   );
   assertCode(() => recordGate(state, { id: "ambiguous-intent", action: "open" }), "gate-managed-by-intent");

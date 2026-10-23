@@ -162,7 +162,7 @@ test("an open gate blocks close once obligations are settled, then close is next
   state = recordEvidence(state, { id: "ev-1", kind: "check-run", obligation: "checks-pass", recordedAt: "t" }).state;
   assert.deepStrictEqual(nextForChange(state).next_step, { action: "resolve-gate", gate: "irreversible-operation" });
 
-  state = recordGate(state, { id: "irreversible-operation", action: "resolve", answer: "ok", source: "AskUserQuestion" }).state;
+  state = recordGate(state, { id: "irreversible-operation", action: "resolve", answer: "ok", source: "user" }).state;
   const result = nextForChange(state);
   assert.deepStrictEqual(result.next_step, { action: "close" });
   assert.strictEqual(result.pending_decision, null);
