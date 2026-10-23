@@ -1,0 +1,113 @@
+{
+  "schema": "idd-state/v1",
+  "change": "windows-crash-fake-child",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El test de startBrowser con un navegador que sale en los dos arranques deja de depender de cuánto tarda en arrancar un Node real en Windows (E1.30, #344)",
+    "acceptance": "El test cuenta los arranques que hace startBrowser con un ChildProcess falso dentro del proceso que escribe su stderr y sale con código 3, y pasa con un timeout menor que lo que tarda en arrancar un proceso; el mensaje sigue nombrando el código 3 y el stderr"
+  },
+  "facts": {
+    "basis": "Log de la run de main de 1d7a0d29: 14,5 s, expected 2 actual 1, el primer arranque agotó los 5 s sin escribir su contador; el usuario eligió el 2026-10-23 reabrir el arreglo de este test (opción b) con el mismo patrón que hangingBrowser"
+  },
+  "plan": {
+    "paths": [
+      "scripts/evals/bench/browser.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-23T18:43:12.118Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-23T18:44:28.007Z",
+      "detail": {
+        "tree": "sha256:198b0e4b080d58de314a329bfc4f71549fc2af9246f45b39f47071182c04af69",
+        "runs": [
+          "run-3"
+        ]
+      }
+    }
+  ],
+  "base": "1d7a0d297f567ad1fbfd869c887eaedb24959fa3",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"exits on both starts\" scripts/evals/bench/browser.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:87ddb289f699028da6d5ab8527b786c55aececa8ad45675da8a6aecb99d3cbce",
+      "tree": "sha256:e5c35ff383b9c188758946fe0455cb437f3eb5a5bec934815c517e8b336ce1ea",
+      "recorded_at": "2026-10-23T18:42:34.583Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"exits on both starts\" scripts/evals/bench/browser.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bda8721b6eed78bf0613c335140f4f4460851610d6b153d6d256a2013be5bcd7",
+      "tree": "sha256:cd26268d4f24f0e0e7ea09696a939184dbe60441636fd8611e9b50184f6cf252",
+      "recorded_at": "2026-10-23T18:43:12.118Z",
+      "tests": 1
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3a5e7943782df74972240af6a5a083c87a76ec916f0b326d8e7b858977bf00d0",
+      "tree": "sha256:198b0e4b080d58de314a329bfc4f71549fc2af9246f45b39f47071182c04af69",
+      "recorded_at": "2026-10-23T18:44:28.007Z"
+    }
+  ],
+  "assumptions": [
+    "El test final mantiene timeoutMs 5000: con el ChildProcess falso, que sale en el siguiente tick, los arranques ya no dependen de cuánto tarda un proceso; un timeout de 50 ms solo añadiría una carrera con el sondeo de 50 ms de waitForPort. La corrida roja con 50 ms reproduce la dependencia del proceso real."
+  ],
+  "closed_at": "2026-10-23T18:44:30.829Z"
+}

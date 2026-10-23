@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Los tests de `startBrowser` ya no dependen de cuánto tarda en arrancar un proceso** (E1.30, #344). El 2026-10-23, en la run de `main` de v2.148.1, el test del navegador que sale en los dos arranques falló en Windows: el primer Node no escribió su contador en los 5 s y el test contó 1 arranque de 2. Los tests `crash` y `cold` usan ahora un ChildProcess falso dentro del proceso, como `hang`, y `scripts/evals/bench/browser.test.js` no arranca ningún proceso. El plazo de 0 flakes de Windows pasa al 2026-10-29.
+
+Hecho con IDD (`idd/archive/2026-10-23-windows-crash-fake-child/` e `idd/archive/2026-10-23-windows-cold-fake-child/`).
+
 ## [2.148.1] - 2026-10-23
 
 ### Fixed
