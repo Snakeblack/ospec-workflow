@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.150.3] - 2026-10-24
+
+### Fixed
+- **El recibo de `trust-review` ya no sale de una transcripción a medio escribir** (E1.37, #415). Claude Code dispara `SubagentStop` antes de escribir el mensaje final del subagente en su transcripción. El hook la leía, así que un revisor reanudado para corregir su resultado dejaba el recibo de la respuesta anterior y uno nuevo no dejaba ninguno. Si el recibo viejo era de un resultado que `ospec review record` rechaza, la única salida era borrar `.ospec/review-receipts/` a mano.
+  - Cuando el host pasa `last_assistant_message`, el resultado sale solo de ahí; sin resultado no hay recibo y la transcripción no se lee. Sin ese campo se mantiene el orden anterior.
+  - El binario Go no escribe recibos: `subagent-stop` corre en Node en Claude Code y Codex.
+  - Comprobado en vivo: un revisor reanudado para corregir una cita fuera de rango dejó el recibo de su respuesta corregida, y la revisión quedó con `attestation: subagent-stop`.
+- **Cada `result_contract` declara los límites de formato que exige el CLI** (E1.37). `cites` es una lista no vacía de citas dentro del fichero, `summary` y `acceptance_criteria` de un hallazgo tienen hasta 1000 caracteres, y en una validación `regression.evidence` es una lista de textos de hasta 500 y `follow_ups` usa `{owner, summary}`. El CLI no reescribe un resultado para ajustarlo, porque cambiaría su digest frente al recibo.
+
+Hecho con IDD (`idd/archive/2026-10-24-receipt-last-assistant-message/` e `idd/archive/2026-10-24-result-contract-limits/`).
+
+**Verificación directa**: `node scripts/check.js` (4011 tests pasando, 0 fallos y 3 omitidos). Los tests de reproducción de los dos cambios fallaron antes y pasan después.
+
 ## [2.150.2] - 2026-10-24
 
 ### Fixed
