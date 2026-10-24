@@ -40,13 +40,21 @@ const PROJECTION = "idd-tree-diff/v1";
 const RELAYED = "relayed";
 const RECEIPTED = "subagent-stop";
 const CITE = /^(.+):([1-9][0-9]*)(?:-([1-9][0-9]*))?$/;
+// E1.37 (#415): each contract names the format limits the CLI enforces
+// (checkCoverage below, normalizeFinding, the regression and follow_ups checks
+// of review-lineage.js). The CLI never rewrites a result: that would change
+// its digest against the SubagentStop receipt.
+const CITES = "cites a non-empty list of strings \"<path>:<line>\" or \"<path>:<start>-<end>\" naming that path, "
+  + "with start <= end <= its line count";
 const RESULT_CONTRACT = "Return JSON {request_digest, reviewed, findings}: request_digest copied from this request; "
-  + "reviewed with one {path, cites} entry per path of this request, each cite \"<path>:<line>\" or \"<path>:<start>-<end>\" "
-  + "of lines read in that path; findings in the review-judgment contract, each BLOCKER or CRITICAL with a location \"<path>:<line>\".";
+  + `reviewed a list with one {path, cites} entry per path of this request, ${CITES}, of lines read in that path; `
+  + "findings a list in the review-judgment contract, each {severity: BLOCKER|CRITICAL|WARNING|SUGGESTION, summary, acceptance_criteria} "
+  + "with summary and acceptance_criteria non-empty and at most 1000 characters, each BLOCKER or CRITICAL with a location \"<path>:<line>\".";
 const VALIDATION_CONTRACT = "Return JSON {request_digest, reviewed, outcomes, regression, follow_ups}: request_digest copied from this request; "
-  + "reviewed with one {path, cites} entry per path of this request, each cite \"<path>:<line>\" or \"<path>:<start>-<end>\" "
-  + "of lines read in that path of the corrected tree; outcomes with one {id, status: resolved|unresolved} per finding_ids entry; "
-  + "regression {detected, evidence}; follow_ups optional and non-blocking.";
+  + `reviewed a list with one {path, cites} entry per path of this request, ${CITES}, of lines read in that path of the corrected tree; `
+  + "outcomes with one {id, status: resolved|unresolved} per finding_ids entry; "
+  + "regression {detected: boolean, evidence: a non-empty list of strings of at most 500 characters}; "
+  + "follow_ups optional and non-blocking, a list of {owner: trust|runtime|evolution|efficiency, summary} with a summary of at most 500 characters.";
 
 function refuse(code, message) {
   throw new IddRecordError(code, message);
