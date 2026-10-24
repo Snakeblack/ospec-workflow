@@ -49,6 +49,84 @@ const SHELL_TOOL_NAMES = new Set([
   "terminal",
 ]);
 
+/**
+ * The disk rule (#407): `Clear-Disk` and `Format-Volume` in any position, and
+ * `format` (or `format.com`/`.exe`) with a drive or volume target only as the
+ * command. It is the command when it opens the input or follows a separator
+ * or `$x=`, after a chain of wrappers that run their operand, each maybe
+ * quoted or with a path. As an argument (`rg format`, `dotnet format`) or in
+ * `Format-Table` it is not. Quotes and heredocs are not parsed.
+ * Every token boundary has one reading and no token crosses a character that
+ * opens a command, so the match stays linear in the command length.
+ */
+const DISK_FORMAT_RE = (() => {
+  const H = String.raw`[^\S\r\n]`;
+  const STOP = String.raw`;&|(){}\x60`;
+  // No whitespace, quote, comma or command opener: a token never swallows
+  // the boundary of the next one.
+  const WORD = String.raw`[^\s"',${STOP}]`;
+  const VALUE_START = String.raw`[^\s"',${STOP}-]`;
+  const QUOTED = String.raw`"[^"\r\n${STOP}]*"`;
+  // `-ArgumentList` is never a wrapper's own flag: it is a token of the chain.
+  const ARGS = String.raw`-(?:argumentlist|args)`;
+  const BARE = String.raw`(?!${ARGS}(?![\w:.=-]))-[\w:.=-]+`;
+  // Start-Process's valued flags, read after the launched program too
+  // (`Start-Process cmd -WindowStyle Hidden …`).
+  const LAUNCH_VALUED = String.raw`windowstyle|verb|workingdirectory|credential|redirectstandard\w+`;
+  // `valued` names the flags that take a value; before one it is never a bare flag.
+  const flags = (valued) => {
+    const names = valued ? `${LAUNCH_VALUED}|${valued}` : LAUNCH_VALUED;
+    return String.raw`(?:${H}+(?:-(?:${names})${H}+${VALUE_START}${WORD}*|(?!-(?:${names})${H}+${VALUE_START})${BARE}))*`;
+  };
+  // [name, flags] of each wrapper that runs its operand.
+  const WRAPPERS = [
+    [String.raw`(?:sudo|doas|gsudo)(?:\.exe)?`, flags("[ugrtcd]")],
+    [String.raw`cmd(?:\.exe)?|%comspec%|\$env:comspec`, flags()],
+    ["start-process", flags()],
+    ["start", flags()],
+    [String.raw`call|pnpm(?:\.cmd|\.exe)?|(?:npm|yarn)(?:\.cmd|\.exe)?${H}+(?:exec|dlx)|bun(?:\.exe)?${H}+(?:run|x)|bunx(?:\.cmd|\.exe)?|iex|invoke-expression|eval|nohup(?:\.exe)?|do|then|else|!`, flags()],
+    [String.raw`npx(?:\.cmd|\.exe)?`, flags("p|-package")],
+    [String.raw`if(?:${H}+\/i)?(?:${H}+not)?${H}+(?:(?:exist|defined)${H}+(?:${QUOTED}|${WORD}+)|errorlevel${H}+\d+|(?:${QUOTED}|[^\s"',=${STOP}]+)==(?:${QUOTED}|${WORD}+))`, flags()],
+    [String.raw`(?:powershell|pwsh)(?:\.exe)?`, flags("ep|ex|executionpolicy|w|wd|configurationname|settingsfile|of|outputformat|if|inputformat|version|v")],
+    [String.raw`(?:bash|sh|zsh|dash|ksh)(?:\.exe)?`, flags("o")],
+    [String.raw`xargs(?:\.exe)?`, flags("[idnplsea]")],
+    [String.raw`command|builtin|(?:nice|runas|timeout)(?:\.exe)?`, flags("s|k")],
+    [String.raw`env(?:\.exe)?`, flags("u|c")],
+    ["exec", flags("a")],
+    ["time", flags("f")],
+    [String.raw`wsl(?:\.exe)?`, flags("d|u|-distribution|-user|-cd")],
+  ];
+  // The name, the quote that may close it, and the flags.
+  const NAMED = WRAPPERS.map(([name, f]) => String.raw`(?:${name})["']?${f}`).join("|");
+  // A quoted program path with spaces and balanced parentheses
+  // (`"…\Program Files (x86)\…\pwsh.exe"`) only opens the chain, and its quote
+  // closes right after the name.
+  const QUOTED_PROGRAM = String.raw`["'](?:[^"'\r\n${STOP}]|\([^"'\r\n${STOP}]*\))*[\/\\](?:${WRAPPERS.map(([name, f]) => String.raw`(?:${name})["']${f}`).join("|")})`;
+  // No `=` in a path, or `A=x/env` would also read as an `env` assignment.
+  const PATH = String.raw`(?:[^\s"',=${STOP}]*[\/\\])?`;
+  // A slash flag never spells a wrapper, or `/sudo` would also read as `/` + `sudo`.
+  const NAME_WORDS = String.raw`sudo|doas|gsudo|cmd|%comspec%|start|start-process|call|pnpm|npm|yarn|bun|bunx|iex|invoke-expression|eval|nohup|do|then|else|npx|if|powershell|pwsh|bash|sh|zsh|dash|ksh|xargs|command|builtin|nice|runas|timeout|env|exec|time|wsl`;
+  // A slash flag (`/c`, `/user:x`, Git Bash's `//c`) or a count or duration
+  // (`timeout 5`, `1.5m`).
+  const OPERAND = String.raw`(?:\/\/?(?!(?:${NAME_WORDS})(?:\.cmd|\.exe)?(?![\w:.=-]))[\w:.=-]+|\d+(?:\.\d+)?[a-z]?)["']?`;
+  // `-ArgumentList`, whose string Start-Process runs, with the launched
+  // program's bare flags, spaced or in a comma list (`"-NoProfile -Command …"`,
+  // `'-NoProfile','-Command',…`).
+  const ARGLIST = String.raw`${ARGS}${H}+(?:@\(${H}*)?(?:["']?${BARE}["']?(?:${H}+|,${H}*))*`;
+  // A token ends at whitespace, a comma (`'/c','…'`) or a quote.
+  const SEP = String.raw`(?:${H}+|,${H}*|(?=["']))`;
+  // A `VAR=value` prefix (`MSYS_NO_PATHCONV=1 cmd …`, `env A=1 …`) or an
+  // empty title (`start ""`).
+  const PREFIX = String.raw`\w+=${WORD}*|""|''`;
+  const TOKEN = String.raw`["']?(?:${PATH}(?:${NAMED})|${OPERAND})${SEP}|(?:${PREFIX})${SEP}|${ARGLIST}`;
+  const START = String.raw`(?:^|[\r\n;&|({\x60])${H}*@?(?:\$[\w:]+${H}*=${H}*)?`;
+  // `format` ends at whitespace, a quote, `(` or `,`, so a word such as
+  // `format/format/…` fails at once at each slash. The target is searched up
+  // to the next character that opens a command.
+  const FORMAT = String.raw`["']?${PATH}format(?:\.com|\.exe)?(?=[\s"'(,])(?!\(\s*[a-z_$][\w$]*\??:\s+[a-z_$])[^\r\n${STOP}]*[\s,(]["']?(?:[a-z]:(?![a-z0-9_])|\\\\\?\\volume\{)`;
+  return new RegExp(String.raw`\b(?:clear-disk|format-volume)\b|${START}(?:${QUOTED_PROGRAM}${SEP})?(?:${TOKEN})*${FORMAT}`, "i");
+})();
+
 const DENY_RULES = [
   {
     pattern:
@@ -84,8 +162,7 @@ const DENY_RULES = [
     reason: "Writing raw data directly to a storage device is blocked.",
   },
   {
-    pattern:
-      /\b(?:clear-disk|format-volume)\b|(?<![-.])\bformat(?<!(?:^|[\r\n;&|(])[^\S\r\n]*(?:(?:dotnet|ruff|biome|buf|swift|taplo|npm|yarn)[^\S\r\n]+(?:run[^\S\r\n]+)?|pnpm[^\S\r\n]+run[^\S\r\n]+|bun[^\S\r\n]+)format)(?:\.com)?\b(?!\(\s*[a-z_$][\w$]*\??:\s+[a-z_$])[^\r\n;&|]*[\s,(]["']?(?:[a-z]:(?![a-z0-9_])|\\\\\?\\volume\{)/i,
+    pattern: DISK_FORMAT_RE,
     reason: "Formatting or clearing a disk is blocked.",
   },
 ];

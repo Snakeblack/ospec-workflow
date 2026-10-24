@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.150.2] - 2026-10-24
+
+### Fixed
+- **La regla de disco del PreToolUse deniega `format` solo cuando es la orden, no cuando es una palabra** (E1.35, OSP-033, #407). Ya no se deniegan `rg format C:\src`, un `git commit -m` o un `gh issue create` que cite `format C:`, `Format-Table` con una redirección a `C:\…`, `sudo dotnet format C:\repo` ni `cmd /c dotnet format …`. Formatear una unidad como orden, `Format-Volume` y `Clear-Disk` se siguen denegando.
+  - `format` (o `format.com`/`.exe`) cuenta como orden cuando abre la línea o va tras `;`, `&`, `|`, `(`, `{`, una comilla invertida o `$x=`, después de una cadena de envoltorios que ejecutan su operando. Son `sudo`/`gsudo`/`doas`, `cmd`, `start`, `Start-Process` y su `-ArgumentList`, `powershell`/`pwsh`, `bash`/`sh`, `iex`, `eval`, `xargs`, `env`, `timeout`, `nohup`, `wsl`, `npx` y sus equivalentes, `if exist`, `do`/`then`/`else`, entre otros. Cada envoltorio puede ir con ruta, entre comillas, con su sufijo `.exe`/`.cmd`, como `%ComSpec%` o tras un prefijo `VAR=valor`.
+  - Las comillas y los heredocs no se interpretan, por decisión del usuario: un separador entre comillas sigue abriendo una orden, y una línea de un heredoc cuenta como línea de órdenes. La fila «Format or clear a disk» de la spec de hooks escribe los límites: los lanzadores fuera de la lista (`schtasks`, `psexec`…), los valores de flag con comillas o comas y unas pocas formas de Windows.
+  - El patrón se compone por piezas (`DISK_FORMAT_RE`) y Go evalúa el mismo con regexp2. Cada frontera entre tokens tiene una sola lectura y ningún token cruza un carácter que abre orden, así que el coste es lineal en los dos motores. La regla anterior ya era cuadrática con muchos `format` en un mismo tramo.
+
+Hecho con IDD (`idd/archive/2026-10-24-disk-rule-command-precision/`), con cuatro revisiones de confianza; la última, autorizada por el usuario, quedó aprobada sin hallazgos bloqueantes, y sus dos avisos pasan a E1.39.
+
+**Verificación directa**: `node scripts/check.js` (4007 tests pasando, 0 fallos y 3 omitidos) y `go test ./internal/rules/ ./internal/hooks/`. El test de reproducción falló antes del cambio y pasa después. Una búsqueda exhaustiva de trozos de uno y dos tokens (y una muestra de tres y cuatro) repetidos 30 veces y un fuzz por crecimiento no encuentran casos lentos en JS ni en Go; la misma búsqueda sí encuentra las cadenas exponenciales de los patrones intermedios.
+
 ## [2.150.1] - 2026-10-24
 
 ### Fixed

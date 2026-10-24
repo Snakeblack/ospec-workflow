@@ -1,7 +1,9 @@
 package rules_test
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/snakeblack/ospec-workflow/internal/rules"
 )
@@ -65,7 +67,46 @@ func TestEvaluate_Deny(t *testing.T) {
 		{name: "bun run format falls back to the system", command: "bun run format D:/src"},
 		{name: "tool as if exist operand", command: `cmd /c "if not exist dotnet format C: /q /y"`},
 		{name: "tool as if defined operand", command: "if defined npm format D:"},
-		{name: "tool not opening the command", command: `cmd /c dotnet format C:\repo\app.sln`},
+		// #407: format is denied as the command, after a wrapper that runs it.
+		{name: "sudo format", command: "sudo -n format D:"},
+		{name: "start format", command: `start "" /wait format D:`},
+		{name: "call operator format", command: `& "format" D:`},
+		{name: "powershell -c format", command: `powershell -c "format D:"`},
+		{name: "bash -c format", command: `bash -c "format C:"`},
+		{name: "iex format", command: `iex "format D:"`},
+		{name: "nohup format", command: "nohup format D:"},
+		{name: "scriptblock format", command: "{ format D: }"},
+		{name: "backtick format", command: "echo `format D:`"},
+		{name: "format.exe", command: "format.exe D:"},
+		{name: "format after a quoted separator", command: `git commit -m "arreglo; format C: nunca"`},
+		{name: "format line of a heredoc", command: "cat <<EOF | cmd\nformat D: /q\nEOF"},
+		{name: "cmd.exe with a path", command: `C:\Windows\System32\cmd.exe /c format D:`},
+		{name: "ComSpec", command: "%ComSpec% /c format D:"},
+		{name: "bash with a path", command: `/bin/bash -c "format C:"`},
+		{name: "sudo with a path", command: "/usr/bin/sudo format D:"},
+		{name: "quoted cmd.exe after the call operator", command: `& "C:\Windows\System32\cmd.exe" /c format D:`},
+		{name: "quoted pwsh under Program Files (x86)", command: `"C:\Program Files (x86)\PowerShell\7\pwsh.exe" -c "format D:"`},
+		{name: "powershell valued flags", command: `powershell -NoProfile -ExecutionPolicy Bypass -c "format D:"`},
+		{name: "Start-Process argument list", command: "Start-Process cmd -ArgumentList '/c format D:'"},
+		{name: "eval format", command: `eval "format D:"`},
+		{name: "xargs flags", command: "xargs -P 4 -n 1 format D:"},
+		{name: "timeout duration", command: "timeout -s KILL 1.5m format D:"},
+		{name: "env -u", command: "env -u X format D:"},
+		{name: "runas", command: `runas /user:admin "format D:"`},
+		{name: "then keyword", command: "if true; then format D:; fi"},
+		{name: "do keyword", command: "for i in 1; do format D:; done"},
+		{name: "argument list with dash flags", command: `Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile -Command format D:"`},
+		{name: "argument list array", command: "Start-Process cmd -ArgumentList '/c','format D:'"},
+		{name: "quoted comparison", command: `if "%x%"=="1" format D:`},
+		{name: "empty start title", command: `start "" cmd /c format D:`},
+		{name: "gsudo.exe", command: "gsudo.exe format D:"},
+		{name: "npx.cmd shim", command: "npx.cmd format D:"},
+		{name: "env.exe", command: "env.exe format D:"},
+		{name: "Git Bash variable prefix", command: "MSYS_NO_PATHCONV=1 cmd /c format D:"},
+		{name: "Git Bash double slash flag", command: `cmd //c "format D:"`},
+		{name: "Start-Process flag after the program", command: `Start-Process cmd -WindowStyle Hidden -ArgumentList "/c format D:"`},
+		{name: "empty title after a slash flag", command: `start /wait "" format D:`},
+		{name: "argument list of flags", command: "Start-Process powershell -ArgumentList '-NoProfile','-Command','format D:'"},
 		{name: "rm -r -f /", command: "rm -r -f /"},
 		{name: "git push origin +main", command: "git push origin +main"},
 	}
@@ -162,6 +203,18 @@ func TestEvaluate_Allow(t *testing.T) {
 		{name: "function signature", command: "function format(a: string) {}"},
 		{name: "python signature", command: "def format(s: str):"},
 		{name: "method signature", command: "  format(value?: Date): string {"},
+		// #407: format as a word, not the command.
+		{name: "rg format", command: `rg format C:\src`},
+		{name: "format in a commit message", command: `git commit -m "no ejecutar format C: nunca"`},
+		{name: "Format-Table redirected", command: `Get-Process | Format-Table Name > C:\tmp\p.txt`},
+		{name: "Format-Table after ls", command: `ls C:\ | Format-Table -AutoSize > C:\out.txt`},
+		{name: "sudo dotnet format", command: `sudo dotnet format C:\repo`},
+		{name: "cmd /c dotnet format", command: `cmd /c dotnet format C:\repo\app.sln`},
+		{name: "heredoc citing the cases", command: "gh issue create --body \"$(cat <<'EOF'\n- `rg format C:\\src`\n- `sudo dotnet format C:\\repo`\nEOF\n)\""},
+		{name: "cmd.exe with a path runs dotnet", command: `C:\Windows\System32\cmd.exe /c dotnet format C:\repo`},
+		{name: "numbered list in a heredoc", command: "cat <<'EOF'\n1. format C: no se toca\n2) format C: tampoco\nEOF"},
+		{name: "argument list of a formatter", command: `Start-Process dotnet -ArgumentList "format C:\repo"`},
+		{name: "variable prefix before a formatter", command: `NODE_ENV=test dotnet format C:\repo`},
 	}
 
 	for _, tt := range tests {
@@ -231,6 +284,53 @@ func TestEvaluate_ReasonNotEmpty(t *testing.T) {
 			action, reason := rules.Evaluate(tt.command)
 			if reason == "" {
 				t.Errorf("Evaluate(%q) action=%q but reason is empty", tt.command, action)
+			}
+		})
+	}
+}
+
+// TestEvaluate_DiskRuleLinear verifies that adversarial commands neither
+// backtrack for long nor hide a real format that follows them (#407).
+func TestEvaluate_DiskRuleLinear(t *testing.T) {
+	const n = 5000
+	prefixes := map[string]string{
+		"sudo valued flags":    "sudo " + strings.Repeat("-u sudo ", n),
+		"pwsh valued flags":    "pwsh " + strings.Repeat("-ep sudo ", n),
+		"if comparisons":       strings.Repeat("if a=========b ", n),
+		"separated sudo":       strings.Repeat("sudo -u x;", n),
+		"quoted paths":         strings.Repeat(`sudo "a/b/sudo" `, n),
+		"glued quotes":         strings.Repeat(`sudo""`, n),
+		"parenthesized paths":  strings.Repeat(`"a(/pwsh x)/pwsh `, n),
+		"long path":            strings.Repeat("/a", n) + "/sudo y",
+		"formats in a segment": strings.Repeat("(format x ", n),
+		"argument lists":       strings.Repeat("format x -ArgumentList ", n),
+		// Each of these once had two readings per repetition.
+		"quote after a value":      strings.Repeat(`sudo -u a"`, n),
+		"quote after a pwsh value": strings.Repeat(`pwsh -ep x"`, n),
+		"quote after an env value": strings.Repeat(`env A=b"`, n),
+		"quoted slashes":           strings.Repeat(`"/sudo /sudo" `, n),
+		"slash wrapper names":      strings.Repeat("/sudo ", n),
+		"bare argument lists":      strings.Repeat("-ArgumentList ", n),
+		"comma after a value":      strings.Repeat("sudo -u a,sudo ", n),
+		"assignment or path":       strings.Repeat(`A=1C:\a\env `, n),
+		"format path segments":     strings.Repeat("format/", n),
+		"variable prefixes":        strings.Repeat("A=1 ", n),
+		"double slash flags":       strings.Repeat("//c ", n),
+		"launcher valued flags":    strings.Repeat("pwsh -WindowStyle x ", n),
+		"empty titles":             strings.Repeat(`"" `, n),
+		"argument list flags":      strings.Repeat("-ArgumentList '-a',", n),
+	}
+	for name, prefix := range prefixes {
+		t.Run(name, func(t *testing.T) {
+			started := time.Now()
+			if action, _ := rules.Evaluate(prefix); action == "deny" {
+				t.Errorf("Evaluate(%.40q) = deny, want no deny", prefix)
+			}
+			if elapsed := time.Since(started); elapsed > time.Second {
+				t.Errorf("Evaluate(%.40q) took %v", prefix, elapsed)
+			}
+			if action, _ := rules.Evaluate(prefix + "; format D:"); action != "deny" {
+				t.Errorf("Evaluate(%.40q + format) = %q, want deny", prefix, action)
 			}
 		})
 	}

@@ -1,0 +1,1070 @@
+{
+  "schema": "idd-state/v1",
+  "change": "disk-rule-command-precision",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "La regla de disco del PreToolUse deniega format solo cuando es la orden (inicio de orden o tras un envoltorio que ejecuta su operando), no cuando es una palabra suelta; paridad JS/Go (#407, OSP-033)",
+    "acceptance": "Los cinco ejemplos de #407 y un heredoc que los cite no reciben decisión; formatear una unidad como orden (directa, con cmd /c, asignada), Format-Volume y Clear-Disk siguen denegados con los casos actuales; la paridad JS/Go pasa"
+  },
+  "facts": {
+    "open": [
+      "Texto entre comillas: ¿un separador (; & |) dentro de comillas sigue partiendo órdenes (conservador) o se ignora salvo en el operando de cmd /c, powershell -c, etc.?",
+      "Heredocs: ¿una línea del cuerpo que empieza por format seguido de una unidad sigue contando como orden?",
+      "cmd /c dotnet format C:\\repo\\app.sln hoy se deniega por test; con format como orden pasaría: ¿se acepta el cambio?",
+      "¿Qué envoltorios ejecutan su operando como orden: solo los de #407 y los ya probados, o también powershell/pwsh -c, bash/sh -c, iex, env, exec, nohup, doas y time?",
+      "¿Clear-Disk y Format-Volume siguen denegándose como palabra en cualquier posición o pasan también a exigir posición de orden?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "idd/disk-rule-command-precision/change.md",
+      "internal/rules/rules.json",
+      "internal/rules/rules_test.go",
+      "openspec/specs/hooks/spec.md",
+      "scripts/hooks/pre-tool-use.js",
+      "scripts/hooks/pre-tool-use.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/pre-tool-use.js and 1 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component hooks: ADR 0008, 0010 and quality scenario guard-fail-closed",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/hooks/pre-tool-use.js uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "La denegación sigue siendo el suelo: el patrón solo deja de tratar la palabra como orden; cada orden denegada de antes sigue fijada en pre-tool-use.test.js y los envoltorios nuevos llevan su test"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas; Go sigue evaluando el mismo patrón embebido en rules.json y parity-contract.test.js lo compara"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "Formatear una unidad como orden, Format-Volume y Clear-Disk siguen bloqueados; el patrón no interpreta comillas ni heredocs y en la duda sigue denegando"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-10"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-9"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "haz las recomendadas (1: un separador dentro de comillas sigue partiendo órdenes; 2: una línea de heredoc cuenta como orden; 3: cmd /c dotnet format C:\\repo\\app.sln pasa a permitido; 4: lista amplia de envoltorios con powershell/pwsh -c, bash/sh -c, iex, env, exec, nohup, doas y time; 5: Clear-Disk y Format-Volume siguen denegándose como palabra)",
+      "source": "user"
+    },
+    {
+      "id": "review-limit",
+      "status": "resolved",
+      "reason": "3 of 3 trust reviews used: ospec check opens the review-limit gate, and only the person's answer authorizes one more",
+      "answer": "te autorizo",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-24T00:10:23.675Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-24T01:52:07.151Z",
+      "detail": {
+        "lineage_id": "sha256:55e30eb6a31876603d9b2773d6efc01f1492cf7140913a838b523fbcef973f7e",
+        "candidate_id": "sha256:a8d904c3a87ada9002848caf7921e1059c31f922738759c317c95498942658e1",
+        "candidate_tree": "990baa25ba9d22dca85d9be0fdc92c944505d7c3",
+        "findings_digest": "sha256:2d0aca11b5513204883dd4be341e094bdb60161dd96a9bf5c44f627fedd85fd2",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-correction",
+          "recorded_at": "2026-10-24T01:51:43.154Z",
+          "result_digest": "sha256:01a4dafbf44d8889dbe6dad05dbe3c62603553df29fd2ec9962c911a581399ad"
+        }
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-24T01:55:50.405Z",
+      "detail": {
+        "tree": "sha256:5d47783f325439692c153d647c31731c44b64d9f1d2c509778101567b996aa7e",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-24T01:55:50.405Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:5d47783f325439692c153d647c31731c44b64d9f1d2c509778101567b996aa7e",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7"
+        ]
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-24T01:56:32.601Z",
+      "detail": {
+        "run": "run-8",
+        "tree": "sha256:50b45bc86e99301ac247cdd292ef06a5e94b206d32761e0915b48ae07636ebda",
+        "plan": "Sin migración: el cambio solo reescribe la regla de disco (DISK_FORMAT_RE) y no toca recordTokensSync. El único dato persistido del fichero, .ospec/session/<change>/token-events.jsonl, conserva su formato {t, ts}, y el test de presupuesto acumulado lo lee de un registro ya escrito. La señal persistent-data se deriva solo porque el fichero ya escribía (#416)."
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-24T02:11:14.814Z",
+      "detail": {
+        "lineage_id": "sha256:9e387013b5d36b093c98b9b4699d5d9fb2337cb523c97a33650473f8c27bcd50",
+        "candidate_id": "sha256:565a6944dc93bb160050321dbe4bcfc927c23b14c69448c162a74f6282a8e669",
+        "candidate_tree": "c0293a19f526685b1ac48381c87567593e9913df",
+        "findings_digest": "sha256:14de57b12fa7cbed038ddce33894b044e05a99d11e082de21b9e3ce71f573309",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-24T02:11:02.164Z",
+          "result_digest": "sha256:aa196533cccbe9156f4c7d39ddec72bb85471952077d4485ed0103351b1ddd2a"
+        }
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-24T02:12:24.334Z",
+      "detail": {
+        "tree": "sha256:14eb8d4013b51c5498ea6eb47d1e3f646530ca45aac658f2077899bd92ea7a5b",
+        "runs": [
+          "run-9"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-24T02:12:24.334Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:14eb8d4013b51c5498ea6eb47d1e3f646530ca45aac658f2077899bd92ea7a5b",
+        "fitness": [
+          "run-10",
+          "run-11",
+          "run-12",
+          "run-13"
+        ]
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-24T02:13:07.033Z",
+      "detail": {
+        "run": "run-14",
+        "tree": "sha256:f25d94db27264e0bcbe6c1a152406527c8a8dc7a15f99c14b684b671f1741fad",
+        "plan": "Sin migración: el cambio solo reescribe la regla de disco (DISK_FORMAT_RE) y no toca recordTokensSync. El único dato persistido del fichero, .ospec/session/<change>/token-events.jsonl, conserva su formato {t, ts}, y el test de presupuesto acumulado lo lee de un registro ya escrito. La señal persistent-data se deriva solo porque el fichero ya escribía (#416)."
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-24T02:27:46.807Z",
+      "detail": {
+        "lineage_id": "sha256:8d7a247380d2a60ae36de5eee200958b827dabebb0aab8a55081f03ce8f0ec88",
+        "candidate_id": "sha256:7da0db970f25b7815d8a1c0bd1cc9dceb565e62f211d5191f02bba39e0e7c5e7",
+        "candidate_tree": "a287717d2d23a37068072aef42aa772f0c80acba",
+        "findings_digest": "sha256:0845fe54ee3f150131a489a7ee830e5bf6f0857f7d6cf2a5fb0c010b3a0e218f",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-24T02:27:29.715Z",
+          "result_digest": "sha256:8617455dd20106c6c5cf584a0836877a383ed141cb39585d427fc32a219f44fe"
+        }
+      }
+    }
+  ],
+  "base": "c933fc886258a3bb22dec50b26d737bef5041d3a",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/pre-tool-use.test.js && go test ./internal/rules/",
+      "exit_code": 1,
+      "output_sha256": "sha256:8a00f8d679ec1def276f037f0028c558d01e66fb3bf8ff4beb266d77b94be573",
+      "tree": "sha256:c4a9a634afa22206c41d3f9d11a397e9fbd2dca433a71f617f7ca869ca7c201a",
+      "recorded_at": "2026-10-24T00:06:13.070Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test scripts/hooks/pre-tool-use.test.js && go test ./internal/rules/",
+      "exit_code": 0,
+      "output_sha256": "sha256:c9f5ebce73341b451d09adc6a8022680922b86b4e359ac6b1c3204d51a20e448",
+      "tree": "sha256:27834052555934eaf7eddecdf6c555758c8caae76a8bd14410b8aa29c1382bc6",
+      "recorded_at": "2026-10-24T00:10:23.675Z",
+      "tests": 69
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:84c39b0e35f027d2bc06eb0b094a9c2d5de9b3ad67741f5ac414f3b6781b8090",
+      "tree": "sha256:5d47783f325439692c153d647c31731c44b64d9f1d2c509778101567b996aa7e",
+      "recorded_at": "2026-10-24T01:55:50.405Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:aa80e4caad6ad7a7e3530f63d281a3b05bc28dc6a46c2d174636208c47b9b3cb",
+      "tree": "sha256:5d47783f325439692c153d647c31731c44b64d9f1d2c509778101567b996aa7e",
+      "recorded_at": "2026-10-24T01:55:50.405Z",
+      "tests": 81
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:5d47783f325439692c153d647c31731c44b64d9f1d2c509778101567b996aa7e",
+      "recorded_at": "2026-10-24T01:55:50.405Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:797eb0ed7cf83a5410d7821a6f48193bb9c4c1dad34af3e795193678c68dde4c",
+      "tree": "sha256:5d47783f325439692c153d647c31731c44b64d9f1d2c509778101567b996aa7e",
+      "recorded_at": "2026-10-24T01:55:50.405Z",
+      "tests": 16
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:41fb7e75d6fcdf9861e1e19fa7d6c2ae2bcdb455c7cdaceb42a3d08b96f5e521",
+      "tree": "sha256:5d47783f325439692c153d647c31731c44b64d9f1d2c509778101567b996aa7e",
+      "recorded_at": "2026-10-24T01:55:50.405Z",
+      "tests": 81
+    },
+    {
+      "id": "run-8",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern=\"token budget advisor\" scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e998510e1c54fec93a08551797fce17a444e83f4b6c621767bb9e93167076f43",
+      "tree": "sha256:50b45bc86e99301ac247cdd292ef06a5e94b206d32761e0915b48ae07636ebda",
+      "recorded_at": "2026-10-24T01:56:32.601Z",
+      "tests": 3
+    },
+    {
+      "id": "run-9",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b05231ad4f07b180a660fca058edd2e3c270b4c25c72ee4afe2ba746b0164987",
+      "tree": "sha256:14eb8d4013b51c5498ea6eb47d1e3f646530ca45aac658f2077899bd92ea7a5b",
+      "recorded_at": "2026-10-24T02:12:24.334Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:87540e42f71a368238b8b80df0cfbffa2f091b75d0f1117e4eab636b9ca0281c",
+      "tree": "sha256:14eb8d4013b51c5498ea6eb47d1e3f646530ca45aac658f2077899bd92ea7a5b",
+      "recorded_at": "2026-10-24T02:12:24.334Z",
+      "tests": 81
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:14eb8d4013b51c5498ea6eb47d1e3f646530ca45aac658f2077899bd92ea7a5b",
+      "recorded_at": "2026-10-24T02:12:24.334Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:379b5450ff3616c694872c222af959d65bdbc765edf841048a63e36a26dc60ff",
+      "tree": "sha256:14eb8d4013b51c5498ea6eb47d1e3f646530ca45aac658f2077899bd92ea7a5b",
+      "recorded_at": "2026-10-24T02:12:24.334Z",
+      "tests": 16
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d6ab811f577bebcabe759a35721c3bbd9c85a7a19de2f02be31f424507960463",
+      "tree": "sha256:14eb8d4013b51c5498ea6eb47d1e3f646530ca45aac658f2077899bd92ea7a5b",
+      "recorded_at": "2026-10-24T02:12:24.334Z",
+      "tests": 81
+    },
+    {
+      "id": "run-14",
+      "purpose": "migration-test",
+      "command": "node --test --test-name-pattern=\"token budget advisor\" scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:80f6f4a7105d40a5127342b673d42505ab830b9bac3255da8380729c47ada57b",
+      "tree": "sha256:f25d94db27264e0bcbe6c1a152406527c8a8dc7a15f99c14b684b671f1741fad",
+      "recorded_at": "2026-10-24T02:13:07.033Z",
+      "tests": 3
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:59294429d25c621d5f0853d6bd014b456c4cd649413309659db99dd89dcfc33d",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 4,
+      "status": "escalated",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "79b80d7b1966b074bafdc4adeaeebd554d1013ae",
+          "candidate_tree": "d1e5f3be356be2a65d61dd3646a5dc3566ff3163",
+          "paths": [
+            "internal/rules/rules.json",
+            "internal/rules/rules_test.go",
+            "openspec/specs/hooks/spec.md",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js"
+          ],
+          "diff_hash": "sha256:3ed58597b3108aaaad63372a48275dddbded9edb90fb30488e3c2966a0ce4e45",
+          "paths_digest": "sha256:b504f2e6fc737e9016761bb58aaa748577123b4def0a3421ec7749b260526758",
+          "authored_lines": 89,
+          "original_changed_lines": 93
+        },
+        "candidate_id": "sha256:0719c97d5116389d47091618dc8062513202419208fd18da6e3b15228b4857b5",
+        "paths": [
+          "internal/rules/rules.json",
+          "internal/rules/rules_test.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "d1e5f3be356be2a65d61dd3646a5dc3566ff3163",
+        "original_changed_lines": 93,
+        "authored_lines": 89
+      },
+      "current_candidate_id": "sha256:0719c97d5116389d47091618dc8062513202419208fd18da6e3b15228b4857b5",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "79b80d7b1966b074bafdc4adeaeebd554d1013ae",
+        "candidate_tree": "d1e5f3be356be2a65d61dd3646a5dc3566ff3163",
+        "paths": [
+          "internal/rules/rules.json",
+          "internal/rules/rules_test.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "diff_hash": "sha256:3ed58597b3108aaaad63372a48275dddbded9edb90fb30488e3c2966a0ce4e45",
+        "paths_digest": "sha256:b504f2e6fc737e9016761bb58aaa748577123b4def0a3421ec7749b260526758",
+        "authored_lines": 89,
+        "original_changed_lines": 93
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "disk-rule-command-precision:lens-start:1:0",
+          "result_digest": "sha256:b04cdc01709de37a17cba93f34a2da01969c14d65ea8abf799b0f58d9ee04e07",
+          "result": {
+            "findings": [
+              {
+                "severity": "CRITICAL",
+                "summary": "scripts/hooks/pre-tool-use.js:93 (mirrored in rules.json:47): the `if` wrapper branch `\\S+==\\S+` sits inside the outer `(?:wrapper)*` loop. A token with several `=` signs can be split in many ways that all end at the same position. Repeating `if a=========b ` about 10 times, with no later match, gives roughly 9^k attempts. A command of about 130 characters can hang the hook, in JS and in Go regexp2.",
+                "acceptance_criteria": "A command made of 15 or more repetitions of `if a=========b ` (with and without a trailing `; format D:`) is evaluated by the disk rule in JS and Go in a few milliseconds, and the same command with a real `format D:` at command position is still denied. A test covers an adversarial `if` / `==` input.",
+                "location": "scripts/hooks/pre-tool-use.js:93"
+              },
+              {
+                "severity": "WARNING",
+                "summary": "scripts/hooks/pre-tool-use.js:93 / rules.json:47: the new 'command position' check recognises only the listed wrappers and only when they are the bare word. Real formats the old word-based rule denied now pass: `if true; then format D:; fi` (`then`/`do`/`else` are not wrappers), `C:\\Windows\\System32\\cmd.exe /c format D:` and `/usr/bin/sudo format D:` (path-qualified wrapper), `%ComSpec% /c format D:`, `eval \"format D:\"`, `timeout 5 format D:`, `xargs format D:`, `command format D:`, `runas /user:Administrator \"format D:\"`.",
+                "acceptance_criteria": "Each of the commands in the summary is denied in both JS and Go, and tests cover them. Alternatively, the spec row states explicitly that they are out of scope. The existing allowed cases (`rg format C:\\src`, `dotnet format C:\\repo`, `cmd /c dotnet format ...`, the #407 examples and the heredoc) stay allowed.",
+                "location": "scripts/hooks/pre-tool-use.js:93"
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "disk-rule-command-precision:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-a18022b29468eb26",
+          "owner": "trust",
+          "severity": "CRITICAL",
+          "summary": "scripts/hooks/pre-tool-use.js:93 (mirrored in rules.json:47): the `if` wrapper branch `\\S+==\\S+` sits inside the outer `(?:wrapper)*` loop. A token with several `=` signs can be split in many ways that all end at the same position. Repeating `if a=========b ` about 10 times, with no later match, gives roughly 9^k attempts. A command of about 130 characters can hang the hook, in JS and in Go regexp2.",
+          "acceptance_criteria": "A command made of 15 or more repetitions of `if a=========b ` (with and without a trailing `; format D:`) is evaluated by the disk rule in JS and Go in a few milliseconds, and the same command with a real `format D:` at command position is still denied. A test covers an adversarial `if` / `==` input.",
+          "location": "scripts/hooks/pre-tool-use.js:93",
+          "blocking": true,
+          "resolution": "unresolved"
+        },
+        {
+          "id": "F-209a06ea661aa651",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "scripts/hooks/pre-tool-use.js:93 / rules.json:47: the new 'command position' check recognises only the listed wrappers and only when they are the bare word. Real formats the old word-based rule denied now pass: `if true; then format D:; fi` (`then`/`do`/`else` are not wrappers), `C:\\Windows\\System32\\cmd.exe /c format D:` and `/usr/bin/sudo format D:` (path-qualified wrapper), `%ComSpec% /c format D:`, `eval \"format D:\"`, `timeout 5 format D:`, `xargs format D:`, `command format D:`, `runas /user:Administrator \"format D:\"`.",
+          "acceptance_criteria": "Each of the commands in the summary is denied in both JS and Go, and tests cover them. Alternatively, the spec row states explicitly that they are out of scope. The existing allowed cases (`rg format C:\\src`, `dotnet format C:\\repo`, `cmd /c dotnet format ...`, the #407 examples and the heredoc) stay allowed.",
+          "location": "scripts/hooks/pre-tool-use.js:93",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:904bb1bd465bb7b43e988db5f34e5ae69337d3447b0d9c977d248af81eb22717",
+      "correction_budget": {
+        "limit_lines": 47,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "the correction does not fit one bounded correction (line budget or frozen paths): a successor review checks it"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:55e30eb6a31876603d9b2773d6efc01f1492cf7140913a838b523fbcef973f7e",
+      "generation": 2,
+      "predecessor_lineage_id": "sha256:59294429d25c621d5f0853d6bd014b456c4cd649413309659db99dd89dcfc33d",
+      "migration": null,
+      "recovery": null,
+      "revision": 6,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "79b80d7b1966b074bafdc4adeaeebd554d1013ae",
+          "candidate_tree": "93b53ea0533c9f948a5318ff91d55929443e8b9c",
+          "paths": [
+            "internal/rules/rules.json",
+            "internal/rules/rules_test.go",
+            "openspec/specs/hooks/spec.md",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js"
+          ],
+          "diff_hash": "sha256:716b0780d890086ed3cb20c56a05aac7cab62a5ba5d6db84d333c82d98250f02",
+          "paths_digest": "sha256:b504f2e6fc737e9016761bb58aaa748577123b4def0a3421ec7749b260526758",
+          "authored_lines": 253,
+          "original_changed_lines": 258
+        },
+        "candidate_id": "sha256:87b49f3d3cad1927f90c3bee6f914e75df6b95b0d985827dca6e4cd81f75afce",
+        "paths": [
+          "internal/rules/rules.json",
+          "internal/rules/rules_test.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "93b53ea0533c9f948a5318ff91d55929443e8b9c",
+        "original_changed_lines": 258,
+        "authored_lines": 253
+      },
+      "current_candidate_id": "sha256:a8d904c3a87ada9002848caf7921e1059c31f922738759c317c95498942658e1",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "79b80d7b1966b074bafdc4adeaeebd554d1013ae",
+        "candidate_tree": "990baa25ba9d22dca85d9be0fdc92c944505d7c3",
+        "paths": [
+          "internal/rules/rules.json",
+          "internal/rules/rules_test.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "diff_hash": "sha256:c3d62226233c76cde6e046d8510e35ecd557dee2af3295dae2e1514feb30a1d2",
+        "paths_digest": "sha256:b504f2e6fc737e9016761bb58aaa748577123b4def0a3421ec7749b260526758",
+        "authored_lines": 253,
+        "original_changed_lines": 258
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "disk-rule-command-precision:lens-start:2:0",
+          "result_digest": "sha256:f6c5b8ea2fecb6d8a89e244f7420b575ac0f057c42fabf46c65ecc2ffd01dbeb",
+          "result": {
+            "findings": [
+              {
+                "severity": "CRITICAL",
+                "summary": "pre-tool-use.js:99 (TOKEN; same pattern at rules.json:47): the same token run can be parsed two ways that end at the same position, and neither engine memoizes, so a failing match costs 2^n. (a) A valued-flag value or env assignment (`WORD*`, lines 73 and 91) may contain quotes, while a token may also end at `(?=[\"'])` and the next token start at that quote. `sudo -u a\"sudo -u a\"…` has 2 ways per repetition. `pwsh -ep x\"pwsh …` and `env A=b\"env A=b\"…` behave the same. (b) The quoted PATH (line 77) spans spaces, so `\"/sudo /sudo\" ` can end its path at either slash: 2 ways per chunk. About 35 repetitions (~500 chars) should outlast the 5 s hook timeout in JS and in Go regexp2 (no MatchTimeout). The hook then returns no decision. The claim 'one reading per flag' and the spec's 'stays linear' do not hold for these inputs.",
+                "acceptance_criteria": "In JS and Go, `'sudo -u a\"'.repeat(40)`, `'pwsh -ep x\"'.repeat(40)`, `'env A=b\"'.repeat(40)` and `'\"/sudo /sudo\" '.repeat(40)` are evaluated by the disk rule in milliseconds with no deny. The same strings followed by `; format D:` are denied just as fast. The linear tests in pre-tool-use.test.js and rules_test.go include these inputs (or equivalents with n >= 30), and they fail against the current pattern.",
+                "location": "scripts/hooks/pre-tool-use.js:99"
+              },
+              {
+                "severity": "WARNING",
+                "summary": "pre-tool-use.js:98-99: inside a `Start-Process` `-ArgumentList` string, a token is recognised only as a wrapper, a slash flag, a number or `-ArgumentList`. `Start-Process powershell -Verb RunAs -ArgumentList \"-NoProfile -Command format D:\"` and `Start-Process cmd -ArgumentList '/c','format D:'` are not denied, although the previous word-based rule denied both and the spec lists `Start-Process` and its `-ArgumentList` string as supported.",
+                "acceptance_criteria": "In JS and Go, `Start-Process powershell -Verb RunAs -ArgumentList \"-NoProfile -Command format D:\"` and `Start-Process cmd -ArgumentList '/c','format D:'` are denied. `Start-Process dotnet -ArgumentList \"format C:\\repo\"` and the existing allowed corpus stay allowed. Both engines have a test for each denied form."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "disk-rule-command-precision:lens-result:2:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-342a145a749299ec",
+          "owner": "trust",
+          "severity": "CRITICAL",
+          "summary": "pre-tool-use.js:99 (TOKEN; same pattern at rules.json:47): the same token run can be parsed two ways that end at the same position, and neither engine memoizes, so a failing match costs 2^n. (a) A valued-flag value or env assignment (`WORD*`, lines 73 and 91) may contain quotes, while a token may also end at `(?=[\"'])` and the next token start at that quote. `sudo -u a\"sudo -u a\"…` has 2 ways per repetition. `pwsh -ep x\"pwsh …` and `env A=b\"env A=b\"…` behave the same. (b) The quoted PATH (line 77) spans spaces, so `\"/sudo /sudo\" ` can end its path at either slash: 2 ways per chunk. About 35 repetitions (~500 chars) should outlast the 5 s hook timeout in JS and in Go regexp2 (no MatchTimeout). The hook then returns no decision. The claim 'one reading per flag' and the spec's 'stays linear' do not hold for these inputs.",
+          "acceptance_criteria": "In JS and Go, `'sudo -u a\"'.repeat(40)`, `'pwsh -ep x\"'.repeat(40)`, `'env A=b\"'.repeat(40)` and `'\"/sudo /sudo\" '.repeat(40)` are evaluated by the disk rule in milliseconds with no deny. The same strings followed by `; format D:` are denied just as fast. The linear tests in pre-tool-use.test.js and rules_test.go include these inputs (or equivalents with n >= 30), and they fail against the current pattern.",
+          "location": "scripts/hooks/pre-tool-use.js:99",
+          "blocking": true,
+          "resolution": "resolved"
+        },
+        {
+          "id": "F-1e7a4f12db1f1d06",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "pre-tool-use.js:98-99: inside a `Start-Process` `-ArgumentList` string, a token is recognised only as a wrapper, a slash flag, a number or `-ArgumentList`. `Start-Process powershell -Verb RunAs -ArgumentList \"-NoProfile -Command format D:\"` and `Start-Process cmd -ArgumentList '/c','format D:'` are not denied, although the previous word-based rule denied both and the spec lists `Start-Process` and its `-ArgumentList` string as supported.",
+          "acceptance_criteria": "In JS and Go, `Start-Process powershell -Verb RunAs -ArgumentList \"-NoProfile -Command format D:\"` and `Start-Process cmd -ArgumentList '/c','format D:'` are denied. `Start-Process dotnet -ArgumentList \"format C:\\repo\"` and the existing allowed corpus stay allowed. Both engines have a test for each denied form.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:2d0aca11b5513204883dd4be341e094bdb60161dd96a9bf5c44f627fedd85fd2",
+      "correction_budget": {
+        "limit_lines": 129,
+        "used_lines": 117,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [
+        {
+          "attempt": 1,
+          "request_id": "disk-rule-command-precision:correction-start:2:3",
+          "finding_ids": [
+            "F-342a145a749299ec"
+          ],
+          "paths": [
+            "internal/rules/rules.json",
+            "internal/rules/rules_test.go",
+            "openspec/specs/hooks/spec.md",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js"
+          ],
+          "base_candidate_id": "sha256:87b49f3d3cad1927f90c3bee6f914e75df6b95b0d985827dca6e4cd81f75afce",
+          "forecast_lines": 117,
+          "record_request_id": "disk-rule-command-precision:correction-record:2:4",
+          "actual_changed_lines": 117,
+          "corrected_candidate_id": "sha256:a8d904c3a87ada9002848caf7921e1059c31f922738759c317c95498942658e1",
+          "status": "passed"
+        }
+      ],
+      "validation_history": [
+        {
+          "request_id": "disk-rule-command-precision:validation:2:5",
+          "request_digest": "sha256:83d8b1fe1aea05068910a4f95cd83219cc36f6bd1795e9db82dbb70d0215d6ba",
+          "outcomes": [
+            {
+              "id": "F-342a145a749299ec",
+              "status": "resolved"
+            }
+          ],
+          "regression": {
+            "detected": false,
+            "evidence": [
+              "Static trace only; no test was executed. Case (a): WORD (pre-tool-use.js:67) now excludes quotes, so a valued-flag value (line 75) or env assignment (line 90) stops at the quote. Only SEP (?=[\"']) plus the next token's leading quote can follow, so 'sudo -u a\"', 'pwsh -ep x\"' and 'env A=b\"' each have one parse per repetition.",
+              "Case (b): PATH (line 102) excludes whitespace and quotes, and OPERAND (line 106) rejects '/sudo' as a slash flag. '\"/sudo /sudo\" ' therefore splits as '\"/sudo ' + '/sudo\" ' with one reading. The spaced quoted path survives only in QUOTED_PROGRAM at command start (line 100), so it adds at most 2 readings per segment, not per repetition.",
+              "Tests: pre-tool-use.test.js:449-452 and rules_test.go:299-302 add the four reviewer inputs at n=5000 (>=30). Each is asserted not denied, and denied once '; format D:' is appended (js:463, go:317-318). The Go test also caps the run at 1s. The old pattern is 2^n on these inputs, so these tests cannot pass against it.",
+              "Parity: rules.json:47 matches DISK_FORMAT_RE segment by segment (QUOTED_PROGRAM, TOKEN, SEP, ARGLIST, FORMAT, slash-flag name list) after the '\\/' normalization. Read, not run. This lineage has one slice and no named passed slice, so there is no cross-slice regression to report."
+            ]
+          },
+          "follow_up_count": 2,
+          "result": "passed"
+        }
+      ],
+      "follow_ups": [
+        {
+          "owner": "trust",
+          "summary": "One long word like 'format/format/.../format' with no drive target makes FORMAT (pre-tool-use.js:115) rescan the target at every slash split. By static reading that is O(L^2), so the spec's 'stays linear' holds for the wrapper chain but not for this shape. Candidate for a separate bounded successor.",
+          "blocking": false
+        },
+        {
+          "owner": "trust",
+          "summary": "'sudo.exe', 'gsudo.exe' and 'doas.exe' are not recognised as wrappers: line 79 has no optional '.exe', unlike cmd, pwsh, bash and wsl. 'gsudo.exe format D:' is therefore not denied, although the old word-based rule denied it. Not caused by this correction.",
+          "blocking": false
+        }
+      ],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "all-frozen-findings-resolved"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:9e387013b5d36b093c98b9b4699d5d9fb2337cb523c97a33650473f8c27bcd50",
+      "generation": 3,
+      "predecessor_lineage_id": "sha256:55e30eb6a31876603d9b2773d6efc01f1492cf7140913a838b523fbcef973f7e",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "79b80d7b1966b074bafdc4adeaeebd554d1013ae",
+          "candidate_tree": "c0293a19f526685b1ac48381c87567593e9913df",
+          "paths": [
+            "internal/rules/rules.json",
+            "internal/rules/rules_test.go",
+            "openspec/specs/hooks/spec.md",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js"
+          ],
+          "diff_hash": "sha256:050260db0b22f5f6d434022dba7d3e5c83ba942f7b1a4e8b925b049cc000adfc",
+          "paths_digest": "sha256:b504f2e6fc737e9016761bb58aaa748577123b4def0a3421ec7749b260526758",
+          "authored_lines": 310,
+          "original_changed_lines": 315
+        },
+        "candidate_id": "sha256:565a6944dc93bb160050321dbe4bcfc927c23b14c69448c162a74f6282a8e669",
+        "paths": [
+          "internal/rules/rules.json",
+          "internal/rules/rules_test.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "c0293a19f526685b1ac48381c87567593e9913df",
+        "original_changed_lines": 315,
+        "authored_lines": 310
+      },
+      "current_candidate_id": "sha256:565a6944dc93bb160050321dbe4bcfc927c23b14c69448c162a74f6282a8e669",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "79b80d7b1966b074bafdc4adeaeebd554d1013ae",
+        "candidate_tree": "c0293a19f526685b1ac48381c87567593e9913df",
+        "paths": [
+          "internal/rules/rules.json",
+          "internal/rules/rules_test.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "diff_hash": "sha256:050260db0b22f5f6d434022dba7d3e5c83ba942f7b1a4e8b925b049cc000adfc",
+        "paths_digest": "sha256:b504f2e6fc737e9016761bb58aaa748577123b4def0a3421ec7749b260526758",
+        "authored_lines": 310,
+        "original_changed_lines": 315
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "disk-rule-command-precision:lens-start:3:0",
+          "result_digest": "sha256:b77fb9ffa2bc97f117f91449962bdd0bb7b69c3dbca88bd73b208814e255ceea",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "pre-tool-use.js:102,106,113 (same pattern in rules.json:47): the chain cannot start behind a POSIX `VAR=1` prefix and cannot read a `//c` flag. `MSYS_NO_PATHCONV=1 cmd /c format D:` and `cmd //c \"format D:\"` get no decision in JS and Go. The previous word rule denied both. hooks/spec.md:849 does not list them as limits.",
+                "acceptance_criteria": "`MSYS_NO_PATHCONV=1 cmd /c format D:` and `cmd //c \"format D:\"` return deny in the JS hook and in Go (same pattern), with a linear-time case for the new forms. Or hooks/spec.md:849 lists them as unrecognised and a test pins the allow."
+              },
+              {
+                "severity": "WARNING",
+                "summary": "pre-tool-use.js:80-82,109: three forms of launchers the spec row claims end the chain. `Start-Process cmd -WindowStyle Hidden -ArgumentList \"/c format D:\"`, `start /wait \"\" format D:` and `Start-Process powershell -ArgumentList '-NoProfile','-Command','format D:'` get no decision in JS and Go. The old rule denied them.",
+                "acceptance_criteria": "The three commands return deny in the JS hook and in Go, and a linear-time case covers each new form. Or spec.md:849 lists these orders (Start-Process flags after the program, `\"\"` after a slash flag, dash flags in a comma list) as unrecognised and tests pin the allow."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "disk-rule-command-precision:lens-result:3:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-cffc7258703bbfd8",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "pre-tool-use.js:102,106,113 (same pattern in rules.json:47): the chain cannot start behind a POSIX `VAR=1` prefix and cannot read a `//c` flag. `MSYS_NO_PATHCONV=1 cmd /c format D:` and `cmd //c \"format D:\"` get no decision in JS and Go. The previous word rule denied both. hooks/spec.md:849 does not list them as limits.",
+          "acceptance_criteria": "`MSYS_NO_PATHCONV=1 cmd /c format D:` and `cmd //c \"format D:\"` return deny in the JS hook and in Go (same pattern), with a linear-time case for the new forms. Or hooks/spec.md:849 lists them as unrecognised and a test pins the allow.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-b0ac1c5d6de542af",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "pre-tool-use.js:80-82,109: three forms of launchers the spec row claims end the chain. `Start-Process cmd -WindowStyle Hidden -ArgumentList \"/c format D:\"`, `start /wait \"\" format D:` and `Start-Process powershell -ArgumentList '-NoProfile','-Command','format D:'` get no decision in JS and Go. The old rule denied them.",
+          "acceptance_criteria": "The three commands return deny in the JS hook and in Go, and a linear-time case covers each new form. Or spec.md:849 lists these orders (Start-Process flags after the program, `\"\"` after a slash flag, dash flags in a comma list) as unrecognised and tests pin the allow.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:14de57b12fa7cbed038ddce33894b044e05a99d11e082de21b9e3ce71f573309",
+      "correction_budget": {
+        "limit_lines": 158,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:8d7a247380d2a60ae36de5eee200958b827dabebb0aab8a55081f03ce8f0ec88",
+      "generation": 4,
+      "predecessor_lineage_id": "sha256:9e387013b5d36b093c98b9b4699d5d9fb2337cb523c97a33650473f8c27bcd50",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "79b80d7b1966b074bafdc4adeaeebd554d1013ae",
+          "candidate_tree": "a287717d2d23a37068072aef42aa772f0c80acba",
+          "paths": [
+            "internal/rules/rules.json",
+            "internal/rules/rules_test.go",
+            "openspec/specs/hooks/spec.md",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js"
+          ],
+          "diff_hash": "sha256:627aefab6f911d14be7d97ab1637bac5924539d7e2733bd13f2a553e126c6678",
+          "paths_digest": "sha256:b504f2e6fc737e9016761bb58aaa748577123b4def0a3421ec7749b260526758",
+          "authored_lines": 345,
+          "original_changed_lines": 350
+        },
+        "candidate_id": "sha256:7da0db970f25b7815d8a1c0bd1cc9dceb565e62f211d5191f02bba39e0e7c5e7",
+        "paths": [
+          "internal/rules/rules.json",
+          "internal/rules/rules_test.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "a287717d2d23a37068072aef42aa772f0c80acba",
+        "original_changed_lines": 350,
+        "authored_lines": 345
+      },
+      "current_candidate_id": "sha256:7da0db970f25b7815d8a1c0bd1cc9dceb565e62f211d5191f02bba39e0e7c5e7",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "79b80d7b1966b074bafdc4adeaeebd554d1013ae",
+        "candidate_tree": "a287717d2d23a37068072aef42aa772f0c80acba",
+        "paths": [
+          "internal/rules/rules.json",
+          "internal/rules/rules_test.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "diff_hash": "sha256:627aefab6f911d14be7d97ab1637bac5924539d7e2733bd13f2a553e126c6678",
+        "paths_digest": "sha256:b504f2e6fc737e9016761bb58aaa748577123b4def0a3421ec7749b260526758",
+        "authored_lines": 345,
+        "original_changed_lines": 350
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "disk-rule-command-precision:lens-start:4:0",
+          "result_digest": "sha256:c37f0884c73a0af030554133627e5e6234a70fc31c9d6969b2c3ffe33b276c82",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "Slash-flag values reject `\\` and `@`, so `runas /user:HOST\\admin \"format D:\"` and `/user:a@b` are not denied (JS and Go share the pattern). Direction: allow `@` and a `\\` that cannot spell a wrapper name (a bare `\\` would re-open a second reading with PATH+NAMED for `/user:a\\sudo`), or list the form as a limit.",
+                "acceptance_criteria": "`runas /user:HOST\\admin \"format D:\"` and `runas /user:admin@host \"format D:\"` are denied in JS and Go, or the contract row names them as unrecognised; `/user:a\\sudo ` repeated 5000 times stays under 1 s and still denies once `; format D:` follows.",
+                "location": "scripts/hooks/pre-tool-use.js:111"
+              },
+              {
+                "severity": "SUGGESTION",
+                "summary": "`cmd /c \"\"C:\\Windows\\System32\\format.com\" D: /q\"` is not denied: a doubled leading quote is neither a chain token nor a FORMAT prefix. Direction: accept the doubled quote there without giving `\"\"` a second reading as an empty title, or list the form as a limit.",
+                "acceptance_criteria": "That command is denied in JS and Go, or the contract row lists it as unrecognised; `\"\" ` and `sudo\"\"` repeated 5000 times stay under 1 s, and `start \"\" format D:` still denies.",
+                "location": "scripts/hooks/pre-tool-use.js:121"
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "disk-rule-command-precision:lens-result:4:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-1f2ae069cad47a91",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "Slash-flag values reject `\\` and `@`, so `runas /user:HOST\\admin \"format D:\"` and `/user:a@b` are not denied (JS and Go share the pattern). Direction: allow `@` and a `\\` that cannot spell a wrapper name (a bare `\\` would re-open a second reading with PATH+NAMED for `/user:a\\sudo`), or list the form as a limit.",
+          "acceptance_criteria": "`runas /user:HOST\\admin \"format D:\"` and `runas /user:admin@host \"format D:\"` are denied in JS and Go, or the contract row names them as unrecognised; `/user:a\\sudo ` repeated 5000 times stays under 1 s and still denies once `; format D:` follows.",
+          "location": "scripts/hooks/pre-tool-use.js:111",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-f4885e3b040752a0",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "`cmd /c \"\"C:\\Windows\\System32\\format.com\" D: /q\"` is not denied: a doubled leading quote is neither a chain token nor a FORMAT prefix. Direction: accept the doubled quote there without giving `\"\"` a second reading as an empty title, or list the form as a limit.",
+          "acceptance_criteria": "That command is denied in JS and Go, or the contract row lists it as unrecognised; `\"\" ` and `sudo\"\"` repeated 5000 times stay under 1 s, and `start \"\" format D:` still denies.",
+          "location": "scripts/hooks/pre-tool-use.js:121",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:0845fe54ee3f150131a489a7ee830e5bf6f0857f7d6cf2a5fb0c010b3a0e218f",
+      "correction_budget": {
+        "limit_lines": 175,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-10-24T02:28:00.621Z"
+}
