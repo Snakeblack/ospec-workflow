@@ -1,6 +1,8 @@
 package rules_test
 
 import (
+	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -340,6 +342,11 @@ func TestEvaluate_DiskRuleLinear(t *testing.T) {
 		"slash flag variables":     strings.Repeat(`/u:%a%\$b `, n),
 		"slash comspec names":      strings.Repeat(`/%comspec% /$env:comspec `, n),
 		"glued doubled quotes":     strings.Repeat(`cmd /c""`, n),
+		// Names with letters outside ASCII.
+		"slash flag letters":    strings.Repeat(`/user:Zoë\Zoë `, n),
+		"slash wrapper letters": strings.Repeat(`/u:a\sudoë `, n),
+		"letter prefixes":       strings.Repeat("Zoë=ë ", n),
+		"letter variable":       strings.Repeat("$vär", n),
 		// Each of these once searched the target again at every repetition.
 		"slash format":            strings.Repeat("/format.com ", n),
 		"slash flag format value": strings.Repeat(`/u:a\format.com `, n),
@@ -356,6 +363,33 @@ func TestEvaluate_DiskRuleLinear(t *testing.T) {
 			}
 			if action, _ := rules.Evaluate(prefix + "; format D:"); action != "deny" {
 				t.Errorf("Evaluate(%.40q + format) = %q, want deny", prefix, action)
+			}
+		})
+	}
+}
+
+// TestEvaluate_UnicodeCorpus verifies that characters outside ASCII get the
+// decision the JS hook gives them: the same corpus runs in
+// scripts/hooks/parity-contract.test.js.
+func TestEvaluate_UnicodeCorpus(t *testing.T) {
+	data, err := os.ReadFile("testdata/unicode-corpus.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var corpus []struct {
+		Why      string `json:"why"`
+		Command  string `json:"command"`
+		Decision string `json:"decision"`
+		Reason   string `json:"reason"`
+	}
+	if err := json.Unmarshal(data, &corpus); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range corpus {
+		t.Run(c.Command, func(t *testing.T) {
+			action, reason := rules.Evaluate(c.Command)
+			if action != c.Decision || (c.Reason != "" && reason != c.Reason) {
+				t.Errorf("Evaluate(%q) = %q (%s), want %q (%s): %s", c.Command, action, reason, c.Decision, c.Reason, c.Why)
 			}
 		})
 	}

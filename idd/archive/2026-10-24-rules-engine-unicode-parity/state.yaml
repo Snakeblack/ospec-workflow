@@ -1,0 +1,752 @@
+{
+  "schema": "idd-state/v1",
+  "change": "rules-engine-unicode-parity",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Los motores JS y Go de las 19 reglas DENY/ASK deciden distinto con caracteres no ASCII: regexp2 trata \\w, \\d, \\s y \\b como Unicode y pliega K (U+212A) e İ (U+0130) a ASCII con IgnoreCase",
+    "acceptance": "Un corpus compartido con caracteres no ASCII da la misma decisión en JS y en Go para las 19 reglas, comprobado por las dos suites, y la fila de la regla de disco del spec de hooks deja de nombrar la divergencia del motor Go"
+  },
+  "facts": {
+    "open": [
+      "¿Qué semántica es la de referencia para la paridad: la ASCII de JS (Go la adopta y deja de denegar el usuario runas CORP\\Zoë o un dispositivo nvme con dígitos arábigos) o una Unicode en los dos motores?",
+      "¿Debe la regla de disco reconocer nombres con letras no ASCII (/user:CORP\\Zoë, Zoë=1, $vär=) y denegarlos en los dos motores, o basta con que ambos los dejen pasar y la fila lo documente como límite común?",
+      "¿Se acepta que el plegado de mayúsculas de Go deje de denegar órdenes escritas con İ (U+0130) o K Kelvin (U+212A) en lugar de i/k, que JS ya deja pasar porque sin el flag u no pliega no ASCII sobre ASCII?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "internal/rules/rules.go",
+      "internal/rules/rules.json",
+      "internal/rules/rules_test.go",
+      "internal/rules/testdata/unicode-corpus.json",
+      "openspec/specs/hooks/spec.md",
+      "scripts/hooks/parity-contract.test.js",
+      "scripts/hooks/pre-tool-use.js",
+      "scripts/hooks/pre-tool-use.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/parity-contract.test.js and 2 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component hooks: ADR 0008, 0010 and quality scenario guard-fail-closed",
+      "source": "declaration"
+    }
+  ],
+  "retracted": [
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/hooks/pre-tool-use.js uses writeFile",
+      "source": "diff",
+      "retract_reason": "El cambio en scripts/hooks/pre-tool-use.js solo toca el patrón DISK_FORMAT_RE (clases NON_ASCII y NAME_CHAR); no cambia ninguna escritura, formato ni ruta de datos persistentes: el writeFile ya existía",
+      "confirmed_by": "persistent data: scripts/hooks/pre-tool-use.js uses writeFile",
+      "hits": [
+        "scripts/hooks/pre-tool-use.js uses writeFile: fs.appendFileSync(logPath, JSON.stringify({ t: tokens, ts: Date.now() }) + \"\\n\", \"utf8\");",
+        "scripts/hooks/pre-tool-use.js imports scripts/lib/ospec-gitignore.js, which uses writeFile: fsImpl.writeFileSync(gitignorePath, payload, { flag: \"wx\" });",
+        "scripts/hooks/pre-tool-use.js imports scripts/lib/ospec-gitignore.js, which uses writeFile: fsImpl.writeFileSync(gitignorePath, payload);",
+        "scripts/hooks/pre-tool-use.js imports scripts/lib/ospec-gitignore.js, which uses writeFile: fsImpl.writeFileSync(ignore, SELF_IGNORE, { flag: \"wx\" });",
+        "scripts/hooks/pre-tool-use.js imports scripts/lib/ospec-state.js, which uses writeFile: await fs.writeFile(temporaryPath, summary, \"utf8\");",
+        "scripts/hooks/pre-tool-use.js imports scripts/lib/ospec-state.js, which uses writeFile: fs.appendFile(eventPath, `${JSON.stringify(serializedEvent)}\\n`, \"utf8\"),",
+        "scripts/hooks/pre-tool-use.js imports scripts/lib/ospec-state.js, which uses writeFile: await fs.appendFile(filePath, `${JSON.stringify(record)}\\n`, \"utf8\");",
+        "scripts/hooks/pre-tool-use.js imports scripts/lib/ospec-state.js, which uses writeFile: await withFileLock(filePath, () => fs.appendFile(filePath, line, \"utf8\"));"
+      ],
+      "answer": "Sí, retírala (Recomendado): confirmo que no hay datos persistentes afectados",
+      "answer_source": "user"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "La denegación sigue siendo el suelo y no depende del modo de permisos. Los dos motores deciden ahora lo mismo con caracteres no ASCII: la regla de disco deniega nombres con letras no ASCII en los dos, y Go deja de denegar formas que no son la orden (dígitos no ASCII, İ y K Kelvin, U+0085), por decisión del usuario del 2026-10-25; el corpus compartido fija cada decisión"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas: regexp2 ya estaba en go.mod y solo cambia su opción ECMAScript; parity-contract.test.js compara ahora también las decisiones con el corpus compartido"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "Las órdenes destructivas siguen bloqueadas en los dos motores; las clases nuevas de la regla de disco siguen lineales en JS y en regexp2, con casos adversarios en las dos suites"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-10"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-9"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "withdrawn",
+      "evidence": [],
+      "withdrawn_reason": "El cambio en scripts/hooks/pre-tool-use.js solo toca el patrón DISK_FORMAT_RE (clases NON_ASCII y NAME_CHAR); no cambia ninguna escritura, formato ni ruta de datos persistentes: el writeFile ya existía"
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "1) Semántica de referencia: ASCII de JS (Go la adopta). 2) Sí, ampliar las clases de nombre de la regla de disco para que los dos motores denieguen nombres con letras no ASCII (/user:CORP\\Zoë, Zoë=1, $vär=). 3) Sí, como JS: Go deja de denegar órdenes con İ (U+0130) o K Kelvin (U+212A) en lugar de i/k.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-24T23:20:34.154Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-24T23:22:43.190Z",
+      "detail": {
+        "tree": "sha256:430f0de0f2401cfa9a40527aa2c73a5ef1052ee913fe197303f1f2f4d36dd604",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-24T23:22:43.190Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:430f0de0f2401cfa9a40527aa2c73a5ef1052ee913fe197303f1f2f4d36dd604",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-24T23:26:36.023Z",
+      "detail": {
+        "lineage_id": "sha256:2130f5640670f18225e5f0ab95a9cb021d546f61bb6d3622c897f510eb45832e",
+        "candidate_id": "sha256:a549e4165d69b7702cbc5990d725635a6feb41a07548055262068ce4fc35d27d",
+        "candidate_tree": "856b9e726dd23fa712737c8577a6c723d4211bce",
+        "findings_digest": "sha256:222a74ea7f51e85ee5a6c9aac3c31db1bac0073970042965db1118e0087ea8d3",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-24T23:26:16.073Z",
+          "result_digest": "sha256:f324f17f02cf5736ecf63eb77c7384ba4ce9a8ecbd745d8f0c2471fae95326f0"
+        }
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-24T23:28:10.497Z",
+      "detail": {
+        "tree": "sha256:4bd68115431bab7242158f8424ff9fae7f56e1c842b11505da8005a6b5b29fe3",
+        "runs": [
+          "run-8"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-24T23:28:10.497Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:4bd68115431bab7242158f8424ff9fae7f56e1c842b11505da8005a6b5b29fe3",
+        "fitness": [
+          "run-9",
+          "run-10",
+          "run-11",
+          "run-12"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-24T23:31:02.354Z",
+      "detail": {
+        "lineage_id": "sha256:e78fe23f904d03cf1c444d230d77ab54d186c864c539ba187f3ea07af1ea58fb",
+        "candidate_id": "sha256:cbb09e569690b241c7d8b8ab6a92f55179c3c35ede0167f7b9ce851e636706ab",
+        "candidate_tree": "5fed5a5dc09d458edddcfb2d9cf87de57d24e51d",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-24T23:30:54.589Z",
+          "result_digest": "sha256:974710fd18d474a6605dcf0ded83c9c4b38a8f3df0a9c053f53e69678b2114f8"
+        }
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-24T23:32:07.639Z",
+      "detail": {
+        "tree": "sha256:4bd68115431bab7242158f8424ff9fae7f56e1c842b11505da8005a6b5b29fe3",
+        "runs": [
+          "run-13"
+        ]
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-24T23:32:07.639Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:4bd68115431bab7242158f8424ff9fae7f56e1c842b11505da8005a6b5b29fe3",
+        "fitness": [
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-10",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-24T23:32:24.034Z"
+    }
+  ],
+  "base": "d29b7777278025ca67f0dc07a7f351fc0fa5395b",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "go test ./internal/rules/ -run 'TestEvaluate_UnicodeCorpus' && node --test --test-name-pattern='non-ASCII|outside ASCII' scripts/hooks/parity-contract.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:c464fa803a7f26a1f50963bd8972b68018ffe234a4ca1a11e0e3e7322afb50c9",
+      "tree": "sha256:be8f88d7708639ed0c2a0894ab85a38dab9425b8c3d229574b7951f9a61a8f5e",
+      "recorded_at": "2026-10-24T23:19:30.397Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "go test ./internal/rules/ -run 'TestEvaluate_UnicodeCorpus' && node --test --test-name-pattern='non-ASCII|outside ASCII' scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2613ff829465516ca679e9a86f93c15b352bc6e79d0892a539defafbb7169931",
+      "tree": "sha256:3ee621268b76e1d36d4f653f3248c96bb6a0665fa225d8769e9b4857e0a07ba1",
+      "recorded_at": "2026-10-24T23:20:34.154Z",
+      "tests": 2
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cca5fa196338e1aa01fc4461e525ffdf7c0e7ea29abf52553c1a7ffbec6e8d1a",
+      "tree": "sha256:430f0de0f2401cfa9a40527aa2c73a5ef1052ee913fe197303f1f2f4d36dd604",
+      "recorded_at": "2026-10-24T23:22:43.190Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:6b20d32860f67f864ca927b19b47af9a7fdf11060fc0555d07b1a2d897c9c87d",
+      "tree": "sha256:430f0de0f2401cfa9a40527aa2c73a5ef1052ee913fe197303f1f2f4d36dd604",
+      "recorded_at": "2026-10-24T23:22:43.190Z",
+      "tests": 81
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:430f0de0f2401cfa9a40527aa2c73a5ef1052ee913fe197303f1f2f4d36dd604",
+      "recorded_at": "2026-10-24T23:22:43.190Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5590bf6c7c4bae07f2befd6f0900db58168f5bdfa8a0c88064b62b3bc6b3c595",
+      "tree": "sha256:430f0de0f2401cfa9a40527aa2c73a5ef1052ee913fe197303f1f2f4d36dd604",
+      "recorded_at": "2026-10-24T23:22:43.190Z",
+      "tests": 18
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8499623619c54efe0aa65136e3c40b353c082d1426f72f0a179f1ed96d4040c7",
+      "tree": "sha256:430f0de0f2401cfa9a40527aa2c73a5ef1052ee913fe197303f1f2f4d36dd604",
+      "recorded_at": "2026-10-24T23:22:43.190Z",
+      "tests": 81
+    },
+    {
+      "id": "run-8",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:719e77d056d5247cea29ec7c8eabf7fe4b4064491462d8f70975ffed73fc24d0",
+      "tree": "sha256:4bd68115431bab7242158f8424ff9fae7f56e1c842b11505da8005a6b5b29fe3",
+      "recorded_at": "2026-10-24T23:28:10.497Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b6eed7b64f0bb0876704bf0a55c40fd91fd07345ca4ad9e724ebb791089146ba",
+      "tree": "sha256:4bd68115431bab7242158f8424ff9fae7f56e1c842b11505da8005a6b5b29fe3",
+      "recorded_at": "2026-10-24T23:28:10.497Z",
+      "tests": 81
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:4bd68115431bab7242158f8424ff9fae7f56e1c842b11505da8005a6b5b29fe3",
+      "recorded_at": "2026-10-24T23:28:10.497Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a061799a619e4595baa21584345cb6053f3c8d1fc293b90c4e8cdcaa27d29536",
+      "tree": "sha256:4bd68115431bab7242158f8424ff9fae7f56e1c842b11505da8005a6b5b29fe3",
+      "recorded_at": "2026-10-24T23:28:10.497Z",
+      "tests": 18
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:099ce573ae15bf8f93a676f6908323057ceba005b6cff153abf9fde5e7b6e6fd",
+      "tree": "sha256:4bd68115431bab7242158f8424ff9fae7f56e1c842b11505da8005a6b5b29fe3",
+      "recorded_at": "2026-10-24T23:28:10.497Z",
+      "tests": 81
+    },
+    {
+      "id": "run-13",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:5713edc55fe6dc31c7587037e3340afd774cbd0c1030ddf006ae323fc71c97e2",
+      "tree": "sha256:4bd68115431bab7242158f8424ff9fae7f56e1c842b11505da8005a6b5b29fe3",
+      "recorded_at": "2026-10-24T23:32:07.639Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:3ea6a7b919f6a27320e5c94446fd88b67fc6efb4da263fc25082ba9dc2f46f7a",
+      "tree": "sha256:4bd68115431bab7242158f8424ff9fae7f56e1c842b11505da8005a6b5b29fe3",
+      "recorded_at": "2026-10-24T23:32:07.639Z",
+      "tests": 81
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:4bd68115431bab7242158f8424ff9fae7f56e1c842b11505da8005a6b5b29fe3",
+      "recorded_at": "2026-10-24T23:32:07.639Z"
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d5a115dfea331a66b8565de6ca8ea2e82d0b19209a259f7fb0edfd76eb5fe73b",
+      "tree": "sha256:4bd68115431bab7242158f8424ff9fae7f56e1c842b11505da8005a6b5b29fe3",
+      "recorded_at": "2026-10-24T23:32:07.639Z",
+      "tests": 18
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:211329170fe7bf7992c76a0398c310cf04f908a85fa842fbed114361822cf571",
+      "tree": "sha256:4bd68115431bab7242158f8424ff9fae7f56e1c842b11505da8005a6b5b29fe3",
+      "recorded_at": "2026-10-24T23:32:07.639Z",
+      "tests": 81
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:2130f5640670f18225e5f0ab95a9cb021d546f61bb6d3622c897f510eb45832e",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "69a482b800251cd419000a70fe924dae74c3a9ca",
+          "candidate_tree": "856b9e726dd23fa712737c8577a6c723d4211bce",
+          "paths": [
+            "internal/rules/rules.go",
+            "internal/rules/rules.json",
+            "internal/rules/rules_test.go",
+            "internal/rules/testdata/unicode-corpus.json",
+            "openspec/specs/hooks/spec.md",
+            "scripts/hooks/parity-contract.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js"
+          ],
+          "diff_hash": "sha256:54ad4c47ca8d59c9a19178d970f65b359b8cc2e08b8a66c49ae7a98dcff91a33",
+          "paths_digest": "sha256:611c692a17c30821684d19471fb254dbd4f794e7087b5ca0e6d7c555555c141c",
+          "authored_lines": 136,
+          "original_changed_lines": 143
+        },
+        "candidate_id": "sha256:a549e4165d69b7702cbc5990d725635a6feb41a07548055262068ce4fc35d27d",
+        "paths": [
+          "internal/rules/rules.go",
+          "internal/rules/rules.json",
+          "internal/rules/rules_test.go",
+          "internal/rules/testdata/unicode-corpus.json",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/parity-contract.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "856b9e726dd23fa712737c8577a6c723d4211bce",
+        "original_changed_lines": 143,
+        "authored_lines": 136
+      },
+      "current_candidate_id": "sha256:a549e4165d69b7702cbc5990d725635a6feb41a07548055262068ce4fc35d27d",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "69a482b800251cd419000a70fe924dae74c3a9ca",
+        "candidate_tree": "856b9e726dd23fa712737c8577a6c723d4211bce",
+        "paths": [
+          "internal/rules/rules.go",
+          "internal/rules/rules.json",
+          "internal/rules/rules_test.go",
+          "internal/rules/testdata/unicode-corpus.json",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/parity-contract.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "diff_hash": "sha256:54ad4c47ca8d59c9a19178d970f65b359b8cc2e08b8a66c49ae7a98dcff91a33",
+        "paths_digest": "sha256:611c692a17c30821684d19471fb254dbd4f794e7087b5ca0e6d7c555555c141c",
+        "authored_lines": 136,
+        "original_changed_lines": 143
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "rules-engine-unicode-parity:lens-start:1:0",
+          "result_digest": "sha256:885856a77db0289a710f2d37c39225c66f5f946f1d2d1d0bcb5d8c76a26cff98",
+          "result": {
+            "findings": [
+              {
+                "severity": "SUGGESTION",
+                "summary": "internal/rules/testdata/unicode-corpus.json:24-25 label git push<U+00A0>--force and git push<U+FEFF>--force as proving that JS whitespace is kept as whitespace. They don't prove it. In rules.json the force-push rule matches those inputs through [^\\r\\n;&|]*, and that class accepts the U+FFFD placeholder too. So the cases still pass if asciiView (internal/rules/rules.go:72) wrongly turned NBSP, BOM, U+2028 or U+3000 into U+FFFD. Nothing in either suite covers the whitespace-preserving branch for the patterns that need \\s: git\\s+push, \\s-f, \\s\\/, rm \\s-rf, [^\\S\\r\\n] and the format chain. The reachable result is that such a regression becomes a silent Go-only deny bypass. For example, 'git\\u00a0push -f' or 'git push\\u00a0-f' would be allowed in Go but denied in JS.",
+                "acceptance_criteria": "The shared corpus (checked by both the Go and JS suites) has at least one case per whitespace form whose decision depends on \\s or [^\\S\\r\\n] matching a non-ASCII whitespace character. Cover U+00A0, U+FEFF and one of U+2028 / U+3000, using inputs such as 'git\\u00a0push -f', 'git push\\u00a0-f', 'rm\\u00a0-rf /' and 'sudo\\u3000format D:'. Each case's expected decision differs from what the input would get if that character were replaced by U+FFFD. Both suites pass."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "rules-engine-unicode-parity:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-367e642c062854f6",
+          "owner": "trust",
+          "severity": "SUGGESTION",
+          "summary": "internal/rules/testdata/unicode-corpus.json:24-25 label git push<U+00A0>--force and git push<U+FEFF>--force as proving that JS whitespace is kept as whitespace. They don't prove it. In rules.json the force-push rule matches those inputs through [^\\r\\n;&|]*, and that class accepts the U+FFFD placeholder too. So the cases still pass if asciiView (internal/rules/rules.go:72) wrongly turned NBSP, BOM, U+2028 or U+3000 into U+FFFD. Nothing in either suite covers the whitespace-preserving branch for the patterns that need \\s: git\\s+push, \\s-f, \\s\\/, rm \\s-rf, [^\\S\\r\\n] and the format chain. The reachable result is that such a regression becomes a silent Go-only deny bypass. For example, 'git\\u00a0push -f' or 'git push\\u00a0-f' would be allowed in Go but denied in JS.",
+          "acceptance_criteria": "The shared corpus (checked by both the Go and JS suites) has at least one case per whitespace form whose decision depends on \\s or [^\\S\\r\\n] matching a non-ASCII whitespace character. Cover U+00A0, U+FEFF and one of U+2028 / U+3000, using inputs such as 'git\\u00a0push -f', 'git push\\u00a0-f', 'rm\\u00a0-rf /' and 'sudo\\u3000format D:'. Each case's expected decision differs from what the input would get if that character were replaced by U+FFFD. Both suites pass.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:222a74ea7f51e85ee5a6c9aac3c31db1bac0073970042965db1118e0087ea8d3",
+      "correction_budget": {
+        "limit_lines": 72,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:e78fe23f904d03cf1c444d230d77ab54d186c864c539ba187f3ea07af1ea58fb",
+      "generation": 2,
+      "predecessor_lineage_id": "sha256:2130f5640670f18225e5f0ab95a9cb021d546f61bb6d3622c897f510eb45832e",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "69a482b800251cd419000a70fe924dae74c3a9ca",
+          "candidate_tree": "5fed5a5dc09d458edddcfb2d9cf87de57d24e51d",
+          "paths": [
+            "internal/rules/rules.go",
+            "internal/rules/rules.json",
+            "internal/rules/rules_test.go",
+            "internal/rules/testdata/unicode-corpus.json",
+            "openspec/specs/hooks/spec.md",
+            "scripts/hooks/parity-contract.test.js",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js"
+          ],
+          "diff_hash": "sha256:959634b6a2b94e9b3b512d7f26b6121281aa36116ba724b59ffc077bf7b8c7dc",
+          "paths_digest": "sha256:611c692a17c30821684d19471fb254dbd4f794e7087b5ca0e6d7c555555c141c",
+          "authored_lines": 139,
+          "original_changed_lines": 146
+        },
+        "candidate_id": "sha256:cbb09e569690b241c7d8b8ab6a92f55179c3c35ede0167f7b9ce851e636706ab",
+        "paths": [
+          "internal/rules/rules.go",
+          "internal/rules/rules.json",
+          "internal/rules/rules_test.go",
+          "internal/rules/testdata/unicode-corpus.json",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/parity-contract.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "5fed5a5dc09d458edddcfb2d9cf87de57d24e51d",
+        "original_changed_lines": 146,
+        "authored_lines": 139
+      },
+      "current_candidate_id": "sha256:cbb09e569690b241c7d8b8ab6a92f55179c3c35ede0167f7b9ce851e636706ab",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "69a482b800251cd419000a70fe924dae74c3a9ca",
+        "candidate_tree": "5fed5a5dc09d458edddcfb2d9cf87de57d24e51d",
+        "paths": [
+          "internal/rules/rules.go",
+          "internal/rules/rules.json",
+          "internal/rules/rules_test.go",
+          "internal/rules/testdata/unicode-corpus.json",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/parity-contract.test.js",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "diff_hash": "sha256:959634b6a2b94e9b3b512d7f26b6121281aa36116ba724b59ffc077bf7b8c7dc",
+        "paths_digest": "sha256:611c692a17c30821684d19471fb254dbd4f794e7087b5ca0e6d7c555555c141c",
+        "authored_lines": 139,
+        "original_changed_lines": 146
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "rules-engine-unicode-parity:lens-start:2:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "rules-engine-unicode-parity:lens-result:2:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 73,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-10-24T23:32:24.034Z"
+}

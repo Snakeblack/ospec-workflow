@@ -500,6 +500,11 @@ test("the disk rule stays linear on adversarial commands", () => {
     "/u:%a%\\$b ".repeat(n),
     "/%comspec% /$env:comspec ".repeat(n),
     'cmd /c""'.repeat(n),
+    // Names with letters outside ASCII.
+    "/user:Zoë\\Zoë ".repeat(n),
+    "/u:a\\sudoë ".repeat(n),
+    "Zoë=ë ".repeat(n),
+    "$vär".repeat(n),
     // Each of these once searched the target again at every repetition.
     "/format.com ".repeat(n),
     "/u:a\\format.com ".repeat(n),

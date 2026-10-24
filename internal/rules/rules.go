@@ -7,6 +7,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"strings"
+	"unicode"
 
 	"github.com/dlclark/regexp2"
 )
@@ -41,7 +42,9 @@ func init() {
 
 	compiled = make([]compiledRule, 0, len(entries))
 	for _, e := range entries {
-		opts := regexp2.None
+		// ECMAScript makes \w, \d and \s match as in JS; asciiView covers \b
+		// and case folding, which regexp2 keeps Unicode.
+		opts := regexp2.RegexOptions(regexp2.ECMAScript)
 		if strings.ContainsRune(e.Flags, 'i') {
 			opts |= regexp2.IgnoreCase
 		}
@@ -54,11 +57,35 @@ func init() {
 	}
 }
 
+// asciiView replaces each character outside ASCII that JS's \s does not
+// match with U+FFFD, once per UTF-16 code unit as JS counts them. JS reads the
+// rules without the u flag: \w, \d and \b are ASCII and no such character
+// folds onto ASCII, while regexp2 treats é as a word character for \b and
+// folds K (U+212A) and İ (U+0130) to k and i. The patterns tell those
+// characters apart from ASCII only, never from each other (asserted in
+// scripts/hooks/parity-contract.test.js), so the placeholder keeps the JS
+// decision.
+func asciiView(cmd string) string {
+	var b strings.Builder
+	for _, r := range cmd {
+		switch {
+		case r < 0x80 || r == 0xFEFF || (unicode.IsSpace(r) && r != 0x85):
+			b.WriteRune(r)
+		case r > 0xFFFF:
+			b.WriteString("\uFFFD\uFFFD")
+		default:
+			b.WriteRune('\uFFFD')
+		}
+	}
+	return b.String()
+}
+
 // Evaluate checks cmd against the embedded rule set.
 // It returns ("deny", reason), ("ask", reason), or ("allow", reason).
 // DENY rules are evaluated before ASK rules, preserving the same precedence
 // as the original JS evaluateToolUse function.
 func Evaluate(cmd string) (action, reason string) {
+	cmd = asciiView(cmd)
 	// Pass 1: deny rules (checked before ask, matching JS precedence).
 	for i := range compiled {
 		r := &compiled[i]
