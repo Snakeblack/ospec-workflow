@@ -65,7 +65,7 @@ test("REQ-hooks-027 names the receipt, its source transcript and its limit", () 
   assert.ok(start !== -1, "REQ-hooks-027 is missing");
   const end = spec.indexOf("### Requirement:", start);
   const section = spec.slice(start, end === -1 ? undefined : end);
-  for (const name of [".ospec/review-receipts/<hex>.json", "agent_transcript_path", "transcript_path", "ospec-review-receipt/v1", "result_digest", "review-trust", "review-correction"]) {
+  for (const name of [".ospec/review-receipts/<hex>.json", "last_assistant_message", "agent_transcript_path", "transcript_path", "ospec-review-receipt/v1", "result_digest", "review-trust", "review-correction"]) {
     assert.ok(section.includes(`\`${name}\``), `REQ-hooks-027 must name ${name}`);
   }
   assert.match(section, /not that it is proof/);
