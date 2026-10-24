@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/foundation/component-map/v2",
+  "title": "ospec-component-map/v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "components", "boundaries", "dependencies", "divergences"],
+  "properties": {
+    "schema": { "const": "ospec-component-map/v2" },
+    "components": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/component" }
+    },
+    "boundaries": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/boundary" }
+    },
+    "dependencies": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/dependency" }
+    },
+    "divergences": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/divergence" }
+    }
+  },
+  "$defs": {
+    "text": { "type": "string", "minLength": 1 },
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9.-]{0,63}$" },
+    "recordId": { "type": "string", "pattern": "^[0-9]{4}$" },
+    "glob": { "type": "string", "pattern": "^[^\\s/][^\\s]*$" },
+    "evidenceRef": { "type": "string", "pattern": "^[^:\\s][^:]*:[1-9][0-9]*$" },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/evidenceRef" }
+    },
+    "knowledge": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "adrs": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/recordId" } },
+        "scenarios": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+        "terms": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/text" } },
+        "constraints": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/id" } }
+      }
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "summary", "evidence"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "summary": { "$ref": "#/$defs/text" },
+        "evidence": { "$ref": "#/$defs/evidence" },
+        "paths": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/glob" } },
+        "knowledge": { "$ref": "#/$defs/knowledge" }
+      }
+    },
+    "boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "summary", "components", "evidence"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "summary": { "$ref": "#/$defs/text" },
+        "components": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/id" }
+        },
+        "evidence": { "$ref": "#/$defs/evidence" }
+      }
+    },
+    "dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to", "evidence"],
+      "properties": {
+        "from": { "$ref": "#/$defs/id" },
+        "to": { "$ref": "#/$defs/id" },
+        "evidence": { "$ref": "#/$defs/evidence" }
+      }
+    },
+    "divergence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "summary", "evidence"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "summary": { "$ref": "#/$defs/text" },
+        "documented": { "$ref": "#/$defs/evidenceRef" },
+        "rejected_adr": { "$ref": "#/$defs/recordId" },
+        "evidence": { "$ref": "#/$defs/evidence" }
+      }
+    }
+  }
+}

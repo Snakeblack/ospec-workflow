@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/classification/v1",
+  "schema_version": 1,
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "risk": {
+      "type": "object"
+    },
+    "uncertainty": {
+      "type": "object"
+    },
+    "execution": {
+      "type": "object"
+    },
+    "route": {
+      "type": "string",
+      "enum": [
+        "direct",
+        "repair",
+        "bounded",
+        "planned",
+        "critical"
+      ]
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "fingerprint": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "risk",
+    "uncertainty",
+    "execution",
+    "route",
+    "reasons",
+    "fingerprint"
+  ],
+  "additionalProperties": false
+}

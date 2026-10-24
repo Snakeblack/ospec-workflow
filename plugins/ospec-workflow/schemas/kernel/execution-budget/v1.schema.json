@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/execution-budget/v1",
+  "title": "ExecutionBudgetV1",
+  "description": "Uniform Node Execution Budget Schema v1 for lifecycle execution.",
+  "type": "object",
+  "schema_version": 1,
+  "required": [
+    "schema_version",
+    "turns",
+    "patches",
+    "commands",
+    "wall_time_minutes",
+    "changed_lines",
+    "allowed_paths"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "turns": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "patches": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "commands": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "wall_time_minutes": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "changed_lines": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "allowed_paths": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false
+}

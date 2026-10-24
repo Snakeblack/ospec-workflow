@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "kind": "architecture-alternative/v1",
+  "alternative_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "candidate_id": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "classification": "new-abstraction",
+  "summary": "Incomplete rationale.",
+  "rationale": { "problem": "Repeated conversion" }
+}

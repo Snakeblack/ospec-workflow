@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "status": "blocked",
+  "executive_summary": "Phase blocked with malformed question_gate.",
+  "artifacts": "inline",
+  "next_recommended": "sdd-tasks",
+  "risks": "None",
+  "skill_resolution": "injected",
+  "blocker_type": "needs_user_decision",
+  "question_gate": {
+    "questions": [
+      {
+        "question": "Which option?",
+        "options": [
+          {
+            "label": "Option A"
+          }
+        ]
+      }
+    ]
+  }
+}

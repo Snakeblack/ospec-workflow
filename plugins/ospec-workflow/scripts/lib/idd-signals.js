@@ -1,0 +1,380 @@
+"use strict";
+
+// Impact signal derivation for IDD changes (openspec/specs/idd/spec.md,
+// REQ-idd-006, REQ-idd-008, REQ-idd-012). Signals come first from the declared
+// intent and planned paths (source: declaration) and then from the real diff
+// (source: diff); each carries the reason it fired. The path-driven signals are
+// the K1 hard floors of PP1/PP2 under their IDD names, so the K1 floor is
+// reported alongside. Pure: idd-workspace.js reads the diff and the config.
+
+const { classifyChange } = require("./change-classification.js");
+const { SIGNALS, isIntentAmbiguous } = require("./idd-contract.js");
+const { IMPACT_SIGNALS, isExcluded, matchImpact, normalizePath } = require("./idd-impact.js");
+const { IddRecordError, recordGate, recordPlan, recordReferences, recordSignal } = require("./idd-record.js");
+const { derivedReferences, resolveReferences } = require("./idd-knowledge.js");
+
+// K1 hard-floor evidence key → IDD signal. mechanical_no_behavior has no
+// signal: a mechanical change only lowers the floor.
+const FLOOR_SIGNALS = Object.freeze({
+  data_migration: "persistent-data",
+  auth_security: "security-boundary",
+  public_api: "public-contract",
+  localized_reproducible_bug: "bug-fix",
+});
+
+const IMPACT_LABELS = Object.freeze({
+  "public-contract": "public contract",
+  "persistent-data": "persistent data",
+  "security-boundary": "security boundary",
+});
+
+const IRREVERSIBLE_OPERATIONS = Object.freeze([
+  "drop-table",
+  "drop-column",
+  "drop-schema",
+  "drop-database",
+  "truncate-table",
+  "delete-data",
+  "rewrite-history",
+]);
+
+// Read only from added lines of persistent-data files; first match wins.
+const DESTRUCTIVE_STATEMENTS = Object.freeze([
+  { label: "DROP TABLE", pattern: /\bDROP\s+TABLE\b|\bdrop_?table/i },
+  { label: "DROP SCHEMA", pattern: /\bDROP\s+SCHEMA\b/i },
+  { label: "DROP DATABASE", pattern: /\bDROP\s+DATABASE\b/i },
+  { label: "TRUNCATE", pattern: /\bTRUNCATE\s+(TABLE\s+)?\w/i },
+  {
+    label: "DROP COLUMN",
+    pattern:
+      /\bALTER\s+TABLE\b.*\bDROP\s+(?!CONSTRAINT\b|INDEX\b|DEFAULT\b|NOT\s+NULL\b|PRIMARY\b|FOREIGN\b|CHECK\b)|\bdrop_?column\b|\bremove_?column\b/i,
+  },
+  // Only a complete statement on one line: a WHERE may follow on the next one.
+  { label: "DELETE without WHERE", pattern: /^\s*DELETE\s+FROM\s+(?:(?!\bWHERE\b).)*;\s*$/i },
+]);
+
+const COMMENT_LINE = /^\s*(--|#|\/\/)/;
+const PRODUCT_EXT = /\.(js|jsx|mjs|cjs|ts|tsx|py|go|java|kt|kts|cs|rb|php|rs|html|htm|css|vue|svelte)$/i;
+const MANIFESTS = new Set([
+  "package.json",
+  "package-lock.json",
+  "npm-shrinkwrap.json",
+  "go.mod",
+  "go.sum",
+  "pyproject.toml",
+  "requirements.txt",
+  "pipfile",
+  "setup.py",
+  "setup.cfg",
+  "cargo.toml",
+  "cargo.lock",
+  "pom.xml",
+  "build.gradle",
+  "build.gradle.kts",
+  "settings.gradle",
+  "composer.json",
+  "gemfile",
+  "gemfile.lock",
+]);
+// A call or an access, never a mere mention: a label, an import or this table.
+const PERSISTENCE_PATTERNS = Object.freeze([
+  { label: "localStorage", pattern: /\blocalStorage\s*[.[]/ },
+  { label: "indexedDB", pattern: /\bindexedDB\s*\./i },
+  { label: "writeFile", pattern: /\b(?:writeFileSync|writeFile|appendFileSync|appendFile|createWriteStream)\s*\(/ },
+  { label: "os.WriteFile", pattern: /\bos\.WriteFile\s*\(/ },
+  { label: "ioutil.WriteFile", pattern: /\bioutil\.WriteFile\s*\(/ },
+  { label: "File.WriteAllText", pattern: /\bFile\.(?:WriteAllText|AppendAllText)\s*\(/ },
+  { label: "Deno.writeFile", pattern: /\bDeno\.write(?:Text)?File\s*\(/ },
+]);
+const CONTRACT_PATTERNS = Object.freeze([
+  { label: "selector", pattern: /\b(?:getElementById|querySelector(?:All)?)\b|data-testid|`#[A-Za-z][\w-]*`/ },
+  { label: "API", pattern: /\b(?:GET|POST|PUT|PATCH|DELETE)\s+\// },
+]);
+const NO_RED_TEST_KINDS = Object.freeze(["docs", "refactor"]);
+const ALWAYS_REASON = "every change with a resolved intent";
+const SIGNAL_ORDER = SIGNALS.map((signal) => signal.id);
+
+function sortedPaths(paths) {
+  return [...new Set((paths || []).map(normalizePath))].sort();
+}
+
+// For each impact signal, the sorted paths that hit it and the first pattern.
+// A published path is reported as published, not as a pattern.
+function impactHits(paths, patterns) {
+  const hits = new Map();
+  for (const file of sortedPaths(paths)) {
+    for (const { signal, pattern } of matchImpact(file, patterns)) {
+      if (!hits.has(signal)) hits.set(signal, { pattern, paths: [] });
+      hits.get(signal).paths.push(file);
+    }
+  }
+  return hits;
+}
+
+function baseName(file) {
+  return file.split("/").pop().toLowerCase();
+}
+
+function isDocumentation(file) {
+  return /^(?:docs\/|.+\/docs\/)/.test(file) || file === "docs" || /\.(md|mdx|rst|adoc)$/i.test(file);
+}
+
+function isTestPath(file) {
+  return (
+    /\.(?:test|spec)\.(?:js|jsx|mjs|cjs|ts|tsx)$/i.test(file) ||
+    /_test\.go$/i.test(file) ||
+    /(?:^|\/)test_[^/]*\.py$/i.test(file) ||
+    /Test\.java$/i.test(file) ||
+    /Tests\.cs$/i.test(file) ||
+    /(?:^|\/)(?:test|tests|__tests__)(?:\/|$)/i.test(file)
+  );
+}
+
+function classifyPath(file) {
+  const name = baseName(file);
+  if (isDocumentation(file)) return "docs";
+  if (MANIFESTS.has(name) || /\.(?:csproj|fsproj|vbproj|sln)$/i.test(name)) return "manifest";
+  if (isTestPath(file)) return "test";
+  if (PRODUCT_EXT.test(file)) return "product";
+  return "other";
+}
+
+function codePortion(line) {
+  if (COMMENT_LINE.test(line) || /^\s*\/\*/.test(line) || /^\s*<!--/.test(line)) return "";
+  return line.replace(/<!--.*?-->/g, "").replace(/\/\*.*?\*\//g, "").replace(/\/\/.*$/, "");
+}
+
+function firstContentHit(lines, patterns) {
+  for (const line of lines || []) {
+    const code = codePortion(line);
+    if (!code.trim()) continue;
+    const hit = patterns.find((entry) => entry.pattern.test(code));
+    if (hit) return hit.label;
+  }
+  return null;
+}
+
+// Persistent data by content (OSP-036): only product code outside
+// impact.exclude counts. A changed product file derives it when its added lines
+// write, when it already writes, or when a product module it imports by
+// relative path writes (diff.sources, read by idd-workspace.js).
+function persistentHit(diff, patterns) {
+  const addedLines = diff.addedLines || {};
+  const sources = diff.sources || {};
+  const counts = (file) => classifyPath(file) === "product" && !isExcluded(file, patterns);
+  const files = sortedPaths([...Object.keys(addedLines), ...Object.keys(sources)]).filter(counts);
+  for (const file of files) {
+    const label = firstContentHit(addedLines[file], PERSISTENCE_PATTERNS);
+    if (label) return `${file} adds ${label}`;
+  }
+  for (const file of files) {
+    const label = firstContentHit(sources[file]?.lines, PERSISTENCE_PATTERNS);
+    if (label) return `${file} uses ${label}`;
+  }
+  for (const file of files) {
+    const imports = sources[file]?.imports || {};
+    for (const target of sortedPaths(Object.keys(imports)).filter(counts)) {
+      const label = firstContentHit(imports[target], PERSISTENCE_PATTERNS);
+      if (label) return `${file} imports ${target}, which uses ${label}`;
+    }
+  }
+  return null;
+}
+
+function contractHit(addedLines) {
+  for (const file of sortedPaths(Object.keys(addedLines || {}))) {
+    if (!isDocumentation(file)) continue;
+    const label = firstContentHit(addedLines[file], CONTRACT_PATTERNS);
+    if (label) return `${file} adds ${label}`;
+  }
+  return null;
+}
+
+function untestedProduct(intent, diff) {
+  if (!["feature", "bug"].includes(intent.kind)) return null;
+  const paths = diff.paths || [];
+  const product = paths.filter((file) => classifyPath(file) === "product");
+  if (product.length === 0 || paths.some((file) => classifyPath(file) === "test")) return null;
+  const more = product.length > 1 ? ` and ${product.length - 1} more` : "";
+  return `product code without a test: touches ${product[0]}${more}`;
+}
+
+function impactReason(signal, { pattern, paths }, patterns) {
+  const more = paths.length > 1 ? ` and ${paths.length - 1} more` : "";
+  const why = (patterns.published || []).includes(pattern) ? "published by package.json" : `matches ${pattern}`;
+  return `${IMPACT_LABELS[signal]}: touches ${paths[0]}${more} (${why})`;
+}
+
+function destructiveStatement(diff, patterns) {
+  const addedLines = diff.addedLines || {};
+  for (const file of sortedPaths(diff.paths)) {
+    if (!matchImpact(file, patterns).some((hit) => hit.signal === "persistent-data")) continue;
+    const lines = addedLines[file] || [];
+    for (const { label, pattern } of DESTRUCTIVE_STATEMENTS) {
+      if (lines.some((line) => !COMMENT_LINE.test(line) && pattern.test(line))) {
+        return `irreversible operation: ${label} in ${file}`;
+      }
+    }
+  }
+  return null;
+}
+
+// The ADRs and quality scenarios the declaration names (E3.1).
+function declaredReferences(declaration) {
+  const refs = [];
+  for (const [kind, ids] of [
+    ["adr", declaration.adrs],
+    ["scenario", declaration.scenarios],
+  ]) {
+    for (const id of [...new Set(ids || [])].sort()) refs.push({ kind, id });
+  }
+  return refs;
+}
+
+// The current ADRs and quality scenarios of the components the paths touch
+// (E3.2, REQ-idd-021), with the components that give them.
+function mappedReferences(paths, knowledge) {
+  if (!knowledge?.map || !(paths || []).length) return { refs: [], components: [] };
+  const { references } = resolveReferences({ map: knowledge.map, paths, sources: knowledge.sources });
+  const refs = derivedReferences(references);
+  const derived = references.filter((ref) => refs.some((known) => known.kind === ref.kind && known.id === ref.id));
+  return { refs, components: [...new Set(derived.flatMap((ref) => ref.components))].sort() };
+}
+
+function referencesReason(refs, prefix = "declared") {
+  const named = (kind, label) => {
+    const ids = refs.filter((ref) => ref.kind === kind).map((ref) => ref.id);
+    return ids.length ? [`${label} ${ids.join(", ")}`] : [];
+  };
+  return `${prefix} ${[...named("adr", "ADR"), ...named("scenario", "quality scenario")].join(" and ")}`;
+}
+
+function byReference(left, right) {
+  if (left.kind !== right.kind) return left.kind === "adr" ? -1 : 1;
+  return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
+}
+
+function floorOf(intent, signalIds) {
+  const impact = {};
+  for (const [key, signal] of Object.entries(FLOOR_SIGNALS)) {
+    if (signalIds.has(signal)) impact[key] = true;
+  }
+  if (intent.kind === "docs") impact.docs_only = true;
+  return classifyChange({ impact }).risk;
+}
+
+/**
+ * @param {{
+ *   intent: {kind: string} | null,   null while the intent is ambiguous
+ *   strictTdd?: boolean,
+ *   declaration?: {paths?: string[], workUnits?: number, nonObviousDecision?: boolean, operations?: string[],
+ *                  adrs?: string[], scenarios?: string[]},
+ *   diff?: {paths?: string[], addedLines?: Record<string, string[]>,
+ *          sources?: Record<string, {lines: string[], imports: Record<string, string[]>}>},
+ *   patterns: object,                resolvePatterns() of idd-impact.js
+ *   knowledge?: {map: object|null, sources: object},   readKnowledgeSources() of idd-workspace.js
+ * }} input
+ */
+function deriveSignals({ intent, strictTdd = false, declaration = {}, diff = {}, patterns, knowledge = null }) {
+  if (!intent) return { signals: [], gates: [], references: [], floor: null, floor_source: null };
+
+  const found = new Map();
+  const add = (id, reason, source) => {
+    if (!found.has(id)) found.set(id, { id, reason, source });
+  };
+
+  add("always", ALWAYS_REASON, "declaration");
+  // A red test describes new behavior: documentation has none to drive, and a
+  // refactor keeps behavior under the tests that already pass.
+  if (strictTdd && !NO_RED_TEST_KINDS.includes(intent.kind)) add("strict-tdd", "the project declares strict_tdd", "declaration");
+  if (intent.kind === "bug") add("bug-fix", "the intent is a bug fix", "declaration");
+  const untested = untestedProduct(intent, diff);
+  if (untested) add("untested-product", untested, "diff");
+  const persistent = persistentHit(diff, patterns);
+  if (persistent) add("persistent-data", `persistent data: ${persistent}`, "diff");
+  const contract = contractHit(diff.addedLines);
+  if (contract) add("public-contract", `public contract: ${contract}`, "diff");
+  if ((declaration.workUnits || 0) > 1) {
+    add("multi-unit-or-decision", `declared ${declaration.workUnits} work units`, "declaration");
+  } else if (declaration.nonObviousDecision) {
+    add("multi-unit-or-decision", "declared a non-obvious decision", "declaration");
+  }
+  for (const [source, paths] of [
+    ["declaration", declaration.paths],
+    ["diff", diff.paths],
+  ]) {
+    const hits = impactHits(paths, patterns);
+    for (const signal of IMPACT_SIGNALS) {
+      if (hits.has(signal)) add(signal, impactReason(signal, hits.get(signal), patterns), source);
+    }
+  }
+  // Declared references come first; then those of the components the plan
+  // and the diff touch (E3.2).
+  const declared = declaredReferences(declaration);
+  if (declared.length > 0) add("adr-or-quality-attribute", referencesReason(declared), "declaration");
+  const references = [...declared];
+  for (const [source, paths] of [
+    ["declaration", declaration.paths],
+    ["diff", diff.paths],
+  ]) {
+    const mapped = mappedReferences(paths, knowledge);
+    if (mapped.refs.length === 0) continue;
+    const label = mapped.components.length > 1 ? "components" : "component";
+    add("adr-or-quality-attribute", referencesReason(mapped.refs, `${label} ${mapped.components.join(", ")}:`), source);
+    for (const ref of mapped.refs) {
+      if (!references.some((known) => known.kind === ref.kind && known.id === ref.id)) references.push(ref);
+    }
+  }
+  references.sort(byReference);
+
+  const gates = [];
+  const operation = (declaration.operations || []).find((op) => IRREVERSIBLE_OPERATIONS.includes(op));
+  const gateReason = operation ? `irreversible operation: declared ${operation}` : destructiveStatement(diff, patterns);
+  if (gateReason) gates.push({ id: "irreversible-operation", reason: gateReason });
+
+  const signals = [...found.values()].sort((a, b) => SIGNAL_ORDER.indexOf(a.id) - SIGNAL_ORDER.indexOf(b.id));
+  const risk = floorOf(intent, new Set(found.keys()));
+  return { signals, gates, references, floor: risk.floor, floor_source: risk.floor_source };
+}
+
+// Records what a derivation adds to the stored state, plus the declared plan
+// when there is one (E1.11) and the architecture references, declared (E3.1)
+// or derived from the touched components (E3.2).
+// Signals and gates already recorded stay as they are, and a signal the
+// derivation misses is never dropped (REQ-idd-006).
+function applyDerivation(state, derivation, { plan = null } = {}) {
+  if (state.status === "closed") throw new IddRecordError("change-closed", `change ${state.change} is closed`);
+  if (isIntentAmbiguous(state)) {
+    throw new IddRecordError("ambiguous-intent-open", "no signal is derived while the intent is ambiguous");
+  }
+  let current = state;
+  const added = { signals: [], gates: [] };
+  let planChanged = false;
+  if (plan) {
+    const result = recordPlan(current, plan);
+    planChanged = result.changed;
+    current = result.state;
+  }
+  for (const signal of derivation.signals) {
+    const result = recordSignal(current, signal);
+    if (result.changed) added.signals.push(signal.id);
+    current = result.state;
+  }
+  for (const gate of derivation.gates) {
+    const result = recordGate(current, { id: gate.id, action: "open", reason: gate.reason });
+    if (result.changed) added.gates.push(gate.id);
+    current = result.state;
+  }
+  const references = recordReferences(current, derivation.references || []);
+  current = references.state;
+  return { state: current, changed: planChanged || references.changed || added.signals.length + added.gates.length > 0, added };
+}
+
+module.exports = {
+  DESTRUCTIVE_STATEMENTS,
+  FLOOR_SIGNALS,
+  IRREVERSIBLE_OPERATIONS,
+  applyDerivation,
+  classifyPath,
+  deriveSignals,
+};

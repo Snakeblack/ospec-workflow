@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "candidate_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "projection": "commit",
+  "base_tree": "sha256:0000",
+  "candidate_tree": "sha256:1111",
+  "diff_hash": "sha256:2222",
+  "paths": [
+    "src/index.js"
+  ]
+}

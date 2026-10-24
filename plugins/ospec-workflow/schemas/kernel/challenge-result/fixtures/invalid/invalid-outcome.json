@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "kind": "challenge-result/v1",
+  "result_id": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+  "plan_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "candidate_id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "challenge_type": "focal-mutation",
+  "outcome": "unresolved",
+  "node_id": "repair-focal",
+  "evidence_ids": [],
+  "details": {}
+}

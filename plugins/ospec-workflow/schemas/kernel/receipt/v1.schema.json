@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ospec://schemas/kernel/receipt/v1",
+  "schema_version": 1,
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "receipt_id": {
+      "type": "string"
+    },
+    "candidate_id": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "digest": {
+      "type": "string"
+    },
+    "contract_digest": {
+      "type": "string"
+    },
+    "graph_digest": {
+      "type": "string"
+    },
+    "evidence_digest": {
+      "type": "string"
+    },
+    "findings_digest": {
+      "type": "string"
+    },
+    "outcome": {
+      "type": "string"
+    },
+    "valid_for": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "issued_at": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "receipt_id",
+    "candidate_id",
+    "kind",
+    "digest"
+  ],
+  "additionalProperties": false,
+  "if": {
+    "required": [
+      "outcome"
+    ]
+  },
+  "then": {
+    "required": [
+      "contract_digest",
+      "graph_digest",
+      "evidence_digest",
+      "findings_digest",
+      "valid_for"
+    ]
+  }
+}
