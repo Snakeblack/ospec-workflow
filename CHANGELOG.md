@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.150.7] - 2026-10-24
+
+### Fixed
+- **La regla de disco deniega sus formas residuales** (E1.39, seguimiento de E1.35). Se deniegan `runas` con un usuario de dominio, de dirección o con variable (`/user:CORP\admin`, `/user:a@b`, `/user:%USERDOMAIN%\a`) y la comilla doble de cmd tras un espacio (`cmd /c ""C:\…\format.com" D:"`), también delante de un envoltorio con ruta. La comilla doble pegada al token anterior queda como límite del contrato.
+- **La regla de disco ya no es cuadrática con `/format.com` ni con `@(-ArgumentList` repetidos**: con 64 KB tardaban 2,8 s y 1,5 s en Go. Ningún flag de barra deletrea un envoltorio ni `format`, y una cadena cruza como mucho un `-ArgumentList @(`. Al cuadruplicar la entrada, el tiempo se multiplica como mucho por 4,1 en los dos motores.
+- La diferencia de `\w`, `\d` y `\b` entre JS (ASCII) y Go regexp2 (Unicode) queda como límite del contrato y entra en el roadmap como E1.41 `rules-engine-unicode-parity`.
+
+Hecho con IDD (`idd/archive/2026-10-24-disk-rule-residual-forms/`).
+
+**Verificación directa**: `node scripts/check.js` (4018 tests pasando, 0 fallos y 3 omitidos) y `go test ./internal/rules/`. El test de reproducción falló antes del cambio y pasa después. Dos revisiones de confianza: la segunda quedó aprobada sin hallazgos.
+
 ## [2.150.6] - 2026-10-24
 
 ### Fixed
