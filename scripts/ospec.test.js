@@ -1300,6 +1300,80 @@ test("record retract takes the user's answer for persistent data the diff conten
   assert.match(byPath.json.error.message, /db\/migrations|src\/report\.js/);
 });
 
+// #418: a signal from the diff that the current diff no longer derives is
+// retracted with a reason, as a declared one; one the diff derives is refused.
+test("record retract withdraws persistent data from the diff once the diff is back to the answered hits", (t) => {
+  const { root, git } = project(t);
+  writeFile(root, "src/report.js", 'const fs = require("node:fs");\nconst TITLE = "Report";\nfs.writeFileSync("out/report.txt", TITLE);\n');
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "report");
+  ospec(root, "record", "intent", "--change", "rename-report", "--kind", "bug", "--summary", "Rename the report.", "--acceptance", "The title reads Sales.", "--no-open-facts", "--basis", "The request fixes every behavior.");
+  ospec(root, "signals", "--change", "rename-report", "--path", "src/report.js");
+  const answered = 'const fs = require("node:fs");\nconst TITLE = "Sales";\nfs.writeFileSync("out/report.txt", TITLE);\n';
+  writeFile(root, "src/report.js", answered);
+  ospec(root, "check", "--change", "rename-report", "--json");
+  const first = ospec(root, "record", "retract", "--change", "rename-report", "--signal", "persistent-data", "--reason", "the report is regenerated on every run", "--answer", "No stored data.", "--source", "user", "--json");
+  assert.strictEqual(first.code, 0, first.stderr);
+
+  writeFile(root, "src/report.js", `${answered}fs.appendFileSync("data/log.txt", TITLE);\n`);
+  assert.ok(ospec(root, "check", "--change", "rename-report", "--json").json.added.signals.includes("persistent-data"));
+  const retract = ["record", "retract", "--change", "rename-report", "--signal", "persistent-data", "--reason", "the log write was dropped"];
+  assert.strictEqual(ospec(root, ...retract, "--json").json.error.code, "signal-confirmed-by-diff");
+
+  writeFile(root, "src/report.js", answered);
+  const withAnswer = ospec(root, ...retract, "--answer", "No stored data.", "--source", "user", "--json");
+  assert.strictEqual(withAnswer.json.error.code, "retract-answer-refused");
+  assert.match(withAnswer.json.error.message, /retract it without an answer/);
+  const plain = ospec(root, ...retract, "--json");
+  assert.strictEqual(plain.code, 0, plain.stderr);
+  const state = stateOf(root, "rename-report");
+  assert.ok(!state.signals.some((signal) => signal.id === "persistent-data"));
+  assert.deepStrictEqual(state.obligations.find((o) => o.id === "migration-compat-and-test"), {
+    id: "migration-compat-and-test",
+    signal: "persistent-data",
+    status: "withdrawn",
+    evidence: [],
+    withdrawn_reason: "the log write was dropped",
+  });
+  assert.deepStrictEqual(state.retracted[1], {
+    id: "persistent-data",
+    reason: "persistent data: src/report.js adds writeFile",
+    source: "diff",
+    retract_reason: "the log write was dropped",
+  });
+  assert.strictEqual(ospec(root, ...retract, "--json").json.changed, false);
+  const checked = ospec(root, "check", "--change", "rename-report", "--json");
+  assert.strictEqual(checked.code, 0, checked.stderr);
+  assert.ok(!checked.json.added.signals.includes("persistent-data"), "the answered hits stay retracted");
+});
+
+test("record retract withdraws a public contract from the diff once the diff no longer touches it", (t) => {
+  const { root } = project(t);
+  ospec(root, ...OPEN_BUG);
+  ospec(root, "signals", "--change", "fix-pagination", "--path", "src/pages.txt");
+  writeFile(root, "src/api/search.js", "module.exports = {};\n");
+  assert.ok(ospec(root, "check", "--change", "fix-pagination", "--json").json.added.signals.includes("public-contract"));
+  const retract = ["record", "retract", "--change", "fix-pagination", "--signal", "public-contract", "--reason", "the API change was undone", "--json"];
+  const confirmed = ospec(root, ...retract);
+  assert.strictEqual(confirmed.json.error.code, "signal-confirmed-by-diff");
+  assert.match(confirmed.json.error.message, /src\/api\/search\.js/);
+
+  fs.rmSync(path.join(root, "src", "api"), { recursive: true });
+  const retracted = ospec(root, ...retract);
+  assert.strictEqual(retracted.code, 0, retracted.stderr);
+  const state = stateOf(root, "fix-pagination");
+  assert.ok(!state.signals.some((signal) => signal.id === "public-contract"));
+  assert.strictEqual(state.obligations.find((o) => o.id === "contract-spec-and-test").status, "withdrawn");
+  assert.deepStrictEqual(state.retracted, [
+    {
+      id: "public-contract",
+      reason: "public contract: touches src/api/search.js (matches **/api/**)",
+      source: "diff",
+      retract_reason: "the API change was undone",
+    },
+  ]);
+});
+
 test("record retract refuses the user's answer for a signal other than persistent data", (t) => {
   const { root } = project(t);
   openFeature(root, "record", "intent", "--change", "add-index", "--kind", "feature", "--summary", "Faster search.", "--acceptance", "Search under 50 ms.", ...FEATURE_COVER);

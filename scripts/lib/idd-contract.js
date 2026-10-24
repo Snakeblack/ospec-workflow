@@ -111,8 +111,8 @@ const GATED_IMPACTS = Object.freeze(["amends", "supersedes", "contradicts"]);
 const RECORDED_IMPACTS = Object.freeze(["amends", "supersedes"]);
 
 // Signals a declaration of planned paths or work units can overstate, so a
-// declared one may be retracted while the diff does not confirm it (E1.11).
-// The rest derive from the intent or the project configuration.
+// declared one may be retracted while the diff does not confirm it (E1.11), as
+// one from a diff that no longer derives it (#418). The rest derive from the intent or the project configuration.
 const RETRACTABLE_SIGNALS = Object.freeze(["multi-unit-or-decision", "public-contract", "persistent-data", "security-boundary"]);
 
 const SIGNAL_BY_ID = new Map(SIGNALS.map((signal) => [signal.id, signal]));
@@ -211,8 +211,8 @@ function validateState(state) {
         || !isText(entry.answer) || !GATE_SOURCES.includes(entry.answer_source)) {
         fail(`retracted signal ${entry.id} with the user's answer needs its reason, source, retract_reason, confirmed_by, hits, answer and answer_source`);
       }
-    } else if (!isText(entry.reason) || entry.source !== "declaration" || !isText(entry.retract_reason)) {
-      fail(`retracted signal ${entry.id} needs its declared reason and the reason it was retracted`);
+    } else if (!isText(entry.reason) || !SIGNAL_SOURCES.includes(entry.source) || !isText(entry.retract_reason)) {
+      fail(`retracted signal ${entry.id} needs its reason, source and the reason it was retracted`);
     }
   }
 

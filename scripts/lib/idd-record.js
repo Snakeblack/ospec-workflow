@@ -315,10 +315,11 @@ function recordPlan(state, { paths = [], workUnits = 1, nonObviousDecision = fal
   return { state: { ...structuredClone(state), plan }, changed: true };
 }
 
-// Retracts a declared signal the diff does not confirm (E1.11): the signal
-// leaves the active list, its pending obligation is withdrawn with the reason
-// and the retraction stays recorded. `confirmedBy` is the reason the current
-// diff derives the signal, or null; idd-workspace.js reads the diff. A later
+// Retracts a signal the diff does not confirm (E1.11): the signal leaves the
+// active list, its pending obligation is withdrawn with the reason and the
+// retraction stays recorded. A signal from the diff qualifies once the diff no
+// longer derives it (#418). `confirmedBy` is the reason the current diff
+// derives the signal, or null; idd-workspace.js reads the diff. A later
 // diff or declaration that derives the signal again reopens its obligation
 // (REQ-idd-006). With the user's `answer` (#416), persistent-data that only the
 // content of the diff derives (`contentOnly`) is retracted too, with the `hits`
@@ -349,7 +350,6 @@ function recordRetract(state, { id, reason, confirmedBy = null, contentOnly = fa
     }
   } else {
     const how = contentOnly ? "if the user confirms there is no persistent data, add --answer \"<their words>\" --source user" : undefined;
-    if (signal.source !== "declaration") refuse("signal-confirmed-by-diff", `signal ${id} comes from the diff: ${signal.reason}`, how);
     if (confirmedBy) refuse("signal-confirmed-by-diff", `the diff confirms signal ${id}: ${confirmedBy}`, how);
   }
   const obligationId = SIGNAL_BY_ID.get(id).obligation;

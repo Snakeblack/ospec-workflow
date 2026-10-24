@@ -1,0 +1,236 @@
+{
+  "schema": "idd-state/v1",
+  "change": "diff-signal-retract-dead-end",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Una señal source: diff que el diff actual ya no deriva no se puede retirar por ninguna vía (#418).",
+    "acceptance": "record retract sin respuesta retira con razón una señal diff que el diff actual no deriva y deja su obligación withdrawn; una señal que el diff deriva se sigue rechazando; tests CLI reproducen los pasos de #418 con persistent-data y con public-contract."
+  },
+  "facts": {
+    "open": [
+      "¿Vía de salida: permitir la retirada sin respuesta de la señal diff cuando diffConfirmation ya no la ve (opción A de #418), o que ospec check la marque inactiva sola con un registro (opción B)?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "docs/roadmaps/harness-evolution.md",
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-contract.js",
+      "scripts/lib/idd-record.js",
+      "scripts/lib/idd-record.test.js",
+      "scripts/ospec.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component idd-engine: ADR 0003, 0004, 0005, 0011 and quality scenario deterministic-resume",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "La decisión de si el diff deriva la señal sigue en el CLI (diffConfirmation) con tests; el skill no cambia"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "conforms",
+      "reason": "Una señal que el diff ya no deriva deja de exigir su obligación tras una retirada con razón; mientras el diff la deriva, la obligación sigue"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "Nada se satisface sin evidencia: la obligación queda withdrawn con la razón registrada, como cualquier retirada"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "El estado sigue en idd/<change>/state.yaml; no lee ni escribe SDD"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "conforms",
+      "reason": "La retirada queda en state.yaml y la derivación la respeta igual en cada check y sesión"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Retirada sin respuesta (Recommended): opción A, ospec record retract --reason la acepta si diffConfirmation ya no la ve.",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-24T22:36:50.607Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-24T22:38:26.497Z",
+      "detail": {
+        "tree": "sha256:45ea1736229c871f439fafbc8c80353b8a8d30ce026edea254547d5b66211107",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-24T22:38:26.497Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 conforms",
+          "adr:0005 conforms",
+          "adr:0011 none",
+          "scenario:deterministic-resume conforms"
+        ],
+        "records": [],
+        "tree": "sha256:45ea1736229c871f439fafbc8c80353b8a8d30ce026edea254547d5b66211107",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7"
+        ]
+      }
+    }
+  ],
+  "base": "8b0903ac29f3d5d7ee1c1a3f0e2f2f64180e82d6",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"once the diff\" scripts/ospec.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:dae5352b7c38d430628b5b9f3603b90ddab2dbb4a069c19c4cd592749b0df8dc",
+      "tree": "sha256:0e1817ff87112f19bbed305df0af31e4ff426fdaa2c987a100bb106ffd2a0235",
+      "recorded_at": "2026-10-24T22:36:13.290Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"once the diff\" scripts/ospec.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:8f15c625615876a79bb33ea3ff988481c6798e41077d1aa674204c80c32c974a",
+      "tree": "sha256:39c7544a4373bc64540e30644bab04104ffa869bda0280908d6a7f8c2bcdd37e",
+      "recorded_at": "2026-10-24T22:36:50.607Z",
+      "tests": 3
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c48762d9d05f66887602224509193a1f182c3e514b2fe8071ed18df9cd30fe55",
+      "tree": "sha256:45ea1736229c871f439fafbc8c80353b8a8d30ce026edea254547d5b66211107",
+      "recorded_at": "2026-10-24T22:38:26.497Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:16f34a4e00526ed5593feb1b3fae3e5e99c0359daa58db0ae37b0cb6f29a4e7e",
+      "tree": "sha256:45ea1736229c871f439fafbc8c80353b8a8d30ce026edea254547d5b66211107",
+      "recorded_at": "2026-10-24T22:38:26.497Z",
+      "tests": 44
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b78171ebd54baeb5404a56306a3243581e4cb817149197a7e48eed55cb0544cd",
+      "tree": "sha256:45ea1736229c871f439fafbc8c80353b8a8d30ce026edea254547d5b66211107",
+      "recorded_at": "2026-10-24T22:38:26.497Z",
+      "tests": 12
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:59ba0cc869ec4a339e6efe48803ed0798f7303498da7ddf9c69a43fe90d163ab",
+      "tree": "sha256:45ea1736229c871f439fafbc8c80353b8a8d30ce026edea254547d5b66211107",
+      "recorded_at": "2026-10-24T22:38:26.497Z",
+      "tests": 79
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b64c59c5c764e3a2311968be4f7c803487698e3c5ab527d2b378674373ddac46",
+      "tree": "sha256:45ea1736229c871f439fafbc8c80353b8a8d30ce026edea254547d5b66211107",
+      "recorded_at": "2026-10-24T22:38:26.497Z",
+      "tests": 38
+    }
+  ],
+  "closed_at": "2026-10-24T22:38:44.050Z"
+}
