@@ -1,0 +1,124 @@
+{
+  "schema": "idd-state/v1",
+  "change": "changelog-unpublished-tags",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "Cada versión del CHANGELOG tiene tag o marca de no publicada (OSP-023, #347), con una comprobación contra git tag",
+    "acceptance": "Las 9 cabeceras sin tag llevan la marca de no publicada con la versión que las incluyó; v2.27.0 tiene su sección; un test de manifest-sync falla si una cabecera anterior a la de package.json no tiene tag ni marca"
+  },
+  "facts": {
+    "open": [
+      "¿En qué idioma va la marca de 2.0.0–2.3.0, cuyas entradas están en inglés?",
+      "¿Cómo se resuelve v2.27.0 (tag sin cabecera, contenido fusionado en 2.28.0) y en qué dirección comprueba el test?",
+      "¿Qué se hace con los enlaces rotos [2.0.0]–[2.3.0] y el [Unreleased] desfasado?",
+      "¿Qué hace el test cuando el clon no tiene tags o cuando una versión marcada sí tiene tag?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "CHANGELOG.md",
+      "docs/roadmaps/harness-evolution.md",
+      "scripts/manifest-sync.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Idioma: La frase en español. v2.27.0: Restaurar y en ambas. Enlaces: Quitar los 4 rotos ([2.4.0] pasa a releases/tag/v2.4.0; [Unreleased] queda como defecto aparte). Sin tags: Skip sin tags; contradicción falla (la versión de package.json siempre exenta).",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-24T17:34:20.127Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-24T17:36:07.150Z",
+      "detail": {
+        "tree": "sha256:380e97a6a8bcbf9a874c9f36a7e4e339176a9afd6d628776494f782390d97526",
+        "runs": [
+          "run-3"
+        ]
+      }
+    }
+  ],
+  "base": "e68a8c4884b1fa9a1b87f0823da4a159561198e5",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=unpublished scripts/manifest-sync.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:2c7ab54e74d75ee82febc1373a57f6100b07c7a76f6184ca339a4968e949f4b2",
+      "tree": "sha256:33d12965458091688009693218fc71f70f4a89667948815334d5e69916f96d8f",
+      "recorded_at": "2026-10-24T17:33:57.244Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=unpublished scripts/manifest-sync.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:e94ed120d181c2809b1c17ab698a731c2cd3ee04a05fb4bf5865fa27b4989b90",
+      "tree": "sha256:14993cefe248ef7fd7a13939a67e757d8ec60b0e862a4a21324fcb85a3312f4b",
+      "recorded_at": "2026-10-24T17:34:20.127Z",
+      "tests": 1
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:000c3ace283f37ccc6ac7d98fe6d8d05214d266ecc2c78f1f2ad02dd784c1560",
+      "tree": "sha256:380e97a6a8bcbf9a874c9f36a7e4e339176a9afd6d628776494f782390d97526",
+      "recorded_at": "2026-10-24T17:36:07.150Z"
+    }
+  ],
+  "closed_at": "2026-10-24T17:36:16.549Z"
+}
