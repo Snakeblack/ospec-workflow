@@ -9,7 +9,7 @@
 
 const { classifyChange } = require("./change-classification.js");
 const { SIGNALS, isIntentAmbiguous } = require("./idd-contract.js");
-const { IMPACT_SIGNALS, isExcluded, matchImpact, normalizePath } = require("./idd-impact.js");
+const { IMPACT_SIGNALS, isBuildScript, isExcluded, matchImpact, normalizePath } = require("./idd-impact.js");
 const { IddRecordError, recordGate, recordPlan, recordReferences, recordSignal } = require("./idd-record.js");
 const { derivedReferences, resolveReferences } = require("./idd-knowledge.js");
 
@@ -155,30 +155,49 @@ function firstContentHit(lines, patterns) {
 }
 
 // Persistent data by content (OSP-036): only product code outside
-// impact.exclude counts. A changed product file derives it when its added lines
-// write, when it already writes, or when a product module it imports by
-// relative path writes (diff.sources, read by idd-workspace.js).
-function persistentHit(diff, patterns) {
+// impact.exclude and the build scripts (#416) counts. A changed product file
+// derives it when its added lines write, when it already writes, or when a
+// product module it imports by relative path writes (diff.sources, read by
+// idd-workspace.js). Every hit, strongest evidence first, as
+// "<reason>: <line>", so a user's answer covers only the writes it saw (#416).
+function persistentHits(diff, patterns) {
   const addedLines = diff.addedLines || {};
   const sources = diff.sources || {};
-  const counts = (file) => classifyPath(file) === "product" && !isExcluded(file, patterns);
+  const counts = (file) => classifyPath(file) === "product" && !isExcluded(file, patterns) && !isBuildScript(file, patterns);
   const files = sortedPaths([...Object.keys(addedLines), ...Object.keys(sources)]).filter(counts);
-  for (const file of files) {
-    const label = firstContentHit(addedLines[file], PERSISTENCE_PATTERNS);
-    if (label) return `${file} adds ${label}`;
-  }
-  for (const file of files) {
-    const label = firstContentHit(sources[file]?.lines, PERSISTENCE_PATTERNS);
-    if (label) return `${file} uses ${label}`;
-  }
+  const hits = [];
+  const collect = (lines, reason) => {
+    for (const line of lines || []) {
+      const code = codePortion(line);
+      if (!code.trim()) continue;
+      const hit = PERSISTENCE_PATTERNS.find((entry) => entry.pattern.test(code));
+      if (hit) hits.push({ reason: reason(hit.label), key: `${reason(hit.label)}: ${line.trim()}` });
+    }
+  };
+  for (const file of files) collect(addedLines[file], (label) => `${file} adds ${label}`);
+  for (const file of files) collect(sources[file]?.lines, (label) => `${file} uses ${label}`);
   for (const file of files) {
     const imports = sources[file]?.imports || {};
     for (const target of sortedPaths(Object.keys(imports)).filter(counts)) {
-      const label = firstContentHit(imports[target], PERSISTENCE_PATTERNS);
-      if (label) return `${file} imports ${target}, which uses ${label}`;
+      collect(imports[target], (label) => `${file} imports ${target}, which uses ${label}`);
     }
   }
-  return null;
+  return hits;
+}
+
+// The hits a user's answer retracted (#416) stay out while the diff holds no
+// other: a new write, a changed one or a path brings the signal back.
+function userRetracted(retracted, id, hits) {
+  const answered = (retracted || []).filter((entry) => entry.id === id && entry.answer && Array.isArray(entry.hits));
+  return answered.some((entry) => {
+    const left = new Map();
+    for (const key of entry.hits) left.set(key, (left.get(key) || 0) + 1);
+    return hits.every(({ key }) => {
+      const remaining = left.get(key) || 0;
+      left.set(key, remaining - 1);
+      return remaining > 0;
+    });
+  });
 }
 
 function contractHit(addedLines) {
@@ -273,9 +292,10 @@ function floorOf(intent, signalIds) {
  *          sources?: Record<string, {lines: string[], imports: Record<string, string[]>}>},
  *   patterns: object,                resolvePatterns() of idd-impact.js
  *   knowledge?: {map: object|null, sources: object},   readKnowledgeSources() of idd-workspace.js
+ *   retracted?: object[],            the state's retracted signals
  * }} input
  */
-function deriveSignals({ intent, strictTdd = false, declaration = {}, diff = {}, patterns, knowledge = null }) {
+function deriveSignals({ intent, strictTdd = false, declaration = {}, diff = {}, patterns, knowledge = null, retracted = [] }) {
   if (!intent) return { signals: [], gates: [], references: [], floor: null, floor_source: null };
 
   const found = new Map();
@@ -290,8 +310,10 @@ function deriveSignals({ intent, strictTdd = false, declaration = {}, diff = {},
   if (intent.kind === "bug") add("bug-fix", "the intent is a bug fix", "declaration");
   const untested = untestedProduct(intent, diff);
   if (untested) add("untested-product", untested, "diff");
-  const persistent = persistentHit(diff, patterns);
-  if (persistent) add("persistent-data", `persistent data: ${persistent}`, "diff");
+  const persistent = persistentHits(diff, patterns);
+  if (persistent.length > 0 && !userRetracted(retracted, "persistent-data", persistent)) {
+    add("persistent-data", `persistent data: ${persistent[0].reason}`, "diff");
+  }
   const contract = contractHit(diff.addedLines);
   if (contract) add("public-contract", `public contract: ${contract}`, "diff");
   if ((declaration.workUnits || 0) > 1) {
@@ -377,4 +399,5 @@ module.exports = {
   applyDerivation,
   classifyPath,
   deriveSignals,
+  persistentHits,
 };

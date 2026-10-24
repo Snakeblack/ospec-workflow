@@ -320,30 +320,47 @@ function recordPlan(state, { paths = [], workUnits = 1, nonObviousDecision = fal
 // and the retraction stays recorded. `confirmedBy` is the reason the current
 // diff derives the signal, or null; idd-workspace.js reads the diff. A later
 // diff or declaration that derives the signal again reopens its obligation
-// (REQ-idd-006).
-function recordRetract(state, { id, reason, confirmedBy = null } = {}) {
+// (REQ-idd-006). With the user's `answer` (#416), persistent-data that only the
+// content of the diff derives (`contentOnly`) is retracted too, with the `hits`
+// the answer covers; the derivation keeps it out while the diff holds no other.
+function recordRetract(state, { id, reason, confirmedBy = null, contentOnly = false, hits = [], answer, source } = {}) {
   requireOpen(state);
   if (!SIGNAL_BY_ID.has(id)) refuse("unknown-signal", `unknown signal: ${id}`);
   if (!RETRACTABLE_SIGNALS.includes(id)) {
     refuse("signal-not-retractable", `signal ${id} derives from the intent or the project configuration; only ${RETRACTABLE_SIGNALS.join(", ")} can be retracted`);
   }
   requireText(reason, "reason-required", `retracting ${id} needs a reason`);
+  const answered = answer !== undefined || source !== undefined;
+  if (answered) {
+    if (!answer || !source) refuse("gate-answer-required", `retracting ${id} with the user's answer needs the answer and its source`);
+    requireGateSource(source);
+  }
   const signal = state.signals.find((entry) => entry.id === id);
   if (!signal) {
     const last = (state.retracted || []).findLast((entry) => entry.id === id);
     if (!last) refuse("signal-not-recorded", `change ${state.change} has no signal ${id}`);
-    if (last.retract_reason === reason) return unchanged(state);
+    if (last.retract_reason === reason && last.answer === answer && last.answer_source === source) return unchanged(state);
     refuse("retract-conflict", `signal ${id} was retracted with a different reason`);
   }
-  if (signal.source !== "declaration") refuse("signal-confirmed-by-diff", `signal ${id} comes from the diff: ${signal.reason}`);
-  if (confirmedBy) refuse("signal-confirmed-by-diff", `the diff confirms signal ${id}: ${confirmedBy}`);
+  if (answered) {
+    if (!contentOnly || hits.length === 0) {
+      const why = confirmedBy ? `the diff derives it: ${confirmedBy}` : "the diff does not derive it; retract it without an answer";
+      refuse("retract-answer-refused", `only persistent-data that the content of the diff alone derives is retracted with the user's answer; ${why}`);
+    }
+  } else {
+    const how = contentOnly ? "if the user confirms there is no persistent data, add --answer \"<their words>\" --source user" : undefined;
+    if (signal.source !== "declaration") refuse("signal-confirmed-by-diff", `signal ${id} comes from the diff: ${signal.reason}`, how);
+    if (confirmedBy) refuse("signal-confirmed-by-diff", `the diff confirms signal ${id}: ${confirmedBy}`, how);
+  }
   const obligationId = SIGNAL_BY_ID.get(id).obligation;
   const obligation = state.obligations.find((entry) => entry.id === obligationId);
   if (obligation?.status === "satisfied") refuse("obligation-satisfied", `obligation ${obligationId} of signal ${id} is already satisfied`);
 
   const next = structuredClone(state);
   next.signals = next.signals.filter((entry) => entry.id !== id);
-  next.retracted = [...(next.retracted || []), { id, reason: signal.reason, source: signal.source, retract_reason: reason }];
+  const entry = { id, reason: signal.reason, source: signal.source, retract_reason: reason };
+  if (answered) Object.assign(entry, { confirmed_by: confirmedBy, hits: [...hits], answer, answer_source: source });
+  next.retracted = [...(next.retracted || []), entry];
   const target = next.obligations.find((entry) => entry.id === obligationId);
   if (target && target.status === "pending") {
     target.status = "withdrawn";

@@ -86,7 +86,8 @@ Then resume with `ospec next`.
    bears on (`--adr <id>`, `--quality <id>`) as `references/architecture.md`
    says. If the plan overstated a signal, retract
    it with `ospec record retract --change <id> --signal <id> --reason "<why>"`;
-   the CLI refuses while the diff confirms it.
+   the CLI refuses while the diff confirms it. When its `how` offers the
+   user's answer, ask the user; never answer for them.
 5. Loop: `ospec next --change <id> --json`, do what `next_step` says, repeat.
    `resolve-gate` comes first while any gate is open: ask its
    `pending_decision` (see Gates) and build nothing it decides until the user

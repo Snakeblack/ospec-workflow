@@ -522,6 +522,41 @@ test("retract is refused for confirmed, diff, satisfied, unknown and non-path si
   assertCode(() => recordRetract({ ...state, status: "closed" }, { id: "multi-unit-or-decision", reason: "r" }), "change-closed");
 });
 
+// #416: the user's answer retracts persistent-data that only the content of the diff derives.
+test("the user's answer retracts content-only persistent data, and the state keeps who answered", () => {
+  const { recordRetract } = require("./idd-record.js");
+  const reason = "persistent data: scripts/postbuild.mjs uses writeFile";
+  const state = recordSignal(opened(), { id: "persistent-data", reason, source: "diff" }).state;
+  const hits = [`${reason.replace("persistent data: ", "")}: await writeFile(path, header);`];
+  const answer = { id: "persistent-data", reason: "build output", confirmedBy: reason, hits, answer: "Only dist/ is written.", source: "user" };
+  assertCode(() => recordRetract(state, { ...answer, contentOnly: false }), "retract-answer-refused");
+  assertCode(() => recordRetract(state, { ...answer, contentOnly: true, hits: [] }), "retract-answer-refused");
+  assertCode(() => recordRetract(state, { ...answer, contentOnly: true, source: undefined }), "gate-answer-required");
+  assertCode(() => recordRetract(state, { ...answer, contentOnly: true, source: "agent" }), "invalid-source");
+  assertCode(() => recordRetract(state, { id: "persistent-data", reason: "build output", confirmedBy: reason, contentOnly: true }), "signal-confirmed-by-diff");
+
+  const { state: retracted } = recordRetract(state, { ...answer, contentOnly: true });
+  assertValid(retracted);
+  assert.deepStrictEqual(retracted.retracted, [
+    { id: "persistent-data", reason, source: "diff", retract_reason: "build output", confirmed_by: reason, hits, answer: "Only dist/ is written.", answer_source: "user" },
+  ]);
+  assert.strictEqual(retracted.obligations.find((o) => o.id === "migration-compat-and-test").status, "withdrawn");
+  assert.strictEqual(recordRetract(retracted, { ...answer, contentOnly: true }).changed, false);
+  assertCode(() => recordRetract(retracted, { ...answer, contentOnly: true, answer: "Other words." }), "retract-conflict");
+
+  for (const broken of [
+    { answer: "" },
+    { answer_source: "agent" },
+    { confirmed_by: undefined },
+    { hits: [] },
+    { hits: [""] },
+    { id: "public-contract" },
+  ]) {
+    const entry = { ...retracted.retracted[0], ...broken };
+    assert.strictEqual(validateState({ ...retracted, retracted: [entry] }).ok, false, JSON.stringify(broken));
+  }
+});
+
 // ---------------------------------------------------------------------------
 // record impact: declared architecture references (E3.1, REQ-idd-020)
 // ---------------------------------------------------------------------------

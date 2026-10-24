@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.150.4] - 2026-10-24
+
+### Fixed
+- **`persistent-data` ya no sale de un script de build, y la respuesta del usuario puede retirarla cuando solo la deriva el contenido** (E1.38, #416). Desde E1.36, editar cualquier línea de un fichero que ya escribía derivaba la señal, aunque escribiera solo la salida del build. Como venía del diff, `retract` la rechazaba y quedaba un test de migración sin migración que probar.
+  - Los scripts de build (`pre/postbuild.*`, `build.*` en la raíz o bajo `scripts/` y `tools/`, `scripts/build/**` y los `*.config.*` de Vite, Astro, webpack y Rollup) no la derivan por contenido, ni como fichero tocado ni como módulo importado. Su ruta sigue contando, y `impact.defaults: false` quita la lista. Un `src/build.ts` que escribe sigue derivándola.
+  - El «ya escribía» se mantiene en el resto, por decisión del usuario: en un store, una constante de nivel superior (el nombre del fichero o la versión del esquema) sí cambia el formato.
+  - `ospec record retract --signal persistent-data --answer "<palabras del usuario>" --source user|user-unverified` la retira cuando ninguna ruta cambiada casa con un patrón de `persistent-data`. La retirada guarda `confirmed_by`, los `hits` que vio el usuario (`<razón>: <línea>`), `answer` y `answer_source`. La señal no vuelve mientras el diff no tenga otro hit; una escritura nueva o cambiada, o una ruta de migración, la devuelven. El rechazo de la retirada sin respuesta explica en `how` cómo darla.
+
+Hecho con IDD (`idd/archive/2026-10-24-persistent-data-touched-writer/`), con dos revisiones de confianza. La primera pidió atar la retirada a todos los hits y acotar `build.*`; la segunda quedó sin hallazgos. El callejón que señaló pasa a E1.40 (#418).
+
+**Verificación directa**: `node scripts/check.js` (4016 tests pasando, 0 fallos y 3 omitidos). El test de reproducción falló antes del cambio y pasa después.
+
 ## [2.150.3] - 2026-10-24
 
 ### Fixed

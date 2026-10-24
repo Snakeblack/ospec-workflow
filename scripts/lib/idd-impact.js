@@ -66,6 +66,18 @@ const STACKS = Object.freeze(Object.keys(STACK_PATTERNS));
 // Documentation describes a boundary; it does not move it.
 const DEFAULT_EXCLUDE = Object.freeze(["**/*.md", "**/*.mdx", "docs/**"]);
 
+// Build scripts and bundler configs write the build output, not persistent
+// data (#416): their content derives no persistent-data. Paths still count. A
+// bare build.* counts only at the root or under scripts/ and tools/, since a
+// product module may share the name.
+const BUILD_SCRIPTS = Object.freeze([
+  "**/{prebuild,postbuild}.*",
+  "build.*",
+  "**/{scripts,tools}/**/build.*",
+  "**/scripts/build/**",
+  "**/{vite,astro,webpack,rollup}.config.*",
+]);
+
 const STACK_MARKERS = Object.freeze([
   { stack: "node", test: (name) => name === "package.json" },
   { stack: "jvm", test: (name) => /^(pom\.xml|build\.gradle(\.kts)?|settings\.gradle(\.kts)?)$/.test(name) },
@@ -182,12 +194,18 @@ function resolvePatterns({ stacks = [], impact = {}, published = [] } = {}) {
   }
   resolved.published = useDefaults ? [...published] : [];
   resolved.exclude = [...new Set([...(useDefaults ? DEFAULT_EXCLUDE : []), ...(impact.exclude || [])])];
+  resolved.build_scripts = useDefaults ? [...BUILD_SCRIPTS] : [];
   return resolved;
 }
 
 function isExcluded(file, patterns) {
   const normalized = normalizePath(file);
   return (patterns.exclude || []).some((glob) => matches(normalized, glob));
+}
+
+function isBuildScript(file, patterns) {
+  const normalized = normalizePath(file);
+  return (patterns.build_scripts || []).some((glob) => matches(normalized, glob));
 }
 
 // The first matching pattern per signal, in catalog order; [] when excluded.
@@ -230,6 +248,7 @@ function validateImpact(impact) {
 
 module.exports = {
   BASE_PATTERNS,
+  BUILD_SCRIPTS,
   CONFIG_KEYS,
   DEFAULT_EXCLUDE,
   IMPACT_SIGNALS,
@@ -238,6 +257,7 @@ module.exports = {
   STACK_PATTERNS,
   detectStacks,
   globToRegExp,
+  isBuildScript,
   isExcluded,
   matchImpact,
   normalizePath,

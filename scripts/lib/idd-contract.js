@@ -202,8 +202,16 @@ function validateState(state) {
   }
   for (const entry of state.retracted || []) {
     const isText = (value) => typeof value === "string" && value.trim() !== "";
+    const answered = entry !== null && typeof entry === "object" && ["answer", "answer_source", "confirmed_by", "hits"].some((key) => key in entry);
     if (!RETRACTABLE_SIGNALS.includes(entry?.id)) fail(`retracted signal ${entry?.id} is not retractable`);
-    else if (!isText(entry.reason) || entry.source !== "declaration" || !isText(entry.retract_reason)) {
+    else if (answered) {
+      // #416: content-only persistent-data, retracted with the user's answer.
+      if (entry.id !== "persistent-data" || !isText(entry.reason) || !SIGNAL_SOURCES.includes(entry.source) || !isText(entry.retract_reason)
+        || !isText(entry.confirmed_by) || !Array.isArray(entry.hits) || entry.hits.length === 0 || !entry.hits.every(isText)
+        || !isText(entry.answer) || !GATE_SOURCES.includes(entry.answer_source)) {
+        fail(`retracted signal ${entry.id} with the user's answer needs its reason, source, retract_reason, confirmed_by, hits, answer and answer_source`);
+      }
+    } else if (!isText(entry.reason) || entry.source !== "declaration" || !isText(entry.retract_reason)) {
       fail(`retracted signal ${entry.id} needs its declared reason and the reason it was retracted`);
     }
   }

@@ -287,6 +287,67 @@ test("impact.exclude silences persistent data from content, on the touched file 
   assert.strictEqual(persistent(["src/hosts/**", "src/cli.js"]), undefined);
 });
 
+// #416: a build script writes the build output, not persistent data.
+test("a build script derives no persistent data from content unless impact.defaults is false", () => {
+  const intent = { kind: "feature", summary: "s", acceptance: "a" };
+  const postbuild = [
+    'import { writeFile } from "node:fs/promises";',
+    'const root = new URL("../dist/client/", import.meta.url).pathname;',
+    "const HEADER_ONLY = [\"frame-ancestors 'none'\", \"report-uri /api/report/\"];",
+    "await writeFile(`${root}_headers`, HEADER_ONLY.join('; '));",
+  ];
+  const persistent = (diff, impact = {}) =>
+    deriveSignals({ intent, diff, patterns: resolvePatterns({ impact }) }).signals.find((s) => s.id === "persistent-data");
+  const constantEdit = {
+    paths: ["scripts/postbuild.mjs"],
+    addedLines: { "scripts/postbuild.mjs": [postbuild[2]] },
+    sources: { "scripts/postbuild.mjs": { lines: postbuild, imports: {} } },
+  };
+  assert.strictEqual(persistent(constantEdit), undefined, "a constant edit in a build script");
+  for (const file of ["scripts/prebuild.js", "build.ts", "scripts/build.mjs", "tools/og/build.js", "packages/web/scripts/build/og.mjs", "astro.config.mjs", "vite.config.ts", "webpack.config.cjs", "rollup.config.js"]) {
+    const added = { paths: [file], addedLines: { [file]: postbuild }, sources: { [file]: { lines: postbuild, imports: {} } } };
+    assert.strictEqual(persistent(added), undefined, file);
+  }
+  const importsBuild = {
+    paths: ["src/cli.js"],
+    addedLines: { "src/cli.js": ["run();"] },
+    sources: { "src/cli.js": { lines: ["require('../scripts/postbuild.mjs');", "run();"], imports: { "scripts/postbuild.mjs": postbuild } } },
+  };
+  assert.strictEqual(persistent(importsBuild), undefined, "a product file that imports a build script");
+  assert.strictEqual(persistent(constantEdit, { defaults: false })?.reason, "persistent data: scripts/postbuild.mjs uses writeFile");
+  const store = { ...constantEdit, paths: ["src/store.js"], addedLines: { "src/store.js": [postbuild[2]] }, sources: { "src/store.js": { lines: postbuild, imports: {} } } };
+  assert.strictEqual(persistent(store)?.reason, "persistent data: src/store.js uses writeFile", "a module that is not a build script still counts");
+  const productBuild = { paths: ["src/build.ts"], addedLines: { "src/build.ts": [postbuild[3]] }, sources: { "src/build.ts": { lines: postbuild, imports: {} } } };
+  assert.strictEqual(persistent(productBuild)?.reason, "persistent data: src/build.ts adds writeFile", "a product module named build.* outside scripts/ and tools/");
+});
+
+// #416 trust review: the user's answer covers the writes it saw, not every
+// later write under the same first reason.
+test("an answered retraction holds only while the diff has no content hit beyond the answered ones", () => {
+  const intent = { kind: "bug", summary: "s", acceptance: "a" };
+  const patterns = resolvePatterns({ impact: {} });
+  const gen = ["const fs = require('node:fs');", "fs.writeFileSync('dist/a.txt', A);"];
+  const diffOf = (files) => ({
+    paths: Object.keys(files),
+    addedLines: Object.fromEntries(Object.entries(files).map(([file, lines]) => [file, lines.slice(-1)])),
+    sources: Object.fromEntries(Object.entries(files).map(([file, lines]) => [file, { lines, imports: {} }])),
+  });
+  const answered = diffOf({ "src/gen.js": gen });
+  const { persistentHits } = require("./idd-signals.js");
+  const retracted = [{
+    id: "persistent-data", reason: "r", source: "diff", retract_reason: "dist only",
+    confirmed_by: "persistent data: src/gen.js adds writeFile", hits: persistentHits(answered, patterns).map((hit) => hit.key),
+    answer: "Only dist/ is written.", answer_source: "user",
+  }];
+  const persistent = (diff) => deriveSignals({ intent, diff, patterns, retracted }).signals.find((s) => s.id === "persistent-data");
+
+  assert.strictEqual(persistent(answered), undefined, "the answered hits stay retracted");
+  assert.ok(persistent(diffOf({ "src/gen.js": [...gen, "fs.writeFileSync('data/tasks.json', T);"] })), "a second write in the same file");
+  assert.ok(persistent(diffOf({ "src/gen.js": gen, "src/z-store.js": ["fs.appendFileSync(log, line);"] })), "a write in a file that sorts later");
+  assert.ok(persistent(diffOf({ "src/gen.js": [gen[0], "fs.writeFileSync('data/a.txt', A);"] })), "the answered write, changed");
+  assert.strictEqual(deriveSignals({ intent, diff: answered, patterns }).signals.some((s) => s.id === "persistent-data"), true, "without the retraction it derives");
+});
+
 test("no signal is derived while the intent is ambiguous", () => {
   const derivation = deriveSignals({
     intent: null,
