@@ -1244,6 +1244,72 @@ test("[REQ-decision-gap-003] foundation next does not write a missing map and re
   assert.strictEqual(recorded.json.round.some((slot) => slot.id === "quality.drivers"), false);
 });
 
+// #416: persistent-data that only the content of the diff derives is retracted
+// with the user's answer, and stays retracted while the reason is the same.
+test("record retract takes the user's answer for persistent data the diff content alone derives", (t) => {
+  const { root, git } = project(t);
+  writeFile(root, "src/report.js", 'const fs = require("node:fs");\nconst TITLE = "Report";\nfs.writeFileSync("out/report.txt", TITLE);\n');
+  git("add", "-A");
+  git("commit", "-q", "--no-verify", "-m", "report");
+  ospec(root, "record", "intent", "--change", "rename-report", "--kind", "bug", "--summary", "Rename the report.", "--acceptance", "The title reads Sales.", "--no-open-facts", "--basis", "The request fixes every behavior.");
+  ospec(root, "signals", "--change", "rename-report", "--path", "src/report.js");
+  writeFile(root, "src/report.js", 'const fs = require("node:fs");\nconst TITLE = "Sales";\nfs.writeFileSync("out/report.txt", TITLE);\n');
+  const reason = "persistent data: src/report.js uses writeFile";
+  assert.strictEqual(ospec(root, "check", "--change", "rename-report", "--json").json.added.signals.includes("persistent-data"), true);
+
+  const retract = ["record", "retract", "--change", "rename-report", "--signal", "persistent-data", "--reason", "the report is regenerated on every run"];
+  const plain = ospec(root, ...retract, "--json");
+  assert.strictEqual(plain.json.error.code, "signal-confirmed-by-diff");
+  assert.match(plain.json.error.how, /--answer "<their words>" --source user/);
+  assert.strictEqual(ospec(root, ...retract, "--answer", "No stored data.", "--json").json.error.code, "gate-answer-required");
+  assert.strictEqual(ospec(root, ...retract, "--answer", "No stored data.", "--source", "agent", "--json").json.error.code, "invalid-source");
+
+  const answered = ospec(root, ...retract, "--answer", "No stored data.", "--source", "user", "--json");
+  assert.strictEqual(answered.code, 0, answered.stderr);
+  let state = stateOf(root, "rename-report");
+  assert.ok(!state.signals.some((signal) => signal.id === "persistent-data"));
+  assert.strictEqual(state.obligations.find((o) => o.id === "migration-compat-and-test").status, "withdrawn");
+  assert.deepStrictEqual(state.retracted, [
+    {
+      id: "persistent-data",
+      reason,
+      source: "diff",
+      retract_reason: "the report is regenerated on every run",
+      confirmed_by: reason,
+      hits: ['src/report.js uses writeFile: fs.writeFileSync("out/report.txt", TITLE);'],
+      answer: "No stored data.",
+      answer_source: "user",
+    },
+  ]);
+  assert.strictEqual(ospec(root, ...retract, "--answer", "No stored data.", "--source", "user", "--json").json.changed, false);
+
+  const checked = ospec(root, "check", "--change", "rename-report", "--json");
+  assert.strictEqual(checked.code, 0, checked.stderr);
+  assert.ok(!checked.json.added.signals.includes("persistent-data"), "the same reason stays retracted");
+  assert.strictEqual(stateOf(root, "rename-report").obligations.find((o) => o.id === "migration-compat-and-test").status, "withdrawn");
+
+  // A second write brings it back; a migration path then keeps any answer out.
+  writeFile(root, "src/report.js", 'const fs = require("node:fs");\nconst TITLE = "Sales";\nfs.writeFileSync("out/report.txt", TITLE);\nfs.appendFileSync("data/log.txt", TITLE);\n');
+  assert.ok(ospec(root, "check", "--change", "rename-report", "--json").json.added.signals.includes("persistent-data"));
+  writeFile(root, "db/migrations/001_report.sql", "ALTER TABLE reports ADD COLUMN title TEXT;\n");
+  ospec(root, "check", "--change", "rename-report", "--json");
+  state = stateOf(root, "rename-report");
+  assert.strictEqual(state.obligations.find((o) => o.id === "migration-compat-and-test").status, "pending");
+  const byPath = ospec(root, "record", "retract", "--change", "rename-report", "--signal", "persistent-data", "--reason", "no migration", "--answer", "None.", "--source", "user", "--json");
+  assert.strictEqual(byPath.json.error.code, "retract-answer-refused");
+  assert.match(byPath.json.error.message, /db\/migrations|src\/report\.js/);
+});
+
+test("record retract refuses the user's answer for a signal other than persistent data", (t) => {
+  const { root } = project(t);
+  openFeature(root, "record", "intent", "--change", "add-index", "--kind", "feature", "--summary", "Faster search.", "--acceptance", "Search under 50 ms.", ...FEATURE_COVER);
+  ospec(root, "signals", "--change", "add-index", "--path", "src/api/search.js");
+  writeFile(root, "src/api/search.js", "module.exports = {};\n");
+  const refused = ospec(root, "record", "retract", "--change", "add-index", "--signal", "public-contract", "--reason", "internal", "--answer", "Not public.", "--source", "user", "--json");
+  assert.strictEqual(refused.json.error.code, "retract-answer-refused");
+  assert.strictEqual(stateOf(root, "add-index").obligations.find((o) => o.id === "contract-spec-and-test").status, "pending");
+});
+
 test("record retract withdraws a declared work-unit signal, which the diff never confirms", (t) => {
   const { root } = project(t);
   ospec(root, "record", "intent", "--change", "split-pages", "--kind", "refactor", "--summary", "Split pages.", "--acceptance", "Two pages.", "--no-open-facts", "--basis", "The request fixes every behavior.");

@@ -86,7 +86,9 @@ withdrawn, `withdrawn_reason`), `gates` (each with `id`, `status` `open` or
 commit the change started from, or null outside git), `plan` (the plan
 `ospec signals` was declared, REQ-idd-012: `paths`, `work_units`, `decision`
 and `operations`), `retracted` (each declared signal retracted under
-REQ-idd-006, with its `id`, `reason`, `source` and `retract_reason`), `impacts`
+REQ-idd-006, with its `id`, `reason`, `source` and `retract_reason`, plus
+`confirmed_by`, `hits`, `answer` and `answer_source` when the user's answer
+retracted it), `impacts`
 (each declared architecture reference of REQ-idd-020, with its `kind`, `adr` or
 `scenario`, its `id`, its `impact`, null until declared, the `reason` once
 declared and, for an ADR amended or superseded, the `record` that does it),
@@ -219,6 +221,19 @@ its obligation is already satisfied. Repeating it MUST be a no-op. A signal the
 diff or a declaration derives again after its retraction MUST return and
 reopen its obligation.
 
+`persistent-data` that only the content of the diff derives (REQ-idd-012: no
+changed path matches a `persistent-data` pattern) MUST also be retractable,
+whatever its source, with the user's answer: `--answer <text> --source
+user|user-unverified`, as a gate is resolved. The retraction MUST record
+`confirmed_by` (the reason the diff derives it), `hits` (every content hit of
+the diff at that moment, each as `<reason>: <line>`), `answer` and
+`answer_source`, and the derivation MUST leave the signal out while every
+content hit of the diff is one of those `hits`; a new or changed write, or a
+path, MUST bring it back. The answer MUST be
+refused (`retract-answer-refused`) for any other signal or when a path or
+nothing derives it, and the refusal of a plain retraction of such a signal
+MUST say how to give the answer.
+
 #### Scenario: Overstated plan is corrected before the diff confirms it
 
 - GIVEN a change whose plan declared `src/api/search.js`, so `public-contract`
@@ -233,6 +248,19 @@ reopen its obligation.
 - WHEN its retraction is requested
 - THEN it MUST be refused with `signal-confirmed-by-diff`
 - AND `migration-compat-and-test` MUST stay `pending`
+
+#### Scenario: The user's answer retracts persistent data the content alone derives
+
+- GIVEN `persistent-data` with `source: diff` because `src/report.js` already
+  calls `fs.writeFileSync` and the diff changes one of its constants
+- WHEN `record retract --signal persistent-data --reason <text> --answer
+  "No stored data." --source user` runs
+- THEN `migration-compat-and-test` MUST be `withdrawn`, the retraction MUST
+  record the answer, and a later `ospec check` MUST NOT bring the signal back
+- AND a second write added to `src/report.js` or to another product file MUST
+  bring it back
+- AND once the diff also touches `db/migrations/001_report.sql`, the signal
+  MUST return and the answer MUST be refused with `retract-answer-refused`
 
 #### Scenario: Diff adds a migration obligation
 
@@ -496,7 +524,12 @@ adds or anywhere in the file, or when it imports by relative path (JS/TS
 `from ... import`) a product module outside `impact.exclude` that uses one; a
 test, documentation, a manifest or any other file MUST NOT derive it by
 content, and the import is never followed through a symlink or out of the
-repository. Added lines MUST derive `public-contract` when documentation
+repository. Build scripts write the build output, not persistent data: unless
+`impact.defaults` is `false`, a file matching `**/{prebuild,postbuild}.*`,
+`build.*` at the root, `**/{scripts,tools}/**/build.*`, `**/scripts/build/**`
+or `**/{vite,astro,webpack,rollup}.config.*` MUST NOT
+derive `persistent-data` by content, as the touched file or as the imported
+module, while its path still counts for every path-driven signal. Added lines MUST derive `public-contract` when documentation
 states a selector contract (`getElementById`, `querySelector`, `` `#id` ``) or
 an HTTP method plus a path. A comment line, including `//`, `#`, `--`, `/* */`
 and `<!-- -->`, MUST NOT count. For an intent of kind `feature` or `bug`, a
@@ -550,6 +583,15 @@ derivation misses, nor reopen a resolved gate (REQ-idd-006). While
 - THEN `persistent-data` MUST be recorded with `source: diff` and the reason
   "persistent data: src/cli.js imports src/store.js, which uses writeFile"
 - AND with `src/store.js` in `impact.exclude` it MUST NOT be derived
+
+#### Scenario: A build script that already writes derives no persistent data
+
+- GIVEN a diff that changes a constant of `scripts/postbuild.mjs`, which calls
+  `writeFile` on the build output
+- WHEN its signals are derived
+- THEN `persistent-data` MUST NOT be active
+- AND with `impact.defaults: false` it MUST be recorded with the reason
+  "persistent data: scripts/postbuild.mjs uses writeFile"
 
 #### Scenario: Documentation about a boundary derives nothing
 

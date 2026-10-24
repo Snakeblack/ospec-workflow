@@ -67,7 +67,7 @@ const { IddImpactError, matchImpact } = require("./lib/idd-impact.js");
 const { readReceipt } = require("./lib/review-receipt.js");
 const { DecisionGapError, nextRound, recordAnswer } = require("./lib/decision-gap.js");
 const { DoctorUsageError, renderDoctor, runDoctor } = require("./lib/ospec-doctor.js");
-const { applyDerivation, classifyPath, deriveSignals } = require("./lib/idd-signals.js");
+const { applyDerivation, classifyPath, deriveSignals, persistentHits } = require("./lib/idd-signals.js");
 const { TeamProfileError, resolveTeam } = require("./lib/team-profile.js");
 const { IddStoreError, changeDir, listChanges, mutateChange, readChange } = require("./lib/idd-store.js");
 const { withFileLock } = require("./lib/ospec-state.js");
@@ -105,7 +105,7 @@ const USAGE = `Usage:
   ospec record signal --change <id> --signal <id> --reason <text> [--source declaration|diff]
   ospec record gate --change <id> --gate <id> (--open [--reason <text>] | --resolve --answer <text> --source user|user-unverified)
   ospec record withdraw --change <id> --obligation <id> --reason <text>
-  ospec record retract --change <id> --signal <id> --reason <text>
+  ospec record retract --change <id> --signal <id> --reason <text> [--answer <text> --source user|user-unverified]
   ospec record impact --change <id> (--adr <id> | --quality <id>)
                       [--impact <none|conforms|amends|supersedes|contradicts> --reason <text>] [--record <new ADR>]
   ospec record fitness --change <id> (--adr <id> | --quality <id>) --evidence <text>
@@ -232,7 +232,9 @@ function reducerFor(type, values, root) {
       return existing((state) => recordWithdraw(state, { obligation: values.obligation, reason: values.reason }));
     case "retract":
       if (!values.signal) throw new UsageError("record retract needs --signal <id>");
-      return existing((state) => recordRetract(state, { id: values.signal, reason: values.reason, confirmedBy: diffConfirmation(root, state, values.signal) }));
+      return existing((state) =>
+        recordRetract(state, { id: values.signal, reason: values.reason, answer: values.answer, source: values.source, ...diffConfirmation(root, state, values.signal) }),
+      );
     case "impact": {
       const refs = declaredReferences(values);
       if (refs.length !== 1) throw new UsageError("record impact needs exactly one --adr <id> or --quality <id>");
@@ -284,16 +286,21 @@ function requireKnownReferences(root, refs) {
   }
 }
 
-// The reason the current diff derives a signal, or null (E1.11). Only the diff
-// confirms a declared signal, so a retraction reads it against the change's base
-// and needs git, as `ospec check` does.
+// The reason the current diff derives a signal, or null (E1.11), and whether
+// only the content of the diff derives persistent-data, which the user may
+// retract with the hits they saw (#416). Only the diff confirms a declared
+// signal, so a retraction reads it against the change's base and needs git, as
+// `ospec check` does.
 function diffConfirmation(root, state, signalId) {
-  if (state.status !== "open" || !state.signals.some((signal) => signal.id === signalId && signal.source === "declaration")) return null;
+  if (state.status !== "open" || !state.signals.some((signal) => signal.id === signalId)) return { confirmedBy: null, contentOnly: false, hits: [] };
   const context = readProjectContext(root);
   const diff = readGitDiff(root, { base: diffBase({}, state) });
   const { map, sources } = readKnowledgeSources(root);
-  const { signals: derived } = deriveSignals({ intent: state.intent, diff, patterns: context.patterns, knowledge: { map, sources } });
-  return derived.find((signal) => signal.id === signalId && signal.source === "diff")?.reason ?? null;
+  const { signals: derived } = deriveSignals({ intent: state.intent, diff, patterns: context.patterns, knowledge: { map, sources }, retracted: state.retracted });
+  const confirmedBy = derived.find((signal) => signal.id === signalId && signal.source === "diff")?.reason ?? null;
+  const byPath = diff.paths.some((file) => matchImpact(file, context.patterns).some((hit) => hit.signal === signalId));
+  const contentOnly = signalId === "persistent-data" && confirmedBy !== null && !byPath;
+  return { confirmedBy, contentOnly, hits: contentOnly ? persistentHits(diff, context.patterns).map((hit) => hit.key) : [] };
 }
 
 function existing(reducer) {
@@ -337,7 +344,7 @@ async function signals(root, values) {
     values.change,
     existing((current) => {
       const intent = current.intent && current.intent.kind ? current.intent : null;
-      derivation = deriveSignals({ intent, strictTdd: context.strictTdd, declaration, diff, patterns: context.patterns, knowledge: { map, sources } });
+      derivation = deriveSignals({ intent, strictTdd: context.strictTdd, declaration, diff, patterns: context.patterns, knowledge: { map, sources }, retracted: current.retracted });
       return applyDerivation(current, derivation, { plan: declaresPlan(values) ? declaration : null });
     }),
   );
@@ -438,7 +445,7 @@ async function check(root, values) {
   const diff = readGitDiff(root, { base: diffBase(values, current) });
   const { map, sources, warnings } = readKnowledgeSources(root);
   // The fitness checks follow the references this check's diff derives.
-  const preview = applyDerivation(current, deriveSignals({ intent: current.intent, strictTdd: context.strictTdd, diff, patterns: context.patterns, knowledge: { map, sources } })).state;
+  const preview = applyDerivation(current, deriveSignals({ intent: current.intent, strictTdd: context.strictTdd, diff, patterns: context.patterns, knowledge: { map, sources }, retracted: current.retracted })).state;
   const fitness = changeFitness(root, preview);
   warnings.push(...fitness.warnings);
   const treeBefore = readTreeFingerprint(root);
@@ -474,6 +481,7 @@ async function check(root, values) {
         diff,
         patterns: context.patterns,
         knowledge: { map, sources },
+        retracted: stored.retracted,
       });
       const derived = applyDerivation(stored, derivation);
       added = derived.added;
