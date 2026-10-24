@@ -1,0 +1,735 @@
+{
+  "schema": "idd-state/v1",
+  "change": "disk-rule-residual-forms",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "La regla de disco deniega las formas residuales de E1.35: valor de flag de barra con \\ o @ (runas /user:DOMINIO\\usuario, /user:a@b) y la comilla doble de cmd delante de una ruta (cmd /c \"\"C:\\…\\format.com\" D:\"), sin segundas lecturas; fila del contrato actualizada (E1.39)",
+    "acceptance": "Las tres órdenes de E1.39 se deniegan en JS y en Go (o figuran como límite en el contrato); los casos permitidos y denegados actuales no cambian; los tests de linealidad, con prefijos nuevos para las formas añadidas, siguen por debajo de 1 s en los dos motores; la paridad JS/Go pasa"
+  },
+  "facts": {
+    "open": [
+      "¿Corregir las dos formas o escribirlas solo como límite en el contrato?",
+      "¿La comilla doble de cmd vale también delante de un envoltorio con ruta (\"\"C:\\…\\cmd.exe\" /c …\"), no solo delante de format?",
+      "¿La comilla doble pegada al flag, sin espacio (cmd /c\"\"C:\\…\\format.com\" D:\"), se reconoce o queda como límite escrito?"
+    ]
+  },
+  "plan": {
+    "paths": [
+      "internal/rules/rules.json",
+      "internal/rules/rules_test.go",
+      "openspec/specs/hooks/spec.md",
+      "scripts/hooks/pre-tool-use.js",
+      "scripts/hooks/pre-tool-use.test.js"
+    ],
+    "work_units": 1,
+    "decision": true,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/pre-tool-use.js and 1 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component hooks: ADR 0008, 0010 and quality scenario guard-fail-closed",
+      "source": "declaration"
+    },
+    {
+      "id": "multi-unit-or-decision",
+      "reason": "declared a non-obvious decision",
+      "source": "declaration"
+    }
+  ],
+  "retracted": [
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/hooks/pre-tool-use.js uses writeFile",
+      "source": "diff",
+      "retract_reason": "El diff solo cambia el regex de la regla de disco; la escritura del registro de tokens de pre-tool-use.js no se toca",
+      "confirmed_by": "persistent data: scripts/hooks/pre-tool-use.js uses writeFile",
+      "hits": [
+        "scripts/hooks/pre-tool-use.js uses writeFile: fs.appendFileSync(logPath, JSON.stringify({ t: tokens, ts: Date.now() }) + \"\\n\", \"utf8\");",
+        "scripts/hooks/pre-tool-use.js imports scripts/lib/ospec-gitignore.js, which uses writeFile: fsImpl.writeFileSync(gitignorePath, payload, { flag: \"wx\" });",
+        "scripts/hooks/pre-tool-use.js imports scripts/lib/ospec-gitignore.js, which uses writeFile: fsImpl.writeFileSync(gitignorePath, payload);",
+        "scripts/hooks/pre-tool-use.js imports scripts/lib/ospec-gitignore.js, which uses writeFile: fsImpl.writeFileSync(ignore, SELF_IGNORE, { flag: \"wx\" });",
+        "scripts/hooks/pre-tool-use.js imports scripts/lib/ospec-state.js, which uses writeFile: await fs.writeFile(temporaryPath, summary, \"utf8\");",
+        "scripts/hooks/pre-tool-use.js imports scripts/lib/ospec-state.js, which uses writeFile: fs.appendFile(eventPath, `${JSON.stringify(serializedEvent)}\\n`, \"utf8\"),",
+        "scripts/hooks/pre-tool-use.js imports scripts/lib/ospec-state.js, which uses writeFile: await fs.appendFile(filePath, `${JSON.stringify(record)}\\n`, \"utf8\");",
+        "scripts/hooks/pre-tool-use.js imports scripts/lib/ospec-state.js, which uses writeFile: await withFileLock(filePath, () => fs.appendFile(filePath, line, \"utf8\"));"
+      ],
+      "answer": "Confirmo, retírala (Recommended)",
+      "answer_source": "user"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "La denegación sigue siendo el suelo: el patrón solo añade formas que se deniegan (dominio o dirección en un flag de barra, comilla doble de cmd); las órdenes denegadas de antes siguen fijadas en pre-tool-use.test.js y las nuevas llevan su test"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Sin dependencias nuevas; Go sigue evaluando el mismo patrón embebido en rules.json y parity-contract.test.js lo compara"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "conforms",
+      "reason": "Formatear o borrar una unidad sigue bloqueado; el patrón sigue lineal en JS y en regexp2, así que una orden larga no agota el tiempo del hook"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "living-doc",
+      "signal": "multi-unit-or-decision",
+      "status": "satisfied",
+      "evidence": [
+        "ev-9"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "withdrawn",
+      "evidence": [],
+      "withdrawn_reason": "El diff solo cambia el regex de la regla de disco; la escritura del registro de tokens de pre-tool-use.js no se toca"
+    }
+  ],
+  "gates": [
+    {
+      "id": "open-facts",
+      "status": "resolved",
+      "answer": "Corregir las dos (Recommended); Sí, también envoltorios (Recommended); Límite escrito (Recommended)",
+      "source": "user"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-24T20:29:21.467Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-24T20:31:32.750Z",
+      "detail": {
+        "tree": "sha256:db386c5ab20fdedc7f540cc2267639624fba47145a9702aad03f96e93e19d853",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-24T20:31:32.750Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:db386c5ab20fdedc7f540cc2267639624fba47145a9702aad03f96e93e19d853",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-24T20:38:26.072Z",
+      "detail": {
+        "lineage_id": "sha256:dd76e37cad82cde0fe4d1dbc1440d74c38f085ed8f71a26c0506baac14b4f8ee",
+        "candidate_id": "sha256:2ae7daa9b750a9693050417a17fc6479dede6c7167efe5880c7f237ba8f7337e",
+        "candidate_tree": "811ea8e0cfd2533371f82191ac3ea1cf8488004f",
+        "findings_digest": "sha256:61272dfae812b18ed232d4898a2064c876045e118f363b3cfa9baebfc35ac01c",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-24T20:38:08.408Z",
+          "result_digest": "sha256:dca29684552ad8080fb0224d0bb91a1a92e5c135e717879ef58d4c663d100618"
+        }
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-24T21:24:50.974Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:c6b35a377e04945ff80784406e33d3c60728c49ac73fb5090390222dd881a75a",
+        "fitness": [
+          "run-9",
+          "run-10",
+          "run-11",
+          "run-12"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-24T21:33:36.846Z",
+      "detail": {
+        "lineage_id": "sha256:4d5ff93ac0f1238f9aa1d0249209c490d35a1eab65db123f0d16a212f13d5707",
+        "candidate_id": "sha256:80d6094591f8156c45e5e082e0a8c52aaca8d6b17b294ee87905000386216b32",
+        "candidate_tree": "09224d2356e2603657ce3db029316871952e25b8",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+        "attestation": "subagent-stop",
+        "receipt": {
+          "agent": "review-trust",
+          "recorded_at": "2026-10-24T21:33:23.993Z",
+          "result_digest": "sha256:f946965a70eb020dcd7b10aef616034b589d1ed4cfa2518a9272b67bc75e4a26"
+        }
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-24T21:34:36.212Z",
+      "detail": {
+        "tree": "sha256:c6b35a377e04945ff80784406e33d3c60728c49ac73fb5090390222dd881a75a",
+        "runs": [
+          "run-13"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-24T21:34:36.212Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed conforms"
+        ],
+        "records": [],
+        "tree": "sha256:c6b35a377e04945ff80784406e33d3c60728c49ac73fb5090390222dd881a75a",
+        "fitness": [
+          "run-14",
+          "run-15",
+          "run-16",
+          "run-17"
+        ]
+      }
+    },
+    {
+      "id": "ev-9",
+      "kind": "living-doc-current",
+      "obligation": "living-doc",
+      "recorded_at": "2026-10-24T21:34:44.544Z"
+    }
+  ],
+  "base": "8ec19b441d8a55085e4fb2e69b2da579621cb0a6",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"disk rule\" scripts/hooks/pre-tool-use.test.js && go test ./internal/rules/",
+      "exit_code": 1,
+      "output_sha256": "sha256:bc782086c6aeb21e90c2b738b9563bf662a9f9fbd637e73b3aa852ce84c22a7c",
+      "tree": "sha256:6080717d051878a1ddc4c4d579b9fa387d4b977f49925ddfa00c02c492bc22d3",
+      "recorded_at": "2026-10-24T20:23:18.514Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"disk rule\" scripts/hooks/pre-tool-use.test.js && go test ./internal/rules/",
+      "exit_code": 0,
+      "output_sha256": "sha256:8502f9bacf8fbc08de20f10cf3b368b7e0044755c14696c03763b8f53f25479d",
+      "tree": "sha256:03d58d34df99f9c33655d18f32cc60f124547cf3c315c785ca208f07100b0792",
+      "recorded_at": "2026-10-24T20:29:21.467Z",
+      "tests": 4
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:fd01057c6709170da2cf120275708eea0c6da726917333036cc3942a223a60d2",
+      "tree": "sha256:db386c5ab20fdedc7f540cc2267639624fba47145a9702aad03f96e93e19d853",
+      "recorded_at": "2026-10-24T20:31:32.750Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:9719d7ae444160b28db252f97fdc2b40a3c3580abece9930368ac25e733c2919",
+      "tree": "sha256:db386c5ab20fdedc7f540cc2267639624fba47145a9702aad03f96e93e19d853",
+      "recorded_at": "2026-10-24T20:31:32.750Z",
+      "tests": 81
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:db386c5ab20fdedc7f540cc2267639624fba47145a9702aad03f96e93e19d853",
+      "recorded_at": "2026-10-24T20:31:32.750Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b8fff19d230295a36349d07ac2736f908a860843c185a6da52ab0a41bfb9fa57",
+      "tree": "sha256:db386c5ab20fdedc7f540cc2267639624fba47145a9702aad03f96e93e19d853",
+      "recorded_at": "2026-10-24T20:31:32.750Z",
+      "tests": 16
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:106cd8f8f9be8475309c8301f4350d05e0135e4d953519e5434754edd7cfb332",
+      "tree": "sha256:db386c5ab20fdedc7f540cc2267639624fba47145a9702aad03f96e93e19d853",
+      "recorded_at": "2026-10-24T20:31:32.750Z",
+      "tests": 81
+    },
+    {
+      "id": "run-8",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:496aabe1b0eba6837498380c27f87070d5e81309f64bd9630154d79eb5b06c62",
+      "tree": "sha256:c6b35a377e04945ff80784406e33d3c60728c49ac73fb5090390222dd881a75a",
+      "recorded_at": "2026-10-24T21:24:50.974Z"
+    },
+    {
+      "id": "run-9",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ee4901d8dbd0ed0d76e5dad15f9f305dcdd28230439b683dff9bae434dcb8493",
+      "tree": "sha256:c6b35a377e04945ff80784406e33d3c60728c49ac73fb5090390222dd881a75a",
+      "recorded_at": "2026-10-24T21:24:50.974Z",
+      "tests": 81
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:c6b35a377e04945ff80784406e33d3c60728c49ac73fb5090390222dd881a75a",
+      "recorded_at": "2026-10-24T21:24:50.974Z"
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:21c7f69bc70edfe537dc7adf9096cd7031816e1bfe887afb9e3c53514638940b",
+      "tree": "sha256:c6b35a377e04945ff80784406e33d3c60728c49ac73fb5090390222dd881a75a",
+      "recorded_at": "2026-10-24T21:24:50.974Z",
+      "tests": 16
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:78802f025f17bffea3aac6e22ad268dd6f93b81e2937f3217b59f358d68bad2b",
+      "tree": "sha256:c6b35a377e04945ff80784406e33d3c60728c49ac73fb5090390222dd881a75a",
+      "recorded_at": "2026-10-24T21:24:50.974Z",
+      "tests": 81
+    },
+    {
+      "id": "run-13",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:864ac3e3baab2b64dca45eb2ab5d629842c4516e269bf6b48858b7318a393446",
+      "tree": "sha256:c6b35a377e04945ff80784406e33d3c60728c49ac73fb5090390222dd881a75a",
+      "recorded_at": "2026-10-24T21:34:36.212Z"
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1b45f1f07af656fcae5abd5b72504284d868f012a23136018f2953df8302ec9f",
+      "tree": "sha256:c6b35a377e04945ff80784406e33d3c60728c49ac73fb5090390222dd881a75a",
+      "recorded_at": "2026-10-24T21:34:36.212Z",
+      "tests": 81
+    },
+    {
+      "id": "run-15",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:c6b35a377e04945ff80784406e33d3c60728c49ac73fb5090390222dd881a75a",
+      "recorded_at": "2026-10-24T21:34:36.212Z"
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4dc365a09639052666b66d59e233a465e21a13db3d9122788f28bffc7ff55fc6",
+      "tree": "sha256:c6b35a377e04945ff80784406e33d3c60728c49ac73fb5090390222dd881a75a",
+      "recorded_at": "2026-10-24T21:34:36.212Z",
+      "tests": 16
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:23dadc9304a3bc7ed752ba0a70eebe23c78448023fd6153a4fcac7c35abd996c",
+      "tree": "sha256:c6b35a377e04945ff80784406e33d3c60728c49ac73fb5090390222dd881a75a",
+      "recorded_at": "2026-10-24T21:34:36.212Z",
+      "tests": 81
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:dd76e37cad82cde0fe4d1dbc1440d74c38f085ed8f71a26c0506baac14b4f8ee",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "c31cf0e6dd8a5f00c1603f1f606da954d963e361",
+          "candidate_tree": "811ea8e0cfd2533371f82191ac3ea1cf8488004f",
+          "paths": [
+            "internal/rules/rules.json",
+            "internal/rules/rules_test.go",
+            "openspec/specs/hooks/spec.md",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js"
+          ],
+          "diff_hash": "sha256:a728d51c5d42f3efaf46b17b6137daa54e15a45466b671d44f4a2d2bbdc52cab",
+          "paths_digest": "sha256:b504f2e6fc737e9016761bb58aaa748577123b4def0a3421ec7749b260526758",
+          "authored_lines": 61,
+          "original_changed_lines": 70
+        },
+        "candidate_id": "sha256:2ae7daa9b750a9693050417a17fc6479dede6c7167efe5880c7f237ba8f7337e",
+        "paths": [
+          "internal/rules/rules.json",
+          "internal/rules/rules_test.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "811ea8e0cfd2533371f82191ac3ea1cf8488004f",
+        "original_changed_lines": 70,
+        "authored_lines": 61
+      },
+      "current_candidate_id": "sha256:2ae7daa9b750a9693050417a17fc6479dede6c7167efe5880c7f237ba8f7337e",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "c31cf0e6dd8a5f00c1603f1f606da954d963e361",
+        "candidate_tree": "811ea8e0cfd2533371f82191ac3ea1cf8488004f",
+        "paths": [
+          "internal/rules/rules.json",
+          "internal/rules/rules_test.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "diff_hash": "sha256:a728d51c5d42f3efaf46b17b6137daa54e15a45466b671d44f4a2d2bbdc52cab",
+        "paths_digest": "sha256:b504f2e6fc737e9016761bb58aaa748577123b4def0a3421ec7749b260526758",
+        "authored_lines": 61,
+        "original_changed_lines": 70
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "disk-rule-residual-forms:lens-start:1:0",
+          "result_digest": "sha256:6ea444573414e3297e81f0e3e82f3ff7f575bf883afaa41d4f908aded4016f47",
+          "result": {
+            "findings": [
+              {
+                "severity": "WARNING",
+                "summary": "The linear-time vectors for the new doubled-quote SEP branch are vacuous. scripts/hooks/pre-tool-use.test.js:493-494 and internal/rules/rules_test.go:333-334 repeat ' \"\"sudo' and ' \"\"\"'. These strings start with a space and contain no wrapper before the first '\"\"' or a command opener. At pre-tool-use.js:130 the SEP branch '\"\"(?=WORD)' only runs after a wrapper or operand token has been consumed. In these strings START matches only at '^', and the first token '\"\"sudo' cannot be read: PREFIX '\"\"' needs SEP, and the next character is 's'. So the chain stops at once, and the '; format D:' suffix is denied through the plain START after ';'. A later super-linear second reading in the new branch (for example 'sudo \"\"sudo \"\"sudo ...' or 'cmd /c \"\"cmd /c \"\"...') would not fail either test. I found no exponential reading by reading the source, but nothing exercises the branch. The only valid-chain vector, 'cmd /c\"\"' (line 495), tests the glued form that is deliberately not recognised.",
+                "acceptance_criteria": "The JS and Go adversarial lists each have at least one repeated vector in which every repetition is a valid chain token followed by whitespace and a glued '\"\"' before the next token (for example 'sudo ' + '\"\"sudo '.repeat(n), and a cmd /c variant). Each vector stays under the time limit. Appending '; format D:' to each still denies, and the bare vector without the suffix is not denied. A vector that fails only when the '\"\"' SEP branch is made ambiguous or backtracking proves the test is not vacuous."
+              },
+              {
+                "severity": "WARNING",
+                "summary": "A slash flag's value (OPERAND, pre-tool-use.js:116) accepts only [\\w:.=@-] and '\\' segments. A runas domain written as a variable, such as 'runas /user:%USERDOMAIN%\\Administrator \"format D:\"' or '/user:$env:USERDOMAIN\\a', breaks the chain. OPERAND stops at '%' or '$', SEP fails, and the PATH reading cannot find a wrapper name, so nothing is denied. The contract row at spec.md:849 promises 'a value with a domain or an address such as /user:CORP\\admin'. Its listed limits name only 'a flag value with quotes or commas', and %VAR% and $env: are not among them. The two engines also differ on non-ASCII. Go compiles with regexp2.None (rules.go:44-48), so \\w and \\d match Unicode letters. JS \\w is ASCII only. 'runas /user:CORP\\Zoë \"format D:\"' is therefore denied by Go and allowed by JS. The parity test compares only pattern sources, not matching behavior (parity-contract.test.js:27-29). No test covers either form.",
+                "acceptance_criteria": "For 'runas /user:%USERDOMAIN%\\admin \"format D:\"' and 'runas /user:CORP\\Zoë \"format D:\"', JS and Go give the same decision, and any case left undenied is named in the contract row's limits next to the quotes/commas limit. The JS and Go case lists contain these inputs. A formatter variant ('runas /user:%USERDOMAIN%\\admin \"dotnet format C:\\repo\"') stays allowed."
+              }
+            ]
+          },
+          "operation": null,
+          "result_request_id": "disk-rule-residual-forms:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [
+        {
+          "id": "F-612bd686eb8d8ad1",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "The linear-time vectors for the new doubled-quote SEP branch are vacuous. scripts/hooks/pre-tool-use.test.js:493-494 and internal/rules/rules_test.go:333-334 repeat ' \"\"sudo' and ' \"\"\"'. These strings start with a space and contain no wrapper before the first '\"\"' or a command opener. At pre-tool-use.js:130 the SEP branch '\"\"(?=WORD)' only runs after a wrapper or operand token has been consumed. In these strings START matches only at '^', and the first token '\"\"sudo' cannot be read: PREFIX '\"\"' needs SEP, and the next character is 's'. So the chain stops at once, and the '; format D:' suffix is denied through the plain START after ';'. A later super-linear second reading in the new branch (for example 'sudo \"\"sudo \"\"sudo ...' or 'cmd /c \"\"cmd /c \"\"...') would not fail either test. I found no exponential reading by reading the source, but nothing exercises the branch. The only valid-chain vector, 'cmd /c\"\"' (line 495), tests the glued form that is deliberately not recognised.",
+          "acceptance_criteria": "The JS and Go adversarial lists each have at least one repeated vector in which every repetition is a valid chain token followed by whitespace and a glued '\"\"' before the next token (for example 'sudo ' + '\"\"sudo '.repeat(n), and a cmd /c variant). Each vector stays under the time limit. Appending '; format D:' to each still denies, and the bare vector without the suffix is not denied. A vector that fails only when the '\"\"' SEP branch is made ambiguous or backtracking proves the test is not vacuous.",
+          "blocking": false,
+          "resolution": "advisory"
+        },
+        {
+          "id": "F-319c037885597f93",
+          "owner": "trust",
+          "severity": "WARNING",
+          "summary": "A slash flag's value (OPERAND, pre-tool-use.js:116) accepts only [\\w:.=@-] and '\\' segments. A runas domain written as a variable, such as 'runas /user:%USERDOMAIN%\\Administrator \"format D:\"' or '/user:$env:USERDOMAIN\\a', breaks the chain. OPERAND stops at '%' or '$', SEP fails, and the PATH reading cannot find a wrapper name, so nothing is denied. The contract row at spec.md:849 promises 'a value with a domain or an address such as /user:CORP\\admin'. Its listed limits name only 'a flag value with quotes or commas', and %VAR% and $env: are not among them. The two engines also differ on non-ASCII. Go compiles with regexp2.None (rules.go:44-48), so \\w and \\d match Unicode letters. JS \\w is ASCII only. 'runas /user:CORP\\Zoë \"format D:\"' is therefore denied by Go and allowed by JS. The parity test compares only pattern sources, not matching behavior (parity-contract.test.js:27-29). No test covers either form.",
+          "acceptance_criteria": "For 'runas /user:%USERDOMAIN%\\admin \"format D:\"' and 'runas /user:CORP\\Zoë \"format D:\"', JS and Go give the same decision, and any case left undenied is named in the contract row's limits next to the quotes/commas limit. The JS and Go case lists contain these inputs. A formatter variant ('runas /user:%USERDOMAIN%\\admin \"dotnet format C:\\repo\"') stays allowed.",
+          "blocking": false,
+          "resolution": "advisory"
+        }
+      ],
+      "findings_digest": "sha256:61272dfae812b18ed232d4898a2064c876045e118f363b3cfa9baebfc35ac01c",
+      "correction_budget": {
+        "limit_lines": 35,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    },
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:4d5ff93ac0f1238f9aa1d0249209c490d35a1eab65db123f0d16a212f13d5707",
+      "generation": 2,
+      "predecessor_lineage_id": "sha256:dd76e37cad82cde0fe4d1dbc1440d74c38f085ed8f71a26c0506baac14b4f8ee",
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "c31cf0e6dd8a5f00c1603f1f606da954d963e361",
+          "candidate_tree": "09224d2356e2603657ce3db029316871952e25b8",
+          "paths": [
+            "docs/roadmaps/harness-evolution.md",
+            "internal/rules/rules.json",
+            "internal/rules/rules_test.go",
+            "openspec/specs/hooks/spec.md",
+            "scripts/hooks/pre-tool-use.js",
+            "scripts/hooks/pre-tool-use.test.js"
+          ],
+          "diff_hash": "sha256:fea608e50a657bee9fe228bef915484044056599f22482220f4ff348f76773d5",
+          "paths_digest": "sha256:2a6ad95764b1de0f626118437638c2731e91b90494c6a002d7901adb8f30bb22",
+          "authored_lines": 88,
+          "original_changed_lines": 100
+        },
+        "candidate_id": "sha256:80d6094591f8156c45e5e082e0a8c52aaca8d6b17b294ee87905000386216b32",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "internal/rules/rules.json",
+          "internal/rules/rules_test.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "09224d2356e2603657ce3db029316871952e25b8",
+        "original_changed_lines": 100,
+        "authored_lines": 88
+      },
+      "current_candidate_id": "sha256:80d6094591f8156c45e5e082e0a8c52aaca8d6b17b294ee87905000386216b32",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "c31cf0e6dd8a5f00c1603f1f606da954d963e361",
+        "candidate_tree": "09224d2356e2603657ce3db029316871952e25b8",
+        "paths": [
+          "docs/roadmaps/harness-evolution.md",
+          "internal/rules/rules.json",
+          "internal/rules/rules_test.go",
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/pre-tool-use.js",
+          "scripts/hooks/pre-tool-use.test.js"
+        ],
+        "diff_hash": "sha256:fea608e50a657bee9fe228bef915484044056599f22482220f4ff348f76773d5",
+        "paths_digest": "sha256:2a6ad95764b1de0f626118437638c2731e91b90494c6a002d7901adb8f30bb22",
+        "authored_lines": 88,
+        "original_changed_lines": 100
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "disk-rule-residual-forms:lens-start:2:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "disk-rule-residual-forms:lens-result:2:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 50,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-10-24T21:34:44.544Z"
+}

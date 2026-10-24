@@ -107,6 +107,13 @@ func TestEvaluate_Deny(t *testing.T) {
 		{name: "Start-Process flag after the program", command: `Start-Process cmd -WindowStyle Hidden -ArgumentList "/c format D:"`},
 		{name: "empty title after a slash flag", command: `start /wait "" format D:`},
 		{name: "argument list of flags", command: "Start-Process powershell -ArgumentList '-NoProfile','-Command','format D:'"},
+		{name: "runas with a domain user", command: `runas /user:CORP\admin "format D:"`},
+		{name: "runas with an address user", command: `runas /user:admin@corp.local "format D:"`},
+		{name: "runas with a cmd variable domain", command: `runas /user:%USERDOMAIN%\admin "format D:"`},
+		{name: "runas with a PowerShell variable domain", command: `runas /user:$env:USERDOMAIN\admin "format D:"`},
+		{name: "doubled quote before format", command: `cmd /c ""C:\Windows\System32\format.com" D: /q"`},
+		{name: "doubled quote before a wrapper", command: `cmd /c ""C:\Windows\System32\cmd.exe" /c format D:"`},
+		{name: "argument list array of flags", command: "Start-Process powershell -ArgumentList @('-NoProfile','-Command','format D:')"},
 		{name: "rm -r -f /", command: "rm -r -f /"},
 		{name: "git push origin +main", command: "git push origin +main"},
 	}
@@ -215,6 +222,9 @@ func TestEvaluate_Allow(t *testing.T) {
 		{name: "numbered list in a heredoc", command: "cat <<'EOF'\n1. format C: no se toca\n2) format C: tampoco\nEOF"},
 		{name: "argument list of a formatter", command: `Start-Process dotnet -ArgumentList "format C:\repo"`},
 		{name: "variable prefix before a formatter", command: `NODE_ENV=test dotnet format C:\repo`},
+		{name: "runas with a domain user runs a formatter", command: `runas /user:CORP\admin "dotnet format C:\repo"`},
+		{name: "runas with a variable domain runs a formatter", command: `runas /user:%USERDOMAIN%\admin "dotnet format C:\repo"`},
+		{name: "doubled quote before a formatter", command: `cmd /c ""C:\tools\dotnet.exe" format C:\repo"`},
 	}
 
 	for _, tt := range tests {
@@ -319,6 +329,21 @@ func TestEvaluate_DiskRuleLinear(t *testing.T) {
 		"launcher valued flags":    strings.Repeat("pwsh -WindowStyle x ", n),
 		"empty titles":             strings.Repeat(`"" `, n),
 		"argument list flags":      strings.Repeat("-ArgumentList '-a',", n),
+		// A backslash in a slash flag, and the doubled opening quote.
+		"slash flag wrapper value": strings.Repeat(`/user:a\sudo `, n),
+		"slash flag segments":      strings.Repeat(`/u:a\b@c\d `, n),
+		"long backslash path":      strings.Repeat(`/a\`, n) + "sudo y",
+		"doubled quotes":           strings.Repeat(` ""sudo`, n),
+		"tripled quotes":           strings.Repeat(` """`, n),
+		"doubled quote chain":      "sudo " + strings.Repeat(`""sudo `, n),
+		"doubled quote cmd chain":  "cmd /c " + strings.Repeat(`""cmd /c `, n),
+		"slash flag variables":     strings.Repeat(`/u:%a%\$b `, n),
+		"slash comspec names":      strings.Repeat(`/%comspec% /$env:comspec `, n),
+		"glued doubled quotes":     strings.Repeat(`cmd /c""`, n),
+		// Each of these once searched the target again at every repetition.
+		"slash format":            strings.Repeat("/format.com ", n),
+		"slash flag format value": strings.Repeat(`/u:a\format.com `, n),
+		"argument list arrays":    strings.Repeat("@(-ArgumentList ", n),
 	}
 	for name, prefix := range prefixes {
 		t.Run(name, func(t *testing.T) {

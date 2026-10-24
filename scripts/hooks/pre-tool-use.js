@@ -104,17 +104,31 @@ const DISK_FORMAT_RE = (() => {
   const QUOTED_PROGRAM = String.raw`["'](?:[^"'\r\n${STOP}]|\([^"'\r\n${STOP}]*\))*[\/\\](?:${WRAPPERS.map(([name, f]) => String.raw`(?:${name})["']${f}`).join("|")})`;
   // No `=` in a path, or `A=x/env` would also read as an `env` assignment.
   const PATH = String.raw`(?:[^\s"',=${STOP}]*[\/\\])?`;
-  // A slash flag never spells a wrapper, or `/sudo` would also read as `/` + `sudo`.
-  const NAME_WORDS = String.raw`sudo|doas|gsudo|cmd|%comspec%|start|start-process|call|pnpm|npm|yarn|bun|bunx|iex|invoke-expression|eval|nohup|do|then|else|npx|if|powershell|pwsh|bash|sh|zsh|dash|ksh|xargs|command|builtin|nice|runas|timeout|env|exec|time|wsl`;
+  // A slash flag never spells a wrapper or `format`, or `/sudo` would also
+  // read as `/` + `sudo`, and `/format` at every token would search the target
+  // again up to the end of the line.
+  const NAME_WORDS = String.raw`sudo|doas|gsudo|cmd|%comspec%|\$env:comspec|start|start-process|call|pnpm|npm|yarn|bun|bunx|iex|invoke-expression|eval|nohup|do|then|else|npx|if|powershell|pwsh|bash|sh|zsh|dash|ksh|xargs|command|builtin|nice|runas|timeout|env|exec|time|wsl`;
+  const NOT_NAME = String.raw`(?!(?:(?:${NAME_WORDS})(?:\.cmd|\.exe)?|format(?:\.com|\.exe)?)(?![\w:.=@%$\\-]))`;
   // A slash flag (`/c`, `/user:x`, Git Bash's `//c`) or a count or duration
-  // (`timeout 5`, `1.5m`).
-  const OPERAND = String.raw`(?:\/\/?(?!(?:${NAME_WORDS})(?:\.cmd|\.exe)?(?![\w:.=-]))[\w:.=-]+|\d+(?:\.\d+)?[a-z]?)["']?`;
+  // (`timeout 5`, `1.5m`). A slash flag's value takes a domain, an address or
+  // a variable (`/user:CORP\admin`, `/user:a@b`, `/user:%USERDOMAIN%\a`), and
+  // no segment after a `\` spells a wrapper either, or `/user:a\sudo` would
+  // also read as a path + `sudo`.
+  const OPERAND = String.raw`(?:\/\/?${NOT_NAME}[\w:.=@%$-]+(?:\\${NOT_NAME}[\w:.=@%$-]+)*|\d+(?:\.\d+)?[a-z]?)["']?`;
   // `-ArgumentList`, whose string Start-Process runs, with the launched
   // program's bare flags, spaced or in a comma list (`"-NoProfile -Command …"`,
   // `'-NoProfile','-Command',…`).
-  const ARGLIST = String.raw`${ARGS}${H}+(?:@\(${H}*)?(?:["']?${BARE}["']?(?:${H}+|,${H}*))*`;
-  // A token ends at whitespace, a comma (`'/c','…'`) or a quote.
-  const SEP = String.raw`(?:${H}+|,${H}*|(?=["']))`;
+  const FLAG_LIST = String.raw`(?:["']?${BARE}["']?(?:${H}+|,${H}*))*`;
+  const ARGLIST = String.raw`${ARGS}${H}+${FLAG_LIST}`;
+  // An array (`-ArgumentList @('-NoProfile',…)`) crosses its `(`, which also
+  // opens a command, so a chain crosses one at most; otherwise the chain of
+  // every `(` would run to the end of the line.
+  const ARGLIST_ARRAY = String.raw`${ARGS}${H}+@\(${H}*${FLAG_LIST}`;
+  // A token ends at whitespace, a comma (`'/c','…'`) or a quote. After
+  // whitespace, cmd's doubled quote may open the next token
+  // (`cmd /c ""…\format.com" D:"`); glued to the previous token it would also
+  // read as that token's closing quote, so `/c""…` is not recognised.
+  const SEP = String.raw`(?:${H}+(?:""(?=${WORD}))?|,${H}*|(?=["']))`;
   // A `VAR=value` prefix (`MSYS_NO_PATHCONV=1 cmd …`, `env A=1 …`) or an
   // empty title (`start ""`).
   const PREFIX = String.raw`\w+=${WORD}*|""|''`;
@@ -124,7 +138,7 @@ const DISK_FORMAT_RE = (() => {
   // `format/format/…` fails at once at each slash. The target is searched up
   // to the next character that opens a command.
   const FORMAT = String.raw`["']?${PATH}format(?:\.com|\.exe)?(?=[\s"'(,])(?!\(\s*[a-z_$][\w$]*\??:\s+[a-z_$])[^\r\n${STOP}]*[\s,(]["']?(?:[a-z]:(?![a-z0-9_])|\\\\\?\\volume\{)`;
-  return new RegExp(String.raw`\b(?:clear-disk|format-volume)\b|${START}(?:${QUOTED_PROGRAM}${SEP})?(?:${TOKEN})*${FORMAT}`, "i");
+  return new RegExp(String.raw`\b(?:clear-disk|format-volume)\b|${START}(?:${QUOTED_PROGRAM}${SEP})?(?:${TOKEN})*(?:${ARGLIST_ARRAY}(?:${TOKEN})*)?${FORMAT}`, "i");
 })();
 
 const DENY_RULES = [

@@ -355,6 +355,9 @@ test("the disk rule denies format only as the command, not as a word (#407)", ()
     'Start-Process dotnet -ArgumentList "format C:\\repo"',
     "NODE_ENV=test dotnet format C:\\repo",
     "MSYS_NO_PATHCONV=1 cmd //c dotnet format C:\\repo",
+    'runas /user:CORP\\admin "dotnet format C:\\repo"',
+    'runas /user:%USERDOMAIN%\\admin "dotnet format C:\\repo"',
+    'cmd /c ""C:\\tools\\dotnet.exe" format C:\\repo"',
   ]) {
     assert.equal(gitGuardDecision("runTerminalCommand", command, cleanBranch).permissionDecision, null, command);
   }
@@ -438,6 +441,16 @@ test("the disk rule denies format only as the command, not as a word (#407)", ()
     "if x; then y; else format D:; fi",
     "! format D:",
     "@format D:",
+    // A domain or address in a slash flag, and cmd's doubled opening quote.
+    'runas /user:CORP\\admin "format D:"',
+    'runas /user:admin@corp.local "format D:"',
+    'runas /user:CORP\\admin /savecred "format D:"',
+    'runas /user:%USERDOMAIN%\\admin "format D:"',
+    'runas /user:$env:USERDOMAIN\\admin "format D:"',
+    'cmd /c ""C:\\Windows\\System32\\format.com" D: /q"',
+    'cmd /c ""format.com" D: /q"',
+    'cmd /c ""C:\\Windows\\System32\\cmd.exe" /c format D:"',
+    "Start-Process powershell -ArgumentList @('-NoProfile','-Command','format D:')",
   ]) {
     assert.equal(decisionFor(command).permissionDecision, "deny", command);
   }
@@ -476,6 +489,21 @@ test("the disk rule stays linear on adversarial commands", () => {
     "pwsh -WindowStyle x ".repeat(n),
     '"" '.repeat(n),
     "-ArgumentList '-a',".repeat(n),
+    // A backslash in a slash flag, and the doubled opening quote.
+    "/user:a\\sudo ".repeat(n),
+    "/u:a\\b@c\\d ".repeat(n),
+    "/a\\".repeat(n) + "sudo y",
+    ' ""sudo'.repeat(n),
+    ' """'.repeat(n),
+    "sudo " + '""sudo '.repeat(n),
+    "cmd /c " + '""cmd /c '.repeat(n),
+    "/u:%a%\\$b ".repeat(n),
+    "/%comspec% /$env:comspec ".repeat(n),
+    'cmd /c""'.repeat(n),
+    // Each of these once searched the target again at every repetition.
+    "/format.com ".repeat(n),
+    "/u:a\\format.com ".repeat(n),
+    "@(-ArgumentList ".repeat(n),
   ]) {
     const started = process.hrtime.bigint();
     assert.equal(disk.pattern.test(command), false, command.slice(0, 40));
