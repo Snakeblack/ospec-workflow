@@ -499,7 +499,7 @@ test("a declared signal the diff does not confirm is retracted with its reason",
   assertValid(twice);
 });
 
-test("retract is refused for confirmed, diff, satisfied, unknown and non-path signals", () => {
+test("retract is refused for confirmed, satisfied, unknown and non-path signals", () => {
   const { recordRetract } = require("./idd-record.js");
   let state = recordSignal(opened(), { id: "persistent-data", reason: "plan", source: "declaration" }).state;
   assertCode(() => recordRetract(state, { id: "persistent-data", reason: "r", confirmedBy: "persistent data: touches db/m.sql" }), "signal-confirmed-by-diff");
@@ -509,8 +509,14 @@ test("retract is refused for confirmed, diff, satisfied, unknown and non-path si
   assertCode(() => recordRetract(state, { id: "nope", reason: "r" }), "unknown-signal");
   assertCode(() => recordRetract(state, { id: "security-boundary", reason: "r" }), "signal-not-recorded");
 
+  // #418: a signal from the diff is refused while the diff derives it, and
+  // retracted once it no longer does.
   const fromDiff = recordSignal(opened(), { id: "security-boundary", reason: "diff", source: "diff" }).state;
-  assertCode(() => recordRetract(fromDiff, { id: "security-boundary", reason: "r" }), "signal-confirmed-by-diff");
+  assertCode(() => recordRetract(fromDiff, { id: "security-boundary", reason: "r", confirmedBy: "diff" }), "signal-confirmed-by-diff");
+  const undone = recordRetract(fromDiff, { id: "security-boundary", reason: "r" }).state;
+  assertValid(undone);
+  assert.deepStrictEqual(undone.retracted, [{ id: "security-boundary", reason: "diff", source: "diff", retract_reason: "r" }]);
+  assert.strictEqual(undone.obligations.find((o) => o.id === "trust-review").status, "withdrawn");
 
   state = recordSignal(opened(), { id: "multi-unit-or-decision", reason: "two units", source: "declaration" }).state;
   const satisfied = structuredClone(state);

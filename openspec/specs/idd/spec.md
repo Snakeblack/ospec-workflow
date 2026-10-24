@@ -214,8 +214,11 @@ A declared signal the plan overstated MUST be correctable before the diff
 confirms it: `ospec record retract --signal <id> --reason <text>` MUST remove a
 `multi-unit-or-decision`, `public-contract`, `persistent-data` or
 `security-boundary` signal recorded with `source: declaration`, withdraw its
-pending obligation with that reason and append the signal to `retracted`. It
-MUST be refused for any other signal, for a signal with `source: diff`, while
+pending obligation with that reason and append the signal to `retracted`. A
+signal of those four recorded with `source: diff` MUST be retractable the same
+way once the diff against the change's base no longer derives it, so a
+reverted change leaves no pending obligation without a way out. It
+MUST be refused for any other signal, while
 the diff against the change's base derives the signal (naming why), and when
 its obligation is already satisfied. Repeating it MUST be a no-op. A signal the
 diff or a declaration derives again after its retraction MUST return and
@@ -248,6 +251,16 @@ MUST say how to give the answer.
 - WHEN its retraction is requested
 - THEN it MUST be refused with `signal-confirmed-by-diff`
 - AND `migration-compat-and-test` MUST stay `pending`
+
+#### Scenario: A diff signal the diff no longer derives is retracted
+
+- GIVEN `public-contract` with `source: diff` because the diff touched
+  `src/api/search.js`, and a diff that no longer touches it
+- WHEN `record retract --signal public-contract --reason "the API change was
+  undone"` runs
+- THEN `public-contract` MUST leave `signals` and be listed in `retracted` with
+  `source: diff`
+- AND `contract-spec-and-test` MUST be `withdrawn` with that reason
 
 #### Scenario: The user's answer retracts persistent data the content alone derives
 
