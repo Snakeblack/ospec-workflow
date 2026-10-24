@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.150.5] - 2026-10-24
+
+### Fixed
+- **Cada versión del CHANGELOG tiene tag o dice que no se publicó** (E1.32, OSP-023, #347). No eran tres versiones sin tag, sino nueve. Por decisión del usuario se marcan en lugar de crear tags o Releases a posteriori: una Release vieja dispararía `publish-marketplace` con un build antiguo.
+  - 2.0.0–2.3.0 (incluidas en 2.4.0) y 2.56.8 y 2.57.0 (en 2.58.0) llevan la misma frase que ya tenían 2.117.16–18: «Esta versión no tiene tag ni GitHub Release. El cambio quedó incluido en [X].».
+  - v2.27.0 tenía tag pero no cabecera: el benchmark O2 aparecía como un segundo «Added» dentro de 2.28.0. Ahora tiene su sección.
+  - Se quitan los enlaces `[2.0.0]`–`[2.3.0]`, que apuntaban a tags inexistentes, y `[2.4.0]` enlaza a su Release. `[Unreleased]` sigue comparando `v2.4.5...HEAD`, como defecto aparte.
+  - Un test de `scripts/manifest-sync.test.js` compara las cabeceras con `git tag` en las dos direcciones: cada cabecera, salvo la de `package.json`, que se etiqueta tras el merge, tiene tag o la frase (no las dos), la versión que la incluyó tiene tag, cada tag tiene cabecera y cada enlace nombra tags que existen. Sin tags locales se omite y dice el motivo.
+
+Hecho con IDD (`idd/archive/2026-10-24-changelog-unpublished-tags/`).
+
+**Verificación directa**: `node scripts/check.js` (4017 tests pasando, 0 fallos y 3 omitidos). El test de reproducción falló antes del cambio y pasa después.
+
 ## [2.150.4] - 2026-10-24
 
 ### Fixed
@@ -2381,6 +2394,8 @@ La evidencia de integración de PR #195 y #196 incluye `npm test` (3385/3385 pru
 
 ## [2.57.0] - 2026-09-03
 
+Esta versión no tiene tag ni GitHub Release. El cambio quedó incluido en [2.58.0].
+
 ### Changed
 - **Quality Review Gate (`quality-review-gate`)**: el gate post-verify live pasa de 4R (`risk|reliability|resilience|readability` + `review-change` obligatorio) a cuatro dominios (`trust|runtime|evolution|efficiency`).
   - Identidad canónica v2: `quality-review-gate` en rutas live (`bugfix`/`refactor`/`standard`); `4r-review-gate` solo para linajes schema-v1 e historial archivado; ambas claves en estado mutable fallan cerrado.
@@ -2393,6 +2408,8 @@ La evidencia de integración de PR #195 y #196 incluye `npm test` (3385/3385 pru
   - Archivado en `openspec/changes/archive/2026-09-03-quality-review-gate/`.
 
 ## [2.56.8] - 2026-09-02
+
+Esta versión no tiene tag ni GitHub Release. El cambio quedó incluido en [2.58.0].
 
 ### Added
 - **Telemetría CX0 coverage-aware (`cx0-context-measurement`)**:
@@ -3674,6 +3691,8 @@ La evidencia de integración de PR #195 y #196 incluye `npm test` (3385/3385 pru
 - **Configuración de agentes (Codex target)**: Soporte para la emisión del parámetro `model_verbosity` en los TOML de agentes de Codex, permitiendo el control fino de la verbosidad de salida de los modelos según la configuración de tiers en `models.yaml`.
 - **Reconciliación global de especificaciones (SDD Reconcile)**: Ejecución de la fase de reconciliación global (`sdd-reconcile`) sobre los 8 dominios con desviaciones detectadas (`routing`, `skill-registry`, `install`, `generator`, `hooks`, `skills`, `agents`, `sdd-document`), sincronizando de forma aditiva las especificaciones con los cambios de código y actualizando el registro en `manifest.md`.
 
+## [2.27.0] - 2026-07-14
+
 ### Added
 - **Benchmark de cambios de referencia (O2)**: catálogo canónico de nueve perfiles,
   runner con métricas run-level, identidad fuerte de cache, recuperación offline y
@@ -4136,6 +4155,8 @@ Cambio guiado por SDD con TDD estricto. Verificación: **PASS WITH WARNINGS** (7
 
 ## [2.3.0] - 2026-06-12
 
+Esta versión no tiene tag ni GitHub Release. El cambio quedó incluido en [2.4.0].
+
 ### Fixed
 - Claude target tool grants now match the official Claude Code tools reference.
   The `edit` abstract tool mapped only to `Edit` (modify-existing), so every phase
@@ -4152,6 +4173,8 @@ Cambio guiado por SDD con TDD estricto. Verificación: **PASS WITH WARNINGS** (7
   existing multi-OS validation workflow.
 
 ## [2.2.0] - 2026-06-12
+
+Esta versión no tiene tag ni GitHub Release. El cambio quedó incluido en [2.4.0].
 
 ### Added
 - Multi-target plugin compatibility: a dependency-free generator
@@ -4192,6 +4215,8 @@ Cambio guiado por SDD con TDD estricto. Verificación: **PASS WITH WARNINGS** (7
 
 ## [2.1.0] - 2026-06-11
 
+Esta versión no tiene tag ni GitHub Release. El cambio quedó incluido en [2.4.0].
+
 ### Added
 - Configurable model routing via `profiles/models/{default,cheap,premium}.yaml`;
   agents no longer hardcode a model name.
@@ -4208,6 +4233,8 @@ Cambio guiado por SDD con TDD estricto. Verificación: **PASS WITH WARNINGS** (7
 
 ## [2.0.0] - 2026-06-10
 
+Esta versión no tiene tag ni GitHub Release. El cambio quedó incluido en [2.4.0].
+
 ### Added
 - Spec-Driven Development workflow as a VS Code Agent Plugin: `sdd-orchestrator`
   coordinator plus phase agents (`explore`, `propose`, `spec`, `design`, `tasks`,
@@ -4222,8 +4249,4 @@ Cambio guiado por SDD con TDD estricto. Verificación: **PASS WITH WARNINGS** (7
 [2.4.3]: https://github.com/snakeblack/ospec-workflow/compare/v2.4.2...v2.4.3
 [2.4.2]: https://github.com/snakeblack/ospec-workflow/compare/v2.4.1...v2.4.2
 [2.4.1]: https://github.com/snakeblack/ospec-workflow/compare/v2.4.0...v2.4.1
-[2.4.0]: https://github.com/snakeblack/ospec-workflow/compare/v2.3.0...v2.4.0
-[2.3.0]: https://github.com/snakeblack/ospec-workflow/compare/v2.2.0...v2.3.0
-[2.2.0]: https://github.com/snakeblack/ospec-workflow/compare/v2.1.0...v2.2.0
-[2.1.0]: https://github.com/snakeblack/ospec-workflow/compare/v2.0.0...v2.1.0
-[2.0.0]: https://github.com/snakeblack/ospec-workflow/releases/tag/v2.0.0
+[2.4.0]: https://github.com/snakeblack/ospec-workflow/releases/tag/v2.4.0

@@ -18,6 +18,7 @@
 // before a release can ship.
 
 const assert = require("node:assert/strict");
+const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
@@ -122,6 +123,51 @@ test("release version matches changelog, roadmap, verify report, and tag", () =>
   if (process.env.GITHUB_REF_TYPE === "tag") {
     assert.equal(process.env.GITHUB_REF_NAME, `v${packageVersion}`, "published tag must match package.json");
   }
+});
+
+// OSP-023: a changelog version is either a published tag or says it never was.
+// The package.json version is exempt: its tag is created after the merge.
+const UNPUBLISHED_MARKER = /^Esta versión no tiene tag ni GitHub Release\. El cambio quedó incluido en \[(\d+\.\d+\.\d+)\]\.$/m;
+
+test("every changelog version has a tag or the unpublished marker, and every tag has a version", (t) => {
+  let tags = [];
+  try {
+    tags = execFileSync("git", ["-C", ROOT, "tag", "--list", "v*"], { encoding: "utf8" }).split(/\r?\n/).filter(Boolean);
+  } catch {
+    tags = [];
+  }
+  if (tags.length === 0) {
+    t.skip("no local git tags (shallow clone or git unavailable)");
+    return;
+  }
+  const tagged = new Set(tags.map((tag) => tag.replace(/^v/, "")));
+  const packageVersion = readJson(PACKAGE_JSON).version;
+  const changelogText = fs.readFileSync(CHANGELOG, "utf8");
+  const headers = [...changelogText.matchAll(/^## \[(\d+\.\d+\.\d+)\].*$/gm)];
+  const failures = [];
+
+  headers.forEach((header, i) => {
+    const version = header[1];
+    if (version === packageVersion) return;
+    const end = i + 1 < headers.length ? headers[i + 1].index : changelogText.length;
+    const marker = changelogText.slice(header.index, end).match(UNPUBLISHED_MARKER);
+    if (tagged.has(version) && marker) failures.push(`${version}: tagged but marked as unpublished`);
+    if (!tagged.has(version) && !marker) failures.push(`${version}: no tag v${version} and no unpublished marker (git fetch --tags?)`);
+    if (marker && !tagged.has(marker[1])) failures.push(`${version}: shipped in ${marker[1]}, which has no tag`);
+  });
+
+  const versions = new Set(headers.map((header) => header[1]));
+  for (const version of tagged) {
+    if (/^\d+\.\d+\.\d+$/.test(version) && !versions.has(version)) failures.push(`v${version}: tag without a changelog section`);
+  }
+
+  for (const link of changelogText.matchAll(/^\[[^\]]+\]: (\S+)$/gm)) {
+    for (const ref of link[1].matchAll(/\bv(\d+\.\d+\.\d+)\b/g)) {
+      if (!tagged.has(ref[1])) failures.push(`link ${link[1]}: no tag v${ref[1]}`);
+    }
+  }
+
+  assert.deepEqual(failures, [], `CHANGELOG.md disagrees with git tag:\n${failures.join("\n")}`);
 });
 
 test("canonical specs in openspec/specs/**/spec.md contain valid content and no undefined tokens", () => {
