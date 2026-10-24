@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.150.8] - 2026-10-25
+
+### Fixed
+- **Una señal del diff que el diff ya no deriva se puede retirar** (E1.40, #418, seguimiento de E1.38). Una señal registrada con `source: diff` quedaba sin salida cuando el diff dejaba de derivarla: `retract` la rechazaba por venir del diff, `retract --answer` porque el diff ya no la veía y `withdraw` mientras seguía activa. Ahora `ospec record retract --reason` la retira como a una señal declarada en cuanto el diff contra la base no la deriva, y su obligación queda `withdrawn`. Mientras el diff la deriva se sigue rechazando con `signal-confirmed-by-diff`. El contrato del estado acepta esas retiradas con `source: diff`, y REQ-idd-006 gana su escenario.
+
+Hecho con IDD (`idd/archive/2026-10-24-diff-signal-retract-dead-end/`).
+
+**Verificación directa**: `node scripts/check.js` (4020 tests pasando, 0 fallos y 3 omitidos). Los tests de reproducción de #418, con `persistent-data` y con `public-contract`, fallaron antes del cambio y pasan después.
+
 ## [2.150.7] - 2026-10-24
 
 ### Fixed
