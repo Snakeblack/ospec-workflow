@@ -170,6 +170,13 @@ test("every changelog version has a tag or the unpublished marker, and every tag
   assert.deepEqual(failures, [], `CHANGELOG.md disagrees with git tag:\n${failures.join("\n")}`);
 });
 
+// Nothing updates an [Unreleased] compare link on release, so it goes stale
+// (it compared v2.4.5...HEAD until v2.150.5). The heading stays plain text.
+test("the changelog has no [Unreleased] link definition", () => {
+  const changelogText = fs.readFileSync(CHANGELOG, "utf8");
+  assert.doesNotMatch(changelogText, /^\[Unreleased\]:/im, "CHANGELOG.md must not define an [Unreleased] link");
+});
+
 test("canonical specs in openspec/specs/**/spec.md contain valid content and no undefined tokens", () => {
   const specsDir = path.join(ROOT, "openspec", "specs");
   const domains = fs.readdirSync(specsDir, { withFileTypes: true })

@@ -4243,7 +4243,6 @@ Esta versión no tiene tag ni GitHub Release. El cambio quedó incluido en [2.4.
 - Interactive workflow gates through `vscode/askQuestions`.
 - Strict TDD mode when the project exposes a compatible test runner.
 
-[Unreleased]: https://github.com/snakeblack/ospec-workflow/compare/v2.4.5...HEAD
 [2.4.5]: https://github.com/snakeblack/ospec-workflow/compare/v2.4.4...v2.4.5
 [2.4.4]: https://github.com/snakeblack/ospec-workflow/compare/v2.4.3...v2.4.4
 [2.4.3]: https://github.com/snakeblack/ospec-workflow/compare/v2.4.2...v2.4.3
