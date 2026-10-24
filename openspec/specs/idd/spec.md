@@ -785,7 +785,14 @@ the changed line counts, from a snapshot of the working tree that excludes
 `idd/`) and return the request for the independent `review-trust` reviewer;
 while a review is in progress it MUST return that review instead.
 The request MUST carry a `request_digest` of its lineage, generation,
-candidate tree and paths, and the `result_contract` the result follows.
+candidate tree and paths, and the `result_contract` the result follows. Each
+`result_contract`, this one and the validation one below, MUST name the format
+limits the CLI enforces: `cites` a non-empty list of cites inside the file,
+finding `summary` and `acceptance_criteria` of at most 1000 characters, and for
+a validation `regression.evidence` a non-empty list of strings of at most 500
+characters and `follow_ups` as `{owner, summary}` with a summary of at most 500
+characters. The CLI MUST NOT rewrite a result to fit them, since the result
+digest must match its receipt.
 `ospec review record` MUST refuse with `review-refused`, recording nothing, a
 result without that `request_digest`, or without a `reviewed` array that
 holds, for every path of the request and no other, at least one cite

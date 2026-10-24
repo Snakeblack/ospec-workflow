@@ -1267,9 +1267,12 @@ function lastAssistantText(content) {
  * OSP-029 step 2 (REQ-hooks-027): when review-trust or review-correction ends
  * with a result that carries a request_digest, writes its receipt under
  * .ospec/review-receipts/ for ospec review record and validate. The result
- * comes from the input's result fields, else from the last assistant message
- * of the subagent's own transcript (`agent_transcript_path`): in Claude Code
- * `transcript_path` is the main session's, whose text the main agent writes.
+ * comes from `last_assistant_message` when the host passes it (#415: Claude
+ * Code fires SubagentStop before the transcript holds the final message, so
+ * the transcript is then never read), else from the input's result fields,
+ * else from the last assistant message of the subagent's own transcript
+ * (`agent_transcript_path`): in Claude Code `transcript_path` is the main
+ * session's, whose text the main agent writes.
  * Fail-safe: a failure writes nothing and never alters the hook's output.
  */
 async function persistReviewReceipt({ input, workspace, now }) {
@@ -1277,14 +1280,18 @@ async function persistReviewReceipt({ input, workspace, now }) {
     const agent = resolveCanonicalAgent(resolveAgentName(input));
     if (!Object.hasOwn(RESULT_LISTS, agent)) return null;
     let result = null;
-    for (const field of RESULT_FIELDS) {
-      result = findReviewResult(input?.[field], agent);
-      if (result) break;
-    }
-    if (!result) {
-      const { cleaned, ok } = validatePath(input?.agent_transcript_path);
-      if (!ok) return null;
-      result = findReviewResult(lastAssistantText(await fs.readFile(cleaned, "utf8")), agent);
+    if (typeof input?.last_assistant_message === "string") {
+      result = findReviewResult(input.last_assistant_message, agent);
+    } else {
+      for (const field of RESULT_FIELDS) {
+        result = findReviewResult(input?.[field], agent);
+        if (result) break;
+      }
+      if (!result) {
+        const { cleaned, ok } = validatePath(input?.agent_transcript_path);
+        if (!ok) return null;
+        result = findReviewResult(lastAssistantText(await fs.readFile(cleaned, "utf8")), agent);
+      }
     }
     if (!result) return null;
     const receipt = buildReceipt({ agent, result, recordedAt: resolveTimestamp(input, now) });

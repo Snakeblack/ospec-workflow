@@ -454,3 +454,16 @@ test("the escalated successor counts toward the three reviews of a change", () =
   }), "review-limit");
   assert.strictEqual(currentReview(state).status, "correction-required", "the refused start leaves the last review as it was");
 });
+
+// E1.37 (#415): the result_contract names the format limits the CLI enforces,
+// so a reviewer does not learn them from a refusal it cannot always undo.
+test("each result_contract states the format limits the CLI enforces", () => {
+  const { state, request } = startTrustReview(openAuth(), { candidate: candidate(), reviewedChanged: true });
+  for (const limit of [/cites a non-empty list/, /start <= end <= its line count/, /at most 1000 characters/, /BLOCKER\|CRITICAL\|WARNING\|SUGGESTION/]) {
+    assert.match(request.result_contract, limit);
+  }
+  const { validate } = correct(record(state, [BLOCKER]).state);
+  for (const limit of [/cites a non-empty list/, /evidence: a non-empty list of strings of at most 500 characters/, /\{owner: trust\|runtime\|evolution\|efficiency, summary\}/, /summary of at most 500 characters/]) {
+    assert.match(validate.result_contract, limit);
+  }
+});

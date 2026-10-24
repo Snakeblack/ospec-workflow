@@ -1,0 +1,224 @@
+{
+  "schema": "idd-state/v1",
+  "change": "result-contract-limits",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El result_contract de review-trust y review-correction declara los límites de formato que el CLI ya exige (E1.37, #415)",
+    "acceptance": "El result_contract de review start dice que cites es una lista no vacía de citas dentro del fichero, y los límites de 1000 caracteres de los hallazgos; el de review correct dice que regression.evidence es una lista no vacía de textos de hasta 500 caracteres y la forma {owner, summary} de follow_ups; un test lo comprueba"
+  },
+  "facts": {
+    "basis": "Los límites ya los aplica el código (idd-review.js checkCoverage/checkCite, review-lineage.js normalizeFinding, regression y normalizeFollowUps); el cambio solo los declara. Normalizar en el CLI no vale: cambiaría el digest del resultado frente al recibo de SubagentStop. El usuario eligió hacerlo ahora el 2026-10-24."
+  },
+  "plan": {
+    "paths": [
+      "openspec/specs/idd/spec.md",
+      "scripts/lib/idd-review.js",
+      "scripts/lib/idd-review.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component idd-engine: ADR 0003, 0004, 0005, 0011 and quality scenario deterministic-resume",
+      "source": "declaration"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0003",
+      "impact": "conforms",
+      "reason": "Los límites siguen en código con tests; el contrato solo los declara a quien devuelve el resultado"
+    },
+    {
+      "kind": "adr",
+      "id": "0004",
+      "impact": "none",
+      "reason": "No cambia señales ni obligaciones"
+    },
+    {
+      "kind": "adr",
+      "id": "0005",
+      "impact": "conforms",
+      "reason": "La evidencia frozen-review sigue saliendo solo de un resultado que el CLI comprueba; el texto no relaja ninguna comprobación"
+    },
+    {
+      "kind": "adr",
+      "id": "0011",
+      "impact": "none",
+      "reason": "Solo IDD; no toca el estado de SDD"
+    },
+    {
+      "kind": "scenario",
+      "id": "deterministic-resume",
+      "impact": "none",
+      "reason": "No cambia el estado persistido ni cómo se reanuda"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-2"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-3"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-24T13:44:08.216Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-24T13:45:20.833Z",
+      "detail": {
+        "tree": "sha256:7dd268215274038915f0448aa7a58a1df40b6446732e17bf0d1fd0ad6cfb48f3",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-24T13:45:20.833Z",
+      "detail": {
+        "refs": [
+          "adr:0003 conforms",
+          "adr:0004 none",
+          "adr:0005 conforms",
+          "adr:0011 none",
+          "scenario:deterministic-resume none"
+        ],
+        "records": [],
+        "tree": "sha256:7dd268215274038915f0448aa7a58a1df40b6446732e17bf0d1fd0ad6cfb48f3",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7"
+        ]
+      }
+    }
+  ],
+  "base": "74a1b629580fb0c6cb9fef5755e2a3a3fee6ef67",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"each result_contract states\" scripts/lib/idd-review.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:46307247bf826410bdbbab65656a59e6631bbbdea277f3216102e7906cffb330",
+      "tree": "sha256:095dadd5add862a8342590232f6f36f8434c473c8123d664096e9fc1100c936c",
+      "recorded_at": "2026-10-24T13:43:58.757Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=\"each result_contract states\" scripts/lib/idd-review.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:744ed568f425d9527b756fa77a9e00d98b67eb1e81862a88238ddb669a585919",
+      "tree": "sha256:dc289a70d783ad90fdc8028ccb865ced9d94ef72bf8bbf34adc1d14d84f5f1fc",
+      "recorded_at": "2026-10-24T13:44:08.216Z",
+      "tests": 1
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:d956ad05939b8b625a23f2518a685a827d45a062f919514a8bdaf681152e2645",
+      "tree": "sha256:7dd268215274038915f0448aa7a58a1df40b6446732e17bf0d1fd0ad6cfb48f3",
+      "recorded_at": "2026-10-24T13:45:20.833Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0004",
+      "command": "node --test scripts/lib/idd-signals.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:366803bc95d6378e41400c75c44c73ba43f98c428b687b8b25eb3e519dc99312",
+      "tree": "sha256:7dd268215274038915f0448aa7a58a1df40b6446732e17bf0d1fd0ad6cfb48f3",
+      "recorded_at": "2026-10-24T13:45:20.833Z",
+      "tests": 42
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0005",
+      "command": "node --test scripts/lib/idd-close.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:bfbfa434f297a60711eaef1cc7d065f5c8ccb72ff6e47f4ce99f44bc952cb157",
+      "tree": "sha256:7dd268215274038915f0448aa7a58a1df40b6446732e17bf0d1fd0ad6cfb48f3",
+      "recorded_at": "2026-10-24T13:45:20.833Z",
+      "tests": 12
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0011",
+      "command": "node --test scripts/lib/idd-store.test.js scripts/lib/ospec-state.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0f6a8978aed6eafecc8ea5fef8f8edd1a6854f06790839c5284f5c32a5772a55",
+      "tree": "sha256:7dd268215274038915f0448aa7a58a1df40b6446732e17bf0d1fd0ad6cfb48f3",
+      "recorded_at": "2026-10-24T13:45:20.833Z",
+      "tests": 79
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:deterministic-resume",
+      "command": "node --test scripts/lib/idd-next.test.js scripts/lib/idd-store.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:af7cd19c54a6a3aabe533382f674573dfd1b21abc96895598190262ae5248f7b",
+      "tree": "sha256:7dd268215274038915f0448aa7a58a1df40b6446732e17bf0d1fd0ad6cfb48f3",
+      "recorded_at": "2026-10-24T13:45:20.833Z",
+      "tests": 38
+    }
+  ],
+  "closed_at": "2026-10-24T13:45:22.732Z"
+}
