@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.150.5] - 2026-10-24
+
+### Fixed
+- **Cada versión del CHANGELOG tiene tag o dice que no se publicó** (E1.32, OSP-023, #347). No eran tres versiones sin tag, sino nueve. Por decisión del usuario se marcan en lugar de crear tags o Releases a posteriori: una Release vieja dispararía `publish-marketplace` con un build antiguo.
+  - 2.0.0–2.3.0 (incluidas en 2.4.0) y 2.56.8 y 2.57.0 (en 2.58.0) llevan la misma frase que ya tenían 2.117.16–18: «Esta versión no tiene tag ni GitHub Release. El cambio quedó incluido en [X].».
+  - v2.27.0 tenía tag pero no cabecera: el benchmark O2 aparecía como un segundo «Added» dentro de 2.28.0. Ahora tiene su sección.
+  - Se quitan los enlaces `[2.0.0]`–`[2.3.0]`, que apuntaban a tags inexistentes, y `[2.4.0]` enlaza a su Release. `[Unreleased]` sigue comparando `v2.4.5...HEAD`, como defecto aparte.
+  - Un test de `scripts/manifest-sync.test.js` compara las cabeceras con `git tag` en las dos direcciones: cada cabecera, salvo la de `package.json`, que se etiqueta tras el merge, tiene tag o la frase (no las dos), la versión que la incluyó tiene tag, cada tag tiene cabecera y cada enlace nombra tags que existen. Sin tags locales se omite y dice el motivo.
+
+Hecho con IDD (`idd/archive/2026-10-24-changelog-unpublished-tags/`).
+
+**Verificación directa**: `node scripts/check.js` (4017 tests pasando, 0 fallos y 3 omitidos). El test de reproducción falló antes del cambio y pasa después.
+
 ## [2.150.4] - 2026-10-24
 
 ### Fixed
