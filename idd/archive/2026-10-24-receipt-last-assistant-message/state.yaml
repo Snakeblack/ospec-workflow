@@ -1,0 +1,561 @@
+{
+  "schema": "idd-state/v1",
+  "change": "receipt-last-assistant-message",
+  "mode": "idd",
+  "status": "closed",
+  "intent": {
+    "kind": "bug",
+    "summary": "El recibo de trust-review se escribe desde last_assistant_message y no desde una transcripción a medio escribir (#415)",
+    "acceptance": "Un revisor reanudado deja un recibo con el digest de su respuesta corregida; un revisor nuevo deja su recibo aunque la transcripción no tenga su último mensaje; un test reproduce la carrera"
+  },
+  "facts": {
+    "basis": "El usuario decidió el 2026-10-24: solo se arregla la causa (leer last_assistant_message, sin transcripción cuando el campo existe), sin diagnóstico nuevo, sin salida extra en review record; el Go no escribe recibos"
+  },
+  "plan": {
+    "paths": [
+      "openspec/specs/hooks/spec.md",
+      "scripts/hooks/subagent-stop.js",
+      "scripts/hooks/subagent-stop.test.js",
+      "scripts/lib/review-receipt.test.js"
+    ],
+    "work_units": 1,
+    "decision": false,
+    "operations": []
+  },
+  "signals": [
+    {
+      "id": "always",
+      "reason": "every change with a resolved intent",
+      "source": "declaration"
+    },
+    {
+      "id": "bug-fix",
+      "reason": "the intent is a bug fix",
+      "source": "declaration"
+    },
+    {
+      "id": "security-boundary",
+      "reason": "security boundary: touches scripts/hooks/subagent-stop.js and 1 more (matches scripts/hooks/**)",
+      "source": "declaration"
+    },
+    {
+      "id": "adr-or-quality-attribute",
+      "reason": "component hooks: ADR 0008, 0010 and quality scenario guard-fail-closed",
+      "source": "declaration"
+    },
+    {
+      "id": "persistent-data",
+      "reason": "persistent data: scripts/hooks/subagent-stop.js imports scripts/lib/atomic-write.js, which uses writeFile",
+      "source": "diff"
+    }
+  ],
+  "impacts": [
+    {
+      "kind": "adr",
+      "id": "0008",
+      "impact": "conforms",
+      "reason": "El recibo es trazabilidad, no un guard de seguridad: sigue fallando abierto (fail-safe) y no cambia la salida del hook"
+    },
+    {
+      "kind": "adr",
+      "id": "0010",
+      "impact": "conforms",
+      "reason": "Solo lee un campo más de la entrada del host; no añade dependencias ni cambia el reparto Node/Go del hook"
+    },
+    {
+      "kind": "scenario",
+      "id": "guard-fail-closed",
+      "impact": "none",
+      "reason": "No toca ningún guard que deniegue: el recibo solo informa a review record"
+    },
+    {
+      "kind": "adr",
+      "id": "0007",
+      "impact": "conforms",
+      "reason": "No toca el linaje ni su reducer: el recibo solo atestigua el último resultado que devolvió el revisor, y review record lo sigue congelando una vez"
+    }
+  ],
+  "obligations": [
+    {
+      "id": "checks-pass",
+      "signal": "always",
+      "status": "satisfied",
+      "evidence": [
+        "ev-6"
+      ]
+    },
+    {
+      "id": "repro-test",
+      "signal": "bug-fix",
+      "status": "satisfied",
+      "evidence": [
+        "ev-1"
+      ]
+    },
+    {
+      "id": "trust-review",
+      "signal": "security-boundary",
+      "status": "satisfied",
+      "evidence": [
+        "ev-8"
+      ]
+    },
+    {
+      "id": "adr-impact-declaration",
+      "signal": "adr-or-quality-attribute",
+      "status": "satisfied",
+      "evidence": [
+        "ev-7"
+      ]
+    },
+    {
+      "id": "migration-compat-and-test",
+      "signal": "persistent-data",
+      "status": "satisfied",
+      "evidence": [
+        "ev-4"
+      ]
+    }
+  ],
+  "gates": [],
+  "evidence": [
+    {
+      "id": "ev-1",
+      "kind": "repro-run-pair",
+      "obligation": "repro-test",
+      "recorded_at": "2026-10-24T11:10:41.026Z",
+      "detail": {
+        "red": "run-1",
+        "green": "run-2"
+      }
+    },
+    {
+      "id": "ev-2",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-24T11:12:03.479Z",
+      "detail": {
+        "tree": "sha256:65b15d109f7c825ecf9cc386619713aafaddc9739943d6f1079dca933ffd2801",
+        "runs": [
+          "run-3"
+        ]
+      }
+    },
+    {
+      "id": "ev-3",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-24T11:12:03.479Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed none"
+        ],
+        "records": [],
+        "tree": "sha256:65b15d109f7c825ecf9cc386619713aafaddc9739943d6f1079dca933ffd2801",
+        "fitness": [
+          "run-4",
+          "run-5",
+          "run-6",
+          "run-7"
+        ]
+      }
+    },
+    {
+      "id": "ev-4",
+      "kind": "migration-test",
+      "obligation": "migration-compat-and-test",
+      "recorded_at": "2026-10-24T11:12:24.802Z",
+      "detail": {
+        "run": "run-8",
+        "tree": "sha256:ed7bdbad1aea9006f709b25a2fb87e14481e2dbdf1a0f8470c8116a568b621ba",
+        "plan": "Sin migración: el esquema ospec-review-receipt/v1 y la ruta .ospec/review-receipts/<hex>.json no cambian, así que un recibo escrito antes se sigue leyendo; solo cambia de dónde sale el resultado. Rollback: revertir el commit; los recibos escritos siguen siendo v1 válidos."
+      }
+    },
+    {
+      "id": "ev-5",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-24T11:13:32.995Z",
+      "detail": {
+        "tree": "sha256:b9f7da4d06fe187d43d2ac35e8131cbbabca0fb1d3117ab295316a5861b1912e",
+        "runs": [
+          "run-9"
+        ]
+      }
+    },
+    {
+      "id": "ev-6",
+      "kind": "check-run",
+      "obligation": "checks-pass",
+      "recorded_at": "2026-10-24T11:14:42.817Z",
+      "detail": {
+        "tree": "sha256:b9f7da4d06fe187d43d2ac35e8131cbbabca0fb1d3117ab295316a5861b1912e",
+        "runs": [
+          "run-15"
+        ]
+      }
+    },
+    {
+      "id": "ev-7",
+      "kind": "adr-impact-declaration",
+      "obligation": "adr-impact-declaration",
+      "recorded_at": "2026-10-24T11:14:42.817Z",
+      "detail": {
+        "refs": [
+          "adr:0008 conforms",
+          "adr:0010 conforms",
+          "scenario:guard-fail-closed none",
+          "adr:0007 conforms"
+        ],
+        "records": [],
+        "tree": "sha256:b9f7da4d06fe187d43d2ac35e8131cbbabca0fb1d3117ab295316a5861b1912e",
+        "fitness": [
+          "run-16",
+          "run-17",
+          "run-18",
+          "run-19",
+          "run-20"
+        ]
+      }
+    },
+    {
+      "id": "ev-8",
+      "kind": "frozen-review",
+      "obligation": "trust-review",
+      "recorded_at": "2026-10-24T11:15:33.631Z",
+      "detail": {
+        "lineage_id": "sha256:d8ba6e128f1f5f72df4a7bea9d62b45ce7efed2ec611f25fb9b92a39b84b988b",
+        "candidate_id": "sha256:bc8f129549163ad144971c8bae362264a8aa92d21b87dd0ede91078a20b16b7e",
+        "candidate_tree": "52049d05300710642b12b0741894d5094057f9dc",
+        "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+        "attestation": "relayed"
+      }
+    }
+  ],
+  "base": "19e9cac6ebfda1fbc5c0cf27a30b05d7b9311c25",
+  "runs": [
+    {
+      "id": "run-1",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=last_assistant_message scripts/hooks/subagent-stop.test.js",
+      "exit_code": 1,
+      "output_sha256": "sha256:3bb8a017ccde0b4af7f495f85687de0265a4b02496b720c32b2385d44296f674",
+      "tree": "sha256:38a96d3932222cfe45254659cc7c82c6f54a86c4a92db79bb862b308f4ca3271",
+      "recorded_at": "2026-10-24T11:10:21.048Z"
+    },
+    {
+      "id": "run-2",
+      "purpose": "repro-test",
+      "command": "node --test --test-name-pattern=last_assistant_message scripts/hooks/subagent-stop.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:a9d006fe17b7520253bf4f850fa4fc7d8087bfdc2abd4f97011a15b0fb680a85",
+      "tree": "sha256:4f1ae4fe39ecf4404caeaba2c9ef0d27370707182a4a002af1d8c16fcd6cae82",
+      "recorded_at": "2026-10-24T11:10:41.026Z",
+      "tests": 3
+    },
+    {
+      "id": "run-3",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:1be8e472e936ad1b015ed6deeb429e5ede4abfc7ea4c3d4209af890f7c5ecd4e",
+      "tree": "sha256:65b15d109f7c825ecf9cc386619713aafaddc9739943d6f1079dca933ffd2801",
+      "recorded_at": "2026-10-24T11:12:03.479Z"
+    },
+    {
+      "id": "run-4",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:cfb13f3a0f6e2c80fd1ab063dd43d0167754cc2cb26ad14e1b9c47ae7f696162",
+      "tree": "sha256:65b15d109f7c825ecf9cc386619713aafaddc9739943d6f1079dca933ffd2801",
+      "recorded_at": "2026-10-24T11:12:03.479Z",
+      "tests": 81
+    },
+    {
+      "id": "run-5",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:65b15d109f7c825ecf9cc386619713aafaddc9739943d6f1079dca933ffd2801",
+      "recorded_at": "2026-10-24T11:12:03.479Z"
+    },
+    {
+      "id": "run-6",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:94144ee31864548a692dca7ae57ccc5ce2d4bf39d9fa31daba4b22684823130e",
+      "tree": "sha256:65b15d109f7c825ecf9cc386619713aafaddc9739943d6f1079dca933ffd2801",
+      "recorded_at": "2026-10-24T11:12:03.479Z",
+      "tests": 16
+    },
+    {
+      "id": "run-7",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:83aadc33dea6aa74ec84663d52a264cf80504a0bbaebe4b06a72b73c2b40502e",
+      "tree": "sha256:65b15d109f7c825ecf9cc386619713aafaddc9739943d6f1079dca933ffd2801",
+      "recorded_at": "2026-10-24T11:12:03.479Z",
+      "tests": 81
+    },
+    {
+      "id": "run-8",
+      "purpose": "migration-test",
+      "command": "node --test scripts/lib/review-receipt.test.js scripts/hooks/subagent-stop.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4f3036ddc1709c84f1b7db5941898f25eef73b645b63f66e2313e61e356e9a93",
+      "tree": "sha256:ed7bdbad1aea9006f709b25a2fb87e14481e2dbdf1a0f8470c8116a568b621ba",
+      "recorded_at": "2026-10-24T11:12:24.802Z",
+      "tests": 92
+    },
+    {
+      "id": "run-9",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0a50802203c0ff6da699e383c08e6ebfe28afa150dc2c96ead941f63f473e3dc",
+      "tree": "sha256:b9f7da4d06fe187d43d2ac35e8131cbbabca0fb1d3117ab295316a5861b1912e",
+      "recorded_at": "2026-10-24T11:13:32.995Z"
+    },
+    {
+      "id": "run-10",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:4275b0faf1aef0b12fe71a2786e4d0d625fa80e71289fd9e49dfbea2f01a47ec",
+      "tree": "sha256:b9f7da4d06fe187d43d2ac35e8131cbbabca0fb1d3117ab295316a5861b1912e",
+      "recorded_at": "2026-10-24T11:13:32.995Z",
+      "tests": 81
+    },
+    {
+      "id": "run-11",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:b9f7da4d06fe187d43d2ac35e8131cbbabca0fb1d3117ab295316a5861b1912e",
+      "recorded_at": "2026-10-24T11:13:32.995Z"
+    },
+    {
+      "id": "run-12",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:84834e5155e8ed1a2a5b865697d80466d61b481809493286fd23219eff424e01",
+      "tree": "sha256:b9f7da4d06fe187d43d2ac35e8131cbbabca0fb1d3117ab295316a5861b1912e",
+      "recorded_at": "2026-10-24T11:13:32.995Z",
+      "tests": 16
+    },
+    {
+      "id": "run-13",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:765cf3458021f0d2070eeb68211eaa26f482acd72ad6ce75b59f3881af061f8f",
+      "tree": "sha256:b9f7da4d06fe187d43d2ac35e8131cbbabca0fb1d3117ab295316a5861b1912e",
+      "recorded_at": "2026-10-24T11:13:32.995Z",
+      "tests": 81
+    },
+    {
+      "id": "run-14",
+      "purpose": "fitness",
+      "ref": "adr:0007",
+      "command": "node --test scripts/review-lineage.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:2eb6d26a2a57e830164d8391d88ad061e998972ebfcffbc6564e9d57ae9a5bb0",
+      "tree": "sha256:b9f7da4d06fe187d43d2ac35e8131cbbabca0fb1d3117ab295316a5861b1912e",
+      "recorded_at": "2026-10-24T11:13:32.995Z",
+      "tests": 32
+    },
+    {
+      "id": "run-15",
+      "purpose": "checks",
+      "name": "test",
+      "command": "node scripts/check.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b09abfff129aad3e6c893b6dfa5e5dec94ce797ceb1e04b4c2e333cbdb4a6fa4",
+      "tree": "sha256:b9f7da4d06fe187d43d2ac35e8131cbbabca0fb1d3117ab295316a5861b1912e",
+      "recorded_at": "2026-10-24T11:14:42.817Z"
+    },
+    {
+      "id": "run-16",
+      "purpose": "fitness",
+      "ref": "adr:0008",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:0e5993caacfaaf17d0ab880a6813a02e092fbdd23a3daff7ec706740cae7b85f",
+      "tree": "sha256:b9f7da4d06fe187d43d2ac35e8131cbbabca0fb1d3117ab295316a5861b1912e",
+      "recorded_at": "2026-10-24T11:14:42.817Z",
+      "tests": 81
+    },
+    {
+      "id": "run-17",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node -e \"process.exit(Object.keys(require('./package.json').dependencies || {}).length)\"",
+      "exit_code": 0,
+      "output_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tree": "sha256:b9f7da4d06fe187d43d2ac35e8131cbbabca0fb1d3117ab295316a5861b1912e",
+      "recorded_at": "2026-10-24T11:14:42.817Z"
+    },
+    {
+      "id": "run-18",
+      "purpose": "fitness",
+      "ref": "adr:0010",
+      "command": "node --test scripts/hooks/parity-contract.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:b95323fc92c843f7cc503ea3321b585cb08ecb188adc735ae47dc6ca867e5a88",
+      "tree": "sha256:b9f7da4d06fe187d43d2ac35e8131cbbabca0fb1d3117ab295316a5861b1912e",
+      "recorded_at": "2026-10-24T11:14:42.817Z",
+      "tests": 16
+    },
+    {
+      "id": "run-19",
+      "purpose": "fitness",
+      "ref": "scenario:guard-fail-closed",
+      "command": "node --test scripts/hooks/lib/staged-validator.integration.test.js scripts/hooks/pre-tool-use.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:ef689881f20e0fbab3a572c4a085137c0c03c7e96ac29a2cb467b5826330f3fc",
+      "tree": "sha256:b9f7da4d06fe187d43d2ac35e8131cbbabca0fb1d3117ab295316a5861b1912e",
+      "recorded_at": "2026-10-24T11:14:42.817Z",
+      "tests": 81
+    },
+    {
+      "id": "run-20",
+      "purpose": "fitness",
+      "ref": "adr:0007",
+      "command": "node --test scripts/review-lineage.test.js",
+      "exit_code": 0,
+      "output_sha256": "sha256:c515ca8cb9b842fb794c62946964671923642ea092f93efa9e6532c0f8568734",
+      "tree": "sha256:b9f7da4d06fe187d43d2ac35e8131cbbabca0fb1d3117ab295316a5861b1912e",
+      "recorded_at": "2026-10-24T11:14:42.817Z",
+      "tests": 32
+    }
+  ],
+  "reviews": [
+    {
+      "schema_version": 2,
+      "lineage_id": "sha256:d8ba6e128f1f5f72df4a7bea9d62b45ce7efed2ec611f25fb9b92a39b84b988b",
+      "generation": 1,
+      "predecessor_lineage_id": null,
+      "migration": null,
+      "recovery": null,
+      "revision": 3,
+      "status": "approved",
+      "genesis": {
+        "candidate": {
+          "projection": "idd-tree-diff/v1",
+          "base_tree": "dc2570842f7b08565c6756bc6a4992d935d04367",
+          "candidate_tree": "52049d05300710642b12b0741894d5094057f9dc",
+          "paths": [
+            "openspec/specs/hooks/spec.md",
+            "scripts/hooks/subagent-stop.js",
+            "scripts/hooks/subagent-stop.test.js",
+            "scripts/lib/review-receipt.test.js"
+          ],
+          "diff_hash": "sha256:38c40f5041d62ac85dc2606785c3958b82112247cf9166767f0ce94511d3f064",
+          "paths_digest": "sha256:9f74f4f10eb578f31840227fff8658e33b402e78d1046f57ed8014fefc435132",
+          "authored_lines": 64,
+          "original_changed_lines": 77
+        },
+        "candidate_id": "sha256:bc8f129549163ad144971c8bae362264a8aa92d21b87dd0ede91078a20b16b7e",
+        "paths": [
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/subagent-stop.js",
+          "scripts/hooks/subagent-stop.test.js",
+          "scripts/lib/review-receipt.test.js"
+        ],
+        "classification": "high-risk",
+        "selected_domains": [
+          "trust"
+        ],
+        "evidence_fingerprint": "52049d05300710642b12b0741894d5094057f9dc",
+        "original_changed_lines": 77,
+        "authored_lines": 64
+      },
+      "current_candidate_id": "sha256:bc8f129549163ad144971c8bae362264a8aa92d21b87dd0ede91078a20b16b7e",
+      "current_candidate": {
+        "projection": "idd-tree-diff/v1",
+        "base_tree": "dc2570842f7b08565c6756bc6a4992d935d04367",
+        "candidate_tree": "52049d05300710642b12b0741894d5094057f9dc",
+        "paths": [
+          "openspec/specs/hooks/spec.md",
+          "scripts/hooks/subagent-stop.js",
+          "scripts/hooks/subagent-stop.test.js",
+          "scripts/lib/review-receipt.test.js"
+        ],
+        "diff_hash": "sha256:38c40f5041d62ac85dc2606785c3958b82112247cf9166767f0ce94511d3f064",
+        "paths_digest": "sha256:9f74f4f10eb578f31840227fff8658e33b402e78d1046f57ed8014fefc435132",
+        "authored_lines": 64,
+        "original_changed_lines": 77
+      },
+      "lenses": {
+        "trust": {
+          "selected": true,
+          "status": "completed",
+          "request_id": "receipt-last-assistant-message:lens-start:1:0",
+          "result_digest": "sha256:0fa38eeaca8882e0d194fd5ba5d8378917d98e795204f8f7a9dfdb78f111f3cc",
+          "result": {
+            "findings": []
+          },
+          "operation": null,
+          "result_request_id": "receipt-last-assistant-message:lens-result:1:1"
+        },
+        "runtime": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "evolution": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        },
+        "efficiency": {
+          "selected": false,
+          "status": "skipped",
+          "request_id": null,
+          "result_digest": null,
+          "result": null,
+          "operation": null
+        }
+      },
+      "findings": [],
+      "findings_digest": "sha256:4d59fd4aa8eefff6dbf7cd085cc100ee928217573658f8bbc301aa4a3f1adc0f",
+      "correction_budget": {
+        "limit_lines": 39,
+        "used_lines": 0,
+        "failed_attempts": 0,
+        "max_failed_attempts": 3
+      },
+      "correction_history": [],
+      "validation_history": [],
+      "follow_ups": [],
+      "pending_operation": null,
+      "pending_correction": null,
+      "terminal_reason": "no-unresolved-blocking-findings"
+    }
+  ],
+  "closed_at": "2026-10-24T11:15:40.160Z"
+}
