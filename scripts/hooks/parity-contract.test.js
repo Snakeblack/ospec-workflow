@@ -30,6 +30,28 @@ test('the complete JS rule table matches the JSON embedded by Go', () => {
   assert.equal(js.length, 19);
   assert.deepEqual(js, go);
 });
+// The Go engine replaces every character outside ASCII but whitespace with one
+// placeholder (internal/rules/rules.go), so a pattern may tell them apart from
+// ASCII only, never from each other: no literal, \u escape or \x escape above
+// \x7f.
+test('no rule pattern tells apart two characters outside ASCII', () => {
+  const { DENY_RULES, ASK_RULES } = require('./pre-tool-use.js');
+  for (const { pattern } of [...DENY_RULES, ...ASK_RULES]) {
+    assert.match(pattern.source, /^[\x00-\x7f]*$/);
+    assert.doesNotMatch(pattern.source, /\\u|\\x[89a-f]/i);
+  }
+});
+test('the shared non-ASCII corpus gets the decision the Go suite expects', () => {
+  const { DENY_RULES, ASK_RULES } = require('./pre-tool-use.js');
+  const corpus = JSON.parse(fs.readFileSync(path.join(ROOT, 'internal/rules/testdata/unicode-corpus.json'), 'utf8'));
+  for (const { why, command, decision, reason } of corpus) {
+    const deny = DENY_RULES.find(({ pattern }) => pattern.test(command));
+    const ask = deny ? undefined : ASK_RULES.find(({ pattern }) => pattern.test(command));
+    const actual = deny ? 'deny' : ask ? 'ask' : 'allow';
+    assert.equal(actual, decision, `${JSON.stringify(command)}: ${why}`);
+    if (reason) assert.equal((deny ?? ask).reason, reason, JSON.stringify(command));
+  }
+});
 const ACTIVE_PHASE_COST_EXPECTED = {
   phase: "design",
   agent: "sdd-design",

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.150.9] - 2026-10-25
+
+### Fixed
+- **Los motores JS y Go de las reglas de seguridad deciden lo mismo con caracteres no ASCII** (E1.41, seguimiento de E1.39). El binario Go compilaba las 19 reglas DENY/ASK con regexp2 sin opciones, donde `\w`, `\d`, `\s` y `\b` son Unicode y `IgnoreCase` pliega la K Kelvin y la `İ` sobre `k` e `i`; el hook JS las lee en ASCII. La misma orden podía decidirse distinto en cada motor: Go denegaba `runas /user:CORP\Zoë "format D:"` y JS la dejaba pasar, y JS denegaba `ärm -rf /` y Go la dejaba pasar. Ahora Go compila con `regexp2.ECMAScript` y evalúa sobre una vista en la que cada carácter no ASCII que no sea espacio de JS pasa a U+FFFD, porque `ECMAScript` sola dejaba `\b` Unicode y el plegado. Ningún patrón distingue dos caracteres no ASCII entre sí, y un test lo exige, así que la decisión coincide con cualquier entrada. La regla de disco reconoce nombres con letras no ASCII (`/user:CORP\Zoë`, `Zoë=1`, `$vär=`) y los deniega en los dos motores. Las órdenes escritas con `İ`, la K Kelvin o dígitos no ASCII en lugar de sus equivalentes ASCII ya no se deniegan en Go, igual que en JS.
+
+Hecho con IDD (`idd/archive/2026-10-24-rules-engine-unicode-parity/`).
+
+**Verificación directa**: `node scripts/check.js` (4022 tests pasando, 0 fallos y 3 omitidos), `go vet ./...` y `go test ./...`. Un corpus compartido de 37 órdenes (`internal/rules/testdata/unicode-corpus.json`) falló en Go antes del cambio y pasa en las dos suites después. Una comparación aleatoria de 40 000 órdenes dio 0 diferencias de decisión y de motivo entre JS y Go.
+
 ## [2.150.8] - 2026-10-25
 
 ### Fixed
