@@ -7,6 +7,7 @@ const path = require("node:path");
 const test = require("node:test");
 
 const {
+  DENY_RULES,
   evaluateToolUse,
   extractCommands,
   isShellTool,
@@ -316,9 +317,171 @@ test("the disk rule lets formatter subcommands and function signatures through",
     "bun run format D:/src",
     'cmd /c "if not exist dotnet format C: /q /y"',
     "if defined npm format D:",
-    "cmd /c dotnet format C:\\repo\\app.sln",
   ]) {
     assert.equal(decisionFor(command).permissionDecision, "deny", command);
+  }
+});
+
+test("the disk rule denies format only as the command, not as a word (#407)", () => {
+  // A clean feature branch keeps the git guard out of the `git commit` case.
+  const cleanBranch = makeGitStubRunner({
+    "symbolic-ref": "origin/main",
+    "--show-current": "fix/x",
+    "--porcelain": "",
+  });
+  for (const command of [
+    "rg format C:\\src",
+    'git commit -m "no ejecutar format C: nunca"',
+    "Get-Process | Format-Table Name > C:\\tmp\\p.txt",
+    "ls C:\\ | Format-Table -AutoSize > C:\\out.txt",
+    "sudo dotnet format C:\\repo",
+    "cmd /c dotnet format C:\\repo\\app.sln",
+    [
+      "gh issue create --body \"$(cat <<'EOF'",
+      "Se deniegan:",
+      "- `rg format C:\\src`",
+      '- `git commit -m "no ejecutar format C: nunca"`',
+      "- `Get-Process | Format-Table Name > C:\\tmp\\p.txt`",
+      "- `ls C:\\ | Format-Table -AutoSize > C:\\out.txt`",
+      "- `sudo dotnet format C:\\repo`",
+      "EOF",
+      ")\"",
+    ].join("\n"),
+    "C:\\Windows\\System32\\cmd.exe /c dotnet format C:\\repo",
+    'git commit -m "docs: call format C: safe"',
+    "gh issue create --body \"$(cat <<'EOF'\n1. `rg format C:\\src`\n2) format C: no se toca\n- format C: es un ejemplo\nEOF\n)\"",
+    "prettier --write format D:/x",
+    "git log -5 format C:",
+    'Start-Process dotnet -ArgumentList "format C:\\repo"',
+    "NODE_ENV=test dotnet format C:\\repo",
+    "MSYS_NO_PATHCONV=1 cmd //c dotnet format C:\\repo",
+  ]) {
+    assert.equal(gitGuardDecision("runTerminalCommand", command, cleanBranch).permissionDecision, null, command);
+  }
+
+  for (const command of [
+    "sudo format D:",
+    "sudo -n format D:",
+    "sudo -u root format D:",
+    "doas format D:",
+    "start format D:",
+    'start "" /wait format D:',
+    "call format D:",
+    "& format D:",
+    "& \"format\" D:",
+    "cmd /k format D:",
+    "env format D:",
+    "exec format D:",
+    "nohup format D:",
+    "time format D:",
+    'powershell -c "format D:"',
+    "pwsh -Command 'format D:'",
+    'bash -c "format C:"',
+    "sh -c 'format C:'",
+    'iex "format D:"',
+    "Invoke-Expression 'format D:'",
+    "{ format D: }",
+    "echo `format D:`",
+    "format.exe D:",
+    "C:/Windows/System32/format.com D:",
+    'git commit -m "arreglo; format C: nunca"',
+    "cat <<EOF | cmd\nformat D: /q\nEOF",
+    // Wrappers with a path, a variable or quotes.
+    "C:\\Windows\\System32\\cmd.exe /c format D:",
+    "%ComSpec% /c format D:",
+    "& $env:ComSpec /c format D:",
+    "%SystemRoot%\\System32\\cmd.exe /c format D:",
+    '/bin/bash -c "format C:"',
+    "/usr/bin/sudo format D:",
+    "/usr/bin/env format D:",
+    '& "C:\\Windows\\System32\\cmd.exe" /c format D:',
+    '"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -c "format D:"',
+    '"C:\\Program Files (x86)\\PowerShell\\7\\pwsh.exe" -c "format D:"',
+    // Launchers, their flags and shell keywords.
+    'powershell -NoProfile -ExecutionPolicy Bypass -c "format D:"',
+    "Start-Process cmd -ArgumentList '/c format D:'",
+    'Start-Process -FilePath cmd.exe -ArgumentList "/c format D:"',
+    "Start-Process -FilePath format -ArgumentList 'D:'",
+    'Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile -Command format D:"',
+    "Start-Process cmd -ArgumentList '/c','format D:'",
+    "Start-Process cmd -ArgumentList @('/c', 'format D:')",
+    'cmd /c"format D:"',
+    'cmd /c "C:\\Windows\\System32\\format.com D: /q"',
+    'if "%x%"=="1" format D:',
+    'start "" cmd /c format D:',
+    "gsudo.exe format D:",
+    "npx.cmd format D:",
+    "env.exe format D:",
+    "C:\\Tools\\timeout.exe 5 format D:",
+    // Git Bash prefixes and flags, and launcher orders PowerShell and cmd accept.
+    "MSYS_NO_PATHCONV=1 cmd /c format D:",
+    'cmd //c "format D:"',
+    'Start-Process cmd -WindowStyle Hidden -ArgumentList "/c format D:"',
+    'start /wait "" format D:',
+    "Start-Process powershell -ArgumentList '-NoProfile','-Command','format D:'",
+    'pwsh -WindowStyle Hidden -c "format D:"',
+    "env A=1 B=2 format D:",
+    'eval "format D:"',
+    "xargs format D:",
+    "xargs -P 4 -n 1 format D:",
+    "command format D:",
+    "timeout 5 format D:",
+    "timeout -s KILL 1.5m format D:",
+    "nice -n 10 format D:",
+    'runas /user:admin "format D:"',
+    "wsl cmd.exe /c format D:",
+    "env -u X format D:",
+    "gsudo format D:",
+    "npx -y format D:",
+    "for i in 1; do format D:; done",
+    "if true; then format D:; fi",
+    "if x; then y; else format D:; fi",
+    "! format D:",
+    "@format D:",
+  ]) {
+    assert.equal(decisionFor(command).permissionDecision, "deny", command);
+  }
+});
+
+test("the disk rule stays linear on adversarial commands", () => {
+  const disk = DENY_RULES.find(({ reason }) => reason.startsWith("Formatting or clearing a disk"));
+  const n = 5000;
+  for (const command of [
+    "sudo " + "-u ".repeat(n),
+    "sudo " + "-u sudo ".repeat(n),
+    "pwsh " + "-ep sudo ".repeat(n),
+    "if a=========b ".repeat(n),
+    "sudo -u x;".repeat(n),
+    'sudo "a/b/sudo" '.repeat(n),
+    'sudo""'.repeat(n),
+    '"a(/pwsh x)/pwsh '.repeat(n),
+    "/a".repeat(n) + "/sudo y",
+    "env " + "A=1 ".repeat(n),
+    "(format x ".repeat(n),
+    "format x -ArgumentList ".repeat(n),
+    // Each of these once had two readings per repetition.
+    'sudo -u a"'.repeat(n),
+    'pwsh -ep x"'.repeat(n),
+    'env A=b"'.repeat(n),
+    '"/sudo /sudo" '.repeat(n),
+    "/sudo ".repeat(n),
+    "-ArgumentList ".repeat(n),
+    'start "" '.repeat(n),
+    "sudo -u a,sudo ".repeat(n),
+    "A=1C:\\a\\env ".repeat(n),
+    // A long word that once rescanned the target at every slash.
+    "format/".repeat(n),
+    "A=1 ".repeat(n),
+    "//c ".repeat(n),
+    "pwsh -WindowStyle x ".repeat(n),
+    '"" '.repeat(n),
+    "-ArgumentList '-a',".repeat(n),
+  ]) {
+    const started = process.hrtime.bigint();
+    assert.equal(disk.pattern.test(command), false, command.slice(0, 40));
+    assert.ok(process.hrtime.bigint() - started < 1_000_000_000n, `slow: ${command.slice(0, 40)}`);
+    // A real format after the adversarial prefix is still denied.
+    assert.equal(disk.pattern.test(`${command}; format D:`), true, command.slice(0, 40));
   }
 });
 
